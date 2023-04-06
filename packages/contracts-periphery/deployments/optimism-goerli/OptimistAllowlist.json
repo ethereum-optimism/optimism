@@ -1,0 +1,232 @@
+{
+  "address": "0x29cc43964978c054b357E51E6949dDb1671DA408",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "contract AttestationStation",
+          "name": "_attestationStation",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_allowlistAttestor",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_coinbaseQuestAttestor",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_optimistInviter",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "ALLOWLIST_ATTESTOR",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "ATTESTATION_STATION",
+      "outputs": [
+        {
+          "internalType": "contract AttestationStation",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "COINBASE_QUEST_ATTESTOR",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "OPTIMIST_CAN_MINT_ATTESTATION_KEY",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "OPTIMIST_INVITER",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_claimer",
+          "type": "address"
+        }
+      ],
+      "name": "isAllowedToMint",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "version",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0x94de4ffc0a27be2e084e59b3498218a77cf6db8cf053f8ed18e357ad01543c46",
+  "receipt": {
+    "to": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "from": "0x9C6373dE60c2D3297b18A8f964618ac46E011B58",
+    "contractAddress": null,
+    "transactionIndex": 1,
+    "gasUsed": "568770",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0xc5342d9f4dfd1930ab03b5417bfd1b8c9c29be0c4fed56ca14e551681ca99d6f",
+    "transactionHash": "0x94de4ffc0a27be2e084e59b3498218a77cf6db8cf053f8ed18e357ad01543c46",
+    "logs": [],
+    "blockNumber": 7691580,
+    "cumulativeGasUsed": "615683",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [
+    "0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77",
+    "0x8F0EBDaA1cF7106bE861753B0f9F5c0250fE0819",
+    "0x8F0EBDaA1cF7106bE861753B0f9F5c0250fE0819",
+    "0x073031A1E1b8F5458Ed41Ce56331F5fd7e1de929"
+  ],
+  "numDeployments": 1,
+  "solcInputHash": "d7155764d4bdb814f10e1bb45296292b",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"contract AttestationStation\",\"name\":\"_attestationStation\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_allowlistAttestor\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_coinbaseQuestAttestor\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_optimistInviter\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[],\"name\":\"ALLOWLIST_ATTESTOR\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"ATTESTATION_STATION\",\"outputs\":[{\"internalType\":\"contract AttestationStation\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"COINBASE_QUEST_ATTESTOR\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"OPTIMIST_CAN_MINT_ATTESTATION_KEY\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"OPTIMIST_INVITER\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_claimer\",\"type\":\"address\"}],\"name\":\"isAllowedToMint\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"constructor\":{\"custom:semver\":\"1.0.0\",\"params\":{\"_allowlistAttestor\":\"Address of the allowlist attestor.\",\"_attestationStation\":\"Address of the AttestationStation contract.\",\"_coinbaseQuestAttestor\":\"Address of the Coinbase Quest attestor.\",\"_optimistInviter\":\"Address of the OptimistInviter contract.\"}},\"isAllowedToMint(address)\":{\"params\":{\"_claimer\":\"Address to check.\"},\"returns\":{\"_0\":\"Whether or not the address is allowed to mint yet.\"}},\"version()\":{\"returns\":{\"_0\":\"Semver contract version as a string.\"}}},\"title\":\"OptimistAllowlist\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"ALLOWLIST_ATTESTOR()\":{\"notice\":\"Attestor that issues 'optimist.can-mint' attestations.\"},\"ATTESTATION_STATION()\":{\"notice\":\"Address of the AttestationStation contract.\"},\"COINBASE_QUEST_ATTESTOR()\":{\"notice\":\"Attestor that issues 'coinbase.quest-eligible' attestations.\"},\"COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY()\":{\"notice\":\"Attestation key used by Coinbase to issue attestations for Quest participants.\"},\"OPTIMIST_CAN_MINT_ATTESTATION_KEY()\":{\"notice\":\"Attestation key used by the AllowlistAttestor to manually add addresses to the         allowlist.\"},\"OPTIMIST_INVITER()\":{\"notice\":\"Address of OptimistInviter contract that issues 'optimist.can-mint-from-invite'         attestations.\"},\"isAllowedToMint(address)\":{\"notice\":\"Checks whether a given address is allowed to mint the Optimist NFT yet. Since the         Optimist NFT will also be used as part of the Citizens House, mints are currently         restricted. Eventually anyone will be able to mint.         Currently, address is allowed to mint if it satisfies any of the following:         1) Has a valid 'optimist.can-mint' attestation from the allowlist attestor.         2) Has a valid 'coinbase.quest-eligible' attestation from Coinbase Quest attestor         3) Has a valid 'optimist.can-mint-from-invite' attestation from the OptimistInviter            contract.\"},\"version()\":{\"notice\":\"Returns the full semver contract version.\"}},\"notice\":\"Source of truth for whether an address is able to mint an Optimist NFT. isAllowedToMint function checks various signals to return boolean value for whether an address is eligible or not.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/universal/op-nft/OptimistAllowlist.sol\":\"OptimistAllowlist\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":10000},\"remappings\":[]},\"sources\":{\"@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.0;\\n\\nimport { Strings } from \\\"@openzeppelin/contracts/utils/Strings.sol\\\";\\n\\n/**\\n * @title Semver\\n * @notice Semver is a simple contract for managing contract versions.\\n */\\ncontract Semver {\\n    /**\\n     * @notice Contract version number (major).\\n     */\\n    uint256 private immutable MAJOR_VERSION;\\n\\n    /**\\n     * @notice Contract version number (minor).\\n     */\\n    uint256 private immutable MINOR_VERSION;\\n\\n    /**\\n     * @notice Contract version number (patch).\\n     */\\n    uint256 private immutable PATCH_VERSION;\\n\\n    /**\\n     * @param _major Version number (major).\\n     * @param _minor Version number (minor).\\n     * @param _patch Version number (patch).\\n     */\\n    constructor(\\n        uint256 _major,\\n        uint256 _minor,\\n        uint256 _patch\\n    ) {\\n        MAJOR_VERSION = _major;\\n        MINOR_VERSION = _minor;\\n        PATCH_VERSION = _patch;\\n    }\\n\\n    /**\\n     * @notice Returns the full semver contract version.\\n     *\\n     * @return Semver contract version as a string.\\n     */\\n    function version() public view returns (string memory) {\\n        return\\n            string(\\n                abi.encodePacked(\\n                    Strings.toString(MAJOR_VERSION),\\n                    \\\".\\\",\\n                    Strings.toString(MINOR_VERSION),\\n                    \\\".\\\",\\n                    Strings.toString(PATCH_VERSION)\\n                )\\n            );\\n    }\\n}\\n\",\"keccak256\":\"0x400059d3edb9efc9c23e6fbc18de6710f9235a4ffba4ab23bdb9f825273f093b\",\"license\":\"MIT\"},\"@openzeppelin/contracts/utils/Strings.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n// OpenZeppelin Contracts (last updated v4.7.0) (utils/Strings.sol)\\n\\npragma solidity ^0.8.0;\\n\\n/**\\n * @dev String operations.\\n */\\nlibrary Strings {\\n    bytes16 private constant _HEX_SYMBOLS = \\\"0123456789abcdef\\\";\\n    uint8 private constant _ADDRESS_LENGTH = 20;\\n\\n    /**\\n     * @dev Converts a `uint256` to its ASCII `string` decimal representation.\\n     */\\n    function toString(uint256 value) internal pure returns (string memory) {\\n        // Inspired by OraclizeAPI's implementation - MIT licence\\n        // https://github.com/oraclize/ethereum-api/blob/b42146b063c7d6ee1358846c198246239e9360e8/oraclizeAPI_0.4.25.sol\\n\\n        if (value == 0) {\\n            return \\\"0\\\";\\n        }\\n        uint256 temp = value;\\n        uint256 digits;\\n        while (temp != 0) {\\n            digits++;\\n            temp /= 10;\\n        }\\n        bytes memory buffer = new bytes(digits);\\n        while (value != 0) {\\n            digits -= 1;\\n            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));\\n            value /= 10;\\n        }\\n        return string(buffer);\\n    }\\n\\n    /**\\n     * @dev Converts a `uint256` to its ASCII `string` hexadecimal representation.\\n     */\\n    function toHexString(uint256 value) internal pure returns (string memory) {\\n        if (value == 0) {\\n            return \\\"0x00\\\";\\n        }\\n        uint256 temp = value;\\n        uint256 length = 0;\\n        while (temp != 0) {\\n            length++;\\n            temp >>= 8;\\n        }\\n        return toHexString(value, length);\\n    }\\n\\n    /**\\n     * @dev Converts a `uint256` to its ASCII `string` hexadecimal representation with fixed length.\\n     */\\n    function toHexString(uint256 value, uint256 length) internal pure returns (string memory) {\\n        bytes memory buffer = new bytes(2 * length + 2);\\n        buffer[0] = \\\"0\\\";\\n        buffer[1] = \\\"x\\\";\\n        for (uint256 i = 2 * length + 1; i > 1; --i) {\\n            buffer[i] = _HEX_SYMBOLS[value & 0xf];\\n            value >>= 4;\\n        }\\n        require(value == 0, \\\"Strings: hex length insufficient\\\");\\n        return string(buffer);\\n    }\\n\\n    /**\\n     * @dev Converts an `address` with fixed length of 20 bytes to its not checksummed ASCII `string` hexadecimal representation.\\n     */\\n    function toHexString(address addr) internal pure returns (string memory) {\\n        return toHexString(uint256(uint160(addr)), _ADDRESS_LENGTH);\\n    }\\n}\\n\",\"keccak256\":\"0xaf159a8b1923ad2a26d516089bceca9bdeaeacd04be50983ea00ba63070f08a3\",\"license\":\"MIT\"},\"contracts/universal/op-nft/AttestationStation.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity 0.8.15;\\n\\nimport { Semver } from \\\"@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol\\\";\\n\\n/**\\n * @title AttestationStation\\n * @author Optimism Collective\\n * @author Gitcoin\\n * @notice Where attestations live.\\n */\\ncontract AttestationStation is Semver {\\n    /**\\n     * @notice Struct representing data that is being attested.\\n     *\\n     * @custom:field about Address for which the attestation is about.\\n     * @custom:field key   A bytes32 key for the attestation.\\n     * @custom:field val   The attestation as arbitrary bytes.\\n     */\\n    struct AttestationData {\\n        address about;\\n        bytes32 key;\\n        bytes val;\\n    }\\n\\n    /**\\n     * @notice Maps addresses to attestations. Creator => About => Key => Value.\\n     */\\n    mapping(address => mapping(address => mapping(bytes32 => bytes))) public attestations;\\n\\n    /**\\n     * @notice Emitted when Attestation is created.\\n     *\\n     * @param creator Address that made the attestation.\\n     * @param about   Address attestation is about.\\n     * @param key     Key of the attestation.\\n     * @param val     Value of the attestation.\\n     */\\n    event AttestationCreated(\\n        address indexed creator,\\n        address indexed about,\\n        bytes32 indexed key,\\n        bytes val\\n    );\\n\\n    /**\\n     * @custom:semver 1.1.0\\n     */\\n    constructor() Semver(1, 1, 0) {}\\n\\n    /**\\n     * @notice Allows anyone to create an attestation.\\n     *\\n     * @param _about Address that the attestation is about.\\n     * @param _key   A key used to namespace the attestation.\\n     * @param _val   An arbitrary value stored as part of the attestation.\\n     */\\n    function attest(\\n        address _about,\\n        bytes32 _key,\\n        bytes memory _val\\n    ) public {\\n        attestations[msg.sender][_about][_key] = _val;\\n\\n        emit AttestationCreated(msg.sender, _about, _key, _val);\\n    }\\n\\n    /**\\n     * @notice Allows anyone to create attestations.\\n     *\\n     * @param _attestations An array of AttestationData structs.\\n     */\\n    function attest(AttestationData[] calldata _attestations) external {\\n        uint256 length = _attestations.length;\\n        for (uint256 i = 0; i < length; ) {\\n            AttestationData memory attestation = _attestations[i];\\n\\n            attest(attestation.about, attestation.key, attestation.val);\\n\\n            unchecked {\\n                ++i;\\n            }\\n        }\\n    }\\n}\\n\",\"keccak256\":\"0x421923e04df145353db12cd0352ccf516d9c29ab64b138733b4f7a6a450ce2be\",\"license\":\"MIT\"},\"contracts/universal/op-nft/OptimistAllowlist.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity 0.8.15;\\n\\nimport { Semver } from \\\"@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol\\\";\\nimport { AttestationStation } from \\\"./AttestationStation.sol\\\";\\nimport { OptimistConstants } from \\\"./libraries/OptimistConstants.sol\\\";\\n\\n/**\\n * @title  OptimistAllowlist\\n * @notice Source of truth for whether an address is able to mint an Optimist NFT.\\n           isAllowedToMint function checks various signals to return boolean value for whether an\\n           address is eligible or not.\\n */\\ncontract OptimistAllowlist is Semver {\\n    /**\\n     * @notice Attestation key used by the AllowlistAttestor to manually add addresses to the\\n     *         allowlist.\\n     */\\n    bytes32 public constant OPTIMIST_CAN_MINT_ATTESTATION_KEY = bytes32(\\\"optimist.can-mint\\\");\\n\\n    /**\\n     * @notice Attestation key used by Coinbase to issue attestations for Quest participants.\\n     */\\n    bytes32 public constant COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY =\\n        bytes32(\\\"coinbase.quest-eligible\\\");\\n\\n    /**\\n     * @notice Address of the AttestationStation contract.\\n     */\\n    AttestationStation public immutable ATTESTATION_STATION;\\n\\n    /**\\n     * @notice Attestor that issues 'optimist.can-mint' attestations.\\n     */\\n    address public immutable ALLOWLIST_ATTESTOR;\\n\\n    /**\\n     * @notice Attestor that issues 'coinbase.quest-eligible' attestations.\\n     */\\n    address public immutable COINBASE_QUEST_ATTESTOR;\\n\\n    /**\\n     * @notice Address of OptimistInviter contract that issues 'optimist.can-mint-from-invite'\\n     *         attestations.\\n     */\\n    address public immutable OPTIMIST_INVITER;\\n\\n    /**\\n     * @custom:semver 1.0.0\\n     *\\n     * @param _attestationStation    Address of the AttestationStation contract.\\n     * @param _allowlistAttestor     Address of the allowlist attestor.\\n     * @param _coinbaseQuestAttestor Address of the Coinbase Quest attestor.\\n     * @param _optimistInviter       Address of the OptimistInviter contract.\\n     */\\n    constructor(\\n        AttestationStation _attestationStation,\\n        address _allowlistAttestor,\\n        address _coinbaseQuestAttestor,\\n        address _optimistInviter\\n    ) Semver(1, 0, 0) {\\n        ATTESTATION_STATION = _attestationStation;\\n        ALLOWLIST_ATTESTOR = _allowlistAttestor;\\n        COINBASE_QUEST_ATTESTOR = _coinbaseQuestAttestor;\\n        OPTIMIST_INVITER = _optimistInviter;\\n    }\\n\\n    /**\\n     * @notice Checks whether a given address is allowed to mint the Optimist NFT yet. Since the\\n     *         Optimist NFT will also be used as part of the Citizens House, mints are currently\\n     *         restricted. Eventually anyone will be able to mint.\\n     *\\n     *         Currently, address is allowed to mint if it satisfies any of the following:\\n     *         1) Has a valid 'optimist.can-mint' attestation from the allowlist attestor.\\n     *         2) Has a valid 'coinbase.quest-eligible' attestation from Coinbase Quest attestor\\n     *         3) Has a valid 'optimist.can-mint-from-invite' attestation from the OptimistInviter\\n     *            contract.\\n     *\\n     * @param _claimer Address to check.\\n     *\\n     * @return Whether or not the address is allowed to mint yet.\\n     */\\n    function isAllowedToMint(address _claimer) public view returns (bool) {\\n        return\\n            _hasAttestationFromAllowlistAttestor(_claimer) ||\\n            _hasAttestationFromCoinbaseQuestAttestor(_claimer) ||\\n            _hasAttestationFromOptimistInviter(_claimer);\\n    }\\n\\n    /**\\n     * @notice Checks whether an address has a valid 'optimist.can-mint' attestation from the\\n     *         allowlist attestor.\\n     *\\n     * @param _claimer Address to check.\\n     *\\n     * @return Whether or not the address has a valid attestation.\\n     */\\n    function _hasAttestationFromAllowlistAttestor(address _claimer) internal view returns (bool) {\\n        // Expected attestation value is bytes32(\\\"true\\\")\\n        return\\n            _hasValidAttestation(ALLOWLIST_ATTESTOR, _claimer, OPTIMIST_CAN_MINT_ATTESTATION_KEY);\\n    }\\n\\n    /**\\n     * @notice Checks whether an address has a valid attestation from the Coinbase attestor.\\n     *\\n     * @param _claimer Address to check.\\n     *\\n     * @return Whether or not the address has a valid attestation.\\n     */\\n    function _hasAttestationFromCoinbaseQuestAttestor(address _claimer)\\n        internal\\n        view\\n        returns (bool)\\n    {\\n        // Expected attestation value is bytes32(\\\"true\\\")\\n        return\\n            _hasValidAttestation(\\n                COINBASE_QUEST_ATTESTOR,\\n                _claimer,\\n                COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY\\n            );\\n    }\\n\\n    /**\\n     * @notice Checks whether an address has a valid attestation from the OptimistInviter contract.\\n     *\\n     * @param _claimer Address to check.\\n     *\\n     * @return Whether or not the address has a valid attestation.\\n     */\\n    function _hasAttestationFromOptimistInviter(address _claimer) internal view returns (bool) {\\n        // Expected attestation value is the inviter's address\\n        return\\n            _hasValidAttestation(\\n                OPTIMIST_INVITER,\\n                _claimer,\\n                OptimistConstants.OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY\\n            );\\n    }\\n\\n    /**\\n     * @notice Checks whether an address has a valid truthy attestation.\\n     *         Any attestation val other than bytes32(\\\"\\\") is considered truthy.\\n     *\\n     * @param _creator Address that made the attestation.\\n     * @param _about   Address attestation is about.\\n     * @param _key     Key of the attestation.\\n     *\\n     * @return Whether or not the address has a valid truthy attestation.\\n     */\\n    function _hasValidAttestation(\\n        address _creator,\\n        address _about,\\n        bytes32 _key\\n    ) internal view returns (bool) {\\n        return ATTESTATION_STATION.attestations(_creator, _about, _key).length > 0;\\n    }\\n}\\n\",\"keccak256\":\"0xd36a677571450d2d9be832beb80e5c37481fcdfc355e6a9b929ac9c8d4966ca0\",\"license\":\"MIT\"},\"contracts/universal/op-nft/libraries/OptimistConstants.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity 0.8.15;\\n\\n/**\\n * @title  OptimistConstants\\n * @notice Library for storing Optimist related constants that are shared in multiple contracts.\\n */\\n\\nlibrary OptimistConstants {\\n    /**\\n     * @notice Attestation key issued by OptimistInviter allowing the attested account to mint.\\n     */\\n    bytes32 internal constant OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY =\\n        bytes32(\\\"optimist.can-mint-from-invite\\\");\\n}\\n\",\"keccak256\":\"0x6eebe1db87f8a5de79bf8af9120e5b0cc6a9b51d8d86e6461cdb6bc52a1dde21\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x61016060405234801561001157600080fd5b50604051610a9d380380610a9d8339810160408190526100309161007c565b6001608052600060a081905260c0526001600160a01b0393841660e0529183166101005282166101205216610140526100db565b6001600160a01b038116811461007957600080fd5b50565b6000806000806080858703121561009257600080fd5b845161009d81610064565b60208601519094506100ae81610064565b60408601519093506100bf81610064565b60608601519092506100d081610064565b939692955090935050565b60805160a05160c05160e05161010051610120516101405161094d6101506000396000818161011b015261035a0152600081816092015261030d01526000818161019e01526102c001526000818161017701526105360152600061026f015260006102460152600061021d015261094d6000f3fe608060405234801561001057600080fd5b50600436106100885760003560e01c8063819f7e841161005b578063819f7e841461013d578063db083d7114610172578063db3c316314610199578063e7bd804e146101c057600080fd5b80633ac52df71461008d5780634813d8a6146100de57806354fd4d50146101015780635e4f489a14610116575b600080fd5b6100b47f000000000000000000000000000000000000000000000000000000000000000081565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b6100f16100ec3660046105cd565b6101e7565b60405190151581526020016100d5565b610109610216565b6040516100d5919061063a565b6100b47f000000000000000000000000000000000000000000000000000000000000000081565b6101647f636f696e626173652e71756573742d656c696769626c6500000000000000000081565b6040519081526020016100d5565b6100b47f000000000000000000000000000000000000000000000000000000000000000081565b6100b47f000000000000000000000000000000000000000000000000000000000000000081565b6101647f6f7074696d6973742e63616e2d6d696e7400000000000000000000000000000081565b60006101f2826102b9565b80610201575061020182610306565b80610210575061021082610353565b92915050565b60606102417f00000000000000000000000000000000000000000000000000000000000000006103a0565b61026a7f00000000000000000000000000000000000000000000000000000000000000006103a0565b6102937f00000000000000000000000000000000000000000000000000000000000000006103a0565b6040516020016102a59392919061068b565b604051602081830303815290604052905090565b60006102107f0000000000000000000000000000000000000000000000000000000000000000837f6f7074696d6973742e63616e2d6d696e740000000000000000000000000000006104dd565b60006102107f0000000000000000000000000000000000000000000000000000000000000000837f636f696e626173652e71756573742d656c696769626c650000000000000000006104dd565b60006102107f0000000000000000000000000000000000000000000000000000000000000000837f6f7074696d6973742e63616e2d6d696e742d66726f6d2d696e766974650000006104dd565b6060816000036103e357505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b811561040d57806103f781610730565b91506104069050600a83610797565b91506103e7565b60008167ffffffffffffffff811115610428576104286107ab565b6040519080825280601f01601f191660200182016040528015610452576020820181803683370190505b5090505b84156104d5576104676001836107da565b9150610474600a866107f1565b61047f906030610805565b60f81b8183815181106104945761049461081d565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a9053506104ce600a86610797565b9450610456565b949350505050565b6040517f29b42cb500000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff848116600483015283811660248301526044820183905260009182917f000000000000000000000000000000000000000000000000000000000000000016906329b42cb590606401600060405180830381865afa15801561057d573d6000803e3d6000fd5b505050506040513d6000823e601f3d9081017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01682016040526105c3919081019061084c565b5111949350505050565b6000602082840312156105df57600080fd5b813573ffffffffffffffffffffffffffffffffffffffff8116811461060357600080fd5b9392505050565b60005b8381101561062557818101518382015260200161060d565b83811115610634576000848401525b50505050565b602081526000825180602084015261065981604085016020870161060a565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169190910160400192915050565b6000845161069d81846020890161060a565b80830190507f2e0000000000000000000000000000000000000000000000000000000000000080825285516106d9816001850160208a0161060a565b600192019182015283516106f481600284016020880161060a565b0160020195945050505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361076157610761610701565b5060010190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b6000826107a6576107a6610768565b500490565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6000828210156107ec576107ec610701565b500390565b60008261080057610800610768565b500690565b6000821982111561081857610818610701565b500190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b60006020828403121561085e57600080fd5b815167ffffffffffffffff8082111561087657600080fd5b818401915084601f83011261088a57600080fd5b81518181111561089c5761089c6107ab565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f011681019083821181831017156108e2576108e26107ab565b816040528281528760208487010111156108fb57600080fd5b61090c83602083016020880161060a565b97965050505050505056fea2646970667358221220f7c9eee125b4662acd39871c7f71fd0d6635d58d3d0d2d059a8c8bb16ba6d74564736f6c634300080f0033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b50600436106100885760003560e01c8063819f7e841161005b578063819f7e841461013d578063db083d7114610172578063db3c316314610199578063e7bd804e146101c057600080fd5b80633ac52df71461008d5780634813d8a6146100de57806354fd4d50146101015780635e4f489a14610116575b600080fd5b6100b47f000000000000000000000000000000000000000000000000000000000000000081565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b6100f16100ec3660046105cd565b6101e7565b60405190151581526020016100d5565b610109610216565b6040516100d5919061063a565b6100b47f000000000000000000000000000000000000000000000000000000000000000081565b6101647f636f696e626173652e71756573742d656c696769626c6500000000000000000081565b6040519081526020016100d5565b6100b47f000000000000000000000000000000000000000000000000000000000000000081565b6100b47f000000000000000000000000000000000000000000000000000000000000000081565b6101647f6f7074696d6973742e63616e2d6d696e7400000000000000000000000000000081565b60006101f2826102b9565b80610201575061020182610306565b80610210575061021082610353565b92915050565b60606102417f00000000000000000000000000000000000000000000000000000000000000006103a0565b61026a7f00000000000000000000000000000000000000000000000000000000000000006103a0565b6102937f00000000000000000000000000000000000000000000000000000000000000006103a0565b6040516020016102a59392919061068b565b604051602081830303815290604052905090565b60006102107f0000000000000000000000000000000000000000000000000000000000000000837f6f7074696d6973742e63616e2d6d696e740000000000000000000000000000006104dd565b60006102107f0000000000000000000000000000000000000000000000000000000000000000837f636f696e626173652e71756573742d656c696769626c650000000000000000006104dd565b60006102107f0000000000000000000000000000000000000000000000000000000000000000837f6f7074696d6973742e63616e2d6d696e742d66726f6d2d696e766974650000006104dd565b6060816000036103e357505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b811561040d57806103f781610730565b91506104069050600a83610797565b91506103e7565b60008167ffffffffffffffff811115610428576104286107ab565b6040519080825280601f01601f191660200182016040528015610452576020820181803683370190505b5090505b84156104d5576104676001836107da565b9150610474600a866107f1565b61047f906030610805565b60f81b8183815181106104945761049461081d565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a9053506104ce600a86610797565b9450610456565b949350505050565b6040517f29b42cb500000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff848116600483015283811660248301526044820183905260009182917f000000000000000000000000000000000000000000000000000000000000000016906329b42cb590606401600060405180830381865afa15801561057d573d6000803e3d6000fd5b505050506040513d6000823e601f3d9081017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01682016040526105c3919081019061084c565b5111949350505050565b6000602082840312156105df57600080fd5b813573ffffffffffffffffffffffffffffffffffffffff8116811461060357600080fd5b9392505050565b60005b8381101561062557818101518382015260200161060d565b83811115610634576000848401525b50505050565b602081526000825180602084015261065981604085016020870161060a565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169190910160400192915050565b6000845161069d81846020890161060a565b80830190507f2e0000000000000000000000000000000000000000000000000000000000000080825285516106d9816001850160208a0161060a565b600192019182015283516106f481600284016020880161060a565b0160020195945050505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361076157610761610701565b5060010190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b6000826107a6576107a6610768565b500490565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6000828210156107ec576107ec610701565b500390565b60008261080057610800610768565b500690565b6000821982111561081857610818610701565b500190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b60006020828403121561085e57600080fd5b815167ffffffffffffffff8082111561087657600080fd5b818401915084601f83011261088a57600080fd5b81518181111561089c5761089c6107ab565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f011681019083821181831017156108e2576108e26107ab565b816040528281528760208487010111156108fb57600080fd5b61090c83602083016020880161060a565b97965050505050505056fea2646970667358221220f7c9eee125b4662acd39871c7f71fd0d6635d58d3d0d2d059a8c8bb16ba6d74564736f6c634300080f0033",
+  "devdoc": {
+    "kind": "dev",
+    "methods": {
+      "constructor": {
+        "custom:semver": "1.0.0",
+        "params": {
+          "_allowlistAttestor": "Address of the allowlist attestor.",
+          "_attestationStation": "Address of the AttestationStation contract.",
+          "_coinbaseQuestAttestor": "Address of the Coinbase Quest attestor.",
+          "_optimistInviter": "Address of the OptimistInviter contract."
+        }
+      },
+      "isAllowedToMint(address)": {
+        "params": {
+          "_claimer": "Address to check."
+        },
+        "returns": {
+          "_0": "Whether or not the address is allowed to mint yet."
+        }
+      },
+      "version()": {
+        "returns": {
+          "_0": "Semver contract version as a string."
+        }
+      }
+    },
+    "title": "OptimistAllowlist",
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {
+      "ALLOWLIST_ATTESTOR()": {
+        "notice": "Attestor that issues 'optimist.can-mint' attestations."
+      },
+      "ATTESTATION_STATION()": {
+        "notice": "Address of the AttestationStation contract."
+      },
+      "COINBASE_QUEST_ATTESTOR()": {
+        "notice": "Attestor that issues 'coinbase.quest-eligible' attestations."
+      },
+      "COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY()": {
+        "notice": "Attestation key used by Coinbase to issue attestations for Quest participants."
+      },
+      "OPTIMIST_CAN_MINT_ATTESTATION_KEY()": {
+        "notice": "Attestation key used by the AllowlistAttestor to manually add addresses to the         allowlist."
+      },
+      "OPTIMIST_INVITER()": {
+        "notice": "Address of OptimistInviter contract that issues 'optimist.can-mint-from-invite'         attestations."
+      },
+      "isAllowedToMint(address)": {
+        "notice": "Checks whether a given address is allowed to mint the Optimist NFT yet. Since the         Optimist NFT will also be used as part of the Citizens House, mints are currently         restricted. Eventually anyone will be able to mint.         Currently, address is allowed to mint if it satisfies any of the following:         1) Has a valid 'optimist.can-mint' attestation from the allowlist attestor.         2) Has a valid 'coinbase.quest-eligible' attestation from Coinbase Quest attestor         3) Has a valid 'optimist.can-mint-from-invite' attestation from the OptimistInviter            contract."
+      },
+      "version()": {
+        "notice": "Returns the full semver contract version."
+      }
+    },
+    "notice": "Source of truth for whether an address is able to mint an Optimist NFT. isAllowedToMint function checks various signals to return boolean value for whether an address is eligible or not.",
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [],
+    "types": null
+  }
+}
