@@ -589,9 +589,10 @@ func TestSystemMockP2P(t *testing.T) {
 	}
 
 	cfg := DefaultSystemConfig(t)
-	// slow down L1 blocks so we can see the L2 blocks arrive well before the L1 blocks do.
-	// Keep the seq window small so the L2 chain is started quick
-	cfg.DeployConfig.L1BlockTime = 10
+	// Disable batcher, so we don't sync from L1
+	cfg.DisableBatcher = true
+	// disable at the start, so we don't miss any gossiped blocks.
+	cfg.Nodes["sequencer"].Driver.SequencerStopped = true
 
 	// connect the nodes
 	cfg.P2PTopology = map[string][]string{
@@ -612,6 +613,11 @@ func TestSystemMockP2P(t *testing.T) {
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
+
+	// Enable the sequencer now that everyone is ready to receive payloads.
+	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["sequencer"].HTTPEndpoint())
+	require.Nil(t, err)
+	require.NoError(t, rollupRPCClient.Call(nil, "admin_startSequencer", sys.L2GenesisCfg.ToBlock().Hash()))
 
 	l2Seq := sys.Clients["sequencer"]
 	l2Verif := sys.Clients["verifier"]
@@ -634,11 +640,11 @@ func TestSystemMockP2P(t *testing.T) {
 	require.Nil(t, err, "Sending L2 tx to sequencer")
 
 	// Wait for tx to be mined on the L2 sequencer chain
-	receiptSeq, err := waitForTransaction(tx.Hash(), l2Seq, 6*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
+	receiptSeq, err := waitForTransaction(tx.Hash(), l2Seq, 10*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
 	// Wait until the block it was first included in shows up in the safe chain on the verifier
-	receiptVerif, err := waitForTransaction(tx.Hash(), l2Verif, 6*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
+	receiptVerif, err := waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on verifier")
 
 	require.Equal(t, receiptSeq, receiptVerif)

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -168,10 +169,14 @@ func main() {
 
 			var block *types.Block
 			tag := config.L1StartingBlockTag
-			if tag.BlockNumber != nil {
-				block, err = l1Client.BlockByNumber(context.Background(), big.NewInt(tag.BlockNumber.Int64()))
-			} else if tag.BlockHash != nil {
-				block, err = l1Client.BlockByHash(context.Background(), *tag.BlockHash)
+			if tag == nil {
+				return errors.New("l1StartingBlockTag cannot be nil")
+			}
+			log.Info("Using L1 Starting Block Tag", "tag", tag.String())
+			if number, isNumber := tag.Number(); isNumber {
+				block, err = l1Client.BlockByNumber(context.Background(), big.NewInt(number.Int64()))
+			} else if hash, isHash := tag.Hash(); isHash {
+				block, err = l1Client.BlockByHash(context.Background(), hash)
 			} else {
 				return fmt.Errorf("invalid l1StartingBlockTag in deploy config: %v", tag)
 			}
