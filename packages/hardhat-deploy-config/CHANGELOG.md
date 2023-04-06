@@ -1,5 +1,11 @@
 # @eth-optimism/hardhat-deploy-config
 
+## 0.2.6
+
+### Patch Changes
+
+- 5cf646bab: Add getter for other network's deploy config
+
 ## 0.2.5
 
 ### Patch Changes
