@@ -8,8 +8,8 @@
 - [Terminology](#terminology)
 - [Event and Response Lifecycle](#event-and-response-lifecycle)
   - [`GameType.FAULT`](#gametypefault)
-  - [`GameType.VALIDITY`](#gametypevalidity)
   - [`GameType.ATTESTATION`](#gametypeattestation)
+  - [`GameType.VALIDITY`](#gametypevalidity)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -20,7 +20,7 @@ the L2 on the data availability layer. It is responsible for challenging these i
 and ensuring the correctness of all finalized claims on the data availability layer.
 
 The Challenger agent is intended to be ran as a permissionless service by participants of the network
-alongside an [rollup-node](./rollup-node.md). Challenger agents will be rewarded in the form of the
+alongside a [rollup-node](./rollup-node.md). Challenger agents will be rewarded in the form of the
 bond attached to the claims they disprove.
 
 ## Terminology
@@ -44,25 +44,26 @@ played. For more information on the separate types of dispute games, see the
 
 ### `GameType.FAULT`
 
-**TODO**
+> **Warning**  
+> The `FAULT` game type is not yet implemented. In the first iteration of Optimism's decentralization effort,
+> challengers will respond to `ATTESTATION` games only.
 
-### `GameType.VALIDITY`
-
-**TODO**
+**Events and Responses**
+*TODO*
 
 ### `GameType.ATTESTATION`
 
 **Events and Responses**
 
 - [`L2OutputOracle.OutputProposed`](../packages/contracts-bedrock/contracts/L1/L2OutputOracle.sol#L57-70)
-  The L2OutputOracle contract emits this event when a new output is proposed on the data availability
+  The `L2OutputOracle` contract emits this event when a new output is proposed on the data availability
   layer. Each time an output is proposed, the Challenger should check to see if the output is equal
   the output given by the `optimism_outputAtBlock` endpoint of their `rollup-node`.
   - If it is, the Challenger should do nothing to challenge this output proposal.
   - If it is not, the Challenger should respond by creating a new `DisputeGame` with the
     `DisputeGameType.ATTESTATION` `gameType`, the correct output root as the `rootClaim`, and the abi-encoded
     `l2BlockNumber` of the correct output root as the `extraData`.
-- `DisputeGameFactory.DisputeGameCreated` - A new dispute game has been created and is ready to be reviewed. The
+- `DisputeGameFactory.DisputeGameCreated` A new dispute game has been created and is ready to be reviewed. The
   Challenger agent should listen for this event and check if the `rootClaim` of the `AttestationDisputeGame`
   created by the `DisputeGameFactory` is equal to the output root of their `rollup-node` at the game's `l2BlockNumber`.
   - If it is, the Challenger should sign the [EIP-712 typeHash](./dispute-game.md) of the struct containing the
@@ -73,3 +74,15 @@ played. For more information on the separate types of dispute games, see the
 A full diagram and lifecycle of the Challenger's role in the `ATTESTATION` game type can be found below:
 
 ![Attestation Diagram](./assets/challenger_attestation.png)
+
+### `GameType.VALIDITY`
+
+**TODO**
+
+> **Warning**  
+> The `VALIDITY` game type is not yet implemented. In the first iteration of Optimism's decentralization effort,
+> challengers will respond to `ATTESTATION` games only. A validity proof based dispute game is a possibility,
+> but fault proof based dispute games will be the primary focus of the team in the near future.
+
+**Events and Responses**
+*TODO*
