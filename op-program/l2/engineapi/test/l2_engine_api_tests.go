@@ -28,7 +28,7 @@ func RunEngineAPITests(t *testing.T, createBackend func() engineapi.EngineBacken
 
 	t.Run("IncludeRequiredTransactions", func(t *testing.T) {
 		api := newTestHelper(t, createBackend)
-		genesis := api.backend.CurrentBlock()
+		genesis := api.backend.CurrentHeader()
 
 		txData, err := derive.L1InfoDeposit(1, eth.HeaderBlockInfo(genesis), eth.SystemConfig{}, true)
 		api.assert.NoError(err)
@@ -46,7 +46,7 @@ func RunEngineAPITests(t *testing.T, createBackend func() engineapi.EngineBacken
 
 	t.Run("RejectCreatingBlockWithInvalidRequiredTransaction", func(t *testing.T) {
 		api := newTestHelper(t, createBackend)
-		genesis := api.backend.CurrentBlock()
+		genesis := api.backend.CurrentHeader()
 
 		txData, err := derive.L1InfoDeposit(1, eth.HeaderBlockInfo(genesis), eth.SystemConfig{}, true)
 		api.assert.NoError(err)
@@ -84,7 +84,7 @@ func RunEngineAPITests(t *testing.T, createBackend func() engineapi.EngineBacken
 
 	t.Run("AllowBuildingOnOlderBlock", func(t *testing.T) {
 		api := newTestHelper(t, createBackend)
-		genesis := api.backend.CurrentBlock()
+		genesis := api.backend.CurrentHeader()
 		api.addBlock()
 		block := api.addBlock()
 		api.assert.Equal(block.BlockHash, api.headHash(), "should have extended chain")
@@ -112,7 +112,7 @@ func RunEngineAPITests(t *testing.T, createBackend func() engineapi.EngineBacken
 
 	t.Run("RejectBlockWithInvalidStateTransition", func(t *testing.T) {
 		api := newTestHelper(t, createBackend)
-		genesis := api.backend.CurrentBlock()
+		genesis := api.backend.CurrentHeader()
 
 		// Build a valid block
 		payloadID := api.startBlockBuilding(genesis, eth.Uint64Quantity(genesis.Time+2))
@@ -129,7 +129,7 @@ func RunEngineAPITests(t *testing.T, createBackend func() engineapi.EngineBacken
 
 	t.Run("RejectBlockWithSameTimeAsParent", func(t *testing.T) {
 		api := newTestHelper(t, createBackend)
-		genesis := api.backend.CurrentBlock()
+		genesis := api.backend.CurrentHeader()
 
 		// Start with a valid time
 		payloadID := api.startBlockBuilding(genesis, eth.Uint64Quantity(genesis.Time+1))
@@ -146,7 +146,7 @@ func RunEngineAPITests(t *testing.T, createBackend func() engineapi.EngineBacken
 
 	t.Run("RejectBlockWithTimeBeforeParent", func(t *testing.T) {
 		api := newTestHelper(t, createBackend)
-		genesis := api.backend.CurrentBlock()
+		genesis := api.backend.CurrentHeader()
 
 		// Start with a valid time
 		payloadID := api.startBlockBuilding(genesis, eth.Uint64Quantity(genesis.Time+1))
@@ -163,7 +163,7 @@ func RunEngineAPITests(t *testing.T, createBackend func() engineapi.EngineBacken
 
 	t.Run("RejectCreateBlockWithSameTimeAsParent", func(t *testing.T) {
 		api := newTestHelper(t, createBackend)
-		genesis := api.backend.CurrentBlock()
+		genesis := api.backend.CurrentHeader()
 
 		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
 			HeadBlockHash:      genesis.Hash(),
@@ -183,7 +183,7 @@ func RunEngineAPITests(t *testing.T, createBackend func() engineapi.EngineBacken
 
 	t.Run("RejectCreateBlockWithTimeBeforeParent", func(t *testing.T) {
 		api := newTestHelper(t, createBackend)
-		genesis := api.backend.CurrentBlock()
+		genesis := api.backend.CurrentHeader()
 
 		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
 			HeadBlockHash:      genesis.Hash(),
@@ -203,7 +203,7 @@ func RunEngineAPITests(t *testing.T, createBackend func() engineapi.EngineBacken
 
 	t.Run("RejectCreateBlockWithGasLimitAboveMax", func(t *testing.T) {
 		api := newTestHelper(t, createBackend)
-		genesis := api.backend.CurrentBlock()
+		genesis := api.backend.CurrentHeader()
 
 		gasLimit := eth.Uint64Quantity(params.MaxGasLimit + 1)
 
@@ -238,7 +238,7 @@ func RunEngineAPITests(t *testing.T, createBackend func() engineapi.EngineBacken
 
 	t.Run("RejectSafeHeadWhenNotAncestor", func(t *testing.T) {
 		api := newTestHelper(t, createBackend)
-		genesis := api.backend.CurrentBlock()
+		genesis := api.backend.CurrentHeader()
 
 		api.addBlock()
 		chainA2 := api.addBlock()
@@ -258,7 +258,7 @@ func RunEngineAPITests(t *testing.T, createBackend func() engineapi.EngineBacken
 
 	t.Run("RejectFinalizedHeadWhenNotAncestor", func(t *testing.T) {
 		api := newTestHelper(t, createBackend)
-		genesis := api.backend.CurrentBlock()
+		genesis := api.backend.CurrentHeader()
 
 		api.addBlock()
 		chainA2 := api.addBlock()
@@ -308,7 +308,7 @@ func newTestHelper(t *testing.T, createBackend func() engineapi.EngineBackend) *
 }
 
 func (h *testHelper) headHash() common.Hash {
-	return h.backend.CurrentBlock().Hash()
+	return h.backend.CurrentHeader().Hash()
 }
 
 func (h *testHelper) safeHash() common.Hash {
@@ -324,12 +324,12 @@ func (h *testHelper) Log(args ...any) {
 }
 
 func (h *testHelper) addBlock(txs ...*types.Transaction) *eth.ExecutionPayload {
-	head := h.backend.CurrentBlock()
+	head := h.backend.CurrentHeader()
 	return h.addBlockWithParent(head, eth.Uint64Quantity(head.Time+2), txs...)
 }
 
 func (h *testHelper) addBlockWithParent(head *types.Header, timestamp eth.Uint64Quantity, txs ...*types.Transaction) *eth.ExecutionPayload {
-	prevHead := h.backend.CurrentBlock()
+	prevHead := h.backend.CurrentHeader()
 	id := h.startBlockBuilding(head, timestamp, txs...)
 
 	block := h.getPayload(id)
@@ -340,10 +340,10 @@ func (h *testHelper) addBlockWithParent(head *types.Header, timestamp eth.Uint64
 	h.newPayload(block)
 
 	// Should not have changed the chain head yet
-	h.assert.Equal(prevHead, h.backend.CurrentBlock())
+	h.assert.Equal(prevHead, h.backend.CurrentHeader())
 
 	h.forkChoiceUpdated(block.BlockHash, head.Hash(), head.Hash())
-	h.assert.Equal(block.BlockHash, h.backend.CurrentBlock().Hash())
+	h.assert.Equal(block.BlockHash, h.backend.CurrentHeader().Hash())
 	return block
 }
 

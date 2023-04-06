@@ -20,7 +20,6 @@ import (
 )
 
 type EngineBackend interface {
-	CurrentBlock() *types.Header
 	CurrentSafeBlock() *types.Header
 	CurrentFinalBlock() *types.Header
 	GetBlockByHash(hash common.Hash) *types.Block
@@ -222,7 +221,7 @@ func (ea *L2EngineAPI) ForkchoiceUpdatedV1(ctx context.Context, state *eth.Forkc
 		if latestValid, err := ea.backend.SetCanonical(block); err != nil {
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionInvalid, LatestValidHash: &latestValid}}, err
 		}
-	} else if ea.backend.CurrentBlock().Hash() == state.HeadBlockHash {
+	} else if ea.backend.CurrentHeader().Hash() == state.HeadBlockHash {
 		// If the specified head matches with our local head, do nothing and keep
 		// generating the payload. It's a special corner case that a few slots are
 		// missing and we are requested to generate the payload in slot.
@@ -336,7 +335,7 @@ func (ea *L2EngineAPI) NewPayloadV1(ctx context.Context, payload *eth.ExecutionP
 }
 
 func (ea *L2EngineAPI) invalid(err error, latestValid *types.Header) *eth.PayloadStatusV1 {
-	currentHash := ea.backend.CurrentBlock().Hash()
+	currentHash := ea.backend.CurrentHeader().Hash()
 	if latestValid != nil {
 		// Set latest valid hash to 0x0 if parent is PoW block
 		currentHash = common.Hash{}
