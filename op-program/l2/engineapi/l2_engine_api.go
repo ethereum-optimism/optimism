@@ -6,33 +6,25 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/misc"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/trie"
-
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
 type EngineBackend interface {
 	CurrentBlock() *types.Header
 	CurrentSafeBlock() *types.Header
 	CurrentFinalBlock() *types.Header
-	GetHeaderByHash(hash common.Hash) *types.Header
 	GetBlockByHash(hash common.Hash) *types.Block
 	GetBlock(hash common.Hash, number uint64) *types.Block
-	// GetHeader returns the header corresponding to the hash/number argument pair.
-	GetHeader(common.Hash, uint64) *types.Header
 	HasBlockAndState(hash common.Hash, number uint64) bool
 	GetCanonicalHash(n uint64) common.Hash
 
@@ -47,6 +39,8 @@ type EngineBackend interface {
 	SetCanonical(head *types.Block) (common.Hash, error)
 	SetFinalized(header *types.Header)
 	SetSafe(header *types.Header)
+
+	consensus.ChainHeaderReader
 }
 
 // L2EngineAPI wraps an engine actor, and implements the RPC backend required to serve the engine API.
@@ -57,14 +51,10 @@ type L2EngineAPI struct {
 	backend EngineBackend
 
 	// L2 block building data
-	l2BuildingHeader *types.Header             // block header that we add txs to for block building
-	l2BuildingState  *state.StateDB            // state used for block building
-	l2GasPool        *core.GasPool             // track gas used of ongoing building
-	pendingIndices   map[common.Address]uint64 // per account, how many txs from the pool were already included in the block, since the pool is lagging behind block mining.
-	l2Transactions   []*types.Transaction      // collects txs that were successfully included into current block build
-	l2Receipts       []*types.Receipt          // collect receipts of ongoing building
-	l2ForceEmpty     bool                      // when no additional txs may be processed (i.e. when sequencer drift runs out)
-	l2TxFailed       []*types.Transaction      // log of failed transactions which could not be included
+	blockProcessor *BlockProcessor
+	pendingIndices map[common.Address]uint64 // per account, how many txs from the pool were already included in the block, since the pool is lagging behind block mining.
+	l2ForceEmpty   bool                      // when no additional txs may be processed (i.e. when sequencer drift runs out)
+	l2TxFailed     []*types.Transaction      // log of failed transactions which could not be included
 
 	payloadID engine.PayloadID // ID of payload that is currently being built
 }
@@ -102,7 +92,10 @@ func computePayloadId(headBlockHash common.Hash, params *eth.PayloadAttributes) 
 }
 
 func (ea *L2EngineAPI) RemainingBlockGas() uint64 {
-	return ea.l2GasPool.Gas()
+	if ea.blockProcessor == nil {
+		return 0
+	}
+	return ea.blockProcessor.gasPool.Gas()
 }
 
 func (ea *L2EngineAPI) ForcedEmpty() bool {
@@ -115,12 +108,10 @@ func (ea *L2EngineAPI) PendingIndices(from common.Address) uint64 {
 
 var (
 	ErrNotBuildingBlock = errors.New("not currently building a block, cannot include tx from queue")
-	ErrExceedsGasLimit  = errors.New("tx gas exceeds block gas limit")
-	ErrUsesTooMuchGas   = errors.New("action takes too much gas")
 )
 
 func (ea *L2EngineAPI) IncludeTx(tx *types.Transaction, from common.Address) error {
-	if ea.l2BuildingHeader == nil {
+	if ea.blockProcessor == nil {
 		return ErrNotBuildingBlock
 	}
 	if ea.l2ForceEmpty {
@@ -129,60 +120,32 @@ func (ea *L2EngineAPI) IncludeTx(tx *types.Transaction, from common.Address) err
 		return nil
 	}
 
-	if tx.Gas() > ea.l2BuildingHeader.GasLimit {
-		return fmt.Errorf("%w tx gas: %d, block gas limit: %d", ErrExceedsGasLimit, tx.Gas(), ea.l2BuildingHeader.GasLimit)
-	}
-	if tx.Gas() > uint64(*ea.l2GasPool) {
-		return fmt.Errorf("%w: %d, only have %d", ErrUsesTooMuchGas, tx.Gas(), uint64(*ea.l2GasPool))
+	err := ea.blockProcessor.CheckTxWithinGasLimit(tx)
+	if err != nil {
+		return err
 	}
 
 	ea.pendingIndices[from] = ea.pendingIndices[from] + 1 // won't retry the tx
-	ea.l2BuildingState.SetTxContext(tx.Hash(), len(ea.l2Transactions))
-	receipt, err := core.ApplyTransaction(ea.backend.Config(), ea.backend, &ea.l2BuildingHeader.Coinbase,
-		ea.l2GasPool, ea.l2BuildingState, ea.l2BuildingHeader, tx, &ea.l2BuildingHeader.GasUsed, *ea.backend.GetVMConfig())
+	err = ea.blockProcessor.AddTx(tx)
 	if err != nil {
 		ea.l2TxFailed = append(ea.l2TxFailed, tx)
-		return fmt.Errorf("invalid L2 block (tx %d): %w", len(ea.l2Transactions), err)
+		return fmt.Errorf("invalid L2 block (tx %d): %w", len(ea.blockProcessor.transactions), err)
 	}
-	ea.l2Receipts = append(ea.l2Receipts, receipt)
-	ea.l2Transactions = append(ea.l2Transactions, tx)
 	return nil
 }
 
 func (ea *L2EngineAPI) startBlock(parent common.Hash, params *eth.PayloadAttributes) error {
-	if ea.l2BuildingHeader != nil {
-		ea.log.Warn("started building new block without ending previous block", "previous", ea.l2BuildingHeader, "prev_payload_id", ea.payloadID)
+	if ea.blockProcessor != nil {
+		ea.log.Warn("started building new block without ending previous block", "previous", ea.blockProcessor.header, "prev_payload_id", ea.payloadID)
 	}
 
-	parentHeader := ea.backend.GetHeaderByHash(parent)
-	if parentHeader == nil {
-		return fmt.Errorf("uknown parent block: %s", parent)
-	}
-	statedb, err := ea.backend.StateAt(parentHeader.Root)
+	processor, err := NewBlockProcessorFromPayloadAttributes(ea.backend, parent, params)
 	if err != nil {
-		return fmt.Errorf("failed to init state db around block %s (state %s): %w", parent, parentHeader.Root, err)
+		return err
 	}
-
-	header := &types.Header{
-		ParentHash: parent,
-		Coinbase:   params.SuggestedFeeRecipient,
-		Difficulty: common.Big0,
-		Number:     new(big.Int).Add(parentHeader.Number, common.Big1),
-		GasLimit:   uint64(*params.GasLimit),
-		Time:       uint64(params.Timestamp),
-		Extra:      nil,
-		MixDigest:  common.Hash(params.PrevRandao),
-	}
-
-	header.BaseFee = misc.CalcBaseFee(ea.backend.Config(), parentHeader)
-
-	ea.l2BuildingHeader = header
-	ea.l2BuildingState = statedb
-	ea.l2Receipts = make([]*types.Receipt, 0)
-	ea.l2Transactions = make([]*types.Transaction, 0)
+	ea.blockProcessor = processor
 	ea.pendingIndices = make(map[common.Address]uint64)
 	ea.l2ForceEmpty = params.NoTxPool
-	ea.l2GasPool = new(core.GasPool).AddGas(header.GasLimit)
 	ea.payloadID = computePayloadId(parent, params)
 
 	// pre-process the deposits
@@ -191,29 +154,26 @@ func (ea *L2EngineAPI) startBlock(parent common.Hash, params *eth.PayloadAttribu
 		if err := tx.UnmarshalBinary(otx); err != nil {
 			return fmt.Errorf("transaction %d is not valid: %w", i, err)
 		}
-		ea.l2BuildingState.SetTxContext(tx.Hash(), i)
-		receipt, err := core.ApplyTransaction(ea.backend.Config(), ea.backend, &ea.l2BuildingHeader.Coinbase,
-			ea.l2GasPool, ea.l2BuildingState, ea.l2BuildingHeader, &tx, &ea.l2BuildingHeader.GasUsed, *ea.backend.GetVMConfig())
+		err := ea.blockProcessor.AddTx(&tx)
 		if err != nil {
 			ea.l2TxFailed = append(ea.l2TxFailed, &tx)
 			return fmt.Errorf("failed to apply deposit transaction to L2 block (tx %d): %w", i, err)
 		}
-		ea.l2Receipts = append(ea.l2Receipts, receipt)
-		ea.l2Transactions = append(ea.l2Transactions, &tx)
 	}
 	return nil
 }
 
 func (ea *L2EngineAPI) endBlock() (*types.Block, error) {
-	if ea.l2BuildingHeader == nil {
+	if ea.blockProcessor == nil {
 		return nil, fmt.Errorf("no block is being built currently (id %s)", ea.payloadID)
 	}
-	header := ea.l2BuildingHeader
-	ea.l2BuildingHeader = nil
+	processor := ea.blockProcessor
+	ea.blockProcessor = nil
 
-	header.GasUsed = header.GasLimit - uint64(*ea.l2GasPool)
-	header.Root = ea.l2BuildingState.IntermediateRoot(ea.backend.Config().IsEIP158(header.Number))
-	block := types.NewBlock(header, ea.l2Transactions, nil, ea.l2Receipts, trie.NewStackTrie(nil))
+	block, err := processor.Assemble()
+	if err != nil {
+		return nil, fmt.Errorf("assemble block: %w", err)
+	}
 	return block, nil
 }
 
