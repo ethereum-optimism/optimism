@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/replica-healthcheck",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "[Optimism] Service for monitoring the health of replica nodes",
   "main": "dist/index",
   "types": "dist/index",

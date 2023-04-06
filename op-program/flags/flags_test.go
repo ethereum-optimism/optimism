@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/urfave/cli"
 )
 
 // TestUniqueFlags asserts that all flag names are unique, to avoid accidental conflicts between the many flags.
@@ -19,15 +21,25 @@ func TestUniqueFlags(t *testing.T) {
 	}
 }
 
-func TestCorrectEnvVarPrefix(t *testing.T) {
+// TestUniqueEnvVars asserts that all flag env vars are unique, to avoid accidental conflicts between the many flags.
+func TestUniqueEnvVars(t *testing.T) {
+	seenCLI := make(map[string]struct{})
 	for _, flag := range Flags {
-		values := reflect.ValueOf(flag)
-		envVarValue := values.FieldByName("EnvVar")
-		if envVarValue == (reflect.Value{}) {
-			t.Errorf("Failed to find EnvVar for flag %v", flag.GetName())
+		envVar := envVarForFlag(flag)
+		if _, ok := seenCLI[envVar]; envVar != "" && ok {
+			t.Errorf("duplicate flag env var %s", envVar)
 			continue
 		}
-		envVar := envVarValue.String()
+		seenCLI[envVar] = struct{}{}
+	}
+}
+
+func TestCorrectEnvVarPrefix(t *testing.T) {
+	for _, flag := range Flags {
+		envVar := envVarForFlag(flag)
+		if envVar == "" {
+			t.Errorf("Failed to find EnvVar for flag %v", flag.GetName())
+		}
 		if envVar[:len("OP_PROGRAM_")] != "OP_PROGRAM_" {
 			t.Errorf("Flag %v env var (%v) does not start with OP_PROGRAM_", flag.GetName(), envVar)
 		}
@@ -35,4 +47,13 @@ func TestCorrectEnvVarPrefix(t *testing.T) {
 			t.Errorf("Flag %v env var (%v) has duplicate underscores", flag.GetName(), envVar)
 		}
 	}
+}
+
+func envVarForFlag(flag cli.Flag) string {
+	values := reflect.ValueOf(flag)
+	envVarValue := values.FieldByName("EnvVar")
+	if envVarValue == (reflect.Value{}) {
+		return ""
+	}
+	return envVarValue.String()
 }
