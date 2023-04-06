@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-program/config"
 	"github.com/ethereum-optimism/optimism/op-program/flags"
+	"github.com/ethereum-optimism/optimism/op-program/l1"
 	"github.com/ethereum-optimism/optimism/op-program/l2"
 	"github.com/ethereum-optimism/optimism/op-program/version"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -94,8 +95,14 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 	}
 
 	ctx := context.Background()
+	logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
+	_, err := l1.NewFetchingL1(ctx, logger, cfg)
+	if err != nil {
+		return fmt.Errorf("connect l1 oracle: %w", err)
+	}
+
 	logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
-	_, err := l2.NewFetchingEngine(ctx, logger, cfg)
+	_, err = l2.NewFetchingEngine(ctx, logger, cfg)
 	if err != nil {
 		return fmt.Errorf("connect l2 oracle: %w", err)
 	}

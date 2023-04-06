@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-program/config"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -98,6 +99,50 @@ func TestL2Head(t *testing.T) {
 
 	t.Run("Invalid", func(t *testing.T) {
 		verifyArgsInvalid(t, config.ErrInvalidL2Head.Error(), replaceRequiredArg("--l2.head", "something"))
+	})
+}
+
+func TestL1(t *testing.T) {
+	expected := "https://example.com:8545"
+	cfg := configForArgs(t, addRequiredArgs("--l1", expected))
+	require.Equal(t, expected, cfg.L1URL)
+}
+
+func TestL1TrustRPC(t *testing.T) {
+	t.Run("DefaultFalse", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs())
+		require.False(t, cfg.L1TrustRPC)
+	})
+	t.Run("Enabled", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs("--l1.trustrpc"))
+		require.True(t, cfg.L1TrustRPC)
+	})
+	t.Run("EnabledWithArg", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs("--l1.trustrpc=true"))
+		require.True(t, cfg.L1TrustRPC)
+	})
+	t.Run("Disabled", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs("--l1.trustrpc=false"))
+		require.False(t, cfg.L1TrustRPC)
+	})
+}
+
+func TestL1RPCKind(t *testing.T) {
+	t.Run("DefaultBasic", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs())
+		require.Equal(t, sources.RPCKindBasic, cfg.L1RPCKind)
+	})
+	for _, kind := range sources.RPCProviderKinds {
+		t.Run(kind.String(), func(t *testing.T) {
+			cfg := configForArgs(t, addRequiredArgs("--l1.rpckind", kind.String()))
+			require.Equal(t, kind, cfg.L1RPCKind)
+		})
+	}
+	t.Run("RequireLowercase", func(t *testing.T) {
+		verifyArgsInvalid(t, "rpc kind", addRequiredArgs("--l1.rpckind", "AlChemY"))
+	})
+	t.Run("UnknownKind", func(t *testing.T) {
+		verifyArgsInvalid(t, "\"foo\"", addRequiredArgs("--l1.rpckind", "foo"))
 	})
 }
 
