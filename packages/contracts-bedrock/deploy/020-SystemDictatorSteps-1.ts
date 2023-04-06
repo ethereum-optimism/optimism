@@ -170,6 +170,7 @@ const deployFn: DeployFunction = async (hre) => {
     isLiveDeployer,
     SystemDictator,
     phase: 1,
+    args: [],
     message: `
       Phase 1 includes the following steps:
 

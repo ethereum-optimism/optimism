@@ -206,7 +206,7 @@ contract SystemDictator is OwnableUpgradeable {
     function updateDynamicConfig(
         L2OutputOracleDynamicConfig memory _l2OutputOracleDynamicConfig,
         bool _optimismPortalDynamicConfig
-    ) external onlyOwner {
+    ) public onlyOwner {
         l2OutputOracleDynamicConfig = _l2OutputOracleDynamicConfig;
         optimismPortalDynamicConfig = _optimismPortalDynamicConfig;
         dynamicConfigSet = true;
@@ -419,9 +419,18 @@ contract SystemDictator is OwnableUpgradeable {
     }
 
     /**
-     * @notice Calls the remaining steps of the migration process.
+     * @notice Allows the owner to update dynamic config, and calls the remaining steps of the
+     *         migration process.
+     *
+     * @param _l2OutputOracleDynamicConfig Dynamic L2OutputOracle config.
+     * @param _optimismPortalDynamicConfig Dynamic OptimismPortal config.
      */
-    function phase2() external onlyOwner {
+    function phase2(
+        L2OutputOracleDynamicConfig memory _l2OutputOracleDynamicConfig,
+        bool _optimismPortalDynamicConfig
+    ) external onlyOwner {
+        // Set dynamic config.
+        updateDynamicConfig(_l2OutputOracleDynamicConfig, _optimismPortalDynamicConfig);
         step3();
         step4();
         step5();

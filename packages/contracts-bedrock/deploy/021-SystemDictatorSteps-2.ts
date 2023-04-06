@@ -159,10 +159,6 @@ const deployFn: DeployFunction = async (hre) => {
           2
         )
       )
-      console.log(`MSD address: ${SystemDictator.address}`)
-      printJsonTransaction(tx)
-      printCastCommand(tx)
-      await printTenderlySimulationLink(SystemDictator.provider, tx)
     }
 
     await awaitCondition(
@@ -178,8 +174,14 @@ const deployFn: DeployFunction = async (hre) => {
     isLiveDeployer,
     SystemDictator,
     phase: 2,
+    args: [],
     message: `
       Phase 2 includes the following steps:
+
+      First it sets the dynamic L2OutputOracle configuration by calling the function
+      updateL2OutputOracleDynamicConfig. You will need to provide the
+      l2OutputOracleStartingBlockNumber and the l2OutputOracleStartingTimestamp which can both be
+      found by querying the last finalized block in the L2 node.
 
       Step 3 will clear out some legacy state from the AddressManager. Once you execute this step,
       you WILL NOT BE ABLE TO RESTART THE SYSTEM using exit1(). You should confirm that the L2

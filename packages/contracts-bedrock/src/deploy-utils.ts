@@ -477,7 +477,8 @@ export const doStep = async (opts: {
 export const doPhase = async (opts: {
   isLiveDeployer?: boolean
   SystemDictator: ethers.Contract
-  phase: number
+  phase: number,
+  args: Array<any>,
   message: string
   checks: () => Promise<void>
 }): Promise<void> => {
@@ -493,7 +494,11 @@ export const doPhase = async (opts: {
   // Either automatically or manually execute the step.
   if (opts.isLiveDeployer) {
     console.log(`Executing phase ${opts.phase}...`)
-    await opts.SystemDictator[`phase${opts.phase}`]()
+    if (opts.args.length > 0) {
+      await opts.SystemDictator[`phase${opts.phase}`](opts.args)
+    } else {
+      await opts.SystemDictator[`phase${opts.phase}`]()
+    }
   } else {
     const tx = await opts.SystemDictator.populateTransaction[
       `phase${opts.phase}`
@@ -515,6 +520,7 @@ export const doPhase = async (opts: {
 
   // Perform post-step checks.
   await opts.checks()
+  console.log(`Phase ${opts.phase} successfully completed!`)
 }
 
 /**
