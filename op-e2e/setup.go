@@ -40,6 +40,8 @@ import (
 
 var testingJWTSecret = [32]byte{123}
 
+var erigonL2Nodes bool
+
 func DefaultSystemConfig(t *testing.T) SystemConfig {
 	secrets, err := e2eutils.DefaultMnemonicConfig.Secrets()
 	require.NoError(t, err)
@@ -139,11 +141,12 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			"verifier":  testlog.Logger(t, log.LvlInfo).New("role", "verifier"),
 			"sequencer": testlog.Logger(t, log.LvlInfo).New("role", "sequencer"),
 			"batcher":   testlog.Logger(t, log.LvlInfo).New("role", "batcher"),
-			"proposer":  testlog.Logger(t, log.LvlCrit).New("role", "proposer"),
+			"proposer":  testlog.Logger(t, log.LvlInfo).New("role", "proposer"),
 		},
-		GethOptions:           map[string][]GethOption{},
+		GasCeilOverride:       map[string]uint64{},
 		P2PTopology:           nil, // no P2P connectivity by default
 		NonFinalizedProposals: false,
+		ErigonL2Nodes:         erigonL2Nodes,
 	}
 }
 
@@ -170,12 +173,12 @@ type SystemConfig struct {
 	JWTFilePath string
 	JWTSecret   [32]byte
 
-	Premine        map[common.Address]*big.Int
-	Nodes          map[string]*rollupNode.Config // Per node config. Don't use populate rollup.Config
-	Loggers        map[string]log.Logger
-	GethOptions    map[string][]GethOption
-	ProposerLogger log.Logger
-	BatcherLogger  log.Logger
+	Premine         map[common.Address]*big.Int
+	Nodes           map[string]*rollupNode.Config // Per node config. Don't use populate rollup.Config
+	Loggers         map[string]log.Logger
+	GasCeilOverride map[string]uint64
+	ProposerLogger  log.Logger
+	BatcherLogger   log.Logger
 
 	ErigonL2Nodes bool
 
@@ -226,14 +229,14 @@ func (ei *EthInstance) WSAuthEndpoint() string {
 	if ei.GethInstance != nil {
 		return ei.GethInstance.Node.WSAuthEndpoint()
 	}
-	return ei.WSEndpoint()
+	return fmt.Sprintf("ws://127.0.0.1:%d", ei.ErigonInstance.EnginePort)
 }
 
 func (ei *EthInstance) HTTPAuthEndpoint() string {
 	if ei.GethInstance != nil {
 		return ei.GethInstance.Node.HTTPAuthEndpoint()
 	}
-	return ei.HTTPEndpoint()
+	return fmt.Sprintf("http://127.0.0.1:%d", ei.ErigonInstance.EnginePort)
 }
 
 type System struct {
@@ -357,7 +360,7 @@ func (cfg SystemConfig) Start(t *testing.T) (*System, error) {
 	sys.RollupConfig = &defaultConfig
 
 	// Initialize nodes
-	l1Node, l1Backend, err := initL1Geth(&cfg, l1Genesis, cfg.GethOptions["l1"]...)
+	l1Node, l1Backend, err := initL1Geth(&cfg, l1Genesis)
 	if err != nil {
 		return nil, err
 	}
@@ -372,7 +375,7 @@ func (cfg SystemConfig) Start(t *testing.T) (*System, error) {
 		var gethInstance *GethInstance
 		var erigonInstance *ErigonInstance
 		if !cfg.ErigonL2Nodes {
-			node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
+			node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GasCeilOverride[name])
 			if err != nil {
 				return nil, err
 			}
@@ -386,6 +389,7 @@ func (cfg SystemConfig) Start(t *testing.T) (*System, error) {
 				ChainID: cfg.DeployConfig.L2ChainID,
 				Genesis: l2Genesis,
 				JWTPath: cfg.JWTFilePath,
+				GasCeil: cfg.GasCeilOverride[name],
 			}).Run(t)
 			erigonInstance = &ei
 		}

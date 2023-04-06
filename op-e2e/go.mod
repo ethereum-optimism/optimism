@@ -19,6 +19,7 @@ require (
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/google/gofuzz v1.2.1-0.20220503160820-4a35382e8fc8
 	github.com/libp2p/go-libp2p v0.23.3
+	github.com/onsi/gomega v1.19.0
 	github.com/stretchr/testify v1.8.1
 )
 

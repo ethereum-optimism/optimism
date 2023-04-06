@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -39,6 +40,7 @@ type ErigonRunner struct {
 	DataDir string
 	JWTPath string
 	ChainID uint64
+	GasCeil uint64
 	Genesis *core.Genesis
 }
 
@@ -99,16 +101,26 @@ func (er *ErigonRunner) Run(t *testing.T) ErigonInstance {
 		"--mine",
 		// "--miner.etherbase=0x123463a4B065722E99115D6c222f267d9cABb524",
 		// "--miner.sigfile", "/home/boba/datadir/nodekey",
+		"--miner.gaslimit", strconv.FormatUint(er.GasCeil, 10),
 		"--http.port", "0",
 		"--http.addr", "127.0.0.1",
 		"--http.api", "eth,debug,net,engine,erigon,web3",
 		"--private.api.addr=127.0.0.1:0",
 		"--allow-insecure-unlock",
 		"--authrpc.addr=127.0.0.1",
+		"--nat", "none",
+		"--p2p.allowed-ports", func() string {
+			res := make([]string, 1000)
+			for i := range res {
+				res[i] = strconv.Itoa(i + 30000)
+			}
+			return strings.Join(res, ", ")
+		}(),
 		"--authrpc.port=0",
 		"--authrpc.vhosts=*",
 		"--authrpc.jwtsecret", er.JWTPath,
 		"--networkid", strconv.FormatUint(er.ChainID, 10),
+		"--torrent.port", "0", // There doesn't seem to be an obvious way to disable torrent listening
 	)
 	sess, err = gexec.Start(
 		cmd,
@@ -121,7 +133,7 @@ func (er *ErigonRunner) Run(t *testing.T) ErigonInstance {
 	fmt.Fscanf(sess.Err, "%d", &enginePort)
 	gt.Eventually(sess.Err, time.Minute).Should(gbytes.Say("HTTP endpoint opened\\s*url=127.0.0.1:"))
 	fmt.Fscanf(sess.Err, "%d", &httpPort)
-	gt.Eventually(sess.Err, time.Minute).Should(gbytes.Say("\\[15/15 Finish\\] DONE"))
+	gt.Eventually(sess.Err, time.Minute).Should(gbytes.Say("\\[1/15 Snapshots\\] DONE"))
 
 	return ErigonInstance{
 		Session:    sess,
