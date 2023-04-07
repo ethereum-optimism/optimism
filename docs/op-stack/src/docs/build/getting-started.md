@@ -319,7 +319,7 @@ Set these environment variables for the configuration
 | `SEQ_KEY`      | Private key of the `Sequencer` account
 | `BATCHER_KEY`  | Private key of the `Batcher` accounts, which should have at least 1 ETH
 | `PROPOSER_KEY` | Private key of the `Proposer` account
-| `GOERLI_RPC`   | URL for the L1 (such as Goerli) you're using
+| `L1_RPC`       | URL for the L1 (such as Goerli) you're using
 | `RPC_KIND`     | The type of L1 server to which you connect, which can optimize requests. Available options are `alchemy`, `quicknode`, `parity`, `nethermind`, `debug_geth`, `erigon`, `basic`, and `any`
 | `L2OO_ADDR`    | The address of the `L2OutputOracleProxy`, available at `~/optimism/packages/contracts-bedrock/deployments/getting-started/L2OutputOracleProxy.json
 
@@ -424,7 +424,7 @@ cd ~/optimism/op-node
 	--p2p.disable \
 	--rpc.enable-admin \
 	--p2p.sequencer.key=$SEQ_KEY \
-	--l1=$GOERLI_RPC \
+	--l1=$L1_RPC \
 	--l1.rpckind=$RPC_KIND
 ```
 
@@ -473,44 +473,41 @@ cd ~/optimism/op-batcher
     --rpc.port=8548 \
     --rpc.enable-admin \
     --max-channel-duration=1 \
-    --l1-eth-rpc=$GOERLI_RPC \
+    --l1-eth-rpc=$L1_RPC \
     --private-key=$BATCHER_KEY
 ```
 
-   ::: tip Controlling batcher costs
+::: tip Controlling batcher costs
 
-   The `--max-channel-duration=n` setting tells the batcher to write all the data to L1 every `n` L1 blocks. 
-   When it is low, transactions are written to L1 frequently, withdrawals are quick, and other nodes can synchronize from L1 fast.
-   When it is high, transactions are written to L1 less frequently, and the batcher spends less ETH.
+The `--max-channel-duration=n` setting tells the batcher to write all the data to L1 every `n` L1 blocks. 
+When it is low, transactions are written to L1 frequently, withdrawals are quick, and other nodes can synchronize from L1 fast.
+When it is high, transactions are written to L1 less frequently, and the batcher spends less ETH.
 
-   :::
+:::
 
 ### `op-proposer`
 
 Now start `op-proposer`, which proposes new state roots.
 
-1. Head over to the `op-proposer` package inside the Optimism Monorepo:
+```bash
+cd ~/optimism/op-proposer
 
-    ```bash
-    cd ~/optimism/op-proposer
-    ```
+./bin/op-proposer \
+    --poll-interval 12s \
+    --rpc.port 8560 \
+    --rollup-rpc http://localhost:8547 \
+    --l2oo-address $L2OO_ADDR \
+    --private-key $PROPOSER_KEY \
+    --allow-non-finalized \
+    --l1-eth-rpc $L1_RPC
+```
 
-1. And run the `op-proposer` using the following command, using these parameters: 
+::: warning Change before moving to production
 
+The `--allow-non-finalized` flag allows for faster tests on a test network. 
+However, in production you would probably want to only submit proposals on properly finalized blocks.
 
-
-    ```bash
-    ./bin/op-proposer \
-        --poll-interval 12s \
-        --rpc.port 8560 \
-        --rollup-rpc http://localhost:8547 \
-        --l2oo-address $L2OO_ADDR \
-        --private-key $PROPOSER_KEY
-        --l1-eth-rpc $GOERLI_RPC \        
-    ```
-
-
-
+:::
 
 ## Get some ETH on your Rollup
 
