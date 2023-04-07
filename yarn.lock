@@ -5708,6 +5708,13 @@ anchor-markdown-header@^0.5.7:
   dependencies:
     emoji-regex "~6.1.0"
 
+anchor-markdown-header@^0.6.0:
+  version "0.6.0"
+  resolved "https://registry.yarnpkg.com/anchor-markdown-header/-/anchor-markdown-header-0.6.0.tgz#908f2031281766f44ac350380ca0de77ab7065b8"
+  integrity sha512-v7HJMtE1X7wTpNFseRhxsY/pivP4uAJbidVhPT+yhz4i/vV1+qx371IXuV9V7bN6KjFtheLJxqaSm0Y/8neJTA==
+  dependencies:
+    emoji-regex "~10.1.0"
+
 ansi-colors@3.2.3:
   version "3.2.3"
   resolved "https://registry.yarnpkg.com/ansi-colors/-/ansi-colors-3.2.3.tgz#57d35b8686e851e2cc04c403f1c00203976a1813"
@@ -7915,6 +7922,10 @@ clone@^1.0.2:
   resolved "https://registry.yarnpkg.com/clone/-/clone-1.0.4.tgz#da309cc263df15994c688ca902179ca3c7cd7c7e"
   integrity sha1-2jCcwmPfFZlMaIypAheco8fNfH4=
 
+"clones-with-immutable-args@https://github.com/Saw-mon-and-Natalie/clones-with-immutable-args.git#105efee1b9127ed7f6fedf139e1fc796ce8791f2":
+  version "2.0.0"
+  resolved "https://github.com/Saw-mon-and-Natalie/clones-with-immutable-args.git#105efee1b9127ed7f6fedf139e1fc796ce8791f2"
+
 clsx@^1.1.0:
   version "1.2.1"
   resolved "https://registry.yarnpkg.com/clsx/-/clsx-1.2.1.tgz#0ddc4a20a549b59c93a4116bb26f5294ca17dc12"
@@ -8967,6 +8978,18 @@ doctoc@^2.2.0:
     underscore "^1.13.2"
     update-section "^0.3.3"
 
+doctoc@^2.2.1:
+  version "2.2.1"
+  resolved "https://registry.yarnpkg.com/doctoc/-/doctoc-2.2.1.tgz#83f6a6bf4df97defbe027c9a82d13091a138ffe2"
+  integrity sha512-qNJ1gsuo7hH40vlXTVVrADm6pdg30bns/Mo7Nv1SxuXSM1bwF9b4xQ40a6EFT/L1cI+Yylbyi8MPI4G4y7XJzQ==
+  dependencies:
+    "@textlint/markdown-to-ast" "^12.1.1"
+    anchor-markdown-header "^0.6.0"
+    htmlparser2 "^7.2.0"
+    minimist "^1.2.6"
+    underscore "^1.13.2"
+    update-section "^0.3.3"
+
 doctrine@^2.1.0:
   version "2.1.0"
   resolved "https://registry.yarnpkg.com/doctrine/-/doctrine-2.1.0.tgz#5cd01fc101621b42c4cd7f5d1a66243716d3f39d"
@@ -9153,7 +9176,7 @@ elliptic@6.5.4, elliptic@^6.4.0, elliptic@^6.5.2, elliptic@^6.5.3:
     minimalistic-assert "^1.0.1"
     minimalistic-crypto-utils "^1.0.1"
 
-emoji-regex@^10.0.0:
+emoji-regex@^10.0.0, emoji-regex@~10.1.0:
   version "10.1.0"
   resolved "https://registry.yarnpkg.com/emoji-regex/-/emoji-regex-10.1.0.tgz#d50e383743c0f7a5945c47087295afc112e3cf66"
   integrity sha512-xAEnNCT3w2Tg6MA7ly6QqYJvEoY1tm9iIjJ3yMKK9JPlWuRHAMoe5iETwQnx3M9TVbFMfsrBgWKR+IsmswwNjg==
@@ -19353,6 +19376,10 @@ socks@^2.3.3, socks@^2.6.1:
   dependencies:
     ip "^1.1.5"
     smart-buffer "^4.1.0"
+
+"solady@https://github.com/Vectorized/solady#369c62f92946764770a3d265f9d8fa6228ac9337":
+  version "0.0.86"
+  resolved "https://github.com/Vectorized/solady#369c62f92946764770a3d265f9d8fa6228ac9337"
 
 solc@0.7.3:
   version "0.7.3"

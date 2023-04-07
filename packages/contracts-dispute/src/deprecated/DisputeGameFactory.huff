@@ -1,0 +1,86 @@
+/// SPDX-License-Identifier: MIT
+/// @title DisputeGameFactory
+/// @author clabby <https://github.com/clabby>
+/// @notice Dispute games should be indexed via the `DisputeGameCreated` event.
+///         Since games are ephemeral, and in most cases likely won't last longer than 7 days,
+///         it should be safe to index as opposed to storing a mapping here.
+
+#include "huffmate/mechanisms/huff-clones/HuffCloneLib.huff"
+
+/// @notice The selector for the [DisputeGameFactory]'s `create(Types.GameType, Types.Claim, bytes calldata _extraData)` function.
+/// @dev We use a constant rather than `function` definition here due to the custom types.
+#define constant CREATE_SELECTOR = 0x9c4d535b
+
+/// @notice The selector of the
+/// `DisputeGameCreated(address indexed disputeProxy, Types.GameType indexed gameType, Types.Claim indexed rootClaim)`
+/// event in the [DisputeGameFactory] contract.
+/// @dev We use a constant rather than `event` definition here due to the custom types.
+#define constant CREATED_EVENT_HASH = 0x2108c4d49d7163e56c2c89f3113aeb009be4ca76ecf3fd2807cf613da47bf415
+
+/// @notice The interface for the [DisputeGame] contract's "initialize()" function.
+#define function initialize() nonpayable returns ()
+
+/// @notice Creates a [DisputeGame] contract
+#define macro CREATE_CLONE() = takes (0) returns (0) {
+    // Store the size of the data (64 bytes) @ 0x00
+    0x40 returndatasize      // [0x00, 0x40]
+    mstore                   // []
+
+    // Copy 64 bytes of calldata following the function selector to memory starting @ 0x20
+    0x40 0x04 msize          // [0x20, 0x04, 0x40]
+    calldatacopy             // []
+
+    // Push the data pointer as well as the implementation address to the stack for `CLONE`.
+    // TODO: We will have multiple implementations of the [DisputeGame] contract.
+    returndatasize           // [data_ptr (0x00)]
+    [IMPL_ADDR]              // [impl_addr, data_ptr (0x00)]
+
+    // Invoke the `CLONE` macro with a dest pointer of 0x60 (after the data).
+    // This argument tells the `CLONE` macro where we want it to store the proxy code.
+    CLONE(err, 0x60)         // [instance]
+
+    // Store the function selector for "initialize()" in memory.
+    __FUNC_SIG(initialize)   // ["initialize()"]
+    returndatasize mstore    // []
+
+    // Initialize the [DisputeGame].
+    returndatasize           // [0x00, instance]
+    returndatasize           // [0x00, 0x00, instance]
+    0x04 0x1c                // [0x1c, 0x04, 0x00, 0x00, instance]
+    returndatasize           // [value, arg_offset, arg_size, ret_offset, ret_size, instance]
+    dup6 gas                 // [gas, instance, value, arg_offset, arg_size, ret_offset, ret_size, instance]
+    call pop                 // [instance]
+
+    // Emit the `DisputeGameCreated` event.
+    0x40 mload               // [rootClaim, instance]
+    0x20 mload               // [gameType, rootClaim, instance]
+    dup3                     // [instance, gameType, rootClaim, instance]
+    [CREATED_EVENT_HASH]     // [event_hash, instance, gameType, rootClaim, instance]
+    returndatasize           // [0x00, event_hash, instance, gameType, rootClaim, instance]
+    returndatasize           // [0x00, 0x00, event_hash, instance, gameType, rootClaim, instance]
+    log4                     // [instance]
+
+    // Return the address of the created proxy
+    returndatasize mstore    // []
+    0x20 returndatasize      // [0x00, 0x20]
+    return                   // []
+
+    err:
+        returndatasize returndatasize revert
+}
+
+/// @notice Entry point for the [DisputeGameFactory] contract.
+/// TODO: Function dispatch logic is unnecessary if we don't plan on adding extra functions.
+#define macro MAIN() = takes (0) returns (0) {
+    // Grab the function selector from the calldata.
+    pc calldataload 0xE0 shr // [sig]
+
+    // `create(Types.GameType gameType, Types.Claim rootClaim)`
+    dup1 [CREATE_SELECTOR] eq create_clone jumpi
+
+    // Revert if no function selectors matched.
+    returndatasize returndatasize revert
+
+    create_clone:
+        CREATE_CLONE()
+}

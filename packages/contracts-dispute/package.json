@@ -1,0 +1,35 @@
+{
+  "name": "@eth-optimism/contracts-dispute",
+  "version": "0.0.1",
+  "description": "Contracts for the OP Stack's Dispute Games",
+  "repository": "https://github.com/ethereum-optimism/dispute-game-contracts",
+  "contributors": [
+    "clabby <https://github.com/clabby>",
+    "refcell <https://github.com/refcell>",
+    "protolambda <https://github.com/protolambda>"
+  ],
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "build:forge": "forge build",
+    "test:forge": "forge test",
+    "coverage:lcov": "forge coverage --report lcov",
+    "coverage": "yarn build:forge && yarn test:forge && yarn coverage:lcov",
+    "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./tsconfig.build.tsbuildinfo ./src/contract-artifacts.ts ./test-case-generator/fuzz",
+    "gas-snapshot": "yarn build:forge && forge snapshot --no-match-test 'testDiff|testFuzz|invariant|generateArtifact'",
+    "storage-snapshot": "./scripts/storage-snapshot.sh",
+    "lint:ts:check": "eslint . --max-warnings=0",
+    "lint:contracts:check": "yarn solhint -f table 'src/**/*.sol' && yarn prettier --check 'src/**/*.sol'",
+    "lint:check": "yarn lint:contracts:check && yarn lint:ts:check",
+    "spec:doctoc": "doctoc ./SPEC.md",
+    "clean:forge": "forge clean"
+  },
+  "devDependencies": {
+    "@eth-optimism/contracts-bedrock": "0.13.2",
+    "ds-test": "https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5",
+    "forge-std": "https://github.com/foundry-rs/forge-std.git#46264e9788017fc74f9f58b7efa0bc6e1df6d410",
+    "clones-with-immutable-args": "https://github.com/Saw-mon-and-Natalie/clones-with-immutable-args.git#105efee1b9127ed7f6fedf139e1fc796ce8791f2",
+    "solady": "https://github.com/Vectorized/solady#369c62f92946764770a3d265f9d8fa6228ac9337",
+    "doctoc": "^2.2.1"
+  }
+}
