@@ -5,8 +5,9 @@ import '@eth-optimism/hardhat-deploy-config'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 import { assertContractVariable } from '@eth-optimism/contracts-bedrock/src/deploy-utils'
-import { ethers, utils } from 'ethers'
+import { utils } from 'ethers'
 
+import { setupProxyContract } from '../../src/helpers/setupProxyContract'
 import type { DeployConfig } from '../../src'
 
 const { getAddress } = utils
@@ -21,7 +22,7 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     throw new Error('Must deploy with the ddd')
   }
 
-  const Deployment__Optimist = await hre.deployments.get('Optimist')
+  const Deployment__OptimistImpl = await hre.deployments.get('Optimist')
 
   console.log(`Deploying OptimistProxy with ${deployer}`)
 
@@ -48,69 +49,58 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     Deployment__OptimistProxy.address
   )
 
-  const implementation = await Proxy.connect(
-    ethers.constants.AddressZero
-  ).callStatic.implementation()
-  console.log(`implementation set to ${implementation}`)
-  if (getAddress(implementation) !== getAddress(Deployment__Optimist.address)) {
-    console.log('implementation not set to Optimist contract')
-    console.log(`Setting implementation to ${Deployment__Optimist.address}`)
+  // ethers.Signer for the ddd. Should be the current owner of the Proxy.
+  const dddSigner = await hre.ethers.provider.getSigner(deployer)
 
-    // Create the calldata for the call to `initialize()`
-    const name = deployConfig.optimistName
-    const symbol = deployConfig.optimistSymbol
-    const calldata = Optimist.interface.encodeFunctionData('initialize', [
-      name,
-      symbol,
-    ])
-
-    const tx = await Proxy.upgradeToAndCall(
-      Deployment__Optimist.address,
-      calldata
-    )
-    const receipt = await tx.wait()
-    console.log(`implementation set in ${receipt.transactionHash}`)
-  } else {
-    console.log('implementation already set to Optimist contract')
-  }
-
+  // intended admin of the Proxy
   const l2ProxyOwnerAddress = deployConfig.l2ProxyOwnerAddress
-  const admin = await Proxy.connect(
-    ethers.constants.AddressZero
-  ).callStatic.admin()
-  console.log(`admin set to ${admin}`)
-  if (getAddress(admin) !== getAddress(l2ProxyOwnerAddress)) {
-    console.log('detected admin is not set')
-    console.log(`Setting admin to ${l2ProxyOwnerAddress}`)
 
-    const tx = await Proxy.changeAdmin(l2ProxyOwnerAddress)
-    const receipt = await tx.wait()
-    console.log(`admin set in ${receipt.transactionHash}`)
-  } else {
-    console.log('admin already set to proxy owner address')
-  }
+  // Create the calldata for the call to `initialize()`
+  const name = deployConfig.optimistName
+  const symbol = deployConfig.optimistSymbol
+  const initializeCalldata = Optimist.interface.encodeFunctionData(
+    'initialize',
+    [name, symbol]
+  )
 
-  const Deployment__AttestationStation = await hre.deployments.get(
+  // setup the Proxy contract with correct implementation and admin, and initialize atomically
+  await setupProxyContract(Proxy, dddSigner, {
+    targetImplAddress: Deployment__OptimistImpl.address,
+    targetProxyOwnerAddress: l2ProxyOwnerAddress,
+    postUpgradeCallCalldata: initializeCalldata,
+  })
+
+  const Deployment__AttestationStationProxy = await hre.deployments.get(
     'AttestationStationProxy'
+  )
+
+  const Deployment__OptimistAllowlistProxy = await hre.deployments.get(
+    'OptimistAllowlistProxy'
   )
 
   await assertContractVariable(Proxy, 'admin', l2ProxyOwnerAddress)
   await assertContractVariable(Optimist, 'name', deployConfig.optimistName)
-  await assertContractVariable(Optimist, 'version', '1.0.0')
+  await assertContractVariable(Optimist, 'version', '2.0.0')
   await assertContractVariable(Optimist, 'symbol', deployConfig.optimistSymbol)
   await assertContractVariable(
     Optimist,
-    'ATTESTOR',
-    deployConfig.attestorAddress
+    'BASE_URI_ATTESTOR',
+    deployConfig.optimistBaseUriAttestorAddress
+  )
+
+  await assertContractVariable(
+    Optimist,
+    'OPTIMIST_ALLOWLIST',
+    Deployment__OptimistAllowlistProxy.address
   )
   await assertContractVariable(
     Optimist,
     'ATTESTATION_STATION',
-    Deployment__AttestationStation.address
+    Deployment__AttestationStationProxy.address
   )
 }
 
 deployFn.tags = ['OptimistProxy', 'OptimistEnvironment']
-deployFn.dependencies = ['AttestationStationProxy', 'Optimist']
+deployFn.dependencies = ['AttestationStationProxy', 'OptimistImpl']
 
 export default deployFn

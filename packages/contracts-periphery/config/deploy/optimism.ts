@@ -5,9 +5,13 @@ const config: DeployConfig = {
   l2ProxyOwnerAddress: '0x60c5C9c98bcBd0b0F2fD89B24c16e533BaA8CdA3',
   optimistName: 'Optimist',
   optimistSymbol: 'OPTIMIST',
-  attestorAddress: '0x60c5C9c98bcBd0b0F2fD89B24c16e533BaA8CdA3',
+  optimistBaseUriAttestorAddress: '0x60c5C9c98bcBd0b0F2fD89B24c16e533BaA8CdA3',
   optimistInviterInviteGranter: '0x60c5C9c98bcBd0b0F2fD89B24c16e533BaA8CdA3',
   optimistInviterName: 'OptimistInviter',
+  optimistAllowlistAllowlistAttestor:
+    '0x60c5C9c98bcBd0b0F2fD89B24c16e533BaA8CdA3',
+  optimistAllowlistCoinbaseQuestAttestor:
+    '0x661B7Acca8ebd93AFd349a088e9a9A00053DB1BF',
 }
 
 export default config

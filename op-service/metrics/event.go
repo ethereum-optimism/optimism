@@ -52,7 +52,6 @@ func NewEventVec(factory Factory, ns string, name string, displayName string, la
 			Namespace: ns,
 			Name:      fmt.Sprintf("last_%s_unix", name),
 			Help:      fmt.Sprintf("Timestamp of last %s event", displayName),
-		},
-			labelNames),
+		}, labelNames),
 	}
 }

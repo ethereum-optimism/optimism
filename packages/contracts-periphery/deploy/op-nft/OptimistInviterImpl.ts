@@ -37,7 +37,7 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   await deploy()
 }
 
-deployFn.tags = ['OptimistInviter', 'OptimistEnvironment']
+deployFn.tags = ['OptimistInviterImpl', 'OptimistEnvironment']
 deployFn.dependencies = ['AttestationStationProxy']
 
 export default deployFn

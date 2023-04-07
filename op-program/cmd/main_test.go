@@ -6,10 +6,14 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-program/config"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
+
+var l2HeadValue = "0x6303578b1fa9480389c51bbcef6fe045bb877da39740819e9eb5f36f94949bd0"
 
 func TestLogLevel(t *testing.T) {
 	t.Run("RejectInvalid", func(t *testing.T) {
@@ -28,7 +32,7 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
-	require.Equal(t, config.NewConfig(&chaincfg.Goerli), cfg)
+	require.Equal(t, config.NewConfig(&chaincfg.Goerli, "genesis.json", common.HexToHash(l2HeadValue)), cfg)
 }
 
 func TestNetwork(t *testing.T) {
@@ -72,10 +76,80 @@ func TestL2(t *testing.T) {
 	require.Equal(t, expected, cfg.L2URL)
 }
 
+func TestL2Genesis(t *testing.T) {
+	t.Run("Required", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag l2.genesis is required", addRequiredArgsExcept("--l2.genesis"))
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		cfg := configForArgs(t, replaceRequiredArg("--l2.genesis", "/tmp/genesis.json"))
+		require.Equal(t, "/tmp/genesis.json", cfg.L2GenesisPath)
+	})
+}
+
+func TestL2Head(t *testing.T) {
+	t.Run("Required", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag l2.head is required", addRequiredArgsExcept("--l2.head"))
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		cfg := configForArgs(t, replaceRequiredArg("--l2.head", l2HeadValue))
+		require.Equal(t, common.HexToHash(l2HeadValue), cfg.L2Head)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		verifyArgsInvalid(t, config.ErrInvalidL2Head.Error(), replaceRequiredArg("--l2.head", "something"))
+	})
+}
+
+func TestL1(t *testing.T) {
+	expected := "https://example.com:8545"
+	cfg := configForArgs(t, addRequiredArgs("--l1", expected))
+	require.Equal(t, expected, cfg.L1URL)
+}
+
+func TestL1TrustRPC(t *testing.T) {
+	t.Run("DefaultFalse", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs())
+		require.False(t, cfg.L1TrustRPC)
+	})
+	t.Run("Enabled", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs("--l1.trustrpc"))
+		require.True(t, cfg.L1TrustRPC)
+	})
+	t.Run("EnabledWithArg", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs("--l1.trustrpc=true"))
+		require.True(t, cfg.L1TrustRPC)
+	})
+	t.Run("Disabled", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs("--l1.trustrpc=false"))
+		require.False(t, cfg.L1TrustRPC)
+	})
+}
+
+func TestL1RPCKind(t *testing.T) {
+	t.Run("DefaultBasic", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs())
+		require.Equal(t, sources.RPCKindBasic, cfg.L1RPCKind)
+	})
+	for _, kind := range sources.RPCProviderKinds {
+		t.Run(kind.String(), func(t *testing.T) {
+			cfg := configForArgs(t, addRequiredArgs("--l1.rpckind", kind.String()))
+			require.Equal(t, kind, cfg.L1RPCKind)
+		})
+	}
+	t.Run("RequireLowercase", func(t *testing.T) {
+		verifyArgsInvalid(t, "rpc kind", addRequiredArgs("--l1.rpckind", "AlChemY"))
+	})
+	t.Run("UnknownKind", func(t *testing.T) {
+		verifyArgsInvalid(t, "\"foo\"", addRequiredArgs("--l1.rpckind", "foo"))
+	})
+}
+
 // Offline support will be added later, but for now it just bails out with an error
 func TestOfflineModeNotSupported(t *testing.T) {
 	logger := log.New()
-	err := FaultProofProgram(logger, config.NewConfig(&chaincfg.Goerli))
+	err := FaultProofProgram(logger, config.NewConfig(&chaincfg.Goerli, "genesis.json", common.HexToHash(l2HeadValue)))
 	require.ErrorContains(t, err, "offline mode not supported")
 }
 
@@ -124,7 +198,9 @@ func replaceRequiredArg(name string, value string) []string {
 // to create a valid Config
 func requiredArgs() map[string]string {
 	return map[string]string{
-		"--network": "goerli",
+		"--network":    "goerli",
+		"--l2.genesis": "genesis.json",
+		"--l2.head":    l2HeadValue,
 	}
 }
 
