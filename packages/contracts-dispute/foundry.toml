@@ -1,0 +1,17 @@
+[profile.default]
+src = 'src'
+out = 'out'
+libs = ['lib']
+remappings = [
+  "src=src/",
+  "ds-test=node_modules/ds-test/src",
+  "forge-std=node_modules/forge-std/src",
+  "cwia=node_modules/clones-with-immutable-args/src",
+]
+ffi = true
+
+[fmt]
+bracket_spacing = true
+
+[fuzz]
+runs = 1024
