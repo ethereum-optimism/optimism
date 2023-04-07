@@ -68,7 +68,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 	deployConfig := &genesis.DeployConfig{
 		L1ChainID:   900,
 		L2ChainID:   901,
-		L2BlockTime: 2,
+		L2BlockTime: 1,
 
 		FinalizationPeriodSeconds: 60 * 60 * 24,
 		MaxSequencerDrift:         10,

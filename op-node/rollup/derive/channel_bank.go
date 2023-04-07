@@ -124,6 +124,7 @@ func (cb *ChannelBank) Read() (data []byte, err error) {
 	if !ch.IsReady() {
 		return nil, io.EOF
 	}
+	cb.log.Info("Reading channel", "channel", first, "frames", len(ch.inputs))
 
 	delete(cb.channels, first)
 	cb.channelQueue = cb.channelQueue[1:]
