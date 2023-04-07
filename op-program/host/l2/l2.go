@@ -7,7 +7,8 @@ import (
 	"os"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-program/config"
+	cll2 "github.com/ethereum-optimism/optimism/op-program/client/l2"
+	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -23,11 +24,11 @@ func NewFetchingEngine(ctx context.Context, logger log.Logger, cfg *config.Confi
 		return nil, fmt.Errorf("connect l2 oracle: %w", err)
 	}
 
-	engineBackend, err := NewOracleBackedL2Chain(logger, oracle, genesis, cfg.L2Head)
+	engineBackend, err := cll2.NewOracleBackedL2Chain(logger, oracle, genesis, cfg.L2Head)
 	if err != nil {
 		return nil, fmt.Errorf("create l2 chain: %w", err)
 	}
-	return NewOracleEngine(cfg.Rollup, logger, engineBackend), nil
+	return cll2.NewOracleEngine(cfg.Rollup, logger, engineBackend), nil
 }
 
 func loadL2Genesis(cfg *config.Config) (*params.ChainConfig, error) {

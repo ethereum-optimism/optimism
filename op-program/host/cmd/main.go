@@ -10,12 +10,12 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-program/config"
-	"github.com/ethereum-optimism/optimism/op-program/driver"
-	"github.com/ethereum-optimism/optimism/op-program/flags"
-	"github.com/ethereum-optimism/optimism/op-program/l1"
-	"github.com/ethereum-optimism/optimism/op-program/l2"
-	"github.com/ethereum-optimism/optimism/op-program/version"
+	cldr "github.com/ethereum-optimism/optimism/op-program/client/driver"
+	"github.com/ethereum-optimism/optimism/op-program/host/config"
+	"github.com/ethereum-optimism/optimism/op-program/host/flags"
+	"github.com/ethereum-optimism/optimism/op-program/host/l1"
+	"github.com/ethereum-optimism/optimism/op-program/host/l2"
+	"github.com/ethereum-optimism/optimism/op-program/host/version"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
@@ -111,7 +111,7 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 		return fmt.Errorf("connect l2 oracle: %w", err)
 	}
 
-	d := driver.NewDriver(logger, cfg, l1Source, l2Source)
+	d := cldr.NewDriver(logger, cfg.Rollup, l1Source, l2Source)
 	for {
 		if err = d.Step(ctx); errors.Is(err, io.EOF) {
 			break
