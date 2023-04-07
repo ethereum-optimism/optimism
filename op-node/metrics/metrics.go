@@ -132,7 +132,7 @@ type Metrics struct {
 	GossipEventsTotal *prometheus.CounterVec
 	BandwidthTotal    *prometheus.GaugeVec
 
-	ChannelInputBytes prometheus.Gauge
+	ChannelInputBytes prometheus.Counter
 
 	registry *prometheus.Registry
 	factory  metrics.Factory
@@ -334,7 +334,7 @@ func NewMetrics(procName string) *Metrics {
 			"direction",
 		}),
 
-		ChannelInputBytes: factory.NewGauge(prometheus.GaugeOpts{
+		ChannelInputBytes: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      "channel_input_bytes",
 			Help:      "Number of compressed bytes added to the channel",
@@ -645,7 +645,7 @@ func (m *Metrics) PayloadsQuarantineSize(n int) {
 }
 
 func (m *Metrics) RecordChannelInputBytes(inputCompressedBytes int) {
-	m.ChannelInputBytes.Set(float64(inputCompressedBytes))
+	m.ChannelInputBytes.Add(float64(inputCompressedBytes))
 }
 
 type noopMetricer struct{}

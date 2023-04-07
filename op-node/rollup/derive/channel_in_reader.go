@@ -23,8 +23,6 @@ type ChannelInReader struct {
 	prev *ChannelBank
 
 	metrics Metrics
-	// total amount of compressed bytes added to the channel
-	comprInputBytes int
 }
 
 var _ ResetableStage = (*ChannelInReader)(nil)
@@ -46,8 +44,7 @@ func (cr *ChannelInReader) Origin() eth.L1BlockRef {
 func (cr *ChannelInReader) WriteChannel(data []byte) error {
 	if f, err := BatchReader(bytes.NewBuffer(data), cr.Origin()); err == nil {
 		cr.nextBatchFn = f
-		cr.comprInputBytes += len(data)
-		cr.metrics.RecordChannelInputBytes(cr.comprInputBytes)
+		cr.metrics.RecordChannelInputBytes(len(data))
 		return nil
 	} else {
 		cr.log.Error("Error creating batch reader from channel data", "err", err)
