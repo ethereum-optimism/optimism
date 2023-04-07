@@ -2,6 +2,9 @@
 pragma solidity 0.8.15;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { IDisputeGameFactory } from "../universal/IDisputeGameFactory.sol";
+import { IBondManager } from "../universal/IBondManager.sol";
+import { SafeCall } from "../libraries/SafeCall.sol";
 import { Semver } from "../universal/Semver.sol";
 import { Types } from "../libraries/Types.sol";
 
@@ -14,30 +17,24 @@ import { Types } from "../libraries/Types.sol";
  */
 contract L2OutputOracle is Initializable, Semver {
     /**
-     * @notice The interval in L2 blocks at which checkpoints must be submitted. Although this is
-     *         immutable, it can safely be modified by upgrading the implementation contract.
-     */
-    uint256 public immutable SUBMISSION_INTERVAL;
-
-    /**
      * @notice The time between L2 blocks in seconds. Once set, this value MUST NOT be modified.
      */
     uint256 public immutable L2_BLOCK_TIME;
 
     /**
-     * @notice The address of the challenger. Can be updated via upgrade.
+     * @notice The address of the dispute game factory. Can be updated via upgrade.
      */
-    address public immutable CHALLENGER;
-
-    /**
-     * @notice The address of the proposer. Can be updated via upgrade.
-     */
-    address public immutable PROPOSER;
+    IDisputeGameFactory public immutable DISPUTE_GAME_FACTORY;
 
     /**
      * @notice Minimum time (in seconds) that must elapse before a withdrawal can be finalized.
      */
     uint256 public immutable FINALIZATION_PERIOD_SECONDS;
+
+    /**
+     * @notice The Oracle Bond Manager.
+     */
+    IBondManager public immutable BOND_MANAGER;
 
     /**
      * @notice The number of the first L2 block recorded in this contract.
@@ -55,7 +52,13 @@ contract L2OutputOracle is Initializable, Semver {
     Types.OutputProposal[] internal l2Outputs;
 
     /**
+     * @notice Mapping of l2BlockNumber + 1 to the index of its output in l2Outputs.
+     */
+    mapping(uint256 => uint256) internal proposals;
+
+    /**
      * @notice Emitted when an output is proposed.
+     * @notice This is backwards-compatible with the previous L2OutputOracle.
      *
      * @param outputRoot    The output root.
      * @param l2OutputIndex The index of the output in the l2Outputs array.
@@ -71,42 +74,37 @@ contract L2OutputOracle is Initializable, Semver {
 
     /**
      * @notice Emitted when outputs are deleted.
+     * @notice This is backwards-compatible with the previous L2OutputOracle.
      *
-     * @param prevNextOutputIndex Next L2 output index before the deletion.
-     * @param newNextOutputIndex  Next L2 output index after the deletion.
+     * @param prevNextOutputNumber Next L2 output block number before the deletion.
+     * @param newNextOutputNumber  Next L2 output block number after the deletion.
      */
-    event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
+    event OutputsDeleted(uint256 indexed prevNextOutputNumber, uint256 indexed newNextOutputNumber);
 
     /**
-     * @custom:semver 1.3.0
+     * @custom:semver 2.0.0
      *
-     * @param _submissionInterval  Interval in blocks at which checkpoints must be submitted.
-     * @param _l2BlockTime         The time per L2 block, in seconds.
-     * @param _startingBlockNumber The number of the first L2 block.
-     * @param _startingTimestamp   The timestamp of the first L2 block.
-     * @param _proposer            The address of the proposer.
-     * @param _challenger          The address of the challenger.
+     * @param _l2BlockTime               The time per L2 block, in seconds.
+     * @param _startingBlockNumber       The number of the first L2 block.
+     * @param _startingTimestamp         The timestamp of the first L2 block.
+     * @param _disputeGameFactory        The address of the dispute game factory.
+     * @param _finalizationPeriodSeconds The time before an output can be finalized.
+     * @param _bondManager               The bond manager.
      */
     constructor(
-        uint256 _submissionInterval,
         uint256 _l2BlockTime,
         uint256 _startingBlockNumber,
         uint256 _startingTimestamp,
-        address _proposer,
-        address _challenger,
-        uint256 _finalizationPeriodSeconds
-    ) Semver(1, 3, 0) {
-        require(_l2BlockTime > 0, "L2OutputOracle: L2 block time must be greater than 0");
-        require(
-            _submissionInterval > 0,
-            "L2OutputOracle: submission interval must be greater than 0"
-        );
+        address _disputeGameFactory,
+        uint256 _finalizationPeriodSeconds,
+        IBondManager _bondManager
+    ) Semver(2, 0, 0) {
+        require(_l2BlockTime > 0, "L2OutputOracleV2: L2 block time must be greater than 0");
 
-        SUBMISSION_INTERVAL = _submissionInterval;
         L2_BLOCK_TIME = _l2BlockTime;
-        PROPOSER = _proposer;
-        CHALLENGER = _challenger;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
+        BOND_MANAGER = _bondManager;
+        DISPUTE_GAME_FACTORY = _disputeGameFactory;
 
         initialize(_startingBlockNumber, _startingTimestamp);
     }
@@ -134,20 +132,30 @@ contract L2OutputOracle is Initializable, Semver {
      * @notice Deletes all output proposals after and including the proposal that corresponds to
      *         the given output index. Only the challenger address can delete outputs.
      *
-     * @param _l2OutputIndex Index of the first L2 output to be deleted. All outputs after this
-     *                       output will also be deleted.
+     * @param _l2BlockNumber The L2 block number of the output to delete.
      */
     // solhint-disable-next-line ordering
-    function deleteL2Outputs(uint256 _l2OutputIndex) external {
+    function deleteL2Outputs(uint256 _l2BlockNumber) external {
+        // Check that the caller is an authorized dispute game via the DGF.
+        IDisputeGame game = IDisputeGame(msg.sender);
+        GameType gameType = game.gameType();
+        Claim rootClaim = game.rootClaim();
+        bytes memory extraData = game.extraData();
+        IDisputeGame fetched = DISPUTE_GAME_FACTORY.games(gameType, rootClaim, extraData);
         require(
-            msg.sender == CHALLENGER,
-            "L2OutputOracle: only the challenger address can delete outputs"
+            msg.sender == address(fetched),
+            "L2OutputOracle: the caller is not an authorized challenger"
+        );
+        GameStatus status = fetched.status();
+        require(
+            fetched.status() == GameStatus.CHALLENGER_WINS.
+            "L2OutputOracle: challenge game does not have the correct status"
         );
 
-        // Make sure we're not *increasing* the length of the array.
+        uint256 _l2OutputIndex = proposals[_l2BlockNumber + 1];
         require(
-            _l2OutputIndex < l2Outputs.length,
-            "L2OutputOracle: cannot delete outputs after the latest output index"
+            _l2OutputIndex != 0,
+            "L2OutputOracle: there is no output for the given L2 block number"
         );
 
         // Do not allow deleting any outputs that have already been finalized.
@@ -163,13 +171,16 @@ contract L2OutputOracle is Initializable, Semver {
             sstore(l2Outputs.slot, _l2OutputIndex)
         }
 
+        // Remove the output
+        proposals[_l2BlockNumber + 1] == 0,
+
         emit OutputsDeleted(prevNextL2OutputIndex, _l2OutputIndex);
     }
 
     /**
      * @notice Accepts an outputRoot and the timestamp of the corresponding L2 block. The timestamp
      *         must be equal to the current value returned by `nextTimestamp()` in order to be
-     *         accepted. This function may only be called by the Proposer.
+     *         accepted.
      *
      * @param _outputRoot    The L2 output of the checkpoint block.
      * @param _l2BlockNumber The L2 block number that resulted in _outputRoot.
@@ -183,19 +194,19 @@ contract L2OutputOracle is Initializable, Semver {
         uint256 _l1BlockNumber
     ) external payable {
         require(
-            msg.sender == PROPOSER,
-            "L2OutputOracle: only the proposer address can propose new outputs"
-        );
-
-        require(
-            _l2BlockNumber == nextBlockNumber(),
-            "L2OutputOracle: block number must be equal to next expected block number"
-        );
-
-        require(
             computeL2Timestamp(_l2BlockNumber) < block.timestamp,
             "L2OutputOracle: cannot propose L2 output in the future"
         );
+
+        // Check that the output is not already proposed.
+        require(
+            proposals[_l2BlockNumber + 1] == 0,
+            "L2OutputOracle: an output is already proposed for this L2 block number"
+        );
+
+        // Forward the bond to the bond manager.
+        // This reverts if the msg.value does not satisfy the minimum bond amount.
+        BOND_MANAGER.postBond{ value: msg.value }(keccak256(abi.encode(_l2BlockNumber)), msg.sender);
 
         require(
             _outputRoot != bytes32(0),
@@ -217,7 +228,10 @@ contract L2OutputOracle is Initializable, Semver {
             );
         }
 
-        emit OutputProposed(_outputRoot, nextOutputIndex(), _l2BlockNumber, block.timestamp);
+        uint256 outputIndex = nextOutputIndex();
+        proposals[_l2BlockNumber + 1] = outputIndex;
+
+        emit OutputProposed(_outputRoot, outputIndex, _l2BlockNumber, block.timestamp);
 
         l2Outputs.push(
             Types.OutputProposal({
@@ -326,15 +340,6 @@ contract L2OutputOracle is Initializable, Semver {
             l2Outputs.length == 0
                 ? startingBlockNumber
                 : l2Outputs[l2Outputs.length - 1].l2BlockNumber;
-    }
-
-    /**
-     * @notice Computes the block number of the next L2 block that needs to be checkpointed.
-     *
-     * @return Next L2 block number.
-     */
-    function nextBlockNumber() public view returns (uint256) {
-        return latestBlockNumber() + SUBMISSION_INTERVAL;
     }
 
     /**
