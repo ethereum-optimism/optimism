@@ -490,6 +490,68 @@ func (_SystemConfig *SystemConfigCallerSession) Scalar() (*big.Int, error) {
 	return _SystemConfig.Contract.Scalar(&_SystemConfig.CallOpts)
 }
 
+// SignatureThreshold is a free data retrieval call binding the contract method 0xa82f2e26.
+//
+// Solidity: function signatureThreshold() view returns(uint256)
+func (_SystemConfig *SystemConfigCaller) SignatureThreshold(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _SystemConfig.contract.Call(opts, &out, "signatureThreshold")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// SignatureThreshold is a free data retrieval call binding the contract method 0xa82f2e26.
+//
+// Solidity: function signatureThreshold() view returns(uint256)
+func (_SystemConfig *SystemConfigSession) SignatureThreshold() (*big.Int, error) {
+	return _SystemConfig.Contract.SignatureThreshold(&_SystemConfig.CallOpts)
+}
+
+// SignatureThreshold is a free data retrieval call binding the contract method 0xa82f2e26.
+//
+// Solidity: function signatureThreshold() view returns(uint256)
+func (_SystemConfig *SystemConfigCallerSession) SignatureThreshold() (*big.Int, error) {
+	return _SystemConfig.Contract.SignatureThreshold(&_SystemConfig.CallOpts)
+}
+
+// SignerSet is a free data retrieval call binding the contract method 0x1d972d41.
+//
+// Solidity: function signerSet(address ) view returns(bool)
+func (_SystemConfig *SystemConfigCaller) SignerSet(opts *bind.CallOpts, arg0 common.Address) (bool, error) {
+	var out []interface{}
+	err := _SystemConfig.contract.Call(opts, &out, "signerSet", arg0)
+
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return out0, err
+
+}
+
+// SignerSet is a free data retrieval call binding the contract method 0x1d972d41.
+//
+// Solidity: function signerSet(address ) view returns(bool)
+func (_SystemConfig *SystemConfigSession) SignerSet(arg0 common.Address) (bool, error) {
+	return _SystemConfig.Contract.SignerSet(&_SystemConfig.CallOpts, arg0)
+}
+
+// SignerSet is a free data retrieval call binding the contract method 0x1d972d41.
+//
+// Solidity: function signerSet(address ) view returns(bool)
+func (_SystemConfig *SystemConfigCallerSession) SignerSet(arg0 common.Address) (bool, error) {
+	return _SystemConfig.Contract.SignerSet(&_SystemConfig.CallOpts, arg0)
+}
+
 // UnsafeBlockSigner is a free data retrieval call binding the contract method 0x1fd19ee1.
 //
 // Solidity: function unsafeBlockSigner() view returns(address)
@@ -550,6 +612,27 @@ func (_SystemConfig *SystemConfigSession) Version() (string, error) {
 // Solidity: function version() view returns(string)
 func (_SystemConfig *SystemConfigCallerSession) Version() (string, error) {
 	return _SystemConfig.Contract.Version(&_SystemConfig.CallOpts)
+}
+
+// AuthenticateSigner is a paid mutator transaction binding the contract method 0x77610ce8.
+//
+// Solidity: function authenticateSigner(address _signer, bool _authenticated) returns()
+func (_SystemConfig *SystemConfigTransactor) AuthenticateSigner(opts *bind.TransactOpts, _signer common.Address, _authenticated bool) (*types.Transaction, error) {
+	return _SystemConfig.contract.Transact(opts, "authenticateSigner", _signer, _authenticated)
+}
+
+// AuthenticateSigner is a paid mutator transaction binding the contract method 0x77610ce8.
+//
+// Solidity: function authenticateSigner(address _signer, bool _authenticated) returns()
+func (_SystemConfig *SystemConfigSession) AuthenticateSigner(_signer common.Address, _authenticated bool) (*types.Transaction, error) {
+	return _SystemConfig.Contract.AuthenticateSigner(&_SystemConfig.TransactOpts, _signer, _authenticated)
+}
+
+// AuthenticateSigner is a paid mutator transaction binding the contract method 0x77610ce8.
+//
+// Solidity: function authenticateSigner(address _signer, bool _authenticated) returns()
+func (_SystemConfig *SystemConfigTransactorSession) AuthenticateSigner(_signer common.Address, _authenticated bool) (*types.Transaction, error) {
+	return _SystemConfig.Contract.AuthenticateSigner(&_SystemConfig.TransactOpts, _signer, _authenticated)
 }
 
 // Initialize is a paid mutator transaction binding the contract method 0xf975e925.
@@ -676,6 +759,27 @@ func (_SystemConfig *SystemConfigSession) SetResourceConfig(_config ResourceMete
 // Solidity: function setResourceConfig((uint32,uint8,uint8,uint32,uint32,uint128) _config) returns()
 func (_SystemConfig *SystemConfigTransactorSession) SetResourceConfig(_config ResourceMeteringResourceConfig) (*types.Transaction, error) {
 	return _SystemConfig.Contract.SetResourceConfig(&_SystemConfig.TransactOpts, _config)
+}
+
+// SetSignatureThreshold is a paid mutator transaction binding the contract method 0xbbde5374.
+//
+// Solidity: function setSignatureThreshold(uint256 _signatureThreshold) returns()
+func (_SystemConfig *SystemConfigTransactor) SetSignatureThreshold(opts *bind.TransactOpts, _signatureThreshold *big.Int) (*types.Transaction, error) {
+	return _SystemConfig.contract.Transact(opts, "setSignatureThreshold", _signatureThreshold)
+}
+
+// SetSignatureThreshold is a paid mutator transaction binding the contract method 0xbbde5374.
+//
+// Solidity: function setSignatureThreshold(uint256 _signatureThreshold) returns()
+func (_SystemConfig *SystemConfigSession) SetSignatureThreshold(_signatureThreshold *big.Int) (*types.Transaction, error) {
+	return _SystemConfig.Contract.SetSignatureThreshold(&_SystemConfig.TransactOpts, _signatureThreshold)
+}
+
+// SetSignatureThreshold is a paid mutator transaction binding the contract method 0xbbde5374.
+//
+// Solidity: function setSignatureThreshold(uint256 _signatureThreshold) returns()
+func (_SystemConfig *SystemConfigTransactorSession) SetSignatureThreshold(_signatureThreshold *big.Int) (*types.Transaction, error) {
+	return _SystemConfig.Contract.SetSignatureThreshold(&_SystemConfig.TransactOpts, _signatureThreshold)
 }
 
 // SetUnsafeBlockSigner is a paid mutator transaction binding the contract method 0x18d13918.
