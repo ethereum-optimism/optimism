@@ -56,7 +56,7 @@ func TestMissingGasLimit(t *testing.T) {
 		SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
 	}
 
-	node, _, err := initL2Geth("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, writeDefaultJWT(t))
+	node, _, err := initL2Geth("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, writeDefaultJWT(t), 0)
 	require.Nil(t, err)
 	require.Nil(t, node.Start())
 	defer node.Close()
@@ -126,7 +126,7 @@ func TestInvalidDepositInFCU(t *testing.T) {
 		SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
 	}
 
-	node, _, err := initL2Geth("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, writeDefaultJWT(t))
+	node, _, err := initL2Geth("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, writeDefaultJWT(t), 0)
 	require.Nil(t, err)
 	require.Nil(t, node.Start())
 	defer node.Close()

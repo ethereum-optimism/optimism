@@ -108,7 +108,7 @@ func waitForBlock(number *big.Int, client *ethclient.Client, timeout time.Durati
 	}
 }
 
-func initL1Geth(cfg *SystemConfig, genesis *core.Genesis, opts ...GethOption) (*node.Node, *eth.Ethereum, error) {
+func initL1Geth(cfg *SystemConfig, genesis *core.Genesis) (*node.Node, *eth.Ethereum, error) {
 	ethConfig := &ethconfig.Config{
 		NetworkId: cfg.DeployConfig.L1ChainID,
 		Genesis:   genesis,
@@ -123,7 +123,7 @@ func initL1Geth(cfg *SystemConfig, genesis *core.Genesis, opts ...GethOption) (*
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 	}
 
-	l1Node, l1Eth, err := createGethNode(false, nodeConfig, ethConfig, []*ecdsa.PrivateKey{cfg.Secrets.CliqueSigner}, opts...)
+	l1Node, l1Eth, err := createGethNode(false, nodeConfig, ethConfig, []*ecdsa.PrivateKey{cfg.Secrets.CliqueSigner})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -197,7 +197,7 @@ func defaultNodeConfig(name string, jwtPath string) *node.Config {
 type GethOption func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error
 
 // init a geth node.
-func initL2Geth(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath string, opts ...GethOption) (*node.Node, *eth.Ethereum, error) {
+func initL2Geth(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath string, gasCeil uint64) (*node.Node, *eth.Ethereum, error) {
 	ethConfig := &ethconfig.Config{
 		NetworkId: l2ChainID.Uint64(),
 		Genesis:   genesis,
@@ -207,7 +207,7 @@ func initL2Geth(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath 
 			NotifyFull:        false,
 			ExtraData:         nil,
 			GasFloor:          0,
-			GasCeil:           0,
+			GasCeil:           gasCeil,
 			GasPrice:          nil,
 			Recommit:          0,
 			Noverify:          false,
@@ -226,19 +226,14 @@ func initL2Geth(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath 
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 		JWTSecret:   jwtPath,
 	}
-	return createGethNode(true, nodeConfig, ethConfig, nil, opts...)
+	return createGethNode(true, nodeConfig, ethConfig, nil)
 }
 
 // createGethNode creates an in-memory geth node based on the configuration.
 // The private keys are added to the keystore and are unlocked.
 // If the node is l2, catalyst is enabled.
 // The node should be started and then closed when done.
-func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, privateKeys []*ecdsa.PrivateKey, opts ...GethOption) (*node.Node, *eth.Ethereum, error) {
-	for i, opt := range opts {
-		if err := opt(ethCfg, nodeCfg); err != nil {
-			return nil, nil, fmt.Errorf("failed to apply geth option %d: %w", i, err)
-		}
-	}
+func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, privateKeys []*ecdsa.PrivateKey) (*node.Node, *eth.Ethereum, error) {
 	ethCfg.NoPruning = true // force everything to be an archive node
 	n, err := node.New(nodeCfg)
 	if err != nil {
@@ -246,23 +241,25 @@ func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, pri
 		return nil, nil, err
 	}
 
-	keydir := n.KeyStoreDir()
-	scryptN := 2
-	scryptP := 1
-	n.AccountManager().AddBackend(keystore.NewKeyStore(keydir, scryptN, scryptP))
-	ks := n.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
+	if !l2 {
+		keydir := n.KeyStoreDir()
+		scryptN := 2
+		scryptP := 1
+		n.AccountManager().AddBackend(keystore.NewKeyStore(keydir, scryptN, scryptP))
+		ks := n.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 
-	password := "foobar"
-	for _, pk := range privateKeys {
-		act, err := ks.ImportECDSA(pk, password)
-		if err != nil {
-			n.Close()
-			return nil, nil, err
-		}
-		err = ks.Unlock(act, password)
-		if err != nil {
-			n.Close()
-			return nil, nil, err
+		password := "foobar"
+		for _, pk := range privateKeys {
+			act, err := ks.ImportECDSA(pk, password)
+			if err != nil {
+				n.Close()
+				return nil, nil, err
+			}
+			err = ks.Unlock(act, password)
+			if err != nil {
+				n.Close()
+				return nil, nil, err
+			}
 		}
 	}
 
@@ -287,5 +284,4 @@ func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, pri
 		}
 	}
 	return n, backend, nil
-
 }
