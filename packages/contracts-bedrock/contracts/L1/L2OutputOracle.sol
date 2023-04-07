@@ -2,8 +2,8 @@
 pragma solidity 0.8.15;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { IDisputeGameFactory } from "../universal/IDisputeGameFactory.sol";
-import { IBondManager } from "../universal/IBondManager.sol";
+import { IDisputeGameFactory } from "@eth-optimism/contracts-dispute/src/interfaces/IDisputeGameFactory.sol";
+import { IBondManager } from "@eth-optimism/contracts-dispute/src/interfaces/IBondManager.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
 import { Semver } from "../universal/Semver.sol";
 import { Types } from "../libraries/Types.sol";
@@ -148,7 +148,7 @@ contract L2OutputOracle is Initializable, Semver {
         );
         GameStatus status = fetched.status();
         require(
-            fetched.status() == GameStatus.CHALLENGER_WINS.
+            fetched.status() == GameStatus.CHALLENGER_WINS,
             "L2OutputOracle: challenge game does not have the correct status"
         );
 
@@ -172,7 +172,7 @@ contract L2OutputOracle is Initializable, Semver {
         }
 
         // Remove the output
-        proposals[_l2BlockNumber + 1] == 0,
+        proposals[_l2BlockNumber + 1] == 0;
 
         emit OutputsDeleted(prevNextL2OutputIndex, _l2OutputIndex);
     }
