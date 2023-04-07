@@ -61,6 +61,12 @@ var (
 			return &out
 		}(),
 	}
+	PreimageDir = cli.StringFlag{
+		Name:   "preimage.path",
+		Usage:  "Path to preimage directory for persistence, or empty if an in-memory pre-image store should be used instead",
+		EnvVar: service.PrefixEnvVar(envVarPrefix, "PREIMAGE_PATH"),
+		Value:  "",
+	}
 )
 
 // Flags contains the list of configuration options available to the binary.
@@ -75,6 +81,7 @@ var programFlags = []cli.Flag{
 	L1NodeAddr,
 	L1TrustRPC,
 	L1RPCProviderKind,
+	PreimageDir,
 }
 
 func init() {

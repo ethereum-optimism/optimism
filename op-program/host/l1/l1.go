@@ -7,6 +7,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -17,4 +19,16 @@ func NewFetchingL1(ctx context.Context, logger log.Logger, cfg *config.Config) (
 	}
 
 	return sources.NewL1Client(rpc, logger, nil, sources.L1ClientDefaultConfig(cfg.Rollup, cfg.L1TrustRPC, cfg.L1RPCKind))
+}
+
+type Prefetcher struct {
+	logger log.Logger
+}
+
+func NewPrefetcher(logger log.Logger) *Prefetcher {
+	return &Prefetcher{logger: logger}
+}
+
+func (o *Prefetcher) BlockByHash(blockHash common.Hash) (*types.Block, error) {
+	panic("implement me")
 }

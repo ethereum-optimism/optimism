@@ -26,6 +26,8 @@ type Config struct {
 	L1URL         string
 	L1TrustRPC    bool
 	L1RPCKind     sources.RPCProviderKind
+
+	PreimageDir string
 }
 
 func (c *Config) Check() error {
@@ -81,5 +83,6 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 		L1URL:         ctx.GlobalString(flags.L1NodeAddr.Name),
 		L1TrustRPC:    ctx.GlobalBool(flags.L1TrustRPC.Name),
 		L1RPCKind:     sources.RPCProviderKind(ctx.GlobalString(flags.L1RPCProviderKind.Name)),
+		PreimageDir:   ctx.GlobalString(flags.PreimageDir.Name),
 	}, nil
 }
