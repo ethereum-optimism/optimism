@@ -4,10 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-program/config"
+	"github.com/ethereum-optimism/optimism/op-program/driver"
 	"github.com/ethereum-optimism/optimism/op-program/flags"
 	"github.com/ethereum-optimism/optimism/op-program/l1"
 	"github.com/ethereum-optimism/optimism/op-program/l2"
@@ -96,15 +100,30 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 
 	ctx := context.Background()
 	logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
-	_, err := l1.NewFetchingL1(ctx, logger, cfg)
+	l1Source, err := l1.NewFetchingL1(ctx, logger, cfg)
 	if err != nil {
 		return fmt.Errorf("connect l1 oracle: %w", err)
 	}
 
 	logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
-	_, err = l2.NewFetchingEngine(ctx, logger, cfg)
+	l2Source, err := l2.NewFetchingEngine(ctx, logger, cfg)
 	if err != nil {
 		return fmt.Errorf("connect l2 oracle: %w", err)
 	}
+
+	d := driver.NewDriver(logger, cfg, l1Source, l2Source)
+	for {
+		if err = d.Step(ctx); errors.Is(err, io.EOF) {
+			break
+		} else if cfg.FetchingEnabled() && errors.Is(err, derive.ErrTemporary) {
+			// When in fetching mode, recover from temporary errors to allow us to keep fetching data
+			// TODO(CLI-3780) Ideally the retry would happen in the fetcher so this is not needed
+			logger.Warn("Temporary error in pipeline", "err", err)
+			time.Sleep(5 * time.Second)
+		} else if err != nil {
+			return err
+		}
+	}
+	logger.Info("Derivation complete", "head", d.SafeHead())
 	return nil
 }
