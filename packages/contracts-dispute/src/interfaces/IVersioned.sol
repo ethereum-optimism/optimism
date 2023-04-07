@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.19;
 
-/// @title Versioned
+/// @title IVersioned
 /// @notice An interface for semantically versioned contracts.
-interface Versioned {
+interface IVersioned {
     /// @notice Returns the semantic version of the contract
     function version() external pure returns (string memory _version);
 }

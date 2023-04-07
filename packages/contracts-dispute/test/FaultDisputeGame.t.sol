@@ -14,7 +14,6 @@ import { GameType } from "src/types/Types.sol";
 import { Timestamp } from "src/types/Types.sol";
 import { ClaimHash } from "src/types/Types.sol";
 
-import { LibGames } from "src/lib/LibGames.sol";
 import { LibClock } from "src/lib/LibClock.sol";
 import { LibHashing } from "src/lib/LibHashing.sol";
 import { LibPosition } from "src/lib/LibPosition.sol";

@@ -5,7 +5,7 @@ import { Claim } from "src/types/Types.sol";
 import { GameType } from "src/types/Types.sol";
 import { Owner } from "src/util/Owner.sol";
 import { Clone } from "src/util/Clone.sol";
-import { Initialize } from "src/util/Initialize.sol";
+import { Initializable } from "src/util/Initializable.sol";
 import { IDisputeGame } from "src/interfaces/IDisputeGame.sol";
 import { IDisputeGameFactory } from "src/interfaces/IDisputeGameFactory.sol";
 import { ClonesWithImmutableArgs } from "cwia/ClonesWithImmutableArgs.sol";

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.17;
 
 import { Test } from "forge-std/Test.sol";
-import { Initialize } from "src/util/Initialize.sol";
+import { Initializable } from "src/util/Initializable.sol";
 
 /// @title Initialize_Test
 /// @notice Tests the [Initialize] contract.
@@ -43,7 +43,7 @@ contract Initialize_Test is Test {
 
 /// @title TestInitialize
 /// @notice A mock [Initialize] contract.
-contract TestInitialize is Initialize {
+contract TestInitialize is Initializable {
     uint256 public a;
 
     /// @notice Initializes the test contract

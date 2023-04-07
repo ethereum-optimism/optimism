@@ -4,10 +4,7 @@
 /// @notice This file contains all of the types used in the DisputeGame contracts.
 
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
-
-/// @notice A game type represents a type of dispute game.
-type GameType is bytes32;
+pragma solidity ^0.8.19;
 
 /// @notice A claim represents an MPT root representing the state of the fault proof program.
 type Claim is bytes32;
@@ -53,4 +50,14 @@ enum GameStatus {
     CHALLENGER_WINS,
     /// @dev The game has concluded, and the `rootClaim` could not be contested.
     DEFENDER_WINS
+}
+
+/// @notice The type of proof system being used.
+enum GameType {
+    /// @dev The game will use a `IDisputeGame` implementation that utilizes fault proofs.
+    FAULT,
+    /// @dev The game will use a `IDisputeGame` implementation that utilizes validity proofs.
+    VALIDITY,
+    /// @dev The game will use a `IDisputeGame` implementation that utilizes attestation proofs.
+    ATTESTATION
 }

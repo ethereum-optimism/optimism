@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.17;
 
-/// @title Initialize
+import { IInitializable } from "src/interfaces/IInitializable.sol";
+
+/// @title Initializable
 /// @author clabby <https://github.com/clabby>
 /// @notice Enables a contract to have an initializer function that may only be ran once.
-contract Initialize {
+abstract contract Initializable is IInitializable {
     /// @notice Flag that designates whether or not the contract has been initialized.
     bool public initialized;
 

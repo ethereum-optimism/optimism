@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.19;
 
 import "./types/Errors.sol";
 
@@ -13,15 +13,12 @@ import { ClaimHash } from "src/types/Types.sol";
 import { Timestamp } from "src/types/Types.sol";
 import { GameStatus } from "src/types/Types.sol";
 
-// import { Gindex } from "src/types/Types.sol";
-// import { GindexClaim } from "src/types/Types.sol";
-
 import { LibClock } from "src/lib/LibClock.sol";
 import { LibHashing } from "src/lib/LibHashing.sol";
 import { LibPosition } from "src/lib/LibPosition.sol";
 
 import { Clone } from "src/util/Clone.sol";
-import { Initialize } from "src/util/Initialize.sol";
+import { Initializable } from "src/util/Initializable.sol";
 import { IBondManager } from "src/interfaces/IBondManager.sol";
 import { IFaultDisputeGame } from "src/interfaces/IFaultDisputeGame.sol";
 
@@ -29,7 +26,7 @@ import { IFaultDisputeGame } from "src/interfaces/IFaultDisputeGame.sol";
 /// @author clabby <https://github.com/clabby>
 /// @author protolambda <https://github.com/protolambda>
 /// @notice An implementation of the `IFaultDisputeGame` interface.
-contract FaultDisputeGame is IFaultDisputeGame, Clone, Initialize {
+contract FaultDisputeGame is IFaultDisputeGame, Clone, Initializable {
     ////////////////////////////////////////////////////////////////
     //                         State Vars                         //
     ////////////////////////////////////////////////////////////////

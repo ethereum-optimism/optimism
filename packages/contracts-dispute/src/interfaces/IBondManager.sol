@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.19;
 
 /// @title IBondManager
 /// @notice The Bond Manager holds ether posted as a bond for a bond id.

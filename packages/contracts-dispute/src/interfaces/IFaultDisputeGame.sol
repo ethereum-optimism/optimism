@@ -1,14 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.19;
 
-import { Bond } from "src/types/Types.sol";
-import { Clock } from "src/types/Types.sol";
-import { Claim } from "src/types/Types.sol";
-import { Position } from "src/types/Types.sol";
-import { Timestamp } from "src/types/Types.sol";
-import { ClaimHash } from "src/types/Types.sol";
-import { GameStatus } from "src/types/Types.sol";
-
+import "src/types/Types.sol";
 import { IDisputeGame } from "src/interfaces/IDisputeGame.sol";
 
 /// @title IFaultDisputeGame

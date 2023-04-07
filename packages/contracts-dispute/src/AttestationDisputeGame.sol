@@ -1,16 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.19;
 
-import { Claim } from "src/types/Types.sol";
-import { GameType } from "src/types/Types.sol";
-import { Timestamp } from "src/types/Types.sol";
-import { GameStatus } from "src/types/Types.sol";
-
-import { LibGames } from "src/lib/LibGames.sol";
-
+import "src/types/Types.sol";
 import { Owner } from "src/util/Owner.sol";
 import { Clone } from "src/util/Clone.sol";
-import { Initialize } from "src/util/Initialize.sol";
+import { Initializable } from "src/util/Initializable.sol";
 import { IBondManager } from "src/interfaces/IBondManager.sol";
 import { IDisputeGame } from "src/interfaces/IDisputeGame.sol";
 import { IOutputOracle } from "src/interfaces/IOutputOracle.sol";
@@ -18,10 +12,11 @@ import { IDisputeGameFactory } from "src/interfaces/IDisputeGameFactory.sol";
 
 /// @title AttestationDisputeGame
 /// @author refcell <https://github.com/refcell>
+/// @author clabby <https://github.com/clabby>
 /// @notice The attestation dispute game allows a permissioned set of challengers to dispute an output.
 /// @notice The contract owner should be the `L2OutputOracle`.
 /// @notice Whereas the provided challengerSet is intended to be a multisig responsible for resolving the dispute.
-contract AttestationDisputeGame is IDisputeGame, Owner, Initialize {
+contract AttestationDisputeGame is IDisputeGame, Owner, Initializable {
     /// @notice The starting timestamp of the game
     Timestamp public gameStart;
 
@@ -73,7 +68,7 @@ contract AttestationDisputeGame is IDisputeGame, Owner, Initialize {
     /// @notice Returns the dispute game type.
     /// @return _gameType The type of proof system being used.
     function gameType() external pure override returns (GameType _gameType) {
-        _gameType = LibGames.AttestationGameType;
+        _gameType = GameType.ATTESTATION;
     }
 
     /// @notice Getter for the extra data.

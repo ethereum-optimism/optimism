@@ -12,8 +12,7 @@
   "private": true,
   "scripts": {
     "spec:doctoc": "doctoc ./SPEC.md",
-    "clean": "forge clean",
-    "build": "forge build"
+    "clean": "forge clean"
   },
   "devDependencies": {
     "ds-test": "https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5",
