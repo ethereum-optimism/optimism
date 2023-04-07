@@ -5,6 +5,8 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 import { Semver } from "../universal/Semver.sol";
 import { Types } from "../libraries/Types.sol";
 
+// Placeholder
+
 /**
  * @custom:proxied
  * @title L2OutputOracle
