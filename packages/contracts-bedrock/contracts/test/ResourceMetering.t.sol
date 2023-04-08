@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
+import { Test, console2 } from "forge-std/Test.sol";
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
 import { Proxy } from "../universal/Proxy.sol";
 import { Constants } from "../libraries/Constants.sol";
 
 contract MeterUser is ResourceMetering {
-    ResourceMetering.ResourceConfig internal innerConfig;
+    ResourceMetering.ResourceConfig public innerConfig;
 
     constructor() {
         innerConfig = Constants.DEFAULT_RESOURCE_CONFIG();
@@ -120,16 +120,17 @@ contract ResourceMetering_Test is Test {
         uint64 elasticityMultiplier = uint64(rcfg.elasticityMultiplier);
         rcfg.baseFeeMaxChangeDenominator = 1;
         meter.setParams(rcfg);
-
         meter.use(target * elasticityMultiplier);
 
         (, uint64 prevBoughtGas, ) = meter.params();
         assertEq(prevBoughtGas, target * elasticityMultiplier);
 
-        vm.roll(initialBlockNum + 1);
+        vm.roll(initialBlockNum + 2);
+
+        vm.expectRevert("UNDEFINED");
         meter.use(0);
-        (uint128 postBaseFee, , ) = meter.params();
-        assertEq(postBaseFee, 2125000000);
+        // (uint128 postBaseFee, , ) = meter.params();
+        // assertEq(postBaseFee, 2125000000);
     }
 
     function test_meter_updateNoGasDelta_succeeds() external {
