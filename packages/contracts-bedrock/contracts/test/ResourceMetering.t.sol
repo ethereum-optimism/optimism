@@ -7,7 +7,10 @@ import { Proxy } from "../universal/Proxy.sol";
 import { Constants } from "../libraries/Constants.sol";
 
 contract MeterUser is ResourceMetering {
+    ResourceMetering.ResourceConfig internal innerConfig;
+
     constructor() {
+        innerConfig = Constants.DEFAULT_RESOURCE_CONFIG();
         initialize();
     }
 
@@ -15,17 +18,17 @@ contract MeterUser is ResourceMetering {
         __ResourceMetering_init();
     }
 
-    function resourceConfig() public pure returns (ResourceMetering.ResourceConfig memory) {
+    function resourceConfig() public view returns (ResourceMetering.ResourceConfig memory) {
         return _resourceConfig();
     }
 
     function _resourceConfig()
         internal
-        pure
+        view
         override
         returns (ResourceMetering.ResourceConfig memory)
     {
-        return Constants.DEFAULT_RESOURCE_CONFIG();
+        return innerConfig;
     }
 
     function use(uint64 _amount) public metered(_amount) {}
@@ -40,6 +43,10 @@ contract MeterUser is ResourceMetering {
             prevBoughtGas: _prevBoughtGas,
             prevBlockNum: _prevBlockNum
         });
+    }
+
+    function setParams(ResourceMetering.ResourceConfig memory newConfig) public {
+        innerConfig = newConfig;
     }
 }
 
@@ -105,6 +112,24 @@ contract ResourceMetering_Test is Test {
         assertEq(prevBaseFee, 1 gwei);
         assertEq(prevBoughtGas, 0);
         assertEq(prevBlockNum, initialBlockNum + 10);
+    }
+
+    function test_meter_baseFeeMaxChangeDenominator_bricks() external {
+        ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
+        uint64 target = uint64(rcfg.maxResourceLimit) / uint64(rcfg.elasticityMultiplier);
+        uint64 elasticityMultiplier = uint64(rcfg.elasticityMultiplier);
+        rcfg.baseFeeMaxChangeDenominator = 1;
+        meter.setParams(rcfg);
+
+        meter.use(target * elasticityMultiplier);
+
+        (, uint64 prevBoughtGas, ) = meter.params();
+        assertEq(prevBoughtGas, target * elasticityMultiplier);
+
+        vm.roll(initialBlockNum + 1);
+        meter.use(0);
+        (uint128 postBaseFee, , ) = meter.params();
+        assertEq(postBaseFee, 2125000000);
     }
 
     function test_meter_updateNoGasDelta_succeeds() external {
