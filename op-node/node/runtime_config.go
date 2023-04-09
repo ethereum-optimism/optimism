@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 )
 
 var (
@@ -48,6 +49,7 @@ type runtimeConfigData struct {
 }
 
 var _ p2p.GossipRuntimeConfig = (*RuntimeConfig)(nil)
+var _ driver.DriverRuntimeConfig = (*RuntimeConfig)(nil)
 
 func NewRuntimeConfig(log log.Logger, l1Client RuntimeCfgL1Source, rollupCfg *rollup.Config) *RuntimeConfig {
 	return &RuntimeConfig{

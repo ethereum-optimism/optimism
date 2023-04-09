@@ -25,6 +25,9 @@ type SyncStatus = eth.SyncStatus
 // sealingDuration defines the expected time it takes to seal the block
 const sealingDuration = time.Millisecond * 50
 
+type DriverRuntimeConfig interface {
+}
+
 type Driver struct {
 	l1State L1StateIface
 
@@ -52,6 +55,9 @@ type Driver struct {
 
 	// Driver config: verifier and sequencer settings
 	driverConfig *Config
+
+	// Driver runtime config: runtime configuration
+	driverRunConfig DriverRuntimeConfig
 
 	// L1 Signals:
 	//
