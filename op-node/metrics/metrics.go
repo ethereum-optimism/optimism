@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ethereum/go-ethereum/core/types"
+
 	ophttp "github.com/ethereum-optimism/optimism/op-node/http"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 
@@ -51,6 +53,8 @@ type Metricer interface {
 	RecordL1Ref(name string, ref eth.L1BlockRef)
 	RecordL2Ref(name string, ref eth.L2BlockRef)
 	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
+	RecordL1Block(info eth.BlockInfo, txs types.Transactions)
+	RecordL2Block(payload *eth.ExecutionPayload)
 	CountSequencedTxs(count int)
 	RecordL1ReorgDepth(d uint64)
 	RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID)
@@ -111,6 +115,9 @@ type Metrics struct {
 
 	UnsafePayloadsBufferLen     prometheus.Gauge
 	UnsafePayloadsBufferMemSize prometheus.Gauge
+
+	L1Blocks *BlockMetrics
+	L2Blocks *BlockMetrics
 
 	RefsNumber  *prometheus.GaugeVec
 	RefsTime    *prometheus.GaugeVec
@@ -237,6 +244,9 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "unsafe_payloads_buffer_mem_size",
 			Help:      "Total estimated memory size of buffered L2 unsafe payloads",
 		}),
+
+		L1Blocks: NewBlockMetrics(factory, ns, "l1", "L1"),
+		L2Blocks: NewBlockMetrics(factory, ns, "l2", "L2"),
 
 		RefsNumber: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -535,6 +545,14 @@ func (m *Metrics) RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next
 	m.UnsafePayloadsBufferMemSize.Set(float64(memSize))
 }
 
+func (m *Metrics) RecordL1Block(info eth.BlockInfo, txs types.Transactions) {
+	m.L1Blocks.RecordBlock(info, txs)
+}
+
+func (m *Metrics) RecordL2Block(payload *eth.ExecutionPayload) {
+	m.L2Blocks.RecordExecutionPayload(payload)
+}
+
 func (m *Metrics) CountSequencedTxs(count int) {
 	m.TransactionsSequencedTotal.Add(float64(count))
 }
@@ -697,6 +715,14 @@ func (n *noopMetricer) RecordL2Ref(name string, ref eth.L2BlockRef) {
 }
 
 func (n *noopMetricer) RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID) {
+}
+
+func (n *noopMetricer) RecordL1Block(info eth.BlockInfo, txs types.Transactions) {
+
+}
+
+func (n *noopMetricer) RecordL2Block(payload *eth.ExecutionPayload) {
+
 }
 
 func (n *noopMetricer) CountSequencedTxs(count int) {

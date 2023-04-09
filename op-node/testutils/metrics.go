@@ -1,6 +1,8 @@
 package testutils
 
 import (
+	"github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
@@ -12,6 +14,8 @@ type TestDerivationMetrics struct {
 	FnRecordL2Ref             func(name string, ref eth.L2BlockRef)
 	FnRecordUnsafePayloads    func(length uint64, memSize uint64, next eth.BlockID)
 	FnRecordChannelInputBytes func(inputCompresedBytes int)
+	FnRecordL1Block           func(info eth.BlockInfo, txs types.Transactions)
+	FnRecordL2Block           func(payload *eth.ExecutionPayload)
 }
 
 func (t *TestDerivationMetrics) RecordL1ReorgDepth(d uint64) {
@@ -41,6 +45,17 @@ func (t *TestDerivationMetrics) RecordUnsafePayloadsBuffer(length uint64, memSiz
 func (t *TestDerivationMetrics) RecordChannelInputBytes(inputCompresedBytes int) {
 	if t.FnRecordChannelInputBytes != nil {
 		t.FnRecordChannelInputBytes(inputCompresedBytes)
+	}
+}
+func (t *TestDerivationMetrics) RecordL1Block(info eth.BlockInfo, txs types.Transactions) {
+	if t.FnRecordL1Block != nil {
+		t.FnRecordL1Block(info, txs)
+	}
+}
+
+func (t *TestDerivationMetrics) RecordL2Block(payload *eth.ExecutionPayload) {
+	if t.FnRecordL2Block != nil {
+		t.FnRecordL2Block(payload)
 	}
 }
 

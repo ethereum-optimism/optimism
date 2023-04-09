@@ -23,6 +23,10 @@ type L1TransactionFetcher interface {
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
 }
 
+type L1BlockMetrics interface {
+	RecordL1Block(info eth.BlockInfo, txs types.Transactions)
+}
+
 // DataSourceFactory readers raw transactions from a given block & then filters for
 // batch submitter transactions.
 // This is not a stage in the pipeline, but a wrapper for another stage in the pipeline
@@ -30,15 +34,16 @@ type DataSourceFactory struct {
 	log     log.Logger
 	cfg     *rollup.Config
 	fetcher L1TransactionFetcher
+	metrics L1BlockMetrics
 }
 
-func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1TransactionFetcher) *DataSourceFactory {
-	return &DataSourceFactory{log: log, cfg: cfg, fetcher: fetcher}
+func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1TransactionFetcher, metrics L1BlockMetrics) *DataSourceFactory {
+	return &DataSourceFactory{log: log, cfg: cfg, fetcher: fetcher, metrics: metrics}
 }
 
 // OpenData returns a DataIter. This struct implements the `Next` function.
 func (ds *DataSourceFactory) OpenData(ctx context.Context, id eth.BlockID, batcherAddr common.Address) DataIter {
-	return NewDataSource(ctx, ds.log, ds.cfg, ds.fetcher, id, batcherAddr)
+	return NewDataSource(ctx, ds.log, ds.cfg, ds.fetcher, id, batcherAddr, ds.metrics)
 }
 
 // DataSource is a fault tolerant approach to fetching data.
@@ -55,12 +60,14 @@ type DataSource struct {
 	log     log.Logger
 
 	batcherAddr common.Address
+
+	metrics L1BlockMetrics
 }
 
 // NewDataSource creates a new calldata source. It suppresses errors in fetching the L1 block if they occur.
 // If there is an error, it will attempt to fetch the result on the next call to `Next`.
-func NewDataSource(ctx context.Context, log log.Logger, cfg *rollup.Config, fetcher L1TransactionFetcher, block eth.BlockID, batcherAddr common.Address) DataIter {
-	_, txs, err := fetcher.InfoAndTxsByHash(ctx, block.Hash)
+func NewDataSource(ctx context.Context, log log.Logger, cfg *rollup.Config, fetcher L1TransactionFetcher, block eth.BlockID, batcherAddr common.Address, metrics L1BlockMetrics) DataIter {
+	info, txs, err := fetcher.InfoAndTxsByHash(ctx, block.Hash)
 	if err != nil {
 		return &DataSource{
 			open:        false,
@@ -69,8 +76,10 @@ func NewDataSource(ctx context.Context, log log.Logger, cfg *rollup.Config, fetc
 			fetcher:     fetcher,
 			log:         log,
 			batcherAddr: batcherAddr,
+			metrics:     metrics,
 		}
 	} else {
+		metrics.RecordL1Block(info, txs)
 		return &DataSource{
 			open: true,
 			data: DataFromEVMTransactions(cfg, batcherAddr, txs, log.New("origin", block)),
@@ -83,7 +92,8 @@ func NewDataSource(ctx context.Context, log log.Logger, cfg *rollup.Config, fetc
 // otherwise it returns a temporary error if fetching the block returns an error.
 func (ds *DataSource) Next(ctx context.Context) (eth.Data, error) {
 	if !ds.open {
-		if _, txs, err := ds.fetcher.InfoAndTxsByHash(ctx, ds.id.Hash); err == nil {
+		info, txs, err := ds.fetcher.InfoAndTxsByHash(ctx, ds.id.Hash)
+		if err == nil {
 			ds.open = true
 			ds.data = DataFromEVMTransactions(ds.cfg, ds.batcherAddr, txs, log.New("origin", ds.id))
 		} else if errors.Is(err, ethereum.NotFound) {
@@ -91,6 +101,7 @@ func (ds *DataSource) Next(ctx context.Context) (eth.Data, error) {
 		} else {
 			return nil, NewTemporaryError(fmt.Errorf("failed to open calldata source: %w", err))
 		}
+		ds.metrics.RecordL1Block(info, txs)
 	}
 	if len(ds.data) == 0 {
 		return nil, io.EOF

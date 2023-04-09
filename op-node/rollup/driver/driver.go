@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -22,6 +23,9 @@ type Metrics interface {
 	RecordL1Ref(name string, ref eth.L1BlockRef)
 	RecordL2Ref(name string, ref eth.L2BlockRef)
 	RecordChannelInputBytes(inputCompresedBytes int)
+
+	RecordL1Block(info eth.BlockInfo, txs types.Transactions)
+	RecordL2Block(payload *eth.ExecutionPayload)
 
 	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
 

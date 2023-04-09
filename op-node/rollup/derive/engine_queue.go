@@ -58,6 +58,10 @@ type EngineControl interface {
 	BuildingPayload() (onto eth.L2BlockRef, id eth.PayloadID, safe bool)
 }
 
+type L2BlockMetrics interface {
+	RecordL2Block(payload *eth.ExecutionPayload)
+}
+
 // Max memory used for buffering unsafe payloads
 const maxUnsafePayloadsMemory = 500 * 1024 * 1024
 
@@ -590,6 +594,8 @@ func (eq *EngineQueue) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPa
 		eq.metrics.RecordL2Ref("l2_safe", ref)
 	}
 	eq.resetBuildingState()
+
+	eq.metrics.RecordL2Block(payload)
 	return payload, BlockInsertOK, nil
 }
 
