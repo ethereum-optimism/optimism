@@ -220,11 +220,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
 
     function testFuzz_authenticateSigner_succeeds(address signer, bool authorized) external {
         vm.expectEmit(true, true, true, true);
-        emit ConfigUpdate(
-            0,
-            SystemConfig.UpdateType.SIGNER_SET,
-            abi.encode(signer, authorized)
-        );
+        emit ConfigUpdate(0, SystemConfig.UpdateType.SIGNER_SET, abi.encode(signer, authorized));
 
         vm.prank(sysConf.owner());
         sysConf.authenticateSigner(signer, authorized);

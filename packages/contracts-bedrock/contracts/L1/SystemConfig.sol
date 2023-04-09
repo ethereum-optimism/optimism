@@ -325,7 +325,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      *         in the `AttestationDisputeGame`.
      */
     function setSignatureThreshold(uint256 _signatureThreshold) external onlyOwner {
-        require(_signatureThreshold > 0, "SystemConfig: signature threshold must be greater than 0");
+        require(
+            _signatureThreshold > 0,
+            "SystemConfig: signature threshold must be greater than 0"
+        );
 
         signatureThreshold = _signatureThreshold;
         emit ConfigUpdate(VERSION, UpdateType.SIGNATURE_THRESHOLD, abi.encode(_signatureThreshold));

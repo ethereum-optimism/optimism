@@ -25,7 +25,7 @@ contract AttestationDisputeGame is IAttestationDisputeGame, Clone, Initializable
     /// @notice The BondManager contract that is used to manage the bonds for this game.
     IBondManager public immutable bondManager;
     /// @notice The L1's SystemConfig contract.
-    SystemConfig public immutable systemConfig;   
+    SystemConfig public immutable systemConfig;
     /// @notice The L2OutputOracle contract.
     L2OutputOracle public immutable l2OutputOracle;
 
@@ -88,7 +88,7 @@ contract AttestationDisputeGame is IAttestationDisputeGame, Clone, Initializable
         // Mark that the authorized signer has issued a positive attestation for the `rootClaim`.
         challenges[recovered] = true;
 
-        // Increment the number of positive attestations that have been issued for the `rootClaim`.       
+        // Increment the number of positive attestations that have been issued for the `rootClaim`.
         attestationSubmitters.push(msg.sender);
 
         // If the provided signature breaches the signature threshold, resolve the game.
@@ -184,7 +184,6 @@ contract AttestationDisputeGame is IAttestationDisputeGame, Clone, Initializable
     function gameType() public pure override returns (GameType) {
         return GameType.ATTESTATION;
     }
-
 
     ////////////////////////////////////////////////////////////////
     //                       `EIP712` impl                        //
