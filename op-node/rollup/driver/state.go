@@ -26,6 +26,7 @@ type SyncStatus = eth.SyncStatus
 const sealingDuration = time.Millisecond * 50
 
 type DriverRuntimeConfig interface {
+	Load(ctx context.Context, l1Ref eth.L1BlockRef) error
 }
 
 type Driver struct {
@@ -280,6 +281,7 @@ func (s *Driver) eventLoop() {
 
 		case newL1Head := <-s.l1HeadSig:
 			s.l1State.HandleNewL1HeadBlock(newL1Head)
+			s.driverRunConfig.Load(ctx, newL1Head)
 			reqStep() // a new L1 head may mean we have the data to not get an EOF again.
 		case newL1Safe := <-s.l1SafeSig:
 			s.l1State.HandleNewL1SafeBlock(newL1Safe)
