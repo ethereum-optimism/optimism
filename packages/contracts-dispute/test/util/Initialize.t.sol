@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.19;
 
 import { Test } from "forge-std/Test.sol";
 import { Initializable } from "src/util/Initializable.sol";
@@ -24,7 +24,7 @@ contract Initialize_Test is Test {
         // Should succeed
         vm.expectEmit(false, false, false, false);
         emit Initialized();
-        tInit.init();
+        tInit.initialize();
 
         // Assert that the contract was initialized correctly
         assertTrue(tInit.initialized());
@@ -37,7 +37,7 @@ contract Initialize_Test is Test {
 
         // Assert that the contract cannot be initialized twice.
         vm.expectRevert(AlreadyInitialized.selector);
-        tInit.init();
+        tInit.initialize();
     }
 }
 
@@ -47,7 +47,7 @@ contract TestInitialize is Initializable {
     uint256 public a;
 
     /// @notice Initializes the test contract
-    function init() external initializer {
+    function initialize() external initializer {
         a = 1;
     }
 }

@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
-import { Claim } from "src/types/Types.sol";
-import { GameType } from "src/types/Types.sol";
-import { Owner } from "src/util/Owner.sol";
-import { Clone } from "src/util/Clone.sol";
+import "src/types/Types.sol";
+import "src/types/Errors.sol";
+import { Ownable } from "src/util/Ownable.sol";
 import { Initializable } from "src/util/Initializable.sol";
 import { IDisputeGame } from "src/interfaces/IDisputeGame.sol";
 import { IDisputeGameFactory } from "src/interfaces/IDisputeGameFactory.sol";
@@ -12,51 +11,35 @@ import { ClonesWithImmutableArgs } from "cwia/ClonesWithImmutableArgs.sol";
 
 /// @title DisputeGameFactory
 /// @author refcell <https://github.com/refcell>
-/// @notice A factory contract for creating [`DisputeGame`] contracts.
-contract DisputeGameFactory is IDisputeGameFactory, Owner {
+/// @author clabby <https://github.com/clabby>
+/// @notice A factory contract for creating [`IDisputeGame`] contracts.
+contract DisputeGameFactory is IDisputeGameFactory, Ownable {
+    /// @dev Allows for the creation of clone proxies with immutable arguments.
     using ClonesWithImmutableArgs for address;
 
-    /// @notice Mapping of GameType to the `DisputeGame` proxy contract.
-    /// @dev The GameType id is computed as the hash of `gameType . rootClaim . extraData`.
-    mapping(GameType => IDisputeGame) internal disputeGames;
+    /// @notice Mapping of `GameType`s to their respective `IDisputeGame` implementations.
+    mapping(GameType => IDisputeGame) public gameImpls;
+
+    /// @notice Mapping of a hash of `gameType . rootClaim . extraData` to the deployed `IDisputeGame` clone.
+    /// @dev Note: `.` denotes concatenation.
+    mapping(Hash => IDisputeGame) internal disputeGames;
 
     /// @notice Constructs a new DisputeGameFactory contract.
     /// @param _owner The owner of the contract.
-    constructor(address _owner) Owner(_owner) { }
+    constructor(address _owner) Ownable(_owner) { }
 
     /// @notice Retrieves the hash of `gameType . rootClaim . extraData` to the deployed `DisputeGame` clone.
     /// @dev Note: `.` denotes concatenation.
-    /// @param gameType The type of the DisputeGame - used to decide the proxy implementation
+    /// @param gameType The type of the DisputeGame - used to decide the implementation to clone.
     /// @param rootClaim The root claim of the DisputeGame.
     /// @param extraData Any extra data that should be provided to the created dispute game.
-    /// @return _proxy The clone of the `DisputeGame` created with the given parameters. address(0) if nonexistent.
+    /// @return _proxy The clone of the `DisputeGame` created with the given parameters. `address(0)` if nonexistent.
     function games(GameType gameType, Claim rootClaim, bytes calldata extraData)
         external
         view
         returns (IDisputeGame _proxy)
     {
-        return disputeGames[GameType.wrap(getGameID(gameType, rootClaim, extraData))];
-    }
-
-    /// @notice The owner of the contract.
-    /// @notice The owner can update the implementation contracts for a given GameType.
-    /// @return _owner The owner of the contract.
-    function owner() external view returns (address _owner) {
-        return _owner;
-    }
-
-    /// @notice Returns a game id for the given dispute game parameters.
-    function getGameID(GameType gameType, Claim rootClaim, bytes calldata extraData) public pure returns (bytes32) {
-        return keccak256(abi.encode(gameType, rootClaim, extraData));
-    }
-
-    /// @notice Gets the `IDisputeGame` for a given `GameType`.
-    /// @dev Notice, we can just use the `games` mapping to get the implementation.
-    /// @dev This works since clones are mapped using a hash of `gameType . rootClaim . extraData`.
-    /// @param gameType The type of the dispute game.
-    /// @return _impl The address of the implementation of the game type. Will be cloned on creation.
-    function getImplementation(GameType gameType) external view returns (IDisputeGame _impl) {
-        return disputeGames[gameType];
+        return disputeGames[getGameUUID(gameType, rootClaim, extraData)];
     }
 
     /// @notice Creates a new DisputeGame proxy contract.
@@ -69,24 +52,69 @@ contract DisputeGameFactory is IDisputeGameFactory, Owner {
         external
         returns (IDisputeGame proxy)
     {
-        bytes32 gameID = getGameID(gameType, rootClaim, extraData);
-        GameType id = GameType.wrap(gameID);
-        proxy = disputeGames[id];
-        if (address(proxy) == address(0)) {
-            IDisputeGame impl = disputeGames[gameType];
-            bytes memory data = abi.encodePacked(gameType, rootClaim, extraData);
-            proxy = IDisputeGame(address(impl).clone(data));
-            proxy.initialize();
-            disputeGames[id] = proxy;
-            emit DisputeGameCreated(address(proxy), gameType, rootClaim);
+        // Grab the implementation contract for the given `GameType`.
+        IDisputeGame impl = gameImpls[gameType];
+
+        // If there is no implementation to clone for the given `GameType`, revert.
+        if (address(impl) == address(0)) {
+            revert NoImplementation(gameType);
         }
-        return proxy;
+
+        // Clone the implementation contract and initialize it with the given parameters.
+        bytes memory data = abi.encodePacked(gameType, rootClaim, extraData);
+        proxy = IDisputeGame(address(impl).clone(data));
+        proxy.initialize();
+
+        // Compute the unique identifier for the dispute game.
+        Hash uuid = getGameUUID(gameType, rootClaim, extraData);
+
+        // If a dispute game with the same UUID already exists, revert.
+        if (address(disputeGames[uuid]) != address(0)) {
+            revert GameAlreadyExists(uuid);
+        }
+
+        // Store the dispute game in the mapping & emit the `DisputeGameCreated` event.
+        disputeGames[uuid] = proxy;
+        emit DisputeGameCreated(address(proxy), gameType, rootClaim);
     }
 
     /// @notice Sets the implementation contract for a specific `GameType`
     /// @param gameType The type of the DisputeGame
     /// @param impl The implementation contract for the given `GameType`
     function setImplementation(GameType gameType, IDisputeGame impl) external onlyOwner {
-        disputeGames[gameType] = impl;
+        gameImpls[gameType] = impl;
+    }
+
+    /// @notice Returns a unique identifier for the given dispute game parameters.
+    /// @dev Hashes the concatenation of `gameType . rootClaim . extraData` without expanding memory.
+    function getGameUUID(GameType gameType, Claim rootClaim, bytes memory extraData) public pure returns (Hash _uuid) {
+        assembly ("memory-safe") {
+            // Grab the offsets of the other memory locations we will need to temporarily overwrite.
+            let gameTypeOffset := sub(extraData, 0x60)
+            let rootClaimOffset := add(gameTypeOffset, 0x20)
+            let pointerOffset := add(rootClaimOffset, 0x20)
+
+            // Copy the memory that we will temporarily overwrite onto the stack so we can restore it later
+            let tempA := mload(gameTypeOffset)
+            let tempB := mload(rootClaimOffset)
+            let tempC := mload(pointerOffset)
+
+            // Overwrite the memory with the data we want to hash
+            mstore(gameTypeOffset, gameType)
+            mstore(rootClaimOffset, rootClaim)
+            mstore(pointerOffset, 0x60)
+
+            // Compute the length of the memory to hash
+            // `0x60 + 0x20 + extraData.length` rounded to the *next* multiple of 32.
+            let hashLen := and(add(mload(extraData), 0x9F), not(0x1F))
+
+            // Hash the memory to produce the UUID digest
+            _uuid := keccak256(gameTypeOffset, hashLen)
+
+            // Restore the memory prior to `extraData`
+            mstore(gameTypeOffset, tempA)
+            mstore(rootClaimOffset, tempB)
+            mstore(pointerOffset, tempC)
+        }
     }
 }

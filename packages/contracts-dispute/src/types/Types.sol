@@ -6,6 +6,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
+/// @notice A custom type for a generic hash.
+type Hash is bytes32;
+
 /// @notice A claim represents an MPT root representing the state of the fault proof program.
 type Claim is bytes32;
 
@@ -43,6 +46,7 @@ type Clock is uint256;
 type Position is uint256;
 
 /// @notice The current status of the dispute game.
+// forgefmt: disable-next-item
 enum GameStatus {
     /// @dev The game is currently in progress, and has not been resolved.
     IN_PROGRESS,
@@ -53,6 +57,7 @@ enum GameStatus {
 }
 
 /// @notice The type of proof system being used.
+// forgefmt: disable-next-item
 enum GameType {
     /// @dev The game will use a `IDisputeGame` implementation that utilizes fault proofs.
     FAULT,

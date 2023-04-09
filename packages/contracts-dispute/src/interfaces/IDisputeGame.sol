@@ -39,7 +39,7 @@ interface IDisputeGame is IInitializable, IVersioned {
     /// @return _extraData Any extra data supplied to the dispute game contract by the creator.
     function extraData() external view returns (bytes memory _extraData);
 
-    /// @notice Returns the address of the `BondManager` used 
+    /// @notice Returns the address of the `BondManager` used
     function bondManager() external view returns (IBondManager _bondManager);
 
     /// @notice If all necessary information has been gathered, this function should mark the game

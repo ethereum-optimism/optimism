@@ -2,11 +2,11 @@
   "name": "@eth-optimism/contracts-dispute",
   "version": "0.0.1",
   "description": "Contracts for the OP Stack's Dispute Games",
-  "main": "index.js",
   "repository": "https://github.com/ethereum-optimism/dispute-game-contracts",
   "contributors": [
     "clabby <https://github.com/clabby>",
-    "refcell <https://github.com/refcell>"
+    "refcell <https://github.com/refcell>",
+    "protolambda <https://github.com/protolambda>"
   ],
   "license": "MIT",
   "private": true,

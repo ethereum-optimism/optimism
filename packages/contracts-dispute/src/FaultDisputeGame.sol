@@ -259,7 +259,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Initializable {
     ///      i.e. The game type should indicate the security model.
     /// @return _gameType The type of proof system being used.
     function gameType() public pure override returns (GameType _gameType) {
-        _gameType = GameType.wrap(bytes32(_getArgUint256(0)));
+        _gameType = GameType.ATTESTATION;
     }
 
     /// @notice Fetches the root claim from the calldata appended by the CWIA proxy.

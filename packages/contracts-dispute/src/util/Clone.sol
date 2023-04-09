@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSD
-pragma solidity ^0.8.17;
+pragma solidity ^0.8.19;
 
 /// @title Clone
 /// @author zefram.eth

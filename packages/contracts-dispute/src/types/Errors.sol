@@ -1,6 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.19;
 
+import "./Types.sol";
+
+////////////////////////////////////////////////////////////////
+//                `DisputeGameFactory` Errors                 //
+////////////////////////////////////////////////////////////////
+
+/// @notice Thrown when a dispute game is attempted to be created with an unsupported game type.
+error NoImplementation(GameType gameType);
+
+/// @notice Thrown when a dispute game that already exists is attempted to be created.
+error GameAlreadyExists(Hash uuid);
+
 ////////////////////////////////////////////////////////////////
 //               `DisputeGame_Fault.sol` Errors               //
 ////////////////////////////////////////////////////////////////
@@ -13,3 +25,11 @@ error CannotDefendRootClaim();
 
 /// @notice Thrown when a claim is attempting to be made that already exists.
 error ClaimAlreadyExists();
+
+////////////////////////////////////////////////////////////////
+//                      `Ownable` Errors                      //
+////////////////////////////////////////////////////////////////
+
+/// @notice Thrown when a function that is protected by the `onlyOwner` modifier is called from an account
+///         other than the owner.
+error NotOwner();
