@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.15;
 
 import "src/types/Types.sol";
 import "src/types/Errors.sol";
@@ -21,7 +21,7 @@ contract DisputeGameFactory_Test is Test {
 
     /// @dev Tests that the `create` function succeeds when creating a new dispute game with a `GameType` that has an
     ///      implementation set.
-    function test_create_succeeds(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
+    function testFuzz_create_succeeds(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType(uint8(bound(gameType, 0, 2)));
 
@@ -39,7 +39,7 @@ contract DisputeGameFactory_Test is Test {
     }
 
     /// @dev Tests that the `create` function reverts when there is no implementation set for the given `GameType`.
-    function test_create_noImpl_reverts(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
+    function testFuzz_create_noImpl_reverts(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType(uint8(bound(gameType, 0, 2)));
 
@@ -48,7 +48,7 @@ contract DisputeGameFactory_Test is Test {
     }
 
     /// @dev Tests that the `create` function reverts when there exists a dispute game with the same UUID.
-    function test_create_sameUUID_reverts(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
+    function testFuzz_create_sameUUID_reverts(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType(uint8(bound(gameType, 0, 2)));
 

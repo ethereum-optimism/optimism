@@ -27,7 +27,9 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         BATCHER,
         GAS_CONFIG,
         GAS_LIMIT,
-        UNSAFE_BLOCK_SIGNER
+        UNSAFE_BLOCK_SIGNER,
+        SIGNER_SET,
+        SIGNATURE_THRESHOLD
     }
 
     /**
@@ -69,6 +71,19 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      *         so that the struct is returned instead of a tuple.
      */
     ResourceMetering.ResourceConfig internal _resourceConfig;
+
+    /**
+     * @notice The `signerSet` is a set of addresses that are allowed to issue positive attestations
+     *         for alternative output proposals in the `AttestationDisputeGame`.
+     */
+    mapping(address => bool) public signerSet;
+
+    /**
+     * @notice The `signatureThreshold` is the number of positive attestations that must be issued
+     *         for a given alternative output proposal in the `AttestationDisputeGame` before it is
+     *         considered to be the canonical output.
+     */
+    uint256 public signatureThreshold;
 
     /**
      * @notice Emitted when configuration is updated
@@ -290,5 +305,29 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         );
 
         _resourceConfig = _config;
+    }
+
+    /**
+     * @notice An external setter for the `signerSet` mapping. This method is used to
+     *         authenticate or deauthenticate a signer in the `AttestationDisputeGame`.
+     * @param _signer Address of the signer to authenticate or deauthenticate.
+     * @param _authenticated True if the signer should be authenticated, false if the
+     *        signer should be removed.
+     */
+    function authenticateSigner(address _signer, bool _authenticated) external onlyOwner {
+        signerSet[_signer] = _authenticated;
+        emit ConfigUpdate(VERSION, UpdateType.SIGNER_SET, abi.encode(_signer, _authenticated));
+    }
+
+    /**
+     * @notice An external setter for the `signatureThreshold` variable. This method is used to
+     *         set the number of signatures required to invalidate an output proposal
+     *         in the `AttestationDisputeGame`.
+     */
+    function setSignatureThreshold(uint256 _signatureThreshold) external onlyOwner {
+        require(_signatureThreshold > 0, "SystemConfig: signature threshold must be greater than 0");
+
+        signatureThreshold = _signatureThreshold;
+        emit ConfigUpdate(VERSION, UpdateType.SIGNATURE_THRESHOLD, abi.encode(_signatureThreshold));
     }
 }

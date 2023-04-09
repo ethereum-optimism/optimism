@@ -1,5 +1,8 @@
 # IDisputeGameFactory
-[Git Source](https://github.com/ethereum-optimism/optimism/blob/eaf1cde5896035c9ff0d32731da1e103f2f1c693/src/interfaces/IDisputeGameFactory.sol)
+[Git Source](https://github.com/ethereum-optimism/optimism/blob/c6ae546047e96fbfd2d0f78febba2885aab34f5f/src/interfaces/IDisputeGameFactory.sol)
+
+**Inherits:**
+[IOwnable](/src/interfaces/IOwnable.sol/interface.IOwnable.md)
 
 **Author:**
 clabby <https://github.com/clabby>
@@ -10,8 +13,8 @@ The interface for a DisputeGameFactory contract.
 ## Functions
 ### games
 
-`games` is a mapping that maps the hash of `gameType ++ rootClaim ++ extraData` to the deployed
-`DisputeGame` clone.
+`games` queries an internal a mapping that maps the hash of `gameType ++ rootClaim ++ extraData`
+to the deployed `DisputeGame` clone.
 
 *`++` equates to concatenation.*
 
@@ -34,16 +37,16 @@ function games(GameType gameType, Claim rootClaim, bytes calldata extraData)
 
 |Name|Type|Description|
 |----|----|-----------|
-|`_proxy`|`IDisputeGame`|The clone of the `DisputeGame` created with the given parameters. address(0) if nonexistent.|
+|`_proxy`|`IDisputeGame`|The clone of the `DisputeGame` created with the given parameters. Returns `address(0)` if nonexistent.|
 
 
-### getImplementation
+### gameImpls
 
-Gets the `IDisputeGame` for a given `GameType`.
+`gameImpls` is a mapping that maps `GameType`s to their respective `IDisputeGame` implementations.
 
 
 ```solidity
-function getImplementation(GameType gameType) external view returns (IDisputeGame _impl);
+function gameImpls(GameType gameType) external view returns (IDisputeGame _impl);
 ```
 **Parameters**
 
@@ -55,25 +58,7 @@ function getImplementation(GameType gameType) external view returns (IDisputeGam
 
 |Name|Type|Description|
 |----|----|-----------|
-|`_impl`|`IDisputeGame`|The address of the implementation of the game type. Will be cloned on creation.|
-
-
-### owner
-
-The owner of the contract.
-
-*Owner Permissions:
-- Update the implementation contracts for a given game type.*
-
-
-```solidity
-function owner() external view returns (address _owner);
-```
-**Returns**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`_owner`|`address`|The owner of the contract.|
+|`_impl`|`IDisputeGame`|The address of the implementation of the game type. Will be cloned on creation of a new dispute game with the given `gameType`.|
 
 
 ### create
@@ -96,6 +81,8 @@ function create(GameType gameType, Claim rootClaim, bytes calldata extraData) ex
 ### setImplementation
 
 Sets the implementation contract for a specific `GameType`
+
+*May only be called by the `owner`.*
 
 
 ```solidity

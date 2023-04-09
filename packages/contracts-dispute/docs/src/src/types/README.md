@@ -1,10 +1,15 @@
 
 
 # Contents
+- [NoImplementation](Errors.sol/error.NoImplementation.md)
+- [GameAlreadyExists](Errors.sol/error.GameAlreadyExists.md)
 - [BondTooLow](Errors.sol/error.BondTooLow.md)
 - [CannotDefendRootClaim](Errors.sol/error.CannotDefendRootClaim.md)
 - [ClaimAlreadyExists](Errors.sol/error.ClaimAlreadyExists.md)
-- [GameType](Types.sol/type.GameType.md)
+- [InvalidSignature](Errors.sol/error.InvalidSignature.md)
+- [AlreadyChallenged](Errors.sol/error.AlreadyChallenged.md)
+- [NotOwner](Errors.sol/error.NotOwner.md)
+- [Hash](Types.sol/type.Hash.md)
 - [Claim](Types.sol/type.Claim.md)
 - [ClaimHash](Types.sol/type.ClaimHash.md)
 - [Bond](Types.sol/type.Bond.md)
@@ -13,3 +18,4 @@
 - [Clock](Types.sol/type.Clock.md)
 - [Position](Types.sol/type.Position.md)
 - [GameStatus](Types.sol/enum.GameStatus.md)
+- [GameType](Types.sol/enum.GameType.md)

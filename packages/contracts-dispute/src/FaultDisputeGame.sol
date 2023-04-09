@@ -1,17 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.15;
 
-import "./types/Errors.sol";
-
-import { Bond } from "src/types/Types.sol";
-import { Clock } from "src/types/Types.sol";
-import { Claim } from "src/types/Types.sol";
-import { Duration } from "src/types/Types.sol";
-import { Position } from "src/types/Types.sol";
-import { GameType } from "src/types/Types.sol";
-import { ClaimHash } from "src/types/Types.sol";
-import { Timestamp } from "src/types/Types.sol";
-import { GameStatus } from "src/types/Types.sol";
+import "src/types/Types.sol";
+import "src/types/Errors.sol";
 
 import { LibClock } from "src/lib/LibClock.sol";
 import { LibHashing } from "src/lib/LibHashing.sol";

@@ -2,5 +2,5 @@
 
 # Contents
 - [Clone](Clone.sol/contract.Clone.md)
-- [Initialize](Initialize.sol/contract.Initialize.md)
-- [Owner](Owner.sol/abstract.Owner.md)
+- [Initializable](Initializable.sol/abstract.Initializable.md)
+- [Ownable](Ownable.sol/abstract.Ownable.md)

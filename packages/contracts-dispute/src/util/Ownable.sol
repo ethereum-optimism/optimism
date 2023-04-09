@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.15;
 
 import "src/types/Errors.sol";
 import { IOwnable } from "src/interfaces/IOwnable.sol";

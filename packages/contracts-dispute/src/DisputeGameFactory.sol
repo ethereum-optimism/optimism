@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.15;
 
 import "src/types/Types.sol";
 import "src/types/Errors.sol";
@@ -61,7 +61,7 @@ contract DisputeGameFactory is IDisputeGameFactory, Ownable {
         }
 
         // Clone the implementation contract and initialize it with the given parameters.
-        bytes memory data = abi.encodePacked(gameType, rootClaim, extraData);
+        bytes memory data = abi.encodePacked(rootClaim, extraData);
         proxy = IDisputeGame(address(impl).clone(data));
         proxy.initialize();
 

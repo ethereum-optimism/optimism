@@ -1,24 +1,35 @@
 # DisputeGameFactory
-[Git Source](https://github.com/ethereum-optimism/optimism/blob/eaf1cde5896035c9ff0d32731da1e103f2f1c693/src/DisputeGameFactory.sol)
+[Git Source](https://github.com/ethereum-optimism/optimism/blob/c6ae546047e96fbfd2d0f78febba2885aab34f5f/src/DisputeGameFactory.sol)
 
 **Inherits:**
-[IDisputeGameFactory](/src/interfaces/IDisputeGameFactory.sol/interface.IDisputeGameFactory.md), [Owner](/src/util/Owner.sol/abstract.Owner.md)
+[IDisputeGameFactory](/src/interfaces/IDisputeGameFactory.sol/interface.IDisputeGameFactory.md), [Ownable](/src/util/Ownable.sol/abstract.Ownable.md)
 
-**Author:**
-refcell <https://github.com/refcell>
+**Authors:**
+refcell <https://github.com/refcell>, clabby <https://github.com/clabby>
 
-A factory contract for creating [`DisputeGame`] contracts.
+A factory contract for creating [`IDisputeGame`] contracts.
 
 
 ## State Variables
-### disputeGames
-Mapping of GameType to the `DisputeGame` proxy contract.
+### gameImpls
+Mapping of `GameType`s to their respective `IDisputeGame` implementations.
 
-*The GameType id is computed as the hash of `gameType . rootClaim . extraData`.*
+*Allows for the creation of clone proxies with immutable arguments.*
 
 
 ```solidity
-mapping(GameType => IDisputeGame) internal disputeGames;
+mapping(GameType => IDisputeGame) public gameImpls;
+```
+
+
+### disputeGames
+Mapping of a hash of `gameType . rootClaim . extraData` to the deployed `IDisputeGame` clone.
+
+*Note: `.` denotes concatenation.*
+
+
+```solidity
+mapping(Hash => IDisputeGame) internal disputeGames;
 ```
 
 
@@ -29,7 +40,7 @@ Constructs a new DisputeGameFactory contract.
 
 
 ```solidity
-constructor(address _owner) Owner(_owner);
+constructor(address _owner) Ownable(_owner);
 ```
 **Parameters**
 
@@ -55,7 +66,7 @@ function games(GameType gameType, Claim rootClaim, bytes calldata extraData)
 
 |Name|Type|Description|
 |----|----|-----------|
-|`gameType`|`GameType`|The type of the DisputeGame - used to decide the proxy implementation|
+|`gameType`|`GameType`|The type of the DisputeGame - used to decide the implementation to clone.|
 |`rootClaim`|`Claim`|The root claim of the DisputeGame.|
 |`extraData`|`bytes`|Any extra data that should be provided to the created dispute game.|
 
@@ -63,58 +74,7 @@ function games(GameType gameType, Claim rootClaim, bytes calldata extraData)
 
 |Name|Type|Description|
 |----|----|-----------|
-|`_proxy`|`IDisputeGame`|The clone of the `DisputeGame` created with the given parameters. address(0) if nonexistent.|
-
-
-### owner
-
-The owner of the contract.
-
-The owner can update the implementation contracts for a given GameType.
-
-
-```solidity
-function owner() external view returns (address _owner);
-```
-**Returns**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`_owner`|`address`|The owner of the contract.|
-
-
-### getGameID
-
-Returns a game id for the given dispute game parameters.
-
-
-```solidity
-function getGameID(GameType gameType, Claim rootClaim, bytes calldata extraData) public pure returns (bytes32);
-```
-
-### getImplementation
-
-Gets the `IDisputeGame` for a given `GameType`.
-
-*Notice, we can just use the `games` mapping to get the implementation.*
-
-*This works since clones are mapped using a hash of `gameType . rootClaim . extraData`.*
-
-
-```solidity
-function getImplementation(GameType gameType) external view returns (IDisputeGame _impl);
-```
-**Parameters**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`gameType`|`GameType`|The type of the dispute game.|
-
-**Returns**
-
-|Name|Type|Description|
-|----|----|-----------|
-|`_impl`|`IDisputeGame`|The address of the implementation of the game type. Will be cloned on creation.|
+|`_proxy`|`IDisputeGame`|The clone of the `DisputeGame` created with the given parameters. `address(0)` if nonexistent.|
 
 
 ### create
@@ -157,4 +117,15 @@ function setImplementation(GameType gameType, IDisputeGame impl) external onlyOw
 |`gameType`|`GameType`|The type of the DisputeGame|
 |`impl`|`IDisputeGame`|The implementation contract for the given `GameType`|
 
+
+### getGameUUID
+
+Returns a unique identifier for the given dispute game parameters.
+
+*Hashes the concatenation of `gameType . rootClaim . extraData` without expanding memory.*
+
+
+```solidity
+function getGameUUID(GameType gameType, Claim rootClaim, bytes memory extraData) public pure returns (Hash _uuid);
+```
 

@@ -86,6 +86,16 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         sysConf.setResourceConfig(config);
     }
 
+    function test_authenticateSigner_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        sysConf.authenticateSigner(address(0x20), true);
+    }
+
+    function test_setSignatureThreshold_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        sysConf.setSignatureThreshold(1);
+    }
+
     function test_setResourceConfig_badMinMax_reverts() external {
         ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
@@ -142,6 +152,12 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         vm.prank(sysConf.owner());
         vm.expectRevert("SystemConfig: precision loss with target resource limit");
         sysConf.setResourceConfig(config);
+    }
+
+    function test_setSignatureThreshold_zero_reverts() external {
+        vm.prank(sysConf.owner());
+        vm.expectRevert("SystemConfig: signature threshold must be greater than 0");
+        sysConf.setSignatureThreshold(0);
     }
 }
 
@@ -200,5 +216,33 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         vm.prank(sysConf.owner());
         sysConf.setUnsafeBlockSigner(newUnsafeSigner);
         assertEq(sysConf.unsafeBlockSigner(), newUnsafeSigner);
+    }
+
+    function testFuzz_authenticateSigner_succeeds(address signer, bool authorized) external {
+        vm.expectEmit(true, true, true, true);
+        emit ConfigUpdate(
+            0,
+            SystemConfig.UpdateType.SIGNER_SET,
+            abi.encode(signer, authorized)
+        );
+
+        vm.prank(sysConf.owner());
+        sysConf.authenticateSigner(signer, authorized);
+        assertEq(sysConf.signerSet(signer), authorized);
+    }
+
+    function testFuzz_setSignatureThreshold_succeeds(uint256 signatureThreshold) external {
+        signatureThreshold = bound(signatureThreshold, 1, type(uint256).max);
+
+        vm.expectEmit(true, true, true, true);
+        emit ConfigUpdate(
+            0,
+            SystemConfig.UpdateType.SIGNATURE_THRESHOLD,
+            abi.encode(signatureThreshold)
+        );
+
+        vm.prank(sysConf.owner());
+        sysConf.setSignatureThreshold(signatureThreshold);
+        assertEq(sysConf.signatureThreshold(), signatureThreshold);
     }
 }

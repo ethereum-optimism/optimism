@@ -1,10 +1,18 @@
 # Clone
-[Git Source](https://github.com/ethereum-optimism/optimism/blob/eaf1cde5896035c9ff0d32731da1e103f2f1c693/src/util/Clone.sol)
+[Git Source](https://github.com/ethereum-optimism/optimism/blob/c6ae546047e96fbfd2d0f78febba2885aab34f5f/src/util/Clone.sol)
 
 **Author:**
-zefram.eth
+zefram.eth, Saw-mon & Natalie, clabby
 
 Provides helper functions for reading immutable args from calldata
+
+
+## State Variables
+### ONE_WORD
+
+```solidity
+uint256 private constant ONE_WORD = 0x20;
+```
 
 
 ## Functions
@@ -50,6 +58,27 @@ function _getArgUint256(uint256 argOffset) internal pure returns (uint256 arg);
 |`arg`|`uint256`|The arg value|
 
 
+### _getArgFixedBytes
+
+Reads an immutable arg with type bytes32
+
+
+```solidity
+function _getArgFixedBytes(uint256 argOffset) internal pure returns (bytes32 arg);
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`argOffset`|`uint256`|The offset of the arg in the packed data|
+
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`arg`|`bytes32`|The arg value|
+
+
 ### _getArgUint256Array
 
 Reads a uint256 array stored in the immutable args.
@@ -70,6 +99,28 @@ function _getArgUint256Array(uint256 argOffset, uint64 arrLen) internal pure ret
 |Name|Type|Description|
 |----|----|-----------|
 |`arr`|`uint256[]`|The array|
+
+
+### _getArgDynBytes
+
+Reads a dynamic bytes array stored in the immutable args.
+
+
+```solidity
+function _getArgDynBytes(uint256 argOffset, uint64 arrLen) internal pure returns (bytes memory arr);
+```
+**Parameters**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`argOffset`|`uint256`|The offset of the arg in the packed data|
+|`arrLen`|`uint64`|Number of elements in the array|
+
+**Returns**
+
+|Name|Type|Description|
+|----|----|-----------|
+|`arr`|`bytes`|The array|
 
 
 ### _getArgUint64

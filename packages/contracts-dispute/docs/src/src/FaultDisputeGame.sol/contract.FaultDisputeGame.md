@@ -1,8 +1,8 @@
 # FaultDisputeGame
-[Git Source](https://github.com/ethereum-optimism/optimism/blob/eaf1cde5896035c9ff0d32731da1e103f2f1c693/src/FaultDisputeGame.sol)
+[Git Source](https://github.com/ethereum-optimism/optimism/blob/c6ae546047e96fbfd2d0f78febba2885aab34f5f/src/FaultDisputeGame.sol)
 
 **Inherits:**
-[IFaultDisputeGame](/src/interfaces/IFaultDisputeGame.sol/interface.IFaultDisputeGame.md), [Clone](/src/util/Clone.sol/contract.Clone.md), [Initialize](/src/util/Initialize.sol/contract.Initialize.md)
+[IFaultDisputeGame](/src/interfaces/IFaultDisputeGame.sol/interface.IFaultDisputeGame.md), [Clone](/src/util/Clone.sol/contract.Clone.md), [Initializable](/src/util/Initializable.sol/abstract.Initializable.md)
 
 **Authors:**
 clabby <https://github.com/clabby>, protolambda <https://github.com/protolambda>

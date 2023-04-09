@@ -19377,6 +19377,10 @@ socks@^2.3.3, socks@^2.6.1:
     ip "^1.1.5"
     smart-buffer "^4.1.0"
 
+"solady@https://github.com/Vectorized/solady#369c62f92946764770a3d265f9d8fa6228ac9337":
+  version "0.0.86"
+  resolved "https://github.com/Vectorized/solady#369c62f92946764770a3d265f9d8fa6228ac9337"
+
 solc@0.7.3:
   version "0.7.3"
   resolved "https://registry.yarnpkg.com/solc/-/solc-0.7.3.tgz#04646961bd867a744f63d2b4e3c0701ffdc7d78a"

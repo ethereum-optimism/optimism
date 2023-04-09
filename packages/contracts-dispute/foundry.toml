@@ -4,11 +4,19 @@ out = 'out'
 libs = ['lib']
 remappings = [
   "src=src/",
+  "contracts-bedrock=../contracts-bedrock/contracts",
   "ds-test=node_modules/ds-test/src",
   "forge-std=node_modules/forge-std/src",
   "cwia=node_modules/clones-with-immutable-args/src",
+  "solady=node_modules/solady/src",
+
+  # Unused, but required to compile `contracts-bedrock`.
+  "@openzeppelin/contracts=../contracts-bedrock/node_modules/@openzeppelin/contracts",
+  "@openzeppelin/contracts-upgradeable=../contracts-bedrock/node_modules/@openzeppelin/contracts-upgradeable",
+  "@rari-capital/solmate=../contracts-bedrock/node_modules/@rari-capital/solmate"
 ]
 ffi = true
+allow_paths = ["../../node_modules/@eth-optimism/contracts-bedrock"]
 
 [fmt]
 bracket_spacing = true

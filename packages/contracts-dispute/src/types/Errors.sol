@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.15;
 
 import "./Types.sol";
 
@@ -25,6 +25,16 @@ error CannotDefendRootClaim();
 
 /// @notice Thrown when a claim is attempting to be made that already exists.
 error ClaimAlreadyExists();
+
+////////////////////////////////////////////////////////////////
+//              `AttestationDisputeGame` Errors               //
+////////////////////////////////////////////////////////////////
+
+/// @notice Thrown when an invalid signature is submitted to `challenge`.
+error InvalidSignature();
+
+/// @notice Thrown when a signature that has already been used to support the `rootClaim` is submitted to `challenge`.
+error AlreadyChallenged();
 
 ////////////////////////////////////////////////////////////////
 //                      `Ownable` Errors                      //

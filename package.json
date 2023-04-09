@@ -33,6 +33,7 @@
       "@eth-optimism/contracts-dispute/ds-test",
       "@eth-optimism/contracts-dispute/forge-std",
       "@eth-optimism/contracts-dispute/clones-with-immutable-args",
+      "@eth-optimism/contracts-dispute/solady",
       "forta-agent"
     ]
   },

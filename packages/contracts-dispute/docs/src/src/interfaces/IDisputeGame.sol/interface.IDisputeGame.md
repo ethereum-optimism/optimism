@@ -1,8 +1,8 @@
 # IDisputeGame
-[Git Source](https://github.com/ethereum-optimism/optimism/blob/eaf1cde5896035c9ff0d32731da1e103f2f1c693/src/interfaces/IDisputeGame.sol)
+[Git Source](https://github.com/ethereum-optimism/optimism/blob/c6ae546047e96fbfd2d0f78febba2885aab34f5f/src/interfaces/IDisputeGame.sol)
 
 **Inherits:**
-[Initializable](/src/interfaces/Initializable.sol/interface.Initializable.md), [Versioned](/src/interfaces/Versioned.sol/interface.Versioned.md)
+[IInitializable](/src/interfaces/IInitializable.sol/interface.IInitializable.md), [IVersioned](/src/interfaces/IVersioned.sol/interface.IVersioned.md)
 
 **Authors:**
 clabby <https://github.com/clabby>, refcell <https://github.com/refcell>
@@ -11,6 +11,15 @@ The generic interface for a DisputeGame contract.
 
 
 ## Functions
+### createdAt
+
+Returns the timestamp that the DisputeGame contract was created at.
+
+
+```solidity
+function createdAt() external view returns (Timestamp _createdAt);
+```
+
 ### status
 
 Returns the current status of the game.
@@ -76,7 +85,7 @@ function extraData() external view returns (bytes memory _extraData);
 
 ### bondManager
 
-Returns the address of the `BondManager` used to handle in-game bonds.
+Returns the address of the `BondManager` used
 
 
 ```solidity
@@ -104,6 +113,6 @@ TODO: Define the semantics of this event.
 
 
 ```solidity
-event Resolved();
+event Resolved(GameStatus indexed status);
 ```
 

@@ -4,7 +4,7 @@
 /// @notice This file contains all of the types used in the DisputeGame contracts.
 
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.15;
 
 /// @notice A custom type for a generic hash.
 type Hash is bytes32;
