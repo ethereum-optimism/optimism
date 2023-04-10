@@ -101,7 +101,7 @@ elif prev_num != now_num:
     base_fee_per_gas_delta = prev_basefee * gas_used_delta / TARGET_RESOURCE_LIMIT / BASE_FEE_MAX_CHANGE_DENOMINATOR
     now_basefee_wide = prev_basefee + base_fee_per_gas_delta
 
-    now_basefee = clamp(now_basefee_wide, min=MINIMUM_BASEFEE, max=type(uint128).max)
+    now_basefee = clamp(now_basefee_wide, min=MINIMUM_BASEFEE, max=UINT_128_MAX_VALUE)
     now_bought_gas =  requested_gas
 
     # If we skipped multiple blocks between the previous block and now update the basefee again.
