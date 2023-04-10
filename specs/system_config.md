@@ -6,7 +6,7 @@
 
 - [System config contents (version 0)](#system-config-contents-version-0)
   - [`batcherHash` (`bytes32`)](#batcherhash-bytes32)
-  - [`l1FeeOverhead` and `l1FeeScalar` (`uint256,uint256`)](#l1feeoverhead-and-l1feescalar-uint256uint256)
+  - [`overhead` and `scalar` (`uint256,uint256`)](#overhead-and-scalar-uint256uint256)
   - [`gasLimit` (`uint64`)](#gaslimit-uint64)
   - [`unsafeBlockSigner` (`address`)](#unsafeblocksigner-address)
 - [Writing the system config](#writing-the-system-config)
@@ -31,7 +31,7 @@ Version `0` embeds the current batch submitter ethereum address (`bytes20`) in t
 In the future this versioned hash may become a commitment to a more extensive configuration,
 to enable more extensive redundancy and/or rotation configurations.
 
-### `l1FeeOverhead` and `l1FeeScalar` (`uint256,uint256`)
+### `overhead` and `scalar` (`uint256,uint256`)
 
 The L1 fee parameters, also known as Gas Price Oracle (GPO) parameters,
 are updated in conjunction and apply new L1 costs to the L2 transactions.
@@ -70,7 +70,7 @@ A rollup node initializes its derivation process by finding a starting point bas
 - When started from L2 genesis, the initial system configuration is retrieved from the rollup chain configuration.
 - When started from an existing L2 chain, a previously included L1 block is determined as derivation starting point,
   and the system config can thus be retrieved from the last L2 block that referenced the L1 block as L1 origin:
-  - `batcherHash`, `l1FeeOverhead` and `l1FeeScalar` are retrieved from the L1 block info transaction.
+  - `batcherHash`, `overhead` and `scalar` are retrieved from the L1 block info transaction.
   - `gasLimit` is retrieved from the L2 block header.
   - other future variables may also be retrieved from other contents of the L2 block, such as the header.
 
@@ -86,8 +86,9 @@ The contained log events are filtered and processed as follows:
 - the remaining event data is opaque, encoded as ABI bytes (i.e. includes offset and length data),
   and encodes the configuration update. In version `0` the following types are supported:
   - type `0`: `batcherHash` overwrite, as `bytes32` payload.
-  - type `1`: `l1FeeOverhead` and `l1FeeScalar` overwrite, as two packed `uint256` entries.
+  - type `1`: `overhead` and `scalar` overwrite, as two packed `uint256` entries.
   - type `2`: `gasLimit` overwrite, as `uint64` payload.
+  - type `3`: `unsafeBlockSigner` overwrite, as `address` payload.
 
 Note that individual derivation stages may be processing different L1 blocks,
 and should thus maintain individual system configuration copies,
