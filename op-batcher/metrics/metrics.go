@@ -67,8 +67,6 @@ type Metrics struct {
 	ChannelOutputBytesTotal prometheus.Counter
 
 	BatcherTxEvs opmetrics.EventVec
-
-	lastChannelOutputBytes int
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -228,9 +226,7 @@ func (m *Metrics) RecordChannelClosed(id derive.ChannelID, numPendingBlocks int,
 	m.ChannelInputBytes.WithLabelValues(StageClosed).Set(float64(inputBytes))
 	m.ChannelOutputBytes.Set(float64(outputComprBytes))
 
-	outputBytesDelta := outputComprBytes - m.lastChannelOutputBytes
-	m.lastChannelOutputBytes = outputComprBytes
-	m.ChannelOutputBytesTotal.Add(float64(outputBytesDelta))
+	m.ChannelOutputBytesTotal.Add(float64(outputComprBytes))
 
 	var comprRatio float64
 	if inputBytes > 0 {
