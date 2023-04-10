@@ -75,13 +75,14 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 	}
 
 	batcherCfg := Config{
-		L1Client:       l1Client,
-		L2Client:       l2Client,
-		RollupNode:     rollupClient,
-		PollInterval:   cfg.PollInterval,
-		NetworkTimeout: cfg.TxMgrConfig.NetworkTimeout,
-		TxManager:      txManager,
-		Rollup:         rcfg,
+		L1Client:               l1Client,
+		L2Client:               l2Client,
+		RollupNode:             rollupClient,
+		PollInterval:           cfg.PollInterval,
+		MaxPendingTransactions: cfg.MaxPendingTransactions,
+		NetworkTimeout:         cfg.TxMgrConfig.NetworkTimeout,
+		TxManager:              txManager,
+		Rollup:                 rcfg,
 		Channel: ChannelConfig{
 			SeqWindowSize:      rcfg.SeqWindowSize,
 			ChannelTimeout:     rcfg.ChannelTimeout,
@@ -301,6 +302,11 @@ func (l *BatchSubmitter) loop() {
 // publishStateToL1 loops through the block data loaded into `state` and
 // submits the associated data to the L1 in the form of channel frames.
 func (l *BatchSubmitter) publishStateToL1(ctx context.Context) {
+	maxPending := l.MaxPendingTransactions
+	if maxPending == 0 {
+		maxPending = 1<<64 - 1
+	}
+
 	for {
 		// Attempt to gracefully terminate the current channel, ensuring that no new frames will be
 		// produced. Any remaining frames must still be published to the L1 to prevent stalling.
@@ -326,20 +332,29 @@ func (l *BatchSubmitter) publishStateToL1(ctx context.Context) {
 		l.recordL1Tip(l1tip)
 
 		// Collect next transaction data
-		txdata, err := l.state.TxData(l1tip.ID())
-		if err == io.EOF {
-			l.log.Trace("no transaction data available")
-			break
-		} else if err != nil {
-			l.log.Error("unable to get tx data", "err", err)
-			break
+		var wg sync.WaitGroup
+		for i := uint64(0); i < maxPending; i++ {
+			var txdata txData
+			txdata, err = l.state.TxData(l1tip.ID())
+			if err == io.EOF {
+				l.log.Trace("no transaction data available")
+				break
+			} else if err != nil {
+				l.log.Error("unable to get tx data", "err", err)
+				break
+			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				// Record TX Status
+				if receipt, err := l.sendTransaction(ctx, txdata.Bytes()); err != nil {
+					l.recordFailedTx(txdata.ID(), err)
+				} else {
+					l.recordConfirmedTx(txdata.ID(), receipt)
+				}
+			}()
 		}
-		// Record TX Status
-		if receipt, err := l.sendTransaction(ctx, txdata.Bytes()); err != nil {
-			l.recordFailedTx(txdata.ID(), err)
-		} else {
-			l.recordConfirmedTx(txdata.ID(), receipt)
-		}
+		wg.Wait()
 	}
 }
 
