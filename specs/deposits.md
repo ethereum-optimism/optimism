@@ -288,8 +288,8 @@ The predeploy stores the following values:
   and reset to 0 at the start of a new epoch.
 - System configurables tied to the L1 block, see [System configuration specification](./system_config.md):
   - `batcherHash` (`bytes32`): A versioned commitment to the batch-submitter(s) currently operating.
-  - `l1FeeOverhead` (`uint256`): The L1 fee overhead to apply to L1 cost computation of transactions in this L2 block.
-  - `l1FeeScalar` (`uint256`): The L1 fee scalar to apply to L1 cost computation of transactions in this L2 block.
+  - `overhead` (`uint256`): The L1 fee overhead to apply to L1 cost computation of transactions in this L2 block.
+  - `scalar` (`uint256`): The L1 fee scalar to apply to L1 cost computation of transactions in this L2 block.
 
 The contract implements an authorization scheme, such that it only accepts state-changing calls from
 the [depositor account][depositor-account].
