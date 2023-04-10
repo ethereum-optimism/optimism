@@ -418,6 +418,10 @@ func (s *Driver) StopSequencer(ctx context.Context) (common.Hash, error) {
 	}
 }
 
+func (s *Driver) SequencerStopped() bool {
+	return s.driverConfig.SequencerStopped
+}
+
 // syncStatus returns the current sync status, and should only be called synchronously with
 // the driver event loop to avoid retrieval of an inconsistent status.
 func (s *Driver) syncStatus() *eth.SyncStatus {
