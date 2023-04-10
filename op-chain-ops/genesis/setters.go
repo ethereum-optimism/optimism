@@ -172,7 +172,6 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 		if err := setupPredeploy(db, deployResults, storage, name, *address, codeAddr); err != nil {
 			return err
 		}
-
 		code := db.GetCode(codeAddr)
 		if len(code) == 0 {
 			return fmt.Errorf("code not set for %s", name)

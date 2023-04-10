@@ -34,6 +34,10 @@ func TestBuildOptimism(t *testing.T) {
 		"BaseFeeVault": {
 			"recipient": common.HexToAddress("0x1234567890123456789012345678901234567890"),
 		},
+		"BobaL2": {
+			"bridge": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"remoteToken": common.HexToAddress("0x0123456789012345678901234567890123456789"),
+		},
 	})
 	require.Nil(t, err)
 	require.NotNil(t, results)
@@ -54,6 +58,8 @@ func TestBuildOptimism(t *testing.T) {
 		"L2ERC721Bridge":                true,
 		"OptimismMintableERC721Factory": true,
 		"LegacyERC20ETH":                true,
+		"BobaL2":                        true,
+		"BobaTuringCredit":              true,
 	}
 
 	// Only the exact contracts that we care about are being

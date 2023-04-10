@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // ImmutableValues represents the values to be set in immutable code.
@@ -138,6 +139,16 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 		{
 			Name: "LegacyERC20ETH",
 		},
+		{
+			Name: "BobaL2",
+			Args: []interface{}{
+				immutable["BobaL2"]["bridge"],
+				immutable["BobaL2"]["remoteToken"],
+			},
+		},
+		{
+			Name: "BobaTuringCredit",
+		},
 	}
 	return BuildL2(deployments)
 }
@@ -160,6 +171,7 @@ func BuildL2(constructors []deployer.Constructor) (DeploymentResults, error) {
 func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, deployment deployer.Constructor) (*types.Transaction, error) {
 	var tx *types.Transaction
 	var err error
+	var addr common.Address
 	switch deployment.Name {
 	case "GasPriceOracle":
 		_, tx, _, err = bindings.DeployGasPriceOracle(opts, backend)
@@ -230,6 +242,25 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployOptimismMintableERC721Factory(opts, backend, bridge, remoteChainId)
 	case "LegacyERC20ETH":
 		_, tx, _, err = bindings.DeployLegacyERC20ETH(opts, backend)
+	case "BobaTuringCredit":
+		addr, tx, _, err = bindings.DeployBobaTuringCredit(opts, backend, big.NewInt(10))
+	case "BobaL2":
+		bridge, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for bridge")
+		}
+		remoteToken, ok := deployment.Args[1].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for remoteToken")
+		}
+		addr, tx, _, err = bindings.DeployOptimismMintableERC20(
+			opts,
+			backend,
+			bridge,
+			remoteToken,
+			"Boba L2", // Non-immutable slots are populated in genesis/config.go
+			"BOBA",
+		)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

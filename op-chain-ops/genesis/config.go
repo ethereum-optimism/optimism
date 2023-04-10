@@ -74,6 +74,7 @@ type DeployConfig struct {
 
 	// Owner of the ProxyAdmin predeploy
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
+
 	// Owner of the system on L1
 	FinalSystemOwner common.Address `json:"finalSystemOwner"`
 	// GUARDIAN account in the OptimismPortal
@@ -418,7 +419,10 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 	immutable["BaseFeeVault"] = immutables.ImmutableValues{
 		"recipient": config.BaseFeeVaultRecipient,
 	}
-
+	immutable["BobaL2"] = immutables.ImmutableValues{
+		"bridge":       predeploys.L2StandardBridgeAddr,
+		"remoteToken":  common.HexToAddress("0x154C5E3762FbB57427d6B03E7302BDA04C497226"),
+	}
 	return immutable, nil
 }
 
@@ -470,6 +474,15 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
 	}
+	storage["ProxyAdmin"] = state.StorageValues{
+		"_owner": config.ProxyAdminOwner,
+	}
+	storage["BobaL2"] = state.StorageValues{
+		"_name":       "Boba L2",
+		"_symbol":     "BOBA",
+	}
+	storage["BobaTuringCredit"] = state.StorageValues{}
+
 	return storage, nil
 }
 

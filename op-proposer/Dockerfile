@@ -12,7 +12,7 @@ COPY ./op-service /app/op-service
 COPY ./op-signer /app/op-signer
 COPY ./go.mod /app/go.mod
 COPY ./go.sum /app/go.sum
-COPY ./.git /app/.git
+#COPY ./.git /app/.git
 
 WORKDIR /app/op-proposer
 

@@ -104,8 +104,8 @@ L2OO_ADDRESS="0x6900000000000000000000000000000000000000"
   L2OO_ADDRESS="$L2OO_ADDRESS" \
       docker-compose up -d op-proposer op-batcher
 
-  echo "Bringing up stateviz webserver..."
-  docker-compose up -d stateviz
+  echo "SKIP Bringing up stateviz webserver..."
+  #docker-compose up -d stateviz
 )
 
 echo "Devnet ready."

@@ -16,6 +16,8 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -59,6 +61,8 @@ func init() {
 	// Set the maximum base fee on the default config.
 	defaultResourceConfig.MaximumBaseFee = uint128Max
 }
+
+var bobaAddr common.Address
 
 // BuildL1DeveloperGenesis will create a L1 genesis block after creating
 // all of the state required for an Optimism network to function.
@@ -207,6 +211,26 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		return nil, err
 	}
 
+	// Boba dev account funded with ETH and BOBA
+	// key: "c9776e5eb09b348dfde140019e21142503d3c2a5c6d2019d0b30f5099ff2c8dd"
+	bobaDev := common.HexToAddress("0xb0bA04c08d8f1471bcA20C12a64DcCa17B01d96f")
+	bobaFund := hexutil.MustDecodeBig("0xD3C21BCECCEDA1000000")
+
+	nb, err := bindings.NewBOBATransactor(bobaAddr, backend)
+	if err != nil {
+		return nil, err
+	}
+	for _, account := range DevAccounts {
+		_, err := nb.Transfer(opts, account, hexutil.MustDecodeBig("0x1000000000000000000"))
+		if err != nil {
+			return nil, err
+		}
+	}
+	_, err = nb.Transfer(opts, bobaDev, bobaFund)
+	if err != nil {
+		return nil, err
+	}
+
 	// Commit all the upgrades at once, then wait for the last
 	// transaction to be mined. The simulator performs async
 	// processing, and as such we need to wait for the transaction
@@ -224,6 +248,10 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 	FundDevAccounts(memDB)
 	SetPrecompileBalances(memDB)
+
+	log.Info("Funding Boba dev account", "addr", bobaDev, "amount", bobaFund)
+	memDB.CreateAccount(bobaDev)
+	memDB.AddBalance(bobaDev, bobaFund)
 
 	for name, proxyAddr := range predeploys.DevPredeploys {
 		memDB.SetState(*proxyAddr, ImplementationSlot, depsByName[name].Address.Hash())
@@ -355,6 +383,9 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 			},
 		},
 		{
+			Name: "BobaL1",
+		},
+		{
 			Name: "WETH9",
 		},
 	}...)
@@ -364,6 +395,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, deployment deployer.Constructor) (*types.Transaction, error) {
 	var tx *types.Transaction
 	var err error
+	var addr common.Address
 
 	switch deployment.Name {
 	case "SystemConfig":
@@ -406,7 +438,7 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			predeploys.DevOptimismPortalAddr,
 		)
 	case "L1StandardBridge":
-		_, tx, _, err = bindings.DeployL1StandardBridge(
+		addr, tx, _, err = bindings.DeployL1StandardBridge(
 			opts,
 			backend,
 			predeploys.DevL1CrossDomainMessengerAddr,
@@ -428,6 +460,12 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			backend,
 			common.Address{},
 		)
+	case "BobaL1":
+		addr, tx, _, err = bindings.DeployBOBA(
+			opts,
+			backend,
+		)
+		bobaAddr = addr
 	case "WETH9":
 		_, tx, _, err = bindings.DeployWETH9(
 			opts,

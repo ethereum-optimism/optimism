@@ -21,6 +21,9 @@ const (
 	ProxyAdmin                    = "0x4200000000000000000000000000000000000018"
 	BaseFeeVault                  = "0x4200000000000000000000000000000000000019"
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
+	// -----
+	BobaTuringCredit             = "0x42000000000000000000000000000000000000ff"
+	BobaL2                       = "0x42000000000000000000000000000000000000fe"
 )
 
 var (
@@ -42,6 +45,9 @@ var (
 	ProxyAdminAddr                    = common.HexToAddress(ProxyAdmin)
 	BaseFeeVaultAddr                  = common.HexToAddress(BaseFeeVault)
 	L1FeeVaultAddr                    = common.HexToAddress(L1FeeVault)
+	// -----
+	BobaTuringCreditAddr             = common.HexToAddress(BobaTuringCredit)
+	BobaL2Addr                       = common.HexToAddress(BobaL2)
 
 	Predeploys = make(map[string]*common.Address)
 )
@@ -65,4 +71,7 @@ func init() {
 	Predeploys["ProxyAdmin"] = &ProxyAdminAddr
 	Predeploys["BaseFeeVault"] = &BaseFeeVaultAddr
 	Predeploys["L1FeeVault"] = &L1FeeVaultAddr
+	// -----
+	Predeploys["BobaTuringCredit"] = &BobaTuringCreditAddr
+	Predeploys["BobaL2"] = &BobaL2Addr
 }
