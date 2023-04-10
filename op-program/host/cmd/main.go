@@ -216,9 +216,11 @@ func SeparatedFaultProofProgram(logger log.Logger, cfg *config.Config) error {
 				return err
 			}
 			var buf bytes.Buffer
-			if err := bl.EncodeRLP(&buf); err != nil {
+			if err := bl.Header().EncodeRLP(&buf); err != nil {
 				return err
 			}
+			// TODO transactions
+			// TODO receipts
 			return kv.Put(preimage.Keccak256Key(k).PreimageKey(), buf.Bytes())
 		case "l2-block":
 			k := common.HexToHash(parts[1])
@@ -227,9 +229,11 @@ func SeparatedFaultProofProgram(logger log.Logger, cfg *config.Config) error {
 				return err
 			}
 			var buf bytes.Buffer
-			if err := bl.EncodeRLP(&buf); err != nil {
+			if err := bl.Header().EncodeRLP(&buf); err != nil {
 				return err
 			}
+			// TODO transactions
+			// TODO receipts
 			return kv.Put(preimage.Keccak256Key(k).PreimageKey(), buf.Bytes())
 		case "l2-state-node":
 			k := common.HexToHash(parts[1])
