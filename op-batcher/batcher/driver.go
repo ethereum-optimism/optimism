@@ -286,16 +286,49 @@ func (l *BatchSubmitter) loop() {
 
 	ticker := time.NewTicker(l.PollInterval)
 	defer ticker.Stop()
+	receiptsCh := make(chan struct{id txId, receipt *types.Receipt, err error})
+	txTicker := time.NewTicker(100 * time.Millisecond)
+	defer txTicker.Stop()
 	for {
 		select {
 		case <-ticker.C:
 			l.loadBlocksIntoState(l.shutdownCtx)
-			l.publishStateToL1(l.killCtx)
-		case <-l.shutdownCtx.Done():
-			l.publishStateToL1(l.killCtx)
-			return
+		// case <-l.shutdownCtx.Done():
+		// 	l.publishStateToL1(l.killCtx)
+		// 	return
+		case <-txTicker.C:
+			l.publishL1TxAsync(l.killCtx, receiptsCh)
+		case res := <- receiptsCh:
+			// Record TX Status
+			if res.err != nil {
+				l.recordFailedTx(res.id, res.err)
+			} else {
+				l.recordConfirmedTx(res.id, res.receipt)
+			}
+
 		}
 	}
+}
+
+func (l *BatchSubmitter) publishL1TxAsync(ctx context.Context, receiptsCh chan struct{id txId, receipt *types.Receipt, err error}) {
+	l1tip, err := l.l1Tip(ctx)
+	if err != nil {
+		l.log.Error("Failed to query L1 tip", "error", err)
+		return
+	}
+	l.recordL1Tip(l1tip)
+
+	// Collect next transaction data
+	txdata, err := l.state.TxData(l1tip.ID())
+	if err == io.EOF {
+		l.log.Trace("no transaction data available")
+		break
+	} else if err != nil {
+		l.log.Error("unable to get tx data", "err", err)
+		break
+	}
+	l.sendTransaction(ctx,txdata)
+	// TODO: figure out where to span the go-routine
 }
 
 // publishStateToL1 loops through the block data loaded into `state` and
@@ -334,12 +367,7 @@ func (l *BatchSubmitter) publishStateToL1(ctx context.Context) {
 			l.log.Error("unable to get tx data", "err", err)
 			break
 		}
-		// Record TX Status
-		if receipt, err := l.sendTransaction(ctx, txdata.Bytes()); err != nil {
-			l.recordFailedTx(txdata.ID(), err)
-		} else {
-			l.recordConfirmedTx(txdata.ID(), receipt)
-		}
+		// sendTxAsync w/ channel
 	}
 }
 
