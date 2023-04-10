@@ -59,8 +59,8 @@ This is a very simple contract that stores the hash of the withdrawal data.
 
 ### On L1
 
-1. A [relayer][g-relayer] submits the required inputs to the `OptimismPortal` contract. The relayer need
-   not be the same entity which initiated the withdrawal on L2.
+1. A [relayer][g-relayer] submits the required inputs to the `OptimismPortal` contract. The relayer 
+   is not necessarily the same entity which initiated the withdrawal on L2.
    These inputs include the withdrawal transaction data, inclusion proofs, and a block number. The block number
    must be one for which an L2 output root exists, which commits to the withdrawal as registered on L2.
 1. The `OptimismPortal` contract retrieves the output root for the given block number from the `L2OutputOracle`'s
@@ -70,7 +70,7 @@ This is a very simple contract that stores the hash of the withdrawal data.
 1. After the withdrawal is proven, it enters a 7 day challenge period, allowing time for other network participants
    to challenge the integrity of the corresponding output root.
 1. Once the challenge period has passed, a relayer submits the withdrawal transaction once again to the
-   `OptimismPortal` contract. Again, the relayer need not be the same entity which initiated the withdrawal on L2.
+   `OptimismPortal` contract. Again, the relayer is not necessarily the same entity which initiated the withdrawal on L2.
 1. The `OptimismPortal` contract receives the withdrawal transaction data and verifies that the withdrawal has
    both been proven and passed the challenge period.
 1. If the requirements are not met, the call reverts. Otherwise the call is forwarded, and the hash is recorded to
