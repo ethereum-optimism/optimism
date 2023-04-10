@@ -8,6 +8,7 @@ import (
 	"math/big"
 	_ "net/http/pprof"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
@@ -40,6 +41,9 @@ type BatchSubmitter struct {
 	lastL1Tip       eth.L1BlockRef
 
 	state *channelManager
+
+	txWg       sync.WaitGroup
+	pendingTxs atomic.Uint64
 }
 
 // NewBatchSubmitterFromCLIConfig initializes the BatchSubmitter, gathering any resources
@@ -282,80 +286,131 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 // Submitted batch, but it is not valid
 // Missed L2 block somehow.
 
+type txReceipt struct {
+	id      txID
+	receipt *types.Receipt
+	err     error
+}
+
 func (l *BatchSubmitter) loop() {
 	defer l.wg.Done()
 
-	ticker := time.NewTicker(l.PollInterval)
-	defer ticker.Stop()
+	loadTicker := time.NewTicker(l.PollInterval)
+	defer loadTicker.Stop()
+	publishTicker := time.NewTicker(100 * time.Millisecond)
+	defer publishTicker.Stop()
+	receiptsCh := make(chan txReceipt)
+
 	for {
 		select {
-		case <-ticker.C:
+		case <-loadTicker.C:
 			l.loadBlocksIntoState(l.shutdownCtx)
-			l.publishStateToL1(l.killCtx)
+		case <-publishTicker.C:
+			_ = l.publishStateToL1(l.killCtx, receiptsCh)
+		case res := <-receiptsCh:
+			// Record TX Status
+			if res.err != nil {
+				l.recordFailedTx(res.id, res.err)
+			} else {
+				l.recordConfirmedTx(res.id, res.receipt)
+			}
 		case <-l.shutdownCtx.Done():
-			l.publishStateToL1(l.killCtx)
+			l.drainState(receiptsCh)
 			return
 		}
 	}
 }
 
-// publishStateToL1 loops through the block data loaded into `state` and
-// submits the associated data to the L1 in the form of channel frames.
-func (l *BatchSubmitter) publishStateToL1(ctx context.Context) {
-	maxPending := l.MaxPendingTransactions
-	if maxPending == 0 {
-		maxPending = 1<<64 - 1
+func (l *BatchSubmitter) drainState(receiptsCh chan txReceipt) {
+	err := l.state.Close()
+	if err != nil {
+		l.log.Error("error closing the channel manager", "err", err)
 	}
-
-	for {
-		// Attempt to gracefully terminate the current channel, ensuring that no new frames will be
-		// produced. Any remaining frames must still be published to the L1 to prevent stalling.
-		select {
-		case <-ctx.Done():
-			err := l.state.Close()
-			if err != nil {
-				l.log.Error("error closing the channel manager", "err", err)
-			}
-		case <-l.shutdownCtx.Done():
-			err := l.state.Close()
-			if err != nil {
-				l.log.Error("error closing the channel manager", "err", err)
-			}
-		default:
-		}
-
-		l1tip, err := l.l1Tip(ctx)
-		if err != nil {
-			l.log.Error("Failed to query L1 tip", "error", err)
-			return
-		}
-		l.recordL1Tip(l1tip)
-
-		// Collect next transaction data
-		var wg sync.WaitGroup
-		for i := uint64(0); i < maxPending; i++ {
-			var txdata txData
-			txdata, err = l.state.TxData(l1tip.ID())
-			if err == io.EOF {
-				l.log.Trace("no transaction data available")
-				break
-			} else if err != nil {
-				l.log.Error("unable to get tx data", "err", err)
-				break
-			}
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				// Record TX Status
-				if receipt, err := l.sendTransaction(ctx, txdata.Bytes()); err != nil {
-					l.recordFailedTx(txdata.ID(), err)
-				} else {
-					l.recordConfirmedTx(txdata.ID(), receipt)
+	func() {
+		// keep publishing state until we've drained all pending data (EOF), or an error occurs
+		for {
+			select {
+			case <-l.killCtx.Done():
+				return
+			default:
+				err := l.publishStateToL1(l.killCtx, receiptsCh)
+				if err != nil {
+					if err != io.EOF {
+						l.log.Error("error while publishing state on shutdown", "err", err)
+					}
+					return
 				}
-			}()
+			}
 		}
-		wg.Wait()
+	}()
+	var receipts []txReceipt
+	receiptsDone := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case res := <-receiptsCh:
+				receipts = append(receipts, res)
+			case <-receiptsDone:
+				return
+			}
+		}
+	}()
+	// wait for all transactions to complete
+	l.txWg.Wait()
+	close(receiptsDone)
+	// process the receipts
+	for _, res := range receipts {
+		if res.err != nil {
+			l.recordFailedTx(res.id, res.err)
+		} else {
+			l.recordConfirmedTx(res.id, res.receipt)
+		}
 	}
+}
+
+// publishStateToL1 pulls the block data loaded into `state` and
+// submits the associated data to the L1 in the form of channel frames.
+func (l *BatchSubmitter) publishStateToL1(ctx context.Context, receiptsCh chan txReceipt) error {
+	pending := l.pendingTxs.Load()
+	if l.MaxPendingTransactions > 0 && pending >= l.MaxPendingTransactions {
+		l.log.Trace("skipping publish due to pending transactions")
+		return nil
+	}
+
+	l1tip, err := l.l1Tip(ctx)
+	if err != nil {
+		l.log.Error("Failed to query L1 tip", "error", err)
+		return err
+	}
+	l.recordL1Tip(l1tip)
+
+	// Collect next transaction data
+	txdata, err := l.state.TxData(l1tip.ID())
+	if err == io.EOF {
+		l.log.Trace("no transaction data available")
+		return err
+	} else if err != nil {
+		l.log.Error("unable to get tx data", "err", err)
+		return err
+	}
+
+	pending = l.pendingTxs.Add(1)
+	l.metr.RecordPendingTx(pending)
+	l.txWg.Add(1)
+	go func() {
+		defer func() {
+			l.txWg.Done()
+			pending = l.pendingTxs.Add(^uint64(0)) // -1
+			l.metr.RecordPendingTx(pending)
+		}()
+		receipt, err := l.sendTransaction(ctx, txdata.Bytes())
+		receiptsCh <- txReceipt{
+			id:      txdata.ID(),
+			receipt: receipt,
+			err:     err,
+		}
+	}()
+	return nil
 }
 
 // sendTransaction creates & submits a transaction to the batch inbox address with the given `data`.
