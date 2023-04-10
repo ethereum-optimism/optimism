@@ -27,6 +27,7 @@ const sealingDuration = time.Millisecond * 50
 
 type DriverRuntimeConfig interface {
 	Load(ctx context.Context, l1Ref eth.L1BlockRef) error
+	P2PSequencerAddress() common.Address
 }
 
 type Driver struct {
@@ -282,6 +283,39 @@ func (s *Driver) eventLoop() {
 		case newL1Head := <-s.l1HeadSig:
 			s.l1State.HandleNewL1HeadBlock(newL1Head)
 			s.driverRunConfig.Load(ctx, newL1Head)
+			// We check if the sequencer has to be started or stopped based on the network's p2p signer address
+			if !s.driverConfig.SequencerEnabled {
+				// If we don't have sequencing enabled, we skip this step
+				s.log.Debug("Sequencer not enabled")
+			} else {
+				// Otherwise, we ensure that the sequencer is started if the network's p2p signer address matches that of the sequencer
+				// and that the sequencer is stopped if the network's p2p signer address does not match that of the sequencer.
+				s.log.Debug("Updating sequencing state...")
+				signerAddress, err := s.network.P2PSignerAddress()
+				if err != nil {
+					// If we can't get the p2p signer address, we don't have enough information to update the sequencing state
+					s.log.Error("Critical error while updating sequencing state", "err", err)
+					return
+				}
+				// We get the p2p sequencer address from the driver run config, which was updated with Load(...) above with the new L1 data
+				sequencerAddress := s.driverRunConfig.P2PSequencerAddress().String()
+				if signerAddress == sequencerAddress && s.driverConfig.SequencerStopped {
+					// If the network's p2p signer address matches that of the sequencer, we ensure that the the sequencer is not currently stopped
+					s.log.Warn("Recognized as sequencer by the system.")
+					h := hashAndErrorChannel{
+						hash: s.derivation.UnsafeL2Head().Hash,
+						err:  make(chan error, 1),
+					}
+					s.startSequencer <- h
+				} else if signerAddress != sequencerAddress && !s.driverConfig.SequencerStopped {
+					// If the p2p signer address doesn't match that of the sequencer, we ensure that the the sequencer is currently stopped
+					s.log.Warn("Not recognized as sequencer by the system.")
+					respCh := make(chan hashAndError, 1)
+					s.stopSequencer <- respCh
+				} else {
+					s.log.Debug("No changes made. Sequencer is up to date")
+				}
+			}
 			reqStep() // a new L1 head may mean we have the data to not get an EOF again.
 		case newL1Safe := <-s.l1SafeSig:
 			s.l1State.HandleNewL1SafeBlock(newL1Safe)

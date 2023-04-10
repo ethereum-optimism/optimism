@@ -384,6 +384,13 @@ func (n *OpNode) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) 
 	return nil
 }
 
+func (n *OpNode) P2PSignerAddress() (string, error) {
+	if n.p2pSigner == nil {
+		return "", errors.New("missing p2p signer, cannot get address")
+	}
+	return n.p2pSigner.Address(), nil
+}
+
 func (n *OpNode) P2P() p2p.Node {
 	return n.p2pNode
 }
