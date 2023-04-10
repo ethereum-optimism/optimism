@@ -69,9 +69,9 @@ func (info *L1BlockInfo) MarshalBinary() ([]byte, error) {
 
 	var padding [24]byte
 	writer.Write(padding[:])
-	binary.Write(writer, binary.BigEndian, info.Number)
+	_ = binary.Write(writer, binary.BigEndian, info.Number)
 	writer.Write(padding[:])
-	binary.Write(writer, binary.BigEndian, info.Time)
+	_ = binary.Write(writer, binary.BigEndian, info.Time)
 	// Ensure that the baseFee is not too large.
 	if info.BaseFee.BitLen() > 256 {
 		return nil, fmt.Errorf("base fee exceeds 256 bits: %d", info.BaseFee)
@@ -81,7 +81,7 @@ func (info *L1BlockInfo) MarshalBinary() ([]byte, error) {
 	writer.Write(baseFeeBuf[:])
 	writer.Write(info.BlockHash.Bytes())
 	writer.Write(padding[:])
-	binary.Write(writer, binary.BigEndian, info.SequenceNumber)
+	_ = binary.Write(writer, binary.BigEndian, info.SequenceNumber)
 
 	var addrPadding [12]byte
 	writer.Write(addrPadding[:])
