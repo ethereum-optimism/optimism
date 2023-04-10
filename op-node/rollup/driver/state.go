@@ -298,8 +298,8 @@ func (s *Driver) eventLoop() {
 					return
 				}
 				// We get the p2p sequencer address from the driver run config, which was updated with Load(...) above with the new L1 data
-				sequencerAddress := s.driverRunConfig.P2PSequencerAddress().String()
-				if signerAddress == sequencerAddress && s.driverConfig.SequencerStopped {
+				sequencerAddress := s.driverRunConfig.P2PSequencerAddress()
+				if *signerAddress == sequencerAddress && s.driverConfig.SequencerStopped {
 					// If the network's p2p signer address matches that of the sequencer, we ensure that the the sequencer is not currently stopped
 					s.log.Warn("Recognized as sequencer by the system.")
 					h := hashAndErrorChannel{
@@ -307,7 +307,7 @@ func (s *Driver) eventLoop() {
 						err:  make(chan error, 1),
 					}
 					s.startSequencer <- h
-				} else if signerAddress != sequencerAddress && !s.driverConfig.SequencerStopped {
+				} else if *signerAddress != sequencerAddress && !s.driverConfig.SequencerStopped {
 					// If the p2p signer address doesn't match that of the sequencer, we ensure that the the sequencer is currently stopped
 					s.log.Warn("Not recognized as sequencer by the system.")
 					respCh := make(chan hashAndError, 1)

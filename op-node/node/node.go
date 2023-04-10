@@ -10,6 +10,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -384,9 +385,9 @@ func (n *OpNode) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) 
 	return nil
 }
 
-func (n *OpNode) P2PSignerAddress() (string, error) {
+func (n *OpNode) P2PSignerAddress() (*common.Address, error) {
 	if n.p2pSigner == nil {
-		return "", errors.New("missing p2p signer, cannot get address")
+		return nil, errors.New("missing p2p signer, cannot get address")
 	}
 	return n.p2pSigner.Address(), nil
 }

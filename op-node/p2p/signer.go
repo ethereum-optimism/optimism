@@ -18,7 +18,7 @@ var SigningDomainBlocksV1 = [32]byte{}
 type Signer interface {
 	Sign(ctx context.Context, domain [32]byte, chainID *big.Int, encodedMsg []byte) (sig *[65]byte, err error)
 	io.Closer
-	Address() string
+	Address() *common.Address
 }
 
 func SigningHash(domain [32]byte, chainID *big.Int, payloadBytes []byte) (common.Hash, error) {
@@ -42,12 +42,12 @@ func BlockSigningHash(cfg *rollup.Config, payloadBytes []byte) (common.Hash, err
 
 // LocalSigner is suitable for testing
 type LocalSigner struct {
-	address string
+	address *common.Address
 	priv    *ecdsa.PrivateKey
 	hasher  func(domain [32]byte, chainID *big.Int, payloadBytes []byte) (common.Hash, error)
 }
 
-func (s *LocalSigner) Address() string {
+func (s *LocalSigner) Address() *common.Address {
 	return s.address
 }
 
@@ -58,9 +58,9 @@ func NewLocalSigner(priv *ecdsa.PrivateKey) (*LocalSigner, error) {
 	if !ok {
 		return nil, errors.New("can't get local signer's address")
 	}
-	address := crypto.PubkeyToAddress(*publicKeyECDSA).Hex()
+	address := crypto.PubkeyToAddress(*publicKeyECDSA)
 
-	return &LocalSigner{address: address, priv: priv, hasher: SigningHash}, nil
+	return &LocalSigner{address: &address, priv: priv, hasher: SigningHash}, nil
 }
 
 func (s *LocalSigner) Sign(ctx context.Context, domain [32]byte, chainID *big.Int, encodedMsg []byte) (sig *[65]byte, err error) {
@@ -79,7 +79,7 @@ func (s *LocalSigner) Sign(ctx context.Context, domain [32]byte, chainID *big.In
 }
 
 func (s *LocalSigner) Close() error {
-	s.address = ""
+	s.address = nil
 	s.priv = nil
 	return nil
 }

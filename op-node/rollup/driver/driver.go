@@ -81,7 +81,7 @@ type Network interface {
 	// PublishL2Payload is called by the driver whenever there is a new payload to publish, synchronously with the driver main loop.
 	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error
 	// P2PSignerAddress returns the address of the P2P signer, if any. This is used to determine if the node is a sequencer.
-	P2PSignerAddress() (string, error)
+	P2PSignerAddress() (*common.Address, error)
 }
 
 type AltSync interface {
