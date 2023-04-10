@@ -64,7 +64,7 @@ This is a very simple contract that stores the hash of the withdrawal data.
    These inputs include the withdrawal transaction data, inclusion proofs, and a block number. The block number
    must be one for which an L2 output root exists, which commits to the withdrawal as registered on L2.
 1. The `OptimismPortal` contract retrieves the output root for the given block number from the `L2OutputOracle`'s
-   `getL2OutputAfter()` function, and performs the remainder of the verification process internally.
+   `getL2Output()` function, and performs the remainder of the verification process internally.
 1. If proof verification fails, the call reverts. Otherwise the hash is recorded to prevent it from being re-proven.
    Note that the withdrawal can be proven more than once if the corresponding output root changes.
 1. After the withdrawal is proven, it enters a 7 day challenge period, allowing time for other network participants
