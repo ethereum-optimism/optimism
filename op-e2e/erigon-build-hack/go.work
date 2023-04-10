@@ -1,0 +1,7 @@
+go 1.18
+
+// Prevent the top level go.work workspace from getting corrupted with all of
+// the different Erigon deps (for instance, libp2p at different versions breaks
+// the build process)
+
+use .

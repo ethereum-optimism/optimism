@@ -6,3 +6,6 @@
 	url = https://github.com/mds1/multicall
 [submodule "lib/multicall"]
 	branch = v3.1.0
+[submodule "op-erigon"]
+	path = op-erigon
+	url = https://github.com/bobanetwork/v3-erigon
