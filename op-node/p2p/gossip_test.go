@@ -52,7 +52,9 @@ func TestVerifyBlockSignature(t *testing.T) {
 
 	t.Run("Valid", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: crypto.PubkeyToAddress(secrets.SequencerP2P.PublicKey)}
-		signer := &PreparedSigner{Signer: NewLocalSigner(secrets.SequencerP2P)}
+		localSigner, err := NewLocalSigner(secrets.SequencerP2P)
+		require.NoError(t, err)
+		signer := &PreparedSigner{Signer: localSigner}
 		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
 		require.NoError(t, err)
 		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg)
@@ -61,7 +63,9 @@ func TestVerifyBlockSignature(t *testing.T) {
 
 	t.Run("WrongSigner", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{P2PSeqAddress: common.HexToAddress("0x1234")}
-		signer := &PreparedSigner{Signer: NewLocalSigner(secrets.SequencerP2P)}
+		localSigner, err := NewLocalSigner(secrets.SequencerP2P)
+		require.NoError(t, err)
+		signer := &PreparedSigner{Signer: localSigner}
 		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
 		require.NoError(t, err)
 		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg)
@@ -77,7 +81,9 @@ func TestVerifyBlockSignature(t *testing.T) {
 
 	t.Run("NoSequencer", func(t *testing.T) {
 		runCfg := &testutils.MockRuntimeConfig{}
-		signer := &PreparedSigner{Signer: NewLocalSigner(secrets.SequencerP2P)}
+		localSigner, err := NewLocalSigner(secrets.SequencerP2P)
+		require.NoError(t, err)
+		signer := &PreparedSigner{Signer: localSigner}
 		sig, err := signer.Sign(context.Background(), SigningDomainBlocksV1, cfg.L2ChainID, msg)
 		require.NoError(t, err)
 		result := verifyBlockSignature(logger, cfg, runCfg, peerId, sig[:65], msg)

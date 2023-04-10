@@ -269,6 +269,8 @@ func TestMigration(t *testing.T) {
 	// Don't log state snapshots in test output
 	snapLog := log.New()
 	snapLog.SetHandler(log.DiscardHandler())
+	signer, err := p2p.NewLocalSigner(secrets.SequencerP2P)
+	require.NoError(t, err)
 	rollupNodeConfig := &node.Config{
 		L1: &node.L1EndpointConfig{
 			L1NodeAddr:       forkedL1URL,
@@ -311,7 +313,7 @@ func TestMigration(t *testing.T) {
 			DepositContractAddress: portal.Address,
 			L1SystemConfigAddress:  sysConfig.Address,
 		},
-		P2PSigner: &p2p.PreparedSigner{Signer: p2p.NewLocalSigner(secrets.SequencerP2P)},
+		P2PSigner: &p2p.PreparedSigner{Signer: signer},
 		RPC: node.RPCConfig{
 			ListenAddr:  "127.0.0.1",
 			ListenPort:  0,

@@ -522,7 +522,11 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 			c.P2P = p
 
 			if c.Driver.SequencerEnabled && c.P2PSigner == nil {
-				c.P2PSigner = &p2p.PreparedSigner{Signer: p2p.NewLocalSigner(cfg.Secrets.SequencerP2P)}
+				signer, err := p2p.NewLocalSigner(cfg.Secrets.SequencerP2P)
+				if err != nil {
+					return nil, fmt.Errorf("failed to prepare new local signer: %w", err)
+				}
+				c.P2PSigner = &p2p.PreparedSigner{Signer: signer}
 			}
 		}
 
