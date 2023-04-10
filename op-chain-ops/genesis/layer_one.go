@@ -223,11 +223,13 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	for _, account := range DevAccounts {
 		_, err := nb.Transfer(opts, account, hexutil.MustDecodeBig("0x1000000000000000000"))
 		if err != nil {
+			log.Error("MMDBG Transfer error", "err", err)
 			return nil, err
 		}
 	}
 	_, err = nb.Transfer(opts, bobaDev, bobaFund)
 	if err != nil {
+		log.Error("MMDBG bobaDev Transfer error", "err", err)
 		return nil, err
 	}
 
@@ -443,6 +445,7 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			backend,
 			predeploys.DevL1CrossDomainMessengerAddr,
 		)
+		log.Info("MMDBG L1StandardBridge", "addr", addr)
 	case "OptimismMintableERC20Factory":
 		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(
 			opts,
@@ -465,6 +468,7 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			opts,
 			backend,
 		)
+		log.Info("MMDBG BobaL1", "addr", addr)
 		bobaAddr = addr
 	case "WETH9":
 		_, tx, _, err = bindings.DeployWETH9(

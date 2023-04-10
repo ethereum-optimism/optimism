@@ -48,6 +48,7 @@ func (l1t *L1Traversal) Origin() eth.L1BlockRef {
 // NextL1Block returns the next block. It does not advance, but it can only be
 // called once before returning io.EOF
 func (l1t *L1Traversal) NextL1Block(_ context.Context) (eth.L1BlockRef, error) {
+	log.Debug("MMDBG l1_traversal Step")
 	if !l1t.done {
 		l1t.done = true
 		return l1t.block, nil

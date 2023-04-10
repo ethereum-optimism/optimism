@@ -49,6 +49,7 @@ func EncodeStorage(entry solc.StorageLayoutEntry, value any, storageType solc.St
 // SetStorage will set the storage values in a db given a contract name,
 // address and the storage values
 func SetStorage(name string, address common.Address, values StorageValues, db vm.StateDB) error {
+	log.Warn("MMDBG SetStorage", "name", name, "address", address)
 	if name == "BobaL2" {
 		name = "OptimismMintableERC20"
 	}

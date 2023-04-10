@@ -102,6 +102,7 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*et
 	}
 
 	proof, err := n.client.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, ref.Hash.String())
+	n.log.Info("MMDBG GetProof for", "block", number, "err", err, "proof", proof)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get contract proof at block %s: %w", ref, err)
 	}
@@ -126,6 +127,7 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*et
 		return nil, err
 	}
 
+	log.Info("MMDBG ComputeL2OutputRoot", "root", l2OutputRoot.String(), "ver", l2OutputRootVersion, "hash", head.Hash(), "root", head.Root(), "sh", proof.StorageHash)
 	return &eth.OutputResponse{
 		Version:               l2OutputRootVersion,
 		OutputRoot:            l2OutputRoot,

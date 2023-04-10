@@ -244,6 +244,7 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployLegacyERC20ETH(opts, backend)
 	case "BobaTuringCredit":
 		addr, tx, _, err = bindings.DeployBobaTuringCredit(opts, backend, big.NewInt(10))
+		log.Info("MMDBG BobaTuringCredit", "addr", addr)
 	case "BobaL2":
 		bridge, ok := deployment.Args[0].(common.Address)
 		if !ok {
@@ -261,6 +262,7 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			"Boba L2", // Non-immutable slots are populated in genesis/config.go
 			"BOBA",
 		)
+		log.Info("MMDBG BobaL2 Deployment", "err", err, "addr", addr)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
