@@ -1,8 +1,8 @@
 import { assert } from 'chai'
 
 /* Imports: Internal */
-import { expect } from './setup'
-import { expectApprox, awaitCondition } from '../src'
+import { expect } from '../setup'
+import { expectApprox, awaitCondition } from '../../src'
 
 describe('awaitCondition', () => {
   it('should try the condition fn until it returns true', async () => {
@@ -42,6 +42,7 @@ describe('expectApprox', () => {
       absoluteLowerDeviation: 20,
     })
   })
+
   it('should pass when the actual number is lower, but within the expected range of the target', async () => {
     expectApprox(81, 100, {
       percentUpperDeviation: 20,
@@ -50,6 +51,7 @@ describe('expectApprox', () => {
       absoluteLowerDeviation: 20,
     })
   })
+
   it('should throw an error when no deviation values are given', async () => {
     try {
       expectApprox(101, 100, {})
@@ -75,6 +77,7 @@ describe('expectApprox', () => {
           )
         }
       })
+
       it('... and absoluteUpperDeviation sets the upper bound', async () => {
         try {
           expectApprox(121, 100, {
@@ -88,6 +91,7 @@ describe('expectApprox', () => {
         }
       })
     })
+
     describe('... when both values are defined', () => {
       it('... and percentUpperDeviation sets the upper bound', async () => {
         try {
@@ -102,6 +106,7 @@ describe('expectApprox', () => {
           )
         }
       })
+
       it('... and absoluteUpperDeviation sets the upper bound', async () => {
         try {
           expectApprox(121, 100, {

@@ -1,5 +1,5 @@
-import { expect } from './setup'
-import { applyL1ToL2Alias, undoL1ToL2Alias } from '../src'
+import { expect } from '../setup'
+import { applyL1ToL2Alias, undoL1ToL2Alias } from '../../src'
 
 describe('address aliasing utils', () => {
   describe('applyL1ToL2Alias', () => {
