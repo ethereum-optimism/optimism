@@ -664,6 +664,8 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	eq.log.Debug("Reset engine queue", "safeHead", safe, "unsafe", unsafe, "safe_timestamp", safe.Time, "unsafe_timestamp", unsafe.Time, "l1Origin", l1Origin)
 	eq.unsafeHead = unsafe
 	eq.safeHead = safe
+	eq.safeAttributesParent = eth.L2BlockRef{}
+	eq.safeAttributes = nil
 	eq.finalized = finalized
 	eq.resetBuildingState()
 	eq.needForkchoiceUpdate = true
