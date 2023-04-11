@@ -22,6 +22,14 @@ const config: HardhatUserConfig = {
     hardhat: {
       live: false,
     },
+    local: {
+      live: false,
+      url: 'http://localhost:8545',
+      saveDeployments: false,
+      accounts: [
+        'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+      ],
+    },
     // NOTE: The 'mainnet' network is currently being used for mainnet rehearsals.
     mainnet: {
       url: process.env.L1_RPC || 'https://mainnet-l1-rehearsal.optimism.io',
