@@ -300,6 +300,14 @@ func (l *BatchSubmitter) loop() {
 	publishTicker := time.NewTicker(100 * time.Millisecond)
 	defer publishTicker.Stop()
 	receiptsCh := make(chan txReceipt)
+	receiptHandler := func(r txReceipt) {
+		// Record TX Status
+		if r.err != nil {
+			l.recordFailedTx(r.id, r.err)
+		} else {
+			l.recordConfirmedTx(r.id, r.receipt)
+		}
+	}
 
 	for {
 		select {
@@ -307,21 +315,16 @@ func (l *BatchSubmitter) loop() {
 			l.loadBlocksIntoState(l.shutdownCtx)
 		case <-publishTicker.C:
 			_ = l.publishStateToL1(l.killCtx, receiptsCh)
-		case res := <-receiptsCh:
-			// Record TX Status
-			if res.err != nil {
-				l.recordFailedTx(res.id, res.err)
-			} else {
-				l.recordConfirmedTx(res.id, res.receipt)
-			}
+		case r := <-receiptsCh:
+			receiptHandler(r)
 		case <-l.shutdownCtx.Done():
-			l.drainState(receiptsCh)
+			l.drainState(receiptsCh, receiptHandler)
 			return
 		}
 	}
 }
 
-func (l *BatchSubmitter) drainState(receiptsCh chan txReceipt) {
+func (l *BatchSubmitter) drainState(receiptsCh chan txReceipt, receiptHandler func(res txReceipt)) {
 	err := l.state.Close()
 	if err != nil {
 		l.log.Error("error closing the channel manager", "err", err)
@@ -343,27 +346,23 @@ func (l *BatchSubmitter) drainState(receiptsCh chan txReceipt) {
 			}
 		}
 	}()
-	var receipts []txReceipt
-	receiptsDone := make(chan struct{})
+
+	txDone := make(chan struct{})
 	go func() {
-		for {
-			select {
-			case res := <-receiptsCh:
-				receipts = append(receipts, res)
-			case <-receiptsDone:
-				return
-			}
-		}
+		// wait for all transactions to complete
+		l.txWg.Wait()
+		close(txDone)
 	}()
-	// wait for all transactions to complete
-	l.txWg.Wait()
-	close(receiptsDone)
-	// process the receipts
-	for _, res := range receipts {
-		if res.err != nil {
-			l.recordFailedTx(res.id, res.err)
-		} else {
-			l.recordConfirmedTx(res.id, res.receipt)
+	// handle the remaining receipts
+	for {
+		select {
+		case r := <-receiptsCh:
+			receiptHandler(r)
+		case <-txDone:
+			for len(receiptsCh) > 0 {
+				receiptHandler(<-receiptsCh)
+			}
+			return
 		}
 	}
 }

@@ -159,7 +159,7 @@ func (m *SimpleTxManager) reset() {
 		return
 	}
 
-	close(m.resetChannel())
+	close(m.getResetChannel())
 	m.wg.Wait()
 
 	m.lock.Lock()
@@ -170,9 +170,9 @@ func (m *SimpleTxManager) reset() {
 	m.resetting.Store(false)
 }
 
-// resetChannel is a thread-safe getter for the channel that is closed upon
+// getResetChannel is a thread-safe getter for the channel that is closed upon
 // transaction manager resets.
-func (m *SimpleTxManager) resetChannel() chan struct{} {
+func (m *SimpleTxManager) getResetChannel() chan struct{} {
 	m.lock.RLock()
 	defer m.lock.RUnlock()
 	return m.resetC
@@ -294,7 +294,7 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 
 	ticker := time.NewTicker(m.cfg.ResubmissionTimeout)
 	defer ticker.Stop()
-	resetChan := m.resetChannel()
+	resetChan := m.getResetChannel()
 
 	bumpCounter := 0
 	for {
