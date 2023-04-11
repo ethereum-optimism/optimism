@@ -7,7 +7,8 @@ COPY ./op-bindings /app/op-bindings
 COPY ./op-node /app/op-node
 COPY ./go.mod /app/go.mod
 COPY ./go.sum /app/go.sum
-COPY ./.git /app/.git
+#COPY ./.git /app/.git
+COPY ./op-geth /app/op-geth
 
 WORKDIR /app/op-chain-ops
 

@@ -9,3 +9,6 @@
 [submodule "op-erigon"]
 	path = op-erigon
 	url = https://github.com/bobanetwork/v3-erigon
+[submodule "op-geth"]
+	path = op-geth
+	url = https://github.com/bobanetwork/v3-op-geth
