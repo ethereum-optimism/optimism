@@ -30,8 +30,8 @@ func NewFetchingL1Oracle(ctx context.Context, logger log.Logger, source Source) 
 	}
 }
 
-func (o FetchingL1Oracle) HeaderByHash(blockHash common.Hash) eth.BlockInfo {
-	o.logger.Trace("HeaderByHash", "hash", blockHash)
+func (o FetchingL1Oracle) HeaderByBlockHash(blockHash common.Hash) eth.BlockInfo {
+	o.logger.Trace("HeaderByBlockHash", "hash", blockHash)
 	info, err := o.source.InfoByHash(o.ctx, blockHash)
 	if err != nil {
 		panic(fmt.Errorf("retrieve block %s: %w", blockHash, err))
@@ -42,8 +42,8 @@ func (o FetchingL1Oracle) HeaderByHash(blockHash common.Hash) eth.BlockInfo {
 	return info
 }
 
-func (o FetchingL1Oracle) TransactionsByHash(blockHash common.Hash) (eth.BlockInfo, types.Transactions) {
-	o.logger.Trace("TransactionsByHash", "hash", blockHash)
+func (o FetchingL1Oracle) TransactionsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Transactions) {
+	o.logger.Trace("TransactionsByBlockHash", "hash", blockHash)
 	info, txs, err := o.source.InfoAndTxsByHash(o.ctx, blockHash)
 	if err != nil {
 		panic(fmt.Errorf("retrieve transactions for block %s: %w", blockHash, err))
@@ -54,8 +54,8 @@ func (o FetchingL1Oracle) TransactionsByHash(blockHash common.Hash) (eth.BlockIn
 	return info, txs
 }
 
-func (o FetchingL1Oracle) ReceiptsByHash(blockHash common.Hash) (eth.BlockInfo, types.Receipts) {
-	o.logger.Trace("ReceiptsByHash", "hash", blockHash)
+func (o FetchingL1Oracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Receipts) {
+	o.logger.Trace("ReceiptsByBlockHash", "hash", blockHash)
 	info, rcpts, err := o.source.FetchReceipts(o.ctx, blockHash)
 	if err != nil {
 		panic(fmt.Errorf("retrieve receipts for block %s: %w", blockHash, err))

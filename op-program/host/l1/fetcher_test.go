@@ -28,7 +28,7 @@ func TestHeaderByHash(t *testing.T) {
 		source := &stubSource{nextInfo: expected}
 		oracle := newFetchingOracle(t, source)
 
-		actual := oracle.HeaderByHash(expected.Hash())
+		actual := oracle.HeaderByBlockHash(expected.Hash())
 		require.Equal(t, expected, actual)
 	})
 
@@ -36,7 +36,7 @@ func TestHeaderByHash(t *testing.T) {
 		oracle := newFetchingOracle(t, &stubSource{})
 		hash := common.HexToHash("0x4455")
 		require.PanicsWithError(t, fmt.Errorf("unknown block: %s", hash).Error(), func() {
-			oracle.HeaderByHash(hash)
+			oracle.HeaderByBlockHash(hash)
 		})
 	})
 
@@ -47,7 +47,7 @@ func TestHeaderByHash(t *testing.T) {
 
 		hash := common.HexToHash("0x8888")
 		require.PanicsWithError(t, fmt.Errorf("retrieve block %s: %w", hash, err).Error(), func() {
-			oracle.HeaderByHash(hash)
+			oracle.HeaderByBlockHash(hash)
 		})
 	})
 }
@@ -61,7 +61,7 @@ func TestTransactionsByHash(t *testing.T) {
 		source := &stubSource{nextInfo: expectedInfo, nextTxs: expectedTxs}
 		oracle := newFetchingOracle(t, source)
 
-		info, txs := oracle.TransactionsByHash(expectedInfo.Hash())
+		info, txs := oracle.TransactionsByBlockHash(expectedInfo.Hash())
 		require.Equal(t, expectedInfo, info)
 		require.Equal(t, expectedTxs, txs)
 	})
@@ -70,7 +70,7 @@ func TestTransactionsByHash(t *testing.T) {
 		oracle := newFetchingOracle(t, &stubSource{})
 		hash := common.HexToHash("0x4455")
 		require.PanicsWithError(t, fmt.Errorf("unknown block: %s", hash).Error(), func() {
-			oracle.TransactionsByHash(hash)
+			oracle.TransactionsByBlockHash(hash)
 		})
 	})
 
@@ -78,7 +78,7 @@ func TestTransactionsByHash(t *testing.T) {
 		oracle := newFetchingOracle(t, &stubSource{nextInfo: &sources.HeaderInfo{}})
 		hash := common.HexToHash("0x4455")
 		require.PanicsWithError(t, fmt.Errorf("unknown block: %s", hash).Error(), func() {
-			oracle.TransactionsByHash(hash)
+			oracle.TransactionsByBlockHash(hash)
 		})
 	})
 
@@ -89,7 +89,7 @@ func TestTransactionsByHash(t *testing.T) {
 
 		hash := common.HexToHash("0x8888")
 		require.PanicsWithError(t, fmt.Errorf("retrieve transactions for block %s: %w", hash, err).Error(), func() {
-			oracle.TransactionsByHash(hash)
+			oracle.TransactionsByBlockHash(hash)
 		})
 	})
 }
@@ -103,7 +103,7 @@ func TestReceiptsByHash(t *testing.T) {
 		source := &stubSource{nextInfo: expectedInfo, nextRcpts: expectedRcpts}
 		oracle := newFetchingOracle(t, source)
 
-		info, rcpts := oracle.ReceiptsByHash(expectedInfo.Hash())
+		info, rcpts := oracle.ReceiptsByBlockHash(expectedInfo.Hash())
 		require.Equal(t, expectedInfo, info)
 		require.Equal(t, expectedRcpts, rcpts)
 	})
@@ -112,7 +112,7 @@ func TestReceiptsByHash(t *testing.T) {
 		oracle := newFetchingOracle(t, &stubSource{})
 		hash := common.HexToHash("0x4455")
 		require.PanicsWithError(t, fmt.Errorf("unknown block: %s", hash).Error(), func() {
-			oracle.ReceiptsByHash(hash)
+			oracle.ReceiptsByBlockHash(hash)
 		})
 	})
 
@@ -120,7 +120,7 @@ func TestReceiptsByHash(t *testing.T) {
 		oracle := newFetchingOracle(t, &stubSource{nextInfo: &sources.HeaderInfo{}})
 		hash := common.HexToHash("0x4455")
 		require.PanicsWithError(t, fmt.Errorf("unknown block: %s", hash).Error(), func() {
-			oracle.ReceiptsByHash(hash)
+			oracle.ReceiptsByBlockHash(hash)
 		})
 	})
 
@@ -131,7 +131,7 @@ func TestReceiptsByHash(t *testing.T) {
 
 		hash := common.HexToHash("0x8888")
 		require.PanicsWithError(t, fmt.Errorf("retrieve receipts for block %s: %w", hash, err).Error(), func() {
-			oracle.ReceiptsByHash(hash)
+			oracle.ReceiptsByBlockHash(hash)
 		})
 	})
 }

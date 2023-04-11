@@ -7,12 +7,12 @@ import (
 )
 
 type Oracle interface {
-	// HeaderByHash retrieves the block header with the given hash.
-	HeaderByHash(blockHash common.Hash) eth.BlockInfo
+	// HeaderByBlockHash retrieves the block header with the given hash.
+	HeaderByBlockHash(blockHash common.Hash) eth.BlockInfo
 
-	// TransactionsByHash retrieves the transactions from the block with the given hash.
-	TransactionsByHash(blockHash common.Hash) (eth.BlockInfo, types.Transactions)
+	// TransactionsByBlockHash retrieves the transactions from the block with the given hash.
+	TransactionsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Transactions)
 
-	// ReceiptsByHash retrieves the receipts from the block with the given hash.
-	ReceiptsByHash(blockHash common.Hash) (eth.BlockInfo, types.Receipts)
+	// ReceiptsByBlockHash retrieves the receipts from the block with the given hash.
+	ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Receipts)
 }

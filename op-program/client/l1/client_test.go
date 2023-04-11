@@ -169,7 +169,7 @@ type stubOracle struct {
 	rcpts map[common.Hash]types.Receipts
 }
 
-func (o stubOracle) HeaderByHash(blockHash common.Hash) eth.BlockInfo {
+func (o stubOracle) HeaderByBlockHash(blockHash common.Hash) eth.BlockInfo {
 	info, ok := o.blocks[blockHash]
 	if !ok {
 		o.t.Fatalf("unknown block %s", blockHash)
@@ -177,20 +177,20 @@ func (o stubOracle) HeaderByHash(blockHash common.Hash) eth.BlockInfo {
 	return info
 }
 
-func (o stubOracle) TransactionsByHash(blockHash common.Hash) (eth.BlockInfo, types.Transactions) {
+func (o stubOracle) TransactionsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Transactions) {
 	txs, ok := o.txs[blockHash]
 	if !ok {
 		o.t.Fatalf("unknown txs %s", blockHash)
 	}
-	return o.HeaderByHash(blockHash), txs
+	return o.HeaderByBlockHash(blockHash), txs
 }
 
-func (o stubOracle) ReceiptsByHash(blockHash common.Hash) (eth.BlockInfo, types.Receipts) {
+func (o stubOracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Receipts) {
 	rcpts, ok := o.rcpts[blockHash]
 	if !ok {
 		o.t.Fatalf("unknown rcpts %s", blockHash)
 	}
-	return o.HeaderByHash(blockHash), rcpts
+	return o.HeaderByBlockHash(blockHash), rcpts
 }
 
 func blockNum(num uint64) eth.BlockInfo {
