@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
+	cll2 "github.com/ethereum-optimism/optimism/op-program/client/l2"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -19,7 +21,7 @@ import (
 )
 
 // Require the fetching oracle to implement StateOracle
-var _ StateOracle = (*FetchingL2Oracle)(nil)
+var _ cll2.StateOracle = (*FetchingL2Oracle)(nil)
 
 type callContextRequest struct {
 	ctx    context.Context

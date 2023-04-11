@@ -15,8 +15,8 @@
     "lint:check": "eslint . --max-warnings=0",
     "lint:fix": "yarn lint:check --fix",
     "pre-commit": "lint-staged",
-    "test": "ts-mocha test/*.spec.ts",
-    "test:coverage": "nyc ts-mocha test/*.spec.ts && nyc merge .nyc_output coverage.json"
+    "test": "ts-mocha test/**/*.spec.ts",
+    "test:coverage": "nyc ts-mocha test/**/*.spec.ts && nyc merge .nyc_output coverage.json"
   },
   "keywords": [
     "optimism",

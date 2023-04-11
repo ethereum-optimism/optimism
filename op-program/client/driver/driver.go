@@ -8,8 +8,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-program/config"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -23,8 +23,8 @@ type Driver struct {
 	pipeline Derivation
 }
 
-func NewDriver(logger log.Logger, cfg *config.Config, l1Source derive.L1Fetcher, l2Source derive.Engine) *Driver {
-	pipeline := derive.NewDerivationPipeline(logger, cfg.Rollup, l1Source, l2Source, metrics.NoopMetrics)
+func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher, l2Source derive.Engine) *Driver {
+	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l2Source, metrics.NoopMetrics)
 	pipeline.Reset()
 	return &Driver{
 		logger:   logger,

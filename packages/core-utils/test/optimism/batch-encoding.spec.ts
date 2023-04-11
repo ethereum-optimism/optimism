@@ -1,4 +1,4 @@
-import './setup'
+import '../setup'
 
 /* Internal Imports */
 import { expect } from 'chai'
@@ -9,13 +9,13 @@ import {
   sequencerBatch,
   BatchType,
   SequencerBatch,
-} from '../src'
+} from '../../src'
 
 describe('BatchEncoder', function () {
   this.timeout(10_000)
 
   // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const data = require('./fixtures/calldata.json')
+  const data = require('../fixtures/calldata.json')
 
   describe('appendSequencerBatch', () => {
     it('legacy: should work with the simple case', () => {
@@ -112,6 +112,7 @@ describe('BatchEncoder', function () {
         ],
         transactions: ['0x454234000000112', '0x45423400000012'],
       }
+
       expect(() => encodeAppendSequencerBatch(batch)).to.throw(
         'Unexpected uneven hex string value!'
       )
