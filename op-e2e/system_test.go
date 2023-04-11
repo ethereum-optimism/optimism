@@ -1647,6 +1647,85 @@ func TestStopStartBatcher(t *testing.T) {
 	require.Greater(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain did not advance after batcher was restarted")
 }
 
+// TestChangeSequencer tests that nodes react properly to a change of the system's sequencer. The initial sequecer stops when it becomes
+// aware that the system's sequencer has changed, and the new sequencer starts sequencing as soon as it becomes aware it is selected.
+func TestChangeSequencer(t *testing.T) {
+	parallel(t)
+
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
+
+	cfg := DefaultSystemConfig(t)
+
+	// Create signer for verifier using Mallory's private key
+	signerVerifier, err := p2p.NewLocalSigner(cfg.Secrets.Mallory)
+	require.Nil(t, err, "Error creating a signer for verifier")
+
+	// Enable sequencing on the verifier
+	cfg.Nodes["verifier"] = &rollupNode.Config{
+		Driver:    cfg.Nodes["sequencer"].Driver,
+		P2PSigner: &p2p.PreparedSigner{Signer: signerVerifier},
+	}
+
+	cfg.Loggers["sequencer"] = testlog.Logger(t, log.LvlInfo).New("role", "sequencer")
+	cfg.Loggers["verifier"] = testlog.Logger(t, log.LvlInfo).New("role", "verifier")
+
+	// Connect the nodes
+	cfg.P2PTopology = map[string][]string{
+		"sequencer": {"verifier"},
+		"verifier":  {"sequencer"},
+	}
+
+	// Enable the P2P req-resp based sync
+	cfg.P2PReqRespSync = true
+
+	// Start system
+	sys, err := cfg.Start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	l1Client := sys.Clients["l1"]
+
+	// We give time for the node's driver to receive and process the L1 head to update the nodes' sequencing state appropiately
+	time.Sleep(time.Duration(cfg.DeployConfig.L1BlockTime+1) * time.Second)
+
+	// Check if Sequencer's sequencer is running
+	require.False(t, sys.cfg.Nodes["sequencer"].Driver.SequencerStopped, "Sequencer's sequencer should be running")
+
+	// Check if Verifier's sequencer isn't running
+	require.True(t, sys.cfg.Nodes["verifier"].Driver.SequencerStopped, "Verifier's sequencer shouldn't be running")
+
+	// Bind to the SystemConfig
+	sysconfig, err := bindings.NewSystemConfig(predeploys.DevSystemConfigAddr, l1Client)
+	require.Nil(t, err)
+
+	// Get transactor for the sysconfig owner
+	opts, err := bind.NewKeyedTransactorWithChainID(sys.cfg.Secrets.SysCfgOwner, cfg.L1ChainIDBig())
+	require.Nil(t, err)
+
+	// Define our L1 transaction timeout duration and context
+	txTimeoutDuration := 10 * time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second
+	var cancel context.CancelFunc
+	opts.Context, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+
+	// Send tx to change the sequencer (unsafe block signer) to Verifier (who also has Mallory's pubkey)
+	tx, err := sysconfig.SetUnsafeBlockSigner(opts, cfg.Secrets.Addresses().Mallory)
+	cancel()
+	require.Nil(t, err, "setting unsafe block signer")
+
+	// Wait for the transaction
+	receipt, err := waitForTransaction(tx.Hash(), l1Client, txTimeoutDuration)
+	require.Nil(t, err, "waiting for sysconfig set unsafe block signer tx")
+	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
+
+	// Check if Sequencer's sequencer has stopped
+	require.True(t, sys.cfg.Nodes["sequencer"].Driver.SequencerStopped, "Sequencer's sequencer shouldn't be running")
+
+	// Check if Verifier's sequencer has started
+	require.False(t, sys.cfg.Nodes["verifier"].Driver.SequencerStopped, "Verifier's sequencer should be running")
+}
+
 func safeAddBig(a *big.Int, b *big.Int) *big.Int {
 	return new(big.Int).Add(a, b)
 }
