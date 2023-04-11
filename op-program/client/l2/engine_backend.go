@@ -39,6 +39,7 @@ func NewOracleBackedL2Chain(logger log.Logger, oracle Oracle, chainCfg *params.C
 	if err != nil {
 		return nil, fmt.Errorf("loading l2 head: %w", err)
 	}
+	logger.Info("Loaded L2 head", "hash", head.Hash(), "number", head.Number())
 	return &OracleBackedL2Chain{
 		log:      logger,
 		oracle:   oracle,
