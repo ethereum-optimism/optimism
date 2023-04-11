@@ -8,9 +8,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	cll1 "github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,14 +26,14 @@ func TestHeaderByHash(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		expected := &sources.HeaderInfo{}
 		source := &stubSource{nextInfo: expected}
-		oracle := newFetchingOracle(source)
+		oracle := newFetchingOracle(t, source)
 
 		actual := oracle.HeaderByHash(expected.Hash())
 		require.Equal(t, expected, actual)
 	})
 
 	t.Run("UnknownBlock", func(t *testing.T) {
-		oracle := newFetchingOracle(&stubSource{})
+		oracle := newFetchingOracle(t, &stubSource{})
 		hash := common.HexToHash("0x4455")
 		require.PanicsWithError(t, fmt.Errorf("unknown block: %s", hash).Error(), func() {
 			oracle.HeaderByHash(hash)
@@ -41,7 +43,7 @@ func TestHeaderByHash(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		err := errors.New("kaboom")
 		source := &stubSource{nextErr: err}
-		oracle := newFetchingOracle(source)
+		oracle := newFetchingOracle(t, source)
 
 		hash := common.HexToHash("0x8888")
 		require.PanicsWithError(t, fmt.Errorf("retrieve block %s: %w", hash, err).Error(), func() {
@@ -57,7 +59,7 @@ func TestTransactionsByHash(t *testing.T) {
 			&types.Transaction{},
 		}
 		source := &stubSource{nextInfo: expectedInfo, nextTxs: expectedTxs}
-		oracle := newFetchingOracle(source)
+		oracle := newFetchingOracle(t, source)
 
 		info, txs := oracle.TransactionsByHash(expectedInfo.Hash())
 		require.Equal(t, expectedInfo, info)
@@ -65,7 +67,7 @@ func TestTransactionsByHash(t *testing.T) {
 	})
 
 	t.Run("UnknownBlock_NoInfo", func(t *testing.T) {
-		oracle := newFetchingOracle(&stubSource{})
+		oracle := newFetchingOracle(t, &stubSource{})
 		hash := common.HexToHash("0x4455")
 		require.PanicsWithError(t, fmt.Errorf("unknown block: %s", hash).Error(), func() {
 			oracle.TransactionsByHash(hash)
@@ -73,7 +75,7 @@ func TestTransactionsByHash(t *testing.T) {
 	})
 
 	t.Run("UnknownBlock_NoTxs", func(t *testing.T) {
-		oracle := newFetchingOracle(&stubSource{nextInfo: &sources.HeaderInfo{}})
+		oracle := newFetchingOracle(t, &stubSource{nextInfo: &sources.HeaderInfo{}})
 		hash := common.HexToHash("0x4455")
 		require.PanicsWithError(t, fmt.Errorf("unknown block: %s", hash).Error(), func() {
 			oracle.TransactionsByHash(hash)
@@ -83,7 +85,7 @@ func TestTransactionsByHash(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		err := errors.New("kaboom")
 		source := &stubSource{nextErr: err}
-		oracle := newFetchingOracle(source)
+		oracle := newFetchingOracle(t, source)
 
 		hash := common.HexToHash("0x8888")
 		require.PanicsWithError(t, fmt.Errorf("retrieve transactions for block %s: %w", hash, err).Error(), func() {
@@ -99,7 +101,7 @@ func TestReceiptsByHash(t *testing.T) {
 			&types.Receipt{},
 		}
 		source := &stubSource{nextInfo: expectedInfo, nextRcpts: expectedRcpts}
-		oracle := newFetchingOracle(source)
+		oracle := newFetchingOracle(t, source)
 
 		info, rcpts := oracle.ReceiptsByHash(expectedInfo.Hash())
 		require.Equal(t, expectedInfo, info)
@@ -107,7 +109,7 @@ func TestReceiptsByHash(t *testing.T) {
 	})
 
 	t.Run("UnknownBlock_NoInfo", func(t *testing.T) {
-		oracle := newFetchingOracle(&stubSource{})
+		oracle := newFetchingOracle(t, &stubSource{})
 		hash := common.HexToHash("0x4455")
 		require.PanicsWithError(t, fmt.Errorf("unknown block: %s", hash).Error(), func() {
 			oracle.ReceiptsByHash(hash)
@@ -115,7 +117,7 @@ func TestReceiptsByHash(t *testing.T) {
 	})
 
 	t.Run("UnknownBlock_NoTxs", func(t *testing.T) {
-		oracle := newFetchingOracle(&stubSource{nextInfo: &sources.HeaderInfo{}})
+		oracle := newFetchingOracle(t, &stubSource{nextInfo: &sources.HeaderInfo{}})
 		hash := common.HexToHash("0x4455")
 		require.PanicsWithError(t, fmt.Errorf("unknown block: %s", hash).Error(), func() {
 			oracle.ReceiptsByHash(hash)
@@ -125,7 +127,7 @@ func TestReceiptsByHash(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		err := errors.New("kaboom")
 		source := &stubSource{nextErr: err}
-		oracle := newFetchingOracle(source)
+		oracle := newFetchingOracle(t, source)
 
 		hash := common.HexToHash("0x8888")
 		require.PanicsWithError(t, fmt.Errorf("retrieve receipts for block %s: %w", hash, err).Error(), func() {
@@ -134,11 +136,8 @@ func TestReceiptsByHash(t *testing.T) {
 	})
 }
 
-func newFetchingOracle(source Source) *FetchingL1Oracle {
-	return &FetchingL1Oracle{
-		ctx:    context.Background(),
-		source: source,
-	}
+func newFetchingOracle(t *testing.T, source Source) *FetchingL1Oracle {
+	return NewFetchingL1Oracle(context.Background(), testlog.Logger(t, log.LvlDebug), source)
 }
 
 type stubSource struct {

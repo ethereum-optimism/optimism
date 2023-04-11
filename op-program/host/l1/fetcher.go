@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type Source interface {
@@ -17,17 +18,20 @@ type Source interface {
 
 type FetchingL1Oracle struct {
 	ctx    context.Context
+	logger log.Logger
 	source Source
 }
 
-func NewFetchingL1Oracle(ctx context.Context, source Source) *FetchingL1Oracle {
+func NewFetchingL1Oracle(ctx context.Context, logger log.Logger, source Source) *FetchingL1Oracle {
 	return &FetchingL1Oracle{
 		ctx:    ctx,
+		logger: logger,
 		source: source,
 	}
 }
 
 func (o FetchingL1Oracle) HeaderByHash(blockHash common.Hash) eth.BlockInfo {
+	o.logger.Trace("HeaderByHash", "hash", blockHash)
 	info, err := o.source.InfoByHash(o.ctx, blockHash)
 	if err != nil {
 		panic(fmt.Errorf("retrieve block %s: %w", blockHash, err))
@@ -39,6 +43,7 @@ func (o FetchingL1Oracle) HeaderByHash(blockHash common.Hash) eth.BlockInfo {
 }
 
 func (o FetchingL1Oracle) TransactionsByHash(blockHash common.Hash) (eth.BlockInfo, types.Transactions) {
+	o.logger.Trace("TransactionsByHash", "hash", blockHash)
 	info, txs, err := o.source.InfoAndTxsByHash(o.ctx, blockHash)
 	if err != nil {
 		panic(fmt.Errorf("retrieve transactions for block %s: %w", blockHash, err))
@@ -50,6 +55,7 @@ func (o FetchingL1Oracle) TransactionsByHash(blockHash common.Hash) (eth.BlockIn
 }
 
 func (o FetchingL1Oracle) ReceiptsByHash(blockHash common.Hash) (eth.BlockInfo, types.Receipts) {
+	o.logger.Trace("ReceiptsByHash", "hash", blockHash)
 	info, rcpts, err := o.source.FetchReceipts(o.ctx, blockHash)
 	if err != nil {
 		panic(fmt.Errorf("retrieve receipts for block %s: %w", blockHash, err))

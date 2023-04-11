@@ -8,9 +8,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -110,7 +113,8 @@ func TestL1BlockRefByNumber(t *testing.T) {
 	t.Run("AfterHead", func(t *testing.T) {
 		client, _ := newClient(t)
 		ref, err := client.L1BlockRefByNumber(context.Background(), head.NumberU64()+1)
-		require.ErrorIs(t, err, ErrNotFound)
+		// Must be ethereum.NotFound error so the derivation pipeline knows it has gone past the chain head
+		require.ErrorIs(t, err, ethereum.NotFound)
 		require.Equal(t, eth.L1BlockRef{}, ref)
 	})
 	t.Run("ParentOfHead", func(t *testing.T) {
@@ -148,7 +152,7 @@ func newClient(t *testing.T) (*OracleL1Client, *stubOracle) {
 		rcpts:  make(map[common.Hash]types.Receipts),
 	}
 	stub.blocks[head.Hash()] = head
-	client := NewOracleL1Client(stub, head.Hash())
+	client := NewOracleL1Client(testlog.Logger(t, log.LvlDebug), stub, head.Hash())
 	return client, stub
 }
 

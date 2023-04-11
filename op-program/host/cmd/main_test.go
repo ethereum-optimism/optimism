@@ -13,7 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var l2HeadValue = "0x6303578b1fa9480389c51bbcef6fe045bb877da39740819e9eb5f36f94949bd0"
+// Use HexToHash(...).Hex() to ensure the strings are the correct length for a hash
+var l1HeadValue = common.HexToHash("0x111111").Hex()
+var l2HeadValue = common.HexToHash("0x222222").Hex()
 
 func TestLogLevel(t *testing.T) {
 	t.Run("RejectInvalid", func(t *testing.T) {
@@ -32,7 +34,8 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
-	require.Equal(t, config.NewConfig(&chaincfg.Goerli, "genesis.json", common.HexToHash(l2HeadValue)), cfg)
+	defaultCfg := config.NewConfig(&chaincfg.Goerli, "genesis.json", common.HexToHash(l1HeadValue), common.HexToHash(l2HeadValue))
+	require.Equal(t, defaultCfg, cfg)
 }
 
 func TestNetwork(t *testing.T) {
@@ -102,6 +105,21 @@ func TestL2Head(t *testing.T) {
 	})
 }
 
+func TestL1Head(t *testing.T) {
+	t.Run("Required", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag l1.head is required", addRequiredArgsExcept("--l1.head"))
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		cfg := configForArgs(t, replaceRequiredArg("--l1.head", l1HeadValue))
+		require.Equal(t, common.HexToHash(l1HeadValue), cfg.L1Head)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		verifyArgsInvalid(t, config.ErrInvalidL1Head.Error(), replaceRequiredArg("--l1.head", "something"))
+	})
+}
+
 func TestL1(t *testing.T) {
 	expected := "https://example.com:8545"
 	cfg := configForArgs(t, addRequiredArgs("--l1", expected))
@@ -149,7 +167,8 @@ func TestL1RPCKind(t *testing.T) {
 // Offline support will be added later, but for now it just bails out with an error
 func TestOfflineModeNotSupported(t *testing.T) {
 	logger := log.New()
-	err := FaultProofProgram(logger, config.NewConfig(&chaincfg.Goerli, "genesis.json", common.HexToHash(l2HeadValue)))
+	cfg := config.NewConfig(&chaincfg.Goerli, "genesis.json", common.HexToHash(l1HeadValue), common.HexToHash(l2HeadValue))
+	err := FaultProofProgram(logger, cfg)
 	require.ErrorContains(t, err, "offline mode not supported")
 }
 
@@ -199,8 +218,9 @@ func replaceRequiredArg(name string, value string) []string {
 func requiredArgs() map[string]string {
 	return map[string]string{
 		"--network":    "goerli",
-		"--l2.genesis": "genesis.json",
+		"--l1.head":    l1HeadValue,
 		"--l2.head":    l2HeadValue,
+		"--l2.genesis": "genesis.json",
 	}
 }
 
