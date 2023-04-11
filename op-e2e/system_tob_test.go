@@ -47,7 +47,7 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 
 	// Create our system configuration for L1/L2 and start it
 	cfg := DefaultSystemConfig(t)
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -134,7 +134,7 @@ func TestL2SequencerRPCDepositTx(t *testing.T) {
 
 	// Create our system configuration for L1/L2 and start it
 	cfg := DefaultSystemConfig(t)
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -179,7 +179,7 @@ type TestAccount struct {
 // startConfigWithTestAccounts takes a SystemConfig, generates additional accounts, adds them to the config, so they
 // are funded on startup, starts the system, and imports the keys into the keystore, and obtains transaction opts for
 // each account.
-func startConfigWithTestAccounts(cfg *SystemConfig, accountsToGenerate int) (*System, []*TestAccount, error) {
+func startConfigWithTestAccounts(t *testing.T, cfg *SystemConfig, accountsToGenerate int) (*System, []*TestAccount, error) {
 	// Create our test accounts and add them to the pre-mine cfg.
 	testAccounts := make([]*TestAccount, 0)
 	var err error
@@ -221,7 +221,7 @@ func startConfigWithTestAccounts(cfg *SystemConfig, accountsToGenerate int) (*Sy
 	}
 
 	// Start our system
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	if err != nil {
 		return sys, nil, err
 	}
@@ -248,7 +248,7 @@ func TestMixedDepositValidity(t *testing.T) {
 
 	// Create our system configuration, funding all accounts we created for L1/L2, and start it
 	cfg := DefaultSystemConfig(t)
-	sys, testAccounts, err := startConfigWithTestAccounts(&cfg, accountUsedToDeposit)
+	sys, testAccounts, err := startConfigWithTestAccounts(t, &cfg, accountUsedToDeposit)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -425,12 +425,11 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 	for i := 0; i <= 8; i++ {
 		i := i // avoid loop var capture
 		t.Run(fmt.Sprintf("withdrawal test#%d", i+1), func(t *testing.T) {
-			parallel(t)
-
+			t.Parallel()
 			// Create our system configuration, funding all accounts we created for L1/L2, and start it
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.FinalizationPeriodSeconds = 6
-			sys, err := cfg.Start()
+			sys, err := cfg.Start(t)
 			require.NoError(t, err, "error starting up system")
 			defer sys.Close()
 
@@ -542,7 +541,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			l2OutputOracle, err := bindings.NewL2OutputOracleCaller(predeploys.DevL2OutputOracleAddr, l1Client)
 			require.Nil(t, err)
 
-			rpcClient, err := rpc.Dial(sys.Nodes["verifier"].WSEndpoint())
+			rpcClient, err := rpc.Dial(sys.EthInstances["verifier"].WSEndpoint())
 			require.Nil(t, err)
 			proofCl := gethclient.New(rpcClient)
 			receiptCl := ethclient.NewClient(rpcClient)

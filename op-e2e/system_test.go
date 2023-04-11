@@ -51,8 +51,10 @@ var verboseGethNodes bool
 
 func init() {
 	flag.BoolVar(&verboseGethNodes, "gethlogs", true, "Enable logs on geth nodes")
+	flag.BoolVar(&erigonL2Nodes, "erigon", false, "Enable tests with erigon")
 	flag.Parse()
-	if os.Getenv("OP_E2E_DISABLE_PARALLEL") == "true" {
+	if os.Getenv("OP_E2E_DISABLE_PARALLEL") == "true"  || erigonL2Nodes {
+		fmt.Printf("\n\nYou should consider running with a large `-timeout` as parallel tests are disabled\n\n")
 		enableParallelTesting = false
 	}
 }
@@ -73,7 +75,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	cfg.NonFinalizedProposals = true // speed up the time till we see output proposals
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -146,7 +148,7 @@ func TestSystemE2E(t *testing.T) {
 
 	cfg := DefaultSystemConfig(t)
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -261,7 +263,7 @@ func TestConfirmationDepth(t *testing.T) {
 	cfg.Nodes["sequencer"].Driver.VerifierConfDepth = 0
 	cfg.Nodes["verifier"].Driver.VerifierConfDepth = verConfDepth
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -304,6 +306,12 @@ func TestPendingGasLimit(t *testing.T) {
 	}
 
 	cfg := DefaultSystemConfig(t)
+	if cfg.ErigonL2Nodes {
+		t.Skip()
+		// Erigon doesn't currently build blocks until it receives the engine call
+		// which includes the gas limit, so, this test can't work (at least not
+		// yet).
+	}
 
 	// configure the L2 gas limit to be high, and the pending gas limits to be lower for resource saving.
 	cfg.DeployConfig.L2GenesisBlockGasLimit = 30_000_000
@@ -320,7 +328,7 @@ func TestPendingGasLimit(t *testing.T) {
 		},
 	}
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -365,7 +373,7 @@ func TestFinalize(t *testing.T) {
 
 	cfg := DefaultSystemConfig(t)
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -392,7 +400,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	}
 	cfg := DefaultSystemConfig(t)
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -402,7 +410,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	// Find deposit contract
 	depositContract, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)
 	require.Nil(t, err)
-	l1Node := sys.Nodes["l1"]
+	l1Node := sys.EthInstances["l1"].GethInstance.Node
 
 	// create signer
 	ks := l1Node.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
@@ -475,7 +483,7 @@ func TestMissingBatchE2E(t *testing.T) {
 	// Specifically set batch submitter balance to stop batches from being included
 	cfg.Premine[cfg.Secrets.Addresses().Batcher] = big.NewInt(0)
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -610,7 +618,7 @@ func TestSystemMockP2P(t *testing.T) {
 	cfg.Nodes["sequencer"].Tracer = seqTracer
 	cfg.Nodes["verifier"].Tracer = verifTracer
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -694,11 +702,11 @@ func TestSystemRPCAltSync(t *testing.T) {
 	cfg.Nodes["sequencer"].Tracer = seqTracer
 	cfg.Nodes["verifier"].Tracer = verifTracer
 
-	sys, err := cfg.Start(SystemConfigOption{
+	sys, err := cfg.Start(t, SystemConfigOption{
 		key:  "afterRollupNodeStart",
 		role: "sequencer",
 		action: func(sCfg *SystemConfig, system *System) {
-			rpc, _ := system.Nodes["sequencer"].Attach() // never errors
+			rpc, _ := system.EthInstances["sequencer"].GethInstance.Node.Attach() // never errors
 			cfg.Nodes["verifier"].L2Sync = &rollupNode.PreparedL2SyncEndpoint{
 				Client: client.NewBaseRPCClient(rpc),
 			}
@@ -796,7 +804,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 	// Blocks are now received via the RPC based alt-sync method
 	cfg.Nodes["sequencer"].Tracer = seqTracer
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -862,12 +870,12 @@ func TestSystemP2PAltSync(t *testing.T) {
 			},
 		},
 	}
-	configureL1(syncNodeCfg, sys.Nodes["l1"])
+	configureL1(syncNodeCfg, sys.EthInstances["l1"].GethInstance.Node)
 	syncerL2Engine, _, err := initL2Geth("syncer", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), sys.L2GenesisCfg, cfg.JWTFilePath)
 	require.NoError(t, err)
 	require.NoError(t, syncerL2Engine.Start())
 
-	configureL2(syncNodeCfg, syncerL2Engine, cfg.JWTSecret)
+	configureL2n(syncNodeCfg, syncerL2Engine, cfg.JWTSecret)
 
 	syncerNode, err := rollupNode.New(context.Background(), syncNodeCfg, cfg.Loggers["syncer"], snapLog, "", metrics.NewMetrics(""))
 	require.NoError(t, err)
@@ -968,7 +976,7 @@ func TestSystemDenseTopology(t *testing.T) {
 	cfg.Nodes["verifier2"].Tracer = verifTracer2
 	cfg.Nodes["verifier3"].Tracer = verifTracer3
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -1033,7 +1041,7 @@ func TestL1InfoContract(t *testing.T) {
 
 	cfg := DefaultSystemConfig(t)
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -1162,7 +1170,7 @@ func TestWithdrawals(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.FinalizationPeriodSeconds = 2 // 2s finalization period
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -1272,7 +1280,7 @@ func TestWithdrawals(t *testing.T) {
 	header, err = l2Verif.HeaderByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 	require.Nil(t, err)
 
-	rpcClient, err := rpc.Dial(sys.Nodes["verifier"].WSEndpoint())
+	rpcClient, err := rpc.Dial(sys.EthInstances["verifier"].WSEndpoint())
 	require.Nil(t, err)
 	proofCl := gethclient.New(rpcClient)
 	receiptCl := ethclient.NewClient(rpcClient)
@@ -1369,7 +1377,7 @@ func TestFees(t *testing.T) {
 	cfg.DeployConfig.GasPriceOracleOverhead = 2100
 	cfg.DeployConfig.GasPriceOracleScalar = 1000_000
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -1515,7 +1523,7 @@ func TestStopStartSequencer(t *testing.T) {
 	}
 
 	cfg := DefaultSystemConfig(t)
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -1559,7 +1567,7 @@ func TestStopStartBatcher(t *testing.T) {
 	}
 
 	cfg := DefaultSystemConfig(t)
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
