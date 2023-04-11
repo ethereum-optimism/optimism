@@ -282,41 +282,39 @@ func (s *Driver) eventLoop() {
 
 		case newL1Head := <-s.l1HeadSig:
 			s.l1State.HandleNewL1HeadBlock(newL1Head)
+			// We update the runtime config following the new L1 head
 			s.driverRunConfig.Load(ctx, newL1Head)
-			// We check if the sequencer has to be started or stopped based on the network's p2p signer address
+			// Now we check if the sequencer has to be started or stopped. This is determined
+			// by comparing the network's p2p signer to the system's sequencer.
 			if !s.driverConfig.SequencerEnabled {
-				// If we don't have sequencing enabled, we skip this step
-				s.log.Debug("Sequencer not enabled")
+				s.log.Info("Skipping sequencer update", "reason", "sequencing is disabled")
 			} else {
-				// Otherwise, we ensure that the sequencer is started if the network's p2p signer address matches that of the sequencer
-				// and that the sequencer is stopped if the network's p2p signer address does not match that of the sequencer.
-				s.log.Debug("Updating sequencing state...")
+				// We get the network's p2p signer address
 				signerAddress, err := s.network.P2PSignerAddress()
 				if err != nil {
-					// If we can't get the p2p signer address, we don't have enough information to update the sequencing state
-					s.log.Error("Critical error while updating sequencing state", "err", err)
-					return
-				}
-				// We get the p2p sequencer address from the driver run config, which was updated with Load(...) above with the new L1 data
-				sequencerAddress := s.driverRunConfig.P2PSequencerAddress()
-				if *signerAddress == sequencerAddress && s.driverConfig.SequencerStopped {
-					// If the network's p2p signer address matches that of the sequencer, we ensure that the the sequencer is not currently stopped
-					s.log.Warn("Recognized as sequencer by the system.")
-					h := hashAndErrorChannel{
-						hash: s.derivation.UnsafeL2Head().Hash,
-						err:  make(chan error, 1),
-					}
-					s.startSequencer <- h
-				} else if *signerAddress != sequencerAddress && !s.driverConfig.SequencerStopped {
-					// If the p2p signer address doesn't match that of the sequencer, we ensure that the the sequencer is currently stopped
-					s.log.Warn("Not recognized as sequencer by the system.")
-					respCh := make(chan hashAndError, 1)
-					s.stopSequencer <- respCh
+					s.log.Warn("Skipping sequencer update", "reason", err)
 				} else {
-					s.log.Debug("No changes made. Sequencer is up to date")
+					// The sequencer is started if the network's p2p signer address is the same as the system's sequencer
+					// address. The sequencer is stopped if the signer's address isn't the system's sequencer's.
+					s.log.Debug("Checking if we need to update the sequencer state...")
+					l2_unsafe := s.derivation.UnsafeL2Head().Hash
+					// We get the system sequencer address from the updated runtime config
+					sequencerAddress := s.driverRunConfig.P2PSequencerAddress()
+					if *signerAddress == sequencerAddress && s.driverConfig.SequencerStopped {
+						// If the signer is the system sequencer, sequencing is started
+						s.log.Info("Sequencer has been started", "l2_unsafe", l2_unsafe.Hex(), "reason", "recognized as sequencer by the system")
+						s.driverConfig.SequencerStopped = false
+						planSequencerAction()
+					} else if *signerAddress != sequencerAddress && !s.driverConfig.SequencerStopped {
+						// If the signer isn't the system sequencer, sequencing is stopped
+						s.log.Info("Sequencer has been stopped", "l2_unsafe", l2_unsafe.Hex(), "reason", "not recognized as sequencer by the system")
+						s.driverConfig.SequencerStopped = true
+					} else {
+						s.log.Debug("No changes made. Sequencer state is up to date")
+					}
 				}
 			}
-			reqStep() // a new L1 head may mean we have the data to not get an EOF again.
+			reqStep()
 		case newL1Safe := <-s.l1SafeSig:
 			s.l1State.HandleNewL1SafeBlock(newL1Safe)
 			// no step, justified L1 information does not do anything for L2 derivation or status
@@ -376,7 +374,7 @@ func (s *Driver) eventLoop() {
 			} else if !bytes.Equal(unsafeHead[:], resp.hash[:]) {
 				resp.err <- fmt.Errorf("block hash does not match: head %s, received %s", unsafeHead.String(), resp.hash.String())
 			} else {
-				s.log.Info("Sequencer has been started")
+				s.log.Info("Sequencer has been started", "l2_unsafe", unsafeHead.Hex())
 				s.driverConfig.SequencerStopped = false
 				close(resp.err)
 				planSequencerAction() // resume sequencing
@@ -385,9 +383,10 @@ func (s *Driver) eventLoop() {
 			if s.driverConfig.SequencerStopped {
 				respCh <- hashAndError{err: errors.New("sequencer not running")}
 			} else {
-				s.log.Warn("Sequencer has been stopped")
+				unsafeHead := s.derivation.UnsafeL2Head().Hash
+				s.log.Warn("Sequencer has been stopped", "l2_unsafe", unsafeHead.Hex())
 				s.driverConfig.SequencerStopped = true
-				respCh <- hashAndError{hash: s.derivation.UnsafeL2Head().Hash}
+				respCh <- hashAndError{hash: unsafeHead}
 			}
 		case <-s.done:
 			return
