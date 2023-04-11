@@ -11,13 +11,11 @@ type StateOracle interface {
 	// NodeByHash retrieves the merkle-patricia trie node pre-image for a given hash.
 	// Trie nodes may be from the world state trie or any account storage trie.
 	// Contract code is not stored as part of the trie and must be retrieved via CodeByHash
-	// Returns an error if the pre-image is unavailable.
-	NodeByHash(nodeHash common.Hash) ([]byte, error)
+	NodeByHash(nodeHash common.Hash) []byte
 
 	// CodeByHash retrieves the contract code pre-image for a given hash.
 	// codeHash should be retrieved from the world state account for a contract.
-	// Returns an error if the pre-image is unavailable.
-	CodeByHash(codeHash common.Hash) ([]byte, error)
+	CodeByHash(codeHash common.Hash) []byte
 }
 
 // Oracle defines the high-level API used to retrieve L2 data.
@@ -26,6 +24,5 @@ type Oracle interface {
 	StateOracle
 
 	// BlockByHash retrieves the block with the given hash.
-	// Returns an error if the block is not available.
-	BlockByHash(blockHash common.Hash) (*types.Block, error)
+	BlockByHash(blockHash common.Hash) *types.Block
 }

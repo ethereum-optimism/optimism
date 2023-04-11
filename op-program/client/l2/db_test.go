@@ -1,7 +1,6 @@
 package l2
 
 import (
-	"fmt"
 	"math/big"
 	"testing"
 
@@ -27,16 +26,8 @@ var (
 var _ ethdb.KeyValueStore = (*OracleKeyValueStore)(nil)
 
 func TestGet(t *testing.T) {
-	t.Run("UnknownKey", func(t *testing.T) {
-		oracle := newStubStateOracle()
-		db := NewOracleBackedDB(oracle)
-		val, err := db.Get(common.Hash{}.Bytes())
-		require.Error(t, err)
-		require.Nil(t, val)
-	})
-
 	t.Run("IncorrectLengthKey", func(t *testing.T) {
-		oracle := newStubStateOracle()
+		oracle := newStubStateOracle(t)
 		db := NewOracleBackedDB(oracle)
 		val, err := db.Get([]byte{1, 2, 3})
 		require.ErrorIs(t, err, ErrInvalidKeyLength)
@@ -44,7 +35,7 @@ func TestGet(t *testing.T) {
 	})
 
 	t.Run("KeyWithCodePrefix", func(t *testing.T) {
-		oracle := newStubStateOracle()
+		oracle := newStubStateOracle(t)
 		db := NewOracleBackedDB(oracle)
 		key := common.HexToHash("0x12345678")
 		prefixedKey := append(rawdb.CodePrefix, key.Bytes()...)
@@ -58,7 +49,7 @@ func TestGet(t *testing.T) {
 	})
 
 	t.Run("NormalKeyThatHappensToStartWithCodePrefix", func(t *testing.T) {
-		oracle := newStubStateOracle()
+		oracle := newStubStateOracle(t)
 		db := NewOracleBackedDB(oracle)
 		key := make([]byte, common.HashLength)
 		copy(rawdb.CodePrefix, key)
@@ -74,7 +65,7 @@ func TestGet(t *testing.T) {
 	t.Run("KnownKey", func(t *testing.T) {
 		key := common.HexToHash("0xAA4488")
 		expected := []byte{2, 6, 3, 8}
-		oracle := newStubStateOracle()
+		oracle := newStubStateOracle(t)
 		oracle.data[key] = expected
 		db := NewOracleBackedDB(oracle)
 		val, err := db.Get(key.Bytes())
@@ -85,7 +76,7 @@ func TestGet(t *testing.T) {
 
 func TestPut(t *testing.T) {
 	t.Run("NewKey", func(t *testing.T) {
-		oracle := newStubStateOracle()
+		oracle := newStubStateOracle(t)
 		db := NewOracleBackedDB(oracle)
 		key := common.HexToHash("0xAA4488")
 		value := []byte{2, 6, 3, 8}
@@ -97,7 +88,7 @@ func TestPut(t *testing.T) {
 		require.Equal(t, value, actual)
 	})
 	t.Run("ReplaceKey", func(t *testing.T) {
-		oracle := newStubStateOracle()
+		oracle := newStubStateOracle(t)
 		db := NewOracleBackedDB(oracle)
 		key := common.HexToHash("0xAA4488")
 		value1 := []byte{2, 6, 3, 8}
@@ -119,6 +110,7 @@ func TestSupportsStateDBOperations(t *testing.T) {
 	genesisBlock := l2Genesis.MustCommit(realDb)
 
 	loader := &kvStateOracle{
+		t:      t,
 		source: realDb,
 	}
 	assertStateDataAvailable(t, NewOracleBackedDB(loader), l2Genesis, genesisBlock)
@@ -126,7 +118,7 @@ func TestSupportsStateDBOperations(t *testing.T) {
 
 func TestUpdateState(t *testing.T) {
 	l2Genesis := createGenesis()
-	oracle := newStubStateOracle()
+	oracle := newStubStateOracle(t)
 	db := rawdb.NewDatabase(NewOracleBackedDB(oracle))
 
 	genesisBlock := l2Genesis.MustCommit(db)
@@ -203,43 +195,50 @@ func assertStateDataAvailable(t *testing.T, db ethdb.KeyValueStore, l2Genesis *c
 	require.Equal(t, common.Hash{}, statedb.GetCodeHash(unknownAccount), "unset account code hash")
 }
 
-func newStubStateOracle() *stubStateOracle {
+func newStubStateOracle(t *testing.T) *stubStateOracle {
 	return &stubStateOracle{
+		t:    t,
 		data: make(map[common.Hash][]byte),
 		code: make(map[common.Hash][]byte),
 	}
 }
 
 type stubStateOracle struct {
+	t    *testing.T
 	data map[common.Hash][]byte
 	code map[common.Hash][]byte
 }
 
-func (o *stubStateOracle) NodeByHash(nodeHash common.Hash) ([]byte, error) {
+func (o *stubStateOracle) NodeByHash(nodeHash common.Hash) []byte {
 	data, ok := o.data[nodeHash]
 	if !ok {
-		return nil, fmt.Errorf("no value for node %v", nodeHash)
+		o.t.Fatalf("no value for node %v", nodeHash)
 	}
-	return data, nil
+	return data
 }
 
-func (o *stubStateOracle) CodeByHash(hash common.Hash) ([]byte, error) {
+func (o *stubStateOracle) CodeByHash(hash common.Hash) []byte {
 	data, ok := o.code[hash]
 	if !ok {
-		return nil, fmt.Errorf("no value for code %v", hash)
+		o.t.Fatalf("no value for code %v", hash)
 	}
-	return data, nil
+	return data
 }
 
 // kvStateOracle loads data from a source ethdb.KeyValueStore
 type kvStateOracle struct {
+	t      *testing.T
 	source ethdb.KeyValueStore
 }
 
-func (o *kvStateOracle) NodeByHash(nodeHash common.Hash) ([]byte, error) {
-	return o.source.Get(nodeHash.Bytes())
+func (o *kvStateOracle) NodeByHash(nodeHash common.Hash) []byte {
+	val, err := o.source.Get(nodeHash.Bytes())
+	if err != nil {
+		o.t.Fatalf("error retrieving node %v: %v", nodeHash, err)
+	}
+	return val
 }
 
-func (o *kvStateOracle) CodeByHash(hash common.Hash) ([]byte, error) {
-	return rawdb.ReadCode(o.source, hash), nil
+func (o *kvStateOracle) CodeByHash(hash common.Hash) []byte {
+	return rawdb.ReadCode(o.source, hash)
 }
