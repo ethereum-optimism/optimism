@@ -543,6 +543,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 			return nil, err
 		}
 		sys.RollupNodes[name] = node
+		cfg.Nodes[name] = &c
 
 		if action, ok := opts.Get("afterRollupNodeStart", name); ok {
 			action(&cfg, sys)
