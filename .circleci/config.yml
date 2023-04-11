@@ -600,7 +600,7 @@ jobs:
       - run:
           name: run lint
           command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 2m -e "errors.As" -e "errors.Is" ./...
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
           working_directory: <<parameters.module>>
 
   go-test:
