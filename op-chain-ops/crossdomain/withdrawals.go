@@ -87,8 +87,8 @@ func GetPendingWithdrawals(messengers *Messengers, version *big.Int, start, end 
 
 		msg := NewCrossDomainMessage(
 			event.MessageNonce,
-			&event.Sender,
-			&event.Target,
+			event.Sender,
+			event.Target,
 			common.Big0,
 			event.GasLimit,
 			event.Message,
@@ -116,10 +116,10 @@ func GetPendingWithdrawals(messengers *Messengers, version *big.Int, start, end 
 
 			withdrawal := PendingWithdrawal{
 				LegacyWithdrawal: LegacyWithdrawal{
-					Target: &event.Target,
-					Sender: &event.Sender,
-					Data:   event.Message,
-					Nonce:  event.MessageNonce,
+					XDomainTarget: event.Target,
+					XDomainSender: event.Sender,
+					XDomainData:   event.Message,
+					XDomainNonce:  event.MessageNonce,
 				},
 				TransactionHash: event.Raw.TxHash,
 			}

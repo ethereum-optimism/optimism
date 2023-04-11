@@ -19,6 +19,7 @@
 /packages/migration-data        @ethereum-optimism/legacy-reviewers
 /packages/replica-healthcheck   @ethereum-optimism/legacy-reviewers
 /packages/sdk                   @ethereum-optimism/ecopod
+/packages/atst                  @ethereum-optimism/ecopod
 
 # Bedrock codebases
 /bedrock-devnet @ethereum-optimism/go-reviewers
@@ -28,13 +29,15 @@
 /op-node        @ethereum-optimism/go-reviewers
 /op-node/rollup @protolambda @trianglesphere
 /op-proposer    @ethereum-optimism/go-reviewers
+/op-program     @ethereum-optimism/go-reviewers
 /op-service     @ethereum-optimism/go-reviewers
+/ops-bedrock    @ethereum-optimism/go-reviewers
+
 
 # Ops
 /.circleci    @ethereum-optimism/infra-reviewers
 /.github      @ethereum-optimism/infra-reviewers
 /ops          @ethereum-optimism/infra-reviewers
-/ops-bedrock  @ethereum-optimism/infra-reviewers
 /op-signer    @ethereum-optimism/infra-reviewers
 
 # Misc

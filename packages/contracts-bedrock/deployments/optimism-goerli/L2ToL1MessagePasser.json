@@ -1,0 +1,306 @@
+{
+  "address": "0xEF2ec5A5465f075E010BE70966a8667c94BCe15a",
+  "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "nonce",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "sender",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "target",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "value",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "gasLimit",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes",
+          "name": "data",
+          "type": "bytes"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "withdrawalHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "MessagePassed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "WithdrawerBalanceBurnt",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "MESSAGE_VERSION",
+      "outputs": [
+        {
+          "internalType": "uint16",
+          "name": "",
+          "type": "uint16"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "burn",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_target",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_gasLimit",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_data",
+          "type": "bytes"
+        }
+      ],
+      "name": "initiateWithdrawal",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "messageNonce",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "name": "sentMessages",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "version",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "stateMutability": "payable",
+      "type": "receive"
+    }
+  ],
+  "transactionHash": "0xdc519f46469100c509d1f86af25cf20a558b413e589cbf8d516b9b11e19d6fe0",
+  "receipt": {
+    "to": null,
+    "from": "0x18394B52d3Cb931dfA76F63251919D051953413d",
+    "contractAddress": "0xEF2ec5A5465f075E010BE70966a8667c94BCe15a",
+    "transactionIndex": 1,
+    "gasUsed": "609034",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0x20f0dbaeed889c5d778c0b1c77627530c362b5e6b40a9626962d55634beffb7b",
+    "transactionHash": "0xdc519f46469100c509d1f86af25cf20a558b413e589cbf8d516b9b11e19d6fe0",
+    "logs": [],
+    "blockNumber": 7422503,
+    "cumulativeGasUsed": "659535",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [],
+  "numDeployments": 1,
+  "solcInputHash": "cf9f12504fd2a3f54e63ce13e7c60cdc",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"nonce\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"target\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"gasLimit\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"},{\"indexed\":false,\"internalType\":\"bytes32\",\"name\":\"withdrawalHash\",\"type\":\"bytes32\"}],\"name\":\"MessagePassed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"WithdrawerBalanceBurnt\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"MESSAGE_VERSION\",\"outputs\":[{\"internalType\":\"uint16\",\"name\":\"\",\"type\":\"uint16\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"burn\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_gasLimit\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"}],\"name\":\"initiateWithdrawal\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"messageNonce\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"name\":\"sentMessages\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"stateMutability\":\"payable\",\"type\":\"receive\"}],\"devdoc\":{\"custom:proxied\":\"@custom:predeploy 0x4200000000000000000000000000000000000016\",\"events\":{\"MessagePassed(uint256,address,address,uint256,uint256,bytes,bytes32)\":{\"params\":{\"data\":\"The data to be forwarded to the target on L1.\",\"gasLimit\":\"The minimum amount of gas that must be provided when withdrawing.\",\"nonce\":\"Unique value corresponding to each withdrawal.\",\"sender\":\"The L2 account address which initiated the withdrawal.\",\"target\":\"The L1 account address the call will be send to.\",\"value\":\"The ETH value submitted for withdrawal, to be forwarded to the target.\",\"withdrawalHash\":\"The hash of the withdrawal.\"}},\"WithdrawerBalanceBurnt(uint256)\":{\"params\":{\"amount\":\"Amount of ETh that was burned.\"}}},\"kind\":\"dev\",\"methods\":{\"constructor\":{\"custom:semver\":\"1.0.0\"},\"initiateWithdrawal(address,uint256,bytes)\":{\"params\":{\"_data\":\"Data to forward to L1 target.\",\"_gasLimit\":\"Minimum gas limit for executing the message on L1.\",\"_target\":\"Address to call on L1 execution.\"}},\"messageNonce()\":{\"returns\":{\"_0\":\"Nonce of the next message to be sent, with added message version.\"}},\"version()\":{\"returns\":{\"_0\":\"Semver contract version as a string.\"}}},\"title\":\"L2ToL1MessagePasser\",\"version\":1},\"userdoc\":{\"events\":{\"MessagePassed(uint256,address,address,uint256,uint256,bytes,bytes32)\":{\"notice\":\"Emitted any time a withdrawal is initiated.\"},\"WithdrawerBalanceBurnt(uint256)\":{\"notice\":\"Emitted when the balance of this contract is burned.\"}},\"kind\":\"user\",\"methods\":{\"MESSAGE_VERSION()\":{\"notice\":\"Current message version identifier.\"},\"burn()\":{\"notice\":\"Removes all ETH held by this contract from the state. Used to prevent the amount of         ETH on L2 inflating when ETH is withdrawn. Currently only way to do this is to         create a contract and self-destruct it to itself. Anyone can call this function. Not         incentivized since this function is very cheap.\"},\"initiateWithdrawal(address,uint256,bytes)\":{\"notice\":\"Sends a message from L2 to L1.\"},\"messageNonce()\":{\"notice\":\"Retrieves the next message nonce. Message version will be added to the upper two         bytes of the message nonce. Message version allows us to treat messages as having         different structures.\"},\"sentMessages(bytes32)\":{\"notice\":\"Includes the message hashes for all withdrawals\"},\"version()\":{\"notice\":\"Returns the full semver contract version.\"}},\"notice\":\"The L2ToL1MessagePasser is a dedicated contract where messages that are being sent from         L2 to L1 can be stored. The storage root of this contract is pulled up to the top level         of the L2 output to reduce the cost of proving the existence of sent messages.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/L2/L2ToL1MessagePasser.sol\":\"L2ToL1MessagePasser\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"none\"},\"optimizer\":{\"enabled\":true,\"runs\":999999},\"remappings\":[\":@openzeppelin/=node_modules/@openzeppelin/\",\":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/\",\":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/\",\":@rari-capital/=node_modules/@rari-capital/\",\":@rari-capital/solmate/=node_modules/@rari-capital/solmate/\",\":@safe-global/safe-contracts/=node_modules/@safe-global/safe-contracts/\",\":ds-test/=node_modules/ds-test/src/\",\":forge-std/=node_modules/forge-std/src/\",\":solady/=node_modules/solady/src/\"]},\"sources\":{\"contracts/L2/L2ToL1MessagePasser.sol\":{\"keccak256\":\"0xa385bda91d75c44f6d8b0bc5a61e1904ed455d98c07b308910ac1265e6536df1\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://dcbaab318b084e163992187aa87f9250782982c10d69be9e11959090e02cc912\",\"dweb:/ipfs/QmY81HgBPp4vcMigSbWQ8mDizXCQFvjN52BF7nGPc6f9Fm\"]},\"contracts/libraries/Burn.sol\":{\"keccak256\":\"0x54233b226ba6919dc46d438bc790108d8f855001002a1b9c3c37aed7a83e5f3f\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://4051a4baca357a9191a6c9e3aa1593a17b69dd7915966e23e4cb269e9c1d9ed4\",\"dweb:/ipfs/QmadKjGKvxm53abVHQdsxrXBc8e9jXywu6vvhkAgjsx59J\"]},\"contracts/libraries/Encoding.sol\":{\"keccak256\":\"0x170cd0821cec37976a6391da20f1dcdcb1ea9ffada96ccd3c57ff2e357589418\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://f18156216c1f9457c2e032a812ad70f2babbc5b89997554ff014d64c483fb2ff\",\"dweb:/ipfs/Qmc5rjMaBFn3jV7XqDrEvRbmatQvJxeVJYA5B5rdcKPkcJ\"]},\"contracts/libraries/Hashing.sol\":{\"keccak256\":\"0x5d4988987899306d2785b3de068194a39f8e829a7864762a07a0016db5189f5e\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://6746ed0d26d603568818cc52a29d0209effd69f7e55bd0017a6b91bd6cf319fe\",\"dweb:/ipfs/QmPebCmCELMBRtDDxt5ziEPfRXUh6tfm2qJdwz3iyrDdWN\"]},\"contracts/libraries/Types.sol\":{\"keccak256\":\"0x4fe8ec920798661a828430bd30dc2715eeb40534ec01c0a7bf41cb4ab422e134\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://74c8471869900bd459358cd990bda1c8d234c06b788804c7049cf465ae1e299f\",\"dweb:/ipfs/QmakcfP6NmbVUQsKqH7rEyJsbiqckigLahw9g74oencEJ7\"]},\"contracts/libraries/rlp/RLPWriter.sol\":{\"keccak256\":\"0x5aa9d21c5b41c9786f23153f819d561ae809a1d55c7b0d423dfeafdfbacedc78\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://921c44e6a0982b9a4011900fda1bda2c06b7a85894967de98b407a83fe9f90c0\",\"dweb:/ipfs/QmSsHLKDUQ82kpKdqB6VntVGKuPDb4W9VdotsubuqWBzio\"]},\"contracts/universal/Semver.sol\":{\"keccak256\":\"0x400059d3edb9efc9c23e6fbc18de6710f9235a4ffba4ab23bdb9f825273f093b\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://9baf7797439c0ae6512f4639dfc6a1934dbd4e4d7cbb8e63e99264ff47682c9e\",\"dweb:/ipfs/QmawAuhppPyeoZH3rC1uh87xDELa9Lyfw5pYsBqE8myE1m\"]},\"node_modules/@openzeppelin/contracts/utils/Strings.sol\":{\"keccak256\":\"0xaf159a8b1923ad2a26d516089bceca9bdeaeacd04be50983ea00ba63070f08a3\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://6f2cf1c531122bc7ca96b8c8db6a60deae60441e5223065e792553d4849b5638\",\"dweb:/ipfs/QmPBdJmBBABMDCfyDjCbdxgiqRavgiSL88SYPGibgbPas9\"]}},\"version\":1}",
+  "bytecode": "0x60e060405234801561001057600080fd5b5060016080819052600060a081905260c081905280610a2061004a82396000610403015260006103da015260006103b10152610a206000f3fe6080604052600436106100695760003560e01c806382e3702d1161004357806382e3702d146100f6578063c2b3e5ac14610136578063ecc704281461014957600080fd5b80633f827a5a1461009257806344df8e70146100bf57806354fd4d50146100d457600080fd5b3661008d5761008b33620186a0604051806020016040528060008152506101ae565b005b600080fd5b34801561009e57600080fd5b506100a7600181565b60405161ffff90911681526020015b60405180910390f35b3480156100cb57600080fd5b5061008b610372565b3480156100e057600080fd5b506100e96103aa565b6040516100b6919061068c565b34801561010257600080fd5b506101266101113660046106a6565b60006020819052908152604090205460ff1681565b60405190151581526020016100b6565b61008b6101443660046106ee565b6101ae565b34801561015557600080fd5b506101a06001547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff167e010000000000000000000000000000000000000000000000000000000000001790565b6040519081526020016100b6565b60006102446040518060c001604052806102086001547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff167e010000000000000000000000000000000000000000000000000000000000001790565b815233602082015273ffffffffffffffffffffffffffffffffffffffff871660408201523460608201526080810186905260a00184905261044d565b600081815260208190526040902080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00166001179055905073ffffffffffffffffffffffffffffffffffffffff8416336102df6001547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff167e010000000000000000000000000000000000000000000000000000000000001790565b7f02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a27449550543487878760405161031494939291906107f2565b60405180910390a45050600180547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8082168301167fffff0000000000000000000000000000000000000000000000000000000000009091161790555050565b4761037c8161049a565b60405181907f7967de617a5ac1cc7eba2d6f37570a0135afa950d8bb77cdd35f0d0b4e85a16f90600090a250565b60606103d57f00000000000000000000000000000000000000000000000000000000000000006104c9565b6103fe7f00000000000000000000000000000000000000000000000000000000000000006104c9565b6104277f00000000000000000000000000000000000000000000000000000000000000006104c9565b60405160200161043993929190610822565b604051602081830303815290604052905090565b80516020808301516040808501516060860151608087015160a0880151935160009761047d979096959101610898565b604051602081830303815290604052805190602001209050919050565b806040516104a790610606565b6040518091039082f09050801580156104c4573d6000803e3d6000fd5b505050565b60608160000361050c57505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b811561053657806105208161091e565b915061052f9050600a83610985565b9150610510565b60008167ffffffffffffffff811115610551576105516106bf565b6040519080825280601f01601f19166020018201604052801561057b576020820181803683370190505b5090505b84156105fe57610590600183610999565b915061059d600a866109b0565b6105a89060306109c4565b60f81b8183815181106105bd576105bd6109dc565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a9053506105f7600a86610985565b945061057f565b949350505050565b600880610a0c83390190565b60005b8381101561062d578181015183820152602001610615565b8381111561063c576000848401525b50505050565b6000815180845261065a816020860160208601610612565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b60208152600061069f6020830184610642565b9392505050565b6000602082840312156106b857600080fd5b5035919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b60008060006060848603121561070357600080fd5b833573ffffffffffffffffffffffffffffffffffffffff8116811461072757600080fd5b925060208401359150604084013567ffffffffffffffff8082111561074b57600080fd5b818601915086601f83011261075f57600080fd5b813581811115610771576107716106bf565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f011681019083821181831017156107b7576107b76106bf565b816040528281528960208487010111156107d057600080fd5b8260208601602083013760006020848301015280955050505050509250925092565b8481528360208201526080604082015260006108116080830185610642565b905082606083015295945050505050565b60008451610834818460208901610612565b80830190507f2e000000000000000000000000000000000000000000000000000000000000008082528551610870816001850160208a01610612565b6001920191820152835161088b816002840160208801610612565b0160020195945050505050565b868152600073ffffffffffffffffffffffffffffffffffffffff808816602084015280871660408401525084606083015283608083015260c060a08301526108e360c0830184610642565b98975050505050505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361094f5761094f6108ef565b5060010190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b60008261099457610994610956565b500490565b6000828210156109ab576109ab6108ef565b500390565b6000826109bf576109bf610956565b500690565b600082198211156109d7576109d76108ef565b500190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fdfe608060405230fffea164736f6c634300080f000a",
+  "deployedBytecode": "0x6080604052600436106100695760003560e01c806382e3702d1161004357806382e3702d146100f6578063c2b3e5ac14610136578063ecc704281461014957600080fd5b80633f827a5a1461009257806344df8e70146100bf57806354fd4d50146100d457600080fd5b3661008d5761008b33620186a0604051806020016040528060008152506101ae565b005b600080fd5b34801561009e57600080fd5b506100a7600181565b60405161ffff90911681526020015b60405180910390f35b3480156100cb57600080fd5b5061008b610372565b3480156100e057600080fd5b506100e96103aa565b6040516100b6919061068c565b34801561010257600080fd5b506101266101113660046106a6565b60006020819052908152604090205460ff1681565b60405190151581526020016100b6565b61008b6101443660046106ee565b6101ae565b34801561015557600080fd5b506101a06001547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff167e010000000000000000000000000000000000000000000000000000000000001790565b6040519081526020016100b6565b60006102446040518060c001604052806102086001547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff167e010000000000000000000000000000000000000000000000000000000000001790565b815233602082015273ffffffffffffffffffffffffffffffffffffffff871660408201523460608201526080810186905260a00184905261044d565b600081815260208190526040902080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00166001179055905073ffffffffffffffffffffffffffffffffffffffff8416336102df6001547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff167e010000000000000000000000000000000000000000000000000000000000001790565b7f02a52367d10742d8032712c1bb8e0144ff1ec5ffda1ed7d70bb05a27449550543487878760405161031494939291906107f2565b60405180910390a45050600180547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8082168301167fffff0000000000000000000000000000000000000000000000000000000000009091161790555050565b4761037c8161049a565b60405181907f7967de617a5ac1cc7eba2d6f37570a0135afa950d8bb77cdd35f0d0b4e85a16f90600090a250565b60606103d57f00000000000000000000000000000000000000000000000000000000000000006104c9565b6103fe7f00000000000000000000000000000000000000000000000000000000000000006104c9565b6104277f00000000000000000000000000000000000000000000000000000000000000006104c9565b60405160200161043993929190610822565b604051602081830303815290604052905090565b80516020808301516040808501516060860151608087015160a0880151935160009761047d979096959101610898565b604051602081830303815290604052805190602001209050919050565b806040516104a790610606565b6040518091039082f09050801580156104c4573d6000803e3d6000fd5b505050565b60608160000361050c57505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b811561053657806105208161091e565b915061052f9050600a83610985565b9150610510565b60008167ffffffffffffffff811115610551576105516106bf565b6040519080825280601f01601f19166020018201604052801561057b576020820181803683370190505b5090505b84156105fe57610590600183610999565b915061059d600a866109b0565b6105a89060306109c4565b60f81b8183815181106105bd576105bd6109dc565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a9053506105f7600a86610985565b945061057f565b949350505050565b600880610a0c83390190565b60005b8381101561062d578181015183820152602001610615565b8381111561063c576000848401525b50505050565b6000815180845261065a816020860160208601610612565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b60208152600061069f6020830184610642565b9392505050565b6000602082840312156106b857600080fd5b5035919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b60008060006060848603121561070357600080fd5b833573ffffffffffffffffffffffffffffffffffffffff8116811461072757600080fd5b925060208401359150604084013567ffffffffffffffff8082111561074b57600080fd5b818601915086601f83011261075f57600080fd5b813581811115610771576107716106bf565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f011681019083821181831017156107b7576107b76106bf565b816040528281528960208487010111156107d057600080fd5b8260208601602083013760006020848301015280955050505050509250925092565b8481528360208201526080604082015260006108116080830185610642565b905082606083015295945050505050565b60008451610834818460208901610612565b80830190507f2e000000000000000000000000000000000000000000000000000000000000008082528551610870816001850160208a01610612565b6001920191820152835161088b816002840160208801610612565b0160020195945050505050565b868152600073ffffffffffffffffffffffffffffffffffffffff808816602084015280871660408401525084606083015283608083015260c060a08301526108e360c0830184610642565b98975050505050505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361094f5761094f6108ef565b5060010190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b60008261099457610994610956565b500490565b6000828210156109ab576109ab6108ef565b500390565b6000826109bf576109bf610956565b500690565b600082198211156109d7576109d76108ef565b500190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fdfe608060405230fffea164736f6c634300080f000a",
+  "devdoc": {
+    "version": 1,
+    "kind": "dev",
+    "methods": {
+      "constructor": {},
+      "initiateWithdrawal(address,uint256,bytes)": {
+        "params": {
+          "_data": "Data to forward to L1 target.",
+          "_gasLimit": "Minimum gas limit for executing the message on L1.",
+          "_target": "Address to call on L1 execution."
+        }
+      },
+      "messageNonce()": {
+        "returns": {
+          "_0": "Nonce of the next message to be sent, with added message version."
+        }
+      },
+      "version()": {
+        "returns": {
+          "_0": "Semver contract version as a string."
+        }
+      }
+    },
+    "events": {
+      "MessagePassed(uint256,address,address,uint256,uint256,bytes,bytes32)": {
+        "params": {
+          "data": "The data to be forwarded to the target on L1.",
+          "gasLimit": "The minimum amount of gas that must be provided when withdrawing.",
+          "nonce": "Unique value corresponding to each withdrawal.",
+          "sender": "The L2 account address which initiated the withdrawal.",
+          "target": "The L1 account address the call will be send to.",
+          "value": "The ETH value submitted for withdrawal, to be forwarded to the target.",
+          "withdrawalHash": "The hash of the withdrawal."
+        }
+      },
+      "WithdrawerBalanceBurnt(uint256)": {
+        "params": {
+          "amount": "Amount of ETh that was burned."
+        }
+      }
+    },
+    "title": "L2ToL1MessagePasser"
+  },
+  "userdoc": {
+    "version": 1,
+    "kind": "user",
+    "methods": {
+      "MESSAGE_VERSION()": {
+        "notice": "Current message version identifier."
+      },
+      "burn()": {
+        "notice": "Removes all ETH held by this contract from the state. Used to prevent the amount of         ETH on L2 inflating when ETH is withdrawn. Currently only way to do this is to         create a contract and self-destruct it to itself. Anyone can call this function. Not         incentivized since this function is very cheap."
+      },
+      "initiateWithdrawal(address,uint256,bytes)": {
+        "notice": "Sends a message from L2 to L1."
+      },
+      "messageNonce()": {
+        "notice": "Retrieves the next message nonce. Message version will be added to the upper two         bytes of the message nonce. Message version allows us to treat messages as having         different structures."
+      },
+      "sentMessages(bytes32)": {
+        "notice": "Includes the message hashes for all withdrawals"
+      },
+      "version()": {
+        "notice": "Returns the full semver contract version."
+      }
+    },
+    "events": {
+      "MessagePassed(uint256,address,address,uint256,uint256,bytes,bytes32)": {
+        "notice": "Emitted any time a withdrawal is initiated."
+      },
+      "WithdrawerBalanceBurnt(uint256)": {
+        "notice": "Emitted when the balance of this contract is burned."
+      }
+    },
+    "notice": "The L2ToL1MessagePasser is a dedicated contract where messages that are being sent from         L2 to L1 can be stored. The storage root of this contract is pulled up to the top level         of the L2 output to reduce the cost of proving the existence of sent messages."
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 501,
+        "contract": "contracts/L2/L2ToL1MessagePasser.sol:L2ToL1MessagePasser",
+        "label": "sentMessages",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_mapping(t_bytes32,t_bool)"
+      },
+      {
+        "astId": 504,
+        "contract": "contracts/L2/L2ToL1MessagePasser.sol:L2ToL1MessagePasser",
+        "label": "msgNonce",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_uint240"
+      }
+    ],
+    "types": {
+      "t_bool": {
+        "encoding": "inplace",
+        "label": "bool",
+        "numberOfBytes": "1"
+      },
+      "t_bytes32": {
+        "encoding": "inplace",
+        "label": "bytes32",
+        "numberOfBytes": "32"
+      },
+      "t_mapping(t_bytes32,t_bool)": {
+        "encoding": "mapping",
+        "key": "t_bytes32",
+        "label": "mapping(bytes32 => bool)",
+        "numberOfBytes": "32",
+        "value": "t_bool"
+      },
+      "t_uint240": {
+        "encoding": "inplace",
+        "label": "uint240",
+        "numberOfBytes": "30"
+      }
+    }
+  }
+}

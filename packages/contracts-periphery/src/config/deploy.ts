@@ -29,9 +29,30 @@ export interface DeployConfig {
   optimistSymbol: string
 
   /**
-   * Address of the priviledged attestor for the Optimist contract.
+   * Address of the privileged attestor for the Optimist contract.
    */
-  attestorAddress: string
+  optimistBaseUriAttestorAddress: string
+
+  /**
+   * Address of the privileged account for the OptimistInviter contract that can grant invites.
+   */
+  optimistInviterInviteGranter: string
+
+  /**
+   * Name of OptimistInviter contract, used for the EIP712 domain separator.
+   */
+  optimistInviterName: string
+
+  /**
+   * Address of previleged account for the OptimistAllowlist contract that can add/remove people
+   * from allowlist.
+   */
+  optimistAllowlistAllowlistAttestor: string
+
+  /**
+   * Address of Coinbase attestor that attests to whether someone has completed Quest.
+   */
+  optimistAllowlistCoinbaseQuestAttestor: string
 
   /**
    * Address of the owner of the proxies on L2. There will be a ProxyAdmin deployed as a predeploy
@@ -60,9 +81,24 @@ export const configSpec: DeployConfigSpec<DeployConfig> = {
     type: 'string',
     default: 'OPTIMIST',
   },
-  attestorAddress: {
+  optimistBaseUriAttestorAddress: {
     type: 'address',
   },
+  optimistInviterInviteGranter: {
+    type: 'address',
+  },
+  optimistInviterName: {
+    type: 'string',
+  },
+
+  optimistAllowlistAllowlistAttestor: {
+    type: 'address',
+  },
+
+  optimistAllowlistCoinbaseQuestAttestor: {
+    type: 'address',
+  },
+
   l2ProxyOwnerAddress: {
     type: 'address',
   },

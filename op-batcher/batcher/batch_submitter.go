@@ -9,10 +9,12 @@ import (
 	"syscall"
 	"time"
 
+	gethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
+	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
@@ -34,25 +36,26 @@ func Main(version string, cliCtx *cli.Context) error {
 	}
 
 	l := oplog.NewLogger(cfg.LogConfig)
+	m := metrics.NewMetrics("default")
 	l.Info("Initializing Batch Submitter")
 
-	batchSubmitter, err := NewBatchSubmitterFromCLIConfig(cfg, l)
+	batchSubmitter, err := NewBatchSubmitterFromCLIConfig(cfg, l, m)
 	if err != nil {
 		l.Error("Unable to create Batch Submitter", "error", err)
 		return err
 	}
 
-	l.Info("Starting Batch Submitter")
-
-	if err := batchSubmitter.Start(); err != nil {
-		l.Error("Unable to start Batch Submitter", "error", err)
-		return err
+	if !cfg.Stopped {
+		if err := batchSubmitter.Start(); err != nil {
+			l.Error("Unable to start Batch Submitter", "error", err)
+			return err
+		}
 	}
-	defer batchSubmitter.Stop()
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // Stop pprof and metrics only after main loop returns
+	defer batchSubmitter.StopIfRunning(context.Background())
 
-	l.Info("Batch Submitter started")
 	pprofConfig := cfg.PprofConfig
 	if pprofConfig.Enabled {
 		l.Info("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
@@ -63,16 +66,15 @@ func Main(version string, cliCtx *cli.Context) error {
 		}()
 	}
 
-	registry := opmetrics.NewRegistry()
 	metricsCfg := cfg.MetricsConfig
 	if metricsCfg.Enabled {
 		l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
 		go func() {
-			if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
+			if err := m.Serve(ctx, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
 				l.Error("error starting metrics server", err)
 			}
 		}()
-		opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", batchSubmitter.L1Client, batchSubmitter.From)
+		m.StartBalanceMetrics(ctx, l, batchSubmitter.L1Client, batchSubmitter.TxManager.From())
 	}
 
 	rpcCfg := cfg.RPCConfig
@@ -80,11 +82,22 @@ func Main(version string, cliCtx *cli.Context) error {
 		rpcCfg.ListenAddr,
 		rpcCfg.ListenPort,
 		version,
+		oprpc.WithLogger(l),
 	)
+	if rpcCfg.EnableAdmin {
+		server.AddAPI(gethrpc.API{
+			Namespace: "admin",
+			Service:   rpc.NewAdminAPI(batchSubmitter),
+		})
+		l.Info("Admin RPC enabled")
+	}
 	if err := server.Start(); err != nil {
 		cancel()
 		return fmt.Errorf("error starting RPC server: %w", err)
 	}
+
+	m.RecordInfo(version)
+	m.RecordUp()
 
 	interruptChannel := make(chan os.Signal, 1)
 	signal.Notify(interruptChannel, []os.Signal{
@@ -94,8 +107,8 @@ func Main(version string, cliCtx *cli.Context) error {
 		syscall.SIGQUIT,
 	}...)
 	<-interruptChannel
-	cancel()
-	_ = server.Stop()
+	if err := server.Stop(); err != nil {
+		l.Error("Error shutting down http server: %w", err)
+	}
 	return nil
-
 }

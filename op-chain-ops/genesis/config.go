@@ -22,7 +22,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
-var ErrInvalidDeployConfig = errors.New("invalid deploy config")
+var (
+	ErrInvalidDeployConfig     = errors.New("invalid deploy config")
+	ErrInvalidImmutablesConfig = errors.New("invalid immutables config")
+)
 
 // DeployConfig represents the deployment configuration for Optimism
 type DeployConfig struct {
@@ -66,11 +69,16 @@ type DeployConfig struct {
 	L2GenesisBlockParentHash    common.Hash    `json:"l2GenesisBlockParentHash"`
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
 
+	// Seconds after genesis block that Regolith hard fork activates. 0 to activate at genesis. Nil to disable regolith
+	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
+
 	// Owner of the ProxyAdmin predeploy
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
 
 	// Owner of the system on L1
 	FinalSystemOwner common.Address `json:"finalSystemOwner"`
+	// GUARDIAN account in the OptimismPortal
+	PortalGuardian common.Address `json:"portalGuardian"`
 	// L1 recipient of fees accumulated in the BaseFeeVault
 	BaseFeeVaultRecipient common.Address `json:"baseFeeVaultRecipient"`
 	// L1 recipient of fees accumulated in the L1FeeVault
@@ -122,6 +130,9 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.FinalizationPeriodSeconds == 0 {
 		return fmt.Errorf("%w: FinalizationPeriodSeconds cannot be 0", ErrInvalidDeployConfig)
+	}
+	if d.PortalGuardian == (common.Address{}) {
+		return fmt.Errorf("%w: PortalGuardian cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.MaxSequencerDrift == 0 {
 		return fmt.Errorf("%w: MaxSequencerDrift cannot be 0", ErrInvalidDeployConfig)
@@ -197,6 +208,11 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.L2GenesisBlockGasLimit == 0 {
 		return fmt.Errorf("%w: L2 genesis block gas limit cannot be 0", ErrInvalidDeployConfig)
+	}
+	// When the initial resource config is made to be configurable by the DeployConfig, ensure
+	// that this check is updated to use the values from the DeployConfig instead of the defaults.
+	if uint64(d.L2GenesisBlockGasLimit) < uint64(defaultResourceConfig.MaxResourceLimit+defaultResourceConfig.SystemTxMaxGas) {
+		return fmt.Errorf("%w: L2 genesis block gas limit is too small", ErrInvalidDeployConfig)
 	}
 	if d.L2GenesisBlockBaseFeePerGas == nil {
 		return fmt.Errorf("%w: L2 genesis block base fee per gas cannot be nil", ErrInvalidDeployConfig)
@@ -282,6 +298,17 @@ func (d *DeployConfig) InitDeveloperDeployedAddresses() error {
 	return nil
 }
 
+func (d *DeployConfig) RegolithTime(genesisTime uint64) *uint64 {
+	if d.L2GenesisRegolithTimeOffset == nil {
+		return nil
+	}
+	v := uint64(0)
+	if offset := *d.L2GenesisRegolithTimeOffset; offset > 0 {
+		v = genesisTime + uint64(offset)
+	}
+	return &v
+}
+
 // RollupConfig converts a DeployConfig to a rollup.Config
 func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
 	if d.OptimismPortalProxy == (common.Address{}) {
@@ -318,6 +345,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		BatchInboxAddress:      d.BatchInboxAddress,
 		DepositContractAddress: d.OptimismPortalProxy,
 		L1SystemConfigAddress:  d.SystemConfigProxy,
+		RegolithTime:           d.RegolithTime(l1StartBlock.Time()),
 	}, nil
 }
 
@@ -345,12 +373,27 @@ func NewDeployConfigWithNetwork(network, path string) (*DeployConfig, error) {
 }
 
 // NewL2ImmutableConfig will create an ImmutableConfig given an instance of a
-// Hardhat and a DeployConfig.
+// DeployConfig and a block.
 func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.ImmutableConfig, error) {
 	immutable := make(immutables.ImmutableConfig)
 
+	if config.L1StandardBridgeProxy == (common.Address{}) {
+		return immutable, fmt.Errorf("L1StandardBridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.L1CrossDomainMessengerProxy == (common.Address{}) {
+		return immutable, fmt.Errorf("L1CrossDomainMessengerProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
 	if config.L1ERC721BridgeProxy == (common.Address{}) {
-		return immutable, errors.New("L1ERC721BridgeProxy cannot be address(0)")
+		return immutable, fmt.Errorf("L1ERC721BridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.SequencerFeeVaultRecipient == (common.Address{}) {
+		return immutable, fmt.Errorf("SequencerFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.BaseFeeVaultRecipient == (common.Address{}) {
+		return immutable, fmt.Errorf("BaseFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.L1FeeVaultRecipient == (common.Address{}) {
+		return immutable, fmt.Errorf("L1FeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 
 	immutable["L2StandardBridge"] = immutables.ImmutableValues{
@@ -399,12 +442,8 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"msgNonce": 0,
 	}
 	storage["L2CrossDomainMessenger"] = state.StorageValues{
-		"_initialized": 1,
-		"_owner":       config.ProxyAdminOwner,
-		// re-entrency lock
-		"_status":          1,
+		"_initialized":     1,
 		"_initializing":    false,
-		"_paused":          false,
 		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
 		"msgNonce":         0,
 	}
@@ -471,4 +510,19 @@ func (m *MarshalableRPCBlockNumberOrHash) UnmarshalJSON(b []byte) error {
 	asMarshalable := MarshalableRPCBlockNumberOrHash(r)
 	*m = asMarshalable
 	return nil
+}
+
+// Number wraps the rpc.BlockNumberOrHash Number method.
+func (m *MarshalableRPCBlockNumberOrHash) Number() (rpc.BlockNumber, bool) {
+	return (*rpc.BlockNumberOrHash)(m).Number()
+}
+
+// Hash wraps the rpc.BlockNumberOrHash Hash method.
+func (m *MarshalableRPCBlockNumberOrHash) Hash() (common.Hash, bool) {
+	return (*rpc.BlockNumberOrHash)(m).Hash()
+}
+
+// String wraps the rpc.BlockNumberOrHash String method.
+func (m *MarshalableRPCBlockNumberOrHash) String() string {
+	return (*rpc.BlockNumberOrHash)(m).String()
 }

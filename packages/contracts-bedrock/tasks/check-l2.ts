@@ -242,7 +242,11 @@ const check = {
       signer
     )
 
-    await assertSemver(L2CrossDomainMessenger, 'L2CrossDomainMessenger')
+    await assertSemver(
+      L2CrossDomainMessenger,
+      'L2CrossDomainMessenger',
+      '1.1.0'
+    )
 
     const xDomainMessageSenderSlot = await signer.provider.getStorageAt(
       predeploys.L2CrossDomainMessenger,
@@ -264,10 +268,6 @@ const check = {
 
     await checkProxy(hre, 'L2CrossDomainMessenger', signer.provider)
     await assertProxy(hre, 'L2CrossDomainMessenger', signer.provider)
-
-    const owner = await L2CrossDomainMessenger.owner()
-    assert(owner !== hre.ethers.constants.AddressZero)
-    yell(`  - owner: ${owner}`)
 
     const MESSAGE_VERSION = await L2CrossDomainMessenger.MESSAGE_VERSION()
     console.log(`  - MESSAGE_VERSION: ${MESSAGE_VERSION}`)
@@ -351,7 +351,7 @@ const check = {
       signer
     )
 
-    await assertSemver(SequencerFeeVault, 'SequencerFeeVault')
+    await assertSemver(SequencerFeeVault, 'SequencerFeeVault', '1.1.0')
 
     const RECIPIENT = await SequencerFeeVault.RECIPIENT()
     assert(RECIPIENT !== hre.ethers.constants.AddressZero)
@@ -382,7 +382,8 @@ const check = {
 
     await assertSemver(
       OptimismMintableERC20Factory,
-      'OptimismMintableERC20Factory'
+      'OptimismMintableERC20Factory',
+      '1.1.0'
     )
 
     const BRIDGE = await OptimismMintableERC20Factory.BRIDGE()
@@ -520,7 +521,7 @@ const check = {
       signer
     )
 
-    await assertSemver(L2ERC721Bridge, 'L2ERC721Bridge')
+    await assertSemver(L2ERC721Bridge, 'L2ERC721Bridge', '1.1.0')
 
     const MESSENGER = await L2ERC721Bridge.MESSENGER()
     assert(MESSENGER !== hre.ethers.constants.AddressZero)
@@ -547,7 +548,8 @@ const check = {
 
     await assertSemver(
       OptimismMintableERC721Factory,
-      'OptimismMintableERC721Factory'
+      'OptimismMintableERC721Factory',
+      '1.1.0'
     )
 
     const BRIDGE = await OptimismMintableERC721Factory.BRIDGE()
@@ -592,7 +594,7 @@ const check = {
       signer
     )
 
-    await assertSemver(BaseFeeVault, 'BaseFeeVault')
+    await assertSemver(BaseFeeVault, 'BaseFeeVault', '1.1.0')
 
     const MIN_WITHDRAWAL_AMOUNT = await BaseFeeVault.MIN_WITHDRAWAL_AMOUNT()
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
@@ -615,7 +617,7 @@ const check = {
       signer
     )
 
-    await assertSemver(L1FeeVault, 'L1FeeVault')
+    await assertSemver(L1FeeVault, 'L1FeeVault', '1.1.0')
 
     const MIN_WITHDRAWAL_AMOUNT = await L1FeeVault.MIN_WITHDRAWAL_AMOUNT()
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)

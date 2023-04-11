@@ -19,14 +19,15 @@ func MustOpenDB(dataDir string) ethdb.Database {
 // the caller to pass in LevelDB cache parameters.
 func MustOpenDBWithCacheOpts(dataDir string, cacheSize, handles int) ethdb.Database {
 	dir := filepath.Join(dataDir, "geth", "chaindata")
-	db, err := rawdb.NewLevelDBDatabaseWithFreezer(
-		dir,
-		cacheSize,
-		handles,
-		filepath.Join(dir, "ancient"),
-		"",
-		true,
-	)
+	db, err := rawdb.Open(rawdb.OpenOptions{
+		Type:              "leveldb",
+		Directory:         dir,
+		AncientsDirectory: filepath.Join(dir, "ancient"),
+		Namespace:         "",
+		Cache:             cacheSize,
+		Handles:           handles,
+		ReadOnly:          true,
+	})
 	if err != nil {
 		log.Crit("error opening raw DB", "err", err)
 	}

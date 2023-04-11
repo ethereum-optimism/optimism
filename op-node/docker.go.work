@@ -1,9 +1,0 @@
-go 1.18
-
-use (
-	./op-bindings
-	./op-node
-	./op-chain-ops
-	./op-service
-)
-replace github.com/ethereum/go-ethereum v1.10.23 => /app/op-geth

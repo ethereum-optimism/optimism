@@ -1,5 +1,60 @@
 # @eth-optimism/drippie-mon
 
+## 0.3.0
+
+### Minor Changes
+
+- 1e7897c81: Introduces the balance-mon service to chain-mon.
+
+### Patch Changes
+
+- dbe5eb308: Empty patch release to re-release packages that failed to be released by a bug in the release process.
+- Updated dependencies [be3315689]
+  - @eth-optimism/sdk@2.0.2
+
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [fecd42d67]
+- Updated dependencies [66cafc00a]
+  - @eth-optimism/common-ts@0.8.1
+  - @eth-optimism/sdk@2.0.1
+
+## 0.2.0
+
+### Minor Changes
+
+- 282bda091: Added a withdrawal monitoring service
+
+### Patch Changes
+
+- Updated dependencies [cb19e2f9c]
+  - @eth-optimism/sdk@2.0.0
+
+## 0.1.3
+
+### Patch Changes
+
+- @eth-optimism/sdk@1.10.4
+
+## 0.1.2
+
+### Patch Changes
+
+- @eth-optimism/sdk@1.10.3
+
+## 0.1.1
+
+### Patch Changes
+
+- 0515a7841: Added withdrawal monitoring to identify proven withdrawals not included in the L2ToL1MessagePasser's sentMessages mapping
+- Updated dependencies [0e179781b]
+- Updated dependencies [5372c9f5b]
+- Updated dependencies [4ae94b412]
+  - @eth-optimism/common-ts@0.8.0
+  - @eth-optimism/sdk@1.10.2
+
 ## 0.4.3
 
 ### Patch Changes

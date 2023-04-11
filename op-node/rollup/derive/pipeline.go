@@ -15,6 +15,7 @@ type Metrics interface {
 	RecordL1Ref(name string, ref eth.L1BlockRef)
 	RecordL2Ref(name string, ref eth.L2BlockRef)
 	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
+	RecordChannelInputBytes(inputCompresedBytes int)
 }
 
 type L1Fetcher interface {
@@ -23,6 +24,14 @@ type L1Fetcher interface {
 	L1BlockRefByHashFetcher
 	L1ReceiptsFetcher
 	L1TransactionFetcher
+}
+
+// ResettableEngineControl wraps EngineControl with reset-functionality,
+// which handles reorgs like the derivation pipeline:
+// by determining the last valid block references to continue from.
+type ResettableEngineControl interface {
+	EngineControl
+	Reset()
 }
 
 type ResetableStage interface {
@@ -42,8 +51,8 @@ type EngineQueueStage interface {
 	SetUnsafeHead(head eth.L2BlockRef)
 
 	Finalize(l1Origin eth.L1BlockRef)
-	AddSafeAttributes(attributes *eth.PayloadAttributes)
 	AddUnsafePayload(payload *eth.ExecutionPayload)
+	UnsafeL2SyncTarget() eth.L2BlockRef
 	Step(context.Context) error
 }
 
@@ -74,7 +83,7 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
 	frameQueue := NewFrameQueue(log, l1Src)
 	bank := NewChannelBank(log, cfg, frameQueue, l1Fetcher)
-	chInReader := NewChannelInReader(log, bank)
+	chInReader := NewChannelInReader(log, bank, metrics)
 	batchQueue := NewBatchQueue(log, cfg, chInReader)
 	attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, engine)
 	attributesQueue := NewAttributesQueue(log, cfg, attrBuilder, batchQueue)
@@ -97,6 +106,12 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 		metrics:   metrics,
 		traversal: l1Traversal,
 	}
+}
+
+// EngineReady returns true if the engine is ready to be used.
+// When it's being reset its state is inconsistent, and should not be used externally.
+func (dp *DerivationPipeline) EngineReady() bool {
+	return dp.resetting > 0
 }
 
 func (dp *DerivationPipeline) Reset() {
@@ -153,6 +168,11 @@ func (dp *DerivationPipeline) AddUnsafePayload(payload *eth.ExecutionPayload) {
 	dp.eng.AddUnsafePayload(payload)
 }
 
+// UnsafeL2SyncTarget retrieves the first queued-up L2 unsafe payload, or a zeroed reference if there is none.
+func (dp *DerivationPipeline) UnsafeL2SyncTarget() eth.L2BlockRef {
+	return dp.eng.UnsafeL2SyncTarget()
+}
+
 // Step tries to progress the buffer.
 // An EOF is returned if there pipeline is blocked by waiting for new L1 data.
 // If ctx errors no error is returned, but the step may exit early in a state that can still be continued.
@@ -165,7 +185,7 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 	// if any stages need to be reset, do that first.
 	//log.Debug("MMDBG pipeline.go Step", "dp.resetting", dp.resetting, "stages", dp.stages)
 	log.Debug("MMDBG pipeline.go Step", "dp", dp)
-	
+
 	if dp.resetting < len(dp.stages) {
 		if err := dp.stages[dp.resetting].Reset(ctx, dp.eng.Origin(), dp.eng.SystemConfig()); err == io.EOF {
 			dp.log.Debug("reset of stage completed", "stage", dp.resetting, "origin", dp.eng.Origin())

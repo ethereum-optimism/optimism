@@ -1,6 +1,5 @@
 pragma solidity 0.8.15;
 
-import { InvariantTest } from "forge-std/InvariantTest.sol";
 import { StdUtils } from "forge-std/StdUtils.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { OptimismPortal } from "../../L1/OptimismPortal.sol";
@@ -92,10 +91,10 @@ contract RelayActor is StdUtils {
     }
 }
 
-contract XDM_MinGasLimits is Messenger_Initializer, InvariantTest {
+contract XDM_MinGasLimits is Messenger_Initializer {
     RelayActor actor;
 
-    function setUp() public override {
+    function setUp() public virtual override {
         // Set up the `L1CrossDomainMessenger` and `OptimismPortal` contracts.
         super.setUp();
 

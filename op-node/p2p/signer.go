@@ -30,7 +30,7 @@ func SigningHash(domain [32]byte, chainID *big.Int, payloadBytes []byte) (common
 	}
 	chainID.FillBytes(msgInput[32:64])
 	// payload_hash: third 32 bytes, hash of encoded payload
-	copy(msgInput[32:], crypto.Keccak256(payloadBytes))
+	copy(msgInput[64:], crypto.Keccak256(payloadBytes))
 
 	return crypto.Keccak256Hash(msgInput[:]), nil
 }
@@ -41,18 +41,19 @@ func BlockSigningHash(cfg *rollup.Config, payloadBytes []byte) (common.Hash, err
 
 // LocalSigner is suitable for testing
 type LocalSigner struct {
-	priv *ecdsa.PrivateKey
+	priv   *ecdsa.PrivateKey
+	hasher func(domain [32]byte, chainID *big.Int, payloadBytes []byte) (common.Hash, error)
 }
 
 func NewLocalSigner(priv *ecdsa.PrivateKey) *LocalSigner {
-	return &LocalSigner{priv: priv}
+	return &LocalSigner{priv: priv, hasher: SigningHash}
 }
 
 func (s *LocalSigner) Sign(ctx context.Context, domain [32]byte, chainID *big.Int, encodedMsg []byte) (sig *[65]byte, err error) {
 	if s.priv == nil {
 		return nil, errors.New("signer is closed")
 	}
-	signingHash, err := SigningHash(domain, chainID, encodedMsg)
+	signingHash, err := s.hasher(domain, chainID, encodedMsg)
 	if err != nil {
 		return nil, err
 	}

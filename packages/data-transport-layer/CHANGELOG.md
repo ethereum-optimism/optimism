@@ -1,5 +1,27 @@
 # data transport layer
 
+## 0.5.55
+
+### Patch Changes
+
+- b33208a8f: Add better logging to DTL about shutoff block
+- dbe5eb308: Empty patch release to re-release packages that failed to be released by a bug in the release process.
+
+## 0.5.54
+
+### Patch Changes
+
+- Updated dependencies [fecd42d67]
+  - @eth-optimism/common-ts@0.8.1
+
+## 0.5.53
+
+### Patch Changes
+
+- Updated dependencies [0e179781b]
+- Updated dependencies [4ae94b412]
+  - @eth-optimism/common-ts@0.8.0
+
 ## 0.5.52
 
 ### Patch Changes

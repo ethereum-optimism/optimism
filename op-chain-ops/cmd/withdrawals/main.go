@@ -18,8 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
-
+	"github.com/ethereum-optimism/optimism/op-chain-ops/util"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -27,9 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // abiTrue represents the storage representation of the boolean
@@ -117,7 +114,7 @@ func main() {
 			},
 		},
 		Action: func(ctx *cli.Context) error {
-			clients, err := newClients(ctx)
+			clients, err := util.NewClients(ctx)
 			if err != nil {
 				return err
 			}
@@ -140,7 +137,7 @@ func main() {
 				return err
 			}
 
-			period, err := contracts.OptimismPortal.FINALIZATIONPERIODSECONDS(&bind.CallOpts{})
+			period, err := contracts.L2OutputOracle.FINALIZATIONPERIODSECONDS(&bind.CallOpts{})
 			if err != nil {
 				return err
 			}
@@ -284,11 +281,11 @@ func main() {
 
 				if !isFinalized {
 					// Get the ETH balance of the withdrawal target *before* the finalization
-					targetBalBefore, err := clients.L1Client.BalanceAt(context.Background(), *wd.Target, nil)
+					targetBalBefore, err := clients.L1Client.BalanceAt(context.Background(), wd.XDomainTarget, nil)
 					if err != nil {
 						return err
 					}
-					log.Debug("Balance before finalization", "balance", targetBalBefore, "account", *wd.Target)
+					log.Debug("Balance before finalization", "balance", targetBalBefore, "account", wd.XDomainTarget)
 
 					log.Info("Finalizing withdrawal")
 					receipt, err := finalizeWithdrawalTransaction(contracts, clients, opts, wd, withdrawal)
@@ -369,14 +366,14 @@ func main() {
 					if method != nil {
 						log.Info("withdrawal action", "function", method.Name, "value", wdValue)
 					} else {
-						log.Info("unknown method", "to", wd.Target, "data", hexutil.Encode(wd.Data))
+						log.Info("unknown method", "to", wd.XDomainTarget, "data", hexutil.Encode(wd.XDomainData))
 						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "unknown method"); err != nil {
 							return err
 						}
 					}
 
 					// check that the user's intents are actually executed
-					if common.HexToAddress(callFrame.To) != *wd.Target {
+					if common.HexToAddress(callFrame.To) != wd.XDomainTarget {
 						log.Info("target mismatch", "index", i)
 
 						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "target mismatch"); err != nil {
@@ -384,7 +381,7 @@ func main() {
 						}
 						continue
 					}
-					if !bytes.Equal(hexutil.MustDecode(callFrame.Input), wd.Data) {
+					if !bytes.Equal(hexutil.MustDecode(callFrame.Input), wd.XDomainData) {
 						log.Info("calldata mismatch", "index", i)
 
 						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "calldata mismatch"); err != nil {
@@ -401,7 +398,7 @@ func main() {
 					}
 
 					// Get the ETH balance of the withdrawal target *after* the finalization
-					targetBalAfter, err := clients.L1Client.BalanceAt(context.Background(), *wd.Target, nil)
+					targetBalAfter, err := clients.L1Client.BalanceAt(context.Background(), wd.XDomainTarget, nil)
 					if err != nil {
 						return err
 					}
@@ -435,7 +432,7 @@ func main() {
 }
 
 // callTrace will call `debug_traceTransaction` on a remote node
-func callTrace(c *clients, receipt *types.Receipt) (callFrame, error) {
+func callTrace(c *util.Clients, receipt *types.Receipt) (callFrame, error) {
 	var finalizationTrace callFrame
 	tracer := "callTracer"
 	traceConfig := tracers.TraceConfig{
@@ -560,7 +557,7 @@ func handleFinalizeERC20Withdrawal(args []any, receipt *types.Receipt, l1Standar
 // proveWithdrawalTransaction will build the data required for proving a
 // withdrawal and then send the transaction and make sure that it is included
 // and successful and then wait for the finalization period to elapse.
-func proveWithdrawalTransaction(c *contracts, cl *clients, opts *bind.TransactOpts, withdrawal *crossdomain.Withdrawal, bn, finalizationPeriod *big.Int) error {
+func proveWithdrawalTransaction(c *contracts, cl *util.Clients, opts *bind.TransactOpts, withdrawal *crossdomain.Withdrawal, bn, finalizationPeriod *big.Int) error {
 	l2OutputIndex, outputRootProof, trieNodes, err := createOutput(withdrawal, c.L2OutputOracle, bn, cl)
 	if err != nil {
 		return err
@@ -616,12 +613,12 @@ func proveWithdrawalTransaction(c *contracts, cl *clients, opts *bind.TransactOp
 
 func finalizeWithdrawalTransaction(
 	c *contracts,
-	cl *clients,
+	cl *util.Clients,
 	opts *bind.TransactOpts,
 	wd *crossdomain.LegacyWithdrawal,
 	withdrawal *crossdomain.Withdrawal,
 ) (*types.Receipt, error) {
-	if wd.Target == nil {
+	if wd.XDomainTarget == (common.Address{}) {
 		return nil, errors.New("withdrawal target is nil, should never happen")
 	}
 
@@ -701,74 +698,13 @@ func newContracts(ctx *cli.Context, l1Backend, l2Backend bind.ContractBackend) (
 	}, nil
 }
 
-// clients represents a set of initialized RPC clients
-type clients struct {
-	L1Client     *ethclient.Client
-	L2Client     *ethclient.Client
-	L1RpcClient  *rpc.Client
-	L2RpcClient  *rpc.Client
-	L1GethClient *gethclient.Client
-	L2GethClient *gethclient.Client
-}
-
-// newClients will create new RPC clients
-func newClients(ctx *cli.Context) (*clients, error) {
-	l1RpcURL := ctx.String("l1-rpc-url")
-	l1Client, err := ethclient.Dial(l1RpcURL)
-	if err != nil {
-		return nil, err
-	}
-	l1ChainID, err := l1Client.ChainID(context.Background())
-	if err != nil {
-		return nil, err
-	}
-
-	l2RpcURL := ctx.String("l2-rpc-url")
-	l2Client, err := ethclient.Dial(l2RpcURL)
-	if err != nil {
-		return nil, err
-	}
-	l2ChainID, err := l2Client.ChainID(context.Background())
-	if err != nil {
-		return nil, err
-	}
-
-	l1RpcClient, err := rpc.DialContext(context.Background(), l1RpcURL)
-	if err != nil {
-		return nil, err
-	}
-
-	l2RpcClient, err := rpc.DialContext(context.Background(), l2RpcURL)
-	if err != nil {
-		return nil, err
-	}
-
-	l1GethClient := gethclient.New(l1RpcClient)
-	l2GethClient := gethclient.New(l2RpcClient)
-
-	log.Info(
-		"Set up RPC clients",
-		"l1-chain-id", l1ChainID,
-		"l2-chain-id", l2ChainID,
-	)
-
-	return &clients{
-		L1Client:     l1Client,
-		L2Client:     l2Client,
-		L1RpcClient:  l1RpcClient,
-		L2RpcClient:  l2RpcClient,
-		L1GethClient: l1GethClient,
-		L2GethClient: l2GethClient,
-	}, nil
-}
-
 // newWithdrawals will create a set of legacy withdrawals
 func newWithdrawals(ctx *cli.Context, l1ChainID *big.Int) ([]*crossdomain.LegacyWithdrawal, error) {
 	ovmMsgs := ctx.String("ovm-messages")
 	evmMsgs := ctx.String("evm-messages")
 
 	log.Debug("Migration data", "ovm-path", ovmMsgs, "evm-messages", evmMsgs)
-	ovmMessages, err := migration.NewSentMessage(ovmMsgs)
+	ovmMessages, err := crossdomain.NewSentMessageFromJSON(ovmMsgs)
 	if err != nil {
 		return nil, err
 	}
@@ -777,20 +713,20 @@ func newWithdrawals(ctx *cli.Context, l1ChainID *big.Int) ([]*crossdomain.Legacy
 	// committed to in git.
 	if l1ChainID.Cmp(common.Big1) != 0 {
 		log.Info("not using ovm messages because its not mainnet")
-		ovmMessages = []*migration.SentMessage{}
+		ovmMessages = []*crossdomain.SentMessage{}
 	}
 
-	evmMessages, err := migration.NewSentMessage(evmMsgs)
+	evmMessages, err := crossdomain.NewSentMessageFromJSON(evmMsgs)
 	if err != nil {
 		return nil, err
 	}
 
-	migrationData := migration.MigrationData{
+	migrationData := crossdomain.MigrationData{
 		OvmMessages: ovmMessages,
 		EvmMessages: evmMessages,
 	}
 
-	wds, err := migrationData.ToWithdrawals()
+	wds, _, err := migrationData.ToWithdrawals()
 	if err != nil {
 		return nil, err
 	}
@@ -833,7 +769,7 @@ func newTransactor(ctx *cli.Context) (*bind.TransactOpts, error) {
 // represents the user's intent.
 func findWithdrawalCall(trace *callFrame, wd *crossdomain.LegacyWithdrawal, l1xdm common.Address) *callFrame {
 	isCall := trace.Type == "CALL"
-	isTarget := common.HexToAddress(trace.To) == *wd.Target
+	isTarget := common.HexToAddress(trace.To) == wd.XDomainTarget
 	isFrom := common.HexToAddress(trace.From) == l1xdm
 	if isCall && isTarget && isFrom {
 		return trace
@@ -851,7 +787,7 @@ func createOutput(
 	withdrawal *crossdomain.Withdrawal,
 	oracle *bindings.L2OutputOracle,
 	blockNumber *big.Int,
-	clients *clients,
+	clients *util.Clients,
 ) (*big.Int, bindings.TypesOutputRootProof, [][]byte, error) {
 	// compute the storage slot that the withdrawal is stored in
 	slot, err := withdrawal.StorageSlot()

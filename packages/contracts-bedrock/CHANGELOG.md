@@ -1,5 +1,50 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.13.2
+
+### Patch Changes
+
+- b16067a9f: Reduce the time that the system dictator deploy scripts wait before checking the chain state.
+- 9a02079eb: Makes the Proxy contract inheritable by making functions (public virtual).
+- 98fbe9d22: Added a contsructor to the System Dictator
+
+## 0.13.1
+
+### Patch Changes
+
+- 22c3885f5: Optionally print cast commands during migration
+- f52c07529: Print tenderly simulation links during deployment
+
+## 0.13.0
+
+### Minor Changes
+
+- cb19e2f9c: Moves `FINALIZATION_PERIOD_SECONDS` from the `OptimismPortal` to the `L2OutputOracle` & ensures the `CHALLENGER` key cannot delete finalized outputs.
+
+## 0.12.1
+
+### Patch Changes
+
+- 80f2271f5: Update foundry
+
+## 0.12.0
+
+### Minor Changes
+
+- efc98d261: Change the `relayMessage` reentrancy guard in the XDMs to be per-message.
+
+### Patch Changes
+
+- 7c0a2cc37: add is IERC165 to IOptimismMintableERC20
+- 2865dd9b4: Minor comment updates and cleanup to the SystemConfig contract.
+- 388f2c25a: Trigger a release including CrossDomainOwnable3
+
+## 0.11.4
+
+### Patch Changes
+
+- 3c22333b8: Loosens the requirements for re-proving a withdrawal transaction in the `OptimismPortal`
+
 ## 0.11.3
 
 ### Patch Changes

@@ -1,10 +1,37 @@
 # This Dockerfile builds all the dependencies needed by the monorepo, and should
 # be used to build any of the follow-on services
 #
-# ### BASE: Install deps
+
+# Stage 0 (named `manifests`) collects
+# dependency manifest files (`package.json` and `yarn.lock`) which are then
+# used by stage 1 to install these dependencies
+# development. The only reason we need a separate stage just for collecting the
+# dependency manifests is that Docker's `COPY` command still does not allow
+# copying based on a glob pattern (see this GitHub issue for more details
+# https://github.com/moby/moby/issues/15858). Being able to copy only manifests
+# into stage 1 (the `COPY --from=manifests` statement) is important to maximize
+# Docker build cache hit rate. `alpine` is chosen as the base image for the
+# first stage because it's the smallest image that have access to the `cp
+# --parents -t` command (by installing the `coreutils` package).
+FROM alpine:3.16 as manifests
+RUN apk add coreutils
+
+WORKDIR /tmp
+COPY yarn.lock .nvmrc package.json ./src/
+COPY packages src/packages/
+RUN mkdir manifests && \
+  cd src && \
+  # copy package.json recursively
+  find . -name 'package.json' | xargs cp --parents -t ../manifests/ && \
+  # yarn.lock
+  cp yarn.lock ../manifests/ && \
+  # .nvmrc
+  cp .nvmrc ../manifests/
+
 FROM ethereumoptimism/foundry:latest as foundry
 FROM node:16-alpine3.14 as base
 
+# Base: install deps
 RUN apk --no-cache add curl \
   jq \
   python3 \
@@ -29,34 +56,19 @@ RUN wget -q -O ${GLIBC_KEY_FILE} ${GLIBC_KEY} \
 COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
 COPY --from=foundry /usr/local/bin/cast /usr/local/bin/cast
 
-# copy over the needed configs to run the dep installation
-# note: this approach can be a bit unhandy to maintain, but it allows
-# us to cache the installation steps
 WORKDIR /opt/optimism
-COPY *.json yarn.lock ./
-COPY packages/sdk/package.json ./packages/sdk/package.json
-COPY packages/actor-tests/package.json ./packages/actor-tests/package.json
-COPY packages/core-utils/package.json ./packages/core-utils/package.json
-COPY packages/common-ts/package.json ./packages/common-ts/package.json
-COPY packages/contracts/package.json ./packages/contracts/package.json
-COPY packages/contracts-bedrock/package.json ./packages/contracts-bedrock/package.json
-COPY packages/contracts-periphery/package.json ./packages/contracts-periphery/package.json
-COPY packages/data-transport-layer/package.json ./packages/data-transport-layer/package.json
-COPY packages/hardhat-deploy-config/package.json ./packages/hardhat-deploy-config/package.json
-COPY packages/message-relayer/package.json ./packages/message-relayer/package.json
-COPY packages/fault-detector/package.json ./packages/fault-detector/package.json
-COPY packages/replica-healthcheck/package.json ./packages/replica-healthcheck/package.json
-COPY packages/chain-mon/package.json ./packages/chain-mon/package.json
-COPY packages/balance-monitor/package.json ./packages/balance-monitor/package.json
-COPY packages/two-step-monitor/package.json ./packages/two-step-monitor/package.json
+
+# Copy manifest files into the image in
+# preparation for `yarn install`.
 COPY integration-tests/package.json ./integration-tests/package.json
+COPY --from=manifests /tmp/manifests  ./
+COPY *.json ./
 
 RUN yarn install --frozen-lockfile && yarn cache clean
 
 COPY ./packages ./packages
 COPY ./integration-tests ./integration-tests
 
-# build it!
 RUN yarn build
 
 FROM base as actor-tests-bedrock
@@ -105,6 +117,10 @@ FROM base as replica-healthcheck
 WORKDIR /opt/optimism/packages/replica-healthcheck
 ENTRYPOINT ["npm", "run", "start"]
 
+FROM base as balance-mon
+WORKDIR /opt/optimism/packages/chain-mon
+ENTRYPOINT ["npm", "run", "start:balance-mon"]
+
 FROM base as drippie-mon
 WORKDIR /opt/optimism/packages/chain-mon
 ENTRYPOINT ["npm", "run", "start:drippie-mon"]
@@ -113,6 +129,6 @@ FROM base as balance-monitor
 WORKDIR /opt/optimism/packages/balance-monitor
 ENTRYPOINT ["yarn", "run", "start:prod"]
 
-FROM base as two-step-monitor
-WORKDIR /opt/optimism/packages/two-step-monitor
-ENTRYPOINT ["yarn", "run", "start"]
+FROM base as wd-mon
+WORKDIR /opt/optimism/packages/chain-mon
+ENTRYPOINT ["yarn", "run", "start:wd-mon"]

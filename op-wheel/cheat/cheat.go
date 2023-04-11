@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
@@ -17,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
@@ -35,7 +37,15 @@ type Cheater struct {
 
 func OpenGethRawDB(dataDirPath string, readOnly bool) (ethdb.Database, error) {
 	// don't use readonly mode in actual DB, it doesn't work with Geth.
-	db, err := rawdb.NewLevelDBDatabaseWithFreezer(dataDirPath, 2048, 500, filepath.Join(dataDirPath, "ancient"), "", readOnly)
+	db, err := rawdb.Open(rawdb.OpenOptions{
+		Type:              "leveldb",
+		Directory:         dataDirPath,
+		AncientsDirectory: filepath.Join(dataDirPath, "ancient"),
+		Namespace:         "",
+		Cache:             2048,
+		Handles:           500,
+		ReadOnly:          readOnly,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open leveldb: %w", err)
 	}
@@ -71,11 +81,11 @@ type HeadFn func(headState *state.StateDB) error
 // and updates the blockchain headers indexes to reflect the new state-root, so geth will believe the cheat
 // (unless it ever re-applies the block).
 func (ch *Cheater) RunAndClose(fn HeadFn) error {
-	preBlock := ch.Blockchain.CurrentBlock()
-	if a, b := preBlock.NumberU64(), ch.Blockchain.Genesis().NumberU64(); a <= b {
+	preHeader := ch.Blockchain.CurrentBlock()
+	if a, b := preHeader.Number.Uint64(), ch.Blockchain.Genesis().NumberU64(); a <= b {
 		return fmt.Errorf("cheating at genesis (head block %d <= genesis block %d) is not supported", a, b)
 	}
-	state, err := ch.Blockchain.StateAt(preBlock.Root())
+	state, err := ch.Blockchain.StateAt(preHeader.Root)
 	if err != nil {
 		_ = ch.Close()
 		return fmt.Errorf("failed to look up head state: %w", err)
@@ -94,26 +104,27 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 		_ = ch.Close()
 		return fmt.Errorf("failed to commit state change: %w", err)
 	}
-	header := preBlock.Header()
+	header := preHeader // copy the header
 	header.Root = stateRoot
 	blockHash := header.Hash()
 
 	// We have to manually commit the updated state root to the database.
-	if err := state.Database().TrieDB().Commit(stateRoot, true, nil); err != nil {
+	if err := state.Database().TrieDB().Commit(stateRoot, true); err != nil {
 		return fmt.Errorf("error committing trie db: %w", err)
 	}
 
 	// based on core.BlockChain.writeHeadBlock:
 	// Add the block to the canonical chain number scheme and mark as the head
 	batch := ch.DB.NewBatch()
-	if ch.Blockchain.CurrentFinalizedBlock().Hash() == preBlock.Hash() {
+	preID := eth.BlockID{Hash: preHeader.Hash(), Number: preHeader.Number.Uint64()}
+	if ch.Blockchain.CurrentFinalBlock().Hash() == preID.Hash {
 		rawdb.WriteFinalizedBlockHash(batch, blockHash)
 	}
-	rawdb.DeleteHeaderNumber(batch, preBlock.Hash())
+	rawdb.DeleteHeaderNumber(batch, preHeader.Hash())
 	rawdb.WriteHeadHeaderHash(batch, blockHash)
 	rawdb.WriteHeadFastBlockHash(batch, blockHash)
-	rawdb.WriteCanonicalHash(batch, blockHash, preBlock.NumberU64())
-	rawdb.WriteHeaderNumber(batch, blockHash, preBlock.NumberU64())
+	rawdb.WriteCanonicalHash(batch, blockHash, preID.Number)
+	rawdb.WriteHeaderNumber(batch, blockHash, preID.Number)
 	rawdb.WriteHeader(batch, header)
 	// not keyed by blockhash, and we didn't remove any txs, so we just leave this one as-is.
 	// rawdb.WriteTxLookupEntriesByBlock(batch, block)
@@ -122,17 +133,17 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 	// Geth stores the TD for each block separately from the block itself. We must update this
 	// manually, otherwise Geth thinks we haven't reached TTD yet and tries to build a block
 	// using Clique consensus, which causes a panic.
-	rawdb.WriteTd(batch, blockHash, preBlock.NumberU64(), ch.Blockchain.GetTd(preBlock.Hash(), preBlock.NumberU64()))
+	rawdb.WriteTd(batch, blockHash, preID.Number, ch.Blockchain.GetTd(preID.Hash, preID.Number))
 
 	// Need to copy over receipts since they are keyed by block hash.
-	receipts := rawdb.ReadReceipts(ch.DB, preBlock.Hash(), preBlock.NumberU64(), ch.Blockchain.Config())
-	rawdb.WriteReceipts(batch, blockHash, preBlock.NumberU64(), receipts)
+	receipts := rawdb.ReadReceipts(ch.DB, preID.Hash, preID.Number, ch.Blockchain.Config())
+	rawdb.WriteReceipts(batch, blockHash, preID.Number, receipts)
 
 	// Geth maintains an internal mapping between block bodies and their hashes. None of the database
 	// accessors above update this mapping, so we need to do it manually.
-	oldKey := blockBodyKey(preBlock.NumberU64(), preBlock.Hash())
-	oldBody := rawdb.ReadBodyRLP(ch.DB, preBlock.Hash(), preBlock.NumberU64())
-	newKey := blockBodyKey(preBlock.NumberU64(), blockHash)
+	oldKey := blockBodyKey(preID.Number, preID.Hash)
+	oldBody := rawdb.ReadBodyRLP(ch.DB, preID.Hash, preID.Number)
+	newKey := blockBodyKey(preID.Number, blockHash)
 	if err := batch.Delete(oldKey); err != nil {
 		return fmt.Errorf("error deleting old block body key")
 	}
@@ -178,7 +189,13 @@ func StorageGet(address common.Address, key common.Hash, w io.Writer) HeadFn {
 // to another account (maybe even in a different database!).
 func StorageReadAll(address common.Address, w io.Writer) HeadFn {
 	return func(headState *state.StateDB) error {
-		storage := headState.StorageTrie(address)
+		storage, err := headState.StorageTrie(address)
+		if err != nil {
+			return fmt.Errorf("failed to open storage trie of addr %s: %w", address, err)
+		}
+		if storage == nil {
+			return fmt.Errorf("no storage trie in state for account %s", address)
+		}
 		iter := trie.NewIterator(storage.NodeIterator(nil))
 		for iter.Next() {
 			if _, err := fmt.Fprintf(w, "+ %x = %x\n", iter.Key, dbValueToHash(iter.Value)); err != nil {
@@ -205,8 +222,20 @@ func dbValueToHash(enc []byte) common.Hash {
 // Each difference is expressed with 1 character + or - to indicate the change from a to b, followed by key = value.
 func StorageDiff(out io.Writer, addressA, addressB common.Address) HeadFn {
 	return func(headState *state.StateDB) error {
-		aStorage := headState.StorageTrie(addressA)
-		bStorage := headState.StorageTrie(addressB)
+		aStorage, err := headState.StorageTrie(addressA)
+		if err != nil {
+			return fmt.Errorf("failed to open storage trie of addr A %s: %w", addressA, err)
+		}
+		if aStorage == nil {
+			return fmt.Errorf("no storage trie in state for account A %s", addressA)
+		}
+		bStorage, err := headState.StorageTrie(addressB)
+		if err != nil {
+			return fmt.Errorf("failed to open storage trie of addr B %s: %w", addressB, err)
+		}
+		if bStorage == nil {
+			return fmt.Errorf("no storage trie in state for account B %s", addressB)
+		}
 		aIter := trie.NewIterator(aStorage.NodeIterator(nil))
 		bIter := trie.NewIterator(bStorage.NodeIterator(nil))
 		hasA := aIter.Next()
@@ -290,6 +319,7 @@ func StoragePatch(patch io.Reader, address common.Address) HeadFn {
 }
 
 type OvmOwnersConfig struct {
+	Network   string         `json:"network"`
 	Owner     common.Address `json:"owner"`
 	Sequencer common.Address `json:"sequencer"`
 	Proposer  common.Address `json:"proposer"`
@@ -297,17 +327,42 @@ type OvmOwnersConfig struct {
 
 func OvmOwners(conf *OvmOwnersConfig) HeadFn {
 	return func(headState *state.StateDB) error {
+		var addressManager common.Address // Lib_AddressManager
+		var l1SBProxy common.Address      // Proxy__OVM_L1StandardBridge
+		var l1XDMProxy common.Address     // Proxy__OVM_L1CrossDomainMessenger
+		var l1ERC721BridgeProxy common.Address
+		switch conf.Network {
+		case "mainnet":
+			addressManager = common.HexToAddress("0xdE1FCfB0851916CA5101820A69b13a4E276bd81F")
+			l1SBProxy = common.HexToAddress("0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1")
+			l1XDMProxy = common.HexToAddress("0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1")
+			l1ERC721BridgeProxy = common.HexToAddress("0x5a7749f83b81B301cAb5f48EB8516B986DAef23D")
+		case "goerli":
+			addressManager = common.HexToAddress("0xa6f73589243a6A7a9023b1Fa0651b1d89c177111")
+			l1SBProxy = common.HexToAddress("0x636Af16bf2f682dD3109e60102b8E1A089FedAa8")
+			l1XDMProxy = common.HexToAddress("0x5086d1eEF304eb5284A0f6720f79403b4e9bE294")
+			l1ERC721BridgeProxy = common.HexToAddress("0x8DD330DdE8D9898d43b4dc840Da27A07dF91b3c9")
+		default:
+			return fmt.Errorf("unknown network: %q", conf.Network)
+		}
+		// See Proxy.sol OWNER_KEY: https://eips.ethereum.org/EIPS/eip-1967#admin-address
+		ownerSlot := common.HexToHash("0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103")
+
 		// Address manager owner
-		headState.SetState(common.HexToAddress("0xa6f73589243a6A7a9023b1Fa0651b1d89c177111"), common.Hash{}, conf.Owner.Hash())
+		// Ownable, first storage slot
+		headState.SetState(addressManager, common.Hash{}, conf.Owner.Hash())
 		// L1SB proxy owner
-		headState.SetState(common.HexToAddress("0x636Af16bf2f682dD3109e60102b8E1A089FedAa8"), common.HexToHash("0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103"), conf.Owner.Hash())
+		headState.SetState(l1SBProxy, ownerSlot, conf.Owner.Hash())
 		// L1XDM owner
-		headState.SetState(common.HexToAddress("0x5086d1eEF304eb5284A0f6720f79403b4e9bE294"), common.Hash{31: 0x33}, conf.Owner.Hash())
+		// 0x33 = 51. L1CrossDomainMessenger is L1CrossDomainMessenger (0) Lib_AddressResolver (1) OwnableUpgradeable (1, but covered by gap) + ContextUpgradeable (special gap of 50) and then _owner
+		headState.SetState(l1XDMProxy, common.Hash{31: 0x33}, conf.Owner.Hash())
 		// L1 ERC721 bridge owner
-		headState.SetState(common.HexToAddress("0x8DD330DdE8D9898d43b4dc840Da27A07dF91b3c9"), common.HexToHash("0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103"), conf.Owner.Hash())
+		headState.SetState(l1ERC721BridgeProxy, ownerSlot, conf.Owner.Hash())
 		// Legacy sequencer/proposer addresses
-		headState.SetState(common.HexToAddress("0xa6f73589243a6A7a9023b1Fa0651b1d89c177111"), common.HexToHash("0x2e0dfce60e9e27f035ce28f63c1bdd77cff6b13d8909da4d81d623ff9123fbdc"), conf.Sequencer.Hash())
-		headState.SetState(common.HexToAddress("0xa6f73589243a6A7a9023b1Fa0651b1d89c177111"), common.HexToHash("0x9776dbdebd0d5eedaea450b21da9901ecd5254e5136a3a9b7b0ecd532734d5b5"), conf.Proposer.Hash())
+		// See AddressManager.sol "addresses" mapping(bytes32 => address), at slot position 1
+		addressesSlot := common.BigToHash(big.NewInt(1))
+		headState.SetState(addressManager, crypto.Keccak256Hash(crypto.Keccak256([]byte("OVM_Sequencer")), addressesSlot.Bytes()), conf.Sequencer.Hash())
+		headState.SetState(addressManager, crypto.Keccak256Hash(crypto.Keccak256([]byte("OVM_Proposer")), addressesSlot.Bytes()), conf.Proposer.Hash())
 		// Fund sequencer and proposer with 100 ETH
 		headState.SetBalance(conf.Sequencer, HundredETH)
 		headState.SetBalance(conf.Proposer, HundredETH)

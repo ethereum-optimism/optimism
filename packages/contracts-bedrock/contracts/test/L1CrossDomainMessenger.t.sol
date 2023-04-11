@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 /* Testing utilities */
-import { Messenger_Initializer, Reverter, CallerCaller } from "./CommonTest.t.sol";
+import { Messenger_Initializer, Reverter, ConfigurableCaller } from "./CommonTest.t.sol";
 import { L2OutputOracle_Initializer } from "./L2OutputOracle.t.sol";
 
 /* Libraries */
@@ -24,42 +24,6 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
     // Storage slot of the l2Sender
     uint256 constant senderSlotIndex = 50;
-
-    function setUp() public override {
-        super.setUp();
-    }
-
-    // pause: should pause the contract when called by the current owner
-    function test_pause_succeeds() external {
-        vm.prank(alice);
-        L1Messenger.pause();
-        assert(L1Messenger.paused());
-    }
-
-    // pause: should not pause the contract when called by account other than the owner
-    function test_pause_callerIsNotOwner_reverts() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        vm.prank(address(0xABBA));
-        L1Messenger.pause();
-    }
-
-    // unpause: should unpause the contract when called by the current owner
-    function test_unpause_succeeds() external {
-        vm.prank(alice);
-        L1Messenger.pause();
-        assert(L1Messenger.paused());
-
-        vm.prank(alice);
-        L1Messenger.unpause();
-        assert(!L1Messenger.paused());
-    }
-
-    // unpause: should not unpause the contract when called by account other than the owner
-    function test_unpause_callerIsNotOwner_reverts() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        vm.prank(address(0xABBA));
-        L1Messenger.unpause();
-    }
 
     // the version is encoded in the nonce
     function test_messageVersion_succeeds() external {
@@ -155,7 +119,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         // Try to relay a v2 message.
         vm.prank(address(op));
         L2Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 2), // nonce
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 2 }), // nonce
             sender,
             target,
             0, // value
@@ -178,7 +142,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.expectEmit(true, true, true, true);
 
         bytes32 hash = Hashing.hashCrossDomainMessage(
-            Encoding.encodeVersionedNonce(0, 1),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
             sender,
             target,
             0,
@@ -189,7 +153,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         emit RelayedMessage(hash);
 
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 1), // nonce
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
             sender,
             target,
             0, // value
@@ -213,7 +177,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.prank(address(op));
         vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 1),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
             sender,
             target,
             0,
@@ -224,7 +188,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.store(address(op), 0, bytes32(abi.encode(sender)));
         vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 1),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
             sender,
             target,
             0,
@@ -243,7 +207,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
             "CrossDomainMessenger: value must be zero unless message is from a system address"
         );
         L1Messenger.relayMessage{ value: 100 }(
-            Encoding.encodeVersionedNonce(0, 1),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
             sender,
             target,
             0,
@@ -262,7 +226,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
         vm.prank(address(op));
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 1),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
             address(0),
             address(0),
             0,
@@ -272,15 +236,6 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L1Messenger.xDomainMessageSender();
-    }
-
-    // relayMessage: should revert if paused
-    function test_relayMessage_paused_reverts() external {
-        vm.prank(L1Messenger.owner());
-        L1Messenger.pause();
-
-        vm.expectRevert("Pausable: paused");
-        L1Messenger.relayMessage(0, address(0), address(0), 0, 0, hex"");
     }
 
     // relayMessage: should send a successful call to the target contract after the first message
@@ -293,7 +248,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.expectCall(target, hex"1111");
 
         bytes32 hash = Hashing.hashCrossDomainMessage(
-            Encoding.encodeVersionedNonce(0, 1),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
             sender,
             target,
             value,
@@ -306,7 +261,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.deal(address(op), value);
         vm.prank(address(op));
         L1Messenger.relayMessage{ value: value }(
-            Encoding.encodeVersionedNonce(0, 1), // nonce
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
             sender,
             target,
             value,
@@ -326,7 +281,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.etch(target, address(0).code);
         vm.prank(address(sender));
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 1), // nonce
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
             sender,
             target,
             value,
@@ -340,52 +295,171 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(L1Messenger.failedMessages(hash), true);
     }
 
-    // relayMessage: should revert if recipient is trying to reenter
-    function test_relayMessage_reentrancy_reverts() external {
-        address target = address(0xabcd);
+    // relayMessage: Should revert if the recipient is trying to reenter with the
+    // same message.
+    function test_relayMessage_reentrancySameMessage_reverts() external {
+        ConfigurableCaller caller = new ConfigurableCaller();
+        address target = address(caller);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-        bytes memory message = abi.encodeWithSelector(
-            L1Messenger.relayMessage.selector,
-            Encoding.encodeVersionedNonce(0, 1),
-            sender,
-            target,
-            0,
-            0,
-            hex"1111"
-        );
+        bytes memory callMessage = abi.encodeWithSelector(caller.call.selector);
 
         bytes32 hash = Hashing.hashCrossDomainMessage(
-            Encoding.encodeVersionedNonce(0, 1),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
             sender,
             target,
             0,
             0,
-            message
+            callMessage
         );
 
-        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
-        vm.etch(target, address(new CallerCaller()).code);
+        // Set the portal's `l2Sender` to the `sender`.
+        vm.store(address(op), bytes32(senderSlotIndex), bytes32(uint256(uint160(sender))));
 
+        // Act as the portal and call the `relayMessage` function with the `innerMessage`.
+        vm.prank(address(op));
+        vm.expectCall(target, callMessage);
+        L1Messenger.relayMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+            sender,
+            target,
+            0,
+            0,
+            callMessage
+        );
+
+        // Assert that the message failed to be relayed
+        assertFalse(L1Messenger.successfulMessages(hash));
+        assertTrue(L1Messenger.failedMessages(hash));
+
+        // Set the configurable caller's target to `L1Messenger` and set the payload to `relayMessage(...)`.
+        caller.setDoRevert(false);
+        caller.setTarget(address(L1Messenger));
+        caller.setPayload(
+            abi.encodeWithSelector(
+                L1Messenger.relayMessage.selector,
+                Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+                sender,
+                target,
+                0,
+                0,
+                callMessage
+            )
+        );
+
+        // Attempt to replay the failed message, which will *not* immediately revert this time around,
+        // but attempt to reenter `relayMessage` with the same message hash. The reentrancy attempt should
+        // revert.
         vm.expectEmit(true, true, true, true, target);
-
         emit WhatHappened(
             false,
             abi.encodeWithSignature("Error(string)", "ReentrancyGuard: reentrant call")
         );
-
-        vm.prank(address(op));
-        vm.expectCall(target, message);
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 1), // nonce
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), // nonce
             sender,
             target,
-            0, // value
             0,
-            message
+            0,
+            callMessage
         );
 
-        assertEq(L1Messenger.successfulMessages(hash), false);
-        assertEq(L1Messenger.failedMessages(hash), true);
+        // Assert that the message still failed to be relayed.
+        assertFalse(L1Messenger.successfulMessages(hash));
+        assertTrue(L1Messenger.failedMessages(hash));
+    }
+
+    // relayMessage: should not revert if the recipient reenters `relayMessage` with a different
+    // message hash.
+    function test_relayMessage_reentrancyDiffMessage_succeeds() external {
+        ConfigurableCaller caller = new ConfigurableCaller();
+        address target = address(caller);
+        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+        bytes memory messageA = abi.encodeWithSelector(caller.call.selector);
+        bytes memory messageB = hex"";
+
+        bytes32 hashA = Hashing.hashCrossDomainMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+            sender,
+            target,
+            0,
+            0,
+            messageA
+        );
+        bytes32 hashB = Hashing.hashCrossDomainMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+            sender,
+            target,
+            0,
+            0,
+            messageB
+        );
+
+        // Set the portal's `l2Sender` to the `sender`.
+        vm.store(address(op), bytes32(senderSlotIndex), bytes32(uint256(uint160(sender))));
+
+        // Act as the portal and call the `relayMessage` function with both `messageA` and `messageB`.
+        vm.startPrank(address(op));
+
+        vm.expectCall(target, messageA);
+        L1Messenger.relayMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+            sender,
+            target,
+            0,
+            0,
+            messageA
+        );
+        vm.expectCall(target, messageB);
+        L1Messenger.relayMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+            sender,
+            target,
+            0,
+            0,
+            messageB
+        );
+
+        // Stop acting as the portal
+        vm.stopPrank();
+
+        // Assert that both messages failed to be relayed
+        assertFalse(L1Messenger.successfulMessages(hashA));
+        assertFalse(L1Messenger.successfulMessages(hashB));
+        assertTrue(L1Messenger.failedMessages(hashA));
+        assertTrue(L1Messenger.failedMessages(hashB));
+
+        // Set the configurable caller's target to `L1Messenger` and set the payload to `relayMessage(...)`.
+        caller.setDoRevert(false);
+        caller.setTarget(address(L1Messenger));
+        caller.setPayload(
+            abi.encodeWithSelector(
+                L1Messenger.relayMessage.selector,
+                Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+                sender,
+                target,
+                0,
+                0,
+                messageB
+            )
+        );
+
+        // Attempt to replay the failed message, which will *not* immediately revert this time around,
+        // but attempt to reenter `relayMessage` with messageB. The reentrancy attempt should succeed
+        // because the message hashes are different.
+        vm.expectEmit(true, true, true, true, target);
+        emit WhatHappened(true, hex"");
+        L1Messenger.relayMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+            sender,
+            target,
+            0,
+            0,
+            messageA
+        );
+
+        // Assert that both messages are now in the `successfulMessages` mapping.
+        assertTrue(L1Messenger.successfulMessages(hashA));
+        assertTrue(L1Messenger.successfulMessages(hashB));
     }
 
     function test_relayMessage_legacy_succeeds() external {
@@ -395,7 +469,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         // Compute the message hash.
         bytes32 hash = Hashing.hashCrossDomainMessageV1(
             // Using a legacy nonce with version 0.
-            Encoding.encodeVersionedNonce(0, 0),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }),
             sender,
             target,
             0,
@@ -416,7 +490,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         // Relay the message.
         vm.prank(address(op));
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 0), // nonce
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
             sender,
             target,
             0, // value
@@ -436,7 +510,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         // Compute the message hash.
         bytes32 hash = Hashing.hashCrossDomainMessageV1(
             // Using a legacy nonce with version 0.
-            Encoding.encodeVersionedNonce(0, 0),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }),
             sender,
             target,
             0,
@@ -459,7 +533,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         // Relay the message.
         vm.prank(address(op));
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 0), // nonce
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
             sender,
             target,
             0, // value
@@ -480,7 +554,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         // Compute the message hash.
         bytes32 hash = Hashing.hashCrossDomainMessageV1(
             // Using a legacy nonce with version 0.
-            Encoding.encodeVersionedNonce(0, 0),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }),
             sender,
             target,
             value,
@@ -505,7 +579,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.deal(address(op), value);
         vm.prank(address(op));
         L1Messenger.relayMessage{ value: value }(
-            Encoding.encodeVersionedNonce(0, 0), // nonce
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
             sender,
             target,
             value,
@@ -532,7 +606,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         // Retry the message.
         vm.prank(address(sender));
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 0), // nonce
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
             sender,
             target,
             value,
@@ -555,7 +629,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         // Compute the message hash.
         bytes32 hash = Hashing.hashCrossDomainMessageV1(
             // Using a legacy nonce with version 0.
-            Encoding.encodeVersionedNonce(0, 0),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }),
             sender,
             target,
             value,
@@ -577,7 +651,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.deal(address(op), value);
         vm.prank(address(op));
         L1Messenger.relayMessage{ value: value }(
-            Encoding.encodeVersionedNonce(0, 0), // nonce
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
             sender,
             target,
             value,
@@ -597,7 +671,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         // Retry the message.
         vm.prank(address(sender));
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 0), // nonce
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
             sender,
             target,
             value,
@@ -614,7 +688,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         // Compute the message hash.
         bytes32 hash = Hashing.hashCrossDomainMessageV1(
             // Using a legacy nonce with version 0.
-            Encoding.encodeVersionedNonce(0, 0),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }),
             sender,
             target,
             value,
@@ -635,7 +709,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.deal(address(op), value);
         vm.prank(address(op));
         L1Messenger.relayMessage{ value: value }(
-            Encoding.encodeVersionedNonce(0, 0), // nonce
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
             sender,
             target,
             value,
@@ -662,7 +736,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         // Retry the message
         vm.prank(address(sender));
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 0), // nonce
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
             sender,
             target,
             value,
@@ -682,7 +756,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         // Retry the message again.
         vm.prank(address(sender));
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 0), // nonce
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 0 }), // nonce
             sender,
             target,
             value,

@@ -2,7 +2,7 @@ version: 2.1
 
 orbs:
   go: circleci/go@1.5.0
-  gcp-cli: circleci/gcp-cli@2.4.1
+  gcp-cli: circleci/gcp-cli@3.0.1
 commands:
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
@@ -66,9 +66,37 @@ jobs:
       - checkout
       - check-changed:
           patterns: op-bindings,op-chain-ops,packages/
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
       - run:
           name: Install dependencies
-          command: yarn && git diff --exit-code
+          command: yarn install && git diff --exit-code
+      - save_cache:
+          name: Save Yarn Package Cache
+          key: yarn-packages-v2-{{ checksum "yarn.lock" }}
+          paths:
+            - "node_modules"
+            - "packages/actor-tests/node_modules"
+            - "packages/atst/node_modules"
+            - "packages/balance-monitor/node_modules"
+            - "packages/chain-mon/node_modules"
+            - "packages/common-ts/node_modules"
+            - "packages/contracts/node_modules"
+            - "packages/contracts-bedrock/node_modules"
+            - "packages/contracts-governance/node_modules"
+            - "packages/contracts-periphery/node_modules"
+            - "packages/core-utils/node_modules"
+            - "packages/data-transport-layer/node_modules"
+            - "packages/drippie-mon/node_modules"
+            - "packages/fault-detector/node_modules"
+            - "packages/hardhat-deploy-config/node_modules"
+            - "packages/integration-tests-bedrock/node_modules"
+            - "packages/message-relayer/node_modules"
+            - "packages/migration-data/node_modules"
+            - "packages/replica-healthcheck/node_modules"
+            - "packages/sdk/node_modules"
       - run:
           name: print forge version
           command: forge --version
@@ -78,8 +106,6 @@ jobs:
       - persist_to_workspace:
           root: "."
           paths:
-            - "node_modules"
-            - "packages/*/node_modules"
             - "packages/*/dist"
             - "packages/*/artifacts"
             - "packages/contracts/src/contract-artifacts.ts"
@@ -147,6 +173,8 @@ jobs:
             - "."
 
   docker-publish:
+    environment:
+      DOCKER_BUILDKIT: 1
     parameters:
       docker_name:
         description: Docker image name
@@ -154,6 +182,17 @@ jobs:
       docker_tags:
         description: Docker image tags as csv
         type: string
+      docker_file:
+        description: Path to Dockerfile
+        type: string
+      docker_context:
+        description: Docker build context
+        type: string
+        default: "."
+      docker_target:
+        description: "target build stage"
+        type: string
+        default: ""
       registry:
         description: Docker registry
         type: string
@@ -162,17 +201,14 @@ jobs:
         description: Docker repo
         type: string
         default: "oplabs-tools-artifacts/images"
+      platforms:
+        description: Platforms to build for
+        type: string
+        default: "linux/amd64"
     machine:
       image: ubuntu-2204:2022.07.1
       resource_class: xlarge
     steps:
-      - attach_workspace:
-          at: /tmp/docker_images
-      - run:
-          name: Docker load
-          command: |
-            DOCKER_LABELS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g")
-            echo -ne $DOCKER_LABELS | tr ' ' '\n' | xargs -I {} docker load -i /tmp/docker_images/<<parameters.docker_name>>_{}.tar
       - gcp-oidc-authenticate
       # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
       # https://support.circleci.com/hc/en-us/articles/7323511028251-How-to-set-custom-DNS-on-Ubuntu-based-images-using-netplan
@@ -181,16 +217,36 @@ jobs:
       - run: sudo sed -i "s/addresses:/ addresses":" [8.8.8.8, 8.8.4.4] /g" /etc/netplan/50-cloud-init.yaml
       - run: cat /etc/netplan/50-cloud-init.yaml
       - run: sudo netplan apply
+      - checkout
       - run:
-          name: Publish
+          name: Build & Publish
           command: |
             gcloud auth configure-docker <<parameters.registry>>
             IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|${IMAGE_BASE}:|")
-            echo -ne $DOCKER_TAGS | tr ' ' '\n' | xargs -L1 docker push
+            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
+            docker context create buildx-build
+            docker buildx create --use buildx-build
+            docker buildx build --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
+              $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
+              -f <<parameters.docker_file>> \
+              <<parameters.docker_context>>
 
-  docker-tag-op-stack-release:
+  docker-release:
+    environment:
+      DOCKER_BUILDKIT: 1
     parameters:
+      docker_name:
+        description: Docker image name
+        type: string
+      docker_tags:
+        description: Docker image tags as csv
+        type: string
+      docker_file:
+        description: Path to Dockerfile
+        type: string
+      docker_context:
+        description: Docker build context
+        type: string
       registry:
         description: Docker registry
         type: string
@@ -199,17 +255,35 @@ jobs:
         description: Docker repo
         type: string
         default: "oplabs-tools-artifacts/images"
-    docker:
-      - image: cimg/python:3.7
-    resource_class: small
+      platforms:
+        description: Platforms to build for
+        type: string
+        default: "linux/amd64"
+    machine:
+      image: ubuntu-2204:2022.07.1
+      resource_class: xlarge
     steps:
       - gcp-cli/install
       - gcp-oidc-authenticate
       - checkout
       - run:
-          name: Tag
+          name: Configure Docker
           command: |
             gcloud auth configure-docker <<parameters.registry>>
+      - run:
+          name: Build & Publish
+          command: |
+            IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
+            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
+            docker context create buildx-build
+            docker buildx create --use buildx-build
+            docker buildx build --platform=<<parameters.platforms>> --push \
+              $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
+              -f <<parameters.docker_file>> \
+              <<parameters.docker_context>>
+      - run:
+          name: Tag
+          command: |
             ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
   contracts-bedrock-tests:
@@ -219,18 +293,12 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
       - check-changed:
           patterns: contracts-bedrock,hardhat-deploy-config
-      - run:
-          name: lint
-          command: yarn lint:check
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: slither
-          command: |
-            slither --version
-            yarn slither || exit 0
-          working_directory: packages/contracts-bedrock
       - run:
           name: print forge version
           command: forge --version
@@ -247,25 +315,102 @@ jobs:
           command: codecov --verbose --clean --flags contracts-bedrock-tests
           environment:
             FOUNDRY_PROFILE: ci
+
+  contracts-bedrock-checks:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: lint
+          command: |
+            yarn lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
+          working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
           command: |
             forge --version
-            yarn gas-snapshot --check
+            yarn gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
       - run:
-          name: validate spacers
-          command: yarn validate-spacers
-          working_directory: packages/contracts-bedrock
-      - run:
           name: storage snapshot
-          command: yarn storage-snapshot && git diff --exit-code .storage-layout
+          command: |
+            yarn storage-snapshot
+            git diff --exit-code .storage-layout || echo "export STORAGE_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: invariant docs
-          command: yarn autogen:invariant-docs && git diff --exit-code ./invariant-docs/*.md
+          command: |
+            yarn autogen:invariant-docs
+            git diff --exit-code ./invariant-docs/*.md || echo "export INVARIANT_DOCS_STATUS=1" >> "$BASH_ENV"
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: check statuses
+          command: |
+            if [[ "$LINT_STATUS" -ne 0 ]]; then
+              FAILED=1
+              echo "Linting failed, see job output for details."
+            fi
+            if [[ "$GAS_SNAPSHOT_STATUS" -ne 0 ]]; then
+              FAILED=1
+              echo "Gas snapshot failed, see job output for details."
+            fi
+            if [[ "$STORAGE_SNAPSHOT_STATUS" -ne 0 ]]; then
+              echo "Storage snapshot failed, see job output for details."
+              FAILED=1
+            fi
+            if [[ "$INVARIANT_DOCS_STATUS" -ne 0 ]]; then
+              echo "Invariant docs failed, see job output for details."
+              FAILED=1
+            fi
+            if [[ "$FAILED" -ne 0 ]]; then
+              exit 1
+            fi
+
+  contracts-bedrock-slither:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    resource_class: xlarge
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: slither
+          command: |
+            slither --version
+            yarn slither
+          working_directory: packages/contracts-bedrock
+
+  contracts-bedrock-validate-spaces:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: validate spacers
+          command: yarn validate-spacers
           working_directory: packages/contracts-bedrock
 
   bedrock-echidna-build:
@@ -301,6 +446,10 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
       - check-changed:
           patterns: contracts-bedrock,contracts
       - run:
@@ -316,6 +465,10 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
       - check-changed:
           patterns: contracts-bedrock,op-bindings
       - run:
@@ -341,6 +494,10 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
       - check-changed:
           patterns: <<parameters.package_name>>,<<parameters.dependencies>>
       - run:
@@ -394,10 +551,18 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
       - check-changed:
           patterns: packages
       # Note: The below needs to be manually configured whenever we
       # add a new package to CI.
+      - run:
+          name: Check common-ts
+          command: npx depcheck
+          working_directory: packages/common-ts
       - run:
           name: Check contracts
           command: npx depcheck
@@ -422,10 +587,6 @@ jobs:
           name: Check integration-tests
           command: npx depcheck
           working_directory: integration-tests
-      - run:
-          name: Check two-step-monitor
-          command: npx depcheck
-          working_directory: packages/two-step-monitor
 
   go-lint:
     parameters:
@@ -439,7 +600,7 @@ jobs:
       - run:
           name: run lint
           command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is" ./...
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 2m -e "errors.As" -e "errors.Is" ./...
           working_directory: <<parameters.module>>
 
   go-test:
@@ -459,7 +620,7 @@ jobs:
           name: run tests
           command: |
             gotestsum --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>.xml \
-            -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
+            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
           working_directory: <<parameters.module>>
       - run:
           name: upload coverage
@@ -490,10 +651,10 @@ jobs:
           command: |
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
-            OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=true OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
+            # Note: -parallel must be set to match the number of cores in the resource class
+            OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=false OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
             --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml \
-            ./... \
-            -- -timeout=20m
+            -- -timeout=20m -parallel=8 ./...
           working_directory: <<parameters.module>>
       - store_test_results:
           path: /tmp/test-results
@@ -523,7 +684,7 @@ jobs:
           patterns: <<parameters.working_directory>>,<<parameters.dependencies>>
       - run:
           name: Lint
-          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is" ./...
+          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 2m -e "errors.As" -e "errors.Is" ./...
           working_directory: <<parameters.working_directory>>
       - store_test_results:
           path: /test-results
@@ -668,6 +829,31 @@ jobs:
                 name: Check the status
                 command: npx hardhat check-op-node
                 working_directory: packages/contracts-bedrock
+            - run:
+                name: Dump op-node logs
+                command: |
+                  docker logs ops-bedrock-op-node-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump op-geth logs
+                command: |
+                  docker logs ops-bedrock-l2-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump l1 logs
+                command: |
+                  docker logs ops-bedrock-l1-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump op-batcher logs
+                command: |
+                  docker logs ops-bedrock-op-batcher-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump op-proposer logs
+                command: |
+                  docker logs ops-bedrock-op-proposer-1 || echo "No logs."
+                when: on_fail
 
   integration-tests:
     machine:
@@ -777,7 +963,7 @@ jobs:
             ./hive \
             -sim=<<parameters.sim>> \
             -sim.loglevel=5 \
-            -client=go-ethereum,op-geth_optimism-history,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log || echo "failed."
+            -client=go-ethereum,op-geth_optimism,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log || echo "failed."
       - run:
           command: |
             tar -cvf /tmp/workspace.tgz -C /home/circleci/project /home/circleci/project/workspace
@@ -819,6 +1005,15 @@ workflows:
           requires:
             - yarn-monorepo
       - contracts-bedrock-tests:
+          requires:
+            - yarn-monorepo
+      - contracts-bedrock-checks:
+          requires:
+            - yarn-monorepo
+      - contracts-bedrock-slither:
+          requires:
+            - yarn-monorepo
+      - contracts-bedrock-validate-spaces:
           requires:
             - yarn-monorepo
       - op-bindings-build:
@@ -947,8 +1142,14 @@ workflows:
           name: op-proposer-lint
           module: op-proposer
       - go-lint:
+          name: op-program-lint
+          module: op-program
+      - go-lint:
           name: op-service-lint
           module: op-service
+      - go-lint:
+          name: op-wheel-lint
+          module: op-wheel
       - go-test:
           name: op-batcher-tests
           module: op-batcher
@@ -965,6 +1166,9 @@ workflows:
       - go-test:
           name: op-proposer-tests
           module: op-proposer
+      - go-test:
+          name: op-program-tests
+          module: op-program
       - go-test:
           name: op-service-tests
           module: op-service
@@ -984,12 +1188,14 @@ workflows:
             - op-e2e-lint
             - op-node-lint
             - op-proposer-lint
+            - op-program-lint
             - op-service-lint
             - op-batcher-tests
             - op-bindings-tests
             - op-chain-ops-tests
             - op-node-tests
             - op-proposer-tests
+            - op-program-tests
             - op-service-tests
             - op-e2e-WS-tests
             - op-e2e-HTTP-tests
@@ -1002,11 +1208,11 @@ workflows:
       - docker-publish:
           name: op-node-docker-publish
           docker_name: op-node
+          docker_file: op-node/Dockerfile
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          requires:
-            - op-node-docker-build
+          platforms: "linux/amd64,linux/arm64"
       - docker-build:
           name: op-batcher-docker-build
           docker_file: op-batcher/Dockerfile
@@ -1015,12 +1221,12 @@ workflows:
           docker_context: .
       - docker-publish:
           name: op-batcher-docker-publish
+          docker_file: op-batcher/Dockerfile
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          requires:
-            - op-batcher-docker-build
+          platforms: "linux/amd64,linux/arm64"
       - docker-build:
           name: op-proposer-docker-build
           docker_file: op-proposer/Dockerfile
@@ -1029,12 +1235,12 @@ workflows:
           docker_context: .
       - docker-publish:
           name: op-proposer-docker-publish
+          docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          requires:
-            - op-proposer-docker-build
+          platforms: "linux/amd64,linux/arm64"
       - docker-build:
           name: op-heartbeat-docker-build
           docker_file: op-heartbeat/Dockerfile
@@ -1043,12 +1249,11 @@ workflows:
           docker_context: .
       - docker-publish:
           name: op-heartbeat-docker-publish
+          docker_file: op-heartbeat/Dockerfile
           docker_name: op-heartbeat
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          requires:
-            - op-heartbeat-docker-build
       - docker-build:
           name: indexer-docker-build
           docker_file: indexer/Dockerfile
@@ -1057,12 +1262,19 @@ workflows:
           docker_context: .
       - docker-publish:
           name: indexer-docker-publish
+          docker_file: indexer/Dockerfile
           docker_name: indexer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          requires:
-            - indexer-docker-build
+      - docker-publish:
+          name: chain-mon-docker-publish
+          docker_file: ./ops/docker/Dockerfile.packages
+          docker_name: chain-mon
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_target: wd-mon
+          context:
+            - oplabs-gcr
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
@@ -1089,113 +1301,73 @@ workflows:
             - op-proposer-docker-build
   release:
     jobs:
-      - docker-build:
-          name: op-node-docker-build
+      - hold:
+          type: approval
           filters:
             tags:
               only: /^op-[a-z0-9\-]*\/v.*/
+            branches:
+              ignore: /.*/
+      - docker-release:
+          name: op-node-docker-release
+          filters:
+            tags:
+              only: /^op-node\/v.*/
             branches:
               ignore: /.*/
           docker_file: op-node/Dockerfile
           docker_name: op-node
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-      - docker-publish:
-          name: op-node-docker-publish
-          filters:
-            tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-node
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          platforms: "linux/amd64,linux/arm64"
           context:
-            - oplabs-gcr
+            - oplabs-gcr-release
           requires:
-            - op-node-docker-build
-      - docker-build:
-          name: op-batcher-docker-build
+            - hold
+      - docker-release:
+          name: op-batcher-docker-release
           filters:
             tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
+              only: /^op-batcher\/v.*/
             branches:
               ignore: /.*/
           docker_file: op-batcher/Dockerfile
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-      - docker-publish:
-          name: op-batcher-docker-publish
-          filters:
-            tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-batcher
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          platforms: "linux/amd64,linux/arm64"
           context:
-            - oplabs-gcr
+            - oplabs-gcr-release
           requires:
-            - op-batcher-docker-build
-      - docker-build:
-          name: op-proposer-docker-build
+            - hold
+      - docker-release:
+          name: op-proposer-docker-release
           filters:
             tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
+              only: /^op-proposer\/v.*/
             branches:
               ignore: /.*/
           docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-      - docker-publish:
-          name: op-proposer-docker-publish
-          filters:
-            tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-proposer
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          platforms: "linux/amd64,linux/arm64"
           context:
-            - oplabs-gcr
+            - oplabs-gcr-release
           requires:
-            - op-proposer-docker-build
+            - hold
       - docker-build:
-          name: op-migrate-docker-build
+          name: op-migrate-docker-release
           filters:
             tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
+              only: /^op-migrate\/v.*/
             branches:
               ignore: /.*/
           docker_file: op-chain-ops/Dockerfile
           docker_name: op-migrate
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-      - docker-publish:
-          name: op-migrate-docker-publish
-          filters:
-            tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-migrate
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          context:
-            - oplabs-gcr
-          requires:
-            - op-migrate-docker-build
-      - docker-tag-op-stack-release:
-          name: docker-tag-op-stack-release
-          filters:
-            tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
-            branches:
-              ignore: /.*/
-          requires:
-            - op-node-docker-publish
-            - op-proposer-docker-publish
-            - op-batcher-docker-publish
-            - op-migrate-docker-publish
           context:
             - oplabs-gcr-release
+          requires:
+            - hold

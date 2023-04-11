@@ -13,7 +13,6 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
 	leveldb "github.com/ipfs/go-ds-leveldb"
-	lconf "github.com/libp2p/go-libp2p/config"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/multiformats/go-multiaddr"
 
@@ -25,7 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
-func NewConfig(ctx *cli.Context) (*p2p.Config, error) {
+func NewConfig(ctx *cli.Context, blockTime uint64) (*p2p.Config, error) {
 	conf := &p2p.Config{}
 
 	if ctx.GlobalBool(flags.DisableP2P.Name) {
@@ -55,8 +54,26 @@ func NewConfig(ctx *cli.Context) (*p2p.Config, error) {
 		return nil, fmt.Errorf("failed to load p2p gossip options: %w", err)
 	}
 
+	if err := loadPeerScoringParams(conf, ctx, blockTime); err != nil {
+		return nil, fmt.Errorf("failed to load p2p peer scoring options: %w", err)
+	}
+
+	if err := loadPeerScoreBands(conf, ctx); err != nil {
+		return nil, fmt.Errorf("failed to load p2p peer score bands: %w", err)
+	}
+
+	if err := loadBanningOption(conf, ctx); err != nil {
+		return nil, fmt.Errorf("failed to load banning option: %w", err)
+	}
+
+	if err := loadTopicScoringParams(conf, ctx, blockTime); err != nil {
+		return nil, fmt.Errorf("failed to load p2p topic scoring options: %w", err)
+	}
+
 	conf.ConnGater = p2p.DefaultConnGater
 	conf.ConnMngr = p2p.DefaultConnManager
+
+	conf.EnableReqRespSync = ctx.GlobalBool(flags.SyncReqRespFlag.Name)
 
 	return conf, nil
 }
@@ -72,6 +89,60 @@ func validatePort(p uint) (uint16, error) {
 		return 0, fmt.Errorf("port is reserved for system: %d", p)
 	}
 	return uint16(p), nil
+}
+
+// loadTopicScoringParams loads the topic scoring options from the CLI context.
+//
+// If the topic scoring options are not set, then the default topic scoring.
+func loadTopicScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64) error {
+	scoringLevel := ctx.GlobalString(flags.TopicScoring.Name)
+	if scoringLevel != "" {
+		// Set default block topic scoring parameters
+		// See prysm: https://github.com/prysmaticlabs/prysm/blob/develop/beacon-chain/p2p/gossip_scoring_params.go
+		// And research from lighthouse: https://gist.github.com/blacktemplar/5c1862cb3f0e32a1a7fb0b25e79e6e2c
+		// And docs: https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#topic-parameter-calculation-and-decay
+		topicScoreParams, err := p2p.GetTopicScoreParams(scoringLevel, blockTime)
+		if err != nil {
+			return err
+		}
+		conf.TopicScoring = topicScoreParams
+	}
+
+	return nil
+}
+
+// loadPeerScoringParams loads the scoring options from the CLI context.
+//
+// If the scoring level is not set, no scoring is enabled.
+func loadPeerScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64) error {
+	scoringLevel := ctx.GlobalString(flags.PeerScoring.Name)
+	if scoringLevel != "" {
+		peerScoreParams, err := p2p.GetPeerScoreParams(scoringLevel, blockTime)
+		if err != nil {
+			return err
+		}
+		conf.PeerScoring = peerScoreParams
+	}
+
+	return nil
+}
+
+// loadPeerScoreBands loads [p2p.BandScorer] from the CLI context.
+func loadPeerScoreBands(conf *p2p.Config, ctx *cli.Context) error {
+	scoreBands := ctx.GlobalString(flags.PeerScoreBands.Name)
+	bandScorer, err := p2p.NewBandScorer(scoreBands)
+	if err != nil {
+		return err
+	}
+	conf.BandScoreThresholds = *bandScorer
+	return nil
+}
+
+// loadBanningOption loads whether or not to ban peers from the CLI context.
+func loadBanningOption(conf *p2p.Config, ctx *cli.Context) error {
+	ban := ctx.GlobalBool(flags.Banning.Name)
+	conf.BanningEnabled = ban
+	return nil
 }
 
 func loadListenOpts(conf *p2p.Config, ctx *cli.Context) error {
@@ -171,27 +242,19 @@ func loadLibp2pOpts(conf *p2p.Config, ctx *cli.Context) error {
 
 	for _, v := range strings.Split(ctx.GlobalString(flags.HostMux.Name), ",") {
 		v = strings.ToLower(strings.TrimSpace(v))
-		var mc lconf.MsMuxC
-		var err error
 		switch v {
 		case "yamux":
-			mc, err = p2p.YamuxC()
+			conf.HostMux = append(conf.HostMux, p2p.YamuxC())
 		case "mplex":
-			mc, err = p2p.MplexC()
+			conf.HostMux = append(conf.HostMux, p2p.MplexC())
 		default:
 			return fmt.Errorf("could not recognize mux %s", v)
 		}
-		if err != nil {
-			return fmt.Errorf("failed to make %s constructor: %w", v, err)
-		}
-		conf.HostMux = append(conf.HostMux, mc)
 	}
 
 	secArr := strings.Split(ctx.GlobalString(flags.HostSecurity.Name), ",")
 	for _, v := range secArr {
 		v = strings.ToLower(strings.TrimSpace(v))
-		var sc lconf.MsSecC
-		var err error
 		switch v {
 		case "none": // no security, for debugging etc.
 			if len(conf.HostSecurity) > 0 || len(secArr) > 1 {
@@ -199,16 +262,12 @@ func loadLibp2pOpts(conf *p2p.Config, ctx *cli.Context) error {
 			}
 			conf.NoTransportSecurity = true
 		case "noise":
-			sc, err = p2p.NoiseC()
+			conf.HostSecurity = append(conf.HostSecurity, p2p.NoiseC())
 		case "tls":
-			sc, err = p2p.TlsC()
+			conf.HostSecurity = append(conf.HostSecurity, p2p.TlsC())
 		default:
 			return fmt.Errorf("could not recognize security %s", v)
 		}
-		if err != nil {
-			return fmt.Errorf("failed to make %s constructor: %w", v, err)
-		}
-		conf.HostSecurity = append(conf.HostSecurity, sc)
 	}
 
 	conf.PeersLo = ctx.GlobalUint(flags.PeersLo.Name)

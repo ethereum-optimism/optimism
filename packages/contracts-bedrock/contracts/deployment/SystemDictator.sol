@@ -16,6 +16,8 @@ import { ProxyAdmin } from "../universal/ProxyAdmin.sol";
 import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
 import { PortalSender } from "./PortalSender.sol";
 import { SystemConfig } from "../L1/SystemConfig.sol";
+import { ResourceMetering } from "../L1/ResourceMetering.sol";
+import { Constants } from "../libraries/Constants.sol";
 
 /**
  * @title SystemDictator
@@ -79,6 +81,7 @@ contract SystemDictator is OwnableUpgradeable {
         bytes32 batcherHash;
         uint64 gasLimit;
         address unsafeBlockSigner;
+        ResourceMetering.ResourceConfig resourceConfig;
     }
 
     /**
@@ -112,6 +115,12 @@ contract SystemDictator is OwnableUpgradeable {
     L2OutputOracleDynamicConfig public l2OutputOracleDynamicConfig;
 
     /**
+     * @notice Dynamic configuration for the OptimismPortal. Determines
+     *         if the system should be paused when initialized.
+     */
+    bool public optimismPortalDynamicConfig;
+
+    /**
      * @notice Current step;
      */
     uint8 public currentStep;
@@ -127,6 +136,11 @@ contract SystemDictator is OwnableUpgradeable {
     bool public finalized;
 
     /**
+     * @notice Whether or not the deployment has been exited.
+     */
+    bool public exited;
+
+    /**
      * @notice Address of the old L1CrossDomainMessenger implementation.
      */
     address public oldL1CrossDomainMessenger;
@@ -137,9 +151,40 @@ contract SystemDictator is OwnableUpgradeable {
      * @param _step Current step.
      */
     modifier step(uint8 _step) {
-        require(currentStep == _step, "BaseSystemDictator: incorrect step");
+        require(!finalized, "SystemDictator: already finalized");
+        require(!exited, "SystemDictator: already exited");
+        require(currentStep == _step, "SystemDictator: incorrect step");
         _;
         currentStep++;
+    }
+
+    /**
+     * @notice Constructor required to ensure that the implementation of the SystemDictator is
+     *         initialized upon deployment.
+     */
+    constructor() {
+        ResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
+
+        // Using this shorter variable as an alias for address(0) just prevents us from having to
+        // to use a new line for every single parameter.
+        address zero = address(0);
+        initialize(
+            DeployConfig(
+                GlobalConfig(AddressManager(zero), ProxyAdmin(zero), zero, zero),
+                ProxyAddressConfig(zero, zero, zero, zero, zero, zero, zero),
+                ImplementationAddressConfig(
+                    L2OutputOracle(zero),
+                    OptimismPortal(payable(zero)),
+                    L1CrossDomainMessenger(zero),
+                    L1StandardBridge(payable(zero)),
+                    OptimismMintableERC20Factory(zero),
+                    L1ERC721Bridge(zero),
+                    PortalSender(zero),
+                    SystemConfig(zero)
+                ),
+                SystemConfigConfig(zero, 0, 0, bytes32(0), 0, zero, rcfg)
+            )
+        );
     }
 
     /**
@@ -153,21 +198,24 @@ contract SystemDictator is OwnableUpgradeable {
     }
 
     /**
-     * @notice Allows the owner to update dynamic L2OutputOracle config.
+     * @notice Allows the owner to update dynamic config.
      *
      * @param _l2OutputOracleDynamicConfig Dynamic L2OutputOracle config.
+     * @param _optimismPortalDynamicConfig Dynamic OptimismPortal config.
      */
-    function updateL2OutputOracleDynamicConfig(
-        L2OutputOracleDynamicConfig memory _l2OutputOracleDynamicConfig
+    function updateDynamicConfig(
+        L2OutputOracleDynamicConfig memory _l2OutputOracleDynamicConfig,
+        bool _optimismPortalDynamicConfig
     ) external onlyOwner {
         l2OutputOracleDynamicConfig = _l2OutputOracleDynamicConfig;
+        optimismPortalDynamicConfig = _optimismPortalDynamicConfig;
         dynamicConfigSet = true;
     }
 
     /**
      * @notice Configures the ProxyAdmin contract.
      */
-    function step1() external onlyOwner step(1) {
+    function step1() public onlyOwner step(1) {
         // Set the AddressManager in the ProxyAdmin.
         config.globalConfig.proxyAdmin.setAddressManager(config.globalConfig.addressManager);
 
@@ -201,7 +249,8 @@ contract SystemDictator is OwnableUpgradeable {
                     config.systemConfigConfig.scalar,
                     config.systemConfigConfig.batcherHash,
                     config.systemConfigConfig.gasLimit,
-                    config.systemConfigConfig.unsafeBlockSigner
+                    config.systemConfigConfig.unsafeBlockSigner,
+                    config.systemConfigConfig.resourceConfig
                 )
             )
         );
@@ -211,7 +260,7 @@ contract SystemDictator is OwnableUpgradeable {
      * @notice Pauses the system by shutting down the L1CrossDomainMessenger and setting the
      *         deposit halt flag to tell the Sequencer's DTL to stop accepting deposits.
      */
-    function step2() external onlyOwner step(2) {
+    function step2() public onlyOwner step(2) {
         // Store the address of the old L1CrossDomainMessenger implementation. We will need this
         // address in the case that we have to exit early.
         oldL1CrossDomainMessenger = config.globalConfig.addressManager.getAddress(
@@ -307,7 +356,7 @@ contract SystemDictator is OwnableUpgradeable {
         config.globalConfig.proxyAdmin.upgradeAndCall(
             payable(config.proxyAddressConfig.optimismPortalProxy),
             address(config.implementationAddressConfig.optimismPortalImpl),
-            abi.encodeCall(OptimismPortal.initialize, ())
+            abi.encodeCall(OptimismPortal.initialize, (optimismPortalDynamicConfig))
         );
 
         // Upgrade the L1CrossDomainMessenger.
@@ -319,7 +368,7 @@ contract SystemDictator is OwnableUpgradeable {
         // Try to initialize the L1CrossDomainMessenger, only fail if it's already been initialized.
         try
             L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy)
-                .initialize(address(this))
+                .initialize()
         {
             // L1CrossDomainMessenger is the one annoying edge case difference between existing
             // networks and fresh networks because in existing networks it'll already be
@@ -359,27 +408,20 @@ contract SystemDictator is OwnableUpgradeable {
             payable(config.proxyAddressConfig.l1ERC721BridgeProxy),
             address(config.implementationAddressConfig.l1ERC721BridgeImpl)
         );
-
-        // Pause the L1CrossDomainMessenger, chance to check that everything is OK.
-        L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).pause();
     }
 
     /**
-     * @notice Unpauses the system at which point the system should be fully operational.
+     * @notice Calls the first 2 steps of the migration process.
      */
-    function step6() external onlyOwner step(6) {
-        // Unpause the L1CrossDomainMessenger.
-        L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).unpause();
+    function phase1() external onlyOwner {
+        step1();
+        step2();
     }
 
     /**
      * @notice Tranfers admin ownership to the final owner.
      */
     function finalize() external onlyOwner {
-        // Transfer ownership of the L1CrossDomainMessenger to the final owner.
-        L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy)
-            .transferOwnership(config.globalConfig.finalOwner);
-
         // Transfer ownership of the ProxyAdmin to the final owner.
         config.globalConfig.proxyAdmin.transferOwnership(config.globalConfig.finalOwner);
 
@@ -402,6 +444,7 @@ contract SystemDictator is OwnableUpgradeable {
             );
         }
 
+        // Mark the deployment as finalized.
         finalized = true;
     }
 
@@ -422,5 +465,8 @@ contract SystemDictator is OwnableUpgradeable {
 
         // Unset the DTL shutoff block which will allow the DTL to sync again.
         config.globalConfig.addressManager.setAddress("DTL_SHUTOFF_BLOCK", address(0));
+
+        // Mark the deployment as exited.
+        exited = true;
     }
 }

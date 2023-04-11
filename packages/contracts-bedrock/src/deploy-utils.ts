@@ -1,4 +1,5 @@
 import assert from 'assert'
+import { URLSearchParams } from 'url'
 
 import { ethers, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
@@ -43,6 +44,15 @@ export const deploy = async ({
   // external deployments when doing this check. By doing the check ourselves, we also get to
   // consider external deployments. If we already have the deployment, return early.
   let result: Deployment | DeployResult = await hre.deployments.getOrNull(name)
+
+  // Wrap in a try/catch in case there is not a deployConfig for the current network.
+  let numDeployConfirmations: number
+  try {
+    numDeployConfirmations = hre.deployConfig.numDeployConfirmations
+  } catch (e) {
+    numDeployConfirmations = 1
+  }
+
   if (result) {
     console.log(`skipping ${name}, using existing at ${result.address}`)
   } else {
@@ -51,16 +61,23 @@ export const deploy = async ({
       from: deployer,
       args,
       log: true,
-      waitConfirmations: hre.deployConfig.numDeployConfirmations,
+      waitConfirmations: numDeployConfirmations,
     })
+    console.log(`Deployed ${name} at ${result.address}`)
+    // Only wait for the transaction if it was recently deployed in case the
+    // result was deployed a long time ago and was pruned from the backend.
+    await hre.ethers.provider.waitForTransaction(result.transactionHash)
   }
 
-  // Always wait for the transaction to be mined, just in case.
-  await hre.ethers.provider.waitForTransaction(result.transactionHash)
+  // Check to make sure there is code
+  const code = await hre.ethers.provider.getCode(result.address)
+  if (code === '0x') {
+    throw new Error(`no code for ${result.address}`)
+  }
 
   // Create the contract object to return.
   const created = asAdvancedContract({
-    confirmations: hre.deployConfig.numDeployConfirmations,
+    confirmations: numDeployConfirmations,
     contract: new Contract(
       result.address,
       iface !== undefined
@@ -111,7 +128,6 @@ export const asAdvancedContract = (opts: {
   // Now reset Object.defineProperty
   Object.defineProperty = def
 
-  // Override each function call to also `.wait()` so as to simplify the deploy scripts' syntax.
   for (const fnName of Object.keys(contract.functions)) {
     const fn = contract[fnName].bind(contract)
     ;(contract as any)[fnName] = async (...args: any) => {
@@ -173,7 +189,6 @@ export const getContractFromArtifact = async (
   } = {}
 ): Promise<ethers.Contract> => {
   const artifact = await hre.deployments.get(name)
-  await hre.ethers.provider.waitForTransaction(artifact.receipt.transactionHash)
 
   // Get the deployed contract's interface.
   let iface = new hre.ethers.utils.Interface(artifact.abi)
@@ -192,8 +207,15 @@ export const getContractFromArtifact = async (
     }
   }
 
+  let numDeployConfirmations: number
+  try {
+    numDeployConfirmations = hre.deployConfig.numDeployConfirmations
+  } catch (e) {
+    numDeployConfirmations = 1
+  }
+
   return asAdvancedContract({
-    confirmations: hre.deployConfig.numDeployConfirmations,
+    confirmations: numDeployConfirmations,
     contract: new hre.ethers.Contract(
       artifact.address,
       iface,
@@ -283,17 +305,54 @@ export const getDeploymentAddress = async (
  * @param tx Ethers transaction object.
  * @returns JSON-ified transaction object.
  */
-export const jsonifyTransaction = (tx: ethers.PopulatedTransaction): string => {
-  return JSON.stringify(
-    {
-      to: tx.to,
-      data: tx.data,
-      value: tx.value,
-      chainId: tx.chainId,
-    },
-    null,
-    2
+export const printJsonTransaction = (tx: ethers.PopulatedTransaction): void => {
+  console.log(
+    'JSON transaction parameters:\n' +
+      JSON.stringify(
+        {
+          from: tx.from,
+          to: tx.to,
+          data: tx.data,
+          value: tx.value,
+          chainId: tx.chainId,
+        },
+        null,
+        2
+      )
   )
+}
+
+/**
+ * Mini helper for transferring a Proxy to the MSD
+ *
+ * @param opts Options for executing the step.
+ * @param opts.isLiveDeployer True if the deployer is live.
+ * @param opts.proxy proxy contract.
+ * @param opts.dictator dictator contract.
+ */
+export const doOwnershipTransfer = async (opts: {
+  isLiveDeployer?: boolean
+  proxy: ethers.Contract
+  name: string
+  transferFunc: string
+  dictator: ethers.Contract
+}): Promise<void> => {
+  if (opts.isLiveDeployer) {
+    console.log(`Setting ${opts.name} owner to MSD`)
+    await opts.proxy[opts.transferFunc](opts.dictator.address)
+  } else {
+    const tx = await opts.proxy.populateTransaction[opts.transferFunc](
+      opts.dictator.address
+    )
+    console.log(`
+    Please transfer ${opts.name} (proxy) owner to MSD
+      - ${opts.name} address: ${opts.proxy.address}
+      - MSD address: ${opts.dictator.address}
+    `)
+    printJsonTransaction(tx)
+    printCastCommand(tx)
+    await printTenderlySimulationLink(opts.dictator.provider, tx)
+  }
 }
 
 /**
@@ -308,6 +367,25 @@ export const isStep = async (
   step: number
 ): Promise<boolean> => {
   return (await dictator.currentStep()) === step
+}
+
+/**
+ * Mini helper for checking if the current step is the first step in target phase.
+ *
+ * @param dictator SystemDictator contract.
+ * @param phase Target phase.
+ * @returns True if the current step is the first step in target phase.
+ */
+export const isStartOfPhase = async (
+  dictator: ethers.Contract,
+  phase: number
+): Promise<boolean> => {
+  const phaseToStep = {
+    1: 1,
+    2: 3,
+    3: 6,
+  }
+  return (await dictator.currentStep()) === phaseToStep[phase]
 }
 
 /**
@@ -327,7 +405,8 @@ export const doStep = async (opts: {
   message: string
   checks: () => Promise<void>
 }): Promise<void> => {
-  if (!(await isStep(opts.SystemDictator, opts.step))) {
+  const isStepVal = await isStep(opts.SystemDictator, opts.step)
+  if (!isStepVal) {
     console.log(`Step already completed: ${opts.step}`)
     return
   }
@@ -345,8 +424,8 @@ export const doStep = async (opts: {
     ]()
     console.log(`Please execute step ${opts.step}...`)
     console.log(`MSD address: ${opts.SystemDictator.address}`)
-    console.log(`JSON:`)
-    console.log(jsonifyTransaction(tx))
+    printJsonTransaction(tx)
+    await printTenderlySimulationLink(opts.SystemDictator.provider, tx)
   }
 
   // Wait for the step to complete.
@@ -360,4 +439,94 @@ export const doStep = async (opts: {
 
   // Perform post-step checks.
   await opts.checks()
+}
+
+/**
+ * Mini helper for executing a given phase.
+ *
+ * @param opts Options for executing the step.
+ * @param opts.isLiveDeployer True if the deployer is live.
+ * @param opts.SystemDictator SystemDictator contract.
+ * @param opts.step Step to execute.
+ * @param opts.message Message to print before executing the step.
+ * @param opts.checks Checks to perform after executing the step.
+ */
+export const doPhase = async (opts: {
+  isLiveDeployer?: boolean
+  SystemDictator: ethers.Contract
+  phase: number
+  message: string
+  checks: () => Promise<void>
+}): Promise<void> => {
+  const isStart = await isStartOfPhase(opts.SystemDictator, opts.phase)
+  if (!isStart) {
+    console.log(`Start of phase ${opts.phase} already completed`)
+    return
+  }
+
+  // Extra message to help the user understand what's going on.
+  console.log(opts.message)
+
+  // Either automatically or manually execute the step.
+  if (opts.isLiveDeployer) {
+    console.log(`Executing phase ${opts.phase}...`)
+    await opts.SystemDictator[`phase${opts.phase}`]()
+  } else {
+    const tx = await opts.SystemDictator.populateTransaction[
+      `phase${opts.phase}`
+    ]()
+    console.log(`Please execute phase ${opts.phase}...`)
+    console.log(`MSD address: ${opts.SystemDictator.address}`)
+    printJsonTransaction(tx)
+    await printTenderlySimulationLink(opts.SystemDictator.provider, tx)
+  }
+
+  // Wait for the step to complete.
+  await awaitCondition(
+    async () => {
+      return isStartOfPhase(opts.SystemDictator, opts.phase + 1)
+    },
+    30000,
+    1000
+  )
+
+  // Perform post-step checks.
+  await opts.checks()
+}
+
+/**
+ * Prints a direct link to a Tenderly simulation.
+ *
+ * @param provider Ethers Provider.
+ * @param tx Ethers transaction object.
+ */
+export const printTenderlySimulationLink = async (
+  provider: ethers.providers.Provider,
+  tx: ethers.PopulatedTransaction
+): Promise<void> => {
+  if (process.env.TENDERLY_PROJECT && process.env.TENDERLY_USERNAME) {
+    console.log(
+      `https://dashboard.tenderly.co/${process.env.TENDERLY_PROJECT}/${
+        process.env.TENDERLY_USERNAME
+      }/simulator/new?${new URLSearchParams({
+        network: (await provider.getNetwork()).chainId.toString(),
+        contractAddress: tx.to,
+        rawFunctionInput: tx.data,
+        from: tx.from,
+      }).toString()}`
+    )
+  }
+}
+
+/**
+ * Prints a cast commmand for submitting a given transaction.
+ *
+ * @param tx Ethers transaction object.
+ */
+export const printCastCommand = (tx: ethers.PopulatedTransaction): void => {
+  if (process.env.CAST_COMMANDS) {
+    console.log(
+      `cast send ${tx.to} ${tx.data} --from ${tx.from} --value ${tx.value}`
+    )
+  }
 }

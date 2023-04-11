@@ -9,8 +9,8 @@ import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol
  *         separate interface so that it can be used in custom implementations of
  *         OptimismMintableERC20.
  */
-interface IOptimismMintableERC20 {
-    function remoteToken() external returns (address);
+interface IOptimismMintableERC20 is IERC165 {
+    function remoteToken() external view returns (address);
 
     function bridge() external returns (address);
 
@@ -26,7 +26,7 @@ interface IOptimismMintableERC20 {
  *         on the OptimismMintableERC20 contract for backwards compatibility.
  */
 interface ILegacyMintableERC20 is IERC165 {
-    function l1Token() external returns (address);
+    function l1Token() external view returns (address);
 
     function mint(address _to, uint256 _amount) external;
 

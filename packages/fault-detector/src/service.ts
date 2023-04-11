@@ -124,7 +124,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       this.state.oo = {
         contract: oo,
         filter: oo.filters.OutputProposed(),
-        getTotalElements: async () => oo.latestOutputIndex(),
+        getTotalElements: async () => oo.nextOutputIndex(),
         getEventIndex: (args) => args.l2OutputIndex,
       }
     } else {

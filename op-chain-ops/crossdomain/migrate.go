@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 var (
@@ -19,7 +20,7 @@ var (
 )
 
 // MigrateWithdrawals will migrate a list of pending withdrawals given a StateDB.
-func MigrateWithdrawals(withdrawals []*LegacyWithdrawal, db vm.StateDB, l1CrossDomainMessenger *common.Address, noCheck bool) error {
+func MigrateWithdrawals(withdrawals SafeFilteredWithdrawals, db vm.StateDB, l1CrossDomainMessenger *common.Address, noCheck bool) error {
 	for i, legacy := range withdrawals {
 		legacySlot, err := legacy.StorageSlot()
 		if err != nil {
@@ -66,24 +67,23 @@ func MigrateWithdrawal(withdrawal *LegacyWithdrawal, l1CrossDomainMessenger *com
 	// Migrated withdrawals are specified as version 0. Both the
 	// L2ToL1MessagePasser and the CrossDomainMessenger use the same
 	// versioning scheme. Both should be set to version 0
-	versionedNonce := EncodeVersionedNonce(withdrawal.Nonce, new(big.Int))
+	versionedNonce := EncodeVersionedNonce(withdrawal.XDomainNonce, new(big.Int))
 	// Encode the call to `relayMessage` on the `CrossDomainMessenger`.
 	// The minGasLimit can safely be 0 here.
 	data, err := abi.Pack(
 		"relayMessage",
 		versionedNonce,
-		withdrawal.Sender,
-		withdrawal.Target,
+		withdrawal.XDomainSender,
+		withdrawal.XDomainTarget,
 		value,
 		new(big.Int),
-		[]byte(withdrawal.Data),
+		[]byte(withdrawal.XDomainData),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("cannot abi encode relayMessage: %w", err)
 	}
 
-	// Set the outer gas limit. This cannot be zero
-	gasLimit := uint64(len(data)*16 + 200_000)
+	gasLimit := MigrateWithdrawalGasLimit(data)
 
 	w := NewWithdrawal(
 		versionedNonce,
@@ -94,4 +94,26 @@ func MigrateWithdrawal(withdrawal *LegacyWithdrawal, l1CrossDomainMessenger *com
 		data,
 	)
 	return w, nil
+}
+
+func MigrateWithdrawalGasLimit(data []byte) uint64 {
+	// Compute the cost of the calldata
+	dataCost := uint64(0)
+	for _, b := range data {
+		if b == 0 {
+			dataCost += params.TxDataZeroGas
+		} else {
+			dataCost += params.TxDataNonZeroGasEIP2028
+		}
+	}
+
+	// Set the outer gas limit. This cannot be zero
+	gasLimit := dataCost + 200_000
+	// Cap the gas limit to be 25 million to prevent creating withdrawals
+	// that go over the block gas limit.
+	if gasLimit > 25_000_000 {
+		gasLimit = 25_000_000
+	}
+
+	return gasLimit
 }

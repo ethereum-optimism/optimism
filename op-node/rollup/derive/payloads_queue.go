@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
@@ -48,8 +50,8 @@ func (pq *payloadsByNumber) Pop() any {
 }
 
 const (
-	// ~580 bytes per payload, with some margin for overhead
-	payloadMemFixedCost uint64 = 600
+	// ~580 bytes per payload, with some margin for overhead like map data
+	payloadMemFixedCost uint64 = 800
 	// 24 bytes per tx overhead (size of slice header in memory)
 	payloadTxMemOverhead uint64 = 24
 )
@@ -72,12 +74,23 @@ func payloadMemSize(p *eth.ExecutionPayload) uint64 {
 // without the need to use heap.Push/heap.Pop as caller.
 // PayloadsQueue maintains a MaxSize by counting and tracking sizes of added eth.ExecutionPayload entries.
 // When the size grows too large, the first (lowest block-number) payload is removed from the queue.
-// PayloadsQueue allows entries with same block number, or even full duplicates.
+// PayloadsQueue allows entries with same block number, but does not allow duplicate blocks
 type PayloadsQueue struct {
 	pq          payloadsByNumber
 	currentSize uint64
 	MaxSize     uint64
+	blockHashes map[common.Hash]struct{}
 	SizeFn      func(p *eth.ExecutionPayload) uint64
+}
+
+func NewPayloadsQueue(maxSize uint64, sizeFn func(p *eth.ExecutionPayload) uint64) *PayloadsQueue {
+	return &PayloadsQueue{
+		pq:          nil,
+		currentSize: 0,
+		MaxSize:     maxSize,
+		blockHashes: make(map[common.Hash]struct{}),
+		SizeFn:      sizeFn,
+	}
 }
 
 func (upq *PayloadsQueue) Len() int {
@@ -99,6 +112,9 @@ func (upq *PayloadsQueue) Push(p *eth.ExecutionPayload) error {
 	if p == nil {
 		return errors.New("cannot add nil payload")
 	}
+	if _, ok := upq.blockHashes[p.BlockHash]; ok {
+		return fmt.Errorf("cannot add duplicate payload %s", p.ID())
+	}
 	size := upq.SizeFn(p)
 	if size > upq.MaxSize {
 		return fmt.Errorf("cannot add payload %s, payload mem size %d is larger than max queue size %d", p.ID(), size, upq.MaxSize)
@@ -111,6 +127,7 @@ func (upq *PayloadsQueue) Push(p *eth.ExecutionPayload) error {
 	for upq.currentSize > upq.MaxSize {
 		upq.Pop()
 	}
+	upq.blockHashes[p.BlockHash] = struct{}{}
 	return nil
 }
 
@@ -132,5 +149,7 @@ func (upq *PayloadsQueue) Pop() *eth.ExecutionPayload {
 	}
 	ps := heap.Pop(&upq.pq).(payloadAndSize) // nosemgrep
 	upq.currentSize -= ps.size
+	// remove the key from the block hashes map
+	delete(upq.blockHashes, ps.payload.BlockHash)
 	return ps.payload
 }

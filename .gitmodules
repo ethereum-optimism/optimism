@@ -1,9 +1,14 @@
 [submodule "tests"]
 	path = l2geth/tests/testdata
 	url = https://github.com/ethereum/tests
-[submodule "op-geth"]
-	path = op-geth
-	url = https://github.com/bobanetwork/v3-op-geth
+[submodule "packages/contracts-periphery/lib/multicall"]
+	path = packages/contracts-periphery/lib/multicall
+	url = https://github.com/mds1/multicall
+[submodule "lib/multicall"]
+	branch = v3.1.0
 [submodule "op-erigon"]
 	path = op-erigon
 	url = https://github.com/bobanetwork/v3-erigon
+[submodule "op-geth"]
+	path = op-geth
+	url = https://github.com/bobanetwork/v3-op-geth

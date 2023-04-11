@@ -79,7 +79,7 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		L1GenesisBlockNonce:         0,
 		CliqueSignerAddress:         common.Address{}, // proof of stake, no clique
 		L1GenesisBlockTimestamp:     hexutil.Uint64(time.Now().Unix()),
-		L1GenesisBlockGasLimit:      15_000_000,
+		L1GenesisBlockGasLimit:      30_000_000,
 		L1GenesisBlockDifficulty:    uint64ToBig(1),
 		L1GenesisBlockMixHash:       common.Hash{},
 		L1GenesisBlockCoinbase:      common.Address{},
@@ -90,7 +90,7 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		FinalizationPeriodSeconds:   12,
 
 		L2GenesisBlockNonce:         0,
-		L2GenesisBlockGasLimit:      15_000_000,
+		L2GenesisBlockGasLimit:      30_000_000,
 		L2GenesisBlockDifficulty:    uint64ToBig(0),
 		L2GenesisBlockMixHash:       common.Hash{},
 		L2GenesisBlockNumber:        0,
@@ -101,6 +101,10 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		GasPriceOracleOverhead:      2100,
 		GasPriceOracleScalar:        1000_000,
 		DeploymentWaitConfirmations: 1,
+
+		SequencerFeeVaultRecipient: common.Address{19: 1},
+		BaseFeeVaultRecipient:      common.Address{19: 2},
+		L1FeeVaultRecipient:        common.Address{19: 3},
 
 		EIP1559Elasticity:  10,
 		EIP1559Denominator: 50,
@@ -165,7 +169,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 	if alloc.PrefundTestUsers {
 		for _, addr := range deployParams.Addresses.All() {
 			l1Genesis.Alloc[addr] = core.GenesisAccount{
-				Balance: Ether(1e6),
+				Balance: Ether(1e12),
 			}
 		}
 	}
@@ -180,7 +184,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 	if alloc.PrefundTestUsers {
 		for _, addr := range deployParams.Addresses.All() {
 			l2Genesis.Alloc[addr] = core.GenesisAccount{
-				Balance: Ether(1e6),
+				Balance: Ether(1e12),
 			}
 		}
 	}
@@ -210,6 +214,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		BatchInboxAddress:      deployConf.BatchInboxAddress,
 		DepositContractAddress: predeploys.DevOptimismPortalAddr,
 		L1SystemConfigAddress:  predeploys.DevSystemConfigAddr,
+		RegolithTime:           deployConf.RegolithTime(uint64(deployConf.L1GenesisBlockTimestamp)),
 	}
 
 	deploymentsL1 := DeploymentsL1{

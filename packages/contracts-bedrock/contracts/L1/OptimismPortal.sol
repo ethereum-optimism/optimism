@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
 import { L2OutputOracle } from "./L2OutputOracle.sol";
+import { SystemConfig } from "./SystemConfig.sol";
 import { Constants } from "../libraries/Constants.sol";
 import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
@@ -44,19 +45,19 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
 
     /**
-     * @notice Additional gas reserved for clean up after finalizing a transaction withdrawal.
-     */
-    uint256 internal constant FINALIZE_GAS_BUFFER = 20_000;
-
-    /**
-     * @notice Minimum time (in seconds) that must elapse before a withdrawal can be finalized.
-     */
-    uint256 public immutable FINALIZATION_PERIOD_SECONDS;
-
-    /**
-     * @notice Address of the L2OutputOracle.
+     * @notice Address of the L2OutputOracle contract.
      */
     L2OutputOracle public immutable L2_ORACLE;
+
+    /**
+     * @notice Address of the SystemConfig contract.
+     */
+    SystemConfig public immutable SYSTEM_CONFIG;
+
+    /**
+     * @notice Address that has the ability to pause and unpause withdrawals.
+     */
+    address public immutable GUARDIAN;
 
     /**
      * @notice Address of the L2 account which initiated a withdrawal in this transaction. If the
@@ -74,6 +75,12 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      * @notice A mapping of withdrawal hashes to `ProvenWithdrawal` data.
      */
     mapping(bytes32 => ProvenWithdrawal) public provenWithdrawals;
+
+    /**
+     * @notice Determines if cross domain messaging is paused. When set to true,
+     *         withdrawals are paused. This may be removed in the future.
+     */
+    bool public paused;
 
     /**
      * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
@@ -111,23 +118,72 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
 
     /**
-     * @custom:semver 1.0.0
+     * @notice Emitted when the pause is triggered.
+     *
+     * @param account Address of the account triggering the pause.
+     */
+    event Paused(address account);
+
+    /**
+     * @notice Emitted when the pause is lifted.
+     *
+     * @param account Address of the account triggering the unpause.
+     */
+    event Unpaused(address account);
+
+    /**
+     * @notice Reverts when paused.
+     */
+    modifier whenNotPaused() {
+        require(paused == false, "OptimismPortal: paused");
+        _;
+    }
+
+    /**
+     * @custom:semver 1.3.1
      *
      * @param _l2Oracle                  Address of the L2OutputOracle contract.
-     * @param _finalizationPeriodSeconds Output finalization time in seconds.
+     * @param _guardian                  Address that can pause deposits and withdrawals.
+     * @param _paused                    Sets the contract's pausability state.
+     * @param _config                    Address of the SystemConfig contract.
      */
-    constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) Semver(1, 0, 0) {
+    constructor(
+        L2OutputOracle _l2Oracle,
+        address _guardian,
+        bool _paused,
+        SystemConfig _config
+    ) Semver(1, 3, 1) {
         L2_ORACLE = _l2Oracle;
-        FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
-        initialize();
+        GUARDIAN = _guardian;
+        SYSTEM_CONFIG = _config;
+        initialize(_paused);
     }
 
     /**
      * @notice Initializer.
      */
-    function initialize() public initializer {
+    function initialize(bool _paused) public initializer {
         l2Sender = Constants.DEFAULT_L2_SENDER;
+        paused = _paused;
         __ResourceMetering_init();
+    }
+
+    /**
+     * @notice Pause deposits and withdrawals.
+     */
+    function pause() external {
+        require(msg.sender == GUARDIAN, "OptimismPortal: only guardian can pause");
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    /**
+     * @notice Unpause deposits and withdrawals.
+     */
+    function unpause() external {
+        require(msg.sender == GUARDIAN, "OptimismPortal: only guardian can unpause");
+        paused = false;
+        emit Unpaused(msg.sender);
     }
 
     /**
@@ -150,6 +206,21 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
+     * @notice Getter for the resource config. Used internally by the ResourceMetering
+     *         contract. The SystemConfig is the source of truth for the resource config.
+     *
+     * @return ResourceMetering.ResourceConfig
+     */
+    function _resourceConfig()
+        internal
+        view
+        override
+        returns (ResourceMetering.ResourceConfig memory)
+    {
+        return SYSTEM_CONFIG.resourceConfig();
+    }
+
+    /**
      * @notice Proves a withdrawal transaction.
      *
      * @param _tx              Withdrawal transaction to finalize.
@@ -162,7 +233,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         uint256 _l2OutputIndex,
         Types.OutputRootProof calldata _outputRootProof,
         bytes[] calldata _withdrawalProof
-    ) external {
+    ) external whenNotPaused {
         // Prevent users from creating a deposit transaction where this address is the message
         // sender on L2. Because this is checked here, we do not need to check again in
         // `finalizeWithdrawalTransaction`.
@@ -193,8 +264,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // output index has been updated.
         require(
             provenWithdrawal.timestamp == 0 ||
-                (_l2OutputIndex == provenWithdrawal.l2OutputIndex &&
-                    outputRoot != provenWithdrawal.outputRoot),
+                L2_ORACLE.getL2Output(provenWithdrawal.l2OutputIndex).outputRoot !=
+                provenWithdrawal.outputRoot,
             "OptimismPortal: withdrawal hash has already been proven"
         );
 
@@ -240,7 +311,10 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      *
      * @param _tx Withdrawal transaction to finalize.
      */
-    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external {
+    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx)
+        external
+        whenNotPaused
+    {
         // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
         // than the default value when a withdrawal transaction is being finalized. This check is
         // a defacto reentrancy guard.
@@ -307,26 +381,19 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // Mark the withdrawal as finalized so it can't be replayed.
         finalizedWithdrawals[withdrawalHash] = true;
 
-        // We want to maintain the property that the amount of gas supplied to the call to the
-        // target contract is at least the gas limit specified by the user. We can do this by
-        // enforcing that, at this point in time, we still have gaslimit + buffer gas available.
-        require(
-            gasleft() >= _tx.gasLimit + FINALIZE_GAS_BUFFER,
-            "OptimismPortal: insufficient gas to finalize withdrawal"
-        );
-
         // Set the l2Sender so contracts know who triggered this withdrawal on L2.
         l2Sender = _tx.sender;
 
-        // Trigger the call to the target contract. We use SafeCall because we don't
-        // care about the returndata and we don't want target contracts to be able to force this
-        // call to run out of gas via a returndata bomb.
-        bool success = SafeCall.call(
-            _tx.target,
-            gasleft() - FINALIZE_GAS_BUFFER,
-            _tx.value,
-            _tx.data
-        );
+        // Trigger the call to the target contract. We use a custom low level method
+        // SafeCall.callWithMinGas to ensure two key properties
+        //   1. Target contracts cannot force this call to run out of gas by returning a very large
+        //      amount of data (and this is OK because we don't care about the returndata here).
+        //   2. The amount of gas provided to the call to the target contract is at least the gas
+        //      limit specified by the user. If there is not enough gas in the callframe to
+        //      accomplish this, `callWithMinGas` will revert.
+        // Additionally, if there is not enough gas remaining to complete the execution after the
+        // call returns, this function will revert.
+        bool success = SafeCall.callWithMinGas(_tx.target, _tx.gasLimit, _tx.value, _tx.data);
 
         // Reset the l2Sender back to the default value.
         l2Sender = Constants.DEFAULT_L2_SENDER;
@@ -371,6 +438,9 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
             );
         }
 
+        // Prevent depositing transactions that have too small of a gas limit.
+        require(_gasLimit >= 21_000, "OptimismPortal: gas limit must cover instrinsic gas cost");
+
         // Transform the from-address to its alias if the caller is a contract.
         address from = msg.sender;
         if (msg.sender != tx.origin) {
@@ -413,6 +483,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      * @return Whether or not the finalization period has elapsed.
      */
     function _isFinalizationPeriodElapsed(uint256 _timestamp) internal view returns (bool) {
-        return block.timestamp > _timestamp + FINALIZATION_PERIOD_SECONDS;
+        return block.timestamp > _timestamp + L2_ORACLE.FINALIZATION_PERIOD_SECONDS();
     }
 }

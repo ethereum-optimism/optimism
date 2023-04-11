@@ -5,8 +5,10 @@
 **Table of Contents**
 
 - [Gas Stipend](#gas-stipend)
+- [Default Values](#default-values)
 - [Limiting Guaranteed Gas](#limiting-guaranteed-gas)
 - [Rationale for burning L1 Gas](#rationale-for-burning-l1-gas)
+- [On Preventing Griefing Attacks](#on-preventing-griefing-attacks)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -35,6 +37,17 @@ To offset the gas spent on the deposit event, we credit `gas spent * L1 basefee`
 the L2 gas, where `gas spent` is the amount of L1 gas spent processing the deposit. If the ETH value
 of this credit is greater than the ETH value of the requested guaranteed gas
 (`requested guaranteed gas * L2 gas price`), no L1 gas is burnt.
+
+## Default Values
+
+| Variable                        | Value             |
+| ------------------------------- | ----------------- |
+| Max Resource Limit              | 20,000,000        |
+| Elasticity Multiplier           | 10                |
+| Base Fee Max Change Denominator | 8                 |
+| Minimum Base Fee                | 1 gwei            |
+| Maximum Base Fee                | type(uint128).max |
+| System Tx Max Gas               | 1,000,000         |
 
 ## Limiting Guaranteed Gas
 
@@ -123,3 +136,20 @@ The payable version (Option 2) will likely have discount applied to it (or conve
 premium applied to it).
 
 For the initial release of bedrock, only #1 is supported.
+
+## On Preventing Griefing Attacks
+
+The cost of purchasing all of the deposit gas in every block must be expensive
+enough to prevent attackers from griefing all deposits to the network.
+An attacker would observe a deposit in the mempool and frontrun it with a deposit
+that purchases enough gas such that the other deposit reverts.
+The smaller the max resource limit is, the easier this attack is to pull off.
+This attack is mitigated by having a large resource limit as well as a large
+elastcity multiplier. This means that the target resource usage is kept small,
+giving a lot of room for the deposit base fee to rise when the max resource limit
+is being purchased.
+
+This attack should be too expensive to pull off in practice, but if an extremely
+wealthy adversary does decide to grief network deposits for an extended period
+of time, efforts will be placed to ensure that deposits are able to be processed
+on the network.

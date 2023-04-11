@@ -10,17 +10,6 @@ import { Types } from "../libraries/Types.sol";
 contract L2OutputOracleTest is L2OutputOracle_Initializer {
     bytes32 proposedOutput1 = keccak256(abi.encode(1));
 
-    event OutputProposed(
-        bytes32 indexed outputRoot,
-        uint256 indexed l2OutputIndex,
-        uint256 indexed l2BlockNumber,
-        uint256 l1Timestamp
-    );
-
-    function setUp() public override {
-        super.setUp();
-    }
-
     function test_constructor_succeeds() external {
         assertEq(oracle.PROPOSER(), proposer);
         assertEq(oracle.CHALLENGER(), owner);
@@ -33,15 +22,52 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     function test_constructor_badTimestamp_reverts() external {
         vm.expectRevert("L2OutputOracle: starting L2 timestamp must be less than current time");
 
-        new L2OutputOracle(
-            submissionInterval,
-            l2BlockTime,
-            startingBlockNumber,
-            // startingTimestamp is in the future
-            block.timestamp + 1,
-            proposer,
-            owner
-        );
+        // startingTimestamp is in the future
+        new L2OutputOracle({
+            _submissionInterval: submissionInterval,
+            _l2BlockTime: l2BlockTime,
+            _startingBlockNumber: startingBlockNumber,
+            _startingTimestamp: block.timestamp + 1,
+            _proposer: proposer,
+            _challenger: owner,
+            _finalizationPeriodSeconds: 7 days
+        });
+    }
+
+    function test_constructor_l2BlockTimeZero_reverts() external {
+        vm.expectRevert("L2OutputOracle: L2 block time must be greater than 0");
+        new L2OutputOracle({
+            _submissionInterval: submissionInterval,
+            _l2BlockTime: 0,
+            _startingBlockNumber: startingBlockNumber,
+            _startingTimestamp: block.timestamp,
+            _proposer: proposer,
+            _challenger: owner,
+            _finalizationPeriodSeconds: 7 days
+        });
+    }
+
+    function testFuzz_constructor_submissionIntervalLteL2BlockTime_reverts(
+        uint256 _submissionInterval,
+        uint256 _l2BlockTime
+    ) external {
+        // Bound the _l2blockTime to be in the range of [1, type(uint256).max]
+        _l2BlockTime = bound(_l2BlockTime, 1, type(uint256).max);
+        // Roll the block number to _l2blockTime (the starting L2 timestamp must be less than or equal to the current time)
+        vm.roll(_l2BlockTime);
+        // Bound _submissionInterval to be less than or equal to _l2BlockTime
+        _submissionInterval = bound(_submissionInterval, 0, _l2BlockTime);
+
+        vm.expectRevert("L2OutputOracle: submission interval must be greater than L2 block time");
+        new L2OutputOracle({
+            _submissionInterval: _submissionInterval,
+            _l2BlockTime: _l2BlockTime,
+            _startingBlockNumber: startingBlockNumber,
+            _startingTimestamp: block.timestamp,
+            _proposer: proposer,
+            _challenger: owner,
+            _finalizationPeriodSeconds: 7 days
+        });
     }
 
     /****************
@@ -301,8 +327,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
      * Delete Tests - Happy Path *
      *****************************/
 
-    event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
-
     function test_deleteOutputs_singleOutput_succeeds() external {
         test_proposeL2Output_proposeAnotherOutput_succeeds();
         test_proposeL2Output_proposeAnotherOutput_succeeds();
@@ -389,6 +413,20 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         vm.prank(owner);
         vm.expectRevert("L2OutputOracle: cannot delete outputs after the latest output index");
         oracle.deleteL2Outputs(latestOutputIndex - 2);
+    }
+
+    function test_deleteL2Outputs_finalized_reverts() external {
+        test_proposeL2Output_proposeAnotherOutput_succeeds();
+
+        // Warp past the finalization period + 1 second
+        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+
+        uint256 latestOutputIndex = oracle.latestOutputIndex();
+
+        // Try to delete a finalized output
+        vm.prank(owner);
+        vm.expectRevert("L2OutputOracle: cannot delete outputs that have already been finalized");
+        oracle.deleteL2Outputs(latestOutputIndex);
     }
 }
 

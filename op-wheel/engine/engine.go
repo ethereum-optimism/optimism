@@ -6,9 +6,9 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/beacon"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
@@ -67,8 +67,8 @@ func headSafeFinalized(ctx context.Context, client client.RPC) (head *types.Bloc
 	return head, safe, finalized, nil
 }
 
-func insertBlock(ctx context.Context, client client.RPC, payload *beacon.ExecutableDataV1) error {
-	var payloadResult *beacon.PayloadStatusV1
+func insertBlock(ctx context.Context, client client.RPC, payload *engine.ExecutableData) error {
+	var payloadResult *engine.PayloadStatusV1
 	if err := client.CallContext(ctx, &payloadResult, "engine_newPayloadV1", payload); err != nil {
 		return fmt.Errorf("failed to insert block %d: %w", payload.Number, err)
 	}
@@ -79,9 +79,9 @@ func insertBlock(ctx context.Context, client client.RPC, payload *beacon.Executa
 }
 
 func updateForkchoice(ctx context.Context, client client.RPC, head, safe, finalized common.Hash) error {
-	var post beacon.ForkChoiceResponse
+	var post engine.ForkChoiceResponse
 	if err := client.CallContext(ctx, &post, "engine_forkchoiceUpdatedV1",
-		beacon.ForkchoiceStateV1{
+		engine.ForkchoiceStateV1{
 			HeadBlockHash:      head,
 			SafeBlockHash:      safe,
 			FinalizedBlockHash: finalized,
@@ -95,21 +95,30 @@ func updateForkchoice(ctx context.Context, client client.RPC, head, safe, finali
 }
 
 type BlockBuildingSettings struct {
-	BlockTime    uint64
+	BlockTime uint64
+	// skip a block; timestamps will still increase in multiples of BlockTime like L1, but there may be gaps.
+	AllowGaps    bool
 	Random       common.Hash
 	FeeRecipient common.Address
 	BuildTime    time.Duration
 }
 
-func BuildBlock(ctx context.Context, client client.RPC, status *StatusData, settings *BlockBuildingSettings) (*beacon.ExecutableDataV1, error) {
-	var pre beacon.ForkChoiceResponse
+func BuildBlock(ctx context.Context, client client.RPC, status *StatusData, settings *BlockBuildingSettings) (*engine.ExecutableData, error) {
+	timestamp := status.Head.Time + settings.BlockTime
+	if settings.AllowGaps {
+		now := uint64(time.Now().Unix())
+		if now > timestamp {
+			timestamp = now - ((now - timestamp) % settings.BlockTime)
+		}
+	}
+	var pre engine.ForkChoiceResponse
 	if err := client.CallContext(ctx, &pre, "engine_forkchoiceUpdatedV1",
-		beacon.ForkchoiceStateV1{
+		engine.ForkchoiceStateV1{
 			HeadBlockHash:      status.Head.Hash,
 			SafeBlockHash:      status.Safe.Hash,
 			FinalizedBlockHash: status.Finalized.Hash,
-		}, beacon.PayloadAttributesV1{
-			Timestamp:             status.Head.Time + settings.BlockTime,
+		}, engine.PayloadAttributes{
+			Timestamp:             timestamp,
 			Random:                settings.Random,
 			SuggestedFeeRecipient: settings.FeeRecipient,
 			// TODO: maybe use the L2 fields to hack in tx embedding CLI option?
@@ -130,7 +139,7 @@ func BuildBlock(ctx context.Context, client client.RPC, status *StatusData, sett
 	case <-time.After(settings.BuildTime):
 	}
 
-	var payload *beacon.ExecutableDataV1
+	var payload *engine.ExecutableData
 	if err := client.CallContext(ctx, &payload, "engine_getPayloadV1", pre.PayloadID); err != nil {
 		return nil, fmt.Errorf("failed to get payload %v, %d time after instructing engine to build it: %w", pre.PayloadID, settings.BuildTime, err)
 	}
@@ -149,7 +158,7 @@ func Auto(ctx context.Context, metrics Metricer, client client.RPC, log log.Logg
 	ticker := time.NewTicker(time.Millisecond * 100)
 	defer ticker.Stop()
 
-	var lastPayload *beacon.ExecutableDataV1
+	var lastPayload *engine.ExecutableData
 	var buildErr error
 	for {
 		select {
@@ -210,6 +219,7 @@ func Auto(ctx context.Context, metrics Metricer, client client.RPC, log log.Logg
 
 				payload, err := BuildBlock(ctx, client, status, &BlockBuildingSettings{
 					BlockTime:    settings.BlockTime,
+					AllowGaps:    settings.AllowGaps,
 					Random:       settings.Random,
 					FeeRecipient: settings.FeeRecipient,
 					BuildTime:    buildTime,
@@ -264,10 +274,11 @@ func Copy(ctx context.Context, copyFrom client.RPC, copyTo client.RPC) error {
 	if err != nil {
 		return err
 	}
-	payload := beacon.BlockToExecutableData(copyHead)
+	payloadEnv := engine.BlockToExecutableData(copyHead, nil)
 	if err := updateForkchoice(ctx, copyTo, copyHead.ParentHash(), copySafe.Hash(), copyFinalized.Hash()); err != nil {
 		return err
 	}
+	payload := payloadEnv.ExecutionPayload
 	if err := insertBlock(ctx, copyTo, payload); err != nil {
 		return err
 	}

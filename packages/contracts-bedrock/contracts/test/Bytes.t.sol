@@ -122,6 +122,63 @@ contract Bytes_slice_Test is Test {
         vm.expectRevert("slice_overflow");
         Bytes.slice(_input, _start, _length);
     }
+
+    /**
+     * @notice Tests that the `slice` function correctly updates the free memory pointer depending
+     *         on the length of the slice.
+     */
+    function testFuzz_slice_memorySafety_succeeds(
+        bytes memory _input,
+        uint256 _start,
+        uint256 _length
+    ) public {
+        // The start should never be more than the length of the input bytes array - 1
+        vm.assume(_start < _input.length);
+        // The length should never be more than the length of the input bytes array - the starting
+        // slice index.
+        vm.assume(_length <= _input.length - _start);
+
+        // Grab the free memory pointer before the slice operation
+        uint64 initPtr;
+        assembly {
+            initPtr := mload(0x40)
+        }
+        uint64 expectedPtr = uint64(initPtr + 0x20 + ((_length + 0x1f) & ~uint256(0x1f)));
+
+        // Ensure that all memory outside of the expected range is safe.
+        vm.expectSafeMemory(initPtr, expectedPtr);
+
+        // Slice the input bytes array from `_start` to `_start + _length`
+        bytes memory slice = Bytes.slice(_input, _start, _length);
+
+        // Grab the free memory pointer after the slice operation
+        uint64 finalPtr;
+        assembly {
+            finalPtr := mload(0x40)
+        }
+
+        // The free memory pointer should have been updated properly
+        if (_length == 0) {
+            // If the slice length is zero, only 32 bytes of memory should have been allocated.
+            assertEq(finalPtr, initPtr + 0x20);
+        } else {
+            // If the slice length is greater than zero, the memory allocated should be the
+            // length of the slice rounded up to the next 32 byte word + 32 bytes for the
+            // length of the byte array.
+            //
+            // Note that we use a slightly less efficient, but equivalent method of rounding
+            // up `_length` to the next multiple of 32 than is used in the `slice` function.
+            // This is to diff test the method used in `slice`.
+            uint64 _expectedPtr = uint64(initPtr + 0x20 + (((_length + 0x1F) >> 5) << 5));
+            assertEq(finalPtr, _expectedPtr);
+
+            // Sanity check for equivalence of the rounding methods.
+            assertEq(_expectedPtr, expectedPtr);
+        }
+
+        // The slice length should be equal to `_length`
+        assertEq(slice.length, _length);
+    }
 }
 
 contract Bytes_toNibbles_Test is Test {

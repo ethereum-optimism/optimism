@@ -62,7 +62,7 @@ address-manager-bindings: compile
 
 boba-l1-bindings: compile
 	./gen_bindings.sh contracts/boba/BOBA.sol:BOBA $(pkg)
-	
+
 boba-turing-credit-bindings: compile
 	./gen_bindings.sh contracts/boba/BobaTuringCredit.sol:BobaTuringCredit $(pkg)
 

@@ -67,7 +67,8 @@ func (res *AccountResult) Verify(stateRoot common.Hash) error {
 		return fmt.Errorf("failed to encode account from retrieved values: %w", err)
 	}
 	log.Info("MMDBG account_proof Verify", "claimedValue", hexutil.Bytes(accountClaimedValue))
-	
+
+	// create a db with all account trie nodes
 	db := memorydb.New()
 	for i, encodedNode := range res.AccountProof {
 		nodeKey := encodedNode
