@@ -1,13 +1,10 @@
 import { DeployConfig } from '../src/deploy-config'
 
-// NOTE: The 'mainnet' network is currently being used for bedrock migration rehearsals.
-// The system configured below is not yet live on mainnet, and many of the addresses used are
-// unsafe for a production system.
 const config: DeployConfig = {
-  finalSystemOwner: '0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A',
-  controller: '0x78339d822c23d943e4a2d4c3dd5408f66e6d662d',
-  portalGuardian: '0x78339d822c23d943e4a2d4c3dd5408f66e6d662d',
-  proxyAdminOwner: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
+  finalSystemOwner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+  controller: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+  portalGuardian: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+  proxyAdminOwner: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
 
   l1StartingBlockTag:
     '0x126e52a0cc0ae18948f567ee9443f4a8f0db67c437706e35baee424eb314a0d0',
@@ -37,7 +34,7 @@ const config: DeployConfig = {
   governanceTokenSymbol: 'OP',
   governanceTokenOwner: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
 
-  l2GenesisBlockGasLimit: '0x1c9c380',
+  l2GenesisBlockGasLimit: '0x17D7840',
   l2GenesisBlockCoinbase: '0x4200000000000000000000000000000000000011',
   l2GenesisBlockBaseFeePerGas: '0x3b9aca00',
 

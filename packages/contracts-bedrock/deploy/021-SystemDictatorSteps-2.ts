@@ -15,6 +15,7 @@ import {
   doStep,
   printTenderlySimulationLink,
   printCastCommand,
+  liveDeployer,
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -82,8 +83,12 @@ const deployFn: DeployFunction = async (hre) => {
   ])
 
   // If we have the key for the controller then we don't need to wait for external txns.
-  const isLiveDeployer =
-    deployer.toLowerCase() === hre.deployConfig.controller.toLowerCase()
+  // Set the DISABLE_LIVE_DEPLOYER=true in the env to ensure the script will pause to simulate scenarios
+  // where the controller is not the deployer.
+  const isLiveDeployer = await liveDeployer({
+    hre,
+    disabled: process.env.DISABLE_LIVE_DEPLOYER,
+  })
 
   // Step 3 clears out some state from the AddressManager.
   await doStep({
