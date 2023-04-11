@@ -100,7 +100,7 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "1 if the op-batcher has finished starting up",
 		}),
 
-		ChannelEvs: opmetrics.NewEventVec(factory, ns, "channel", "Channel", []string{"stage"}),
+		ChannelEvs: opmetrics.NewEventVec(factory, ns, "", "channel", "Channel", []string{"stage"}),
 
 		PendingBlocksCount: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -145,7 +145,7 @@ func NewMetrics(procName string) *Metrics {
 			Buckets:   append([]float64{0.1, 0.2}, prometheus.LinearBuckets(0.3, 0.05, 14)...),
 		}),
 
-		BatcherTxEvs: opmetrics.NewEventVec(factory, ns, "batcher_tx", "BatcherTx", []string{"stage"}),
+		BatcherTxEvs: opmetrics.NewEventVec(factory, ns, "", "batcher_tx", "BatcherTx", []string{"stage"}),
 	}
 }
 
