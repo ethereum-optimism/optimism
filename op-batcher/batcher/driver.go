@@ -212,13 +212,15 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context) {
 		latestBlock = block
 	}
 
-	l2ref, err := derive.L2BlockToBlockRef(latestBlock, &l.Rollup.Genesis)
-	if err != nil {
-		l.log.Warn("Invalid L2 block loaded into state", "err", err)
-		return
-	}
+	if latestBlock != nil {
+		l2ref, err := derive.L2BlockToBlockRef(latestBlock, &l.Rollup.Genesis)
+		if err != nil {
+			l.log.Warn("Invalid L2 block loaded into state", "err", err)
+			return
+		}
 
-	l.metr.RecordL2BlocksLoaded(l2ref)
+		l.metr.RecordL2BlocksLoaded(l2ref)
+	}
 }
 
 // loadBlockIntoState fetches & stores a single block into `state`. It returns the block it loaded.
