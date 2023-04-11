@@ -1,5 +1,11 @@
 # @eth-optimism/replica-healthcheck
 
+## 1.2.4
+
+### Patch Changes
+
+- dbe5eb308: Empty patch release to re-release packages that failed to be released by a bug in the release process.
+
 ## 1.2.3
 
 ### Patch Changes

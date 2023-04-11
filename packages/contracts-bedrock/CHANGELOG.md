@@ -1,5 +1,13 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.13.2
+
+### Patch Changes
+
+- b16067a9f: Reduce the time that the system dictator deploy scripts wait before checking the chain state.
+- 9a02079eb: Makes the Proxy contract inheritable by making functions (public virtual).
+- 98fbe9d22: Added a contsructor to the System Dictator
+
 ## 0.13.1
 
 ### Patch Changes
