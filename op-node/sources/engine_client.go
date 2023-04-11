@@ -105,7 +105,6 @@ func (s *EngineClient) GetPayload(ctx context.Context, payloadId eth.PayloadID) 
 	e := s.log.New("payload_id", payloadId)
 	e.Trace("getting payload")
 	var result eth.ExecutionPayload
-
 	err := s.client.CallContext(ctx, &result, "engine_getPayloadV1", payloadId)
 	if err != nil {
 		e.Warn("Failed to get payload", "payload_id", payloadId, "err", err)

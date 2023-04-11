@@ -100,6 +100,7 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*et
 	if head == nil {
 		return nil, ethereum.NotFound
 	}
+
 	proof, err := n.client.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, ref.Hash.String())
 	n.log.Info("MMDBG GetProof for", "block", number, "err", err, "proof", proof)
 	if err != nil {
