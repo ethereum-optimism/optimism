@@ -63,9 +63,9 @@ func TestNodeByHash(t *testing.T) {
 		}
 		fetcher := newFetcher(nil, stub)
 
-		node, err := fetcher.NodeByHash(hash)
-		require.ErrorIs(t, err, stub.nextErr)
-		require.Nil(t, node)
+		require.Panics(t, func() {
+			fetcher.NodeByHash(hash)
+		})
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -75,8 +75,7 @@ func TestNodeByHash(t *testing.T) {
 		}
 		fetcher := newFetcher(nil, stub)
 
-		node, err := fetcher.NodeByHash(hash)
-		require.NoError(t, err)
+		node := fetcher.NodeByHash(hash)
 		require.EqualValues(t, expected, node)
 	})
 
@@ -86,7 +85,7 @@ func TestNodeByHash(t *testing.T) {
 		}
 		fetcher := newFetcher(nil, stub)
 
-		_, _ = fetcher.NodeByHash(hash)
+		fetcher.NodeByHash(hash)
 		require.Len(t, stub.requests, 1, "should make single request")
 		req := stub.requests[0]
 		require.Equal(t, "debug_dbGet", req.method)
@@ -104,9 +103,7 @@ func TestCodeByHash(t *testing.T) {
 		}
 		fetcher := newFetcher(nil, stub)
 
-		node, err := fetcher.CodeByHash(hash)
-		require.ErrorIs(t, err, stub.nextErr)
-		require.Nil(t, node)
+		require.Panics(t, func() { fetcher.CodeByHash(hash) })
 	})
 
 	t.Run("Success", func(t *testing.T) {
@@ -116,8 +113,7 @@ func TestCodeByHash(t *testing.T) {
 		}
 		fetcher := newFetcher(nil, stub)
 
-		node, err := fetcher.CodeByHash(hash)
-		require.NoError(t, err)
+		node := fetcher.CodeByHash(hash)
 		require.EqualValues(t, expected, node)
 	})
 
@@ -127,7 +123,7 @@ func TestCodeByHash(t *testing.T) {
 		}
 		fetcher := newFetcher(nil, stub)
 
-		_, _ = fetcher.CodeByHash(hash)
+		fetcher.CodeByHash(hash)
 		require.Len(t, stub.requests, 1, "should make single request")
 		req := stub.requests[0]
 		require.Equal(t, "debug_dbGet", req.method)
@@ -141,7 +137,8 @@ func TestCodeByHash(t *testing.T) {
 		}
 		fetcher := newFetcher(nil, stub)
 
-		_, _ = fetcher.CodeByHash(hash)
+		// Panics because the code can't be found with or without the prefix
+		require.Panics(t, func() { fetcher.CodeByHash(hash) })
 		require.Len(t, stub.requests, 2, "should request with and without prefix")
 		req := stub.requests[0]
 		require.Equal(t, "debug_dbGet", req.method)
@@ -183,8 +180,7 @@ func TestBlockByHash(t *testing.T) {
 		stub := &stubBlockSource{nextResult: block}
 		fetcher := newFetcher(stub, nil)
 
-		res, err := fetcher.BlockByHash(hash)
-		require.NoError(t, err)
+		res := fetcher.BlockByHash(hash)
 		require.Same(t, block, res)
 	})
 
@@ -192,16 +188,16 @@ func TestBlockByHash(t *testing.T) {
 		stub := &stubBlockSource{nextErr: errors.New("boom")}
 		fetcher := newFetcher(stub, nil)
 
-		res, err := fetcher.BlockByHash(hash)
-		require.ErrorIs(t, err, stub.nextErr)
-		require.Nil(t, res)
+		require.Panics(t, func() {
+			fetcher.BlockByHash(hash)
+		})
 	})
 
 	t.Run("RequestArgs", func(t *testing.T) {
 		stub := &stubBlockSource{}
 		fetcher := newFetcher(stub, nil)
 
-		_, _ = fetcher.BlockByHash(hash)
+		fetcher.BlockByHash(hash)
 
 		require.Len(t, stub.requests, 1, "should make single request")
 		req := stub.requests[0]
