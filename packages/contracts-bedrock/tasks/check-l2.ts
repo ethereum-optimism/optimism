@@ -245,7 +245,7 @@ const check = {
     await assertSemver(
       L2CrossDomainMessenger,
       'L2CrossDomainMessenger',
-      '1.3.0'
+      '1.3.1'
     )
 
     const xDomainMessageSenderSlot = await signer.provider.getStorageAt(
