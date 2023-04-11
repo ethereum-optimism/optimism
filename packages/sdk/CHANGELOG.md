@@ -1,5 +1,15 @@
 # @eth-optimism/sdk
 
+## 2.0.2
+
+### Patch Changes
+
+- be3315689: Have SDK automatically create Standard and ETH bridges when L1StandardBridge is provided.
+- Updated dependencies [b16067a9f]
+- Updated dependencies [9a02079eb]
+- Updated dependencies [98fbe9d22]
+  - @eth-optimism/contracts-bedrock@0.13.2
+
 ## 2.0.1
 
 ### Patch Changes

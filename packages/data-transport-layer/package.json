@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/data-transport-layer",
-  "version": "0.5.54",
+  "version": "0.5.55",
   "description": "[Optimism] Service for shuttling data from L1 into L2",
   "main": "dist/index",
   "types": "dist/index",
