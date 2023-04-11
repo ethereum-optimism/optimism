@@ -17,6 +17,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 )
 
+type attributesWithParent struct {
+	attributes *eth.PayloadAttributes
+	parent     eth.L2BlockRef
+}
+
 type NextAttributesProvider interface {
 	Origin() eth.L1BlockRef
 	NextAttributes(context.Context, eth.L2BlockRef) (*eth.PayloadAttributes, error)
@@ -105,9 +110,8 @@ type EngineQueue struct {
 	finalizedL1 eth.L1BlockRef
 
 	// The queued-up attributes
-	safeAttributesParent eth.L2BlockRef
-	safeAttributes       *eth.PayloadAttributes
-	unsafePayloads       *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
+	safeAttributes *attributesWithParent
+	unsafePayloads *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
 
 	// Tracks which L2 blocks where last derived from which L1 block. At most finalityLookback large.
 	finalityData []FinalityData
@@ -222,9 +226,11 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 	} else if err != nil {
 		return err
 	} else {
-		eq.safeAttributes = next
-		eq.safeAttributesParent = eq.safeHead
-		eq.log.Debug("Adding next safe attributes", "safe_head", eq.safeHead, "next", eq.safeAttributes)
+		eq.safeAttributes = &attributesWithParent{
+			attributes: next,
+			parent:     eq.safeHead,
+		}
+		eq.log.Debug("Adding next safe attributes", "safe_head", eq.safeHead, "next", next)
 		return NotEnoughData
 	}
 
@@ -430,15 +436,17 @@ func (eq *EngineQueue) tryNextSafeAttributes(ctx context.Context) error {
 		return nil
 	}
 	// validate the safe attributes before processing them. The engine may have completed processing them through other means.
-	if eq.safeHead != eq.safeAttributesParent {
-		if eq.safeHead.ParentHash != eq.safeAttributesParent.Hash {
+	if eq.safeHead != eq.safeAttributes.parent {
+		// TODO: when is this condition true? It appears to be so in tests, but shouldn't be true otherwise.
+		if eq.safeHead.ParentHash != eq.safeAttributes.parent.Hash {
 			return NewResetError(fmt.Errorf("safe head changed to %s with parent %s, conflicting with queued safe attributes on top of %s",
-				eq.safeHead, eq.safeHead.ParentID(), eq.safeAttributesParent))
+				eq.safeHead, eq.safeHead.ParentID(), eq.safeAttributes.parent))
 		}
-		eq.log.Warn("queued safe attributes are stale, safe-head progressed",
-			"safe_head", eq.safeHead, "safe_head_parent", eq.safeHead.ParentID(), "attributes_parent", eq.safeAttributesParent)
+		eq.log.Warn("queued safe attributes are stale, safehead progressed",
+			"safe_head", eq.safeHead, "safe_head_parent", eq.safeHead.ParentID(), "attributes_parent", eq.safeAttributes.parent)
 		eq.safeAttributes = nil
 		return nil
+
 	}
 	if eq.safeHead.Number < eq.unsafeHead.Number {
 		return eq.consolidateNextSafeAttributes(ctx)
@@ -468,7 +476,7 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 		}
 		return NewTemporaryError(fmt.Errorf("failed to get existing unsafe payload to compare against derived attributes from L1: %w", err))
 	}
-	if err := AttributesMatchBlock(eq.safeAttributes, eq.safeHead.Hash, payload, eq.log); err != nil {
+	if err := AttributesMatchBlock(eq.safeAttributes.attributes, eq.safeHead.Hash, payload, eq.log); err != nil {
 		eq.log.Warn("L2 reorg: existing unsafe block does not match derived attributes from L1", "err", err, "unsafe", eq.unsafeHead, "safe", eq.safeHead)
 		// geth cannot wind back a chain without reorging to a new, previously non-canonical, block
 		return eq.forceNextSafeAttributes(ctx)
@@ -493,7 +501,7 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 	if eq.safeAttributes == nil {
 		return nil
 	}
-	attrs := eq.safeAttributes
+	attrs := eq.safeAttributes.attributes
 	errType, err := eq.StartPayload(ctx, eq.safeHead, attrs, true)
 	if err == nil {
 		_, errType, err = eq.ConfirmPayload(ctx)
@@ -664,7 +672,6 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	eq.log.Debug("Reset engine queue", "safeHead", safe, "unsafe", unsafe, "safe_timestamp", safe.Time, "unsafe_timestamp", unsafe.Time, "l1Origin", l1Origin)
 	eq.unsafeHead = unsafe
 	eq.safeHead = safe
-	eq.safeAttributesParent = eth.L2BlockRef{}
 	eq.safeAttributes = nil
 	eq.finalized = finalized
 	eq.resetBuildingState()
