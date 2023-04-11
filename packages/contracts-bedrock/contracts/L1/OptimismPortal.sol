@@ -78,8 +78,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
     /**
      * @notice Determines if cross domain messaging is paused. When set to true,
-     *         deposits and withdrawals are paused. This may be removed in the
-     *         future.
+     *         withdrawals are paused. This may be removed in the future.
      */
     bool public paused;
 
@@ -141,7 +140,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @custom:semver 1.3.0
+     * @custom:semver 1.3.1
      *
      * @param _l2Oracle                  Address of the L2OutputOracle contract.
      * @param _guardian                  Address that can pause deposits and withdrawals.
@@ -153,7 +152,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         address _guardian,
         bool _paused,
         SystemConfig _config
-    ) Semver(1, 3, 0) {
+    ) Semver(1, 3, 1) {
         L2_ORACLE = _l2Oracle;
         GUARDIAN = _guardian;
         SYSTEM_CONFIG = _config;

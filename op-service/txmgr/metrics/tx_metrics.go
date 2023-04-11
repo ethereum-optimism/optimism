@@ -19,7 +19,9 @@ type TxMetricer interface {
 
 type TxMetrics struct {
 	TxL1GasFee         prometheus.Gauge
+	txFees             prometheus.Counter
 	TxGasBump          prometheus.Gauge
+	txFeeHistogram     prometheus.Histogram
 	LatencyConfirmedTx prometheus.Gauge
 	currentNonce       prometheus.Gauge
 	txPublishError     *prometheus.CounterVec
@@ -48,6 +50,19 @@ func MakeTxMetrics(ns string, factory metrics.Factory) TxMetrics {
 			Name:      "tx_fee_gwei",
 			Help:      "L1 gas fee for transactions in GWEI",
 			Subsystem: "txmgr",
+		}),
+		txFees: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "tx_fee_gwei_total",
+			Help:      "Sum of fees spent for all transactions in GWEI",
+			Subsystem: "txmgr",
+		}),
+		txFeeHistogram: factory.NewHistogram(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "tx_fee_histogram_gwei",
+			Help:      "Tx Fee in GWEI",
+			Subsystem: "txmgr",
+			Buckets:   []float64{0.5, 1, 2, 5, 10, 20, 40, 60, 80, 100, 200, 400, 800, 1600},
 		}),
 		TxGasBump: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -90,8 +105,12 @@ func (t *TxMetrics) RecordNonce(nonce uint64) {
 
 // TxConfirmed records lots of information about the confirmed transaction
 func (t *TxMetrics) TxConfirmed(receipt *types.Receipt) {
+	fee := float64(receipt.EffectiveGasPrice.Uint64() * receipt.GasUsed / params.GWei)
 	t.confirmEvent.Record(receiptStatusString(receipt))
-	t.TxL1GasFee.Set(float64(receipt.EffectiveGasPrice.Uint64() * receipt.GasUsed / params.GWei))
+	t.TxL1GasFee.Set(fee)
+	t.txFees.Add(fee)
+	t.txFeeHistogram.Observe(fee)
+
 }
 
 func (t *TxMetrics) RecordGasBumpCount(times int) {
