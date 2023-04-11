@@ -20,6 +20,13 @@ type FetchingL1Oracle struct {
 	source Source
 }
 
+func NewFetchingL1Oracle(ctx context.Context, source Source) *FetchingL1Oracle {
+	return &FetchingL1Oracle{
+		ctx:    ctx,
+		source: source,
+	}
+}
+
 func (o FetchingL1Oracle) HeaderByHash(blockHash common.Hash) eth.BlockInfo {
 	info, err := o.source.InfoByHash(o.ctx, blockHash)
 	if err != nil {
