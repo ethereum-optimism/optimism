@@ -23,6 +23,9 @@ func NewMemKV() *MemKV {
 func (m *MemKV) Put(k common.Hash, v []byte) error {
 	m.Lock()
 	defer m.Unlock()
+	if _, ok := m.m[k]; ok {
+		return ErrAlreadyExists
+	}
 	m.m[k] = v
 	return nil
 }
@@ -32,7 +35,7 @@ func (m *MemKV) Get(k common.Hash) ([]byte, error) {
 	defer m.RUnlock()
 	v, ok := m.m[k]
 	if !ok {
-		return nil, NotFoundErr
+		return nil, ErrNotFound
 	}
 	return v, nil
 }

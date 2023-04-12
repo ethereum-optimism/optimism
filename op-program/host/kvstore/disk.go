@@ -30,9 +30,11 @@ func (d *DiskKV) pathKey(k common.Hash) string {
 }
 
 func (d *DiskKV) Put(k common.Hash, v []byte) error {
-	// no O_EXCL, the pre-image may already exist. It's fine to overwrite it.
-	f, err := os.OpenFile(d.pathKey(k), os.O_WRONLY|os.O_CREATE|os.O_TRUNC, diskPermission)
+	f, err := os.OpenFile(d.pathKey(k), os.O_WRONLY|os.O_CREATE|os.O_EXCL|os.O_TRUNC, diskPermission)
 	if err != nil {
+		if os.IsExist(err) {
+			return ErrAlreadyExists
+		}
 		return fmt.Errorf("failed to open new pre-image file %s: %w", k, err)
 	}
 	if _, err := f.Write([]byte(hex.EncodeToString(v))); err != nil {
@@ -49,7 +51,7 @@ func (d *DiskKV) Get(k common.Hash) ([]byte, error) {
 	f, err := os.OpenFile(d.pathKey(k), os.O_RDONLY, diskPermission)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, NotFoundErr
+			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("failed to open pre-image file %s: %w", k, err)
 	}
