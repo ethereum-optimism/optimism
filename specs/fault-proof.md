@@ -59,12 +59,10 @@ the [Program] (in the [Client](#client) role) and the [VM] (in the [Server](#ser
 The program uses the pre-image oracle to query any input data that is understood to be available to the user:
 
 - The initial inputs to bootstrap the program. See [Bootstrapping](#bootstrapping).
-- External data not already part of the program code. See [Pre-image types](#pre-image-types).
+- External data not already part of the program code. See [Pre-image hinting routes](#pre-image-hinting-routes).
 
-The communication happens over a simple request-response wire protocol:
-
-- The client initiates a request for data by writing a `bytes32` [pre-image key](#pre-image-key-types).
-- The
+The communication happens over a simple request-response wire protocol,
+see [Pre-image communcation](#pre-image-communication).
 
 ### Pre-image key types
 
@@ -82,7 +80,7 @@ enabling storage lookup optimizations and avoiding easy mistakes with invalid ze
 
 Information specific to the dispute: the remainder of the key may be an index, a string, a hash, etc.
 Only the contract(s) managing this dispute instance may serve the value for this key:
-it is localized and contex-dependent.
+it is localized and context-dependent.
 
 This type of key is used for program bootstrapping, to identify the initial input arguments by index or name.
 
@@ -105,20 +103,22 @@ Reserved. This scheme allows for unlimited application-layer pre-image types wit
 
 This is a generic version of a global key store: `key = 0x03 ++ keccak256(x, sender)[1:]`, where:
 
-- `key` is a `bytes32`, which can be a hash of an arbitrary-length type of cryptographically secure commitment.
+- `x` is a `bytes32`, which can be a hash of an arbitrary-length type of cryptographically secure commitment.
 - `sender` is a `bytes32` identifying the pre-image inserter address (left-padded to 32 bytes)
 
 This global store contract should be non-upgradeable.
 
 The global contract is permissionless: users can standardize around external contracts that verify pre-images
 (i.e. a specific `sender` will always be trusted for a specific kind of pre-image).
-The external contract the pre-image into the global store for usage by all fault proof VMs without upgrades.
+The external contract verifies the pre-image before inserting it into the global store for usage by all
+fault proof VMs without requiring the VM or global store contract to be changed.
 
 Users may standardize around upgradeable external pre-image contracts,
 in case the implementation of the verification of the pre-image is expected to change.
 
-The store update function is `update(key bytes32, offset uint64, span uint8, value bytes32)`:
+The store update function is `update(x bytes32, offset uint64, span uint8, value bytes32)`:
 
+- `x` is the `bytes32` `x` that the pre-image `key` is computed with.
 - Only part of the pre-image, starting at `offset`, and up to (incl.) 32 bytes `span` can be inserted at a time.
 - Pre-images may have an undefined length (e.g. a stream), we only need to know how many bytes of `value` are usable.
 - The key and offset will be hashed together to uniquely store the `value` and `span`, for later pre-image serving.
@@ -211,7 +211,7 @@ the pre-image starting from `offset == 0` upon `read` calls.
 
 The server may limit `read` results artificially to only a small amount of bytes at a time,
 even though the full pre-image is ready: this is expected regular IO protocol,
-and the client will just have to continue to read the small results at a timme,
+and the client will just have to continue to read the small results at a time,
 until 0 bytes are read, indicating EOF.
 This enables the server to serve e.g. at most 32 bytes at a time or align reads with VM memory structure,
 to limit the amount of VM state that changes per syscall instruction,
@@ -349,7 +349,7 @@ prepare the RLP pre-images of each of them, including transactions-list MPT node
 #### `l1-receipts <blockhash>`
 
 Requests the host to prepare the list of receipts of the L1 block with `<blockhash>`:
-prepare the RLP pre-images of each of them, including transactions-list MPT nodes.
+prepare the RLP pre-images of each of them, including receipts-list MPT nodes.
 
 #### `l2-header <blockhash>`
 
@@ -401,7 +401,7 @@ Fault Proof VMs:
 The interactive dispute game allows actors to resolve a dispute with an onchain challenge-response game
 that bisects the execution trace of the VM, bounded with a base-case that proves a VM trace step.
 
-The game is multi-player: different non-aligned actors may participate when bonded,
+The game is multi-player: different non-aligned actors may participate when bonded.
 
 Response time is allocated based on the remaining time in the branch of the tree and alignment with the claim.
 The allocated response time is limited by the dispute-game window,
