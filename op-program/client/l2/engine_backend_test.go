@@ -113,8 +113,9 @@ func TestUpdateStateDatabaseWhenImportingBlock(t *testing.T) {
 
 	require.NotEqual(t, blocks[1].Root(), newBlock.Root(), "block should have modified world state")
 
-	_, err = chain.StateAt(newBlock.Root())
-	require.Error(t, err, "state from non-imported block should not be available")
+	require.Panics(t, func() {
+		_, _ = chain.StateAt(newBlock.Root())
+	}, "state from non-imported block should not be available")
 
 	err = chain.InsertBlockWithoutSetHead(newBlock)
 	require.NoError(t, err)
@@ -223,8 +224,8 @@ func newStubBlockOracle(chain []*types.Block, db ethdb.Database) *stubBlockOracl
 	}
 }
 
-func (o stubBlockOracle) BlockByHash(blockHash common.Hash) (*types.Block, error) {
-	return o.blocks[blockHash], nil
+func (o stubBlockOracle) BlockByHash(blockHash common.Hash) *types.Block {
+	return o.blocks[blockHash]
 }
 
 func TestEngineAPITests(t *testing.T) {

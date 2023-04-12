@@ -35,10 +35,8 @@ type OracleBackedL2Chain struct {
 var _ engineapi.EngineBackend = (*OracleBackedL2Chain)(nil)
 
 func NewOracleBackedL2Chain(logger log.Logger, oracle Oracle, chainCfg *params.ChainConfig, l2Head common.Hash) (*OracleBackedL2Chain, error) {
-	head, err := oracle.BlockByHash(l2Head)
-	if err != nil {
-		return nil, fmt.Errorf("loading l2 head: %w", err)
-	}
+	head := oracle.BlockByHash(l2Head)
+	logger.Info("Loaded L2 head", "hash", head.Hash(), "number", head.Number())
 	return &OracleBackedL2Chain{
 		log:      logger,
 		oracle:   oracle,
@@ -98,10 +96,7 @@ func (o *OracleBackedL2Chain) GetBlockByHash(hash common.Hash) *types.Block {
 		return block
 	}
 	// Retrieve from the oracle
-	block, err := o.oracle.BlockByHash(hash)
-	if err != nil {
-		handleError(err)
-	}
+	block = o.oracle.BlockByHash(hash)
 	if block == nil {
 		return nil
 	}
@@ -193,8 +188,4 @@ func (o *OracleBackedL2Chain) SetFinalized(header *types.Header) {
 
 func (o *OracleBackedL2Chain) SetSafe(header *types.Header) {
 	o.safe = header
-}
-
-func handleError(err error) {
-	panic(err)
 }

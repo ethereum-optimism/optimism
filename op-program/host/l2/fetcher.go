@@ -42,19 +42,26 @@ func NewFetchingL2Oracle(ctx context.Context, logger log.Logger, l2Url string) (
 	}, nil
 }
 
-func (o *FetchingL2Oracle) NodeByHash(hash common.Hash) ([]byte, error) {
+func (o *FetchingL2Oracle) NodeByHash(hash common.Hash) []byte {
 	// MPT nodes are stored as the hash of the node (with no prefix)
-	return o.dbGet(hash.Bytes())
+	node, err := o.dbGet(hash.Bytes())
+	if err != nil {
+		panic(err)
+	}
+	return node
 }
 
-func (o *FetchingL2Oracle) CodeByHash(hash common.Hash) ([]byte, error) {
+func (o *FetchingL2Oracle) CodeByHash(hash common.Hash) []byte {
 	// First try retrieving with the new code prefix
 	code, err := o.dbGet(append(rawdb.CodePrefix, hash.Bytes()...))
 	if err != nil {
 		// Fallback to the legacy un-prefixed version
-		return o.dbGet(hash.Bytes())
+		code, err = o.dbGet(hash.Bytes())
+		if err != nil {
+			panic(err)
+		}
 	}
-	return code, nil
+	return code
 }
 
 func (o *FetchingL2Oracle) dbGet(key []byte) ([]byte, error) {
@@ -66,10 +73,10 @@ func (o *FetchingL2Oracle) dbGet(key []byte) ([]byte, error) {
 	return node, nil
 }
 
-func (o *FetchingL2Oracle) BlockByHash(blockHash common.Hash) (*types.Block, error) {
+func (o *FetchingL2Oracle) BlockByHash(blockHash common.Hash) *types.Block {
 	block, err := o.blockSource.BlockByHash(o.ctx, blockHash)
 	if err != nil {
-		return nil, fmt.Errorf("fetch block %s: %w", blockHash.Hex(), err)
+		panic(fmt.Errorf("fetch block %s: %w", blockHash.Hex(), err))
 	}
-	return block, nil
+	return block
 }

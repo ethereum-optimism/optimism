@@ -88,8 +88,8 @@ func MakeTxMetrics(ns string, factory metrics.Factory) TxMetrics {
 			Help:      "Count of publish errors. Labells are sanitized error strings",
 			Subsystem: "txmgr",
 		}, []string{"error"}),
-		confirmEvent: metrics.NewEventVec(factory, ns, "confirm", "tx confirm", []string{"status"}),
-		publishEvent: metrics.NewEvent(factory, ns, "publish", "tx publish"),
+		confirmEvent: metrics.NewEventVec(factory, ns, "txmgr", "confirm", "tx confirm", []string{"status"}),
+		publishEvent: metrics.NewEvent(factory, ns, "txmgr", "publish", "tx publish"),
 		rpcError: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      "rpc_error_count",
