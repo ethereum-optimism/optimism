@@ -20,4 +20,7 @@ type Config struct {
 	// SequencerMaxSafeLag is the maximum number of L2 blocks for restricting the distance between L2 safe and unsafe.
 	// Disabled if 0.
 	SequencerMaxSafeLag uint64 `json:"sequencer_max_safe_lag"`
+
+	// SequencerDynamic is true when the driver should automatically start/stop sequencing based on changes to the system sequencer.
+	SequencerDynamic bool `json:"sequencer_dynamic"`
 }

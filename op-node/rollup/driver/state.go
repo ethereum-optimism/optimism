@@ -290,31 +290,33 @@ func (s *Driver) eventLoop() {
 			}
 			// Now we check if the sequencer has to be started or stopped. This is determined
 			// by comparing the network's p2p signer to the system's sequencer.
-			if !s.driverConfig.SequencerEnabled {
-				s.log.Info("Skipping sequencer check", "reason", "sequencing is disabled")
-			} else {
-				// We get the network's p2p signer address
-				signerAddress, err := s.network.P2PSignerAddress()
-				if err != nil {
-					s.log.Warn("Skipping sequencer check", "reason", err)
+			if s.driverConfig.SequencerDynamic {
+				if !s.driverConfig.SequencerEnabled {
+					s.log.Info("Skipping sequencer check", "reason", "sequencing is disabled")
 				} else {
-					// The sequencer is started if the network's p2p signer address is the same as the system's sequencer
-					// address. The sequencer is stopped if the signer's address isn't the system's sequencer's.
-					s.log.Debug("Checking if we need to start/stop sequencer...")
-					l2_unsafe := s.derivation.UnsafeL2Head().Hash
-					// We get the system sequencer address from the updated runtime config
-					sequencerAddress := s.driverRunConfig.P2PSequencerAddress()
-					if *signerAddress == sequencerAddress && s.driverConfig.SequencerStopped {
-						// If the signer is the system sequencer, sequencing is started
-						s.log.Info("Sequencer has been started", "l2_unsafe", l2_unsafe.Hex(), "reason", "recognized as sequencer by the system")
-						s.driverConfig.SequencerStopped = false
-						planSequencerAction()
-					} else if *signerAddress != sequencerAddress && !s.driverConfig.SequencerStopped {
-						// If the signer isn't the system sequencer, sequencing is stopped
-						s.log.Info("Sequencer has been stopped", "l2_unsafe", l2_unsafe.Hex(), "reason", "not recognized as sequencer by the system")
-						s.driverConfig.SequencerStopped = true
+					// We get the network's p2p signer address
+					signerAddress, err := s.network.P2PSignerAddress()
+					if err != nil {
+						s.log.Warn("Skipping sequencer check", "reason", err)
 					} else {
-						s.log.Debug("No changes made to sequencer mode", "reason", "sequencer is already in the correct state")
+						// The sequencer is started if the network's p2p signer address is the same as the system's sequencer
+						// address. The sequencer is stopped if the signer's address isn't the system's sequencer's.
+						s.log.Debug("Checking if we need to start/stop sequencer...")
+						l2_unsafe := s.derivation.UnsafeL2Head().Hash
+						// We get the system sequencer address from the updated runtime config
+						sequencerAddress := s.driverRunConfig.P2PSequencerAddress()
+						if *signerAddress == sequencerAddress && s.driverConfig.SequencerStopped {
+							// If the signer is the system sequencer, sequencing is started
+							s.log.Info("Sequencer has been started", "l2_unsafe", l2_unsafe.Hex(), "reason", "recognized as sequencer by the system")
+							s.driverConfig.SequencerStopped = false
+							planSequencerAction()
+						} else if *signerAddress != sequencerAddress && !s.driverConfig.SequencerStopped {
+							// If the signer isn't the system sequencer, sequencing is stopped
+							s.log.Info("Sequencer has been stopped", "l2_unsafe", l2_unsafe.Hex(), "reason", "not recognized as sequencer by the system")
+							s.driverConfig.SequencerStopped = true
+						} else {
+							s.log.Debug("No changes made to sequencer mode", "reason", "sequencer is already in the correct state")
+						}
 					}
 				}
 			}

@@ -1647,9 +1647,9 @@ func TestStopStartBatcher(t *testing.T) {
 	require.Greater(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain did not advance after batcher was restarted")
 }
 
-// TestChangeSequencer tests that nodes react properly to a change of the system's sequencer. The initial sequecer stops when it becomes
+// TestDynamicSequencing tests that nodes react properly to a change of the system's sequencer. The initial sequecer stops when it becomes
 // aware that the system's sequencer has changed, and the new sequencer starts sequencing as soon as it becomes aware it is selected.
-func TestChangeSequencer(t *testing.T) {
+func TestDynamicSequencing(t *testing.T) {
 	parallel(t)
 
 	if !verboseGethNodes {
@@ -1661,6 +1661,10 @@ func TestChangeSequencer(t *testing.T) {
 	// Create signer for verifier using Mallory's private key
 	signerVerifier, err := p2p.NewLocalSigner(cfg.Secrets.Mallory)
 	require.Nil(t, err, "Error creating a signer for verifier")
+
+	// Enable dynamic sequencing on the sequencer and verifier
+	cfg.Nodes["sequencer"].Driver.SequencerDynamic = true
+	cfg.Nodes["verifier"].Driver.SequencerDynamic = true
 
 	// Enable sequencing on the verifier
 	cfg.Nodes["verifier"] = &rollupNode.Config{

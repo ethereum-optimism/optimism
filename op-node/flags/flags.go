@@ -132,6 +132,11 @@ var (
 		Required: false,
 		Value:    4,
 	}
+	SequencerDynamicFlag = cli.BoolFlag{
+		Name:   "sequencer.dynamic",
+		Usage:  "Automatically start/stop sequencing based on changes to the system sequencer",
+		EnvVar: prefixEnvVar("SEQUENCER_DYNAMIC"),
+	}
 	L1EpochPollIntervalFlag = cli.DurationFlag{
 		Name:     "l1.epoch-poll-interval",
 		Usage:    "Poll interval for retrieving new L1 epoch updates such as safe and finalized block changes. Disabled if 0 or negative.",
@@ -230,6 +235,7 @@ var optionalFlags = []cli.Flag{
 	SequencerStoppedFlag,
 	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
+	SequencerDynamicFlag,
 	L1EpochPollIntervalFlag,
 	RPCEnableAdmin,
 	MetricsEnabledFlag,
