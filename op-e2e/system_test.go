@@ -589,8 +589,10 @@ func TestSystemMockP2P(t *testing.T) {
 	}
 
 	cfg := DefaultSystemConfig(t)
-	// Disable batcher, so we don't sync from L1
+	// Disable batcher, so we don't sync from L1 & set a large sequence window so we only have unsafe blocks
 	cfg.DisableBatcher = true
+	cfg.DeployConfig.SequencerWindowSize = 100_000
+	cfg.DeployConfig.MaxSequencerDrift = 100_000
 	// disable at the start, so we don't miss any gossiped blocks.
 	cfg.Nodes["sequencer"].Driver.SequencerStopped = true
 

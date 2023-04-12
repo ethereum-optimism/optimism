@@ -67,10 +67,10 @@ type ETHBackend interface {
 	// NonceAt returns the account nonce of the given account.
 	// The block number can be nil, in which case the nonce is taken from the latest known block.
 	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
-	// PendingNonce returns the pending nonce.
+	// PendingNonceAt returns the pending nonce.
 	PendingNonceAt(ctx context.Context, account common.Address) (uint64, error)
-	/// EstimateGas returns an estimate of the amount of gas needed to execute the given
-	/// transaction against the current pending block.
+	// EstimateGas returns an estimate of the amount of gas needed to execute the given
+	// transaction against the current pending block.
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 }
 
