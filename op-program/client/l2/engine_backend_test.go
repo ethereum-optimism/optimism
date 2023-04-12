@@ -42,17 +42,6 @@ func TestGetBlocks(t *testing.T) {
 	}
 }
 
-func TestUnknownBlock(t *testing.T) {
-	_, chain := setupOracleBackedChain(t, 1)
-	hash := common.HexToHash("0x556677881122")
-	blockNumber := uint64(1)
-	require.Nil(t, chain.GetBlockByHash(hash))
-	require.Nil(t, chain.GetHeaderByHash(hash))
-	require.Nil(t, chain.GetBlock(hash, blockNumber))
-	require.Nil(t, chain.GetHeader(hash, blockNumber))
-	require.False(t, chain.HasBlockAndState(hash, blockNumber))
-}
-
 func TestCanonicalHashNotFoundPastChainHead(t *testing.T) {
 	blocks, chain := setupOracleBackedChainWithLowerHead(t, 5, 3)
 
@@ -69,7 +58,7 @@ func TestCanonicalHashNotFoundPastChainHead(t *testing.T) {
 func TestAppendToChain(t *testing.T) {
 	blocks, chain := setupOracleBackedChainWithLowerHead(t, 4, 3)
 	newBlock := blocks[4]
-	require.Nil(t, chain.GetBlockByHash(newBlock.Hash()), "block unknown before being added")
+	require.Nil(t, chain.GetBlock(newBlock.Hash(), newBlock.NumberU64()), "block unknown before being added")
 
 	require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock))
 	require.Equal(t, blocks[3].Header(), chain.CurrentHeader(), "should not update chain head yet")
@@ -113,9 +102,7 @@ func TestUpdateStateDatabaseWhenImportingBlock(t *testing.T) {
 
 	require.NotEqual(t, blocks[1].Root(), newBlock.Root(), "block should have modified world state")
 
-	require.Panics(t, func() {
-		_, _ = chain.StateAt(newBlock.Root())
-	}, "state from non-imported block should not be available")
+	require.False(t, chain.HasBlockAndState(newBlock.Root(), newBlock.NumberU64()), "state from non-imported block should not be available")
 
 	err = chain.InsertBlockWithoutSetHead(newBlock)
 	require.NoError(t, err)
@@ -181,7 +168,7 @@ func setupOracle(t *testing.T, blockCount int, headBlockNumber int) (*params.Cha
 	genesisBlock := l2Genesis.MustCommit(db)
 	blocks, _ := core.GenerateChain(chainCfg, genesisBlock, consensus, db, blockCount, func(i int, gen *core.BlockGen) {})
 	blocks = append([]*types.Block{genesisBlock}, blocks...)
-	oracle := newStubBlockOracle(blocks[:headBlockNumber+1], db)
+	oracle := newStubBlockOracle(t, blocks[:headBlockNumber+1], db)
 	return chainCfg, blocks, oracle
 }
 
@@ -213,23 +200,27 @@ type stubBlockOracle struct {
 	kvStateOracle
 }
 
-func newStubBlockOracle(chain []*types.Block, db ethdb.Database) *stubBlockOracle {
+func newStubBlockOracle(t *testing.T, chain []*types.Block, db ethdb.Database) *stubBlockOracle {
 	blocks := make(map[common.Hash]*types.Block, len(chain))
 	for _, block := range chain {
 		blocks[block.Hash()] = block
 	}
 	return &stubBlockOracle{
 		blocks:        blocks,
-		kvStateOracle: kvStateOracle{source: db},
+		kvStateOracle: kvStateOracle{t: t, source: db},
 	}
 }
 
 func (o stubBlockOracle) BlockByHash(blockHash common.Hash) *types.Block {
-	return o.blocks[blockHash]
+	block, ok := o.blocks[blockHash]
+	if !ok {
+		o.t.Fatalf("requested unknown block %s", blockHash)
+	}
+	return block
 }
 
 func TestEngineAPITests(t *testing.T) {
-	test.RunEngineAPITests(t, func() engineapi.EngineBackend {
+	test.RunEngineAPITests(t, func(t *testing.T) engineapi.EngineBackend {
 		_, chain := setupOracleBackedChain(t, 0)
 		return chain
 	})
