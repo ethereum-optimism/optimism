@@ -2,6 +2,7 @@ package kvstore
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -32,7 +33,7 @@ func (d *DiskKV) pathKey(k common.Hash) string {
 func (d *DiskKV) Put(k common.Hash, v []byte) error {
 	f, err := os.OpenFile(d.pathKey(k), os.O_WRONLY|os.O_CREATE|os.O_EXCL|os.O_TRUNC, diskPermission)
 	if err != nil {
-		if os.IsExist(err) {
+		if errors.Is(err, os.ErrExist) {
 			return ErrAlreadyExists
 		}
 		return fmt.Errorf("failed to open new pre-image file %s: %w", k, err)
@@ -50,7 +51,7 @@ func (d *DiskKV) Put(k common.Hash, v []byte) error {
 func (d *DiskKV) Get(k common.Hash) ([]byte, error) {
 	f, err := os.OpenFile(d.pathKey(k), os.O_RDONLY, diskPermission)
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			return nil, ErrNotFound
 		}
 		return nil, fmt.Errorf("failed to open pre-image file %s: %w", k, err)
