@@ -175,7 +175,7 @@ The following inputs are required to prove and finalize a withdrawal:
 These inputs must satisfy the following conditions:
 
 1. The `l2BlockNumber` must be the block number that corresponds to the `OutputProposal` being proven.
-1. `L2OutputOracle.getL2OutputAfter(l2BlockNumber)` returns a non-zero `OutputProposal`.
+1. `L2OutputOracle.getL2Output(l2BlockNumber)` returns a non-zero `OutputProposal`.
 1. The keccak256 hash of the `outputRootProof` values is equal to the `outputRoot`.
 1. The `withdrawalProof` is a valid inclusion proof demonstrating that a hash of the Withdrawal transaction data
    is contained in the storage of the L2ToL1MessagePasser contract on L2.
@@ -196,7 +196,7 @@ These inputs must satisfy the following conditions:
    1. It should only be possible to finalize the withdrawal once.
    1. It should not be possible to relay the message with any of its fields modified, ie.
       1. Modifying the `sender` field would enable a 'spoofing' attack.
-      1. Modifying the `target`, `message`, or `value` fields would enable an attacker to dangerously change the
+      1. Modifying the `target`, `data`, or `value` fields would enable an attacker to dangerously change the
          intended outcome of the withdrawal.
       1. Modifying the `gasLimit` could make the cost of relaying too high, or allow the relayer to cause execution
          to fail (out of gas) in the `target`.
