@@ -139,7 +139,8 @@ withdrawals:
 ```js
 interface OptimismPortal {
 
-    event WithdrawalFinalized(bytes32 indexed);
+    event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
+
 
     function l2Sender() returns(address) external;
 
