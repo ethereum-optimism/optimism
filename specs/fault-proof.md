@@ -192,7 +192,8 @@ The `<end>` trailing zero byte allows the server to block the program
 
 ### Pre-image communication
 
-Pre-images are communicated with a minimal wire-protocol over a blocking two-way stream:
+Pre-images are communicated with a minimal wire-protocol over a blocking two-way stream.
+This protocol can be implemented with blocking read/write syscalls.
 
 ```text
 <request> := <bytes32>  # the type-prefixed pre-image key
