@@ -437,15 +437,17 @@ func (eq *EngineQueue) tryNextSafeAttributes(ctx context.Context) error {
 	}
 	// validate the safe attributes before processing them. The engine may have completed processing them through other means.
 	if eq.safeHead != eq.safeAttributes.parent {
-		// TODO: when is this condition true? It appears to be so in tests, but shouldn't be true otherwise.
-		if eq.safeHead.ParentHash != eq.safeAttributes.parent.Hash {
-			return NewResetError(fmt.Errorf("safe head changed to %s with parent %s, conflicting with queued safe attributes on top of %s",
-				eq.safeHead, eq.safeHead.ParentID(), eq.safeAttributes.parent))
+		// Previously the attribute's parent was the safe head. If the safe head advances so safe head's parent is the same as the
+		// attribute's parent then we need to cancel the attributes.
+		if eq.safeHead.ParentHash == eq.safeAttributes.parent.Hash {
+			eq.log.Warn("queued safe attributes are stale, safehead progressed",
+				"safe_head", eq.safeHead, "safe_head_parent", eq.safeHead.ParentID(), "attributes_parent", eq.safeAttributes.parent)
+			eq.safeAttributes = nil
+			return nil
 		}
-		eq.log.Warn("queued safe attributes are stale, safehead progressed",
-			"safe_head", eq.safeHead, "safe_head_parent", eq.safeHead.ParentID(), "attributes_parent", eq.safeAttributes.parent)
-		eq.safeAttributes = nil
-		return nil
+		// If something other than a simple advance occurred, perform a full reset
+		return NewResetError(fmt.Errorf("safe head changed to %s with parent %s, conflicting with queued safe attributes on top of %s",
+			eq.safeHead, eq.safeHead.ParentID(), eq.safeAttributes.parent))
 
 	}
 	if eq.safeHead.Number < eq.unsafeHead.Number {
