@@ -28,7 +28,7 @@ type Queue[T any] struct {
 
 // NewQueue creates a new transaction sending Queue, with the following parameters:
 //   - maxPending: max number of pending txs at once (0 == no limit)
-//   - pendingChanged: called whenever a job starts or finishes. The
+//   - pendingChanged: called whenever a tx send starts or finishes. The
 //     number of currently pending txs is passed as a parameter.
 func NewQueue[T any](txMgr TxManager, maxPending uint64, pendingChanged func(uint64)) *Queue[T] {
 	if maxPending > math.MaxInt64 {
@@ -47,7 +47,7 @@ func NewQueue[T any](txMgr TxManager, maxPending uint64, pendingChanged func(uin
 	}
 }
 
-// Wait waits on all running jobs to stop.
+// Wait waits for all pending txs to complete (or fail).
 func (q *Queue[T]) Wait() {
 	q.wg.Wait()
 }
@@ -57,8 +57,7 @@ func (q *Queue[T]) Wait() {
 // tx does not exist. Returns the error returned from the TxFactory (if any).
 func (q *Queue[T]) Send(ctx context.Context, factory TxFactory[T], receiptCh chan TxReceipt[T]) error {
 	if q.semaphore != nil {
-		err := q.semaphore.Acquire(ctx, 1)
-		if err != nil {
+		if err := q.semaphore.Acquire(ctx, 1); err != nil {
 			return err
 		}
 	}
@@ -71,10 +70,8 @@ func (q *Queue[T]) Send(ctx context.Context, factory TxFactory[T], receiptCh cha
 // The TxFactory should return `nil` if the next tx does not exist. Returns
 // the error returned from the TxFactory (if any).
 func (q *Queue[T]) TrySend(ctx context.Context, factory TxFactory[T], receiptCh chan TxReceipt[T]) error {
-	if q.semaphore != nil {
-		if !q.semaphore.TryAcquire(1) {
-			return nil
-		}
+	if q.semaphore != nil && !q.semaphore.TryAcquire(1) {
+		return nil
 	}
 	return q.trySend(ctx, factory, receiptCh)
 }
