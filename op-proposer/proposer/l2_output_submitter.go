@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 
@@ -334,7 +335,11 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 	if err != nil {
 		return err
 	}
-	l.log.Info("proposer tx successfully published", "tx_hash", receipt.TxHash)
+	if receipt.Status == types.ReceiptStatusFailed {
+		l.log.Error("proposer tx successfully published but reverted", "tx_hash", receipt.TxHash)
+	} else {
+		l.log.Info("proposer tx successfully published", "tx_hash", receipt.TxHash)
+	}
 	return nil
 }
 

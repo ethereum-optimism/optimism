@@ -7,6 +7,7 @@ const config: DeployConfig = {
   finalSystemOwner: '0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A',
   controller: '0x78339d822c23d943e4a2d4c3dd5408f66e6d662d',
   portalGuardian: '0x78339d822c23d943e4a2d4c3dd5408f66e6d662d',
+  proxyAdminOwner: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
 
   l1StartingBlockTag:
     '0x126e52a0cc0ae18948f567ee9443f4a8f0db67c437706e35baee424eb314a0d0',
@@ -28,7 +29,6 @@ const config: DeployConfig = {
   l2OutputOracleChallenger: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
   finalizationPeriodSeconds: 2,
 
-  proxyAdminOwner: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
   baseFeeVaultRecipient: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
   l1FeeVaultRecipient: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
   sequencerFeeVaultRecipient: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
