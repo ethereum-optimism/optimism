@@ -18,8 +18,8 @@ an L2 account to an L1 account.
 more specific terms to differentiate:
 
 - A _withdrawal initiating transaction_ refers specifically to a transaction on L2 sent to the Withdrawals predeploy.
-- A _withdrawal proofing transaction_ refers specifically to an L1 transaction 
-  which proves the withdrawal is correct (that it has been included in a merkle 
+- A _withdrawal proofing transaction_ refers specifically to an L1 transaction
+  which proves the withdrawal is correct (that it has been included in a merkle
   tree whose root is available on L1).
 - A _withdrawal finalizing transaction_ refers specifically to an L1 transaction which finalizes and relays the
   withdrawal.
@@ -27,7 +27,7 @@ more specific terms to differentiate:
 Withdrawals are initiated on L2 via a call to the Message Passer predeploy contract, which records the important
 properties of the message in its storage.
 Withdrawals are proven on L1 via a call to the `OptimismPortal`, which proves the inclusion of this withdrawal message.
-Withdrawals are finalized on L1 via a call to the `OptimismPortal` contract, 
+Withdrawals are finalized on L1 via a call to the `OptimismPortal` contract,
 which verifies that the fault challenge period has passed since the withdrawal message has been proved.
 
 In this way, withdrawals are different from [deposits][g-deposits] which make use of a special transaction type in the
@@ -75,7 +75,7 @@ This is a very simple contract that stores the hash of the withdrawal data.
 1. After the withdrawal is proven, it enters a 7 day challenge period, allowing time for other network participants
    to challenge the integrity of the corresponding output root.
 1. Once the challenge period has passed, a relayer submits a withdrawal finalizing transaction once again to the
-   `OptimismPortal` contract. 
+   `OptimismPortal` contract.
    Again, the relayer is not necessarily the same entity which initiated the withdrawal on L2.
 1. The `OptimismPortal` contract receives the withdrawal transaction data and verifies that the withdrawal has
    both been proven and passed the challenge period.
