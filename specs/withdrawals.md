@@ -102,7 +102,7 @@ interface L2ToL1MessagePasser {
 
     function initiateWithdrawal(address _target, uint256 _gasLimit, bytes memory _data) payable external;
 
-    function nonce() view external returns (uint256);
+    function messageNonce() public view returns (uint256);
 
     function sentMessages(bytes32) view external returns (bool);
 }
@@ -191,7 +191,7 @@ These inputs must satisfy the following conditions:
 
    [polygon-dbl-spend]: https://gerhard-wagner.medium.com/double-spending-bug-in-polygons-plasma-bridge-2e0954ccadf1
 
-1. For each withdrawal initiated on L2 (ie. with a unique `nonce`), the following properties must hold:
+1. For each withdrawal initiated on L2 (i.e. with a unique `messageNonce()`), the following properties must hold:
    1. It should only be possible to prove the withdrawal once, unless the outputRoot for the withdrawal
       has changed.
    1. It should only be possible to finalize the withdrawal once.
