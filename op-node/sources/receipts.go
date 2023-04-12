@@ -373,7 +373,6 @@ func (job *receiptsFetchingJob) runFetcher(ctx context.Context) error {
 			job.txHashes,
 			makeReceiptRequest,
 			job.client.BatchCallContext,
-			job.client.CallContext,
 			job.maxBatchSize,
 		)
 	}
