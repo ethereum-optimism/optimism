@@ -68,7 +68,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 	deployConfig := &genesis.DeployConfig{
 		L1ChainID:   900,
 		L2ChainID:   901,
-		L2BlockTime: 1,
+		L2BlockTime: 2,
 
 		FinalizationPeriodSeconds: 60 * 60 * 24,
 		MaxSequencerDrift:         10,
@@ -165,7 +165,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			"batcher":   testlog.Logger(t, log.LvlInfo).New("role", "batcher"),
 			"proposer":  testlog.Logger(t, log.LvlInfo).New("role", "proposer"),
 		},
-		GethOptions:           map[string][]GethOption{},
+		GasCeilOverride:       map[string]uint64{},
 		P2PTopology:           nil, // no P2P connectivity by default
 		NonFinalizedProposals: false,
 		ErigonL2Nodes:         erigonL2Nodes,
@@ -198,7 +198,7 @@ type SystemConfig struct {
 	Premine         map[common.Address]*big.Int
 	Nodes           map[string]*rollupNode.Config // Per node config. Don't use populate rollup.Config
 	Loggers         map[string]log.Logger
-	GethOptions     map[string][]GethOption
+	GasCeilOverride map[string]uint64
 	ProposerLogger  log.Logger
 	BatcherLogger   log.Logger
 
@@ -220,51 +220,51 @@ type SystemConfig struct {
 }
 
 type GethInstance struct {
-       Backend *geth_eth.Ethereum
-       Node    *node.Node
+	Backend *geth_eth.Ethereum
+	Node    *node.Node
 }
 
 type EthInstance struct {
-       GethInstance   *GethInstance
-       ErigonInstance *ErigonInstance
+	GethInstance   *GethInstance
+	ErigonInstance *ErigonInstance
 }
 
 func (ei *EthInstance) Close() {
-       if ei.GethInstance != nil {
-	       ei.GethInstance.Node.Close()
-       }
-       if ei.ErigonInstance != nil {
-	       ei.ErigonInstance.Shutdown()
-       }
+	if ei.GethInstance != nil {
+		ei.GethInstance.Node.Close()
+	}
+	if ei.ErigonInstance != nil {
+		ei.ErigonInstance.Shutdown()
+	}
 }
 
 func (ei *EthInstance) WSEndpoint() string {
-       if ei.GethInstance != nil {
-	       return ei.GethInstance.Node.WSEndpoint()
-       }
-       // Erigon does HTTP and WS on the same port
-       return fmt.Sprintf("ws://127.0.0.1:%d", ei.ErigonInstance.HTTPPort)
+	if ei.GethInstance != nil {
+		return ei.GethInstance.Node.WSEndpoint()
+	}
+	// Erigon does HTTP and WS on the same port
+	return fmt.Sprintf("ws://127.0.0.1:%d", ei.ErigonInstance.HTTPPort)
 }
 
 func (ei *EthInstance) HTTPEndpoint() string {
-       if ei.GethInstance != nil {
-	       return ei.GethInstance.Node.HTTPEndpoint()
-       }
-       return fmt.Sprintf("http://127.0.0.1:%d", ei.ErigonInstance.HTTPPort)
+	if ei.GethInstance != nil {
+		return ei.GethInstance.Node.HTTPEndpoint()
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d", ei.ErigonInstance.HTTPPort)
 }
 
 func (ei *EthInstance) WSAuthEndpoint() string {
-       if ei.GethInstance != nil {
-	       return ei.GethInstance.Node.WSAuthEndpoint()
-       }
-       return fmt.Sprintf("ws://127.0.0.1:%d", ei.ErigonInstance.EnginePort)
+	if ei.GethInstance != nil {
+		return ei.GethInstance.Node.WSAuthEndpoint()
+	}
+	return fmt.Sprintf("ws://127.0.0.1:%d", ei.ErigonInstance.EnginePort)
 }
 
 func (ei *EthInstance) HTTPAuthEndpoint() string {
-       if ei.GethInstance != nil {
-	       return ei.GethInstance.Node.HTTPAuthEndpoint()
-       }
-       return fmt.Sprintf("http://127.0.0.1:%d", ei.ErigonInstance.EnginePort)
+	if ei.GethInstance != nil {
+		return ei.GethInstance.Node.HTTPAuthEndpoint()
+	}
+	return fmt.Sprintf("http://127.0.0.1:%d", ei.ErigonInstance.EnginePort)
 }
 
 type System struct {
@@ -445,7 +445,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		var gethInstance *GethInstance
 		var erigonInstance *ErigonInstance
 		if !cfg.ErigonL2Nodes {
-			node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
+			node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GasCeilOverride[name])
 			if err != nil {
 				return nil, err
 			}
@@ -459,7 +459,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 				ChainID: cfg.DeployConfig.L2ChainID,
 				Genesis: l2Genesis,
 				JWTPath: cfg.JWTFilePath,
-				//GasCeil: cfg.GasCeilOverride[name], // FIXME
+				GasCeil: cfg.GasCeilOverride[name],
 			}).Run(t)
 			erigonInstance = &ei
 		}
@@ -722,7 +722,7 @@ func configureL2(rollupNodeCfg *rollupNode.Config, l2Node *EthInstance, jwtSecre
 	}
 }
 
-// FIXME - added to support syncerL2Engine at system_test.go line 878
+// FIXME - added to support syncerL2Engine at system_test.go line 872
 func configureL2n(rollupNodeCfg *rollupNode.Config, l2Node *node.Node, jwtSecret [32]byte) {
 	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
 	l2EndpointConfig := l2Node.WSAuthEndpoint()

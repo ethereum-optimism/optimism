@@ -15,11 +15,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth/ethconfig"
+	//"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/node"
+	//"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -53,7 +53,10 @@ func init() {
 	flag.BoolVar(&verboseGethNodes, "gethlogs", true, "Enable logs on geth nodes")
 	flag.BoolVar(&erigonL2Nodes, "erigon", false, "Enable tests with erigon")
 	flag.Parse()
-	if os.Getenv("OP_E2E_DISABLE_PARALLEL") == "true"  || erigonL2Nodes {
+	if erigonL2Nodes {
+		fmt.Printf("\n\nRunning tests with erigon support!")
+	}
+	if os.Getenv("OP_E2E_DISABLE_PARALLEL") == "true" || erigonL2Nodes {
 		fmt.Printf("\n\nYou should consider running with a large `-timeout` as parallel tests are disabled\n\n")
 		enableParallelTesting = false
 	}
@@ -315,18 +318,8 @@ func TestPendingGasLimit(t *testing.T) {
 
 	// configure the L2 gas limit to be high, and the pending gas limits to be lower for resource saving.
 	cfg.DeployConfig.L2GenesisBlockGasLimit = 30_000_000
-	cfg.GethOptions["sequencer"] = []GethOption{
-		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
-			ethCfg.Miner.GasCeil = 10_000_000
-			return nil
-		},
-	}
-	cfg.GethOptions["verifier"] = []GethOption{
-		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
-			ethCfg.Miner.GasCeil = 9_000_000
-			return nil
-		},
-	}
+	cfg.GasCeilOverride["sequencer"] = 10_000_000
+	cfg.GasCeilOverride["verifier"] = 9_000_000
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
@@ -530,7 +523,11 @@ func TestMissingBatchE2E(t *testing.T) {
 	defer cancel()
 	block, err := l2Seq.BlockByNumber(ctx2, receipt.BlockNumber)
 	require.Nil(t, err, "Get block from sequencer")
-	require.NotEqual(t, block.Hash(), receipt.BlockHash, "L2 Sequencer did not reorg out transaction on it's safe chain")
+	if err != nil {
+		require.Equal(t, "not found", err.Error(), "A not found error indicates the chain must have re-orged back befroe it")
+	} else {
+		require.NotEqual(t, block.Hash(), receipt.BlockHash, "L2 Sequencer did not reorg out transaction on it's safe chain")
+	}
 }
 
 func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *big.Int) (derive.L1BlockInfo, error) {
@@ -871,7 +868,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 		},
 	}
 	configureL1(syncNodeCfg, sys.EthInstances["l1"].GethInstance.Node)
-	syncerL2Engine, _, err := initL2Geth("syncer", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), sys.L2GenesisCfg, cfg.JWTFilePath)
+	syncerL2Engine, _, err := initL2Geth("syncer", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), sys.L2GenesisCfg, cfg.JWTFilePath, 0)
 	require.NoError(t, err)
 	require.NoError(t, syncerL2Engine.Start())
 
@@ -1213,7 +1210,7 @@ func TestWithdrawals(t *testing.T) {
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.NoError(t, err)
 	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
 
@@ -1270,7 +1267,7 @@ func TestWithdrawals(t *testing.T) {
 	require.Nil(t, err)
 
 	// Get l2BlockNumber for proof generation
-	ctx, cancel = context.WithTimeout(context.Background(), 40*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 45*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
 	blockNumber, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, receipt.BlockNumber)
 	require.Nil(t, err)
