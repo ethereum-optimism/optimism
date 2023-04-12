@@ -139,12 +139,11 @@ func TestLargeL1Gaps(gt *testing.T) {
 
 	signer := types.LatestSigner(sd.L2Cfg.Config)
 	cl := sequencerEngine.EthClient()
+	aliceNonce := uint64(0) // manual nonce, avoid pending-tx nonce management, that causes flakes
 	aliceTx := func() {
-		n, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
-		require.NoError(t, err)
 		tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
 			ChainID:   sd.L2Cfg.Config.ChainID,
-			Nonce:     n,
+			Nonce:     aliceNonce,
 			GasTipCap: big.NewInt(2 * params.GWei),
 			GasFeeCap: new(big.Int).Add(miner.l1Chain.CurrentBlock().BaseFee, big.NewInt(2*params.GWei)),
 			Gas:       params.TxGas,
@@ -152,6 +151,7 @@ func TestLargeL1Gaps(gt *testing.T) {
 			Value:     e2eutils.Ether(2),
 		})
 		require.NoError(gt, cl.SendTransaction(t.Ctx(), tx))
+		aliceNonce += 1
 	}
 	makeL2BlockWithAliceTx := func() {
 		aliceTx()
