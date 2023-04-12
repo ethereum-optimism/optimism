@@ -148,7 +148,7 @@ interface OptimismPortal {
 
     function proveWithdrawalTransaction(
         Types.WithdrawalTransaction memory _tx,
-        uint256 _l2BlockNumber,
+        uint256 _l2OutputIndex,
         Types.OutputRootProof calldata _outputRootProof,
         bytes[] calldata _withdrawalProof
     ) external;
