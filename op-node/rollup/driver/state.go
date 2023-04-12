@@ -283,7 +283,11 @@ func (s *Driver) eventLoop() {
 		case newL1Head := <-s.l1HeadSig:
 			s.l1State.HandleNewL1HeadBlock(newL1Head)
 			// We update the runtime config following the new L1 head
-			s.driverRunConfig.Load(ctx, newL1Head)
+			err := s.driverRunConfig.Load(ctx, newL1Head)
+			if err != nil {
+				s.log.Error("Critical error loading the runtime config", "err", err)
+				return
+			}
 			// Now we check if the sequencer has to be started or stopped. This is determined
 			// by comparing the network's p2p signer to the system's sequencer.
 			if !s.driverConfig.SequencerEnabled {
