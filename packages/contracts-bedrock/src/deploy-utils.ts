@@ -305,18 +305,76 @@ export const getDeploymentAddress = async (
  * @param tx Ethers transaction object.
  * @returns JSON-ified transaction object.
  */
-export const jsonifyTransaction = (tx: ethers.PopulatedTransaction): string => {
-  return JSON.stringify(
-    {
-      from: tx.from,
-      to: tx.to,
-      data: tx.data,
-      value: tx.value,
-      chainId: tx.chainId,
-    },
-    null,
-    2
+export const printJsonTransaction = (tx: ethers.PopulatedTransaction): void => {
+  console.log(
+    'JSON transaction parameters:\n' +
+      JSON.stringify(
+        {
+          from: tx.from,
+          to: tx.to,
+          data: tx.data,
+          value: tx.value,
+          chainId: tx.chainId,
+        },
+        null,
+        2
+      )
   )
+}
+
+/**
+ * Mini helper for transferring a Proxy to the MSD
+ *
+ * @param opts Options for executing the step.
+ * @param opts.isLiveDeployer True if the deployer is live.
+ * @param opts.proxy proxy contract.
+ * @param opts.dictator dictator contract.
+ */
+export const doOwnershipTransfer = async (opts: {
+  isLiveDeployer?: boolean
+  proxy: ethers.Contract
+  name: string
+  transferFunc: string
+  dictator: ethers.Contract
+}): Promise<void> => {
+  if (opts.isLiveDeployer) {
+    console.log(`Setting ${opts.name} owner to MSD`)
+    await opts.proxy[opts.transferFunc](opts.dictator.address)
+  } else {
+    const tx = await opts.proxy.populateTransaction[opts.transferFunc](
+      opts.dictator.address
+    )
+    console.log(`
+    Please transfer ${opts.name} (proxy) owner to MSD
+      - ${opts.name} address: ${opts.proxy.address}
+      - MSD address: ${opts.dictator.address}
+    `)
+    printJsonTransaction(tx)
+    printCastCommand(tx)
+    await printTenderlySimulationLink(opts.dictator.provider, tx)
+  }
+}
+
+/**
+ * Check if the script should submit the transaction or wait for the deployer to do it manually.
+ *
+ * @param hre HardhatRuntimeEnvironment.
+ * @param ovveride Allow m
+ * @returns True if the current step is the target step.
+ */
+export const liveDeployer = async (opts: {
+  hre: HardhatRuntimeEnvironment
+  disabled: string | undefined
+}): Promise<boolean> => {
+  let ret: boolean
+  if (!!opts.disabled) {
+    ret = false
+  }
+  const { deployer } = await opts.hre.getNamedAccounts()
+  ret =
+    deployer.toLowerCase() === opts.hre.deployConfig.controller.toLowerCase()
+  console.log('Setting live deployer to', ret)
+  return ret
 }
 
 /**
@@ -388,11 +446,8 @@ export const doStep = async (opts: {
     ]()
     console.log(`Please execute step ${opts.step}...`)
     console.log(`MSD address: ${opts.SystemDictator.address}`)
-    console.log(`JSON:`)
-    console.log(jsonifyTransaction(tx))
-    console.log(
-      await getTenderlySimulationLink(opts.SystemDictator.provider, tx)
-    )
+    printJsonTransaction(tx)
+    await printTenderlySimulationLink(opts.SystemDictator.provider, tx)
   }
 
   // Wait for the step to complete.
@@ -444,11 +499,8 @@ export const doPhase = async (opts: {
     ]()
     console.log(`Please execute phase ${opts.phase}...`)
     console.log(`MSD address: ${opts.SystemDictator.address}`)
-    console.log(`JSON:`)
-    console.log(jsonifyTransaction(tx))
-    console.log(
-      await getTenderlySimulationLink(opts.SystemDictator.provider, tx)
-    )
+    printJsonTransaction(tx)
+    await printTenderlySimulationLink(opts.SystemDictator.provider, tx)
   }
 
   // Wait for the step to complete.
@@ -465,36 +517,38 @@ export const doPhase = async (opts: {
 }
 
 /**
- * Returns a direct link to a Tenderly simulation.
+ * Prints a direct link to a Tenderly simulation.
  *
  * @param provider Ethers Provider.
  * @param tx Ethers transaction object.
- * @returns the url of the tenderly simulation.
  */
-export const getTenderlySimulationLink = async (
+export const printTenderlySimulationLink = async (
   provider: ethers.providers.Provider,
   tx: ethers.PopulatedTransaction
-): Promise<string> => {
+): Promise<void> => {
   if (process.env.TENDERLY_PROJECT && process.env.TENDERLY_USERNAME) {
-    return `https://dashboard.tenderly.co/${process.env.TENDERLY_PROJECT}/${
-      process.env.TENDERLY_USERNAME
-    }/simulator/new?${new URLSearchParams({
-      network: (await provider.getNetwork()).chainId.toString(),
-      contractAddress: tx.to,
-      rawFunctionInput: tx.data,
-      from: tx.from,
-    }).toString()}`
+    console.log(
+      `https://dashboard.tenderly.co/${process.env.TENDERLY_PROJECT}/${
+        process.env.TENDERLY_USERNAME
+      }/simulator/new?${new URLSearchParams({
+        network: (await provider.getNetwork()).chainId.toString(),
+        contractAddress: tx.to,
+        rawFunctionInput: tx.data,
+        from: tx.from,
+      }).toString()}`
+    )
   }
 }
 
 /**
- * Returns a cast commmand for submitting a given transaction.
+ * Prints a cast commmand for submitting a given transaction.
  *
  * @param tx Ethers transaction object.
- * @returns the cast command
  */
-export const getCastCommand = (tx: ethers.PopulatedTransaction): string => {
+export const printCastCommand = (tx: ethers.PopulatedTransaction): void => {
   if (process.env.CAST_COMMANDS) {
-    return `cast send ${tx.to} ${tx.data} --from ${tx.from} --value ${tx.value}`
+    console.log(
+      `cast send ${tx.to} ${tx.data} --from ${tx.from} --value ${tx.value}`
+    )
   }
 }

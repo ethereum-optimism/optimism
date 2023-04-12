@@ -1,5 +1,5 @@
 {
-  "detectors_to_exclude": "assembly-usage,block-timestamp,naming-convention,solc-version,low-level-calls",
+  "detectors_to_exclude": "assembly-usage,block-timestamp,naming-convention,solc-version,low-level-calls,boolean-equality",
   "exclude_informational": true,
   "exclude_low": true,
   "exclude_medium": true,

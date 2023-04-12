@@ -1,5 +1,13 @@
 # @eth-optimism/fault-detector
 
+## 0.6.3
+
+### Patch Changes
+
+- dbe5eb308: Empty patch release to re-release packages that failed to be released by a bug in the release process.
+- Updated dependencies [be3315689]
+  - @eth-optimism/sdk@2.0.2
+
 ## 0.6.2
 
 ### Patch Changes

@@ -10,6 +10,7 @@ import { assertContractVariable } from '@eth-optimism/contracts-bedrock/src/depl
 import { ethers, utils } from 'ethers'
 
 import type { DeployConfig } from '../../src'
+import { setupProxyContract } from '../../src/helpers/setupProxyContract'
 
 const { getAddress } = utils
 
@@ -73,7 +74,7 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     'OptimistInviterProxy'
   )
   console.log(
-    `OptimistProxy deployed to ${Deployment__OptimistInviterProxy.address}`
+    `OptimistInviterProxy deployed to ${Deployment__OptimistInviterProxy.address}`
   )
 
   // Deployed Proxy.sol contract
@@ -88,79 +89,25 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     Deployment__OptimistInviterProxy.address
   )
 
-  // Gets the current implementation address the proxy is pointing to.
-  // callStatic is used since the `Proxy.implementation()` is not a view function and ethers will
-  // try to make a transaction if we don't use callStatic. Using the zero address as `from` lets us
-  // call functions on the proxy and not trigger the delegatecall. See Proxy.sol proxyCallIfNotAdmin
-  // modifier for more details.
-  const implementation = await Proxy.connect(
-    ethers.constants.AddressZero
-  ).callStatic.implementation()
-  console.log(`implementation set to ${implementation}`)
+  const name = deployConfig.optimistInviterName
+  // Create the calldata for the call to `initialize()`
+  const initializeCalldata = OptimistInviter.interface.encodeFunctionData(
+    'initialize',
+    [name]
+  )
 
-  if (
-    getAddress(implementation) !==
-    getAddress(Deployment__OptimistInviterImpl.address)
-  ) {
-    // If the proxy isn't pointing to the correct implementation, we need to set it to the correct
-    // one, then call initialize() in the proxy's context.
-    console.log(
-      'implementation not set to OptimistInviter implementation contract'
-    )
-    console.log(
-      `Setting implementation to ${Deployment__OptimistInviterImpl.address}`
-    )
+  // ethers.Signer for the ddd. Should be the current owner of the Proxy.
+  const dddSigner = await hre.ethers.provider.getSigner(deployer)
 
-    const name = deployConfig.optimistInviterName
-
-    // Create the calldata for the call to `initialize()`
-    const calldata = OptimistInviter.interface.encodeFunctionData(
-      'initialize',
-      [name]
-    )
-
-    // ethers.Signer for the ddd
-    const dddSigner = await hre.ethers.provider.getSigner(deployer)
-
-    // Point the proxy to the deployed OptimistInviter implementation contract,
-    // and call `initialize()` in the proxy's context
-    const tx = await Proxy.connect(dddSigner).upgradeToAndCall(
-      Deployment__OptimistInviterImpl.address,
-      calldata
-    )
-    const receipt = await tx.wait()
-    console.log(`implementation set in ${receipt.transactionHash}`)
-  } else {
-    console.log(
-      'implementation already set to OptimistInviter implementation contract'
-    )
-  }
-
+  // intended admin of the Proxy
   const l2ProxyOwnerAddress = deployConfig.l2ProxyOwnerAddress
 
-  // Get the current proxy admin address
-  const admin = await Proxy.connect(
-    ethers.constants.AddressZero
-  ).callStatic.admin()
-
-  console.log(`admin currently set to ${admin}`)
-
-  if (getAddress(admin) !== getAddress(l2ProxyOwnerAddress)) {
-    // If the proxy admin isn't the l2ProxyOwnerAddress, we need to update it
-    // We're assuming that the proxy admin is the ddd right now.
-    console.log('admin is not set to the l2ProxyOwnerAddress')
-    console.log(`Setting admin to ${l2ProxyOwnerAddress}`)
-
-    // ethers.Signer for the ddd
-    const dddSigner = await hre.ethers.provider.getSigner(deployer)
-
-    // change admin to the l2ProxyOwnerAddress
-    const tx = await Proxy.connect(dddSigner).changeAdmin(l2ProxyOwnerAddress)
-    const receipt = await tx.wait()
-    console.log(`admin set in ${receipt.transactionHash}`)
-  } else {
-    console.log('admin already set to proxy owner address')
-  }
+  // setup the Proxy contract with correct implementation and admin
+  await setupProxyContract(Proxy, dddSigner, {
+    targetImplAddress: Deployment__OptimistInviterImpl.address,
+    targetProxyOwnerAddress: l2ProxyOwnerAddress,
+    postUpgradeCallCalldata: initializeCalldata,
+  })
 
   const Deployment__AttestationStation = await hre.deployments.get(
     'AttestationStationProxy'
@@ -190,6 +137,6 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
 }
 
 deployFn.tags = ['OptimistInviterProxy', 'OptimistEnvironment']
-deployFn.dependencies = ['AttestationStationProxy', 'OptimistInviter']
+deployFn.dependencies = ['AttestationStationProxy', 'OptimistInviterImpl']
 
 export default deployFn

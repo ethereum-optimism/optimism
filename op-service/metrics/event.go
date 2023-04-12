@@ -16,17 +16,19 @@ func (e *Event) Record() {
 	e.LastTime.SetToCurrentTime()
 }
 
-func NewEvent(factory Factory, ns string, name string, displayName string) Event {
+func NewEvent(factory Factory, ns string, subsystem string, name string, displayName string) Event {
 	return Event{
 		Total: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      fmt.Sprintf("%s_total", name),
 			Help:      fmt.Sprintf("Count of %s events", displayName),
+			Subsystem: subsystem,
 		}),
 		LastTime: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      fmt.Sprintf("last_%s_unix", name),
 			Help:      fmt.Sprintf("Timestamp of last %s event", displayName),
+			Subsystem: subsystem,
 		}),
 	}
 }
@@ -41,18 +43,19 @@ func (e *EventVec) Record(lvs ...string) {
 	e.LastTime.WithLabelValues(lvs...).SetToCurrentTime()
 }
 
-func NewEventVec(factory Factory, ns string, name string, displayName string, labelNames []string) EventVec {
+func NewEventVec(factory Factory, ns string, subsystem string, name string, displayName string, labelNames []string) EventVec {
 	return EventVec{
 		Total: *factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      fmt.Sprintf("%s_total", name),
 			Help:      fmt.Sprintf("Count of %s events", displayName),
+			Subsystem: subsystem,
 		}, labelNames),
 		LastTime: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      fmt.Sprintf("last_%s_unix", name),
 			Help:      fmt.Sprintf("Timestamp of last %s event", displayName),
-		},
-			labelNames),
+			Subsystem: subsystem,
+		}, labelNames),
 	}
 }

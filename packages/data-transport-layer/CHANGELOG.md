@@ -1,5 +1,12 @@
 # data transport layer
 
+## 0.5.55
+
+### Patch Changes
+
+- b33208a8f: Add better logging to DTL about shutoff block
+- dbe5eb308: Empty patch release to re-release packages that failed to be released by a bug in the release process.
+
 ## 0.5.54
 
 ### Patch Changes
