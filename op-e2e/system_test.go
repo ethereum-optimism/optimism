@@ -1687,7 +1687,7 @@ func TestChangeSequencer(t *testing.T) {
 
 	l1Client := sys.Clients["l1"]
 
-	// We give time for the node's driver to receive and process the L1 head to update the nodes' sequencing state appropiately
+	// We give time for the nodes' drivers to receive and process the L1 head and update their respective sequencing states
 	time.Sleep(time.Duration(cfg.DeployConfig.L1BlockTime+1) * time.Second)
 
 	// Check if Sequencer's sequencer is running
@@ -1718,6 +1718,9 @@ func TestChangeSequencer(t *testing.T) {
 	receipt, err := waitForTransaction(tx.Hash(), l1Client, txTimeoutDuration)
 	require.Nil(t, err, "waiting for sysconfig set unsafe block signer tx")
 	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
+
+	// We give time for the nodes' drivers to receive and process the L1 head and update their respective sequencing states
+	time.Sleep(time.Duration(cfg.DeployConfig.L1BlockTime+1) * time.Second)
 
 	// Check if Sequencer's sequencer has stopped
 	require.True(t, sys.cfg.Nodes["sequencer"].Driver.SequencerStopped, "Sequencer's sequencer shouldn't be running")
