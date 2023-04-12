@@ -1,6 +1,8 @@
 package flags
 
 import (
+	"fmt"
+
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
@@ -17,37 +19,32 @@ const envVarPrefix = "OP_BATCHER"
 var (
 	// Required flags
 	L1EthRpcFlag = cli.StringFlag{
-		Name:     "l1-eth-rpc",
-		Usage:    "HTTP provider URL for L1",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_RPC"),
+		Name:   "l1-eth-rpc",
+		Usage:  "HTTP provider URL for L1",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_RPC"),
 	}
 	L2EthRpcFlag = cli.StringFlag{
-		Name:     "l2-eth-rpc",
-		Usage:    "HTTP provider URL for L2 execution engine",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "L2_ETH_RPC"),
+		Name:   "l2-eth-rpc",
+		Usage:  "HTTP provider URL for L2 execution engine",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L2_ETH_RPC"),
 	}
 	RollupRpcFlag = cli.StringFlag{
-		Name:     "rollup-rpc",
-		Usage:    "HTTP provider URL for Rollup node",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "ROLLUP_RPC"),
+		Name:   "rollup-rpc",
+		Usage:  "HTTP provider URL for Rollup node",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "ROLLUP_RPC"),
 	}
 	SubSafetyMarginFlag = cli.Uint64Flag{
 		Name: "sub-safety-margin",
 		Usage: "The batcher tx submission safety margin (in #L1-blocks) to subtract " +
 			"from a channel's timeout and sequencing window, to guarantee safe inclusion " +
 			"of a channel on L1.",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "SUB_SAFETY_MARGIN"),
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "SUB_SAFETY_MARGIN"),
 	}
 	PollIntervalFlag = cli.DurationFlag{
 		Name: "poll-interval",
 		Usage: "Delay between querying L2 for more transactions and " +
 			"creating a new batch",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "POLL_INTERVAL"),
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "POLL_INTERVAL"),
 	}
 
 	// Optional flags
@@ -121,3 +118,12 @@ func init() {
 
 // Flags contains the list of configuration options available to the binary.
 var Flags []cli.Flag
+
+func CheckRequired(ctx *cli.Context) error {
+	for _, f := range requiredFlags {
+		if !ctx.GlobalIsSet(f.GetName()) {
+			return fmt.Errorf("flag %s is required", f.GetName())
+		}
+	}
+	return nil
+}
