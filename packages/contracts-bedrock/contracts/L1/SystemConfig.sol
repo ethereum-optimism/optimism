@@ -80,7 +80,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /**
-     * @custom:semver 1.2.0
+     * @custom:semver 1.3.0
      *
      * @param _owner             Initial owner of the contract.
      * @param _overhead          Initial overhead value.
@@ -98,7 +98,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint64 _gasLimit,
         address _unsafeBlockSigner,
         ResourceMetering.ResourceConfig memory _config
-    ) Semver(1, 2, 0) {
+    ) Semver(1, 3, 0) {
         initialize({
             _owner: _owner,
             _overhead: _overhead,
@@ -270,7 +270,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
             "SystemConfig: min base fee must be less than max base"
         );
         // Base fee change denominator must be greater than 0.
-        require(_config.baseFeeMaxChangeDenominator > 0, "SystemConfig: denominator cannot be 0");
+        require(_config.baseFeeMaxChangeDenominator > 1, "SystemConfig: denominator must be larger than 1");
         // Max resource limit plus system tx gas must be less than or equal to the L2 gas limit.
         // The gas limit must be increased before these values can be increased.
         require(
