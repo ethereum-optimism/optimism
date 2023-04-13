@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -15,8 +16,11 @@ import (
 const diskPermission = 0666
 
 // DiskKV is a disk-backed key-value store, every key-value pair is a hex-encoded .txt file, with the value as content.
-// DiskKV is safe for concurrent use; Puts may conflict, but write the exact same data anyway.
+// DiskKV is safe for concurrent use with a single DiskKV instance.
+// DiskKV is not safe for concurrent use between different DiskKV instances of the same disk directory:
+// a Put needs to be completed before another DiskKV Get retrieves the values.
 type DiskKV struct {
+	sync.RWMutex
 	path string
 }
 
@@ -31,6 +35,8 @@ func (d *DiskKV) pathKey(k common.Hash) string {
 }
 
 func (d *DiskKV) Put(k common.Hash, v []byte) error {
+	d.Lock()
+	defer d.Unlock()
 	f, err := os.OpenFile(d.pathKey(k), os.O_WRONLY|os.O_CREATE|os.O_EXCL|os.O_TRUNC, diskPermission)
 	if err != nil {
 		if errors.Is(err, os.ErrExist) {
@@ -49,6 +55,8 @@ func (d *DiskKV) Put(k common.Hash, v []byte) error {
 }
 
 func (d *DiskKV) Get(k common.Hash) ([]byte, error) {
+	d.RLock()
+	defer d.RUnlock()
 	f, err := os.OpenFile(d.pathKey(k), os.O_RDONLY, diskPermission)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
