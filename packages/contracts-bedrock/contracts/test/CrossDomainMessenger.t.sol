@@ -24,6 +24,8 @@ contract CrossDomainMessenger_BaseGas_Test is Messenger_Initializer {
     }
 }
 
+// CrossDomainMessenger_RelayMessage_Test tests re-entrency of relayMessage where the target
+// contract re-enters into relayMessage and checks the value of xDomainMsgSender.
 contract CrossDomainMessenger_RelayMessage_Test is Messenger_Initializer {
     // Storage slot of the l2Sender
     uint256 constant senderSlotIndex = 50;
@@ -39,7 +41,7 @@ contract CrossDomainMessenger_RelayMessage_Test is Messenger_Initializer {
         xDomainMsgSenders[0] = L1Messenger.xDomainMessageSender();
 
         address target = address(this);
-        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+        address sender = address(0x1234); // Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         bytes memory callMessage = abi.encodeWithSelector(CrossDomainMessenger_RelayMessage_Test.nestedRelayMessage.selector);
 
         bytes32 hash = Hashing.hashCrossDomainMessage(
@@ -102,8 +104,9 @@ contract CrossDomainMessenger_RelayMessage_Test is Messenger_Initializer {
         assert(L1Messenger.successfulMessages(hash));
         assertEq(L1Messenger.failedMessages(hash), false);
 
+        // We now check that the xDomainMsgSender stack was correctly modified.
         assertEq(xDomainMsgSenders[0], sender);
-        assertEq(xDomainMsgSenders[1], sender);
+        assertEq(xDomainMsgSenders[1], address(0x1234));
         assertEq(xDomainMsgSenders[2], sender);
     }
 }
