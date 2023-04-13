@@ -110,7 +110,7 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
             maximumBaseFee: 2 gwei
         });
         vm.prank(sysConf.owner());
-        vm.expectRevert("SystemConfig: denominator cannot be 0");
+        vm.expectRevert("SystemConfig: denominator must be larger than 1");
         sysConf.setResourceConfig(config);
     }
 
