@@ -61,7 +61,7 @@ jobs:
   yarn-monorepo:
     docker:
       - image: ethereumoptimism/ci-builder:latest
-    resource_class: xlarge
+    resource_class: large
     steps:
       - checkout
       - check-changed:
@@ -142,7 +142,7 @@ jobs:
         default: "oplabs-tools-artifacts/images"
     machine:
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: medium
     steps:
       - checkout
       - run:
@@ -207,7 +207,7 @@ jobs:
         default: "linux/amd64"
     machine:
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: medium
     steps:
       - gcp-oidc-authenticate
       # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
@@ -261,7 +261,7 @@ jobs:
         default: "linux/amd64"
     machine:
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: medium
     steps:
       - gcp-cli/install
       - gcp-oidc-authenticate
@@ -379,7 +379,7 @@ jobs:
   contracts-bedrock-slither:
     docker:
       - image: ethereumoptimism/ci-builder:latest
-    resource_class: xlarge
+    resource_class: large
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -900,7 +900,7 @@ jobs:
 
     docker:
       - image: returntocorp/semgrep
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - checkout
       - unless:
@@ -942,7 +942,7 @@ jobs:
     machine:
       image: ubuntu-2204:2022.07.1
       docker_layer_caching: true
-      resource_class: xlarge
+      resource_class: large
     steps:
       - attach_workspace:
           at: /tmp/docker_images

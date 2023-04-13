@@ -76,6 +76,10 @@ const maxUnsafePayloadsMemory = 500 * 1024 * 1024
 // And then we add 1 to make pruning easier by leaving room for a new item without pruning the 32*4.
 const finalityLookback = 4*32 + 1
 
+// finalityDelay is the number of L1 blocks to traverse before trying to finalize L2 blocks again.
+// We do not want to do this too often, since it requires fetching a L1 block by number, so no cache data.
+const finalityDelay = 64
+
 type FinalityData struct {
 	// The last L2 block that was fully derived and inserted into the L2 engine while processing this L1 block.
 	L2Block eth.L2BlockRef
@@ -102,7 +106,12 @@ type EngineQueue struct {
 	// This update may repeat if the engine returns a temporary error.
 	needForkchoiceUpdate bool
 
+	// finalizedL1 is the currently perceived finalized L1 block.
+	// This may be ahead of the current traversed origin when syncing.
 	finalizedL1 eth.L1BlockRef
+
+	// triedFinalizeAt tracks at which origin we last tried to finalize during sync.
+	triedFinalizeAt eth.L1BlockRef
 
 	// The queued-up attributes
 	safeAttributesParent eth.L2BlockRef
@@ -171,17 +180,23 @@ func (eq *EngineQueue) Finalize(l1Origin eth.L1BlockRef) {
 		eq.log.Error("ignoring old L1 finalized block signal! Is the L1 provider corrupted?", "prev_finalized_l1", eq.finalizedL1, "signaled_finalized_l1", l1Origin)
 		return
 	}
-	// Perform a safety check: the L1 finalization signal is only accepted if we previously processed the L1 block.
-	// This prevents a corrupt L1 provider from tricking us in recognizing a L1 block inconsistent with the L1 chain we are on.
-	// Missing a finality signal due to empty buffer is fine, it will finalize when the buffer is filled again.
+
+	// remember the L1 finalization signal
+	eq.finalizedL1 = l1Origin
+
+	// Sanity check: we only try to finalize L2 immediately, without fetching additional data,
+	// if we are on the same chain as the signal.
+	// If we are on a different chain, the signal will be ignored,
+	// and tryFinalizeL1Origin() will eventually detect that we are on the wrong chain,
+	// if not resetting due to reorg elsewhere already.
 	for _, fd := range eq.finalityData {
 		if fd.L1Block == l1Origin.ID() {
-			eq.finalizedL1 = l1Origin
 			eq.tryFinalizeL2()
 			return
 		}
 	}
-	eq.log.Warn("ignoring finalization signal for unknown L1 block, waiting for new L1 blocks in buffer", "prev_finalized_l1", eq.finalizedL1, "signaled_finalized_l1", l1Origin)
+
+	eq.log.Info("received L1 finality signal, but missing data for immediate L2 finalization", "prev_finalized_l1", eq.finalizedL1, "signaled_finalized_l1", l1Origin)
 }
 
 // FinalizedL1 identifies the L1 chain (incl.) that included and/or produced all the finalized L2 blocks.
@@ -217,6 +232,10 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 	}
 	eq.origin = newOrigin
 	eq.postProcessSafeL2() // make sure we track the last L2 safe head for every new L1 block
+	// try to finalize the L2 blocks we have synced so far (no-op if L1 finality is behind)
+	if err := eq.tryFinalizePastL2Blocks(ctx); err != nil {
+		return err
+	}
 	if next, err := eq.prev.NextAttributes(ctx, eq.safeHead); err == io.EOF {
 		outOfData = true
 	} else if err != nil {
@@ -271,6 +290,38 @@ func (eq *EngineQueue) verifyNewL1Origin(ctx context.Context, newOrigin eth.L1Bl
 	return nil
 }
 
+func (eq *EngineQueue) tryFinalizePastL2Blocks(ctx context.Context) error {
+	if eq.finalizedL1 == (eth.L1BlockRef{}) {
+		return nil
+	}
+
+	// If the L1 is finalized beyond the point we are traversing (e.g. during sync),
+	// then we should check if we can finalize this L1 block we are traversing.
+	// Otherwise, nothing to act on here, we will finalize later on a new finality signal matching the recent history.
+	if eq.finalizedL1.Number < eq.origin.Number {
+		return nil
+	}
+
+	// If we recently tried finalizing, then don't try again just yet, but traverse more of L1 first.
+	if eq.triedFinalizeAt != (eth.L1BlockRef{}) && eq.origin.Number <= eq.triedFinalizeAt.Number+finalityDelay {
+		return nil
+	}
+
+	eq.log.Info("processing L1 finality information", "l1_finalized", eq.finalizedL1, "l1_origin", eq.origin, "previous", eq.triedFinalizeAt)
+
+	// Sanity check we are indeed on the finalizing chain, and not stuck on something else.
+	// We assume that the block-by-number query is consistent with the previously received finalized chain signal
+	ref, err := eq.l1Fetcher.L1BlockRefByNumber(ctx, eq.origin.Number)
+	if err != nil {
+		return NewTemporaryError(fmt.Errorf("failed to check if on finalizing L1 chain: %w", err))
+	}
+	if ref.Hash != eq.origin.Hash {
+		return NewResetError(fmt.Errorf("need to reset, we are on %s, not on the finalizing L1 chain %s (towards %s)", eq.origin, ref, eq.finalizedL1))
+	}
+	eq.tryFinalizeL2()
+	return nil
+}
+
 // tryFinalizeL2 traverses the past L1 blocks, checks if any has been finalized,
 // and then marks the latest fully derived L2 block from this as finalized,
 // or defaults to the current finalized L2 block.
@@ -278,6 +329,7 @@ func (eq *EngineQueue) tryFinalizeL2() {
 	if eq.finalizedL1 == (eth.L1BlockRef{}) {
 		return // if no L1 information is finalized yet, then skip this
 	}
+	eq.triedFinalizeAt = eq.origin
 	// default to keep the same finalized block
 	finalizedL2 := eq.finalized
 	// go through the latest inclusion data, and find the last L2 block that was derived from a finalized L1 block
@@ -668,6 +720,7 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	eq.resetBuildingState()
 	eq.needForkchoiceUpdate = true
 	eq.finalityData = eq.finalityData[:0]
+	// note: finalizedL1 and triedFinalizeAt do not reset, since these do not change between reorgs.
 	// note: we do not clear the unsafe payloads queue; if the payloads are not applicable anymore the parent hash checks will clear out the old payloads.
 	eq.origin = pipelineOrigin
 	eq.sysCfg = l1Cfg
