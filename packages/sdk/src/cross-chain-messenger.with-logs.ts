@@ -326,11 +326,13 @@ export class CrossChainMessenger {
   public async toBedrockCrossChainMessage(
     message: MessageLike
   ): Promise<CrossChainMessage> {
+    console.log('converting toBedrockCrossChainMessage', { message })
     const resolved = await this.toCrossChainMessage(message)
 
     // Bedrock messages are already in the correct format.
     const { version } = decodeVersionedNonce(resolved.messageNonce)
     if (version.eq(1)) {
+      console.log('bedrock message resolving', resolved)
       return resolved
     }
 
@@ -341,16 +343,24 @@ export class CrossChainMessenger {
       resolved.target === this.contracts.l1.L1StandardBridge.address
     ) {
       try {
-        ;[, , value] =
+        console.log(
+          'calling contracts.l1.L1StandardBridge.interface.decodeFunctionData',
+          {
+            data: resolved.message,
+          }
+        )
+        const decodedData =
           this.contracts.l1.L1StandardBridge.interface.decodeFunctionData(
             'finalizeETHWithdrawal',
             resolved.message
           )
+        ;[, , value] = decodedData
       } catch (err) {
         // No problem, not a message with value.
       }
     }
 
+    console.log('calling migratedWithdrawalGasLimit()', resolved.message)
     const minGasLimit = migratedWithdrawalGasLimit(resolved.message)
 
     return {
@@ -374,17 +384,22 @@ export class CrossChainMessenger {
   public async toLowLevelMessage(
     message: MessageLike
   ): Promise<LowLevelMessage> {
+    // calling toLowLevelMessgage again? why?   Likely can delete.
     const resolved = await this.toCrossChainMessage(message)
     if (resolved.direction === MessageDirection.L1_TO_L2) {
       throw new Error(`can only convert L2 to L1 messages to low level`)
     }
 
-    // We may have to update the message if it's a legacy message.
+    // We may have to update the message if it's a legacy message.c
+    console.log('calling deccodeVersionNonce()', resolved.messageNonce)
     const { version } = decodeVersionedNonce(resolved.messageNonce)
+    console.log('version', version)
     let updated: CrossChainMessage
     if (version.eq(0)) {
+      console.log('converting toBedrockCrossChainMessage')
       updated = await this.toBedrockCrossChainMessage(resolved)
     } else {
+      console.log('already a bedrock message? (bug if this line gets hit)')
       updated = resolved
     }
 
@@ -397,6 +412,7 @@ export class CrossChainMessenger {
       gasLimit = BigNumber.from(0)
       messageNonce = resolved.messageNonce
     } else {
+      console.log('in a loop getting withdrawals')
       const receipt = await this.l2Provider.getTransactionReceipt(
         resolved.transactionHash
       )
@@ -411,6 +427,7 @@ export class CrossChainMessenger {
           }
         }
       }
+      console.log('withdrawals', withdrawals)
 
       // Should not happen.
       if (withdrawals.length === 0) {
@@ -572,9 +589,6 @@ export class CrossChainMessenger {
   public async toCrossChainMessage(
     message: MessageLike
   ): Promise<CrossChainMessage> {
-    if (!message) {
-      throw new Error('message is undefined')
-    }
     // TODO: Convert these checks into proper type checks.
     if ((message as CrossChainMessage).message) {
       return message as CrossChainMessage
@@ -583,8 +597,16 @@ export class CrossChainMessenger {
       (message as TokenBridgeMessage).l2Token &&
       (message as TokenBridgeMessage).transactionHash
     ) {
+      console.log(
+        'CrossChainMessenger.getMessgesByTransaction()',
+        (message as TokenBridgeMessage).transactionHash
+      )
       const messages = await this.getMessagesByTransaction(
         (message as TokenBridgeMessage).transactionHash
+      )
+      console.log(
+        'CrossChainMessenger.getMessgesByTransaction() returned',
+        messages
       )
 
       // The `messages` object corresponds to a list of SentMessage events that were triggered by
@@ -609,6 +631,7 @@ export class CrossChainMessenger {
 
       return found
     } else {
+      console.log('CrossChainMessenger.getMessgesByTransaction()', { message })
       // TODO: Explicit TransactionLike check and throw if not TransactionLike
       const messages = await this.getMessagesByTransaction(
         message as TransactionLike
@@ -1465,9 +1488,16 @@ export class CrossChainMessenger {
       overrides?: Overrides
     }
   ): Promise<TransactionResponse> {
-    return (opts?.signer || this.l1Signer).sendTransaction(
-      await this.populateTransaction.proveMessage(message, opts)
+    console.log('CrossChainMessenger.populateTransaction() called', {
+      message,
+      opts,
+    })
+    const proveMessageCall = await this.populateTransaction.proveMessage(
+      message,
+      opts
     )
+    console.log('populateTransaction() return', { proveMessageCall })
+    return (opts?.signer || this.l1Signer).sendTransaction(proveMessageCall)
   }
 
   /**
@@ -1758,7 +1788,13 @@ export class CrossChainMessenger {
         overrides?: PayableOverrides
       }
     ): Promise<TransactionRequest> => {
+      console.log('CrossChainMessenger.toCrossChainMessage() called', {
+        message,
+      })
       const resolved = await this.toCrossChainMessage(message)
+      console.log('CrossChainMessenger.toCrossChainMessage() returned', {
+        resolved,
+      })
       if (resolved.direction === MessageDirection.L1_TO_L2) {
         throw new Error('cannot finalize L1 to L2 message')
       }
@@ -1769,8 +1805,27 @@ export class CrossChainMessenger {
         )
       }
 
+      console.log('CrossChainMessenger.toLowLevelMessage() called', {
+        resolved,
+      })
       const withdrawal = await this.toLowLevelMessage(resolved)
+      console.log('CrossChainMessenger.toLowLevelMessage() returned', {
+        withdrawal,
+      })
+      console.log('CrossChainMessenger.getBedrockMessageProof() called', {
+        resolved,
+      })
       const proof = await this.getBedrockMessageProof(resolved)
+      console.log('CrossChainMessenger.getBedrockMessageProof() returned', {
+        proof,
+      })
+      console.log(
+        'CrossChainMessenger.populateTransaction.proveMessage() called',
+        {
+          withdrawal,
+          proof,
+        }
+      )
       return this.contracts.l1.OptimismPortal.populateTransaction.proveWithdrawalTransaction(
         [
           withdrawal.messageNonce,
