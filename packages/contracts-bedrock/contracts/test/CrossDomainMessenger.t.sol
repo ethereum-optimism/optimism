@@ -24,36 +24,52 @@ contract CrossDomainMessenger_BaseGas_Test is Messenger_Initializer {
     }
 }
 
-contract MessageRelayer {
-    L1CrossDomainMessenger public cdm;
-    address public xDomainMessageSender;
-
-    constructor(address _cdm) {
-        cdm = L1CrossDomainMessenger(_cdm);
-    }
-
-    function relayMessage() external payable {
-        // tipped.call{value:amount}("");
-        // uint256 leftovers = address(this).balance();
-        address target = cdm.xDomainMessageSender();
-        xDomainMessageSender = target;
-        // target.call{value: 0}("");
-    }
-}
-
-
 contract CrossDomainMessenger_RelayMessage_Test is Messenger_Initializer {
     // Storage slot of the l2Sender
     uint256 constant senderSlotIndex = 50;
 
+    // Nested call to relayMessage
+    address[3] public xDomainMsgSenders;
+
+    function nestedRelayMessage() external {
+        xDomainMsgSenders[1] = L1Messenger.xDomainMessageSender();
+    }
+
+    function relayMessage() external payable {
+        xDomainMsgSenders[0] = L1Messenger.xDomainMessageSender();
+
+        address target = address(this);
+        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+        bytes memory callMessage = abi.encodeWithSelector(CrossDomainMessenger_RelayMessage_Test.nestedRelayMessage.selector);
+
+        bytes32 hash = Hashing.hashCrossDomainMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+            sender,
+            target,
+            0,
+            0,
+            callMessage
+        );
+        vm.prank(address(op));
+        L1Messenger.relayMessage(
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
+            sender,
+            target,
+            0,
+            0,
+            callMessage
+        );
+
+        xDomainMsgSenders[2] = L1Messenger.xDomainMessageSender();
+    }
+
+
     // Ensure that the xdm messenger returns the expected xDomainMsgSender
     // given the level of relayMessage nested calls.
     function test_ReenteredRelayMessage() external {
-        MessageRelayer mr = new MessageRelayer(address(L1Messenger));
-
-        address target = address(mr);
+        address target = address(this);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-        bytes memory callMessage = abi.encodeWithSelector(MessageRelayer.relayMessage.selector);
+        bytes memory callMessage = abi.encodeWithSelector(CrossDomainMessenger_RelayMessage_Test.relayMessage.selector);
 
         vm.expectCall(target, callMessage);
 
@@ -85,6 +101,9 @@ contract CrossDomainMessenger_RelayMessage_Test is Messenger_Initializer {
 
         assert(L1Messenger.successfulMessages(hash));
         assertEq(L1Messenger.failedMessages(hash), false);
-        assertEq(mr.xDomainMessageSender(), sender);
+
+        assertEq(xDomainMsgSenders[0], sender);
+        assertEq(xDomainMsgSenders[1], sender);
+        assertEq(xDomainMsgSenders[2], sender);
     }
 }
