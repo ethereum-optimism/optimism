@@ -45,6 +45,36 @@ func TestNoError(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestValidateClaim(t *testing.T) {
+	t.Run("Valid", func(t *testing.T) {
+		driver := createDriver(t, io.EOF)
+		expected := eth.Bytes32{0x11}
+		driver.l2OutputRoot = func() (eth.Bytes32, error) {
+			return expected, nil
+		}
+		valid := driver.ValidateClaim(expected)
+		require.True(t, valid)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		driver := createDriver(t, io.EOF)
+		driver.l2OutputRoot = func() (eth.Bytes32, error) {
+			return eth.Bytes32{0x22}, nil
+		}
+		valid := driver.ValidateClaim(eth.Bytes32{0x11})
+		require.False(t, valid)
+	})
+
+	t.Run("Error", func(t *testing.T) {
+		driver := createDriver(t, io.EOF)
+		driver.l2OutputRoot = func() (eth.Bytes32, error) {
+			return eth.Bytes32{}, errors.New("boom")
+		}
+		valid := driver.ValidateClaim(eth.Bytes32{0x11})
+		require.False(t, valid)
+	})
+}
+
 func createDriver(t *testing.T, derivationResult error) *Driver {
 	derivation := &stubDerivation{nextErr: derivationResult}
 	return &Driver{

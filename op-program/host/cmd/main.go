@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	cldr "github.com/ethereum-optimism/optimism/op-program/client/driver"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
@@ -40,6 +41,10 @@ var VersionWithMeta = func() string {
 	}
 	return v
 }()
+
+var (
+	ErrClaimNotValid = errors.New("invalid claim")
+)
 
 func main() {
 	args := os.Args
@@ -124,6 +129,9 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 			return err
 		}
 	}
-	logger.Info("Derivation complete", "head", d.SafeHead())
+	claim := cfg.L2Claim
+	if !d.ValidateClaim(eth.Bytes32(claim)) {
+		return ErrClaimNotValid
+	}
 	return nil
 }
