@@ -17,6 +17,7 @@
     "lint:fix": "yarn lint:check --fix",
     "pre-commit": "lint-staged",
     "test": "hardhat test",
+    "test:next": "vitest test-next/proveMessage.spec.ts",
     "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json",
     "autogen:docs": "typedoc --out docs src/index.ts"
   },
@@ -53,7 +54,8 @@
     "@eth-optimism/contracts-bedrock": "0.13.2",
     "lodash": "^4.17.21",
     "merkletreejs": "^0.2.27",
-    "rlp": "^2.2.7"
+    "rlp": "^2.2.7",
+    "vitest": "^0.28.3"
   },
   "peerDependencies": {
     "ethers": "^5"
