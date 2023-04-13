@@ -555,8 +555,8 @@ jobs:
           environment:
             # anvil[0] test private key
             VITE_E2E_PRIVATE_KEY: 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-            VITE_E2E_RPC_URLS_L1: http://localhost:8545
-            VITE_E2E_RPC_URLS_L2: http://localhost:9545
+            VITE_E2E_RPC_URL_L1: http://localhost:8545
+            VITE_E2E_RPC_URL_L2: http://localhost:9545
 
   bedrock-markdown:
     machine:
