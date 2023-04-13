@@ -99,8 +99,10 @@ describe('prove message', () => {
 
     expect(txReceipt).toBeDefined()
 
-    expect(
-      await crossChainMessenger.proveMessage(txWithdrawalHash)
-    ).toMatchInlineSnapshot()
+    const tx = await crossChainMessenger.proveMessage(txWithdrawalHash)
+    const receipt = await tx.wait()
+
+    // A 1 means the transaction was successful
+    expect(receipt.status).toBe(1)
   }, 20_000)
 })
