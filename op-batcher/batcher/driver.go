@@ -297,7 +297,7 @@ func (l *BatchSubmitter) loop() {
 		case <-loadTicker.C:
 			l.loadBlocksIntoState(l.shutdownCtx)
 		case <-publishTicker.C:
-			_ = queue.TrySend(l.killCtx, l.publishStateToL1Factory(), receiptsCh)
+			_, _ = queue.TrySend(l.killCtx, l.publishStateToL1Factory(), receiptsCh)
 		case r := <-receiptsCh:
 			l.handleReceipt(r)
 		case <-l.shutdownCtx.Done():
@@ -357,19 +357,19 @@ func (l *BatchSubmitter) drainState(receiptsCh chan txmgr.TxReceipt[txData], que
 
 func (l *BatchSubmitter) handleReceipt(r txmgr.TxReceipt[txData]) {
 	// Record TX Status
-	data := r.Data.Bytes()
+	data := r.ID.Bytes()
 	if r.Err != nil {
 		l.log.Warn("unable to publish tx", "err", r.Err, "data_size", len(data))
-		l.recordFailedTx(r.Data.ID(), r.Err)
+		l.recordFailedTx(r.ID.ID(), r.Err)
 	} else {
 		l.log.Info("tx successfully published", "tx_hash", r.Receipt.TxHash, "data_size", len(data))
-		l.recordConfirmedTx(r.Data.ID(), r.Receipt)
+		l.recordConfirmedTx(r.ID.ID(), r.Receipt)
 	}
 }
 
 // publishStateToL1Factory produces a publishStateToL1Job job
 func (l *BatchSubmitter) publishStateToL1Factory() txmgr.TxFactory[txData] {
-	return func(ctx context.Context) (*txmgr.TxCandidate, txData, error) {
+	return func(ctx context.Context) (txmgr.TxCandidate, txData, error) {
 		return l.publishStateToL1Job(ctx)
 	}
 }
@@ -377,11 +377,11 @@ func (l *BatchSubmitter) publishStateToL1Factory() txmgr.TxFactory[txData] {
 // publishStateToL1Job pulls the block data loaded into `state`, and returns a function that
 // will submit the associated data to the L1 in the form of channel frames when called.
 // Returns an io.EOF error if no data is available.
-func (l *BatchSubmitter) publishStateToL1Job(ctx context.Context) (*txmgr.TxCandidate, txData, error) {
+func (l *BatchSubmitter) publishStateToL1Job(ctx context.Context) (txmgr.TxCandidate, txData, error) {
 	l1tip, err := l.l1Tip(ctx)
 	if err != nil {
 		l.log.Error("Failed to query L1 tip", "error", err)
-		return nil, txData{}, err
+		return txmgr.TxCandidate{}, txData{}, err
 	}
 	l.recordL1Tip(l1tip)
 
@@ -389,17 +389,17 @@ func (l *BatchSubmitter) publishStateToL1Job(ctx context.Context) (*txmgr.TxCand
 	txdata, err := l.state.TxData(l1tip.ID())
 	if err == io.EOF {
 		l.log.Trace("no transaction data available")
-		return nil, txData{}, err
+		return txmgr.TxCandidate{}, txData{}, err
 	} else if err != nil {
 		l.log.Error("unable to get tx data", "err", err)
-		return nil, txData{}, err
+		return txmgr.TxCandidate{}, txData{}, err
 	}
 
 	// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
 	data := txdata.Bytes()
 	intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
 	if err != nil {
-		return nil, txData{}, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
+		return txmgr.TxCandidate{}, txData{}, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
 	}
 
 	candidate := txmgr.TxCandidate{
@@ -407,7 +407,7 @@ func (l *BatchSubmitter) publishStateToL1Job(ctx context.Context) (*txmgr.TxCand
 		TxData:   data,
 		GasLimit: intrinsicGas,
 	}
-	return &candidate, txdata, nil
+	return candidate, txdata, nil
 }
 
 func (l *BatchSubmitter) recordL1Tip(l1tip eth.L1BlockRef) {

@@ -11,12 +11,17 @@ import (
 )
 
 type TxReceipt[T any] struct {
-	Data    T
+	// ID can be used to identify unique tx receipts within the recept channel
+	ID T
+	// Receipt result from the transaction send
 	Receipt *types.Receipt
-	Err     error
+	// Err contains any error that occurred during the tx send
+	Err error
 }
 
-type TxFactory[T any] func(ctx context.Context) (*TxCandidate, T, error)
+// TxFactory should return the next transaction to send (and associated identifier).
+// If no transaction is available, an error should be returned (such as io.EOF).
+type TxFactory[T any] func(ctx context.Context) (TxCandidate, T, error)
 
 type Queue[T any] struct {
 	txMgr          TxManager
@@ -53,8 +58,11 @@ func (q *Queue[T]) Wait() {
 }
 
 // Send will wait until the number of pending txs is below the max pending,
-// and then send the next tx. The TxFactory should return `nil` if the next
-// tx does not exist. Returns the error returned from the TxFactory (if any).
+// and then send the next tx. The TxFactory should return an error if the
+// next tx does not exist, which will be returned from this method.
+//
+// The actual tx sending is non-blocking, with the receipt returned on the
+// provided receipt channel.
 func (q *Queue[T]) Send(ctx context.Context, factory TxFactory[T], receiptCh chan TxReceipt[T]) error {
 	if q.semaphore != nil {
 		if err := q.semaphore.Acquire(ctx, 1); err != nil {
@@ -65,19 +73,25 @@ func (q *Queue[T]) Send(ctx context.Context, factory TxFactory[T], receiptCh cha
 }
 
 // TrySend sends the next tx, but only if the number of pending txs is below the
-// max pending, otherwise the TxFactory is not called (and nil is returned).
+// max pending, otherwise the TxFactory is not called (and no error is returned).
+// The TxFactory should return an error if the next tx does not exist, which is
+// returned from this method.
 //
-// The TxFactory should return `nil` if the next tx does not exist. Returns
-// the error returned from the TxFactory (if any).
-func (q *Queue[T]) TrySend(ctx context.Context, factory TxFactory[T], receiptCh chan TxReceipt[T]) error {
+// Returns false if there is no room in the queue to send. Otherwise, the
+// transaction is queued and this method returns true.
+//
+// The actual tx sending is non-blocking, with the receipt returned on the
+// provided receipt channel.
+func (q *Queue[T]) TrySend(ctx context.Context, factory TxFactory[T], receiptCh chan TxReceipt[T]) (bool, error) {
 	if q.semaphore != nil && !q.semaphore.TryAcquire(1) {
-		return nil
+		return false, nil
 	}
-	return q.trySend(ctx, factory, receiptCh)
+	err := q.trySend(ctx, factory, receiptCh)
+	return err == nil, err
 }
 
 func (q *Queue[T]) trySend(ctx context.Context, factory TxFactory[T], receiptCh chan TxReceipt[T]) error {
-	candidate, data, err := factory(ctx)
+	candidate, id, err := factory(ctx)
 	release := func() {
 		if q.semaphore != nil {
 			q.semaphore.Release(1)
@@ -86,10 +100,6 @@ func (q *Queue[T]) trySend(ctx context.Context, factory TxFactory[T], receiptCh 
 	if err != nil {
 		release()
 		return err
-	}
-	if candidate == nil {
-		release()
-		return nil
 	}
 
 	q.pendingChanged(q.pending.Add(1))
@@ -100,9 +110,9 @@ func (q *Queue[T]) trySend(ctx context.Context, factory TxFactory[T], receiptCh 
 			q.pendingChanged(q.pending.Add(^uint64(0))) // -1
 			q.wg.Done()
 		}()
-		receipt, err := q.txMgr.Send(ctx, *candidate)
+		receipt, err := q.txMgr.Send(ctx, candidate)
 		receiptCh <- TxReceipt[T]{
-			Data:    data,
+			ID:      id,
 			Receipt: receipt,
 			Err:     err,
 		}
