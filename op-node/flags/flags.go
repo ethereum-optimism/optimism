@@ -258,7 +258,7 @@ func init() {
 func CheckRequired(ctx *cli.Context) error {
 	for _, f := range requiredFlags {
 		if !ctx.GlobalIsSet(f.GetName()) {
-			return fmt.Errorf("flag %s is required", f.GetName)
+			return fmt.Errorf("flag %s is required", f.GetName())
 		}
 	}
 	return nil
