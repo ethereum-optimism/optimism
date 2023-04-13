@@ -18,17 +18,24 @@ type Derivation interface {
 	SafeL2Head() eth.L2BlockRef
 }
 
-type Driver struct {
-	logger   log.Logger
-	pipeline Derivation
+type L2Source interface {
+	derive.Engine
+	L2OutputRoot() (eth.Bytes32, error)
 }
 
-func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher, l2Source derive.Engine) *Driver {
+type Driver struct {
+	logger       log.Logger
+	pipeline     Derivation
+	l2OutputRoot func() (eth.Bytes32, error)
+}
+
+func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher, l2Source L2Source) *Driver {
 	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l2Source, metrics.NoopMetrics)
 	pipeline.Reset()
 	return &Driver{
-		logger:   logger,
-		pipeline: pipeline,
+		logger:       logger,
+		pipeline:     pipeline,
+		l2OutputRoot: l2Source.L2OutputRoot,
 	}
 }
 
@@ -50,4 +57,14 @@ func (d *Driver) Step(ctx context.Context) error {
 
 func (d *Driver) SafeHead() eth.L2BlockRef {
 	return d.pipeline.SafeL2Head()
+}
+
+func (d *Driver) ValidateClaim(claimedOutputRoot eth.Bytes32) bool {
+	outputRoot, err := d.l2OutputRoot()
+	if err != nil {
+		d.logger.Info("Failed to calculate L2 output root", "err", err)
+		return false
+	}
+	d.logger.Info("Derivation complete", "head", d.SafeHead(), "output", outputRoot, "claim", claimedOutputRoot)
+	return claimedOutputRoot == outputRoot
 }

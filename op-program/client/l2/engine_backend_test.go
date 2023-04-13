@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -168,7 +167,7 @@ func setupOracle(t *testing.T, blockCount int, headBlockNumber int) (*params.Cha
 	genesisBlock := l2Genesis.MustCommit(db)
 	blocks, _ := core.GenerateChain(chainCfg, genesisBlock, consensus, db, blockCount, func(i int, gen *core.BlockGen) {})
 	blocks = append([]*types.Block{genesisBlock}, blocks...)
-	oracle := newStubBlockOracle(t, blocks[:headBlockNumber+1], db)
+	oracle := newStubOracleWithBlocks(t, blocks[:headBlockNumber+1], db)
 	return chainCfg, blocks, oracle
 }
 
@@ -193,30 +192,6 @@ func createBlock(t *testing.T, chain *OracleBackedL2Chain) *types.Block {
 		gen.AddTx(tx)
 	})
 	return blocks[0]
-}
-
-type stubBlockOracle struct {
-	blocks map[common.Hash]*types.Block
-	kvStateOracle
-}
-
-func newStubBlockOracle(t *testing.T, chain []*types.Block, db ethdb.Database) *stubBlockOracle {
-	blocks := make(map[common.Hash]*types.Block, len(chain))
-	for _, block := range chain {
-		blocks[block.Hash()] = block
-	}
-	return &stubBlockOracle{
-		blocks:        blocks,
-		kvStateOracle: kvStateOracle{t: t, source: db},
-	}
-}
-
-func (o stubBlockOracle) BlockByHash(blockHash common.Hash) *types.Block {
-	block, ok := o.blocks[blockHash]
-	if !ok {
-		o.t.Fatalf("requested unknown block %s", blockHash)
-	}
-	return block
 }
 
 func TestEngineAPITests(t *testing.T) {
