@@ -1,6 +1,7 @@
 package batcher
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -12,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -60,6 +62,10 @@ type CLIConfig struct {
 	// L1EthCookies can be set to true to Enable cookies on the
 	// L1 RPC HTTP client
 	L1EthCookies bool
+
+	// L1EthHeaders allows customization of the headers used by the
+	// L1 RPC HTTP client
+	L1EthHeaders http.Header
 
 	// MaxChannelDuration is the maximum duration (in #L1-blocks) to keep a
 	// channel open. This allows to more eagerly send batcher transactions
@@ -133,6 +139,7 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 
 		/* Optional Flags */
 		L1EthCookies:       ctx.GlobalBool(flags.L1EthCookiesFlag.Name),
+		L1EthHeaders:       opservice.ParseHttpHeader(ctx.GlobalStringSlice(flags.L1EthHeadersFlag.Name)),
 		MaxChannelDuration: ctx.GlobalUint64(flags.MaxChannelDurationFlag.Name),
 		MaxL1TxSize:        ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
 		TargetL1TxSize:     ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),

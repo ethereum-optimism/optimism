@@ -164,6 +164,9 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metr
 		}
 		options = append(options, rpc.WithHTTPClient(&http.Client{Jar: jar}))
 	}
+	if cfg.L1EthHeaders != nil {
+		options = append(options, rpc.WithHeaders(cfg.L1EthHeaders))
+	}
 
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
 	ctx := context.Background()

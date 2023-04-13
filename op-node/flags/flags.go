@@ -81,6 +81,11 @@ var (
 		Usage:  "Enable cookie support on the L1 HTTP provider.",
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_RPC_COOKIES"),
 	}
+	L1RPCHeaders = cli.StringSliceFlag{
+		Name:   "l1.rpc-headers",
+		Usage:  "Custom headers to pass to the L1 HTTP provider.",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_RPC_HEADERS"),
+	}
 	L1RPCRateLimit = cli.Float64Flag{
 		Name:   "l1.rpc-rate-limit",
 		Usage:  "Optional self-imposed global rate-limit on L1 RPC requests, specified in requests / second. Disabled if set to 0.",
@@ -228,6 +233,7 @@ var optionalFlags = []cli.Flag{
 	L1TrustRPC,
 	L1RPCProviderKind,
 	L1RPCCookies,
+	L1RPCHeaders,
 	L1RPCRateLimit,
 	L1RPCMaxBatchSize,
 	L1HTTPPollInterval,

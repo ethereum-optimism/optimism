@@ -146,6 +146,9 @@ type L1EndpointConfig struct {
 	// Cookies can be set to true to Enable cookies on the L1 RPC HTTP client
 	Cookies bool
 
+	// Headers allows customization of the headers used by the L1 RPC HTTP client
+	Headers http.Header
+
 	// RateLimit specifies a self-imposed rate-limit on L1 requests. 0 is no rate-limit.
 	RateLimit float64
 
@@ -179,13 +182,18 @@ func (cfg *L1EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCf
 	if cfg.RateLimit != 0 {
 		opts = append(opts, client.WithRateLimit(cfg.RateLimit, cfg.BatchSize))
 	}
+	var gopts []rpc.ClientOption
 	if cfg.Cookies {
 		jar, err := cookiejar.New(nil)
 		if err != nil {
 			return nil, nil, err
 		}
-		opts = append(opts, client.WithGethRPCOptions(rpc.WithHTTPClient(&http.Client{Jar: jar})))
+		gopts = append(gopts, rpc.WithHTTPClient(&http.Client{Jar: jar}))
 	}
+	if cfg.Headers != nil {
+		gopts = append(gopts, rpc.WithHeaders(cfg.Headers))
+	}
+	opts = append(opts, client.WithGethRPCOptions(gopts...))
 
 	l1Node, err := client.NewRPC(ctx, log, cfg.L1NodeAddr, opts...)
 	if err != nil {

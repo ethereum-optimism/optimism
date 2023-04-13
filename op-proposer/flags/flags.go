@@ -44,6 +44,11 @@ var (
 		Usage:  "Enable cookie support on the L1 HTTP provider.",
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_COOKIES"),
 	}
+	L1EthHeadersFlag = cli.StringSliceFlag{
+		Name:   "l1-eth-headers",
+		Usage:  "Custom headers to pass to the L1 HTTP provider.",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_HEADERS"),
+	}
 	AllowNonFinalizedFlag = cli.BoolFlag{
 		Name:   "allow-non-finalized",
 		Usage:  "Allow the proposer to submit proposals for L2 blocks derived from non-finalized L1 blocks.",
@@ -62,6 +67,7 @@ var requiredFlags = []cli.Flag{
 
 var optionalFlags = []cli.Flag{
 	L1EthCookiesFlag,
+	L1EthHeadersFlag,
 	AllowNonFinalizedFlag,
 }
 

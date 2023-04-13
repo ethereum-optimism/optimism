@@ -1,6 +1,7 @@
 package proposer
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -10,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/flags"
 
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -56,6 +58,10 @@ type CLIConfig struct {
 	// L1 RPC HTTP client
 	L1EthCookies bool
 
+	// L1EthHeaders allows customization of the headers used by the
+	// L1 RPC HTTP client
+	L1EthHeaders http.Header
+
 	TxMgrConfig txmgr.CLIConfig
 
 	RPCConfig oprpc.CLIConfig
@@ -97,6 +103,7 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		TxMgrConfig:  txmgr.ReadCLIConfig(ctx),
 		// Optional Flags
 		L1EthCookies:      ctx.GlobalBool(flags.L1EthCookiesFlag.Name),
+		L1EthHeaders:      opservice.ParseHttpHeader(ctx.GlobalStringSlice(flags.L1EthHeadersFlag.Name)),
 		AllowNonFinalized: ctx.GlobalBool(flags.AllowNonFinalizedFlag.Name),
 		RPCConfig:         oprpc.ReadCLIConfig(ctx),
 		LogConfig:         oplog.ReadCLIConfig(ctx),
