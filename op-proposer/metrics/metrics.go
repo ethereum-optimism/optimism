@@ -104,3 +104,7 @@ const (
 func (m *Metrics) RecordL2BlocksProposed(l2ref eth.L2BlockRef) {
 	m.RecordL2Ref(BlockProposed, l2ref)
 }
+
+func (m *Metrics) Document() []opmetrics.DocumentedMetric {
+	return m.factory.Document()
+}
