@@ -1128,6 +1128,13 @@ workflows:
           dependencies: "(common-ts|core-utils)"
           requires:
             - yarn-monorepo
+      - sdk-next-tests:
+          name: sdk-tests
+          coverage_flag: sdk-tests
+          package_name: sdk
+          dependencies: "(contracts|core-utils)"
+          requires:
+            - yarn-monorepo
       - js-lint-test:
           name: sdk-tests
           coverage_flag: sdk-tests
