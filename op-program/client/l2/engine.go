@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -31,6 +32,19 @@ func NewOracleEngine(rollupCfg *rollup.Config, logger log.Logger, backend engine
 		backend:   backend,
 		rollupCfg: rollupCfg,
 	}
+}
+
+func (o *OracleEngine) L2OutputRoot() (eth.Bytes32, error) {
+	outBlock := o.backend.CurrentHeader()
+	stateDB, err := o.backend.StateAt(outBlock.Root)
+	if err != nil {
+		return eth.Bytes32{}, fmt.Errorf("failed to open L2 state db at block %s: %w", outBlock.Hash(), err)
+	}
+	withdrawalsTrie, err := stateDB.StorageTrie(predeploys.L2ToL1MessagePasserAddr)
+	if err != nil {
+		return eth.Bytes32{}, fmt.Errorf("withdrawals trie unavailable at block %v: %w", outBlock.Hash(), err)
+	}
+	return rollup.ComputeL2OutputRootV0(eth.HeaderBlockInfo(outBlock), withdrawalsTrie.Hash())
 }
 
 func (o *OracleEngine) GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error) {

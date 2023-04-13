@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	cll2 "github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum/go-ethereum/core"
@@ -14,7 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-func NewFetchingEngine(ctx context.Context, logger log.Logger, cfg *config.Config) (derive.Engine, error) {
+func NewFetchingEngine(ctx context.Context, logger log.Logger, cfg *config.Config) (*cll2.OracleEngine, error) {
 	genesis, err := loadL2Genesis(cfg)
 	if err != nil {
 		return nil, err
