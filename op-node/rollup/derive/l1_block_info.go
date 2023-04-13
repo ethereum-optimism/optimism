@@ -67,16 +67,13 @@ type L1BlockInfo struct {
 func (info *L1BlockInfo) MarshalBinary() ([]byte, error) {
 	writer := bytes.NewBuffer(make([]byte, 0, L1InfoLen))
 
-	// Helper function to write Solidity ABI encode Uint64
-	writeSolidityABIUint64 := func(num uint64) {
-		var padding [24]byte
-		writer.Write(padding[:])
-		_ = binary.Write(writer, binary.BigEndian, num)
-	}
-
 	writer.Write(L1InfoFuncBytes4)
-	writeSolidityABIUint64(info.Number)
-	writeSolidityABIUint64(info.Time)
+	if err := writeSolidityABIUint64(writer, info.Number); err != nil {
+		return nil, err
+	}
+	if err := writeSolidityABIUint64(writer, info.Time); err != nil {
+		return nil, err
+	}
 	// Ensure that the baseFee is not too large.
 	if info.BaseFee.BitLen() > 256 {
 		return nil, fmt.Errorf("base fee exceeds 256 bits: %d", info.BaseFee)
@@ -85,7 +82,9 @@ func (info *L1BlockInfo) MarshalBinary() ([]byte, error) {
 	info.BaseFee.FillBytes(baseFeeBuf[:])
 	writer.Write(baseFeeBuf[:])
 	writer.Write(info.BlockHash.Bytes())
-	writeSolidityABIUint64(info.SequenceNumber)
+	if err := writeSolidityABIUint64(writer, info.SequenceNumber); err != nil {
+		return nil, err
+	}
 
 	var addrPadding [12]byte
 	writer.Write(addrPadding[:])
@@ -95,66 +94,85 @@ func (info *L1BlockInfo) MarshalBinary() ([]byte, error) {
 	return writer.Bytes(), nil
 }
 
-func (info *L1BlockInfo) UnmarshalBinary(data []byte) (err error) {
+func (info *L1BlockInfo) UnmarshalBinary(data []byte) error {
 	if len(data) != L1InfoLen {
 		return fmt.Errorf("data is unexpected length: %d", len(data))
 	}
 	reader := bytes.NewReader(data)
 
-	// Helper function to read Solidity ABI encode Uint64
-	readSolidityABIUint64 := func() (num uint64, err error) {
-		var padding, readPadding [24]byte
-		if _, err := io.ReadFull(reader, readPadding[:]); err != nil || !bytes.Equal(readPadding[:], padding[:]) {
-			return 0, fmt.Errorf("L1BlockInfo number exceeds uint64 bounds: %x", readPadding[:])
-		}
-		if err := binary.Read(reader, binary.BigEndian, &num); err != nil {
-			return 0, fmt.Errorf("L1BlockInfo expected number length to be 8 bytes")
-		}
-		return num, nil
-	}
-
 	funcSignature := make([]byte, 4)
-	if _, err = io.ReadFull(reader, funcSignature); err != nil || !bytes.Equal(funcSignature, L1InfoFuncBytes4) {
+	if _, err := io.ReadFull(reader, funcSignature); err != nil || !bytes.Equal(funcSignature, L1InfoFuncBytes4) {
 		return fmt.Errorf("data does not match L1 info function signature: 0x%x", funcSignature)
 	}
 
-	if info.Number, err = readSolidityABIUint64(); err != nil {
-		return
+	if blockNumber, err := readSolidityABIUint64(reader); err != nil {
+		return err
+	} else {
+		info.Number = blockNumber
 	}
-	if info.Time, err = readSolidityABIUint64(); err != nil {
-		return
+	if blockTime, err := readSolidityABIUint64(reader); err != nil {
+		return err
+	} else {
+		info.Time = blockTime
 	}
 
 	var baseFeeBytes [32]byte
-	if _, err = io.ReadFull(reader, baseFeeBytes[:]); err != nil {
+	if _, err := io.ReadFull(reader, baseFeeBytes[:]); err != nil {
 		return fmt.Errorf("expected BaseFee length to be 32 bytes, but got %x", baseFeeBytes)
 	}
 	info.BaseFee = new(big.Int).SetBytes(baseFeeBytes[:])
 	var blockHashBytes [32]byte
-	if _, err = io.ReadFull(reader, blockHashBytes[:]); err != nil {
+	if _, err := io.ReadFull(reader, blockHashBytes[:]); err != nil {
 		return fmt.Errorf("expected BlockHash length to be 32 bytes, but got %x", blockHashBytes)
 	}
 	info.BlockHash.SetBytes(blockHashBytes[:])
 
-	if info.SequenceNumber, err = readSolidityABIUint64(); err != nil {
-		return
+	if sequenceNumber, err := readSolidityABIUint64(reader); err != nil {
+		return err
+	} else {
+		info.SequenceNumber = sequenceNumber
 	}
 
 	var addrPadding [12]byte
-	if _, err = io.ReadFull(reader, addrPadding[:]); err != nil {
+	if _, err := io.ReadFull(reader, addrPadding[:]); err != nil {
 		return fmt.Errorf("expected addrPadding length to be 12 bytes, but got %x", addrPadding)
 	}
-	if _, err = io.ReadFull(reader, info.BatcherAddr[:]); err != nil {
+	if _, err := io.ReadFull(reader, info.BatcherAddr[:]); err != nil {
 		return fmt.Errorf("expected BatcherAddr length to be 20 bytes, but got %x", info.BatcherAddr)
 	}
-	if _, err = io.ReadFull(reader, info.L1FeeOverhead[:]); err != nil {
+	if _, err := io.ReadFull(reader, info.L1FeeOverhead[:]); err != nil {
 		return fmt.Errorf("expected L1FeeOverhead length to be 32 bytes, but got %x", info.L1FeeOverhead)
 	}
-	if _, err = io.ReadFull(reader, info.L1FeeScalar[:]); err != nil {
+	if _, err := io.ReadFull(reader, info.L1FeeScalar[:]); err != nil {
 		return fmt.Errorf("expected L1FeeScalar length to be 32 bytes, but got %x", info.L1FeeScalar)
 	}
 
 	return nil
+}
+
+func writeSolidityABIUint64(w io.Writer, num uint64) error {
+	var padding [24]byte
+	if _, err := w.Write(padding[:]); err != nil {
+		return err
+	}
+	if err := binary.Write(w, binary.BigEndian, num); err != nil {
+		return err
+	}
+	return nil
+}
+
+func readSolidityABIUint64(r io.Reader) (uint64, error) {
+	var (
+		padding, readPadding [24]byte
+		num                  uint64
+	)
+	if _, err := io.ReadFull(r, readPadding[:]); err != nil || !bytes.Equal(readPadding[:], padding[:]) {
+		return 0, fmt.Errorf("L1BlockInfo number exceeds uint64 bounds: %x", readPadding[:])
+	}
+	if err := binary.Read(r, binary.BigEndian, &num); err != nil {
+		return 0, fmt.Errorf("L1BlockInfo expected number length to be 8 bytes")
+	}
+	return num, nil
 }
 
 // L1InfoDepositTxData is the inverse of L1InfoDeposit, to see where the L2 chain is derived from
