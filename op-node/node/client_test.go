@@ -63,3 +63,47 @@ func TestL1EndpointConfigCookies(t *testing.T) {
 		})
 	}
 }
+
+func TestL1EndpointConfigHeaders(t *testing.T) {
+	testcases := []struct {
+		name    string
+		headers http.Header
+	}{
+		{
+			name: "no headers",
+		}, {
+			name:    "accept header",
+			headers: http.Header{"Accept": []string{"application/gzip"}},
+		},
+	}
+	for _, test := range testcases {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			headetChecked := false
+			s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if test.headers != nil {
+					for k, v := range test.headers {
+						assert.Equal(t, v, r.Header.Values(k))
+					}
+				}
+				headetChecked = true
+				_, err := w.Write([]byte("{\"jsonrpc\":\"2.0\",\"id\":0,\"result\":\"\"}"))
+				assert.NoError(t, err)
+			}))
+			defer s.Close()
+
+			ctx := context.Background()
+			l1 := L1EndpointConfig{
+				L1NodeAddr: s.URL,
+				Headers:    test.headers,
+			}
+			client, _, err := l1.Setup(ctx, log.New(ctx), &rollup.Config{})
+			assert.NoError(t, err)
+			err = client.CallContext(ctx, new(string), "fake_method")
+			assert.NoError(t, err)
+			assert.True(t, headetChecked)
+		})
+	}
+}
