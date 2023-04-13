@@ -176,16 +176,11 @@ abstract contract CrossDomainMessenger is
     mapping(bytes32 => bool) public failedMessages;
 
     /**
-     * @notice A mapping of hashes to reentrancy locks.
-     */
-    mapping(bytes32 => bool) internal reentrancyLocks;
-
-    /**
      * @notice Reserve extra slots in the storage layout for future upgrades.
      *         A gap size of 41 was chosen here, so that the first slot used in a child contract
      *         would be a multiple of 50.
      */
-    uint256[41] private __gap;
+    uint256[42] private __gap;
 
     /**
      * @notice Emitted whenever a message is sent to the other chain.
@@ -323,13 +318,6 @@ abstract contract CrossDomainMessenger is
             _message
         );
 
-        // Check if the reentrancy lock for the `versionedHash` is already set.
-        if (reentrancyLocks[versionedHash]) {
-            revert("ReentrancyGuard: reentrant call");
-        }
-        // Trigger the reentrancy lock for `versionedHash`
-        reentrancyLocks[versionedHash] = true;
-
         if (_isOtherMessenger()) {
             // These properties should always hold when the message is first submitted (as
             // opposed to being replayed).
@@ -357,6 +345,12 @@ abstract contract CrossDomainMessenger is
             "CrossDomainMessenger: message has already been relayed"
         );
 
+        // Another message is being relayed, so we just store this for future replay.
+        if(xDomainMsgSender != Constants.DEFAULT_L2_SENDER) {
+            failedMessages[versionedHash] = true;
+            return;
+        }
+
         xDomainMsgSender = _sender;
         bool success = SafeCall.callWithMinGas(_target, _minGasLimit, _value, _message);
         xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
@@ -377,9 +371,6 @@ abstract contract CrossDomainMessenger is
                 revert("CrossDomainMessenger: failed to relay message");
             }
         }
-
-        // Clear the reentrancy lock for `versionedHash`
-        reentrancyLocks[versionedHash] = false;
     }
 
     /**
