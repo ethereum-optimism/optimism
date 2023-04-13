@@ -256,28 +256,10 @@ func init() {
 }
 
 func CheckRequired(ctx *cli.Context) error {
-	l1NodeAddr := ctx.GlobalString(L1NodeAddr.Name)
-	if l1NodeAddr == "" {
-		return fmt.Errorf("flag %s is required", L1NodeAddr.Name)
-	}
-	l2EngineAddr := ctx.GlobalString(L2EngineAddr.Name)
-	if l2EngineAddr == "" {
-		return fmt.Errorf("flag %s is required", L2EngineAddr.Name)
-	}
-	rollupConfig := ctx.GlobalString(RollupConfig.Name)
-	network := ctx.GlobalString(Network.Name)
-	if rollupConfig == "" && network == "" {
-		return fmt.Errorf("flag %s or %s is required", RollupConfig.Name, Network.Name)
-	}
-	if rollupConfig != "" && network != "" {
-		return fmt.Errorf("cannot specify both %s and %s", RollupConfig.Name, Network.Name)
-	}
-	rpcListenAddr := ctx.GlobalString(RPCListenAddr.Name)
-	if rpcListenAddr == "" {
-		return fmt.Errorf("flag %s is required", RPCListenAddr.Name)
-	}
-	if !ctx.GlobalIsSet(RPCListenPort.Name) {
-		return fmt.Errorf("flag %s is required", RPCListenPort.Name)
+	for _, f := range requiredFlags {
+		if !ctx.GlobalIsSet(f.GetName()) {
+			return fmt.Errorf("flag %s is required", f.GetName())
+		}
 	}
 	return nil
 }
