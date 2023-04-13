@@ -175,7 +175,7 @@ func TestMessagePasserSafety(t *testing.T) {
 	selector := crypto.Keccak256([]byte("passMessageToL1(bytes)"))[0:4]
 	require.Equal(t, selector, hexutil.MustDecode("0xcafa81dc"))
 	calldata := append(selector, msg...)
-	transaction, err := opts.Signer(testAddr, types.NewTx(&types.DynamicFeeTx{
+	faultyTransaction, err := opts.Signer(testAddr, types.NewTx(&types.DynamicFeeTx{
 		ChainID:   big.NewInt(1337),
 		Nonce:     nonce,
 		GasTipCap: msgTx.GasTipCap(),
@@ -185,12 +185,29 @@ func TestMessagePasserSafety(t *testing.T) {
 		Data:      calldata,
 	}))
 	require.NoError(t, err)
-
-	err = backend.SendTransaction(context.Background(), transaction)
+	err = backend.SendTransaction(context.Background(), faultyTransaction)
 	require.NoError(t, err)
 
+	// the transaction should revert
 	backend.Commit()
-	badReceipt, err := bind.WaitMined(context.Background(), backend, transaction)
+	badReceipt, err := bind.WaitMined(context.Background(), backend, faultyTransaction)
 	require.NoError(t, err)
 	require.Equal(t, badReceipt.Status, types.ReceiptStatusFailed)
+
+	// test the transaction calldata against the abi unpacking
+	abi, err := bindings.LegacyMessagePasserMetaData.GetAbi()
+	require.NoError(t, err)
+	method, err := abi.MethodById(selector)
+	require.NoError(t, err)
+	require.Equal(t, method.Name, "passMessageToL1")
+
+	// the faulty transaction has the correct 4 byte selector but doesn't
+	// have abi encoded bytes following it
+	require.Equal(t, faultyTransaction.Data()[:4], selector)
+	_, err = method.Inputs.Unpack(faultyTransaction.Data()[4:])
+	require.Error(t, err)
+
+	// the original transaction has the correct 4 byte selector and abi encoded bytes
+	_, err = method.Inputs.Unpack(msgTx.Data()[4:])
+	require.NoError(t, err)
 }
