@@ -41,3 +41,67 @@ func TestRead(t *testing.T) {
 		common.HexToAddress("0x6340d44c5174588B312F545eEC4a42f8a514eF50"): true,
 	}, addresses)
 }
+
+// TestDecodeWitnessCallData tests that the witness data is parsed correctly
+// from an input bytes slice.
+func TestDecodeWitnessCallData(t *testing.T) {
+	tests := []struct {
+		name string
+		err  bool
+		msg  []byte
+		want []byte
+	}{
+		{
+			name: "too-small",
+			err:  true,
+			msg:  common.FromHex("0x0000"),
+		},
+		{
+			name: "unknown-selector",
+			err:  true,
+			msg:  common.FromHex("0x00000000"),
+		},
+		{
+			name: "wrong-selector",
+			err:  true,
+			// 0x54fd4d50 is the selector for `version()`
+			msg: common.FromHex("0x54fd4d50"),
+		},
+		{
+			name: "invalid-calldata-only-selector",
+			err:  true,
+			// 0xcafa81dc is the selector for `passMessageToL1(bytes)`
+			msg: common.FromHex("0xcafa81dc"),
+		},
+		{
+			name: "invalid-calldata-invalid-bytes",
+			err:  true,
+			// 0xcafa81dc is the selector for passMessageToL1(bytes)
+			msg: common.FromHex("0xcafa81dc0000"),
+		},
+		{
+			name: "valid-calldata",
+			msg: common.FromHex(
+				"0xcafa81dc" +
+					"0000000000000000000000000000000000000000000000000000000000000020" +
+					"0000000000000000000000000000000000000000000000000000000000000002" +
+					"1234000000000000000000000000000000000000000000000000000000000000",
+			),
+			want: common.FromHex("0x1234"),
+		},
+	}
+
+	for _, tt := range tests {
+		test := tt
+		t.Run(test.name, func(t *testing.T) {
+			if test.err {
+				_, err := decodeWitnessCalldata(test.msg)
+				require.Error(t, err)
+			} else {
+				want, err := decodeWitnessCalldata(test.msg)
+				require.NoError(t, err)
+				require.Equal(t, test.want, want)
+			}
+		})
+	}
+}
