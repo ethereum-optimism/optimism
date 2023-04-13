@@ -24,3 +24,13 @@ func ComputeL2OutputRoot(proofElements *bindings.TypesOutputRootProof) (eth.Byte
 	)
 	return eth.Bytes32(digest), nil
 }
+
+func ComputeL2OutputRootV0(block eth.BlockInfo, storageRoot [32]byte) (eth.Bytes32, error) {
+	var l2OutputRootVersion eth.Bytes32 // it's zero for now
+	return ComputeL2OutputRoot(&bindings.TypesOutputRootProof{
+		Version:                  l2OutputRootVersion,
+		StateRoot:                block.Root(),
+		MessagePasserStorageRoot: storageRoot,
+		LatestBlockhash:          block.Hash(),
+	})
+}
