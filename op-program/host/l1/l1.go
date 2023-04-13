@@ -21,6 +21,6 @@ func NewFetchingL1(ctx context.Context, logger log.Logger, cfg *config.Config) (
 	if err != nil {
 		return nil, err
 	}
-	oracle := NewFetchingL1Oracle(ctx, logger, source)
+	oracle := cll1.NewCachingOracle(NewFetchingL1Oracle(ctx, logger, source))
 	return cll1.NewOracleL1Client(logger, oracle, cfg.L1Head), err
 }
