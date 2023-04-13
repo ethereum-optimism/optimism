@@ -1,7 +1,13 @@
+import ethers from 'ethers'
+import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
+
+import { CrossChainMessenger } from '../src'
+
 /**
  * This test repros the bug where legacy withdrawals are not provable
  */
-/**
+/*******
 Cast results from runnning cast tx and cast receipt on the l2 tx hash
 
 cast tx 0xd66fda632b51a8b25a9d260d70da8be57b9930c4616370861526335c3e8eef81 --rpc-url https://goerli.optimism.io
@@ -42,25 +48,33 @@ transactionHash         0xd66fda632b51a8b25a9d260d70da8be57b9930c461637086152633
 transactionIndex        0
 type
  */
-import { CrossChainMessenger } from '../src'
-import ethers from 'ethers'
-import { describe, expect, it } from 'vitest'
-import {z} from 'zod'
+const E2E_RPC_URL_L1 = z
+  .string()
+  .url()
+  .describe('L1 ethereum rpc Url')
+  .parse(import.meta.env.VITE_E2E_RPC_URL_L1)
+const E2E_RPC_URL_L2 = z
+  .string()
+  .url()
+  .describe('L1 ethereum rpc Url')
+  .parse(import.meta.env.VITE_E2E_RPC_URL_L2)
+const E2E_PRIVATE_KEY = z
+  .string()
+  .describe('Private key')
+  .parse(import.meta.env.VITE_E2E_PRIVATE_KEY)
 
-const    E2E_RPC_URL_L1= z.string().url().describe('L1 ethereum rpc Url').parse(import.meta.env.VITE_E2E_RPC_URL_L1)
-const    E2E_RPC_URL_L2= z.string().url().describe('L1 ethereum rpc Url').parse(import.meta.env.VITE_E2E_RPC_URL_L2)
-const    E2E_PRIVATE_KEY= z.string().describe('Private key').parse(import.meta.env.VITE_E2E_PRIVATE_KEY)
-
-
+const jsonRpcHeaders = { 'User-Agent': 'eth-optimism/@gateway/backend' }
 /**
  * Initialize the signer, prover, and cross chain messenger
  */
-const l2Provider = new ethers.providers.JsonRpcProvider(
-  E2E_RPC_URL_L1
-)
-const l1Provider = new ethers.providers.JsonRpcProvider(
-  E2E_RPC_URL_L2
-)
+const l1Provider = new ethers.providers.JsonRpcProvider({
+  url: E2E_RPC_URL_L1,
+  headers: jsonRpcHeaders,
+})
+const l2Provider = new ethers.providers.JsonRpcProvider({
+  url: E2E_RPC_URL_L2,
+  headers: jsonRpcHeaders,
+})
 const l1Wallet = new ethers.Wallet(E2E_PRIVATE_KEY, l1Provider)
 const crossChainMessenger = new CrossChainMessenger({
   l1SignerOrProvider: l1Wallet,
@@ -83,9 +97,10 @@ describe('prove message', () => {
 
     const txReceipt = await l2Provider.getTransactionReceipt(txWithdrawalHash)
 
+    expect(txReceipt).toBeDefined()
+
     expect(
-      await crossChainMessenger.proveMessage(txReceipt)
-    ).toMatchInlineSnapshot(
-    )
+      await crossChainMessenger.proveMessage(txWithdrawalHash)
+    ).toMatchInlineSnapshot()
   }, 20_000)
 })

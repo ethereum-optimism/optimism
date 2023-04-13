@@ -535,6 +535,40 @@ jobs:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
 
+  sdk-next-tests:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: '.' }
+      - check-changed:
+          patterns: sdk,contracts-bedrock,contracts
+      - run:
+          name: anvil-l1
+          background: true
+          command: anvil --fork-url $ANVIL_L1_FORK_URL
+      - run:
+          name: anvil-l2
+          background: true
+          command: anvil --fork-url $ANVIL_L2_FORK_URL --port 9545
+      - run:
+          name: make sure anvil l1 is up
+          command: cast block-number --rpc-url http://localhost:8545
+      - run:
+          name: make sure anvil l2 is up
+          command: cast block-number --rpc-url http://localhost:9545
+      - run:
+          name: test:next
+          command: yarn test:next
+          no_output_timeout: 5m
+          working_directory: packages/sdk
+          environment:
+            # anvil[0] test private key
+            VITE_E2E_PRIVATE_KEY: 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+            VITE_E2E_RPC_URLS_L1: http://localhost:8545
+            VITE_E2E_RPC_URLS_L2: http://localhost:9545
+
   bedrock-markdown:
     machine:
       image: ubuntu-2204:2022.07.1
