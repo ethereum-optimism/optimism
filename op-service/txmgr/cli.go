@@ -11,14 +11,11 @@ import (
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-signer/client"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 )
 
 const (
-	// Duplicated L1 RPC flag
-	L1RPCFlagName = "l1-eth-rpc"
 	// Key Management Flags (also have op-signer client flags)
 	MnemonicFlagName   = "mnemonic"
 	HDPathFlagName     = "hd-path"
@@ -113,7 +110,6 @@ func CLIFlags(envPrefix string) []cli.Flag {
 }
 
 type CLIConfig struct {
-	L1RPCURL                  string
 	Mnemonic                  string
 	HDPath                    string
 	SequencerHDPath           string
@@ -130,9 +126,6 @@ type CLIConfig struct {
 }
 
 func (m CLIConfig) Check() error {
-	if m.L1RPCURL == "" {
-		return errors.New("must provide a L1 RPC url")
-	}
 	if m.NumConfirmations == 0 {
 		return errors.New("NumConfirmations must not be 0")
 	}
@@ -159,7 +152,6 @@ func (m CLIConfig) Check() error {
 
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
-		L1RPCURL:                  ctx.GlobalString(L1RPCFlagName),
 		Mnemonic:                  ctx.GlobalString(MnemonicFlagName),
 		HDPath:                    ctx.GlobalString(HDPathFlagName),
 		SequencerHDPath:           ctx.GlobalString(SequencerHDPathFlag.Name),
@@ -176,19 +168,12 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	}
 }
 
-func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
+func NewConfig(cfg CLIConfig, l log.Logger, l1 ETHBackend) (Config, error) {
 	if err := cfg.Check(); err != nil {
 		return Config{}, fmt.Errorf("invalid config: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.NetworkTimeout)
-	defer cancel()
-	l1, err := ethclient.DialContext(ctx, cfg.L1RPCURL)
-	if err != nil {
-		return Config{}, fmt.Errorf("could not dial eth client: %w", err)
-	}
-
-	ctx, cancel = context.WithTimeout(context.Background(), cfg.NetworkTimeout)
 	defer cancel()
 	chainID, err := l1.ChainID(ctx)
 	if err != nil {

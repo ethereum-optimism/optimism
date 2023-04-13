@@ -72,6 +72,8 @@ type ETHBackend interface {
 	// EstimateGas returns an estimate of the amount of gas needed to execute the given
 	// transaction against the current pending block.
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
+	// ChainID returns the chain ID for the connected backend.
+	ChainID(ctx context.Context) (*big.Int, error)
 }
 
 // SimpleTxManager is a implementation of TxManager that performs linear fee
@@ -87,8 +89,8 @@ type SimpleTxManager struct {
 }
 
 // NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
-func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLIConfig) (*SimpleTxManager, error) {
-	conf, err := NewConfig(cfg, l)
+func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, l1 ETHBackend, cfg CLIConfig) (*SimpleTxManager, error) {
+	conf, err := NewConfig(cfg, l, l1)
 	if err != nil {
 		return nil, err
 	}

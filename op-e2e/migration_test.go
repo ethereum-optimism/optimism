@@ -340,7 +340,7 @@ func TestMigration(t *testing.T) {
 		ApproxComprRatio:   0.4,
 		SubSafetyMargin:    4,
 		PollInterval:       50 * time.Millisecond,
-		TxMgrConfig:        newTxMgrConfig(forkedL1URL, secrets.Batcher),
+		TxMgrConfig:        newTxMgrConfig(secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",
@@ -359,7 +359,7 @@ func TestMigration(t *testing.T) {
 		L2OOAddress:       l2OS.Address.String(),
 		PollInterval:      50 * time.Millisecond,
 		AllowNonFinalized: true,
-		TxMgrConfig:       newTxMgrConfig(forkedL1URL, secrets.Proposer),
+		TxMgrConfig:       newTxMgrConfig(secrets.Proposer),
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",

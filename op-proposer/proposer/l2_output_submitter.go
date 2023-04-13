@@ -153,11 +153,6 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metr
 		return nil, err
 	}
 
-	txManager, err := txmgr.NewSimpleTxManager("proposer", l, m, cfg.TxMgrConfig)
-	if err != nil {
-		return nil, err
-	}
-
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
 	ctx := context.Background()
 	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
@@ -166,6 +161,11 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metr
 	}
 
 	rollupClient, err := dialRollupClientWithTimeout(ctx, cfg.RollupRpc)
+	if err != nil {
+		return nil, err
+	}
+
+	txManager, err := txmgr.NewSimpleTxManager("proposer", l, m, l1Client, cfg.TxMgrConfig)
 	if err != nil {
 		return nil, err
 	}
