@@ -524,7 +524,7 @@ jobs:
       - restore_cache:
           name: Restore Yarn Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
       - run:
           name: anvil-l1
           background: true
