@@ -48,6 +48,11 @@ var (
 	}
 
 	// Optional flags
+	L1EthCookiesFlag = cli.BoolFlag{
+		Name:   "l1-eth-cookies",
+		Usage:  "Enable cookie support on the L1 HTTP provider.",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_COOKIES"),
+	}
 	MaxChannelDurationFlag = cli.Uint64Flag{
 		Name:   "max-channel-duration",
 		Usage:  "The maximum duration of L1-blocks to keep a channel open. 0 to disable.",
@@ -96,6 +101,7 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	L1EthCookiesFlag,
 	MaxChannelDurationFlag,
 	MaxL1TxSizeBytesFlag,
 	TargetL1TxSizeBytesFlag,

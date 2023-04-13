@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net/http"
+	"net/http/cookiejar"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
@@ -17,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -153,9 +156,18 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metr
 		return nil, err
 	}
 
+	var options []rpc.ClientOption
+	if cfg.L1EthCookies {
+		jar, err := cookiejar.New(nil)
+		if err != nil {
+			return nil, err
+		}
+		options = append(options, rpc.WithHTTPClient(&http.Client{Jar: jar}))
+	}
+
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
 	ctx := context.Background()
-	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
+	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc, options...)
 	if err != nil {
 		return nil, err
 	}

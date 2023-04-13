@@ -17,11 +17,16 @@ var defaultDialTimeout = 5 * time.Second
 // dialEthClientWithTimeout attempts to dial the L1 provider using the provided
 // URL. If the dial doesn't complete within defaultDialTimeout seconds, this
 // method will return an error.
-func dialEthClientWithTimeout(ctx context.Context, url string) (*ethclient.Client, error) {
+func dialEthClientWithTimeout(ctx context.Context, url string, options ...rpc.ClientOption) (*ethclient.Client, error) {
 	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 
-	return ethclient.DialContext(ctxt, url)
+	c, err := rpc.DialOptions(ctxt, url, options...)
+	if err != nil {
+		return nil, err
+	}
+
+	return ethclient.NewClient(c), nil
 }
 
 // dialRollupClientWithTimeout attempts to dial the RPC provider using the provided

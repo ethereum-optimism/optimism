@@ -98,6 +98,7 @@ func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
 		L1NodeAddr:       ctx.GlobalString(flags.L1NodeAddr.Name),
 		L1TrustRPC:       ctx.GlobalBool(flags.L1TrustRPC.Name),
 		L1RPCKind:        sources.RPCProviderKind(strings.ToLower(ctx.GlobalString(flags.L1RPCProviderKind.Name))),
+		Cookies:          ctx.GlobalBool(flags.L1RPCCookies.Name),
 		RateLimit:        ctx.GlobalFloat64(flags.L1RPCRateLimit.Name),
 		BatchSize:        ctx.GlobalInt(flags.L1RPCMaxBatchSize.Name),
 		HttpPollInterval: ctx.Duration(flags.L1HTTPPollInterval.Name),

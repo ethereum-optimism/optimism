@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/cookiejar"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
@@ -141,6 +143,9 @@ type L1EndpointConfig struct {
 	// to inform the optimal usage of the RPC for transaction receipts fetching.
 	L1RPCKind sources.RPCProviderKind
 
+	// Cookies can be set to true to Enable cookies on the L1 RPC HTTP client
+	Cookies bool
+
 	// RateLimit specifies a self-imposed rate-limit on L1 requests. 0 is no rate-limit.
 	RateLimit float64
 
@@ -173,6 +178,13 @@ func (cfg *L1EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCf
 	}
 	if cfg.RateLimit != 0 {
 		opts = append(opts, client.WithRateLimit(cfg.RateLimit, cfg.BatchSize))
+	}
+	if cfg.Cookies {
+		jar, err := cookiejar.New(nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		opts = append(opts, client.WithGethRPCOptions(rpc.WithHTTPClient(&http.Client{Jar: jar})))
 	}
 
 	l1Node, err := client.NewRPC(ctx, log, cfg.L1NodeAddr, opts...)

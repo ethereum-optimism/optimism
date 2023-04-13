@@ -57,6 +57,10 @@ type CLIConfig struct {
 	// RollupRpc is the HTTP provider URL for the L2 rollup node.
 	RollupRpc string
 
+	// L1EthCookies can be set to true to Enable cookies on the
+	// L1 RPC HTTP client
+	L1EthCookies bool
+
 	// MaxChannelDuration is the maximum duration (in #L1-blocks) to keep a
 	// channel open. This allows to more eagerly send batcher transactions
 	// during times of low L2 transaction volume. Note that the effective
@@ -128,6 +132,7 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		PollInterval:    ctx.GlobalDuration(flags.PollIntervalFlag.Name),
 
 		/* Optional Flags */
+		L1EthCookies:       ctx.GlobalBool(flags.L1EthCookiesFlag.Name),
 		MaxChannelDuration: ctx.GlobalUint64(flags.MaxChannelDurationFlag.Name),
 		MaxL1TxSize:        ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
 		TargetL1TxSize:     ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),

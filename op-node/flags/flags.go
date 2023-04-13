@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/urfave/cli"
@@ -74,6 +75,11 @@ var (
 			out := sources.RPCKindBasic
 			return &out
 		}(),
+	}
+	L1RPCCookies = cli.BoolFlag{
+		Name:   "l1.rpc-cookies",
+		Usage:  "Enable cookie support on the L1 HTTP provider.",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_RPC_COOKIES"),
 	}
 	L1RPCRateLimit = cli.Float64Flag{
 		Name:   "l1.rpc-rate-limit",
@@ -221,6 +227,7 @@ var optionalFlags = []cli.Flag{
 	Network,
 	L1TrustRPC,
 	L1RPCProviderKind,
+	L1RPCCookies,
 	L1RPCRateLimit,
 	L1RPCMaxBatchSize,
 	L1HTTPPollInterval,

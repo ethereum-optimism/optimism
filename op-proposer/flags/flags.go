@@ -39,6 +39,11 @@ var (
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "POLL_INTERVAL"),
 	}
 	// Optional flags
+	L1EthCookiesFlag = cli.BoolFlag{
+		Name:   "l1-eth-cookies",
+		Usage:  "Enable cookie support on the L1 HTTP provider.",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_COOKIES"),
+	}
 	AllowNonFinalizedFlag = cli.BoolFlag{
 		Name:   "allow-non-finalized",
 		Usage:  "Allow the proposer to submit proposals for L2 blocks derived from non-finalized L1 blocks.",
@@ -56,6 +61,7 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	L1EthCookiesFlag,
 	AllowNonFinalizedFlag,
 }
 

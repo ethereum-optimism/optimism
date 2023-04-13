@@ -52,6 +52,10 @@ type CLIConfig struct {
 	// for L2 blocks derived from non-finalized L1 data.
 	AllowNonFinalized bool
 
+	// L1EthCookies can be set to true to Enable cookies on the
+	// L1 RPC HTTP client
+	L1EthCookies bool
+
 	TxMgrConfig txmgr.CLIConfig
 
 	RPCConfig oprpc.CLIConfig
@@ -92,6 +96,7 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		PollInterval: ctx.GlobalDuration(flags.PollIntervalFlag.Name),
 		TxMgrConfig:  txmgr.ReadCLIConfig(ctx),
 		// Optional Flags
+		L1EthCookies:      ctx.GlobalBool(flags.L1EthCookiesFlag.Name),
 		AllowNonFinalized: ctx.GlobalBool(flags.AllowNonFinalizedFlag.Name),
 		RPCConfig:         oprpc.ReadCLIConfig(ctx),
 		LogConfig:         oplog.ReadCLIConfig(ctx),
