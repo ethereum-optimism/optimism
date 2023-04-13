@@ -16,6 +16,7 @@ import (
 // Use HexToHash(...).Hex() to ensure the strings are the correct length for a hash
 var l1HeadValue = common.HexToHash("0x111111").Hex()
 var l2HeadValue = common.HexToHash("0x222222").Hex()
+var l2ClaimValue = common.HexToHash("0x333333").Hex()
 
 func TestLogLevel(t *testing.T) {
 	t.Run("RejectInvalid", func(t *testing.T) {
@@ -34,7 +35,12 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
-	defaultCfg := config.NewConfig(&chaincfg.Goerli, "genesis.json", common.HexToHash(l1HeadValue), common.HexToHash(l2HeadValue))
+	defaultCfg := config.NewConfig(
+		&chaincfg.Goerli,
+		"genesis.json",
+		common.HexToHash(l1HeadValue),
+		common.HexToHash(l2HeadValue),
+		common.HexToHash(l2ClaimValue))
 	require.Equal(t, defaultCfg, cfg)
 }
 
@@ -167,9 +173,24 @@ func TestL1RPCKind(t *testing.T) {
 // Offline support will be added later, but for now it just bails out with an error
 func TestOfflineModeNotSupported(t *testing.T) {
 	logger := log.New()
-	cfg := config.NewConfig(&chaincfg.Goerli, "genesis.json", common.HexToHash(l1HeadValue), common.HexToHash(l2HeadValue))
+	cfg := config.NewConfig(&chaincfg.Goerli, "genesis.json", common.HexToHash(l1HeadValue), common.HexToHash(l2HeadValue), common.HexToHash(l2ClaimValue))
 	err := FaultProofProgram(logger, cfg)
 	require.ErrorContains(t, err, "offline mode not supported")
+}
+
+func TestL2Claim(t *testing.T) {
+	t.Run("Required", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag l2.claim is required", addRequiredArgsExcept("--l2.claim"))
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		cfg := configForArgs(t, replaceRequiredArg("--l2.claim", l2ClaimValue))
+		require.EqualValues(t, common.HexToHash(l2ClaimValue), cfg.L2Claim)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		verifyArgsInvalid(t, config.ErrInvalidL2Claim.Error(), replaceRequiredArg("--l2.claim", "something"))
+	})
 }
 
 func verifyArgsInvalid(t *testing.T, messageContains string, cliArgs []string) {
@@ -220,6 +241,7 @@ func requiredArgs() map[string]string {
 		"--network":    "goerli",
 		"--l1.head":    l1HeadValue,
 		"--l2.head":    l2HeadValue,
+		"--l2.claim":   l2ClaimValue,
 		"--l2.genesis": "genesis.json",
 	}
 }

@@ -11,58 +11,78 @@ import (
 
 var validRollupConfig = &chaincfg.Goerli
 var validL2GenesisPath = "genesis.json"
-var validL1Head = common.HexToHash("0x112233889988FF")
-var validL2Head = common.HexToHash("0x6303578b1fa9480389c51bbcef6fe045bb877da39740819e9eb5f36f94949bd0")
+var validL1Head = common.Hash{0xaa}
+var validL2Head = common.Hash{0xbb}
+var validL2Claim = common.Hash{0xcc}
 
 func TestDefaultConfigIsValid(t *testing.T) {
-	err := NewConfig(validRollupConfig, validL2GenesisPath, validL1Head, validL2Head).Check()
+	err := validConfig().Check()
 	require.NoError(t, err)
 }
 
 func TestRollupConfig(t *testing.T) {
 	t.Run("Required", func(t *testing.T) {
-		err := NewConfig(nil, validL2GenesisPath, validL1Head, validL2Head).Check()
+		config := validConfig()
+		config.Rollup = nil
+		err := config.Check()
 		require.ErrorIs(t, err, ErrMissingRollupConfig)
 	})
 
 	t.Run("Invalid", func(t *testing.T) {
-		err := NewConfig(&rollup.Config{}, validL2GenesisPath, validL1Head, validL2Head).Check()
+		config := validConfig()
+		config.Rollup = &rollup.Config{}
+		err := config.Check()
 		require.ErrorIs(t, err, rollup.ErrBlockTimeZero)
 	})
 }
 
 func TestL1HeadRequired(t *testing.T) {
-	err := NewConfig(validRollupConfig, validL2GenesisPath, common.Hash{}, validL2Head).Check()
+	config := validConfig()
+	config.L1Head = common.Hash{}
+	err := config.Check()
 	require.ErrorIs(t, err, ErrInvalidL1Head)
 }
 
 func TestL2HeadRequired(t *testing.T) {
-	err := NewConfig(validRollupConfig, validL2GenesisPath, validL1Head, common.Hash{}).Check()
+	config := validConfig()
+	config.L2Head = common.Hash{}
+	err := config.Check()
 	require.ErrorIs(t, err, ErrInvalidL2Head)
 }
 
+func TestL2ClaimRequired(t *testing.T) {
+	config := validConfig()
+	config.L2Claim = common.Hash{}
+	err := config.Check()
+	require.ErrorIs(t, err, ErrInvalidL2Claim)
+}
+
 func TestL2GenesisRequired(t *testing.T) {
-	err := NewConfig(validRollupConfig, "", validL1Head, validL2Head).Check()
+	config := validConfig()
+	config.L2GenesisPath = ""
+	err := config.Check()
 	require.ErrorIs(t, err, ErrMissingL2Genesis)
 }
 
 func TestFetchingArgConsistency(t *testing.T) {
 	t.Run("RequireL2WhenL1Set", func(t *testing.T) {
-		cfg := NewConfig(&chaincfg.Beta1, validL2GenesisPath, validL1Head, validL2Head)
+		cfg := validConfig()
 		cfg.L1URL = "https://example.com:1234"
 		require.ErrorIs(t, cfg.Check(), ErrL1AndL2Inconsistent)
 	})
 	t.Run("RequireL1WhenL2Set", func(t *testing.T) {
-		cfg := NewConfig(&chaincfg.Beta1, validL2GenesisPath, validL1Head, validL2Head)
+		cfg := validConfig()
 		cfg.L2URL = "https://example.com:1234"
 		require.ErrorIs(t, cfg.Check(), ErrL1AndL2Inconsistent)
 	})
 	t.Run("AllowNeitherSet", func(t *testing.T) {
-		cfg := NewConfig(&chaincfg.Beta1, validL2GenesisPath, validL1Head, validL2Head)
+		cfg := validConfig()
+		cfg.L1URL = ""
+		cfg.L2URL = ""
 		require.NoError(t, cfg.Check())
 	})
 	t.Run("AllowBothSet", func(t *testing.T) {
-		cfg := NewConfig(&chaincfg.Beta1, validL2GenesisPath, validL1Head, validL2Head)
+		cfg := validConfig()
 		cfg.L1URL = "https://example.com:1234"
 		cfg.L2URL = "https://example.com:4678"
 		require.NoError(t, cfg.Check())
@@ -71,32 +91,36 @@ func TestFetchingArgConsistency(t *testing.T) {
 
 func TestFetchingEnabled(t *testing.T) {
 	t.Run("FetchingNotEnabledWhenNoFetcherUrlsSpecified", func(t *testing.T) {
-		cfg := NewConfig(&chaincfg.Beta1, validL2GenesisPath, validL1Head, validL2Head)
+		cfg := validConfig()
 		require.False(t, cfg.FetchingEnabled(), "Should not enable fetching when node URL not supplied")
 	})
 
 	t.Run("FetchingEnabledWhenFetcherUrlsSpecified", func(t *testing.T) {
-		cfg := NewConfig(&chaincfg.Beta1, validL2GenesisPath, validL1Head, validL2Head)
+		cfg := validConfig()
 		cfg.L2URL = "https://example.com:1234"
 		require.False(t, cfg.FetchingEnabled(), "Should not enable fetching when node URL not supplied")
 	})
 
 	t.Run("FetchingNotEnabledWhenNoL1UrlSpecified", func(t *testing.T) {
-		cfg := NewConfig(&chaincfg.Beta1, validL2GenesisPath, validL1Head, validL2Head)
+		cfg := validConfig()
 		cfg.L2URL = "https://example.com:1234"
 		require.False(t, cfg.FetchingEnabled(), "Should not enable L1 fetching when L1 node URL not supplied")
 	})
 
 	t.Run("FetchingNotEnabledWhenNoL2UrlSpecified", func(t *testing.T) {
-		cfg := NewConfig(&chaincfg.Beta1, validL2GenesisPath, validL1Head, validL2Head)
+		cfg := validConfig()
 		cfg.L1URL = "https://example.com:1234"
 		require.False(t, cfg.FetchingEnabled(), "Should not enable L2 fetching when L2 node URL not supplied")
 	})
 
 	t.Run("FetchingEnabledWhenBothFetcherUrlsSpecified", func(t *testing.T) {
-		cfg := NewConfig(&chaincfg.Beta1, validL2GenesisPath, validL1Head, validL2Head)
+		cfg := validConfig()
 		cfg.L1URL = "https://example.com:1234"
 		cfg.L2URL = "https://example.com:5678"
 		require.True(t, cfg.FetchingEnabled(), "Should enable fetching when node URL supplied")
 	})
+}
+
+func validConfig() *Config {
+	return NewConfig(validRollupConfig, validL2GenesisPath, validL1Head, validL2Head, validL2Claim)
 }
