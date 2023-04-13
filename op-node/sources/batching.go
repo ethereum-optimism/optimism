@@ -87,6 +87,11 @@ func (ibc *IterativeBatchCall[K, V]) Fetch(ctx context.Context) error {
 	ibc.resetLock.RLock()
 	defer ibc.resetLock.RUnlock()
 
+	// return early if context is Done
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+
 	// collect a batch from the requests channel
 	batch := make([]rpc.BatchElem, 0, ibc.batchSize)
 	// wait for first element
