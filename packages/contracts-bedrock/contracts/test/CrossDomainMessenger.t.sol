@@ -42,7 +42,9 @@ contract CrossDomainMessenger_RelayMessage_Test is Messenger_Initializer {
 
         address target = address(this);
         address sender = address(0x1234); // Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-        bytes memory callMessage = abi.encodeWithSelector(CrossDomainMessenger_RelayMessage_Test.nestedRelayMessage.selector);
+        bytes memory callMessage = abi.encodeWithSelector(
+            CrossDomainMessenger_RelayMessage_Test.nestedRelayMessage.selector
+        );
 
         bytes32 hash = Hashing.hashCrossDomainMessage(
             Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
@@ -65,13 +67,14 @@ contract CrossDomainMessenger_RelayMessage_Test is Messenger_Initializer {
         xDomainMsgSenders[2] = L1Messenger.xDomainMessageSender();
     }
 
-
     // Ensure that the xdm messenger returns the expected xDomainMsgSender
     // given the level of relayMessage nested calls.
-    function test_ReenteredRelayMessage() external {
+    function test_reenteredRelayMessage() external {
         address target = address(this);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-        bytes memory callMessage = abi.encodeWithSelector(CrossDomainMessenger_RelayMessage_Test.relayMessage.selector);
+        bytes memory callMessage = abi.encodeWithSelector(
+            CrossDomainMessenger_RelayMessage_Test.relayMessage.selector
+        );
 
         vm.expectCall(target, callMessage);
 
