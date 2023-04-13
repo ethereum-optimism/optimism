@@ -521,6 +521,10 @@ jobs:
       - attach_workspace: { at: '.' }
       - check-changed:
           patterns: sdk,contracts-bedrock,contracts
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }
       - run:
           name: anvil-l1
           background: true
