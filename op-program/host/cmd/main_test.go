@@ -82,7 +82,7 @@ func TestNetwork(t *testing.T) {
 func TestL2(t *testing.T) {
 	expected := "https://example.com:8545"
 	cfg := configForArgs(t, addRequiredArgs("--l2", expected))
-	require.Equal(t, expected, cfg.L2URL)
+	require.Equal(t, expected, cfg.L2.Addr)
 }
 
 func TestL2Genesis(t *testing.T) {
@@ -129,7 +129,7 @@ func TestL1Head(t *testing.T) {
 func TestL1(t *testing.T) {
 	expected := "https://example.com:8545"
 	cfg := configForArgs(t, addRequiredArgs("--l1", expected))
-	require.Equal(t, expected, cfg.L1URL)
+	require.Equal(t, expected, cfg.L1.Addr)
 }
 
 func TestL1TrustRPC(t *testing.T) {

@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"net/http"
-	"net/http/cookiejar"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
@@ -19,13 +17,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -156,21 +154,9 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metr
 		return nil, err
 	}
 
-	var options []rpc.ClientOption
-	if cfg.L1EthCookies {
-		jar, err := cookiejar.New(nil)
-		if err != nil {
-			return nil, err
-		}
-		options = append(options, rpc.WithHTTPClient(&http.Client{Jar: jar}))
-	}
-	if cfg.L1EthHeaders != nil {
-		options = append(options, rpc.WithHeaders(cfg.L1EthHeaders))
-	}
-
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
 	ctx := context.Background()
-	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc, options...)
+	l1Client, err := client.NewClient(ctx, cfg.L1)
 	if err != nil {
 		return nil, err
 	}

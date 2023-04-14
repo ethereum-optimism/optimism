@@ -10,7 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 
 	"github.com/urfave/cli"
@@ -96,11 +96,9 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 
 func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
 	return &node.L1EndpointConfig{
-		L1NodeAddr:       ctx.GlobalString(flags.L1NodeAddr.Name),
+		L1:               client.ReadL1CLIConfig(ctx),
 		L1TrustRPC:       ctx.GlobalBool(flags.L1TrustRPC.Name),
 		L1RPCKind:        sources.RPCProviderKind(strings.ToLower(ctx.GlobalString(flags.L1RPCProviderKind.Name))),
-		Cookies:          ctx.GlobalBool(flags.L1RPCCookies.Name),
-		Headers:          opservice.ParseHttpHeader(ctx.GlobalStringSlice(flags.L1RPCHeaders.Name)),
 		RateLimit:        ctx.GlobalFloat64(flags.L1RPCRateLimit.Name),
 		BatchSize:        ctx.GlobalInt(flags.L1RPCMaxBatchSize.Name),
 		HttpPollInterval: ctx.Duration(flags.L1HTTPPollInterval.Name),
@@ -108,7 +106,6 @@ func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
 }
 
 func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConfig, error) {
-	l2Addr := ctx.GlobalString(flags.L2EngineAddr.Name)
 	fileName := ctx.GlobalString(flags.L2EngineJWTSecret.Name)
 	var secret [32]byte
 	fileName = strings.TrimSpace(fileName)
@@ -132,7 +129,7 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 	}
 
 	return &node.L2EndpointConfig{
-		L2EngineAddr:      l2Addr,
+		L2:                client.ReadL2CLIConfig(ctx),
 		L2EngineJWTSecret: secret,
 	}, nil
 }
@@ -141,8 +138,8 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 // flag is set, otherwise nil.
 func NewL2SyncEndpointConfig(ctx *cli.Context) *node.L2SyncEndpointConfig {
 	return &node.L2SyncEndpointConfig{
-		L2NodeAddr: ctx.GlobalString(flags.BackupL2UnsafeSyncRPC.Name),
-		TrustRPC:   ctx.GlobalBool(flags.BackupL2UnsafeSyncRPCTrustRPC.Name),
+		L2:       client.ReadL2CLIConfig(ctx),
+		TrustRPC: ctx.GlobalBool(flags.BackupL2UnsafeSyncRPCTrustRPC.Name),
 	}
 }
 

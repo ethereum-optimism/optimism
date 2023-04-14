@@ -4,13 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/http/cookiejar"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 
 	"github.com/ethereum/go-ethereum/log"
 	gn "github.com/ethereum/go-ethereum/node"
@@ -39,7 +38,7 @@ type L1EndpointSetup interface {
 }
 
 type L2EndpointConfig struct {
-	L2EngineAddr string // Address of L2 Engine JSON-RPC endpoint to use (engine and eth namespace required)
+	L2 opclient.CLIConfig // Configuration of L2 Engine JSON-RPC endpoint to use (engine and eth namespace required)
 
 	// JWT secrets for L2 Engine API authentication during HTTP or initial Websocket communication.
 	// Any value for an IPC connection.
@@ -49,7 +48,7 @@ type L2EndpointConfig struct {
 var _ L2EndpointSetup = (*L2EndpointConfig)(nil)
 
 func (cfg *L2EndpointConfig) Check() error {
-	if cfg.L2EngineAddr == "" {
+	if cfg.L2.Addr == "" {
 		return errors.New("empty L2 Engine Address")
 	}
 
@@ -61,7 +60,7 @@ func (cfg *L2EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCf
 		return nil, nil, err
 	}
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.L2EngineJWTSecret))
-	l2Node, err := client.NewRPC(ctx, log, cfg.L2EngineAddr, client.WithGethRPCOptions(auth))
+	l2Node, err := client.NewRPC(ctx, log, cfg.L2, client.WithGethRPCOptions(auth))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -90,8 +89,8 @@ func (p *PreparedL2Endpoints) Setup(ctx context.Context, log log.Logger, rollupC
 // L2SyncEndpointConfig contains configuration for the fallback sync endpoint
 type L2SyncEndpointConfig struct {
 	// Address of the L2 RPC to use for backup sync, may be empty if RPC alt-sync is disabled.
-	L2NodeAddr string
-	TrustRPC   bool
+	L2       opclient.CLIConfig
+	TrustRPC bool
 }
 
 var _ L2SyncEndpointSetup = (*L2SyncEndpointConfig)(nil)
@@ -99,10 +98,10 @@ var _ L2SyncEndpointSetup = (*L2SyncEndpointConfig)(nil)
 // Setup creates an RPC client to sync from.
 // It will return nil without error if no sync method is configured.
 func (cfg *L2SyncEndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config) (client.RPC, *sources.SyncClientConfig, error) {
-	if cfg.L2NodeAddr == "" {
+	if cfg.L2.Addr == "" {
 		return nil, nil, nil
 	}
-	l2Node, err := client.NewRPC(ctx, log, cfg.L2NodeAddr)
+	l2Node, err := client.NewRPC(ctx, log, cfg.L2)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -132,7 +131,7 @@ func (cfg *PreparedL2SyncEndpoint) Check() error {
 }
 
 type L1EndpointConfig struct {
-	L1NodeAddr string // Address of L1 User JSON-RPC endpoint to use (eth namespace required)
+	L1 opclient.CLIConfig
 
 	// L1TrustRPC: if we trust the L1 RPC we do not have to validate L1 response contents like headers
 	// against block hashes, or cached transaction sender addresses.
@@ -142,12 +141,6 @@ type L1EndpointConfig struct {
 	// L1RPCKind identifies the RPC provider kind that serves the RPC,
 	// to inform the optimal usage of the RPC for transaction receipts fetching.
 	L1RPCKind sources.RPCProviderKind
-
-	// Cookies can be set to true to Enable cookies on the L1 RPC HTTP client
-	Cookies bool
-
-	// Headers allows customization of the headers used by the L1 RPC HTTP client
-	Headers http.Header
 
 	// RateLimit specifies a self-imposed rate-limit on L1 requests. 0 is no rate-limit.
 	RateLimit float64
@@ -182,22 +175,10 @@ func (cfg *L1EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCf
 	if cfg.RateLimit != 0 {
 		opts = append(opts, client.WithRateLimit(cfg.RateLimit, cfg.BatchSize))
 	}
-	var gopts []rpc.ClientOption
-	if cfg.Cookies {
-		jar, err := cookiejar.New(nil)
-		if err != nil {
-			return nil, nil, err
-		}
-		gopts = append(gopts, rpc.WithHTTPClient(&http.Client{Jar: jar}))
-	}
-	if cfg.Headers != nil {
-		gopts = append(gopts, rpc.WithHeaders(cfg.Headers))
-	}
-	opts = append(opts, client.WithGethRPCOptions(gopts...))
 
-	l1Node, err := client.NewRPC(ctx, log, cfg.L1NodeAddr, opts...)
+	l1Node, err := client.NewRPC(ctx, log, cfg.L1, opts...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1NodeAddr, err)
+		return nil, nil, fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1.Addr, err)
 	}
 	rpcCfg := sources.L1ClientDefaultConfig(rollupCfg, cfg.L1TrustRPC, cfg.L1RPCKind)
 	rpcCfg.MaxRequestsPerBatch = cfg.BatchSize

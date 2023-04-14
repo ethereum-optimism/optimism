@@ -6,6 +6,7 @@ import (
 	"github.com/urfave/cli"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -17,11 +18,6 @@ const envVarPrefix = "OP_PROPOSER"
 
 var (
 	// Required Flags
-	L1EthRpcFlag = cli.StringFlag{
-		Name:   "l1-eth-rpc",
-		Usage:  "HTTP provider URL for L1",
-		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_RPC"),
-	}
 	RollupRpcFlag = cli.StringFlag{
 		Name:   "rollup-rpc",
 		Usage:  "HTTP provider URL for the rollup node",
@@ -39,16 +35,6 @@ var (
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "POLL_INTERVAL"),
 	}
 	// Optional flags
-	L1EthCookiesFlag = cli.BoolFlag{
-		Name:   "l1-eth-cookies",
-		Usage:  "Enable cookie support on the L1 HTTP provider.",
-		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_COOKIES"),
-	}
-	L1EthHeadersFlag = cli.StringSliceFlag{
-		Name:   "l1-eth-headers",
-		Usage:  "Custom headers to pass to the L1 HTTP provider.",
-		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_HEADERS"),
-	}
 	AllowNonFinalizedFlag = cli.BoolFlag{
 		Name:   "allow-non-finalized",
 		Usage:  "Allow the proposer to submit proposals for L2 blocks derived from non-finalized L1 blocks.",
@@ -59,21 +45,19 @@ var (
 )
 
 var requiredFlags = []cli.Flag{
-	L1EthRpcFlag,
 	RollupRpcFlag,
 	L2OOAddressFlag,
 	PollIntervalFlag,
 }
 
 var optionalFlags = []cli.Flag{
-	L1EthCookiesFlag,
-	L1EthHeadersFlag,
 	AllowNonFinalizedFlag,
 }
 
 func init() {
 	requiredFlags = append(requiredFlags, oprpc.CLIFlags(envVarPrefix)...)
 
+	optionalFlags = append(optionalFlags, client.L1CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(envVarPrefix)...)

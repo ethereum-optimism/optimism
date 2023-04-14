@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum-optimism/optimism/op-node/version"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 )
 
 func TestOutputAtBlock(t *testing.T) {
@@ -115,7 +116,8 @@ func TestOutputAtBlock(t *testing.T) {
 	require.NoError(t, server.Start())
 	defer server.Stop()
 
-	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Addr().String(), rpcclient.WithDialBackoff(3))
+	cfg := opclient.CLIConfig{Addr: "http://" + server.Addr().String()}
+	client, err := rpcclient.NewRPC(context.Background(), log, cfg, rpcclient.WithDialBackoff(3))
 	require.NoError(t, err)
 
 	var out *eth.OutputResponse
@@ -147,7 +149,8 @@ func TestVersion(t *testing.T) {
 	assert.NoError(t, server.Start())
 	defer server.Stop()
 
-	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Addr().String(), rpcclient.WithDialBackoff(3))
+	cfg := opclient.CLIConfig{Addr: "http://" + server.Addr().String()}
+	client, err := rpcclient.NewRPC(context.Background(), log, cfg, rpcclient.WithDialBackoff(3))
 	assert.NoError(t, err)
 
 	var out string
@@ -190,7 +193,8 @@ func TestSyncStatus(t *testing.T) {
 	assert.NoError(t, server.Start())
 	defer server.Stop()
 
-	client, err := rpcclient.NewRPC(context.Background(), log, "http://"+server.Addr().String(), rpcclient.WithDialBackoff(3))
+	cfg := opclient.CLIConfig{Addr: "http://" + server.Addr().String()}
+	client, err := rpcclient.NewRPC(context.Background(), log, cfg, rpcclient.WithDialBackoff(3))
 	assert.NoError(t, err)
 
 	var out *eth.SyncStatus

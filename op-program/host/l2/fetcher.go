@@ -5,13 +5,13 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type BlockSource interface {
@@ -30,8 +30,8 @@ type FetchingL2Oracle struct {
 	callContext CallContext
 }
 
-func NewFetchingL2Oracle(ctx context.Context, logger log.Logger, l2Url string, l2Head common.Hash) (*FetchingL2Oracle, error) {
-	rpcClient, err := rpc.Dial(l2Url)
+func NewFetchingL2Oracle(ctx context.Context, logger log.Logger, cfg opclient.CLIConfig, l2Head common.Hash) (*FetchingL2Oracle, error) {
+	rpcClient, err := opclient.NewRPCClient(ctx, cfg)
 	if err != nil {
 		return nil, err
 	}

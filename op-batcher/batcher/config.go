@@ -1,7 +1,6 @@
 package batcher
 
 import (
-	"net/http"
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -13,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -50,22 +49,14 @@ func (c *Config) Check() error {
 }
 
 type CLIConfig struct {
-	// L1EthRpc is the HTTP provider URL for L1.
-	L1EthRpc string
+	// L1 is the HTTP provider config for the L1.
+	L1 client.CLIConfig
 
-	// L2EthRpc is the HTTP provider URL for the L2 execution engine.
-	L2EthRpc string
+	// L2 is the HTTP provider config for the L2 execution engine.
+	L2 client.CLIConfig
 
 	// RollupRpc is the HTTP provider URL for the L2 rollup node.
 	RollupRpc string
-
-	// L1EthCookies can be set to true to Enable cookies on the
-	// L1 RPC HTTP client
-	L1EthCookies bool
-
-	// L1EthHeaders allows customization of the headers used by the
-	// L1 RPC HTTP client
-	L1EthHeaders http.Header
 
 	// MaxChannelDuration is the maximum duration (in #L1-blocks) to keep a
 	// channel open. This allows to more eagerly send batcher transactions
@@ -131,15 +122,13 @@ func (c CLIConfig) Check() error {
 func NewConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
 		/* Required Flags */
-		L1EthRpc:        ctx.GlobalString(flags.L1EthRpcFlag.Name),
-		L2EthRpc:        ctx.GlobalString(flags.L2EthRpcFlag.Name),
 		RollupRpc:       ctx.GlobalString(flags.RollupRpcFlag.Name),
 		SubSafetyMargin: ctx.GlobalUint64(flags.SubSafetyMarginFlag.Name),
 		PollInterval:    ctx.GlobalDuration(flags.PollIntervalFlag.Name),
 
 		/* Optional Flags */
-		L1EthCookies:       ctx.GlobalBool(flags.L1EthCookiesFlag.Name),
-		L1EthHeaders:       opservice.ParseHttpHeader(ctx.GlobalStringSlice(flags.L1EthHeadersFlag.Name)),
+		L1:                 client.ReadL1CLIConfig(ctx),
+		L2:                 client.ReadL2CLIConfig(ctx),
 		MaxChannelDuration: ctx.GlobalUint64(flags.MaxChannelDurationFlag.Name),
 		MaxL1TxSize:        ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
 		TargetL1TxSize:     ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),

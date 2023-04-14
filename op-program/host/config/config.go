@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli"
 )
@@ -22,12 +23,12 @@ var (
 
 type Config struct {
 	Rollup        *rollup.Config
-	L2URL         string
+	L2            opclient.CLIConfig
 	L2GenesisPath string
 	L1Head        common.Hash
 	L2Head        common.Hash
 	L2Claim       common.Hash
-	L1URL         string
+	L1            opclient.CLIConfig
 	L1TrustRPC    bool
 	L1RPCKind     sources.RPCProviderKind
 }
@@ -51,14 +52,14 @@ func (c *Config) Check() error {
 	if c.L2GenesisPath == "" {
 		return ErrMissingL2Genesis
 	}
-	if (c.L1URL != "") != (c.L2URL != "") {
+	if (c.L1.Addr != "") != (c.L2.Addr != "") {
 		return ErrL1AndL2Inconsistent
 	}
 	return nil
 }
 
 func (c *Config) FetchingEnabled() bool {
-	return c.L1URL != "" && c.L2URL != ""
+	return c.L1.Addr != "" && c.L2.Addr != ""
 }
 
 // NewConfig creates a Config with all optional values set to the CLI default value
@@ -95,12 +96,12 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 	}
 	return &Config{
 		Rollup:        rollupCfg,
-		L2URL:         ctx.GlobalString(flags.L2NodeAddr.Name),
+		L2:            opclient.ReadL2CLIConfig(ctx),
 		L2GenesisPath: ctx.GlobalString(flags.L2GenesisPath.Name),
 		L2Head:        l2Head,
 		L2Claim:       l2Claim,
 		L1Head:        l1Head,
-		L1URL:         ctx.GlobalString(flags.L1NodeAddr.Name),
+		L1:            opclient.ReadL1CLIConfig(ctx),
 		L1TrustRPC:    ctx.GlobalBool(flags.L1TrustRPC.Name),
 		L1RPCKind:     sources.RPCProviderKind(ctx.GlobalString(flags.L1RPCProviderKind.Name)),
 	}, nil

@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -75,7 +76,8 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	require.Nil(t, node.Start())
 
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.JWTSecret))
-	l2Node, err := client.NewRPC(ctx, logger, node.WSAuthEndpoint(), client.WithGethRPCOptions(auth))
+	clientCfg := opclient.CLIConfig{Addr: node.WSAuthEndpoint()}
+	l2Node, err := client.NewRPC(ctx, logger, clientCfg, client.WithGethRPCOptions(auth))
 	require.Nil(t, err)
 
 	// Finally create the engine client

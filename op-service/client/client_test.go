@@ -1,4 +1,4 @@
-package node
+package client
 
 import (
 	"context"
@@ -6,12 +6,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestL1EndpointConfigCookies(t *testing.T) {
+func TestClientWithCookies(t *testing.T) {
 	testcases := []struct {
 		name    string
 		cookies bool
@@ -42,20 +40,20 @@ func TestL1EndpointConfigCookies(t *testing.T) {
 				cookieChecked = cookieSet
 				http.SetCookie(w, &http.Cookie{Name: "name", Value: "value"})
 				cookieSet = true
-				_, err = w.Write([]byte("{\"jsonrpc\":\"2.0\",\"id\":0,\"result\":\"\"}"))
+				_, err = w.Write([]byte("{\"jsonrpc\":\"2.0\",\"id\":0,\"result\":\"0x5\"}"))
 				assert.NoError(t, err)
 			}))
 			defer s.Close()
 
 			ctx := context.Background()
-			l1 := L1EndpointConfig{
-				L1NodeAddr: s.URL,
-				Cookies:    test.cookies,
+			cfg := CLIConfig{
+				Addr:    s.URL,
+				Cookies: test.cookies,
 			}
-			client, _, err := l1.Setup(ctx, log.New(ctx), &rollup.Config{})
+			client, err := NewClient(ctx, cfg)
 			assert.NoError(t, err)
 			for i := 0; i < 2; i++ {
-				err = client.CallContext(ctx, new(string), "fake_method")
+				_, err = client.ChainID(ctx)
 				assert.NoError(t, err)
 			}
 			assert.True(t, cookieSet)
@@ -64,7 +62,7 @@ func TestL1EndpointConfigCookies(t *testing.T) {
 	}
 }
 
-func TestL1EndpointConfigHeaders(t *testing.T) {
+func TestClientWithHeaders(t *testing.T) {
 	testcases := []struct {
 		name    string
 		headers http.Header
@@ -89,19 +87,19 @@ func TestL1EndpointConfigHeaders(t *testing.T) {
 					}
 				}
 				headetChecked = true
-				_, err := w.Write([]byte("{\"jsonrpc\":\"2.0\",\"id\":0,\"result\":\"\"}"))
+				_, err := w.Write([]byte("{\"jsonrpc\":\"2.0\",\"id\":0,\"result\":\"0x5\"}"))
 				assert.NoError(t, err)
 			}))
 			defer s.Close()
 
 			ctx := context.Background()
-			l1 := L1EndpointConfig{
-				L1NodeAddr: s.URL,
-				Headers:    test.headers,
+			cfg := CLIConfig{
+				Addr:    s.URL,
+				Headers: test.headers,
 			}
-			client, _, err := l1.Setup(ctx, log.New(ctx), &rollup.Config{})
+			client, err := NewClient(ctx, cfg)
 			assert.NoError(t, err)
-			err = client.CallContext(ctx, new(string), "fake_method")
+			_, err = client.ChainID(ctx)
 			assert.NoError(t, err)
 			assert.True(t, headetChecked)
 		})

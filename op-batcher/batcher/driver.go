@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"net/http"
-	"net/http/cookiejar"
 	_ "net/http/pprof"
 	"sync"
 	"time"
@@ -15,11 +13,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
@@ -50,26 +48,14 @@ type BatchSubmitter struct {
 func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*BatchSubmitter, error) {
 	ctx := context.Background()
 
-	var options []rpc.ClientOption
-	if cfg.L1EthCookies {
-		jar, err := cookiejar.New(nil)
-		if err != nil {
-			return nil, err
-		}
-		options = append(options, rpc.WithHTTPClient(&http.Client{Jar: jar}))
-	}
-	if cfg.L1EthHeaders != nil {
-		options = append(options, rpc.WithHeaders(cfg.L1EthHeaders))
-	}
-
 	// Connect to L1 and L2 providers. Perform these last since they are the
 	// most expensive.
-	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc, options...)
+	l1Client, err := client.NewClient(ctx, cfg.L1)
 	if err != nil {
 		return nil, err
 	}
 
-	l2Client, err := dialEthClientWithTimeout(ctx, cfg.L2EthRpc)
+	l2Client, err := client.NewClient(ctx, cfg.L2)
 	if err != nil {
 		return nil, err
 	}

@@ -1,7 +1,6 @@
 package proposer
 
 import (
-	"net/http"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -11,7 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/flags"
 
-	opservice "github.com/ethereum-optimism/optimism/op-service"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -37,8 +36,7 @@ type Config struct {
 type CLIConfig struct {
 	/* Required Params */
 
-	// L1EthRpc is the HTTP provider URL for L1.
-	L1EthRpc string
+	L1 client.CLIConfig
 
 	// RollupRpc is the HTTP provider URL for the rollup node.
 	RollupRpc string
@@ -54,14 +52,6 @@ type CLIConfig struct {
 	// for L2 blocks derived from non-finalized L1 data.
 	AllowNonFinalized bool
 
-	// L1EthCookies can be set to true to Enable cookies on the
-	// L1 RPC HTTP client
-	L1EthCookies bool
-
-	// L1EthHeaders allows customization of the headers used by the
-	// L1 RPC HTTP client
-	L1EthHeaders http.Header
-
 	TxMgrConfig txmgr.CLIConfig
 
 	RPCConfig oprpc.CLIConfig
@@ -74,6 +64,9 @@ type CLIConfig struct {
 }
 
 func (c CLIConfig) Check() error {
+	if err := c.L1.Check(); err != nil {
+		return err
+	}
 	if err := c.RPCConfig.Check(); err != nil {
 		return err
 	}
@@ -96,14 +89,12 @@ func (c CLIConfig) Check() error {
 func NewConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
 		// Required Flags
-		L1EthRpc:     ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		L1:           client.ReadL1CLIConfig(ctx),
 		RollupRpc:    ctx.GlobalString(flags.RollupRpcFlag.Name),
 		L2OOAddress:  ctx.GlobalString(flags.L2OOAddressFlag.Name),
 		PollInterval: ctx.GlobalDuration(flags.PollIntervalFlag.Name),
 		TxMgrConfig:  txmgr.ReadCLIConfig(ctx),
 		// Optional Flags
-		L1EthCookies:      ctx.GlobalBool(flags.L1EthCookiesFlag.Name),
-		L1EthHeaders:      opservice.ParseHttpHeader(ctx.GlobalStringSlice(flags.L1EthHeadersFlag.Name)),
 		AllowNonFinalized: ctx.GlobalBool(flags.AllowNonFinalizedFlag.Name),
 		RPCConfig:         oprpc.ReadCLIConfig(ctx),
 		LogConfig:         oplog.ReadCLIConfig(ctx),

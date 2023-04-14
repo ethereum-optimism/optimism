@@ -7,7 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	opservice "github.com/ethereum-optimism/optimism/op-service"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/urfave/cli"
@@ -23,17 +23,6 @@ func prefixEnvVar(name string) string {
 
 var (
 	/* Required Flags */
-	L1NodeAddr = cli.StringFlag{
-		Name:   "l1",
-		Usage:  "Address of L1 User JSON-RPC endpoint to use (eth namespace required)",
-		Value:  "http://127.0.0.1:8545",
-		EnvVar: prefixEnvVar("L1_ETH_RPC"),
-	}
-	L2EngineAddr = cli.StringFlag{
-		Name:   "l2",
-		Usage:  "Address of L2 Engine JSON-RPC endpoints to use (engine and eth namespace required)",
-		EnvVar: prefixEnvVar("L2_ENGINE_RPC"),
-	}
 	RollupConfig = cli.StringFlag{
 		Name:   "rollup.config",
 		Usage:  "Rollup chain parameters",
@@ -75,16 +64,6 @@ var (
 			out := sources.RPCKindBasic
 			return &out
 		}(),
-	}
-	L1RPCCookies = cli.BoolFlag{
-		Name:   "l1.rpc-cookies",
-		Usage:  "Enable cookie support on the L1 HTTP provider.",
-		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_RPC_COOKIES"),
-	}
-	L1RPCHeaders = cli.StringSliceFlag{
-		Name:   "l1.rpc-headers",
-		Usage:  "Custom headers to pass to the L1 HTTP provider.",
-		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_RPC_HEADERS"),
 	}
 	L1RPCRateLimit = cli.Float64Flag{
 		Name:   "l1.rpc-rate-limit",
@@ -221,8 +200,6 @@ var (
 )
 
 var requiredFlags = []cli.Flag{
-	L1NodeAddr,
-	L2EngineAddr,
 	RPCListenAddr,
 	RPCListenPort,
 }
@@ -232,8 +209,6 @@ var optionalFlags = []cli.Flag{
 	Network,
 	L1TrustRPC,
 	L1RPCProviderKind,
-	L1RPCCookies,
-	L1RPCHeaders,
 	L1RPCRateLimit,
 	L1RPCMaxBatchSize,
 	L1HTTPPollInterval,
@@ -265,6 +240,8 @@ var Flags []cli.Flag
 func init() {
 	optionalFlags = append(optionalFlags, p2pFlags...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, opclient.L1CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, opclient.L2CLIFlags(envVarPrefix)...)
 	Flags = append(requiredFlags, optionalFlags...)
 }
 

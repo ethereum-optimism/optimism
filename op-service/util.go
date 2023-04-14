@@ -3,10 +3,8 @@ package op_service
 import (
 	"context"
 	"errors"
-	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 )
@@ -48,18 +46,4 @@ func CloseAction(fn func(ctx context.Context, shutdown <-chan struct{}) error) e
 		cancel()
 		return err
 	}
-}
-
-// ParseHttpHeader takes a slice of strings of the form "K=V" and returns a http.Header
-func ParseHttpHeader(slice []string) http.Header {
-	header := make(http.Header)
-	for _, s := range slice {
-		split := strings.SplitN(s, "=", 2)
-		val := ""
-		if len(split) >= 2 {
-			val = split[1]
-		}
-		header.Add(split[0], val)
-	}
-	return header
 }

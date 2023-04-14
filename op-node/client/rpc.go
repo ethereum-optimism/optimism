@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/backoff"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -71,7 +72,7 @@ func WithRateLimit(rateLimit float64, burst int) RPCOption {
 }
 
 // NewRPC returns the correct client.RPC instance for a given RPC url.
-func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption) (RPC, error) {
+func NewRPC(ctx context.Context, lgr log.Logger, clientConfig client.CLIConfig, opts ...RPCOption) (RPC, error) {
 	var cfg rpcConfig
 	for i, opt := range opts {
 		if err := opt(&cfg); err != nil {
@@ -81,7 +82,7 @@ func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption)
 	if cfg.backoffAttempts < 1 { // default to at least 1 attempt, or it always fails to dial.
 		cfg.backoffAttempts = 1
 	}
-	underlying, err := dialRPCClientWithBackoff(ctx, lgr, addr, cfg.backoffAttempts, cfg.gethRPCOptions...)
+	underlying, err := dialRPCClientWithBackoff(ctx, lgr, clientConfig, cfg.backoffAttempts, cfg.gethRPCOptions...)
 	if err != nil {
 		return nil, err
 	}
@@ -92,7 +93,7 @@ func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption)
 		wrapped = NewRateLimitingClient(wrapped, rate.Limit(cfg.limit), cfg.burst)
 	}
 
-	if httpRegex.MatchString(addr) {
+	if httpRegex.MatchString(clientConfig.Addr) {
 		wrapped = NewPollingClient(ctx, lgr, wrapped, WithPollRate(cfg.httpPollInterval))
 	}
 
@@ -100,18 +101,18 @@ func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption)
 }
 
 // Dials a JSON-RPC endpoint repeatedly, with a backoff, until a client connection is established. Auth is optional.
-func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, attempts int, opts ...rpc.ClientOption) (*rpc.Client, error) {
+func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, cfg client.CLIConfig, attempts int, opts ...rpc.ClientOption) (*rpc.Client, error) {
 	bOff := backoff.Exponential()
 	var ret *rpc.Client
 	err := backoff.DoCtx(ctx, attempts, bOff, func() error {
-		client, err := rpc.DialOptions(ctx, addr, opts...)
+		c, err := client.NewRPCClient(ctx, cfg, opts...)
 		if err != nil {
-			if client == nil {
-				return fmt.Errorf("failed to dial address (%s): %w", addr, err)
+			if c == nil {
+				return fmt.Errorf("failed to dial address (%s): %w", cfg.Addr, err)
 			}
-			log.Warn("failed to dial address, but may connect later", "addr", addr, "err", err)
+			log.Warn("failed to dial address, but may connect later", "addr", cfg.Addr, "err", err)
 		}
-		ret = client
+		ret = c
 		return nil
 	})
 	if err != nil {
@@ -184,6 +185,13 @@ func (ic *InstrumentedRPCClient) BatchCallContext(ctx context.Context, b []rpc.B
 
 func (ic *InstrumentedRPCClient) EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error) {
 	return ic.c.EthSubscribe(ctx, channel, args...)
+}
+
+func instrument1(m *metrics.Metrics, name string, cb func() error) error {
+	record := m.RecordRPCClientRequest(name)
+	err := cb()
+	record(err)
+	return err
 }
 
 // instrumentBatch handles metrics for batch calls. Request metrics are
