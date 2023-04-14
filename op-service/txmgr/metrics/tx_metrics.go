@@ -85,15 +85,15 @@ func MakeTxMetrics(ns string, factory metrics.Factory) TxMetrics {
 		txPublishError: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      "tx_publish_error_count",
-			Help:      "Count of publish errors. Labells are sanitized error strings",
+			Help:      "Count of publish errors. Labels are sanitized error strings",
 			Subsystem: "txmgr",
 		}, []string{"error"}),
-		confirmEvent: metrics.NewEventVec(factory, ns, "confirm", "tx confirm", []string{"status"}),
-		publishEvent: metrics.NewEvent(factory, ns, "publish", "tx publish"),
+		confirmEvent: metrics.NewEventVec(factory, ns, "txmgr", "confirm", "tx confirm", []string{"status"}),
+		publishEvent: metrics.NewEvent(factory, ns, "txmgr", "publish", "tx publish"),
 		rpcError: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      "rpc_error_count",
-			Help:      "Temporrary: Count of RPC errors (like timeouts) that have occurrred",
+			Help:      "Temporary: Count of RPC errors (like timeouts) that have occurred",
 			Subsystem: "txmgr",
 		}),
 	}

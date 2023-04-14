@@ -104,6 +104,10 @@ func main() {
 				Usage: "Path to evm-messages.json",
 			},
 			&cli.StringFlag{
+				Name:  "witness-file",
+				Usage: "Path to l2geth witness file",
+			},
+			&cli.StringFlag{
 				Name:  "private-key",
 				Usage: "Key to sign transactions with",
 			},
@@ -702,8 +706,9 @@ func newContracts(ctx *cli.Context, l1Backend, l2Backend bind.ContractBackend) (
 func newWithdrawals(ctx *cli.Context, l1ChainID *big.Int) ([]*crossdomain.LegacyWithdrawal, error) {
 	ovmMsgs := ctx.String("ovm-messages")
 	evmMsgs := ctx.String("evm-messages")
+	witnessFile := ctx.String("witness-file")
 
-	log.Debug("Migration data", "ovm-path", ovmMsgs, "evm-messages", evmMsgs)
+	log.Debug("Migration data", "ovm-path", ovmMsgs, "evm-messages", evmMsgs, "witness-file", witnessFile)
 	ovmMessages, err := crossdomain.NewSentMessageFromJSON(ovmMsgs)
 	if err != nil {
 		return nil, err
@@ -716,9 +721,19 @@ func newWithdrawals(ctx *cli.Context, l1ChainID *big.Int) ([]*crossdomain.Legacy
 		ovmMessages = []*crossdomain.SentMessage{}
 	}
 
-	evmMessages, err := crossdomain.NewSentMessageFromJSON(evmMsgs)
-	if err != nil {
-		return nil, err
+	var evmMessages []*crossdomain.SentMessage
+	if witnessFile != "" {
+		evmMessages, _, err = crossdomain.ReadWitnessData(witnessFile)
+		if err != nil {
+			return nil, err
+		}
+	} else if evmMsgs != "" {
+		evmMessages, err = crossdomain.NewSentMessageFromJSON(evmMsgs)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, errors.New("must provide either witness file or evm messages")
 	}
 
 	migrationData := crossdomain.MigrationData{

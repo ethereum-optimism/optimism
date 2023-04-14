@@ -31,15 +31,25 @@ var (
 		Usage:  "Address of L2 JSON-RPC endpoint to use (eth and debug namespace required)",
 		EnvVar: service.PrefixEnvVar(envVarPrefix, "L2_RPC"),
 	}
-	L2GenesisPath = cli.StringFlag{
-		Name:   "l2.genesis",
-		Usage:  "Path to the op-geth genesis file",
-		EnvVar: service.PrefixEnvVar(envVarPrefix, "L2_GENESIS"),
+	L1Head = cli.StringFlag{
+		Name:   "l1.head",
+		Usage:  "Hash of the L1 head block. Derivation stops after this block is processed.",
+		EnvVar: service.PrefixEnvVar(envVarPrefix, "L1_HEAD"),
 	}
 	L2Head = cli.StringFlag{
 		Name:   "l2.head",
 		Usage:  "Hash of the agreed L2 block to start derivation from",
 		EnvVar: service.PrefixEnvVar(envVarPrefix, "L2_HEAD"),
+	}
+	L2Claim = cli.StringFlag{
+		Name:   "l2.claim",
+		Usage:  "Claimed L2 output root to validate",
+		EnvVar: service.PrefixEnvVar(envVarPrefix, "L2_CLAIM"),
+	}
+	L2GenesisPath = cli.StringFlag{
+		Name:   "l2.genesis",
+		Usage:  "Path to the op-geth genesis file",
+		EnvVar: service.PrefixEnvVar(envVarPrefix, "L2_GENESIS"),
 	}
 	L1NodeAddr = cli.StringFlag{
 		Name:   "l1",
@@ -66,12 +76,16 @@ var (
 // Flags contains the list of configuration options available to the binary.
 var Flags []cli.Flag
 
+var requiredFlags = []cli.Flag{
+	L1Head,
+	L2Head,
+	L2Claim,
+	L2GenesisPath,
+}
 var programFlags = []cli.Flag{
 	RollupConfig,
 	Network,
 	L2NodeAddr,
-	L2GenesisPath,
-	L2Head,
 	L1NodeAddr,
 	L1TrustRPC,
 	L1RPCProviderKind,
@@ -79,6 +93,7 @@ var programFlags = []cli.Flag{
 
 func init() {
 	Flags = append(Flags, oplog.CLIFlags(envVarPrefix)...)
+	Flags = append(Flags, requiredFlags...)
 	Flags = append(Flags, programFlags...)
 }
 
@@ -91,11 +106,10 @@ func CheckRequired(ctx *cli.Context) error {
 	if rollupConfig != "" && network != "" {
 		return fmt.Errorf("cannot specify both %s and %s", RollupConfig.Name, Network.Name)
 	}
-	if ctx.GlobalString(L2GenesisPath.Name) == "" {
-		return fmt.Errorf("flag %s is required", L2GenesisPath.Name)
-	}
-	if ctx.GlobalString(L2Head.Name) == "" {
-		return fmt.Errorf("flag %s is required", L2Head.Name)
+	for _, flag := range requiredFlags {
+		if ctx.GlobalString(flag.GetName()) == "" {
+			return fmt.Errorf("flag %s is required", flag.GetName())
+		}
 	}
 	return nil
 }

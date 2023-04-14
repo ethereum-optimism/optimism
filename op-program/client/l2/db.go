@@ -40,12 +40,12 @@ func (o *OracleKeyValueStore) Get(key []byte) ([]byte, error) {
 
 	if len(key) == codePrefixedKeyLength && bytes.HasPrefix(key, rawdb.CodePrefix) {
 		key = key[len(rawdb.CodePrefix):]
-		return o.oracle.CodeByHash(*(*[common.HashLength]byte)(key))
+		return o.oracle.CodeByHash(*(*[common.HashLength]byte)(key)), nil
 	}
 	if len(key) != common.HashLength {
 		return nil, ErrInvalidKeyLength
 	}
-	return o.oracle.NodeByHash(*(*[common.HashLength]byte)(key))
+	return o.oracle.NodeByHash(*(*[common.HashLength]byte)(key)), nil
 }
 
 func (o *OracleKeyValueStore) NewBatch() ethdb.Batch {

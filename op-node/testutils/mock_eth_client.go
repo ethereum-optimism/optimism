@@ -83,8 +83,8 @@ func (m *MockEthClient) PayloadByNumber(ctx context.Context, n uint64) (*eth.Exe
 	return out[0].(*eth.ExecutionPayload), *out[1].(*error)
 }
 
-func (m *MockEthClient) ExpectPayloadByNumber(hash common.Hash, payload *eth.ExecutionPayload, err error) {
-	m.Mock.On("PayloadByNumber", hash).Once().Return(payload, &err)
+func (m *MockEthClient) ExpectPayloadByNumber(n uint64, payload *eth.ExecutionPayload, err error) {
+	m.Mock.On("PayloadByNumber", n).Once().Return(payload, &err)
 }
 
 func (m *MockEthClient) PayloadByLabel(ctx context.Context, label eth.BlockLabel) (*eth.ExecutionPayload, error) {
