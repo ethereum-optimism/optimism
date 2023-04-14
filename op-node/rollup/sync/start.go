@@ -110,7 +110,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 	}
 
 	lgr.Info("Loaded current L2 heads", "unsafe", result.Unsafe, "safe", result.Safe, "finalized", result.Finalized,
-		"unsafe_origin", result.Unsafe.L1Origin, "unsafe_origin", result.Safe.L1Origin)
+		"unsafe_origin", result.Unsafe.L1Origin, "safe_origin", result.Safe.L1Origin)
 
 	// Remember original unsafe block to determine reorg depth
 	prevUnsafe := result.Unsafe
