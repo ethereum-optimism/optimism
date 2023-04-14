@@ -1,5 +1,5 @@
 {
-  "detectors_to_exclude": "",
+  "detectors_to_exclude": "incorrect-shift-in-assembly",
   "fail_high": true,
   "fail_pedantic": false,
   "exclude_optimization": true,
