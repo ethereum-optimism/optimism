@@ -32,7 +32,7 @@ const (
 	// The zero key type is illegal to use, ensuring all keys are non-zero.
 	_ KeyType = 0
 	// LocalKeyType is for input-type pre-images, specific to the local program instance.
-	LocalKeyType KeyType = 0
+	LocalKeyType KeyType = 1
 	// Keccak25Key6Type is for keccak256 pre-images, for any global shared pre-images.
 	Keccak25Key6Type KeyType = 2
 )

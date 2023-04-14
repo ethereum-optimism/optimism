@@ -34,7 +34,8 @@ func DecodeTransactions(data []hexutil.Bytes) ([]*types.Transaction, error) {
 	return dest, nil
 }
 
-func HashTransactions(elems []*types.Transaction) []common.Hash {
+// TransactionsToHashes computes the transaction-hash for every transaction in the input.
+func TransactionsToHashes(elems []*types.Transaction) []common.Hash {
 	out := make([]common.Hash, len(elems))
 	for i, el := range elems {
 		out[i] = el.Hash()

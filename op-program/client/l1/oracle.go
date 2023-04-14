@@ -78,7 +78,7 @@ func (p *PreimageOracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockIn
 		return p.oracle.Get(preimage.Keccak256Key(key))
 	})
 
-	txHashes := eth.HashTransactions(txs)
+	txHashes := eth.TransactionsToHashes(txs)
 	receipts, err := eth.DecodeRawReceipts(eth.ToBlockID(info), opaqueReceipts, txHashes)
 	if err != nil {
 		panic(fmt.Errorf("bad receipts data for block %s: %w", blockHash, err))
