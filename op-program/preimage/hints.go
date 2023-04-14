@@ -20,8 +20,8 @@ func NewHintWriter(w io.Writer) *HintWriter {
 
 func (hw *HintWriter) Hint(v Hint) {
 	hint := v.Hint()
-	hintBytes := make([]byte, 4, 4+len(hint)+1)
-	binary.BigEndian.PutUint32(hintBytes[:4], uint32(len(hint)))
+	var hintBytes []byte
+	hintBytes = binary.BigEndian.AppendUint32(hintBytes, uint32(len(hint)))
 	hintBytes = append(hintBytes, []byte(hint)...)
 	hintBytes = append(hintBytes, 0) // to block writing on
 	_, err := hw.w.Write(hintBytes)
@@ -41,14 +41,13 @@ func NewHintReader(r io.Reader) *HintReader {
 }
 
 func (hr *HintReader) NextHint(router func(hint string) error) error {
-	var lengthPrefix [4]byte
-	if _, err := io.ReadFull(hr.r, lengthPrefix[:]); err != nil {
+	var length uint32
+	if err := binary.Read(hr.r, binary.BigEndian, &length); err != nil {
 		if err == io.EOF {
 			return io.EOF
 		}
 		return fmt.Errorf("failed to read hint length prefix: %w", err)
 	}
-	length := binary.BigEndian.Uint32(lengthPrefix[:])
 	payload := make([]byte, length)
 	if length > 0 {
 		if _, err := io.ReadFull(hr.r, payload); err != nil {

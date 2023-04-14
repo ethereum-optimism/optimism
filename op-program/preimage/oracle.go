@@ -26,14 +26,9 @@ func (o *OracleClient) Get(key Key) []byte {
 		panic(fmt.Errorf("failed to write key %s (%T) to pre-image oracle: %w", key, key, err))
 	}
 
-	var lengthPrefix [8]byte
-	if _, err := io.ReadFull(o.rw, lengthPrefix[:]); err != nil {
+	var length uint64
+	if err := binary.Read(o.rw, binary.BigEndian, &length); err != nil {
 		panic(fmt.Errorf("failed to read pre-image length of key %s (%T) from pre-image oracle: %w", key, key, err))
-	}
-
-	length := binary.BigEndian.Uint64(lengthPrefix[:])
-	if length == 0 { // don't read empty payloads
-		return nil
 	}
 	payload := make([]byte, length)
 	if _, err := io.ReadFull(o.rw, payload); err != nil {
@@ -65,10 +60,8 @@ func (o *OracleServer) NextPreimageRequest(getPreimage func(key common.Hash) ([]
 		return fmt.Errorf("failed to serve pre-image %s request: %w", key, err)
 	}
 
-	var lengthPrefix [8]byte
-	binary.BigEndian.PutUint64(lengthPrefix[:], uint64(len(value)))
-	if _, err := o.rw.Write(lengthPrefix[:]); err != nil {
-		return fmt.Errorf("failed to write length-prefix %x: %w", lengthPrefix, err)
+	if err := binary.Write(o.rw, binary.BigEndian, uint64(len(value))); err != nil {
+		return fmt.Errorf("failed to write length-prefix %d: %w", len(value), err)
 	}
 	if len(value) == 0 {
 		return nil
