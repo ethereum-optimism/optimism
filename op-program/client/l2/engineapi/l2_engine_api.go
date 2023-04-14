@@ -207,7 +207,7 @@ func (ea *L2EngineAPI) ForkchoiceUpdatedV1(ctx context.Context, state *eth.Forkc
 	// Block is known locally, just sanity check that the beacon client does not
 	// attempt to push us back to before the merge.
 	// Note: Differs from op-geth implementation as pre-merge blocks are never supported here
-	if block.Difficulty().BitLen() > 0 {
+	if block.Difficulty().BitLen() > 0 && block.NumberU64() > 0 {
 		return STATUS_INVALID, errors.New("pre-merge blocks not supported")
 	}
 	valid := func(id *engine.PayloadID) *eth.ForkchoiceUpdatedResult {

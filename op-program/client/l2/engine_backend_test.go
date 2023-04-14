@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi/test"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -149,6 +150,9 @@ func setupOracle(t *testing.T, blockCount int, headBlockNumber int) (*params.Cha
 		L2BlockTime:            2,
 		FundDevAccounts:        true,
 		L2GenesisBlockGasLimit: 30_000_000,
+		// Arbitrary non-zero difficulty in genesis.
+		// This is slightly weird for a chain starting post-merge but it happens so need to make sure it works
+		L2GenesisBlockDifficulty: (*hexutil.Big)(big.NewInt(100)),
 	}
 	l1Genesis, err := genesis.NewL1Genesis(deployConfig)
 	require.NoError(t, err)
