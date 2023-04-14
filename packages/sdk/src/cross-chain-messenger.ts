@@ -1349,23 +1349,27 @@ export class CrossChainMessenger {
   public async getBedrockMessageProof(
     message: MessageLike
   ): Promise<BedrockCrossChainMessageProof> {
+    console.log('getBedrockMessageProof()...')
     const resolved = await this.toCrossChainMessage(message)
     if (resolved.direction === MessageDirection.L1_TO_L2) {
       throw new Error(`can only generate proofs for L2 to L1 messages`)
     }
 
     const output = await this.getMessageBedrockOutput(resolved)
+    console.log('generated messageBedrockOutput', { output })
     if (output === null) {
       throw new Error(`state root for message not yet published`)
     }
 
     const withdrawal = await this.toLowLevelMessage(resolved)
+    console.log('generated withdrawal as low level message', { withdrawal })
     const messageSlot = ethers.utils.keccak256(
       ethers.utils.defaultAbiCoder.encode(
         ['bytes32', 'uint256'],
         [hashLowLevelMessage(withdrawal), ethers.constants.HashZero]
       )
     )
+    console.log('generated messageSlot', { messageSlot })
 
     const stateTrieProof = await makeStateTrieProof(
       this.l2Provider as ethers.providers.JsonRpcProvider,
@@ -1373,6 +1377,7 @@ export class CrossChainMessenger {
       this.contracts.l2.BedrockMessagePasser.address,
       messageSlot
     )
+    console.log('generated stateTrieProof', { stateTrieProof })
 
     const block = await (
       this.l2Provider as ethers.providers.JsonRpcProvider
@@ -1380,6 +1385,7 @@ export class CrossChainMessenger {
       toRpcHexString(output.l2BlockNumber),
       false,
     ])
+    console.log('generated block', { block })
 
     return {
       outputRootProof: {
@@ -1465,9 +1471,9 @@ export class CrossChainMessenger {
       overrides?: Overrides
     }
   ): Promise<TransactionResponse> {
-    return (opts?.signer || this.l1Signer).sendTransaction(
-      await this.populateTransaction.proveMessage(message, opts)
-    )
+    const tx = await this.populateTransaction.proveMessage(message, opts)
+    console.log('proveMessage tx', tx)
+    return (opts?.signer || this.l1Signer).sendTransaction(tx)
   }
 
   /**
@@ -1759,6 +1765,10 @@ export class CrossChainMessenger {
       }
     ): Promise<TransactionRequest> => {
       const resolved = await this.toCrossChainMessage(message)
+      console.log(
+        'Turned message into an internal type called CrossChainMessage',
+        { message, resolved }
+      )
       if (resolved.direction === MessageDirection.L1_TO_L2) {
         throw new Error('cannot finalize L1 to L2 message')
       }
@@ -1770,8 +1780,21 @@ export class CrossChainMessenger {
       }
 
       const withdrawal = await this.toLowLevelMessage(resolved)
+      console.log(
+        `
+        Transformed CrossChainMessenger message into its low-level representation inside the L2ToL1MessagePasser contract on L2.
+      `,
+        { withdrawal }
+      )
       const proof = await this.getBedrockMessageProof(resolved)
-      return this.contracts.l1.OptimismPortal.populateTransaction.proveWithdrawalTransaction(
+      console.log(
+        `
+        generated bedrock proof from CrossChainMessenger message
+      `,
+        { proof }
+      )
+
+      const args = [
         [
           withdrawal.messageNonce,
           withdrawal.sender,
@@ -1788,7 +1811,17 @@ export class CrossChainMessenger {
           proof.outputRootProof.latestBlockhash,
         ],
         proof.withdrawalProof,
-        opts?.overrides || {}
+        opts?.overrides || {},
+      ] as const
+
+      console.log(
+        `
+        Populating transaction for OptimismPortal.proveWithdrawalTransaction with args:
+      `,
+        args
+      )
+      return this.contracts.l1.OptimismPortal.populateTransaction.proveWithdrawalTransaction(
+        ...args
       )
     },
 
