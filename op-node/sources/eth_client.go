@@ -356,7 +356,7 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 	if v, ok := s.receiptsCache.Get(blockHash); ok {
 		job = v.(*receiptsFetchingJob)
 	} else {
-		txHashes := eth.HashTransactions(txs)
+		txHashes := eth.TransactionsToHashes(txs)
 		job = NewReceiptsFetchingJob(s, s.client, s.maxBatchSize, eth.ToBlockID(info), info.ReceiptHash(), txHashes)
 		s.receiptsCache.Add(blockHash, job)
 	}
