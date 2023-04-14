@@ -4,17 +4,19 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 type Source interface {
-	InfoByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, error)
-	InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error)
-	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
+	HeaderByHash(ctx context.Context, blockHash common.Hash) (*types.Header, error)
+	BlockByHash(ctx context.Context, blockHash common.Hash) (*types.Block, error)
+	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
 }
+
+var _ Source = (*ethclient.Client)(nil)
 
 type FetchingL1Oracle struct {
 	ctx    context.Context
@@ -30,38 +32,47 @@ func NewFetchingL1Oracle(ctx context.Context, logger log.Logger, source Source) 
 	}
 }
 
-func (o *FetchingL1Oracle) HeaderByBlockHash(blockHash common.Hash) eth.BlockInfo {
+func (o *FetchingL1Oracle) HeaderByBlockHash(blockHash common.Hash) *types.Header {
+	header := o.RawHeaderByBlockHash(blockHash)
+	return header
+}
+
+func (o *FetchingL1Oracle) RawHeaderByBlockHash(blockHash common.Hash) *types.Header {
 	o.logger.Trace("HeaderByBlockHash", "hash", blockHash)
-	info, err := o.source.InfoByHash(o.ctx, blockHash)
+	header, err := o.source.HeaderByHash(o.ctx, blockHash)
 	if err != nil {
 		panic(fmt.Errorf("retrieve block %s: %w", blockHash, err))
 	}
-	if info == nil {
+	if header == nil {
 		panic(fmt.Errorf("unknown block: %s", blockHash))
 	}
-	return info
+	return header
 }
 
-func (o *FetchingL1Oracle) TransactionsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Transactions) {
+func (o *FetchingL1Oracle) TransactionsByBlockHash(blockHash common.Hash) (*types.Header, types.Transactions) {
 	o.logger.Trace("TransactionsByBlockHash", "hash", blockHash)
-	info, txs, err := o.source.InfoAndTxsByHash(o.ctx, blockHash)
+	block, err := o.source.BlockByHash(o.ctx, blockHash)
+	//info, txs, err := o.source.InfoAndTxsByHash(o.ctx, blockHash)
 	if err != nil {
 		panic(fmt.Errorf("retrieve transactions for block %s: %w", blockHash, err))
 	}
-	if info == nil || txs == nil {
+	if block == nil {
 		panic(fmt.Errorf("unknown block: %s", blockHash))
 	}
-	return info, txs
+	return block.Header(), block.Transactions()
 }
 
-func (o *FetchingL1Oracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Receipts) {
+func (o *FetchingL1Oracle) ReceiptsByBlockHash(blockHash common.Hash) (*types.Header, types.Receipts) {
 	o.logger.Trace("ReceiptsByBlockHash", "hash", blockHash)
-	info, rcpts, err := o.source.FetchReceipts(o.ctx, blockHash)
-	if err != nil {
-		panic(fmt.Errorf("retrieve receipts for block %s: %w", blockHash, err))
+	header, transactions := o.TransactionsByBlockHash(blockHash)
+
+	var receipts []*types.Receipt
+	for _, transaction := range transactions {
+		receipt, err := o.source.TransactionReceipt(o.ctx, transaction.Hash())
+		if err != nil {
+			panic(fmt.Errorf("loading receipt for tx %s: %w", transaction.Hash(), err))
+		}
+		receipts = append(receipts, receipt)
 	}
-	if info == nil || rcpts == nil {
-		panic(fmt.Errorf("unknown block: %s", blockHash))
-	}
-	return info, rcpts
+	return header, receipts
 }

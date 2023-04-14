@@ -7,9 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -19,25 +17,25 @@ import (
 
 var _ derive.L1Fetcher = (*OracleL1Client)(nil)
 
-var head = blockNum(1000)
+var head = blockNum(1000, common.Hash{})
 
 func TestInfoByHash(t *testing.T) {
 	client, oracle := newClient(t)
 	hash := common.HexToHash("0xAABBCC")
-	expected := &sources.HeaderInfo{}
+	expected := &types.Header{}
 	oracle.blocks[hash] = expected
 
 	info, err := client.InfoByHash(context.Background(), hash)
 	require.NoError(t, err)
-	require.Equal(t, expected, info)
+	require.Equal(t, eth.HeaderBlockInfo(expected), info)
 }
 
 func TestL1BlockRefByHash(t *testing.T) {
 	client, oracle := newClient(t)
 	hash := common.HexToHash("0xAABBCC")
-	header := &sources.HeaderInfo{}
+	header := &types.Header{Number: big.NewInt(2)}
 	oracle.blocks[hash] = header
-	expected := eth.InfoToL1BlockRef(header)
+	expected := eth.InfoToL1BlockRef(eth.HeaderBlockInfo(header))
 
 	ref, err := client.L1BlockRefByHash(context.Background(), hash)
 	require.NoError(t, err)
@@ -47,122 +45,142 @@ func TestL1BlockRefByHash(t *testing.T) {
 func TestFetchReceipts(t *testing.T) {
 	client, oracle := newClient(t)
 	hash := common.HexToHash("0xAABBCC")
-	expectedInfo := &sources.HeaderInfo{}
+	expectedHeader := &types.Header{}
 	expectedReceipts := types.Receipts{
 		&types.Receipt{},
 	}
-	oracle.blocks[hash] = expectedInfo
+	oracle.blocks[hash] = expectedHeader
 	oracle.rcpts[hash] = expectedReceipts
 
 	info, rcpts, err := client.FetchReceipts(context.Background(), hash)
 	require.NoError(t, err)
-	require.Equal(t, expectedInfo, info)
+	require.Equal(t, eth.HeaderBlockInfo(expectedHeader), info)
 	require.Equal(t, expectedReceipts, rcpts)
 }
 
 func TestInfoAndTxsByHash(t *testing.T) {
 	client, oracle := newClient(t)
 	hash := common.HexToHash("0xAABBCC")
-	expectedInfo := &sources.HeaderInfo{}
+	expectedHeader := &types.Header{}
 	expectedTxs := types.Transactions{
 		&types.Transaction{},
 	}
-	oracle.blocks[hash] = expectedInfo
+	oracle.blocks[hash] = expectedHeader
 	oracle.txs[hash] = expectedTxs
 
 	info, txs, err := client.InfoAndTxsByHash(context.Background(), hash)
 	require.NoError(t, err)
-	require.Equal(t, expectedInfo, info)
+	require.Equal(t, eth.HeaderBlockInfo(expectedHeader), info)
 	require.Equal(t, expectedTxs, txs)
 }
 
 func TestL1BlockRefByLabel(t *testing.T) {
+	headBlockRef := eth.InfoToL1BlockRef(eth.HeaderBlockInfo(head))
+
 	t.Run("Unsafe", func(t *testing.T) {
 		client, _ := newClient(t)
 		ref, err := client.L1BlockRefByLabel(context.Background(), eth.Unsafe)
 		require.NoError(t, err)
-		require.Equal(t, eth.InfoToL1BlockRef(head), ref)
+		require.Equal(t, headBlockRef, ref)
 	})
 	t.Run("Safe", func(t *testing.T) {
 		client, _ := newClient(t)
 		ref, err := client.L1BlockRefByLabel(context.Background(), eth.Safe)
 		require.NoError(t, err)
-		require.Equal(t, eth.InfoToL1BlockRef(head), ref)
+		require.Equal(t, headBlockRef, ref)
 	})
 	t.Run("Finalized", func(t *testing.T) {
 		client, _ := newClient(t)
 		ref, err := client.L1BlockRefByLabel(context.Background(), eth.Finalized)
 		require.NoError(t, err)
-		require.Equal(t, eth.InfoToL1BlockRef(head), ref)
+		require.Equal(t, headBlockRef, ref)
 	})
 	t.Run("UnknownLabel", func(t *testing.T) {
 		client, _ := newClient(t)
-		ref, err := client.L1BlockRefByLabel(context.Background(), eth.BlockLabel("unknown"))
+		ref, err := client.L1BlockRefByLabel(context.Background(), "unknown")
 		require.ErrorIs(t, err, ErrUnknownLabel)
 		require.Equal(t, eth.L1BlockRef{}, ref)
 	})
 }
 
 func TestL1BlockRefByNumber(t *testing.T) {
+	headers := genTestHeaders(20)
+	head := headers[20]
 	t.Run("Head", func(t *testing.T) {
-		client, _ := newClient(t)
-		ref, err := client.L1BlockRefByNumber(context.Background(), head.NumberU64())
+		client, _ := newClientWithHead(t, head)
+		ref, err := client.L1BlockRefByNumber(context.Background(), head.Number.Uint64())
 		require.NoError(t, err)
-		require.Equal(t, eth.InfoToL1BlockRef(head), ref)
+		require.Equal(t, toBlockRef(head), ref)
 	})
 	t.Run("AfterHead", func(t *testing.T) {
-		client, _ := newClient(t)
-		ref, err := client.L1BlockRefByNumber(context.Background(), head.NumberU64()+1)
+		client, _ := newClientWithHead(t, head)
+		ref, err := client.L1BlockRefByNumber(context.Background(), head.Number.Uint64()+1)
 		// Must be ethereum.NotFound error so the derivation pipeline knows it has gone past the chain head
 		require.ErrorIs(t, err, ethereum.NotFound)
 		require.Equal(t, eth.L1BlockRef{}, ref)
 	})
 	t.Run("ParentOfHead", func(t *testing.T) {
-		client, oracle := newClient(t)
-		parent := blockNum(head.NumberU64() - 1)
+		client, oracle := newClientWithHead(t, head)
+		parent := headers[head.Number.Uint64()-1]
 		oracle.blocks[parent.Hash()] = parent
 
-		ref, err := client.L1BlockRefByNumber(context.Background(), parent.NumberU64())
+		ref, err := client.L1BlockRefByNumber(context.Background(), parent.Number.Uint64())
 		require.NoError(t, err)
-		require.Equal(t, eth.InfoToL1BlockRef(parent), ref)
+		require.Equal(t, toBlockRef(parent), ref)
 	})
 	t.Run("AncestorOfHead", func(t *testing.T) {
-		client, oracle := newClient(t)
+		client, oracle := newClientWithHead(t, head)
 		block := head
-		blocks := []eth.BlockInfo{block}
+		blocks := []*types.Header{block}
 		for i := 0; i < 10; i++ {
-			block = blockNum(block.NumberU64() - 1)
+			block = headers[block.Number.Uint64()-1]
 			oracle.blocks[block.Hash()] = block
 			blocks = append(blocks, block)
 		}
 
 		for _, block := range blocks {
-			ref, err := client.L1BlockRefByNumber(context.Background(), block.NumberU64())
+			ref, err := client.L1BlockRefByNumber(context.Background(), block.Number.Uint64())
 			require.NoError(t, err)
-			require.Equal(t, eth.InfoToL1BlockRef(block), ref)
+			require.Equal(t, toBlockRef(block), ref)
 		}
 	})
 }
 
 func newClient(t *testing.T) (*OracleL1Client, *stubOracle) {
+	return newClientWithHead(t, head)
+}
+
+func newClientWithHead(t *testing.T, head *types.Header) (*OracleL1Client, *stubOracle) {
 	stub := newStubOracle(t)
 	stub.blocks[head.Hash()] = head
 	client := NewOracleL1Client(testlog.Logger(t, log.LvlDebug), stub, head.Hash())
 	return client, stub
 }
 
-func blockNum(num uint64) eth.BlockInfo {
-	parentNum := num - 1
-	return &testutils.MockBlockInfo{
-		InfoHash:        common.BytesToHash(big.NewInt(int64(num)).Bytes()),
-		InfoParentHash:  common.BytesToHash(big.NewInt(int64(parentNum)).Bytes()),
-		InfoCoinbase:    common.Address{},
-		InfoRoot:        common.Hash{},
-		InfoNum:         num,
-		InfoTime:        num * 2,
-		InfoMixDigest:   [32]byte{},
-		InfoBaseFee:     nil,
-		InfoReceiptRoot: common.Hash{},
-		InfoGasUsed:     0,
+func genTestHeaders(headBlockNumber int) []*types.Header {
+	headers := make([]*types.Header, headBlockNumber+1)
+	parentHash := common.Hash{}
+	for i := 0; i <= headBlockNumber; i++ {
+		headers[i] = blockNum(i, parentHash)
+		parentHash = headers[i].Hash()
 	}
+	return headers
+}
+
+func blockNum(num int, parentHash common.Hash) *types.Header {
+	return &types.Header{
+		ParentHash:  parentHash,
+		Coinbase:    common.Address{},
+		Root:        common.Hash{},
+		Number:      big.NewInt(int64(num)),
+		Time:        uint64(num * 2),
+		MixDigest:   [32]byte{},
+		BaseFee:     nil,
+		ReceiptHash: common.Hash{},
+		GasUsed:     0,
+	}
+}
+
+func toBlockRef(header *types.Header) eth.L1BlockRef {
+	return eth.InfoToL1BlockRef(eth.HeaderBlockInfo(header))
 }

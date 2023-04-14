@@ -23,7 +23,13 @@ type OracleL1Client struct {
 }
 
 func NewOracleL1Client(logger log.Logger, oracle Oracle, l1Head common.Hash) *OracleL1Client {
-	head := eth.InfoToL1BlockRef(oracle.HeaderByBlockHash(l1Head))
+	header := oracle.HeaderByBlockHash(l1Head)
+	head := eth.L1BlockRef{
+		Hash:       header.Hash(),
+		Number:     header.Number.Uint64(),
+		ParentHash: header.ParentHash,
+		Time:       header.Time,
+	}
 	logger.Info("L1 head loaded", "hash", head.Hash, "number", head.Number)
 	return &OracleL1Client{
 		oracle: oracle,
@@ -45,25 +51,25 @@ func (o *OracleL1Client) L1BlockRefByNumber(ctx context.Context, number uint64) 
 	}
 	block := o.head
 	for block.Number > number {
-		block = eth.InfoToL1BlockRef(o.oracle.HeaderByBlockHash(block.ParentHash))
+		block = eth.InfoToL1BlockRef(eth.HeaderBlockInfo(o.oracle.HeaderByBlockHash(block.ParentHash)))
 	}
 	return block, nil
 }
 
-func (o *OracleL1Client) L1BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L1BlockRef, error) {
-	return eth.InfoToL1BlockRef(o.oracle.HeaderByBlockHash(hash)), nil
+func (o *OracleL1Client) L1BlockRefByHash(ctx context.Context, header common.Hash) (eth.L1BlockRef, error) {
+	return eth.InfoToL1BlockRef(eth.HeaderBlockInfo(o.oracle.HeaderByBlockHash(header))), nil
 }
 
-func (o *OracleL1Client) InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {
-	return o.oracle.HeaderByBlockHash(hash), nil
+func (o *OracleL1Client) InfoByHash(ctx context.Context, header common.Hash) (eth.BlockInfo, error) {
+	return eth.HeaderBlockInfo(o.oracle.HeaderByBlockHash(header)), nil
 }
 
 func (o *OracleL1Client) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
-	info, rcpts := o.oracle.ReceiptsByBlockHash(blockHash)
-	return info, rcpts, nil
+	header, rcpts := o.oracle.ReceiptsByBlockHash(blockHash)
+	return eth.HeaderBlockInfo(header), rcpts, nil
 }
 
 func (o *OracleL1Client) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {
-	info, txs := o.oracle.TransactionsByBlockHash(hash)
-	return info, txs, nil
+	header, txs := o.oracle.TransactionsByBlockHash(hash)
+	return eth.HeaderBlockInfo(header), txs, nil
 }

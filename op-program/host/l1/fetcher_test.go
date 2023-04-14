@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	cll1 "github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -20,12 +21,12 @@ import (
 var _ cll1.Oracle = (*FetchingL1Oracle)(nil)
 
 // Want to be able to use an L1Client as the data source
-var _ Source = (*sources.L1Client)(nil)
+var _ Source = (*ethclient.Client)(nil)
 
 func TestHeaderByHash(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
-		expected := &sources.HeaderInfo{}
-		source := &stubSource{nextInfo: expected}
+		expected := &types.Header{}
+		source := &stubSource{nextHeader: expected}
 		oracle := newFetchingOracle(t, source)
 
 		actual := oracle.HeaderByBlockHash(expected.Hash())
@@ -53,20 +54,20 @@ func TestHeaderByHash(t *testing.T) {
 }
 
 func TestTransactionsByHash(t *testing.T) {
+	rng := rand.New(rand.NewSource(1234))
+
 	t.Run("Success", func(t *testing.T) {
-		expectedInfo := &sources.HeaderInfo{}
-		expectedTxs := types.Transactions{
-			&types.Transaction{},
-		}
-		source := &stubSource{nextInfo: expectedInfo, nextTxs: expectedTxs}
+		expectedBlock, _ := testutils.RandomBlock(rng, 3)
+		expectedTxs := expectedBlock.Transactions()
+		source := &stubSource{nextBlock: expectedBlock, nextTxs: expectedTxs}
 		oracle := newFetchingOracle(t, source)
 
-		info, txs := oracle.TransactionsByBlockHash(expectedInfo.Hash())
-		require.Equal(t, expectedInfo, info)
+		header, txs := oracle.TransactionsByBlockHash(expectedBlock.Hash())
+		require.Equal(t, expectedBlock.Header(), header)
 		require.Equal(t, expectedTxs, txs)
 	})
 
-	t.Run("UnknownBlock_NoInfo", func(t *testing.T) {
+	t.Run("UnknownBlock_NoHeader", func(t *testing.T) {
 		oracle := newFetchingOracle(t, &stubSource{})
 		hash := common.HexToHash("0x4455")
 		require.PanicsWithError(t, fmt.Errorf("unknown block: %s", hash).Error(), func() {
@@ -75,7 +76,7 @@ func TestTransactionsByHash(t *testing.T) {
 	})
 
 	t.Run("UnknownBlock_NoTxs", func(t *testing.T) {
-		oracle := newFetchingOracle(t, &stubSource{nextInfo: &sources.HeaderInfo{}})
+		oracle := newFetchingOracle(t, &stubSource{nextHeader: &types.Header{}})
 		hash := common.HexToHash("0x4455")
 		require.PanicsWithError(t, fmt.Errorf("unknown block: %s", hash).Error(), func() {
 			oracle.TransactionsByBlockHash(hash)
@@ -95,20 +96,31 @@ func TestTransactionsByHash(t *testing.T) {
 }
 
 func TestReceiptsByHash(t *testing.T) {
+	rng := rand.New(rand.NewSource(1234))
+
 	t.Run("Success", func(t *testing.T) {
-		expectedInfo := &sources.HeaderInfo{}
+		expectedBlock, _ := testutils.RandomBlock(rng, 2)
+		expectedTxs := expectedBlock.Transactions()
+
 		expectedRcpts := types.Receipts{
-			&types.Receipt{},
+			&types.Receipt{TxHash: expectedTxs[0].Hash()},
+			&types.Receipt{TxHash: expectedTxs[1].Hash()},
 		}
-		source := &stubSource{nextInfo: expectedInfo, nextRcpts: expectedRcpts}
+		source := &stubSource{
+			nextBlock: expectedBlock,
+			nextTxs:   expectedTxs,
+			rcpts: map[common.Hash]*types.Receipt{
+				expectedTxs[0].Hash(): expectedRcpts[0],
+				expectedTxs[1].Hash(): expectedRcpts[1],
+			}}
 		oracle := newFetchingOracle(t, source)
 
-		info, rcpts := oracle.ReceiptsByBlockHash(expectedInfo.Hash())
-		require.Equal(t, expectedInfo, info)
+		header, rcpts := oracle.ReceiptsByBlockHash(expectedBlock.Hash())
+		require.Equal(t, expectedBlock.Header(), header)
 		require.Equal(t, expectedRcpts, rcpts)
 	})
 
-	t.Run("UnknownBlock_NoInfo", func(t *testing.T) {
+	t.Run("UnknownBlock_NoHeader", func(t *testing.T) {
 		oracle := newFetchingOracle(t, &stubSource{})
 		hash := common.HexToHash("0x4455")
 		require.PanicsWithError(t, fmt.Errorf("unknown block: %s", hash).Error(), func() {
@@ -117,7 +129,7 @@ func TestReceiptsByHash(t *testing.T) {
 	})
 
 	t.Run("UnknownBlock_NoTxs", func(t *testing.T) {
-		oracle := newFetchingOracle(t, &stubSource{nextInfo: &sources.HeaderInfo{}})
+		oracle := newFetchingOracle(t, &stubSource{nextHeader: &types.Header{}})
 		hash := common.HexToHash("0x4455")
 		require.PanicsWithError(t, fmt.Errorf("unknown block: %s", hash).Error(), func() {
 			oracle.ReceiptsByBlockHash(hash)
@@ -130,7 +142,7 @@ func TestReceiptsByHash(t *testing.T) {
 		oracle := newFetchingOracle(t, source)
 
 		hash := common.HexToHash("0x8888")
-		require.PanicsWithError(t, fmt.Errorf("retrieve receipts for block %s: %w", hash, err).Error(), func() {
+		require.PanicsWithError(t, fmt.Errorf("retrieve transactions for block %s: %w", hash, err).Error(), func() {
 			oracle.ReceiptsByBlockHash(hash)
 		})
 	})
@@ -141,20 +153,21 @@ func newFetchingOracle(t *testing.T, source Source) *FetchingL1Oracle {
 }
 
 type stubSource struct {
-	nextInfo  eth.BlockInfo
-	nextTxs   types.Transactions
-	nextRcpts types.Receipts
-	nextErr   error
+	nextHeader *types.Header
+	nextBlock  *types.Block
+	nextTxs    types.Transactions
+	rcpts      map[common.Hash]*types.Receipt
+	nextErr    error
 }
 
-func (s stubSource) InfoByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, error) {
-	return s.nextInfo, s.nextErr
+func (s stubSource) HeaderByHash(ctx context.Context, blockHash common.Hash) (*types.Header, error) {
+	return s.nextHeader, s.nextErr
 }
 
-func (s stubSource) InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error) {
-	return s.nextInfo, s.nextTxs, s.nextErr
+func (s stubSource) BlockByHash(ctx context.Context, blockHash common.Hash) (*types.Block, error) {
+	return s.nextBlock, s.nextErr
 }
 
-func (s stubSource) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
-	return s.nextInfo, s.nextRcpts, s.nextErr
+func (s stubSource) TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
+	return s.rcpts[txHash], s.nextErr
 }

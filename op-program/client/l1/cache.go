@@ -1,7 +1,6 @@
 package l1
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -13,13 +12,13 @@ const cacheSize = 2000
 // CachingOracle is an implementation of Oracle that delegates to another implementation, adding caching of all results
 type CachingOracle struct {
 	oracle Oracle
-	blocks *simplelru.LRU[common.Hash, eth.BlockInfo]
+	blocks *simplelru.LRU[common.Hash, *types.Header]
 	txs    *simplelru.LRU[common.Hash, types.Transactions]
 	rcpts  *simplelru.LRU[common.Hash, types.Receipts]
 }
 
 func NewCachingOracle(oracle Oracle) *CachingOracle {
-	blockLRU, _ := simplelru.NewLRU[common.Hash, eth.BlockInfo](cacheSize, nil)
+	blockLRU, _ := simplelru.NewLRU[common.Hash, *types.Header](cacheSize, nil)
 	txsLRU, _ := simplelru.NewLRU[common.Hash, types.Transactions](cacheSize, nil)
 	rcptsLRU, _ := simplelru.NewLRU[common.Hash, types.Receipts](cacheSize, nil)
 	return &CachingOracle{
@@ -30,7 +29,7 @@ func NewCachingOracle(oracle Oracle) *CachingOracle {
 	}
 }
 
-func (o *CachingOracle) HeaderByBlockHash(blockHash common.Hash) eth.BlockInfo {
+func (o *CachingOracle) HeaderByBlockHash(blockHash common.Hash) *types.Header {
 	block, ok := o.blocks.Get(blockHash)
 	if ok {
 		return block
@@ -40,7 +39,7 @@ func (o *CachingOracle) HeaderByBlockHash(blockHash common.Hash) eth.BlockInfo {
 	return block
 }
 
-func (o *CachingOracle) TransactionsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Transactions) {
+func (o *CachingOracle) TransactionsByBlockHash(blockHash common.Hash) (*types.Header, types.Transactions) {
 	txs, ok := o.txs.Get(blockHash)
 	if ok {
 		return o.HeaderByBlockHash(blockHash), txs
@@ -51,7 +50,7 @@ func (o *CachingOracle) TransactionsByBlockHash(blockHash common.Hash) (eth.Bloc
 	return block, txs
 }
 
-func (o *CachingOracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Receipts) {
+func (o *CachingOracle) ReceiptsByBlockHash(blockHash common.Hash) (*types.Header, types.Receipts) {
 	rcpts, ok := o.rcpts.Get(blockHash)
 	if ok {
 		return o.HeaderByBlockHash(blockHash), rcpts

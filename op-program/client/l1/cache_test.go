@@ -15,17 +15,17 @@ func TestCachingOracle_HeaderByBlockHash(t *testing.T) {
 	rng := rand.New(rand.NewSource(1))
 	stub := newStubOracle(t)
 	oracle := NewCachingOracle(stub)
-	block := testutils.RandomBlockInfo(rng)
+	header := testutils.RandomHeader(rng)
 
 	// Initial call retrieves from the stub
-	stub.blocks[block.Hash()] = block
-	result := oracle.HeaderByBlockHash(block.Hash())
-	require.Equal(t, block, result)
+	stub.blocks[header.Hash()] = header
+	result := oracle.HeaderByBlockHash(header.Hash())
+	require.Equal(t, header, result)
 
 	// Later calls should retrieve from cache
-	delete(stub.blocks, block.Hash())
-	result = oracle.HeaderByBlockHash(block.Hash())
-	require.Equal(t, block, result)
+	delete(stub.blocks, header.Hash())
+	result = oracle.HeaderByBlockHash(header.Hash())
+	require.Equal(t, header, result)
 }
 
 func TestCachingOracle_TransactionsByBlockHash(t *testing.T) {
@@ -35,17 +35,17 @@ func TestCachingOracle_TransactionsByBlockHash(t *testing.T) {
 	block, _ := testutils.RandomBlock(rng, 3)
 
 	// Initial call retrieves from the stub
-	stub.blocks[block.Hash()] = block
+	stub.blocks[block.Hash()] = block.Header()
 	stub.txs[block.Hash()] = block.Transactions()
-	actualBlock, actualTxs := oracle.TransactionsByBlockHash(block.Hash())
-	require.Equal(t, block, actualBlock)
+	actualHeader, actualTxs := oracle.TransactionsByBlockHash(block.Hash())
+	require.Equal(t, block.Header(), actualHeader)
 	require.Equal(t, block.Transactions(), actualTxs)
 
 	// Later calls should retrieve from cache
 	delete(stub.blocks, block.Hash())
 	delete(stub.txs, block.Hash())
-	actualBlock, actualTxs = oracle.TransactionsByBlockHash(block.Hash())
-	require.Equal(t, block, actualBlock)
+	actualHeader, actualTxs = oracle.TransactionsByBlockHash(block.Hash())
+	require.Equal(t, block.Header(), actualHeader)
 	require.Equal(t, block.Transactions(), actualTxs)
 }
 
@@ -56,16 +56,16 @@ func TestCachingOracle_ReceiptsByBlockHash(t *testing.T) {
 	block, rcpts := testutils.RandomBlock(rng, 3)
 
 	// Initial call retrieves from the stub
-	stub.blocks[block.Hash()] = block
+	stub.blocks[block.Hash()] = block.Header()
 	stub.rcpts[block.Hash()] = rcpts
-	actualBlock, actualRcpts := oracle.ReceiptsByBlockHash(block.Hash())
-	require.Equal(t, block, actualBlock)
+	actualHeader, actualRcpts := oracle.ReceiptsByBlockHash(block.Hash())
+	require.Equal(t, block.Header(), actualHeader)
 	require.EqualValues(t, rcpts, actualRcpts)
 
 	// Later calls should retrieve from cache
 	delete(stub.blocks, block.Hash())
 	delete(stub.rcpts, block.Hash())
-	actualBlock, actualRcpts = oracle.ReceiptsByBlockHash(block.Hash())
-	require.Equal(t, block, actualBlock)
+	actualHeader, actualRcpts = oracle.ReceiptsByBlockHash(block.Hash())
+	require.Equal(t, block.Header(), actualHeader)
 	require.EqualValues(t, rcpts, actualRcpts)
 }

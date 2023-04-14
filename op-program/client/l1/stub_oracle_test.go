@@ -3,7 +3,6 @@ package l1
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -12,7 +11,7 @@ type stubOracle struct {
 	t *testing.T
 
 	// blocks maps block hash to eth.BlockInfo
-	blocks map[common.Hash]eth.BlockInfo
+	blocks map[common.Hash]*types.Header
 
 	// txs maps block hash to transactions
 	txs map[common.Hash]types.Transactions
@@ -24,12 +23,12 @@ type stubOracle struct {
 func newStubOracle(t *testing.T) *stubOracle {
 	return &stubOracle{
 		t:      t,
-		blocks: make(map[common.Hash]eth.BlockInfo),
+		blocks: make(map[common.Hash]*types.Header),
 		txs:    make(map[common.Hash]types.Transactions),
 		rcpts:  make(map[common.Hash]types.Receipts),
 	}
 }
-func (o stubOracle) HeaderByBlockHash(blockHash common.Hash) eth.BlockInfo {
+func (o stubOracle) HeaderByBlockHash(blockHash common.Hash) *types.Header {
 	info, ok := o.blocks[blockHash]
 	if !ok {
 		o.t.Fatalf("unknown block %s", blockHash)
@@ -37,7 +36,7 @@ func (o stubOracle) HeaderByBlockHash(blockHash common.Hash) eth.BlockInfo {
 	return info
 }
 
-func (o stubOracle) TransactionsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Transactions) {
+func (o stubOracle) TransactionsByBlockHash(blockHash common.Hash) (*types.Header, types.Transactions) {
 	txs, ok := o.txs[blockHash]
 	if !ok {
 		o.t.Fatalf("unknown txs %s", blockHash)
@@ -45,7 +44,7 @@ func (o stubOracle) TransactionsByBlockHash(blockHash common.Hash) (eth.BlockInf
 	return o.HeaderByBlockHash(blockHash), txs
 }
 
-func (o stubOracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Receipts) {
+func (o stubOracle) ReceiptsByBlockHash(blockHash common.Hash) (*types.Header, types.Receipts) {
 	rcpts, ok := o.rcpts[blockHash]
 	if !ok {
 		o.t.Fatalf("unknown rcpts %s", blockHash)
