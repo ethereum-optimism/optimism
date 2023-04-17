@@ -1,5 +1,0 @@
-pyelftools==0.27
-hexdump==3.3
-termcolor==1.1.0
-capstone==4.0.2
-rangetree==1.0

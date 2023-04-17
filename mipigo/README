@@ -1,7 +1,0 @@
-Compiler for minigeth in MIPS
-
-`./build.sh` will build minigeth for MIPS.
-
-startup -- a startup stub which functions as an ELF loader
-test -- contains Go hello world for MIPS
-
