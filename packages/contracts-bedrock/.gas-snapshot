@@ -430,4 +430,3 @@ SystemConfig_Setters_TestFail:test_setResourceConfig_notOwner_reverts() (gas: 11
 SystemConfig_Setters_TestFail:test_setResourceConfig_zeroDenominator_reverts() (gas: 13039)
 SystemConfig_Setters_TestFail:test_setUnsafeBlockSigner_notOwner_reverts() (gas: 10616)
 TransferOnionTest:test_constructor_succeeds() (gas: 564855)
-TransferOnionTest:test_unwrap_succeeds() (gas: 724958)
