@@ -8,7 +8,9 @@ import (
 	"os"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	cldr "github.com/ethereum-optimism/optimism/op-program/client/driver"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
@@ -97,6 +99,11 @@ func setupLogging(ctx *cli.Context) (log.Logger, error) {
 	return logger, nil
 }
 
+type L2Source struct {
+	*sources.L2Client
+	*sources.DebugClient
+}
+
 // FaultProofProgram is the programmatic entry-point for the fault proof program
 func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 	cfg.Rollup.LogDescription(logger, chaincfg.L2ChainIDToNetworkName)
@@ -108,18 +115,32 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 	kv := kvstore.NewMemKV()
 
 	logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
-	l1Fetcher, err := l1.NewFetchingOracle(ctx, logger, cfg)
+	l1RPC, err := client.NewRPC(ctx, logger, cfg.L1URL)
 	if err != nil {
-		return fmt.Errorf("connect l1 fetcher: %w", err)
+		return fmt.Errorf("failed to setup L1 RPC: %w", err)
 	}
 
 	logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
-	l2Fetcher, err := l2.NewFetchingOracle(ctx, logger, cfg)
+	l2RPC, err := client.NewRPC(ctx, logger, cfg.L2URL)
 	if err != nil {
-		return fmt.Errorf("connect l2 fetcher: %w", err)
+		return fmt.Errorf("failed to setup L2 RPC: %w", err)
 	}
-	prefetch := prefetcher.NewPrefetcher(l1Fetcher, l2Fetcher, kv)
-	preimageOracle := asOracleFn(prefetch)
+
+	l1ClCfg := sources.L1ClientDefaultConfig(cfg.Rollup, cfg.L1TrustRPC, cfg.L1RPCKind)
+	l2ClCfg := sources.L2ClientDefaultConfig(cfg.Rollup, true)
+	l1Cl, err := sources.NewL1Client(l1RPC, logger, nil, l1ClCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create L1 client: %w", err)
+	}
+	l2Cl, err := sources.NewL2Client(l2RPC, logger, nil, l2ClCfg)
+	if err != nil {
+		return fmt.Errorf("failed to create L2 client: %w", err)
+	}
+	l2DebugCl := &L2Source{L2Client: l2Cl, DebugClient: sources.NewDebugClient(l2RPC.CallContext)}
+
+	logger.Info("Setting up pre-fetcher")
+	prefetch := prefetcher.NewPrefetcher(l1Cl, l2DebugCl, kv)
+	preimageOracle := asOracleFn(ctx, prefetch)
 	hinter := asHinter(prefetch)
 	l1Source := l1.NewSource(logger, preimageOracle, hinter, cfg.L1Head)
 
@@ -145,9 +166,9 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 	return nil
 }
 
-func asOracleFn(prefetcher *prefetcher.Prefetcher) preimage.OracleFn {
+func asOracleFn(ctx context.Context, prefetcher *prefetcher.Prefetcher) preimage.OracleFn {
 	return func(key preimage.Key) []byte {
-		pre, err := prefetcher.GetPreimage(key.PreimageKey())
+		pre, err := prefetcher.GetPreimage(ctx, key.PreimageKey())
 		if err != nil {
 			panic(fmt.Errorf("preimage unavailable for key %v: %w", key, err))
 		}
