@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/oracle"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 )
@@ -93,10 +92,11 @@ func RamFromTrie(root common.Hash) map[uint32](uint32) {
 	ram := make(map[uint32](uint32))
 
 	// load into oracle
-	pp := oracle.Preimages()
-	for k, v := range Preimages {
-		pp[k] = v
-	}
+	// TODO: broken, need pre-image integration with fault-proof-program
+	//pp := oracle.Preimages()
+	//for k, v := range Preimages {
+	//	pp[k] = v
+	//}
 
 	triedb := trie.Database{Root: root}
 	tt, err := trie.New(root, &triedb)
