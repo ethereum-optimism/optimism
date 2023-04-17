@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -36,6 +37,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
+	"github.com/ethereum-optimism/optimism/op-service/backoff"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 )
 
@@ -619,6 +621,24 @@ func TestSystemMockP2P(t *testing.T) {
 	// Enable the sequencer now that everyone is ready to receive payloads.
 	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["sequencer"].HTTPEndpoint())
 	require.Nil(t, err)
+
+	verifierPeerID := sys.RollupNodes["verifier"].P2P().Host().ID()
+	check := func() bool {
+		sequencerBlocksTopicPeers := sys.RollupNodes["sequencer"].P2P().GossipOut().BlocksTopicPeers()
+		return slices.Contains[peer.ID](sequencerBlocksTopicPeers, verifierPeerID)
+	}
+
+	// poll to see if the verifier node is connected & meshed on gossip.
+	// Without this verifier, we shouldn't start sending blocks around, or we'll miss them and fail the test.
+	backOffStrategy := backoff.Exponential()
+	for i := 0; i < 10; i++ {
+		if check() {
+			break
+		}
+		time.Sleep(backOffStrategy.Duration(i))
+	}
+	require.True(t, check(), "verifier must be meshed with sequencer for gossip test to proceed")
+
 	require.NoError(t, rollupRPCClient.Call(nil, "admin_startSequencer", sys.L2GenesisCfg.ToBlock().Hash()))
 
 	l2Seq := sys.Clients["sequencer"]
