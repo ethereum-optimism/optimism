@@ -1,7 +1,0 @@
-[submodule "minigeth"]
-	branch = l2minigeth
-	path = minigeth
-	url = git@github.com:ethereum-optimism/minigeth.git
-[submodule "unicorn"]
-	path = unicorn
-	url = git@github.com:geohot/unicorn.git
