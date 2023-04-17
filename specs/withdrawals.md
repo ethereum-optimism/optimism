@@ -18,7 +18,7 @@ an L2 account to an L1 account.
 more specific terms to differentiate:
 
 - A _withdrawal initiating transaction_ refers specifically to a transaction on L2 sent to the Withdrawals predeploy.
-- A _withdrawal proofing transaction_ refers specifically to an L1 transaction
+- A _withdrawal proving transaction_ refers specifically to an L1 transaction
   which proves the withdrawal is correct (that it has been included in a merkle
   tree whose root is available on L1).
 - A _withdrawal finalizing transaction_ refers specifically to an L1 transaction which finalizes and relays the
@@ -64,7 +64,7 @@ This is a very simple contract that stores the hash of the withdrawal data.
 
 ### On L1
 
-1. A [relayer][g-relayer] submits a withdrawal proving transaction required inputs to the `OptimismPortal` contract.
+1. A [relayer][g-relayer] submits a withdrawal proving transaction with the required inputs to the `OptimismPortal` contract.
    The relayer is not necessarily the same entity which initiated the withdrawal on L2.
    These inputs include the withdrawal transaction data, inclusion proofs, and a block number. The block number
    must be one for which an L2 output root exists, which commits to the withdrawal as registered on L2.
@@ -74,9 +74,9 @@ This is a very simple contract that stores the hash of the withdrawal data.
    Note that the withdrawal can be proven more than once if the corresponding output root changes.
 1. After the withdrawal is proven, it enters a 7 day challenge period, allowing time for other network participants
    to challenge the integrity of the corresponding output root.
-1. Once the challenge period has passed, a relayer submits a withdrawal finalizing transaction once again to the
+1. Once the challenge period has passed, a relayer submits a withdrawal finalizing transaction to the
    `OptimismPortal` contract.
-   Again, the relayer is not necessarily the same entity which initiated the withdrawal on L2.
+   The relayer doesn't need to be the same entity that initiated the withdrawal on L2.
 1. The `OptimismPortal` contract receives the withdrawal transaction data and verifies that the withdrawal has
    both been proven and passed the challenge period.
 1. If the requirements are not met, the call reverts. Otherwise the call is forwarded, and the hash is recorded to
