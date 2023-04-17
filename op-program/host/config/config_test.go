@@ -15,7 +15,8 @@ var validL1Head = common.Hash{0xaa}
 var validL2Head = common.Hash{0xbb}
 var validL2Claim = common.Hash{0xcc}
 
-func TestDefaultConfigIsValid(t *testing.T) {
+// TestValidConfigIsValid checks that the config provided by validConfig is actually valid
+func TestValidConfigIsValid(t *testing.T) {
 	err := validConfig().Check()
 	require.NoError(t, err)
 }
@@ -121,6 +122,17 @@ func TestFetchingEnabled(t *testing.T) {
 	})
 }
 
+func TestRequireDataDirInNonFetchingMode(t *testing.T) {
+	cfg := validConfig()
+	cfg.DataDir = ""
+	cfg.L1URL = ""
+	cfg.L2URL = ""
+	err := cfg.Check()
+	require.ErrorIs(t, err, ErrDataDirRequired)
+}
+
 func validConfig() *Config {
-	return NewConfig(validRollupConfig, validL2GenesisPath, validL1Head, validL2Head, validL2Claim)
+	cfg := NewConfig(validRollupConfig, validL2GenesisPath, validL1Head, validL2Head, validL2Claim)
+	cfg.DataDir = "/tmp/configTest"
+	return cfg
 }
