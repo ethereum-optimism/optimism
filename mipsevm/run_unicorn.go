@@ -2,13 +2,11 @@ package main
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/fatih/color"
 	uc "github.com/unicorn-engine/unicorn/bindings/go/unicorn"
 )
@@ -80,51 +78,7 @@ func GetHookedUnicorn(root string, ram map[uint32](uint32), callback func(int, u
 			log.Fatal("invalid interrupt ", intno, " at step ", steps)
 		}
 		syscall_no, _ := mu.RegRead(uc.MIPS_REG_V0)
-		v0 := uint64(0)
-		if syscall_no == 4020 {
-			oracle_hash, _ := mu.MemRead(0x30001000, 0x20)
-			hash := common.BytesToHash(oracle_hash)
-			key := fmt.Sprintf("%s/%s", root, hash)
-			value, err := ioutil.ReadFile(key)
-			check(err)
 
-			tmp := []byte{0, 0, 0, 0}
-			binary.BigEndian.PutUint32(tmp, uint32(len(value)))
-			mu.MemWrite(0x31000000, tmp)
-			mu.MemWrite(0x31000004, value)
-
-			WriteRam(ram, 0x31000000, uint32(len(value)))
-			value = append(value, 0, 0, 0)
-			for i := uint32(0); i < ram[0x31000000]; i += 4 {
-				WriteRam(ram, 0x31000004+i, binary.BigEndian.Uint32(value[i:i+4]))
-			}
-		} else if syscall_no == 4004 {
-			fd, _ := mu.RegRead(uc.MIPS_REG_A0)
-			buf, _ := mu.RegRead(uc.MIPS_REG_A1)
-			count, _ := mu.RegRead(uc.MIPS_REG_A2)
-			bytes, _ := mu.MemRead(buf, count)
-			WriteBytes(int(fd), bytes)
-		} else if syscall_no == 4090 {
-			a0, _ := mu.RegRead(uc.MIPS_REG_A0)
-			sz, _ := mu.RegRead(uc.MIPS_REG_A1)
-			if a0 == 0 {
-				v0 = 0x20000000 + heap_start
-				heap_start += sz
-			} else {
-				v0 = a0
-			}
-		} else if syscall_no == 4045 {
-			v0 = 0x40000000
-		} else if syscall_no == 4120 {
-			v0 = 1
-		} else if syscall_no == 4246 {
-			// exit group
-			mu.RegWrite(uc.MIPS_REG_PC, 0x5ead0000)
-		} else {
-			//fmt.Println("syscall", syscall_no)
-		}
-		mu.RegWrite(uc.MIPS_REG_V0, v0)
-		mu.RegWrite(uc.MIPS_REG_A3, 0)
 	}, 0, 0)
 
 	if callback != nil {

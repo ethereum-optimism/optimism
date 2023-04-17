@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/hex"
 	"fmt"
+	"io"
 )
 
 const (
@@ -71,6 +72,43 @@ func (s *State) SetMemory(addr uint32, v uint32, size uint32) {
 		v = v >> 8
 		addr += 1
 	}
+}
+
+type memReader struct {
+	state *State
+	addr  uint32
+	count uint32
+}
+
+func (r *memReader) Read(dest []byte) (n int, err error) {
+	if r.count == 0 {
+		return 0, io.EOF
+	}
+
+	// Keep iterating over memory until we have all our data.
+	// It may wrap around the address range, and may not be aligned
+	endAddr := r.addr + r.count
+
+	pageIndex := r.addr >> pageAddrSize
+	start := r.addr & pageAddrMask
+	end := uint32(pageSize)
+
+	if pageIndex == (endAddr >> pageAddrSize) {
+		end = endAddr & pageAddrMask
+	}
+	p, ok := r.state.Memory[pageIndex]
+	if ok {
+		n = copy(dest, p[start:end])
+	} else {
+		n = copy(dest, make([]byte, end-start)) // default to zeroes
+	}
+	r.addr += uint32(n)
+	r.count -= uint32(n)
+	return n, nil
+}
+
+func (s *State) ReadMemory(addr uint32, count uint32) io.Reader {
+	return &memReader{state: s, addr: addr, count: count}
 }
 
 // TODO merkleization
