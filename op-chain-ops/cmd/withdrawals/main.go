@@ -278,9 +278,7 @@ func main() {
 
 				// the value should be set to a boolean in storage
 				if !bytes.Equal(storageValue, abiTrue.Bytes()) {
-					log.Info("slot not found in state", "slot", slot.Hex())
-					continue
-					//return fmt.Errorf("storage slot %x not found in state", slot)
+					return fmt.Errorf("storage slot %x not found in state", slot.Hex())
 				}
 
 				legacySlot, err := wd.StorageSlot()
