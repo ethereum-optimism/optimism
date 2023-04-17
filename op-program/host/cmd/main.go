@@ -6,17 +6,18 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	cldr "github.com/ethereum-optimism/optimism/op-program/client/driver"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
+	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-program/host/l1"
 	"github.com/ethereum-optimism/optimism/op-program/host/l2"
+	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
 	"github.com/ethereum-optimism/optimism/op-program/host/version"
+	"github.com/ethereum-optimism/optimism/op-program/preimage"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
@@ -104,27 +105,35 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 	}
 
 	ctx := context.Background()
+	kv := kvstore.NewMemKV()
+
 	logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
-	l1Source, err := l1.NewFetchingL1(ctx, logger, cfg)
+	l1Fetcher, err := l1.NewFetchingOracle(ctx, logger, cfg)
 	if err != nil {
-		return fmt.Errorf("connect l1 oracle: %w", err)
+		return fmt.Errorf("connect l1 fetcher: %w", err)
 	}
 
 	logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
-	l2Source, err := l2.NewFetchingEngine(ctx, logger, cfg)
+	l2Fetcher, err := l2.NewFetchingOracle(ctx, logger, cfg)
+	if err != nil {
+		return fmt.Errorf("connect l2 fetcher: %w", err)
+	}
+	prefetch := prefetcher.NewPrefetcher(l1Fetcher, l2Fetcher, kv)
+	preimageOracle := asOracleFn(prefetch)
+	hinter := asHinter(prefetch)
+	l1Source := l1.NewSource(logger, preimageOracle, hinter, cfg.L1Head)
+
+	logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
+	l2Source, err := l2.NewEngine(logger, preimageOracle, hinter, cfg)
 	if err != nil {
 		return fmt.Errorf("connect l2 oracle: %w", err)
 	}
 
+	logger.Info("Starting derivation")
 	d := cldr.NewDriver(logger, cfg.Rollup, l1Source, l2Source)
 	for {
 		if err = d.Step(ctx); errors.Is(err, io.EOF) {
 			break
-		} else if cfg.FetchingEnabled() && errors.Is(err, derive.ErrTemporary) {
-			// When in fetching mode, recover from temporary errors to allow us to keep fetching data
-			// TODO(CLI-3780) Ideally the retry would happen in the fetcher so this is not needed
-			logger.Warn("Temporary error in pipeline", "err", err)
-			time.Sleep(5 * time.Second)
 		} else if err != nil {
 			return err
 		}
@@ -134,4 +143,23 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 		return ErrClaimNotValid
 	}
 	return nil
+}
+
+func asOracleFn(prefetcher *prefetcher.Prefetcher) preimage.OracleFn {
+	return func(key preimage.Key) []byte {
+		pre, err := prefetcher.GetPreimage(key.PreimageKey())
+		if err != nil {
+			panic(fmt.Errorf("preimage unavailable for key %v: %w", key, err))
+		}
+		return pre
+	}
+}
+
+func asHinter(prefetcher *prefetcher.Prefetcher) preimage.HinterFn {
+	return func(v preimage.Hint) {
+		err := prefetcher.Hint(v.Hint())
+		if err != nil {
+			panic(fmt.Errorf("hint rejected %v: %w", v, err))
+		}
+	}
 }
