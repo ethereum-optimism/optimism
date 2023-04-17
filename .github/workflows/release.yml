@@ -5,6 +5,9 @@ on:
     branches:
       - master
 
+# Always wait for previous release to finish before releasing again
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
 jobs:
   release:
     name: Release
@@ -62,6 +65,9 @@ jobs:
         with:
           version: nightly
 
+      # Makes a pr to publish the changesets that when
+      # merged will publish to npm
+      # see https://github.com/changesets/action
       - name: Publish To NPM or Create Release Pull Request
         uses: changesets/action@v1
         id: changesets
