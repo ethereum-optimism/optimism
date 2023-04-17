@@ -175,14 +175,14 @@ The following inputs are required to prove and finalize a withdrawal:
   - `data`: Data to send to the target.
   - `gasLimit`: Gas to be forwarded to the target.
 - Proof and verification data:
-  - `l2BlockNumber`: The L2 block number that corresponds to the output root.
+  - `l2OutputIndex`: The index in the L2 outputs where the applicable output root may be found.
   - `outputRootProof`: Four `bytes32` values which are used to derive the output root.
   - `withdrawalProof`: An inclusion proof for the given withdrawal in the L2ToL1MessagePasser contract.
 
 These inputs must satisfy the following conditions:
 
-1. The `l2BlockNumber` must be the block number that corresponds to the `OutputProposal` being proven.
-1. `L2OutputOracle.getL2Output(l2BlockNumber)` returns a non-zero `OutputProposal`.
+1. The `l2OutputIndex` must be the index in the L2 outputs that contains the applicable output root. 
+1. `L2OutputOracle.getL2Output(l2OutputIndex)` returns a non-zero `OutputProposal`.
 1. The keccak256 hash of the `outputRootProof` values is equal to the `outputRoot`.
 1. The `withdrawalProof` is a valid inclusion proof demonstrating that a hash of the Withdrawal transaction data
    is contained in the storage of the L2ToL1MessagePasser contract on L2.
