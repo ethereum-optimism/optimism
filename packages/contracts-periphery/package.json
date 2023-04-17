@@ -62,7 +62,7 @@
     "@nomiclabs/hardhat-waffle": "^2.0.3",
     "@rari-capital/solmate": "7.0.0-alpha.3",
     "@openzeppelin/contracts": "4.7.3",
-    "@openzeppelin/contracts-upgradeable": "4.7.3",
+    "@openzeppelin/contracts-upgradeable": "4.8.3",
     "@types/node": "^17.0.21",
     "@typechain/ethers-v5": "^10.1.0",
     "@typechain/hardhat": "^6.1.2",

@@ -3600,15 +3600,10 @@
   dependencies:
     "@octokit/openapi-types" "^9.5.0"
 
-"@openzeppelin/contracts-upgradeable@4.7.1":
-  version "4.7.1"
-  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts-upgradeable/-/contracts-upgradeable-4.7.1.tgz#f63fc384255d6ac139e0a2561aa207fd7c14183c"
-  integrity sha512-5EFiZld3DYFd8aTL8eeMnhnaWh1/oXLXFNuFMrgF3b1DNPshF3LCyO7VR6lc+gac2URJ0BlVcZoCfkk/3MoEfg==
-
-"@openzeppelin/contracts-upgradeable@4.7.3":
-  version "4.7.3"
-  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts-upgradeable/-/contracts-upgradeable-4.7.3.tgz#f1d606e2827d409053f3e908ba4eb8adb1dd6995"
-  integrity sha512-+wuegAMaLcZnLCJIvrVUDzA9z/Wp93f0Dla/4jJvIhijRrPabjQbZe6fWiECLaJyfn5ci9fqf9vTw3xpQOad2A==
+"@openzeppelin/contracts-upgradeable@4.8.3":
+  version "4.8.3"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts-upgradeable/-/contracts-upgradeable-4.8.3.tgz#6b076a7b751811b90fe3a172a7faeaa603e13a3f"
+  integrity sha512-SXDRl7HKpl2WDoJpn7CK/M9U4Z8gNXDHHChAKh0Iz+Wew3wu6CmFYBeie3je8V0GSXZAIYYwUktSrnW/kwVPtg==
 
 "@openzeppelin/contracts@3.4.1-solc-0.7-2":
   version "3.4.1-solc-0.7-2"
