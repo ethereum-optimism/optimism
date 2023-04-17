@@ -64,7 +64,7 @@ This is a very simple contract that stores the hash of the withdrawal data.
 
 ### On L1
 
-1. A [relayer][g-relayer] submits a withdrawal proving transaction with the required inputs 
+1. A [relayer][g-relayer] submits a withdrawal proving transaction with the required inputs
    to the `OptimismPortal` contract.
    The relayer is not necessarily the same entity which initiated the withdrawal on L2.
    These inputs include the withdrawal transaction data, inclusion proofs, and a block number. The block number
