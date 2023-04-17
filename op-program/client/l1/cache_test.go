@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/stretchr/testify/require"
 )
@@ -35,17 +36,17 @@ func TestCachingOracle_TransactionsByBlockHash(t *testing.T) {
 	block, _ := testutils.RandomBlock(rng, 3)
 
 	// Initial call retrieves from the stub
-	stub.blocks[block.Hash()] = block
+	stub.blocks[block.Hash()] = eth.BlockToInfo(block)
 	stub.txs[block.Hash()] = block.Transactions()
 	actualBlock, actualTxs := oracle.TransactionsByBlockHash(block.Hash())
-	require.Equal(t, block, actualBlock)
+	require.Equal(t, eth.BlockToInfo(block), actualBlock)
 	require.Equal(t, block.Transactions(), actualTxs)
 
 	// Later calls should retrieve from cache
 	delete(stub.blocks, block.Hash())
 	delete(stub.txs, block.Hash())
 	actualBlock, actualTxs = oracle.TransactionsByBlockHash(block.Hash())
-	require.Equal(t, block, actualBlock)
+	require.Equal(t, eth.BlockToInfo(block), actualBlock)
 	require.Equal(t, block.Transactions(), actualTxs)
 }
 
@@ -56,16 +57,16 @@ func TestCachingOracle_ReceiptsByBlockHash(t *testing.T) {
 	block, rcpts := testutils.RandomBlock(rng, 3)
 
 	// Initial call retrieves from the stub
-	stub.blocks[block.Hash()] = block
+	stub.blocks[block.Hash()] = eth.BlockToInfo(block)
 	stub.rcpts[block.Hash()] = rcpts
 	actualBlock, actualRcpts := oracle.ReceiptsByBlockHash(block.Hash())
-	require.Equal(t, block, actualBlock)
+	require.Equal(t, eth.BlockToInfo(block), actualBlock)
 	require.EqualValues(t, rcpts, actualRcpts)
 
 	// Later calls should retrieve from cache
 	delete(stub.blocks, block.Hash())
 	delete(stub.rcpts, block.Hash())
 	actualBlock, actualRcpts = oracle.ReceiptsByBlockHash(block.Hash())
-	require.Equal(t, block, actualBlock)
+	require.Equal(t, eth.BlockToInfo(block), actualBlock)
 	require.EqualValues(t, rcpts, actualRcpts)
 }

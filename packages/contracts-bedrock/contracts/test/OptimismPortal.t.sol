@@ -1092,7 +1092,6 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
  *         broken by changing the config.
  */
 contract OptimismPortalResourceFuzz_Test is Portal_Initializer {
-
     /**
      * @dev The max gas limit observed throughout this test. Setting this too high can cause
      *      the test to take too long to run.
@@ -1118,7 +1117,7 @@ contract OptimismPortalResourceFuzz_Test is Portal_Initializer {
         uint64 gasLimit = systemConfig.gasLimit();
         // Bound resource config
         _maxResourceLimit = uint32(bound(_maxResourceLimit, 21000, MAX_GAS_LIMIT / 8));
-        _gasLimit = uint64(bound( _gasLimit,  21000, _maxResourceLimit));
+        _gasLimit = uint64(bound(_gasLimit, 21000, _maxResourceLimit));
         _prevBaseFee = uint128(bound(_prevBaseFee, 0, 5 gwei));
         // Prevent values that would cause reverts
         vm.assume(gasLimit >= _gasLimit);
@@ -1127,7 +1126,8 @@ contract OptimismPortalResourceFuzz_Test is Portal_Initializer {
         vm.assume(uint256(_maxResourceLimit) + uint256(_systemTxMaxGas) <= gasLimit);
         vm.assume(_elasticityMultiplier > 0);
         vm.assume(
-            ((_maxResourceLimit / _elasticityMultiplier) * _elasticityMultiplier) == _maxResourceLimit
+            ((_maxResourceLimit / _elasticityMultiplier) * _elasticityMultiplier) ==
+                _maxResourceLimit
         );
         _prevBoughtGas = uint64(bound(_prevBoughtGas, 0, _maxResourceLimit - _gasLimit));
         _blockDiff = uint8(bound(_blockDiff, 0, 3));

@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum"
@@ -24,7 +23,7 @@ var head = blockNum(1000)
 func TestInfoByHash(t *testing.T) {
 	client, oracle := newClient(t)
 	hash := common.HexToHash("0xAABBCC")
-	expected := &sources.HeaderInfo{}
+	expected := &testutils.MockBlockInfo{}
 	oracle.blocks[hash] = expected
 
 	info, err := client.InfoByHash(context.Background(), hash)
@@ -35,7 +34,7 @@ func TestInfoByHash(t *testing.T) {
 func TestL1BlockRefByHash(t *testing.T) {
 	client, oracle := newClient(t)
 	hash := common.HexToHash("0xAABBCC")
-	header := &sources.HeaderInfo{}
+	header := &testutils.MockBlockInfo{}
 	oracle.blocks[hash] = header
 	expected := eth.InfoToL1BlockRef(header)
 
@@ -47,7 +46,7 @@ func TestL1BlockRefByHash(t *testing.T) {
 func TestFetchReceipts(t *testing.T) {
 	client, oracle := newClient(t)
 	hash := common.HexToHash("0xAABBCC")
-	expectedInfo := &sources.HeaderInfo{}
+	expectedInfo := &testutils.MockBlockInfo{}
 	expectedReceipts := types.Receipts{
 		&types.Receipt{},
 	}
@@ -63,7 +62,7 @@ func TestFetchReceipts(t *testing.T) {
 func TestInfoAndTxsByHash(t *testing.T) {
 	client, oracle := newClient(t)
 	hash := common.HexToHash("0xAABBCC")
-	expectedInfo := &sources.HeaderInfo{}
+	expectedInfo := &testutils.MockBlockInfo{}
 	expectedTxs := types.Transactions{
 		&types.Transaction{},
 	}

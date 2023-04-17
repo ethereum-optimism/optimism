@@ -269,8 +269,11 @@ contract SystemConfig is OwnableUpgradeable, Semver {
             _config.minimumBaseFee <= _config.maximumBaseFee,
             "SystemConfig: min base fee must be less than max base"
         );
-        // Base fee change denominator must be greater than 0.
-        require(_config.baseFeeMaxChangeDenominator > 1, "SystemConfig: denominator must be larger than 1");
+        // Base fee change denominator must be greater than 1.
+        require(
+            _config.baseFeeMaxChangeDenominator > 1,
+            "SystemConfig: denominator must be larger than 1"
+        );
         // Max resource limit plus system tx gas must be less than or equal to the L2 gas limit.
         // The gas limit must be increased before these values can be increased.
         require(
