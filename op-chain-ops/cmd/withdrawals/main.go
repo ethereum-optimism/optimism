@@ -121,8 +121,7 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:  "storage-out",
-				Value: "storage.txt",
-				Usage: "Path to write JSON file of L2ToL1MessagePasser storage",
+				Usage: "Path to write text file of L2ToL1MessagePasser storage",
 			},
 		},
 		Action: func(ctx *cli.Context) error {
