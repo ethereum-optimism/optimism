@@ -8,7 +8,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi/test"
+	l2test "github.com/ethereum-optimism/optimism/op-program/client/l2/test"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -142,13 +144,16 @@ func setupOracleBackedChainWithLowerHead(t *testing.T, blockCount int, headBlock
 	return blocks, chain
 }
 
-func setupOracle(t *testing.T, blockCount int, headBlockNumber int) (*params.ChainConfig, []*types.Block, *stubBlockOracle) {
+func setupOracle(t *testing.T, blockCount int, headBlockNumber int) (*params.ChainConfig, []*types.Block, *l2test.StubBlockOracle) {
 	deployConfig := &genesis.DeployConfig{
 		L1ChainID:              900,
 		L2ChainID:              901,
 		L2BlockTime:            2,
 		FundDevAccounts:        true,
 		L2GenesisBlockGasLimit: 30_000_000,
+		// Arbitrary non-zero difficulty in genesis.
+		// This is slightly weird for a chain starting post-merge but it happens so need to make sure it works
+		L2GenesisBlockDifficulty: (*hexutil.Big)(big.NewInt(100)),
 	}
 	l1Genesis, err := genesis.NewL1Genesis(deployConfig)
 	require.NoError(t, err)
@@ -167,7 +172,7 @@ func setupOracle(t *testing.T, blockCount int, headBlockNumber int) (*params.Cha
 	genesisBlock := l2Genesis.MustCommit(db)
 	blocks, _ := core.GenerateChain(chainCfg, genesisBlock, consensus, db, blockCount, func(i int, gen *core.BlockGen) {})
 	blocks = append([]*types.Block{genesisBlock}, blocks...)
-	oracle := newStubOracleWithBlocks(t, blocks[:headBlockNumber+1], db)
+	oracle := l2test.NewStubOracleWithBlocks(t, blocks[:headBlockNumber+1], db)
 	return chainCfg, blocks, oracle
 }
 

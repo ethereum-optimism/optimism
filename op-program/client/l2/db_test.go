@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-program/client/l2/test"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -27,7 +28,7 @@ var _ ethdb.KeyValueStore = (*OracleKeyValueStore)(nil)
 
 func TestGet(t *testing.T) {
 	t.Run("IncorrectLengthKey", func(t *testing.T) {
-		oracle := newStubStateOracle(t)
+		oracle := test.NewStubStateOracle(t)
 		db := NewOracleBackedDB(oracle)
 		val, err := db.Get([]byte{1, 2, 3})
 		require.ErrorIs(t, err, ErrInvalidKeyLength)
@@ -35,13 +36,13 @@ func TestGet(t *testing.T) {
 	})
 
 	t.Run("KeyWithCodePrefix", func(t *testing.T) {
-		oracle := newStubStateOracle(t)
+		oracle := test.NewStubStateOracle(t)
 		db := NewOracleBackedDB(oracle)
 		key := common.HexToHash("0x12345678")
 		prefixedKey := append(rawdb.CodePrefix, key.Bytes()...)
 
 		expected := []byte{1, 2, 3}
-		oracle.code[key] = expected
+		oracle.Code[key] = expected
 		val, err := db.Get(prefixedKey)
 
 		require.NoError(t, err)
@@ -49,13 +50,13 @@ func TestGet(t *testing.T) {
 	})
 
 	t.Run("NormalKeyThatHappensToStartWithCodePrefix", func(t *testing.T) {
-		oracle := newStubStateOracle(t)
+		oracle := test.NewStubStateOracle(t)
 		db := NewOracleBackedDB(oracle)
 		key := make([]byte, common.HashLength)
 		copy(rawdb.CodePrefix, key)
 		println(key[0])
 		expected := []byte{1, 2, 3}
-		oracle.data[common.BytesToHash(key)] = expected
+		oracle.Data[common.BytesToHash(key)] = expected
 		val, err := db.Get(key)
 
 		require.NoError(t, err)
@@ -65,8 +66,8 @@ func TestGet(t *testing.T) {
 	t.Run("KnownKey", func(t *testing.T) {
 		key := common.HexToHash("0xAA4488")
 		expected := []byte{2, 6, 3, 8}
-		oracle := newStubStateOracle(t)
-		oracle.data[key] = expected
+		oracle := test.NewStubStateOracle(t)
+		oracle.Data[key] = expected
 		db := NewOracleBackedDB(oracle)
 		val, err := db.Get(key.Bytes())
 		require.NoError(t, err)
@@ -76,7 +77,7 @@ func TestGet(t *testing.T) {
 
 func TestPut(t *testing.T) {
 	t.Run("NewKey", func(t *testing.T) {
-		oracle := newStubStateOracle(t)
+		oracle := test.NewStubStateOracle(t)
 		db := NewOracleBackedDB(oracle)
 		key := common.HexToHash("0xAA4488")
 		value := []byte{2, 6, 3, 8}
@@ -88,7 +89,7 @@ func TestPut(t *testing.T) {
 		require.Equal(t, value, actual)
 	})
 	t.Run("ReplaceKey", func(t *testing.T) {
-		oracle := newStubStateOracle(t)
+		oracle := test.NewStubStateOracle(t)
 		db := NewOracleBackedDB(oracle)
 		key := common.HexToHash("0xAA4488")
 		value1 := []byte{2, 6, 3, 8}
@@ -109,16 +110,13 @@ func TestSupportsStateDBOperations(t *testing.T) {
 	realDb := rawdb.NewDatabase(memorydb.New())
 	genesisBlock := l2Genesis.MustCommit(realDb)
 
-	loader := &kvStateOracle{
-		t:      t,
-		source: realDb,
-	}
+	loader := test.NewKvStateOracle(t, realDb)
 	assertStateDataAvailable(t, NewOracleBackedDB(loader), l2Genesis, genesisBlock)
 }
 
 func TestUpdateState(t *testing.T) {
 	l2Genesis := createGenesis()
-	oracle := newStubStateOracle(t)
+	oracle := test.NewStubStateOracle(t)
 	db := rawdb.NewDatabase(NewOracleBackedDB(oracle))
 
 	genesisBlock := l2Genesis.MustCommit(db)

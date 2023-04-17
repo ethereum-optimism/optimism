@@ -137,7 +137,7 @@ func newMiniL2BlockWithNumberParent(numTx int, number *big.Int, parent common.Ha
 		Difficulty: common.Big0,
 		Number:     big.NewInt(100),
 	}, nil, nil, nil, trie.NewStackTrie(nil))
-	l1InfoTx, err := derive.L1InfoDeposit(0, l1Block, eth.SystemConfig{}, false)
+	l1InfoTx, err := derive.L1InfoDeposit(0, eth.BlockToInfo(l1Block), eth.SystemConfig{}, false)
 	if err != nil {
 		panic(err)
 	}
@@ -517,7 +517,7 @@ func TestChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T) {
 			Difficulty: common.Big0,
 			Number:     common.Big0,
 		}, nil, nil, nil, trie.NewStackTrie(nil))
-		l1InfoTx, _ := derive.L1InfoDeposit(0, lBlock, eth.SystemConfig{}, false)
+		l1InfoTx, _ := derive.L1InfoDeposit(0, eth.BlockToInfo(lBlock), eth.SystemConfig{}, false)
 		txs := []*types.Transaction{types.NewTx(l1InfoTx)}
 		a := types.NewBlock(&types.Header{
 			Number: big.NewInt(0),

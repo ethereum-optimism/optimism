@@ -5,9 +5,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
 )
-
-var _ BlockInfo = (&types.Block{})
 
 type BlockInfo interface {
 	Hash() common.Hash
@@ -21,6 +20,10 @@ type BlockInfo interface {
 	BaseFee() *big.Int
 	ReceiptHash() common.Hash
 	GasUsed() uint64
+
+	// HeaderRLP returns the RLP of the block header as per consensus rules
+	// Returns an error if the header RLP could not be written
+	HeaderRLP() ([]byte, error)
 }
 
 func InfoToL1BlockRef(info BlockInfo) L1BlockRef {
@@ -43,6 +46,19 @@ func ToBlockID(b NumberAndHash) BlockID {
 		Number: b.NumberU64(),
 	}
 }
+
+// blockInfo is a conversion type of types.Block turning it into a BlockInfo
+type blockInfo struct{ *types.Block }
+
+func (b blockInfo) HeaderRLP() ([]byte, error) {
+	return rlp.EncodeToBytes(b.Header())
+}
+
+func BlockToInfo(b *types.Block) BlockInfo {
+	return blockInfo{b}
+}
+
+var _ BlockInfo = (*blockInfo)(nil)
 
 // headerBlockInfo is a conversion type of types.Header turning it into a
 // BlockInfo.
@@ -82,6 +98,10 @@ func (h headerBlockInfo) ReceiptHash() common.Hash {
 
 func (h headerBlockInfo) GasUsed() uint64 {
 	return h.Header.GasUsed
+}
+
+func (h headerBlockInfo) HeaderRLP() ([]byte, error) {
+	return rlp.EncodeToBytes(h.Header)
 }
 
 // HeaderBlockInfo returns h as a BlockInfo implementation.

@@ -7,9 +7,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
+	"github.com/ethereum-optimism/optimism/op-program/client/l1/test"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -24,8 +24,8 @@ var head = blockNum(1000)
 func TestInfoByHash(t *testing.T) {
 	client, oracle := newClient(t)
 	hash := common.HexToHash("0xAABBCC")
-	expected := &sources.HeaderInfo{}
-	oracle.blocks[hash] = expected
+	expected := &testutils.MockBlockInfo{}
+	oracle.Blocks[hash] = expected
 
 	info, err := client.InfoByHash(context.Background(), hash)
 	require.NoError(t, err)
@@ -35,8 +35,8 @@ func TestInfoByHash(t *testing.T) {
 func TestL1BlockRefByHash(t *testing.T) {
 	client, oracle := newClient(t)
 	hash := common.HexToHash("0xAABBCC")
-	header := &sources.HeaderInfo{}
-	oracle.blocks[hash] = header
+	header := &testutils.MockBlockInfo{}
+	oracle.Blocks[hash] = header
 	expected := eth.InfoToL1BlockRef(header)
 
 	ref, err := client.L1BlockRefByHash(context.Background(), hash)
@@ -47,12 +47,12 @@ func TestL1BlockRefByHash(t *testing.T) {
 func TestFetchReceipts(t *testing.T) {
 	client, oracle := newClient(t)
 	hash := common.HexToHash("0xAABBCC")
-	expectedInfo := &sources.HeaderInfo{}
+	expectedInfo := &testutils.MockBlockInfo{}
 	expectedReceipts := types.Receipts{
 		&types.Receipt{},
 	}
-	oracle.blocks[hash] = expectedInfo
-	oracle.rcpts[hash] = expectedReceipts
+	oracle.Blocks[hash] = expectedInfo
+	oracle.Rcpts[hash] = expectedReceipts
 
 	info, rcpts, err := client.FetchReceipts(context.Background(), hash)
 	require.NoError(t, err)
@@ -63,12 +63,12 @@ func TestFetchReceipts(t *testing.T) {
 func TestInfoAndTxsByHash(t *testing.T) {
 	client, oracle := newClient(t)
 	hash := common.HexToHash("0xAABBCC")
-	expectedInfo := &sources.HeaderInfo{}
+	expectedInfo := &testutils.MockBlockInfo{}
 	expectedTxs := types.Transactions{
 		&types.Transaction{},
 	}
-	oracle.blocks[hash] = expectedInfo
-	oracle.txs[hash] = expectedTxs
+	oracle.Blocks[hash] = expectedInfo
+	oracle.Txs[hash] = expectedTxs
 
 	info, txs, err := client.InfoAndTxsByHash(context.Background(), hash)
 	require.NoError(t, err)
@@ -120,7 +120,7 @@ func TestL1BlockRefByNumber(t *testing.T) {
 	t.Run("ParentOfHead", func(t *testing.T) {
 		client, oracle := newClient(t)
 		parent := blockNum(head.NumberU64() - 1)
-		oracle.blocks[parent.Hash()] = parent
+		oracle.Blocks[parent.Hash()] = parent
 
 		ref, err := client.L1BlockRefByNumber(context.Background(), parent.NumberU64())
 		require.NoError(t, err)
@@ -132,7 +132,7 @@ func TestL1BlockRefByNumber(t *testing.T) {
 		blocks := []eth.BlockInfo{block}
 		for i := 0; i < 10; i++ {
 			block = blockNum(block.NumberU64() - 1)
-			oracle.blocks[block.Hash()] = block
+			oracle.Blocks[block.Hash()] = block
 			blocks = append(blocks, block)
 		}
 
@@ -144,9 +144,9 @@ func TestL1BlockRefByNumber(t *testing.T) {
 	})
 }
 
-func newClient(t *testing.T) (*OracleL1Client, *stubOracle) {
-	stub := newStubOracle(t)
-	stub.blocks[head.Hash()] = head
+func newClient(t *testing.T) (*OracleL1Client, *test.StubOracle) {
+	stub := test.NewStubOracle(t)
+	stub.Blocks[head.Hash()] = head
 	client := NewOracleL1Client(testlog.Logger(t, log.LvlDebug), stub, head.Hash())
 	return client, stub
 }

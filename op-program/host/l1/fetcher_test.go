@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	cll1 "github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -24,7 +25,7 @@ var _ Source = (*sources.L1Client)(nil)
 
 func TestHeaderByHash(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
-		expected := &sources.HeaderInfo{}
+		expected := &testutils.MockBlockInfo{}
 		source := &stubSource{nextInfo: expected}
 		oracle := newFetchingOracle(t, source)
 
@@ -54,7 +55,7 @@ func TestHeaderByHash(t *testing.T) {
 
 func TestTransactionsByHash(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
-		expectedInfo := &sources.HeaderInfo{}
+		expectedInfo := &testutils.MockBlockInfo{}
 		expectedTxs := types.Transactions{
 			&types.Transaction{},
 		}
@@ -75,7 +76,7 @@ func TestTransactionsByHash(t *testing.T) {
 	})
 
 	t.Run("UnknownBlock_NoTxs", func(t *testing.T) {
-		oracle := newFetchingOracle(t, &stubSource{nextInfo: &sources.HeaderInfo{}})
+		oracle := newFetchingOracle(t, &stubSource{nextInfo: &testutils.MockBlockInfo{}})
 		hash := common.HexToHash("0x4455")
 		require.PanicsWithError(t, fmt.Errorf("unknown block: %s", hash).Error(), func() {
 			oracle.TransactionsByBlockHash(hash)
@@ -96,7 +97,7 @@ func TestTransactionsByHash(t *testing.T) {
 
 func TestReceiptsByHash(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
-		expectedInfo := &sources.HeaderInfo{}
+		expectedInfo := &testutils.MockBlockInfo{}
 		expectedRcpts := types.Receipts{
 			&types.Receipt{},
 		}
@@ -117,7 +118,7 @@ func TestReceiptsByHash(t *testing.T) {
 	})
 
 	t.Run("UnknownBlock_NoTxs", func(t *testing.T) {
-		oracle := newFetchingOracle(t, &stubSource{nextInfo: &sources.HeaderInfo{}})
+		oracle := newFetchingOracle(t, &stubSource{nextInfo: &testutils.MockBlockInfo{}})
 		hash := common.HexToHash("0x4455")
 		require.PanicsWithError(t, fmt.Errorf("unknown block: %s", hash).Error(), func() {
 			oracle.ReceiptsByBlockHash(hash)
