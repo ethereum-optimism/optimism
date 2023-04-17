@@ -64,7 +64,8 @@ This is a very simple contract that stores the hash of the withdrawal data.
 
 ### On L1
 
-1. A [relayer][g-relayer] submits a withdrawal proving transaction with the required inputs to the `OptimismPortal` contract.
+1. A [relayer][g-relayer] submits a withdrawal proving transaction with the required inputs 
+   to the `OptimismPortal` contract.
    The relayer is not necessarily the same entity which initiated the withdrawal on L2.
    These inputs include the withdrawal transaction data, inclusion proofs, and a block number. The block number
    must be one for which an L2 output root exists, which commits to the withdrawal as registered on L2.
@@ -181,7 +182,7 @@ The following inputs are required to prove and finalize a withdrawal:
 
 These inputs must satisfy the following conditions:
 
-1. The `l2OutputIndex` must be the index in the L2 outputs that contains the applicable output root. 
+1. The `l2OutputIndex` must be the index in the L2 outputs that contains the applicable output root.
 1. `L2OutputOracle.getL2Output(l2OutputIndex)` returns a non-zero `OutputProposal`.
 1. The keccak256 hash of the `outputRootProof` values is equal to the `outputRoot`.
 1. The `withdrawalProof` is a valid inclusion proof demonstrating that a hash of the Withdrawal transaction data
