@@ -29,7 +29,7 @@ func TestBackendMaxRPSLimit(t *testing.T) {
 
 	config := ReadConfig("backend_rate_limit")
 	client := NewProxydClient("http://127.0.0.1:8545")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 	limitedRes, codes := spamReqs(t, client, ethChainID, 503, 3)
@@ -45,7 +45,7 @@ func TestFrontendMaxRPSLimit(t *testing.T) {
 	require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", goodBackend.URL()))
 
 	config := ReadConfig("frontend_rate_limit")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 

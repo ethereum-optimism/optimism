@@ -365,6 +365,36 @@ func (b *Backend) setOffline() {
 	}
 }
 
+// ForwardRPC makes a call directly to a backend and populate the response into `res`
+func (b *Backend) ForwardRPC(ctx context.Context, res *RPCRes, id string, method string, params ...any) error {
+	jsonParams, err := json.Marshal(params)
+	if err != nil {
+		return err
+	}
+
+	rpcReq := RPCReq{
+		JSONRPC: JSONRPCVersion,
+		Method:  method,
+		Params:  jsonParams,
+		ID:      []byte(id),
+	}
+
+	slicedRes, err := b.doForward(ctx, []*RPCReq{&rpcReq}, false)
+	if err != nil {
+		return err
+	}
+
+	if len(slicedRes) != 1 {
+		return fmt.Errorf("unexpected response len for non-batched request (len != 1)")
+	}
+	if slicedRes[0].IsError() {
+		return fmt.Errorf(slicedRes[0].Error.Error())
+	}
+
+	*res = *(slicedRes[0])
+	return nil
+}
+
 func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, error) {
 	isSingleElementBatch := len(rpcReqs) == 1
 
@@ -484,8 +514,9 @@ func sortBatchRPCResponse(req []*RPCReq, res []*RPCRes) {
 }
 
 type BackendGroup struct {
-	Name     string
-	Backends []*Backend
+	Name      string
+	Backends  []*Backend
+	Consensus *ConsensusPoller
 }
 
 func (b *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, error) {

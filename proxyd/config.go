@@ -82,6 +82,7 @@ type BackendConfig struct {
 	Password         string `toml:"password"`
 	RPCURL           string `toml:"rpc_url"`
 	WSURL            string `toml:"ws_url"`
+	WSPort           int    `toml:"ws_port"`
 	MaxRPS           int    `toml:"max_rps"`
 	MaxWSConns       int    `toml:"max_ws_conns"`
 	CAFile           string `toml:"ca_file"`
@@ -93,7 +94,9 @@ type BackendConfig struct {
 type BackendsConfig map[string]*BackendConfig
 
 type BackendGroupConfig struct {
-	Backends []string `toml:"backends"`
+	Backends              []string `toml:"backends"`
+	ConsensusAware        bool     `toml:"consensus_aware"`
+	ConsensusAsyncHandler string   `toml:"consensus_handler"`
 }
 
 type BackendGroupsConfig map[string]*BackendGroupConfig

@@ -1,0 +1,24 @@
+[server]
+rpc_port = 8080
+
+[backend]
+response_timeout_seconds = 1
+
+[backends]
+[backends.node1]
+rpc_url = "$NODE1_URL"
+
+[backends.node2]
+rpc_url = "$NODE2_URL"
+
+[backend_groups]
+[backend_groups.node]
+backends = ["node1", "node2"]
+consensus_aware = true
+consensus_handler = "noop" # allow more control over the consensus poller for tests
+
+[rpc_method_mappings]
+eth_call = "node"
+eth_chainId = "node"
+eth_blockNumber = "node"
+eth_getBlockByNumber = "node"

@@ -242,6 +242,20 @@ var (
 		Name:      "rate_limit_take_errors",
 		Help:      "Count of errors taking frontend rate limits",
 	})
+
+	consensusLatestBlock = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "consensus_latest_block",
+		Help:      "Consensus latest block",
+	})
+
+	backendLatestBlockBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_latest_block",
+		Help:      "Current latest block observed per backend",
+	}, []string{
+		"backend_name",
+	})
 )
 
 func RecordRedisError(source string) {
