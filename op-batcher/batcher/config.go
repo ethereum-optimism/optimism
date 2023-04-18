@@ -1,7 +1,6 @@
 package batcher
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -145,7 +144,7 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		TargetL1TxSize:         ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),
 		TargetNumFrames:        ctx.GlobalInt(flags.TargetNumFramesFlag.Name),
 		ApproxComprRatio:       ctx.GlobalFloat64(flags.ApproxComprRatioFlag.Name),
-		CompressorKind:         CompressorKind(strings.ToLower(ctx.GlobalString(flags.CompressorFlag.Name))),
+		CompressorKind:         flags.CompressorKind(strings.ToLower(ctx.GlobalString(flags.CompressorFlag.Name))),
 		Stopped:                ctx.GlobalBool(flags.StoppedFlag.Name),
 		TxMgrConfig:            txmgr.ReadCLIConfig(ctx),
 		RPCConfig:              rpc.ReadCLIConfig(ctx),
@@ -157,7 +156,7 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 
 func (c CLIConfig) NewCompressor() (derive.Compressor, error) {
 	switch c.CompressorKind {
-	case CompressorShadow:
+	case flags.CompressorShadow:
 		return NewShadowCompressor(
 			c.MaxL1TxSize - 1, // subtract 1 byte for version
 		)
@@ -168,38 +167,4 @@ func (c CLIConfig) NewCompressor() (derive.Compressor, error) {
 			c.ApproxComprRatio,
 		)
 	}
-}
-
-// CompressorKind identifies a compressor implementation.
-type CompressorKind string
-
-const (
-	CompressorTarget CompressorKind = "target"
-	CompressorShadow CompressorKind = "shadow"
-)
-
-var CompressorKinds = []CompressorKind{
-	CompressorTarget,
-	CompressorShadow,
-}
-
-func (kind CompressorKind) String() string {
-	return string(kind)
-}
-
-func (kind *CompressorKind) Set(value string) error {
-	if !ValidCompressorKind(CompressorKind(value)) {
-		return fmt.Errorf("unknown compressor kind: %q", value)
-	}
-	*kind = CompressorKind(value)
-	return nil
-}
-
-func ValidCompressorKind(value CompressorKind) bool {
-	for _, k := range CompressorKinds {
-		if k == value {
-			return true
-		}
-	}
-	return false
 }

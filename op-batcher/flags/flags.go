@@ -6,7 +6,6 @@ import (
 
 	"github.com/urfave/cli"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
@@ -90,10 +89,10 @@ var (
 	CompressorFlag = cli.GenericFlag{
 		Name: "compressor",
 		Usage: "The type of compressor. Valid options: " +
-			flags.EnumString[batcher.CompressorKind](batcher.CompressorKinds),
+			flags.EnumString[CompressorKind](CompressorKinds),
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "COMPRESSOR"),
-		Value: func() *batcher.CompressorKind {
-			out := batcher.CompressorTarget
+		Value: func() *CompressorKind {
+			out := CompressorTarget
 			return &out
 		}(),
 	}
@@ -147,4 +146,38 @@ func CheckRequired(ctx *cli.Context) error {
 		}
 	}
 	return nil
+}
+
+// CompressorKind identifies a compressor implementation.
+type CompressorKind string
+
+const (
+	CompressorTarget CompressorKind = "target"
+	CompressorShadow CompressorKind = "shadow"
+)
+
+var CompressorKinds = []CompressorKind{
+	CompressorTarget,
+	CompressorShadow,
+}
+
+func (kind CompressorKind) String() string {
+	return string(kind)
+}
+
+func (kind *CompressorKind) Set(value string) error {
+	if !ValidCompressorKind(CompressorKind(value)) {
+		return fmt.Errorf("unknown compressor kind: %q", value)
+	}
+	*kind = CompressorKind(value)
+	return nil
+}
+
+func ValidCompressorKind(value CompressorKind) bool {
+	for _, k := range CompressorKinds {
+		if k == value {
+			return true
+		}
+	}
+	return false
 }
