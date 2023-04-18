@@ -56,7 +56,7 @@ type ChannelConfig struct {
 	SubSafetyMargin uint64
 	// The maximum byte-size a frame can have.
 	MaxFrameSize uint64
-	// CompressorFactory creates Compressors to use to compress frame data.
+	// CompressorFactory creates Compressors used to compress frame data.
 	CompressorFactory CompressorFactory
 }
 
@@ -85,7 +85,7 @@ func (cc *ChannelConfig) Check() error {
 
 	// Compressor must be set
 	if cc.CompressorFactory == nil {
-		return errors.New("compressor cannot be nil")
+		return errors.New("compressor factory cannot be nil")
 	}
 
 	return nil
@@ -297,7 +297,7 @@ func (c *channelBuilder) IsFull() bool {
 //
 // It returns a ChannelFullError wrapping one of the following possible reasons
 // for the channel being full:
-//   - derive.CompressorFullErr if the compressor target has been reached.
+//   - derive.CompressorFullErr if the compressor target has been reached,
 //   - derive.MaxRLPBytesPerChannel if the general maximum amount of input data
 //     would have been exceeded by the latest AddBlock call,
 //   - ErrMaxFrameIndex if the maximum number of frames has been generated
