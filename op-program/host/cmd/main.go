@@ -173,7 +173,7 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 	}
 
 	logger.Info("Starting derivation")
-	d := cldr.NewDriver(logger, cfg.Rollup, l1Source, l2Source)
+	d := cldr.NewDriver(logger, cfg.Rollup, l1Source, l2Source, cfg.L2ClaimBlockNumber)
 	for {
 		if err = d.Step(ctx); errors.Is(err, io.EOF) {
 			break
