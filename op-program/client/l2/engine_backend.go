@@ -18,14 +18,15 @@ import (
 )
 
 type OracleBackedL2Chain struct {
-	log       log.Logger
-	oracle    Oracle
-	chainCfg  *params.ChainConfig
-	engine    consensus.Engine
-	head      *types.Header
-	safe      *types.Header
-	finalized *types.Header
-	vmCfg     vm.Config
+	log        log.Logger
+	oracle     Oracle
+	chainCfg   *params.ChainConfig
+	engine     consensus.Engine
+	oracleHead *types.Header
+	head       *types.Header
+	safe       *types.Header
+	finalized  *types.Header
+	vmCfg      vm.Config
 
 	// Inserted blocks
 	blocks map[common.Hash]*types.Block
@@ -44,11 +45,12 @@ func NewOracleBackedL2Chain(logger log.Logger, oracle Oracle, chainCfg *params.C
 		engine:   beacon.New(nil),
 
 		// Treat the agreed starting head as finalized - nothing before it can be disputed
-		head:      head.Header(),
-		safe:      head.Header(),
-		finalized: head.Header(),
-		blocks:    make(map[common.Hash]*types.Block),
-		db:        NewOracleBackedDB(oracle),
+		head:       head.Header(),
+		safe:       head.Header(),
+		finalized:  head.Header(),
+		oracleHead: head.Header(),
+		blocks:     make(map[common.Hash]*types.Block),
+		db:         NewOracleBackedDB(oracle),
 	}, nil
 }
 
@@ -82,11 +84,7 @@ func (o *OracleBackedL2Chain) CurrentFinalBlock() *types.Header {
 }
 
 func (o *OracleBackedL2Chain) GetHeaderByHash(hash common.Hash) *types.Header {
-	block := o.GetBlockByHash(hash)
-	if block == nil {
-		return nil
-	}
-	return block.Header()
+	return o.GetBlockByHash(hash).Header()
 }
 
 func (o *OracleBackedL2Chain) GetBlockByHash(hash common.Hash) *types.Block {
@@ -96,15 +94,18 @@ func (o *OracleBackedL2Chain) GetBlockByHash(hash common.Hash) *types.Block {
 		return block
 	}
 	// Retrieve from the oracle
-	block = o.oracle.BlockByHash(hash)
-	if block == nil {
-		return nil
-	}
-	return block
+	return o.oracle.BlockByHash(hash)
 }
 
 func (o *OracleBackedL2Chain) GetBlock(hash common.Hash, number uint64) *types.Block {
-	block := o.GetBlockByHash(hash)
+	var block *types.Block
+	if o.oracleHead.Number.Uint64() < number {
+		// For blocks above the chain head, only consider newly built blocks
+		// Avoids requesting an unknown block from the oracle which would panic.
+		block = o.blocks[hash]
+	} else {
+		block = o.GetBlockByHash(hash)
+	}
 	if block == nil {
 		return nil
 	}
@@ -116,9 +117,6 @@ func (o *OracleBackedL2Chain) GetBlock(hash common.Hash, number uint64) *types.B
 
 func (o *OracleBackedL2Chain) GetHeader(hash common.Hash, u uint64) *types.Header {
 	block := o.GetBlock(hash, u)
-	if block == nil {
-		return nil
-	}
 	return block.Header()
 }
 

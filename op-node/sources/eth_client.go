@@ -219,7 +219,7 @@ func (n numberID) CheckID(id eth.BlockID) error {
 	return nil
 }
 
-func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID) (*HeaderInfo, error) {
+func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID) (eth.BlockInfo, error) {
 	var header *rpcHeader
 	err := s.client.CallContext(ctx, &header, method, id.Arg(), false) // headers are just blocks without txs
 	if err != nil {
@@ -239,7 +239,7 @@ func (s *EthClient) headerCall(ctx context.Context, method string, id rpcBlockID
 	return info, nil
 }
 
-func (s *EthClient) blockCall(ctx context.Context, method string, id rpcBlockID) (*HeaderInfo, types.Transactions, error) {
+func (s *EthClient) blockCall(ctx context.Context, method string, id rpcBlockID) (eth.BlockInfo, types.Transactions, error) {
 	var block *rpcBlock
 	err := s.client.CallContext(ctx, &block, method, id.Arg(), true)
 	if err != nil {
@@ -292,7 +292,7 @@ func (s *EthClient) ChainID(ctx context.Context) (*big.Int, error) {
 
 func (s *EthClient) InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {
 	if header, ok := s.headersCache.Get(hash); ok {
-		return header.(*HeaderInfo), nil
+		return header.(eth.BlockInfo), nil
 	}
 	return s.headerCall(ctx, "eth_getBlockByHash", hashID(hash))
 }
@@ -310,7 +310,7 @@ func (s *EthClient) InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.
 func (s *EthClient) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {
 	if header, ok := s.headersCache.Get(hash); ok {
 		if txs, ok := s.transactionsCache.Get(hash); ok {
-			return header.(*HeaderInfo), txs.(types.Transactions), nil
+			return header.(eth.BlockInfo), txs.(types.Transactions), nil
 		}
 	}
 	return s.blockCall(ctx, "eth_getBlockByHash", hashID(hash))
@@ -356,10 +356,7 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 	if v, ok := s.receiptsCache.Get(blockHash); ok {
 		job = v.(*receiptsFetchingJob)
 	} else {
-		txHashes := make([]common.Hash, len(txs))
-		for i := 0; i < len(txs); i++ {
-			txHashes[i] = txs[i].Hash()
-		}
+		txHashes := eth.TransactionsToHashes(txs)
 		job = NewReceiptsFetchingJob(s, s.client, s.maxBatchSize, eth.ToBlockID(info), info.ReceiptHash(), txHashes)
 		s.receiptsCache.Add(blockHash, job)
 	}

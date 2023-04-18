@@ -18,7 +18,7 @@ import (
 var gasLimit = eth.Uint64Quantity(30_000_000)
 var feeRecipient = common.Address{}
 
-func RunEngineAPITests(t *testing.T, createBackend func() engineapi.EngineBackend) {
+func RunEngineAPITests(t *testing.T, createBackend func(t *testing.T) engineapi.EngineBackend) {
 	t.Run("CreateBlock", func(t *testing.T) {
 		api := newTestHelper(t, createBackend)
 
@@ -292,10 +292,10 @@ type testHelper struct {
 	assert  *require.Assertions
 }
 
-func newTestHelper(t *testing.T, createBackend func() engineapi.EngineBackend) *testHelper {
+func newTestHelper(t *testing.T, createBackend func(t *testing.T) engineapi.EngineBackend) *testHelper {
 	logger := testlog.Logger(t, log.LvlDebug)
 	ctx := context.Background()
-	backend := createBackend()
+	backend := createBackend(t)
 	api := engineapi.NewL2EngineAPI(logger, backend)
 	test := &testHelper{
 		t:       t,
