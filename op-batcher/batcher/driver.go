@@ -40,6 +40,8 @@ type BatchSubmitter struct {
 	lastL1Tip       eth.L1BlockRef
 
 	state *channelManager
+
+	publishLock sync.Mutex
 }
 
 // NewBatchSubmitterFromCLIConfig initializes the BatchSubmitter, gathering any resources
@@ -378,6 +380,11 @@ func (l *BatchSubmitter) publishStateToL1Factory() txmgr.TxFactory[txData] {
 // will submit the associated data to the L1 in the form of channel frames when called.
 // Returns an io.EOF error if no data is available.
 func (l *BatchSubmitter) publishStateToL1Job(ctx context.Context) (txmgr.TxCandidate, txData, error) {
+	// this is called from a separate goroutine in the tx queue, so we need
+	// to lock to prevent concurrent access to the state
+	l.publishLock.Lock()
+	defer l.publishLock.Unlock()
+
 	l1tip, err := l.l1Tip(ctx)
 	if err != nil {
 		l.log.Error("Failed to query L1 tip", "error", err)
