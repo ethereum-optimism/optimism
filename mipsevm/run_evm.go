@@ -1,80 +1,135 @@
 package main
 
 import (
-	"bytes"
+	"encoding/binary"
 	"encoding/json"
-	"io/ioutil"
+	"fmt"
 	"math/big"
-	"time"
+	"os"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 )
 
-var ministart time.Time
-
-type jsoncontract struct {
-	Bytecode         string `json:"bytecode"`
-	DeployedBytecode string `json:"deployedBytecode"`
+func LoadContracts() (*Contracts, error) {
+	mips, err := LoadContract("MIPS")
+	if err != nil {
+		return nil, err
+	}
+	mipsMem, err := LoadContract("MIPSMemory")
+	if err != nil {
+		return nil, err
+	}
+	challenge, err := LoadContract("Challenge")
+	if err != nil {
+		return nil, err
+	}
+	return &Contracts{
+		MIPS:       mips,
+		MIPSMemory: mipsMem,
+		Challenge:  challenge,
+	}, nil
 }
 
-func GetBytecode(deployed bool) []byte {
-	var jj jsoncontract
-	mipsjson, err := ioutil.ReadFile("../artifacts/contracts/MIPS.sol/MIPS.json")
-	check(err)
-	json.NewDecoder(bytes.NewReader(mipsjson)).Decode(&jj)
-	if deployed {
-		return common.Hex2Bytes(jj.DeployedBytecode[2:])
-	} else {
-		return common.Hex2Bytes(jj.Bytecode[2:])
+func LoadContract(name string) (*Contract, error) {
+	// TODO change to forge build output
+	dat, err := os.ReadFile(fmt.Sprintf("../artifacts/contracts/%s.sol/%s.json", name, name))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read contract JSON definition of %q: %w", name, err)
+	}
+	var out Contract
+	if err := json.Unmarshal(dat, &out); err != nil {
+		return nil, fmt.Errorf("failed to parse contract JSON definition of %q: %w", name, err)
+	}
+	return &out, nil
+}
+
+type Contract struct {
+	DeployedBytecode struct {
+		Object hexutil.Bytes `json:"object"`
+	} `json:"deployedBytecode"`
+	// ignore abi,bytecode,etc.
+}
+
+type Contracts struct {
+	MIPS       *Contract
+	MIPSMemory *Contract
+	Challenge  *Contract
+}
+
+type Addresses struct {
+	MIPS       common.Address
+	MIPSMemory common.Address
+	Challenge  common.Address
+}
+
+func NewEVMEnv(contracts *Contracts, addrs *Addresses) *vm.EVM {
+	chainCfg := params.MainnetChainConfig
+	bc := &testChain{}
+	header := bc.GetHeader(common.Hash{}, 100)
+	db := rawdb.NewMemoryDatabase()
+	statedb := state.NewDatabase(db)
+	state, err := state.New(types.EmptyRootHash, statedb, nil)
+	if err != nil {
+		panic(fmt.Errorf("failed to create memory state db: %w", err))
+	}
+	blockContext := core.NewEVMBlockContext(header, bc, nil)
+	vmCfg := vm.Config{}
+
+	env := vm.NewEVM(blockContext, vm.TxContext{}, state, chainCfg, vmCfg)
+	// pre-deploy the contracts
+
+	env.StateDB.SetCode(addrs.MIPS, contracts.MIPS.DeployedBytecode.Object)
+	env.StateDB.SetCode(addrs.MIPSMemory, contracts.MIPSMemory.DeployedBytecode.Object)
+	env.StateDB.SetCode(addrs.Challenge, contracts.Challenge.DeployedBytecode.Object)
+	// TODO: any state to set, or immutables to replace, to link the contracts together?
+	return env
+}
+
+type testChain struct {
+}
+
+func (d *testChain) Engine() consensus.Engine {
+	return ethash.NewFullFaker()
+}
+
+func (d *testChain) GetHeader(h common.Hash, n uint64) *types.Header {
+	parentHash := common.Hash{0: 0xff}
+	binary.BigEndian.PutUint64(parentHash[1:], n-1)
+	return &types.Header{
+		ParentHash:      parentHash,
+		UncleHash:       types.EmptyUncleHash,
+		Coinbase:        common.Address{},
+		Root:            common.Hash{},
+		TxHash:          types.EmptyTxsHash,
+		ReceiptHash:     types.EmptyReceiptsHash,
+		Bloom:           types.Bloom{},
+		Difficulty:      big.NewInt(0),
+		Number:          new(big.Int).SetUint64(n),
+		GasLimit:        30_000_000,
+		GasUsed:         0,
+		Time:            1337,
+		Extra:           nil,
+		MixDigest:       common.Hash{},
+		Nonce:           types.BlockNonce{},
+		BaseFee:         big.NewInt(7),
+		WithdrawalsHash: &types.EmptyWithdrawalsHash,
 	}
 }
 
-func GetInterpreter(ldebug int, realState bool, root string) (*vm.EVMInterpreter, *StateDB) {
-	statedb := NewStateDB(ldebug, realState, root)
-
-	var header types.Header
-	header.Number = big.NewInt(13284469)
-	header.Difficulty = common.Big0
-	bc := core.NewBlockChain(&header)
-	author := common.Address{}
-	blockContext := core.NewEVMBlockContext(&header, bc, &author)
-	txContext := vm.TxContext{}
-	config := vm.Config{}
-
-	evm := vm.NewEVM(blockContext, txContext, statedb, params.MainnetChainConfig, config)
-
-	interpreter := vm.NewEVMInterpreter(evm, config)
-	return interpreter, statedb
-}
-
-func RunWithRam(lram map[uint32](uint32), steps int, debug int, root string, lcallback func(int, map[uint32](uint32))) (uint64, error) {
-	interpreter, statedb := GetInterpreter(debug, false, root)
-	statedb.Ram = lram
-
-	callback = lcallback
-
-	gas := 100000 * uint64(steps)
-
-	// 0xdb7df598
-	from := common.Address{}
-	to := common.HexToAddress("0x1337")
-	bytecode := GetBytecode(true)
-	statedb.Bytecodes[to] = bytecode
-
+func Calldata(st *State, accessList [][32]byte) []byte {
 	input := crypto.Keccak256Hash([]byte("Steps(bytes32,uint256)")).Bytes()[:4]
 	input = append(input, common.BigToHash(common.Big0).Bytes()...)
-	input = append(input, common.BigToHash(big.NewInt(int64(steps))).Bytes()...)
+	input = append(input, common.BigToHash(big.NewInt(int64(st.Step))).Bytes()...)
 
-	ministart = time.Now()
-
-	contract := vm.NewContract(vm.AccountRef(from), vm.AccountRef(to), common.Big0, gas)
-	contract.SetCallCode(&to, crypto.Keccak256Hash(bytecode), bytecode)
-	_, err := interpreter.Run(contract, input, false)
-
-	return (gas - contract.Gas), err
+	return input
 }
