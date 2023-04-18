@@ -2,6 +2,7 @@ package derive
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -126,7 +127,9 @@ func (info *L1BlockInfo) UnmarshalBinary(data []byte) error {
 	if info.L1FeeScalar, err = solabi.ReadEthBytes32(reader); err != nil {
 		return err
 	}
-	// TODO: solabi.EmptyReader
+	if !solabi.EmptyReader(reader) {
+		return errors.New("too many bytes")
+	}
 	return nil
 }
 

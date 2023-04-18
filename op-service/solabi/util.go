@@ -79,6 +79,12 @@ func ReadUint256(r io.Reader) (*big.Int, error) {
 	return new(big.Int).SetBytes(n[:]), nil
 }
 
+func EmptyReader(r io.Reader) bool {
+	var t [1]byte
+	n, err := r.Read(t[:])
+	return n == 0 && err == io.EOF
+}
+
 func WriteSignature(w io.Writer, sig []byte) error {
 	_, err := w.Write(sig)
 	return err
