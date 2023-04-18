@@ -58,3 +58,13 @@ require (
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// We need to point to our local Unicorn clone for the shared object to be located correctly in all our Go commands.
+// See https://github.com/unicorn-engine/unicorn/blob/7b8c63dfe650b5d4d2bf684526161971925e6350/bindings/go/unicorn/unicorn.go#L11
+// The -L../../../ -lunicorn   points to the unicorn root directory relative to the unicorn Go bindings.
+// Run make libunicorn in the Cannon repo root to create this libunicorn.so dependency.
+//
+// If you are importing Cannon as a library you will need to also point it to a unicorn clone with a `replace`
+// in your `go.mod` (or `go.work`), or use `go build -ldflags="-L../path/to/my/unicorn/build -lunicorn`,
+// or simply have it installed globally so Go can find it. The `replace` here will be ignored as library-user.
+replace github.com/unicorn-engine/unicorn v0.0.0-20230207094436-7b8c63dfe650 => ../unicorn
