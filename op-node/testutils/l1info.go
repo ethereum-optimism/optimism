@@ -1,6 +1,7 @@
 package testutils
 
 import (
+	"errors"
 	"math/big"
 	"math/rand"
 
@@ -22,6 +23,7 @@ type MockBlockInfo struct {
 	InfoBaseFee     *big.Int
 	InfoReceiptRoot common.Hash
 	InfoGasUsed     uint64
+	InfoHeaderRLP   []byte
 }
 
 func (l *MockBlockInfo) Hash() common.Hash {
@@ -66,6 +68,13 @@ func (l *MockBlockInfo) GasUsed() uint64 {
 
 func (l *MockBlockInfo) ID() eth.BlockID {
 	return eth.BlockID{Hash: l.InfoHash, Number: l.InfoNum}
+}
+
+func (l *MockBlockInfo) HeaderRLP() ([]byte, error) {
+	if l.InfoHeaderRLP == nil {
+		return nil, errors.New("header rlp not available")
+	}
+	return l.InfoHeaderRLP, nil
 }
 
 func (l *MockBlockInfo) BlockRef() eth.L1BlockRef {

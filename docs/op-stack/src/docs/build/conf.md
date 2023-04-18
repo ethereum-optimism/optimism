@@ -50,7 +50,7 @@ These fields apply to L2 blocks: Their timing, when do they need to be written t
 
 | Key | Type | Description | Default value |
 | --- | --- | --- | --- |
-| `l2BlockTime` | Number of seconds | Number of seconds between each L2 block. | 2 |
+| `l2BlockTime` | Number of seconds | Number of seconds between each L2 block. Must be <= L1 block time (12 on mainnet and Goerli) | 2 |
 | `maxSequencerDrift` | Number of seconds | How far the L2 timestamp can differ from the actual L1 timestamp | 600 (10 minutes) |
 | `sequencerWindowSize` | Number of blocks | Maximum number of L1 blocks that a Sequencer can wait to incorporate the information in a specific L1 block. For example, if the window is `10` then the information in L1 block `n` must be incorporated by L1 block `n+10`. | 3600 (12 hours) |
 | `channelTimeout` | Number of blocks | Maximum number of L1 blocks that a transaction channel frame can be considered valid. A transaction channel frame is a chunk of a compressed batch of transactions. After the timeout, the frame is dropped. | 300 (1 hour) |

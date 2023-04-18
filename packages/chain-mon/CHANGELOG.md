@@ -1,5 +1,17 @@
 # @eth-optimism/drippie-mon
 
+## 0.3.0
+
+### Minor Changes
+
+- 1e7897c81: Introduces the balance-mon service to chain-mon.
+
+### Patch Changes
+
+- dbe5eb308: Empty patch release to re-release packages that failed to be released by a bug in the release process.
+- Updated dependencies [be3315689]
+  - @eth-optimism/sdk@2.0.2
+
 ## 0.2.1
 
 ### Patch Changes

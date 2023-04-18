@@ -32,4 +32,7 @@ type SyncStatus struct {
 	// FinalizedL2 points to the L2 block that was derived fully from
 	// finalized L1 information, thus irreversible.
 	FinalizedL2 L2BlockRef `json:"finalized_l2"`
+	// UnsafeL2SyncTarget points to the first unprocessed unsafe L2 block.
+	// It may be zeroed if there is no targeted block.
+	UnsafeL2SyncTarget L2BlockRef `json:"queued_unsafe_l2"`
 }

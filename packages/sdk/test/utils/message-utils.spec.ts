@@ -15,9 +15,9 @@ describe('Message Utils', () => {
       const tests = [
         { input: '0x', result: BigNumber.from(200_000) },
         { input: '0xff', result: BigNumber.from(200_000 + 16) },
-        { input: '0xff00', result: BigNumber.from(200_000 + 16 + 4) },
-        { input: '0x00', result: BigNumber.from(200_000 + 4) },
-        { input: '0x000000', result: BigNumber.from(200_000 + 4 + 4 + 4) },
+        { input: '0xff00', result: BigNumber.from(200_000 + 16 + 16) },
+        { input: '0x00', result: BigNumber.from(200_000 + 16) },
+        { input: '0x000000', result: BigNumber.from(200_000 + 16 + 16 + 16) },
       ]
 
       for (const test of tests) {

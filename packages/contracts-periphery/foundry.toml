@@ -16,9 +16,13 @@ remappings = [
 	'@rari-capital/solmate/=node_modules/@rari-capital/solmate',
 	'forge-std/=node_modules/forge-std/src',
 	'ds-test/=node_modules/ds-test/src',
+  'multicall/=lib/multicall',
   '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/',
   '@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/',
   '@eth-optimism/contracts-bedrock/=../../node_modules/@eth-optimism/contracts-bedrock',
 ]
 # The metadata hash can be removed from the bytecode by setting "none"
 bytecode_hash = "none"
+libs = ["node_modules", "lib"]
+# Required to use `deployCode` to deploy the multicall contract which has incompatible version
+fs_permissions = [{ access = "read", path = "./forge-artifacts/Multicall3.sol/Multicall3.json"}]

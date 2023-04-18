@@ -110,7 +110,7 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
             maximumBaseFee: 2 gwei
         });
         vm.prank(sysConf.owner());
-        vm.expectRevert("SystemConfig: denominator cannot be 0");
+        vm.expectRevert("SystemConfig: denominator must be larger than 1");
         sysConf.setResourceConfig(config);
     }
 
@@ -176,7 +176,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
     }
 
     function testFuzz_setGasLimit_succeeds(uint64 newGasLimit) external {
-        uint64 minimumGasLimit = sysConf.MINIMUM_GAS_LIMIT();
+        uint64 minimumGasLimit = sysConf.minimumGasLimit();
         newGasLimit = uint64(
             bound(uint256(newGasLimit), uint256(minimumGasLimit), uint256(type(uint64).max))
         );

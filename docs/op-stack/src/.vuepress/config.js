@@ -149,6 +149,7 @@ module.exports = {
         children: [
           '/docs/build/getting-started.md',
           '/docs/build/conf.md',
+          '/docs/build/operations.md',
           '/docs/build/explorer.md',
           '/docs/build/sdk.md',
           {
@@ -186,7 +187,8 @@ module.exports = {
         children: [
           '/docs/security/faq.md',
           '/docs/security/policy.md',
-          '/docs/security/forced-withdrawal.md'
+          '/docs/security/pause.md',          
+          '/docs/security/forced-withdrawal.md',
         ]
       },
     ],  // end of sidebar

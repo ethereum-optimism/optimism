@@ -53,9 +53,9 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "devDependencies": {
-    "@eth-optimism/contracts-bedrock": "0.13.1",
+    "@eth-optimism/contracts-bedrock": "0.13.2",
     "@eth-optimism/core-utils": "^0.12.0",
-    "@eth-optimism/hardhat-deploy-config": "^0.2.5",
+    "@eth-optimism/hardhat-deploy-config": "^0.2.6",
     "@ethersproject/hardware-wallets": "^5.7.0",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",

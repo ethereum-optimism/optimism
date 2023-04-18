@@ -256,7 +256,7 @@ func (n *OpNode) initMetricsServer(ctx context.Context, cfg *Config) error {
 
 func (n *OpNode) initP2P(ctx context.Context, cfg *Config) error {
 	if cfg.P2P != nil {
-		p2pNode, err := p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, n, n.runCfg, n.metrics)
+		p2pNode, err := p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, n, n.l2Source, n.runCfg, n.metrics)
 		if err != nil || p2pNode == nil {
 			return err
 		}
@@ -373,11 +373,14 @@ func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, payload *e
 	return nil
 }
 
-func (n *OpNode) RequestL2Range(ctx context.Context, start, end uint64) error {
+func (n *OpNode) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) error {
 	if n.rpcSync != nil {
 		return n.rpcSync.RequestL2Range(ctx, start, end)
 	}
-	n.log.Debug("ignoring request to sync L2 range, no sync method available")
+	if n.p2pNode != nil && n.p2pNode.AltSyncEnabled() {
+		return n.p2pNode.RequestL2Range(ctx, start, end)
+	}
+	n.log.Debug("ignoring request to sync L2 range, no sync method available", "start", start, "end", end)
 	return nil
 }
 

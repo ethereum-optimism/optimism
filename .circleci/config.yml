@@ -60,8 +60,8 @@ commands:
 jobs:
   yarn-monorepo:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
-    resource_class: xlarge
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
     steps:
       - checkout
       - check-changed:
@@ -142,7 +142,7 @@ jobs:
         default: "oplabs-tools-artifacts/images"
     machine:
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: medium
     steps:
       - checkout
       - run:
@@ -207,7 +207,7 @@ jobs:
         default: "linux/amd64"
     machine:
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: medium
     steps:
       - gcp-oidc-authenticate
       # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
@@ -261,7 +261,7 @@ jobs:
         default: "linux/amd64"
     machine:
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: medium
     steps:
       - gcp-cli/install
       - gcp-oidc-authenticate
@@ -286,7 +286,7 @@ jobs:
           command: |
             ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
-  contracts-bedrock-tests:
+  contracts-bedrock-coverage:
     docker:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: large
@@ -304,9 +304,8 @@ jobs:
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
-          name: test and generate coverage
+          name: generate coverage report
           command: yarn coverage:lcov
-          no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -316,9 +315,33 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
 
+  contracts-bedrock-tests:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: print forge version
+          command: forge --version
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: run tests
+          command: yarn test
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+
   contracts-bedrock-checks:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -330,34 +353,75 @@ jobs:
           patterns: contracts-bedrock,hardhat-deploy-config
       - run:
           name: lint
-          command: yarn lint:check
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: slither
           command: |
-            slither --version
-            yarn slither || exit 0
+            yarn lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
           command: |
             forge --version
-            yarn gas-snapshot --check
+            yarn gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
       - run:
           name: storage snapshot
-          command: yarn storage-snapshot && git diff --exit-code .storage-layout
+          command: |
+            yarn storage-snapshot
+            git diff --exit-code .storage-layout || echo "export STORAGE_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: invariant docs
-          command: yarn autogen:invariant-docs && git diff --exit-code ./invariant-docs/*.md
+          command: |
+            yarn autogen:invariant-docs
+            git diff --exit-code ./invariant-docs/*.md || echo "export INVARIANT_DOCS_STATUS=1" >> "$BASH_ENV"
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: check statuses
+          command: |
+            if [[ "$LINT_STATUS" -ne 0 ]]; then
+              FAILED=1
+              echo "Linting failed, see job output for details."
+            fi
+            if [[ "$GAS_SNAPSHOT_STATUS" -ne 0 ]]; then
+              FAILED=1
+              echo "Gas snapshot failed, see job output for details."
+            fi
+            if [[ "$STORAGE_SNAPSHOT_STATUS" -ne 0 ]]; then
+              echo "Storage snapshot failed, see job output for details."
+              FAILED=1
+            fi
+            if [[ "$INVARIANT_DOCS_STATUS" -ne 0 ]]; then
+              echo "Invariant docs failed, see job output for details."
+              FAILED=1
+            fi
+            if [[ "$FAILED" -ne 0 ]]; then
+              exit 1
+            fi
+
+  contracts-bedrock-slither:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: slither
+          command: |
+            slither --version
+            yarn slither
           working_directory: packages/contracts-bedrock
 
   contracts-bedrock-validate-spaces:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -374,7 +438,7 @@ jobs:
 
   bedrock-echidna-build:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -392,7 +456,7 @@ jobs:
 
   bedrock-echidna-run:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     parameters:
       echidna_target:
         description: Which echidna fuzz contract to run
@@ -419,7 +483,7 @@ jobs:
 
   op-bindings-build:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: medium
     steps:
       - checkout
@@ -448,7 +512,7 @@ jobs:
         description: Coverage flag name
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: large
     steps:
       - checkout
@@ -494,7 +558,7 @@ jobs:
 
   fuzz-op-node:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - check-changed:
@@ -506,7 +570,7 @@ jobs:
 
   depcheck:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -559,7 +623,7 @@ jobs:
       - run:
           name: run lint
           command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 2m -e "errors.As" -e "errors.Is" ./...
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
           working_directory: <<parameters.module>>
 
   go-test:
@@ -568,7 +632,7 @@ jobs:
         description: Go Module Name
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest # only used to enable codecov.
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest # only used to enable codecov.
     resource_class: xlarge
     steps:
       - checkout
@@ -579,7 +643,7 @@ jobs:
           name: run tests
           command: |
             gotestsum --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>.xml \
-            -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
+            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
           working_directory: <<parameters.module>>
       - run:
           name: upload coverage
@@ -596,7 +660,7 @@ jobs:
         description: If the op-e2e package should use HTTP clients
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: xlarge
     steps:
       - checkout
@@ -610,9 +674,10 @@ jobs:
           command: |
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
-            OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=true OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
+            # Note: -parallel must be set to match the number of cores in the resource class
+            OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=false OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
             --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml \
-            -- -timeout=20m ./...
+            -- -timeout=20m -parallel=8 ./...
           working_directory: <<parameters.module>>
       - store_test_results:
           path: /tmp/test-results
@@ -634,7 +699,7 @@ jobs:
         type: string
         default: this-package-does-not-exist
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
       - image: cimg/postgres:14.1
     steps:
       - checkout
@@ -663,7 +728,7 @@ jobs:
 
   geth-tests:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - check-changed:
@@ -858,7 +923,7 @@ jobs:
 
     docker:
       - image: returntocorp/semgrep
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - checkout
       - unless:
@@ -883,7 +948,7 @@ jobs:
 
   go-mod-tidy:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - run:
@@ -900,7 +965,7 @@ jobs:
     machine:
       image: ubuntu-2204:2022.07.1
       docker_layer_caching: true
-      resource_class: xlarge
+      resource_class: large
     steps:
       - attach_workspace:
           at: /tmp/docker_images
@@ -965,7 +1030,13 @@ workflows:
       - contracts-bedrock-tests:
           requires:
             - yarn-monorepo
+      - contracts-bedrock-coverage:
+          requires:
+            - yarn-monorepo
       - contracts-bedrock-checks:
+          requires:
+            - yarn-monorepo
+      - contracts-bedrock-slither:
           requires:
             - yarn-monorepo
       - contracts-bedrock-validate-spaces:
@@ -1097,6 +1168,9 @@ workflows:
           name: op-proposer-lint
           module: op-proposer
       - go-lint:
+          name: op-program-lint
+          module: op-program
+      - go-lint:
           name: op-service-lint
           module: op-service
       - go-lint:
@@ -1119,6 +1193,9 @@ workflows:
           name: op-proposer-tests
           module: op-proposer
       - go-test:
+          name: op-program-tests
+          module: op-program
+      - go-test:
           name: op-service-tests
           module: op-service
       - go-e2e-test:
@@ -1137,12 +1214,14 @@ workflows:
             - op-e2e-lint
             - op-node-lint
             - op-proposer-lint
+            - op-program-lint
             - op-service-lint
             - op-batcher-tests
             - op-bindings-tests
             - op-chain-ops-tests
             - op-node-tests
             - op-proposer-tests
+            - op-program-tests
             - op-service-tests
             - op-e2e-WS-tests
             - op-e2e-HTTP-tests
@@ -1318,3 +1397,18 @@ workflows:
             - oplabs-gcr-release
           requires:
             - hold
+  release-ci-builder:
+    jobs:
+      - docker-publish:
+          name: ci-builder-docker-publish
+          filters:
+            tags:
+              only: /^ci-builder\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: ./ops/docker/ci-builder/Dockerfile
+          docker_name: ci-builder
+          docker_tags: <<pipeline.git.revision>>,latest
+          docker_context: ./ops/docker/ci-builder
+          context:
+            - oplabs-gcr

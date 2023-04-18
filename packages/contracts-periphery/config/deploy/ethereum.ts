@@ -5,7 +5,11 @@ const config: DeployConfig = {
   l2ProxyOwnerAddress: '',
   optimistName: '',
   optimistSymbol: '',
-  attestorAddress: '',
+  optimistBaseUriAttestorAddress: '',
+  optimistInviterInviteGranter: '',
+  optimistInviterName: '',
+  optimistAllowlistAllowlistAttestor: '',
+  optimistAllowlistCoinbaseQuestAttestor: '',
 }
 
 export default config

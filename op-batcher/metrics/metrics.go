@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
 const Namespace = "op_batcher"
@@ -21,6 +22,9 @@ type Metricer interface {
 
 	// Records all L1 and L2 block events
 	opmetrics.RefMetricer
+
+	// Record Tx metrics
+	txmetrics.TxMetricer
 
 	RecordLatestL1Block(l1ref eth.L1BlockRef)
 	RecordL2BlocksLoaded(l2ref eth.L2BlockRef)
@@ -43,6 +47,7 @@ type Metrics struct {
 	factory  opmetrics.Factory
 
 	opmetrics.RefMetrics
+	txmetrics.TxMetrics
 
 	Info prometheus.GaugeVec
 	Up   prometheus.Gauge
@@ -53,12 +58,14 @@ type Metrics struct {
 	PendingBlocksCount prometheus.GaugeVec
 	BlocksAddedCount   prometheus.Gauge
 
-	ChannelInputBytes   prometheus.GaugeVec
-	ChannelReadyBytes   prometheus.Gauge
-	ChannelOutputBytes  prometheus.Gauge
-	ChannelClosedReason prometheus.Gauge
-	ChannelNumFrames    prometheus.Gauge
-	ChannelComprRatio   prometheus.Histogram
+	ChannelInputBytes       prometheus.GaugeVec
+	ChannelReadyBytes       prometheus.Gauge
+	ChannelOutputBytes      prometheus.Gauge
+	ChannelClosedReason     prometheus.Gauge
+	ChannelNumFrames        prometheus.Gauge
+	ChannelComprRatio       prometheus.Histogram
+	ChannelInputBytesTotal  prometheus.Counter
+	ChannelOutputBytesTotal prometheus.Counter
 
 	BatcherTxEvs opmetrics.EventVec
 }
@@ -80,6 +87,7 @@ func NewMetrics(procName string) *Metrics {
 		factory:  factory,
 
 		RefMetrics: opmetrics.MakeRefMetrics(ns, factory),
+		TxMetrics:  txmetrics.MakeTxMetrics(ns, factory),
 
 		Info: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -94,7 +102,7 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "1 if the op-batcher has finished starting up",
 		}),
 
-		ChannelEvs: opmetrics.NewEventVec(factory, ns, "channel", "Channel", []string{"stage"}),
+		ChannelEvs: opmetrics.NewEventVec(factory, ns, "", "channel", "Channel", []string{"stage"}),
 
 		PendingBlocksCount: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -138,8 +146,18 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "Compression ratios of closed channel.",
 			Buckets:   append([]float64{0.1, 0.2}, prometheus.LinearBuckets(0.3, 0.05, 14)...),
 		}),
+		ChannelInputBytesTotal: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "input_bytes_total",
+			Help:      "Total number of bytes to a channel.",
+		}),
+		ChannelOutputBytesTotal: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "output_bytes_total",
+			Help:      "Total number of compressed output bytes from a channel.",
+		}),
 
-		BatcherTxEvs: opmetrics.NewEventVec(factory, ns, "batcher_tx", "BatcherTx", []string{"stage"}),
+		BatcherTxEvs: opmetrics.NewEventVec(factory, ns, "", "batcher_tx", "BatcherTx", []string{"stage"}),
 	}
 }
 
@@ -213,6 +231,8 @@ func (m *Metrics) RecordChannelClosed(id derive.ChannelID, numPendingBlocks int,
 	m.ChannelNumFrames.Set(float64(numFrames))
 	m.ChannelInputBytes.WithLabelValues(StageClosed).Set(float64(inputBytes))
 	m.ChannelOutputBytes.Set(float64(outputComprBytes))
+	m.ChannelInputBytesTotal.Add(float64(inputBytes))
+	m.ChannelOutputBytesTotal.Add(float64(outputComprBytes))
 
 	var comprRatio float64
 	if inputBytes > 0 {

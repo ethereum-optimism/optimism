@@ -10,11 +10,12 @@ import '@nomiclabs/hardhat-ethers'
 import {
   assertContractVariable,
   getContractsFromArtifacts,
-  jsonifyTransaction,
+  printJsonTransaction,
   isStep,
   doStep,
-  getTenderlySimulationLink,
-  getCastCommand,
+  printTenderlySimulationLink,
+  printCastCommand,
+  liveDeployer,
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -82,8 +83,12 @@ const deployFn: DeployFunction = async (hre) => {
   ])
 
   // If we have the key for the controller then we don't need to wait for external txns.
-  const isLiveDeployer =
-    deployer.toLowerCase() === hre.deployConfig.controller.toLowerCase()
+  // Set the DISABLE_LIVE_DEPLOYER=true in the env to ensure the script will pause to simulate scenarios
+  // where the controller is not the deployer.
+  const isLiveDeployer = await liveDeployer({
+    hre,
+    disabled: process.env.DISABLE_LIVE_DEPLOYER,
+  })
 
   // Step 3 clears out some state from the AddressManager.
   await doStep({
@@ -116,10 +121,8 @@ const deployFn: DeployFunction = async (hre) => {
         'BondManager',
       ]
       for (const dead of deads) {
-        assert(
-          (await AddressManager.getAddress(dead)) ===
-            ethers.constants.AddressZero
-        )
+        const addr = await AddressManager.getAddress(dead)
+        assert(addr === ethers.constants.AddressZero)
       }
     },
   })
@@ -208,10 +211,9 @@ const deployFn: DeployFunction = async (hre) => {
         )
       )
       console.log(`MSD address: ${SystemDictator.address}`)
-      console.log(`JSON:`)
-      console.log(jsonifyTransaction(tx))
-      console.log(getCastCommand(tx))
-      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
+      printJsonTransaction(tx)
+      printCastCommand(tx)
+      await printTenderlySimulationLink(SystemDictator.provider, tx)
     }
 
     await awaitCondition(
@@ -320,10 +322,9 @@ const deployFn: DeployFunction = async (hre) => {
       const tx = await OptimismPortal.populateTransaction.unpause()
       console.log(`Please unpause the OptimismPortal...`)
       console.log(`OptimismPortal address: ${OptimismPortal.address}`)
-      console.log(`JSON:`)
-      console.log(jsonifyTransaction(tx))
-      console.log(getCastCommand(tx))
-      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
+      printJsonTransaction(tx)
+      printCastCommand(tx)
+      await printTenderlySimulationLink(SystemDictator.provider, tx)
     }
 
     await awaitCondition(
@@ -350,10 +351,9 @@ const deployFn: DeployFunction = async (hre) => {
       const tx = await SystemDictator.populateTransaction.finalize()
       console.log(`Please finalize deployment...`)
       console.log(`MSD address: ${SystemDictator.address}`)
-      console.log(`JSON:`)
-      console.log(jsonifyTransaction(tx))
-      console.log(getCastCommand(tx))
-      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
+      printJsonTransaction(tx)
+      printCastCommand(tx)
+      await printTenderlySimulationLink(SystemDictator.provider, tx)
     }
 
     await awaitCondition(
@@ -372,6 +372,6 @@ const deployFn: DeployFunction = async (hre) => {
   }
 }
 
-deployFn.tags = ['SystemDictatorSteps', 'phase2']
+deployFn.tags = ['SystemDictatorSteps', 'phase2', 'l1']
 
 export default deployFn

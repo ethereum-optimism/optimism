@@ -3,12 +3,12 @@ package actions
 import (
 	"errors"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	geth "github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
@@ -38,22 +38,10 @@ type L2Engine struct {
 	rollupGenesis *rollup.Genesis
 
 	// L2 evm / chain
-	l2Chain    *core.BlockChain
-	l2Database ethdb.Database
-	l2Cfg      *core.Genesis
-	l2Signer   types.Signer
+	l2Chain  *core.BlockChain
+	l2Signer types.Signer
 
-	// L2 block building data
-	l2BuildingHeader *types.Header             // block header that we add txs to for block building
-	l2BuildingState  *state.StateDB            // state used for block building
-	l2GasPool        *core.GasPool             // track gas used of ongoing building
-	pendingIndices   map[common.Address]uint64 // per account, how many txs from the pool were already included in the block, since the pool is lagging behind block mining.
-	l2Transactions   []*types.Transaction      // collects txs that were successfully included into current block build
-	l2Receipts       []*types.Receipt          // collect receipts of ongoing building
-	l2ForceEmpty     bool                      // when no additional txs may be processed (i.e. when sequencer drift runs out)
-	l2TxFailed       []*types.Transaction      // log of failed transactions which could not be included
-
-	payloadID engine.PayloadID // ID of payload that is currently being built
+	engineApi *engineapi.L2EngineAPI
 
 	failL2RPC error // mock error
 }
@@ -61,6 +49,38 @@ type L2Engine struct {
 type EngineOption func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error
 
 func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, rollupGenesisL1 eth.BlockID, jwtPath string, options ...EngineOption) *L2Engine {
+	n, ethBackend, apiBackend := newBackend(t, genesis, jwtPath, options)
+	engineApi := engineapi.NewL2EngineAPI(log, apiBackend)
+	chain := ethBackend.BlockChain()
+	genesisBlock := chain.Genesis()
+	eng := &L2Engine{
+		log:  log,
+		node: n,
+		eth:  ethBackend,
+		rollupGenesis: &rollup.Genesis{
+			L1:     rollupGenesisL1,
+			L2:     eth.BlockID{Hash: genesisBlock.Hash(), Number: genesisBlock.NumberU64()},
+			L2Time: genesis.Timestamp,
+		},
+		l2Chain:   chain,
+		l2Signer:  types.LatestSigner(genesis.Config),
+		engineApi: engineApi,
+	}
+	// register the custom engine API, so we can serve engine requests while having more control
+	// over sequencing of individual txs.
+	n.RegisterAPIs([]rpc.API{
+		{
+			Namespace:     "engine",
+			Service:       eng.engineApi,
+			Authenticated: true,
+		},
+	})
+	require.NoError(t, n.Start(), "failed to start L2 op-geth node")
+
+	return eng
+}
+
+func newBackend(t e2eutils.TestingBase, genesis *core.Genesis, jwtPath string, options []EngineOption) (*node.Node, *geth.Ethereum, *engineApiBackend) {
 	ethCfg := &ethconfig.Config{
 		NetworkId: genesis.Config.ChainID.Uint64(),
 		Genesis:   genesis,
@@ -89,33 +109,26 @@ func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, rollupGenesis
 
 	chain := backend.BlockChain()
 	db := backend.ChainDb()
-	genesisBlock := chain.Genesis()
-	eng := &L2Engine{
-		log:  log,
-		node: n,
-		eth:  backend,
-		rollupGenesis: &rollup.Genesis{
-			L1:     rollupGenesisL1,
-			L2:     eth.BlockID{Hash: genesisBlock.Hash(), Number: genesisBlock.NumberU64()},
-			L2Time: genesis.Timestamp,
-		},
-		l2Chain:    chain,
-		l2Database: db,
-		l2Cfg:      genesis,
-		l2Signer:   types.LatestSigner(genesis.Config),
+	apiBackend := &engineApiBackend{
+		BlockChain: chain,
+		db:         db,
+		genesis:    genesis,
 	}
-	// register the custom engine API, so we can serve engine requests while having more control
-	// over sequencing of individual txs.
-	n.RegisterAPIs([]rpc.API{
-		{
-			Namespace:     "engine",
-			Service:       (*L2EngineAPI)(eng),
-			Authenticated: true,
-		},
-	})
-	require.NoError(t, n.Start(), "failed to start L2 op-geth node")
+	return n, backend, apiBackend
+}
 
-	return eng
+type engineApiBackend struct {
+	*core.BlockChain
+	db      ethdb.Database
+	genesis *core.Genesis
+}
+
+func (e *engineApiBackend) Database() ethdb.Database {
+	return e.db
+}
+
+func (e *engineApiBackend) Genesis() *core.Genesis {
+	return e.genesis
 }
 
 func (s *L2Engine) EthClient() *ethclient.Client {
@@ -158,39 +171,25 @@ func (e *L2Engine) ActL2RPCFail(t Testing) {
 // ActL2IncludeTx includes the next transaction from the given address in the block that is being built
 func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 	return func(t Testing) {
-		if e.l2BuildingHeader == nil {
-			t.InvalidAction("not currently building a block, cannot include tx from queue")
-			return
-		}
-		if e.l2ForceEmpty {
+		if e.engineApi.ForcedEmpty() {
 			e.log.Info("Skipping including a transaction because e.L2ForceEmpty is true")
-			// t.InvalidAction("cannot include any sequencer txs")
 			return
 		}
 
-		i := e.pendingIndices[from]
+		i := e.engineApi.PendingIndices(from)
 		txs, q := e.eth.TxPool().ContentFrom(from)
 		if uint64(len(txs)) <= i {
 			t.Fatalf("no pending txs from %s, and have %d unprocessable queued txs from this account", from, len(q))
 		}
 		tx := txs[i]
-		if tx.Gas() > e.l2BuildingHeader.GasLimit {
-			t.Fatalf("tx consumes %d gas, more than available in L2 block %d", tx.Gas(), e.l2BuildingHeader.GasLimit)
+		err := e.engineApi.IncludeTx(tx, from)
+		if errors.Is(err, engineapi.ErrNotBuildingBlock) {
+			t.InvalidAction(err.Error())
+		} else if errors.Is(err, engineapi.ErrUsesTooMuchGas) {
+			t.InvalidAction("included tx uses too much gas: %v", err)
+		} else if err != nil {
+			t.Fatalf("include tx: %v", err)
 		}
-		if tx.Gas() > uint64(*e.l2GasPool) {
-			t.InvalidAction("action takes too much gas: %d, only have %d", tx.Gas(), uint64(*e.l2GasPool))
-			return
-		}
-		e.pendingIndices[from] = i + 1 // won't retry the tx
-		e.l2BuildingState.SetTxContext(tx.Hash(), len(e.l2Transactions))
-		receipt, err := core.ApplyTransaction(e.l2Cfg.Config, e.l2Chain, &e.l2BuildingHeader.Coinbase,
-			e.l2GasPool, e.l2BuildingState, e.l2BuildingHeader, tx, &e.l2BuildingHeader.GasUsed, *e.l2Chain.GetVMConfig())
-		if err != nil {
-			e.l2TxFailed = append(e.l2TxFailed, tx)
-			t.Fatalf("failed to apply transaction to L2 block (tx %d): %v", len(e.l2Transactions), err)
-		}
-		e.l2Receipts = append(e.l2Receipts, receipt)
-		e.l2Transactions = append(e.l2Transactions, tx)
 	}
 }
 

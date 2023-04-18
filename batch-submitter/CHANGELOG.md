@@ -1,5 +1,13 @@
 # @eth-optimism/batch-submitter-service
 
+## 0.1.16
+
+### Patch Changes
+
+- 32bd79ec9: Allow deposit only batches
+- da79ef441: fix flag name for MaxStateRootElements in batch-submitter
+  fix log package for proposer
+
 ## 0.1.15
 
 ### Patch Changes

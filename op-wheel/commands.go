@@ -78,11 +78,17 @@ var (
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "BUILDING_TIME"),
 		Value:  time.Second * 6,
 	}
+	AllowGaps = cli.BoolFlag{
+		Name:   "allow-gaps",
+		Usage:  "allow gaps in block building, like missed slots on the beacon chain.",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "ALLOW_GAPS"),
+	}
 )
 
 func ParseBuildingArgs(ctx *cli.Context) *engine.BlockBuildingSettings {
 	return &engine.BlockBuildingSettings{
 		BlockTime:    ctx.Uint64(BlockTimeFlag.Name),
+		AllowGaps:    ctx.Bool(AllowGaps.Name),
 		Random:       hashFlagValue(RandaoFlag.Name, ctx),
 		FeeRecipient: addrFlagValue(FeeRecipientFlag.Name, ctx),
 		BuildTime:    ctx.Duration(BuildingTime.Name),
@@ -336,7 +342,7 @@ var (
 		Usage: "build the next block using the Engine API",
 		Flags: []cli.Flag{
 			EngineEndpoint, EngineJWTPath,
-			FeeRecipientFlag, RandaoFlag, BlockTimeFlag, BuildingTime,
+			FeeRecipientFlag, RandaoFlag, BlockTimeFlag, BuildingTime, AllowGaps,
 		},
 		// TODO: maybe support transaction and tx pool engine flags, since we use op-geth?
 		// TODO: reorg flag
@@ -362,7 +368,7 @@ var (
 		Description: "The block time can be changed. The execution engine must be synced to a post-Merge state first.",
 		Flags: append(append([]cli.Flag{
 			EngineEndpoint, EngineJWTPath,
-			FeeRecipientFlag, RandaoFlag, BlockTimeFlag, BuildingTime,
+			FeeRecipientFlag, RandaoFlag, BlockTimeFlag, BuildingTime, AllowGaps,
 		}, oplog.CLIFlags(envVarPrefix)...), opmetrics.CLIFlags(envVarPrefix)...),
 		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
 			logCfg := oplog.ReadLocalCLIConfig(ctx)

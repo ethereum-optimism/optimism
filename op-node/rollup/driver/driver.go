@@ -21,6 +21,7 @@ type Metrics interface {
 
 	RecordL1Ref(name string, ref eth.L1BlockRef)
 	RecordL2Ref(name string, ref eth.L2BlockRef)
+	RecordChannelInputBytes(inputCompresedBytes int)
 
 	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
 
@@ -48,7 +49,7 @@ type DerivationPipeline interface {
 	Reset()
 	Step(ctx context.Context) error
 	AddUnsafePayload(payload *eth.ExecutionPayload)
-	GetUnsafeQueueGap(expectedNumber uint64) (uint64, uint64)
+	UnsafeL2SyncTarget() eth.L2BlockRef
 	Finalize(ref eth.L1BlockRef)
 	FinalizedL1() eth.L1BlockRef
 	Finalized() eth.L2BlockRef
@@ -84,12 +85,20 @@ type Network interface {
 type AltSync interface {
 	// RequestL2Range informs the sync source that the given range of L2 blocks is missing,
 	// and should be retrieved from any available alternative syncing source.
-	// The start of the range is inclusive, the end is exclusive.
+	// The start and end of the range are exclusive:
+	// the start is the head we already have, the end is the first thing we have queued up.
+	// It's the task of the alt-sync mechanism to use this hint to fetch the right payloads.
+	// Note that the end and start may not be consistent: in this case the sync method should fetch older history
+	//
+	// If the end value is zeroed, then the sync-method may determine the end free of choice,
+	// e.g. sync till the chain head meets the wallclock time. This functionality is optional:
+	// a fixed target to sync towards may be determined by picking up payloads through P2P gossip or other sources.
+	//
 	// The sync results should be returned back to the driver via the OnUnsafeL2Payload(ctx, payload) method.
 	// The latest requested range should always take priority over previous requests.
 	// There may be overlaps in requested ranges.
 	// An error may be returned if the scheduling fails immediately, e.g. a context timeout.
-	RequestL2Range(ctx context.Context, start, end uint64) error
+	RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) error
 }
 
 // NewDriver composes an events handler that tracks L1 state, triggers L2 derivation, and optionally sequences new L2 blocks.

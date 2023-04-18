@@ -23,11 +23,13 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -35,6 +37,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
+	"github.com/ethereum-optimism/optimism/op-service/backoff"
+	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 )
 
 var enableParallelTesting bool = true
@@ -587,9 +591,12 @@ func TestSystemMockP2P(t *testing.T) {
 	}
 
 	cfg := DefaultSystemConfig(t)
-	// slow down L1 blocks so we can see the L2 blocks arrive well before the L1 blocks do.
-	// Keep the seq window small so the L2 chain is started quick
-	cfg.DeployConfig.L1BlockTime = 10
+	// Disable batcher, so we don't sync from L1 & set a large sequence window so we only have unsafe blocks
+	cfg.DisableBatcher = true
+	cfg.DeployConfig.SequencerWindowSize = 100_000
+	cfg.DeployConfig.MaxSequencerDrift = 100_000
+	// disable at the start, so we don't miss any gossiped blocks.
+	cfg.Nodes["sequencer"].Driver.SequencerStopped = true
 
 	// connect the nodes
 	cfg.P2PTopology = map[string][]string{
@@ -610,6 +617,29 @@ func TestSystemMockP2P(t *testing.T) {
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
+
+	// Enable the sequencer now that everyone is ready to receive payloads.
+	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["sequencer"].HTTPEndpoint())
+	require.Nil(t, err)
+
+	verifierPeerID := sys.RollupNodes["verifier"].P2P().Host().ID()
+	check := func() bool {
+		sequencerBlocksTopicPeers := sys.RollupNodes["sequencer"].P2P().GossipOut().BlocksTopicPeers()
+		return slices.Contains[peer.ID](sequencerBlocksTopicPeers, verifierPeerID)
+	}
+
+	// poll to see if the verifier node is connected & meshed on gossip.
+	// Without this verifier, we shouldn't start sending blocks around, or we'll miss them and fail the test.
+	backOffStrategy := backoff.Exponential()
+	for i := 0; i < 10; i++ {
+		if check() {
+			break
+		}
+		time.Sleep(backOffStrategy.Duration(i))
+	}
+	require.True(t, check(), "verifier must be meshed with sequencer for gossip test to proceed")
+
+	require.NoError(t, rollupRPCClient.Call(nil, "admin_startSequencer", sys.L2GenesisCfg.ToBlock().Hash()))
 
 	l2Seq := sys.Clients["sequencer"]
 	l2Verif := sys.Clients["verifier"]
@@ -632,11 +662,11 @@ func TestSystemMockP2P(t *testing.T) {
 	require.Nil(t, err, "Sending L2 tx to sequencer")
 
 	// Wait for tx to be mined on the L2 sequencer chain
-	receiptSeq, err := waitForTransaction(tx.Hash(), l2Seq, 6*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
+	receiptSeq, err := waitForTransaction(tx.Hash(), l2Seq, 5*time.Minute)
 	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
 	// Wait until the block it was first included in shows up in the safe chain on the verifier
-	receiptVerif, err := waitForTransaction(tx.Hash(), l2Verif, 6*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
+	receiptVerif, err := waitForTransaction(tx.Hash(), l2Verif, 5*time.Minute)
 	require.Nil(t, err, "Waiting for L2 tx on verifier")
 
 	require.Equal(t, receiptSeq, receiptVerif)
@@ -735,6 +765,159 @@ func TestSystemRPCAltSync(t *testing.T) {
 	// Verify that everything that was received was published
 	require.GreaterOrEqual(t, len(published), len(received))
 	require.ElementsMatch(t, received, published[:len(received)])
+}
+
+func TestSystemP2PAltSync(t *testing.T) {
+	parallel(t)
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
+
+	cfg := DefaultSystemConfig(t)
+
+	// remove default verifier node
+	delete(cfg.Nodes, "verifier")
+	// Add more verifier nodes
+	cfg.Nodes["alice"] = &rollupNode.Config{
+		Driver: driver.Config{
+			VerifierConfDepth:  0,
+			SequencerConfDepth: 0,
+			SequencerEnabled:   false,
+		},
+		L1EpochPollInterval: time.Second * 4,
+	}
+	cfg.Nodes["bob"] = &rollupNode.Config{
+		Driver: driver.Config{
+			VerifierConfDepth:  0,
+			SequencerConfDepth: 0,
+			SequencerEnabled:   false,
+		},
+		L1EpochPollInterval: time.Second * 4,
+	}
+	cfg.Loggers["alice"] = testlog.Logger(t, log.LvlInfo).New("role", "alice")
+	cfg.Loggers["bob"] = testlog.Logger(t, log.LvlInfo).New("role", "bob")
+
+	// connect the nodes
+	cfg.P2PTopology = map[string][]string{
+		"sequencer": {"alice", "bob"},
+		"alice":     {"sequencer", "bob"},
+		"bob":       {"alice", "sequencer"},
+	}
+	// Enable the P2P req-resp based sync
+	cfg.P2PReqRespSync = true
+
+	// Disable batcher, so there will not be any L1 data to sync from
+	cfg.DisableBatcher = true
+
+	var published []string
+	seqTracer := new(FnTracer)
+	// The sequencer still publishes the blocks to the tracer, even if they do not reach the network due to disabled P2P
+	seqTracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *eth.ExecutionPayload) {
+		published = append(published, payload.ID().String())
+	}
+	// Blocks are now received via the RPC based alt-sync method
+	cfg.Nodes["sequencer"].Tracer = seqTracer
+
+	sys, err := cfg.Start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	l2Seq := sys.Clients["sequencer"]
+
+	// Transactor Account
+	ethPrivKey := cfg.Secrets.Alice
+
+	// Submit a TX to L2 sequencer node
+	toAddr := common.Address{0xff, 0xff}
+	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
+		ChainID:   cfg.L2ChainIDBig(),
+		Nonce:     0,
+		To:        &toAddr,
+		Value:     big.NewInt(1_000_000_000),
+		GasTipCap: big.NewInt(10),
+		GasFeeCap: big.NewInt(200),
+		Gas:       21000,
+	})
+	err = l2Seq.SendTransaction(context.Background(), tx)
+	require.Nil(t, err, "Sending L2 tx to sequencer")
+
+	// Wait for tx to be mined on the L2 sequencer chain
+	receiptSeq, err := waitForTransaction(tx.Hash(), l2Seq, 6*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
+	require.Nil(t, err, "Waiting for L2 tx on sequencer")
+
+	// Gossip is able to respond to IWANT messages for the duration of heartbeat_time * message_window = 0.5 * 12 = 6
+	// Wait till we pass that, and then we'll have missed some blocks that cannot be retrieved in any way from gossip
+	time.Sleep(time.Second * 10)
+
+	// set up our syncer node, connect it to alice/bob
+	cfg.Loggers["syncer"] = testlog.Logger(t, log.LvlInfo).New("role", "syncer")
+	snapLog := log.New()
+	snapLog.SetHandler(log.DiscardHandler())
+
+	// Create a peer, and hook up alice and bob
+	h, err := sys.Mocknet.GenPeer()
+	require.NoError(t, err)
+	_, err = sys.Mocknet.LinkPeers(sys.RollupNodes["alice"].P2P().Host().ID(), h.ID())
+	require.NoError(t, err)
+	_, err = sys.Mocknet.LinkPeers(sys.RollupNodes["bob"].P2P().Host().ID(), h.ID())
+	require.NoError(t, err)
+
+	// Configure the new rollup node that'll be syncing
+	var syncedPayloads []string
+	syncNodeCfg := &rollupNode.Config{
+		L2Sync:    &rollupNode.PreparedL2SyncEndpoint{Client: nil},
+		Driver:    driver.Config{VerifierConfDepth: 0},
+		Rollup:    *sys.RollupConfig,
+		P2PSigner: nil,
+		RPC: rollupNode.RPCConfig{
+			ListenAddr:  "127.0.0.1",
+			ListenPort:  0,
+			EnableAdmin: true,
+		},
+		P2P:                 &p2p.Prepared{HostP2P: h, EnableReqRespSync: true},
+		Metrics:             rollupNode.MetricsConfig{Enabled: false}, // no metrics server
+		Pprof:               oppprof.CLIConfig{},
+		L1EpochPollInterval: time.Second * 10,
+		Tracer: &FnTracer{
+			OnUnsafeL2PayloadFn: func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) {
+				syncedPayloads = append(syncedPayloads, payload.ID().String())
+			},
+		},
+	}
+	configureL1(syncNodeCfg, sys.Nodes["l1"])
+	syncerL2Engine, _, err := initL2Geth("syncer", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), sys.L2GenesisCfg, cfg.JWTFilePath)
+	require.NoError(t, err)
+	require.NoError(t, syncerL2Engine.Start())
+
+	configureL2(syncNodeCfg, syncerL2Engine, cfg.JWTSecret)
+
+	syncerNode, err := rollupNode.New(context.Background(), syncNodeCfg, cfg.Loggers["syncer"], snapLog, "", metrics.NewMetrics(""))
+	require.NoError(t, err)
+	err = syncerNode.Start(context.Background())
+	require.NoError(t, err)
+
+	// connect alice and bob to our new syncer node
+	_, err = sys.Mocknet.ConnectPeers(sys.RollupNodes["alice"].P2P().Host().ID(), syncerNode.P2P().Host().ID())
+	require.NoError(t, err)
+	_, err = sys.Mocknet.ConnectPeers(sys.RollupNodes["bob"].P2P().Host().ID(), syncerNode.P2P().Host().ID())
+	require.NoError(t, err)
+
+	rpc, err := syncerL2Engine.Attach()
+	require.NoError(t, err)
+	l2Verif := ethclient.NewClient(rpc)
+
+	// It may take a while to sync, but eventually we should see the sequenced data show up
+	receiptVerif, err := waitForTransaction(tx.Hash(), l2Verif, 100*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
+	require.Nil(t, err, "Waiting for L2 tx on verifier")
+
+	require.Equal(t, receiptSeq, receiptVerif)
+
+	// Verify that the tx was received via P2P sync
+	require.Contains(t, syncedPayloads, eth.BlockID{Hash: receiptVerif.BlockHash, Number: receiptVerif.BlockNumber.Uint64()}.String())
+
+	// Verify that everything that was received was published
+	require.GreaterOrEqual(t, len(published), len(syncedPayloads))
+	require.ElementsMatch(t, syncedPayloads, published[:len(syncedPayloads)])
 }
 
 // TestSystemDenseTopology sets up a dense p2p topology with 3 verifier nodes and 1 sequencer node.
@@ -1449,7 +1632,7 @@ func TestStopStartBatcher(t *testing.T) {
 	require.Greater(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain did not advance")
 
 	// stop the batch submission
-	err = sys.BatchSubmitter.Stop()
+	err = sys.BatchSubmitter.Stop(context.Background())
 	require.Nil(t, err)
 
 	// wait for any old safe blocks being submitted / derived

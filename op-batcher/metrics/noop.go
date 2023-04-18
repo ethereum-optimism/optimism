@@ -4,9 +4,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
-type noopMetrics struct{ opmetrics.NoopRefMetrics }
+type noopMetrics struct {
+	opmetrics.NoopRefMetrics
+	txmetrics.NoopTxMetrics
+}
 
 var NoopMetrics Metricer = new(noopMetrics)
 

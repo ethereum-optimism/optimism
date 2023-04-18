@@ -43,13 +43,6 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
 
     /**
-     * @notice Minimum gas limit. This should not be lower than the maximum deposit gas resource
-     *         limit in the ResourceMetering contract used by OptimismPortal, to ensure the L2
-     *         block always has sufficient gas to process deposits.
-     */
-    uint64 public constant MINIMUM_GAS_LIMIT = 8_000_000;
-
-    /**
      * @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
      */
     uint256 public overhead;
@@ -87,7 +80,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /**
-     * @custom:semver 1.1.0
+     * @custom:semver 1.3.0
      *
      * @param _owner             Initial owner of the contract.
      * @param _overhead          Initial overhead value.
@@ -105,7 +98,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint64 _gasLimit,
         address _unsafeBlockSigner,
         ResourceMetering.ResourceConfig memory _config
-    ) Semver(1, 1, 0) {
+    ) Semver(1, 3, 0) {
         initialize({
             _owner: _owner,
             _overhead: _overhead,
@@ -276,8 +269,11 @@ contract SystemConfig is OwnableUpgradeable, Semver {
             _config.minimumBaseFee <= _config.maximumBaseFee,
             "SystemConfig: min base fee must be less than max base"
         );
-        // Base fee change denominator must be greater than 0.
-        require(_config.baseFeeMaxChangeDenominator > 0, "SystemConfig: denominator cannot be 0");
+        // Base fee change denominator must be greater than 1.
+        require(
+            _config.baseFeeMaxChangeDenominator > 1,
+            "SystemConfig: denominator must be larger than 1"
+        );
         // Max resource limit plus system tx gas must be less than or equal to the L2 gas limit.
         // The gas limit must be increased before these values can be increased.
         require(

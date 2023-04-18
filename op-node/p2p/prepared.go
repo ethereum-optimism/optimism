@@ -22,6 +22,8 @@ type Prepared struct {
 	HostP2P   host.Host
 	LocalNode *enode.LocalNode
 	UDPv5     *discover.UDPv5
+
+	EnableReqRespSync bool
 }
 
 var _ SetupP2P = (*Prepared)(nil)
@@ -60,8 +62,10 @@ func (p *Prepared) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort u
 	return p.LocalNode, p.UDPv5, nil
 }
 
-func (p *Prepared) ConfigureGossip(params *pubsub.GossipSubParams) []pubsub.Option {
-	return nil
+func (p *Prepared) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
+	return []pubsub.Option{
+		pubsub.WithGossipSubParams(BuildGlobalGossipParams(rollupCfg)),
+	}
 }
 
 func (p *Prepared) PeerScoringParams() *pubsub.PeerScoreParams {
@@ -82,4 +86,8 @@ func (p *Prepared) TopicScoringParams() *pubsub.TopicScoreParams {
 
 func (p *Prepared) Disabled() bool {
 	return false
+}
+
+func (p *Prepared) ReqRespSyncEnabled() bool {
+	return p.EnableReqRespSync
 }

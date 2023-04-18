@@ -12,6 +12,7 @@ import (
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -30,6 +31,9 @@ const (
 // of a closure allows the parameters bound to the top-level main package, e.g.
 // GitVersion, to be captured and used once the function is executed.
 func Main(version string, cliCtx *cli.Context) error {
+	if err := flags.CheckRequired(cliCtx); err != nil {
+		return err
+	}
 	cfg := NewConfig(cliCtx)
 	if err := cfg.Check(); err != nil {
 		return fmt.Errorf("invalid CLI flags: %w", err)
@@ -51,9 +55,10 @@ func Main(version string, cliCtx *cli.Context) error {
 			return err
 		}
 	}
-	defer batchSubmitter.StopIfRunning()
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // Stop pprof and metrics only after main loop returns
+	defer batchSubmitter.StopIfRunning(context.Background())
 
 	pprofConfig := cfg.PprofConfig
 	if pprofConfig.Enabled {
@@ -73,7 +78,7 @@ func Main(version string, cliCtx *cli.Context) error {
 				l.Error("error starting metrics server", err)
 			}
 		}()
-		m.StartBalanceMetrics(ctx, l, batchSubmitter.L1Client, batchSubmitter.From)
+		m.StartBalanceMetrics(ctx, l, batchSubmitter.L1Client, batchSubmitter.TxManager.From())
 	}
 
 	rpcCfg := cfg.RPCConfig
@@ -106,7 +111,8 @@ func Main(version string, cliCtx *cli.Context) error {
 		syscall.SIGQUIT,
 	}...)
 	<-interruptChannel
-	cancel()
-	_ = server.Stop()
+	if err := server.Stop(); err != nil {
+		l.Error("Error shutting down http server: %w", err)
+	}
 	return nil
 }

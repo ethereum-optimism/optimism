@@ -24,7 +24,7 @@ If you want to build Optimism, check out the [Protocol Specs](./specs/).
 
 ## Community
 
-General discussion happens most frequently on the [Optimism discord](https://discord-gateway.optimism.io).
+General discussion happens most frequently on the [Optimism discord](https://discord.gg/optimism).
 Governance discussion can also be found on the [Optimism Governance Forum](https://gov.optimism.io/).
 
 ## Contributing

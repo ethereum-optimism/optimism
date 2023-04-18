@@ -42,6 +42,6 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
      * than the hard-coded lower bound.
      */
     function invariant_gasLimitLowerBound() external {
-        assertTrue(config.gasLimit() >= config.MINIMUM_GAS_LIMIT());
+        assertTrue(config.gasLimit() >= config.minimumGasLimit());
     }
 }
