@@ -75,11 +75,7 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 		return nil, err
 	}
 
-	compressor, err := NewTargetSizeCompressor(
-		cfg.TargetL1TxSize-1, // subtract 1 byte for version
-		cfg.TargetNumFrames,
-		cfg.ApproxComprRatio,
-	)
+	compressor, err := cfg.NewCompressor()
 	if err != nil {
 		return nil, err
 	}

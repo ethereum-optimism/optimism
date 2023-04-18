@@ -1,6 +1,8 @@
 package batcher
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -11,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -94,6 +97,9 @@ type CLIConfig struct {
 	// compression algorithm.
 	ApproxComprRatio float64
 
+	// CompressorKind is the compressor implementation to use.
+	CompressorKind CompressorKind
+
 	Stopped bool
 
 	TxMgrConfig   txmgr.CLIConfig
@@ -139,6 +145,7 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		TargetL1TxSize:         ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),
 		TargetNumFrames:        ctx.GlobalInt(flags.TargetNumFramesFlag.Name),
 		ApproxComprRatio:       ctx.GlobalFloat64(flags.ApproxComprRatioFlag.Name),
+		CompressorKind:         CompressorKind(strings.ToLower(ctx.GlobalString(flags.CompressorFlag.Name))),
 		Stopped:                ctx.GlobalBool(flags.StoppedFlag.Name),
 		TxMgrConfig:            txmgr.ReadCLIConfig(ctx),
 		RPCConfig:              rpc.ReadCLIConfig(ctx),
@@ -146,4 +153,53 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		MetricsConfig:          opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:            oppprof.ReadCLIConfig(ctx),
 	}
+}
+
+func (c CLIConfig) NewCompressor() (derive.Compressor, error) {
+	switch c.CompressorKind {
+	case CompressorShadow:
+		return NewShadowCompressor(
+			c.MaxL1TxSize - 1, // subtract 1 byte for version
+		)
+	default:
+		return NewTargetSizeCompressor(
+			c.TargetL1TxSize-1, // subtract 1 byte for version
+			c.TargetNumFrames,
+			c.ApproxComprRatio,
+		)
+	}
+}
+
+// CompressorKind identifies a compressor implementation.
+type CompressorKind string
+
+const (
+	CompressorTarget CompressorKind = "target"
+	CompressorShadow CompressorKind = "shadow"
+)
+
+var CompressorKinds = []CompressorKind{
+	CompressorTarget,
+	CompressorShadow,
+}
+
+func (kind CompressorKind) String() string {
+	return string(kind)
+}
+
+func (kind *CompressorKind) Set(value string) error {
+	if !ValidCompressorKind(CompressorKind(value)) {
+		return fmt.Errorf("unknown compressor kind: %q", value)
+	}
+	*kind = CompressorKind(value)
+	return nil
+}
+
+func ValidCompressorKind(value CompressorKind) bool {
+	for _, k := range CompressorKinds {
+		if k == value {
+			return true
+		}
+	}
+	return false
 }

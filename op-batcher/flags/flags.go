@@ -6,7 +6,9 @@ import (
 
 	"github.com/urfave/cli"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
+	"github.com/ethereum-optimism/optimism/op-node/flags"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -85,6 +87,16 @@ var (
 		Value:  0.4,
 		EnvVar: opservice.PrefixEnvVar(EnvVarPrefix, "APPROX_COMPR_RATIO"),
 	}
+	CompressorFlag = cli.GenericFlag{
+		Name: "compressor",
+		Usage: "The type of compressor. Valid options: " +
+			flags.EnumString[batcher.CompressorKind](batcher.CompressorKinds),
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "COMPRESSOR"),
+		Value: func() *batcher.CompressorKind {
+			out := batcher.CompressorTarget
+			return &out
+		}(),
+	}
 	StoppedFlag = cli.BoolFlag{
 		Name:   "stopped",
 		Usage:  "Initialize the batcher in a stopped state. The batcher can be started using the admin_startBatcher RPC",
@@ -109,6 +121,7 @@ var optionalFlags = []cli.Flag{
 	TargetL1TxSizeBytesFlag,
 	TargetNumFramesFlag,
 	ApproxComprRatioFlag,
+	CompressorFlag,
 	StoppedFlag,
 	SequencerHDPathFlag,
 }
