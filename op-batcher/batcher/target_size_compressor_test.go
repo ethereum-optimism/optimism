@@ -118,12 +118,13 @@ func TestInputThreshold(t *testing.T) {
 
 	// Validate each test case
 	for _, tt := range tests {
-		config := batcher.ChannelConfig{
-			TargetFrameSize:  tt.input.TargetFrameSize,
-			TargetNumFrames:  tt.input.TargetNumFrames,
-			ApproxComprRatio: tt.input.ApproxComprRatio,
-		}
-		got := config.InputThreshold()
+		compressor, err := batcher.NewTargetSizeCompressor(
+			tt.input.TargetFrameSize,
+			tt.input.TargetNumFrames,
+			tt.input.ApproxComprRatio,
+		)
+		require.NoError(t, err)
+		got := compressor.(*batcher.TargetSizeCompressor).InputThreshold()
 		tt.assertion(got)
 	}
 }
