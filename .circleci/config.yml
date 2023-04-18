@@ -286,6 +286,35 @@ jobs:
           command: |
             ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
+  contracts-bedrock-coverage:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: print forge version
+          command: forge --version
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: generate coverage report
+          command: yarn coverage:lcov
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: upload coverage
+          command: codecov --verbose --clean --flags contracts-bedrock-tests
+          environment:
+            FOUNDRY_PROFILE: ci
+
   contracts-bedrock-tests:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
@@ -304,17 +333,11 @@ jobs:
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
-          name: test and generate coverage
-          command: yarn coverage:lcov
-          no_output_timeout: 18m
+          name: run tests
+          command: yarn test
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
-      - run:
-          name: upload coverage
-          command: codecov --verbose --clean --flags contracts-bedrock-tests
-          environment:
-            FOUNDRY_PROFILE: ci
 
   contracts-bedrock-checks:
     docker:
@@ -1005,6 +1028,9 @@ workflows:
           requires:
             - yarn-monorepo
       - contracts-bedrock-tests:
+          requires:
+            - yarn-monorepo
+      - contracts-bedrock-coverage:
           requires:
             - yarn-monorepo
       - contracts-bedrock-checks:

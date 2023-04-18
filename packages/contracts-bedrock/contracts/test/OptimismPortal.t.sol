@@ -976,12 +976,21 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         uint256 _gasLimit,
         bytes memory _data
     ) external {
-        // Cannot call the optimism portal
-        vm.assume(_target != address(op));
+        vm.assume(
+            _target != address(op) && // Cannot call the optimism portal or a contract
+                _target.code.length == 0 && // No accounts with code
+                _target != CONSOLE && // The console has no code but behaves like a contract
+                uint160(_target) > 9 // No precompiles (or zero address)
+        );
+
         // Total ETH supply is currently about 120M ETH.
         uint256 value = bound(_value, 0, 200_000_000 ether);
+        vm.deal(address(op), value);
+
         uint256 gasLimit = bound(_gasLimit, 0, 50_000_000);
         uint256 nonce = messagePasser.messageNonce();
+
+        // Get a withdrawal transaction and mock proof from the differential testing script.
         Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction({
             nonce: nonce,
             sender: _sender,
@@ -998,6 +1007,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
             bytes[] memory withdrawalProof
         ) = ffi.getProveWithdrawalTransactionInputs(_tx);
 
+        // Create the output root proof
         Types.OutputRootProof memory proof = Types.OutputRootProof({
             version: bytes32(uint256(0)),
             stateRoot: stateRoot,
@@ -1013,25 +1023,28 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         vm.mockCall(
             address(oracle),
             abi.encodeWithSelector(oracle.getL2Output.selector),
-            abi.encode(outputRoot, 0)
+            abi.encode(outputRoot, block.timestamp, 100)
         );
 
-        // Start the withdrawal, it must be initiated by the _sender and the
-        // correct value must be passed along
-        vm.deal(_tx.sender, _tx.value);
-        vm.prank(_tx.sender);
-        messagePasser.initiateWithdrawal{ value: _tx.value }(_tx.target, _tx.gasLimit, _tx.data);
-
-        // Ensure that the sentMessages is correct
-        assertEq(messagePasser.sentMessages(withdrawalHash), true);
-
-        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        // Prove the withdrawal transaction
         op.proveWithdrawalTransaction(
             _tx,
             100, // l2BlockNumber
             proof,
             withdrawalProof
         );
+        (bytes32 _root, , ) = op.provenWithdrawals(withdrawalHash);
+        assertTrue(_root != bytes32(0));
+
+        // Warp past the finalization period
+        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+
+        uint256 targetBalanceBefore = _target.balance;
+
+        // Finalize the withdrawal transaction
+        vm.expectCallMinGas(_tx.target, _tx.value, uint64(_tx.gasLimit), _tx.data);
+        op.finalizeWithdrawalTransaction(_tx);
+        assertTrue(op.finalizedWithdrawals(withdrawalHash));
     }
 }
 

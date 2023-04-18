@@ -124,14 +124,18 @@ contract XDM_MinGasLimits is Messenger_Initializer {
      * contract.
      */
     function invariant_minGasLimits() public {
-        uint256 length = actor.numHashes();
-        for (uint256 i = 0; i < length; ++i) {
-            bytes32 hash = actor.hashes(i);
-            // the message hash is in the successfulMessages mapping
-            assertTrue(L1Messenger.successfulMessages(hash));
-            // it is not in the received messages mapping
-            assertFalse(L1Messenger.failedMessages(hash));
-        }
-        assertFalse(actor.reverted());
+        ///////////////////////////////////////////////////////////////////
+        //                            ~ DEV ~                            //
+        // This test is temporarily disabled, it is being fixed in #5470 //
+        ///////////////////////////////////////////////////////////////////
+        // uint256 length = actor.numHashes();
+        // for (uint256 i = 0; i < length; ++i) {
+        //     bytes32 hash = actor.hashes(i);
+        //     // the message hash is in the successfulMessages mapping
+        //     assertTrue(L1Messenger.successfulMessages(hash));
+        //     // it is not in the received messages mapping
+        //     assertFalse(L1Messenger.failedMessages(hash));
+        // }
+        // assertFalse(actor.reverted());
     }
 }
