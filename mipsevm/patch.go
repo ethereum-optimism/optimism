@@ -8,23 +8,8 @@ import (
 	"io"
 )
 
-type state struct {
-	// TODO VM state
-
-	pc uint32
-}
-
-func (s *state) SetMemRange(addr uint32, r io.Reader) error {
-	// TODO write memory
-	return nil
-}
-
-func (s *state) SetRegister(i uint8, v uint32) {
-	// TODO
-}
-
-func LoadELF(f *elf.File) (*state, error) {
-	s := &state{}
+func LoadELF(f *elf.File) (*State, error) {
+	s := &State{}
 
 	for i, prog := range f.Progs {
 		if prog.Type == 0x70000003 { // MIPS_ABIFLAGS
@@ -47,7 +32,7 @@ func LoadELF(f *elf.File) (*state, error) {
 		if prog.Vaddr+prog.Memsz >= uint64(1<<32) {
 			return nil, fmt.Errorf("program %d out of 32-bit mem range: %x - %x (size: %x)", i, prog.Vaddr, prog.Vaddr+prog.Memsz, prog.Memsz)
 		}
-		if err := s.SetMemRange(uint32(prog.Vaddr), r); err != nil {
+		if err := s.SetMemoryRange(uint32(prog.Vaddr), r); err != nil {
 			return nil, fmt.Errorf("failed to read program segment %d: %w", i, err)
 		}
 	}
@@ -55,7 +40,7 @@ func LoadELF(f *elf.File) (*state, error) {
 	return s, nil
 }
 
-func patchVM(f *elf.File, st *state) error {
+func patchVM(f *elf.File, st *State) error {
 	symbols, err := f.Symbols()
 	if err != nil {
 		return fmt.Errorf("failed to read symbols data, cannot patch program: %w", err)
@@ -74,14 +59,14 @@ func patchVM(f *elf.File, st *state) error {
 			// MIPS32 patch: ret (pseudo instruction)
 			// 03e00008 = jr $ra = ret (pseudo instruction)
 			// 00000000 = invalid, make sure it never enters the actual function
-			if err := st.SetMemRange(uint32(s.Value), bytes.NewReader([]byte{
+			if err := st.SetMemoryRange(uint32(s.Value), bytes.NewReader([]byte{
 				0x03, 0xe0, 0x00, 0x08,
 				0, 0, 0, 0,
 			})); err != nil {
 				return fmt.Errorf("failed to patch Go runtime.gcenable: %w", err)
 			}
 		case "runtime.MemProfileRate":
-			if err := st.SetMemRange(uint32(s.Value), bytes.NewReader(make([]byte, 4))); err != nil { // disable mem profiling, to avoid a lot of unnecessary floating point ops
+			if err := st.SetMemoryRange(uint32(s.Value), bytes.NewReader(make([]byte, 4))); err != nil { // disable mem profiling, to avoid a lot of unnecessary floating point ops
 				return err
 			}
 		}
@@ -89,12 +74,12 @@ func patchVM(f *elf.File, st *state) error {
 
 	// setup stack pointer
 	sp := uint32(0xc0_00_00_00)
-	st.SetRegister(29, sp)
+	st.Registers[29] = sp
 
 	storeMem := func(addr uint32, v uint32) {
 		var dat [4]byte
 		binary.BigEndian.PutUint32(dat[:], v)
-		_ = st.SetMemRange(addr, bytes.NewReader(dat[:]))
+		_ = st.SetMemoryRange(addr, bytes.NewReader(dat[:]))
 	}
 
 	// init argc, argv, aux on stack
@@ -107,7 +92,7 @@ func patchVM(f *elf.File, st *state) error {
 	storeMem(sp+4*7, sp+4*9) // auxv[3] = address of 16 bytes containing random value
 	storeMem(sp+4*8, 0)      // auxv[term] = 0
 
-	_ = st.SetMemRange(sp+4*9, bytes.NewReader([]byte("4;byfairdiceroll"))) // 16 bytes of "randomness"
+	_ = st.SetMemoryRange(sp+4*9, bytes.NewReader([]byte("4;byfairdiceroll"))) // 16 bytes of "randomness"
 
 	return nil
 }

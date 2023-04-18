@@ -8,8 +8,10 @@ import (
 
 const (
 	pageAddrSize = 10
+	pageKeySize  = 32 - pageAddrSize
 	pageSize     = 1 << pageAddrSize
 	pageAddrMask = pageSize - 1
+	maxPageCount = 1 << pageKeySize
 )
 
 type Page [pageSize]byte
@@ -51,14 +53,6 @@ type State struct {
 // Misc exit/step data = TBD
 // + proof(s) for memory leaf nodes
 
-func (s *State) ApplyRegisterDiff(regs [32]uint32, hi, lo uint32) {
-	for i := 0; i < 32; i++ {
-		s.Registers[i] = regs[i]
-	}
-	s.Hi = hi
-	s.Lo = lo
-}
-
 func (s *State) SetMemory(addr uint32, v uint32, size uint32) {
 	for i := size; i > 0; i-- {
 		pageIndex := addr >> pageAddrSize
@@ -71,6 +65,23 @@ func (s *State) SetMemory(addr uint32, v uint32, size uint32) {
 		p[pageAddr] = b
 		v = v >> 8
 		addr += 1
+	}
+}
+
+func (s *State) SetMemoryRange(addr uint32, r io.Reader) error {
+	for {
+		pageIndex := addr >> pageAddrSize
+		pageAddr := addr & pageAddrMask
+		p, ok := s.Memory[pageIndex]
+		if !ok {
+			p = &Page{}
+			s.Memory[pageIndex] = p
+		}
+		n, err := r.Read(p[pageAddr:])
+		if err != nil {
+			return err
+		}
+		addr += uint32(n)
 	}
 }
 
@@ -107,7 +118,7 @@ func (r *memReader) Read(dest []byte) (n int, err error) {
 	return n, nil
 }
 
-func (s *State) ReadMemory(addr uint32, count uint32) io.Reader {
+func (s *State) ReadMemoryRange(addr uint32, count uint32) io.Reader {
 	return &memReader{state: s, addr: addr, count: count}
 }
 
