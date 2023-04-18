@@ -136,6 +136,13 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer) error {
 	return nil
 }
 
+func RunUnicorn(mu uc.Unicorn, entrypoint uint32, steps uint64) error {
+	return mu.StartWithOptions(uint64(entrypoint), ^uint64(0), &uc.UcOptions{
+		Timeout: 0, // 0 to disable, value is in ms.
+		Count:   steps,
+	})
+}
+
 func regBatchKeys() []int {
 	var batch []int
 	for i := 0; i < 32; i++ {
