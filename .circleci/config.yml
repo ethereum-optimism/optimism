@@ -306,7 +306,6 @@ jobs:
       - run:
           name: generate coverage report
           command: yarn coverage:lcov
-          no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -336,7 +335,6 @@ jobs:
       - run:
           name: run tests
           command: yarn test
-          no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock

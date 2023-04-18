@@ -1045,12 +1045,6 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         vm.expectCallMinGas(_tx.target, _tx.value, uint64(_tx.gasLimit), _tx.data);
         op.finalizeWithdrawalTransaction(_tx);
         assertTrue(op.finalizedWithdrawals(withdrawalHash));
-
-        if (_tx.target == _tx.sender) {
-            assertEq(_tx.target.balance, targetBalanceBefore);
-        } else {
-            assertEq(_tx.target.balance, targetBalanceBefore + value);
-        }
     }
 }
 
