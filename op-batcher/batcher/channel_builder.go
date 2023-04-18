@@ -32,6 +32,8 @@ func (e *ChannelFullError) Unwrap() error {
 	return e.Err
 }
 
+type CompressorFactory func() (derive.Compressor, error)
+
 type ChannelConfig struct {
 	// Number of epochs (L1 blocks) per sequencing window, including the epoch
 	// L1 origin block itself
@@ -54,8 +56,8 @@ type ChannelConfig struct {
 	SubSafetyMargin uint64
 	// The maximum byte-size a frame can have.
 	MaxFrameSize uint64
-	// Compressor to use to compress frame data.
-	Compressor derive.Compressor
+	// CompressorFactory creates Compressors to use to compress frame data.
+	CompressorFactory CompressorFactory
 }
 
 // Check validates the [ChannelConfig] parameters.
@@ -82,7 +84,7 @@ func (cc *ChannelConfig) Check() error {
 	}
 
 	// Compressor must be set
-	if cc.Compressor == nil {
+	if cc.CompressorFactory == nil {
 		return errors.New("compressor cannot be nil")
 	}
 
@@ -129,7 +131,11 @@ type channelBuilder struct {
 // newChannelBuilder creates a new channel builder or returns an error if the
 // channel out could not be created.
 func newChannelBuilder(cfg ChannelConfig) (*channelBuilder, error) {
-	co, err := derive.NewChannelOut(cfg.Compressor)
+	c, err := cfg.CompressorFactory()
+	if err != nil {
+		return nil, err
+	}
+	co, err := derive.NewChannelOut(c)
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +211,7 @@ func (c *channelBuilder) AddBlock(block *types.Block) (derive.L1BlockInfo, error
 	c.blocks = append(c.blocks, block)
 	c.updateSwTimeout(batch)
 
-	if err = c.cfg.Compressor.FullErr(); err != nil {
+	if err = c.co.FullErr(); err != nil {
 		c.setFullErr(err)
 		// Adding this block still worked, so don't return error, just mark as full
 	}

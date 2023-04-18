@@ -154,6 +154,10 @@ func (co *ChannelOut) Flush() error {
 	return co.compress.Flush()
 }
 
+func (co *ChannelOut) FullErr() error {
+	return co.compress.FullErr()
+}
+
 func (co *ChannelOut) Close() error {
 	if co.closed {
 		return errors.New("already closed")

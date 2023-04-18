@@ -154,17 +154,19 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 	}
 }
 
-func (c CLIConfig) NewCompressor() (derive.Compressor, error) {
-	switch c.CompressorKind {
-	case flags.CompressorShadow:
-		return NewShadowCompressor(
-			c.MaxL1TxSize - 1, // subtract 1 byte for version
-		)
-	default:
-		return NewTargetSizeCompressor(
-			c.TargetL1TxSize-1, // subtract 1 byte for version
-			c.TargetNumFrames,
-			c.ApproxComprRatio,
-		)
+func (c CLIConfig) NewCompressorFactory() CompressorFactory {
+	return func() (derive.Compressor, error) {
+		switch c.CompressorKind {
+		case flags.CompressorShadow:
+			return NewShadowCompressor(
+				c.MaxL1TxSize - 1, // subtract 1 byte for version
+			)
+		default:
+			return NewTargetSizeCompressor(
+				c.TargetL1TxSize-1, // subtract 1 byte for version
+				c.TargetNumFrames,
+				c.ApproxComprRatio,
+			)
+		}
 	}
 }

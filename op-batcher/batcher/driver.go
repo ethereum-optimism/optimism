@@ -75,11 +75,6 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 		return nil, err
 	}
 
-	compressor, err := cfg.NewCompressor()
-	if err != nil {
-		return nil, err
-	}
-
 	batcherCfg := Config{
 		L1Client:               l1Client,
 		L2Client:               l2Client,
@@ -95,7 +90,7 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 			MaxChannelDuration: cfg.MaxChannelDuration,
 			SubSafetyMargin:    cfg.SubSafetyMargin,
 			MaxFrameSize:       cfg.MaxL1TxSize - 1, // subtract 1 byte for version
-			Compressor:         compressor,
+			CompressorFactory:  cfg.NewCompressorFactory(),
 		},
 	}
 
