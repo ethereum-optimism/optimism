@@ -2,10 +2,8 @@ package op_e2e
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"math/big"
-	"os"
 	"testing"
 	"time"
 
@@ -41,36 +39,8 @@ import (
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 )
 
-var enableParallelTesting bool = true
-
-// Init testing to enable test flags
-var _ = func() bool {
-	testing.Init()
-	return true
-}()
-
-var verboseGethNodes bool
-
-func init() {
-	flag.BoolVar(&verboseGethNodes, "gethlogs", true, "Enable logs on geth nodes")
-	flag.Parse()
-	if os.Getenv("OP_E2E_DISABLE_PARALLEL") == "true" {
-		enableParallelTesting = false
-	}
-}
-
-func parallel(t *testing.T) {
-	t.Helper()
-	if enableParallelTesting {
-		t.Parallel()
-	}
-}
-
 func TestL2OutputSubmitter(t *testing.T) {
-	parallel(t)
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
 	cfg.NonFinalizedProposals = true // speed up the time till we see output proposals
@@ -141,10 +111,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 // TestSystemE2E sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that L1 deposits are reflected on L2.
 // All nodes are run in process (but are the full nodes, not mocked or stubbed).
 func TestSystemE2E(t *testing.T) {
-	parallel(t)
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
 
@@ -249,10 +216,7 @@ func TestSystemE2E(t *testing.T) {
 
 // TestConfirmationDepth runs the rollup with both sequencer and verifier not immediately processing the tip of the chain.
 func TestConfirmationDepth(t *testing.T) {
-	parallel(t)
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.SequencerWindowSize = 4
@@ -300,10 +264,7 @@ func TestConfirmationDepth(t *testing.T) {
 // TestPendingGasLimit tests the configuration of the gas limit of the pending block,
 // and if it does not conflict with the regular gas limit on the verifier or sequencer.
 func TestPendingGasLimit(t *testing.T) {
-	parallel(t)
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
 
@@ -360,10 +321,7 @@ func TestPendingGasLimit(t *testing.T) {
 
 // TestFinalize tests if L2 finalizes after sufficient time after L1 finalizes
 func TestFinalize(t *testing.T) {
-	parallel(t)
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
 
@@ -388,10 +346,7 @@ func TestFinalize(t *testing.T) {
 }
 
 func TestMintOnRevertedDeposit(t *testing.T) {
-	parallel(t)
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 	cfg := DefaultSystemConfig(t)
 
 	sys, err := cfg.Start()
@@ -462,10 +417,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 }
 
 func TestMissingBatchE2E(t *testing.T) {
-	parallel(t)
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 	// Note this test zeroes the balance of the batch-submitter to make the batches unable to go into L1.
 	// The test logs may look scary, but this is expected:
 	// 'batcher unable to publish transaction    role=batcher   err="insufficient funds for gas * price + value"'
@@ -585,10 +537,7 @@ func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *
 // TestSystemMockP2P sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that
 // the nodes can sync L2 blocks before they are confirmed on L1.
 func TestSystemMockP2P(t *testing.T) {
-	parallel(t)
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
 	// Disable batcher, so we don't sync from L1 & set a large sequence window so we only have unsafe blocks
@@ -691,10 +640,7 @@ func TestSystemMockP2P(t *testing.T) {
 // 7. Wait for the verifier to sync the unsafe chain into the safe chain.
 // 8. Verify that the TX is included in the verifier's safe chain.
 func TestSystemRPCAltSync(t *testing.T) {
-	parallel(t)
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
 	// the default is nil, but this may change in the future.
@@ -768,10 +714,7 @@ func TestSystemRPCAltSync(t *testing.T) {
 }
 
 func TestSystemP2PAltSync(t *testing.T) {
-	parallel(t)
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
 
@@ -924,10 +867,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 func TestSystemDenseTopology(t *testing.T) {
 	t.Skip("Skipping dense topology test to avoid flakiness. @refcell address in p2p scoring pr.")
 
-	parallel(t)
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
 	// slow down L1 blocks so we can see the L2 blocks arrive well before the L1 blocks do.
@@ -1048,10 +988,7 @@ func TestSystemDenseTopology(t *testing.T) {
 }
 
 func TestL1InfoContract(t *testing.T) {
-	parallel(t)
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
 
@@ -1176,10 +1113,7 @@ func calcL1GasUsed(data []byte, overhead *big.Int) *big.Int {
 // balance changes on L1 and L2 and has to include gas fees in the balance checks.
 // It does not check that the withdrawal can be executed prior to the end of the finality period.
 func TestWithdrawals(t *testing.T) {
-	parallel(t)
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.FinalizationPeriodSeconds = 2 // 2s finalization period
@@ -1380,10 +1314,7 @@ func TestWithdrawals(t *testing.T) {
 
 // TestFees checks that L1/L2 fees are handled.
 func TestFees(t *testing.T) {
-	parallel(t)
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
 	// TODO: after we have the system config contract and new op-geth L1 cost utils,
@@ -1531,10 +1462,7 @@ func TestFees(t *testing.T) {
 }
 
 func TestStopStartSequencer(t *testing.T) {
-	parallel(t)
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
 	sys, err := cfg.Start()
@@ -1575,10 +1503,7 @@ func TestStopStartSequencer(t *testing.T) {
 }
 
 func TestStopStartBatcher(t *testing.T) {
-	parallel(t)
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
 	sys, err := cfg.Start()
