@@ -27,7 +27,6 @@ jobs:
       op-exporter: ${{ steps.packages.outputs.op-exporter }}
       l2geth-exporter: ${{ steps.packages.outputs.l2geth-exporter }}
       batch-submitter-service: ${{ steps.packages.outputs.batch-submitter-service }}
-      ci-builder: ${{ steps.packages.outputs.ci-builder }}
       foundry: ${{ steps.packages.outputs.foundry }}
       endpoint-monitor: ${{ steps.packages.outputs.endpoint-monitor }}
 
@@ -158,32 +157,6 @@ jobs:
           file: ./ops/docker/hardhat/Dockerfile
           push: true
           tags: ethereumoptimism/hardhat-node:${{ needs.release.outputs.hardhat-node }},ethereumoptimism/hardhat-node:latest
-
-  ci-builder:
-    name: Publish ci-builder ${{ needs.release.outputs.ci-builder }}
-    needs: release
-    if: needs.release.outputs.ci-builder != ''
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Publish ci-builder
-        uses: docker/build-push-action@v2
-        with:
-          context: ./ops/docker/ci-builder
-          file: ./ops/docker/ci-builder/Dockerfile
-          push: true
-          tags: ethereumoptimism/ci-builder:${{ needs.release.outputs.ci-builder }},ethereumoptimism/ci-builder:latest
 
   foundry:
     name: Publish foundry ${{ needs.release.outputs.foundry }}
