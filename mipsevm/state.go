@@ -53,6 +53,68 @@ type State struct {
 // Misc exit/step data = TBD
 // + proof(s) for memory leaf nodes
 
+func (s *State) MerkleizeMemory(so StateOracle) [32]byte {
+	// empty parts of the tree are all zero. Precompute the hash of each full-zero range sub-tree level.
+	var zeroHashes [256][32]byte
+	for i := 1; i < 256; i++ {
+		zeroHashes[i] = so.Remember(zeroHashes[i-1], zeroHashes[i-1])
+	}
+	// for each page, remember the generalized indices leading up to that page in the memory tree,
+	// so we can deduplicate work.
+	pageBranches := make(map[uint64]struct{})
+	for pageKey := range s.Memory {
+		pageGindex := (1 << pageKeySize) | pageKey
+		for i := 0; i < pageKeySize; i++ {
+			gindex := pageGindex >> i
+			pageBranches[gindex] = struct{}{}
+		}
+	}
+	// helper func to merkleize a complete power-of-2 subtree, with stack-wise operation
+	merkleize := func(stackDepth uint64, getItem func(index uint64) [32]byte) [32]byte {
+		stack := make([][32]byte, stackDepth+1)
+		for i := uint64(0); i < (1 << stackDepth); i++ {
+			v := getItem(i)
+			for j := uint64(0); j <= stackDepth; j++ {
+				if i&(1<<j) == 0 {
+					stack[j] = v
+					break
+				} else {
+					v = so.Remember(stack[j], v)
+				}
+			}
+		}
+		return stack[stackDepth]
+	}
+	merkleizePage := func(page *Page) [32]byte {
+		return merkleize(pageAddrSize-5, func(index uint64) [32]byte { // 32 byte leaf values (5 bits)
+			return *(*[32]byte)(page[index*32 : index*32+32])
+		})
+	}
+	// Function to merkleize a memory sub-tree. Once it reaches the depth of a specific page, it merkleizes as page.
+	var merkleizeMemory func(gindex uint64, depth uint64) [32]byte
+	merkleizeMemory = func(gindex uint64, depth uint64) [32]byte {
+		if depth == pageKeySize {
+			pageKey := uint32(gindex & ((1 << pageKeySize) - 1))
+			return merkleizePage(s.Memory[pageKey])
+		}
+		left := gindex << 1
+		right := left | 1
+		var leftRoot, rightRoot [32]byte
+		if _, ok := pageBranches[left]; ok {
+			leftRoot = merkleizeMemory(left, depth+1)
+		} else {
+			leftRoot = zeroHashes[pageKeySize-(depth+1)+(pageAddrSize-5)]
+		}
+		if _, ok := pageBranches[right]; ok {
+			rightRoot = merkleizeMemory(right, depth+1)
+		} else {
+			rightRoot = zeroHashes[pageKeySize-(depth+1)+(pageAddrSize-5)]
+		}
+		return so.Remember(leftRoot, rightRoot)
+	}
+	return merkleizeMemory(1, 0)
+}
+
 func (s *State) SetMemory(addr uint32, v uint32, size uint32) {
 	for i := size; i > 0; i-- {
 		pageIndex := addr >> pageAddrSize
@@ -121,7 +183,5 @@ func (r *memReader) Read(dest []byte) (n int, err error) {
 func (s *State) ReadMemoryRange(addr uint32, count uint32) io.Reader {
 	return &memReader{state: s, addr: addr, count: count}
 }
-
-// TODO merkleization
 
 // TODO convert access-list to calldata and state-sets for EVM
