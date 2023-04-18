@@ -1,6 +1,7 @@
 package batcher
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -12,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -50,6 +52,12 @@ func (c *Config) Check() error {
 type CLIConfig struct {
 	// L1EthRpc is the HTTP provider URL for L1.
 	L1EthRpc string
+
+	// L1Cookies enables cookie handling on the L1 RPC HTTP client
+	L1Cookies bool
+
+	// L1Headers allows customization of the headers used by the L1 RPC HTTP client
+	L1Headers http.Header
 
 	// L2EthRpc is the HTTP provider URL for the L2 execution engine.
 	L2EthRpc string
@@ -122,6 +130,8 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
 		/* Required Flags */
 		L1EthRpc:        ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		L1Cookies:       ctx.GlobalBool(flags.L1Cookies.Name),
+		L1Headers:       opservice.ParseHttpHeader(ctx.GlobalStringSlice(flags.L1Headers.Name)),
 		L2EthRpc:        ctx.GlobalString(flags.L2EthRpcFlag.Name),
 		RollupRpc:       ctx.GlobalString(flags.RollupRpcFlag.Name),
 		SubSafetyMargin: ctx.GlobalUint64(flags.SubSafetyMarginFlag.Name),

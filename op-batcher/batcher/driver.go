@@ -49,12 +49,12 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 
 	// Connect to L1 and L2 providers. Perform these last since they are the
 	// most expensive.
-	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
+	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc, cfg.L1Cookies, cfg.L1Headers)
 	if err != nil {
 		return nil, err
 	}
 
-	l2Client, err := dialEthClientWithTimeout(ctx, cfg.L2EthRpc)
+	l2Client, err := dialEthClientWithTimeout(ctx, cfg.L2EthRpc, false, nil)
 	if err != nil {
 		return nil, err
 	}

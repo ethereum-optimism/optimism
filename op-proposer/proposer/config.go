@@ -1,6 +1,7 @@
 package proposer
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -10,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/flags"
 
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -37,6 +39,12 @@ type CLIConfig struct {
 
 	// L1EthRpc is the HTTP provider URL for L1.
 	L1EthRpc string
+
+	// L1Cookies enables cookie handling on the L1 RPC HTTP client
+	L1Cookies bool
+
+	// L1Headers allows customization of the headers used by the L1 RPC HTTP client
+	L1Headers http.Header
 
 	// RollupRpc is the HTTP provider URL for the rollup node.
 	RollupRpc string
@@ -87,6 +95,8 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
 		// Required Flags
 		L1EthRpc:     ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		L1Cookies:    ctx.GlobalBool(flags.L1Cookies.Name),
+		L1Headers:    opservice.ParseHttpHeader(ctx.GlobalStringSlice(flags.L1Headers.Name)),
 		RollupRpc:    ctx.GlobalString(flags.RollupRpcFlag.Name),
 		L2OOAddress:  ctx.GlobalString(flags.L2OOAddressFlag.Name),
 		PollInterval: ctx.GlobalDuration(flags.PollIntervalFlag.Name),

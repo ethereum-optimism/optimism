@@ -22,6 +22,16 @@ var (
 		Usage:  "HTTP provider URL for L1",
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_RPC"),
 	}
+	L1Cookies = cli.BoolFlag{
+		Name:   "l1-cookies",
+		Usage:  "Enable cookie support on the L1 eth client",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_COOKIES"),
+	}
+	L1Headers = cli.StringSliceFlag{
+		Name:   "l1-headers",
+		Usage:  "Custom headers to pass to the L1 HTTP provider.",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_HEADERS"),
+	}
 	RollupRpcFlag = cli.StringFlag{
 		Name:   "rollup-rpc",
 		Usage:  "HTTP provider URL for the rollup node",
@@ -56,6 +66,8 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	L1Cookies,
+	L1Headers,
 	AllowNonFinalizedFlag,
 }
 

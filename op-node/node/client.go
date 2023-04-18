@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/cookiejar"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
@@ -140,6 +142,12 @@ type L1EndpointConfig struct {
 	// to inform the optimal usage of the RPC for transaction receipts fetching.
 	L1RPCKind sources.RPCProviderKind
 
+	// Cookies enables cookie handling on the L1 RPC HTTP client
+	Cookies bool
+
+	// Headers allows customization of the headers used by the L1 RPC HTTP client
+	Headers http.Header
+
 	// RateLimit specifies a self-imposed rate-limit on L1 requests. 0 is no rate-limit.
 	RateLimit float64
 
@@ -166,14 +174,25 @@ func (cfg *L1EndpointConfig) Check() error {
 }
 
 func (cfg *L1EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config) (client.RPC, *sources.L1ClientConfig, error) {
+	var gopts []rpc.ClientOption
+	if cfg.Cookies {
+		jar, err := cookiejar.New(nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		gopts = append(gopts, rpc.WithHTTPClient(&http.Client{Jar: jar}))
+	}
+	if cfg.Headers != nil && len(cfg.Headers) > 0 {
+		gopts = append(gopts, rpc.WithHeaders(cfg.Headers))
+	}
 	opts := []client.RPCOption{
 		client.WithHttpPollInterval(cfg.HttpPollInterval),
 		client.WithDialBackoff(10),
+		client.WithGethRPCOptions(gopts...),
 	}
 	if cfg.RateLimit != 0 {
 		opts = append(opts, client.WithRateLimit(cfg.RateLimit, cfg.BatchSize))
 	}
-
 	l1Node, err := client.NewRPC(ctx, log, cfg.L1NodeAddr, opts...)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1NodeAddr, err)

@@ -155,7 +155,7 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metr
 
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
 	ctx := context.Background()
-	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
+	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc, cfg.L1Cookies, cfg.L1Headers)
 	if err != nil {
 		return nil, err
 	}

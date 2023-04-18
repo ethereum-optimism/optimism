@@ -75,6 +75,16 @@ var (
 			return &out
 		}(),
 	}
+	L1Cookies = cli.BoolFlag{
+		Name:   "l1.cookies",
+		Usage:  "Enable cookie support on the L1 eth client",
+		EnvVar: prefixEnvVar("L1_COOKIES"),
+	}
+	L1Headers = cli.StringSliceFlag{
+		Name:   "l1.headers",
+		Usage:  "Custom headers to pass to the L1 HTTP provider.",
+		EnvVar: prefixEnvVar("L1_HEADERS"),
+	}
 	L1RPCRateLimit = cli.Float64Flag{
 		Name:   "l1.rpc-rate-limit",
 		Usage:  "Optional self-imposed global rate-limit on L1 RPC requests, specified in requests / second. Disabled if set to 0.",
@@ -219,6 +229,8 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	RollupConfig,
 	Network,
+	L1Cookies,
+	L1Headers,
 	L1TrustRPC,
 	L1RPCProviderKind,
 	L1RPCRateLimit,

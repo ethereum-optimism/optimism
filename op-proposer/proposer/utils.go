@@ -3,12 +3,14 @@ package proposer
 import (
 	"context"
 	"fmt"
-	"github.com/ethereum/go-ethereum/ethclient"
+	"net/http"
+	"net/http/cookiejar"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -17,11 +19,28 @@ var defaultDialTimeout = 5 * time.Second
 // dialEthClientWithTimeout attempts to dial the L1 provider using the provided
 // URL. If the dial doesn't complete within defaultDialTimeout seconds, this
 // method will return an error.
-func dialEthClientWithTimeout(ctx context.Context, url string) (*ethclient.Client, error) {
+func dialEthClientWithTimeout(ctx context.Context, url string, cookies bool, headers http.Header) (*ethclient.Client, error) {
 	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 
-	return ethclient.DialContext(ctxt, url)
+	var opts []rpc.ClientOption
+	if cookies {
+		jar, err := cookiejar.New(nil)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, rpc.WithHTTPClient(&http.Client{Jar: jar}))
+	}
+	if headers != nil && len(headers) > 0 {
+		opts = append(opts, rpc.WithHeaders(headers))
+	}
+
+	r, err := rpc.DialOptions(ctxt, url, opts...)
+	if err != nil {
+		return nil, err
+	}
+
+	return ethclient.NewClient(r), nil
 }
 
 // dialRollupClientWithTimeout attempts to dial the RPC provider using the provided
