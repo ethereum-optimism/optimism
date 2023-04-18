@@ -43,8 +43,8 @@ type State struct {
 
 	Memory map[uint32]*Page `json:"memory"`
 
-	Exit   uint32 `json:"exit"`
-	Exited bool   `json:"exited"`
+	Exit   uint8 `json:"exit"`
+	Exited bool  `json:"exited"`
 
 	Step uint64 `json:"step"`
 }
@@ -125,7 +125,10 @@ func (s *State) SetMemory(addr uint32, size uint32, v uint32) {
 		pageAddr := addr & pageAddrMask
 		p, ok := s.Memory[pageIndex]
 		if !ok {
-			panic(fmt.Errorf("missing page %x (addr write at %x)", pageIndex, addr))
+			// allocate the page if we have not already.
+			// Go may mmap relatively large ranges, but we only allocate the pages just in time.
+			p = &Page{}
+			s.Memory[pageIndex] = p
 		}
 		p[pageAddr] = uint8(v >> (i - 1))
 		addr += 1

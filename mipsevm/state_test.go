@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"debug/elf"
+	"io"
 	"os"
 	"path"
 	"testing"
@@ -67,4 +69,33 @@ func TestState(t *testing.T) {
 			require.Equal(t, result, uint32(1), "must have success result")
 		})
 	}
+}
+
+func TestMinimal(t *testing.T) {
+	elfProgram, err := elf.Open("../example/bin/minimal.elf")
+	require.NoError(t, err, "open ELF file")
+
+	state, err := LoadELF(elfProgram)
+	require.NoError(t, err, "load ELF into state")
+
+	err = patchVM(elfProgram, state)
+	require.NoError(t, err, "apply Go runtime patches")
+
+	mu, err := NewUnicorn()
+	require.NoError(t, err, "load unicorn")
+	defer mu.Close()
+	err = LoadUnicorn(state, mu)
+	require.NoError(t, err, "load state into unicorn")
+	var stdOutBuf, stdErrBuf bytes.Buffer
+	err = HookUnicorn(state, mu, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
+	require.NoError(t, err, "hook unicorn to state")
+
+	err = RunUnicorn(mu, state.PC, 400_000)
+	require.NoError(t, err, "must run steps without error")
+
+	require.True(t, state.Exited, "must complete program")
+	require.Equal(t, uint8(0), state.Exit, "exit with 0")
+
+	require.Equal(t, "hello world!", stdOutBuf.String(), "stdout says hello")
+	require.Equal(t, "", stdErrBuf.String(), "stderr silent")
 }

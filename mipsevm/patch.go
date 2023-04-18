@@ -13,9 +13,9 @@ func LoadELF(f *elf.File) (*State, error) {
 		PC:        uint32(f.Entry),
 		Hi:        0,
 		Lo:        0,
-		Heap:      1 << 20, // start heap at 1 GiB offset for now
+		Heap:      0x20000000,
 		Registers: [32]uint32{},
-		Memory:    nil,
+		Memory:    make(map[uint32]*Page),
 		Exit:      0,
 		Exited:    false,
 		Step:      0,
@@ -83,7 +83,11 @@ func patchVM(f *elf.File, st *State) error {
 	}
 
 	// setup stack pointer
-	sp := uint32(0xc0_00_00_00)
+	sp := uint32(0x7f_ff_d0_00)
+	// allocate 1 page for the initial stack data, and 16KB = 4 pages for the stack to grow
+	if err := st.SetMemoryRange(sp-4*pageSize, bytes.NewReader(make([]byte, 5*pageSize))); err != nil {
+		return fmt.Errorf("failed to allocate page for stack content")
+	}
 	st.Registers[29] = sp
 
 	storeMem := func(addr uint32, v uint32) {

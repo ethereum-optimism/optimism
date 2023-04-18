@@ -46,6 +46,7 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer) error {
 		}
 		syscallNum, _ := mu.RegRead(uc.MIPS_REG_V0)
 
+		fmt.Printf("syscall: %d\n", syscallNum)
 		v0 := uint64(0)
 		switch syscallNum {
 		case 4004: // write
@@ -63,17 +64,33 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer) error {
 		case 4090: // mmap
 			a0, _ := mu.RegRead(uc.MIPS_REG_A0)
 			sz, _ := mu.RegRead(uc.MIPS_REG_A1)
+			if sz&pageAddrMask != 0 { // adjust size to align with page size
+				sz += pageSize - (sz & pageAddrMask)
+			}
 			if a0 == 0 {
 				v0 = uint64(st.Heap)
+				fmt.Printf("mmap heap 0x%x size 0x%x\n", v0, sz)
 				st.Heap += uint32(sz)
 			} else {
 				v0 = a0
+				fmt.Printf("mmap hint 0x%x size 0x%x\n", v0, sz)
 			}
-			// TODO mmap
+			// Go does this thing where it first gets memory with PROT_NONE,
+			// and then mmaps with a hint with prot=3 (PROT_READ|WRITE).
+			// We can ignore the NONE case, to avoid duplicate/overlapping mmap calls to unicorn.
+			prot, _ := mu.RegRead(uc.MIPS_REG_A2)
+			if prot != 0 {
+				if err := mu.MemMap(v0, sz); err != nil {
+					log.Fatalf("mmap fail: %v", err)
+				}
+			}
 		case 4045: // brk
 			v0 = 0x40000000
 		case 4246: // exit_group
-			mu.RegWrite(uc.MIPS_REG_PC, 0x5ead0000)
+			st.Exited = true
+			st.Exit = uint8(v0)
+			mu.Stop()
+			return
 		}
 		mu.RegWrite(uc.MIPS_REG_V0, v0)
 		mu.RegWrite(uc.MIPS_REG_A3, 0)
