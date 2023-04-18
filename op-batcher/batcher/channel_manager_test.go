@@ -99,6 +99,7 @@ func TestChannelManagerReturnsErrReorgWhenDrained(t *testing.T) {
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
 			TargetFrameSize:  1,
+			TargetNumFrames:  1,
 			MaxFrameSize:     120_000,
 			ApproxComprRatio: 1.0,
 		})
@@ -172,6 +173,7 @@ func TestChannelManager_Clear(t *testing.T) {
 		// be able to output any frames
 		MaxFrameSize:     24,
 		TargetFrameSize:  24,
+		TargetNumFrames:  1,
 		ApproxComprRatio: 1.0,
 	})
 
@@ -332,6 +334,7 @@ func TestChannelManager_TxResend(t *testing.T) {
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
 			TargetFrameSize:  1,
+			TargetNumFrames:  1,
 			MaxFrameSize:     120_000,
 			ApproxComprRatio: 1.0,
 		})
@@ -398,6 +401,7 @@ func TestChannelManagerCloseNoPendingChannel(t *testing.T) {
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
 			TargetFrameSize:  1,
+			TargetNumFrames:  1,
 			MaxFrameSize:     100,
 			ApproxComprRatio: 1.0,
 			ChannelTimeout:   1000,

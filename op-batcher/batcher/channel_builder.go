@@ -102,11 +102,11 @@ func (cc *ChannelConfig) NewCompressor() (derive.Compressor, error) {
 	switch cc.CompressorKind {
 	case flags.CompressorShadow:
 		return NewShadowCompressor(
-			cc.MaxFrameSize, // subtract 1 byte for version
+			cc.MaxFrameSize,
 		)
 	default:
 		return NewTargetSizeCompressor(
-			cc.TargetFrameSize, // subtract 1 byte for version
+			cc.TargetFrameSize,
 			cc.TargetNumFrames,
 			cc.ApproxComprRatio,
 		)

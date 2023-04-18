@@ -1,11 +1,11 @@
 package batcher_test
 
 import (
-	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"math"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/stretchr/testify/require"
 )
 
