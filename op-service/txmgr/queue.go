@@ -69,13 +69,11 @@ func (q *Queue[T]) Wait() {
 func (q *Queue[T]) Send(ctx context.Context, factory TxFactory[T], receiptCh chan TxReceipt[T]) error {
 	ctx, cancel := mergeContexts(ctx, q.ctx)
 	defer cancel()
-	errChan := make(chan error)
+	factoryErrCh := make(chan error)
 	q.group.Go(func() error {
-		sender, err := q.createTxSender(ctx, factory, receiptCh)
-		errChan <- err
-		return sender()
+		return q.sendTx(ctx, factory, factoryErrCh, receiptCh)
 	})
-	return <-errChan
+	return <-factoryErrCh
 }
 
 // TrySend sends the next tx, but only if the number of pending txs is below the
@@ -91,42 +89,41 @@ func (q *Queue[T]) Send(ctx context.Context, factory TxFactory[T], receiptCh cha
 func (q *Queue[T]) TrySend(ctx context.Context, factory TxFactory[T], receiptCh chan TxReceipt[T]) (bool, error) {
 	ctx, cancel := mergeContexts(ctx, q.ctx)
 	defer cancel()
-	errChan := make(chan error)
-	queued := q.group.TryGo(func() error {
-		sender, err := q.createTxSender(ctx, factory, receiptCh)
-		errChan <- err
-		return sender()
+	factoryErrCh := make(chan error)
+	started := q.group.TryGo(func() error {
+		return q.sendTx(ctx, factory, factoryErrCh, receiptCh)
 	})
-	if !queued {
+	if !started {
 		return false, nil
 	}
-	err := <-errChan
+	err := <-factoryErrCh
 	return err != nil, err
 }
 
-func (q *Queue[T]) createTxSender(ctx context.Context, factory TxFactory[T], receiptCh chan TxReceipt[T]) (func() error, error) {
+func (q *Queue[T]) sendTx(ctx context.Context, factory TxFactory[T], factoryErrorCh chan error, receiptCh chan TxReceipt[T]) error {
 	// lock to prevent concurrent access to the tx factory
 	q.lock.Lock()
 	defer q.lock.Unlock()
 
 	candidate, id, err := factory(ctx)
+	factoryErrorCh <- err
 	if err != nil {
-		return nil, err
+		// Factory returned an error which was returned in the channel. This means
+		// there was no tx to send, so return nil.
+		return nil
 	}
 
 	q.pendingChanged(q.pending.Add(1))
-	return func() error {
-		defer func() {
-			q.pendingChanged(q.pending.Add(^uint64(0))) // -1
-		}()
-		receipt, err := q.txMgr.Send(ctx, candidate)
-		receiptCh <- TxReceipt[T]{
-			ID:      id,
-			Receipt: receipt,
-			Err:     err,
-		}
-		return err
-	}, nil
+	defer func() {
+		q.pendingChanged(q.pending.Add(^uint64(0))) // -1
+	}()
+	receipt, err := q.txMgr.Send(ctx, candidate)
+	receiptCh <- TxReceipt[T]{
+		ID:      id,
+		Receipt: receipt,
+		Err:     err,
+	}
+	return err
 }
 
 // mergeContexts creates a new Context that is canceled if either of the two
