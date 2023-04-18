@@ -251,6 +251,10 @@ var (
 		Help:      "Consensus latest block",
 	}, []string{
 		"backend_group_name",
+	consensusLatestBlock = promauto.NewGauge(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "consensus_latest_block",
+		Help:      "Consensus latest block",
 	})
 
 	backendLatestBlockBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{

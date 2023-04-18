@@ -43,6 +43,8 @@ type backendState struct {
 	latestBlockNumber hexutil.Uint64
 	latestBlockHash   string
 	peerCount         uint64
+	latestBlockNumber string
+	latestBlockHash   string
 
 	lastUpdate time.Time
 
@@ -55,6 +57,7 @@ func (cp *ConsensusPoller) GetConsensusGroup() []*Backend {
 	cp.consensusGroupMux.Lock()
 
 	g := make([]*Backend, len(cp.consensusGroup))
+	g := make([]*Backend, len(cp.backendGroup.Backends))
 	copy(g, cp.consensusGroup)
 
 	return g
@@ -62,6 +65,7 @@ func (cp *ConsensusPoller) GetConsensusGroup() []*Backend {
 
 // GetConsensusBlockNumber returns the agreed block number in a consensus
 func (ct *ConsensusPoller) GetConsensusBlockNumber() hexutil.Uint64 {
+func (ct *ConsensusPoller) GetConsensusBlockNumber() string {
 	return ct.tracker.GetConsensusBlockNumber()
 }
 
@@ -232,6 +236,14 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 		log.Warn("error updating backend", "name", be.Name, "err", err)
 		return
 	}
+	if be.IsRateLimited() || !be.Online() {
+		return
+	}
+
+	// we'll introduce here checks to ban the backend
+	// i.e. node is syncing the chain
+
+	// then update backend consensus
 
 	latestBlockNumber, latestBlockHash, err := cp.fetchBlock(ctx, be, "latest")
 	if err != nil {
@@ -243,6 +255,10 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 
 	if changed {
 		RecordBackendLatestBlock(be, latestBlockNumber)
+	changed := cp.setBackendState(be, latestBlockNumber, latestBlockHash)
+
+	if changed {
+		backendLatestBlockBackend.WithLabelValues(be.Name).Set(blockToFloat(latestBlockNumber))
 		log.Info("backend state updated", "name", be.Name, "state", bs)
 	}
 }
@@ -250,6 +266,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 // UpdateBackendGroupConsensus resolves the current group consensus based on the state of the backends
 func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	var lowestBlock hexutil.Uint64
+	var lowestBlock string
 	var lowestBlockHash string
 
 	currentConsensusBlockNumber := cp.GetConsensusBlockNumber()
@@ -265,6 +282,8 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 		}
 
 		if lowestBlock == 0 || backendLatestBlockNumber < lowestBlock {
+		backendLatestBlockNumber, backendLatestBlockHash := cp.getBackendState(be)
+		if lowestBlock == "" || backendLatestBlockNumber < lowestBlock {
 			lowestBlock = backendLatestBlockNumber
 			lowestBlockHash = backendLatestBlockHash
 		}
@@ -272,6 +291,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 
 	// no block to propose (i.e. initializing consensus)
 	if lowestBlock == 0 {
+	if lowestBlock == "" {
 		return
 	}
 
@@ -308,11 +328,13 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 			isBanned := time.Now().Before(bs.bannedUntil)
 			notEnoughPeers := bs.peerCount < cp.minPeerCount
 			if !be.IsHealthy() || be.IsRateLimited() || !be.Online() || notUpdated || isBanned || notEnoughPeers {
+			if be.IsRateLimited() || !be.Online() || time.Now().Before(cp.backendState[be].bannedUntil) {
 				filteredBackendsNames = append(filteredBackendsNames, be.Name)
 				continue
 			}
 
 			actualBlockNumber, actualBlockHash, err := cp.fetchBlock(ctx, be, proposedBlock.String())
+			actualBlockNumber, actualBlockHash, err := cp.fetchBlock(ctx, be, proposedBlock)
 			if err != nil {
 				log.Warn("error updating backend", "name", be.Name, "err", err)
 				continue
@@ -323,6 +345,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 			blocksDontMatch := (actualBlockNumber != proposedBlock) || (actualBlockHash != proposedBlockHash)
 			if blocksDontMatch {
 				if currentConsensusBlockNumber >= actualBlockNumber {
+				if blockAheadOrEqual(currentConsensusBlockNumber, actualBlockNumber) {
 					log.Warn("backend broke consensus", "name", be.Name, "blockNum", actualBlockNumber, "proposedBlockNum", proposedBlock, "blockHash", actualBlockHash, "proposedBlockHash", proposedBlockHash)
 					broken = true
 				}
@@ -337,6 +360,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 		} else {
 			// walk one block behind and try again
 			proposedBlock -= 1
+			proposedBlock = hexAdd(proposedBlock, -1)
 			proposedBlockHash = ""
 			log.Info("no consensus, now trying", "block:", proposedBlock)
 		}
@@ -349,6 +373,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 
 	cp.tracker.SetConsensusBlockNumber(proposedBlock)
 	RecordGroupConsensusLatestBlock(cp.backendGroup, proposedBlock)
+	consensusLatestBlock.Set(blockToFloat(proposedBlock))
 	cp.consensusGroupMux.Lock()
 	cp.consensusGroup = consensusBackends
 	cp.consensusGroupMux.Unlock()
@@ -372,6 +397,12 @@ func (cp *ConsensusPoller) fetchBlock(ctx context.Context, be *Backend, block st
 	err = be.ForwardRPC(ctx, &rpcRes, "67", "eth_getBlockByNumber", block, false)
 	if err != nil {
 		return 0, "", err
+// fetchBlock Convenient wrapper to make a request to get a block directly from the backend
+func (cp *ConsensusPoller) fetchBlock(ctx context.Context, be *Backend, block string) (blockNumber string, blockHash string, err error) {
+	var rpcRes RPCRes
+	err = be.ForwardRPC(ctx, &rpcRes, "67", "eth_getBlockByNumber", block, false)
+	if err != nil {
+		return "", "", err
 	}
 
 	jsonMap, ok := rpcRes.Result.(map[string]interface{})
@@ -379,6 +410,9 @@ func (cp *ConsensusPoller) fetchBlock(ctx context.Context, be *Backend, block st
 		return 0, "", fmt.Errorf("unexpected response to eth_getBlockByNumber on backend %s", be.Name)
 	}
 	blockNumber = hexutil.Uint64(hexutil.MustDecodeUint64(jsonMap["number"].(string)))
+		return "", "", fmt.Errorf(fmt.Sprintf("unexpected response type checking consensus on backend %s", be.Name))
+	}
+	blockNumber = jsonMap["number"].(string)
 	blockHash = jsonMap["hash"].(string)
 
 	return
@@ -436,6 +470,11 @@ func (cp *ConsensusPoller) getBackendState(be *Backend) (peerCount uint64, block
 	blockNumber = bs.latestBlockNumber
 	blockHash = bs.latestBlockHash
 	lastUpdate = bs.lastUpdate
+func (cp *ConsensusPoller) getBackendState(be *Backend) (blockNumber string, blockHash string) {
+	bs := cp.backendState[be]
+	bs.backendStateMux.Lock()
+	blockNumber = bs.latestBlockNumber
+	blockHash = bs.latestBlockHash
 	bs.backendStateMux.Unlock()
 	return
 }
@@ -445,9 +484,28 @@ func (cp *ConsensusPoller) setBackendState(be *Backend, peerCount uint64, blockN
 	bs.backendStateMux.Lock()
 	changed = bs.latestBlockHash != blockHash
 	bs.peerCount = peerCount
+func (cp *ConsensusPoller) setBackendState(be *Backend, blockNumber string, blockHash string) (changed bool) {
+	bs := cp.backendState[be]
+	bs.backendStateMux.Lock()
+	changed = bs.latestBlockHash != blockHash
 	bs.latestBlockNumber = blockNumber
 	bs.latestBlockHash = blockHash
 	bs.lastUpdate = time.Now()
 	bs.backendStateMux.Unlock()
 	return
+}
+
+// hexAdd Convenient way to convert hex block to uint64, increment, and convert back to hex
+func hexAdd(hexVal string, incr int64) string {
+	return hexutil.EncodeUint64(uint64(int64(hexutil.MustDecodeUint64(hexVal)) + incr))
+}
+
+// blockAheadOrEqual Convenient way to check if `baseBlock` is ahead or equal than `checkBlock`
+func blockAheadOrEqual(baseBlock string, checkBlock string) bool {
+	return hexutil.MustDecodeUint64(baseBlock) >= hexutil.MustDecodeUint64(checkBlock)
+}
+
+// blockToFloat Convenient way to convert a hex block to float64
+func blockToFloat(hexVal string) float64 {
+	return float64(hexutil.MustDecodeUint64(hexVal))
 }
