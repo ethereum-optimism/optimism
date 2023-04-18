@@ -60,7 +60,7 @@ commands:
 jobs:
   yarn-monorepo:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: large
     steps:
       - checkout
@@ -317,7 +317,7 @@ jobs:
 
   contracts-bedrock-tests:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: large
     steps:
       - checkout
@@ -341,7 +341,7 @@ jobs:
 
   contracts-bedrock-checks:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -401,7 +401,7 @@ jobs:
 
   contracts-bedrock-slither:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: large
     steps:
       - checkout
@@ -421,7 +421,7 @@ jobs:
 
   contracts-bedrock-validate-spaces:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -438,7 +438,7 @@ jobs:
 
   bedrock-echidna-build:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -456,7 +456,7 @@ jobs:
 
   bedrock-echidna-run:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     parameters:
       echidna_target:
         description: Which echidna fuzz contract to run
@@ -483,7 +483,7 @@ jobs:
 
   op-bindings-build:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: medium
     steps:
       - checkout
@@ -512,7 +512,7 @@ jobs:
         description: Coverage flag name
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: large
     steps:
       - checkout
@@ -558,7 +558,7 @@ jobs:
 
   fuzz-op-node:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - check-changed:
@@ -570,7 +570,7 @@ jobs:
 
   depcheck:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -632,7 +632,7 @@ jobs:
         description: Go Module Name
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest # only used to enable codecov.
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest # only used to enable codecov.
     resource_class: xlarge
     steps:
       - checkout
@@ -660,7 +660,7 @@ jobs:
         description: If the op-e2e package should use HTTP clients
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: xlarge
     steps:
       - checkout
@@ -699,7 +699,7 @@ jobs:
         type: string
         default: this-package-does-not-exist
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
       - image: cimg/postgres:14.1
     steps:
       - checkout
@@ -728,7 +728,7 @@ jobs:
 
   geth-tests:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - check-changed:
@@ -948,7 +948,7 @@ jobs:
 
   go-mod-tidy:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - run:
@@ -1397,3 +1397,18 @@ workflows:
             - oplabs-gcr-release
           requires:
             - hold
+  release-ci-builder:
+    jobs:
+      - docker-publish:
+          name: ci-builder-docker-publish
+          filters:
+            tags:
+              only: /^ci-builder\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: ./ops/docker/ci-builder/Dockerfile
+          docker_name: ci-builder
+          docker_tags: <<pipeline.git.revision>>,latest
+          docker_context: ./ops/docker/ci-builder
+          context:
+            - oplabs-gcr

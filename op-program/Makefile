@@ -9,7 +9,7 @@ LDFLAGSSTRING +=-X github.com/ethereum-optimism/optimism/op-program/version.Meta
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
 op-program:
-	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/op-program ./cmd/main.go
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/op-program ./host/cmd/main.go
 
 clean:
 	rm -rf bin
