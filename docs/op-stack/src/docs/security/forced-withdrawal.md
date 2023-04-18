@@ -21,7 +21,7 @@ The code for this article is available at [our tutorials repository](https://git
 
    ```sh
    git clone https://github.com/ethereum-optimism/optimism-tutorial.git
-   cd op-stack/forced-withdrawal
+   cd optimism-tutorial/op-stack/forced-withdrawal
    npm install
    ```
 
@@ -59,8 +59,6 @@ The easiest way to withdraw ETH is to send it to the bridge, or the cross domain
    ```js
    transferAmt = BigInt(0.01 * 1e18)
    ``` 
-
-
 
 1. Create a contract object for the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol) contract.
 
@@ -102,6 +100,39 @@ The easiest way to withdraw ETH is to send it to the bridge, or the cross domain
    withdrawalHash = withdrawalData.hash()
    ```
 
+1. Create the object for the L1 contracts, [as explained in the documentation](../build/sdk.md).
+   You will create an object similar to this one:
+
+   ```js
+   L1Contracts = {
+      StateCommitmentChain: '0x0000000000000000000000000000000000000000',
+      CanonicalTransactionChain: '0x0000000000000000000000000000000000000000',
+      BondManager: '0x0000000000000000000000000000000000000000',
+      AddressManager: '0x432d810484AdD7454ddb3b5311f0Ac2E95CeceA8',
+      L1CrossDomainMessenger: '0x27E8cBC25C0Aa2C831a356bbCcc91f4e7c48EeeE',
+      L1StandardBridge: '0x154EaA56f8cB658bcD5d4b9701e1483A414A14Df',
+      OptimismPortal: '0x4AD19e14C1FD57986dae669BE4ee9C904431572C',
+      L2OutputOracle: '0x65B41B7A2550140f57b603472686D743B4b940dB'
+   }
+   ```
+
+1. Create the data structure for the standard bridge.
+
+   ```js
+    bridges = { 
+      Standard: { 
+         l1Bridge: l1Contracts.L1StandardBridge, 
+         l2Bridge: "0x4200000000000000000000000000000000000010", 
+         Adapter: optimismSDK.StandardBridgeAdapter
+      },
+      ETH: {
+         l1Bridge: l1Contracts.L1StandardBridge, 
+         l2Bridge: "0x4200000000000000000000000000000000000010", 
+         Adapter: optimismSDK.ETHBridgeAdapter
+      }
+   }
+   ```
+
 
 1. Create [a cross domain messenger](https://sdk.optimism.io/classes/crosschainmessenger).
    This step, and subsequent ETH withdrawal steps, are explained in [this tutorial](https://github.com/ethereum-optimism/optimism-tutorial/tree/main/cross-dom-bridge-eth).
@@ -115,7 +146,11 @@ The easiest way to withdraw ETH is to send it to the bridge, or the cross domain
       l2ChainId: l2Provider.network.chainId,
       l1SignerOrProvider: await ethers.getSigner(),
       l2SignerOrProvider: l2Provider,
-      bedrock: true
+      bedrock: true,
+      contracts: {
+         l1: l1Contracts
+      },
+      bridges: bridges
    })   
    ```
 
