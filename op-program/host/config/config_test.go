@@ -6,11 +6,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
 var validRollupConfig = &chaincfg.Goerli
-var validL2GenesisPath = "genesis.json"
+var validL2Genesis = params.GoerliChainConfig
 var validL1Head = common.Hash{0xaa}
 var validL2Head = common.Hash{0xbb}
 var validL2Claim = common.Hash{0xcc}
@@ -60,7 +61,7 @@ func TestL2ClaimRequired(t *testing.T) {
 
 func TestL2GenesisRequired(t *testing.T) {
 	config := validConfig()
-	config.L2GenesisPath = ""
+	config.L2ChainConfig = nil
 	err := config.Check()
 	require.ErrorIs(t, err, ErrMissingL2Genesis)
 }
@@ -132,7 +133,7 @@ func TestRequireDataDirInNonFetchingMode(t *testing.T) {
 }
 
 func validConfig() *Config {
-	cfg := NewConfig(validRollupConfig, validL2GenesisPath, validL1Head, validL2Head, validL2Claim)
+	cfg := NewConfig(validRollupConfig, validL2Genesis, validL1Head, validL2Head, validL2Claim)
 	cfg.DataDir = "/tmp/configTest"
 	return cfg
 }
