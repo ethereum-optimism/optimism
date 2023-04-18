@@ -12,6 +12,12 @@ export const getContractDefinition = (name: string): any => {
   // the contracts, but we need the contracts to be compiled before the contract-artifacts.ts
   // file can be generated.
   // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // @important Never copy this pattern again!   This code has many problems
+  // 1. Cannot be code split - this causes all our contract artifacts to end up in all bundles
+  //.   making eth-optimism/foo packages degrees of magnitude bigger than what is considered reasonable
+  // 2. Does not work with esm
+  //.   Require is commonjs and commonjs is the old way of writing imports.  Including require here
+  //.   Makes this library not have universal compatibility with build tools
   const { getContractArtifact } = require('./contract-artifacts')
   const artifact = getContractArtifact(name)
   if (artifact === undefined) {
