@@ -3,6 +3,7 @@ package batcher
 import (
 	"bytes"
 	"compress/zlib"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
