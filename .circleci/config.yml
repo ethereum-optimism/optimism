@@ -1371,3 +1371,18 @@ workflows:
             - oplabs-gcr-release
           requires:
             - hold
+  release-ci-builder:
+    jobs:
+      - docker-publish:
+          name: ci-builder-docker-publish
+          filters:
+            tags:
+              only: /^ci-builder\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: ./ops/docker/ci-builder/Dockerfile
+          docker_name: ci-builder
+          docker_tags: <<pipeline.git.revision>>,latest
+          docker_context: ./ops/docker/ci-builder
+          context:
+            - oplabs-gcr
