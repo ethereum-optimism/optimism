@@ -11,7 +11,19 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: true
-      - name: Install libunicorn
+      - name: unicorn commit hash
+        run: |
+          git rev-parse HEAD > /tmp/unicorn-commit-hash.txt
+      - name: cached libunicorn
+        uses: actions/cache@v3
+        with:
+          path: |
+            ./unicorn/build
+          key:
+            unicorn-build-{{ hashFiles('/tmp/unicorn-commit-hash.txt') }}
+          restore-keys: |
+            unicorn-build-{{ hashFiles('/tmp/unicorn-commit-hash.txt') }}
+      - name: install libunicorn
         working-directory: .
         run: make libunicorn
       - uses: actions/cache@v3
