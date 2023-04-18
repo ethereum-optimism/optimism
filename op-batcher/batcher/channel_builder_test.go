@@ -28,13 +28,9 @@ var defaultTestChannelConfig = ChannelConfig{
 	MaxChannelDuration: 1,
 	SubSafetyMargin:    4,
 	MaxFrameSize:       120000,
-	CompressorFactory:  newCompressorFactory(100000, 1, 0.4),
-}
-
-func newCompressorFactory(targetFrameSize uint64, targetNumFrames int, approxCompRatio float64) CompressorFactory {
-	return func() (derive.Compressor, error) {
-		return NewTargetSizeCompressor(targetFrameSize, targetNumFrames, approxCompRatio)
-	}
+	TargetFrameSize:    100000,
+	TargetNumFrames:    1,
+	ApproxComprRatio:   0.4,
 }
 
 // TestChannelConfig_Check tests the [ChannelConfig] [Check] function.
@@ -420,7 +416,7 @@ func TestChannelBuilder_OutputWrongFramePanic(t *testing.T) {
 
 	// Mock the internals of `channelBuilder.outputFrame`
 	// to construct a single frame
-	c, err := channelConfig.CompressorFactory()
+	c, err := channelConfig.NewCompressor()
 	require.NoError(t, err)
 	co, err := derive.NewChannelOut(c)
 	require.NoError(t, err)
@@ -488,7 +484,9 @@ func TestChannelBuilder_OutputFramesWorks(t *testing.T) {
 func TestChannelBuilder_MaxRLPBytesPerChannel(t *testing.T) {
 	t.Parallel()
 	channelConfig := defaultTestChannelConfig
-	channelConfig.CompressorFactory = newCompressorFactory(derive.MaxRLPBytesPerChannel*2, derive.MaxRLPBytesPerChannel*2, 1)
+	channelConfig.MaxFrameSize = derive.MaxRLPBytesPerChannel * 2
+	channelConfig.TargetFrameSize = derive.MaxRLPBytesPerChannel * 2
+	channelConfig.ApproxComprRatio = 1
 
 	// Construct the channel builder
 	cb, err := newChannelBuilder(channelConfig)
@@ -504,7 +502,9 @@ func TestChannelBuilder_MaxRLPBytesPerChannel(t *testing.T) {
 func TestChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
 	channelConfig.MaxFrameSize = 24
-	channelConfig.CompressorFactory = newCompressorFactory(24, math.MaxInt, 0)
+	channelConfig.TargetNumFrames = math.MaxInt
+	channelConfig.TargetFrameSize = 24
+	channelConfig.ApproxComprRatio = 0
 
 	// Continuously add blocks until the max frame index is reached
 	// This should cause the [channelBuilder.OutputFrames] function
@@ -546,7 +546,9 @@ func TestChannelBuilder_AddBlock(t *testing.T) {
 	channelConfig.MaxFrameSize = 30
 
 	// Configure the Input Threshold params so we observe a full channel
-	channelConfig.CompressorFactory = newCompressorFactory(30, 2, 1)
+	channelConfig.TargetFrameSize = 30
+	channelConfig.TargetNumFrames = 2
+	channelConfig.ApproxComprRatio = 1
 
 	// Construct the channel builder
 	cb, err := newChannelBuilder(channelConfig)
@@ -701,8 +703,10 @@ func TestChannelBuilder_OutputBytes(t *testing.T) {
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	cfg := defaultTestChannelConfig
+	cfg.TargetFrameSize = 1000
 	cfg.MaxFrameSize = 1000
-	cfg.CompressorFactory = newCompressorFactory(1000, 16, 1)
+	cfg.TargetNumFrames = 16
+	cfg.ApproxComprRatio = 1.0
 	cb, err := newChannelBuilder(cfg)
 	require.NoError(err, "newChannelBuilder")
 

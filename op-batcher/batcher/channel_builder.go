@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -32,8 +33,6 @@ func (e *ChannelFullError) Unwrap() error {
 	return e.Err
 }
 
-type CompressorFactory func() (derive.Compressor, error)
-
 type ChannelConfig struct {
 	// Number of epochs (L1 blocks) per sequencing window, including the epoch
 	// L1 origin block itself
@@ -56,8 +55,21 @@ type ChannelConfig struct {
 	SubSafetyMargin uint64
 	// The maximum byte-size a frame can have.
 	MaxFrameSize uint64
-	// CompressorFactory creates Compressors used to compress frame data.
-	CompressorFactory CompressorFactory
+	// The target number of frames to create per channel. Note that if the
+	// realized compression ratio is worse than the approximate, more frames may
+	// actually be created. This also depends on how close TargetFrameSize is to
+	// MaxFrameSize.
+	TargetFrameSize uint64
+	// The target number of frames to create in this channel. If the realized
+	// compression ratio is worse than approxComprRatio, additional leftover
+	// frame(s) might get created.
+	TargetNumFrames int
+	// Approximated compression ratio to assume. Should be slightly smaller than
+	// average from experiments to avoid the chances of creating a small
+	// additional leftover frame.
+	ApproxComprRatio float64
+	// CompressorKind is the compressor implementation to use.
+	CompressorKind flags.CompressorKind
 }
 
 // Check validates the [ChannelConfig] parameters.
@@ -83,12 +95,22 @@ func (cc *ChannelConfig) Check() error {
 		return fmt.Errorf("max frame size %d is less than the minimum 23", cc.MaxFrameSize)
 	}
 
-	// Compressor must be set
-	if cc.CompressorFactory == nil {
-		return errors.New("compressor factory cannot be nil")
-	}
-
 	return nil
+}
+
+func (cc *ChannelConfig) NewCompressor() (derive.Compressor, error) {
+	switch cc.CompressorKind {
+	case flags.CompressorShadow:
+		return NewShadowCompressor(
+			cc.MaxFrameSize, // subtract 1 byte for version
+		)
+	default:
+		return NewTargetSizeCompressor(
+			cc.TargetFrameSize, // subtract 1 byte for version
+			cc.TargetNumFrames,
+			cc.ApproxComprRatio,
+		)
+	}
 }
 
 type frameID struct {
@@ -131,7 +153,7 @@ type channelBuilder struct {
 // newChannelBuilder creates a new channel builder or returns an error if the
 // channel out could not be created.
 func newChannelBuilder(cfg ChannelConfig) (*channelBuilder, error) {
-	c, err := cfg.CompressorFactory()
+	c, err := cfg.NewCompressor()
 	if err != nil {
 		return nil, err
 	}

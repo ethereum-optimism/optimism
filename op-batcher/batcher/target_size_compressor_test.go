@@ -1,6 +1,7 @@
 package batcher_test
 
 import (
+	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"math"
 	"testing"
 
@@ -118,13 +119,15 @@ func TestInputThreshold(t *testing.T) {
 
 	// Validate each test case
 	for _, tt := range tests {
-		compressor, err := batcher.NewTargetSizeCompressor(
-			tt.input.TargetFrameSize,
-			tt.input.TargetNumFrames,
-			tt.input.ApproxComprRatio,
-		)
+		config := batcher.ChannelConfig{
+			TargetFrameSize:  tt.input.TargetFrameSize,
+			TargetNumFrames:  tt.input.TargetNumFrames,
+			ApproxComprRatio: tt.input.ApproxComprRatio,
+			CompressorKind:   flags.CompressorTarget,
+		}
+		comp, err := config.NewCompressor()
 		require.NoError(t, err)
-		got := compressor.(*batcher.TargetSizeCompressor).InputThreshold()
+		got := comp.(*batcher.TargetSizeCompressor).InputThreshold()
 		tt.assertion(got)
 	}
 }

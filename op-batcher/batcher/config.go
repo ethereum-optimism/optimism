@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -151,22 +150,5 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		LogConfig:              oplog.ReadCLIConfig(ctx),
 		MetricsConfig:          opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:            oppprof.ReadCLIConfig(ctx),
-	}
-}
-
-func (c CLIConfig) NewCompressorFactory() CompressorFactory {
-	return func() (derive.Compressor, error) {
-		switch c.CompressorKind {
-		case flags.CompressorTarget:
-			return NewTargetSizeCompressor(
-				c.TargetL1TxSize-1, // subtract 1 byte for version
-				c.TargetNumFrames,
-				c.ApproxComprRatio,
-			)
-		default:
-			return NewShadowCompressor(
-				c.MaxL1TxSize - 1, // subtract 1 byte for version
-			)
-		}
 	}
 }

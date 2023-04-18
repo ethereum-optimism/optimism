@@ -92,7 +92,7 @@ var (
 			flags.EnumString[CompressorKind](CompressorKinds),
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "COMPRESSOR"),
 		Value: func() *CompressorKind {
-			out := CompressorShadow
+			out := CompressorTarget
 			return &out
 		}(),
 	}
