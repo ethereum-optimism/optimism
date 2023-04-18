@@ -8,10 +8,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	cll1 "github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
+	"github.com/ethereum-optimism/optimism/op-program/preimage"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-func NewFetchingL1(ctx context.Context, logger log.Logger, cfg *config.Config) (derive.L1Fetcher, error) {
+func NewFetchingOracle(ctx context.Context, logger log.Logger, cfg *config.Config) (cll1.Oracle, error) {
 	rpc, err := client.NewRPC(ctx, logger, cfg.L1URL)
 	if err != nil {
 		return nil, err
@@ -21,6 +23,10 @@ func NewFetchingL1(ctx context.Context, logger log.Logger, cfg *config.Config) (
 	if err != nil {
 		return nil, err
 	}
-	oracle := cll1.NewCachingOracle(NewFetchingL1Oracle(ctx, logger, source))
-	return cll1.NewOracleL1Client(logger, oracle, cfg.L1Head), err
+	return NewFetchingL1Oracle(ctx, logger, source), nil
+}
+
+func NewSource(logger log.Logger, oracle preimage.Oracle, hint preimage.Hinter, l1Head common.Hash) derive.L1Fetcher {
+	l1Oracle := cll1.NewCachingOracle(cll1.NewPreimageOracle(oracle, hint))
+	return cll1.NewOracleL1Client(logger, l1Oracle, l1Head)
 }
