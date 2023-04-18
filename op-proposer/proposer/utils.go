@@ -31,7 +31,7 @@ func dialEthClientWithTimeout(ctx context.Context, url string, cookies bool, hea
 		}
 		opts = append(opts, rpc.WithHTTPClient(&http.Client{Jar: jar}))
 	}
-	if headers != nil && len(headers) > 0 {
+	if len(headers) > 0 {
 		opts = append(opts, rpc.WithHeaders(headers))
 	}
 

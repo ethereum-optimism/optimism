@@ -182,7 +182,7 @@ func (cfg *L1EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCf
 		}
 		gopts = append(gopts, rpc.WithHTTPClient(&http.Client{Jar: jar}))
 	}
-	if cfg.Headers != nil && len(cfg.Headers) > 0 {
+	if len(cfg.Headers) > 0 {
 		gopts = append(gopts, rpc.WithHeaders(cfg.Headers))
 	}
 	opts := []client.RPCOption{
