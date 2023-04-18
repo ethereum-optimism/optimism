@@ -9,7 +9,17 @@ import (
 )
 
 func LoadELF(f *elf.File) (*State, error) {
-	s := &State{}
+	s := &State{
+		PC:        uint32(f.Entry),
+		Hi:        0,
+		Lo:        0,
+		Heap:      1 << 20, // start heap at 1 GiB offset for now
+		Registers: [32]uint32{},
+		Memory:    nil,
+		Exit:      0,
+		Exited:    false,
+		Step:      0,
+	}
 
 	for i, prog := range f.Progs {
 		if prog.Type == 0x70000003 { // MIPS_ABIFLAGS

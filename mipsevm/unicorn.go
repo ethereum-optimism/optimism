@@ -42,7 +42,7 @@ func LoadUnicorn(st *State, mu uc.Unicorn) error {
 func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer) error {
 	_, err := mu.HookAdd(uc.HOOK_INTR, func(mu uc.Unicorn, intno uint32) {
 		if intno != 17 {
-			log.Fatal("invalid interrupt ", intno, " at step ", steps)
+			log.Fatal("invalid interrupt ", intno, " at step ", st.Step)
 		}
 		syscallNum, _ := mu.RegRead(uc.MIPS_REG_V0)
 
@@ -64,7 +64,7 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer) error {
 			a0, _ := mu.RegRead(uc.MIPS_REG_A0)
 			sz, _ := mu.RegRead(uc.MIPS_REG_A1)
 			if a0 == 0 {
-				v0 = 0x20000000 + heap_start
+				v0 = uint64(st.Heap)
 				st.Heap += uint32(sz)
 			} else {
 				v0 = a0
