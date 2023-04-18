@@ -73,7 +73,7 @@ We’re going to be spinning up an EVM Rollup from the OP Stack source code.  Yo
 1. Build the various packages inside of the Optimism Monorepo.
 
     ```bash
-    make op-node op-batcher
+    make op-node op-batcher op-proposer
     yarn build
     ```
 
@@ -154,9 +154,9 @@ Save these accounts and their respective private keys somewhere, you’ll need t
 
 Recommended funding amounts are as follows:
 
-- `Admin` — 0.2 ETH
-- `Proposer` — 0.5 ETH
-- `Batcher` — 1.0 ETH
+- `Admin` — 2 ETH
+- `Proposer` — 5 ETH
+- `Batcher` — 10 ETH
 
 ::: danger Not for production deployments 
 
@@ -512,7 +512,7 @@ However, in production you would probably want to only submit proposals on prope
 
 ## Get some ETH on your Rollup
 
-Once you’ve connected your wallet, you’ll probably notice that you don’t have any ETH on your Rollup. You’ll need some ETH to pay for gas on your Rollup. The easiest way to deposit Goerli ETH into your chain is to send funds directly to the `OptimismPortalProxy` contract. You can find the address of the `OptimismPortalProxy` contract for your chain by looking inside the `deployments` folder in the `contracts-bedrock` package.
+Once you’ve connected your wallet, you’ll probably notice that you don’t have any ETH on your Rollup. You’ll need some ETH to pay for gas on your Rollup. The easiest way to deposit Goerli ETH into your chain is to send funds directly to the `L1StandardBridge` contract. You can find the address of the `L1StandardBridge` contract for your chain by looking inside the `deployments` folder in the `contracts-bedrock` package.
 
 1. First, head over to the `contracts-bedrock` package:
 
@@ -523,13 +523,7 @@ Once you’ve connected your wallet, you’ll probably notice that you don’t h
 1. Grab the address of the proxy to the L1 standard bridge contract:
 
     ```bash
-    cat deployments/getting-started/Proxy__OVM_L1StandardBridge.json | grep \"address\":
-    ```
-
-    You should see a result similar to the following (**your address will be different**):
-
-    ```
-    "address": "0x874f2E16D803c044F10314A978322da3c9b075c7",
+    cat deployments/getting-started/Proxy__OVM_L1StandardBridge.json |  jq -r .address
     ```
 
 1. Grab the L1 bridge proxy contract address and, using the wallet that you want to have ETH on your Rollup, send that address a small amount of ETH on Goerli (0.1 or less is fine). It may take up to 5 minutes for that ETH to appear in your wallet on L2.
@@ -578,7 +572,7 @@ To see your rollup in action, you can use the [Optimism Mainnet Getting Started 
 
     ```bash
     cast call $GREETER "greet()" | cast --to-ascii
-    cast send --mnemonic-path mnem.delme $GREETER "setGreeting(string)" "New greeting"
+    cast send --mnemonic-path ./mnem.delme $GREETER "setGreeting(string)" "New greeting"
     cast call $GREETER "greet()" | cast --to-ascii
     ```
 
