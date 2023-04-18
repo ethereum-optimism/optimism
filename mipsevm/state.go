@@ -1,13 +1,16 @@
 package main
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"io"
 )
 
 const (
-	pageAddrSize = 10
+	// Note: 2**12 = 4 KiB, the minimum page-size in Unicorn for mmap
+	// as well as the Go runtime min phys page size.
+	pageAddrSize = 12
 	pageKeySize  = 32 - pageAddrSize
 	pageSize     = 1 << pageAddrSize
 	pageAddrMask = pageSize - 1
@@ -63,7 +66,7 @@ func (s *State) MerkleizeMemory(so StateOracle) [32]byte {
 	// so we can deduplicate work.
 	pageBranches := make(map[uint64]struct{})
 	for pageKey := range s.Memory {
-		pageGindex := (1 << pageKeySize) | pageKey
+		pageGindex := (1 << pageKeySize) | uint64(pageKey)
 		for i := 0; i < pageKeySize; i++ {
 			gindex := pageGindex >> i
 			pageBranches[gindex] = struct{}{}
@@ -115,7 +118,8 @@ func (s *State) MerkleizeMemory(so StateOracle) [32]byte {
 	return merkleizeMemory(1, 0)
 }
 
-func (s *State) SetMemory(addr uint32, v uint32, size uint32) {
+func (s *State) SetMemory(addr uint32, size uint32, v uint32) {
+	// TODO: maybe only support 4-byte aligned memory stores?
 	for i := size; i > 0; i-- {
 		pageIndex := addr >> pageAddrSize
 		pageAddr := addr & pageAddrMask
@@ -123,11 +127,22 @@ func (s *State) SetMemory(addr uint32, v uint32, size uint32) {
 		if !ok {
 			panic(fmt.Errorf("missing page %x (addr write at %x)", pageIndex, addr))
 		}
-		b := uint8(v)
-		p[pageAddr] = b
-		v = v >> 8
+		p[pageAddr] = uint8(v >> (i - 1))
 		addr += 1
 	}
+}
+
+func (s *State) GetMemory(addr uint32) uint32 {
+	// addr must be aligned to 4 bytes
+	if addr&0x3 != 0 {
+		panic(fmt.Errorf("unaligned memory access: %x", addr))
+	}
+	p, ok := s.Memory[addr>>pageAddrSize]
+	if !ok {
+		return 0
+	}
+	pageAddr := addr & pageAddrMask
+	return binary.BigEndian.Uint32(p[pageAddr : pageAddr+4])
 }
 
 func (s *State) SetMemoryRange(addr uint32, r io.Reader) error {
@@ -141,6 +156,9 @@ func (s *State) SetMemoryRange(addr uint32, r io.Reader) error {
 		}
 		n, err := r.Read(p[pageAddr:])
 		if err != nil {
+			if err == io.EOF {
+				return nil
+			}
 			return err
 		}
 		addr += uint32(n)

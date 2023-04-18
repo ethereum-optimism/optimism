@@ -77,14 +77,14 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer) error {
 		}
 		mu.RegWrite(uc.MIPS_REG_V0, v0)
 		mu.RegWrite(uc.MIPS_REG_A3, 0)
-	}, 0, 0)
+	}, 0, ^uint64(0))
 	if err != nil {
 		return fmt.Errorf("failed to set up interrupt/syscall hook: %w", err)
 	}
 
 	// Shout if Go mmap calls didn't allocate the memory properly
-	_, err = mu.HookAdd(uc.HOOK_MEM_WRITE_UNMAPPED, func(mu uc.Unicorn, typ int, addr uint64, size int, value int64) bool {
-		fmt.Printf("WRITE UNMAPPED typ %d  addr %016x  size %x  value  %x\n", typ, addr, size, value)
+	_, err = mu.HookAdd(uc.HOOK_MEM_UNMAPPED, func(mu uc.Unicorn, typ int, addr uint64, size int, value int64) bool {
+		fmt.Printf("MEM UNMAPPED typ %d  addr %016x  size %x  value  %x\n", typ, addr, size, value)
 		return false
 	}, 0, ^uint64(0))
 	if err != nil {
@@ -97,7 +97,7 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer) error {
 		//addr := uint32(addr64 & 0xFFFFFFFC)
 		// TODO sanity check matches the state value
 		// TODO access-list entry
-	}, 0, 0x80000000)
+	}, 0, ^uint64(0))
 	if err != nil {
 		return fmt.Errorf("failed to set up mem-write hook: %w", err)
 	}
@@ -110,7 +110,7 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer) error {
 			panic("invalid mem size")
 		}
 		st.SetMemory(uint32(addr64), uint32(size), uint32(value))
-	}, 0, 0x80000000)
+	}, 0, ^uint64(0))
 	if err != nil {
 		return fmt.Errorf("failed to set up mem-write hook: %w", err)
 	}
@@ -128,7 +128,7 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer) error {
 		st.PC = uint32(batch[32])
 		st.Lo = uint32(batch[33])
 		st.Hi = uint32(batch[34])
-	}, 0, 0x80000000)
+	}, 0, ^uint64(0))
 	if err != nil {
 		return fmt.Errorf("failed to set up instruction hook: %w", err)
 	}
