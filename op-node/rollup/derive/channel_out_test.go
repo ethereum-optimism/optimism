@@ -24,6 +24,10 @@ func (s *nonCompressor) Close() error {
 	return nil
 }
 
+func (s *nonCompressor) FullErr() error {
+	return nil
+}
+
 func TestChannelOutAddBlock(t *testing.T) {
 	cout, err := NewChannelOut(&nonCompressor{})
 	require.NoError(t, err)

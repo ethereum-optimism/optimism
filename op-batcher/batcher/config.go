@@ -97,7 +97,7 @@ type CLIConfig struct {
 	ApproxComprRatio float64
 
 	// CompressorKind is the compressor implementation to use.
-	CompressorKind CompressorKind
+	CompressorKind flags.CompressorKind
 
 	Stopped bool
 
