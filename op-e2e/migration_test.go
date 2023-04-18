@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	proposermetrics "github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
-	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/docker/docker/api/types"
@@ -272,7 +271,7 @@ func TestMigration(t *testing.T) {
 	snapLog.SetHandler(log.DiscardHandler())
 	rollupNodeConfig := &node.Config{
 		L1: &node.L1EndpointConfig{
-			L1:               opclient.CLIConfig{Addr: forkedL1URL},
+			L1NodeAddr:       forkedL1URL,
 			L1TrustRPC:       false,
 			L1RPCKind:        sources.RPCKindBasic,
 			RateLimit:        0,
@@ -280,7 +279,7 @@ func TestMigration(t *testing.T) {
 			HttpPollInterval: 12 * time.Second,
 		},
 		L2: &node.L2EndpointConfig{
-			L2:                opclient.CLIConfig{Addr: gethNode.HTTPAuthEndpoint()},
+			L2EngineAddr:      gethNode.HTTPAuthEndpoint(),
 			L2EngineJWTSecret: testingJWTSecret,
 		},
 		L2Sync: &node.PreparedL2SyncEndpoint{Client: nil, TrustRPC: false},
@@ -331,8 +330,8 @@ func TestMigration(t *testing.T) {
 	})
 
 	batcher, err := bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
-		L1:                 opclient.CLIConfig{Addr: forkedL1URL},
-		L2:                 opclient.CLIConfig{Addr: gethNode.WSEndpoint()},
+		L1EthRpc:           forkedL1URL,
+		L2EthRpc:           gethNode.WSEndpoint(),
 		RollupRpc:          rollupNode.HTTPEndpoint(),
 		MaxChannelDuration: 1,
 		MaxL1TxSize:        120_000,
@@ -355,7 +354,7 @@ func TestMigration(t *testing.T) {
 	})
 
 	proposer, err := l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
-		L1:                opclient.CLIConfig{Addr: forkedL1URL},
+		L1EthRpc:          forkedL1URL,
 		RollupRpc:         rollupNode.HTTPEndpoint(),
 		L2OOAddress:       l2OS.Address.String(),
 		PollInterval:      50 * time.Millisecond,

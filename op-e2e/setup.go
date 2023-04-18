@@ -39,7 +39,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	proposermetrics "github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
-	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -568,7 +567,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 
 	// L2Output Submitter
 	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
-		L1:                opclient.CLIConfig{Addr: sys.Nodes["l1"].WSEndpoint()},
+		L1EthRpc:          sys.Nodes["l1"].WSEndpoint(),
 		RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		L2OOAddress:       predeploys.DevL2OutputOracleAddr.String(),
 		PollInterval:      50 * time.Millisecond,
@@ -589,8 +588,8 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 
 	// Batch Submitter
 	sys.BatchSubmitter, err = bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
-		L1:                 opclient.CLIConfig{Addr: sys.Nodes["l1"].WSEndpoint()},
-		L2:                 opclient.CLIConfig{Addr: sys.Nodes["sequencer"].WSEndpoint()},
+		L1EthRpc:           sys.Nodes["l1"].WSEndpoint(),
+		L2EthRpc:           sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:          sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		MaxChannelDuration: 1,
 		MaxL1TxSize:        120_000,
@@ -627,7 +626,7 @@ func configureL1(rollupNodeCfg *rollupNode.Config, l1Node *node.Node) {
 		l1EndpointConfig = l1Node.HTTPEndpoint()
 	}
 	rollupNodeCfg.L1 = &rollupNode.L1EndpointConfig{
-		L1:               opclient.CLIConfig{Addr: l1EndpointConfig},
+		L1NodeAddr:       l1EndpointConfig,
 		L1TrustRPC:       false,
 		L1RPCKind:        sources.RPCKindBasic,
 		RateLimit:        0,
@@ -643,7 +642,7 @@ func configureL2(rollupNodeCfg *rollupNode.Config, l2Node *node.Node, jwtSecret 
 	}
 
 	rollupNodeCfg.L2 = &rollupNode.L2EndpointConfig{
-		L2:                opclient.CLIConfig{Addr: l2EndpointConfig},
+		L2EngineAddr:      l2EndpointConfig,
 		L2EngineJWTSecret: jwtSecret,
 	}
 }

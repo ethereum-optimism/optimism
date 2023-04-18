@@ -104,13 +104,13 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 	}
 
 	ctx := context.Background()
-	logger.Info("Connecting to L1 node", "l1", cfg.L1.Addr)
+	logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
 	l1Source, err := l1.NewFetchingL1(ctx, logger, cfg)
 	if err != nil {
 		return fmt.Errorf("connect l1 oracle: %w", err)
 	}
 
-	logger.Info("Connecting to L2 node", "l2", cfg.L2.Addr)
+	logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
 	l2Source, err := l2.NewFetchingEngine(ctx, logger, cfg)
 	if err != nil {
 		return fmt.Errorf("connect l2 oracle: %w", err)

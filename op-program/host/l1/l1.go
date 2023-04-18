@@ -12,7 +12,7 @@ import (
 )
 
 func NewFetchingL1(ctx context.Context, logger log.Logger, cfg *config.Config) (derive.L1Fetcher, error) {
-	rpc, err := client.NewRPC(ctx, logger, cfg.L1)
+	rpc, err := client.NewRPC(ctx, logger, cfg.L1URL)
 	if err != nil {
 		return nil, err
 	}

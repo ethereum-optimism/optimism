@@ -3,6 +3,7 @@ package proposer
 import (
 	"context"
 	"fmt"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
@@ -12,6 +13,16 @@ import (
 )
 
 var defaultDialTimeout = 5 * time.Second
+
+// dialEthClientWithTimeout attempts to dial the L1 provider using the provided
+// URL. If the dial doesn't complete within defaultDialTimeout seconds, this
+// method will return an error.
+func dialEthClientWithTimeout(ctx context.Context, url string) (*ethclient.Client, error) {
+	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
+	defer cancel()
+
+	return ethclient.DialContext(ctxt, url)
+}
 
 // dialRollupClientWithTimeout attempts to dial the RPC provider using the provided
 // URL. If the dial doesn't complete within defaultDialTimeout seconds, this

@@ -10,7 +10,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 
 	"github.com/urfave/cli"
@@ -96,7 +95,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 
 func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
 	return &node.L1EndpointConfig{
-		L1:               client.ReadL1CLIConfig(ctx),
+		L1NodeAddr:       ctx.GlobalString(flags.L1NodeAddr.Name),
 		L1TrustRPC:       ctx.GlobalBool(flags.L1TrustRPC.Name),
 		L1RPCKind:        sources.RPCProviderKind(strings.ToLower(ctx.GlobalString(flags.L1RPCProviderKind.Name))),
 		RateLimit:        ctx.GlobalFloat64(flags.L1RPCRateLimit.Name),
@@ -106,6 +105,7 @@ func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
 }
 
 func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConfig, error) {
+	l2Addr := ctx.GlobalString(flags.L2EngineAddr.Name)
 	fileName := ctx.GlobalString(flags.L2EngineJWTSecret.Name)
 	var secret [32]byte
 	fileName = strings.TrimSpace(fileName)
@@ -129,7 +129,7 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 	}
 
 	return &node.L2EndpointConfig{
-		L2:                client.ReadL2CLIConfig(ctx),
+		L2EngineAddr:      l2Addr,
 		L2EngineJWTSecret: secret,
 	}, nil
 }
@@ -138,8 +138,8 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 // flag is set, otherwise nil.
 func NewL2SyncEndpointConfig(ctx *cli.Context) *node.L2SyncEndpointConfig {
 	return &node.L2SyncEndpointConfig{
-		L2:       client.CLIConfig{Addr: ctx.GlobalString(flags.BackupL2UnsafeSyncRPC.Name)},
-		TrustRPC: ctx.GlobalBool(flags.BackupL2UnsafeSyncRPCTrustRPC.Name),
+		L2NodeAddr: ctx.GlobalString(flags.BackupL2UnsafeSyncRPC.Name),
+		TrustRPC:   ctx.GlobalBool(flags.BackupL2UnsafeSyncRPCTrustRPC.Name),
 	}
 }
 

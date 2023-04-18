@@ -6,7 +6,6 @@ import (
 	"github.com/urfave/cli"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -18,6 +17,11 @@ const envVarPrefix = "OP_PROPOSER"
 
 var (
 	// Required Flags
+	L1EthRpcFlag = cli.StringFlag{
+		Name:   "l1-eth-rpc",
+		Usage:  "HTTP provider URL for L1",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_RPC"),
+	}
 	RollupRpcFlag = cli.StringFlag{
 		Name:   "rollup-rpc",
 		Usage:  "HTTP provider URL for the rollup node",
@@ -45,6 +49,7 @@ var (
 )
 
 var requiredFlags = []cli.Flag{
+	L1EthRpcFlag,
 	RollupRpcFlag,
 	L2OOAddressFlag,
 	PollIntervalFlag,
@@ -57,7 +62,6 @@ var optionalFlags = []cli.Flag{
 func init() {
 	requiredFlags = append(requiredFlags, oprpc.CLIFlags(envVarPrefix)...)
 
-	optionalFlags = append(optionalFlags, client.L1CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(envVarPrefix)...)

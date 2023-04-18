@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/urfave/cli"
@@ -23,6 +22,17 @@ func prefixEnvVar(name string) string {
 
 var (
 	/* Required Flags */
+	L1NodeAddr = cli.StringFlag{
+		Name:   "l1",
+		Usage:  "Address of L1 User JSON-RPC endpoint to use (eth namespace required)",
+		Value:  "http://127.0.0.1:8545",
+		EnvVar: prefixEnvVar("L1_ETH_RPC"),
+	}
+	L2EngineAddr = cli.StringFlag{
+		Name:   "l2",
+		Usage:  "Address of L2 Engine JSON-RPC endpoints to use (engine and eth namespace required)",
+		EnvVar: prefixEnvVar("L2_ENGINE_RPC"),
+	}
 	RollupConfig = cli.StringFlag{
 		Name:   "rollup.config",
 		Usage:  "Rollup chain parameters",
@@ -200,6 +210,8 @@ var (
 )
 
 var requiredFlags = []cli.Flag{
+	L1NodeAddr,
+	L2EngineAddr,
 	RPCListenAddr,
 	RPCListenPort,
 }
@@ -240,8 +252,6 @@ var Flags []cli.Flag
 func init() {
 	optionalFlags = append(optionalFlags, p2pFlags...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
-	optionalFlags = append(optionalFlags, opclient.L1CLIFlags(envVarPrefix)...)
-	optionalFlags = append(optionalFlags, opclient.L2CLIFlags(envVarPrefix)...)
 	Flags = append(requiredFlags, optionalFlags...)
 }
 

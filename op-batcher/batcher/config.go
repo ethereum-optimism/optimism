@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -49,11 +48,11 @@ func (c *Config) Check() error {
 }
 
 type CLIConfig struct {
-	// L1 is the HTTP provider config for the L1.
-	L1 client.CLIConfig
+	// L1EthRpc is the HTTP provider URL for L1.
+	L1EthRpc string
 
-	// L2 is the HTTP provider config for the L2 execution engine.
-	L2 client.CLIConfig
+	// L2EthRpc is the HTTP provider URL for the L2 execution engine.
+	L2EthRpc string
 
 	// RollupRpc is the HTTP provider URL for the L2 rollup node.
 	RollupRpc string
@@ -122,13 +121,13 @@ func (c CLIConfig) Check() error {
 func NewConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
 		/* Required Flags */
+		L1EthRpc:        ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		L2EthRpc:        ctx.GlobalString(flags.L2EthRpcFlag.Name),
 		RollupRpc:       ctx.GlobalString(flags.RollupRpcFlag.Name),
 		SubSafetyMargin: ctx.GlobalUint64(flags.SubSafetyMarginFlag.Name),
 		PollInterval:    ctx.GlobalDuration(flags.PollIntervalFlag.Name),
 
 		/* Optional Flags */
-		L1:                 client.ReadL1CLIConfig(ctx),
-		L2:                 client.ReadL2CLIConfig(ctx),
 		MaxChannelDuration: ctx.GlobalUint64(flags.MaxChannelDurationFlag.Name),
 		MaxL1TxSize:        ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
 		TargetL1TxSize:     ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),

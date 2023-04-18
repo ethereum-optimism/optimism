@@ -10,7 +10,6 @@ import (
 	nodeflags "github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	service "github.com/ethereum-optimism/optimism/op-service"
-	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
@@ -26,6 +25,11 @@ var (
 		Name:   "network",
 		Usage:  fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
 		EnvVar: service.PrefixEnvVar(envVarPrefix, "NETWORK"),
+	}
+	L2NodeAddr = cli.StringFlag{
+		Name:   "l2",
+		Usage:  "Address of L2 JSON-RPC endpoint to use (eth and debug namespace required)",
+		EnvVar: service.PrefixEnvVar(envVarPrefix, "L2_RPC"),
 	}
 	L1Head = cli.StringFlag{
 		Name:   "l1.head",
@@ -46,6 +50,11 @@ var (
 		Name:   "l2.genesis",
 		Usage:  "Path to the op-geth genesis file",
 		EnvVar: service.PrefixEnvVar(envVarPrefix, "L2_GENESIS"),
+	}
+	L1NodeAddr = cli.StringFlag{
+		Name:   "l1",
+		Usage:  "Address of L1 JSON-RPC endpoint to use (eth namespace required)",
+		EnvVar: service.PrefixEnvVar(envVarPrefix, "L1_RPC"),
 	}
 	L1TrustRPC = cli.BoolFlag{
 		Name:   "l1.trustrpc",
@@ -76,6 +85,8 @@ var requiredFlags = []cli.Flag{
 var programFlags = []cli.Flag{
 	RollupConfig,
 	Network,
+	L2NodeAddr,
+	L1NodeAddr,
 	L1TrustRPC,
 	L1RPCProviderKind,
 }
@@ -84,8 +95,6 @@ func init() {
 	Flags = append(Flags, oplog.CLIFlags(envVarPrefix)...)
 	Flags = append(Flags, requiredFlags...)
 	Flags = append(Flags, programFlags...)
-	Flags = append(Flags, opclient.L1CLIFlags(envVarPrefix)...)
-	Flags = append(Flags, opclient.L2CLIFlags(envVarPrefix)...)
 }
 
 func CheckRequired(ctx *cli.Context) error {

@@ -9,8 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	opclient "github.com/ethereum-optimism/optimism/op-service/client"
-
 	"github.com/ethereum/go-ethereum/log"
 	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -38,7 +36,7 @@ type L1EndpointSetup interface {
 }
 
 type L2EndpointConfig struct {
-	L2 opclient.CLIConfig // Configuration of L2 Engine JSON-RPC endpoint to use (engine and eth namespace required)
+	L2EngineAddr string // Address of L2 Engine JSON-RPC endpoint to use (engine and eth namespace required)
 
 	// JWT secrets for L2 Engine API authentication during HTTP or initial Websocket communication.
 	// Any value for an IPC connection.
@@ -48,7 +46,7 @@ type L2EndpointConfig struct {
 var _ L2EndpointSetup = (*L2EndpointConfig)(nil)
 
 func (cfg *L2EndpointConfig) Check() error {
-	if cfg.L2.Addr == "" {
+	if cfg.L2EngineAddr == "" {
 		return errors.New("empty L2 Engine Address")
 	}
 
@@ -60,7 +58,7 @@ func (cfg *L2EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCf
 		return nil, nil, err
 	}
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.L2EngineJWTSecret))
-	l2Node, err := client.NewRPC(ctx, log, cfg.L2, client.WithGethRPCOptions(auth))
+	l2Node, err := client.NewRPC(ctx, log, cfg.L2EngineAddr, client.WithGethRPCOptions(auth))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -89,8 +87,8 @@ func (p *PreparedL2Endpoints) Setup(ctx context.Context, log log.Logger, rollupC
 // L2SyncEndpointConfig contains configuration for the fallback sync endpoint
 type L2SyncEndpointConfig struct {
 	// Address of the L2 RPC to use for backup sync, may be empty if RPC alt-sync is disabled.
-	L2       opclient.CLIConfig
-	TrustRPC bool
+	L2NodeAddr string
+	TrustRPC   bool
 }
 
 var _ L2SyncEndpointSetup = (*L2SyncEndpointConfig)(nil)
@@ -98,10 +96,10 @@ var _ L2SyncEndpointSetup = (*L2SyncEndpointConfig)(nil)
 // Setup creates an RPC client to sync from.
 // It will return nil without error if no sync method is configured.
 func (cfg *L2SyncEndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCfg *rollup.Config) (client.RPC, *sources.SyncClientConfig, error) {
-	if cfg.L2.Addr == "" {
+	if cfg.L2NodeAddr == "" {
 		return nil, nil, nil
 	}
-	l2Node, err := client.NewRPC(ctx, log, cfg.L2)
+	l2Node, err := client.NewRPC(ctx, log, cfg.L2NodeAddr)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -131,7 +129,7 @@ func (cfg *PreparedL2SyncEndpoint) Check() error {
 }
 
 type L1EndpointConfig struct {
-	L1 opclient.CLIConfig
+	L1NodeAddr string // Address of L1 User JSON-RPC endpoint to use (eth namespace required)
 
 	// L1TrustRPC: if we trust the L1 RPC we do not have to validate L1 response contents like headers
 	// against block hashes, or cached transaction sender addresses.
@@ -176,9 +174,9 @@ func (cfg *L1EndpointConfig) Setup(ctx context.Context, log log.Logger, rollupCf
 		opts = append(opts, client.WithRateLimit(cfg.RateLimit, cfg.BatchSize))
 	}
 
-	l1Node, err := client.NewRPC(ctx, log, cfg.L1, opts...)
+	l1Node, err := client.NewRPC(ctx, log, cfg.L1NodeAddr, opts...)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1.Addr, err)
+		return nil, nil, fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1NodeAddr, err)
 	}
 	rpcCfg := sources.L1ClientDefaultConfig(rollupCfg, cfg.L1TrustRPC, cfg.L1RPCKind)
 	rpcCfg.MaxRequestsPerBatch = cfg.BatchSize
@@ -198,8 +196,8 @@ func (p *PreparedL1Endpoint) Setup(ctx context.Context, log log.Logger, rollupCf
 	return p.Client, sources.L1ClientDefaultConfig(rollupCfg, p.TrustRPC, p.RPCProviderKind), nil
 }
 
-func (cfg *PreparedL1Endpoint) Check() error {
-	if cfg.Client == nil {
+func (p *PreparedL1Endpoint) Check() error {
+	if p.Client == nil {
 		return errors.New("rpc client cannot be nil")
 	}
 

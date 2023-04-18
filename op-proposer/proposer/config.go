@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/flags"
 
-	"github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -36,7 +35,8 @@ type Config struct {
 type CLIConfig struct {
 	/* Required Params */
 
-	L1 client.CLIConfig
+	// L1EthRpc is the HTTP provider URL for L1.
+	L1EthRpc string
 
 	// RollupRpc is the HTTP provider URL for the rollup node.
 	RollupRpc string
@@ -64,9 +64,6 @@ type CLIConfig struct {
 }
 
 func (c CLIConfig) Check() error {
-	if err := c.L1.Check(); err != nil {
-		return err
-	}
 	if err := c.RPCConfig.Check(); err != nil {
 		return err
 	}
@@ -89,7 +86,7 @@ func (c CLIConfig) Check() error {
 func NewConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
 		// Required Flags
-		L1:           client.ReadL1CLIConfig(ctx),
+		L1EthRpc:     ctx.GlobalString(flags.L1EthRpcFlag.Name),
 		RollupRpc:    ctx.GlobalString(flags.RollupRpcFlag.Name),
 		L2OOAddress:  ctx.GlobalString(flags.L2OOAddressFlag.Name),
 		PollInterval: ctx.GlobalDuration(flags.PollIntervalFlag.Name),

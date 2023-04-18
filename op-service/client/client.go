@@ -1,33 +1,34 @@
 package client
 
 import (
-	"context"
 	"net/http"
 	"net/http/cookiejar"
+	"strings"
 
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-func NewClient(ctx context.Context, cfg CLIConfig, opts ...rpc.ClientOption) (*ethclient.Client, error) {
-	r, err := NewRPCClient(ctx, cfg, opts...)
+func CookiesRPCOption() (rpc.ClientOption, error) {
+	jar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, err
 	}
-	return ethclient.NewClient(r), nil
+	return rpc.WithHTTPClient(&http.Client{Jar: jar}), nil
 }
 
-func NewRPCClient(ctx context.Context, cfg CLIConfig, opts ...rpc.ClientOption) (*rpc.Client, error) {
-	if cfg.Cookies {
-		jar, err := cookiejar.New(nil)
-		if err != nil {
-			return nil, err
+// ParseHttpHeader takes a slice of strings of the form "K=V" and returns a http.Header
+func ParseHttpHeader(slice []string) http.Header {
+	if len(slice) == 0 {
+		return nil
+	}
+	header := make(http.Header)
+	for _, s := range slice {
+		split := strings.SplitN(s, "=", 2)
+		val := ""
+		if len(split) >= 2 {
+			val = split[1]
 		}
-		opts = append(opts, rpc.WithHTTPClient(&http.Client{Jar: jar}))
+		header.Add(split[0], val)
 	}
-	if cfg.Headers != nil {
-		opts = append(opts, rpc.WithHeaders(cfg.Headers))
-	}
-
-	return rpc.DialOptions(ctx, cfg.Addr, opts...)
+	return header
 }

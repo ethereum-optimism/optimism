@@ -18,7 +18,7 @@ func NewFetchingEngine(ctx context.Context, logger log.Logger, cfg *config.Confi
 	if err != nil {
 		return nil, err
 	}
-	fetcher, err := NewFetchingL2Oracle(ctx, logger, cfg.L2, cfg.L2Head)
+	fetcher, err := NewFetchingL2Oracle(ctx, logger, cfg.L2URL, cfg.L2Head)
 	if err != nil {
 		return nil, fmt.Errorf("connect l2 oracle: %w", err)
 	}
