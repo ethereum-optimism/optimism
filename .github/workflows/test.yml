@@ -1,0 +1,35 @@
+
+on: [push, pull_request]
+name: Go Test
+jobs:
+  go-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@v3
+        with:
+          go-version: 1.20.x
+      - uses: actions/checkout@v3
+      - name: Install libunicorn
+        working-directory: .
+        run: make libunicorn
+      - uses: actions/cache@v3
+        with:
+          # In order:
+          # * Module download cache
+          # * Build cache (Linux)
+          # * Build cache (Mac)
+          # * Build cache (Windows)
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+            ~\AppData\Local\go-build
+          key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-${{ matrix.go-version }}-
+      - name: Build examples
+        working-directory: ./example
+        run: make bin/minimal.elf
+      - name: mipsevm tests
+        working-directory: ./mipsevm
+        run: go test ./...

@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-build: submodules libunicorn minigeth_mips minigeth_prefetch mipsevm contracts
+build: submodules libunicorn mipsevm contracts
 .PHONY: build
 
 submodules:
@@ -38,21 +38,10 @@ libunicorn_rebuild:
 	make libunicorn
 .PHONY: libunicorn_rebuild
 
-minigeth_mips:
-	cd mipigo && ./build.sh
-.PHONY: minigeth_mips
-
-minigeth_prefetch:
-	cd minigeth && go build
-.PHONY: minigeth_prefetch
-
 mipsevm:
 	cd mipsevm && go build
 .PHONY: mipsevm
 
-contracts: nodejs
-	npx hardhat compile
-.PHONY: contracts
 
 nodejs:
 	if [ -x "$$(command -v pnpm)" ]; then \
