@@ -79,6 +79,12 @@ func TestNetwork(t *testing.T) {
 	}
 }
 
+func TestDataDir(t *testing.T) {
+	expected := "/tmp/mainTestDataDir"
+	cfg := configForArgs(t, addRequiredArgs("--datadir", expected))
+	require.Equal(t, expected, cfg.DataDir)
+}
+
 func TestL2(t *testing.T) {
 	expected := "https://example.com:8545"
 	cfg := configForArgs(t, addRequiredArgs("--l2", expected))
@@ -168,14 +174,6 @@ func TestL1RPCKind(t *testing.T) {
 	t.Run("UnknownKind", func(t *testing.T) {
 		verifyArgsInvalid(t, "\"foo\"", addRequiredArgs("--l1.rpckind", "foo"))
 	})
-}
-
-// Offline support will be added later, but for now it just bails out with an error
-func TestOfflineModeNotSupported(t *testing.T) {
-	logger := log.New()
-	cfg := config.NewConfig(&chaincfg.Goerli, "genesis.json", common.HexToHash(l1HeadValue), common.HexToHash(l2HeadValue), common.HexToHash(l2ClaimValue))
-	err := FaultProofProgram(logger, cfg)
-	require.ErrorContains(t, err, "offline mode not supported")
 }
 
 func TestL2Claim(t *testing.T) {

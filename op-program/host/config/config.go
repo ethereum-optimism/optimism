@@ -18,10 +18,12 @@ var (
 	ErrInvalidL2Head       = errors.New("invalid l2 head")
 	ErrL1AndL2Inconsistent = errors.New("l1 and l2 options must be specified together or both omitted")
 	ErrInvalidL2Claim      = errors.New("invalid l2 claim")
+	ErrDataDirRequired     = errors.New("datadir must be specified when in non-fetching mode")
 )
 
 type Config struct {
 	Rollup        *rollup.Config
+	DataDir       string
 	L2URL         string
 	L2GenesisPath string
 	L1Head        common.Hash
@@ -53,6 +55,9 @@ func (c *Config) Check() error {
 	}
 	if (c.L1URL != "") != (c.L2URL != "") {
 		return ErrL1AndL2Inconsistent
+	}
+	if !c.FetchingEnabled() && c.DataDir == "" {
+		return ErrDataDirRequired
 	}
 	return nil
 }
@@ -95,6 +100,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 	}
 	return &Config{
 		Rollup:        rollupCfg,
+		DataDir:       ctx.GlobalString(flags.DataDir.Name),
 		L2URL:         ctx.GlobalString(flags.L2NodeAddr.Name),
 		L2GenesisPath: ctx.GlobalString(flags.L2GenesisPath.Name),
 		L2Head:        l2Head,
