@@ -36,6 +36,11 @@ func RunningProgramInClient() bool {
 
 // FaultProofProgram is the programmatic entry-point for the fault proof program
 func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
+	if RunningProgramInClient() {
+		cl.Main(logger)
+		// unreachable
+	}
+
 	if err := cfg.Check(); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
@@ -74,6 +79,7 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 		}
 	}
 
+	// TODO(CLI-3751: Load local preimages
 	localPreimageSource := kvstore.NewLocalPreimageSource(cfg)
 	splitter := kvstore.NewPreimageSourceSplitter(localPreimageSource.Get, getPreimage)
 
