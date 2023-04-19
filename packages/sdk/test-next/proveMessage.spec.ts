@@ -85,7 +85,7 @@ const crossChainMessenger = new CrossChainMessenger({
 })
 
 describe('prove message', () => {
-  it(`is a demo repoing the bug making legacy withdrawals not provable
+  it(`should prove a legacy tx
   `, async () => {
     /**
      * Tx hash of legacy withdrawal
