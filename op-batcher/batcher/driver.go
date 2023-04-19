@@ -291,6 +291,7 @@ func (l *BatchSubmitter) loop() {
 	defer loadTicker.Stop()
 	publishTicker := time.NewTicker(100 * time.Millisecond)
 	defer publishTicker.Stop()
+
 	receiptsCh := make(chan txmgr.TxReceipt[txData])
 	queue := txmgr.NewQueue[txData](l.txMgr, l.MaxPendingTransactions, l.metr.RecordPendingTx)
 

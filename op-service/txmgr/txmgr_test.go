@@ -870,3 +870,40 @@ func TestErrStringMatch(t *testing.T) {
 		})
 	}
 }
+
+func TestNonceReset(t *testing.T) {
+	conf := configWithNumConfs(1)
+	conf.SafeAbortNonceTooLowCount = 1
+	h := newTestHarnessWithConfig(t, conf)
+
+	index := -1
+	var nonces []uint64
+	sendTx := func(ctx context.Context, tx *types.Transaction) error {
+		index++
+		nonces = append(nonces, tx.Nonce())
+		// fail every 3rd tx
+		if index%3 == 0 {
+			return core.ErrNonceTooLow
+		}
+		txHash := tx.Hash()
+		h.backend.mine(&txHash, tx.GasFeeCap())
+		return nil
+	}
+	h.backend.setTxSender(sendTx)
+
+	ctx := context.Background()
+	for i := 0; i < 8; i++ {
+		_, err := h.mgr.Send(ctx, TxCandidate{
+			To: &common.Address{},
+		})
+		// expect every 3rd tx to fail
+		if i%3 == 0 {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
+		}
+	}
+
+	// internal nonce tracking should be reset every 3rd tx
+	require.Equal(t, []uint64{0, 0, 1, 2, 0, 1, 2, 0}, nonces)
+}
