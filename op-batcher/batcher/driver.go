@@ -313,14 +313,12 @@ func (l *BatchSubmitter) drainState(receiptsCh chan txmgr.TxReceipt[txData], que
 
 	txDone := make(chan struct{})
 	go func() {
-		defer func() {
-			// wait for all transactions to complete
-			queue.Wait()
-			close(txDone)
-		}()
-
 		// publish remaining state
 		l.publishStateToL1(l.killCtx, queue, receiptsCh)
+		// wait for all transactions to complete
+		queue.Wait()
+		// notify that we're done
+		close(txDone)
 	}()
 
 	// drain and handle the remaining receipts
