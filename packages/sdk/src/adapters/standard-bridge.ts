@@ -186,14 +186,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
       // If the L2 token is not an L2StandardERC20, it may throw an error. If there's a call
       // exception then we assume that the token is not supported. Other errors are thrown. Since
       // the JSON-RPC API is not well-specified, we need to handle multiple possible error codes.
-      if (
-        err.message.toString().includes('CALL_EXCEPTION') ||
-        err.stack.toString().includes('execution reverted')
-      ) {
-        return false
-      } else {
-        throw err
-      }
+      return false
     }
   }
 
