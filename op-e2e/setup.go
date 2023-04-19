@@ -233,6 +233,10 @@ type System struct {
 	Mocknet           mocknet.Mocknet
 }
 
+func (sys *System) NodeEndpoint(name string) string {
+	return selectEndpoint(sys.Nodes[name])
+}
+
 func (sys *System) Close() {
 	if sys.L2OutputSubmitter != nil {
 		sys.L2OutputSubmitter.Stop()
@@ -619,13 +623,17 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	return sys, nil
 }
 
-func configureL1(rollupNodeCfg *rollupNode.Config, l1Node *node.Node) {
-	l1EndpointConfig := l1Node.WSEndpoint()
+func selectEndpoint(node *node.Node) string {
 	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
 	if useHTTP {
 		log.Info("using HTTP client")
-		l1EndpointConfig = l1Node.HTTPEndpoint()
+		return node.HTTPEndpoint()
 	}
+	return node.WSEndpoint()
+}
+
+func configureL1(rollupNodeCfg *rollupNode.Config, l1Node *node.Node) {
+	l1EndpointConfig := selectEndpoint(l1Node)
 	rollupNodeCfg.L1 = &rollupNode.L1EndpointConfig{
 		L1NodeAddr:       l1EndpointConfig,
 		L1TrustRPC:       false,
