@@ -21,7 +21,6 @@ var (
 func ReadSignature(r io.Reader) ([]byte, error) {
 	sig := make([]byte, 4)
 	_, err := io.ReadFull(r, sig)
-	fmt.Println(sig)
 	return sig, err
 }
 
@@ -49,9 +48,11 @@ func ReadEthBytes32(r io.Reader) (eth.Bytes32, error) {
 }
 
 func ReadAddress(r io.Reader) (common.Address, error) {
-	var padding, readPadding [12]byte
+	var readPadding [12]byte
 	var a common.Address
-	if _, err := io.ReadFull(r, readPadding[:]); err != nil || !bytes.Equal(readPadding[:], padding[:]) {
+	if _, err := io.ReadFull(r, readPadding[:]); err != nil {
+		return a, err
+	} else if !bytes.Equal(readPadding[:], addressEmptyPadding[:]) {
 		return a, fmt.Errorf("address padding was not empty: %x", readPadding[:])
 	}
 	_, err := io.ReadFull(r, a[:])
@@ -60,10 +61,12 @@ func ReadAddress(r io.Reader) (common.Address, error) {
 
 // ReadUint64 reads a big endian uint64 from a 32 byte word
 func ReadUint64(r io.Reader) (uint64, error) {
-	var padding, readPadding [24]byte
+	var readPadding [24]byte
 	var n uint64
-	if _, err := io.ReadFull(r, readPadding[:]); err != nil || !bytes.Equal(readPadding[:], padding[:]) {
-		return 0, fmt.Errorf("number exceeds uint64 bounds: %x", readPadding[:])
+	if _, err := io.ReadFull(r, readPadding[:]); err != nil {
+		return n, err
+	} else if !bytes.Equal(readPadding[:], uint64EmptyPadding[:]) {
+		return n, fmt.Errorf("number padding was not empty: %x", readPadding[:])
 	}
 	if err := binary.Read(r, binary.BigEndian, &n); err != nil {
 		return 0, fmt.Errorf("expected number length to be 8 bytes")
