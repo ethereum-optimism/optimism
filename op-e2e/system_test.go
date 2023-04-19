@@ -155,25 +155,12 @@ func TestSystemE2E(t *testing.T) {
 	require.Equal(t, mintAmount, diff, "Did not get expected balance change")
 
 	// Submit TX to L2 sequencer node
-	toAddr := common.Address{0xff, 0xff}
-	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
-		ChainID:   cfg.L2ChainIDBig(),
-		Nonce:     1, // Already have deposit
-		To:        &toAddr,
-		Value:     big.NewInt(1_000_000_000),
-		GasTipCap: big.NewInt(10),
-		GasFeeCap: big.NewInt(200),
-		Gas:       21000,
+	receipt := SendL2Tx(t, cfg, l2Seq, ethPrivKey, func(opts *TxOpts) {
+		opts.Value = big.NewInt(1_000_000_000)
+		opts.Nonce = 1 // Already have deposit
+		opts.ToAddr = &common.Address{0xff, 0xff}
+		opts.VerifyOnClients(l2Verif)
 	})
-	err = l2Seq.SendTransaction(context.Background(), tx)
-	require.Nil(t, err, "Sending L2 tx to sequencer")
-
-	_, err = waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.Nil(t, err, "Waiting for L2 tx on sequencer")
-
-	receipt, err := waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.Nil(t, err, "Waiting for L2 tx on verifier")
-	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "TX should have succeeded")
 
 	// Verify blocks match after batch submission on verifiers and sequencers
 	verifBlock, err := l2Verif.BlockByNumber(context.Background(), receipt.BlockNumber)
@@ -413,22 +400,10 @@ func TestMissingBatchE2E(t *testing.T) {
 	ethPrivKey := cfg.Secrets.Alice
 
 	// Submit TX to L2 sequencer node
-	toAddr := common.Address{0xff, 0xff}
-	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
-		ChainID:   cfg.L2ChainIDBig(),
-		Nonce:     0,
-		To:        &toAddr,
-		Value:     big.NewInt(1_000_000_000),
-		GasTipCap: big.NewInt(10),
-		GasFeeCap: big.NewInt(200),
-		Gas:       21000,
+	receipt := SendL2Tx(t, cfg, l2Seq, ethPrivKey, func(opts *TxOpts) {
+		opts.ToAddr = &common.Address{0xff, 0xff}
+		opts.Value = big.NewInt(1_000_000_000)
 	})
-	err = l2Seq.SendTransaction(context.Background(), tx)
-	require.Nil(t, err, "Sending L2 tx to sequencer")
-
-	// Let it show up on the unsafe chain
-	receipt, err := waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
 	// Wait until the block it was first included in shows up in the safe chain on the verifier
 	_, err = waitForBlock(receipt.BlockNumber, l2Verif, time.Duration((sys.RollupConfig.SeqWindowSize+4)*cfg.DeployConfig.L1BlockTime)*time.Second)
@@ -437,7 +412,7 @@ func TestMissingBatchE2E(t *testing.T) {
 	// Assert that the transaction is not found on the verifier
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	_, err = l2Verif.TransactionReceipt(ctx, tx.Hash())
+	_, err = l2Verif.TransactionReceipt(ctx, receipt.TxHash)
 	require.Equal(t, ethereum.NotFound, err, "Found transaction in verifier when it should not have been included")
 
 	// Wait a short time for the L2 reorg to occur on the sequencer as well.
@@ -570,35 +545,20 @@ func TestSystemMockP2P(t *testing.T) {
 	ethPrivKey := cfg.Secrets.Alice
 
 	// Submit TX to L2 sequencer node
-	toAddr := common.Address{0xff, 0xff}
-	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
-		ChainID:   cfg.L2ChainIDBig(),
-		Nonce:     0,
-		To:        &toAddr,
-		Value:     big.NewInt(1_000_000_000),
-		GasTipCap: big.NewInt(10),
-		GasFeeCap: big.NewInt(200),
-		Gas:       21000,
+	receiptSeq := SendL2Tx(t, cfg, l2Seq, ethPrivKey, func(opts *TxOpts) {
+		opts.ToAddr = &common.Address{0xff, 0xff}
+		opts.Value = big.NewInt(1_000_000_000)
+
+		// Wait until the block it was first included in shows up in the safe chain on the verifier
+		opts.VerifyOnClients(l2Verif)
 	})
-	err = l2Seq.SendTransaction(context.Background(), tx)
-	require.Nil(t, err, "Sending L2 tx to sequencer")
-
-	// Wait for tx to be mined on the L2 sequencer chain
-	receiptSeq, err := waitForTransaction(tx.Hash(), l2Seq, 5*time.Minute)
-	require.Nil(t, err, "Waiting for L2 tx on sequencer")
-
-	// Wait until the block it was first included in shows up in the safe chain on the verifier
-	receiptVerif, err := waitForTransaction(tx.Hash(), l2Verif, 5*time.Minute)
-	require.Nil(t, err, "Waiting for L2 tx on verifier")
-
-	require.Equal(t, receiptSeq, receiptVerif)
 
 	// Verify that everything that was received was published
 	require.GreaterOrEqual(t, len(published), len(received))
 	require.ElementsMatch(t, received, published[:len(received)])
 
 	// Verify that the tx was received via p2p
-	require.Contains(t, received, receiptVerif.BlockHash)
+	require.Contains(t, received, receiptSeq.BlockHash)
 }
 
 // TestSystemRPCAltSync sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that
@@ -655,31 +615,16 @@ func TestSystemRPCAltSync(t *testing.T) {
 	ethPrivKey := cfg.Secrets.Alice
 
 	// Submit a TX to L2 sequencer node
-	toAddr := common.Address{0xff, 0xff}
-	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
-		ChainID:   cfg.L2ChainIDBig(),
-		Nonce:     0,
-		To:        &toAddr,
-		Value:     big.NewInt(1_000_000_000),
-		GasTipCap: big.NewInt(10),
-		GasFeeCap: big.NewInt(200),
-		Gas:       21000,
+	receiptSeq := SendL2Tx(t, cfg, l2Seq, ethPrivKey, func(opts *TxOpts) {
+		opts.ToAddr = &common.Address{0xff, 0xff}
+		opts.Value = big.NewInt(1_000_000_000)
+
+		// Wait for alt RPC sync to pick up the blocks on the sequencer chain
+		opts.VerifyOnClients(l2Verif)
 	})
-	err = l2Seq.SendTransaction(context.Background(), tx)
-	require.Nil(t, err, "Sending L2 tx to sequencer")
-
-	// Wait for tx to be mined on the L2 sequencer chain
-	receiptSeq, err := waitForTransaction(tx.Hash(), l2Seq, 6*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
-	require.Nil(t, err, "Waiting for L2 tx on sequencer")
-
-	// Wait for alt RPC sync to pick up the blocks on the sequencer chain
-	receiptVerif, err := waitForTransaction(tx.Hash(), l2Verif, 12*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
-	require.Nil(t, err, "Waiting for L2 tx on verifier")
-
-	require.Equal(t, receiptSeq, receiptVerif)
 
 	// Verify that the tx was received via RPC sync (P2P is disabled)
-	require.Contains(t, received, eth.BlockID{Hash: receiptVerif.BlockHash, Number: receiptVerif.BlockNumber.Uint64()}.String())
+	require.Contains(t, received, eth.BlockID{Hash: receiptSeq.BlockHash, Number: receiptSeq.BlockNumber.Uint64()}.String())
 
 	// Verify that everything that was received was published
 	require.GreaterOrEqual(t, len(published), len(received))
@@ -744,22 +689,10 @@ func TestSystemP2PAltSync(t *testing.T) {
 	ethPrivKey := cfg.Secrets.Alice
 
 	// Submit a TX to L2 sequencer node
-	toAddr := common.Address{0xff, 0xff}
-	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
-		ChainID:   cfg.L2ChainIDBig(),
-		Nonce:     0,
-		To:        &toAddr,
-		Value:     big.NewInt(1_000_000_000),
-		GasTipCap: big.NewInt(10),
-		GasFeeCap: big.NewInt(200),
-		Gas:       21000,
+	receiptSeq := SendL2Tx(t, cfg, l2Seq, ethPrivKey, func(opts *TxOpts) {
+		opts.ToAddr = &common.Address{0xff, 0xff}
+		opts.Value = big.NewInt(1_000_000_000)
 	})
-	err = l2Seq.SendTransaction(context.Background(), tx)
-	require.Nil(t, err, "Sending L2 tx to sequencer")
-
-	// Wait for tx to be mined on the L2 sequencer chain
-	receiptSeq, err := waitForTransaction(tx.Hash(), l2Seq, 6*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
-	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
 	// Gossip is able to respond to IWANT messages for the duration of heartbeat_time * message_window = 0.5 * 12 = 6
 	// Wait till we pass that, and then we'll have missed some blocks that cannot be retrieved in any way from gossip
@@ -823,7 +756,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 	l2Verif := ethclient.NewClient(rpc)
 
 	// It may take a while to sync, but eventually we should see the sequenced data show up
-	receiptVerif, err := waitForTransaction(tx.Hash(), l2Verif, 100*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
+	receiptVerif, err := waitForTransaction(receiptSeq.TxHash, l2Verif, 100*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on verifier")
 
 	require.Equal(t, receiptSeq, receiptVerif)
@@ -916,35 +849,13 @@ func TestSystemDenseTopology(t *testing.T) {
 	ethPrivKey := cfg.Secrets.Alice
 
 	// Submit TX to L2 sequencer node
-	toAddr := common.Address{0xff, 0xff}
-	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
-		ChainID:   cfg.L2ChainIDBig(),
-		Nonce:     0,
-		To:        &toAddr,
-		Value:     big.NewInt(1_000_000_000),
-		GasTipCap: big.NewInt(10),
-		GasFeeCap: big.NewInt(200),
-		Gas:       21000,
+	receiptSeq := SendL2Tx(t, cfg, l2Seq, ethPrivKey, func(opts *TxOpts) {
+		opts.ToAddr = &common.Address{0xff, 0xff}
+		opts.Value = big.NewInt(1_000_000_000)
+
+		// Wait until the block it was first included in shows up in the safe chain on the verifiers
+		opts.VerifyOnClients(l2Verif, l2Verif2, l2Verif3)
 	})
-	err = l2Seq.SendTransaction(context.Background(), tx)
-	require.NoError(t, err, "Sending L2 tx to sequencer")
-
-	// Wait for tx to be mined on the L2 sequencer chain
-	receiptSeq, err := waitForTransaction(tx.Hash(), l2Seq, 10*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
-	require.NoError(t, err, "Waiting for L2 tx on sequencer")
-
-	// Wait until the block it was first included in shows up in the safe chain on the verifier
-	receiptVerif, err := waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
-	require.NoError(t, err, "Waiting for L2 tx on verifier")
-	require.Equal(t, receiptSeq, receiptVerif)
-
-	receiptVerif, err = waitForTransaction(tx.Hash(), l2Verif2, 10*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
-	require.NoError(t, err, "Waiting for L2 tx on verifier2")
-	require.Equal(t, receiptSeq, receiptVerif)
-
-	receiptVerif, err = waitForTransaction(tx.Hash(), l2Verif3, 10*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
-	require.NoError(t, err, "Waiting for L2 tx on verifier3")
-	require.Equal(t, receiptSeq, receiptVerif)
 
 	// Verify that everything that was received was published
 	require.GreaterOrEqual(t, len(published), len(received1))
@@ -955,9 +866,9 @@ func TestSystemDenseTopology(t *testing.T) {
 	require.ElementsMatch(t, published, received3[:len(published)])
 
 	// Verify that the tx was received via p2p
-	require.Contains(t, received1, receiptVerif.BlockHash)
-	require.Contains(t, received2, receiptVerif.BlockHash)
-	require.Contains(t, received3, receiptVerif.BlockHash)
+	require.Contains(t, received1, receiptSeq.BlockHash)
+	require.Contains(t, received2, receiptSeq.BlockHash)
+	require.Contains(t, received3, receiptSeq.BlockHash)
 }
 
 func TestL1InfoContract(t *testing.T) {
@@ -1325,30 +1236,16 @@ func TestFees(t *testing.T) {
 	startBalance, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 
-	toAddr := common.Address{0xff, 0xff}
 	transferAmount := big.NewInt(1_000_000_000)
 	gasTip := big.NewInt(10)
-	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
-		ChainID:   cfg.L2ChainIDBig(),
-		Nonce:     0,
-		To:        &toAddr,
-		Value:     transferAmount,
-		GasTipCap: gasTip,
-		GasFeeCap: big.NewInt(200),
-		Gas:       21000,
+	receipt := SendL2Tx(t, cfg, l2Seq, ethPrivKey, func(opts *TxOpts) {
+		opts.ToAddr = &common.Address{0xff, 0xff}
+		opts.Value = transferAmount
+		opts.GasTipCap = gasTip
+		opts.Gas = 21000
+		opts.GasFeeCap = big.NewInt(200)
+		opts.VerifyOnClients(l2Verif)
 	})
-	sender, err := types.LatestSignerForChainID(cfg.L2ChainIDBig()).Sender(tx)
-	require.NoError(t, err)
-	t.Logf("waiting for tx %s from %s to %s", tx.Hash(), sender, tx.To())
-	err = l2Seq.SendTransaction(context.Background(), tx)
-	require.Nil(t, err, "Sending L2 tx to sequencer")
-
-	_, err = waitForTransaction(tx.Hash(), l2Seq, 4*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.Nil(t, err, "Waiting for L2 tx on sequencer")
-
-	receipt, err := waitForTransaction(tx.Hash(), l2Verif, 4*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.Nil(t, err, "Waiting for L2 tx on verifier")
-	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "TX should have succeeded")
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
@@ -1397,6 +1294,8 @@ func TestFees(t *testing.T) {
 	require.Equal(t, baseFee, baseFeeRecipientDiff, "base fee fee mismatch")
 
 	// Tally L1 Fee
+	tx, _, err := l2Seq.TransactionByHash(ctx, receipt.TxHash)
+	require.NoError(t, err, "Should be able to get transaction")
 	bytes, err := tx.MarshalBinary()
 	require.Nil(t, err)
 	l1GasUsed := calcL1GasUsed(bytes, overhead)
@@ -1483,23 +1382,12 @@ func TestStopStartBatcher(t *testing.T) {
 	nonce := uint64(0)
 	sendTx := func() *types.Receipt {
 		// Submit TX to L2 sequencer node
-		tx := types.MustSignNewTx(cfg.Secrets.Alice, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
-			ChainID:   cfg.L2ChainIDBig(),
-			Nonce:     nonce,
-			To:        &common.Address{0xff, 0xff},
-			Value:     big.NewInt(1_000_000_000),
-			GasTipCap: big.NewInt(10),
-			GasFeeCap: big.NewInt(200),
-			Gas:       21000,
+		receipt := SendL2Tx(t, cfg, l2Seq, cfg.Secrets.Alice, func(opts *TxOpts) {
+			opts.ToAddr = &common.Address{0xff, 0xff}
+			opts.Value = big.NewInt(1_000_000_000)
+			opts.Nonce = nonce
 		})
 		nonce++
-		err = l2Seq.SendTransaction(context.Background(), tx)
-		require.Nil(t, err, "Sending L2 tx to sequencer")
-
-		// Let it show up on the unsafe chain
-		receipt, err := waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-		require.Nil(t, err, "Waiting for L2 tx on sequencer")
-
 		return receipt
 	}
 	// send a transaction
