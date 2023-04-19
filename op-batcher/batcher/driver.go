@@ -360,12 +360,11 @@ func (l *BatchSubmitter) drainState(receiptsCh chan txmgr.TxReceipt[txData], que
 
 func (l *BatchSubmitter) handleReceipt(r txmgr.TxReceipt[txData]) {
 	// Record TX Status
-	data := r.ID.Bytes()
 	if r.Err != nil {
-		l.log.Warn("unable to publish tx", "err", r.Err, "data_size", len(data))
+		l.log.Warn("unable to publish tx", "err", r.Err, "data_size", r.ID.Len())
 		l.recordFailedTx(r.ID.ID(), r.Err)
 	} else {
-		l.log.Info("tx successfully published", "tx_hash", r.Receipt.TxHash, "data_size", len(data))
+		l.log.Info("tx successfully published", "tx_hash", r.Receipt.TxHash, "data_size", r.ID.Len())
 		l.recordConfirmedTx(r.ID.ID(), r.Receipt)
 	}
 }
