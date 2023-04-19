@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -34,7 +33,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum-optimism/optimism/op-service/backoff"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 )
@@ -1031,10 +1029,6 @@ func TestWithdrawals(t *testing.T) {
 		l2Opts.Value = common.Big0
 	})
 
-	// Bind L2 Withdrawer Contract
-	l2withdrawer, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, l2Seq)
-	require.Nil(t, err, "binding withdrawer on L2")
-
 	// Confirm L2 balance
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
@@ -1051,17 +1045,11 @@ func TestWithdrawals(t *testing.T) {
 	startBalance, err = l2Seq.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 
-	// Intiate Withdrawal
 	withdrawAmount := big.NewInt(500_000_000_000)
-	l2opts, err := bind.NewKeyedTransactorWithChainID(ethPrivKey, cfg.L2ChainIDBig())
-	require.Nil(t, err)
-	l2opts.Value = withdrawAmount
-	tx, err := l2withdrawer.InitiateWithdrawal(l2opts, fromAddr, big.NewInt(21000), nil)
-	require.Nil(t, err, "sending initiate withdraw tx")
-
-	receipt, err := waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.Nil(t, err, "withdrawal initiated on L2 sequencer")
-	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
+	tx, receipt := SendWithdrawal(t, cfg, l2Seq, ethPrivKey, func(opts *WithdrawalTxOpts) {
+		opts.Value = withdrawAmount
+		opts.VerifyOnClients(l2Verif)
+	})
 
 	// Verify L2 balance after withdrawal
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
@@ -1087,80 +1075,7 @@ func TestWithdrawals(t *testing.T) {
 	startBalance, err = l1Client.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 
-	// Get l2BlockNumber for proof generation
-	ctx, cancel = context.WithTimeout(context.Background(), 40*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	defer cancel()
-	blockNumber, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, receipt.BlockNumber)
-	require.Nil(t, err)
-
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	header, err = l2Verif.HeaderByNumber(ctx, new(big.Int).SetUint64(blockNumber))
-	require.Nil(t, err)
-
-	rpcClient, err := rpc.Dial(sys.Nodes["verifier"].WSEndpoint())
-	require.Nil(t, err)
-	proofCl := gethclient.New(rpcClient)
-	receiptCl := ethclient.NewClient(rpcClient)
-
-	// Now create withdrawal
-	oracle, err := bindings.NewL2OutputOracleCaller(predeploys.DevL2OutputOracleAddr, l1Client)
-	require.Nil(t, err)
-
-	params, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, tx.Hash(), header, oracle)
-	require.Nil(t, err)
-
-	portal, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)
-	require.Nil(t, err)
-
-	opts.Value = nil
-
-	// Prove withdrawal
-	tx, err = portal.ProveWithdrawalTransaction(
-		opts,
-		bindings.TypesWithdrawalTransaction{
-			Nonce:    params.Nonce,
-			Sender:   params.Sender,
-			Target:   params.Target,
-			Value:    params.Value,
-			GasLimit: params.GasLimit,
-			Data:     params.Data,
-		},
-		params.L2OutputIndex,
-		params.OutputRootProof,
-		params.WithdrawalProof,
-	)
-	require.Nil(t, err)
-
-	// Ensure that our withdrawal was proved successfully
-	proveReceipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.Nil(t, err, "prove withdrawal")
-	require.Equal(t, types.ReceiptStatusSuccessful, proveReceipt.Status)
-
-	// Wait for finalization and then create the Finalized Withdrawal Transaction
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	defer cancel()
-	_, err = withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, header.Number)
-	require.Nil(t, err)
-
-	// Finalize withdrawal
-	tx, err = portal.FinalizeWithdrawalTransaction(
-		opts,
-		bindings.TypesWithdrawalTransaction{
-			Nonce:    params.Nonce,
-			Sender:   params.Sender,
-			Target:   params.Target,
-			Value:    params.Value,
-			GasLimit: params.GasLimit,
-			Data:     params.Data,
-		},
-	)
-	require.Nil(t, err)
-
-	// Ensure that our withdrawal was finalized successfully
-	finalizeReceipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.Nil(t, err, "finalize withdrawal")
-	require.Equal(t, types.ReceiptStatusSuccessful, finalizeReceipt.Status)
+	proveReceipt, finalizeReceipt := ProveAndFinalizeWithdrawal(t, cfg, l1Client, sys.Nodes["verifier"], ethPrivKey, receipt)
 
 	// Verify balance after withdrawal
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
