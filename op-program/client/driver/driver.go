@@ -24,18 +24,20 @@ type L2Source interface {
 }
 
 type Driver struct {
-	logger       log.Logger
-	pipeline     Derivation
-	l2OutputRoot func() (eth.Bytes32, error)
+	logger         log.Logger
+	pipeline       Derivation
+	l2OutputRoot   func() (eth.Bytes32, error)
+	targetBlockNum uint64
 }
 
-func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher, l2Source L2Source) *Driver {
+func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher, l2Source L2Source, targetBlockNum uint64) *Driver {
 	pipeline := derive.NewDerivationPipeline(logger, cfg, l1Source, l2Source, metrics.NoopMetrics)
 	pipeline.Reset()
 	return &Driver{
-		logger:       logger,
-		pipeline:     pipeline,
-		l2OutputRoot: l2Source.L2OutputRoot,
+		logger:         logger,
+		pipeline:       pipeline,
+		l2OutputRoot:   l2Source.L2OutputRoot,
+		targetBlockNum: targetBlockNum,
 	}
 }
 
@@ -47,6 +49,11 @@ func (d *Driver) Step(ctx context.Context) error {
 	if err := d.pipeline.Step(ctx); errors.Is(err, io.EOF) {
 		return io.EOF
 	} else if errors.Is(err, derive.NotEnoughData) {
+		head := d.pipeline.SafeL2Head()
+		if head.Number >= d.targetBlockNum {
+			d.logger.Info("Target L2 block reached", "head", head)
+			return io.EOF
+		}
 		d.logger.Debug("Data is lacking")
 		return nil
 	} else if err != nil {

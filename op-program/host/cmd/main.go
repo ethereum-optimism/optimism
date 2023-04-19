@@ -1,25 +1,13 @@
 package main
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"io"
 	"os"
 
-	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
-	cldr "github.com/ethereum-optimism/optimism/op-program/client/driver"
+	"github.com/ethereum-optimism/optimism/op-program/host"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
-	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
-	"github.com/ethereum-optimism/optimism/op-program/host/l1"
-	"github.com/ethereum-optimism/optimism/op-program/host/l2"
-	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
 	"github.com/ethereum-optimism/optimism/op-program/host/version"
-	"github.com/ethereum-optimism/optimism/op-program/preimage"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
@@ -45,15 +33,13 @@ var VersionWithMeta = func() string {
 	return v
 }()
 
-var (
-	ErrClaimNotValid = errors.New("invalid claim")
-)
-
 func main() {
 	args := os.Args
-	err := run(args, FaultProofProgram)
+	err := run(args, host.FaultProofProgram)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
+	} else {
+		log.Info("Claim successfully verified")
 	}
 }
 
@@ -97,90 +83,4 @@ func setupLogging(ctx *cli.Context) (log.Logger, error) {
 	}
 	logger := oplog.NewLogger(logCfg)
 	return logger, nil
-}
-
-type L2Source struct {
-	*sources.L2Client
-	*sources.DebugClient
-}
-
-// FaultProofProgram is the programmatic entry-point for the fault proof program
-func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
-	cfg.Rollup.LogDescription(logger, chaincfg.L2ChainIDToNetworkName)
-	if !cfg.FetchingEnabled() {
-		return errors.New("offline mode not supported")
-	}
-
-	ctx := context.Background()
-	kv := kvstore.NewMemKV()
-
-	logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
-	l1RPC, err := client.NewRPC(ctx, logger, cfg.L1URL)
-	if err != nil {
-		return fmt.Errorf("failed to setup L1 RPC: %w", err)
-	}
-
-	logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
-	l2RPC, err := client.NewRPC(ctx, logger, cfg.L2URL)
-	if err != nil {
-		return fmt.Errorf("failed to setup L2 RPC: %w", err)
-	}
-
-	l1ClCfg := sources.L1ClientDefaultConfig(cfg.Rollup, cfg.L1TrustRPC, cfg.L1RPCKind)
-	l2ClCfg := sources.L2ClientDefaultConfig(cfg.Rollup, true)
-	l1Cl, err := sources.NewL1Client(l1RPC, logger, nil, l1ClCfg)
-	if err != nil {
-		return fmt.Errorf("failed to create L1 client: %w", err)
-	}
-	l2Cl, err := sources.NewL2Client(l2RPC, logger, nil, l2ClCfg)
-	if err != nil {
-		return fmt.Errorf("failed to create L2 client: %w", err)
-	}
-	l2DebugCl := &L2Source{L2Client: l2Cl, DebugClient: sources.NewDebugClient(l2RPC.CallContext)}
-
-	logger.Info("Setting up pre-fetcher")
-	prefetch := prefetcher.NewPrefetcher(l1Cl, l2DebugCl, kv)
-	preimageOracle := asOracleFn(ctx, prefetch)
-	hinter := asHinter(prefetch)
-	l1Source := l1.NewSource(logger, preimageOracle, hinter, cfg.L1Head)
-
-	logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
-	l2Source, err := l2.NewEngine(logger, preimageOracle, hinter, cfg)
-	if err != nil {
-		return fmt.Errorf("connect l2 oracle: %w", err)
-	}
-
-	logger.Info("Starting derivation")
-	d := cldr.NewDriver(logger, cfg.Rollup, l1Source, l2Source)
-	for {
-		if err = d.Step(ctx); errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return err
-		}
-	}
-	claim := cfg.L2Claim
-	if !d.ValidateClaim(eth.Bytes32(claim)) {
-		return ErrClaimNotValid
-	}
-	return nil
-}
-
-func asOracleFn(ctx context.Context, prefetcher *prefetcher.Prefetcher) preimage.OracleFn {
-	return func(key preimage.Key) []byte {
-		pre, err := prefetcher.GetPreimage(ctx, key.PreimageKey())
-		if err != nil {
-			panic(fmt.Errorf("preimage unavailable for key %v: %w", key, err))
-		}
-		return pre
-	}
-}
-
-func asHinter(prefetcher *prefetcher.Prefetcher) preimage.HinterFn {
-	return func(v preimage.Hint) {
-		err := prefetcher.Hint(v.Hint())
-		if err != nil {
-			panic(fmt.Errorf("hint rejected %v: %w", v, err))
-		}
-	}
 }
