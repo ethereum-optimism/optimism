@@ -95,7 +95,7 @@ func (q *Queue[T]) TrySend(ctx context.Context, factory TxFactory[T], receiptCh 
 		return false, nil
 	}
 	err := <-factoryErrCh
-	return err != nil, err
+	return err == nil, err
 }
 
 func (q *Queue[T]) sendTx(ctx context.Context, factory TxFactory[T], factoryErrorCh chan error, receiptCh chan TxReceipt[T]) error {
@@ -135,8 +135,6 @@ func (q *Queue[T]) mergeWithGroupContext(ctx context.Context) (context.Context, 
 		q.group, q.groupCtx = errgroup.WithContext(context.Background())
 		if q.maxPending > 0 {
 			q.group.SetLimit(int(q.maxPending))
-		} else {
-			q.group.SetLimit(-1)
 		}
 	}
 
