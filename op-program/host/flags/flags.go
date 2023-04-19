@@ -26,6 +26,11 @@ var (
 		Usage:  fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
 		EnvVar: service.PrefixEnvVar(envVarPrefix, "NETWORK"),
 	}
+	DataDir = cli.StringFlag{
+		Name:   "datadir",
+		Usage:  "Directory to use for preimage data storage. Default uses in-memory storage",
+		EnvVar: service.PrefixEnvVar(envVarPrefix, "DATADIR"),
+	}
 	L2NodeAddr = cli.StringFlag{
 		Name:   "l2",
 		Usage:  "Address of L2 JSON-RPC endpoint to use (eth and debug namespace required)",
@@ -85,6 +90,7 @@ var requiredFlags = []cli.Flag{
 var programFlags = []cli.Flag{
 	RollupConfig,
 	Network,
+	DataDir,
 	L2NodeAddr,
 	L1NodeAddr,
 	L1TrustRPC,
