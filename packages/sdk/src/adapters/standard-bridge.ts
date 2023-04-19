@@ -187,7 +187,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
       // exception then we assume that the token is not supported. Other errors are thrown. Since
       // the JSON-RPC API is not well-specified, we need to handle multiple possible error codes.
       if (!err?.message?.toString().includes('CALL_EXCEPTION') && !err?.stack?.toString().includes('execution reverted') {
-        console.error('Unexpected error when checking bridge', e)
+        console.error('Unexpected error when checking bridge', err)
       }
       return false
     }
