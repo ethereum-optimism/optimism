@@ -568,10 +568,10 @@ jobs:
           working_directory: packages/atst
       - run:
           name: make sure anvil l1 is up
-          command: cast block-number --rpc-url http://localhost:8545
+          command: npx wait-on tcp:8545 && cast block-number --rpc-url http://localhost:8545
       - run:
           name: make sure anvil l2 is up
-          command: cast block-number --rpc-url http://localhost:9545
+          command: npx wait-on tcp:9545 && cast block-number --rpc-url http://localhost:9545
       - run:
           name: test:next
           command: yarn test:next
