@@ -1019,7 +1019,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         assertEq(outputRoot, Hashing.hashOutputRootProof(proof));
         assertEq(withdrawalHash, Hashing.hashWithdrawal(_tx));
 
-        // Mock the call to the oracle
+        // Setup the Oracle to return the outputRoot
         vm.mockCall(
             address(oracle),
             abi.encodeWithSelector(oracle.getL2Output.selector),
@@ -1038,8 +1038,6 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
         // Warp past the finalization period
         vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
-
-        uint256 targetBalanceBefore = _target.balance;
 
         // Finalize the withdrawal transaction
         vm.expectCallMinGas(_tx.target, _tx.value, uint64(_tx.gasLimit), _tx.data);
