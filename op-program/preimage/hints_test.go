@@ -3,6 +3,7 @@ package preimage
 import (
 	"bytes"
 	"crypto/rand"
+	"errors"
 	"io"
 	"testing"
 
@@ -70,5 +71,22 @@ func TestHints(t *testing.T) {
 		hr := NewHintReader(&buf)
 		err := hr.NextHint(func(hint string) error { return nil })
 		require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	})
+	t.Run("cb error", func(t *testing.T) {
+		var buf bytes.Buffer
+		hw := NewHintWriter(&buf)
+		hw.Hint(rawHint("one"))
+		hw.Hint(rawHint("two"))
+		hr := NewHintReader(&buf)
+		cbErr := errors.New("fail")
+		err := hr.NextHint(func(hint string) error { return cbErr })
+		require.ErrorIs(t, err, cbErr)
+		var readHint string
+		err = hr.NextHint(func(hint string) error {
+			readHint = hint
+			return nil
+		})
+		require.NoError(t, err)
+		require.Equal(t, readHint, "two")
 	})
 }
