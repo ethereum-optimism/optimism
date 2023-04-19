@@ -541,7 +541,7 @@ jobs:
     resource_class: large
     steps:
       - checkout
-      - attach_workspace: { at: '.' }
+      - attach_workspace: { at: "." }
       - check-changed:
           patterns: sdk,contracts-bedrock,contracts
       - restore_cache:
@@ -579,7 +579,7 @@ jobs:
           working_directory: packages/sdk
           environment:
             # anvil[0] test private key
-            VITE_E2E_PRIVATE_KEY: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+            VITE_E2E_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
             VITE_E2E_RPC_URL_L1: http://localhost:8545
             VITE_E2E_RPC_URL_L2: http://localhost:9545
 
