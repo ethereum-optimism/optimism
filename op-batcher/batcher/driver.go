@@ -40,8 +40,6 @@ type BatchSubmitter struct {
 	lastL1Tip       eth.L1BlockRef
 
 	state *channelManager
-
-	publishLock sync.Mutex
 }
 
 // NewBatchSubmitterFromCLIConfig initializes the BatchSubmitter, gathering any resources
@@ -287,20 +285,17 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 func (l *BatchSubmitter) loop() {
 	defer l.wg.Done()
 
-	loadTicker := time.NewTicker(l.PollInterval)
-	defer loadTicker.Stop()
-	publishTicker := time.NewTicker(100 * time.Millisecond)
-	defer publishTicker.Stop()
+	ticker := time.NewTicker(l.PollInterval)
+	defer ticker.Stop()
 
 	receiptsCh := make(chan txmgr.TxReceipt[txData])
 	queue := txmgr.NewQueue[txData](l.killCtx, l.txMgr, l.MaxPendingTransactions, l.metr.RecordPendingTx)
 
 	for {
 		select {
-		case <-loadTicker.C:
+		case <-ticker.C:
 			l.loadBlocksIntoState(l.shutdownCtx)
-		case <-publishTicker.C:
-			_, _ = queue.TrySend(l.publishStateToL1Factory(), receiptsCh)
+			_ = l.publishStateToL1(l.killCtx, queue, receiptsCh)
 		case r := <-receiptsCh:
 			l.handleReceipt(r)
 		case <-l.shutdownCtx.Done():
@@ -333,7 +328,7 @@ func (l *BatchSubmitter) drainState(receiptsCh chan txmgr.TxReceipt[txData], que
 			case <-l.killCtx.Done():
 				return
 			default:
-				err := queue.Send(l.publishStateToL1Factory(), receiptsCh)
+				err := l.publishStateToL1(l.killCtx, queue, receiptsCh)
 				if err != nil {
 					if err != io.EOF {
 						l.log.Error("error while publishing state on shutdown", "err", err)
@@ -373,17 +368,13 @@ func (l *BatchSubmitter) handleReceipt(r txmgr.TxReceipt[txData]) {
 // loaded into `state`, and returns a txmgr transaction candidate that can be used to
 // submit the associated data to the L1 in the form of channel frames. The factory
 // will return an io.EOF error if no data is available.
-func (l *BatchSubmitter) publishStateToL1Factory() txmgr.TxFactory[txData] {
-	return func(ctx context.Context) (txmgr.TxCandidate, txData, error) {
-		// this is called from a separate goroutine in the txmgr.Queue,
-		// so lock to prevent concurrent access to the state
-		l.publishLock.Lock()
-		defer l.publishLock.Unlock()
-
+func (l *BatchSubmitter) publishStateToL1(ctx context.Context, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) error {
+	// send all available transactions
+	for {
 		l1tip, err := l.l1Tip(ctx)
 		if err != nil {
 			l.log.Error("Failed to query L1 tip", "error", err)
-			return txmgr.TxCandidate{}, txData{}, err
+			return err
 		}
 		l.recordL1Tip(l1tip)
 
@@ -391,17 +382,17 @@ func (l *BatchSubmitter) publishStateToL1Factory() txmgr.TxFactory[txData] {
 		txdata, err := l.state.TxData(l1tip.ID())
 		if err == io.EOF {
 			l.log.Trace("no transaction data available")
-			return txmgr.TxCandidate{}, txData{}, err
+			return err
 		} else if err != nil {
 			l.log.Error("unable to get tx data", "err", err)
-			return txmgr.TxCandidate{}, txData{}, err
+			return err
 		}
 
 		// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
 		data := txdata.Bytes()
 		intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
 		if err != nil {
-			return txmgr.TxCandidate{}, txData{}, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
+			return fmt.Errorf("failed to calculate intrinsic gas: %w", err)
 		}
 
 		candidate := txmgr.TxCandidate{
@@ -409,7 +400,7 @@ func (l *BatchSubmitter) publishStateToL1Factory() txmgr.TxFactory[txData] {
 			TxData:   data,
 			GasLimit: intrinsicGas,
 		}
-		return candidate, txdata, nil
+		queue.Send(txdata, candidate, receiptsCh)
 	}
 }
 

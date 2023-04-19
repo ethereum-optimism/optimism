@@ -19,10 +19,6 @@ type TxReceipt[T any] struct {
 	Err error
 }
 
-// TxFactory should return the next transaction to send (and associated identifier).
-// If no transaction is available, an error should be returned (such as io.EOF).
-type TxFactory[T any] func(ctx context.Context) (TxCandidate, T, error)
-
 type Queue[T any] struct {
 	ctx            context.Context
 	txMgr          TxManager
@@ -60,52 +56,33 @@ func (q *Queue[T]) Wait() {
 }
 
 // Send will wait until the number of pending txs is below the max pending,
-// and then send the next tx. The TxFactory should return an error if the
-// next tx does not exist, which will be returned from this method.
+// and then send the next tx.
 //
 // The actual tx sending is non-blocking, with the receipt returned on the
 // provided receipt channel.
-func (q *Queue[T]) Send(factory TxFactory[T], receiptCh chan TxReceipt[T]) error {
+func (q *Queue[T]) Send(id T, candidate TxCandidate, receiptCh chan TxReceipt[T]) {
 	group, ctx := q.groupContext()
-	factoryErrCh := make(chan error)
 	group.Go(func() error {
-		return q.sendTx(ctx, factory, factoryErrCh, receiptCh)
+		return q.sendTx(ctx, id, candidate, receiptCh)
 	})
-	return <-factoryErrCh
 }
 
 // TrySend sends the next tx, but only if the number of pending txs is below the
-// max pending, otherwise the TxFactory is not called (and no error is returned).
-// The TxFactory should return an error if the next tx does not exist, which is
-// returned from this method.
+// max pending.
 //
 // Returns false if there is no room in the queue to send. Otherwise, the
 // transaction is queued and this method returns true.
 //
 // The actual tx sending is non-blocking, with the receipt returned on the
 // provided receipt channel.
-func (q *Queue[T]) TrySend(factory TxFactory[T], receiptCh chan TxReceipt[T]) (bool, error) {
+func (q *Queue[T]) TrySend(id T, candidate TxCandidate, receiptCh chan TxReceipt[T]) bool {
 	group, ctx := q.groupContext()
-	factoryErrCh := make(chan error)
-	started := group.TryGo(func() error {
-		return q.sendTx(ctx, factory, factoryErrCh, receiptCh)
+	return group.TryGo(func() error {
+		return q.sendTx(ctx, id, candidate, receiptCh)
 	})
-	if !started {
-		return false, nil
-	}
-	err := <-factoryErrCh
-	return err == nil, err
 }
 
-func (q *Queue[T]) sendTx(ctx context.Context, factory TxFactory[T], factoryErrorCh chan error, receiptCh chan TxReceipt[T]) error {
-	candidate, id, err := factory(ctx)
-	factoryErrorCh <- err
-	if err != nil {
-		// Factory returned an error which was returned in the channel. This means
-		// there is no tx to send, so return nil.
-		return nil
-	}
-
+func (q *Queue[T]) sendTx(ctx context.Context, id T, candidate TxCandidate, receiptCh chan TxReceipt[T]) error {
 	q.pendingChanged(q.pending.Add(1))
 	defer func() {
 		q.pendingChanged(q.pending.Add(^uint64(0))) // -1

@@ -3,7 +3,6 @@ package txmgr
 import (
 	"context"
 	"fmt"
-	"io"
 	"math/big"
 	"testing"
 	"time"
@@ -18,27 +17,25 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-type queueFunc func(factory TxFactory[int], receiptCh chan TxReceipt[int], q *Queue[int]) (bool, error)
+type queueFunc func(id int, candidate TxCandidate, receiptCh chan TxReceipt[int], q *Queue[int]) bool
 
-func sendQueueFunc(factory TxFactory[int], receiptCh chan TxReceipt[int], q *Queue[int]) (bool, error) {
-	err := q.Send(factory, receiptCh)
-	return err == nil, err
+func sendQueueFunc(id int, candidate TxCandidate, receiptCh chan TxReceipt[int], q *Queue[int]) bool {
+	q.Send(id, candidate, receiptCh)
+	return true
 }
 
-func trySendQueueFunc(factory TxFactory[int], receiptCh chan TxReceipt[int], q *Queue[int]) (bool, error) {
-	return q.TrySend(factory, receiptCh)
+func trySendQueueFunc(id int, candidate TxCandidate, receiptCh chan TxReceipt[int], q *Queue[int]) bool {
+	return q.TrySend(id, candidate, receiptCh)
 }
 
 type queueCall struct {
-	call    queueFunc // queue call (either Send or TrySend, use function helpers above)
-	queued  bool      // true if the send was queued
-	callErr bool      // true if the call should return an error immediately
-	txErr   bool      // true if the tx send should return an error
+	call   queueFunc // queue call (either Send or TrySend, use function helpers above)
+	queued bool      // true if the send was queued
+	txErr  bool      // true if the tx send should return an error
 }
 
 type testTx struct {
-	factoryErr error // error to return from the factory for this tx
-	sendErr    bool  // error to return from send for this tx
+	sendErr bool // error to return from send for this tx
 }
 
 type testCase struct {
@@ -150,22 +147,6 @@ func TestSend(t *testing.T) {
 			total:  3 * time.Second,
 		},
 		{
-			name: "factory returns error",
-			max:  5,
-			calls: []queueCall{
-				{call: trySendQueueFunc, queued: true},
-				{call: trySendQueueFunc, callErr: true},
-				{call: trySendQueueFunc, queued: true},
-			},
-			txs: []testTx{
-				{},
-				{factoryErr: io.EOF},
-				{},
-			},
-			nonces: []uint64{0, 1},
-			total:  1 * time.Second,
-		},
-		{
 			name: "subsequent txs fail after tx failure",
 			max:  1,
 			calls: []queueCall{
@@ -219,23 +200,6 @@ func TestSend(t *testing.T) {
 			}
 			backend.setTxSender(sendTx)
 
-			// for each factory call, create a candidate from the given test case's tx data
-			txIndex := 0
-			factory := TxFactory[int](func(ctx context.Context) (TxCandidate, int, error) {
-				var testTx *testTx
-				if txIndex < len(test.txs) {
-					testTx = &test.txs[txIndex]
-				}
-				txIndex++
-				if testTx != nil && testTx.factoryErr != nil {
-					return TxCandidate{}, 0, testTx.factoryErr
-				}
-				return TxCandidate{
-					TxData: []byte{byte(txIndex - 1)},
-					To:     &common.Address{},
-				}, txIndex - 1, nil
-			})
-
 			ctx := context.Background()
 			queue := NewQueue[int](ctx, mgr, test.max, func(uint64) {})
 
@@ -245,13 +209,12 @@ func TestSend(t *testing.T) {
 				msg := fmt.Sprintf("Call %d", i)
 				c := c
 				receiptCh := make(chan TxReceipt[int], 1)
-				queued, err := c.call(factory, receiptCh, queue)
-				require.Equal(t, c.queued, queued, msg)
-				if c.callErr {
-					require.Error(t, err, msg)
-				} else {
-					require.NoError(t, err, msg)
+				candidate := TxCandidate{
+					TxData: []byte{byte(i)},
+					To:     &common.Address{},
 				}
+				queued := c.call(i, candidate, receiptCh, queue)
+				require.Equal(t, c.queued, queued, msg)
 				go func() {
 					r := <-receiptCh
 					if c.txErr {
@@ -270,8 +233,6 @@ func TestSend(t *testing.T) {
 			// check that the nonces match
 			slices.Sort(nonces)
 			require.Equal(t, test.nonces, nonces, "expected nonces do not match")
-			// check
-			require.Equal(t, len(test.txs), txIndex, "number of transactions sent does not match")
 		})
 	}
 }
