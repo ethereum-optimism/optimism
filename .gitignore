@@ -6,3 +6,4 @@ venv
 .idea
 *.log
 example/bin
+contracts/out
