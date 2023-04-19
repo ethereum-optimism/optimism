@@ -18,6 +18,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/preimage"
 )
 
+var (
+	ErrClaimNotValid = errors.New("invalid claim")
+)
+
 // ClientProgram executes the Program, while attached to an IO based pre-image oracle, to be served by a host.
 func ClientProgram(
 	logger log.Logger,
