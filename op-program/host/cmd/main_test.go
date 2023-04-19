@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"strconv"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
@@ -14,15 +15,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Use HexToHash(...).Hex() to ensure the strings are the correct length for a hash
-var l1HeadValue = common.HexToHash("0x111111").Hex()
-var l2HeadValue = common.HexToHash("0x222222").Hex()
-var l2ClaimValue = common.HexToHash("0x333333").Hex()
-var l2Genesis = core.DefaultGoerliGenesisBlock()
-var l2GenesisConfig = l2Genesis.Config
+var (
+	// Use HexToHash(...).Hex() to ensure the strings are the correct length for a hash
+	l1HeadValue        = common.HexToHash("0x111111").Hex()
+	l2HeadValue        = common.HexToHash("0x222222").Hex()
+	l2ClaimValue       = common.HexToHash("0x333333").Hex()
+	l2ClaimBlockNumber = uint64(1203)
+	l2Genesis          = core.DefaultGoerliGenesisBlock()
+	l2GenesisConfig    = l2Genesis.Config
+)
 
 func TestLogLevel(t *testing.T) {
-	t.Parallel()
 	t.Run("RejectInvalid", func(t *testing.T) {
 		verifyArgsInvalid(t, "unknown level: foo", addRequiredArgs(t, "--log.level=foo"))
 	})
@@ -38,19 +41,18 @@ func TestLogLevel(t *testing.T) {
 }
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
-	t.Parallel()
 	cfg := configForArgs(t, addRequiredArgs(t))
 	defaultCfg := config.NewConfig(
 		&chaincfg.Goerli,
 		l2GenesisConfig,
 		common.HexToHash(l1HeadValue),
 		common.HexToHash(l2HeadValue),
-		common.HexToHash(l2ClaimValue))
+		common.HexToHash(l2ClaimValue),
+		l2ClaimBlockNumber)
 	require.Equal(t, defaultCfg, cfg)
 }
 
 func TestNetwork(t *testing.T) {
-	t.Parallel()
 	t.Run("Unknown", func(t *testing.T) {
 		verifyArgsInvalid(t, "invalid network bar", replaceRequiredArg(t, "--network", "bar"))
 	})
@@ -86,21 +88,18 @@ func TestNetwork(t *testing.T) {
 }
 
 func TestDataDir(t *testing.T) {
-	t.Parallel()
 	expected := "/tmp/mainTestDataDir"
 	cfg := configForArgs(t, addRequiredArgs(t, "--datadir", expected))
 	require.Equal(t, expected, cfg.DataDir)
 }
 
 func TestL2(t *testing.T) {
-	t.Parallel()
 	expected := "https://example.com:8545"
 	cfg := configForArgs(t, addRequiredArgs(t, "--l2", expected))
 	require.Equal(t, expected, cfg.L2URL)
 }
 
 func TestL2Genesis(t *testing.T) {
-	t.Parallel()
 	t.Run("Required", func(t *testing.T) {
 		verifyArgsInvalid(t, "flag l2.genesis is required", addRequiredArgsExcept(t, "--l2.genesis"))
 	})
@@ -112,7 +111,6 @@ func TestL2Genesis(t *testing.T) {
 }
 
 func TestL2Head(t *testing.T) {
-	t.Parallel()
 	t.Run("Required", func(t *testing.T) {
 		verifyArgsInvalid(t, "flag l2.head is required", addRequiredArgsExcept(t, "--l2.head"))
 	})
@@ -128,7 +126,6 @@ func TestL2Head(t *testing.T) {
 }
 
 func TestL1Head(t *testing.T) {
-	t.Parallel()
 	t.Run("Required", func(t *testing.T) {
 		verifyArgsInvalid(t, "flag l1.head is required", addRequiredArgsExcept(t, "--l1.head"))
 	})
@@ -144,14 +141,12 @@ func TestL1Head(t *testing.T) {
 }
 
 func TestL1(t *testing.T) {
-	t.Parallel()
 	expected := "https://example.com:8545"
 	cfg := configForArgs(t, addRequiredArgs(t, "--l1", expected))
 	require.Equal(t, expected, cfg.L1URL)
 }
 
 func TestL1TrustRPC(t *testing.T) {
-	t.Parallel()
 	t.Run("DefaultFalse", func(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgs(t))
 		require.False(t, cfg.L1TrustRPC)
@@ -171,7 +166,6 @@ func TestL1TrustRPC(t *testing.T) {
 }
 
 func TestL1RPCKind(t *testing.T) {
-	t.Parallel()
 	t.Run("DefaultBasic", func(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgs(t))
 		require.Equal(t, sources.RPCKindBasic, cfg.L1RPCKind)
@@ -191,7 +185,6 @@ func TestL1RPCKind(t *testing.T) {
 }
 
 func TestL2Claim(t *testing.T) {
-	t.Parallel()
 	t.Run("Required", func(t *testing.T) {
 		verifyArgsInvalid(t, "flag l2.claim is required", addRequiredArgsExcept(t, "--l2.claim"))
 	})
@@ -203,6 +196,21 @@ func TestL2Claim(t *testing.T) {
 
 	t.Run("Invalid", func(t *testing.T) {
 		verifyArgsInvalid(t, config.ErrInvalidL2Claim.Error(), replaceRequiredArg(t, "--l2.claim", "something"))
+	})
+}
+
+func TestL2BlockNumber(t *testing.T) {
+	t.Run("Required", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag l2.blocknumber is required", addRequiredArgsExcept(t, "--l2.blocknumber"))
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		cfg := configForArgs(t, replaceRequiredArg(t, "--l2.blocknumber", strconv.FormatUint(l2ClaimBlockNumber, 10)))
+		require.EqualValues(t, l2ClaimBlockNumber, cfg.L2ClaimBlockNumber)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		verifyArgsInvalid(t, "invalid value \"something\" for flag -l2.blocknumber", replaceRequiredArg(t, "--l2.blocknumber", "something"))
 	})
 }
 
@@ -218,7 +226,7 @@ func configForArgs(t *testing.T, cliArgs []string) *config.Config {
 }
 
 func runWithArgs(cliArgs []string) (log.Logger, *config.Config, error) {
-	var cfg *config.Config
+	cfg := new(config.Config)
 	var logger log.Logger
 	fullArgs := append([]string{"op-program"}, cliArgs...)
 	err := run(fullArgs, func(log log.Logger, config *config.Config) error {
@@ -252,11 +260,12 @@ func replaceRequiredArg(t *testing.T, name string, value string) []string {
 func requiredArgs(t *testing.T) map[string]string {
 	genesisFile := writeValidGenesis(t)
 	return map[string]string{
-		"--network":    "goerli",
-		"--l1.head":    l1HeadValue,
-		"--l2.head":    l2HeadValue,
-		"--l2.claim":   l2ClaimValue,
-		"--l2.genesis": genesisFile,
+		"--network":        "goerli",
+		"--l1.head":        l1HeadValue,
+		"--l2.head":        l2HeadValue,
+		"--l2.claim":       l2ClaimValue,
+		"--l2.blocknumber": strconv.FormatUint(l2ClaimBlockNumber, 10),
+		"--l2.genesis":     genesisFile,
 	}
 }
 

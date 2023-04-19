@@ -23,6 +23,7 @@ var (
 	ErrInvalidL2Head       = errors.New("invalid l2 head")
 	ErrL1AndL2Inconsistent = errors.New("l1 and l2 options must be specified together or both omitted")
 	ErrInvalidL2Claim      = errors.New("invalid l2 claim")
+	ErrInvalidL2ClaimBlock = errors.New("invalid l2 claim block number")
 	ErrDataDirRequired     = errors.New("datadir must be specified when in non-fetching mode")
 )
 
@@ -43,6 +44,9 @@ type Config struct {
 	L2URL  string
 	// L2Claim is the claimed L2 output root to verify
 	L2Claim common.Hash
+	// L2ClaimBlockNumber is the block number the claimed L2 output root is from
+	// Must be above 0 and to be a valid claim needs to be above the L2Head block.
+	L2ClaimBlockNumber uint64
 	// L2ChainConfig is the op-geth chain config for the L2 execution engine
 	L2ChainConfig *params.ChainConfig
 }
@@ -63,6 +67,9 @@ func (c *Config) Check() error {
 	if c.L2Claim == (common.Hash{}) {
 		return ErrInvalidL2Claim
 	}
+	if c.L2ClaimBlockNumber == 0 {
+		return ErrInvalidL2ClaimBlock
+	}
 	if c.L2ChainConfig == nil {
 		return ErrMissingL2Genesis
 	}
@@ -80,14 +87,15 @@ func (c *Config) FetchingEnabled() bool {
 }
 
 // NewConfig creates a Config with all optional values set to the CLI default value
-func NewConfig(rollupCfg *rollup.Config, l2Genesis *params.ChainConfig, l1Head common.Hash, l2Head common.Hash, l2Claim common.Hash) *Config {
+func NewConfig(rollupCfg *rollup.Config, l2Genesis *params.ChainConfig, l1Head common.Hash, l2Head common.Hash, l2Claim common.Hash, l2ClaimBlockNum uint64) *Config {
 	return &Config{
-		Rollup:        rollupCfg,
-		L2ChainConfig: l2Genesis,
-		L1Head:        l1Head,
-		L2Head:        l2Head,
-		L2Claim:       l2Claim,
-		L1RPCKind:     sources.RPCKindBasic,
+		Rollup:             rollupCfg,
+		L2ChainConfig:      l2Genesis,
+		L1Head:             l1Head,
+		L2Head:             l2Head,
+		L2Claim:            l2Claim,
+		L2ClaimBlockNumber: l2ClaimBlockNum,
+		L1RPCKind:          sources.RPCKindBasic,
 	}
 }
 
@@ -107,6 +115,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 	if l2Claim == (common.Hash{}) {
 		return nil, ErrInvalidL2Claim
 	}
+	l2ClaimBlockNum := ctx.GlobalUint64(flags.L2BlockNumber.Name)
 	l1Head := common.HexToHash(ctx.GlobalString(flags.L1Head.Name))
 	if l1Head == (common.Hash{}) {
 		return nil, ErrInvalidL1Head
@@ -117,16 +126,17 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 		return nil, fmt.Errorf("invalid genesis: %w", err)
 	}
 	return &Config{
-		Rollup:        rollupCfg,
-		DataDir:       ctx.GlobalString(flags.DataDir.Name),
-		L2URL:         ctx.GlobalString(flags.L2NodeAddr.Name),
-		L2ChainConfig: l2ChainConfig,
-		L2Head:        l2Head,
-		L2Claim:       l2Claim,
-		L1Head:        l1Head,
-		L1URL:         ctx.GlobalString(flags.L1NodeAddr.Name),
-		L1TrustRPC:    ctx.GlobalBool(flags.L1TrustRPC.Name),
-		L1RPCKind:     sources.RPCProviderKind(ctx.GlobalString(flags.L1RPCProviderKind.Name)),
+		Rollup:             rollupCfg,
+		DataDir:            ctx.GlobalString(flags.DataDir.Name),
+		L2URL:              ctx.GlobalString(flags.L2NodeAddr.Name),
+		L2ChainConfig:      l2ChainConfig,
+		L2Head:             l2Head,
+		L2Claim:            l2Claim,
+		L2ClaimBlockNumber: l2ClaimBlockNum,
+		L1Head:             l1Head,
+		L1URL:              ctx.GlobalString(flags.L1NodeAddr.Name),
+		L1TrustRPC:         ctx.GlobalBool(flags.L1TrustRPC.Name),
+		L1RPCKind:          sources.RPCProviderKind(ctx.GlobalString(flags.L1RPCProviderKind.Name)),
 	}, nil
 }
 
