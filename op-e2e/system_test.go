@@ -132,37 +132,20 @@ func TestSystemE2E(t *testing.T) {
 	// Send Transaction & wait for success
 	fromAddr := sys.cfg.Secrets.Addresses().Alice
 
-	// Find deposit contract
-	depositContract, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)
-	require.Nil(t, err)
-
-	// Create signer
-	opts, err := bind.NewKeyedTransactorWithChainID(ethPrivKey, cfg.L1ChainIDBig())
-	require.Nil(t, err)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	startBalance, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 
-	// Finally send TX
+	// Send deposit transaction
+	opts, err := bind.NewKeyedTransactorWithChainID(ethPrivKey, cfg.L1ChainIDBig())
+	require.Nil(t, err)
 	mintAmount := big.NewInt(1_000_000_000_000)
 	opts.Value = mintAmount
-	tx, err := depositContract.DepositTransaction(opts, fromAddr, common.Big0, 1_000_000, false, nil)
-	require.Nil(t, err, "with deposit tx")
-
-	receipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.Nil(t, err, "Waiting for deposit tx on L1")
-
-	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
-	require.NoError(t, err, "Could not reconstruct L2 Deposit")
-	tx = types.NewTx(reconstructedDep)
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 6*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.NoError(t, err)
-	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
+	SendDepositTx(t, cfg, l1Client, l2Verif, opts, func(l2Opts *DepositTxOpts) {})
 
 	// Confirm balance
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	endBalance, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
@@ -173,7 +156,7 @@ func TestSystemE2E(t *testing.T) {
 
 	// Submit TX to L2 sequencer node
 	toAddr := common.Address{0xff, 0xff}
-	tx = types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
+	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
 		ChainID:   cfg.L2ChainIDBig(),
 		Nonce:     1, // Already have deposit
 		To:        &toAddr,
@@ -188,7 +171,7 @@ func TestSystemE2E(t *testing.T) {
 	_, err = waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	receipt, err := waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on verifier")
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "TX should have succeeded")
 
@@ -356,9 +339,6 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	l1Client := sys.Clients["l1"]
 	l2Verif := sys.Clients["verifier"]
 
-	// Find deposit contract
-	depositContract, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)
-	require.Nil(t, err)
 	l1Node := sys.Nodes["l1"]
 
 	// create signer
@@ -380,19 +360,12 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	toAddr := common.Address{0xff, 0xff}
 	mintAmount := big.NewInt(9_000_000)
 	opts.Value = mintAmount
-	value := new(big.Int).Mul(common.Big2, startBalance) // trigger a revert by transferring more than we have available
-	tx, err := depositContract.DepositTransaction(opts, toAddr, value, 1_000_000, false, nil)
-	require.Nil(t, err, "with deposit tx")
-
-	receipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.Nil(t, err, "Waiting for deposit tx on L1")
-
-	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
-	require.NoError(t, err, "Could not reconstruct L2 Deposit")
-	tx = types.NewTx(reconstructedDep)
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.NoError(t, err)
-	require.Equal(t, receipt.Status, types.ReceiptStatusFailed)
+	SendDepositTx(t, cfg, l1Client, l2Verif, opts, func(l2Opts *DepositTxOpts) {
+		l2Opts.ToAddr = toAddr
+		// trigger a revert by transferring more than we have available
+		l2Opts.Value = new(big.Int).Mul(common.Big2, startBalance)
+		l2Opts.ExpectedStatus = types.ReceiptStatusFailed
+	})
 
 	// Confirm balance
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
@@ -1130,10 +1103,6 @@ func TestWithdrawals(t *testing.T) {
 	ethPrivKey := cfg.Secrets.Alice
 	fromAddr := crypto.PubkeyToAddress(ethPrivKey.PublicKey)
 
-	// Find deposit contract
-	depositContract, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)
-	require.Nil(t, err)
-
 	// Create L1 signer
 	opts, err := bind.NewKeyedTransactorWithChainID(ethPrivKey, cfg.L1ChainIDBig())
 	require.Nil(t, err)
@@ -1144,26 +1113,16 @@ func TestWithdrawals(t *testing.T) {
 	startBalance, err := l2Verif.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 
-	// Finally send TX
+	// Send deposit tx
 	mintAmount := big.NewInt(1_000_000_000_000)
 	opts.Value = mintAmount
-	tx, err := depositContract.DepositTransaction(opts, fromAddr, common.Big0, 1_000_000, false, nil)
-	require.Nil(t, err, "with deposit tx")
-
-	receipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.Nil(t, err, "Waiting for deposit tx on L1")
+	SendDepositTx(t, cfg, l1Client, l2Verif, opts, func(l2Opts *DepositTxOpts) {
+		l2Opts.Value = common.Big0
+	})
 
 	// Bind L2 Withdrawer Contract
 	l2withdrawer, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, l2Seq)
 	require.Nil(t, err, "binding withdrawer on L2")
-
-	// Wait for deposit to arrive
-	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
-	require.NoError(t, err, "Could not reconstruct L2 Deposit")
-	tx = types.NewTx(reconstructedDep)
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.NoError(t, err)
-	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
 
 	// Confirm L2 balance
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
@@ -1186,10 +1145,10 @@ func TestWithdrawals(t *testing.T) {
 	l2opts, err := bind.NewKeyedTransactorWithChainID(ethPrivKey, cfg.L2ChainIDBig())
 	require.Nil(t, err)
 	l2opts.Value = withdrawAmount
-	tx, err = l2withdrawer.InitiateWithdrawal(l2opts, fromAddr, big.NewInt(21000), nil)
+	tx, err := l2withdrawer.InitiateWithdrawal(l2opts, fromAddr, big.NewInt(21000), nil)
 	require.Nil(t, err, "sending initiate withdraw tx")
 
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	receipt, err := waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "withdrawal initiated on L2 sequencer")
 	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
 
