@@ -18,7 +18,7 @@ import (
 )
 
 func TestVerifyL2OutputRoot(t *testing.T) {
-	parallel(t)
+	InitParallel(t)
 	ctx := context.Background()
 
 	cfg := DefaultSystemConfig(t)
