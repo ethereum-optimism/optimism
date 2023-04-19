@@ -100,15 +100,15 @@ func (cc *ChannelConfig) Check() error {
 
 func (cc *ChannelConfig) NewCompressor() (derive.Compressor, error) {
 	switch cc.CompressorKind {
-	case flags.CompressorTarget:
+	case flags.CompressorShadow:
+		return NewShadowCompressor(
+			cc.MaxFrameSize,
+		)
+	default:
 		return NewTargetSizeCompressor(
 			cc.TargetFrameSize,
 			cc.TargetNumFrames,
 			cc.ApproxComprRatio,
-		)
-	default:
-		return NewShadowCompressor(
-			cc.MaxFrameSize,
 		)
 	}
 }
