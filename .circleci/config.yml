@@ -321,7 +321,7 @@ jobs:
     resource_class: large
     steps:
       - checkout
-      - attach_workspace: { at: '.' }
+      - attach_workspace: { at: "." }
       - restore_cache:
           name: Restore Yarn Package Cache
           keys:
