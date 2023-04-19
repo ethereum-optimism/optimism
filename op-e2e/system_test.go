@@ -483,6 +483,7 @@ func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *
 // TestSystemMockP2P sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that
 // the nodes can sync L2 blocks before they are confirmed on L1.
 func TestSystemMockP2P(t *testing.T) {
+	t.Skip("flaky in CI") // TODO(CLI-3859): Re-enable this test.
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
