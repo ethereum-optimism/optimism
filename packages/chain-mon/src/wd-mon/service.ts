@@ -142,7 +142,7 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
         section: 'getBlockNumber',
       })
       this.metrics.nodeConnectionFailures.inc({
-        chainId: this.state.messenger.l1ChainId,
+        layer: 'l1',
         section: 'getBlockNumber',
       })
       await sleep(this.options.sleepTimeMs)
