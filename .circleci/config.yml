@@ -1144,7 +1144,7 @@ workflows:
           requires:
             - yarn-monorepo
       - sdk-next-tests:
-          name: sdk-tests
+          name: sdk-next-tests
           requires:
             - yarn-monorepo
       - js-lint-test:
