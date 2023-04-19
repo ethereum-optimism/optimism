@@ -201,6 +201,7 @@ func TestSend(t *testing.T) {
 				metr:    &metrics.NoopTxMetrics{},
 			}
 
+			// track the nonces, and return any expected errors from tx sending
 			var nonces []uint64
 			sendTx := func(ctx context.Context, tx *types.Transaction) error {
 				index := int(tx.Data()[0])
@@ -218,9 +219,7 @@ func TestSend(t *testing.T) {
 			}
 			backend.setTxSender(sendTx)
 
-			ctx := context.Background()
-			queue := NewQueue[int](mgr, test.max, func(uint64) {})
-
+			// for each factory call, create a candidate from the given test case's tx data
 			txIndex := 0
 			factory := TxFactory[int](func(ctx context.Context) (TxCandidate, int, error) {
 				var testTx *testTx
@@ -237,6 +236,10 @@ func TestSend(t *testing.T) {
 				}, txIndex - 1, nil
 			})
 
+			ctx := context.Background()
+			queue := NewQueue[int](mgr, test.max, func(uint64) {})
+
+			// make all the queue calls given in the test case
 			start := time.Now()
 			for i, c := range test.calls {
 				msg := fmt.Sprintf("Call %d", i)
@@ -258,13 +261,17 @@ func TestSend(t *testing.T) {
 					}
 				}()
 			}
+			// wait for the queue to drain (all txs complete or failed)
 			queue.Wait()
-			duration := time.Now().Sub(start)
-			require.Greater(t, duration, test.total)
-			require.Less(t, duration, test.total+500*time.Millisecond)
+			duration := time.Since(start)
+			// expect the execution time within a certain window
+			require.Greater(t, duration, test.total, "test was faster than expected")
+			require.Less(t, duration, test.total+500*time.Millisecond, "test was slower than expected")
+			// check that the nonces match
 			slices.Sort(nonces)
-			require.Equal(t, test.nonces, nonces)
-			require.Equal(t, len(test.txs), txIndex)
+			require.Equal(t, test.nonces, nonces, "expected nonces do not match")
+			// check
+			require.Equal(t, len(test.txs), txIndex, "number of transactions sent does not match")
 		})
 	}
 }
