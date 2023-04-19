@@ -370,52 +370,48 @@ func (l *BatchSubmitter) handleReceipt(r txmgr.TxReceipt[txData]) {
 	}
 }
 
-// publishStateToL1Factory produces a publishStateToL1Job job
+// publishStateToL1Factory returns a txmgr factory function that pulls the block data
+// loaded into `state`, and returns a txmgr transaction candidate that can be used to
+// submit the associated data to the L1 in the form of channel frames. The factory
+// will return an io.EOF error if no data is available.
 func (l *BatchSubmitter) publishStateToL1Factory() txmgr.TxFactory[txData] {
 	return func(ctx context.Context) (txmgr.TxCandidate, txData, error) {
-		return l.publishStateToL1Job(ctx)
-	}
-}
+		// this is called from a separate goroutine in the txmgr.Queue,
+		// so lock to prevent concurrent access to the state
+		l.publishLock.Lock()
+		defer l.publishLock.Unlock()
 
-// publishStateToL1Job pulls the block data loaded into `state`, and returns a function that
-// will submit the associated data to the L1 in the form of channel frames when called.
-// Returns an io.EOF error if no data is available.
-func (l *BatchSubmitter) publishStateToL1Job(ctx context.Context) (txmgr.TxCandidate, txData, error) {
-	// this is called from a separate goroutine in the tx queue, so we need
-	// to lock to prevent concurrent access to the state
-	l.publishLock.Lock()
-	defer l.publishLock.Unlock()
+		l1tip, err := l.l1Tip(ctx)
+		if err != nil {
+			l.log.Error("Failed to query L1 tip", "error", err)
+			return txmgr.TxCandidate{}, txData{}, err
+		}
+		l.recordL1Tip(l1tip)
 
-	l1tip, err := l.l1Tip(ctx)
-	if err != nil {
-		l.log.Error("Failed to query L1 tip", "error", err)
-		return txmgr.TxCandidate{}, txData{}, err
-	}
-	l.recordL1Tip(l1tip)
+		// Collect next transaction data
+		txdata, err := l.state.TxData(l1tip.ID())
+		if err == io.EOF {
+			l.log.Trace("no transaction data available")
+			return txmgr.TxCandidate{}, txData{}, err
+		} else if err != nil {
+			l.log.Error("unable to get tx data", "err", err)
+			return txmgr.TxCandidate{}, txData{}, err
+		}
 
-	// Collect next transaction data
-	txdata, err := l.state.TxData(l1tip.ID())
-	if err == io.EOF {
-		l.log.Trace("no transaction data available")
-		return txmgr.TxCandidate{}, txData{}, err
-	} else if err != nil {
-		l.log.Error("unable to get tx data", "err", err)
-		return txmgr.TxCandidate{}, txData{}, err
-	}
+		// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
+		data := txdata.Bytes()
+		intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
+		if err != nil {
+			return txmgr.TxCandidate{}, txData{}, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
+		}
 
-	// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
-	data := txdata.Bytes()
-	intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
-	if err != nil {
-		return txmgr.TxCandidate{}, txData{}, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
+		candidate := txmgr.TxCandidate{
+			To:       &l.Rollup.BatchInboxAddress,
+			TxData:   data,
+			GasLimit: intrinsicGas,
+		}
+		return candidate, txdata, nil
 	}
-
-	candidate := txmgr.TxCandidate{
-		To:       &l.Rollup.BatchInboxAddress,
-		TxData:   data,
-		GasLimit: intrinsicGas,
-	}
-	return candidate, txdata, nil
 }
 
 func (l *BatchSubmitter) recordL1Tip(l1tip eth.L1BlockRef) {
