@@ -92,7 +92,7 @@ contract ExternalRelay is CommonTest {
     /**
      * @notice Helper function to get the callData for an `externalCallWithMinGas
      */
-    function getCallData() public returns (bytes memory) {
+    function getCallData() public pure returns (bytes memory) {
         return abi.encodeWithSelector(ExternalRelay.externalCallWithMinGas.selector);
     }
 
