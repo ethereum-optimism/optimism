@@ -535,6 +535,55 @@ jobs:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
 
+  sdk-next-tests:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - check-changed:
+          patterns: sdk,contracts-bedrock,contracts
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - run:
+          name: anvil-l1
+          background: true
+          # atm this is goerli but we should use mainnet after bedrock is live
+          command: anvil --fork-url $ANVIL_L1_FORK_URL --fork-block-number 8847426
+      - run:
+          name: anvil-l2
+          background: true
+          # atm this is goerli but we should use mainnet after bedrock is live
+          command: anvil --fork-url $ANVIL_L2_FORK_URL --port 9545 --fork-block-number 8172732
+      - run:
+          name: build
+          command: yarn build
+          working_directory: packages/atst
+      - run:
+          name: lint
+          command: yarn lint:check
+          working_directory: packages/atst
+      - run:
+          name: make sure anvil l1 is up
+          command: npx wait-on tcp:8545 && cast block-number --rpc-url http://localhost:8545
+      - run:
+          name: make sure anvil l2 is up
+          command: npx wait-on tcp:9545 && cast block-number --rpc-url http://localhost:9545
+      - run:
+          name: test:next
+          command: yarn test:next
+          no_output_timeout: 5m
+          working_directory: packages/sdk
+          environment:
+            # anvil[0] test private key
+            VITE_E2E_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+            VITE_E2E_RPC_URL_L1: http://localhost:8545
+            VITE_E2E_RPC_URL_L2: http://localhost:9545
+
+
   bedrock-markdown:
     machine:
       image: ubuntu-2204:2022.07.1
@@ -1092,6 +1141,10 @@ workflows:
           coverage_flag: replica-healthcheck-tests
           package_name: replica-healthcheck
           dependencies: "(common-ts|core-utils)"
+          requires:
+            - yarn-monorepo
+      - sdk-next-tests:
+          name: sdk-next-tests
           requires:
             - yarn-monorepo
       - js-lint-test:
