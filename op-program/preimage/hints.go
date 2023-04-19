@@ -55,6 +55,8 @@ func (hr *HintReader) NextHint(router func(hint string) error) error {
 		}
 	}
 	if err := router(string(payload)); err != nil {
+		// stream recovery
+		_, _ = hr.r.Read([]byte{0})
 		return fmt.Errorf("failed to handle hint: %w", err)
 	}
 	if _, err := hr.r.Read([]byte{0}); err != nil {

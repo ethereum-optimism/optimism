@@ -96,17 +96,12 @@ func MigrateWithdrawal(withdrawal *LegacyWithdrawal, l1CrossDomainMessenger *com
 	return w, nil
 }
 
+// MigrateWithdrawalGasLimit computes the gas limit for the migrated withdrawal.
 func MigrateWithdrawalGasLimit(data []byte) uint64 {
-	// Compute the cost of the calldata
-	dataCost := uint64(0)
-	for _, b := range data {
-		if b == 0 {
-			dataCost += params.TxDataZeroGas
-		} else {
-			dataCost += params.TxDataNonZeroGasEIP2028
-		}
-	}
-
+	// Compute the upper bound on the gas limit. This could be more
+	// accurate if individual 0 bytes and non zero bytes were accounted
+	// for.
+	dataCost := uint64(len(data)) * params.TxDataNonZeroGasEIP2028
 	// Set the outer gas limit. This cannot be zero
 	gasLimit := dataCost + 200_000
 	// Cap the gas limit to be 25 million to prevent creating withdrawals

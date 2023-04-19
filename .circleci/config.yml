@@ -60,7 +60,7 @@ commands:
 jobs:
   yarn-monorepo:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: large
     steps:
       - checkout
@@ -286,7 +286,7 @@ jobs:
           command: |
             ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
-  contracts-bedrock-tests:
+  contracts-bedrock-coverage:
     docker:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: large
@@ -304,9 +304,8 @@ jobs:
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
-          name: test and generate coverage
+          name: generate coverage report
           command: yarn coverage:lcov
-          no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -316,9 +315,33 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
 
+  contracts-bedrock-tests:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: print forge version
+          command: forge --version
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: run tests
+          command: yarn test
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+
   contracts-bedrock-checks:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -378,7 +401,7 @@ jobs:
 
   contracts-bedrock-slither:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: large
     steps:
       - checkout
@@ -398,7 +421,7 @@ jobs:
 
   contracts-bedrock-validate-spaces:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -415,7 +438,7 @@ jobs:
 
   bedrock-echidna-build:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -433,7 +456,7 @@ jobs:
 
   bedrock-echidna-run:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     parameters:
       echidna_target:
         description: Which echidna fuzz contract to run
@@ -460,7 +483,7 @@ jobs:
 
   op-bindings-build:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: medium
     steps:
       - checkout
@@ -489,7 +512,7 @@ jobs:
         description: Coverage flag name
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: large
     steps:
       - checkout
@@ -535,7 +558,7 @@ jobs:
 
   fuzz-op-node:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - check-changed:
@@ -547,7 +570,7 @@ jobs:
 
   depcheck:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -609,7 +632,7 @@ jobs:
         description: Go Module Name
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest # only used to enable codecov.
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest # only used to enable codecov.
     resource_class: xlarge
     steps:
       - checkout
@@ -637,7 +660,7 @@ jobs:
         description: If the op-e2e package should use HTTP clients
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: xlarge
     steps:
       - checkout
@@ -676,7 +699,7 @@ jobs:
         type: string
         default: this-package-does-not-exist
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
       - image: cimg/postgres:14.1
     steps:
       - checkout
@@ -705,7 +728,7 @@ jobs:
 
   geth-tests:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - check-changed:
@@ -925,7 +948,7 @@ jobs:
 
   go-mod-tidy:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - run:
@@ -1005,6 +1028,9 @@ workflows:
           requires:
             - yarn-monorepo
       - contracts-bedrock-tests:
+          requires:
+            - yarn-monorepo
+      - contracts-bedrock-coverage:
           requires:
             - yarn-monorepo
       - contracts-bedrock-checks:
@@ -1371,3 +1397,18 @@ workflows:
             - oplabs-gcr-release
           requires:
             - hold
+  release-ci-builder:
+    jobs:
+      - docker-publish:
+          name: ci-builder-docker-publish
+          filters:
+            tags:
+              only: /^ci-builder\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: ./ops/docker/ci-builder/Dockerfile
+          docker_name: ci-builder
+          docker_tags: <<pipeline.git.revision>>,latest
+          docker_context: ./ops/docker/ci-builder
+          context:
+            - oplabs-gcr

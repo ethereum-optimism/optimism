@@ -26,6 +26,11 @@ var (
 		Usage:  fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
 		EnvVar: service.PrefixEnvVar(envVarPrefix, "NETWORK"),
 	}
+	DataDir = cli.StringFlag{
+		Name:   "datadir",
+		Usage:  "Directory to use for preimage data storage. Default uses in-memory storage",
+		EnvVar: service.PrefixEnvVar(envVarPrefix, "DATADIR"),
+	}
 	L2NodeAddr = cli.StringFlag{
 		Name:   "l2",
 		Usage:  "Address of L2 JSON-RPC endpoint to use (eth and debug namespace required)",
@@ -45,6 +50,11 @@ var (
 		Name:   "l2.claim",
 		Usage:  "Claimed L2 output root to validate",
 		EnvVar: service.PrefixEnvVar(envVarPrefix, "L2_CLAIM"),
+	}
+	L2BlockNumber = cli.Uint64Flag{
+		Name:   "l2.blocknumber",
+		Usage:  "Number of the L2 block that the claim is from",
+		EnvVar: service.PrefixEnvVar(envVarPrefix, "L2_BLOCK_NUM"),
 	}
 	L2GenesisPath = cli.StringFlag{
 		Name:   "l2.genesis",
@@ -80,11 +90,13 @@ var requiredFlags = []cli.Flag{
 	L1Head,
 	L2Head,
 	L2Claim,
+	L2BlockNumber,
 	L2GenesisPath,
 }
 var programFlags = []cli.Flag{
 	RollupConfig,
 	Network,
+	DataDir,
 	L2NodeAddr,
 	L1NodeAddr,
 	L1TrustRPC,
@@ -107,7 +119,7 @@ func CheckRequired(ctx *cli.Context) error {
 		return fmt.Errorf("cannot specify both %s and %s", RollupConfig.Name, Network.Name)
 	}
 	for _, flag := range requiredFlags {
-		if ctx.GlobalString(flag.GetName()) == "" {
+		if !ctx.IsSet(flag.GetName()) {
 			return fmt.Errorf("flag %s is required", flag.GetName())
 		}
 	}

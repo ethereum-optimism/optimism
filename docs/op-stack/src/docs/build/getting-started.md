@@ -221,7 +221,7 @@ Once you’ve configured your network, it’s time to deploy the L1 smart contra
 1. Once you’re ready, deploy the L1 smart contracts:
 
     ```bash
-    npx hardhat deploy --network getting-started
+    npx hardhat deploy --network getting-started --tags l1
     ```
 
 Contract deployment can take up to 15 minutes. Please wait for all smart contracts to be fully deployed before continuing to the next step.

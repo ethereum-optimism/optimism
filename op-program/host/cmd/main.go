@@ -1,21 +1,12 @@
 package main
 
 import (
-	"context"
-	"errors"
 	"fmt"
-	"io"
 	"os"
-	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	cldr "github.com/ethereum-optimism/optimism/op-program/client/driver"
+	"github.com/ethereum-optimism/optimism/op-program/host"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
-	"github.com/ethereum-optimism/optimism/op-program/host/l1"
-	"github.com/ethereum-optimism/optimism/op-program/host/l2"
 	"github.com/ethereum-optimism/optimism/op-program/host/version"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/log"
@@ -42,15 +33,13 @@ var VersionWithMeta = func() string {
 	return v
 }()
 
-var (
-	ErrClaimNotValid = errors.New("invalid claim")
-)
-
 func main() {
 	args := os.Args
-	err := run(args, FaultProofProgram)
+	err := run(args, host.FaultProofProgram)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
+	} else {
+		log.Info("Claim successfully verified")
 	}
 }
 
@@ -94,44 +83,4 @@ func setupLogging(ctx *cli.Context) (log.Logger, error) {
 	}
 	logger := oplog.NewLogger(logCfg)
 	return logger, nil
-}
-
-// FaultProofProgram is the programmatic entry-point for the fault proof program
-func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
-	cfg.Rollup.LogDescription(logger, chaincfg.L2ChainIDToNetworkName)
-	if !cfg.FetchingEnabled() {
-		return errors.New("offline mode not supported")
-	}
-
-	ctx := context.Background()
-	logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
-	l1Source, err := l1.NewFetchingL1(ctx, logger, cfg)
-	if err != nil {
-		return fmt.Errorf("connect l1 oracle: %w", err)
-	}
-
-	logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
-	l2Source, err := l2.NewFetchingEngine(ctx, logger, cfg)
-	if err != nil {
-		return fmt.Errorf("connect l2 oracle: %w", err)
-	}
-
-	d := cldr.NewDriver(logger, cfg.Rollup, l1Source, l2Source)
-	for {
-		if err = d.Step(ctx); errors.Is(err, io.EOF) {
-			break
-		} else if cfg.FetchingEnabled() && errors.Is(err, derive.ErrTemporary) {
-			// When in fetching mode, recover from temporary errors to allow us to keep fetching data
-			// TODO(CLI-3780) Ideally the retry would happen in the fetcher so this is not needed
-			logger.Warn("Temporary error in pipeline", "err", err)
-			time.Sleep(5 * time.Second)
-		} else if err != nil {
-			return err
-		}
-	}
-	claim := cfg.L2Claim
-	if !d.ValidateClaim(eth.Bytes32(claim)) {
-		return ErrClaimNotValid
-	}
-	return nil
 }

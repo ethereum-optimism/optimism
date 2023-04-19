@@ -6,16 +6,21 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
-var validRollupConfig = &chaincfg.Goerli
-var validL2GenesisPath = "genesis.json"
-var validL1Head = common.Hash{0xaa}
-var validL2Head = common.Hash{0xbb}
-var validL2Claim = common.Hash{0xcc}
+var (
+	validRollupConfig    = &chaincfg.Goerli
+	validL2Genesis       = params.GoerliChainConfig
+	validL1Head          = common.Hash{0xaa}
+	validL2Head          = common.Hash{0xbb}
+	validL2Claim         = common.Hash{0xcc}
+	validL2ClaimBlockNum = uint64(15)
+)
 
-func TestDefaultConfigIsValid(t *testing.T) {
+// TestValidConfigIsValid checks that the config provided by validConfig is actually valid
+func TestValidConfigIsValid(t *testing.T) {
 	err := validConfig().Check()
 	require.NoError(t, err)
 }
@@ -57,9 +62,16 @@ func TestL2ClaimRequired(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidL2Claim)
 }
 
+func TestL2ClaimBlockNumberRequired(t *testing.T) {
+	config := validConfig()
+	config.L2ClaimBlockNumber = 0
+	err := config.Check()
+	require.ErrorIs(t, err, ErrInvalidL2ClaimBlock)
+}
+
 func TestL2GenesisRequired(t *testing.T) {
 	config := validConfig()
-	config.L2GenesisPath = ""
+	config.L2ChainConfig = nil
 	err := config.Check()
 	require.ErrorIs(t, err, ErrMissingL2Genesis)
 }
@@ -121,6 +133,17 @@ func TestFetchingEnabled(t *testing.T) {
 	})
 }
 
+func TestRequireDataDirInNonFetchingMode(t *testing.T) {
+	cfg := validConfig()
+	cfg.DataDir = ""
+	cfg.L1URL = ""
+	cfg.L2URL = ""
+	err := cfg.Check()
+	require.ErrorIs(t, err, ErrDataDirRequired)
+}
+
 func validConfig() *Config {
-	return NewConfig(validRollupConfig, validL2GenesisPath, validL1Head, validL2Head, validL2Claim)
+	cfg := NewConfig(validRollupConfig, validL2Genesis, validL1Head, validL2Head, validL2Claim, validL2ClaimBlockNum)
+	cfg.DataDir = "/tmp/configTest"
+	return cfg
 }
