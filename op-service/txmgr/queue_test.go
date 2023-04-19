@@ -18,15 +18,15 @@ import (
 	"golang.org/x/exp/slices"
 )
 
-type queueFunc func(ctx context.Context, factory TxFactory[int], receiptCh chan TxReceipt[int], q *Queue[int]) (bool, error)
+type queueFunc func(factory TxFactory[int], receiptCh chan TxReceipt[int], q *Queue[int]) (bool, error)
 
-func sendQueueFunc(ctx context.Context, factory TxFactory[int], receiptCh chan TxReceipt[int], q *Queue[int]) (bool, error) {
-	err := q.Send(ctx, factory, receiptCh)
+func sendQueueFunc(factory TxFactory[int], receiptCh chan TxReceipt[int], q *Queue[int]) (bool, error) {
+	err := q.Send(factory, receiptCh)
 	return err == nil, err
 }
 
-func trySendQueueFunc(ctx context.Context, factory TxFactory[int], receiptCh chan TxReceipt[int], q *Queue[int]) (bool, error) {
-	return q.TrySend(ctx, factory, receiptCh)
+func trySendQueueFunc(factory TxFactory[int], receiptCh chan TxReceipt[int], q *Queue[int]) (bool, error) {
+	return q.TrySend(factory, receiptCh)
 }
 
 type queueCall struct {
@@ -237,7 +237,7 @@ func TestSend(t *testing.T) {
 			})
 
 			ctx := context.Background()
-			queue := NewQueue[int](mgr, test.max, func(uint64) {})
+			queue := NewQueue[int](ctx, mgr, test.max, func(uint64) {})
 
 			// make all the queue calls given in the test case
 			start := time.Now()
@@ -245,7 +245,7 @@ func TestSend(t *testing.T) {
 				msg := fmt.Sprintf("Call %d", i)
 				c := c
 				receiptCh := make(chan TxReceipt[int], 1)
-				queued, err := c.call(ctx, factory, receiptCh, queue)
+				queued, err := c.call(factory, receiptCh, queue)
 				require.Equal(t, c.queued, queued, msg)
 				if c.callErr {
 					require.Error(t, err, msg)

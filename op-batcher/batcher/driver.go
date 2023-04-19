@@ -293,14 +293,14 @@ func (l *BatchSubmitter) loop() {
 	defer publishTicker.Stop()
 
 	receiptsCh := make(chan txmgr.TxReceipt[txData])
-	queue := txmgr.NewQueue[txData](l.txMgr, l.MaxPendingTransactions, l.metr.RecordPendingTx)
+	queue := txmgr.NewQueue[txData](l.killCtx, l.txMgr, l.MaxPendingTransactions, l.metr.RecordPendingTx)
 
 	for {
 		select {
 		case <-loadTicker.C:
 			l.loadBlocksIntoState(l.shutdownCtx)
 		case <-publishTicker.C:
-			_, _ = queue.TrySend(l.killCtx, l.publishStateToL1Factory(), receiptsCh)
+			_, _ = queue.TrySend(l.publishStateToL1Factory(), receiptsCh)
 		case r := <-receiptsCh:
 			l.handleReceipt(r)
 		case <-l.shutdownCtx.Done():
@@ -333,7 +333,7 @@ func (l *BatchSubmitter) drainState(receiptsCh chan txmgr.TxReceipt[txData], que
 			case <-l.killCtx.Done():
 				return
 			default:
-				err := queue.Send(l.killCtx, l.publishStateToL1Factory(), receiptsCh)
+				err := queue.Send(l.publishStateToL1Factory(), receiptsCh)
 				if err != nil {
 					if err != io.EOF {
 						l.log.Error("error while publishing state on shutdown", "err", err)
