@@ -51,15 +51,159 @@ contract MIPS {
     return uint32(dat&mask | (isSigned ? signed : 0));
   }
 
+  function outputState() internal returns (bytes32) {
+    State memory state;
+    assembly {
+      state := 0x80
+    }
+    return keccak256(abi.encode(state));
+  }
+
+  function handleSyscall() internal returns (bytes32) {
+    State memory state;
+    assembly {
+      state := 0x80
+    }
+    uint32 syscall_no = state.registers[2];
+    uint32 v0 = 0;
+
+    if (syscall_no == 4090) {
+      // mmap
+      uint32 a0 = state.registers[4];
+      if (a0 == 0) {
+        uint32 sz = state.registers[5];
+        uint32 hr = state.heap;
+        v0 = HEAP_START + hr;
+        state.heap = hr+sz;
+      } else {
+        v0 = a0;
+      }
+    } else if (syscall_no == 4045) {
+      // brk
+      v0 = BRK_START;
+    } else if (syscall_no == 4120) {
+      // clone (not supported)
+      v0 = 1;
+    } else if (syscall_no == 4246) {
+      // exit group
+      state.exited = true;
+      state.exitCode = uint8(state.registers[4]);
+      return keccak256(abi.encode(state));
+    }
+    // TODO: pre-image oracle read/write
+
+    state.registers[2] = v0;
+    state.registers[7] = 0;
+
+    state.pc = state.nextPC;
+    state.nextPC = state.nextPC + 4;
+
+    return outputState();
+  }
+
+  function handleBranch(uint32 opcode, uint32 insn, uint32 rtReg, uint32 rs) internal returns (bytes32) {
+    State memory state;
+    assembly {
+      state := 0x80
+    }
+    bool shouldBranch = false;
+
+    if (opcode == 4 || opcode == 5) {   // beq/bne
+      uint32 rt = state.registers[rtReg];
+      shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5);
+    } else if (opcode == 6) { shouldBranch = int32(rs) <= 0; // blez
+    } else if (opcode == 7) { shouldBranch = int32(rs) > 0; // bgtz
+    } else if (opcode == 1) {
+      // regimm
+      uint32 rtv = ((insn >> 16) & 0x1F);
+      if (rtv == 0) shouldBranch = int32(rs) < 0;  // bltz
+      if (rtv == 1) shouldBranch = int32(rs) >= 0; // bgez
+    }
+
+    uint32 prevPC = state.pc;
+    state.pc = state.nextPC; // execute the delay slot first
+    if (shouldBranch) {
+      state.nextPC = prevPC + 4 + (SE(insn&0xFFFF, 16)<<2); // then continue with the instruction the branch jumps to.
+    } else {
+      state.nextPC = state.nextPC + 4; // branch not taken
+    }
+
+    return outputState();
+  }
+
+  function handleHiLo(uint32 func, uint32 rt, uint32 rs, uint32 storeReg) internal returns (bytes32) {
+    State memory state;
+    assembly {
+      state := 0x80
+    }
+    uint32 val;
+    if (func == 0x10) val = state.hi; // mfhi
+    else if (func == 0x11) state.hi = rs; // mthi
+    else if (func == 0x12) val = state.lo; // mflo
+    else if (func == 0x13) state.lo = rs; // mtlo
+    else if (func == 0x18) { // mult
+      uint64 acc = uint64(int64(int32(rs))*int64(int32(rt)));
+      state.hi = uint32(acc>>32);
+      state.lo = uint32(acc);
+    } else if (func == 0x19) { // multu
+      uint64 acc = uint64(uint64(rs)*uint64(rt));
+      state.hi = uint32(acc>>32);
+      state.lo = uint32(acc);
+    } else if (func == 0x1a) { // div
+      state.hi = uint32(int32(rs)%int32(rt));
+      state.lo = uint32(int32(rs)/int32(rt));
+    } else if (func == 0x1b) { // divu
+      state.hi = rs%rt;
+      state.lo = rs/rt;
+    }
+
+    if (storeReg != 0) {
+      state.registers[storeReg] = val;
+    }
+
+    state.pc = state.nextPC;
+    state.nextPC = state.nextPC + 4;
+
+    return outputState();
+  }
+
+  function handleJump(bool andLink, uint32 dest) internal returns (bytes32) {
+    State memory state;
+    assembly {
+      state := 0x80
+    }
+    uint32 prevPC = state.pc;
+    state.pc = state.nextPC;
+    state.nextPC = dest;
+    if (andLink) {
+      state.lr = prevPC+8; // set the link-register to the instr after the delay slot instruction.
+    }
+    return outputState();
+  }
+
+  function handleRd(uint32 storeReg, uint32 val, bool conditional) internal returns (bytes32) {
+    State memory state;
+    assembly {
+      state := 0x80
+    }
+    // never write to reg 0, and it can be conditional (movz, movn)
+    if (storeReg != 0 && conditional) {
+      state.registers[storeReg] = val;
+    }
+
+    state.pc = state.nextPC;
+    state.nextPC = state.nextPC + 4;
+
+    return outputState();
+  }
+
   // will revert if any required input state is missing
-  function Step(bytes32 stateHash, bytes memory stateData, bytes calldata proof) public returns (bytes32) {
+  function Step(bytes32 stateHash, bytes calldata stateData, bytes calldata proof) public returns (bytes32) {
     require(stateHash == keccak256(stateData), "stateHash must match input");
     State memory state = abi.decode(stateData, (State)); // TODO not efficient, need to write a "decodePacked" for State
     if(state.exited) { // don't change state once exited
       return stateHash;
     }
-
-    uint32 pc = state.pc;
 
     // instruction fetch
     uint32 insn; // TODO proof the memory read against memRoot
@@ -68,30 +212,24 @@ contract MIPS {
     }
 
     uint32 opcode = insn >> 26; // 6-bits
-    uint32 func = insn & 0x3f; // 6-bits
 
     // j-type j/jal
     if (opcode == 2 || opcode == 3) {
-      state.pc = state.nextPC;
-      state.nextPC = SE(insn&0x03FFFFFF, 26) << 2;
-      if (opcode == 3) {
-        state.lr = pc+8; // set the link-register to the instr after the delay slot instruction.
-      }
-      return keccak256(abi.encode(state));
+      return handleJump(opcode == 3, SE(insn&0x03FFFFFF, 26) << 2);
     }
 
     // register fetch
-    uint32 rs; // source register
-    uint32 rt; // target register
+    uint32 rs; // source register 1
+    uint32 rt; // source register 2 / temp
     uint32 rtReg = ((insn >> 14) & 0x7C);
 
     // R-type or I-type (stores rt)
     rs = state.registers[(insn >> 19) & 0x7C];
-    uint32 storeReg = (insn >> 14) & 0x7C;
+    uint32 rd = (insn >> 14) & 0x7C;
     if (opcode == 0 || opcode == 0x1c) {
       // R-type (stores rd)
       rt = state.registers[rtReg];
-      storeReg = (insn >> 9) & 0x7C;
+      rd = (insn >> 9) & 0x7C;
     } else if (opcode < 0x20) {
       // rt is SignExtImm
       // don't sign extend for andi, ori, xori
@@ -107,33 +245,12 @@ contract MIPS {
       rt = state.registers[rtReg];
 
       // store actual rt with lwl and lwr
-      storeReg = rtReg;
+      rd = rtReg;
     }
 
     if ((opcode >= 4 && opcode < 8) || opcode == 1) {
-      bool shouldBranch = false;
-
-      if (opcode == 4 || opcode == 5) {   // beq/bne
-        rt = state.registers[rtReg];
-        shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5);
-      } else if (opcode == 6) { shouldBranch = int32(rs) <= 0; // blez
-      } else if (opcode == 7) { shouldBranch = int32(rs) > 0; // bgtz
-      } else if (opcode == 1) {
-        // regimm
-        uint32 rtv = ((insn >> 16) & 0x1F);
-        if (rtv == 0) shouldBranch = int32(rs) < 0;  // bltz
-        if (rtv == 1) shouldBranch = int32(rs) >= 0; // bgez
-      }
-
-      state.pc = state.nextPC; // execute the delay slot first
-      if (shouldBranch) {
-        state.nextPC = pc + 4 + (SE(insn&0xFFFF, 16)<<2); // then continue with the instruction the branch jumps to.
-      } else {
-        state.nextPC = state.nextPC + 4; // branch not taken
-      }
-      return keccak256(abi.encode(state));
+      return handleBranch(opcode, insn, rtReg, rs);
     }
-
 
     uint32 storeAddr = 0xFF_FF_FF_FF;
     // memory fetch (all I-type)
@@ -156,93 +273,34 @@ contract MIPS {
     // ALU
     uint32 val = execute(insn, rs, rt, mem);
 
-    // TODO: this block can be before the execute call, and then share the mem read/writing
+    uint32 func = insn & 0x3f; // 6-bits
     if (opcode == 0 && func >= 8 && func < 0x1c) {
-      if (func == 8 || func == 9) {
-        // jr/jalr
-        state.pc = state.nextPC;
-        state.nextPC = rs;
-        if (func == 9) {
-          state.lr = pc+8; // set the link-register to the instr after the delay slot instruction.
-        }
-        return keccak256(abi.encode(state));
+      if (func == 8 || func == 9) { // jr/jalr
+        return handleJump(func == 9, rs);
       }
 
-      // handle movz and movn when they don't write back
-      if (func == 0xa && rt != 0) { // movz
-        storeReg = 0;
+      if (func == 0xa) { // movz
+        return handleRd(rd, rs, rt == 0);
       }
-      if (func == 0xb && rt == 0) { // movn
-        storeReg = 0;
+      if (func == 0xb) { // movn
+        return handleRd(rd, rs, rt != 0);
       }
 
       // syscall (can read and write)
       if (func == 0xC) {
-        uint32 syscall_no = state.registers[2];
-        uint32 v0 = 0;
-
-        if (syscall_no == 4090) {
-          // mmap
-          uint32 a0 = state.registers[4];
-          if (a0 == 0) {
-            uint32 sz = state.registers[5];
-            uint32 hr = state.heap;
-            v0 = HEAP_START + hr;
-            state.heap = hr+sz;
-          } else {
-            v0 = a0;
-          }
-        } else if (syscall_no == 4045) {
-          // brk
-          v0 = BRK_START;
-        } else if (syscall_no == 4120) {
-          // clone (not supported)
-          v0 = 1;
-        } else if (syscall_no == 4246) {
-          // exit group
-          state.exited = true;
-          state.exitCode = uint8(state.registers[4]);
-          return keccak256(abi.encode(state));
-        }
-        // TODO: pre-image oracle read/write
-
-        state.registers[2] = v0;
-        state.registers[7] = 0;
+        return handleSyscall();
       }
 
       // lo and hi registers
       // can write back
       if (func >= 0x10 && func < 0x1c) {
-        if (func == 0x10) val = state.hi; // mfhi
-        else if (func == 0x11) state.hi = rs; // mthi
-        else if (func == 0x12) val = state.lo; // mflo
-        else if (func == 0x13) state.lo = rs; // mtlo
-        else if (func == 0x18) { // mult
-          uint64 acc = uint64(int64(int32(rs))*int64(int32(rt)));
-          state.hi = uint32(acc>>32);
-          state.lo = uint32(acc);
-        } else if (func == 0x19) { // multu
-          uint64 acc = uint64(uint64(rs)*uint64(rt));
-          state.hi = uint32(acc>>32);
-          state.lo = uint32(acc);
-        } else if (func == 0x1a) { // div
-          state.hi = uint32(int32(rs)%int32(rt));
-          state.lo = uint32(int32(rs)/int32(rt));
-        } else if (func == 0x1b) { // divu
-          state.hi = rs%rt;
-          state.lo = rs/rt;
-        }
+        return handleHiLo(func, rs, rt, rd);
       }
     }
 
     // stupid sc, write a 1 to rt
     if (opcode == 0x38 && rtReg != 0) {
       state.registers[rtReg] = 1;
-    }
-
-    // write back
-    if (storeReg != 0) {
-      state.registers[storeReg] = val;
     }
 
     // write memory
@@ -254,10 +312,8 @@ contract MIPS {
       state.memRoot = bytes32(uint256(42));
     }
 
-    state.pc = state.nextPC;
-    state.nextPC = state.nextPC + 4;
-
-    return keccak256(abi.encode(state));
+    // write back the value to destination register
+    return handleRd(rd, val, true);
   }
 
   function execute(uint32 insn, uint32 rs, uint32 rt, uint32 mem) internal pure returns (uint32) {
