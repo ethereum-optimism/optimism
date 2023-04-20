@@ -327,9 +327,6 @@ func (l *BatchSubmitter) drainState(receiptsCh chan txmgr.TxReceipt[txData], que
 		case r := <-receiptsCh:
 			l.handleReceipt(r)
 		case <-txDone:
-			for len(receiptsCh) > 0 {
-				l.handleReceipt(<-receiptsCh)
-			}
 			return
 		}
 	}
