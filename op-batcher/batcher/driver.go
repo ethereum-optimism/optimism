@@ -295,33 +295,44 @@ func (l *BatchSubmitter) loop() {
 		select {
 		case <-ticker.C:
 			l.loadBlocksIntoState(l.shutdownCtx)
-			l.publishStateToL1(l.killCtx, queue, receiptsCh)
+			l.publishStateToL1(queue, receiptsCh, false)
 		case r := <-receiptsCh:
 			l.handleReceipt(r)
 		case <-l.shutdownCtx.Done():
-			l.drainState(receiptsCh, queue)
+			err := l.state.Close()
+			if err != nil {
+				l.log.Error("error closing the channel manager", "err", err)
+			}
+			l.publishStateToL1(queue, receiptsCh, true)
 			return
 		}
 	}
 }
 
-func (l *BatchSubmitter) drainState(receiptsCh chan txmgr.TxReceipt[txData], queue *txmgr.Queue[txData]) {
-	err := l.state.Close()
-	if err != nil {
-		l.log.Error("error closing the channel manager", "err", err)
-	}
-
+// publishStateToL1 loops through the block data loaded into `state` and
+// submits the associated data to the L1 in the form of channel frames.
+func (l *BatchSubmitter) publishStateToL1(queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData], drain bool) {
 	txDone := make(chan struct{})
+	// send/wait and receipt reading must be on a separate goroutines to avoid deadlocks
 	go func() {
-		// publish remaining state
-		l.publishStateToL1(l.killCtx, queue, receiptsCh)
-		// wait for all transactions to complete
-		queue.Wait()
-		// notify that we're done
-		close(txDone)
+		defer func() {
+			if drain {
+				// if draining, we wait for all transactions to complete
+				queue.Wait()
+			}
+			close(txDone)
+		}()
+		for {
+			err := l.publishTxToL1(l.killCtx, queue, receiptsCh)
+			if err != nil {
+				if drain && err != io.EOF {
+					l.log.Error("error sending tx while draining state", "err", err)
+				}
+				return
+			}
+		}
 	}()
 
-	// drain and handle the remaining receipts
 	for {
 		select {
 		case r := <-receiptsCh:
@@ -332,30 +343,28 @@ func (l *BatchSubmitter) drainState(receiptsCh chan txmgr.TxReceipt[txData], que
 	}
 }
 
-// publishStateToL1 loops through the block data loaded into `state` and
-// submits the associated data to the L1 in the form of channel frames.
-func (l *BatchSubmitter) publishStateToL1(ctx context.Context, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) {
+// publishTxToL1 submits a single state tx to the L1
+func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) error {
 	// send all available transactions
-	for {
-		l1tip, err := l.l1Tip(ctx)
-		if err != nil {
-			l.log.Error("Failed to query L1 tip", "error", err)
-			return
-		}
-		l.recordL1Tip(l1tip)
-
-		// Collect next transaction data
-		txdata, err := l.state.TxData(l1tip.ID())
-		if err == io.EOF {
-			l.log.Trace("no transaction data available")
-			return
-		} else if err != nil {
-			l.log.Error("unable to get tx data", "err", err)
-			return
-		}
-
-		l.sendTransaction(txdata, queue, receiptsCh)
+	l1tip, err := l.l1Tip(ctx)
+	if err != nil {
+		l.log.Error("Failed to query L1 tip", "error", err)
+		return err
 	}
+	l.recordL1Tip(l1tip)
+
+	// Collect next transaction data
+	txdata, err := l.state.TxData(l1tip.ID())
+	if err == io.EOF {
+		l.log.Trace("no transaction data available")
+		return err
+	} else if err != nil {
+		l.log.Error("unable to get tx data", "err", err)
+		return err
+	}
+
+	l.sendTransaction(txdata, queue, receiptsCh)
+	return nil
 }
 
 // sendTransaction creates & submits a transaction to the batch inbox address with the given `data`.

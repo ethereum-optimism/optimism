@@ -24,7 +24,6 @@ type Queue[T any] struct {
 	txMgr          TxManager
 	maxPending     uint64
 	pendingChanged func(uint64)
-	receiptWg      sync.WaitGroup
 	pending        atomic.Uint64
 	groupLock      sync.Mutex
 	groupCtx       context.Context
@@ -50,7 +49,6 @@ func NewQueue[T any](ctx context.Context, txMgr TxManager, maxPending uint64, pe
 
 // Wait waits for all pending txs to complete (or fail).
 func (q *Queue[T]) Wait() {
-	q.receiptWg.Wait()
 	if q.group == nil {
 		return
 	}
@@ -61,9 +59,9 @@ func (q *Queue[T]) Wait() {
 // and then send the next tx.
 //
 // The actual tx sending is non-blocking, with the receipt returned on the
-// provided receipt channel.
+// provided receipt channel .If the channel is unbuffered, the goroutine is
+// blocked from completing until the channel is read from.
 func (q *Queue[T]) Send(id T, candidate TxCandidate, receiptCh chan TxReceipt[T]) {
-	q.receiptWg.Add(1)
 	group, ctx := q.groupContext()
 	group.Go(func() error {
 		return q.sendTx(ctx, id, candidate, receiptCh)
@@ -77,18 +75,13 @@ func (q *Queue[T]) Send(id T, candidate TxCandidate, receiptCh chan TxReceipt[T]
 // transaction is queued and this method returns true.
 //
 // The actual tx sending is non-blocking, with the receipt returned on the
-// provided receipt channel.
+// provided receipt channel. If the channel is unbuffered, the goroutine is
+// blocked from completing until the channel is read from.
 func (q *Queue[T]) TrySend(id T, candidate TxCandidate, receiptCh chan TxReceipt[T]) bool {
-	q.receiptWg.Add(1)
 	group, ctx := q.groupContext()
-	started := group.TryGo(func() error {
+	return group.TryGo(func() error {
 		return q.sendTx(ctx, id, candidate, receiptCh)
 	})
-	if !started {
-		// send didn't start so receipt will never be available
-		q.receiptWg.Done()
-	}
-	return started
 }
 
 func (q *Queue[T]) sendTx(ctx context.Context, id T, candidate TxCandidate, receiptCh chan TxReceipt[T]) error {
@@ -97,15 +90,11 @@ func (q *Queue[T]) sendTx(ctx context.Context, id T, candidate TxCandidate, rece
 		q.pendingChanged(q.pending.Add(^uint64(0))) // -1
 	}()
 	receipt, err := q.txMgr.Send(ctx, candidate)
-	go func() {
-		// notify from a goroutine to ensure the receipt channel won't block method completion
-		receiptCh <- TxReceipt[T]{
-			ID:      id,
-			Receipt: receipt,
-			Err:     err,
-		}
-		q.receiptWg.Done()
-	}()
+	receiptCh <- TxReceipt[T]{
+		ID:      id,
+		Receipt: receipt,
+		Err:     err,
+	}
 	return err
 }
 
