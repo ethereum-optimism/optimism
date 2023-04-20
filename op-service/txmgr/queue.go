@@ -88,11 +88,14 @@ func (q *Queue[T]) sendTx(ctx context.Context, id T, candidate TxCandidate, rece
 		q.pendingChanged(q.pending.Add(^uint64(0))) // -1
 	}()
 	receipt, err := q.txMgr.Send(ctx, candidate)
-	receiptCh <- TxReceipt[T]{
-		ID:      id,
-		Receipt: receipt,
-		Err:     err,
-	}
+	go func() {
+		// notify from a goroutine to ensure the receipt channel won't block method completion
+		receiptCh <- TxReceipt[T]{
+			ID:      id,
+			Receipt: receipt,
+			Err:     err,
+		}
+	}()
 	return err
 }
 
