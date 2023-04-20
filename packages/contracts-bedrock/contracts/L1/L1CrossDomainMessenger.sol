@@ -20,12 +20,12 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
     OptimismPortal public immutable PORTAL;
 
     /**
-     * @custom:semver 1.2.0
+     * @custom:semver 1.3.0
      *
      * @param _portal Address of the OptimismPortal contract on this network.
      */
     constructor(OptimismPortal _portal)
-        Semver(1, 2, 0)
+        Semver(1, 3, 0)
         CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
     {
         PORTAL = _portal;
