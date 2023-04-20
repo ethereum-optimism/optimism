@@ -68,7 +68,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 	deployConfig := &genesis.DeployConfig{
 		L1ChainID:   900,
 		L2ChainID:   901,
-		L2BlockTime: 2,
+		L2BlockTime: 1,
 
 		FinalizationPeriodSeconds: 60 * 60 * 24,
 		MaxSequencerDrift:         10,
@@ -231,6 +231,10 @@ type System struct {
 	L2OutputSubmitter *l2os.L2OutputSubmitter
 	BatchSubmitter    *bss.BatchSubmitter
 	Mocknet           mocknet.Mocknet
+}
+
+func (sys *System) NodeEndpoint(name string) string {
+	return selectEndpoint(sys.Nodes[name])
 }
 
 func (sys *System) Close() {
@@ -619,13 +623,17 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	return sys, nil
 }
 
-func configureL1(rollupNodeCfg *rollupNode.Config, l1Node *node.Node) {
-	l1EndpointConfig := l1Node.WSEndpoint()
+func selectEndpoint(node *node.Node) string {
 	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
 	if useHTTP {
 		log.Info("using HTTP client")
-		l1EndpointConfig = l1Node.HTTPEndpoint()
+		return node.HTTPEndpoint()
 	}
+	return node.WSEndpoint()
+}
+
+func configureL1(rollupNodeCfg *rollupNode.Config, l1Node *node.Node) {
+	l1EndpointConfig := selectEndpoint(l1Node)
 	rollupNodeCfg.L1 = &rollupNode.L1EndpointConfig{
 		L1NodeAddr:       l1EndpointConfig,
 		L1TrustRPC:       false,

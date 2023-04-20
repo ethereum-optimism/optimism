@@ -121,6 +121,7 @@ var hardcodedSlots = []storageSlot{
 }
 
 func TestMigration(t *testing.T) {
+	InitParallel(t)
 	if !config.enabled {
 		t.Skipf("skipping migration tests")
 		return

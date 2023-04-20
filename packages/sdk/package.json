@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/sdk",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "[Optimism] Tools for working with Optimism",
   "main": "dist/index",
   "types": "dist/index",
@@ -17,6 +17,7 @@
     "lint:fix": "yarn lint:check --fix",
     "pre-commit": "lint-staged",
     "test": "hardhat test",
+    "test:next": "vitest test-next/proveMessage.spec.ts",
     "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json",
     "autogen:docs": "typedoc --out docs src/index.ts"
   },
@@ -45,12 +46,14 @@
     "hardhat-deploy": "^0.11.4",
     "nyc": "^15.1.0",
     "typedoc": "^0.22.13",
-    "mocha": "^10.0.0"
+    "mocha": "^10.0.0",
+    "vitest": "^0.28.3",
+    "zod": "^3.11.6"
   },
   "dependencies": {
     "@eth-optimism/contracts": "0.5.40",
     "@eth-optimism/core-utils": "0.12.0",
-    "@eth-optimism/contracts-bedrock": "0.13.1",
+    "@eth-optimism/contracts-bedrock": "0.13.2",
     "lodash": "^4.17.21",
     "merkletreejs": "^0.2.27",
     "rlp": "^2.2.7"

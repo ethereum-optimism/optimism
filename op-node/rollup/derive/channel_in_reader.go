@@ -21,15 +21,18 @@ type ChannelInReader struct {
 	nextBatchFn func() (BatchWithL1InclusionBlock, error)
 
 	prev *ChannelBank
+
+	metrics Metrics
 }
 
 var _ ResetableStage = (*ChannelInReader)(nil)
 
 // NewChannelInReader creates a ChannelInReader, which should be Reset(origin) before use.
-func NewChannelInReader(log log.Logger, prev *ChannelBank) *ChannelInReader {
+func NewChannelInReader(log log.Logger, prev *ChannelBank, metrics Metrics) *ChannelInReader {
 	return &ChannelInReader{
-		log:  log,
-		prev: prev,
+		log:     log,
+		prev:    prev,
+		metrics: metrics,
 	}
 }
 
@@ -41,6 +44,7 @@ func (cr *ChannelInReader) Origin() eth.L1BlockRef {
 func (cr *ChannelInReader) WriteChannel(data []byte) error {
 	if f, err := BatchReader(bytes.NewBuffer(data), cr.Origin()); err == nil {
 		cr.nextBatchFn = f
+		cr.metrics.RecordChannelInputBytes(len(data))
 		return nil
 	} else {
 		cr.log.Error("Error creating batch reader from channel data", "err", err)

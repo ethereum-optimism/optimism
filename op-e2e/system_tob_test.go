@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	fuzz "github.com/google/gofuzz"
@@ -33,17 +32,12 @@ import (
 
 // TestGasPriceOracleFeeUpdates checks that the gas price oracle cannot be locked by mis-configuring parameters.
 func TestGasPriceOracleFeeUpdates(t *testing.T) {
-	parallel(t)
+	InitParallel(t)
 	// Define our values to set in the GasPriceOracle (we set them high to see if it can lock L2 or stop bindings
 	// from updating the prices once again.
 	overheadValue := abi.MaxUint256
 	scalarValue := abi.MaxUint256
 	var cancel context.CancelFunc
-
-	// Setup our logger handler
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
 
 	// Create our system configuration for L1/L2 and start it
 	cfg := DefaultSystemConfig(t)
@@ -126,11 +120,7 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 // TestL2SequencerRPCDepositTx checks that the L2 sequencer will not accept DepositTx type transactions.
 // The acceptance of these transactions would allow for arbitrary minting of ETH in L2.
 func TestL2SequencerRPCDepositTx(t *testing.T) {
-	parallel(t)
-	// Setup our logger handler
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 
 	// Create our system configuration for L1/L2 and start it
 	cfg := DefaultSystemConfig(t)
@@ -233,18 +223,13 @@ func startConfigWithTestAccounts(cfg *SystemConfig, accountsToGenerate int) (*Sy
 // TestMixedDepositValidity makes a number of deposit transactions, some which will succeed in transferring value,
 // while others do not. It ensures that the expected nonces/balances match after several interactions.
 func TestMixedDepositValidity(t *testing.T) {
-	parallel(t)
+	InitParallel(t)
 	// Define how many deposit txs we'll make. Each deposit mints a fixed amount and transfers up to 1/3 of the user's
 	// balance. As such, this number cannot be too high or else the test will always fail due to lack of balance in L1.
 	const depositTxCount = 15
 
 	// Define how many accounts we'll use to deposit funds
 	const accountUsedToDeposit = 5
-
-	// Setup our logger handler
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
 
 	// Create our system configuration, funding all accounts we created for L1/L2, and start it
 	cfg := DefaultSystemConfig(t)
@@ -415,16 +400,14 @@ func TestMixedDepositValidity(t *testing.T) {
 // TestMixedWithdrawalValidity makes a number of withdrawal transactions and ensures ones with modified parameters are
 // rejected while unmodified ones are accepted. This runs test cases in different systems.
 func TestMixedWithdrawalValidity(t *testing.T) {
-	parallel(t)
-	// Setup our logger handler
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 
 	// There are 7 different fields we try modifying to cause a failure, plus one "good" test result we test.
 	for i := 0; i <= 8; i++ {
 		i := i // avoid loop var capture
 		t.Run(fmt.Sprintf("withdrawal test#%d", i+1), func(t *testing.T) {
+			InitParallel(t)
+
 			// Create our system configuration, funding all accounts we created for L1/L2, and start it
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.FinalizationPeriodSeconds = 6
