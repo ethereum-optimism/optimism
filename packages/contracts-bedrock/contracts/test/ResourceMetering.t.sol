@@ -147,7 +147,7 @@ contract ResourceMetering_Test is Test {
      *         is set to 1.
      *         Since the metered modifier internally calls
      *         solmate's powWad function, it will revert
-     *         with the error string "UNEXPECTED" since the
+     *         with the error string "UNDEFINED" since the
      *         first parameter will be computed as 0.
      */
     function test_meter_denominatorEq1_reverts() external {
