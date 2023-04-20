@@ -79,7 +79,7 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 		l2DebugCl := &L2Source{L2Client: l2Cl, DebugClient: sources.NewDebugClient(l2RPC.CallContext)}
 
 		logger.Info("Setting up pre-fetcher")
-		prefetch := prefetcher.NewPrefetcher(l1Cl, l2DebugCl, kv)
+		prefetch := prefetcher.NewPrefetcher(logger, l1Cl, l2DebugCl, kv)
 		preimageOracle = asOracleFn(func(key common.Hash) ([]byte, error) {
 			return prefetch.GetPreimage(ctx, key)
 		})

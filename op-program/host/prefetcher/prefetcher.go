@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
@@ -38,10 +39,10 @@ type Prefetcher struct {
 	kvStore   kvstore.KV
 }
 
-func NewPrefetcher(l1Fetcher L1Source, l2Fetcher L2Source, kvStore kvstore.KV) *Prefetcher {
+func NewPrefetcher(logger log.Logger, l1Fetcher L1Source, l2Fetcher L2Source, kvStore kvstore.KV) *Prefetcher {
 	return &Prefetcher{
-		l1Fetcher: l1Fetcher,
-		l2Fetcher: l2Fetcher,
+		l1Fetcher: NewRetryingL1Source(logger, l1Fetcher),
+		l2Fetcher: NewRetryingL2Source(logger, l2Fetcher),
 		kvStore:   kvStore,
 	}
 }
