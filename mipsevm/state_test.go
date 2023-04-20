@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	uc "github.com/unicorn-engine/unicorn/bindings/go/unicorn"
 )
 
@@ -58,7 +59,8 @@ func TestState(t *testing.T) {
 
 			err = LoadUnicorn(state, mu)
 			require.NoError(t, err, "load state into unicorn")
-			err = HookUnicorn(state, mu, os.Stdout, os.Stderr)
+
+			err = HookUnicorn(state, mu, os.Stdout, os.Stderr, NoOpTracer{})
 			require.NoError(t, err, "hook unicorn to state")
 
 			// Add hook to stop unicorn once we reached the end of the test (i.e. "ate food")
@@ -95,14 +97,14 @@ func TestMinimal(t *testing.T) {
 	err = LoadUnicorn(state, mu)
 	require.NoError(t, err, "load state into unicorn")
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	err = HookUnicorn(state, mu, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
+	err = HookUnicorn(state, mu, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), NoOpTracer{})
 	require.NoError(t, err, "hook unicorn to state")
 
 	err = RunUnicorn(mu, state.PC, 400_000)
 	require.NoError(t, err, "must run steps without error")
 
 	require.True(t, state.Exited, "must complete program")
-	require.Equal(t, uint8(0), state.Exit, "exit with 0")
+	require.Equal(t, uint8(0), state.ExitCode, "exit with 0")
 
 	require.Equal(t, "hello world!", stdOutBuf.String(), "stdout says hello")
 	require.Equal(t, "", stdErrBuf.String(), "stderr silent")

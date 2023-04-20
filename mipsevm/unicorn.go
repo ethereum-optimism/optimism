@@ -31,15 +31,15 @@ func LoadUnicorn(st *State, mu uc.Unicorn) error {
 		regValues[i] = uint64(v)
 	}
 	regValues[32] = uint64(st.PC)
-	regValues[33] = uint64(st.Lo)
-	regValues[34] = uint64(st.Hi)
+	regValues[33] = uint64(st.LO)
+	regValues[34] = uint64(st.HI)
 	if err := mu.RegWriteBatch(regBatchKeys(), regValues); err != nil {
 		return fmt.Errorf("failed to write registers: %w", err)
 	}
 	return nil
 }
 
-func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer) error {
+func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer, tr Tracer) error {
 	_, err := mu.HookAdd(uc.HOOK_INTR, func(mu uc.Unicorn, intno uint32) {
 		if intno != 17 {
 			log.Fatal("invalid interrupt ", intno, " at step ", st.Step)
@@ -88,7 +88,7 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer) error {
 			v0 = 0x40000000
 		case 4246: // exit_group
 			st.Exited = true
-			st.Exit = uint8(v0)
+			st.ExitCode = uint8(v0)
 			mu.Stop()
 			return
 		}
@@ -109,11 +109,8 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer) error {
 	}
 
 	_, err = mu.HookAdd(uc.HOOK_MEM_READ, func(mu uc.Unicorn, access int, addr64 uint64, size int, value int64) {
-		//rt := value
-		//rs := addr64 & 3
-		//addr := uint32(addr64 & 0xFFFFFFFC)
-		// TODO sanity check matches the state value
-		// TODO access-list entry
+		addr := uint32(addr64 & 0xFFFFFFFC) // pass effective addr to tracer
+		tr.OnRead(addr)
 	}, 0, ^uint64(0))
 	if err != nil {
 		return fmt.Errorf("failed to set up mem-write hook: %w", err)
@@ -127,6 +124,8 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer) error {
 			panic("invalid mem size")
 		}
 		st.SetMemory(uint32(addr64), uint32(size), uint32(value))
+		addr := uint32(addr64 & 0xFFFFFFFC) // pass effective addr to tracer
+		tr.OnWrite(addr)
 	}, 0, ^uint64(0))
 	if err != nil {
 		return fmt.Errorf("failed to set up mem-write hook: %w", err)
@@ -143,8 +142,8 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer) error {
 			st.Registers[i] = uint32(batch[i])
 		}
 		st.PC = uint32(batch[32])
-		st.Lo = uint32(batch[33])
-		st.Hi = uint32(batch[34])
+		st.LO = uint32(batch[33])
+		st.HI = uint32(batch[34])
 	}, 0, ^uint64(0))
 	if err != nil {
 		return fmt.Errorf("failed to set up instruction hook: %w", err)

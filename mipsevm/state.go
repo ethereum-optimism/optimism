@@ -34,23 +34,25 @@ func (p *Page) UnmarshalText(dat []byte) error {
 }
 
 type State struct {
-	PC   uint32 `json:"pc"`
-	Hi   uint32 `json:"hi"`
-	Lo   uint32 `json:"lo"`
-	Heap uint32 `json:"heap"` // to handle mmap growth
+	Memory map[uint32]*Page `json:"memory"`
 
 	Registers [32]uint32 `json:"registers"`
 
-	Memory map[uint32]*Page `json:"memory"`
+	PC     uint32 `json:"pc"`
+	NextPC uint32 `json:"nextPC"`
+	LR     uint32 `json:"lr"`
+	HI     uint32 `json:"hi"`
+	LO     uint32 `json:"lo"`
+	Heap   uint32 `json:"heap"` // to handle mmap growth
 
-	Exit   uint8 `json:"exit"`
-	Exited bool  `json:"exited"`
+	ExitCode uint8 `json:"exit"`
+	Exited   bool  `json:"exited"`
 
 	Step uint64 `json:"step"`
 }
 
 // TODO: VM state pre-image:
-// PC, Hi, Lo, Heap = 4 * 32/8 = 16 bytes
+// PC, HI, LO, Heap = 4 * 32/8 = 16 bytes
 // Registers = 32 * 32/8 = 256 bytes
 // Memory tree root = 32 bytes
 // Misc exit/step data = TBD
@@ -119,7 +121,6 @@ func (s *State) MerkleizeMemory(so StateOracle) [32]byte {
 }
 
 func (s *State) SetMemory(addr uint32, size uint32, v uint32) {
-	// TODO: maybe only support 4-byte aligned memory stores?
 	for i := size; i > 0; i-- {
 		pageIndex := addr >> pageAddrSize
 		pageAddr := addr & pageAddrMask

@@ -20,6 +20,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+var StepBytes4 = crypto.Keccak256Hash([]byte("Step(bytes32,bytes,bytes)")).Bytes()[:4]
+
 func LoadContracts() (*Contracts, error) {
 	mips, err := LoadContract("MIPS")
 	if err != nil {
@@ -42,7 +44,7 @@ func LoadContracts() (*Contracts, error) {
 
 func LoadContract(name string) (*Contract, error) {
 	// TODO change to forge build output
-	dat, err := os.ReadFile(fmt.Sprintf("../artifacts/contracts/%s.sol/%s.json", name, name))
+	dat, err := os.ReadFile(fmt.Sprintf("../contracts/out/%s.sol/%s.json", name, name))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read contract JSON definition of %q: %w", name, err)
 	}

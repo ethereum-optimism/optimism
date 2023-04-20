@@ -11,12 +11,12 @@ import (
 func LoadELF(f *elf.File) (*State, error) {
 	s := &State{
 		PC:        uint32(f.Entry),
-		Hi:        0,
-		Lo:        0,
+		HI:        0,
+		LO:        0,
 		Heap:      0x20000000,
 		Registers: [32]uint32{},
 		Memory:    make(map[uint32]*Page),
-		Exit:      0,
+		ExitCode:  0,
 		Exited:    false,
 		Step:      0,
 	}
