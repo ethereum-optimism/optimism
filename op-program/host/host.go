@@ -95,10 +95,6 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 	routeHints(logger, hHost, hinter)
 	launchOracleServer(logger, oracleServer, getPreimage)
 
-	// TODO(CLI-XXX): This is a hack to wait for the oracle server and hint router to begin polling for requests
-	// before the program starts. This should be replaced with a more robust solution.
-	//time.Sleep(time.Second * 1)
-
 	return cl.ClientProgram(
 		logger,
 		cfg.Rollup,
