@@ -332,10 +332,8 @@ func (l *BatchSubmitter) drainState(receiptsCh chan txmgr.TxReceipt[txData], que
 	}
 }
 
-// publishStateToL1Factory returns a txmgr factory function that pulls the block data
-// loaded into `state`, and returns a txmgr transaction candidate that can be used to
-// submit the associated data to the L1 in the form of channel frames. The factory
-// will return an io.EOF error if no data is available.
+// publishStateToL1 loops through the block data loaded into `state` and
+// submits the associated data to the L1 in the form of channel frames.
 func (l *BatchSubmitter) publishStateToL1(ctx context.Context, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) {
 	// send all available transactions
 	for {
