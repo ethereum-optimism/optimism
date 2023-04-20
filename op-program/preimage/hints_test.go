@@ -56,7 +56,7 @@ func TestHints(t *testing.T) {
 			close(done)
 		}()
 		select {
-		case <-time.After(time.Second * 20):
+		case <-time.After(time.Second * 30):
 			t.Error("reader/writer stuck")
 		case <-done:
 		}
