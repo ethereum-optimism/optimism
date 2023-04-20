@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"io"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -20,26 +21,39 @@ func TestHints(t *testing.T) {
 	// Note: pretty much every string is valid communication:
 	// length, payload, 0. Worst case you run out of data, or allocate too much.
 	testHint := func(hints ...string) {
-		var buf bytes.Buffer
-		hw := NewHintWriter(&buf)
-		for _, h := range hints {
-			hw.Hint(rawHint(h))
-		}
-		hr := NewHintReader(&buf)
-		var got []string
-		for i := 0; i < 100; i++ { // sanity limit
-			err := hr.NextHint(func(hint string) error {
-				got = append(got, hint)
-				return nil
-			})
-			if err == io.EOF {
-				break
+		a, b := bidirectionalPipe()
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go func() {
+			hw := NewHintWriter(a)
+			for _, h := range hints {
+				hw.Hint(rawHint(h))
 			}
-			require.NoError(t, err)
-		}
+			wg.Done()
+		}()
+
+		got := make(chan string, len(hints))
+		go func() {
+			println("MENA")
+			defer wg.Done()
+			hr := NewHintReader(b)
+			for i := 0; i < len(hints); i++ {
+				err := hr.NextHint(func(hint string) error {
+					got <- hint
+					return nil
+				})
+				if err == io.EOF {
+					break
+				}
+				require.NoError(t, err)
+			}
+		}()
+		wg.Wait()
+
 		require.Equal(t, len(hints), len(got), "got all hints")
-		for i, h := range hints {
-			require.Equal(t, h, got[i], "hints match")
+		for _, h := range hints {
+			require.Equal(t, h, <-got, "hints match")
 		}
 	}
 

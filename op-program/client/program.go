@@ -32,7 +32,7 @@ func ClientProgram(
 	l2Claim common.Hash,
 	l2ClaimBlockNumber uint64,
 	preimageOracle io.ReadWriter,
-	preimageHinter io.Writer,
+	preimageHinter io.ReadWriter,
 ) error {
 	pClient := preimage.NewOracleClient(preimageOracle)
 	hClient := preimage.NewHintWriter(preimageHinter)

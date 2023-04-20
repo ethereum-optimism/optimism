@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/client"
@@ -89,16 +88,16 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 	pClientRW, pHostRW := bidirectionalPipe()
 	oracleServer := preimage.NewOracleServer(pHostRW)
 	// Setup pipe for hint comms
-	hHostR, hClientW := io.Pipe()
-	hHost := preimage.NewHintReader(hHostR)
+	hClientRW, hHostRW := bidirectionalPipe()
+	hHost := preimage.NewHintReader(hHostRW)
 	defer pHostRW.Close()
-	defer hHostR.Close()
+	defer hHostRW.Close()
 	routeHints(logger, hHost, hinter)
 	launchOracleServer(logger, oracleServer, getPreimage)
 
 	// TODO(CLI-XXX): This is a hack to wait for the oracle server and hint router to begin polling for requests
 	// before the program starts. This should be replaced with a more robust solution.
-	time.Sleep(time.Second * 1)
+	//time.Sleep(time.Second * 1)
 
 	return cl.ClientProgram(
 		logger,
@@ -109,7 +108,7 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 		cfg.L2Claim,
 		cfg.L2ClaimBlockNumber,
 		pClientRW,
-		hClientW,
+		hClientRW,
 	)
 }
 
