@@ -7,6 +7,7 @@ import (
 	"io"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -35,7 +36,6 @@ func TestHints(t *testing.T) {
 
 		got := make(chan string, len(hints))
 		go func() {
-			println("MENA")
 			defer wg.Done()
 			hr := NewHintReader(b)
 			for i := 0; i < len(hints); i++ {
@@ -49,7 +49,17 @@ func TestHints(t *testing.T) {
 				require.NoError(t, err)
 			}
 		}()
-		wg.Wait()
+
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+		select {
+		case <-time.After(time.Second * 20):
+			t.Error("reader/writer stuck")
+		case <-done:
+		}
 
 		require.Equal(t, len(hints), len(got), "got all hints")
 		for _, h := range hints {
