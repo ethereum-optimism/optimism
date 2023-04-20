@@ -5,9 +5,11 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
 
@@ -263,6 +265,7 @@ type l2Client struct {
 }
 
 func createPrefetcher(t *testing.T) (*Prefetcher, *testutils.MockL1Source, *l2Client, kvstore.KV) {
+	logger := testlog.Logger(t, log.LvlDebug)
 	kv := kvstore.NewMemKV()
 
 	l1Source := new(testutils.MockL1Source)
@@ -271,7 +274,7 @@ func createPrefetcher(t *testing.T) (*Prefetcher, *testutils.MockL1Source, *l2Cl
 		MockDebugClient: new(testutils.MockDebugClient),
 	}
 
-	prefetcher := NewPrefetcher(l1Source, l2Source, kv)
+	prefetcher := NewPrefetcher(logger, l1Source, l2Source, kv)
 	return prefetcher, l1Source, l2Source, kv
 }
 
