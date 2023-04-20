@@ -17,7 +17,7 @@ However, that L2 endpoint can be a read-only replica.
 
 The code to go along with this article is available at [our tutorials repository](https://github.com/ethereum-optimism/optimism-tutorial/tree/main/op-stack/forced-withdrawal).
 
-1. Clone the repository, move to the correct directory, and install the software you need.
+1. Clone the repository, move to the correct directory, and install the required dependencies.
 
    ```sh
    git clone https://github.com/ethereum-optimism/optimism-tutorial.git
