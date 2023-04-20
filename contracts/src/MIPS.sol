@@ -204,6 +204,7 @@ contract MIPS {
     if(state.exited) { // don't change state once exited
       return stateHash;
     }
+    state.step += 1;
 
     // instruction fetch
     uint32 insn; // TODO proof the memory read against memRoot
