@@ -49,16 +49,8 @@ func TestHints(t *testing.T) {
 				require.NoError(t, err)
 			}
 		}()
-
-		done := make(chan struct{})
-		go func() {
-			wg.Wait()
-			close(done)
-		}()
-		select {
-		case <-time.After(time.Second * 30):
-			t.Error("reader/writer stuck")
-		case <-done:
+		if waitTimeout(&wg) {
+			t.Error("hint read/write stuck")
 		}
 
 		require.Equal(t, len(hints), len(got), "got all hints")
@@ -121,6 +113,23 @@ func TestHints(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, readHint, "two")
 		}()
-		wg.Wait()
+		if waitTimeout(&wg) {
+			t.Error("read/write hint stuck")
+		}
 	})
+}
+
+// waitTimeout returns true iff wg.Wait timed out
+func waitTimeout(wg *sync.WaitGroup) bool {
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-time.After(time.Second * 30):
+		return true
+	case <-done:
+		return false
+	}
 }
