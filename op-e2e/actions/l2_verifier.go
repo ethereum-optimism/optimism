@@ -57,7 +57,9 @@ type L2API interface {
 
 func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config) *L2Verifier {
 	metrics := &testutils.TestDerivationMetrics{}
-	pipeline := derive.NewDerivationPipeline(log, cfg, l1, eng, metrics)
+	daCfg, err := rollup.NewDAConfig("http://localhost:26659", "e8e5f679bf7116cb")
+	require.NoError(t, err)
+	pipeline := derive.NewDerivationPipeline(log, cfg, daCfg, l1, eng, metrics)
 	pipeline.Reset()
 
 	rollupNode := &L2Verifier{

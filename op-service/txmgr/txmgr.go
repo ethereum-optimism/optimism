@@ -1,7 +1,10 @@
 package txmgr
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"sync/atomic"
@@ -11,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/celestiaorg/go-cnc"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -84,6 +88,9 @@ type SimpleTxManager struct {
 	name    string
 	chainID *big.Int
 
+	daClient    *cnc.Client
+	namespaceId [8]byte
+
 	backend ETHBackend
 	l       log.Logger
 	metr    metrics.TxMetricer
@@ -103,10 +110,28 @@ func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLI
 		return nil, err
 	}
 
+	daClient, err := cnc.NewClient(cfg.DaRpc, cnc.WithTimeout(90*time.Second))
+	if err != nil {
+		return nil, err
+	}
+
+   var nid [8]byte
+
+   if cfg.NamespaceId == "" {
+       return nil, errors.New("namespace id cannot be blank")
+   }
+   namespaceId, err := hex.DecodeString(cfg.NamespaceId)
+   if err != nil {
+       return nil, err
+   }
+   copy(nid[:], namespaceId)
+
 	return &SimpleTxManager{
 		chainID: conf.ChainID,
 		name:    name,
 		cfg:     conf,
+		daClient: daClient,
+		namespaceId: nid,
 		backend: conf.Backend,
 		l:       l.New("service", name),
 		metr:    m,
@@ -188,7 +213,37 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 		ctx, cancel = context.WithTimeout(ctx, m.cfg.TxSendTimeout)
 		defer cancel()
 	}
-	tx, err := m.craftTx(ctx, candidate)
+	res, err := m.daClient.SubmitPFB(ctx, m.namespaceId, candidate.TxData, 20000, 700000)
+	if err != nil {
+		m.l.Warn("unable to publish tx to celestia", "err", err)
+		return nil, err
+	}
+
+	height := res.Height
+	fmt.Printf("res.Height: %v, res.Logs: %v\n", res.Height, res.Logs)
+
+	// FIXME: needs to be tx index / share index?
+	index := uint32(0) // res.Logs[0].MsgIndex
+
+	// DA pointer serialization format
+	// | -------------------------|
+	// | 8 bytes       | 4 bytes  |
+	// | block height | tx index  |
+	// | -------------------------|
+
+	buf := new(bytes.Buffer)
+	err = binary.Write(buf, binary.BigEndian, height)
+	if err != nil {
+		return nil, fmt.Errorf("data pointer block height serialization failed: %w", err)
+	}
+	err = binary.Write(buf, binary.BigEndian, index)
+	if err != nil {
+		return nil, fmt.Errorf("data pointer tx index serialization failed: %w", err)
+	}
+
+	serialized := buf.Bytes()
+	tx, err := m.craftTx(ctx, TxCandidate{TxData: serialized, To: candidate.To, GasLimit: candidate.GasLimit})
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the tx: %w", err)
 	}
