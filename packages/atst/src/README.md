@@ -22,6 +22,10 @@ CLI implementations of atst read and write
 
 Internal and external constants
 
+## contracts
+
+The attestation station contract
+
 ## lib
 
 All library code for the sdk lives here
