@@ -88,7 +88,7 @@ contract MIPS {
       // exit group
       state.exited = true;
       state.exitCode = uint8(state.registers[4]);
-      return keccak256(abi.encode(state));
+      return outputState();
     }
     // TODO: pre-image oracle read/write
 
