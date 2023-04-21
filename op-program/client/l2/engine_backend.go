@@ -28,6 +28,10 @@ type OracleBackedL2Chain struct {
 	finalized  *types.Header
 	vmCfg      vm.Config
 
+	// Block by number cache
+	hashByNum            map[uint64]common.Hash
+	earliestIndexedBlock *types.Header
+
 	// Inserted blocks
 	blocks map[common.Hash]*types.Block
 	db     ethdb.KeyValueStore
@@ -44,6 +48,11 @@ func NewOracleBackedL2Chain(logger log.Logger, oracle Oracle, chainCfg *params.C
 		chainCfg: chainCfg,
 		engine:   beacon.New(nil),
 
+		hashByNum: map[uint64]common.Hash{
+			head.NumberU64(): head.Hash(),
+		},
+		earliestIndexedBlock: head.Header(),
+
 		// Treat the agreed starting head as finalized - nothing before it can be disputed
 		head:       head.Header(),
 		safe:       head.Header(),
@@ -59,14 +68,20 @@ func (o *OracleBackedL2Chain) CurrentHeader() *types.Header {
 }
 
 func (o *OracleBackedL2Chain) GetHeaderByNumber(n uint64) *types.Header {
-	// Walk back from current head to the requested block number
-	h := o.head
-	if h.Number.Uint64() < n {
+	if o.head.Number.Uint64() < n {
 		return nil
 	}
+	hash, ok := o.hashByNum[n]
+	if ok {
+		return o.GetHeaderByHash(hash)
+	}
+	// Walk back from current head to the requested block number
+	h := o.head
 	for h.Number.Uint64() > n {
 		h = o.GetHeaderByHash(h.ParentHash)
+		o.hashByNum[h.Number.Uint64()] = h.Hash()
 	}
+	o.earliestIndexedBlock = h
 	return h
 }
 
@@ -176,7 +191,28 @@ func (o *OracleBackedL2Chain) InsertBlockWithoutSetHead(block *types.Block) erro
 }
 
 func (o *OracleBackedL2Chain) SetCanonical(head *types.Block) (common.Hash, error) {
+	oldHead := o.head
 	o.head = head.Header()
+
+	// Remove canonical hashes after the new header
+	for n := head.NumberU64() + 1; n <= oldHead.Number.Uint64(); n++ {
+		delete(o.hashByNum, n)
+	}
+
+	// Add new canonical blocks to the block by number cache
+	// Since the original head is added to the block number cache and acts as the finalized block,
+	// at some point we must reach the existing canonical chain and can stop updating.
+	h := o.head
+	for {
+		newHash := h.Hash()
+		prevHash, ok := o.hashByNum[h.Number.Uint64()]
+		if ok && prevHash == newHash {
+			// Connected with the existing canonical chain so stop updating
+			break
+		}
+		o.hashByNum[h.Number.Uint64()] = newHash
+		h = o.GetHeaderByHash(h.ParentHash)
+	}
 	return head.Hash(), nil
 }
 

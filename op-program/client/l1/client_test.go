@@ -126,8 +126,7 @@ func TestL1BlockRefByNumber(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, eth.InfoToL1BlockRef(parent), ref)
 	})
-	t.Run("AncestorOfHead", func(t *testing.T) {
-		client, oracle := newClient(t)
+	createBlocks := func(oracle *test.StubOracle) []eth.BlockInfo {
 		block := head
 		blocks := []eth.BlockInfo{block}
 		for i := 0; i < 10; i++ {
@@ -135,8 +134,24 @@ func TestL1BlockRefByNumber(t *testing.T) {
 			oracle.Blocks[block.Hash()] = block
 			blocks = append(blocks, block)
 		}
+		return blocks
+	}
+	t.Run("AncestorsAccessForwards", func(t *testing.T) {
+		client, oracle := newClient(t)
+		blocks := createBlocks(oracle)
 
 		for _, block := range blocks {
+			ref, err := client.L1BlockRefByNumber(context.Background(), block.NumberU64())
+			require.NoError(t, err)
+			require.Equal(t, eth.InfoToL1BlockRef(block), ref)
+		}
+	})
+	t.Run("AncestorsAccessReverse", func(t *testing.T) {
+		client, oracle := newClient(t)
+		blocks := createBlocks(oracle)
+
+		for i := len(blocks) - 1; i >= 0; i-- {
+			block := blocks[i]
 			ref, err := client.L1BlockRefByNumber(context.Background(), block.NumberU64())
 			require.NoError(t, err)
 			require.Equal(t, eth.InfoToL1BlockRef(block), ref)
