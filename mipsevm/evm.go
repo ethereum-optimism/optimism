@@ -57,9 +57,15 @@ func LoadContract(name string) (*Contract, error) {
 
 type Contract struct {
 	DeployedBytecode struct {
-		Object hexutil.Bytes `json:"object"`
+		Object    hexutil.Bytes `json:"object"`
+		SourceMap string        `json:"sourceMap"`
 	} `json:"deployedBytecode"`
+
 	// ignore abi,bytecode,etc.
+}
+
+func (c *Contract) SourceMap(sourcePaths []string) (*SourceMap, error) {
+	return ParseSourceMap(sourcePaths, c.DeployedBytecode.Object, c.DeployedBytecode.SourceMap)
 }
 
 type Contracts struct {

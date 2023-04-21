@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/stretchr/testify/require"
 
 	uc "github.com/unicorn-engine/unicorn/bindings/go/unicorn"
@@ -24,6 +23,10 @@ func TestEVM(t *testing.T) {
 	require.NoError(t, err)
 
 	contracts, err := LoadContracts()
+	require.NoError(t, err)
+
+	// the first unlisted source seems to be the ABIDecoderV2 code that the compiler inserts
+	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{"~ABIDecoderV2?", "~compiler?", "../contracts/src/MIPS.sol"})
 	require.NoError(t, err)
 
 	addrs := &Addresses{
@@ -41,7 +44,8 @@ func TestEVM(t *testing.T) {
 
 			env := NewEVMEnv(contracts, addrs)
 			env.Config.Debug = true
-			env.Config.Tracer = logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
+			//env.Config.Tracer = logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
+			env.Config.Tracer = mipsSrcMap.Tracer(os.Stdout)
 
 			fn := path.Join("test/bin", f.Name())
 			programMem, err := os.ReadFile(fn)
