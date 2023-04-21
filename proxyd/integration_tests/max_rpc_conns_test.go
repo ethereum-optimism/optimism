@@ -41,7 +41,7 @@ func TestMaxConcurrentRPCs(t *testing.T) {
 
 	config := ReadConfig("max_rpc_conns")
 	client := NewProxydClient("http://127.0.0.1:8545")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 

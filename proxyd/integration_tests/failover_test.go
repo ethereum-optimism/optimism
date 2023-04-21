@@ -30,7 +30,7 @@ func TestFailover(t *testing.T) {
 
 	config := ReadConfig("failover")
 	client := NewProxydClient("http://127.0.0.1:8545")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 
@@ -128,7 +128,7 @@ func TestRetries(t *testing.T) {
 	require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", backend.URL()))
 	config := ReadConfig("retries")
 	client := NewProxydClient("http://127.0.0.1:8545")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 
@@ -171,7 +171,7 @@ func TestOutOfServiceInterval(t *testing.T) {
 
 	config := ReadConfig("out_of_service_interval")
 	client := NewProxydClient("http://127.0.0.1:8545")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 
@@ -226,7 +226,7 @@ func TestBatchWithPartialFailover(t *testing.T) {
 	require.NoError(t, os.Setenv("BAD_BACKEND_RPC_URL", badBackend.URL()))
 
 	client := NewProxydClient("http://127.0.0.1:8545")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 
@@ -273,7 +273,7 @@ func TestInfuraFailoverOnUnexpectedResponse(t *testing.T) {
 	require.NoError(t, os.Setenv("BAD_BACKEND_RPC_URL", badBackend.URL()))
 
 	client := NewProxydClient("http://127.0.0.1:8545")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 

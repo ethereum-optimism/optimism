@@ -39,7 +39,7 @@ const (
 var emptyArrayResponse = json.RawMessage("[]")
 
 type Server struct {
-	backendGroups          map[string]*BackendGroup
+	BackendGroups          map[string]*BackendGroup
 	wsBackendGroup         *BackendGroup
 	wsMethodWhitelist      *StringSet
 	rpcMethodMappings      map[string]string
@@ -152,7 +152,7 @@ func NewServer(
 	}
 
 	return &Server{
-		backendGroups:        backendGroups,
+		BackendGroups:        backendGroups,
 		wsBackendGroup:       wsBackendGroup,
 		wsMethodWhitelist:    wsMethodWhitelist,
 		rpcMethodMappings:    rpcMethodMappings,
@@ -476,7 +476,7 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 			start := i * s.maxUpstreamBatchSize
 			end := int(math.Min(float64(start+s.maxUpstreamBatchSize), float64(len(cacheMisses))))
 			elems := cacheMisses[start:end]
-			res, err := s.backendGroups[group.backendGroup].Forward(ctx, createBatchRequest(elems), isBatch)
+			res, err := s.BackendGroups[group.backendGroup].Forward(ctx, createBatchRequest(elems), isBatch)
 			if err != nil {
 				log.Error(
 					"error forwarding RPC batch",
@@ -559,7 +559,7 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 	}
 	ctx := context.WithValue(r.Context(), ContextKeyXForwardedFor, xff) // nolint:staticcheck
 
-	if s.authenticatedPaths == nil {
+	if len(s.authenticatedPaths) == 0 {
 		// handle the edge case where auth is disabled
 		// but someone sends in an auth key anyway
 		if authorization != "" {
