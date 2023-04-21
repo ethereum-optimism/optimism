@@ -9,21 +9,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	cldr "github.com/ethereum-optimism/optimism/op-program/client/driver"
+	cl "github.com/ethereum-optimism/optimism/op-program/client"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
-	"github.com/ethereum-optimism/optimism/op-program/host/l1"
-	"github.com/ethereum-optimism/optimism/op-program/host/l2"
 	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
 	"github.com/ethereum-optimism/optimism/op-program/preimage"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-)
-
-var (
-	ErrClaimNotValid = errors.New("invalid claim")
 )
 
 type L2Source struct {
@@ -51,8 +44,8 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 		kv = kvstore.NewDiskKV(cfg.DataDir)
 	}
 
-	var preimageOracle preimage.OracleFn
-	var hinter preimage.HinterFn
+	var getPreimage func(key common.Hash) ([]byte, error)
+	var hinter func(hint string) error
 	if cfg.FetchingEnabled() {
 		logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
 		l1RPC, err := client.NewRPC(ctx, logger, cfg.L1URL)
@@ -80,54 +73,85 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 
 		logger.Info("Setting up pre-fetcher")
 		prefetch := prefetcher.NewPrefetcher(logger, l1Cl, l2DebugCl, kv)
-		preimageOracle = asOracleFn(func(key common.Hash) ([]byte, error) {
-			return prefetch.GetPreimage(ctx, key)
-		})
-		hinter = asHinter(prefetch.Hint)
+		getPreimage = func(key common.Hash) ([]byte, error) { return prefetch.GetPreimage(ctx, key) }
+		hinter = prefetch.Hint
 	} else {
 		logger.Info("Using offline mode. All required pre-images must be pre-populated.")
-		preimageOracle = asOracleFn(kv.Get)
-		hinter = func(v preimage.Hint) {
-			logger.Debug("ignoring prefetch hint", "hint", v)
+		getPreimage = kv.Get
+		hinter = func(hint string) error {
+			logger.Debug("ignoring prefetch hint", "hint", hint)
+			return nil
 		}
 	}
-	l1Source := l1.NewSource(logger, preimageOracle, hinter, cfg.L1Head)
 
-	l2Source, err := l2.NewEngine(logger, preimageOracle, hinter, cfg)
-	if err != nil {
-		return fmt.Errorf("connect l2 oracle: %w", err)
-	}
+	// Setup pipe for preimage oracle interaction
+	pClientRW, pHostRW := bidirectionalPipe()
+	oracleServer := preimage.NewOracleServer(pHostRW)
+	// Setup pipe for hint comms
+	hClientRW, hHostRW := bidirectionalPipe()
+	hHost := preimage.NewHintReader(hHostRW)
+	defer pHostRW.Close()
+	defer hHostRW.Close()
+	routeHints(logger, hHost, hinter)
+	launchOracleServer(logger, oracleServer, getPreimage)
 
-	logger.Info("Starting derivation")
-	d := cldr.NewDriver(logger, cfg.Rollup, l1Source, l2Source, cfg.L2ClaimBlockNumber)
-	for {
-		if err = d.Step(ctx); errors.Is(err, io.EOF) {
-			break
-		} else if err != nil {
-			return err
-		}
-	}
-	if !d.ValidateClaim(eth.Bytes32(cfg.L2Claim)) {
-		return ErrClaimNotValid
-	}
-	return nil
+	return cl.ClientProgram(
+		logger,
+		cfg.Rollup,
+		cfg.L2ChainConfig,
+		cfg.L1Head,
+		cfg.L2Head,
+		cfg.L2Claim,
+		cfg.L2ClaimBlockNumber,
+		pClientRW,
+		hClientRW,
+	)
 }
 
-func asOracleFn(getter func(key common.Hash) ([]byte, error)) preimage.OracleFn {
-	return func(key preimage.Key) []byte {
-		pre, err := getter(key.PreimageKey())
-		if err != nil {
-			panic(fmt.Errorf("preimage unavailable for key %v: %w", key, err))
-		}
-		return pre
-	}
+type readWritePair struct {
+	io.ReadCloser
+	io.WriteCloser
 }
 
-func asHinter(hint func(hint string) error) preimage.HinterFn {
-	return func(v preimage.Hint) {
-		err := hint(v.Hint())
-		if err != nil {
-			panic(fmt.Errorf("hint rejected %v: %w", v, err))
-		}
+func (rw *readWritePair) Close() error {
+	if err := rw.ReadCloser.Close(); err != nil {
+		return err
 	}
+	return rw.WriteCloser.Close()
+}
+
+func bidirectionalPipe() (a, b io.ReadWriteCloser) {
+	ar, bw := io.Pipe()
+	br, aw := io.Pipe()
+	return &readWritePair{ReadCloser: ar, WriteCloser: aw}, &readWritePair{ReadCloser: br, WriteCloser: bw}
+}
+
+func routeHints(logger log.Logger, hintReader *preimage.HintReader, hinter func(hint string) error) {
+	go func() {
+		for {
+			if err := hintReader.NextHint(hinter); err != nil {
+				if err == io.EOF || errors.Is(err, io.ErrClosedPipe) {
+					logger.Info("closing pre-image hint handler")
+					return
+				}
+				logger.Error("pre-image hint router error", "err", err)
+				return
+			}
+		}
+	}()
+}
+
+func launchOracleServer(logger log.Logger, server *preimage.OracleServer, getter func(key common.Hash) ([]byte, error)) {
+	go func() {
+		for {
+			if err := server.NextPreimageRequest(getter); err != nil {
+				if err == io.EOF || errors.Is(err, io.ErrClosedPipe) {
+					logger.Info("closing pre-image server")
+					return
+				}
+				logger.Error("pre-image server error", "error", err)
+				return
+			}
+		}
+	}()
 }
