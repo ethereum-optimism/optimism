@@ -123,6 +123,66 @@ func TestRejectBlockWithStateRootMismatch(t *testing.T) {
 	require.ErrorContains(t, err, "block root mismatch")
 }
 
+func TestGetHeaderByNumber(t *testing.T) {
+	t.Run("Forwards", func(t *testing.T) {
+		blocks, chain := setupOracleBackedChain(t, 10)
+		for _, block := range blocks {
+			result := chain.GetHeaderByNumber(block.NumberU64())
+			require.Equal(t, block.Header(), result)
+		}
+	})
+	t.Run("Reverse", func(t *testing.T) {
+		blocks, chain := setupOracleBackedChain(t, 10)
+		for i := len(blocks) - 1; i >= 0; i-- {
+			block := blocks[i]
+			result := chain.GetHeaderByNumber(block.NumberU64())
+			require.Equal(t, block.Header(), result)
+		}
+	})
+	t.Run("AppendedBlock", func(t *testing.T) {
+		_, chain := setupOracleBackedChain(t, 10)
+
+		// Append a block
+		newBlock := createBlock(t, chain)
+		require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock))
+		_, err := chain.SetCanonical(newBlock)
+		require.NoError(t, err)
+
+		require.Equal(t, newBlock.Header(), chain.GetHeaderByNumber(newBlock.NumberU64()))
+	})
+	t.Run("AppendedBlockAfterLookup", func(t *testing.T) {
+		blocks, chain := setupOracleBackedChain(t, 10)
+		// Look up an early block to prime the block cache
+		require.Equal(t, blocks[0].Header(), chain.GetHeaderByNumber(blocks[0].NumberU64()))
+
+		// Append a block
+		newBlock := createBlock(t, chain)
+		require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock))
+		_, err := chain.SetCanonical(newBlock)
+		require.NoError(t, err)
+
+		require.Equal(t, newBlock.Header(), chain.GetHeaderByNumber(newBlock.NumberU64()))
+	})
+	t.Run("AppendedMultipleBlocks", func(t *testing.T) {
+		blocks, chain := setupOracleBackedChainWithLowerHead(t, 5, 2)
+
+		// Append a few blocks
+		newBlock1 := blocks[3]
+		newBlock2 := blocks[4]
+		newBlock3 := blocks[5]
+		require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock1))
+		require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock2))
+		require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock3))
+
+		_, err := chain.SetCanonical(newBlock3)
+		require.NoError(t, err)
+
+		require.Equal(t, newBlock3.Header(), chain.GetHeaderByNumber(newBlock3.NumberU64()), "Lookup block3")
+		require.Equal(t, newBlock2.Header(), chain.GetHeaderByNumber(newBlock2.NumberU64()), "Lookup block2")
+		require.Equal(t, newBlock1.Header(), chain.GetHeaderByNumber(newBlock1.NumberU64()), "Lookup block1")
+	})
+}
+
 func assertBlockDataAvailable(t *testing.T, chain *OracleBackedL2Chain, block *types.Block, blockNumber uint64) {
 	require.Equal(t, block, chain.GetBlockByHash(block.Hash()), "get block %v by hash", blockNumber)
 	require.Equal(t, block.Header(), chain.GetHeaderByHash(block.Hash()), "get header %v by hash", blockNumber)

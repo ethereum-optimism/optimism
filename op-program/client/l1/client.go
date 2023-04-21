@@ -18,16 +18,20 @@ var (
 )
 
 type OracleL1Client struct {
-	oracle Oracle
-	head   eth.L1BlockRef
+	oracle               Oracle
+	head                 eth.L1BlockRef
+	hashByNum            map[uint64]common.Hash
+	earliestIndexedBlock eth.L1BlockRef
 }
 
 func NewOracleL1Client(logger log.Logger, oracle Oracle, l1Head common.Hash) *OracleL1Client {
 	head := eth.InfoToL1BlockRef(oracle.HeaderByBlockHash(l1Head))
 	logger.Info("L1 head loaded", "hash", head.Hash, "number", head.Number)
 	return &OracleL1Client{
-		oracle: oracle,
-		head:   head,
+		oracle:               oracle,
+		head:                 head,
+		hashByNum:            map[uint64]common.Hash{head.Number: head.Hash},
+		earliestIndexedBlock: head,
 	}
 }
 
@@ -43,9 +47,15 @@ func (o *OracleL1Client) L1BlockRefByNumber(ctx context.Context, number uint64) 
 	if number > o.head.Number {
 		return eth.L1BlockRef{}, fmt.Errorf("%w: block number %d", ErrNotFound, number)
 	}
-	block := o.head
+	hash, ok := o.hashByNum[number]
+	if ok {
+		return o.L1BlockRefByHash(ctx, hash)
+	}
+	block := o.earliestIndexedBlock
 	for block.Number > number {
 		block = eth.InfoToL1BlockRef(o.oracle.HeaderByBlockHash(block.ParentHash))
+		o.hashByNum[block.Number] = block.Hash
+		o.earliestIndexedBlock = block
 	}
 	return block, nil
 }

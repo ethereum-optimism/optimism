@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -38,6 +39,28 @@ func TestMissingGasLimit(t *testing.T) {
 	require.ErrorIs(t, err, eth.InputError{})
 	require.Equal(t, eth.InvalidPayloadAttributes, err.(eth.InputError).Code)
 	require.Nil(t, res)
+}
+
+// TestTxGasSameAsBlockGasLimit tests that op-geth rejects transactions that attempt to use the full block gas limit.
+// The L1 Info deposit always takes gas so the effective gas limit is lower than the full block gas limit.
+func TestTxGasSameAsBlockGasLimit(t *testing.T) {
+	InitParallel(t)
+	cfg := DefaultSystemConfig(t)
+	sys, err := cfg.Start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	ethPrivKey := sys.cfg.Secrets.Alice
+	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
+		ChainID: cfg.L2ChainIDBig(),
+		Gas:     29_999_999,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	l2Seq := sys.Clients["sequencer"]
+	err = l2Seq.SendTransaction(ctx, tx)
+	require.ErrorContains(t, err, txpool.ErrGasLimit.Error())
+
 }
 
 // TestInvalidDepositInFCU runs an invalid deposit through a FCU/GetPayload/NewPayload/FCU set of calls.

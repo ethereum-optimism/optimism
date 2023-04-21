@@ -18,10 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/preimage"
 )
 
-var (
-	ErrClaimNotValid = errors.New("invalid claim")
-)
-
 // ClientProgram executes the Program, while attached to an IO based pre-image oracle, to be served by a host.
 func ClientProgram(
 	logger log.Logger,
@@ -59,9 +55,5 @@ func Program(logger log.Logger, cfg *rollup.Config, l2Cfg *params.ChainConfig, l
 			return err
 		}
 	}
-	if !d.ValidateClaim(eth.Bytes32(l2Claim)) {
-		return ErrClaimNotValid
-	}
-	logger.Info("Derivation complete", "head", d.SafeHead())
-	return nil
+	return d.ValidateClaim(eth.Bytes32(l2Claim))
 }
