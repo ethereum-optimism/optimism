@@ -131,7 +131,7 @@ func routeHints(logger log.Logger, hintReader *preimage.HintReader, hinter func(
 		for {
 			if err := hintReader.NextHint(hinter); err != nil {
 				if err == io.EOF || errors.Is(err, io.ErrClosedPipe) {
-					logger.Info("closing pre-image hint handler")
+					logger.Debug("closing pre-image hint handler")
 					return
 				}
 				logger.Error("pre-image hint router error", "err", err)
@@ -146,7 +146,7 @@ func launchOracleServer(logger log.Logger, server *preimage.OracleServer, getter
 		for {
 			if err := server.NextPreimageRequest(getter); err != nil {
 				if err == io.EOF || errors.Is(err, io.ErrClosedPipe) {
-					logger.Info("closing pre-image server")
+					logger.Debug("closing pre-image server")
 					return
 				}
 				logger.Error("pre-image server error", "error", err)
