@@ -69,6 +69,7 @@ func TestConsensus(t *testing.T) {
 
 		// consensus at block 0x1
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+<<<<<<< HEAD
 	})
 
 	t.Run("prevent using a backend with low peer count", func(t *testing.T) {
@@ -123,6 +124,8 @@ func TestConsensus(t *testing.T) {
 
 		require.NotContains(t, consensusGroup, be)
 		require.Equal(t, 1, len(consensusGroup))
+=======
+>>>>>>> 015688be9 (addressing final comments)
 	})
 
 	t.Run("advance consensus", func(t *testing.T) {
@@ -137,7 +140,10 @@ func TestConsensus(t *testing.T) {
 
 		// all nodes start at block 0x1
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+<<<<<<< HEAD
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber())
+=======
+>>>>>>> 015688be9 (addressing final comments)
 
 		// advance latest on node2 to 0x2
 		h2.AddOverride(&ms.MethodTemplate{
@@ -159,7 +165,7 @@ func TestConsensus(t *testing.T) {
 
 		// consensus should stick to 0x1, since node1 is still lagging there
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
-		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber())
+		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
 
 		// advance latest on node1 to 0x2
 		h1.AddOverride(&ms.MethodTemplate{
@@ -177,7 +183,10 @@ func TestConsensus(t *testing.T) {
 
 		// should stick to 0x2, since now all nodes are at 0x2
 		require.Equal(t, "0x2", bg.Consensus.GetConsensusBlockNumber().String())
+<<<<<<< HEAD
 		require.Equal(t, "0x2", bg.Consensus.GetConsensusBlockNumber())
+=======
+>>>>>>> 015688be9 (addressing final comments)
 	})
 
 	t.Run("broken consensus", func(t *testing.T) {
@@ -192,7 +201,10 @@ func TestConsensus(t *testing.T) {
 
 		// all nodes start at block 0x1
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+<<<<<<< HEAD
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber())
+=======
+>>>>>>> 015688be9 (addressing final comments)
 
 		// advance latest on both nodes to 0x2
 		h1.AddOverride(&ms.MethodTemplate{
@@ -216,7 +228,10 @@ func TestConsensus(t *testing.T) {
 
 		// at 0x2
 		require.Equal(t, "0x2", bg.Consensus.GetConsensusBlockNumber().String())
+<<<<<<< HEAD
 		require.Equal(t, "0x2", bg.Consensus.GetConsensusBlockNumber())
+=======
+>>>>>>> 015688be9 (addressing final comments)
 
 		// make node2 diverge on hash
 		h2.AddOverride(&ms.MethodTemplate{
@@ -234,7 +249,10 @@ func TestConsensus(t *testing.T) {
 
 		// should resolve to 0x1, since 0x2 is out of consensus at the moment
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+<<<<<<< HEAD
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber())
+=======
+>>>>>>> 015688be9 (addressing final comments)
 
 		// later, when impl events, listen to broken consensus event
 	})
@@ -251,7 +269,10 @@ func TestConsensus(t *testing.T) {
 
 		// all nodes start at block 0x1
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+<<<<<<< HEAD
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber())
+=======
+>>>>>>> 015688be9 (addressing final comments)
 
 		// advance latest on both nodes to 0x2
 		h1.AddOverride(&ms.MethodTemplate{
@@ -275,7 +296,10 @@ func TestConsensus(t *testing.T) {
 
 		// at 0x2
 		require.Equal(t, "0x2", bg.Consensus.GetConsensusBlockNumber().String())
+<<<<<<< HEAD
 		require.Equal(t, "0x2", bg.Consensus.GetConsensusBlockNumber())
+=======
+>>>>>>> 015688be9 (addressing final comments)
 
 		// advance latest on both nodes to 0x3
 		h1.AddOverride(&ms.MethodTemplate{
@@ -299,7 +323,10 @@ func TestConsensus(t *testing.T) {
 
 		// at 0x3
 		require.Equal(t, "0x3", bg.Consensus.GetConsensusBlockNumber().String())
+<<<<<<< HEAD
 		require.Equal(t, "0x3", bg.Consensus.GetConsensusBlockNumber())
+=======
+>>>>>>> 015688be9 (addressing final comments)
 
 		// make node2 diverge on hash for blocks 0x2 and 0x3
 		h2.AddOverride(&ms.MethodTemplate{
@@ -323,7 +350,10 @@ func TestConsensus(t *testing.T) {
 
 		// should resolve to 0x1
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+<<<<<<< HEAD
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber())
+=======
+>>>>>>> 015688be9 (addressing final comments)
 	})
 
 	t.Run("fork in advanced block", func(t *testing.T) {
@@ -338,7 +368,10 @@ func TestConsensus(t *testing.T) {
 
 		// all nodes start at block 0x1
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+<<<<<<< HEAD
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber())
+=======
+>>>>>>> 015688be9 (addressing final comments)
 
 		// make nodes 1 and 2 advance in forks
 		h1.AddOverride(&ms.MethodTemplate{
@@ -386,6 +419,7 @@ func TestConsensus(t *testing.T) {
 
 		// should resolve to 0x1, the highest common ancestor
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+<<<<<<< HEAD
 	})
 }
 
@@ -417,6 +451,8 @@ func buildResponse(result interface{}) string {
 	}
 	return string(res)
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber())
+=======
+>>>>>>> 015688be9 (addressing final comments)
 	})
 }
 
