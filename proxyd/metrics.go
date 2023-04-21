@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
+
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -243,10 +245,12 @@ var (
 		Help:      "Count of errors taking frontend rate limits",
 	})
 
-	consensusLatestBlock = promauto.NewGauge(prometheus.GaugeOpts{
+	consensusLatestBlock = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: MetricsNamespace,
-		Name:      "consensus_latest_block",
+		Name:      "group_consensus_latest_block",
 		Help:      "Consensus latest block",
+	}, []string{
+		"backend_group_name",
 	})
 
 	backendLatestBlockBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
@@ -315,4 +319,12 @@ func RecordCacheMiss(method string) {
 
 func RecordBatchSize(size int) {
 	batchSizeHistogram.Observe(float64(size))
+}
+
+func RecordBackendLatestBlock(be *Backend, blockNumber hexutil.Uint64) {
+	backendLatestBlockBackend.WithLabelValues(be.Name).Set(float64(blockNumber))
+}
+
+func RecordGroupConsensusLatestBlock(group *BackendGroup, blockNumber hexutil.Uint64) {
+	consensusLatestBlock.WithLabelValues(group.Name).Set(float64(blockNumber))
 }

@@ -34,7 +34,7 @@ type ConsensusPoller struct {
 type backendState struct {
 	backendStateMux sync.Mutex
 
-	latestBlockNumber string
+	latestBlockNumber hexutil.Uint64
 	latestBlockHash   string
 
 	lastUpdate time.Time
@@ -54,7 +54,7 @@ func (cp *ConsensusPoller) GetConsensusGroup() []*Backend {
 }
 
 // GetConsensusBlockNumber returns the agreed block number in a consensus
-func (ct *ConsensusPoller) GetConsensusBlockNumber() string {
+func (ct *ConsensusPoller) GetConsensusBlockNumber() hexutil.Uint64 {
 	return ct.tracker.GetConsensusBlockNumber()
 }
 
@@ -198,28 +198,28 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 	changed := cp.setBackendState(be, latestBlockNumber, latestBlockHash)
 
 	if changed {
-		backendLatestBlockBackend.WithLabelValues(be.Name).Set(blockToFloat(latestBlockNumber))
+		RecordBackendLatestBlock(be, latestBlockNumber)
 		log.Info("backend state updated", "name", be.Name, "state", bs)
 	}
 }
 
 // UpdateBackendGroupConsensus resolves the current group consensus based on the state of the backends
 func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
-	var lowestBlock string
+	var lowestBlock hexutil.Uint64
 	var lowestBlockHash string
 
 	currentConsensusBlockNumber := cp.GetConsensusBlockNumber()
 
 	for _, be := range cp.backendGroup.Backends {
 		backendLatestBlockNumber, backendLatestBlockHash := cp.getBackendState(be)
-		if lowestBlock == "" || backendLatestBlockNumber < lowestBlock {
+		if lowestBlock == 0 || backendLatestBlockNumber < lowestBlock {
 			lowestBlock = backendLatestBlockNumber
 			lowestBlockHash = backendLatestBlockHash
 		}
 	}
 
 	// no block to propose (i.e. initializing consensus)
-	if lowestBlock == "" {
+	if lowestBlock == 0 {
 		return
 	}
 
@@ -247,7 +247,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 				continue
 			}
 
-			actualBlockNumber, actualBlockHash, err := cp.fetchBlock(ctx, be, proposedBlock)
+			actualBlockNumber, actualBlockHash, err := cp.fetchBlock(ctx, be, proposedBlock.String())
 			if err != nil {
 				log.Warn("error updating backend", "name", be.Name, "err", err)
 				continue
@@ -257,7 +257,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 			}
 			blocksDontMatch := (actualBlockNumber != proposedBlock) || (actualBlockHash != proposedBlockHash)
 			if blocksDontMatch {
-				if blockAheadOrEqual(currentConsensusBlockNumber, actualBlockNumber) {
+				if currentConsensusBlockNumber >= actualBlockNumber {
 					log.Warn("backend broke consensus", "name", be.Name, "blockNum", actualBlockNumber, "proposedBlockNum", proposedBlock, "blockHash", actualBlockHash, "proposedBlockHash", proposedBlockHash)
 					broken = true
 				}
@@ -271,7 +271,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 			hasConsensus = true
 		} else {
 			// walk one block behind and try again
-			proposedBlock = hexAdd(proposedBlock, -1)
+			proposedBlock -= 1
 			proposedBlockHash = ""
 			log.Info("no consensus, now trying", "block:", proposedBlock)
 		}
@@ -283,7 +283,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	}
 
 	cp.tracker.SetConsensusBlockNumber(proposedBlock)
-	consensusLatestBlock.Set(blockToFloat(proposedBlock))
+	RecordGroupConsensusLatestBlock(cp.backendGroup, proposedBlock)
 	cp.consensusGroupMux.Lock()
 	cp.consensusGroup = consensusBackends
 	cp.consensusGroupMux.Unlock()
@@ -292,24 +292,24 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 }
 
 // fetchBlock Convenient wrapper to make a request to get a block directly from the backend
-func (cp *ConsensusPoller) fetchBlock(ctx context.Context, be *Backend, block string) (blockNumber string, blockHash string, err error) {
+func (cp *ConsensusPoller) fetchBlock(ctx context.Context, be *Backend, block string) (blockNumber hexutil.Uint64, blockHash string, err error) {
 	var rpcRes RPCRes
 	err = be.ForwardRPC(ctx, &rpcRes, "67", "eth_getBlockByNumber", block, false)
 	if err != nil {
-		return "", "", err
+		return 0, "", err
 	}
 
 	jsonMap, ok := rpcRes.Result.(map[string]interface{})
 	if !ok {
-		return "", "", fmt.Errorf(fmt.Sprintf("unexpected response type checking consensus on backend %s", be.Name))
+		return 0, "", fmt.Errorf("unexpected response type checking consensus on backend %s", be.Name)
 	}
-	blockNumber = jsonMap["number"].(string)
+	blockNumber = hexutil.Uint64(hexutil.MustDecodeUint64(jsonMap["number"].(string)))
 	blockHash = jsonMap["hash"].(string)
 
 	return
 }
 
-func (cp *ConsensusPoller) getBackendState(be *Backend) (blockNumber string, blockHash string) {
+func (cp *ConsensusPoller) getBackendState(be *Backend) (blockNumber hexutil.Uint64, blockHash string) {
 	bs := cp.backendState[be]
 	bs.backendStateMux.Lock()
 	blockNumber = bs.latestBlockNumber
@@ -318,7 +318,7 @@ func (cp *ConsensusPoller) getBackendState(be *Backend) (blockNumber string, blo
 	return
 }
 
-func (cp *ConsensusPoller) setBackendState(be *Backend, blockNumber string, blockHash string) (changed bool) {
+func (cp *ConsensusPoller) setBackendState(be *Backend, blockNumber hexutil.Uint64, blockHash string) (changed bool) {
 	bs := cp.backendState[be]
 	bs.backendStateMux.Lock()
 	changed = bs.latestBlockHash != blockHash
@@ -327,19 +327,4 @@ func (cp *ConsensusPoller) setBackendState(be *Backend, blockNumber string, bloc
 	bs.lastUpdate = time.Now()
 	bs.backendStateMux.Unlock()
 	return
-}
-
-// hexAdd Convenient way to convert hex block to uint64, increment, and convert back to hex
-func hexAdd(hexVal string, incr int64) string {
-	return hexutil.EncodeUint64(uint64(int64(hexutil.MustDecodeUint64(hexVal)) + incr))
-}
-
-// blockAheadOrEqual Convenient way to check if `baseBlock` is ahead or equal than `checkBlock`
-func blockAheadOrEqual(baseBlock string, checkBlock string) bool {
-	return hexutil.MustDecodeUint64(baseBlock) >= hexutil.MustDecodeUint64(checkBlock)
-}
-
-// blockToFloat Convenient way to convert a hex block to float64
-func blockToFloat(hexVal string) float64 {
-	return float64(hexutil.MustDecodeUint64(hexVal))
 }
