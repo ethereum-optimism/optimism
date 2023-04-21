@@ -1349,6 +1349,20 @@ workflows:
             - oplabs-gcr
           platforms: "linux/amd64,linux/arm64"
       - docker-build:
+          name: op-program-docker-build
+          docker_file: op-program/Dockerfile
+          docker_name: op-program
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: op-program-docker-publish
+          docker_file: op-program/Dockerfile
+          docker_name: op-program
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - oplabs-gcr
+          platforms: "linux/amd64,linux/arm64"
+      - docker-build:
           name: op-proposer-docker-build
           docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
