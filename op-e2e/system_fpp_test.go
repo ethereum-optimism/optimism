@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	oppcl "github.com/ethereum-optimism/optimism/op-program/client"
+	"github.com/ethereum-optimism/optimism/op-program/client/driver"
 	opp "github.com/ethereum-optimism/optimism/op-program/host"
 	oppconf "github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -119,7 +119,7 @@ func TestVerifyL2OutputRoot(t *testing.T) {
 	t.Log("Running fault proof with invalid claim")
 	fppConfig.L2Claim = common.Hash{0xaa}
 	err = opp.FaultProofProgram(log, fppConfig)
-	require.ErrorIs(t, err, oppcl.ErrClaimNotValid)
+	require.ErrorIs(t, err, driver.ErrClaimNotValid)
 }
 
 func waitForSafeHead(ctx context.Context, safeBlockNum uint64, rollupClient *sources.RollupClient) error {

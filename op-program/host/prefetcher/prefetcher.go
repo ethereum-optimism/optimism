@@ -49,11 +49,13 @@ func NewPrefetcher(logger log.Logger, l1Fetcher L1Source, l2Fetcher L2Source, kv
 }
 
 func (p *Prefetcher) Hint(hint string) error {
+	p.logger.Trace("Received hint", "hint", hint)
 	p.lastHint = hint
 	return nil
 }
 
 func (p *Prefetcher) GetPreimage(ctx context.Context, key common.Hash) ([]byte, error) {
+	p.logger.Trace("Pre-image requested", "key", key)
 	pre, err := p.kvStore.Get(key)
 	if errors.Is(err, kvstore.ErrNotFound) && p.lastHint != "" {
 		hint := p.lastHint
