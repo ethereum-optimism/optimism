@@ -1,9 +1,11 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
+	"github.com/ethereum-optimism/optimism/op-program/client/driver"
 	"github.com/ethereum-optimism/optimism/op-program/host"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
@@ -35,9 +37,10 @@ var VersionWithMeta = func() string {
 
 func main() {
 	args := os.Args
-	err := run(args, host.FaultProofProgram)
-	if err != nil {
-		log.Crit("Application failed", "message", err)
+	if err := run(args, host.FaultProofProgram); errors.Is(err, driver.ErrClaimNotValid) {
+		log.Crit("Claim is invalid", "err", err)
+	} else if err != nil {
+		log.Crit("Application failed", "err", err)
 	} else {
 		log.Info("Claim successfully verified")
 	}
