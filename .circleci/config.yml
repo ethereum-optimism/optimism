@@ -561,11 +561,11 @@ jobs:
       - run:
           name: build
           command: yarn build
-          working_directory: packages/atst
+          working_directory: packages/sdk
       - run:
           name: lint
           command: yarn lint:check
-          working_directory: packages/atst
+          working_directory: packages/sdk
       - run:
           name: make sure anvil l1 is up
           command: npx wait-on tcp:8545 && cast block-number --rpc-url http://localhost:8545
@@ -697,6 +697,8 @@ jobs:
           command: yarn test
           no_output_timeout: 5m
           working_directory: packages/atst
+          environment:
+            CI: true
 
 
   go-lint:
