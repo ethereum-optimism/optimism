@@ -55,6 +55,14 @@ func (k Keccak256Key) PreimageKey() (out common.Hash) {
 	return
 }
 
+func (k Keccak256Key) String() string {
+	return common.Hash(k).String()
+}
+
+func (k Keccak256Key) TerminalString() string {
+	return common.Hash(k).String()
+}
+
 // Hint is an interface to enable any program type to function as a hint,
 // when passed to the Hinter interface, returning a string representation
 // of what data the host should prepare pre-images for.
