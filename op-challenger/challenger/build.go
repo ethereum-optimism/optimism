@@ -8,9 +8,9 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	log "github.com/ethereum/go-ethereum/log"
 
-	bindings "github.com/refcell/op-challenger/contracts/bindings"
-	flags "github.com/refcell/op-challenger/flags"
-	metrics "github.com/refcell/op-challenger/metrics"
+	bindings "github.com/optimism/op-challenger/contracts/bindings"
+	flags "github.com/optimism/op-challenger/flags"
+	metrics "github.com/optimism/op-challenger/metrics"
 
 	opBindings "github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	txmgr "github.com/ethereum-optimism/optimism/op-service/txmgr"

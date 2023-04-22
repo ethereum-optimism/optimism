@@ -55,5 +55,5 @@ GLOBAL OPTIONS:
 ## Acknowledgements
 
 - [op-challenger (golang)](https://github.com/refcell/op-challenger): an inital golang challenge agent 🚀
-- [op-challenger](https://github.com/clabby/op-challenger): a rust challenge agent 🦀
+- [op-challenger (rust)](https://github.com/clabby/op-challenger): a rust challenge agent 🦀
 

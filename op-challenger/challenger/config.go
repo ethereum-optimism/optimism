@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/urfave/cli"
 
-	flags "github.com/refcell/op-challenger/flags"
+	flags "github.com/optimism/op-challenger/flags"
 
 	sources "github.com/ethereum-optimism/optimism/op-node/sources"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"

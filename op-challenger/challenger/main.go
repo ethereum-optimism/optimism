@@ -9,7 +9,7 @@ import (
 
 	cli "github.com/urfave/cli"
 
-	metrics "github.com/refcell/op-challenger/metrics"
+	metrics "github.com/optimism/op-challenger/metrics"
 
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"

@@ -12,8 +12,8 @@ import (
 	ethclient "github.com/ethereum/go-ethereum/ethclient"
 	log "github.com/ethereum/go-ethereum/log"
 
-	bindings "github.com/refcell/op-challenger/contracts/bindings"
-	metrics "github.com/refcell/op-challenger/metrics"
+	bindings "github.com/optimism/op-challenger/contracts/bindings"
+	metrics "github.com/optimism/op-challenger/metrics"
 
 	opBindings "github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	eth "github.com/ethereum-optimism/optimism/op-node/eth"
