@@ -1,7 +1,9 @@
 /// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
+import { GameType } from "src/types/Types.sol";
 import { GameStatus } from "src/types/Types.sol";
+import { SafeCall } from "src/lib/LibSafeCall.sol";
 import { IDisputeGame } from "src/interfaces/IDisputeGame.sol";
 import { IDisputeGameFactory } from "src/interfaces/IDisputeGameFactory.sol";
 
@@ -9,7 +11,7 @@ import { IDisputeGameFactory } from "src/interfaces/IDisputeGameFactory.sol";
 /// @author clabby <https://github.com/clabby>
 /// @author refcell <https://github.com/refcell>
 /// @notice The Bond Manager serves as an escrow for permissionless output proposal bonds.
-interface IBondManager {
+contract BondManager {
 
   // The Bond Type
   struct Bond {
@@ -20,7 +22,7 @@ interface IBondManager {
   }
 
   /// @notice Mapping from bondId to amount.
-  mapping(bondId => Bond) internal bonds;
+  mapping(bytes32 => Bond) internal bonds;
 
   /// @notice BondPosted is emitted when a bond is posted.
   event BondPosted(bytes32 bondId, address owner, uint64 expiration, uint256 amount);
@@ -50,12 +52,12 @@ interface IBondManager {
     require(owner != address(0), "BondManager: Owner cannot be the zero address.");
     require(msg.value > 0, "BondManager: Value must be non-zero.");
 
-    bonds[bondId] = Bond{
+    bonds[bondId] = Bond({
         owner: msg.sender,
-        expiration: block.timestamp + minClaimHold,
+        expiration: uint64(block.timestamp + minClaimHold),
         bondId: bondId,
         amount: msg.value
-    };
+    });
 
     emit BondPosted(bondId, owner, minClaimHold, msg.value);
   }
@@ -64,18 +66,18 @@ interface IBondManager {
   /// @dev This function will revert if there is no bond at the given id.
   /// @param bondId is the id of the bond.
   function seize(bytes32 bondId) external {
-      Bond memory b = bonds[bondId];
-      require(b.owner != address(0), "BondManager: The bond does not exist.");
-      require(b.expiration > block.timestamp, "BondManager: Bond isn't seizable.");
+    Bond memory b = bonds[bondId];
+    require(b.owner != address(0), "BondManager: The bond does not exist.");
+    require(b.expiration > block.timestamp, "BondManager: Bond isn't seizable.");
 
-      IDisputeGame game = dgf.gameImpls(GameType.ATTESTATION);
-      require(msg.sender == address(game), "BondManager: unauthorized seizure.");
+    IDisputeGame game = dgf.gameImpls(GameType.ATTESTATION);
+    require(msg.sender == address(game), "BondManager: unauthorized seizure.");
 
-      delete bonds[bondId];
+    delete bonds[bondId];
 
-      SafeCall.call(msg.sender, gasleft(), b.amount, bytes(""));
+    emit BondSeized(bondId, b.owner, msg.sender, b.amount);
 
-      emit BondSeized(bondId, msg.sender, b.amount);
+    SafeCall.call(msg.sender, gasleft(), b.amount, bytes(""));
   }
 
   /// @notice Seizes the bond with the given id and distributes it to recipients.
@@ -83,28 +85,36 @@ interface IBondManager {
   /// @param bondId is the id of the bond.
   /// @param recipients is a set of addresses to split the bond amongst.
   function seizeAndSplit(bytes32 bondId, address[] calldata recipients) external {
-      Bond memory b = bonds[bondId];
-      require(b.owner != address(0), "BondManager: The bond does not exist.");
-      require(b.expiration > block.timestamp, "BondManager: Bond isn't seizable.");
+    Bond memory b = bonds[bondId];
+    require(b.owner != address(0), "BondManager: The bond does not exist.");
+    require(b.expiration > block.timestamp, "BondManager: Bond isn't seizable.");
 
-      IDisputeGame game = dgf.gameImpls(GameType.ATTESTATION);
-      require(msg.sender == address(game), "BondManager: unauthorized seizure.");
+    IDisputeGame game = dgf.gameImpls(GameType.ATTESTATION);
+    require(msg.sender == address(game), "BondManager: unauthorized seizure.");
 
-      delete bonds[bondId];
+    delete bonds[bondId];
 
-      uint256 len = recipients.length;
-      uint256 proportionalAmount = b.amount / len;
-      for (uint256 i = 0; i < len; i++) {
-          SafeCall.call(recipients[i], gasleft(), proportionalAmount, bytes(""));
-      }
+    emit BondSeized(bondId, b.owner, msg.sender, b.amount);
 
-      emit BondSeized(bondId, msg.sender, b.amount);
+    uint256 len = recipients.length;
+    uint256 proportionalAmount = b.amount / len;
+    for (uint256 i = 0; i < len; i++) {
+      SafeCall.call(recipients[i], gasleft(), proportionalAmount, bytes(""));
+    }
   }
 
   /// @notice Reclaims the bond of the bond owner.
   /// @dev This function will revert if there is no bond at the given id.
   /// @param bondId is the id of the bond.
   function reclaim(bytes32 bondId) external {
+    Bond memory b = bonds[bondId];
+    require(b.owner == msg.sender, "BondManager: Unauthorized claimant.");
+    require(b.expiration <= block.timestamp, "BondManager: Bond isn't claimable yet.");
 
+    delete bonds[bondId];
+
+    emit BondReclaimed(bondId, msg.sender, b.amount);
+
+    SafeCall.call(msg.sender, gasleft(), b.amount, bytes(""));
   }
 }
