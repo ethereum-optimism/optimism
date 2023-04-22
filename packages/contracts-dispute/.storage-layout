@@ -1,0 +1,52 @@
+=======================
+👁👁 STORAGE LAYOUT snapshot 👁👁
+=======================
+
+=======================
+➡ src/AttestationDisputeGame.sol:AttestationDisputeGame
+=======================
+
+| Name                  | Type                     | Slot | Offset | Bytes | Contract                                              |
+|-----------------------|--------------------------|------|--------|-------|-------------------------------------------------------|
+| initialized           | bool                     | 0    | 0      | 1     | src/AttestationDisputeGame.sol:AttestationDisputeGame |
+| createdAt             | Timestamp                | 0    | 1      | 8     | src/AttestationDisputeGame.sol:AttestationDisputeGame |
+| status                | enum GameStatus          | 0    | 9      | 1     | src/AttestationDisputeGame.sol:AttestationDisputeGame |
+| attestationSubmitters | address[]                | 1    | 0      | 32    | src/AttestationDisputeGame.sol:AttestationDisputeGame |
+| challenges            | mapping(address => bool) | 2    | 0      | 32    | src/AttestationDisputeGame.sol:AttestationDisputeGame |
+
+=======================
+➡ src/BondManager.sol:BondManager
+=======================
+
+| Name  | Type                                        | Slot | Offset | Bytes | Contract                        |
+|-------|---------------------------------------------|------|--------|-------|---------------------------------|
+| bonds | mapping(bytes32 => struct BondManager.Bond) | 0    | 0      | 32    | src/BondManager.sol:BondManager |
+| dgf   | contract IDisputeGameFactory                | 1    | 0      | 20    | src/BondManager.sol:BondManager |
+
+=======================
+➡ src/DisputeGameFactory.sol:DisputeGameFactory
+=======================
+
+| Name         | Type                                            | Slot | Offset | Bytes | Contract                                      |
+|--------------|-------------------------------------------------|------|--------|-------|-----------------------------------------------|
+| _owner       | address                                         | 0    | 0      | 20    | src/DisputeGameFactory.sol:DisputeGameFactory |
+| gameImpls    | mapping(enum GameType => contract IDisputeGame) | 1    | 0      | 32    | src/DisputeGameFactory.sol:DisputeGameFactory |
+| disputeGames | mapping(Hash => contract IDisputeGame)          | 2    | 0      | 32    | src/DisputeGameFactory.sol:DisputeGameFactory |
+
+=======================
+➡ src/FaultDisputeGame.sol:FaultDisputeGame
+=======================
+
+| Name             | Type                            | Slot | Offset | Bytes | Contract                                  |
+|------------------|---------------------------------|------|--------|-------|-------------------------------------------|
+| initialized      | bool                            | 0    | 0      | 1     | src/FaultDisputeGame.sol:FaultDisputeGame |
+| gameStart        | Timestamp                       | 0    | 1      | 8     | src/FaultDisputeGame.sol:FaultDisputeGame |
+| bondManager      | contract IBondManager           | 0    | 9      | 20    | src/FaultDisputeGame.sol:FaultDisputeGame |
+| leftMostPosition | Position                        | 1    | 0      | 32    | src/FaultDisputeGame.sol:FaultDisputeGame |
+| claims           | mapping(ClaimHash => Claim)     | 2    | 0      | 32    | src/FaultDisputeGame.sol:FaultDisputeGame |
+| parents          | mapping(ClaimHash => ClaimHash) | 3    | 0      | 32    | src/FaultDisputeGame.sol:FaultDisputeGame |
+| positions        | mapping(ClaimHash => Position)  | 4    | 0      | 32    | src/FaultDisputeGame.sol:FaultDisputeGame |
+| bonds            | mapping(ClaimHash => Bond)      | 5    | 0      | 32    | src/FaultDisputeGame.sol:FaultDisputeGame |
+| clocks           | mapping(ClaimHash => Clock)     | 6    | 0      | 32    | src/FaultDisputeGame.sol:FaultDisputeGame |
+| rc               | mapping(ClaimHash => uint64)    | 7    | 0      | 32    | src/FaultDisputeGame.sol:FaultDisputeGame |
+| countered        | mapping(ClaimHash => bool)      | 8    | 0      | 32    | src/FaultDisputeGame.sol:FaultDisputeGame |

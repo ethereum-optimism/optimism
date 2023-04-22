@@ -11,8 +11,18 @@
   "license": "MIT",
   "private": true,
   "scripts": {
+    "build:forge": "forge build",
+    "test:forge": "forge test",
+    "coverage:lcov": "forge coverage --report lcov",
+    "coverage": "yarn build:forge && yarn test:forge && yarn coverage:lcov",
+    "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./tsconfig.build.tsbuildinfo ./src/contract-artifacts.ts ./test-case-generator/fuzz",
+    "gas-snapshot": "yarn build:forge && forge snapshot --no-match-test 'testDiff|testFuzz|invariant|generateArtifact'",
+    "storage-snapshot": "./scripts/storage-snapshot.sh",
+    "lint:ts:check": "eslint . --max-warnings=0",
+    "lint:contracts:check": "yarn solhint -f table 'src/**/*.sol' && yarn prettier --check 'src/**/*.sol'",
+    "lint:check": "yarn lint:contracts:check && yarn lint:ts:check",
     "spec:doctoc": "doctoc ./SPEC.md",
-    "clean": "forge clean"
+    "clean:forge": "forge clean"
   },
   "devDependencies": {
     "@eth-optimism/contracts-bedrock": "0.13.2",
