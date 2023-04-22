@@ -1,0 +1,7 @@
+DisputeGameFactory_Test:test_owner_succeeds() (gas: 7682)
+DisputeGameFactory_Test:test_setImplementation_notOwner_reverts() (gas: 11179)
+DisputeGameFactory_Test:test_setImplementation_succeeds() (gas: 32830)
+DisputeGameFactory_Test:test_transferOwnership_notOwner_reverts() (gas: 10899)
+DisputeGameFactory_Test:test_transferOwnership_succeeds() (gas: 13219)
+Initialize_Test:test_init_cannotInitializeTwice_reverts() (gas: 56877)
+Initialize_Test:test_init_succeeds() (gas: 55699)
