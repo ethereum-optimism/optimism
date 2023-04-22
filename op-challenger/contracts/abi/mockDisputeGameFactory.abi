@@ -1,0 +1,85 @@
+[
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "disputeProxy",
+        "type": "address"
+      },
+      {
+        "indexed": true,
+        "internalType": "enum GameType",
+        "name": "gameType",
+        "type": "uint8"
+      },
+      {
+        "indexed": true,
+        "internalType": "Claim",
+        "name": "rootClaim",
+        "type": "bytes32"
+      }
+    ],
+    "name": "DisputeGameCreated",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "enum GameType",
+        "name": "gameType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "Claim",
+        "name": "rootClaim",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "extraData",
+        "type": "bytes"
+      }
+    ],
+    "name": "create",
+    "outputs": [
+      {
+        "internalType": "contract MockAttestationDisputeGame",
+        "name": "mock",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "enum GameType",
+        "name": "gameType",
+        "type": "uint8"
+      },
+      {
+        "internalType": "Claim",
+        "name": "rootClaim",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "extraData",
+        "type": "bytes"
+      }
+    ],
+    "name": "games",
+    "outputs": [
+      {
+        "internalType": "contract IDisputeGame",
+        "name": "_proxy",
+        "type": "address"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  }
+]
