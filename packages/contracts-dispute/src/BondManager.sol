@@ -22,7 +22,7 @@ contract BondManager {
   }
 
   /// @notice Mapping from bondId to amount.
-  mapping(bytes32 => Bond) internal bonds;
+  mapping(bytes32 => Bond) public bonds;
 
   /// @notice BondPosted is emitted when a bond is posted.
   event BondPosted(bytes32 bondId, address owner, uint64 expiration, uint256 amount);
@@ -53,7 +53,7 @@ contract BondManager {
     require(msg.value > 0, "BondManager: Value must be non-zero.");
 
     bonds[bondId] = Bond({
-        owner: msg.sender,
+        owner: owner,
         expiration: uint64(block.timestamp + minClaimHold),
         bondId: bondId,
         amount: msg.value

@@ -168,8 +168,10 @@ contract AttestationDisputeGame is IAttestationDisputeGame, Clone, Initializable
         // Set the status as `CHALLENGER_WINS`.
         status = GameStatus.CHALLENGER_WINS;
 
-        // TODO: Request that the `BondManager` distribute the bond attached to the faulty output
-        //       to the submitters of the attestations.
+        // Request the `BondManager` to distribute the faulty output bond to the attestors.
+        // TODO: In cloud-based signing, we want to include the cloud signatories as attestors.
+        uint256 _l2BlockNumber = l2BlockNumber();
+        bondManager.seizeAndSplit(keccak256(abi.encode(_l2BlockNumber)), attestationSubmitters);
 
         // Delete all outputs from [l2BlockNumber, currentL2BlockNumber]
         l2OutputOracle.deleteL2Outputs(l2BlockNumber());
