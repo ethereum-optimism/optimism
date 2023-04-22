@@ -18,6 +18,11 @@ import { Types } from "../libraries/Types.sol";
  */
 contract L2OutputOracleV2 is Initializable, Semver {
     /**
+     * @notice The amount that must be posted as a bond for proposing an output.
+     */
+    uint256 public constant OUTPUT_BOND_COST = 1 ether;
+
+    /**
      * @notice The time between L2 blocks in seconds. Once set, this value MUST NOT be modified.
      */
     uint256 public immutable L2_BLOCK_TIME;
@@ -177,7 +182,6 @@ contract L2OutputOracleV2 is Initializable, Semver {
 
         // Remove the associated output state
         delete l2Outputs[_l2BlockNumber];
-        uint256 amount = BOND_MANAGER.call(keccak256(abi.encode(_l2BlockNumber)), msg.sender);
         delete bonds[_l2BlockNumber];
 
         emit OutputsDeleted(nextL2Block, _l2BlockNumber);
@@ -198,7 +202,7 @@ contract L2OutputOracleV2 is Initializable, Semver {
         uint256 _l1BlockNumber
     ) external payable {
         require(
-            msg.value >= BOND_MANAGER.next(),
+            msg.value >= OUTPUT_BOND_COST,
             "L2OutputOracleV2: minimum proposal cost not provided"
         );
 
@@ -259,7 +263,8 @@ contract L2OutputOracleV2 is Initializable, Semver {
         }
 
         // Post the bond to the bond manager
-        BOND_MANAGER.post{ value: msg.value }(keccak256(abi.encode(_l2BlockNumber)));
+        uint256 minClaimHold = 10 days;
+        BOND_MANAGER.post{ value: msg.value }(keccak256(abi.encode(_l2BlockNumber)), msg.sender, minClaimHold);
         bonds[_l2BlockNumber] = msg.sender;
 
         // Set the output
