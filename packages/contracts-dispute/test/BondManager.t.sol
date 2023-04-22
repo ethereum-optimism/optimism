@@ -4,7 +4,7 @@ pragma solidity ^0.8.15;
 import "src/types/Types.sol";
 import "src/types/Errors.sol";
 
-import { Test } from "forge-std/Test.sol";
+import "forge-std/Test.sol";
 import { DisputeGameFactory } from "src/DisputeGameFactory.sol";
 import { IDisputeGame } from "src/interfaces/IDisputeGame.sol";
 
@@ -28,10 +28,14 @@ contract BondManager_Test is Test {
     }
 
     /// @notice Tests that posting a bond succeeds.
-    function testFuzz_post_succeeds(bytes32 bondId, address owner, uint64 minClaimHold, uint256 amount) public {
+    function testFuzz_post_succeeds(bytes32 bondId, address owner, uint256 minClaimHold, uint256 amount) public {
         vm.assume(owner != address(0));
         vm.assume(owner != address(bm));
         vm.assume(owner != address(this));
+        unchecked {
+            vm.assume(block.timestamp + minClaimHold > minClaimHold);
+        }
+        console2.log("Block timestamp:", block.timestamp);
 
         // Make sure the bond doesn't already exist
         (address fetchedOwner,,,) = bm.bonds(bondId);
@@ -45,11 +49,11 @@ contract BondManager_Test is Test {
         bm.post{value: amount}(bondId, owner, minClaimHold);
 
         // Validate the bond
-        // (address newFetchedOwner, uint64 fetchedExpiration, bytes32 fetchedBondId, uint256 bondAmount) = bm.bonds(bondId);
-        // assertEq(newFetchedOwner, owner);
-        // assertEq(fetchedExpiration, block.timestamp + minClaimHold);
-        // assertEq(fetchedBondId, bondId);
-        // assertEq(bondAmount, amount);
+        (address newFetchedOwner, uint256 fetchedExpiration, bytes32 fetchedBondId, uint256 bondAmount) = bm.bonds(bondId);
+        assertEq(newFetchedOwner, owner);
+        assertEq(fetchedExpiration, block.timestamp + minClaimHold);
+        assertEq(fetchedBondId, bondId);
+        assertEq(bondAmount, amount);
     }
 
 }
