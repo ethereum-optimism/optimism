@@ -4,7 +4,7 @@ pragma solidity ^0.8.15;
 import "src/types/Types.sol";
 import "src/types/Errors.sol";
 
-import "forge-std/Test.sol";
+import { Test } from "forge-std/Test.sol";
 import { DisputeGameFactory } from "src/DisputeGameFactory.sol";
 import { IDisputeGame } from "src/interfaces/IDisputeGame.sol";
 
