@@ -16,7 +16,7 @@ contract BondManager {
   // The Bond Type
   struct Bond {
     address owner;
-    uint64 expiration;
+    uint256 expiration;
     bytes32 bondId;
     uint256 amount;
   }
@@ -25,7 +25,7 @@ contract BondManager {
   mapping(bytes32 => Bond) public bonds;
 
   /// @notice BondPosted is emitted when a bond is posted.
-  event BondPosted(bytes32 bondId, address owner, uint64 expiration, uint256 amount);
+  event BondPosted(bytes32 bondId, address owner, uint256 expiration, uint256 amount);
 
   /// @notice BondSeized is emitted when a bond is seized.
   event BondSeized(bytes32 bondId, address owner, address seizer, uint256 amount);
@@ -47,19 +47,24 @@ contract BondManager {
   /// @param bondId is the id of the bond.
   /// @param owner is the address that owns the bond.
   /// @param minClaimHold is the minimum amount of time the owner must wait before reclaiming their bond.
-  function post(bytes32 bondId, address owner, uint64 minClaimHold) external payable {
+  function post(bytes32 bondId, address owner, uint256 minClaimHold) external payable {
     require(bonds[bondId].owner == address(0), "BondManager: BondId already posted.");
     require(owner != address(0), "BondManager: Owner cannot be the zero address.");
     require(msg.value > 0, "BondManager: Value must be non-zero.");
+    uint256 expiration = minClaimHold;
+    unchecked {
+        expiration = expiration + block.timestamp;
+    }
+    require(expiration >= block.timestamp, "BondManager: Invalid minimum claim hold.");
 
     bonds[bondId] = Bond({
         owner: owner,
-        expiration: uint64(block.timestamp + minClaimHold),
+        expiration: expiration,
         bondId: bondId,
         amount: msg.value
     });
 
-    emit BondPosted(bondId, owner, minClaimHold, msg.value);
+    emit BondPosted(bondId, owner, expiration, msg.value);
   }
 
   /// @notice Seizes the bond with the given id.
