@@ -316,30 +316,30 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
 
-    contracts-dispute-tests:
-      docker:
-        - image: ethereumoptimism/ci-builder:latest
-      resource_class: large
-      steps:
-        - checkout
-        - attach_workspace: { at: "." }
-        - restore_cache:
-            name: Restore Yarn Package Cache
-            keys:
-              - yarn-packages-v2-{{ checksum "yarn.lock" }}
-        - check-changed:
-            patterns: contracts-dispute
-        - run:
-            name: print forge version
-            command: forge --version
-            working_directory: packages/contracts-dispute
-        - run:
-            name: test and generate coverage
-            command: yarn coverage
-            no_output_timeout: 18m
-            environment:
-              FOUNDRY_PROFILE: ci
-            working_directory: packages/contracts-dispute
+  contracts-dispute-tests:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: contracts-dispute
+      - run:
+          name: print forge version
+          command: forge --version
+          working_directory: packages/contracts-dispute
+      - run:
+          name: test and generate coverage
+          command: yarn coverage
+          no_output_timeout: 18m
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-dispute
 
   contracts-bedrock-checks:
     docker:
