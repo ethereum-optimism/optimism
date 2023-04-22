@@ -71,15 +71,15 @@ func TestMigrateWithdrawalGasLimit(t *testing.T) {
 		},
 		{
 			input:  []byte{0xff, 0x00},
-			output: 200_000 + 16 + 4,
+			output: 200_000 + 16 + 16,
 		},
 		{
 			input:  []byte{0x00},
-			output: 200_000 + 4,
+			output: 200_000 + 16,
 		},
 		{
 			input:  []byte{0x00, 0x00, 0x00},
-			output: 200_000 + 4 + 4 + 4,
+			output: 200_000 + 16 + 16 + 16,
 		},
 	}
 

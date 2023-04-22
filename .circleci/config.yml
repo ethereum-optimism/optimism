@@ -60,8 +60,8 @@ commands:
 jobs:
   yarn-monorepo:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
-    resource_class: xlarge
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
     steps:
       - checkout
       - check-changed:
@@ -142,7 +142,7 @@ jobs:
         default: "oplabs-tools-artifacts/images"
     machine:
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: medium
     steps:
       - checkout
       - run:
@@ -207,7 +207,7 @@ jobs:
         default: "linux/amd64"
     machine:
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: medium
     steps:
       - gcp-oidc-authenticate
       # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
@@ -261,7 +261,7 @@ jobs:
         default: "linux/amd64"
     machine:
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: medium
     steps:
       - gcp-cli/install
       - gcp-oidc-authenticate
@@ -286,7 +286,7 @@ jobs:
           command: |
             ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
-  contracts-bedrock-tests:
+  contracts-bedrock-coverage:
     docker:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: large
@@ -304,9 +304,8 @@ jobs:
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
-          name: test and generate coverage
+          name: generate coverage report
           command: yarn coverage:lcov
-          no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -316,9 +315,33 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
 
+  contracts-bedrock-tests:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: print forge version
+          command: forge --version
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: run tests
+          command: yarn test
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+
   contracts-dispute-tests:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: large
     steps:
       - checkout
@@ -343,7 +366,7 @@ jobs:
 
   contracts-bedrock-checks:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -454,8 +477,8 @@ jobs:
 
   contracts-bedrock-slither:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
-    resource_class: xlarge
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -474,7 +497,7 @@ jobs:
 
   contracts-bedrock-validate-spaces:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -491,7 +514,7 @@ jobs:
 
   bedrock-echidna-build:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -509,7 +532,7 @@ jobs:
 
   bedrock-echidna-run:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     parameters:
       echidna_target:
         description: Which echidna fuzz contract to run
@@ -536,7 +559,7 @@ jobs:
 
   op-bindings-build:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: medium
     steps:
       - checkout
@@ -565,7 +588,7 @@ jobs:
         description: Coverage flag name
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: large
     steps:
       - checkout
@@ -587,6 +610,55 @@ jobs:
       - run:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
+
+  sdk-next-tests:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - check-changed:
+          patterns: sdk,contracts-bedrock,contracts
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - run:
+          name: anvil-l1
+          background: true
+          # atm this is goerli but we should use mainnet after bedrock is live
+          command: anvil --fork-url $ANVIL_L1_FORK_URL --fork-block-number 8847426
+      - run:
+          name: anvil-l2
+          background: true
+          # atm this is goerli but we should use mainnet after bedrock is live
+          command: anvil --fork-url $ANVIL_L2_FORK_URL --port 9545 --fork-block-number 8172732
+      - run:
+          name: build
+          command: yarn build
+          working_directory: packages/sdk
+      - run:
+          name: lint
+          command: yarn lint:check
+          working_directory: packages/sdk
+      - run:
+          name: make sure anvil l1 is up
+          command: npx wait-on tcp:8545 && cast block-number --rpc-url http://localhost:8545
+      - run:
+          name: make sure anvil l2 is up
+          command: npx wait-on tcp:9545 && cast block-number --rpc-url http://localhost:9545
+      - run:
+          name: test:next
+          command: yarn test:next
+          no_output_timeout: 5m
+          working_directory: packages/sdk
+          environment:
+            # anvil[0] test private key
+            VITE_E2E_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+            VITE_E2E_RPC_URL_L1: http://localhost:8545
+            VITE_E2E_RPC_URL_L2: http://localhost:9545
+
 
   bedrock-markdown:
     machine:
@@ -611,7 +683,7 @@ jobs:
 
   fuzz-op-node:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - check-changed:
@@ -623,7 +695,7 @@ jobs:
 
   depcheck:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -664,6 +736,47 @@ jobs:
           command: npx depcheck
           working_directory: integration-tests
 
+  atst-tests:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: '.' }
+      - check-changed:
+          patterns: atst,contracts-periphery
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - run:
+          name: anvil
+          background: true
+          command: anvil --fork-url $ANVIL_L2_FORK_URL_MAINNET --fork-block-number 92093723
+      - run:
+          name: build
+          command: yarn build
+          working_directory: packages/atst
+      - run:
+          name: typecheck
+          command: yarn typecheck
+          working_directory: packages/atst
+      - run:
+          name: lint
+          command: yarn lint:check
+          working_directory: packages/atst
+      - run:
+          name: make sure anvil is up
+          command: npx wait-on tcp:8545 && cast block-number --rpc-url http://localhost:8545
+      - run:
+          name: test
+          command: yarn test
+          no_output_timeout: 5m
+          working_directory: packages/atst
+          environment:
+            CI: true
+
+
   go-lint:
     parameters:
       module:
@@ -676,7 +789,7 @@ jobs:
       - run:
           name: run lint
           command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 2m -e "errors.As" -e "errors.Is" ./...
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
           working_directory: <<parameters.module>>
 
   go-test:
@@ -685,7 +798,7 @@ jobs:
         description: Go Module Name
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest # only used to enable codecov.
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest # only used to enable codecov.
     resource_class: xlarge
     steps:
       - checkout
@@ -713,7 +826,7 @@ jobs:
         description: If the op-e2e package should use HTTP clients
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: xlarge
     steps:
       - checkout
@@ -752,7 +865,7 @@ jobs:
         type: string
         default: this-package-does-not-exist
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
       - image: cimg/postgres:14.1
     steps:
       - checkout
@@ -781,7 +894,7 @@ jobs:
 
   geth-tests:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - check-changed:
@@ -976,7 +1089,7 @@ jobs:
 
     docker:
       - image: returntocorp/semgrep
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - checkout
       - unless:
@@ -1001,7 +1114,7 @@ jobs:
 
   go-mod-tidy:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - run:
@@ -1018,7 +1131,7 @@ jobs:
     machine:
       image: ubuntu-2204:2022.07.1
       docker_layer_caching: true
-      resource_class: xlarge
+      resource_class: large
     steps:
       - attach_workspace:
           at: /tmp/docker_images
@@ -1083,6 +1196,9 @@ workflows:
       - contracts-bedrock-tests:
           requires:
             - yarn-monorepo
+      - contracts-bedrock-coverage:
+          requires:
+            - yarn-monorepo
       - contracts-bedrock-checks:
           requires:
             - yarn-monorepo
@@ -1093,6 +1209,9 @@ workflows:
           requires:
             - yarn-monorepo
       - op-bindings-build:
+          requires:
+            - yarn-monorepo
+      - atst-tests:
           requires:
             - yarn-monorepo
       - js-lint-test:
@@ -1142,6 +1261,10 @@ workflows:
           coverage_flag: replica-healthcheck-tests
           package_name: replica-healthcheck
           dependencies: "(common-ts|core-utils)"
+          requires:
+            - yarn-monorepo
+      - sdk-next-tests:
+          name: sdk-next-tests
           requires:
             - yarn-monorepo
       - js-lint-test:
@@ -1304,6 +1427,20 @@ workflows:
             - oplabs-gcr
           platforms: "linux/amd64,linux/arm64"
       - docker-build:
+          name: op-program-docker-build
+          docker_file: op-program/Dockerfile
+          docker_name: op-program
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: op-program-docker-publish
+          docker_file: op-program/Dockerfile
+          docker_name: op-program
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - oplabs-gcr
+          platforms: "linux/amd64,linux/arm64"
+      - docker-build:
           name: op-proposer-docker-build
           docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
@@ -1447,3 +1584,18 @@ workflows:
             - oplabs-gcr-release
           requires:
             - hold
+  release-ci-builder:
+    jobs:
+      - docker-publish:
+          name: ci-builder-docker-publish
+          filters:
+            tags:
+              only: /^ci-builder\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: ./ops/docker/ci-builder/Dockerfile
+          docker_name: ci-builder
+          docker_tags: <<pipeline.git.revision>>,latest
+          docker_context: ./ops/docker/ci-builder
+          context:
+            - oplabs-gcr

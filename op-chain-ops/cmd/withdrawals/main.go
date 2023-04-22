@@ -22,11 +22,14 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // abiTrue represents the storage representation of the boolean
@@ -104,6 +107,10 @@ func main() {
 				Usage: "Path to evm-messages.json",
 			},
 			&cli.StringFlag{
+				Name:  "witness-file",
+				Usage: "Path to l2geth witness file",
+			},
+			&cli.StringFlag{
 				Name:  "private-key",
 				Usage: "Key to sign transactions with",
 			},
@@ -111,6 +118,10 @@ func main() {
 				Name:  "bad-withdrawals-out",
 				Value: "bad-withdrawals.json",
 				Usage: "Path to write JSON file of bad withdrawals to manually inspect",
+			},
+			&cli.StringFlag{
+				Name:  "storage-out",
+				Usage: "Path to write text file of L2ToL1MessagePasser storage",
 			},
 		},
 		Action: func(ctx *cli.Context) error {
@@ -159,10 +170,11 @@ func main() {
 			}
 
 			outfile := ctx.String("bad-withdrawals-out")
-			f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o755)
+			f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
 			if err != nil {
 				return err
 			}
+			defer f.Close()
 
 			// create a transactor
 			opts, err := newTransactor(ctx)
@@ -172,6 +184,28 @@ func main() {
 
 			// Need this to compare in event parsing
 			l1StandardBridgeAddress := common.HexToAddress(ctx.String("l1-standard-bridge-address"))
+
+			if storageOutfile := ctx.String("storage-out"); storageOutfile != "" {
+				ff, err := os.OpenFile(storageOutfile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
+				if err != nil {
+					return err
+				}
+				defer ff.Close()
+
+				log.Info("Fetching storage for L2ToL1MessagePasser")
+				if storageRange, err := callStorageRange(clients, predeploys.L2ToL1MessagePasserAddr); err != nil {
+					log.Info("error getting storage range", "err", err)
+				} else {
+					str := ""
+					for key, value := range storageRange {
+						str += fmt.Sprintf("%s: %s\n", key.Hex(), value.Hex())
+					}
+					_, err = ff.WriteString(str)
+					if err != nil {
+						return err
+					}
+				}
+			}
 
 			// iterate over all of the withdrawals and submit them
 			for i, wd := range wds {
@@ -230,7 +264,7 @@ func main() {
 				// successful messages can be skipped, received messages failed
 				// their execution and should be replayed
 				if isSuccessNew {
-					log.Info("Message already relayed", "index", i, "hash", hash, "slot", slot)
+					log.Info("Message already relayed", "index", i, "hash", hash.Hex(), "slot", slot.Hex())
 					continue
 				}
 
@@ -244,7 +278,7 @@ func main() {
 
 				// the value should be set to a boolean in storage
 				if !bytes.Equal(storageValue, abiTrue.Bytes()) {
-					return fmt.Errorf("storage slot %x not found in state", slot)
+					return fmt.Errorf("storage slot %x not found in state", slot.Hex())
 				}
 
 				legacySlot, err := wd.StorageSlot()
@@ -439,10 +473,48 @@ func callTrace(c *util.Clients, receipt *types.Receipt) (callFrame, error) {
 		Tracer: &tracer,
 	}
 	err := c.L1RpcClient.Call(&finalizationTrace, "debug_traceTransaction", receipt.TxHash, traceConfig)
-	if err != nil {
-		return finalizationTrace, err
-	}
 	return finalizationTrace, err
+}
+
+func callStorageRangeAt(
+	client *rpc.Client,
+	blockHash common.Hash,
+	txIndex int,
+	addr common.Address,
+	keyStart hexutil.Bytes,
+	maxResult int,
+) (*eth.StorageRangeResult, error) {
+	var storageRange *eth.StorageRangeResult
+	err := client.Call(&storageRange, "debug_storageRangeAt", blockHash, txIndex, addr, keyStart, maxResult)
+	return storageRange, err
+}
+
+func callStorageRange(c *util.Clients, addr common.Address) (state.Storage, error) {
+	header, err := c.L2Client.HeaderByNumber(context.Background(), nil)
+	if err != nil {
+		return nil, err
+	}
+	hash := header.Hash()
+	keyStart := hexutil.Bytes(common.Hash{}.Bytes())
+	maxResult := 1000
+
+	ret := make(state.Storage)
+
+	for {
+		result, err := callStorageRangeAt(c.L2RpcClient, hash, 0, addr, keyStart, maxResult)
+		if err != nil {
+			return nil, err
+		}
+		for key, value := range result.Storage {
+			ret[key] = value.Value
+		}
+		if result.NextKey == nil {
+			break
+		} else {
+			keyStart = hexutil.Bytes(result.NextKey.Bytes())
+		}
+	}
+	return ret, nil
 }
 
 // handleFinalizeETHWithdrawal will ensure that the calldata is correct
@@ -702,11 +774,16 @@ func newContracts(ctx *cli.Context, l1Backend, l2Backend bind.ContractBackend) (
 func newWithdrawals(ctx *cli.Context, l1ChainID *big.Int) ([]*crossdomain.LegacyWithdrawal, error) {
 	ovmMsgs := ctx.String("ovm-messages")
 	evmMsgs := ctx.String("evm-messages")
+	witnessFile := ctx.String("witness-file")
 
-	log.Debug("Migration data", "ovm-path", ovmMsgs, "evm-messages", evmMsgs)
-	ovmMessages, err := crossdomain.NewSentMessageFromJSON(ovmMsgs)
-	if err != nil {
-		return nil, err
+	log.Debug("Migration data", "ovm-path", ovmMsgs, "evm-messages", evmMsgs, "witness-file", witnessFile)
+	var ovmMessages []*crossdomain.SentMessage
+	var err error
+	if ovmMsgs != "" {
+		ovmMessages, err = crossdomain.NewSentMessageFromJSON(ovmMsgs)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// use empty ovmMessages if its not mainnet. The mainnet messages are
@@ -716,9 +793,19 @@ func newWithdrawals(ctx *cli.Context, l1ChainID *big.Int) ([]*crossdomain.Legacy
 		ovmMessages = []*crossdomain.SentMessage{}
 	}
 
-	evmMessages, err := crossdomain.NewSentMessageFromJSON(evmMsgs)
-	if err != nil {
-		return nil, err
+	var evmMessages []*crossdomain.SentMessage
+	if witnessFile != "" {
+		evmMessages, _, err = crossdomain.ReadWitnessData(witnessFile)
+		if err != nil {
+			return nil, err
+		}
+	} else if evmMsgs != "" {
+		evmMessages, err = crossdomain.NewSentMessageFromJSON(evmMsgs)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		return nil, errors.New("must provide either witness file or evm messages")
 	}
 
 	migrationData := crossdomain.MigrationData{

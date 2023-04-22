@@ -1,6 +1,8 @@
 package flags
 
 import (
+	"fmt"
+
 	"github.com/urfave/cli"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
@@ -16,29 +18,25 @@ const envVarPrefix = "OP_PROPOSER"
 var (
 	// Required Flags
 	L1EthRpcFlag = cli.StringFlag{
-		Name:     "l1-eth-rpc",
-		Usage:    "HTTP provider URL for L1",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_RPC"),
+		Name:   "l1-eth-rpc",
+		Usage:  "HTTP provider URL for L1",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_RPC"),
 	}
 	RollupRpcFlag = cli.StringFlag{
-		Name:     "rollup-rpc",
-		Usage:    "HTTP provider URL for the rollup node",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "ROLLUP_RPC"),
+		Name:   "rollup-rpc",
+		Usage:  "HTTP provider URL for the rollup node",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "ROLLUP_RPC"),
 	}
 	L2OOAddressFlag = cli.StringFlag{
-		Name:     "l2oo-address",
-		Usage:    "Address of the L2OutputOracle contract",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "L2OO_ADDRESS"),
+		Name:   "l2oo-address",
+		Usage:  "Address of the L2OutputOracle contract",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L2OO_ADDRESS"),
 	}
 	PollIntervalFlag = cli.DurationFlag{
 		Name: "poll-interval",
 		Usage: "Delay between querying L2 for more transactions and " +
 			"creating a new batch",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "POLL_INTERVAL"),
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "POLL_INTERVAL"),
 	}
 	// Optional flags
 	AllowNonFinalizedFlag = cli.BoolFlag{
@@ -74,3 +72,12 @@ func init() {
 
 // Flags contains the list of configuration options available to the binary.
 var Flags []cli.Flag
+
+func CheckRequired(ctx *cli.Context) error {
+	for _, f := range requiredFlags {
+		if !ctx.GlobalIsSet(f.GetName()) {
+			return fmt.Errorf("flag %s is required", f.GetName())
+		}
+	}
+	return nil
+}
