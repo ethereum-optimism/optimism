@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
-	challenger "github.com/optimism/op-challenger/challenger"
-	flags "github.com/optimism/op-challenger/flags"
+	challenger "github.com/ethereum-optimism/optimism/op-challenger/challenger"
+	flags "github.com/ethereum-optimism/optimism/op-challenger/flags"
 
 	log "github.com/ethereum/go-ethereum/log"
 	cli "github.com/urfave/cli"

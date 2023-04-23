@@ -5,11 +5,11 @@ import (
 	"math/big"
 	_ "net/http/pprof"
 
+	bindings "github.com/ethereum-optimism/optimism/op-challenger/contracts/bindings"
 	goEth "github.com/ethereum/go-ethereum"
 	bind "github.com/ethereum/go-ethereum/accounts/abi/bind"
 	common "github.com/ethereum/go-ethereum/common"
 	goTypes "github.com/ethereum/go-ethereum/core/types"
-	bindings "github.com/optimism/op-challenger/contracts/bindings"
 
 	txmgr "github.com/ethereum-optimism/optimism/op-service/txmgr"
 )

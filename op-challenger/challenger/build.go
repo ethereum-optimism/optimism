@@ -8,9 +8,9 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	log "github.com/ethereum/go-ethereum/log"
 
-	bindings "github.com/optimism/op-challenger/contracts/bindings"
-	flags "github.com/optimism/op-challenger/flags"
-	metrics "github.com/optimism/op-challenger/metrics"
+	bindings "github.com/ethereum-optimism/optimism/op-challenger/contracts/bindings"
+	flags "github.com/ethereum-optimism/optimism/op-challenger/flags"
+	metrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
 
 	opBindings "github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	txmgr "github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -48,7 +48,10 @@ func NewChallengerConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Met
 	if err != nil {
 		return nil, err
 	}
-	txManager := txmgr.NewSimpleTxManager("challenger", l, txManagerConfig, l1Client)
+	txManager, err := txmgr.NewSimpleTxManager("challenger", l, txManagerConfig, l1Client)
+	if err != nil {
+		return nil, err
+	}
 
 	rollupClient, err := dialRollupClientWithTimeout(ctx, cfg.RollupRpc)
 	if err != nil {
