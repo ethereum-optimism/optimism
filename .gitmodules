@@ -6,3 +6,6 @@
 	url = https://github.com/mds1/multicall
 [submodule "lib/multicall"]
 	branch = v3.1.0
+[submodule "op-challenger/contracts/project/lib/forge-std"]
+	path = op-challenger/contracts/project/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
