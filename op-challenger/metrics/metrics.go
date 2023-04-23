@@ -13,6 +13,7 @@ import (
 
 	eth "github.com/ethereum-optimism/optimism/op-node/eth"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
 const Namespace = "op_challenger"
@@ -23,6 +24,9 @@ type Metricer interface {
 
 	// Records all L1 and L2 block events
 	opmetrics.RefMetricer
+
+	// Record Tx metrics
+	txmetrics.TxMetricer
 
 	RecordValidOutput(l2ref eth.L2BlockRef)
 	RecordInvalidOutput(l2ref eth.L2BlockRef)
@@ -39,6 +43,8 @@ type Metrics struct {
 	factory  opmetrics.Factory
 
 	opmetrics.RefMetrics
+
+	txmetrics.TxMetrics
 
 	TxL1GasFee prometheus.Gauge
 

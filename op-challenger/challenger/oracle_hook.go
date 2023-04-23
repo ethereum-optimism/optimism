@@ -95,9 +95,9 @@ func (c *Challenger) createDisputeGame(ctx context.Context, gameType uint8, outp
 	}
 	receipt, err := c.txMgr.Send(cCtx, txmgr.TxCandidate{
 		TxData:   data,
-		To:       c.dgfContractAddr,
+		To:       &c.dgfContractAddr,
 		GasLimit: 0,
-		From:     c.from,
+		// From:     c.from,
 	})
 	if err != nil {
 		return nil, err

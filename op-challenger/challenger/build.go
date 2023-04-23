@@ -9,7 +9,6 @@ import (
 	log "github.com/ethereum/go-ethereum/log"
 
 	bindings "github.com/ethereum-optimism/optimism/op-challenger/contracts/bindings"
-	flags "github.com/ethereum-optimism/optimism/op-challenger/flags"
 	metrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
 
 	opBindings "github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -44,11 +43,7 @@ func NewChallengerConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Met
 		return nil, err
 	}
 
-	txManagerConfig, err := flags.NewTxManagerConfig(cfg.TxMgrConfig, l)
-	if err != nil {
-		return nil, err
-	}
-	txManager, err := txmgr.NewSimpleTxManager("challenger", l, txManagerConfig, l1Client)
+	txManager, err := txmgr.NewSimpleTxManager("challenger", l, m, cfg.TxMgrConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -61,11 +56,11 @@ func NewChallengerConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Met
 	return &Config{
 		L2OutputOracleAddr: l2ooAddress,
 		DisputeGameFactory: dgfAddress,
-		NetworkTimeout:     txManagerConfig.NetworkTimeout,
+		NetworkTimeout:     cfg.TxMgrConfig.NetworkTimeout,
 		L1Client:           l1Client,
 		RollupClient:       rollupClient,
 		TxManager:          txManager,
-		From:               txManagerConfig.From,
+		From:               txManager.From(),
 		privateKey:         cfg.PrivateKey,
 	}, nil
 }

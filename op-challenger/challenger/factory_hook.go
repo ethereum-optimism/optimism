@@ -94,9 +94,9 @@ func (c *Challenger) attestationChallenge(adgProxy common.Address, rootClaim com
 	}
 	receipt, err := c.txMgr.Send(cCtx, txmgr.TxCandidate{
 		TxData:   data,
-		To:       adgProxy,
+		To:       &adgProxy,
 		GasLimit: 0,
-		From:     c.from,
+		// From:     c.from,
 	})
 	if err != nil {
 		return err

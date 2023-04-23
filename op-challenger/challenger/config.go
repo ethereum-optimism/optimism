@@ -50,7 +50,7 @@ type CLIConfig struct {
 	// PrivateKey is the private key of the account that will be used to send transactions.
 	PrivateKey string
 
-	TxMgrConfig flags.TxManagerCLIConfig
+	TxMgrConfig txmgr.CLIConfig
 
 	// RPCConfig oprpc.CLIConfig
 

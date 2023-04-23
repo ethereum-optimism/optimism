@@ -1,17 +1,11 @@
 package flags
 
 import (
-	"context"
-	"errors"
-	"fmt"
 	"time"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	txmgr "github.com/ethereum-optimism/optimism/op-service/txmgr"
 	client "github.com/ethereum-optimism/optimism/op-signer/client"
-	ethclient "github.com/ethereum/go-ethereum/ethclient"
-	log "github.com/ethereum/go-ethereum/log"
 	cli "github.com/urfave/cli"
 )
 
@@ -111,53 +105,53 @@ func TxManagerCLIFlags(envPrefix string) []cli.Flag {
 	}, client.CLIFlags(envPrefix)...)
 }
 
-type TxManagerCLIConfig struct {
-	L1RPCURL                  string
-	Mnemonic                  string
-	HDPath                    string
-	SequencerHDPath           string
-	L2OutputHDPath            string
-	PrivateKey                string
-	SignerCLIConfig           client.CLIConfig
-	NumConfirmations          uint64
-	SafeAbortNonceTooLowCount uint64
-	ResubmissionTimeout       time.Duration
-	ReceiptQueryInterval      time.Duration
-	NetworkTimeout            time.Duration
-	TxSendTimeout             time.Duration
-	TxNotInMempoolTimeout     time.Duration
-}
+// type TxManagerCLIConfig struct {
+// 	L1RPCURL                  string
+// 	Mnemonic                  string
+// 	HDPath                    string
+// 	SequencerHDPath           string
+// 	L2OutputHDPath            string
+// 	PrivateKey                string
+// 	SignerCLIConfig           client.CLIConfig
+// 	NumConfirmations          uint64
+// 	SafeAbortNonceTooLowCount uint64
+// 	ResubmissionTimeout       time.Duration
+// 	ReceiptQueryInterval      time.Duration
+// 	NetworkTimeout            time.Duration
+// 	TxSendTimeout             time.Duration
+// 	TxNotInMempoolTimeout     time.Duration
+// }
 
-func (m TxManagerCLIConfig) Check() error {
-	if m.L1RPCURL == "" {
-		return errors.New("must provide a L1 RPC url")
-	}
-	if m.NumConfirmations == 0 {
-		return errors.New("NumConfirmations must not be 0")
-	}
-	if m.NetworkTimeout == 0 {
-		return errors.New("must provide NetworkTimeout")
-	}
-	if m.ResubmissionTimeout == 0 {
-		return errors.New("must provide ResubmissionTimeout")
-	}
-	if m.ReceiptQueryInterval == 0 {
-		return errors.New("must provide ReceiptQueryInterval")
-	}
-	if m.TxNotInMempoolTimeout == 0 {
-		return errors.New("must provide TxNotInMempoolTimeout")
-	}
-	if m.SafeAbortNonceTooLowCount == 0 {
-		return errors.New("SafeAbortNonceTooLowCount must not be 0")
-	}
-	if err := m.SignerCLIConfig.Check(); err != nil {
-		return err
-	}
-	return nil
-}
+// func (m TxManagerCLIConfig) Check() error {
+// 	if m.L1RPCURL == "" {
+// 		return errors.New("must provide a L1 RPC url")
+// 	}
+// 	if m.NumConfirmations == 0 {
+// 		return errors.New("NumConfirmations must not be 0")
+// 	}
+// 	if m.NetworkTimeout == 0 {
+// 		return errors.New("must provide NetworkTimeout")
+// 	}
+// 	if m.ResubmissionTimeout == 0 {
+// 		return errors.New("must provide ResubmissionTimeout")
+// 	}
+// 	if m.ReceiptQueryInterval == 0 {
+// 		return errors.New("must provide ReceiptQueryInterval")
+// 	}
+// 	if m.TxNotInMempoolTimeout == 0 {
+// 		return errors.New("must provide TxNotInMempoolTimeout")
+// 	}
+// 	if m.SafeAbortNonceTooLowCount == 0 {
+// 		return errors.New("SafeAbortNonceTooLowCount must not be 0")
+// 	}
+// 	if err := m.SignerCLIConfig.Check(); err != nil {
+// 		return err
+// 	}
+// 	return nil
+// }
 
-func ReadTxManagerCLIConfig(ctx *cli.Context) TxManagerCLIConfig {
-	return TxManagerCLIConfig{
+func ReadTxManagerCLIConfig(ctx *cli.Context) txmgr.CLIConfig {
+	return txmgr.CLIConfig{
 		L1RPCURL:                  ctx.GlobalString(L1RPCFlagName),
 		Mnemonic:                  ctx.GlobalString(MnemonicFlagName),
 		HDPath:                    ctx.GlobalString(HDPathFlagName),
@@ -175,46 +169,46 @@ func ReadTxManagerCLIConfig(ctx *cli.Context) TxManagerCLIConfig {
 	}
 }
 
-func NewTxManagerConfig(cfg TxManagerCLIConfig, l log.Logger) (txmgr.Config, error) {
-	if err := cfg.Check(); err != nil {
-		return txmgr.Config{}, fmt.Errorf("invalid config: %w", err)
-	}
+// func NewTxManagerConfig(cfg TxManagerCLIConfig, l log.Logger) (txmgr.Config, error) {
+// 	if err := cfg.Check(); err != nil {
+// 		return txmgr.Config{}, fmt.Errorf("invalid config: %w", err)
+// 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), cfg.NetworkTimeout)
-	defer cancel()
-	l1, err := ethclient.DialContext(ctx, cfg.L1RPCURL)
-	if err != nil {
-		return txmgr.Config{}, fmt.Errorf("could not dial eth client: %w", err)
-	}
+// 	ctx, cancel := context.WithTimeout(context.Background(), cfg.NetworkTimeout)
+// 	defer cancel()
+// 	l1, err := ethclient.DialContext(ctx, cfg.L1RPCURL)
+// 	if err != nil {
+// 		return txmgr.Config{}, fmt.Errorf("could not dial eth client: %w", err)
+// 	}
 
-	ctx, cancel = context.WithTimeout(context.Background(), cfg.NetworkTimeout)
-	defer cancel()
-	chainID, err := l1.ChainID(ctx)
-	if err != nil {
-		return txmgr.Config{}, fmt.Errorf("could not dial fetch L1 chain ID: %w", err)
-	}
+// 	ctx, cancel = context.WithTimeout(context.Background(), cfg.NetworkTimeout)
+// 	defer cancel()
+// 	chainID, err := l1.ChainID(ctx)
+// 	if err != nil {
+// 		return txmgr.Config{}, fmt.Errorf("could not dial fetch L1 chain ID: %w", err)
+// 	}
 
-	// Allow backwards compatible ways of specifying the HD path
-	hdPath := cfg.HDPath
-	if hdPath == "" && cfg.SequencerHDPath != "" {
-		hdPath = cfg.SequencerHDPath
-	} else if hdPath == "" && cfg.L2OutputHDPath != "" {
-		hdPath = cfg.L2OutputHDPath
-	}
+// 	// Allow backwards compatible ways of specifying the HD path
+// 	hdPath := cfg.HDPath
+// 	if hdPath == "" && cfg.SequencerHDPath != "" {
+// 		hdPath = cfg.SequencerHDPath
+// 	} else if hdPath == "" && cfg.L2OutputHDPath != "" {
+// 		hdPath = cfg.L2OutputHDPath
+// 	}
 
-	signerFactory, from, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, hdPath, cfg.SignerCLIConfig)
-	if err != nil {
-		return txmgr.Config{}, fmt.Errorf("could not init signer: %w", err)
-	}
+// 	signerFactory, from, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, hdPath, cfg.SignerCLIConfig)
+// 	if err != nil {
+// 		return txmgr.Config{}, fmt.Errorf("could not init signer: %w", err)
+// 	}
 
-	return txmgr.Config{
-		ResubmissionTimeout:       cfg.ResubmissionTimeout,
-		ChainID:                   chainID,
-		NetworkTimeout:            cfg.NetworkTimeout,
-		ReceiptQueryInterval:      cfg.ReceiptQueryInterval,
-		NumConfirmations:          cfg.NumConfirmations,
-		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
-		Signer:                    signerFactory(chainID),
-		From:                      from,
-	}, nil
-}
+// 	return txmgr.Config{
+// 		ResubmissionTimeout:       cfg.ResubmissionTimeout,
+// 		ChainID:                   chainID,
+// 		NetworkTimeout:            cfg.NetworkTimeout,
+// 		ReceiptQueryInterval:      cfg.ReceiptQueryInterval,
+// 		NumConfirmations:          cfg.NumConfirmations,
+// 		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
+// 		Signer:                    signerFactory(chainID),
+// 		From:                      from,
+// 	}, nil
+// }
