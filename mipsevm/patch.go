@@ -11,6 +11,7 @@ import (
 func LoadELF(f *elf.File) (*State, error) {
 	s := &State{
 		PC:        uint32(f.Entry),
+		NextPC:    uint32(f.Entry + 4),
 		HI:        0,
 		LO:        0,
 		Heap:      0x20000000,

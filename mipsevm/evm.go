@@ -80,7 +80,7 @@ type Addresses struct {
 	Challenge  common.Address
 }
 
-func NewEVMEnv(contracts *Contracts, addrs *Addresses) *vm.EVM {
+func NewEVMEnv(contracts *Contracts, addrs *Addresses) (*vm.EVM, *state.StateDB) {
 	chainCfg := params.MainnetChainConfig
 	bc := &testChain{}
 	header := bc.GetHeader(common.Hash{}, 100)
@@ -100,7 +100,7 @@ func NewEVMEnv(contracts *Contracts, addrs *Addresses) *vm.EVM {
 	env.StateDB.SetCode(addrs.MIPSMemory, contracts.MIPSMemory.DeployedBytecode.Object)
 	env.StateDB.SetCode(addrs.Challenge, contracts.Challenge.DeployedBytecode.Object)
 	// TODO: any state to set, or immutables to replace, to link the contracts together?
-	return env
+	return env, state
 }
 
 type testChain struct {

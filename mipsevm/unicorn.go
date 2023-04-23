@@ -109,8 +109,8 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer, tr Tracer) 
 	}
 
 	_, err = mu.HookAdd(uc.HOOK_MEM_READ, func(mu uc.Unicorn, access int, addr64 uint64, size int, value int64) {
-		addr := uint32(addr64 & 0xFFFFFFFC) // pass effective addr to tracer
-		tr.OnRead(addr)
+		effAddr := uint32(addr64 & 0xFFFFFFFC) // pass effective addr to tracer
+		tr.OnRead(effAddr, st.GetMemory(effAddr))
 	}, 0, ^uint64(0))
 	if err != nil {
 		return fmt.Errorf("failed to set up mem-write hook: %w", err)
@@ -123,9 +123,26 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer, tr Tracer) 
 		if size < 0 || size > 4 {
 			panic("invalid mem size")
 		}
-		st.SetMemory(uint32(addr64), uint32(size), uint32(value))
-		addr := uint32(addr64 & 0xFFFFFFFC) // pass effective addr to tracer
-		tr.OnWrite(addr)
+		effAddr := uint32(addr64 & 0xFFFFFFFC)
+		tr.OnWrite(effAddr, st.GetMemory(effAddr))
+
+		rt := value
+		rs := addr64 & 3
+		if size == 1 {
+			mem := st.GetMemory(effAddr)
+			val := uint32((rt & 0xFF) << (24 - (rs&3)*8))
+			mask := 0xFFFFFFFF ^ uint32(0xFF<<(24-(rs&3)*8))
+			st.SetMemory(effAddr, (mem&mask)|val)
+		} else if size == 2 {
+			mem := st.GetMemory(effAddr)
+			val := uint32((rt & 0xFFFF) << (16 - (rs&2)*8))
+			mask := 0xFFFFFFFF ^ uint32(0xFFFF<<(16-(rs&2)*8))
+			st.SetMemory(effAddr, (mem&mask)|val)
+		} else if size == 4 {
+			st.SetMemory(effAddr, uint32(rt))
+		} else {
+			log.Fatal("bad size write to ram")
+		}
 	}, 0, ^uint64(0))
 	if err != nil {
 		return fmt.Errorf("failed to set up mem-write hook: %w", err)
@@ -141,15 +158,72 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer, tr Tracer) 
 		for i := 0; i < 32; i++ {
 			st.Registers[i] = uint32(batch[i])
 		}
+		prevPC := st.PC
 		st.PC = uint32(batch[32])
+
+		// We detect if we are potentially in a delay-slot.
+		// If we may be (i.e. last PC is 1 instruction before current),
+		// then parse the last instruction to determine what the next PC would be.
+		// This reflects the handleBranch / handleJump behavior that schedules next-PC.
+		if st.PC == prevPC+4 {
+			st.NextPC = prevPC + 8
+
+			prevInsn := st.GetMemory(prevPC)
+			opcode := prevInsn >> 26
+			switch opcode {
+			case 2, 3: // J/JAL
+				st.NextPC = signExtend(prevInsn&0x03FFFFFF, 25) << 2
+			case 1, 4, 5, 6, 7: // branching
+				rs := st.Registers[(prevInsn>>21)&0x1F]
+				shouldBranch := false
+				switch opcode {
+				case 4, 5:
+					rt := st.Registers[(prevInsn>>16)&0x1F]
+					shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5)
+				case 6:
+					shouldBranch = int32(rs) <= 0 // blez
+				case 7:
+					shouldBranch = int32(rs) > 0 // bgtz
+				case 1:
+					rtv := (prevInsn >> 16) & 0x1F
+					if rtv == 0 {
+						shouldBranch = int32(rs) < 0
+					} // bltz
+					if rtv == 1 {
+						shouldBranch = int32(rs) >= 0
+					} // bgez
+				}
+				if shouldBranch {
+					st.NextPC = prevPC + 4 + (signExtend(prevInsn&0xFFFF, 15) << 2)
+				}
+			case 0:
+				if funcv := prevInsn & 0x3f; funcv == 8 || funcv == 9 { // JR/JALR
+					rs := st.Registers[(prevInsn>>21)&0x1F]
+					st.NextPC = rs
+				}
+			}
+		} else {
+			st.NextPC = st.PC + 4
+		}
+
 		st.LO = uint32(batch[33])
 		st.HI = uint32(batch[34])
+		fmt.Printf("pc: 0x%08x\n", st.PC)
 	}, 0, ^uint64(0))
 	if err != nil {
 		return fmt.Errorf("failed to set up instruction hook: %w", err)
 	}
 
 	return nil
+}
+
+func signExtend(v uint32, i uint32) uint32 {
+	mask := ^((uint32(1) << i) - 1)
+	if v&(1<<i) != 0 {
+		return v | mask
+	} else {
+		return v &^ mask
+	}
 }
 
 func RunUnicorn(mu uc.Unicorn, entrypoint uint32, steps uint64) error {

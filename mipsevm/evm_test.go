@@ -3,12 +3,14 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math/big"
 	"os"
 	"path"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
@@ -17,7 +19,6 @@ import (
 )
 
 func TestEVM(t *testing.T) {
-	t.Skip("work in progress!")
 
 	testFiles, err := os.ReadDir("test/bin")
 	require.NoError(t, err)
@@ -26,7 +27,7 @@ func TestEVM(t *testing.T) {
 	require.NoError(t, err)
 
 	// the first unlisted source seems to be the ABIDecoderV2 code that the compiler inserts
-	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{"~ABIDecoderV2?", "~compiler?", "../contracts/src/MIPS.sol"})
+	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{"../contracts/src/MIPS.sol", "~compiler?", "../contracts/src/MIPS.sol"})
 	require.NoError(t, err)
 
 	addrs := &Addresses{
@@ -42,14 +43,14 @@ func TestEVM(t *testing.T) {
 				t.Skip("oracle test needs to be updated to use syscall pre-image oracle")
 			}
 
-			env := NewEVMEnv(contracts, addrs)
-			env.Config.Debug = true
+			env, evmState := NewEVMEnv(contracts, addrs)
+			env.Config.Debug = false
 			//env.Config.Tracer = logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
 			env.Config.Tracer = mipsSrcMap.Tracer(os.Stdout)
 
 			fn := path.Join("test/bin", f.Name())
 			programMem, err := os.ReadFile(fn)
-			state := &State{PC: 0, Memory: make(map[uint32]*Page)}
+			state := &State{PC: 0, NextPC: 4, Memory: make(map[uint32]*Page)}
 			err = state.SetMemoryRange(0, bytes.NewReader(programMem))
 			require.NoError(t, err, "load program into state")
 
@@ -70,52 +71,37 @@ func TestEVM(t *testing.T) {
 			err = HookUnicorn(state, mu, os.Stdout, os.Stderr, al)
 			require.NoError(t, err, "hook unicorn to state")
 
-			// Add hook to stop unicorn once we reached the end of the test (i.e. "ate food")
-			_, err = mu.HookAdd(uc.HOOK_CODE, func(mu uc.Unicorn, addr uint64, size uint32) {
-				if state.PC == endAddr {
-					require.NoError(t, mu.Stop(), "stop test when returned")
-				}
-			}, 0, ^uint64(0))
-			require.NoError(t, err, "")
-
 			so := NewStateCache()
-			for i := 0; i < 1000; i++ {
-				insn := state.GetMemory(state.PC)
+			var stateData []byte
+			var insn uint32
+			var pc uint32
+			var post []byte
+			preCode := func() {
+				insn = state.GetMemory(state.PC)
+				pc = state.PC
+				fmt.Printf("PRE - pc: %08x insn: %08x\n", pc, insn)
+				// remember the pre-state, to repeat it in the EVM during the post processing step
+				stateData = state.EncodeWitness(so)
+				if post != nil {
+					require.Equal(t, hexutil.Bytes(stateData).String(), hexutil.Bytes(post).String(),
+						"unicorn produced different state than EVM")
+				}
 
-				al.Reset() // reset
-				require.NoError(t, RunUnicorn(mu, state.PC, 1))
-				require.LessOrEqual(t, len(al.memReads)+len(al.memWrites), 1, "expecting at most a single mem read or write")
+				al.Reset() // reset access list
+			}
+			postCode := func() {
+				fmt.Printf("POST - pc: %08x insn: %08x\n", pc, insn)
 
-				proofData := make([]byte, 0, 32*2)
-				proofData = append(proofData, uint32ToBytes32(32)...) // length in bytes
-				var tmp [32]byte
-				binary.BigEndian.PutUint32(tmp[0:4], insn) // instruction
+				var proofData []byte
+				proofData = binary.BigEndian.AppendUint32(proofData, insn)
 				if len(al.memReads) > 0 {
-					binary.BigEndian.PutUint32(tmp[4:8], state.GetMemory(al.memReads[0]))
+					proofData = binary.BigEndian.AppendUint32(proofData, al.memReads[0].PreValue)
+				} else if len(al.memWrites) > 0 {
+					proofData = binary.BigEndian.AppendUint32(proofData, al.memWrites[0].PreValue)
+				} else {
+					proofData = append(proofData, make([]byte, 4)...)
 				}
-				if len(al.memWrites) > 0 {
-					binary.BigEndian.PutUint32(tmp[4:8], state.GetMemory(al.memWrites[0]))
-				}
-				proofData = append(proofData, tmp[:]...)
-
-				memRoot := state.MerkleizeMemory(so)
-
-				stateData := make([]byte, 0, 44*32)
-				stateData = append(stateData, memRoot[:]...)
-				stateData = append(stateData, make([]byte, 32)...) // TODO preimageKey
-				stateData = append(stateData, make([]byte, 32)...) // TODO preimageOffset
-				for i := 0; i < 32; i++ {
-					stateData = append(stateData, uint32ToBytes32(state.Registers[i])...)
-				}
-				stateData = append(stateData, uint32ToBytes32(state.PC)...)
-				stateData = append(stateData, uint32ToBytes32(state.NextPC)...)
-				stateData = append(stateData, uint32ToBytes32(state.LR)...)
-				stateData = append(stateData, uint32ToBytes32(state.LO)...)
-				stateData = append(stateData, uint32ToBytes32(state.HI)...)
-				stateData = append(stateData, uint32ToBytes32(state.Heap)...)
-				stateData = append(stateData, uint8ToBytes32(state.ExitCode)...)
-				stateData = append(stateData, boolToBytes32(state.Exited)...)
-				stateData = append(stateData, uint64ToBytes32(state.Step)...)
+				proofData = append(proofData, make([]byte, 32-4-4)...)
 
 				stateHash := crypto.Keccak256Hash(stateData)
 				var input []byte
@@ -129,14 +115,39 @@ func TestEVM(t *testing.T) {
 				input = append(input, uint32ToBytes32(uint32(len(proofData)))...) // proof data length in bytes
 				input = append(input, proofData[:]...)
 				startingGas := uint64(30_000_000)
+
+				// we take a snapshot so we can clean up the state, and isolate the logs of this instruction run.
+				snap := env.StateDB.Snapshot()
 				ret, leftOverGas, err := env.Call(vm.AccountRef(sender), addrs.MIPS, input, startingGas, big.NewInt(0))
 				require.NoError(t, err, "evm should not fail")
-				t.Logf("step took %d gas", startingGas-leftOverGas)
-				t.Logf("output (state hash): %x", ret)
-				// TODO compare output against unicorn (need to reconstruct state and memory hash)
+				require.Len(t, ret, 32, "expecting 32-byte state hash")
+				// remember state hash, to check it against state
+				postHash := common.Hash(*(*[32]byte)(ret))
+				logs := evmState.Logs()
+				require.Equal(t, 1, len(logs), "expecting a log with post-state")
+				post = logs[0].Data
+				require.Equal(t, crypto.Keccak256Hash(post), postHash, "logged state must be accurate")
+				env.StateDB.RevertToSnapshot(snap)
+
+				t.Logf("EVM step took %d gas, and returned stateHash %s", startingGas-leftOverGas, postHash)
 			}
 
+			firstStep := true
+			_, err = mu.HookAdd(uc.HOOK_CODE, func(mu uc.Unicorn, addr uint64, size uint32) {
+				if state.PC == endAddr {
+					require.NoError(t, mu.Stop(), "stop test when returned")
+				}
+				if !firstStep {
+					postCode()
+				}
+				preCode()
+				firstStep = false
+			}, 0, ^uint64(0))
+			require.NoError(t, err, "hook code")
+
+			err = RunUnicorn(mu, state.PC, 1000)
 			require.NoError(t, err, "must run steps without error")
+
 			// inspect test result
 			done, result := state.GetMemory(baseAddrEnd+4), state.GetMemory(baseAddrEnd+8)
 			require.Equal(t, done, uint32(1), "must be done")
@@ -145,28 +156,8 @@ func TestEVM(t *testing.T) {
 	}
 }
 
-func uint64ToBytes32(v uint64) []byte {
-	var out [32]byte
-	binary.BigEndian.PutUint64(out[32-8:], v)
-	return out[:]
-}
-
 func uint32ToBytes32(v uint32) []byte {
 	var out [32]byte
 	binary.BigEndian.PutUint32(out[32-4:], v)
-	return out[:]
-}
-
-func uint8ToBytes32(v uint8) []byte {
-	var out [32]byte
-	out[31] = v
-	return out[:]
-}
-
-func boolToBytes32(v bool) []byte {
-	var out [32]byte
-	if v {
-		out[31] = 1
-	}
 	return out[:]
 }

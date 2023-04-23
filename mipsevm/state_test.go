@@ -37,7 +37,7 @@ func TestState(t *testing.T) {
 			//state, err := LoadELF(elfProgram)
 			//require.NoError(t, err, "must load ELF into state")
 			programMem, err := os.ReadFile(fn)
-			state := &State{PC: 0, Memory: make(map[uint32]*Page)}
+			state := &State{PC: 0, NextPC: 4, Memory: make(map[uint32]*Page)}
 			err = state.SetMemoryRange(0, bytes.NewReader(programMem))
 			require.NoError(t, err, "load program into state")
 
@@ -69,7 +69,7 @@ func TestState(t *testing.T) {
 					require.NoError(t, mu.Stop(), "stop test when returned")
 				}
 			}, 0, ^uint64(0))
-			require.NoError(t, err, "")
+			require.NoError(t, err, "hook code")
 
 			err = RunUnicorn(mu, state.PC, 1000)
 			require.NoError(t, err, "must run steps without error")

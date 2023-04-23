@@ -82,7 +82,7 @@ type SourceMap struct {
 func (s *SourceMap) Info(pc uint64) (source string, line uint32, col uint32) {
 	instr := s.Instr[pc]
 	if instr.F < 0 {
-		return
+		return "generated", 0, 0
 	}
 	if instr.F >= int32(len(s.Sources)) {
 		source = "unknown"
@@ -103,7 +103,7 @@ func (s *SourceMap) Info(pc uint64) (source string, line uint32, col uint32) {
 
 func (s *SourceMap) FormattedInfo(pc uint64) string {
 	f, l, c := s.Info(pc)
-	return fmt.Sprintf("%s:%d:%d %v", f, l, c, s.Instr[pc])
+	return fmt.Sprintf("%s:%d:%d", f, l, c)
 }
 
 // ParseSourceMap parses a solidity sourcemap: mapping bytecode indices to source references.
@@ -200,11 +200,21 @@ func (s *SourceMapTracer) CaptureEnter(typ vm.OpCode, from common.Address, to co
 func (s *SourceMapTracer) CaptureExit(output []byte, gasUsed uint64, err error) {}
 
 func (s *SourceMapTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64, scope *vm.ScopeContext, rData []byte, depth int, err error) {
-	fmt.Fprintf(s.out, "%s: pc %x opcode %s  map %v\n", s.srcMap.FormattedInfo(pc), pc, op.String(), s.srcMap.Instr[pc])
+	fmt.Fprintf(s.out, "%-40s : pc %x opcode %s\n", s.srcMap.FormattedInfo(pc), pc, op.String())
 }
 
 func (s *SourceMapTracer) CaptureFault(pc uint64, op vm.OpCode, gas, cost uint64, scope *vm.ScopeContext, depth int, err error) {
-	fmt.Fprintf(s.out, "%s: FAULT %v\n", s.srcMap.FormattedInfo(pc), err)
+	fmt.Fprintf(s.out, "%-40s: pc %x opcode %s FAULT %v\n", s.srcMap.FormattedInfo(pc), pc, op.String(), err)
+	fmt.Println("----")
+	fmt.Fprintf(s.out, "calldata: %x\n", scope.Contract.Input)
+	fmt.Println("----")
+	fmt.Fprintf(s.out, "memory: %x\n", scope.Memory.Data())
+	fmt.Println("----")
+	fmt.Fprintf(s.out, "stack:\n")
+	stack := scope.Stack.Data()
+	for i := range stack {
+		fmt.Fprintf(s.out, "%3d: %x\n", -i, stack[len(stack)-1-i].Bytes32())
+	}
 }
 
 var _ vm.EVMLogger = (*SourceMapTracer)(nil)

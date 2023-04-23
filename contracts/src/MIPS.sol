@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.3;
-pragma experimental ABIEncoderV2;
+pragma solidity ^0.7.6;
 
 // https://inst.eecs.berkeley.edu/~cs61c/resources/MIPS_Green_Sheet.pdf
 // https://uweb.engr.arizona.edu/~ece369/Resources/spim/MIPSReference.pdf
@@ -9,32 +8,31 @@ pragma experimental ABIEncoderV2;
 // https://www.cs.cmu.edu/afs/cs/academic/class/15740-f97/public/doc/mips-isa.pdf
 // page A-177
 
-// This is a separate contract from the challenge contract
-// Anyone can use it to validate a MIPS state transition
-// First, to prepare, you call AddMerkleState, which adds valid state nodes in the stateHash. 
-// If you are using the Preimage oracle, you call AddPreimage
-// Then, you call Step. Step will revert if state is missing. If all state is present, it will return the next hash
-
+// This MIPS contract emulates a single MIPS instruction.
+//
+// Note that delay slots are isolated instructions:
+// the nextPC in the state pre-schedules where the VM jumps next.
+//
+// The Step input is a packed VM state, with binary-merkle-tree witness data for memory reads/writes.
+// The Step outputs a keccak256 hash of the packed VM State, and logs the resulting state for offchain usage.
 contract MIPS {
 
   struct State {
     bytes32 memRoot;
     bytes32 preimageKey;
     uint32 preimageOffset;
-
-    uint32[32] registers;
     uint32 pc;
     uint32 nextPC;  // State is executing a branch/jump delay slot if nextPC != pc+4
-    uint32 lr;
     uint32 lo;
     uint32 hi;
     uint32 heap;
     uint8 exitCode;
     bool exited;
     uint64 step;
+    uint32[32] registers;
   }
 
-  // total State size: 32+32+4+32*4+5*4+1+1+8 = 226 bytes
+  // total State size: 32+32+6*4+1+1+8+32*4 = 226 bytes
 
   uint32 constant public HEAP_START = 0x20000000;
   uint32 constant public BRK_START = 0x40000000;
@@ -51,12 +49,35 @@ contract MIPS {
     return uint32(dat&mask | (isSigned ? signed : 0));
   }
 
-  function outputState() internal returns (bytes32) {
-    State memory state;
+  function outputState() internal returns (bytes32 out) {
     assembly {
-      state := 0x80
+      // copies 'size' bytes, right-aligned in word at 'from', to 'to', incl. trailing data
+      function copyMem(from, to, size) -> fromOut, toOut {
+        mstore(to, mload(add(from, sub(32, size))))
+        fromOut := add(from, 32)
+        toOut := add(to, size)
+      }
+      let from := 0x80 // state
+      let start := mload(0x40) // free mem ptr
+      let to := start
+      from, to := copyMem(from, to, 32) // memRoot
+      from, to := copyMem(from, to, 32) // preimageKey
+      from, to := copyMem(from, to, 4) // preimageOffset
+      from, to := copyMem(from, to, 4) // pc
+      from, to := copyMem(from, to, 4) // nextPC
+      from, to := copyMem(from, to, 4) // lo
+      from, to := copyMem(from, to, 4) // hi
+      from, to := copyMem(from, to, 4) // heap
+      from, to := copyMem(from, to, 1) // exitCode
+      from, to := copyMem(from, to, 1) // exited
+      from, to := copyMem(from, to, 8) // step
+      from := add(from, 32) // offset to registers
+      for { let i := 0 } lt(i, 32) { i := add(i, 1) } { from, to := copyMem(from, to, 4) } // registers
+      mstore(to, 0) // clean up end
+      log0(start, sub(to, start)) // log the resulting MIPS state, for debugging
+      out := keccak256(start, sub(to, start))
     }
-    return keccak256(abi.encode(state));
+    return out;
   }
 
   function handleSyscall() internal returns (bytes32) {
@@ -131,7 +152,7 @@ contract MIPS {
     return outputState();
   }
 
-  function handleHiLo(uint32 func, uint32 rt, uint32 rs, uint32 storeReg) internal returns (bytes32) {
+  function handleHiLo(uint32 func, uint32 rs, uint32 rt, uint32 storeReg) internal returns (bytes32) {
     State memory state;
     assembly {
       state := 0x80
@@ -167,7 +188,7 @@ contract MIPS {
     return outputState();
   }
 
-  function handleJump(bool andLink, uint32 dest) internal returns (bytes32) {
+  function handleJump(uint32 linkReg, uint32 dest) internal returns (bytes32) {
     State memory state;
     assembly {
       state := 0x80
@@ -175,8 +196,8 @@ contract MIPS {
     uint32 prevPC = state.pc;
     state.pc = state.nextPC;
     state.nextPC = dest;
-    if (andLink) {
-      state.lr = prevPC+8; // set the link-register to the instr after the delay slot instruction.
+    if (linkReg != 0) {
+      state.registers[linkReg] = prevPC+8; // set the link-register to the instr after the delay slot instruction.
     }
     return outputState();
   }
@@ -186,6 +207,7 @@ contract MIPS {
     assembly {
       state := 0x80
     }
+    require(storeReg < 32, "valid register");
     // never write to reg 0, and it can be conditional (movz, movn)
     if (storeReg != 0 && conditional) {
       state.registers[storeReg] = val;
@@ -199,8 +221,42 @@ contract MIPS {
 
   // will revert if any required input state is missing
   function Step(bytes32 stateHash, bytes calldata stateData, bytes calldata proof) public returns (bytes32) {
-    require(stateHash == keccak256(stateData), "stateHash must match input");
-    State memory state = abi.decode(stateData, (State)); // TODO not efficient, need to write a "decodePacked" for State
+    State memory state;
+    // packed data is ~6 times smaller
+    assembly {
+      if iszero(eq(state, 0x80)) { // expected state mem offset check
+        revert(0,0)
+      }
+      if iszero(eq(mload(0x40), mul(32, 48))) { // expected memory check
+        revert(0,0)
+      }
+      if iszero(eq(stateData.offset, add(mul(32, 4), 4))) { // expected state data offset
+        revert(0,0)
+      }
+      function putField(callOffset, memOffset, size) -> callOffsetOut, memOffsetOut {
+        // calldata is packed, thus starting left-aligned, shift-right to pad and right-align
+        let w := shr(shl(3, sub(32, size)), calldataload(callOffset))
+        mstore(memOffset, w)
+        callOffsetOut := add(callOffset, size)
+        memOffsetOut := add(memOffset, 32)
+      }
+      let c := stateData.offset // calldata offset
+      let m := 0x80 // mem offset
+      c, m := putField(c, m, 32) // memRoot
+      c, m := putField(c, m, 32) // preimageKey
+      c, m := putField(c, m, 4) // preimageOffset
+      c, m := putField(c, m, 4) // pc
+      c, m := putField(c, m, 4) // nextPC
+      c, m := putField(c, m, 4) // lo
+      c, m := putField(c, m, 4) // hi
+      c, m := putField(c, m, 4) // heap
+      c, m := putField(c, m, 1) // exitCode
+      c, m := putField(c, m, 1) // exited
+      c, m := putField(c, m, 8) // step
+      mstore(m, add(m, 32)) // offset to registers
+      m := add(m, 32)
+      for { let i := 0 } lt(i, 32) { i := add(i, 1) } { c, m := putField(c, m, 4) } // registers
+    }
     if(state.exited) { // don't change state once exited
       return stateHash;
     }
@@ -209,28 +265,33 @@ contract MIPS {
     // instruction fetch
     uint32 insn; // TODO proof the memory read against memRoot
     assembly {
-      insn := shr(sub(256, 32), calldataload(add(proof.offset, 0x20)))
+      if iszero(eq(proof.offset, 390)) {
+        revert(0,0)
+      }
+      insn := shr(sub(256, 32), calldataload(proof.offset))
     }
 
     uint32 opcode = insn >> 26; // 6-bits
 
     // j-type j/jal
     if (opcode == 2 || opcode == 3) {
-      return handleJump(opcode == 3, SE(insn&0x03FFFFFF, 26) << 2);
+      // TODO likely bug in original code: MIPS spec says this should be in the "current" region;
+      // a 256 MB aligned region (i.e. use top 4 bits of branch delay slot (pc+4))
+      return handleJump(opcode == 2 ? 0 : 31, SE(insn&0x03FFFFFF, 26) << 2);
     }
 
     // register fetch
-    uint32 rs; // source register 1
-    uint32 rt; // source register 2 / temp
-    uint32 rtReg = ((insn >> 14) & 0x7C);
+    uint32 rs; // source register 1 value
+    uint32 rt; // source register 2 / temp value
+    uint32 rtReg = (insn >> 16) & 0x1F;
 
     // R-type or I-type (stores rt)
-    rs = state.registers[(insn >> 19) & 0x7C];
-    uint32 rd = (insn >> 14) & 0x7C;
+    rs = state.registers[(insn >> 21) & 0x1F];
+    uint32 rdReg = rtReg;
     if (opcode == 0 || opcode == 0x1c) {
       // R-type (stores rd)
       rt = state.registers[rtReg];
-      rd = (insn >> 9) & 0x7C;
+      rdReg = (insn >> 11) & 0x1F;
     } else if (opcode < 0x20) {
       // rt is SignExtImm
       // don't sign extend for andi, ori, xori
@@ -246,7 +307,7 @@ contract MIPS {
       rt = state.registers[rtReg];
 
       // store actual rt with lwl and lwr
-      rd = rtReg;
+      rdReg = rtReg;
     }
 
     if ((opcode >= 4 && opcode < 8) || opcode == 1) {
@@ -263,11 +324,13 @@ contract MIPS {
       uint32 addr = rs & 0xFFFFFFFC;
       // TODO proof memory read at addr
       assembly {
-        mem := and(shr(sub(256, 64), calldataload(add(proof.offset, 0x20))), 0xFFFFFFFF)
+        mem := shr(sub(256, 32), calldataload(add(proof.offset, 4)))
       }
       if (opcode >= 0x28 && opcode != 0x30) {
         // store
         storeAddr = addr;
+        // store opcodes don't write back to a register
+        rdReg = 0;
       }
     }
 
@@ -277,14 +340,14 @@ contract MIPS {
     uint32 func = insn & 0x3f; // 6-bits
     if (opcode == 0 && func >= 8 && func < 0x1c) {
       if (func == 8 || func == 9) { // jr/jalr
-        return handleJump(func == 9, rs);
+        return handleJump(func == 8 ? 0 : rdReg, rs);
       }
 
       if (func == 0xa) { // movz
-        return handleRd(rd, rs, rt == 0);
+        return handleRd(rdReg, rs, rt == 0);
       }
       if (func == 0xb) { // movn
-        return handleRd(rd, rs, rt != 0);
+        return handleRd(rdReg, rs, rt != 0);
       }
 
       // syscall (can read and write)
@@ -295,7 +358,7 @@ contract MIPS {
       // lo and hi registers
       // can write back
       if (func >= 0x10 && func < 0x1c) {
-        return handleHiLo(func, rs, rt, rd);
+        return handleHiLo(func, rs, rt, rdReg);
       }
     }
 
@@ -314,7 +377,7 @@ contract MIPS {
     }
 
     // write back the value to destination register
-    return handleRd(rd, val, true);
+    return handleRd(rdReg, val, true);
   }
 
   function execute(uint32 insn, uint32 rs, uint32 rt, uint32 mem) internal pure returns (uint32) {

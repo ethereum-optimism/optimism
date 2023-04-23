@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
 	uc "github.com/unicorn-engine/unicorn/bindings/go/unicorn"
 )
 

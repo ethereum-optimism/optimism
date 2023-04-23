@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 const (
@@ -36,27 +38,47 @@ func (p *Page) UnmarshalText(dat []byte) error {
 type State struct {
 	Memory map[uint32]*Page `json:"memory"`
 
-	Registers [32]uint32 `json:"registers"`
+	PreimageKey    common.Hash `json:"preimageKey"`
+	PreimageOffset uint32      `json:"preimageOffset"`
 
 	PC     uint32 `json:"pc"`
 	NextPC uint32 `json:"nextPC"`
-	LR     uint32 `json:"lr"`
-	HI     uint32 `json:"hi"`
 	LO     uint32 `json:"lo"`
+	HI     uint32 `json:"hi"`
 	Heap   uint32 `json:"heap"` // to handle mmap growth
 
 	ExitCode uint8 `json:"exit"`
 	Exited   bool  `json:"exited"`
 
 	Step uint64 `json:"step"`
+
+	Registers [32]uint32 `json:"registers"`
 }
 
-// TODO: VM state pre-image:
-// PC, HI, LO, Heap = 4 * 32/8 = 16 bytes
-// Registers = 32 * 32/8 = 256 bytes
-// Memory tree root = 32 bytes
-// Misc exit/step data = TBD
-// + proof(s) for memory leaf nodes
+func (s *State) EncodeWitness(so StateOracle) []byte {
+	out := make([]byte, 0)
+	memRoot := s.MerkleizeMemory(so)
+	memRoot = common.Hash{31: 42} // TODO need contract to actually write memory
+	out = append(out, memRoot[:]...)
+	out = append(out, s.PreimageKey[:]...)
+	out = binary.BigEndian.AppendUint32(out, s.PreimageOffset)
+	out = binary.BigEndian.AppendUint32(out, s.PC)
+	out = binary.BigEndian.AppendUint32(out, s.NextPC)
+	out = binary.BigEndian.AppendUint32(out, s.LO)
+	out = binary.BigEndian.AppendUint32(out, s.HI)
+	out = binary.BigEndian.AppendUint32(out, s.Heap)
+	out = append(out, s.ExitCode)
+	if s.Exited {
+		out = append(out, 1)
+	} else {
+		out = append(out, 0)
+	}
+	out = binary.BigEndian.AppendUint64(out, s.Step)
+	for _, r := range s.Registers {
+		out = binary.BigEndian.AppendUint32(out, r)
+	}
+	return out
+}
 
 func (s *State) MerkleizeMemory(so StateOracle) [32]byte {
 	// empty parts of the tree are all zero. Precompute the hash of each full-zero range sub-tree level.
@@ -120,20 +142,21 @@ func (s *State) MerkleizeMemory(so StateOracle) [32]byte {
 	return merkleizeMemory(1, 0)
 }
 
-func (s *State) SetMemory(addr uint32, size uint32, v uint32) {
-	for i := size; i > 0; i-- {
-		pageIndex := addr >> pageAddrSize
-		pageAddr := addr & pageAddrMask
-		p, ok := s.Memory[pageIndex]
-		if !ok {
-			// allocate the page if we have not already.
-			// Go may mmap relatively large ranges, but we only allocate the pages just in time.
-			p = &Page{}
-			s.Memory[pageIndex] = p
-		}
-		p[pageAddr] = uint8(v >> (i - 1))
-		addr += 1
+func (s *State) SetMemory(addr uint32, v uint32) {
+	// addr must be aligned to 4 bytes
+	if addr&0x3 != 0 {
+		panic(fmt.Errorf("unaligned memory access: %x", addr))
 	}
+	pageIndex := addr >> pageAddrSize
+	pageAddr := addr & pageAddrMask
+	p, ok := s.Memory[pageIndex]
+	if !ok {
+		// allocate the page if we have not already.
+		// Go may mmap relatively large ranges, but we only allocate the pages just in time.
+		p = &Page{}
+		s.Memory[pageIndex] = p
+	}
+	binary.BigEndian.PutUint32(p[pageAddr:pageAddr+4], v)
 }
 
 func (s *State) GetMemory(addr uint32) uint32 {
