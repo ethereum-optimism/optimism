@@ -117,7 +117,7 @@ func MigrateWithdrawalGasLimit(data []byte, chainID *big.Int) uint64 {
 	// Goerli has a lower gas limit than other chains.
 	overhead := uint64(200_000)
 	if chainID.Cmp(big.NewInt(420)) != 0 {
-		overhead = 1_00_000
+		overhead = 1_000_000
 	}
 
 	// Set the outer gas limit. This cannot be zero
