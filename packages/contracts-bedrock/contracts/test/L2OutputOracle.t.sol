@@ -25,7 +25,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
             _startingTimestamp: block.timestamp + 1,
             _challenger: owner,
             _finalizationPeriodSeconds: 7 days,
-            _bondManager: IBondManager(bondManager)
+            _bondManager: IBondManager(address(bondManager))
         });
     }
 
@@ -37,7 +37,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
             _startingTimestamp: block.timestamp,
             _challenger: owner,
             _finalizationPeriodSeconds: 7 days,
-            _bondManager: IBondManager(bondManager)
+            _bondManager: IBondManager(address(bondManager))
         });
     }
 
