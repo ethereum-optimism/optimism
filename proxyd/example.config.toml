@@ -15,6 +15,7 @@ rpc_port = 8080
 # Host for the proxyd WS server to listen on.
 ws_host = "0.0.0.0"
 # Port for the above
+# Set the ws_port to 0 to disable WS
 ws_port = 8085
 # Maximum client body size, in bytes, that the server will accept.
 max_body_size_bytes = 10485760

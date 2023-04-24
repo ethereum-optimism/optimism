@@ -26,7 +26,7 @@ func TestSingleRPCValidation(t *testing.T) {
 
 	config := ReadConfig("whitelist")
 	client := NewProxydClient("http://127.0.0.1:8545")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 
@@ -110,7 +110,7 @@ func TestBatchRPCValidation(t *testing.T) {
 
 	config := ReadConfig("whitelist")
 	client := NewProxydClient("http://127.0.0.1:8545")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 

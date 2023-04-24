@@ -52,7 +52,7 @@ func main() {
 		),
 	)
 
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	if err != nil {
 		log.Crit("error starting proxyd", "err", err)
 	}

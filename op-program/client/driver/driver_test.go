@@ -76,8 +76,8 @@ func TestValidateClaim(t *testing.T) {
 		driver.l2OutputRoot = func() (eth.Bytes32, error) {
 			return expected, nil
 		}
-		valid := driver.ValidateClaim(expected)
-		require.True(t, valid)
+		err := driver.ValidateClaim(expected)
+		require.NoError(t, err)
 	})
 
 	t.Run("Invalid", func(t *testing.T) {
@@ -85,17 +85,18 @@ func TestValidateClaim(t *testing.T) {
 		driver.l2OutputRoot = func() (eth.Bytes32, error) {
 			return eth.Bytes32{0x22}, nil
 		}
-		valid := driver.ValidateClaim(eth.Bytes32{0x11})
-		require.False(t, valid)
+		err := driver.ValidateClaim(eth.Bytes32{0x11})
+		require.ErrorIs(t, err, ErrClaimNotValid)
 	})
 
 	t.Run("Error", func(t *testing.T) {
 		driver := createDriver(t, io.EOF)
+		expectedErr := errors.New("boom")
 		driver.l2OutputRoot = func() (eth.Bytes32, error) {
-			return eth.Bytes32{}, errors.New("boom")
+			return eth.Bytes32{}, expectedErr
 		}
-		valid := driver.ValidateClaim(eth.Bytes32{0x11})
-		require.False(t, valid)
+		err := driver.ValidateClaim(eth.Bytes32{0x11})
+		require.ErrorIs(t, err, expectedErr)
 	})
 }
 

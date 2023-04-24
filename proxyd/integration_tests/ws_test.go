@@ -38,7 +38,7 @@ func TestConcurrentWSPanic(t *testing.T) {
 	require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", backend.URL()))
 
 	config := ReadConfig("ws")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	client, err := NewProxydWSClient("ws://127.0.0.1:8546", nil, nil)
 	require.NoError(t, err)
@@ -147,7 +147,7 @@ func TestWS(t *testing.T) {
 	require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", backend.URL()))
 
 	config := ReadConfig("ws")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	client, err := NewProxydWSClient("ws://127.0.0.1:8546", func(msgType int, data []byte) {
 		clientHdlr.MsgCB(msgType, data)
@@ -238,7 +238,7 @@ func TestWSClientClosure(t *testing.T) {
 	require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", backend.URL()))
 
 	config := ReadConfig("ws")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 
@@ -278,7 +278,7 @@ func TestWSClientMaxConns(t *testing.T) {
 	require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", backend.URL()))
 
 	config := ReadConfig("ws")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 

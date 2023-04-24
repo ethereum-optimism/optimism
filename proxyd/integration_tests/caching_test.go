@@ -35,7 +35,7 @@ func TestCaching(t *testing.T) {
 	require.NoError(t, os.Setenv("REDIS_URL", fmt.Sprintf("redis://127.0.0.1:%s", redis.Port())))
 	config := ReadConfig("caching")
 	client := NewProxydClient("http://127.0.0.1:8545")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 
@@ -171,7 +171,7 @@ func TestBatchCaching(t *testing.T) {
 
 	config := ReadConfig("caching")
 	client := NewProxydClient("http://127.0.0.1:8545")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 

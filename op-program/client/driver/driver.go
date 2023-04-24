@@ -13,6 +13,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+var (
+	ErrClaimNotValid = errors.New("invalid claim")
+)
+
 type Derivation interface {
 	Step(ctx context.Context) error
 	SafeL2Head() eth.L2BlockRef
@@ -47,11 +51,12 @@ func NewDriver(logger log.Logger, cfg *rollup.Config, l1Source derive.L1Fetcher,
 // Returns a non-EOF error if the derivation failed
 func (d *Driver) Step(ctx context.Context) error {
 	if err := d.pipeline.Step(ctx); errors.Is(err, io.EOF) {
+		d.logger.Info("Derivation complete: reached L1 head", "head", d.pipeline.SafeL2Head())
 		return io.EOF
 	} else if errors.Is(err, derive.NotEnoughData) {
 		head := d.pipeline.SafeL2Head()
 		if head.Number >= d.targetBlockNum {
-			d.logger.Info("Target L2 block reached", "head", head)
+			d.logger.Info("Derivation complete: reached L2 block", "head", head)
 			return io.EOF
 		}
 		d.logger.Debug("Data is lacking")
@@ -66,12 +71,14 @@ func (d *Driver) SafeHead() eth.L2BlockRef {
 	return d.pipeline.SafeL2Head()
 }
 
-func (d *Driver) ValidateClaim(claimedOutputRoot eth.Bytes32) bool {
+func (d *Driver) ValidateClaim(claimedOutputRoot eth.Bytes32) error {
 	outputRoot, err := d.l2OutputRoot()
 	if err != nil {
-		d.logger.Info("Failed to calculate L2 output root", "err", err)
-		return false
+		return fmt.Errorf("calculate L2 output root: %w", err)
 	}
-	d.logger.Info("Derivation complete", "head", d.SafeHead(), "output", outputRoot, "claim", claimedOutputRoot)
-	return claimedOutputRoot == outputRoot
+	d.logger.Info("Validating claim", "head", d.SafeHead(), "output", outputRoot, "claim", claimedOutputRoot)
+	if claimedOutputRoot != outputRoot {
+		return fmt.Errorf("%w: claim: %v actual: %v", ErrClaimNotValid, claimedOutputRoot, outputRoot)
+	}
+	return nil
 }

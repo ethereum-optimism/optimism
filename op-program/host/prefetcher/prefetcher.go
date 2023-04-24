@@ -6,18 +6,17 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-program/client/mpt"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-program/preimage"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type L1Source interface {
@@ -33,6 +32,7 @@ type L2Source interface {
 }
 
 type Prefetcher struct {
+	logger    log.Logger
 	l1Fetcher L1Source
 	l2Fetcher L2Source
 	lastHint  string
@@ -41,6 +41,7 @@ type Prefetcher struct {
 
 func NewPrefetcher(logger log.Logger, l1Fetcher L1Source, l2Fetcher L2Source, kvStore kvstore.KV) *Prefetcher {
 	return &Prefetcher{
+		logger:    logger,
 		l1Fetcher: NewRetryingL1Source(logger, l1Fetcher),
 		l2Fetcher: NewRetryingL2Source(logger, l2Fetcher),
 		kvStore:   kvStore,
@@ -48,11 +49,13 @@ func NewPrefetcher(logger log.Logger, l1Fetcher L1Source, l2Fetcher L2Source, kv
 }
 
 func (p *Prefetcher) Hint(hint string) error {
+	p.logger.Trace("Received hint", "hint", hint)
 	p.lastHint = hint
 	return nil
 }
 
 func (p *Prefetcher) GetPreimage(ctx context.Context, key common.Hash) ([]byte, error) {
+	p.logger.Trace("Pre-image requested", "key", key)
 	pre, err := p.kvStore.Get(key)
 	if errors.Is(err, kvstore.ErrNotFound) && p.lastHint != "" {
 		hint := p.lastHint
@@ -71,6 +74,7 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 	if err != nil {
 		return err
 	}
+	p.logger.Debug("Prefetching", "type", hintType, "hash", hash)
 	switch hintType {
 	case l1.HintL1BlockHeader:
 		header, err := p.l1Fetcher.InfoByHash(ctx, hash)
@@ -143,8 +147,11 @@ func (p *Prefetcher) storeTransactions(txs types.Transactions) error {
 func (p *Prefetcher) storeTrieNodes(values []hexutil.Bytes) error {
 	_, nodes := mpt.WriteTrie(values)
 	for _, node := range nodes {
-		err := p.kvStore.Put(preimage.Keccak256Key(crypto.Keccak256Hash(node)).PreimageKey(), node)
-		if err != nil {
+		key := preimage.Keccak256Key(crypto.Keccak256Hash(node)).PreimageKey()
+		if err := p.kvStore.Put(key, node); errors.Is(err, kvstore.ErrAlreadyExists) {
+			// It's not uncommon for different tries to contain common nodes (esp for receipts)
+			continue
+		} else if err != nil {
 			return fmt.Errorf("failed to store node: %w", err)
 		}
 	}
