@@ -101,6 +101,7 @@ func PostCheckMigratedDB(
 	migrationData crossdomain.MigrationData,
 	l1XDM *common.Address,
 	l1ChainID uint64,
+	l2ChainID uint64,
 	finalSystemOwner common.Address,
 	proxyAdminOwner common.Address,
 	info *derive.L1BlockInfo,
@@ -163,7 +164,7 @@ func PostCheckMigratedDB(
 	}
 	log.Info("checked legacy eth")
 
-	if err := CheckWithdrawalsAfter(db, migrationData, l1XDM); err != nil {
+	if err := CheckWithdrawalsAfter(db, migrationData, l1XDM, new(big.Int).SetUint64(l2ChainID)); err != nil {
 		return err
 	}
 	log.Info("checked withdrawals")
@@ -557,7 +558,7 @@ func PostCheckL1Block(db *state.StateDB, info *derive.L1BlockInfo) error {
 	return nil
 }
 
-func CheckWithdrawalsAfter(db *state.StateDB, data crossdomain.MigrationData, l1CrossDomainMessenger *common.Address) error {
+func CheckWithdrawalsAfter(db *state.StateDB, data crossdomain.MigrationData, l1CrossDomainMessenger *common.Address, l2ChainID *big.Int) error {
 	wds, invalidMessages, err := data.ToWithdrawals()
 	if err != nil {
 		return err
@@ -570,7 +571,7 @@ func CheckWithdrawalsAfter(db *state.StateDB, data crossdomain.MigrationData, l1
 	wdsByOldSlot := make(map[common.Hash]*crossdomain.LegacyWithdrawal)
 	invalidMessagesByOldSlot := make(map[common.Hash]crossdomain.InvalidMessage)
 	for _, wd := range wds {
-		migrated, err := crossdomain.MigrateWithdrawal(wd, l1CrossDomainMessenger)
+		migrated, err := crossdomain.MigrateWithdrawal(wd, l1CrossDomainMessenger, l2ChainID)
 		if err != nil {
 			return err
 		}
