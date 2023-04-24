@@ -111,6 +111,23 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     /**
+     * @notice Prevent deposits from being too large to have a sane upper bound
+     *         on unsafe blocks sent over the p2p network.
+     */
+    function test_depositTransaction_largeData_reverts() external {
+        uint256 size = 120_001;
+        uint64 gasLimit = op.minimumGasLimit(uint64(size));
+        vm.expectRevert("OptimismPortal: data too large");
+        op.depositTransaction({
+            _to: address(0),
+            _value: 0,
+            _gasLimit: gasLimit,
+            _isCreation: false,
+            _data: new bytes(size)
+        });
+    }
+
+    /**
      * @notice Prevent gasless deposits from being force processed in L2 by
      *         ensuring that they have a large enough gas limit set.
      */
