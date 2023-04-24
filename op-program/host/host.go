@@ -37,7 +37,7 @@ func RunningProgramInClient() bool {
 func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 	if RunningProgramInClient() {
 		cl.Main(logger)
-		// unreachable
+		panic("Client main should have exited process")
 	}
 
 	if err := cfg.Check(); err != nil {
