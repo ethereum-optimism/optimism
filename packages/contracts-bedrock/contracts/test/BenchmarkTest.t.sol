@@ -66,15 +66,14 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
             messagePasserStorageRoot: _storageRoot,
             latestBlockhash: bytes32(uint256(0))
         });
-        _proposedBlockNumber = oracle.nextBlockNumber();
-        _proposedOutputIndex = oracle.nextOutputIndex();
+        _proposedBlockNumber = oracle.highestL2BlockNumber() + 1;
+        _proposedOutputIndex = oracle.highestL2BlockNumber();
     }
 
     // Get the system into a nice ready-to-use state.
     function setUp() public virtual override {
         // Configure the oracle to return the output root we've prepared.
         vm.warp(oracle.computeL2Timestamp(_proposedBlockNumber) + 1);
-        vm.prank(oracle.PROPOSER());
         oracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
 
         // Warp beyond the finalization period for the block we've proposed.
@@ -216,9 +215,8 @@ contract GasBenchMark_L2OutputOracle is L2OutputOracle_Initializer {
 
     function setUp() public override {
         super.setUp();
-        nextBlockNumber = oracle.nextBlockNumber();
+        nextBlockNumber = oracle.highestL2BlockNumber() + 1;
         warpToProposeTime(nextBlockNumber);
-        vm.startPrank(proposer);
     }
 
     function test_proposeL2Output_benchmark() external {

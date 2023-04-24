@@ -22,8 +22,7 @@ contract L2OutputOracle_Proposer {
         bytes32 _l1BlockHash,
         uint256 _l1BlockNumber
     ) external {
-        // Act as the proposer and propose a new output.
-        vm.prank(oracle.PROPOSER());
+        // Propose a new output.
         oracle.proposeL2Output(_outputRoot, _l2BlockNumber, _l1BlockHash, _l1BlockNumber);
     }
 }
@@ -58,6 +57,6 @@ contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is L2OutputOracle_In
      */
     function invariant_monotonicBlockNumIncrease() external {
         // Assert that the block number of proposals must monotonically increase.
-        assertTrue(oracle.nextBlockNumber() >= oracle.latestBlockNumber());
+        assertTrue(oracle.highestL2BlockNumber() >= oracle.highestL2BlockNumber());
     }
 }

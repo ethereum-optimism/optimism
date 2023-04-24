@@ -7,7 +7,7 @@ import { IBondManager } from "./IBondManager.sol";
 
 /**
  * @title OracleBondManager
- * @notice A Bond Manager implementation for the L2OutputOracleV2 contract.
+ * @notice A Bond Manager implementation for the L2OutputOracle contract.
  */
 contract OracleBondManager is IBondManager, Ownable {
     /**
