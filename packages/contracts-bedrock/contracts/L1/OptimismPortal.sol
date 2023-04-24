@@ -455,7 +455,9 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         );
 
         // Prevent the creation of deposit transactions that have too much calldata. This gives an
-        // upper limit on the size of unsafe blocks over the p2p network.
+        // upper limit on the size of unsafe blocks over the p2p network. 120kb is chosen to ensure
+        // that the transaction can fit into the p2p network policy of 128kb even though deposit
+        // transactions are not gossipped over the p2p network.
         require(_data.length <= 120_000, "OptimismPortal: data too large");
 
         // Transform the from-address to its alias if the caller is a contract.
