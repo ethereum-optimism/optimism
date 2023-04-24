@@ -124,22 +124,38 @@ abstract contract CrossDomainMessenger is
     /**
      * @notice Constant overhead added to the base gas for a message.
      */
-    uint64 public constant MIN_GAS_CONSTANT_OVERHEAD = 200_000;
+    uint64 public constant RELAY_CONSTANT_OVERHEAD = 200_000;
 
     /**
      * @notice Numerator for dynamic overhead added to the base gas for a message.
      */
-    uint64 public constant MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR = 1016;
+    uint64 public constant MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR = 64;
 
     /**
      * @notice Denominator for dynamic overhead added to the base gas for a message.
      */
-    uint64 public constant MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR = 1000;
+    uint64 public constant MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR = 63;
 
     /**
      * @notice Extra gas added to base gas for each byte of calldata in a message.
      */
     uint64 public constant MIN_GAS_CALLDATA_OVERHEAD = 16;
+
+    /**
+     * @notice Gas reserved for performing the external call in `relayMessage`.
+     */
+    uint64 public constant RELAY_CALL_OVERHEAD = 40_000;
+
+    /**
+     * @notice Gas reserved for finalizing the execution of `relayMessage` after the safe call.
+     */
+    uint64 public constant RELAY_RESERVED_GAS = 40_000;
+
+    /**
+     * @notice Gas reserved for the execution between the `hasMinGas` check and the external
+     *         call in `relayMessage`.
+     */
+    uint64 public constant RELAY_GAS_CHECK_BUFFER = 5_000;
 
     /**
      * @notice Address of the paired CrossDomainMessenger contract on the other chain.
@@ -345,17 +361,36 @@ abstract contract CrossDomainMessenger is
             "CrossDomainMessenger: message has already been relayed"
         );
 
+        // If there is not enough gas left to perform the external call and finish the execution,
+        // return early and assign the message to the failedMessages mapping.
+        // We are asserting that we have enough gas to:
+        // 1. Call the target contract (_minGasLimit + RELAY_CALL_OVERHEAD + RELAY_GAS_CHECK_BUFFER)
+        //   1.a. The RELAY_CALL_OVERHEAD is included in `hasMinGas`.
+        // 2. Finish the execution after the external call (RELAY_RESERVED_GAS).
+        //
         // If `xDomainMsgSender` is not the default L2 sender, this function
-        // is being re-entered. This marks the message as failed to allow it
-        // to be replayed.
-        if (xDomainMsgSender != Constants.DEFAULT_L2_SENDER) {
+        // is being re-entered. This marks the message as failed to allow it to be replayed.
+        if (
+            !SafeCall.hasMinGas(_minGasLimit, RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER) ||
+            xDomainMsgSender != Constants.DEFAULT_L2_SENDER
+        ) {
             failedMessages[versionedHash] = true;
             emit FailedRelayedMessage(versionedHash);
+
+            // Revert in this case if the transaction was triggered by the estimation address. This
+            // should only be possible during gas estimation or we have bigger problems. Reverting
+            // here will make the behavior of gas estimation change such that the gas limit
+            // computed will be the amount required to relay the message, even if that amount is
+            // greater than the minimum gas limit specified by the user.
+            if (tx.origin == Constants.ESTIMATION_ADDRESS) {
+                revert("CrossDomainMessenger: failed to relay message");
+            }
+
             return;
         }
 
         xDomainMsgSender = _sender;
-        bool success = SafeCall.callWithMinGas(_target, _minGasLimit, _value, _message);
+        bool success = SafeCall.call(_target, gasleft() - RELAY_RESERVED_GAS, _value, _message);
         xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
 
         if (success) {
@@ -415,17 +450,23 @@ abstract contract CrossDomainMessenger is
      * @return Amount of gas required to guarantee message receipt.
      */
     function baseGas(bytes calldata _message, uint32 _minGasLimit) public pure returns (uint64) {
-        // We peform the following math on uint64s to avoid overflow errors. Multiplying the
-        // by MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR would otherwise limit the _minGasLimit to
-        // type(uint32).max / MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR ~= 4.2m.
         return
-            // Dynamic overhead
-            ((uint64(_minGasLimit) * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) /
-                MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR) +
+            // Constant overhead
+            RELAY_CONSTANT_OVERHEAD +
             // Calldata overhead
             (uint64(_message.length) * MIN_GAS_CALLDATA_OVERHEAD) +
-            // Constant overhead
-            MIN_GAS_CONSTANT_OVERHEAD;
+            // Dynamic overhead (EIP-150)
+            ((_minGasLimit * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) /
+                MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR) +
+            // Gas reserved for the worst-case cost of 3/5 of the `CALL` opcode's dynamic gas
+            // factors. (Conservative)
+            RELAY_CALL_OVERHEAD +
+            // Relay reserved gas (to ensure execution of `relayMessage` completes after the
+            // subcontext finishes executing) (Conservative)
+            RELAY_RESERVED_GAS +
+            // Gas reserved for the execution between the `hasMinGas` check and the `CALL`
+            // opcode. (Conservative)
+            RELAY_GAS_CHECK_BUFFER;
     }
 
     /**

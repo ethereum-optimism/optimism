@@ -365,6 +365,13 @@ jobs:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
       - run:
+          name: validate deploy configs
+          command: |
+            yarn validate-deploy-configs || echo "export DEPLOY_CONFIG_STATUS=1" >> "$BASH_ENV"
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+      - run:
           name: storage snapshot
           command: |
             yarn storage-snapshot
@@ -386,6 +393,10 @@ jobs:
             if [[ "$GAS_SNAPSHOT_STATUS" -ne 0 ]]; then
               FAILED=1
               echo "Gas snapshot failed, see job output for details."
+            fi
+            if [[ "$DEPLOY_CONFIG_STATUS" -ne 0 ]]; then
+              FAILED=1
+              echo "Deploy configs invalid, see job output for details."
             fi
             if [[ "$STORAGE_SNAPSHOT_STATUS" -ne 0 ]]; then
               echo "Storage snapshot failed, see job output for details."

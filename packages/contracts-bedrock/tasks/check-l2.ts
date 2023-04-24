@@ -245,7 +245,7 @@ const check = {
     await assertSemver(
       L2CrossDomainMessenger,
       'L2CrossDomainMessenger',
-      '1.2.0'
+      '1.3.0'
     )
 
     const xDomainMessageSenderSlot = await signer.provider.getStorageAt(
@@ -274,9 +274,9 @@ const check = {
     const MIN_GAS_CALLDATA_OVERHEAD =
       await L2CrossDomainMessenger.MIN_GAS_CALLDATA_OVERHEAD()
     console.log(`  - MIN_GAS_CALLDATA_OVERHEAD: ${MIN_GAS_CALLDATA_OVERHEAD}`)
-    const MIN_GAS_CONSTANT_OVERHEAD =
-      await L2CrossDomainMessenger.MIN_GAS_CONSTANT_OVERHEAD()
-    console.log(`  - MIN_GAS_CONSTANT_OVERHEAD: ${MIN_GAS_CONSTANT_OVERHEAD}`)
+    const RELAY_CONSTANT_OVERHEAD =
+      await L2CrossDomainMessenger.RELAY_CONSTANT_OVERHEAD()
+    console.log(`  - RELAY_CONSTANT_OVERHEAD: ${RELAY_CONSTANT_OVERHEAD}`)
     const MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR =
       await L2CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR()
     console.log(
@@ -287,6 +287,14 @@ const check = {
     console.log(
       `  - MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR: ${MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR}`
     )
+    const RELAY_CALL_OVERHEAD =
+      await L2CrossDomainMessenger.RELAY_CALL_OVERHEAD()
+    console.log(`  - RELAY_CALL_OVERHEAD: ${RELAY_CALL_OVERHEAD}`)
+    const RELAY_RESERVED_GAS = await L2CrossDomainMessenger.RELAY_RESERVED_GAS()
+    console.log(`  - RELAY_RESERVED_GAS: ${RELAY_RESERVED_GAS}`)
+    const RELAY_GAS_CHECK_BUFFER =
+      await L2CrossDomainMessenger.RELAY_GAS_CHECK_BUFFER()
+    console.log(`  - RELAY_GAS_CHECK_BUFFER: ${RELAY_GAS_CHECK_BUFFER}`)
 
     const slot = await signer.provider.getStorageAt(
       predeploys.L2CrossDomainMessenger,

@@ -26,6 +26,7 @@ import {
   BedrockCrossChainMessageProof,
   decodeVersionedNonce,
   encodeVersionedNonce,
+  getChainId,
 } from '@eth-optimism/core-utils'
 import { getContractInterface, predeploys } from '@eth-optimism/contracts'
 import * as rlp from 'rlp'
@@ -403,7 +404,8 @@ export class CrossChainMessenger {
     let gasLimit: BigNumber
     let messageNonce: BigNumber
     if (version.eq(0)) {
-      gasLimit = migratedWithdrawalGasLimit(encoded)
+      const chainID = await getChainId(this.l2Provider)
+      gasLimit = migratedWithdrawalGasLimit(encoded, chainID)
       messageNonce = resolved.messageNonce
     } else {
       const receipt = await this.l2Provider.getTransactionReceipt(
