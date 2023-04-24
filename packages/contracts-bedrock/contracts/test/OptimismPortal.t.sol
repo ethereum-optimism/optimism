@@ -374,11 +374,10 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     function test_isOutputFinalized_succeeds() external {
-        uint256 checkpoint = oracle.nextBlockNumber();
-        uint256 nextOutputIndex = oracle.nextOutputIndex();
+        uint256 checkpoint = oracle.highestL2BlockNumber();
+        uint256 nextOutputIndex = oracle.highestL2BlockNumber();
         vm.roll(checkpoint);
         vm.warp(oracle.computeL2Timestamp(checkpoint) + 1);
-        vm.prank(oracle.PROPOSER());
         oracle.proposeL2Output(keccak256(abi.encode(2)), checkpoint, 0, 0);
 
         // warp to the final second of the finalization period
@@ -435,15 +434,14 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
             messagePasserStorageRoot: _storageRoot,
             latestBlockhash: bytes32(uint256(0))
         });
-        _proposedBlockNumber = oracle.nextBlockNumber();
-        _proposedOutputIndex = oracle.nextOutputIndex();
+        _proposedBlockNumber = oracle.highestL2BlockNumber();
+        _proposedOutputIndex = oracle.highestL2BlockNumber();
     }
 
     // Get the system into a nice ready-to-use state.
     function setUp() public override {
         // Configure the oracle to return the output root we've prepared.
         vm.warp(oracle.computeL2Timestamp(_proposedBlockNumber) + 1);
-        vm.prank(oracle.PROPOSER());
         oracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
 
         // Warp beyond the finalization period for the block we've proposed.
@@ -618,14 +616,12 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         Types.OutputProposal memory proposal = op.L2_ORACLE().getL2Output(_proposedOutputIndex);
 
         // Propose the same output root again, creating the same output at a different index + l2BlockNumber.
-        vm.startPrank(op.L2_ORACLE().PROPOSER());
         op.L2_ORACLE().proposeL2Output(
             proposal.outputRoot,
-            op.L2_ORACLE().nextBlockNumber(),
+            op.L2_ORACLE().highestL2BlockNumber(),
             blockhash(block.number),
             block.number
         );
-        vm.stopPrank();
 
         // Warp ahead 1 second
         vm.warp(block.timestamp + 1);
