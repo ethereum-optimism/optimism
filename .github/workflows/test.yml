@@ -1,13 +1,15 @@
 
 on: [push, pull_request]
-name: Go Test
+name: Cannon Test
 jobs:
-  go-test:
+  cannon-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-go@v3
         with:
           go-version: 1.20.x
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
       - uses: actions/checkout@v3
         with:
           submodules: true
@@ -44,6 +46,9 @@ jobs:
       - name: Build examples
         working-directory: ./example
         run: make bin/minimal.elf
+      - name: build contracts
+        working-directory: ./contracts
+        run: forge build
       - name: mipsevm tests
         working-directory: ./mipsevm
         run: go test ./...
