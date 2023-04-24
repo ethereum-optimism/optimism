@@ -22,10 +22,11 @@ For more information on Cannon's inner workings, check [this overview][overview]
 ## Directory Layout
 
 ```
-minigeth -- A standalone "geth" capable of computing a block transition
-mipigo -- minigeth compiled for MIPS. Outputs a MIPS binary that's run and mapped at 0x0
-mipsevm -- A MIPS runtime in the EVM (works with contracts)
-contracts -- A Merkleized MIPS processor on chain + the challenge logic
+contracts -- A MIPS emulator implementation, using merkleized state and a pre-image oracle.
+example   -- Example programs that can be run and proven with Cannon.
+extra     -- Extra scripts and legacy contracts, deprecated.
+mipsevm   -- Go tooling to test the onchain MIPS implementation, and generate proof data.
+unicorn   -- Sub-module, used by mipsevm for offchain MIPS emulation.
 ```
 
 ## Building
@@ -37,38 +38,9 @@ make build
 make test # verify everything works correctly
 ```
 
-## Examples
-
-The script files [`demo/challenge_simple.sh`](demo/challenge_simple.sh) and
-[`demo/challenge_fault.sh`](demo/challenge_fault.sh) present two example scenarios demonstrating the
-whole process of a fault proof, including the challenge game and single step verification.
-
-- In the `simple` challenge, the challenger uses the wrong block data in his challenge.
-- In the `fault` scenario, fault injection is used to alter the challenger's memory at a specific
-  step of the execution.
-
-In both cases, the challenger fails to challenge the block. Refer to the documentation string at the
-top of these file for more details regarding the scenario.
-
-## State Oracle API
-
-On chain / in MIPS, we have two simple oracles
-
-* InputHash() -> hash
-* Preimage(hash) -> value
-
-We generate the Preimages in x86 using geth RPC
-
-* PrefetchAccount
-* PrefetchStorage
-* PrefetchCode
-* PrefetchBlock
-
-These are NOP in the VM
-
 ## License
 
-Most of this code is MIT licensed, minigeth is LGPL3.
+MIT, see [`LICENSE`](./LICENSE) file.
 
 Note: This code is unaudited. It in NO WAY should be used to secure any money until a lot more
 testing and auditing are done. I have deployed this nowhere, have advised against deploying it, and
