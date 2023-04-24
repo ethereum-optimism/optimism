@@ -1,4 +1,4 @@
-package main
+package mipsevm
 
 type MemEntry struct {
 	EffAddr  uint32
