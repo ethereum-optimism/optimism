@@ -186,7 +186,8 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	// the LegacyMessagePasser contract. Here we operate on the list of withdrawals that we
 	// previously filtered and verified.
 	log.Info("Starting to migrate withdrawals", "no-check", noCheck)
-	err = crossdomain.MigrateWithdrawals(filteredWithdrawals, db, &config.L1CrossDomainMessengerProxy, noCheck)
+	l2ChainID := new(big.Int).SetUint64(config.L2ChainID)
+	err = crossdomain.MigrateWithdrawals(filteredWithdrawals, db, &config.L1CrossDomainMessengerProxy, noCheck, l2ChainID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot migrate withdrawals: %w", err)
 	}

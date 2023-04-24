@@ -20,7 +20,13 @@ var (
 )
 
 // MigrateWithdrawals will migrate a list of pending withdrawals given a StateDB.
-func MigrateWithdrawals(withdrawals SafeFilteredWithdrawals, db vm.StateDB, l1CrossDomainMessenger *common.Address, noCheck bool) error {
+func MigrateWithdrawals(
+	withdrawals SafeFilteredWithdrawals,
+	db vm.StateDB,
+	l1CrossDomainMessenger *common.Address,
+	noCheck bool,
+	chainID *big.Int,
+) error {
 	for i, legacy := range withdrawals {
 		legacySlot, err := legacy.StorageSlot()
 		if err != nil {
@@ -34,7 +40,7 @@ func MigrateWithdrawals(withdrawals SafeFilteredWithdrawals, db vm.StateDB, l1Cr
 			}
 		}
 
-		withdrawal, err := MigrateWithdrawal(legacy, l1CrossDomainMessenger)
+		withdrawal, err := MigrateWithdrawal(legacy, l1CrossDomainMessenger, chainID)
 		if err != nil {
 			return err
 		}
@@ -52,7 +58,11 @@ func MigrateWithdrawals(withdrawals SafeFilteredWithdrawals, db vm.StateDB, l1Cr
 
 // MigrateWithdrawal will turn a LegacyWithdrawal into a bedrock
 // style Withdrawal.
-func MigrateWithdrawal(withdrawal *LegacyWithdrawal, l1CrossDomainMessenger *common.Address) (*Withdrawal, error) {
+func MigrateWithdrawal(
+	withdrawal *LegacyWithdrawal,
+	l1CrossDomainMessenger *common.Address,
+	chainID *big.Int,
+) (*Withdrawal, error) {
 	// Attempt to parse the value
 	value, err := withdrawal.Value()
 	if err != nil {
@@ -83,7 +93,7 @@ func MigrateWithdrawal(withdrawal *LegacyWithdrawal, l1CrossDomainMessenger *com
 		return nil, fmt.Errorf("cannot abi encode relayMessage: %w", err)
 	}
 
-	gasLimit := MigrateWithdrawalGasLimit(data)
+	gasLimit := MigrateWithdrawalGasLimit(data, chainID)
 
 	w := NewWithdrawal(
 		versionedNonce,
@@ -97,13 +107,21 @@ func MigrateWithdrawal(withdrawal *LegacyWithdrawal, l1CrossDomainMessenger *com
 }
 
 // MigrateWithdrawalGasLimit computes the gas limit for the migrated withdrawal.
-func MigrateWithdrawalGasLimit(data []byte) uint64 {
+// The chain id is used to determine the overhead.
+func MigrateWithdrawalGasLimit(data []byte, chainID *big.Int) uint64 {
 	// Compute the upper bound on the gas limit. This could be more
 	// accurate if individual 0 bytes and non zero bytes were accounted
 	// for.
 	dataCost := uint64(len(data)) * params.TxDataNonZeroGasEIP2028
+
+	// Goerli has a lower gas limit than other chains.
+	overhead := uint64(200_000)
+	if chainID.Cmp(big.NewInt(420)) != 0 {
+		overhead = 1_000_000
+	}
+
 	// Set the outer gas limit. This cannot be zero
-	gasLimit := dataCost + 200_000
+	gasLimit := dataCost + overhead
 	// Cap the gas limit to be 25 million to prevent creating withdrawals
 	// that go over the block gas limit.
 	if gasLimit > 25_000_000 {

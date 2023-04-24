@@ -7,11 +7,13 @@ import {
   hashMessageHash,
 } from '../../src/utils/message-utils'
 
+const goerliChainID = 420
+
 describe('Message Utils', () => {
   describe('migratedWithdrawalGasLimit', () => {
     it('should have a max of 25 million', () => {
       const data = '0x' + 'ff'.repeat(15_000_000)
-      const result = migratedWithdrawalGasLimit(data)
+      const result = migratedWithdrawalGasLimit(data, goerliChainID)
       expect(result).to.eq(BigNumber.from(25_000_000))
     })
 
@@ -25,7 +27,7 @@ describe('Message Utils', () => {
       ]
 
       for (const test of tests) {
-        const result = migratedWithdrawalGasLimit(test.input)
+        const result = migratedWithdrawalGasLimit(test.input, goerliChainID)
         expect(result).to.eq(test.result)
       }
     })
