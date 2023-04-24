@@ -33,8 +33,8 @@ const (
 	_ KeyType = 0
 	// LocalKeyType is for input-type pre-images, specific to the local program instance.
 	LocalKeyType KeyType = 1
-	// Keccak25Key6Type is for keccak256 pre-images, for any global shared pre-images.
-	Keccak25Key6Type KeyType = 2
+	// Keccak256KeyType is for keccak256 pre-images, for any global shared pre-images.
+	Keccak256KeyType KeyType = 2
 )
 
 // LocalIndexKey is a key local to the program, indexing a special program input.
@@ -51,7 +51,7 @@ type Keccak256Key common.Hash
 
 func (k Keccak256Key) PreimageKey() (out common.Hash) {
 	out = common.Hash(k)            // copy the keccak hash
-	out[0] = byte(Keccak25Key6Type) // apply prefix
+	out[0] = byte(Keccak256KeyType) // apply prefix
 	return
 }
 

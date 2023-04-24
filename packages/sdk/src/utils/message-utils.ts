@@ -41,10 +41,17 @@ export const hashMessageHash = (messageHash: string): string => {
 /**
  * Compute the min gas limit for a migrated withdrawal.
  */
-export const migratedWithdrawalGasLimit = (data: string): BigNumber => {
+export const migratedWithdrawalGasLimit = (
+  data: string,
+  chainID: number
+): BigNumber => {
   // Compute the gas limit and cap at 25 million
   const dataCost = BigNumber.from(hexDataLength(data)).mul(16)
-  let minGasLimit = dataCost.add(200_000)
+  let overhead = 200_000
+  if (chainID !== 420) {
+    overhead = 1_000_000
+  }
+  let minGasLimit = dataCost.add(overhead)
   if (minGasLimit.gt(25_000_000)) {
     minGasLimit = BigNumber.from(25_000_000)
   }

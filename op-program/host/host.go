@@ -84,6 +84,9 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 		}
 	}
 
+	localPreimageSource := kvstore.NewLocalPreimageSource(cfg)
+	splitter := kvstore.NewPreimageSourceSplitter(localPreimageSource.Get, getPreimage)
+
 	// Setup pipe for preimage oracle interaction
 	pClientRW, pHostRW := bidirectionalPipe()
 	oracleServer := preimage.NewOracleServer(pHostRW)
@@ -93,7 +96,7 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 	defer pHostRW.Close()
 	defer hHostRW.Close()
 	routeHints(logger, hHost, hinter)
-	launchOracleServer(logger, oracleServer, getPreimage)
+	launchOracleServer(logger, oracleServer, splitter.Get)
 
 	return cl.ClientProgram(
 		logger,

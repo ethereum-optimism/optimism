@@ -141,6 +141,10 @@ func main() {
 			if err != nil {
 				return err
 			}
+			l2ChainID, err := clients.L2Client.ChainID(context.Background())
+			if err != nil {
+				return err
+			}
 
 			// create the set of withdrawals
 			wds, err := newWithdrawals(ctx, l1ChainID)
@@ -212,7 +216,7 @@ func main() {
 				log.Info("Processing withdrawal", "index", i)
 
 				// migrate the withdrawal
-				withdrawal, err := crossdomain.MigrateWithdrawal(wd, &l1xdmAddr)
+				withdrawal, err := crossdomain.MigrateWithdrawal(wd, &l1xdmAddr, l2ChainID)
 				if err != nil {
 					return err
 				}
