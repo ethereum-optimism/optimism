@@ -27,18 +27,8 @@ func LoadContracts() (*Contracts, error) {
 	if err != nil {
 		return nil, err
 	}
-	mipsMem, err := LoadContract("MIPSMemory")
-	if err != nil {
-		return nil, err
-	}
-	challenge, err := LoadContract("Challenge")
-	if err != nil {
-		return nil, err
-	}
 	return &Contracts{
-		MIPS:       mips,
-		MIPSMemory: mipsMem,
-		Challenge:  challenge,
+		MIPS: mips,
 	}, nil
 }
 
@@ -69,15 +59,11 @@ func (c *Contract) SourceMap(sourcePaths []string) (*SourceMap, error) {
 }
 
 type Contracts struct {
-	MIPS       *Contract
-	MIPSMemory *Contract
-	Challenge  *Contract
+	MIPS *Contract
 }
 
 type Addresses struct {
-	MIPS       common.Address
-	MIPSMemory common.Address
-	Challenge  common.Address
+	MIPS common.Address
 }
 
 func NewEVMEnv(contracts *Contracts, addrs *Addresses) (*vm.EVM, *state.StateDB) {
@@ -97,8 +83,6 @@ func NewEVMEnv(contracts *Contracts, addrs *Addresses) (*vm.EVM, *state.StateDB)
 	// pre-deploy the contracts
 
 	env.StateDB.SetCode(addrs.MIPS, contracts.MIPS.DeployedBytecode.Object)
-	env.StateDB.SetCode(addrs.MIPSMemory, contracts.MIPSMemory.DeployedBytecode.Object)
-	env.StateDB.SetCode(addrs.Challenge, contracts.Challenge.DeployedBytecode.Object)
 	// TODO: any state to set, or immutables to replace, to link the contracts together?
 	return env, state
 }
@@ -132,12 +116,4 @@ func (d *testChain) GetHeader(h common.Hash, n uint64) *types.Header {
 		BaseFee:         big.NewInt(7),
 		WithdrawalsHash: &types.EmptyWithdrawalsHash,
 	}
-}
-
-func Calldata(st *State, accessList [][32]byte) []byte {
-	input := crypto.Keccak256Hash([]byte("Steps(bytes32,uint256)")).Bytes()[:4]
-	input = append(input, common.BigToHash(common.Big0).Bytes()...)
-	input = append(input, common.BigToHash(big.NewInt(int64(st.Step))).Bytes()...)
-
-	return input
 }

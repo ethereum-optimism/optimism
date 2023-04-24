@@ -31,9 +31,7 @@ func TestEVM(t *testing.T) {
 	require.NoError(t, err)
 
 	addrs := &Addresses{
-		MIPS:       common.Address{0: 0xff, 19: 1},
-		MIPSMemory: common.Address{0: 0xff, 19: 2},
-		Challenge:  common.Address{0: 0xff, 19: 3},
+		MIPS: common.Address{0: 0xff, 19: 1},
 	}
 	sender := common.Address{0x13, 0x37}
 
