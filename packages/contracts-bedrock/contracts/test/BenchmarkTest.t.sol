@@ -66,7 +66,7 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
             messagePasserStorageRoot: _storageRoot,
             latestBlockhash: bytes32(uint256(0))
         });
-        _proposedBlockNumber = oracle.highestL2BlockNumber() + 1;
+        _proposedBlockNumber = oracle.highestL2BlockNumber();
         _proposedOutputIndex = oracle.highestL2BlockNumber();
     }
 

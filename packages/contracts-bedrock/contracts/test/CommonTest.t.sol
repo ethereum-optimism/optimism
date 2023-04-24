@@ -10,7 +10,9 @@ import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
 import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
 import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
 import { IBondManager } from "../universal/IBondManager.sol";
-import { OracleBondManager } from "../universal/OracleBondManager.sol";
+// import { OracleBondManager } from "../universal/OracleBondManager.sol";
+import { BondManager } from "@dispute/BondManager.sol";
+import { DisputeGameFactory } from "@dispute/DisputeGameFactory.sol";
 import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
 import { OptimismMintableERC721Factory } from "../universal/OptimismMintableERC721Factory.sol";
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
@@ -93,7 +95,8 @@ contract CommonTest is Test {
 contract L2OutputOracle_Initializer is CommonTest {
     L2OutputOracle oracle;
     L2OutputOracle oracleImpl;
-    OracleBondManager bondManager;
+    BondManager bondManager;
+    DisputeGameFactory disputeGameFactory;
 
     L2ToL1MessagePasser messagePasser =
         L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
@@ -126,7 +129,8 @@ contract L2OutputOracle_Initializer is CommonTest {
         super.setUp();
         guardian = makeAddr("guardian");
 
-        bondManager = new OracleBondManager(minimumProposalCost);
+        disputeGameFactory = new DisputeGameFactory(address(guardian));
+        bondManager = new BondManager(disputeGameFactory);
 
         // By default the first block has timestamp and number zero, which will cause underflows in the
         // tests, so we'll move forward to these block values.
@@ -140,7 +144,7 @@ contract L2OutputOracle_Initializer is CommonTest {
             _startingTimestamp: startingTimestamp,
             _challenger: owner,
             _finalizationPeriodSeconds: 7 days,
-            _bondManager: IBondManager(bondManager)
+            _bondManager: IBondManager(address(bondManager))
         });
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
@@ -150,7 +154,7 @@ contract L2OutputOracle_Initializer is CommonTest {
         );
         oracle = L2OutputOracle(address(proxy));
         vm.label(address(oracle), "L2OutputOracle");
-        bondManager.setOwner(address(oracle));
+        // bondManager.setOwner(address(oracle));
 
         // Set the L2ToL1MessagePasser at the correct address
         vm.etch(Predeploys.L2_TO_L1_MESSAGE_PASSER, address(new L2ToL1MessagePasser()).code);
