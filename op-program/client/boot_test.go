@@ -19,9 +19,9 @@ func TestBootstrapOracle(t *testing.T) {
 	bootInfo := BootInfo{
 		Rollup:             new(rollup.Config),
 		L2ChainConfig:      new(params.ChainConfig),
-		L1Head:             common.HexToHash("0xfffff"),
-		L2Head:             common.HexToHash("0xfffff"),
-		L2Claim:            common.HexToHash("0xfffff"),
+		L1Head:             common.HexToHash("0xffffa"),
+		L2Head:             common.HexToHash("0xffffb"),
+		L2Claim:            common.HexToHash("0xffffc"),
 		L2ClaimBlockNumber: 1,
 	}
 

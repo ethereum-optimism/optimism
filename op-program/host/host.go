@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 
@@ -192,7 +193,7 @@ func routeHints(logger log.Logger, hintReader *preimage.HintReader, hinter func(
 	go func() {
 		for {
 			if err := hintReader.NextHint(hinter); err != nil {
-				if err == io.EOF || errors.Is(err, io.ErrClosedPipe) {
+				if err == io.EOF || errors.Is(err, fs.ErrClosed) {
 					logger.Debug("closing pre-image hint handler")
 					return
 				}
@@ -207,7 +208,7 @@ func launchOracleServer(logger log.Logger, server *preimage.OracleServer, getter
 	go func() {
 		for {
 			if err := server.NextPreimageRequest(getter); err != nil {
-				if err == io.EOF || errors.Is(err, io.ErrClosedPipe) {
+				if err == io.EOF || errors.Is(err, fs.ErrClosed) {
 					logger.Debug("closing pre-image server")
 					return
 				}
