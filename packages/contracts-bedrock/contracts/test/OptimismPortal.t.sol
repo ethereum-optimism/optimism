@@ -1172,7 +1172,9 @@ contract OptimismPortalResourceFuzz_Test is Portal_Initializer {
         assertEq(prevBlockNum, _prevBlockNum);
 
         // Do a deposit, should not revert
-        op.depositTransaction{ gas: MAX_GAS_LIMIT }({
+        // We add a small buffer of 2500 to the MAX_GAS_LIMIT to account for a reachable case where
+        // the calculated gas burn amount, plus other execution costs, exceeds this maximum.
+        op.depositTransaction{ gas: MAX_GAS_LIMIT + 2500 }({
             _to: address(0x20),
             _value: 0x40,
             _gasLimit: _gasLimit,
