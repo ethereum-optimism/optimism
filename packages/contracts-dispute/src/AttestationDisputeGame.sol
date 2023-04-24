@@ -174,7 +174,7 @@ contract AttestationDisputeGame is IAttestationDisputeGame, Clone, Initializable
         bondManager.seizeAndSplit(keccak256(abi.encode(_l2BlockNumber)), attestationSubmitters);
 
         // Delete all outputs from [l2BlockNumber, currentL2BlockNumber]
-        l2OutputOracle.deleteL2Outputs(l2BlockNumber());
+        l2OutputOracle.deleteL2Output(l2BlockNumber());
 
         return status;
     }
