@@ -208,7 +208,6 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer, tr Tracer) 
 
 		st.LO = uint32(batch[33])
 		st.HI = uint32(batch[34])
-		fmt.Printf("pc: 0x%08x\n", st.PC)
 	}, 0, ^uint64(0))
 	if err != nil {
 		return fmt.Errorf("failed to set up instruction hook: %w", err)
