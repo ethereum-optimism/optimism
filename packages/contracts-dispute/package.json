@@ -13,6 +13,7 @@
   "scripts": {
     "build:forge": "forge build",
     "test:forge": "forge test",
+    "test": "yarn build:forge && yarn test:forge",
     "coverage:lcov": "forge coverage --report lcov",
     "coverage": "yarn build:forge && yarn test:forge && yarn coverage:lcov",
     "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./tsconfig.build.tsbuildinfo ./src/contract-artifacts.ts ./test-case-generator/fuzz",
