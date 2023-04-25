@@ -137,12 +137,8 @@ contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721, Se
         override(ERC721Enumerable, IERC165)
         returns (bool)
     {
-        bytes4 iface1 = type(IERC165).interfaceId;
-        bytes4 iface2 = type(IOptimismMintableERC721).interfaceId;
-        return
-            _interfaceId == iface1 ||
-            _interfaceId == iface2 ||
-            super.supportsInterface(_interfaceId);
+        bytes4 iface = type(IOptimismMintableERC721).interfaceId;
+        return _interfaceId == iface || super.supportsInterface(_interfaceId);
     }
 
     /**

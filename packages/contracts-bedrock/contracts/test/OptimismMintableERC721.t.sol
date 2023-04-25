@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import { ERC721, IERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {
+    IERC721Enumerable
+} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { ERC721Bridge_Initializer } from "./CommonTest.t.sol";
-import { OptimismMintableERC721 } from "../universal/OptimismMintableERC721.sol";
+import {
+    OptimismMintableERC721,
+    IOptimismMintableERC721
+} from "../universal/OptimismMintableERC721.sol";
 
 contract OptimismMintableERC721_Test is ERC721Bridge_Initializer {
     ERC721 internal L1Token;
@@ -45,6 +51,20 @@ contract OptimismMintableERC721_Test is ERC721Bridge_Initializer {
         assertEq(L2Token.BRIDGE(), address(L2Bridge));
         assertEq(L2Token.REMOTE_CHAIN_ID(), 1);
         assertEq(L2Token.version(), "1.0.0");
+    }
+
+    function test_supportsInterfaces_succeeds() external view {
+        // Checks if the contract supports the IOptimismMintableERC721 interface.
+        assert(L2Token.supportsInterface(type(IOptimismMintableERC721).interfaceId));
+
+        // Checks if the contract supports the IERC721Enumerable interface.
+        assert(L2Token.supportsInterface(type(IERC721Enumerable).interfaceId));
+
+        // Checks if the contract supports the IERC721 interface.
+        assert(L2Token.supportsInterface(type(IERC721).interfaceId));
+
+        // Checks if the contract supports the IERC165 interface.
+        assert(L2Token.supportsInterface(type(IERC165).interfaceId));
     }
 
     function test_safeMint_succeeds() external {
