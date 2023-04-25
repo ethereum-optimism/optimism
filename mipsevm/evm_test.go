@@ -49,8 +49,8 @@ func TestEVM(t *testing.T) {
 
 			fn := path.Join("test/bin", f.Name())
 			programMem, err := os.ReadFile(fn)
-			state := &State{PC: 0, NextPC: 4, Memory: make(map[uint32]*Page)}
-			err = state.SetMemoryRange(0, bytes.NewReader(programMem))
+			state := &State{PC: 0, NextPC: 4, Memory: NewMemory()}
+			err = state.Memory.SetMemoryRange(0, bytes.NewReader(programMem))
 			require.NoError(t, err, "load program into state")
 
 			// set the return address ($ra) to jump into when test completes
@@ -63,44 +63,32 @@ func TestEVM(t *testing.T) {
 			require.NoError(t, mu.MemMap(baseAddrStart, ((baseAddrEnd-baseAddrStart)&^pageAddrMask)+pageSize))
 			require.NoError(t, mu.MemMap(endAddr&^pageAddrMask, pageSize))
 
-			al := &AccessList{}
+			al := &AccessList{mem: state.Memory}
 
 			err = LoadUnicorn(state, mu)
 			require.NoError(t, err, "load state into unicorn")
 			err = HookUnicorn(state, mu, os.Stdout, os.Stderr, al)
 			require.NoError(t, err, "hook unicorn to state")
 
-			so := NewStateCache()
 			var stateData []byte
 			var insn uint32
 			var pc uint32
 			var post []byte
 			preCode := func() {
-				insn = state.GetMemory(state.PC)
+				insn = state.Memory.GetMemory(state.PC)
 				pc = state.PC
 				fmt.Printf("PRE - pc: %08x insn: %08x\n", pc, insn)
 				// remember the pre-state, to repeat it in the EVM during the post processing step
-				stateData = state.EncodeWitness(so)
+				stateData = state.EncodeWitness()
 				if post != nil {
 					require.Equal(t, hexutil.Bytes(stateData).String(), hexutil.Bytes(post).String(),
 						"unicorn produced different state than EVM")
 				}
-
-				al.Reset() // reset access list
 			}
 			postCode := func() {
 				fmt.Printf("POST - pc: %08x insn: %08x\n", pc, insn)
 
-				var proofData []byte
-				proofData = binary.BigEndian.AppendUint32(proofData, insn)
-				if len(al.memReads) > 0 {
-					proofData = binary.BigEndian.AppendUint32(proofData, al.memReads[0].PreValue)
-				} else if len(al.memWrites) > 0 {
-					proofData = binary.BigEndian.AppendUint32(proofData, al.memWrites[0].PreValue)
-				} else {
-					proofData = append(proofData, make([]byte, 4)...)
-				}
-				proofData = append(proofData, make([]byte, 32-4-4)...)
+				proofData := append([]byte(nil), al.proofData...)
 
 				stateHash := crypto.Keccak256Hash(stateData)
 				var input []byte
@@ -148,7 +136,7 @@ func TestEVM(t *testing.T) {
 			require.NoError(t, err, "must run steps without error")
 
 			// inspect test result
-			done, result := state.GetMemory(baseAddrEnd+4), state.GetMemory(baseAddrEnd+8)
+			done, result := state.Memory.GetMemory(baseAddrEnd+4), state.Memory.GetMemory(baseAddrEnd+8)
 			require.Equal(t, done, uint32(1), "must be done")
 			require.Equal(t, result, uint32(1), "must have success result")
 		})

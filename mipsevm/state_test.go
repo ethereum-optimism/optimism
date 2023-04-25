@@ -37,8 +37,8 @@ func TestState(t *testing.T) {
 			//state, err := LoadELF(elfProgram)
 			//require.NoError(t, err, "must load ELF into state")
 			programMem, err := os.ReadFile(fn)
-			state := &State{PC: 0, NextPC: 4, Memory: make(map[uint32]*Page)}
-			err = state.SetMemoryRange(0, bytes.NewReader(programMem))
+			state := &State{PC: 0, NextPC: 4, Memory: NewMemory()}
+			err = state.Memory.SetMemoryRange(0, bytes.NewReader(programMem))
 			require.NoError(t, err, "load program into state")
 
 			// set the return address ($ra) to jump into when test completes
@@ -74,7 +74,7 @@ func TestState(t *testing.T) {
 			err = RunUnicorn(mu, state.PC, 1000)
 			require.NoError(t, err, "must run steps without error")
 			// inspect test result
-			done, result := state.GetMemory(baseAddrEnd+4), state.GetMemory(baseAddrEnd+8)
+			done, result := state.Memory.GetMemory(baseAddrEnd+4), state.Memory.GetMemory(baseAddrEnd+8)
 			require.Equal(t, done, uint32(1), "must be done")
 			require.Equal(t, result, uint32(1), "must have success result")
 		})

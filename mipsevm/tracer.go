@@ -1,34 +1,51 @@
 package mipsevm
 
+import "fmt"
+
 type MemEntry struct {
 	EffAddr  uint32
 	PreValue uint32
 }
 
 type AccessList struct {
-	memReads  []MemEntry
-	memWrites []MemEntry
+	mem *Memory
+
+	memAccessAddr uint32
+
+	proofData []byte
 }
 
 func (al *AccessList) Reset() {
-	al.memReads = al.memReads[:0]
-	al.memWrites = al.memWrites[:0]
+	al.memAccessAddr = ^uint32(0)
+	al.proofData = nil
 }
 
-func (al *AccessList) OnRead(effAddr uint32, preValue uint32) {
-	// if it matches the last, it's a duplicate; this happens because of multiple callbacks for the same effective addr.
-	if len(al.memReads) > 0 && al.memReads[len(al.memReads)-1].EffAddr == effAddr {
+func (al *AccessList) OnRead(effAddr uint32) {
+	if al.memAccessAddr == effAddr {
 		return
 	}
-	al.memReads = append(al.memReads, MemEntry{EffAddr: effAddr, PreValue: preValue})
+	if al.memAccessAddr != ^uint32(0) {
+		panic(fmt.Errorf("bad read of %08x, already have %08x", effAddr, al.memAccessAddr))
+	}
+	al.memAccessAddr = effAddr
+	proof := al.mem.MerkleProof(effAddr)
+	al.proofData = append(al.proofData, proof[:]...)
 }
 
-func (al *AccessList) OnWrite(effAddr uint32, preValue uint32) {
-	// if it matches the last, it's a duplicate; this happens because of multiple callbacks for the same effective addr.
-	if len(al.memWrites) > 0 && al.memWrites[len(al.memWrites)-1].EffAddr == effAddr {
+func (al *AccessList) OnWrite(effAddr uint32) {
+	if al.memAccessAddr == effAddr {
 		return
 	}
-	al.memWrites = append(al.memWrites, MemEntry{EffAddr: effAddr, PreValue: preValue})
+	if al.memAccessAddr != ^uint32(0) {
+		panic(fmt.Errorf("bad write of %08x, already have %08x", effAddr, al.memAccessAddr))
+	}
+	proof := al.mem.MerkleProof(effAddr)
+	al.proofData = append(al.proofData, proof[:]...)
+}
+
+func (al *AccessList) PreInstruction(pc uint32) {
+	proof := al.mem.MerkleProof(pc)
+	al.proofData = append(al.proofData, proof[:]...)
 }
 
 var _ Tracer = (*AccessList)(nil)
@@ -36,18 +53,22 @@ var _ Tracer = (*AccessList)(nil)
 type Tracer interface {
 	// OnRead remembers reads from the given effAddr.
 	// Warning: the addr is an effective-addr, i.e. always aligned.
-	// But unicorn will fire it multiple times, for each byte that was changed within the effective addr boundaries.
-	OnRead(effAddr uint32, value uint32)
+	// But unicorn may fire it multiple times, for each byte that was changed within the effective addr boundaries.
+	OnRead(effAddr uint32)
 	// OnWrite remembers writes to the given effAddr.
 	// Warning: the addr is an effective-addr, i.e. always aligned.
-	// But unicorn will fire it multiple times, for each byte that was changed within the effective addr boundaries.
-	OnWrite(effAddr uint32, value uint32)
+	// But unicorn may fire it multiple times, for each byte that was changed within the effective addr boundaries.
+	OnWrite(effAddr uint32)
+
+	PreInstruction(pc uint32)
 }
 
 type NoOpTracer struct{}
 
-func (n NoOpTracer) OnRead(effAddr uint32, value uint32) {}
+func (n NoOpTracer) OnRead(effAddr uint32) {}
 
-func (n NoOpTracer) OnWrite(effAddr uint32, value uint32) {}
+func (n NoOpTracer) OnWrite(effAddr uint32) {}
+
+func (n NoOpTracer) PreInstruction(pc uint32) {}
 
 var _ Tracer = NoOpTracer{}

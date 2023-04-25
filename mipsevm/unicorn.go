@@ -15,12 +15,12 @@ func NewUnicorn() (uc.Unicorn, error) {
 
 func LoadUnicorn(st *State, mu uc.Unicorn) error {
 	// mmap and write each page of memory state into unicorn
-	for pageIndex, page := range st.Memory {
+	for pageIndex, page := range st.Memory.Pages {
 		addr := uint64(pageIndex) << pageAddrSize
 		if err := mu.MemMap(addr, pageSize); err != nil {
 			return fmt.Errorf("failed to mmap page at addr 0x%x: %w", addr, err)
 		}
-		if err := mu.MemWrite(addr, page[:]); err != nil {
+		if err := mu.MemWrite(addr, page.Data[:]); err != nil {
 			return fmt.Errorf("failed to write page at addr 0x%x: %w", addr, err)
 		}
 	}
@@ -55,9 +55,9 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer, tr Tracer) 
 			count, _ := mu.RegRead(uc.MIPS_REG_A2)
 			switch fd {
 			case 1:
-				_, _ = io.Copy(stdOut, st.ReadMemoryRange(uint32(addr), uint32(count)))
+				_, _ = io.Copy(stdOut, st.Memory.ReadMemoryRange(uint32(addr), uint32(count)))
 			case 2:
-				_, _ = io.Copy(stdErr, st.ReadMemoryRange(uint32(addr), uint32(count)))
+				_, _ = io.Copy(stdErr, st.Memory.ReadMemoryRange(uint32(addr), uint32(count)))
 			default:
 				// ignore other output data
 			}
@@ -110,7 +110,7 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer, tr Tracer) 
 
 	_, err = mu.HookAdd(uc.HOOK_MEM_READ, func(mu uc.Unicorn, access int, addr64 uint64, size int, value int64) {
 		effAddr := uint32(addr64 & 0xFFFFFFFC) // pass effective addr to tracer
-		tr.OnRead(effAddr, st.GetMemory(effAddr))
+		tr.OnRead(effAddr)
 	}, 0, ^uint64(0))
 	if err != nil {
 		return fmt.Errorf("failed to set up mem-write hook: %w", err)
@@ -124,22 +124,22 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer, tr Tracer) 
 			panic("invalid mem size")
 		}
 		effAddr := uint32(addr64 & 0xFFFFFFFC)
-		tr.OnWrite(effAddr, st.GetMemory(effAddr))
+		tr.OnWrite(effAddr)
 
 		rt := value
 		rs := addr64 & 3
 		if size == 1 {
-			mem := st.GetMemory(effAddr)
+			mem := st.Memory.GetMemory(effAddr)
 			val := uint32((rt & 0xFF) << (24 - (rs&3)*8))
 			mask := 0xFFFFFFFF ^ uint32(0xFF<<(24-(rs&3)*8))
-			st.SetMemory(effAddr, (mem&mask)|val)
+			st.Memory.SetMemory(effAddr, (mem&mask)|val)
 		} else if size == 2 {
-			mem := st.GetMemory(effAddr)
+			mem := st.Memory.GetMemory(effAddr)
 			val := uint32((rt & 0xFFFF) << (16 - (rs&2)*8))
 			mask := 0xFFFFFFFF ^ uint32(0xFFFF<<(16-(rs&2)*8))
-			st.SetMemory(effAddr, (mem&mask)|val)
+			st.Memory.SetMemory(effAddr, (mem&mask)|val)
 		} else if size == 4 {
-			st.SetMemory(effAddr, uint32(rt))
+			st.Memory.SetMemory(effAddr, uint32(rt))
 		} else {
 			log.Fatal("bad size write to ram")
 		}
@@ -168,7 +168,7 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer, tr Tracer) 
 		if st.PC == prevPC+4 {
 			st.NextPC = prevPC + 8
 
-			prevInsn := st.GetMemory(prevPC)
+			prevInsn := st.Memory.GetMemory(prevPC)
 			opcode := prevInsn >> 26
 			switch opcode {
 			case 2, 3: // J/JAL
