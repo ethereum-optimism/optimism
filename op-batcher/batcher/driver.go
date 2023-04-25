@@ -48,10 +48,10 @@ type BatchSubmitter struct {
 func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*BatchSubmitter, error) {
 	var nid [8]byte
 
-	if cfg.NamespaceId == "" {
+	if cfg.TxMgrConfig.NamespaceId == "" {
 		return nil, errors.New("namespace id cannot be blank")
 	}
-	namespaceId, err := hex.DecodeString(cfg.NamespaceId)
+	namespaceId, err := hex.DecodeString(cfg.TxMgrConfig.NamespaceId)
 	if err != nil {
 		return nil, err
 	}
@@ -90,8 +90,6 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 		L1Client:       l1Client,
 		L2Client:       l2Client,
 		RollupNode:     rollupClient,
-		DaRpc:          cfg.DaRpc,
-		NamespaceId:    cfg.NamespaceId,
 		PollInterval:   cfg.PollInterval,
 		NetworkTimeout: cfg.TxMgrConfig.NetworkTimeout,
 		TxManager:      txManager,

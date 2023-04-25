@@ -39,12 +39,6 @@ var (
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "DA_RPC"),
 	}
-	NamespaceIdFlag = cli.StringFlag{
-		Name:     "namespace-id",
-		Usage:    "Namespace ID for DA node",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "NAMESPACE_ID"),
-	}
 	SubSafetyMarginFlag = cli.Uint64Flag{
 		Name: "sub-safety-margin",
 		Usage: "The batcher tx submission safety margin (in #L1-blocks) to subtract " +
@@ -104,7 +98,6 @@ var requiredFlags = []cli.Flag{
 	L2EthRpcFlag,
 	RollupRpcFlag,
 	DaRpcFlag,
-	NamespaceIdFlag,
 	SubSafetyMarginFlag,
 	PollIntervalFlag,
 }
