@@ -3,6 +3,7 @@ package proxyd
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -29,6 +30,11 @@ type ConsensusPoller struct {
 
 	tracker      ConsensusTracker
 	asyncHandler ConsensusAsyncHandler
+
+	minPeerCount uint64
+
+	banPeriod          time.Duration
+	maxUpdateThreshold time.Duration
 }
 
 type backendState struct {
@@ -36,6 +42,7 @@ type backendState struct {
 
 	latestBlockNumber hexutil.Uint64
 	latestBlockHash   string
+	peerCount         uint64
 
 	lastUpdate time.Time
 
@@ -47,7 +54,7 @@ func (cp *ConsensusPoller) GetConsensusGroup() []*Backend {
 	defer cp.consensusGroupMux.Unlock()
 	cp.consensusGroupMux.Lock()
 
-	g := make([]*Backend, len(cp.backendGroup.Backends))
+	g := make([]*Backend, len(cp.consensusGroup))
 	copy(g, cp.consensusGroup)
 
 	return g
@@ -141,6 +148,24 @@ func WithAsyncHandler(asyncHandler ConsensusAsyncHandler) ConsensusOpt {
 	}
 }
 
+func WithBanPeriod(banPeriod time.Duration) ConsensusOpt {
+	return func(cp *ConsensusPoller) {
+		cp.banPeriod = banPeriod
+	}
+}
+
+func WithMaxUpdateThreshold(maxUpdateThreshold time.Duration) ConsensusOpt {
+	return func(cp *ConsensusPoller) {
+		cp.maxUpdateThreshold = maxUpdateThreshold
+	}
+}
+
+func WithMinPeerCount(minPeerCount uint64) ConsensusOpt {
+	return func(cp *ConsensusPoller) {
+		cp.minPeerCount = minPeerCount
+	}
+}
+
 func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
@@ -153,6 +178,10 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 		cancelFunc:   cancelFunc,
 		backendGroup: bg,
 		backendState: state,
+
+		banPeriod:          5 * time.Minute,
+		maxUpdateThreshold: 30 * time.Second,
+		minPeerCount:       3,
 	}
 
 	for _, opt := range opts {
@@ -180,14 +209,29 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 		return
 	}
 
-	if be.IsRateLimited() || !be.Online() {
+	// if backend it not online or not in a health state we'll only resume checkin it after ban
+	if !be.Online() || !be.IsHealthy() {
+		log.Warn("backend banned - not online or not healthy", "backend", be.Name, "bannedUntil", bs.bannedUntil)
+		bs.bannedUntil = time.Now().Add(cp.banPeriod)
+	}
+
+	// if backend it not in sync we'll check again after ban
+	inSync, err := cp.isInSync(ctx, be)
+	if err != nil || !inSync {
+		log.Warn("backend banned - not in sync", "backend", be.Name, "bannedUntil", bs.bannedUntil)
+		bs.bannedUntil = time.Now().Add(cp.banPeriod)
+	}
+
+	// if backend exhausted rate limit we'll skip it for now
+	if be.IsRateLimited() {
 		return
 	}
 
-	// we'll introduce here checks to ban the backend
-	// i.e. node is syncing the chain
-
-	// then update backend consensus
+	peerCount, err := cp.getPeerCount(ctx, be)
+	if err != nil {
+		log.Warn("error updating backend", "name", be.Name, "err", err)
+		return
+	}
 
 	latestBlockNumber, latestBlockHash, err := cp.fetchBlock(ctx, be, "latest")
 	if err != nil {
@@ -195,7 +239,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 		return
 	}
 
-	changed := cp.setBackendState(be, latestBlockNumber, latestBlockHash)
+	changed := cp.setBackendState(be, peerCount, latestBlockNumber, latestBlockHash)
 
 	if changed {
 		RecordBackendLatestBlock(be, latestBlockNumber)
@@ -211,7 +255,15 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	currentConsensusBlockNumber := cp.GetConsensusBlockNumber()
 
 	for _, be := range cp.backendGroup.Backends {
-		backendLatestBlockNumber, backendLatestBlockHash := cp.getBackendState(be)
+		peerCount, backendLatestBlockNumber, backendLatestBlockHash, lastUpdate := cp.getBackendState(be)
+
+		if peerCount < cp.minPeerCount {
+			continue
+		}
+		if lastUpdate.Add(cp.maxUpdateThreshold).Before(time.Now()) {
+			continue
+		}
+
 		if lowestBlock == 0 || backendLatestBlockNumber < lowestBlock {
 			lowestBlock = backendLatestBlockNumber
 			lowestBlockHash = backendLatestBlockHash
@@ -242,7 +294,20 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 		consensusBackends = consensusBackends[:0]
 		filteredBackendsNames = filteredBackendsNames[:0]
 		for _, be := range cp.backendGroup.Backends {
-			if be.IsRateLimited() || !be.Online() || time.Now().Before(cp.backendState[be].bannedUntil) {
+			/*
+				a serving node needs to be:
+				- healthy (network)
+				- not rate limited
+				- online
+				- not banned
+				- with minimum peer count
+				- updated recently
+			*/
+			bs := cp.backendState[be]
+			notUpdated := bs.lastUpdate.Add(cp.maxUpdateThreshold).Before(time.Now())
+			isBanned := time.Now().Before(bs.bannedUntil)
+			notEnoughPeers := bs.peerCount < cp.minPeerCount
+			if !be.IsHealthy() || be.IsRateLimited() || !be.Online() || notUpdated || isBanned || notEnoughPeers {
 				filteredBackendsNames = append(filteredBackendsNames, be.Name)
 				continue
 			}
@@ -291,6 +356,16 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	log.Info("group state", "proposedBlock", proposedBlock, "consensusBackends", strings.Join(consensusBackendsNames, ", "), "filteredBackends", strings.Join(filteredBackendsNames, ", "))
 }
 
+// Unban remove any bans from the backends
+func (cp *ConsensusPoller) Unban() {
+	for _, be := range cp.backendGroup.Backends {
+		bs := cp.backendState[be]
+		bs.backendStateMux.Lock()
+		bs.bannedUntil = time.Now().Add(-10 * time.Hour)
+		bs.backendStateMux.Unlock()
+	}
+}
+
 // fetchBlock Convenient wrapper to make a request to get a block directly from the backend
 func (cp *ConsensusPoller) fetchBlock(ctx context.Context, be *Backend, block string) (blockNumber hexutil.Uint64, blockHash string, err error) {
 	var rpcRes RPCRes
@@ -301,7 +376,7 @@ func (cp *ConsensusPoller) fetchBlock(ctx context.Context, be *Backend, block st
 
 	jsonMap, ok := rpcRes.Result.(map[string]interface{})
 	if !ok {
-		return 0, "", fmt.Errorf("unexpected response type checking consensus on backend %s", be.Name)
+		return 0, "", fmt.Errorf("unexpected response to eth_getBlockByNumber on backend %s", be.Name)
 	}
 	blockNumber = hexutil.Uint64(hexutil.MustDecodeUint64(jsonMap["number"].(string)))
 	blockHash = jsonMap["hash"].(string)
@@ -309,19 +384,67 @@ func (cp *ConsensusPoller) fetchBlock(ctx context.Context, be *Backend, block st
 	return
 }
 
-func (cp *ConsensusPoller) getBackendState(be *Backend) (blockNumber hexutil.Uint64, blockHash string) {
+// isSyncing Convenient wrapper to check if the backend is syncing from the network
+func (cp *ConsensusPoller) getPeerCount(ctx context.Context, be *Backend) (count uint64, err error) {
+	var rpcRes RPCRes
+	err = be.ForwardRPC(ctx, &rpcRes, "67", "net_peerCount")
+	if err != nil {
+		return 0, err
+	}
+
+	jsonMap, ok := rpcRes.Result.(string)
+	if !ok {
+		return 0, fmt.Errorf("unexpected response to net_peerCount on backend %s", be.Name)
+	}
+
+	count = hexutil.MustDecodeUint64(jsonMap)
+
+	return count, nil
+}
+
+// isInSync is a convenient wrapper to check if the backend is in sync from the network
+func (cp *ConsensusPoller) isInSync(ctx context.Context, be *Backend) (result bool, err error) {
+	var rpcRes RPCRes
+	err = be.ForwardRPC(ctx, &rpcRes, "67", "eth_syncing")
+	if err != nil {
+		return false, err
+	}
+
+	var res bool
+	switch typed := rpcRes.Result.(type) {
+	case bool:
+		syncing := typed
+		res = !syncing
+	case string:
+		syncing, err := strconv.ParseBool(typed)
+		if err != nil {
+			return false, err
+		}
+		res = !syncing
+	default:
+		// result is a json when not in sync
+		res = false
+	}
+
+	return res, nil
+}
+
+func (cp *ConsensusPoller) getBackendState(be *Backend) (peerCount uint64, blockNumber hexutil.Uint64, blockHash string, lastUpdate time.Time) {
 	bs := cp.backendState[be]
 	bs.backendStateMux.Lock()
+	peerCount = bs.peerCount
 	blockNumber = bs.latestBlockNumber
 	blockHash = bs.latestBlockHash
+	lastUpdate = bs.lastUpdate
 	bs.backendStateMux.Unlock()
 	return
 }
 
-func (cp *ConsensusPoller) setBackendState(be *Backend, blockNumber hexutil.Uint64, blockHash string) (changed bool) {
+func (cp *ConsensusPoller) setBackendState(be *Backend, peerCount uint64, blockNumber hexutil.Uint64, blockHash string) (changed bool) {
 	bs := cp.backendState[be]
 	bs.backendStateMux.Lock()
 	changed = bs.latestBlockHash != blockHash
+	bs.peerCount = peerCount
 	bs.latestBlockNumber = blockNumber
 	bs.latestBlockHash = blockHash
 	bs.lastUpdate = time.Now()

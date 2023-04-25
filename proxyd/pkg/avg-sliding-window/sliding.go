@@ -97,10 +97,15 @@ func (sw *AvgSlidingWindow) inWindow(t time.Time) bool {
 	return windowStart.Before(t) && !t.After(now)
 }
 
-// Add inserts a new data point into the window, with value `val` with the current time
+// Add inserts a new data point into the window, with value `val` and the current time
 func (sw *AvgSlidingWindow) Add(val float64) {
 	t := sw.clock.Now()
 	sw.AddWithTime(t, val)
+}
+
+// Incr is an alias to insert a data point with value float64(1) and the current time
+func (sw *AvgSlidingWindow) Incr() {
+	sw.Add(1)
 }
 
 // AddWithTime inserts a new data point into the window, with value `val` and time `t`

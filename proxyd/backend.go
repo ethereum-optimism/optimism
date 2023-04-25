@@ -17,6 +17,8 @@ import (
 	"sync"
 	"time"
 
+	sw "github.com/ethereum-optimism/optimism/proxyd/pkg/avg-sliding-window"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
@@ -83,6 +85,11 @@ var (
 		Message:       "sender is over rate limit",
 		HTTPErrorCode: 429,
 	}
+	ErrNotHealthy = &RPCErr{
+		Code:          JSONRPCErrorInternal - 18,
+		Message:       "backend is currently not healthy to serve traffic",
+		HTTPErrorCode: 429,
+	}
 
 	ErrBackendUnexpectedJSONRPC = errors.New("backend returned an unexpected JSON-RPC response")
 )
@@ -119,6 +126,14 @@ type Backend struct {
 	outOfServiceInterval time.Duration
 	stripTrailingXFF     bool
 	proxydIP             string
+
+	maxDegradedLatencyThreshold time.Duration
+	maxLatencyThreshold         time.Duration
+	maxErrorRateThreshold       float64
+
+	latencySlidingWindow         *sw.AvgSlidingWindow
+	networkRequestsSlidingWindow *sw.AvgSlidingWindow
+	networkErrorsSlidingWindow   *sw.AvgSlidingWindow
 }
 
 type BackendOpt func(b *Backend)
@@ -187,6 +202,18 @@ func WithProxydIP(ip string) BackendOpt {
 	}
 }
 
+func WithMaxLatencyThreshold(maxLatencyThreshold time.Duration) BackendOpt {
+	return func(b *Backend) {
+		b.maxLatencyThreshold = maxLatencyThreshold
+	}
+}
+
+func WithMaxErrorRateThreshold(maxErrorRateThreshold float64) BackendOpt {
+	return func(b *Backend) {
+		b.maxErrorRateThreshold = maxErrorRateThreshold
+	}
+}
+
 func NewBackend(
 	name string,
 	rpcURL string,
@@ -207,6 +234,14 @@ func NewBackend(
 			backendName: name,
 		},
 		dialer: &websocket.Dialer{},
+
+		maxLatencyThreshold:         10 * time.Second,
+		maxDegradedLatencyThreshold: 5 * time.Second,
+		maxErrorRateThreshold:       0.5,
+
+		latencySlidingWindow:         sw.NewSlidingWindow(),
+		networkRequestsSlidingWindow: sw.NewSlidingWindow(),
+		networkErrorsSlidingWindow:   sw.NewSlidingWindow(),
 	}
 
 	for _, opt := range opts {
@@ -252,11 +287,11 @@ func (b *Backend) Forward(ctx context.Context, reqs []*RPCReq, isBatch bool) ([]
 		case nil: // do nothing
 		// ErrBackendUnexpectedJSONRPC occurs because infura responds with a single JSON-RPC object
 		// to a batch request whenever any Request Object in the batch would induce a partial error.
-		// We don't label the the backend offline in this case. But the error is still returned to
+		// We don't label the backend offline in this case. But the error is still returned to
 		// callers so failover can occur if needed.
 		case ErrBackendUnexpectedJSONRPC:
 			log.Debug(
-				"Reecived unexpected JSON-RPC response",
+				"Received unexpected JSON-RPC response",
 				"name", b.Name,
 				"req_id", GetReqID(ctx),
 				"err", err,
@@ -396,6 +431,9 @@ func (b *Backend) ForwardRPC(ctx context.Context, res *RPCRes, id string, method
 }
 
 func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, error) {
+	// we are concerned about network error rates, so we record 1 request independently of how many are in the batch
+	b.networkRequestsSlidingWindow.Incr()
+
 	isSingleElementBatch := len(rpcReqs) == 1
 
 	// Single element batches are unwrapped before being sent
@@ -410,6 +448,7 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", b.rpcURL, bytes.NewReader(body))
 	if err != nil {
+		b.networkErrorsSlidingWindow.Incr()
 		return nil, wrapErr(err, "error creating backend request")
 	}
 
@@ -427,8 +466,10 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	httpReq.Header.Set("content-type", "application/json")
 	httpReq.Header.Set("X-Forwarded-For", xForwardedFor)
 
+	start := time.Now()
 	httpRes, err := b.client.DoLimited(httpReq)
 	if err != nil {
+		b.networkErrorsSlidingWindow.Incr()
 		return nil, wrapErr(err, "error in backend request")
 	}
 
@@ -446,12 +487,14 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 
 	// Alchemy returns a 400 on bad JSONs, so handle that case
 	if httpRes.StatusCode != 200 && httpRes.StatusCode != 400 {
+		b.networkErrorsSlidingWindow.Incr()
 		return nil, fmt.Errorf("response code %d", httpRes.StatusCode)
 	}
 
 	defer httpRes.Body.Close()
 	resB, err := io.ReadAll(io.LimitReader(httpRes.Body, b.maxResponseSize))
 	if err != nil {
+		b.networkErrorsSlidingWindow.Incr()
 		return nil, wrapErr(err, "error reading response body")
 	}
 
@@ -468,13 +511,16 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 		if err := json.Unmarshal(resB, &res); err != nil {
 			// Infura may return a single JSON-RPC response if, for example, the batch contains a request for an unsupported method
 			if responseIsNotBatched(resB) {
+				b.networkErrorsSlidingWindow.Incr()
 				return nil, ErrBackendUnexpectedJSONRPC
 			}
+			b.networkErrorsSlidingWindow.Incr()
 			return nil, ErrBackendBadResponse
 		}
 	}
 
 	if len(rpcReqs) != len(res) {
+		b.networkErrorsSlidingWindow.Incr()
 		return nil, ErrBackendUnexpectedJSONRPC
 	}
 
@@ -485,9 +531,30 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 			res.Error.HTTPErrorCode = httpRes.StatusCode
 		}
 	}
+	duration := time.Since(start)
+	b.latencySlidingWindow.Add(float64(duration))
 
 	sortBatchRPCResponse(rpcReqs, res)
 	return res, nil
+}
+
+// IsHealthy checks if the backend is able to serve traffic, based on dynamic parameters
+func (b *Backend) IsHealthy() bool {
+	errorRate := b.networkErrorsSlidingWindow.Sum() / b.networkRequestsSlidingWindow.Sum()
+	avgLatency := time.Duration(b.latencySlidingWindow.Avg())
+	if errorRate >= b.maxErrorRateThreshold {
+		return false
+	}
+	if avgLatency >= b.maxLatencyThreshold {
+		return false
+	}
+	return true
+}
+
+// IsDegraded checks if the backend is serving traffic in a degraded state (i.e. used as a last resource)
+func (b *Backend) IsDegraded() bool {
+	avgLatency := time.Duration(b.latencySlidingWindow.Avg())
+	return avgLatency >= b.maxDegradedLatencyThreshold
 }
 
 func responseIsNotBatched(b []byte) bool {
