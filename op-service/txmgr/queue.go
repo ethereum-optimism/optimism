@@ -2,10 +2,11 @@ package txmgr
 
 import (
 	"context"
-	"github.com/ethereum/go-ethereum/core/types"
-	"golang.org/x/sync/errgroup"
 	"math"
 	"sync"
+
+	"github.com/ethereum/go-ethereum/core/types"
+	"golang.org/x/sync/errgroup"
 )
 
 type TxReceipt[T any] struct {
