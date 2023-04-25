@@ -214,6 +214,25 @@ func TestL2BlockNumber(t *testing.T) {
 	})
 }
 
+func TestDetached(t *testing.T) {
+	t.Run("DefaultFalse", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(t))
+		require.False(t, cfg.Detached)
+	})
+	t.Run("Enabled", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(t, "--detached"))
+		require.True(t, cfg.Detached)
+	})
+	t.Run("EnabledWithArg", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(t, "--detached=true"))
+		require.True(t, cfg.Detached)
+	})
+	t.Run("Disabled", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(t, "--detached=false"))
+		require.False(t, cfg.Detached)
+	})
+}
+
 func verifyArgsInvalid(t *testing.T, messageContains string, cliArgs []string) {
 	_, _, err := runWithArgs(cliArgs)
 	require.ErrorContains(t, err, messageContains)

@@ -30,6 +30,7 @@
     "coverage:lcov": "yarn build:differential && yarn build:fuzz && forge coverage --report lcov",
     "gas-snapshot": "yarn build:differential && yarn build:fuzz && forge snapshot --no-match-test 'testDiff|testFuzz|invariant|generateArtifact'",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
+    "validate-deploy-configs": "hardhat compile && hardhat generate-deploy-config && ./scripts/validate-deploy-configs.sh",
     "validate-spacers": "hardhat compile && hardhat validate-spacers",
     "slither": "./scripts/slither.sh",
     "slither:triage": "TRIAGE_MODE=1 ./scripts/slither.sh",
