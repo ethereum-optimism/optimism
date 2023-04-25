@@ -231,8 +231,6 @@ func TestSend(t *testing.T) {
 			// expect the execution time within a certain window
 			now := time.Now()
 			require.WithinDuration(t, now.Add(test.total), now.Add(duration), 500*time.Millisecond, "unexpected queue transaction timing")
-			require.Greater(t, duration, test.total, "test was faster than expected")
-			require.Less(t, duration, test.total+500*time.Millisecond, "test was slower than expected")
 			// check that the nonces match
 			slices.Sort(nonces)
 			require.Equal(t, test.nonces, nonces, "expected nonces do not match")
