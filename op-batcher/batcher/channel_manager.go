@@ -199,6 +199,11 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 		return txData{}, io.EOF
 	}
 
+	// we have blocks, but we cannot add them to the channel right now
+	if s.pendingChannel != nil && s.pendingChannel.IsFull() {
+		return txData{}, io.EOF
+	}
+
 	if err := s.ensurePendingChannel(l1Head); err != nil {
 		return txData{}, err
 	}
