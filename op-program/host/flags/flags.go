@@ -96,13 +96,13 @@ var requiredFlags = []cli.Flag{
 	L2Head,
 	L2Claim,
 	L2BlockNumber,
-	L2GenesisPath,
 }
 var programFlags = []cli.Flag{
 	RollupConfig,
 	Network,
 	DataDir,
 	L2NodeAddr,
+	L2GenesisPath,
 	L1NodeAddr,
 	L1TrustRPC,
 	L1RPCProviderKind,
@@ -123,6 +123,9 @@ func CheckRequired(ctx *cli.Context) error {
 	}
 	if rollupConfig != "" && network != "" {
 		return fmt.Errorf("cannot specify both %s and %s", RollupConfig.Name, Network.Name)
+	}
+	if network == "" && ctx.GlobalString(L2GenesisPath.Name) == "" {
+		return fmt.Errorf("flag %s is required for custom networks", L2GenesisPath.Name)
 	}
 	for _, flag := range requiredFlags {
 		if !ctx.IsSet(flag.GetName()) {
