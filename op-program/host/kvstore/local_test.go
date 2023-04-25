@@ -28,12 +28,12 @@ func TestLocalPreimageSource(t *testing.T) {
 		key      common.Hash
 		expected []byte
 	}{
-		{"L1Head", L1HeadKey, cfg.L1Head.Bytes()},
-		{"L2Head", L2HeadKey, cfg.L2Head.Bytes()},
-		{"L2Claim", L2ClaimKey, cfg.L2Claim.Bytes()},
-		{"L2ClaimBlockNumber", L2ClaimBlockNumberKey, binary.BigEndian.AppendUint64(nil, cfg.L2ClaimBlockNumber)},
-		{"Rollup", RollupKey, asJson(t, cfg.Rollup)},
-		{"ChainConfig", L2ChainConfigKey, asJson(t, cfg.L2ChainConfig)},
+		{"L1Head", l1HeadKey, cfg.L1Head.Bytes()},
+		{"L2Head", l2HeadKey, cfg.L2Head.Bytes()},
+		{"L2Claim", l2ClaimKey, cfg.L2Claim.Bytes()},
+		{"L2ClaimBlockNumber", l2ClaimBlockNumberKey, binary.BigEndian.AppendUint64(nil, cfg.L2ClaimBlockNumber)},
+		{"Rollup", rollupKey, asJson(t, cfg.Rollup)},
+		{"ChainConfig", l2ChainConfigKey, asJson(t, cfg.L2ChainConfig)},
 		{"Unknown", preimage.LocalIndexKey(1000).PreimageKey(), nil},
 	}
 	for _, test := range tests {

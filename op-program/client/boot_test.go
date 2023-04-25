@@ -1,51 +1,52 @@
 package client
 
 import (
-	"io"
+	"encoding/binary"
+	"encoding/json"
 	"testing"
-	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-program/preimage"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
-func TestBootstrapOracle(t *testing.T) {
-	r, w := io.Pipe()
-	br := NewBootstrapOracleReader(r)
-	bw := NewBootstrapOracleWriter(w)
-
-	bootInfo := BootInfo{
-		Rollup:             new(rollup.Config),
-		L2ChainConfig:      new(params.ChainConfig),
-		L1Head:             common.HexToHash("0xffffa"),
-		L2Head:             common.HexToHash("0xffffb"),
-		L2Claim:            common.HexToHash("0xffffc"),
+func TestBootstrapClient(t *testing.T) {
+	bootInfo := &BootInfo{
+		L1Head:             common.HexToHash("0x1111"),
+		L2Head:             common.HexToHash("0x2222"),
+		L2Claim:            common.HexToHash("0x3333"),
 		L2ClaimBlockNumber: 1,
+		L2ChainConfig:      params.GoerliChainConfig,
+		RollupConfig:       &chaincfg.Goerli,
 	}
+	mockOracle := &mockBoostrapOracle{bootInfo}
+	readBootInfo := NewBootstrapClient(mockOracle).BootInfo()
+	require.EqualValues(t, bootInfo, readBootInfo)
+}
 
-	go func() {
-		err := bw.WriteBootInfo(&bootInfo)
-		require.NoError(t, err)
-	}()
+type mockBoostrapOracle struct {
+	b *BootInfo
+}
 
-	type result struct {
-		bootInnfo *BootInfo
-		err       error
-	}
-	read := make(chan result)
-	go func() {
-		readBootInfo, err := br.BootInfo()
-		read <- result{readBootInfo, err}
-		close(read)
-	}()
-
-	select {
-	case <-time.After(time.Second * 30):
-		t.Error("timeout waiting for bootstrap oracle")
-	case r := <-read:
-		require.NoError(t, r.err)
-		require.Equal(t, bootInfo, *r.bootInnfo)
+func (o *mockBoostrapOracle) Get(key preimage.Key) []byte {
+	switch key.PreimageKey() {
+	case L1HeadLocalIndex.PreimageKey():
+		return o.b.L1Head[:]
+	case L2HeadLocalIndex.PreimageKey():
+		return o.b.L2Head[:]
+	case L2ClaimLocalIndex.PreimageKey():
+		return o.b.L2Claim[:]
+	case L2ClaimBlockNumberLocalIndex.PreimageKey():
+		return binary.BigEndian.AppendUint64(nil, o.b.L2ClaimBlockNumber)
+	case L2ChainConfigLocalIndex.PreimageKey():
+		b, _ := json.Marshal(o.b.L2ChainConfig)
+		return b
+	case RollupConfigLocalIndex.PreimageKey():
+		b, _ := json.Marshal(o.b.RollupConfig)
+		return b
+	default:
+		panic("unknown key")
 	}
 }
