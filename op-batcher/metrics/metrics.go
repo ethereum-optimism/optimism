@@ -34,7 +34,6 @@ type Metricer interface {
 	RecordChannelFullySubmitted(id derive.ChannelID)
 	RecordChannelTimedOut(id derive.ChannelID)
 
-	RecordPendingTx(pending uint64)
 	RecordBatchTxSubmitted()
 	RecordBatchTxSuccess()
 	RecordBatchTxFailed()
@@ -68,7 +67,6 @@ type Metrics struct {
 	ChannelInputBytesTotal  prometheus.Counter
 	ChannelOutputBytesTotal prometheus.Counter
 
-	PendingTxs   prometheus.Gauge
 	BatcherTxEvs opmetrics.EventVec
 }
 
@@ -157,12 +155,6 @@ func NewMetrics(procName string) *Metrics {
 			Namespace: ns,
 			Name:      "output_bytes_total",
 			Help:      "Total number of compressed output bytes from a channel.",
-		}),
-
-		PendingTxs: factory.NewGauge(prometheus.GaugeOpts{
-			Namespace: ns,
-			Name:      "pending_txs",
-			Help:      "Number of transactions pending receipts.",
 		}),
 
 		BatcherTxEvs: opmetrics.NewEventVec(factory, ns, "", "batcher_tx", "BatcherTx", []string{"stage"}),
@@ -262,10 +254,6 @@ func (m *Metrics) RecordChannelFullySubmitted(id derive.ChannelID) {
 
 func (m *Metrics) RecordChannelTimedOut(id derive.ChannelID) {
 	m.ChannelEvs.Record(StageTimedOut)
-}
-
-func (m *Metrics) RecordPendingTx(pending uint64) {
-	m.PendingTxs.Set(float64(pending))
 }
 
 func (m *Metrics) RecordBatchTxSubmitted() {

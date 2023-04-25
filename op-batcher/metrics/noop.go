@@ -29,7 +29,6 @@ func (*noopMetrics) RecordChannelClosed(derive.ChannelID, int, int, int, int, er
 func (*noopMetrics) RecordChannelFullySubmitted(derive.ChannelID) {}
 func (*noopMetrics) RecordChannelTimedOut(derive.ChannelID)       {}
 
-func (*noopMetrics) RecordPendingTx(uint64)  {}
 func (*noopMetrics) RecordBatchTxSubmitted() {}
 func (*noopMetrics) RecordBatchTxSuccess()   {}
 func (*noopMetrics) RecordBatchTxFailed()    {}

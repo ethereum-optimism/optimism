@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -88,6 +89,8 @@ type SimpleTxManager struct {
 
 	nonce     *uint64
 	nonceLock sync.RWMutex
+
+	pending atomic.Int64
 }
 
 // NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
@@ -132,6 +135,10 @@ type TxCandidate struct {
 //
 // NOTE: Send can be called concurrently, the nonce will be managed internally.
 func (m *SimpleTxManager) Send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error) {
+	m.metr.RecordPendingTx(m.pending.Add(1))
+	defer func() {
+		m.metr.RecordPendingTx(m.pending.Add(-1))
+	}()
 	receipt, err := m.send(ctx, candidate)
 	if err != nil {
 		m.resetNonce()

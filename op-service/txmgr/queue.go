@@ -2,12 +2,10 @@ package txmgr
 
 import (
 	"context"
-	"math"
-	"sync"
-	"sync/atomic"
-
 	"github.com/ethereum/go-ethereum/core/types"
 	"golang.org/x/sync/errgroup"
+	"math"
+	"sync"
 )
 
 type TxReceipt[T any] struct {
@@ -20,30 +18,27 @@ type TxReceipt[T any] struct {
 }
 
 type Queue[T any] struct {
-	ctx            context.Context
-	txMgr          TxManager
-	maxPending     uint64
-	pendingChanged func(uint64)
-	pending        atomic.Uint64
-	groupLock      sync.Mutex
-	groupCtx       context.Context
-	group          *errgroup.Group
+	ctx        context.Context
+	txMgr      TxManager
+	maxPending uint64
+	groupLock  sync.Mutex
+	groupCtx   context.Context
+	group      *errgroup.Group
 }
 
 // NewQueue creates a new transaction sending Queue, with the following parameters:
 //   - maxPending: max number of pending txs at once (0 == no limit)
 //   - pendingChanged: called whenever a tx send starts or finishes. The
 //     number of currently pending txs is passed as a parameter.
-func NewQueue[T any](ctx context.Context, txMgr TxManager, maxPending uint64, pendingChanged func(uint64)) *Queue[T] {
+func NewQueue[T any](ctx context.Context, txMgr TxManager, maxPending uint64) *Queue[T] {
 	if maxPending > math.MaxInt {
 		// ensure we don't overflow as errgroup only accepts int; in reality this will never be an issue
 		maxPending = math.MaxInt
 	}
 	return &Queue[T]{
-		ctx:            ctx,
-		txMgr:          txMgr,
-		maxPending:     maxPending,
-		pendingChanged: pendingChanged,
+		ctx:        ctx,
+		txMgr:      txMgr,
+		maxPending: maxPending,
 	}
 }
 
@@ -59,7 +54,7 @@ func (q *Queue[T]) Wait() {
 // and then send the next tx.
 //
 // The actual tx sending is non-blocking, with the receipt returned on the
-// provided receipt channel .If the channel is unbuffered, the goroutine is
+// provided receipt channel. If the channel is unbuffered, the goroutine is
 // blocked from completing until the channel is read from.
 func (q *Queue[T]) Send(id T, candidate TxCandidate, receiptCh chan TxReceipt[T]) {
 	group, ctx := q.groupContext()
@@ -85,10 +80,6 @@ func (q *Queue[T]) TrySend(id T, candidate TxCandidate, receiptCh chan TxReceipt
 }
 
 func (q *Queue[T]) sendTx(ctx context.Context, id T, candidate TxCandidate, receiptCh chan TxReceipt[T]) error {
-	q.pendingChanged(q.pending.Add(1))
-	defer func() {
-		q.pendingChanged(q.pending.Add(^uint64(0))) // -1
-	}()
 	receipt, err := q.txMgr.Send(ctx, candidate)
 	receiptCh <- TxReceipt[T]{
 		ID:      id,
@@ -98,11 +89,11 @@ func (q *Queue[T]) sendTx(ctx context.Context, id T, candidate TxCandidate, rece
 	return err
 }
 
-// mergeWithGroupContext creates a new Context that is canceled if either the given context is
-// Done, or the group context is canceled. The returned CancelFunc should be called once finished.
+// groupContext returns a Group and a Context to use when sending a tx.
 //
-// If the group context doesn't exist or has already been canceled, a new one is created after
-// waiting for existing group threads to complete.
+// If any of the pending transactions returned an error, the queue's shared error Group is
+// canceled. This method will wait on that Group for all pending transactions to return,
+// and create a new Group with the queue's global context as its parent.
 func (q *Queue[T]) groupContext() (*errgroup.Group, context.Context) {
 	q.groupLock.Lock()
 	defer q.groupLock.Unlock()

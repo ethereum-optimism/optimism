@@ -200,8 +200,9 @@ func TestSend(t *testing.T) {
 			}
 			backend.setTxSender(sendTx)
 
-			ctx := context.Background()
-			queue := NewQueue[int](ctx, mgr, test.max, func(uint64) {})
+			ctx, cancel := context.WithTimeout(context.Background(), 1*time.Minute)
+			defer cancel()
+			queue := NewQueue[int](ctx, mgr, test.max)
 
 			// make all the queue calls given in the test case
 			start := time.Now()
@@ -228,6 +229,8 @@ func TestSend(t *testing.T) {
 			queue.Wait()
 			duration := time.Since(start)
 			// expect the execution time within a certain window
+			now := time.Now()
+			require.WithinDuration(t, now.Add(test.total), now.Add(duration), 500*time.Millisecond, "unexpected queue transaction timing")
 			require.Greater(t, duration, test.total, "test was faster than expected")
 			require.Less(t, duration, test.total+500*time.Millisecond, "test was slower than expected")
 			// check that the nonces match

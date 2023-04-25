@@ -289,7 +289,7 @@ func (l *BatchSubmitter) loop() {
 	defer ticker.Stop()
 
 	receiptsCh := make(chan txmgr.TxReceipt[txData])
-	queue := txmgr.NewQueue[txData](l.killCtx, l.txMgr, l.MaxPendingTransactions, l.metr.RecordPendingTx)
+	queue := txmgr.NewQueue[txData](l.killCtx, l.txMgr, l.MaxPendingTransactions)
 
 	for {
 		select {
