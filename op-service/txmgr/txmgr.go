@@ -28,8 +28,6 @@ const priceBump int64 = 15
 var priceBumpPercent = big.NewInt(100 + priceBump)
 var oneHundred = big.NewInt(100)
 
-var ResetErr = errors.New("transaction manager reset")
-
 // TxManager is an interface that allows callers to reliably publish txs,
 // bumping the gas price if needed, and obtain the receipt of the resulting tx.
 //
