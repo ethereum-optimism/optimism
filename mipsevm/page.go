@@ -60,7 +60,7 @@ func (p *CachedPage) MerkleRoot() [32]byte {
 	}
 
 	// hash the cache layers
-	for i := pageSize/32 - 2; i > 0; i++ {
+	for i := pageSize/32 - 2; i > 0; i -= 2 {
 		j := i >> 1
 		if p.Ok[j] {
 			continue
@@ -79,7 +79,7 @@ func (p *CachedPage) MerkleizeSubtree(gindex uint64) [32]byte {
 			panic("gindex too deep")
 		}
 		// it's pointing to a bottom node
-		nodeIndex := gindex & pageAddrMask
+		nodeIndex := gindex & (pageAddrMask >> 5)
 		return *(*[32]byte)(p.Data[nodeIndex*32 : nodeIndex*32+32])
 	}
 	return p.Cache[gindex]

@@ -23,7 +23,9 @@ const (
 )
 
 func HashPair(left, right [32]byte) [32]byte {
-	return crypto.Keccak256Hash(left[:], right[:])
+	out := crypto.Keccak256Hash(left[:], right[:])
+	//fmt.Printf("0x%x 0x%x -> 0x%x\n", left, right, out)
+	return out
 }
 
 var zeroHashes = func() [256][32]byte {
@@ -53,20 +55,23 @@ func NewMemory() *Memory {
 	}
 }
 
-func (m *Memory) Invalidate(addr uint32, count uint32) {
-	// we invalidate nodes of 32 bytes at a time
-	minGindex := ((uint64(1) << 32) | uint64(addr)) >> 5
-	count >>= 5
+func (m *Memory) Invalidate(addr uint32) {
+	// addr must be aligned to 4 bytes
+	if addr&0x3 != 0 {
+		panic(fmt.Errorf("unaligned memory access: %x", addr))
+	}
 
-	for minGindex > 0 {
-		for i := minGindex; i < minGindex+uint64(count); i++ {
-			m.Nodes[i] = nil
-		}
-		minGindex >>= 1
-		count >>= 1
-		if count == 0 {
-			count = 1
-		}
+	// find page, and invalidate addr within it
+	if p, ok := m.Pages[addr>>pageAddrSize]; ok {
+		p.Invalidate(addr & pageAddrMask)
+	}
+
+	// find the gindex of the first page covering the address
+	gindex := ((uint64(1) << 32) | uint64(addr)) >> pageAddrSize
+
+	for gindex > 0 {
+		m.Nodes[gindex] = nil
+		gindex >>= 1
 	}
 }
 
@@ -76,7 +81,7 @@ func (m *Memory) MerkleizeSubtree(gindex uint64) [32]byte {
 		panic("gindex too deep")
 	}
 	if l > pageKeySize {
-		depthIntoPage := l - pageKeySize
+		depthIntoPage := l - 1 - pageKeySize
 		pageIndex := (gindex >> depthIntoPage) & pageKeyMask
 		if p, ok := m.Pages[uint32(pageIndex)]; ok {
 			pageGindex := (1 << depthIntoPage) | (gindex & ((1 << depthIntoPage) - 1))
@@ -113,17 +118,17 @@ func (m *Memory) MerkleProof(addr uint32) (out [28 * 32]byte) {
 }
 
 func (m *Memory) traverseBranch(parent uint64, addr uint32, depth uint8) (proof [][32]byte) {
-	if depth == 28 {
+	if depth == 32-5 {
 		proof = make([][32]byte, 0, 32-5+1)
 		proof = append(proof, m.MerkleizeSubtree(parent))
 		return
 	}
-	if depth > 28 {
+	if depth > 32-5 {
 		panic("traversed too deep")
 	}
 	self := parent << 1
 	sibling := self | 1
-	if addr&(1<<depth) == 1 {
+	if addr&(1<<(31-depth)) != 0 {
 		self, sibling = sibling, self
 	}
 	proof = m.traverseBranch(self, addr, depth+1)
@@ -150,7 +155,7 @@ func (m *Memory) SetMemory(addr uint32, v uint32) {
 		// Go may mmap relatively large ranges, but we only allocate the pages just in time.
 		p = m.AllocPage(pageIndex)
 	} else {
-		m.Invalidate(addr, 4) // invalidate this branch of memory, now that the value changed
+		m.Invalidate(addr) // invalidate this branch of memory, now that the value changed
 	}
 	binary.BigEndian.PutUint32(p.Data[pageAddr:pageAddr+4], v)
 }
