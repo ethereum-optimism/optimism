@@ -219,6 +219,81 @@ contract MIPS {
     return outputState();
   }
 
+  function proofOffset(uint8 proofIndex) internal returns (uint256 offset) {
+    require(proofIndex & 3 == 0, "addr must be aligned to 4 bytes");
+    // A proof of 32 bit memory, with 32-byte leaf values, is (32-5)=27 bytes32 entries.
+    // And the leaf value itself needs to be encoded as well. And proof.offset == 390
+    offset = 390 + proofIndex + (28*32);
+    uint256 s = 0;
+    assembly { s := calldatasize() }
+    require(s > (offset + 28*32), "check that there is enough calldata");
+    return offset;
+  }
+
+  function readMem(uint32 addr, uint8 proofIndex) internal returns (uint32 out) {
+    uint256 offset = proofOffset(proofIndex);
+    assembly {
+      if and(addr, 3) { revert(0, 0) } // quick addr alignment check
+      let leaf := calldataload(offset)
+      offset := add(offset, 32)
+      function hashPair(a, b) -> h {
+        mstore(0, a) // use scratch space slots to hash the two nodes together
+        mstore(32, b)
+        h := keccak256(0, 64)
+      }
+      let path := shr(5, addr)
+      let node := leaf // starting from the leaf node, work back up by combining with siblings, to reconstruct the root
+      for { let i := 0 } lt(i, 27) { i := add(i, 1) } {
+        let sibling := calldataload(offset)
+        offset := add(offset, 32)
+        if and(shr(i, path), 1) {
+          node := hashPair(sibling, node)
+          continue
+        }
+        node := hashPair(node, sibling)
+      }
+      let memRoot := mload(0x80) // load memRoot, first field of state
+      if iszero(eq(node, memRoot)) { // verify the root matches
+        mstore(0, 0x0badf00d)
+        revert(0, 32)
+      }
+      // bits to shift = (32 - 4 - (addr % 32)) * 8
+      let shamt := shl(3, sub(sub(32, 4), and(addr, 31)))
+      out := and(shr(shamt, leaf), 0xFFffFFff)
+    }
+    return out;
+  }
+
+  // writeMem writes the value by first overwriting the part of the leaf, and then recomputing the memory merkle root.
+  function writeMem(uint32 addr, uint8 proofIndex, uint32 value) internal {
+    uint256 offset = proofOffset(proofIndex);
+    assembly {
+      if and(addr, 3) { revert(0, 0) } // quick addr alignment check
+      let leaf := calldataload(offset)
+      let shamt := shl(3, sub(sub(32, 4), and(addr, 31)))
+      // mask out 4 bytes, and OR in the value
+      leaf := or(and(leaf, not(shl(shamt, 0xFFffFFff))), shl(shamt, value))
+      offset := add(offset, 32)
+      function hashPair(a, b) -> h {
+        mstore(0, a) // use scratch space slots to hash the two nodes together
+        mstore(32, b)
+        h := keccak256(0, 64)
+      }
+      let path := shr(5, addr)
+      let node := leaf // starting from the leaf node, work back up by combining with siblings, to reconstruct the root
+      for { let i := 0 } lt(i, 27) { i := add(i, 1) } {
+        let sibling := calldataload(offset)
+        offset := add(offset, 32)
+        if and(shr(i, path), 1) {
+          node := hashPair(sibling, node)
+          continue
+        }
+        node := hashPair(node, sibling)
+      }
+      mstore(0x80, node) // store new memRoot, first field of state
+    }
+  }
+
   // will revert if any required input state is missing
   function Step(bytes32 stateHash, bytes calldata stateData, bytes calldata proof) public returns (bytes32) {
     State memory state;
@@ -230,7 +305,10 @@ contract MIPS {
       if iszero(eq(mload(0x40), mul(32, 48))) { // expected memory check
         revert(0,0)
       }
-      if iszero(eq(stateData.offset, add(mul(32, 4), 4))) { // expected state data offset
+      if iszero(eq(stateData.offset, 132)) { // 32*4+4=132 expected state data offset
+        revert(0,0)
+      }
+      if iszero(eq(proof.offset, 390)) { // 132+32+226=390 expected proof offset
         revert(0,0)
       }
       function putField(callOffset, memOffset, size) -> callOffsetOut, memOffsetOut {
@@ -263,13 +341,7 @@ contract MIPS {
     state.step += 1;
 
     // instruction fetch
-    uint32 insn; // TODO proof the memory read against memRoot
-    assembly {
-      if iszero(eq(proof.offset, 390)) {
-        revert(0,0)
-      }
-      insn := shr(sub(256, 32), calldataload(proof.offset))
-    }
+    uint32 insn = readMem(state.pc, 0);
 
     uint32 opcode = insn >> 26; // 6-bits
 
@@ -322,10 +394,7 @@ contract MIPS {
       // M[R[rs]+SignExtImm]
       rs += SE(insn&0xFFFF, 16);
       uint32 addr = rs & 0xFFFFFFFC;
-      // TODO proof memory read at addr
-      assembly {
-        mem := shr(sub(256, 32), calldataload(add(proof.offset, 4)))
-      }
+      mem = readMem(addr, 1);
       if (opcode >= 0x28 && opcode != 0x30) {
         // store
         storeAddr = addr;
@@ -369,11 +438,7 @@ contract MIPS {
 
     // write memory
     if (storeAddr != 0xFF_FF_FF_FF) {
-      // TODO: write back memory change.
-      // Note that we already read the same memory leaf earlier.
-      // We can use that to shorten the proof significantly,
-      // by just walking back up to construct the root with the same witness data.
-      state.memRoot = bytes32(uint256(42));
+      writeMem(storeAddr, 1, mem);
     }
 
     // write back the value to destination register
