@@ -79,12 +79,6 @@ func TestNetwork(t *testing.T) {
 		expected := cfg
 		t.Run("Network_"+name, func(t *testing.T) {
 			args := replaceRequiredArg("--network", name)
-			if name == "beta-1" {
-				// No built-in config for beta-1 which is fine as it's no longer in use.
-				// Newly added named networks should hook up the L2 chain config
-				genesisFile := writeValidGenesis(t)
-				args = append(args, "--l2.genesis", genesisFile)
-			}
 			cfg := configForArgs(t, args)
 			require.Equal(t, expected, *cfg.Rollup)
 		})
@@ -119,10 +113,6 @@ func TestL2Genesis(t *testing.T) {
 	t.Run("NotRequiredForGoerli", func(t *testing.T) {
 		cfg := configForArgs(t, replaceRequiredArg("--network", "goerli"))
 		require.Equal(t, config.OPGoerliChainConfig, cfg.L2ChainConfig)
-	})
-
-	t.Run("RequiredForNamedNetworkWithNoL2ChainConfig", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag l2.genesis is required", replaceRequiredArg("--network", "beta-1"))
 	})
 }
 
