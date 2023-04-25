@@ -49,6 +49,12 @@ var (
 		Value:  6 * time.Second,
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "POLL_INTERVAL"),
 	}
+	MaxPendingTransactionsFlag = cli.Uint64Flag{
+		Name:   "max-pending-tx",
+		Usage:  "The maximum number of pending transactions. 0 for no limit.",
+		Value:  1,
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "MAX_PENDING_TX"),
+	}
 	MaxChannelDurationFlag = cli.Uint64Flag{
 		Name:   "max-channel-duration",
 		Usage:  "The maximum duration of L1-blocks to keep a channel open. 0 to disable.",
@@ -97,6 +103,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	SubSafetyMarginFlag,
 	PollIntervalFlag,
+	MaxPendingTransactionsFlag,
 	MaxChannelDurationFlag,
 	MaxL1TxSizeBytesFlag,
 	TargetL1TxSizeBytesFlag,

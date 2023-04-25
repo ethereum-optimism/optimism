@@ -140,7 +140,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @custom:semver 1.3.1
+     * @custom:semver 1.4.0
      *
      * @param _l2Oracle                  Address of the L2OutputOracle contract.
      * @param _guardian                  Address that can pause deposits and withdrawals.
@@ -152,7 +152,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         address _guardian,
         bool _paused,
         SystemConfig _config
-    ) Semver(1, 3, 1) {
+    ) Semver(1, 4, 0) {
         L2_ORACLE = _l2Oracle;
         GUARDIAN = _guardian;
         SYSTEM_CONFIG = _config;
@@ -388,11 +388,9 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // SafeCall.callWithMinGas to ensure two key properties
         //   1. Target contracts cannot force this call to run out of gas by returning a very large
         //      amount of data (and this is OK because we don't care about the returndata here).
-        //   2. The amount of gas provided to the call to the target contract is at least the gas
-        //      limit specified by the user. If there is not enough gas in the callframe to
-        //      accomplish this, `callWithMinGas` will revert.
-        // Additionally, if there is not enough gas remaining to complete the execution after the
-        // call returns, this function will revert.
+        //   2. The amount of gas provided to the execution context of the target is at least the
+        //      gas limit specified by the user. If there is not enough gas in the current context
+        //      to accomplish this, `callWithMinGas` will revert.
         bool success = SafeCall.callWithMinGas(_tx.target, _tx.gasLimit, _tx.value, _tx.data);
 
         // Reset the l2Sender back to the default value.

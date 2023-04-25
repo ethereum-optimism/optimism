@@ -148,7 +148,7 @@ func TestBatching(t *testing.T) {
 			require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", goodBackend.URL()))
 
 			client := NewProxydClient("http://127.0.0.1:8545")
-			shutdown, err := proxyd.Start(config)
+			_, shutdown, err := proxyd.Start(config)
 			require.NoError(t, err)
 			defer shutdown()
 

@@ -81,6 +81,11 @@ var (
 			return &out
 		}(),
 	}
+	Detached = cli.BoolFlag{
+		Name:   "detached",
+		Usage:  "Run the program as a separate process detached from the host",
+		EnvVar: service.PrefixEnvVar(envVarPrefix, "DETACHED"),
+	}
 )
 
 // Flags contains the list of configuration options available to the binary.
@@ -101,6 +106,7 @@ var programFlags = []cli.Flag{
 	L1NodeAddr,
 	L1TrustRPC,
 	L1RPCProviderKind,
+	Detached,
 }
 
 func init() {
