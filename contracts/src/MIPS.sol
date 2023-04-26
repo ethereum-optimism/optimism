@@ -34,7 +34,6 @@ contract MIPS {
 
   // total State size: 32+32+6*4+1+1+8+32*4 = 226 bytes
 
-  uint32 constant public HEAP_START = 0x20000000;
   uint32 constant public BRK_START = 0x40000000;
 
 //  event DidStep(bytes32 stateHash);
@@ -91,11 +90,13 @@ contract MIPS {
     if (syscall_no == 4090) {
       // mmap
       uint32 a0 = state.registers[4];
+      uint32 sz = state.registers[5];
+      if (sz&4095 != 0) { // adjust size to align with page size
+        sz += 4096 - (sz&4095);
+      }
       if (a0 == 0) {
-        uint32 sz = state.registers[5];
-        uint32 hr = state.heap;
-        v0 = HEAP_START + hr;
-        state.heap = hr+sz;
+        v0 = state.heap;
+        state.heap += sz;
       } else {
         v0 = a0;
       }

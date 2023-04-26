@@ -87,8 +87,8 @@ func NewUnicornState(mu uc.Unicorn, state *State, stdOut, stdErr io.Writer) (*Un
 			v0 = 0x40000000
 		case 4246: // exit_group
 			st.Exited = true
+			v0, _ := mu.RegRead(uc.MIPS_REG_4)
 			st.ExitCode = uint8(v0)
-			mu.Stop()
 			return
 		}
 		mu.RegWrite(uc.MIPS_REG_V0, v0)
@@ -242,16 +242,18 @@ func (m *UnicornState) Step(proof bool) (stateWitness []byte, memProof []byte) {
 	m.state.LO = uint32(batch[33])
 	m.state.HI = uint32(batch[34])
 
-	// 2) adopt the old nextPC as new PC.
+	// 2) adopt the old nextPC as new PC. Unless we just exited.
 	// This effectively implements delay-slots, even though unicorn immediately loses
 	// delay-slot information when only executing a single instruction.
-	m.state.PC = oldNextPC
-	err = m.mu.RegWrite(uc.MIPS_REG_PC, uint64(oldNextPC))
-	if err != nil {
-		panic("failed to write PC register")
-	}
+	if !m.state.Exited {
+		m.state.PC = oldNextPC
+		err = m.mu.RegWrite(uc.MIPS_REG_PC, uint64(oldNextPC))
+		if err != nil {
+			panic("failed to write PC register")
+		}
 
-	m.state.NextPC = newNextPC
+		m.state.NextPC = newNextPC
+	}
 	return
 }
 
