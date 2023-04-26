@@ -9,9 +9,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	oppcl "github.com/ethereum-optimism/optimism/op-program/client"
 	"github.com/ethereum-optimism/optimism/op-program/client/driver"
 	opp "github.com/ethereum-optimism/optimism/op-program/host"
 	oppconf "github.com/ethereum-optimism/optimism/op-program/host/config"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -19,7 +21,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// bypass the test runnner if running client to execute the fpp directly
+func init() {
+	if !opp.RunningProgramInClient() {
+		return
+	}
+	logger := oplog.NewLogger(oplog.CLIConfig{
+		Level:  "debug",
+		Format: "text",
+	})
+	oppcl.Main(logger)
+}
+
 func TestVerifyL2OutputRoot(t *testing.T) {
+	testVerifyL2OutputRoot(t, false)
+}
+
+func TestVerifyL2OutputRootDetached(t *testing.T) {
+	testVerifyL2OutputRoot(t, true)
+}
+
+func testVerifyL2OutputRoot(t *testing.T, detached bool) {
 	InitParallel(t)
 	ctx := context.Background()
 
@@ -93,6 +115,7 @@ func TestVerifyL2OutputRoot(t *testing.T) {
 	fppConfig.L1URL = sys.NodeEndpoint("l1")
 	fppConfig.L2URL = sys.NodeEndpoint("sequencer")
 	fppConfig.DataDir = preimageDir
+	fppConfig.Detached = detached
 
 	// Check the FPP confirms the expected output
 	t.Log("Running fault proof in fetching mode")
@@ -119,7 +142,11 @@ func TestVerifyL2OutputRoot(t *testing.T) {
 	t.Log("Running fault proof with invalid claim")
 	fppConfig.L2Claim = common.Hash{0xaa}
 	err = opp.FaultProofProgram(log, fppConfig)
-	require.ErrorIs(t, err, driver.ErrClaimNotValid)
+	if detached {
+		require.Error(t, err, "exit status 1")
+	} else {
+		require.ErrorIs(t, err, driver.ErrClaimNotValid)
+	}
 }
 
 func waitForSafeHead(ctx context.Context, safeBlockNum uint64, rollupClient *sources.RollupClient) error {

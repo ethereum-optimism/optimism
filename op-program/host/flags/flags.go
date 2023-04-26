@@ -81,6 +81,11 @@ var (
 			return &out
 		}(),
 	}
+	Detached = cli.BoolFlag{
+		Name:   "detached",
+		Usage:  "Run the program as a separate process detached from the host",
+		EnvVar: service.PrefixEnvVar(envVarPrefix, "DETACHED"),
+	}
 )
 
 // Flags contains the list of configuration options available to the binary.
@@ -91,16 +96,17 @@ var requiredFlags = []cli.Flag{
 	L2Head,
 	L2Claim,
 	L2BlockNumber,
-	L2GenesisPath,
 }
 var programFlags = []cli.Flag{
 	RollupConfig,
 	Network,
 	DataDir,
 	L2NodeAddr,
+	L2GenesisPath,
 	L1NodeAddr,
 	L1TrustRPC,
 	L1RPCProviderKind,
+	Detached,
 }
 
 func init() {
@@ -117,6 +123,9 @@ func CheckRequired(ctx *cli.Context) error {
 	}
 	if rollupConfig != "" && network != "" {
 		return fmt.Errorf("cannot specify both %s and %s", RollupConfig.Name, Network.Name)
+	}
+	if network == "" && ctx.GlobalString(L2GenesisPath.Name) == "" {
+		return fmt.Errorf("flag %s is required for custom networks", L2GenesisPath.Name)
 	}
 	for _, flag := range requiredFlags {
 		if !ctx.IsSet(flag.GetName()) {

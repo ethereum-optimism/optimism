@@ -49,6 +49,8 @@ type Config struct {
 	L2ClaimBlockNumber uint64
 	// L2ChainConfig is the op-geth chain config for the L2 execution engine
 	L2ChainConfig *params.ChainConfig
+	// Detached indicates that the program runs as a separate process
+	Detached bool
 }
 
 func (c *Config) Check() error {
@@ -121,7 +123,16 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 		return nil, ErrInvalidL1Head
 	}
 	l2GenesisPath := ctx.GlobalString(flags.L2GenesisPath.Name)
-	l2ChainConfig, err := loadChainConfigFromGenesis(l2GenesisPath)
+	var l2ChainConfig *params.ChainConfig
+	if l2GenesisPath == "" {
+		networkName := ctx.GlobalString(flags.Network.Name)
+		l2ChainConfig = L2ChainConfigsByName[networkName]
+		if l2ChainConfig == nil {
+			return nil, fmt.Errorf("flag %s is required for network %s", flags.L2GenesisPath.Name, networkName)
+		}
+	} else {
+		l2ChainConfig, err = loadChainConfigFromGenesis(l2GenesisPath)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("invalid genesis: %w", err)
 	}
@@ -137,6 +148,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 		L1URL:              ctx.GlobalString(flags.L1NodeAddr.Name),
 		L1TrustRPC:         ctx.GlobalBool(flags.L1TrustRPC.Name),
 		L1RPCKind:          sources.RPCProviderKind(ctx.GlobalString(flags.L1RPCProviderKind.Name)),
+		Detached:           ctx.GlobalBool(flags.Detached.Name),
 	}, nil
 }
 
