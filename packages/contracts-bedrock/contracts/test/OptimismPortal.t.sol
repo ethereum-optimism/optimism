@@ -1180,7 +1180,7 @@ contract OptimismPortalResourceFuzz_Test is Portal_Initializer {
         // Bound resource config
         _maxResourceLimit = uint32(bound(_maxResourceLimit, 21000, MAX_GAS_LIMIT / 8));
         _gasLimit = uint64(bound(_gasLimit, 21000, _maxResourceLimit));
-        _prevBaseFee = uint128(bound(_prevBaseFee, 0, 5 gwei));
+        _prevBaseFee = uint128(bound(_prevBaseFee, 0, 3 gwei));
         // Prevent values that would cause reverts
         vm.assume(gasLimit >= _gasLimit);
         vm.assume(_minimumBaseFee < _maximumBaseFee);

@@ -33,16 +33,16 @@ contract CrossDomainMessengerLegacySpacer0 {
 contract CrossDomainMessengerLegacySpacer1 {
     /**
      * @custom:legacy
-     * @custom:spacer __gap
+     * @custom:spacer ContextUpgradable's __gap
      * @notice Spacer for backwards compatibility. Comes from OpenZeppelin
-     *         ContextUpgradable via OwnableUpgradeable.
+     *         ContextUpgradable.
      *
      */
     uint256[50] private spacer_1_0_1600;
 
     /**
      * @custom:legacy
-     * @custom:spacer _owner
+     * @custom:spacer OwnableUpgradeable's _owner
      * @notice Spacer for backwards compatibility.
      *         Come from OpenZeppelin OwnableUpgradeable.
      */
@@ -50,15 +50,15 @@ contract CrossDomainMessengerLegacySpacer1 {
 
     /**
      * @custom:legacy
-     * @custom:spacer __gap
+     * @custom:spacer OwnableUpgradeable's __gap
      * @notice Spacer for backwards compatibility. Comes from OpenZeppelin
-     *         ContextUpgradable via PausableUpgradable.
+     *         OwnableUpgradeable.
      */
     uint256[49] private spacer_52_0_1568;
 
     /**
      * @custom:legacy
-     * @custom:spacer _paused
+     * @custom:spacer PausableUpgradable's _paused
      * @notice Spacer for backwards compatibility. Comes from OpenZeppelin
      *         PausableUpgradable.
      */
@@ -66,7 +66,7 @@ contract CrossDomainMessengerLegacySpacer1 {
 
     /**
      * @custom:legacy
-     * @custom:spacer __gap
+     * @custom:spacer PausableUpgradable's __gap
      * @notice Spacer for backwards compatibility. Comes from OpenZeppelin
      *         PausableUpgradable.
      */
@@ -75,15 +75,16 @@ contract CrossDomainMessengerLegacySpacer1 {
     /**
      * @custom:legacy
      * @custom:spacer ReentrancyGuardUpgradeable's `_status` field.
-     * @notice Spacer for backwards compatibility
+     * @notice Spacer for backwards compatibility.
      */
     uint256 private spacer_151_0_32;
 
     /**
-     * @custom:spacer ReentrancyGuardUpgradeable
-     * @notice Spacer for backwards compatibility
+     * @custom:legacy
+     * @custom:spacer ReentrancyGuardUpgradeable's __gap
+     * @notice Spacer for backwards compatibility.
      */
-    uint256[49] private __gap_reentrancy_guard;
+    uint256[49] private spacer_152_0_1568;
 
     /**
      * @custom:legacy
