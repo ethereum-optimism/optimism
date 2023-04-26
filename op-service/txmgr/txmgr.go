@@ -115,27 +115,27 @@ func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLI
 		return nil, err
 	}
 
-   var nid [8]byte
+	var nid [8]byte
 
-   if cfg.NamespaceId == "" {
-       return nil, errors.New("namespace id cannot be blank")
-   }
-   namespaceId, err := hex.DecodeString(cfg.NamespaceId)
-   if err != nil {
-       return nil, err
-   }
-   copy(nid[:], namespaceId)
+	if cfg.NamespaceId == "" {
+		return nil, errors.New("namespace id cannot be blank")
+	}
+	namespaceId, err := hex.DecodeString(cfg.NamespaceId)
+	if err != nil {
+		return nil, err
+	}
+	copy(nid[:], namespaceId)
 
 	return &SimpleTxManager{
-		chainID: conf.ChainID,
-		name:    name,
-		cfg:     conf,
-		daClient: daClient,
+		chainID:     conf.ChainID,
+		name:        name,
+		cfg:         conf,
+		daClient:    daClient,
 		namespaceId: nid,
-		backend: conf.Backend,
-		l:       l.New("service", name),
-		metr:    m,
-		resetC:  make(chan struct{}),
+		backend:     conf.Backend,
+		l:           l.New("service", name),
+		metr:        m,
+		resetC:      make(chan struct{}),
 	}, nil
 }
 
@@ -218,9 +218,9 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 		m.l.Warn("unable to publish tx to celestia", "err", err)
 		return nil, err
 	}
+	fmt.Printf("res: %v\n", res)
 
 	height := res.Height
-	fmt.Printf("res.Height: %v, res.Logs: %v\n", res.Height, res.Logs)
 
 	// FIXME: needs to be tx index / share index?
 	index := uint32(0) // res.Logs[0].MsgIndex
@@ -243,6 +243,7 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 
 	serialized := buf.Bytes()
 	tx, err := m.craftTx(ctx, TxCandidate{TxData: serialized, To: candidate.To, GasLimit: candidate.GasLimit})
+	fmt.Printf("TxData: %v\n", serialized)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the tx: %w", err)
