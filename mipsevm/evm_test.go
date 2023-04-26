@@ -9,6 +9,7 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -158,6 +159,7 @@ func TestMinimalEVM(t *testing.T) {
 	//env.Config.Tracer = logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
 	env.Config.Tracer = mipsSrcMap.Tracer(os.Stdout)
 
+	start := time.Now()
 	for i := 0; i < 400_000; i++ {
 		if us.state.Exited {
 			break
@@ -192,6 +194,9 @@ func TestMinimalEVM(t *testing.T) {
 		require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
 			"unicorn produced different state than EVM")
 	}
+	end := time.Now()
+	delta := end.Sub(start)
+	t.Logf("test took %s, %d instructions, %s per instruction", delta, state.Step, delta/time.Duration(state.Step))
 
 	require.True(t, state.Exited, "must complete program")
 	require.Equal(t, uint8(0), state.ExitCode, "exit with 0")
