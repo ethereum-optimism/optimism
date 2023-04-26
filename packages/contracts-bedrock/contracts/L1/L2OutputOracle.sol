@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
-import { IBondManager } from "../universal/IBondManager.sol";
+import { IBondManager } from "@dispute/interfaces/IBondManager.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
 import { Semver } from "../universal/Semver.sol";
 import { Types } from "../libraries/Types.sol";
@@ -53,32 +53,15 @@ contract L2OutputOracle is Initializable, Semver {
     uint256 public startingTimestamp;
 
     /**
-     * @notice Highest L2 block number that has been proposed.
-     */
-    uint256 public highestL2BlockNumber;
-
-    /**
      * @notice Map of L2 output proposals.
      */
-    mapping(uint256 => Types.OutputProposal) internal l2Outputs;
+    Types.OutputProposal[] internal l2Outputs;
 
     /**
-     * @notice Map of bonds that can be claimed once finalized.
-     * @notice If the address is address(0), the bond has been seized.
+     * @notice Map of l2 block numbers to their index.
+     * @dev Note that the `Types.OutputProposal` at the given index may be zeroed out if deleted.
      */
-    mapping(uint256 => address) internal bonds;
-
-    /**
-     * @notice Linked list of previous highest block numbers.
-     * @dev This maps a block number to the previous highest L2 block number.
-     */
-    mapping(uint256 => uint256) internal previousBlockNumber;
-
-    /**
-     * @notice Linked list of next highest block numbers.
-     * @dev This maps a block number to the next highest L2 block number.
-     */
-    mapping(uint256 => uint256) internal nextBlockNumber;
+    mapping(uint256 => uint256) internal l2OutputIndices;
 
     /**
      * @notice Emitted when an output is proposed.
@@ -97,10 +80,10 @@ contract L2OutputOracle is Initializable, Semver {
      * @notice Emitted when outputs are deleted.
      * @notice This keeps backwards-compatibility with the L2OutputOracle.
      *
-     * @param prevNextOutputNumber Next L2 output block number before the deletion.
-     * @param newNextOutputNumber  Next L2 output block number after the deletion.
+     * @param prevNextOutputIndex Next output index before the deletion.
+     * @param newNextOutputIndex  Next output index after the deletion.
      */
-    event OutputsDeleted(uint256 indexed prevNextOutputNumber, uint256 indexed newNextOutputNumber);
+    event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
 
     /**
      * @custom:semver 2.0.0
@@ -157,34 +140,24 @@ contract L2OutputOracle is Initializable, Semver {
     // solhint-disable-next-line ordering
     function deleteL2Output(uint256 _l2BlockNumber) external {
         require(
+            // TODO: The challenger here should be the dispute game factory.
+            // TODO: the dispute games themselves could then call through the factory to delete their rootClaim.
             msg.sender == CHALLENGER,
             "L2OutputOracle: only the challenger address can delete an output"
         );
 
         // Do not allow deleting any outputs that have already been finalized.
+        uint256 index = l2OutputIndices[_l2BlockNumber];
         require(
-            block.timestamp - l2Outputs[_l2BlockNumber].timestamp < FINALIZATION_PERIOD_SECONDS,
+            block.timestamp - l2Outputs[index].timestamp < FINALIZATION_PERIOD_SECONDS,
             "L2OutputOracle: cannot delete outputs that have already been finalized"
         );
 
-        // Join the linked list
-        uint256 nextL2Block = nextBlockNumber[_l2BlockNumber];
-        uint256 prevL2Block = previousBlockNumber[_l2BlockNumber];
-        previousBlockNumber[nextL2Block] = prevL2Block;
-        nextBlockNumber[prevL2Block] = nextL2Block;
-        delete nextBlockNumber[_l2BlockNumber];
-        delete previousBlockNumber[_l2BlockNumber];
+        // Delete the output root
+        delete l2Outputs[index];
 
-        // Retrieve the previous high L2 block number
-        if (_l2BlockNumber == highestL2BlockNumber) {
-            highestL2BlockNumber = prevL2Block;
-        }
-
-        // Remove the associated output state
-        delete l2Outputs[_l2BlockNumber];
-        delete bonds[_l2BlockNumber];
-
-        emit OutputsDeleted(nextL2Block, _l2BlockNumber);
+        uint256 len = l2Outputs.length;
+        emit OutputsDeleted(len, len);
     }
 
     /**
@@ -207,13 +180,8 @@ contract L2OutputOracle is Initializable, Semver {
         );
 
         require(
-            l2Outputs[_l2BlockNumber].timestamp == 0,
+            l2Outputs[l2OutputIndices[_l2BlockNumber]].timestamp == 0,
             "L2OutputOracle: output already proposed"
-        );
-
-        require(
-            bonds[_l2BlockNumber] == address(0),
-            "L2OutputOracle: bond already posted for this output"
         );
 
         require(
@@ -241,38 +209,17 @@ contract L2OutputOracle is Initializable, Semver {
             );
         }
 
-        // Get the L2 block number for which we have an output proposal just before this block
-        // Need to walk backwards in the doubly linked list
-        uint256 prevBlockNum = highestL2BlockNumber;
-        while (prevBlockNum > _l2BlockNumber) {
-            prevBlockNum = previousBlockNumber[prevBlockNum];
-        }
-
-        // Insert the block by placing in the doubly linked list
-        uint256 updatePrevNext = nextBlockNumber[prevBlockNum];
-        if (updatePrevNext != 0) {
-            previousBlockNumber[updatePrevNext] = _l2BlockNumber;
-        }
-        nextBlockNumber[prevBlockNum] = _l2BlockNumber;
-        nextBlockNumber[_l2BlockNumber] = updatePrevNext;
-        previousBlockNumber[_l2BlockNumber] = prevBlockNum;
-
-        // Update the highest L2 block number if necessary.
-        if (_l2BlockNumber > highestL2BlockNumber) {
-            highestL2BlockNumber = _l2BlockNumber;
-        }
-
         // Post the bond to the bond manager
-        uint256 minClaimHold = 10 days;
-        BOND_MANAGER.post{ value: msg.value }(keccak256(abi.encode(_l2BlockNumber)), msg.sender, minClaimHold);
-        bonds[_l2BlockNumber] = msg.sender;
+        BOND_MANAGER.post{ value: msg.value }(keccak256(abi.encode(_l2BlockNumber)), msg.sender, uint64(10 days));
 
-        // Set the output
-        l2Outputs[_l2BlockNumber] = Types.OutputProposal({
-            outputRoot: _outputRoot,
-            timestamp: uint128(block.timestamp),
-            l2BlockNumber: uint128(_l2BlockNumber)
-        });
+        l2Outputs.push(
+            Types.OutputProposal({
+                outputRoot: _outputRoot,
+                timestamp: uint128(block.timestamp),
+                l2BlockNumber: uint128(_l2BlockNumber)
+            })
+        );
+        l2OutputIndices[_l2BlockNumber] = l2Outputs.length - 1;
 
         emit OutputProposed(_outputRoot, _l2BlockNumber, block.timestamp);
     }
@@ -289,23 +236,11 @@ contract L2OutputOracle is Initializable, Semver {
         view
         returns (Types.OutputProposal memory)
     {
-        return l2Outputs[_l2BlockNumber];
+        return l2Outputs[l2OutputIndices[_l2BlockNumber]];
     }
 
     /**
-     * @notice Returns the proposer for a given L2 block number.
-     *
-     * @param _l2BlockNumber L2 block number of the output.
-     *
-     * @return The address that proposed the given output at an L2 block number.
-     */
-    function getProposer(uint256 _l2BlockNumber) external view returns (address) {
-        return bonds[_l2BlockNumber];
-    }
-
-    /**
-     * @notice Returns the L2 output proposal that checkpoints a given L2 block number. Uses a
-     *         binary search to find the first output greater than or equal to the given block.
+     * @notice Returns the L2 output proposal that checkpoints a given L2 block number.
      *
      * @param _l2BlockNumber L2 block number to find a checkpoint for.
      *
@@ -316,23 +251,45 @@ contract L2OutputOracle is Initializable, Semver {
         view
         returns (Types.OutputProposal memory)
     {
+        uint256 nextIndex = l2OutputIndices[_l2BlockNumber] + 1;
+        Types.OutputProposal memory proposal = l2Outputs[nextIndex];
         require(
-            _l2BlockNumber <= highestL2BlockNumber,
+            proposal.l2BlockNumber > _l2BlockNumber,
             "L2OutputOracle: cannot get output for block number that has not been proposed"
         );
+        return proposal;
+    }
 
-        uint256 l2BlockNumber = _l2BlockNumber;
-        Types.OutputProposal memory proposal = l2Outputs[l2BlockNumber];
-        while (proposal.timestamp == 0) {
-            l2BlockNumber++;
-            proposal = l2Outputs[l2BlockNumber];
-            require(
-                l2BlockNumber <= highestL2BlockNumber,
-                "L2OutputOracle: cannot get output for block number that has not been proposed"
-            );
-        }
+    /**
+     * @notice Returns the number of outputs that have been proposed. Will revert if no outputs
+     *         have been proposed yet.
+     *
+     * @return The number of outputs that have been proposed.
+     */
+    function latestOutputIndex() external view returns (uint256) {
+        return l2Outputs.length - 1;
+    }
 
-        return l2Outputs[l2BlockNumber];
+    /**
+     * @notice Returns the index of the next output to be proposed.
+     *
+     * @return The index of the next output to be proposed.
+     */
+    function nextOutputIndex() public view returns (uint256) {
+        return l2Outputs.length;
+    }
+
+    /**
+     * @notice Returns the block number of the latest submitted L2 output proposal. If no proposals
+     *         been submitted yet then this function will return the starting block number.
+     *
+     * @return Latest submitted L2 block number.
+     */
+    function latestBlockNumber() public view returns (uint256) {
+        return
+            l2Outputs.length == 0
+                ? startingBlockNumber
+                : l2Outputs[l2Outputs.length - 1].l2BlockNumber;
     }
 
     /**
