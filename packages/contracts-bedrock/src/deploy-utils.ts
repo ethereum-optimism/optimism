@@ -366,12 +366,11 @@ export const liveDeployer = async (opts: {
   hre: HardhatRuntimeEnvironment
   disabled: string | undefined
 }): Promise<boolean> => {
-  let ret: boolean
   if (!!opts.disabled) {
-    ret = false
+    return false
   }
   const { deployer } = await opts.hre.getNamedAccounts()
-  ret =
+  const ret =
     deployer.toLowerCase() === opts.hre.deployConfig.controller.toLowerCase()
   console.log('Setting live deployer to', ret)
   return ret
