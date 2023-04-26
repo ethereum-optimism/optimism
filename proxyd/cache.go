@@ -12,6 +12,7 @@ import (
 type Cache interface {
 	Get(ctx context.Context, key string) (string, error)
 	Put(ctx context.Context, key string, value string) error
+	Clear(ctx context.Context) error
 }
 
 const (
@@ -39,6 +40,11 @@ func (c *cache) Get(ctx context.Context, key string) (string, error) {
 
 func (c *cache) Put(ctx context.Context, key string, value string) error {
 	c.lru.Add(key, value)
+	return nil
+}
+
+func (c *cache) Clear(ctx context.Context) error {
+	c.lru.Purge()
 	return nil
 }
 
@@ -75,6 +81,29 @@ func (c *redisCache) Put(ctx context.Context, key string, value string) error {
 	return err
 }
 
+func (c *redisCache) Clear(ctx context.Context) error {
+	patterns := []string{"lvc:*", "method:*"}
+
+	for _, p := range patterns {
+		scmd := c.rdb.Keys(ctx, p)
+		err := scmd.Err()
+		if err != nil {
+			RecordRedisError("CacheClear")
+			return err
+		}
+		keys, _ := scmd.Result()
+
+		icmd := c.rdb.Del(ctx, keys...)
+		err = icmd.Err()
+		if err != nil {
+			RecordRedisError("CacheClear")
+			return err
+		}
+	}
+
+	return nil
+}
+
 type cacheWithCompression struct {
 	cache Cache
 }
@@ -101,6 +130,10 @@ func (c *cacheWithCompression) Get(ctx context.Context, key string) (string, err
 func (c *cacheWithCompression) Put(ctx context.Context, key string, value string) error {
 	encodedVal := snappy.Encode(nil, []byte(value))
 	return c.cache.Put(ctx, key, string(encodedVal))
+}
+
+func (c *cacheWithCompression) Clear(ctx context.Context) error {
+	return c.cache.Clear(ctx)
 }
 
 type GetLatestBlockNumFn func(ctx context.Context) (uint64, error)
