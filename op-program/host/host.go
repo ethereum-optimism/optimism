@@ -36,11 +36,6 @@ func RunningProgramInClient() bool {
 
 // FaultProofProgram is the programmatic entry-point for the fault proof program
 func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
-	if RunningProgramInClient() {
-		cl.Main(logger)
-		panic("Client main should have exited process")
-	}
-
 	if err := cfg.Check(); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
@@ -102,7 +97,7 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 
 	var cmd *exec.Cmd
 	if cfg.Detached {
-		cmd = exec.CommandContext(ctx, os.Args[0], os.Args[1:]...)
+		cmd = exec.CommandContext(ctx, os.Args[0])
 		cmd.ExtraFiles = make([]*os.File, cl.MaxFd-3) // not including stdin, stdout and stderr
 		cmd.ExtraFiles[cl.HClientRFd-3] = hClientRW.Reader()
 		cmd.ExtraFiles[cl.HClientWFd-3] = hClientRW.Writer()

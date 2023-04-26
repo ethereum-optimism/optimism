@@ -26,11 +26,14 @@ func Main(logger log.Logger) {
 	log.Info("Starting fault proof program client")
 	preimageOracle := CreatePreimageChannel()
 	preimageHinter := CreateHinterChannel()
-	err := RunProgram(logger, preimageOracle, preimageHinter)
-	if err != nil {
-		log.Error("Program failed", "err", err)
+	if err := RunProgram(logger, preimageOracle, preimageHinter); errors.Is(err, cldr.ErrClaimNotValid) {
+		log.Error("Claim is invalid", "err", err)
 		os.Exit(1)
+	} else if err != nil {
+		log.Error("Program failed", "err", err)
+		os.Exit(2)
 	} else {
+		log.Info("Claim successfully verified")
 		os.Exit(0)
 	}
 }
