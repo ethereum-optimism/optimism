@@ -493,7 +493,7 @@ export const doPhase = async (opts: {
   let tx
   if (opts.args.length > 0) {
     tx = await opts.SystemDictator.populateTransaction[`phase${opts.phase}`](
-      opts.args
+      ...opts.args
     )
   } else {
     tx = await opts.SystemDictator.populateTransaction[`phase${opts.phase}`]()
