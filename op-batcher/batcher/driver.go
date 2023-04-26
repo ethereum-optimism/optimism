@@ -75,13 +75,14 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 	}
 
 	batcherCfg := Config{
-		L1Client:       l1Client,
-		L2Client:       l2Client,
-		RollupNode:     rollupClient,
-		PollInterval:   cfg.PollInterval,
-		NetworkTimeout: cfg.TxMgrConfig.NetworkTimeout,
-		TxManager:      txManager,
-		Rollup:         rcfg,
+		L1Client:               l1Client,
+		L2Client:               l2Client,
+		RollupNode:             rollupClient,
+		PollInterval:           cfg.PollInterval,
+		MaxPendingTransactions: cfg.MaxPendingTransactions,
+		NetworkTimeout:         cfg.TxMgrConfig.NetworkTimeout,
+		TxManager:              txManager,
+		Rollup:                 rcfg,
 		Channel: ChannelConfig{
 			SeqWindowSize:      rcfg.SeqWindowSize,
 			ChannelTimeout:     rcfg.ChannelTimeout,
@@ -286,13 +287,23 @@ func (l *BatchSubmitter) loop() {
 
 	ticker := time.NewTicker(l.PollInterval)
 	defer ticker.Stop()
+
+	receiptsCh := make(chan txmgr.TxReceipt[txData])
+	queue := txmgr.NewQueue[txData](l.killCtx, l.txMgr, l.MaxPendingTransactions)
+
 	for {
 		select {
 		case <-ticker.C:
 			l.loadBlocksIntoState(l.shutdownCtx)
-			l.publishStateToL1(l.killCtx)
+			l.publishStateToL1(queue, receiptsCh, false)
+		case r := <-receiptsCh:
+			l.handleReceipt(r)
 		case <-l.shutdownCtx.Done():
-			l.publishStateToL1(l.killCtx)
+			err := l.state.Close()
+			if err != nil {
+				l.log.Error("error closing the channel manager", "err", err)
+			}
+			l.publishStateToL1(queue, receiptsCh, true)
 			return
 		}
 	}
@@ -300,70 +311,90 @@ func (l *BatchSubmitter) loop() {
 
 // publishStateToL1 loops through the block data loaded into `state` and
 // submits the associated data to the L1 in the form of channel frames.
-func (l *BatchSubmitter) publishStateToL1(ctx context.Context) {
-	for {
-		// Attempt to gracefully terminate the current channel, ensuring that no new frames will be
-		// produced. Any remaining frames must still be published to the L1 to prevent stalling.
-		select {
-		case <-ctx.Done():
-			err := l.state.Close()
-			if err != nil {
-				l.log.Error("error closing the channel manager", "err", err)
+func (l *BatchSubmitter) publishStateToL1(queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData], drain bool) {
+	txDone := make(chan struct{})
+	// send/wait and receipt reading must be on a separate goroutines to avoid deadlocks
+	go func() {
+		defer func() {
+			if drain {
+				// if draining, we wait for all transactions to complete
+				queue.Wait()
 			}
-		case <-l.shutdownCtx.Done():
-			err := l.state.Close()
+			close(txDone)
+		}()
+		for {
+			err := l.publishTxToL1(l.killCtx, queue, receiptsCh)
 			if err != nil {
-				l.log.Error("error closing the channel manager", "err", err)
+				if drain && err != io.EOF {
+					l.log.Error("error sending tx while draining state", "err", err)
+				}
+				return
 			}
-		default:
 		}
+	}()
 
-		l1tip, err := l.l1Tip(ctx)
-		if err != nil {
-			l.log.Error("Failed to query L1 tip", "error", err)
+	for {
+		select {
+		case r := <-receiptsCh:
+			l.handleReceipt(r)
+		case <-txDone:
 			return
 		}
-		l.recordL1Tip(l1tip)
-
-		// Collect next transaction data
-		txdata, err := l.state.TxData(l1tip.ID())
-		if err == io.EOF {
-			l.log.Trace("no transaction data available")
-			break
-		} else if err != nil {
-			l.log.Error("unable to get tx data", "err", err)
-			break
-		}
-		// Record TX Status
-		if receipt, err := l.sendTransaction(ctx, txdata.Bytes()); err != nil {
-			l.recordFailedTx(txdata.ID(), err)
-		} else {
-			l.recordConfirmedTx(txdata.ID(), receipt)
-		}
 	}
+}
+
+// publishTxToL1 submits a single state tx to the L1
+func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) error {
+	// send all available transactions
+	l1tip, err := l.l1Tip(ctx)
+	if err != nil {
+		l.log.Error("Failed to query L1 tip", "error", err)
+		return err
+	}
+	l.recordL1Tip(l1tip)
+
+	// Collect next transaction data
+	txdata, err := l.state.TxData(l1tip.ID())
+	if err == io.EOF {
+		l.log.Trace("no transaction data available")
+		return err
+	} else if err != nil {
+		l.log.Error("unable to get tx data", "err", err)
+		return err
+	}
+
+	l.sendTransaction(txdata, queue, receiptsCh)
+	return nil
 }
 
 // sendTransaction creates & submits a transaction to the batch inbox address with the given `data`.
 // It currently uses the underlying `txmgr` to handle transaction sending & price management.
 // This is a blocking method. It should not be called concurrently.
-func (l *BatchSubmitter) sendTransaction(ctx context.Context, data []byte) (*types.Receipt, error) {
+func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) {
 	// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
+	data := txdata.Bytes()
 	intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
+		l.log.Error("Failed to calculate intrinsic gas", "error", err)
+		return
 	}
 
-	// Send the transaction through the txmgr
-	if receipt, err := l.txMgr.Send(ctx, txmgr.TxCandidate{
+	candidate := txmgr.TxCandidate{
 		To:       &l.Rollup.BatchInboxAddress,
 		TxData:   data,
 		GasLimit: intrinsicGas,
-	}); err != nil {
-		l.log.Warn("unable to publish tx", "err", err, "data_size", len(data))
-		return nil, err
+	}
+	queue.Send(txdata, candidate, receiptsCh)
+}
+
+func (l *BatchSubmitter) handleReceipt(r txmgr.TxReceipt[txData]) {
+	// Record TX Status
+	if r.Err != nil {
+		l.log.Warn("unable to publish tx", "err", r.Err, "data_size", r.ID.Len())
+		l.recordFailedTx(r.ID.ID(), r.Err)
 	} else {
-		l.log.Info("tx successfully published", "tx_hash", receipt.TxHash, "data_size", len(data))
-		return receipt, nil
+		l.log.Info("tx successfully published", "tx_hash", r.Receipt.TxHash, "data_size", r.ID.Len())
+		l.recordConfirmedTx(r.ID.ID(), r.Receipt)
 	}
 }
 

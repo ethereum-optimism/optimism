@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/util"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -933,14 +934,12 @@ func createOutput(
 		LatestBlockhash:          header.Hash(),
 	}
 
-	// TODO(mark): import the function from `op-node` to compute the hash
-	// instead of doing this. Will update when testing against mainnet.
-	localOutputRootHash := crypto.Keccak256Hash(
-		outputRootProof.Version[:],
-		outputRootProof.StateRoot[:],
-		outputRootProof.MessagePasserStorageRoot[:],
-		outputRootProof.LatestBlockhash[:],
-	)
+	// Compute the output root locally
+	l2OutputRoot, err := rollup.ComputeL2OutputRoot(&outputRootProof)
+	localOutputRootHash := common.Hash(l2OutputRoot)
+	if err != nil {
+		return nil, bindings.TypesOutputRootProof{}, nil, err
+	}
 
 	// ensure that the locally computed hash matches
 	if l2Output.OutputRoot != localOutputRootHash {

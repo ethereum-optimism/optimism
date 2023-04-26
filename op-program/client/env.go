@@ -6,6 +6,5 @@ const (
 	HClientWFd
 	PClientRFd
 	PClientWFd
-	BootRFd // TODO(CLI-3751): remove
 	MaxFd
 )

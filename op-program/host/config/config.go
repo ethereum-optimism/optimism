@@ -123,7 +123,16 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 		return nil, ErrInvalidL1Head
 	}
 	l2GenesisPath := ctx.GlobalString(flags.L2GenesisPath.Name)
-	l2ChainConfig, err := loadChainConfigFromGenesis(l2GenesisPath)
+	var l2ChainConfig *params.ChainConfig
+	if l2GenesisPath == "" {
+		networkName := ctx.GlobalString(flags.Network.Name)
+		l2ChainConfig = L2ChainConfigsByName[networkName]
+		if l2ChainConfig == nil {
+			return nil, fmt.Errorf("flag %s is required for network %s", flags.L2GenesisPath.Name, networkName)
+		}
+	} else {
+		l2ChainConfig, err = loadChainConfigFromGenesis(l2GenesisPath)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("invalid genesis: %w", err)
 	}

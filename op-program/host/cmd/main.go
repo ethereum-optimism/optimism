@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	cl "github.com/ethereum-optimism/optimism/op-program/client"
 	"github.com/ethereum-optimism/optimism/op-program/client/driver"
 	"github.com/ethereum-optimism/optimism/op-program/host"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
@@ -36,6 +37,11 @@ var VersionWithMeta = func() string {
 }()
 
 func main() {
+	if host.RunningProgramInClient() {
+		logger := oplog.NewLogger(oplog.DefaultCLIConfig())
+		cl.Main(logger)
+		panic("Client main should have exited process")
+	}
 	args := os.Args
 	if err := run(args, host.FaultProofProgram); errors.Is(err, driver.ErrClaimNotValid) {
 		log.Crit("Claim is invalid", "err", err)

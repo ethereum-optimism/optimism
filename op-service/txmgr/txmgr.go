@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"math/big"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -38,7 +38,7 @@ type TxManager interface {
 	// It can be stopped by cancelling the provided context; however, the transaction
 	// may be included on L1 even if the context is cancelled.
 	//
-	// NOTE: Send should be called by AT MOST one caller at a time.
+	// NOTE: Send can be called concurrently, the nonce will be managed internally.
 	Send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error)
 
 	// From returns the sending address associated with the instance of the transaction manager.
@@ -84,6 +84,11 @@ type SimpleTxManager struct {
 	backend ETHBackend
 	l       log.Logger
 	metr    metrics.TxMetricer
+
+	nonce     *uint64
+	nonceLock sync.RWMutex
+
+	pending atomic.Int64
 }
 
 // NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
@@ -126,8 +131,21 @@ type TxCandidate struct {
 // The transaction manager handles all signing. If and only if the gas limit is 0, the
 // transaction manager will do a gas estimation.
 //
-// NOTE: Send should be called by AT MOST one caller at a time.
+// NOTE: Send can be called concurrently, the nonce will be managed internally.
 func (m *SimpleTxManager) Send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error) {
+	m.metr.RecordPendingTx(m.pending.Add(1))
+	defer func() {
+		m.metr.RecordPendingTx(m.pending.Add(-1))
+	}()
+	receipt, err := m.send(ctx, candidate)
+	if err != nil {
+		m.resetNonce()
+	}
+	return receipt, err
+}
+
+// send performs the actual transaction creation and sending.
+func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error) {
 	if m.cfg.TxSendTimeout != 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, m.cfg.TxSendTimeout)
@@ -137,7 +155,7 @@ func (m *SimpleTxManager) Send(ctx context.Context, candidate TxCandidate) (*typ
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the tx: %w", err)
 	}
-	return m.send(ctx, tx)
+	return m.sendTx(ctx, tx)
 }
 
 // craftTx creates the signed transaction
@@ -153,15 +171,10 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 	}
 	gasFeeCap := calcGasFeeCap(basefee, gasTipCap)
 
-	// Fetch the sender's nonce from the latest known block (nil `blockNumber`)
-	childCtx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
-	defer cancel()
-	nonce, err := m.backend.NonceAt(childCtx, m.cfg.From, nil)
+	nonce, err := m.nextNonce(ctx)
 	if err != nil {
-		m.metr.RPCError()
-		return nil, fmt.Errorf("failed to get nonce: %w", err)
+		return nil, err
 	}
-	m.metr.RecordNonce(nonce)
 
 	rawTx := &types.DynamicFeeTx{
 		ChainID:   m.chainID,
@@ -192,14 +205,48 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		rawTx.Gas = gas
 	}
 
-	ctx, cancel = context.WithTimeout(ctx, m.cfg.NetworkTimeout)
+	ctx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
 	return m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
 }
 
+// nextNonce returns a nonce to use for the next transaction. It uses
+// eth_getTransactionCount with "latest" once, and then subsequent calls simply
+// increment this number. If the transaction manager is reset, it will query the
+// eth_getTransactionCount nonce again.
+func (m *SimpleTxManager) nextNonce(ctx context.Context) (uint64, error) {
+	m.nonceLock.Lock()
+	defer m.nonceLock.Unlock()
+
+	if m.nonce == nil {
+		// Fetch the sender's nonce from the latest known block (nil `blockNumber`)
+		childCtx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
+		defer cancel()
+		nonce, err := m.backend.NonceAt(childCtx, m.cfg.From, nil)
+		if err != nil {
+			m.metr.RPCError()
+			return 0, fmt.Errorf("failed to get nonce: %w", err)
+		}
+		m.nonce = &nonce
+	} else {
+		*m.nonce++
+	}
+
+	m.metr.RecordNonce(*m.nonce)
+	return *m.nonce, nil
+}
+
+// resetNonce resets the internal nonce tracking. This is called if any pending send
+// returns an error.
+func (m *SimpleTxManager) resetNonce() {
+	m.nonceLock.Lock()
+	defer m.nonceLock.Unlock()
+	m.nonce = nil
+}
+
 // send submits the same transaction several times with increasing gas prices as necessary.
 // It waits for the transaction to be confirmed on chain.
-func (m *SimpleTxManager) send(ctx context.Context, tx *types.Transaction) (*types.Receipt, error) {
+func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*types.Receipt, error) {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 	ctx, cancel := context.WithCancel(ctx)

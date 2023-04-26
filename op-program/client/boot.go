@@ -3,70 +3,65 @@ package client
 import (
 	"encoding/binary"
 	"encoding/json"
-	"fmt"
-	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-program/preimage"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 )
 
+const (
+	L1HeadLocalIndex preimage.LocalIndexKey = iota + 1
+	L2HeadLocalIndex
+	L2ClaimLocalIndex
+	L2ClaimBlockNumberLocalIndex
+	L2ChainConfigLocalIndex
+	RollupConfigLocalIndex
+)
+
 type BootInfo struct {
-	// TODO(CLI-XXX): The rollup config will be hardcoded. It's configurable for testing purposes.
-	Rollup             *rollup.Config      `json:"rollup"`
-	L2ChainConfig      *params.ChainConfig `json:"l2_chain_config"`
-	L1Head             common.Hash         `json:"l1_head"`
-	L2Head             common.Hash         `json:"l2_head"`
-	L2Claim            common.Hash         `json:"l2_claim"`
-	L2ClaimBlockNumber uint64              `json:"l2_claim_block_number"`
+	L1Head             common.Hash
+	L2Head             common.Hash
+	L2Claim            common.Hash
+	L2ClaimBlockNumber uint64
+	L2ChainConfig      *params.ChainConfig
+	RollupConfig       *rollup.Config
 }
 
-type BootstrapOracleWriter struct {
-	w io.Writer
+type oracleClient interface {
+	Get(key preimage.Key) []byte
 }
 
-func NewBootstrapOracleWriter(w io.Writer) *BootstrapOracleWriter {
-	return &BootstrapOracleWriter{w: w}
+type BootstrapClient struct {
+	r oracleClient
 }
 
-func (bw *BootstrapOracleWriter) WriteBootInfo(info *BootInfo) error {
-	// TODO(CLI-3751): Bootstrap from local oracle
-	payload, err := json.Marshal(info)
+func NewBootstrapClient(r oracleClient) *BootstrapClient {
+	return &BootstrapClient{r: r}
+}
+
+func (br *BootstrapClient) BootInfo() *BootInfo {
+	l1Head := common.BytesToHash(br.r.Get(L1HeadLocalIndex))
+	l2Head := common.BytesToHash(br.r.Get(L2HeadLocalIndex))
+	l2Claim := common.BytesToHash(br.r.Get(L2ClaimLocalIndex))
+	l2ClaimBlockNumber := binary.BigEndian.Uint64(br.r.Get(L2ClaimBlockNumberLocalIndex))
+	l2ChainConfig := new(params.ChainConfig)
+	err := json.Unmarshal(br.r.Get(L2ChainConfigLocalIndex), &l2ChainConfig)
 	if err != nil {
-		return err
+		panic("failed to bootstrap l2ChainConfig")
 	}
-	var b []byte
-	b = binary.BigEndian.AppendUint32(b, uint32(len(payload)))
-	b = append(b, payload...)
-	_, err = bw.w.Write(b)
-	return err
-}
+	rollupConfig := new(rollup.Config)
+	err = json.Unmarshal(br.r.Get(RollupConfigLocalIndex), rollupConfig)
+	if err != nil {
+		panic("failed to bootstrap rollup config")
+	}
 
-type BootstrapOracleReader struct {
-	r io.Reader
-}
-
-func NewBootstrapOracleReader(r io.Reader) *BootstrapOracleReader {
-	return &BootstrapOracleReader{r: r}
-}
-
-func (br *BootstrapOracleReader) BootInfo() (*BootInfo, error) {
-	var length uint32
-	if err := binary.Read(br.r, binary.BigEndian, &length); err != nil {
-		if err == io.EOF {
-			return nil, io.EOF
-		}
-		return nil, fmt.Errorf("failed to read bootinfo length prefix: %w", err)
+	return &BootInfo{
+		L1Head:             l1Head,
+		L2Head:             l2Head,
+		L2Claim:            l2Claim,
+		L2ClaimBlockNumber: l2ClaimBlockNumber,
+		L2ChainConfig:      l2ChainConfig,
+		RollupConfig:       rollupConfig,
 	}
-	payload := make([]byte, length)
-	if length > 0 {
-		if _, err := io.ReadFull(br.r, payload); err != nil {
-			return nil, fmt.Errorf("failed to read bootinfo data (length %d): %w", length, err)
-		}
-	}
-	var bootInfo BootInfo
-	if err := json.Unmarshal(payload, &bootInfo); err != nil {
-		return nil, err
-	}
-	return &bootInfo, nil
 }
