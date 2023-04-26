@@ -359,7 +359,7 @@ export const doOwnershipTransfer = async (opts: {
  * Check if the script should submit the transaction or wait for the deployer to do it manually.
  *
  * @param hre HardhatRuntimeEnvironment.
- * @param ovveride Allow m
+ * @param ovveride Allow manually disabling live transaction submission. Useful for testing.
  * @returns True if the current step is the target step.
  */
 export const liveDeployer = async (opts: {
@@ -367,6 +367,7 @@ export const liveDeployer = async (opts: {
   disabled: string | undefined
 }): Promise<boolean> => {
   if (!!opts.disabled) {
+    console.log('Setting live deployer to', false)
     return false
   }
   const { deployer } = await opts.hre.getNamedAccounts()
@@ -446,6 +447,7 @@ export const doStep = async (opts: {
     console.log(`Please execute step ${opts.step}...`)
     console.log(`MSD address: ${opts.SystemDictator.address}`)
     printJsonTransaction(tx)
+    printCastCommand(tx)
     await printTenderlySimulationLink(opts.SystemDictator.provider, tx)
   }
 
@@ -546,8 +548,12 @@ export const printTenderlySimulationLink = async (
  */
 export const printCastCommand = (tx: ethers.PopulatedTransaction): void => {
   if (process.env.CAST_COMMANDS) {
-    console.log(
-      `cast send ${tx.to} ${tx.data} --from ${tx.from} --value ${tx.value}`
-    )
+    if (!!tx.value && tx.value.gt(0)) {
+      console.log(
+        `cast send ${tx.to} ${tx.data} --from ${tx.from} --value ${tx.value}`
+      )
+    } else {
+      console.log(`cast send ${tx.to} ${tx.data} --from ${tx.from} `)
+    }
   }
 }
