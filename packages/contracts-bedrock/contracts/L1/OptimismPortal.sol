@@ -140,7 +140,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @custom:semver 1.4.0
+     * @custom:semver 1.6.0
      *
      * @param _l2Oracle                  Address of the L2OutputOracle contract.
      * @param _guardian                  Address that can pause deposits and withdrawals.
@@ -152,7 +152,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         address _guardian,
         bool _paused,
         SystemConfig _config
-    ) Semver(1, 4, 0) {
+    ) Semver(1, 6, 0) {
         L2_ORACLE = _l2Oracle;
         GUARDIAN = _guardian;
         SYSTEM_CONFIG = _config;
@@ -184,6 +184,17 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         require(msg.sender == GUARDIAN, "OptimismPortal: only guardian can unpause");
         paused = false;
         emit Unpaused(msg.sender);
+    }
+
+    /**
+     * @notice Computes the minimum gas limit for a deposit. The minimum gas limit
+     *         linearly increases based on the size of the calldata. This is to prevent
+     *         users from creating L2 resource usage without paying for it. This function
+     *         can be used when interacting with the portal to ensure forwards compatibility.
+     *
+     */
+    function minimumGasLimit(uint64 _byteCount) public pure returns (uint64) {
+        return _byteCount * 16 + 21000;
     }
 
     /**
@@ -436,8 +447,18 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
             );
         }
 
-        // Prevent depositing transactions that have too small of a gas limit.
-        require(_gasLimit >= 21_000, "OptimismPortal: gas limit must cover instrinsic gas cost");
+        // Prevent depositing transactions that have too small of a gas limit. Users should pay
+        // more for more resource usage.
+        require(
+            _gasLimit >= minimumGasLimit(uint64(_data.length)),
+            "OptimismPortal: gas limit too small"
+        );
+
+        // Prevent the creation of deposit transactions that have too much calldata. This gives an
+        // upper limit on the size of unsafe blocks over the p2p network. 120kb is chosen to ensure
+        // that the transaction can fit into the p2p network policy of 128kb even though deposit
+        // transactions are not gossipped over the p2p network.
+        require(_data.length <= 120_000, "OptimismPortal: data too large");
 
         // Transform the from-address to its alias if the caller is a contract.
         address from = msg.sender;
