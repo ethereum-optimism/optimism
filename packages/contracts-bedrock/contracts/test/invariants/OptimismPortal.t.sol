@@ -38,8 +38,8 @@ contract OptimismPortal_Invariant_Harness is Portal_Initializer {
             messagePasserStorageRoot: _storageRoot,
             latestBlockhash: bytes32(uint256(0))
         });
-        _proposedBlockNumber = oracle.highestL2BlockNumber();
-        _proposedOutputIndex = oracle.highestL2BlockNumber();
+        _proposedBlockNumber = oracle.startingBlockNumber();
+        _proposedOutputIndex = oracle.startingBlockNumber();
 
         // Configure the oracle to return the output root we've prepared.
         vm.warp(oracle.computeL2Timestamp(_proposedBlockNumber) + 1);

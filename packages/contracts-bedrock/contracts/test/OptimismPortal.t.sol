@@ -374,8 +374,8 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     function test_isOutputFinalized_succeeds() external {
-        uint256 checkpoint = oracle.highestL2BlockNumber();
-        uint256 nextOutputIndex = oracle.highestL2BlockNumber();
+        uint256 checkpoint = oracle.startingBlockNumber();
+        uint256 nextOutputIndex = oracle.startingBlockNumber();
         vm.roll(checkpoint);
         vm.warp(oracle.computeL2Timestamp(checkpoint) + 1);
         oracle.proposeL2Output(keccak256(abi.encode(2)), checkpoint, 0, 0);
@@ -434,8 +434,8 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
             messagePasserStorageRoot: _storageRoot,
             latestBlockhash: bytes32(uint256(0))
         });
-        _proposedBlockNumber = oracle.highestL2BlockNumber();
-        _proposedOutputIndex = oracle.highestL2BlockNumber();
+        _proposedBlockNumber = oracle.startingBlockNumber();
+        _proposedOutputIndex = oracle.startingBlockNumber();
     }
 
     // Get the system into a nice ready-to-use state.
@@ -618,7 +618,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         // Propose the same output root again, creating the same output at a different index + l2BlockNumber.
         op.L2_ORACLE().proposeL2Output(
             proposal.outputRoot,
-            op.L2_ORACLE().highestL2BlockNumber(),
+            op.L2_ORACLE().startingBlockNumber(),
             blockhash(block.number),
             block.number
         );

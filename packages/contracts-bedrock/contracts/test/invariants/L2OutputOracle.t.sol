@@ -57,6 +57,6 @@ contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is L2OutputOracle_In
      */
     function invariant_monotonicBlockNumIncrease() external {
         // Assert that the block number of proposals must monotonically increase.
-        assertTrue(oracle.highestL2BlockNumber() >= oracle.highestL2BlockNumber());
+        assertTrue(oracle.latestBlockNumber() >= oracle.startingBlockNumber());
     }
 }

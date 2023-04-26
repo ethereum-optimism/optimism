@@ -35,7 +35,6 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
     // Reusable default values for a test withdrawal
     Types.WithdrawalTransaction _defaultTx;
 
-    uint256 _proposedOutputIndex;
     uint256 _proposedBlockNumber;
     bytes[] _withdrawalProof;
     Types.OutputRootProof internal _outputRootProof;
@@ -66,8 +65,7 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
             messagePasserStorageRoot: _storageRoot,
             latestBlockhash: bytes32(uint256(0))
         });
-        _proposedBlockNumber = oracle.highestL2BlockNumber();
-        _proposedOutputIndex = oracle.highestL2BlockNumber();
+        _proposedBlockNumber = oracle.startingBlockNumber();
     }
 
     // Get the system into a nice ready-to-use state.
@@ -78,7 +76,7 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
 
         // Warp beyond the finalization period for the block we've proposed.
         vm.warp(
-            oracle.getL2Output(_proposedOutputIndex).timestamp +
+            oracle.getL2Output(_proposedBlockNumber).timestamp +
                 oracle.FINALIZATION_PERIOD_SECONDS() +
                 1
         );
@@ -111,7 +109,7 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
     function test_proveWithdrawalTransaction_benchmark() external {
         op.proveWithdrawalTransaction(
             _defaultTx,
-            _proposedOutputIndex,
+            _proposedBlockNumber,
             _outputRootProof,
             _withdrawalProof
         );
@@ -215,7 +213,7 @@ contract GasBenchMark_L2OutputOracle is L2OutputOracle_Initializer {
 
     function setUp() public override {
         super.setUp();
-        nextBlockNumber = oracle.highestL2BlockNumber() + 1;
+        nextBlockNumber = oracle.startingBlockNumber() + 1;
         warpToProposeTime(nextBlockNumber);
     }
 
