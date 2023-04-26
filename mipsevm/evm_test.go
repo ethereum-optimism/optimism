@@ -3,7 +3,6 @@ package mipsevm
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"math/big"
 	"os"
 	"path"
@@ -14,13 +13,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
-
-	uc "github.com/unicorn-engine/unicorn/bindings/go/unicorn"
 )
 
 func TestEVM(t *testing.T) {
-	t.Skip("work in progress memory proof")
-
 	testFiles, err := os.ReadDir("test/bin")
 	require.NoError(t, err)
 
@@ -63,32 +58,20 @@ func TestEVM(t *testing.T) {
 			require.NoError(t, mu.MemMap(baseAddrStart, ((baseAddrEnd-baseAddrStart)&^pageAddrMask)+pageSize))
 			require.NoError(t, mu.MemMap(endAddr&^pageAddrMask, pageSize))
 
-			al := &AccessList{mem: state.Memory}
-
 			err = LoadUnicorn(state, mu)
 			require.NoError(t, err, "load state into unicorn")
-			err = HookUnicorn(state, mu, os.Stdout, os.Stderr, al)
+
+			us, err := NewUnicornState(mu, state, os.Stdout, os.Stderr)
 			require.NoError(t, err, "hook unicorn to state")
 
-			var stateData []byte
-			var insn uint32
-			var pc uint32
-			var post []byte
-			preCode := func() {
-				insn = state.Memory.GetMemory(state.PC)
-				pc = state.PC
-				fmt.Printf("PRE - pc: %08x insn: %08x\n", pc, insn)
-				// remember the pre-state, to repeat it in the EVM during the post processing step
-				stateData = state.EncodeWitness()
-				if post != nil {
-					require.Equal(t, hexutil.Bytes(stateData).String(), hexutil.Bytes(post).String(),
-						"unicorn produced different state than EVM")
+			for i := 0; i < 1000; i++ {
+				if us.state.PC == endAddr {
+					break
 				}
-			}
-			postCode := func() {
-				fmt.Printf("POST - pc: %08x insn: %08x\n", pc, insn)
+				insn := state.Memory.GetMemory(state.PC)
+				t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
 
-				proofData := append([]byte(nil), al.proofData...)
+				stateData, proofData := us.Step(true)
 
 				stateHash := crypto.Keccak256Hash(stateData)
 				var input []byte
@@ -112,29 +95,19 @@ func TestEVM(t *testing.T) {
 				postHash := common.Hash(*(*[32]byte)(ret))
 				logs := evmState.Logs()
 				require.Equal(t, 1, len(logs), "expecting a log with post-state")
-				post = logs[0].Data
-				require.Equal(t, crypto.Keccak256Hash(post), postHash, "logged state must be accurate")
+				evmPost := logs[0].Data
+				require.Equal(t, crypto.Keccak256Hash(evmPost), postHash, "logged state must be accurate")
 				env.StateDB.RevertToSnapshot(snap)
 
 				t.Logf("EVM step took %d gas, and returned stateHash %s", startingGas-leftOverGas, postHash)
+
+				// verify the post-state matches.
+				// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
+				uniPost := us.state.EncodeWitness()
+				require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
+					"unicorn produced different state than EVM")
 			}
-
-			firstStep := true
-			_, err = mu.HookAdd(uc.HOOK_CODE, func(mu uc.Unicorn, addr uint64, size uint32) {
-				if state.PC == endAddr {
-					require.NoError(t, mu.Stop(), "stop test when returned")
-				}
-				if !firstStep {
-					postCode()
-				}
-				preCode()
-				firstStep = false
-			}, 0, ^uint64(0))
-			require.NoError(t, err, "hook code")
-
-			err = RunUnicorn(mu, state.PC, 1000)
-			require.NoError(t, err, "must run steps without error")
-
+			require.Equal(t, uint32(endAddr), state.PC, "must reach end")
 			// inspect test result
 			done, result := state.Memory.GetMemory(baseAddrEnd+4), state.Memory.GetMemory(baseAddrEnd+8)
 			require.Equal(t, done, uint32(1), "must be done")

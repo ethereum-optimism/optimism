@@ -5,45 +5,44 @@ import (
 	"io"
 	"log"
 	"math"
+	"sync"
 
 	uc "github.com/unicorn-engine/unicorn/bindings/go/unicorn"
 )
 
-func NewUnicorn() (uc.Unicorn, error) {
-	return uc.NewUnicorn(uc.ARCH_MIPS, uc.MODE_32|uc.MODE_BIG_ENDIAN)
+type UnicornState struct {
+	sync.Mutex
+
+	mu uc.Unicorn
+
+	state *State
+
+	stdOut io.Writer
+	stdErr io.Writer
+
+	lastMemAccess   uint32
+	memProofEnabled bool
+	memProof        [28 * 32]byte
+
+	onStep func()
 }
 
-func LoadUnicorn(st *State, mu uc.Unicorn) error {
-	// mmap and write each page of memory state into unicorn
-	for pageIndex, page := range st.Memory.Pages {
-		addr := uint64(pageIndex) << pageAddrSize
-		if err := mu.MemMap(addr, pageSize); err != nil {
-			return fmt.Errorf("failed to mmap page at addr 0x%x: %w", addr, err)
-		}
-		if err := mu.MemWrite(addr, page.Data[:]); err != nil {
-			return fmt.Errorf("failed to write page at addr 0x%x: %w", addr, err)
-		}
+// TODO add pre-image oracle
+func NewUnicornState(mu uc.Unicorn, state *State, stdOut, stdErr io.Writer) (*UnicornState, error) {
+	m := &UnicornState{
+		mu:     mu,
+		state:  state,
+		stdOut: stdOut,
+		stdErr: stdErr,
 	}
-	// write all registers into unicorn, including PC, LO, HI
-	regValues := make([]uint64, 32+3)
-	// TODO: do we have to sign-extend registers before writing them to unicorn, or are the trailing bits unused?
-	for i, v := range st.Registers {
-		regValues[i] = uint64(v)
-	}
-	regValues[32] = uint64(st.PC)
-	regValues[33] = uint64(st.LO)
-	regValues[34] = uint64(st.HI)
-	if err := mu.RegWriteBatch(regBatchKeys(), regValues); err != nil {
-		return fmt.Errorf("failed to write registers: %w", err)
-	}
-	return nil
-}
+	st := m.state
 
-func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer, tr Tracer) error {
-	_, err := mu.HookAdd(uc.HOOK_INTR, func(mu uc.Unicorn, intno uint32) {
+	var err error
+	_, err = mu.HookAdd(uc.HOOK_INTR, func(mu uc.Unicorn, intno uint32) {
 		if intno != 17 {
 			log.Fatal("invalid interrupt ", intno, " at step ", st.Step)
 		}
+
 		syscallNum, _ := mu.RegRead(uc.MIPS_REG_V0)
 
 		fmt.Printf("syscall: %d\n", syscallNum)
@@ -96,7 +95,7 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer, tr Tracer) 
 		mu.RegWrite(uc.MIPS_REG_A3, 0)
 	}, 0, ^uint64(0))
 	if err != nil {
-		return fmt.Errorf("failed to set up interrupt/syscall hook: %w", err)
+		return nil, fmt.Errorf("failed to set up interrupt/syscall hook: %w", err)
 	}
 
 	// Shout if Go mmap calls didn't allocate the memory properly
@@ -105,15 +104,21 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer, tr Tracer) 
 		return false
 	}, 0, ^uint64(0))
 	if err != nil {
-		return fmt.Errorf("failed to set up unmapped-mem-write hook: %w", err)
+		return nil, fmt.Errorf("failed to set up unmapped-mem-write hook: %w", err)
 	}
 
 	_, err = mu.HookAdd(uc.HOOK_MEM_READ, func(mu uc.Unicorn, access int, addr64 uint64, size int, value int64) {
 		effAddr := uint32(addr64 & 0xFFFFFFFC) // pass effective addr to tracer
-		tr.OnRead(effAddr)
+		if m.memProofEnabled && m.lastMemAccess != effAddr {
+			if m.lastMemAccess != ^uint32(0) {
+				panic(fmt.Errorf("unexpected different mem access at %08x, already have access at %08x buffered", effAddr, m.lastMemAccess))
+			}
+			m.lastMemAccess = effAddr
+			m.memProof = m.state.Memory.MerkleProof(effAddr)
+		}
 	}, 0, ^uint64(0))
 	if err != nil {
-		return fmt.Errorf("failed to set up mem-write hook: %w", err)
+		return nil, fmt.Errorf("failed to set up mem-write hook: %w", err)
 	}
 
 	_, err = mu.HookAdd(uc.HOOK_MEM_WRITE, func(mu uc.Unicorn, access int, addr64 uint64, size int, value int64) {
@@ -124,95 +129,159 @@ func HookUnicorn(st *State, mu uc.Unicorn, stdOut, stdErr io.Writer, tr Tracer) 
 			panic("invalid mem size")
 		}
 		effAddr := uint32(addr64 & 0xFFFFFFFC)
-		tr.OnWrite(effAddr)
 
+		pre := st.Memory.GetMemory(effAddr)
+
+		var post uint32
 		rt := value
 		rs := addr64 & 3
 		if size == 1 {
-			mem := st.Memory.GetMemory(effAddr)
 			val := uint32((rt & 0xFF) << (24 - (rs&3)*8))
 			mask := 0xFFFFFFFF ^ uint32(0xFF<<(24-(rs&3)*8))
-			st.Memory.SetMemory(effAddr, (mem&mask)|val)
+			post = (pre & mask) | val
 		} else if size == 2 {
-			mem := st.Memory.GetMemory(effAddr)
 			val := uint32((rt & 0xFFFF) << (16 - (rs&2)*8))
 			mask := 0xFFFFFFFF ^ uint32(0xFFFF<<(16-(rs&2)*8))
-			st.Memory.SetMemory(effAddr, (mem&mask)|val)
+			post = (pre & mask) | val
 		} else if size == 4 {
-			st.Memory.SetMemory(effAddr, uint32(rt))
+			post = uint32(rt)
 		} else {
 			log.Fatal("bad size write to ram")
 		}
-	}, 0, ^uint64(0))
-	if err != nil {
-		return fmt.Errorf("failed to set up mem-write hook: %w", err)
-	}
-
-	regBatch := regBatchKeys()
-	_, err = mu.HookAdd(uc.HOOK_CODE, func(mu uc.Unicorn, addr uint64, size uint32) {
-		st.Step += 1
-		batch, err := mu.RegReadBatch(regBatch)
-		if err != nil {
-			panic(fmt.Errorf("failed to read register batch: %w", err))
-		}
-		for i := 0; i < 32; i++ {
-			st.Registers[i] = uint32(batch[i])
-		}
-		prevPC := st.PC
-		st.PC = uint32(batch[32])
-
-		// We detect if we are potentially in a delay-slot.
-		// If we may be (i.e. last PC is 1 instruction before current),
-		// then parse the last instruction to determine what the next PC would be.
-		// This reflects the handleBranch / handleJump behavior that schedules next-PC.
-		if st.PC == prevPC+4 {
-			st.NextPC = prevPC + 8
-
-			prevInsn := st.Memory.GetMemory(prevPC)
-			opcode := prevInsn >> 26
-			switch opcode {
-			case 2, 3: // J/JAL
-				st.NextPC = signExtend(prevInsn&0x03FFFFFF, 25) << 2
-			case 1, 4, 5, 6, 7: // branching
-				rs := st.Registers[(prevInsn>>21)&0x1F]
-				shouldBranch := false
-				switch opcode {
-				case 4, 5:
-					rt := st.Registers[(prevInsn>>16)&0x1F]
-					shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5)
-				case 6:
-					shouldBranch = int32(rs) <= 0 // blez
-				case 7:
-					shouldBranch = int32(rs) > 0 // bgtz
-				case 1:
-					rtv := (prevInsn >> 16) & 0x1F
-					if rtv == 0 {
-						shouldBranch = int32(rs) < 0
-					} // bltz
-					if rtv == 1 {
-						shouldBranch = int32(rs) >= 0
-					} // bgez
-				}
-				if shouldBranch {
-					st.NextPC = prevPC + 4 + (signExtend(prevInsn&0xFFFF, 15) << 2)
-				}
-			case 0:
-				if funcv := prevInsn & 0x3f; funcv == 8 || funcv == 9 { // JR/JALR
-					rs := st.Registers[(prevInsn>>21)&0x1F]
-					st.NextPC = rs
-				}
+		if m.memProofEnabled && m.lastMemAccess != effAddr {
+			if m.lastMemAccess != ^uint32(0) {
+				panic(fmt.Errorf("unexpected different mem access at %08x, already have access at %08x buffered", effAddr, m.lastMemAccess))
 			}
-		} else {
-			st.NextPC = st.PC + 4
+			m.lastMemAccess = effAddr
+			m.memProof = m.state.Memory.MerkleProof(effAddr)
 		}
-
-		st.LO = uint32(batch[33])
-		st.HI = uint32(batch[34])
+		// only set memory after making the proof: we need the pre-state
+		st.Memory.SetMemory(effAddr, post)
 	}, 0, ^uint64(0))
 	if err != nil {
-		return fmt.Errorf("failed to set up instruction hook: %w", err)
+		return nil, fmt.Errorf("failed to set up mem-write hook: %w", err)
 	}
 
+	return m, nil
+}
+
+func (m *UnicornState) Step(proof bool) (stateWitness []byte, memProof []byte) {
+	m.memProofEnabled = proof
+	m.lastMemAccess = ^uint32(0)
+
+	if proof {
+		stateWitness = m.state.EncodeWitness()
+
+		insnProof := m.state.Memory.MerkleProof(m.state.PC)
+		memProof = append(memProof, insnProof[:]...)
+	}
+
+	insn := m.state.Memory.GetMemory(m.state.PC)
+	oldNextPC := m.state.NextPC
+	newNextPC := oldNextPC + 4
+
+	opcode := insn >> 26
+	switch opcode {
+	case 2, 3: // J/JAL
+		newNextPC = signExtend(insn&0x03FFFFFF, 25) << 2
+	case 1, 4, 5, 6, 7: // branching
+		rs := m.state.Registers[(insn>>21)&0x1F]
+		shouldBranch := false
+		switch opcode {
+		case 4, 5:
+			rt := m.state.Registers[(insn>>16)&0x1F]
+			shouldBranch = (rs == rt && opcode == 4) || (rs != rt && opcode == 5)
+		case 6:
+			shouldBranch = int32(rs) <= 0 // blez
+		case 7:
+			shouldBranch = int32(rs) > 0 // bgtz
+		case 1:
+			rtv := (insn >> 16) & 0x1F
+			if rtv == 0 {
+				shouldBranch = int32(rs) < 0
+			} // bltz
+			if rtv == 1 {
+				shouldBranch = int32(rs) >= 0
+			} // bgez
+		}
+		if shouldBranch {
+			newNextPC = m.state.PC + 4 + (signExtend(insn&0xFFFF, 15) << 2)
+		}
+	case 0:
+		if funcv := insn & 0x3f; funcv == 8 || funcv == 9 { // JR/JALR
+			rs := m.state.Registers[(insn>>21)&0x1F]
+			newNextPC = rs
+		}
+	}
+
+	// Execute only a single instruction.
+	// The memory and syscall hooks will update the state with any of the dynamic changes.
+	err := m.mu.StartWithOptions(uint64(m.state.PC), uint64(m.state.NextPC), &uc.UcOptions{
+		Timeout: 0, // 0 to disable, value is in ms.
+		Count:   1,
+	})
+
+	if proof {
+		memProof = append(memProof, m.memProof[:]...)
+	}
+
+	// count it
+	m.state.Step += 1
+
+	// Now do post-processing to keep our state in sync:
+
+	// 1) match the registers post-state
+	batch, err := m.mu.RegReadBatch(regBatchKeys)
+	if err != nil {
+		panic(fmt.Errorf("failed to read register batch: %w", err))
+	}
+	for i := 0; i < 32; i++ {
+		m.state.Registers[i] = uint32(batch[i])
+	}
+	_ = uint32(batch[32]) // ignore the PC, we follow oldNextPC instead, to emulate delay-slot behavior
+	m.state.LO = uint32(batch[33])
+	m.state.HI = uint32(batch[34])
+
+	// 2) adopt the old nextPC as new PC.
+	// This effectively implements delay-slots, even though unicorn immediately loses
+	// delay-slot information when only executing a single instruction.
+	m.state.PC = oldNextPC
+	err = m.mu.RegWrite(uc.MIPS_REG_PC, uint64(oldNextPC))
+	if err != nil {
+		panic("failed to write PC register")
+	}
+
+	m.state.NextPC = newNextPC
+	return
+}
+
+func NewUnicorn() (uc.Unicorn, error) {
+	return uc.NewUnicorn(uc.ARCH_MIPS, uc.MODE_32|uc.MODE_BIG_ENDIAN)
+}
+
+func LoadUnicorn(st *State, mu uc.Unicorn) error {
+	// mmap and write each page of memory state into unicorn
+	for pageIndex, page := range st.Memory.Pages {
+		addr := uint64(pageIndex) << pageAddrSize
+		if err := mu.MemMap(addr, pageSize); err != nil {
+			return fmt.Errorf("failed to mmap page at addr 0x%x: %w", addr, err)
+		}
+		if err := mu.MemWrite(addr, page.Data[:]); err != nil {
+			return fmt.Errorf("failed to write page at addr 0x%x: %w", addr, err)
+		}
+	}
+	// write all registers into unicorn, including PC, LO, HI
+	regValues := make([]uint64, 32+3)
+	// TODO: do we have to sign-extend registers before writing them to unicorn, or are the trailing bits unused?
+	for i, v := range st.Registers {
+		regValues[i] = uint64(v)
+	}
+	regValues[32] = uint64(st.PC)
+	regValues[33] = uint64(st.LO)
+	regValues[34] = uint64(st.HI)
+	if err := mu.RegWriteBatch(regBatchKeys, regValues); err != nil {
+		return fmt.Errorf("failed to write registers: %w", err)
+	}
 	return nil
 }
 
@@ -225,18 +294,11 @@ func signExtend(v uint32, i uint32) uint32 {
 	}
 }
 
-func RunUnicorn(mu uc.Unicorn, entrypoint uint32, steps uint64) error {
-	return mu.StartWithOptions(uint64(entrypoint), ^uint64(0), &uc.UcOptions{
-		Timeout: 0, // 0 to disable, value is in ms.
-		Count:   steps,
-	})
-}
-
-func regBatchKeys() []int {
+var regBatchKeys = func() []int {
 	var batch []int
 	for i := 0; i < 32; i++ {
 		batch = append(batch, uc.MIPS_REG_ZERO+i)
 	}
 	batch = append(batch, uc.MIPS_REG_PC, uc.MIPS_REG_LO, uc.MIPS_REG_HI)
 	return batch
-}
+}()

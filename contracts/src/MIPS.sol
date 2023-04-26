@@ -220,13 +220,12 @@ contract MIPS {
   }
 
   function proofOffset(uint8 proofIndex) internal returns (uint256 offset) {
-    require(proofIndex & 3 == 0, "addr must be aligned to 4 bytes");
     // A proof of 32 bit memory, with 32-byte leaf values, is (32-5)=27 bytes32 entries.
     // And the leaf value itself needs to be encoded as well. And proof.offset == 390
-    offset = 390 + proofIndex + (28*32);
+    offset = 390 + (uint256(proofIndex) * (28*32));
     uint256 s = 0;
     assembly { s := calldatasize() }
-    require(s > (offset + 28*32), "check that there is enough calldata");
+    require(s >= (offset + 28*32), "check that there is enough calldata");
     return offset;
   }
 
@@ -246,11 +245,9 @@ contract MIPS {
       for { let i := 0 } lt(i, 27) { i := add(i, 1) } {
         let sibling := calldataload(offset)
         offset := add(offset, 32)
-        if and(shr(i, path), 1) {
-          node := hashPair(sibling, node)
-          continue
-        }
-        node := hashPair(node, sibling)
+        switch and(shr(i, path), 1)
+        case 0 { node := hashPair(node, sibling) }
+        case 1 { node := hashPair(sibling, node) }
       }
       let memRoot := mload(0x80) // load memRoot, first field of state
       if iszero(eq(node, memRoot)) { // verify the root matches
@@ -284,11 +281,9 @@ contract MIPS {
       for { let i := 0 } lt(i, 27) { i := add(i, 1) } {
         let sibling := calldataload(offset)
         offset := add(offset, 32)
-        if and(shr(i, path), 1) {
-          node := hashPair(sibling, node)
-          continue
-        }
-        node := hashPair(node, sibling)
+        switch and(shr(i, path), 1)
+        case 0 { node := hashPair(node, sibling) }
+        case 1 { node := hashPair(sibling, node) }
       }
       mstore(0x80, node) // store new memRoot, first field of state
     }
@@ -404,7 +399,7 @@ contract MIPS {
     }
 
     // ALU
-    uint32 val = execute(insn, rs, rt, mem);
+    uint32 val = execute(insn, rs, rt, mem) & 0xffFFffFF; // swr outputs more than 4 bytes without the mask
 
     uint32 func = insn & 0x3f; // 6-bits
     if (opcode == 0 && func >= 8 && func < 0x1c) {
@@ -438,7 +433,7 @@ contract MIPS {
 
     // write memory
     if (storeAddr != 0xFF_FF_FF_FF) {
-      writeMem(storeAddr, 1, mem);
+      writeMem(storeAddr, 1, val);
     }
 
     // write back the value to destination register

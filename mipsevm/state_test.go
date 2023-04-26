@@ -9,8 +9,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	uc "github.com/unicorn-engine/unicorn/bindings/go/unicorn"
 )
 
 // baseAddrStart - baseAddrEnd is used in tests to write the results to
@@ -60,19 +58,16 @@ func TestState(t *testing.T) {
 			err = LoadUnicorn(state, mu)
 			require.NoError(t, err, "load state into unicorn")
 
-			err = HookUnicorn(state, mu, os.Stdout, os.Stderr, NoOpTracer{})
+			us, err := NewUnicornState(mu, state, os.Stdout, os.Stderr)
 			require.NoError(t, err, "hook unicorn to state")
 
-			// Add hook to stop unicorn once we reached the end of the test (i.e. "ate food")
-			_, err = mu.HookAdd(uc.HOOK_CODE, func(mu uc.Unicorn, addr uint64, size uint32) {
-				if state.PC == endAddr {
-					require.NoError(t, mu.Stop(), "stop test when returned")
+			for i := 0; i < 1000; i++ {
+				if us.state.PC == endAddr {
+					break
 				}
-			}, 0, ^uint64(0))
-			require.NoError(t, err, "hook code")
-
-			err = RunUnicorn(mu, state.PC, 1000)
-			require.NoError(t, err, "must run steps without error")
+				us.Step(false)
+			}
+			require.Equal(t, uint32(endAddr), us.state.PC, "must reach end")
 			// inspect test result
 			done, result := state.Memory.GetMemory(baseAddrEnd+4), state.Memory.GetMemory(baseAddrEnd+8)
 			require.Equal(t, done, uint32(1), "must be done")
@@ -97,11 +92,15 @@ func TestMinimal(t *testing.T) {
 	err = LoadUnicorn(state, mu)
 	require.NoError(t, err, "load state into unicorn")
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	err = HookUnicorn(state, mu, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr), NoOpTracer{})
+	us, err := NewUnicornState(mu, state, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 	require.NoError(t, err, "hook unicorn to state")
 
-	err = RunUnicorn(mu, state.PC, 400_000)
-	require.NoError(t, err, "must run steps without error")
+	for i := 0; i < 400_000; i++ {
+		if us.state.Exited {
+			break
+		}
+		us.Step(false)
+	}
 
 	require.True(t, state.Exited, "must complete program")
 	require.Equal(t, uint8(0), state.ExitCode, "exit with 0")

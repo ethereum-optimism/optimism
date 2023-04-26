@@ -56,6 +56,7 @@ func (p *CachedPage) MerkleRoot() [32]byte {
 			continue
 		}
 		p.Cache[j] = crypto.Keccak256Hash(p.Data[i : i+64])
+		//fmt.Printf("0x%x 0x%x -> 0x%x\n", p.Data[i:i+32], p.Data[i+32:i+64], p.Cache[j])
 		p.Ok[j] = true
 	}
 
