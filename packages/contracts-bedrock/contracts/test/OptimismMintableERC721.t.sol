@@ -50,21 +50,21 @@ contract OptimismMintableERC721_Test is ERC721Bridge_Initializer {
         assertEq(L2Token.REMOTE_TOKEN(), address(L1Token));
         assertEq(L2Token.BRIDGE(), address(L2Bridge));
         assertEq(L2Token.REMOTE_CHAIN_ID(), 1);
-        assertEq(L2Token.version(), "1.0.0");
+        assertEq(L2Token.version(), "1.1.0");
     }
 
-    function test_supportsInterfaces_succeeds() external view {
+    /**
+     * @notice Ensure that the contract supports the expected interfaces.
+     */
+    function test_supportsInterfaces_succeeds() external {
         // Checks if the contract supports the IOptimismMintableERC721 interface.
-        assert(L2Token.supportsInterface(type(IOptimismMintableERC721).interfaceId));
-
+        assertTrue(L2Token.supportsInterface(type(IOptimismMintableERC721).interfaceId));
         // Checks if the contract supports the IERC721Enumerable interface.
-        assert(L2Token.supportsInterface(type(IERC721Enumerable).interfaceId));
-
+        assertTrue(L2Token.supportsInterface(type(IERC721Enumerable).interfaceId));
         // Checks if the contract supports the IERC721 interface.
-        assert(L2Token.supportsInterface(type(IERC721).interfaceId));
-
+        assertTrue(L2Token.supportsInterface(type(IERC721).interfaceId));
         // Checks if the contract supports the IERC165 interface.
-        assert(L2Token.supportsInterface(type(IERC165).interfaceId));
+        assertTrue(L2Token.supportsInterface(type(IERC165).interfaceId));
     }
 
     function test_safeMint_succeeds() external {
