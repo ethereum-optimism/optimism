@@ -367,7 +367,7 @@ export const liveDeployer = async (opts: {
   disabled: string | undefined
 }): Promise<boolean> => {
   if (!!opts.disabled) {
-    console.log('Setting live deployer to', false)
+    console.log('Live deployer manually disabled')
     return false
   }
   const { deployer } = await opts.hre.getNamedAccounts()
