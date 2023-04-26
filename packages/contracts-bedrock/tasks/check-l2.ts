@@ -557,7 +557,7 @@ const check = {
     await assertSemver(
       OptimismMintableERC721Factory,
       'OptimismMintableERC721Factory',
-      '1.1.0'
+      '1.2.0'
     )
 
     const BRIDGE = await OptimismMintableERC721Factory.BRIDGE()
