@@ -26,32 +26,31 @@ func Main(logger log.Logger) {
 	log.Info("Starting fault proof program client")
 	preimageOracle := CreatePreimageChannel()
 	preimageHinter := CreateHinterChannel()
-	bootOracle := os.NewFile(BootRFd, "bootR")
-	err := RunProgram(logger, bootOracle, preimageOracle, preimageHinter)
-	if err != nil {
-		log.Error("Program failed", "err", err)
+	if err := RunProgram(logger, preimageOracle, preimageHinter); errors.Is(err, cldr.ErrClaimNotValid) {
+		log.Error("Claim is invalid", "err", err)
 		os.Exit(1)
+	} else if err != nil {
+		log.Error("Program failed", "err", err)
+		os.Exit(2)
 	} else {
+		log.Info("Claim successfully verified")
 		os.Exit(0)
 	}
 }
 
 // RunProgram executes the Program, while attached to an IO based pre-image oracle, to be served by a host.
-func RunProgram(logger log.Logger, bootOracle io.Reader, preimageOracle io.ReadWriter, preimageHinter io.ReadWriter) error {
-	bootReader := NewBootstrapOracleReader(bootOracle)
-	bootInfo, err := bootReader.BootInfo()
-	if err != nil {
-		return fmt.Errorf("failed to read boot info: %w", err)
-	}
-	logger.Debug("Loaded boot info", "bootInfo", bootInfo)
+func RunProgram(logger log.Logger, preimageOracle io.ReadWriter, preimageHinter io.ReadWriter) error {
 
 	pClient := preimage.NewOracleClient(preimageOracle)
 	hClient := preimage.NewHintWriter(preimageHinter)
 	l1PreimageOracle := l1.NewPreimageOracle(pClient, hClient)
 	l2PreimageOracle := l2.NewPreimageOracle(pClient, hClient)
+
+	bootInfo := NewBootstrapClient(pClient).BootInfo()
+	logger.Info("Program Bootstrapped", "bootInfo", bootInfo)
 	return runDerivation(
 		logger,
-		bootInfo.Rollup,
+		bootInfo.RollupConfig,
 		bootInfo.L2ChainConfig,
 		bootInfo.L1Head,
 		bootInfo.L2Head,

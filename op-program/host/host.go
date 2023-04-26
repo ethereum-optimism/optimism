@@ -36,11 +36,6 @@ func RunningProgramInClient() bool {
 
 // FaultProofProgram is the programmatic entry-point for the fault proof program
 func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
-	if RunningProgramInClient() {
-		cl.Main(logger)
-		panic("Client main should have exited process")
-	}
-
 	if err := cfg.Check(); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
@@ -79,7 +74,6 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 		}
 	}
 
-	// TODO(CLI-3751: Load local preimages
 	localPreimageSource := kvstore.NewLocalPreimageSource(cfg)
 	splitter := kvstore.NewPreimageSourceSplitter(localPreimageSource.Get, getPreimage)
 
@@ -101,20 +95,14 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 	hHost := preimage.NewHintReader(hHostRW)
 	routeHints(logger, hHost, hinter)
 
-	bootClientR, bootHostW, err := os.Pipe()
-	if err != nil {
-		return fmt.Errorf("failed to create boot info pipe: %w", err)
-	}
-
 	var cmd *exec.Cmd
 	if cfg.Detached {
-		cmd = exec.Command(os.Args[0], os.Args[1:]...)
+		cmd = exec.CommandContext(ctx, os.Args[0])
 		cmd.ExtraFiles = make([]*os.File, cl.MaxFd-3) // not including stdin, stdout and stderr
 		cmd.ExtraFiles[cl.HClientRFd-3] = hClientRW.Reader()
 		cmd.ExtraFiles[cl.HClientWFd-3] = hClientRW.Writer()
 		cmd.ExtraFiles[cl.PClientRFd-3] = pClientRW.Reader()
 		cmd.ExtraFiles[cl.PClientWFd-3] = pClientRW.Writer()
-		cmd.ExtraFiles[cl.BootRFd-3] = bootClientR
 		cmd.Stdout = os.Stdout // for debugging
 		cmd.Stderr = os.Stderr // for debugging
 		cmd.Env = append(os.Environ(), fmt.Sprintf("%s=true", opProgramChildEnvName))
@@ -123,33 +111,13 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 		if err != nil {
 			return fmt.Errorf("program cmd failed to start: %w", err)
 		}
-	}
-
-	bootInfo := cl.BootInfo{
-		Rollup:             cfg.Rollup,
-		L2ChainConfig:      cfg.L2ChainConfig,
-		L1Head:             cfg.L1Head,
-		L2Head:             cfg.L2Head,
-		L2Claim:            cfg.L2Claim,
-		L2ClaimBlockNumber: cfg.L2ClaimBlockNumber,
-	}
-	// Spawn a goroutine to write the boot info to avoid blocking this host's goroutine
-	// if we're running in detached mode
-	bootInitErrorCh := initializeBootInfoAsync(&bootInfo, bootHostW)
-	if !cfg.Detached {
-		return cl.RunProgram(logger, bootClientR, pClientRW, hClientRW)
-	}
-	if err := <-bootInitErrorCh; err != nil {
-		// return early as a detached client is blocked waiting for the boot info
-		return fmt.Errorf("failed to write boot info: %w", err)
-	}
-	if cfg.Detached {
-		err := cmd.Wait()
-		if err != nil {
+		if err := cmd.Wait(); err != nil {
 			return fmt.Errorf("failed to wait for child program: %w", err)
 		}
+		return nil
+	} else {
+		return cl.RunProgram(logger, pClientRW, hClientRW)
 	}
-	return nil
 }
 
 func makePrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (*prefetcher.Prefetcher, error) {
@@ -177,16 +145,6 @@ func makePrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *
 	}
 	l2DebugCl := &L2Source{L2Client: l2Cl, DebugClient: sources.NewDebugClient(l2RPC.CallContext)}
 	return prefetcher.NewPrefetcher(logger, l1Cl, l2DebugCl, kv), nil
-}
-
-func initializeBootInfoAsync(bootInfo *cl.BootInfo, bootOracle *os.File) <-chan error {
-	bootWriteErr := make(chan error, 1)
-	go func() {
-		bootOracleWriter := cl.NewBootstrapOracleWriter(bootOracle)
-		bootWriteErr <- bootOracleWriter.WriteBootInfo(bootInfo)
-		close(bootWriteErr)
-	}()
-	return bootWriteErr
 }
 
 func routeHints(logger log.Logger, hintReader *preimage.HintReader, hinter func(hint string) error) {
