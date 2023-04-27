@@ -143,14 +143,14 @@ func DataFromEVMTransactions(config *rollup.Config, daCfg *rollup.DAConfig, batc
 // decodeETHData will decode the data retrieved from the EVM, this data
 // was previously posted from op-batcher and contains the block height
 // with transaction index of the SubmitPFD transaction to the DA.
-func decodeETHData(celestiaData []byte) (int64, int64, error) {
+func decodeETHData(celestiaData []byte) (int64, uint32, error) {
 	buf := bytes.NewBuffer(celestiaData)
 	var height int64
 	err := binary.Read(buf, binary.BigEndian, &height)
 	if err != nil {
 		return 0, 0, fmt.Errorf("error deserializing height: %w", err)
 	}
-	var index int64
+	var index uint32
 	err = binary.Read(buf, binary.BigEndian, &index)
 	if err != nil {
 		return 0, 0, fmt.Errorf("error deserializing index: %w", err)
