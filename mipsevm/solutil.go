@@ -158,7 +158,6 @@ func ParseSourceMap(sources []string, bytecode []byte, sourceMap string) (*Sourc
 		if instIndex >= len(instructions) {
 			// truncated source-map? Or some instruction that's longer than we accounted for?
 			// probably the contract-metadata bytes that are not accounted for in source map
-			fmt.Printf("out of instructions: %d\n", instIndex-len(instructions))
 		} else {
 			instMapping = instructions[instIndex]
 		}
