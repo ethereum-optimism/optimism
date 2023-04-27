@@ -141,7 +141,8 @@ contract L2OutputOracle is Initializable, Semver {
     function deleteL2Output(uint256 _l2BlockNumber) external {
         require(
             // TODO: The challenger here should be the dispute game factory.
-            // TODO: the dispute games themselves could then call through the factory to delete their rootClaim.
+            // TODO: the dispute games themselves could then call through the
+            //       factory to delete their rootClaim.
             msg.sender == CHALLENGER,
             "L2OutputOracle: only the challenger address can delete an output"
         );
