@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	cl "github.com/ethereum-optimism/optimism/op-program/client"
+	"github.com/ethereum-optimism/optimism/op-program/client/driver"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
@@ -27,56 +28,36 @@ type L2Source struct {
 	*sources.DebugClient
 }
 
-// FaultProofProgram is the programmatic entry-point for the fault proof program
-func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
+func Main(logger log.Logger, cfg *config.Config) error {
 	if err := cfg.Check(); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
 	cfg.Rollup.LogDescription(logger, chaincfg.L2ChainIDToNetworkName)
 
 	ctx := context.Background()
-	var kv kvstore.KV
-	if cfg.DataDir == "" {
-		logger.Info("Using in-memory storage")
-		kv = kvstore.NewMemKV()
-	} else {
-		logger.Info("Creating disk storage", "datadir", cfg.DataDir)
-		if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
-			return fmt.Errorf("creating datadir: %w", err)
-		}
-		kv = kvstore.NewDiskKV(cfg.DataDir)
+	if cfg.ServerMode {
+		preimageChan := cl.CreatePreimageChannel()
+		hinterChan := cl.CreateHinterChannel()
+		return PreimageServer(ctx, logger, cfg, preimageChan, hinterChan)
 	}
 
-	var (
-		getPreimage func(key common.Hash) ([]byte, error)
-		hinter      func(hint string) error
-	)
-	if cfg.FetchingEnabled() {
-		prefetch, err := makePrefetcher(ctx, logger, kv, cfg)
-		if err != nil {
-			return fmt.Errorf("failed to create prefetcher: %w", err)
-		}
-		getPreimage = func(key common.Hash) ([]byte, error) { return prefetch.GetPreimage(ctx, key) }
-		hinter = prefetch.Hint
+	if err := FaultProofProgram(ctx, logger, cfg); errors.Is(err, driver.ErrClaimNotValid) {
+		log.Crit("Claim is invalid", "err", err)
+	} else if err != nil {
+		return err
 	} else {
-		logger.Info("Using offline mode. All required pre-images must be pre-populated.")
-		getPreimage = kv.Get
-		hinter = func(hint string) error {
-			logger.Debug("ignoring prefetch hint", "hint", hint)
-			return nil
-		}
+		log.Info("Claim successfully verified")
 	}
+	return nil
+}
 
-	localPreimageSource := kvstore.NewLocalPreimageSource(cfg)
-	splitter := kvstore.NewPreimageSourceSplitter(localPreimageSource.Get, getPreimage)
-
+// FaultProofProgram is the programmatic entry-point for the fault proof program
+func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Config) error {
 	// Setup client I/O for preimage oracle interaction
 	pClientRW, pHostRW, err := oppio.CreateBidirectionalChannel()
 	if err != nil {
 		return fmt.Errorf("failed to create preimage pipe: %w", err)
 	}
-	oracleServer := preimage.NewOracleServer(pHostRW)
-	launchOracleServer(logger, oracleServer, splitter.Get)
 	defer pHostRW.Close()
 
 	// Setup client I/O for hint comms
@@ -84,9 +65,15 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to create hints pipe: %w", err)
 	}
-	defer hHostRW.Close()
-	hHost := preimage.NewHintReader(hHostRW)
-	routeHints(logger, hHost, hinter)
+
+	go func() {
+		defer hHostRW.Close()
+		err := PreimageServer(ctx, logger, cfg, pHostRW, hHostRW)
+		if err != nil {
+			logger.Error("preimage server failed", "err", err)
+		}
+		logger.Debug("Preimage server stopped")
+	}()
 
 	var cmd *exec.Cmd
 	if cfg.ExecCmd != "" {
@@ -106,9 +93,58 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 		if err := cmd.Wait(); err != nil {
 			return fmt.Errorf("failed to wait for child program: %w", err)
 		}
+		logger.Debug("Client program completed successfully")
 		return nil
 	} else {
 		return cl.RunProgram(logger, pClientRW, hClientRW)
+	}
+}
+
+func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, preimageChannel oppio.FileChannel, hintChannel oppio.FileChannel) error {
+	logger.Info("Starting preimage server")
+	var kv kvstore.KV
+	if cfg.DataDir == "" {
+		logger.Info("Using in-memory storage")
+		kv = kvstore.NewMemKV()
+	} else {
+		logger.Info("Creating disk storage", "datadir", cfg.DataDir)
+		if err := os.MkdirAll(cfg.DataDir, 0755); err != nil {
+			return fmt.Errorf("creating datadir: %w", err)
+		}
+		kv = kvstore.NewDiskKV(cfg.DataDir)
+	}
+
+	var (
+		getPreimage kvstore.PreimageSource
+		hinter      preimage.HintHandler
+	)
+	if cfg.FetchingEnabled() {
+		prefetch, err := makePrefetcher(ctx, logger, kv, cfg)
+		if err != nil {
+			return fmt.Errorf("failed to create prefetcher: %w", err)
+		}
+		getPreimage = func(key common.Hash) ([]byte, error) { return prefetch.GetPreimage(ctx, key) }
+		hinter = prefetch.Hint
+	} else {
+		logger.Info("Using offline mode. All required pre-images must be pre-populated.")
+		getPreimage = kv.Get
+		hinter = func(hint string) error {
+			logger.Debug("ignoring prefetch hint", "hint", hint)
+			return nil
+		}
+	}
+
+	localPreimageSource := kvstore.NewLocalPreimageSource(cfg)
+	splitter := kvstore.NewPreimageSourceSplitter(localPreimageSource.Get, getPreimage)
+	preimageGetter := splitter.Get
+
+	serverDone := launchOracleServer(logger, preimageChannel, preimageGetter)
+	hinterDone := routeHints(logger, hintChannel, hinter)
+	select {
+	case err := <-serverDone:
+		return err
+	case err := <-hinterDone:
+		return err
 	}
 }
 
@@ -139,8 +175,11 @@ func makePrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *
 	return prefetcher.NewPrefetcher(logger, l1Cl, l2DebugCl, kv), nil
 }
 
-func routeHints(logger log.Logger, hintReader *preimage.HintReader, hinter func(hint string) error) {
+func routeHints(logger log.Logger, hHostRW io.ReadWriter, hinter preimage.HintHandler) chan error {
+	chErr := make(chan error)
+	hintReader := preimage.NewHintReader(hHostRW)
 	go func() {
+		defer close(chErr)
 		for {
 			if err := hintReader.NextHint(hinter); err != nil {
 				if err == io.EOF || errors.Is(err, fs.ErrClosed) {
@@ -148,14 +187,19 @@ func routeHints(logger log.Logger, hintReader *preimage.HintReader, hinter func(
 					return
 				}
 				logger.Error("pre-image hint router error", "err", err)
+				chErr <- err
 				return
 			}
 		}
 	}()
+	return chErr
 }
 
-func launchOracleServer(logger log.Logger, server *preimage.OracleServer, getter func(key common.Hash) ([]byte, error)) {
+func launchOracleServer(logger log.Logger, pHostRW io.ReadWriteCloser, getter preimage.PreimageGetter) chan error {
+	chErr := make(chan error)
+	server := preimage.NewOracleServer(pHostRW)
 	go func() {
+		defer close(chErr)
 		for {
 			if err := server.NextPreimageRequest(getter); err != nil {
 				if err == io.EOF || errors.Is(err, fs.ErrClosed) {
@@ -163,8 +207,10 @@ func launchOracleServer(logger log.Logger, server *preimage.OracleServer, getter
 					return
 				}
 				logger.Error("pre-image server error", "error", err)
+				chErr <- err
 				return
 			}
 		}
 	}()
+	return chErr
 }

@@ -43,7 +43,9 @@ func NewHintReader(rw io.ReadWriter) *HintReader {
 	return &HintReader{rw: rw}
 }
 
-func (hr *HintReader) NextHint(router func(hint string) error) error {
+type HintHandler func(hint string) error
+
+func (hr *HintReader) NextHint(router HintHandler) error {
 	var length uint32
 	if err := binary.Read(hr.rw, binary.BigEndian, &length); err != nil {
 		if err == io.EOF {
