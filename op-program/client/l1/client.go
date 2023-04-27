@@ -18,6 +18,7 @@ var (
 )
 
 type OracleL1Client struct {
+	logger               log.Logger
 	oracle               Oracle
 	head                 eth.L1BlockRef
 	hashByNum            map[uint64]common.Hash
@@ -28,6 +29,7 @@ func NewOracleL1Client(logger log.Logger, oracle Oracle, l1Head common.Hash) *Or
 	head := eth.InfoToL1BlockRef(oracle.HeaderByBlockHash(l1Head))
 	logger.Info("L1 head loaded", "hash", head.Hash, "number", head.Number)
 	return &OracleL1Client{
+		logger:               logger,
 		oracle:               oracle,
 		head:                 head,
 		hashByNum:            map[uint64]common.Hash{head.Number: head.Hash},
@@ -52,6 +54,7 @@ func (o *OracleL1Client) L1BlockRefByNumber(ctx context.Context, number uint64) 
 		return o.L1BlockRefByHash(ctx, hash)
 	}
 	block := o.earliestIndexedBlock
+	o.logger.Info("Extending block by number lookup", "from", block.Number, "to", number)
 	for block.Number > number {
 		block = eth.InfoToL1BlockRef(o.oracle.HeaderByBlockHash(block.ParentHash))
 		o.hashByNum[block.Number] = block.Hash
