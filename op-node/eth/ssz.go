@@ -62,7 +62,9 @@ func unmarshalBytes32LE(in []byte, z *Uint256Quantity) {
 
 // MarshalSSZ encodes the ExecutionPayload as SSZ type
 func (payload *ExecutionPayload) MarshalSSZ(w io.Writer) (n int, err error) {
-	if len(payload.ExtraData) > math.MaxUint32-executionPayloadFixedPart {
+	// Cast to uint32 to enable 32-bit MIPS support where math.MaxUint32-executionPayloadFixedPart is too big for int
+	// In that case, len(payload.ExtraData) can't be longer than an int so this is always false anyway.
+	if uint32(len(payload.ExtraData)) > math.MaxUint32-uint32(executionPayloadFixedPart) {
 		return 0, ErrExtraDataTooLarge
 	}
 

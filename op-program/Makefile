@@ -8,8 +8,21 @@ LDFLAGSSTRING +=-X github.com/ethereum-optimism/optimism/op-program/version.Vers
 LDFLAGSSTRING +=-X github.com/ethereum-optimism/optimism/op-program/version.Meta=$(VERSION_META)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
-op-program:
+op-program: \
+	op-program-host \
+	op-program-client \
+	op-program-client-mips
+
+op-program-host:
 	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/op-program ./host/cmd/main.go
+
+op-program-client:
+	env GO111MODULE=on GOOS=$(TARGETOS) GOARCH=$(TARGETARCH) go build -v $(LDFLAGS) -o ./bin/op-program-client ./client/cmd/main.go
+
+op-program-client-mips:
+	env GO111MODULE=on GOOS=linux GOARCH=mips GOMIPS=softfloat go build -v $(LDFLAGS) -o ./bin/op-program-client.elf ./client/cmd/main.go
+	# verify output with: readelf -h bin/op-program-client.elf
+	# result is mips32, big endian, R3000
 
 clean:
 	rm -rf bin
