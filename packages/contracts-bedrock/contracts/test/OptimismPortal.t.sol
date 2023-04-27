@@ -111,11 +111,28 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     /**
+     * @notice Prevent deposits from being too large to have a sane upper bound
+     *         on unsafe blocks sent over the p2p network.
+     */
+    function test_depositTransaction_largeData_reverts() external {
+        uint256 size = 120_001;
+        uint64 gasLimit = op.minimumGasLimit(uint64(size));
+        vm.expectRevert("OptimismPortal: data too large");
+        op.depositTransaction({
+            _to: address(0),
+            _value: 0,
+            _gasLimit: gasLimit,
+            _isCreation: false,
+            _data: new bytes(size)
+        });
+    }
+
+    /**
      * @notice Prevent gasless deposits from being force processed in L2 by
      *         ensuring that they have a large enough gas limit set.
      */
     function test_depositTransaction_smallGasLimit_reverts() external {
-        vm.expectRevert("OptimismPortal: gas limit must cover instrinsic gas cost");
+        vm.expectRevert("OptimismPortal: gas limit too small");
         op.depositTransaction({
             _to: address(1),
             _value: 0,
@@ -123,6 +140,40 @@ contract OptimismPortal_Test is Portal_Initializer {
             _isCreation: false,
             _data: hex""
         });
+    }
+
+    /**
+     * @notice Fuzz for too small of gas limits
+     */
+    function testFuzz_depositTransaction_smallGasLimit_succeeds(
+        bytes memory _data,
+        bool _shouldFail
+    ) external {
+        vm.assume(_data.length <= type(uint64).max);
+
+        uint64 gasLimit = op.minimumGasLimit(uint64(_data.length));
+        if (_shouldFail) {
+            gasLimit = uint64(bound(gasLimit, 0, gasLimit - 1));
+            vm.expectRevert("OptimismPortal: gas limit too small");
+        }
+
+        op.depositTransaction({
+            _to: address(0x40),
+            _value: 0,
+            _gasLimit: gasLimit,
+            _isCreation: false,
+            _data: _data
+        });
+    }
+
+    /**
+     * @notice Ensure that the 0 calldata case is covered and there is a linearly
+     *         increasing gas limit for larger calldata sizes.
+     */
+    function test_minimumGasLimit_succeeds() external {
+        assertEq(op.minimumGasLimit(0), 21_000);
+        assertTrue(op.minimumGasLimit(2) > op.minimumGasLimit(1));
+        assertTrue(op.minimumGasLimit(3) > op.minimumGasLimit(2));
     }
 
     // Test: depositTransaction should emit the correct log when an EOA deposits a tx with 0 value
@@ -1129,7 +1180,7 @@ contract OptimismPortalResourceFuzz_Test is Portal_Initializer {
         // Bound resource config
         _maxResourceLimit = uint32(bound(_maxResourceLimit, 21000, MAX_GAS_LIMIT / 8));
         _gasLimit = uint64(bound(_gasLimit, 21000, _maxResourceLimit));
-        _prevBaseFee = uint128(bound(_prevBaseFee, 0, 5 gwei));
+        _prevBaseFee = uint128(bound(_prevBaseFee, 0, 3 gwei));
         // Prevent values that would cause reverts
         vm.assume(gasLimit >= _gasLimit);
         vm.assume(_minimumBaseFee < _maximumBaseFee);

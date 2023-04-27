@@ -245,7 +245,7 @@ const check = {
     await assertSemver(
       L2CrossDomainMessenger,
       'L2CrossDomainMessenger',
-      '1.3.0'
+      '1.4.0'
     )
 
     const xDomainMessageSenderSlot = await signer.provider.getStorageAt(
@@ -557,7 +557,7 @@ const check = {
     await assertSemver(
       OptimismMintableERC721Factory,
       'OptimismMintableERC721Factory',
-      '1.1.0'
+      '1.2.0'
     )
 
     const BRIDGE = await OptimismMintableERC721Factory.BRIDGE()

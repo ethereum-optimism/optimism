@@ -63,8 +63,9 @@ library SafeCall {
     function hasMinGas(uint256 _minGas, uint256 _reservedGas) internal view returns (bool) {
         bool _hasMinGas;
         assembly {
+            // Equation: gas × 63 ≥ minGas × 64 + 63(40_000 + reservedGas)
             _hasMinGas := iszero(
-                lt(gas(), add(div(mul(_minGas, 64), 63), add(40000, _reservedGas)))
+                lt(mul(gas(), 63), add(mul(_minGas, 64), mul(add(40000, _reservedGas), 63)))
             )
         }
         return _hasMinGas;
