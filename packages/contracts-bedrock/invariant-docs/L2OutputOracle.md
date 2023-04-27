@@ -4,3 +4,8 @@
 **Test:** [`L2OutputOracle.t.sol#L59`](../contracts/test/invariants/L2OutputOracle.t.sol#L59)
 
 When a new output is submitted, it should never be allowed to correspond to a block number that is less than the current output. 
+
+
+## The next block number must always be at least `SUBMISSION_INTERVAL` blocks in the future.
+**Test:** [`L2OutputOracle.t.sol#L68`](../contracts/test/invariants/L2OutputOracle.t.sol#L68)
+

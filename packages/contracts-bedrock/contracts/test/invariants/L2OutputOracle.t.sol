@@ -60,4 +60,14 @@ contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is L2OutputOracle_In
         // Assert that the block number of proposals must monotonically increase.
         assertTrue(oracle.nextBlockNumber() >= oracle.latestBlockNumber());
     }
+
+    /**
+     * @custom:invariant The next block number must always be at least
+     *                   `SUBMISSION_INTERVAL` blocks in the future.
+     */
+    function invariant_submissionIntervalHonored() external {
+        assertTrue(
+            oracle.nextBlockNumber() >= oracle.latestBlockNumber() + oracle.SUBMISSION_INTERVAL()
+        );
+    }
 }
