@@ -1,12 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.7.6;
 
+interface IOracle {
+  function readPreimage(bytes32 key, uint256 offset) external view returns (bytes32 dat, uint256 datLen);
+}
+
 // https://inst.eecs.berkeley.edu/~cs61c/resources/MIPS_Green_Sheet.pdf
 // https://uweb.engr.arizona.edu/~ece369/Resources/spim/MIPSReference.pdf
 // https://en.wikibooks.org/wiki/MIPS_Assembly/Instruction_Formats
 
 // https://www.cs.cmu.edu/afs/cs/academic/class/15740-f97/public/doc/mips-isa.pdf
 // page A-177
+
+// MIPS linux kernel errors used by Go runtime:
+// https://github.com/golang/go/blob/master/src/syscall/zerrors_linux_mips.go
 
 // This MIPS contract emulates a single MIPS instruction.
 //
@@ -36,10 +43,18 @@ contract MIPS {
 
   uint32 constant public BRK_START = 0x40000000;
 
-//  event DidStep(bytes32 stateHash);
-//  event DidWriteMemory(uint32 addr, uint32 value);
-//  event TryReadMemory(uint32 addr);
-//  event DidReadMemory(uint32 addr, uint32 value);
+  uint32 constant FD_STDIN = 0;
+  uint32 constant FD_STDOUT = 1;
+  uint32 constant FD_STDERR = 2;
+  uint32 constant FD_HINT_READ = 3;
+  uint32 constant FD_HINT_WRITE = 4;
+  uint32 constant FD_PREIMAGE_READ = 5;
+  uint32 constant FD_PREIMAGE_WRITE = 6;
+
+  uint32 constant EBADF = 0x9;
+  uint32 constant EINVAL = 0x16;
+
+  IOracle public oracle;
 
   function SE(uint32 dat, uint32 idx) internal pure returns (uint32) {
     bool isSigned = (dat >> (idx-1)) != 0;
@@ -86,11 +101,15 @@ contract MIPS {
     }
     uint32 syscall_no = state.registers[2];
     uint32 v0 = 0;
+    uint32 v1 = 0;
+
+    uint32 a0 = state.registers[4];
+    uint32 a1 = state.registers[5];
+    uint32 a2 = state.registers[6];
 
     if (syscall_no == 4090) {
       // mmap
-      uint32 a0 = state.registers[4];
-      uint32 sz = state.registers[5];
+      uint32 sz = a1;
       if (sz&4095 != 0) { // adjust size to align with page size
         sz += 4096 - (sz&4095);
       }
@@ -111,6 +130,76 @@ contract MIPS {
       state.exited = true;
       state.exitCode = uint8(state.registers[4]);
       return outputState();
+    } else if (syscall_no == 4003) { // read
+      // args: a0 = fd, a1 = addr, a2 = count
+      // returns: v0 = read, v1 = err code
+      if (a0 == FD_STDIN) {
+        // leave v0 and v1 zero: read nothing, no error
+      } else if (a0 == FD_PREIMAGE_READ) { // pre-image oracle
+        // verify proof 1 is correct, and get the existing memory.
+        uint32 mem = readMem(a0 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
+        (bytes32 dat, uint256 datLen) = oracle.readPreimage(state.preimageKey, state.preimageOffset);
+        assembly { // assembly for more precise ops, and no var count limit
+          let alignment := and(a0, 3) // the read might not start at an aligned address
+          let space := sub(4, alignment) // remaining space in memory word
+          if lt(space, datLen) { datLen := space } // if less space than data, shorten data
+          if lt(a2, datLen) { datLen := a2 } // if requested to read less, read less
+          dat := shr(sub(256, mul(datLen, 8)), dat) // right-align data
+          dat := shl(mul(alignment, 8), dat) // position data to insert into memory word
+          let mask := sub(shl(mul(sub(4, alignment), 8), 1), 1) // mask all bytes after start
+          let suffixMask := sub(shl(mul(add(sub(4, alignment), datLen), 8), 1), 1) // mask of all bytes starting from end, maybe none
+          mask := and(mask, not(suffixMask)) // reduce mask to just cover the data we insert
+          mem := or(and(mem, not(mask)), dat) // clear masked part of original memory, and insert data
+        }
+        writeMem(a0, 1, mem);
+        state.preimageOffset += uint32(datLen);
+        v0 = uint32(datLen);
+      } else if (a0 == FD_HINT_READ) { // hint response
+        // don't actually read into memory, just say we read it all, we ignore the result anyway
+        v0 = a2;
+      } else {
+        v0 = 0xFFffFFff;
+        v1 = EBADF;
+      }
+    } else if (syscall_no == 4004) { // write
+      // args: a0 = fd, a1 = addr, a2 = count
+      // returns: v0 = written, v1 = err code
+      if (a0 == FD_STDOUT || a0 == FD_STDERR || a0 == FD_HINT_WRITE) {
+        v0 = a2; // tell program we have written everything
+      } else if (a0 == FD_PREIMAGE_WRITE) { // pre-image oracle
+        uint32 mem = readMem(a0 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
+        bytes32 key = state.preimageKey;
+        assembly { // assembly for more precise ops, and no var count limit
+          let alignment := and(a0, 3) // the read might not start at an aligned address
+          let space := sub(4, alignment) // remaining space in memory word
+          if lt(space, a2) { a2 := space } // if less space than data, shorten data
+          key := shl(mul(a2, 8), key) // shift key, make space for new info
+          let mask := sub(shl(mul(a2, 8), 1), 1) // mask for extracting value from memory
+          mem := and(shr(mul(sub(space, a2), 8), mem), mask) // align value to right, mask it
+          key := or(key, mem) // insert into key
+        }
+        state.preimageKey = key;
+        state.preimageOffset = 0; // reset offset, to read new pre-image data from the start
+        v0 = a2;
+      } else {
+        v0 = 0xFFffFFff;
+        v1 = EBADF;
+      }
+    } else if (syscall_no == 4055) { // fcntl
+      // args: a0 = fd, a1 = cmd
+      if (a1 == 3) { // F_GETFL: get file descriptor flags
+        if (a0 == FD_STDIN || a0 == FD_PREIMAGE_READ || a0 == FD_HINT_READ) {
+          v0 = 0; // O_RDONLY
+        } else if (a0 == FD_STDOUT || a0 == FD_STDERR || a0 == FD_PREIMAGE_WRITE || a0 == FD_HINT_WRITE) {
+          v0 = 1; // O_WRONLY
+        } else {
+          v0 = 0xFFffFFff;
+          v1 = EBADF;
+        }
+      } else {
+        v0 = 0xFFffFFff;
+        v1 = EINVAL; // cmd not recognized by this kernel
+      }
     }
     // TODO: pre-image oracle read/write
 
