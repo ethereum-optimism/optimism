@@ -470,7 +470,11 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      * @return Whether or not the output is finalized.
      */
     function isOutputFinalized(uint256 _l2OutputIndex) external view returns (bool) {
-        return _isFinalizationPeriodElapsed(L2_ORACLE.getL2Output(_l2OutputIndex).timestamp);
+        uint256 timestamp = L2_ORACLE.getL2Output(_l2OutputIndex).timestamp;
+        if (timestamp == 0) {
+            return false;
+        }
+        return _isFinalizationPeriodElapsed(timestamp);
     }
 
     /**

@@ -327,7 +327,7 @@ contract OptimismPortal_Test is Portal_Initializer {
         uint256 nextOutputIndex = oracle.startingBlockNumber();
         vm.roll(checkpoint);
         vm.warp(oracle.computeL2Timestamp(checkpoint) + 1);
-        oracle.proposeL2Output(keccak256(abi.encode(2)), checkpoint, 0, 0);
+        oracle.proposeL2Output{ value: 1 ether }(keccak256(abi.encode(2)), checkpoint, 0, 0);
 
         // warp to the final second of the finalization period
         uint256 finalizationHorizon = block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS();
@@ -335,7 +335,6 @@ contract OptimismPortal_Test is Portal_Initializer {
         // The checkpointed block should not be finalized until 1 second from now.
         assertEq(op.isOutputFinalized(nextOutputIndex), false);
         // Nor should a block after it
-        vm.expectRevert(stdError.indexOOBError);
         assertEq(op.isOutputFinalized(nextOutputIndex + 1), false);
 
         // warp past the finalization period
@@ -343,7 +342,6 @@ contract OptimismPortal_Test is Portal_Initializer {
         // It should now be finalized.
         assertEq(op.isOutputFinalized(nextOutputIndex), true);
         // But not the block after it.
-        vm.expectRevert(stdError.indexOOBError);
         assertEq(op.isOutputFinalized(nextOutputIndex + 1), false);
     }
 }
@@ -391,7 +389,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     function setUp() public override {
         // Configure the oracle to return the output root we've prepared.
         vm.warp(oracle.computeL2Timestamp(_proposedBlockNumber) + 1);
-        oracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
+        oracle.proposeL2Output{ value: 1 ether }(_outputRoot, _proposedBlockNumber, 0, 0);
 
         // Warp beyond the finalization period for the block we've proposed.
         vm.warp(
@@ -525,63 +523,6 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         op.proveWithdrawalTransaction(
             _defaultTx,
             _proposedOutputIndex,
-            _outputRootProof,
-            _withdrawalProof
-        );
-
-        // Ensure that the withdrawal was updated within the mapping
-        (, uint128 timestamp, ) = op.provenWithdrawals(_withdrawalHash);
-        assertEq(timestamp, block.timestamp);
-    }
-
-    // Test: proveWithdrawalTransaction succeeds if the passed transaction's withdrawalHash has
-    // already been proven AND the output root + output index + l2BlockNumber changes.
-    function test_proveWithdrawalTransaction_replayProveChangedOutputRootAndOutputIndex_succeeds()
-        external
-    {
-        vm.expectEmit(true, true, true, true);
-        emit WithdrawalProven(_withdrawalHash, alice, bob);
-        op.proveWithdrawalTransaction(
-            _defaultTx,
-            _proposedOutputIndex,
-            _outputRootProof,
-            _withdrawalProof
-        );
-
-        // Compute the storage slot of the outputRoot corresponding to the `withdrawalHash`
-        // inside of the `provenWithdrawal`s mapping.
-        bytes32 slot;
-        assembly {
-            mstore(0x00, sload(_withdrawalHash.slot))
-            mstore(0x20, 52) // 52 is the slot of the `provenWithdrawals` mapping in OptimismPortal
-            slot := keccak256(0x00, 0x40)
-        }
-
-        // Store a dummy output root within the `provenWithdrawals` mapping without touching the
-        // l2BlockNumber or timestamp.
-        vm.store(address(op), slot, bytes32(0));
-
-        // Fetch the output proposal at `_proposedOutputIndex` from the L2OutputOracle
-        Types.OutputProposal memory proposal = op.L2_ORACLE().getL2Output(_proposedOutputIndex);
-
-        // Propose the same output root again, creating the same output at a different index + l2BlockNumber.
-        op.L2_ORACLE().proposeL2Output(
-            proposal.outputRoot,
-            op.L2_ORACLE().startingBlockNumber(),
-            blockhash(block.number),
-            block.number
-        );
-
-        // Warp ahead 1 second
-        vm.warp(block.timestamp + 1);
-
-        // Even though we have already proven this withdrawalHash, we should be allowed to re-submit
-        // our proof with a changed outputRoot + a different output index
-        vm.expectEmit(true, true, true, true);
-        emit WithdrawalProven(_withdrawalHash, alice, bob);
-        op.proveWithdrawalTransaction(
-            _defaultTx,
-            _proposedOutputIndex + 1,
             _outputRootProof,
             _withdrawalProof
         );

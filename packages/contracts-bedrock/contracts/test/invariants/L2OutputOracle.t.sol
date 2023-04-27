@@ -23,7 +23,7 @@ contract L2OutputOracle_Proposer {
         uint256 _l1BlockNumber
     ) external {
         // Propose a new output.
-        oracle.proposeL2Output(_outputRoot, _l2BlockNumber, _l1BlockHash, _l1BlockNumber);
+        oracle.proposeL2Output{ value: 1 ether }(_outputRoot, _l2BlockNumber, _l1BlockHash, _l1BlockNumber);
     }
 }
 

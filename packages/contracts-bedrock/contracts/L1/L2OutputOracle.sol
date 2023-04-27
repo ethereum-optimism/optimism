@@ -179,10 +179,13 @@ contract L2OutputOracle is Initializable, Semver {
             "L2OutputOracle: minimum proposal cost not provided"
         );
 
-        require(
-            l2Outputs[l2OutputIndices[_l2BlockNumber]].timestamp == 0,
-            "L2OutputOracle: output already proposed"
-        );
+        uint256 index = l2OutputIndices[_l2BlockNumber];
+        if (index < l2Outputs.length) {
+            require(
+                l2Outputs[index].timestamp == 0,
+                "L2OutputOracle: output already proposed"
+            );
+        }
 
         require(
             computeL2Timestamp(_l2BlockNumber) < block.timestamp,
@@ -210,7 +213,7 @@ contract L2OutputOracle is Initializable, Semver {
         }
 
         // Post the bond to the bond manager
-        BOND_MANAGER.post{ value: msg.value }(keccak256(abi.encode(_l2BlockNumber)), msg.sender, uint64(10 days));
+        BOND_MANAGER.post{ value: msg.value }(keccak256(abi.encode(_l2BlockNumber)), msg.sender, uint256(10 days));
 
         l2Outputs.push(
             Types.OutputProposal({
@@ -236,7 +239,15 @@ contract L2OutputOracle is Initializable, Semver {
         view
         returns (Types.OutputProposal memory)
     {
-        return l2Outputs[l2OutputIndices[_l2BlockNumber]];
+        Types.OutputProposal memory proposal = l2Outputs[l2OutputIndices[_l2BlockNumber]];
+        if (proposal.l2BlockNumber != _l2BlockNumber) {
+            return Types.OutputProposal({
+                outputRoot: bytes32(0),
+                timestamp: 0,
+                l2BlockNumber: 0
+            });
+        }
+        return proposal;
     }
 
     /**
