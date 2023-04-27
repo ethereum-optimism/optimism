@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 type State struct {
@@ -24,6 +25,13 @@ type State struct {
 	Step uint64 `json:"step"`
 
 	Registers [32]uint32 `json:"registers"`
+
+	// LastHint is optional metadata, and not part of the VM state itself.
+	// It is used to remember the last pre-image hint,
+	// so a VM can start from any state without fetching prior pre-images,
+	// and instead just repeat the last hint on setup,
+	// to make sure pre-image requests can be served.
+	LastHint hexutil.Bytes `json:"lastHint,omitempty"`
 }
 
 func (s *State) EncodeWitness() []byte {
@@ -49,5 +57,3 @@ func (s *State) EncodeWitness() []byte {
 	}
 	return out
 }
-
-// TODO convert access-list to calldata and state-sets for EVM

@@ -3,7 +3,6 @@ package mipsevm
 import (
 	"bytes"
 	"debug/elf"
-	"encoding/binary"
 	"io"
 	"math/big"
 	"os"
@@ -64,7 +63,7 @@ func TestEVM(t *testing.T) {
 			err = LoadUnicorn(state, mu)
 			require.NoError(t, err, "load state into unicorn")
 
-			us, err := NewUnicornState(mu, state, os.Stdout, os.Stderr)
+			us, err := NewUnicornState(mu, state, nil, os.Stdout, os.Stderr)
 			require.NoError(t, err, "hook unicorn to state")
 
 			for i := 0; i < 1000; i++ {
@@ -74,8 +73,8 @@ func TestEVM(t *testing.T) {
 				insn := state.Memory.GetMemory(state.PC)
 				t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
 
-				stateData, proofData := us.Step(true)
-				input := FormatStepInput(stateData, proofData)
+				stepWitness := us.Step(true)
+				input := stepWitness.EncodeStepInput()
 				startingGas := uint64(30_000_000)
 
 				// we take a snapshot so we can clean up the state, and isolate the logs of this instruction run.
@@ -108,21 +107,6 @@ func TestEVM(t *testing.T) {
 	}
 }
 
-func FormatStepInput(stateData, proofData []byte) []byte {
-	stateHash := crypto.Keccak256Hash(stateData)
-	var input []byte
-	input = append(input, StepBytes4...)
-	input = append(input, stateHash[:]...)
-	input = append(input, uint32ToBytes32(32*3)...)                           // state data offset in bytes
-	input = append(input, uint32ToBytes32(32*3+32+uint32(len(stateData)))...) // proof data offset in bytes
-
-	input = append(input, uint32ToBytes32(uint32(len(stateData)))...) // state data length in bytes
-	input = append(input, stateData[:]...)
-	input = append(input, uint32ToBytes32(uint32(len(proofData)))...) // proof data length in bytes
-	input = append(input, proofData[:]...)
-	return input
-}
-
 func TestMinimalEVM(t *testing.T) {
 	contracts, err := LoadContracts()
 	require.NoError(t, err)
@@ -151,7 +135,7 @@ func TestMinimalEVM(t *testing.T) {
 	err = LoadUnicorn(state, mu)
 	require.NoError(t, err, "load state into unicorn")
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	us, err := NewUnicornState(mu, state, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
+	us, err := NewUnicornState(mu, state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 	require.NoError(t, err, "hook unicorn to state")
 
 	env, evmState := NewEVMEnv(contracts, addrs)
@@ -169,8 +153,8 @@ func TestMinimalEVM(t *testing.T) {
 			t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
 		}
 
-		stateData, proofData := us.Step(true)
-		input := FormatStepInput(stateData, proofData)
+		stepWitness := us.Step(true)
+		input := stepWitness.EncodeStepInput()
 		startingGas := uint64(30_000_000)
 
 		// we take a snapshot so we can clean up the state, and isolate the logs of this instruction run.
@@ -203,10 +187,4 @@ func TestMinimalEVM(t *testing.T) {
 
 	require.Equal(t, "hello world!", stdOutBuf.String(), "stdout says hello")
 	require.Equal(t, "", stdErrBuf.String(), "stderr silent")
-}
-
-func uint32ToBytes32(v uint32) []byte {
-	var out [32]byte
-	binary.BigEndian.PutUint32(out[32-4:], v)
-	return out[:]
 }

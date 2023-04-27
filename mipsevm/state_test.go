@@ -58,7 +58,7 @@ func TestState(t *testing.T) {
 			err = LoadUnicorn(state, mu)
 			require.NoError(t, err, "load state into unicorn")
 
-			us, err := NewUnicornState(mu, state, os.Stdout, os.Stderr)
+			us, err := NewUnicornState(mu, state, nil, os.Stdout, os.Stderr)
 			require.NoError(t, err, "hook unicorn to state")
 
 			for i := 0; i < 1000; i++ {
@@ -92,7 +92,7 @@ func TestMinimal(t *testing.T) {
 	err = LoadUnicorn(state, mu)
 	require.NoError(t, err, "load state into unicorn")
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	us, err := NewUnicornState(mu, state, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
+	us, err := NewUnicornState(mu, state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 	require.NoError(t, err, "hook unicorn to state")
 
 	for i := 0; i < 400_000; i++ {

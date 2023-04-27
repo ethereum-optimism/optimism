@@ -10,6 +10,11 @@ import (
 	uc "github.com/unicorn-engine/unicorn/bindings/go/unicorn"
 )
 
+type PreimageOracle interface {
+	Hint(v []byte)
+	GetPreimage(k [32]byte) []byte
+}
+
 type UnicornState struct {
 	sync.Mutex
 
@@ -24,16 +29,41 @@ type UnicornState struct {
 	memProofEnabled bool
 	memProof        [28 * 32]byte
 
+	preimageOracle PreimageOracle
+
+	// number of bytes last read from the oracle.
+	// The read data is preimage[state.PreimageOffset-lastPreimageRead : state.PreimageOffset]
+	// when inspecting the post-step state.
+	lastPreimageRead uint32
+
+	// cached pre-image data for state.PreimageKey
+	lastPreimage []byte
+
 	onStep func()
 }
 
-// TODO add pre-image oracle
-func NewUnicornState(mu uc.Unicorn, state *State, stdOut, stdErr io.Writer) (*UnicornState, error) {
+const (
+	fdStdin         = 0
+	fdStdout        = 1
+	fdStderr        = 2
+	fdHintRead      = 3
+	fdHintWrite     = 4
+	fdPreimageRead  = 5
+	fdPreimageWrite = 6
+)
+
+const (
+	MipsEBADF  = 0x9
+	MipsEINVAL = 0x16
+)
+
+func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, stdErr io.Writer) (*UnicornState, error) {
 	m := &UnicornState{
-		mu:     mu,
-		state:  state,
-		stdOut: stdOut,
-		stdErr: stdErr,
+		mu:             mu,
+		state:          state,
+		stdOut:         stdOut,
+		stdErr:         stdErr,
+		preimageOracle: po,
 	}
 	st := m.state
 
@@ -43,33 +73,48 @@ func NewUnicornState(mu uc.Unicorn, state *State, stdOut, stdErr io.Writer) (*Un
 			log.Fatal("invalid interrupt ", intno, " at step ", st.Step)
 		}
 
-		syscallNum, _ := mu.RegRead(uc.MIPS_REG_V0)
+		syscallNum := st.Registers[2] // v0
+		v0 := uint32(0)
+		//v1 := uint32(0)
+
+		a0 := st.Registers[4]
+		a1 := st.Registers[5]
+		a2 := st.Registers[6]
 
 		fmt.Printf("syscall: %d\n", syscallNum)
-		v0 := uint64(0)
 		switch syscallNum {
 		case 4004: // write
-			fd, _ := mu.RegRead(uc.MIPS_REG_A0)
-			addr, _ := mu.RegRead(uc.MIPS_REG_A1)
-			count, _ := mu.RegRead(uc.MIPS_REG_A2)
+			fd := a0
+			addr := a1
+			count := a2
 			switch fd {
-			case 1:
-				_, _ = io.Copy(stdOut, st.Memory.ReadMemoryRange(uint32(addr), uint32(count)))
-			case 2:
-				_, _ = io.Copy(stdErr, st.Memory.ReadMemoryRange(uint32(addr), uint32(count)))
+			case fdStdout:
+				_, _ = io.Copy(stdOut, st.Memory.ReadMemoryRange(addr, count))
+				v0 = count
+			case fdStderr:
+				_, _ = io.Copy(stdErr, st.Memory.ReadMemoryRange(addr, count))
+				v0 = count
+			case fdHintWrite:
+				hint, _ := io.ReadAll(st.Memory.ReadMemoryRange(addr, count))
+				v0 = count
+				po.Hint(hint)
+			case fdPreimageWrite:
+				// TODO
+				v0 = count
 			default:
+				v0 = 0xFFffFFff
+				//v1 = MipsEBADF
 				// ignore other output data
 			}
 		case 4090: // mmap
-			a0, _ := mu.RegRead(uc.MIPS_REG_A0)
-			sz, _ := mu.RegRead(uc.MIPS_REG_A1)
+			sz := a1
 			if sz&pageAddrMask != 0 { // adjust size to align with page size
 				sz += pageSize - (sz & pageAddrMask)
 			}
 			if a0 == 0 {
-				v0 = uint64(st.Heap)
+				v0 = st.Heap
 				fmt.Printf("mmap heap 0x%x size 0x%x\n", v0, sz)
-				st.Heap += uint32(sz)
+				st.Heap += sz
 			} else {
 				v0 = a0
 				fmt.Printf("mmap hint 0x%x size 0x%x\n", v0, sz)
@@ -77,9 +122,9 @@ func NewUnicornState(mu uc.Unicorn, state *State, stdOut, stdErr io.Writer) (*Un
 			// Go does this thing where it first gets memory with PROT_NONE,
 			// and then mmaps with a hint with prot=3 (PROT_READ|WRITE).
 			// We can ignore the NONE case, to avoid duplicate/overlapping mmap calls to unicorn.
-			prot, _ := mu.RegRead(uc.MIPS_REG_A2)
+			prot := a2
 			if prot != 0 {
-				if err := mu.MemMap(v0, sz); err != nil {
+				if err := mu.MemMap(uint64(v0), uint64(sz)); err != nil {
 					log.Fatalf("mmap fail: %v", err)
 				}
 			}
@@ -91,7 +136,7 @@ func NewUnicornState(mu uc.Unicorn, state *State, stdOut, stdErr io.Writer) (*Un
 			st.ExitCode = uint8(v0)
 			return
 		}
-		mu.RegWrite(uc.MIPS_REG_V0, v0)
+		mu.RegWrite(uc.MIPS_REG_V0, uint64(v0))
 		mu.RegWrite(uc.MIPS_REG_A3, 0)
 	}, 0, ^uint64(0))
 	if err != nil {
@@ -165,15 +210,16 @@ func NewUnicornState(mu uc.Unicorn, state *State, stdOut, stdErr io.Writer) (*Un
 	return m, nil
 }
 
-func (m *UnicornState) Step(proof bool) (stateWitness []byte, memProof []byte) {
+func (m *UnicornState) Step(proof bool) (wit *StepWitness) {
 	m.memProofEnabled = proof
 	m.lastMemAccess = ^uint32(0)
 
 	if proof {
-		stateWitness = m.state.EncodeWitness()
-
 		insnProof := m.state.Memory.MerkleProof(m.state.PC)
-		memProof = append(memProof, insnProof[:]...)
+		wit = &StepWitness{
+			state:    m.state.EncodeWitness(),
+			memProof: insnProof[:],
+		}
 	}
 
 	insn := m.state.Memory.GetMemory(m.state.PC)
@@ -222,7 +268,12 @@ func (m *UnicornState) Step(proof bool) (stateWitness []byte, memProof []byte) {
 	})
 
 	if proof {
-		memProof = append(memProof, m.memProof[:]...)
+		wit.memProof = append(wit.memProof, m.memProof[:]...)
+		if m.lastPreimageRead > 0 {
+			wit.preimageOffset = m.state.PreimageOffset
+			wit.preimageKey = m.state.PreimageKey
+			wit.preimageValue = m.lastPreimage
+		}
 	}
 
 	// count it
