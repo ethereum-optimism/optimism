@@ -88,7 +88,7 @@ var (
 	ErrNotHealthy = &RPCErr{
 		Code:          JSONRPCErrorInternal - 18,
 		Message:       "backend is currently not healthy to serve traffic",
-		HTTPErrorCode: 429,
+		HTTPErrorCode: 503,
 	}
 
 	ErrBackendUnexpectedJSONRPC = errors.New("backend returned an unexpected JSON-RPC response")
