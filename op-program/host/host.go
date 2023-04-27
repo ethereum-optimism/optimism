@@ -27,13 +27,6 @@ type L2Source struct {
 	*sources.DebugClient
 }
 
-const opProgramChildEnvName = "OP_PROGRAM_CHILD"
-
-func RunningProgramInClient() bool {
-	value, _ := os.LookupEnv(opProgramChildEnvName)
-	return value == "true"
-}
-
 // FaultProofProgram is the programmatic entry-point for the fault proof program
 func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 	if err := cfg.Check(); err != nil {
@@ -96,8 +89,8 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 	routeHints(logger, hHost, hinter)
 
 	var cmd *exec.Cmd
-	if cfg.Detached {
-		cmd = exec.CommandContext(ctx, os.Args[0])
+	if cfg.ExecCmd != "" {
+		cmd = exec.CommandContext(ctx, cfg.ExecCmd)
 		cmd.ExtraFiles = make([]*os.File, cl.MaxFd-3) // not including stdin, stdout and stderr
 		cmd.ExtraFiles[cl.HClientRFd-3] = hClientRW.Reader()
 		cmd.ExtraFiles[cl.HClientWFd-3] = hClientRW.Writer()
@@ -105,7 +98,6 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 		cmd.ExtraFiles[cl.PClientWFd-3] = pClientRW.Writer()
 		cmd.Stdout = os.Stdout // for debugging
 		cmd.Stderr = os.Stderr // for debugging
-		cmd.Env = append(os.Environ(), fmt.Sprintf("%s=true", opProgramChildEnvName))
 
 		err := cmd.Start()
 		if err != nil {

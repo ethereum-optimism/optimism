@@ -220,22 +220,15 @@ func TestL2BlockNumber(t *testing.T) {
 	})
 }
 
-func TestDetached(t *testing.T) {
-	t.Run("DefaultFalse", func(t *testing.T) {
+func TestExec(t *testing.T) {
+	t.Run("DefaultEmpty", func(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgs())
-		require.False(t, cfg.Detached)
+		require.Equal(t, "", cfg.ExecCmd)
 	})
-	t.Run("Enabled", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs("--detached"))
-		require.True(t, cfg.Detached)
-	})
-	t.Run("EnabledWithArg", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs("--detached=true"))
-		require.True(t, cfg.Detached)
-	})
-	t.Run("Disabled", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgs("--detached=false"))
-		require.False(t, cfg.Detached)
+	t.Run("Set", func(t *testing.T) {
+		cmd := "/bin/echo"
+		cfg := configForArgs(t, addRequiredArgs("--exec", cmd))
+		require.Equal(t, cmd, cfg.ExecCmd)
 	})
 }
 
