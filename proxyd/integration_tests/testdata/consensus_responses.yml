@@ -1,3 +1,17 @@
+- method: net_peerCount
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": "0x10"
+    }
+- method: eth_syncing
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": false
+    }
 - method: eth_getBlockByNumber
   block: latest
   response: >

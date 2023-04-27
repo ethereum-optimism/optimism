@@ -2,11 +2,13 @@ package integration_tests
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 	"net/http"
 	"os"
 	"path"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/proxyd"
 	ms "github.com/ethereum-optimism/optimism/proxyd/tools/mockserver/handler"
@@ -54,6 +56,7 @@ func TestConsensus(t *testing.T) {
 	t.Run("initial consensus", func(t *testing.T) {
 		h1.ResetOverrides()
 		h2.ResetOverrides()
+		bg.Consensus.Unban()
 
 		// unknown consensus at init
 		require.Equal(t, "0x0", bg.Consensus.GetConsensusBlockNumber().String())
@@ -68,9 +71,64 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
 	})
 
+	t.Run("prevent using a backend with low peer count", func(t *testing.T) {
+		h1.ResetOverrides()
+		h2.ResetOverrides()
+		bg.Consensus.Unban()
+
+		// advance latest on node2 to 0x2
+		h1.AddOverride(&ms.MethodTemplate{
+			Method:   "net_peerCount",
+			Block:    "",
+			Response: buildPeerCountResponse(1),
+		})
+
+		be := backend(bg, "node1")
+		require.NotNil(t, be)
+
+		for _, be := range bg.Backends {
+			bg.Consensus.UpdateBackend(ctx, be)
+		}
+		bg.Consensus.UpdateBackendGroupConsensus(ctx)
+		consensusGroup := bg.Consensus.GetConsensusGroup()
+
+		require.NotContains(t, consensusGroup, be)
+		require.Equal(t, 1, len(consensusGroup))
+	})
+
+	t.Run("prevent using a backend not in sync", func(t *testing.T) {
+		h1.ResetOverrides()
+		h2.ResetOverrides()
+		bg.Consensus.Unban()
+
+		// advance latest on node2 to 0x2
+		h1.AddOverride(&ms.MethodTemplate{
+			Method: "eth_syncing",
+			Block:  "",
+			Response: buildResponse(map[string]string{
+				"startingblock": "0x0",
+				"currentblock":  "0x0",
+				"highestblock":  "0x100",
+			}),
+		})
+
+		be := backend(bg, "node1")
+		require.NotNil(t, be)
+
+		for _, be := range bg.Backends {
+			bg.Consensus.UpdateBackend(ctx, be)
+		}
+		bg.Consensus.UpdateBackendGroupConsensus(ctx)
+		consensusGroup := bg.Consensus.GetConsensusGroup()
+
+		require.NotContains(t, consensusGroup, be)
+		require.Equal(t, 1, len(consensusGroup))
+	})
+
 	t.Run("advance consensus", func(t *testing.T) {
 		h1.ResetOverrides()
 		h2.ResetOverrides()
+		bg.Consensus.Unban()
 
 		for _, be := range bg.Backends {
 			bg.Consensus.UpdateBackend(ctx, be)
@@ -84,14 +142,13 @@ func TestConsensus(t *testing.T) {
 		h2.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "latest",
-			Response: buildResponse("0x2", "hash2"),
+			Response: buildGetBlockResponse("0x2", "hash2"),
 		})
 
 		// poll for group consensus
 		for _, be := range bg.Backends {
 			bg.Consensus.UpdateBackend(ctx, be)
 		}
-		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 
 		// consensus should stick to 0x1, since node1 is still lagging there
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
@@ -101,7 +158,7 @@ func TestConsensus(t *testing.T) {
 		h1.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "latest",
-			Response: buildResponse("0x2", "hash2"),
+			Response: buildGetBlockResponse("0x2", "hash2"),
 		})
 
 		// poll for group consensus
@@ -117,6 +174,7 @@ func TestConsensus(t *testing.T) {
 	t.Run("broken consensus", func(t *testing.T) {
 		h1.ResetOverrides()
 		h2.ResetOverrides()
+		bg.Consensus.Unban()
 
 		for _, be := range bg.Backends {
 			bg.Consensus.UpdateBackend(ctx, be)
@@ -130,12 +188,12 @@ func TestConsensus(t *testing.T) {
 		h1.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "latest",
-			Response: buildResponse("0x2", "hash2"),
+			Response: buildGetBlockResponse("0x2", "hash2"),
 		})
 		h2.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "latest",
-			Response: buildResponse("0x2", "hash2"),
+			Response: buildGetBlockResponse("0x2", "hash2"),
 		})
 
 		// poll for group consensus
@@ -151,7 +209,7 @@ func TestConsensus(t *testing.T) {
 		h2.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "0x2",
-			Response: buildResponse("0x2", "wrong_hash"),
+			Response: buildGetBlockResponse("0x2", "wrong_hash"),
 		})
 
 		// poll for group consensus
@@ -169,6 +227,7 @@ func TestConsensus(t *testing.T) {
 	t.Run("broken consensus with depth 2", func(t *testing.T) {
 		h1.ResetOverrides()
 		h2.ResetOverrides()
+		bg.Consensus.Unban()
 
 		for _, be := range bg.Backends {
 			bg.Consensus.UpdateBackend(ctx, be)
@@ -182,12 +241,12 @@ func TestConsensus(t *testing.T) {
 		h1.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "latest",
-			Response: buildResponse("0x2", "hash2"),
+			Response: buildGetBlockResponse("0x2", "hash2"),
 		})
 		h2.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "latest",
-			Response: buildResponse("0x2", "hash2"),
+			Response: buildGetBlockResponse("0x2", "hash2"),
 		})
 
 		// poll for group consensus
@@ -203,12 +262,12 @@ func TestConsensus(t *testing.T) {
 		h1.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "latest",
-			Response: buildResponse("0x3", "hash3"),
+			Response: buildGetBlockResponse("0x3", "hash3"),
 		})
 		h2.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "latest",
-			Response: buildResponse("0x3", "hash3"),
+			Response: buildGetBlockResponse("0x3", "hash3"),
 		})
 
 		// poll for group consensus
@@ -224,12 +283,12 @@ func TestConsensus(t *testing.T) {
 		h2.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "0x2",
-			Response: buildResponse("0x2", "wrong_hash2"),
+			Response: buildGetBlockResponse("0x2", "wrong_hash2"),
 		})
 		h2.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "0x3",
-			Response: buildResponse("0x3", "wrong_hash3"),
+			Response: buildGetBlockResponse("0x3", "wrong_hash3"),
 		})
 
 		// poll for group consensus
@@ -245,6 +304,7 @@ func TestConsensus(t *testing.T) {
 	t.Run("fork in advanced block", func(t *testing.T) {
 		h1.ResetOverrides()
 		h2.ResetOverrides()
+		bg.Consensus.Unban()
 
 		for _, be := range bg.Backends {
 			bg.Consensus.UpdateBackend(ctx, be)
@@ -258,32 +318,32 @@ func TestConsensus(t *testing.T) {
 		h1.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "0x2",
-			Response: buildResponse("0x2", "node1_0x2"),
+			Response: buildGetBlockResponse("0x2", "node1_0x2"),
 		})
 		h2.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "0x2",
-			Response: buildResponse("0x2", "node2_0x2"),
+			Response: buildGetBlockResponse("0x2", "node2_0x2"),
 		})
 		h1.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "0x3",
-			Response: buildResponse("0x3", "node1_0x3"),
+			Response: buildGetBlockResponse("0x3", "node1_0x3"),
 		})
 		h2.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "0x3",
-			Response: buildResponse("0x3", "node2_0x3"),
+			Response: buildGetBlockResponse("0x3", "node2_0x3"),
 		})
 		h1.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "latest",
-			Response: buildResponse("0x3", "node1_0x3"),
+			Response: buildGetBlockResponse("0x3", "node1_0x3"),
 		})
 		h2.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "latest",
-			Response: buildResponse("0x3", "node2_0x3"),
+			Response: buildGetBlockResponse("0x3", "node2_0x3"),
 		})
 
 		// poll for group consensus
@@ -297,13 +357,31 @@ func TestConsensus(t *testing.T) {
 	})
 }
 
-func buildResponse(number string, hash string) string {
-	return fmt.Sprintf(`{
-      "jsonrpc": "2.0",
-      "id": 67,
-      "result": {
-        "number": "%s",
-		"hash": "%s"
-      }
-    }`, number, hash)
+func backend(bg *proxyd.BackendGroup, name string) *proxyd.Backend {
+	for _, be := range bg.Backends {
+		if be.Name == name {
+			return be
+		}
+	}
+	return nil
+}
+
+func buildPeerCountResponse(count uint64) string {
+	return buildResponse(hexutil.Uint64(count).String())
+}
+func buildGetBlockResponse(number string, hash string) string {
+	return buildResponse(map[string]string{
+		"number": number,
+		"hash":   hash,
+	})
+}
+
+func buildResponse(result interface{}) string {
+	res, err := json.Marshal(proxyd.RPCRes{
+		Result: result,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return string(res)
 }

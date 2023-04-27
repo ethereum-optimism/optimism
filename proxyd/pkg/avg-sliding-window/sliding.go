@@ -1,6 +1,7 @@
 package avg_sliding_window
 
 import (
+	"sync"
 	"time"
 
 	lm "github.com/emirpasic/gods/maps/linkedhashmap"
@@ -44,6 +45,7 @@ type bucket struct {
 // Data points are rounded to nearest bucket of size `bucketSize`,
 // and evicted when they are too old based on `windowLength`
 type AvgSlidingWindow struct {
+	mux          sync.Mutex
 	bucketSize   time.Duration
 	windowLength time.Duration
 	clock        Clock
@@ -97,15 +99,23 @@ func (sw *AvgSlidingWindow) inWindow(t time.Time) bool {
 	return windowStart.Before(t) && !t.After(now)
 }
 
-// Add inserts a new data point into the window, with value `val` with the current time
+// Add inserts a new data point into the window, with value `val` and the current time
 func (sw *AvgSlidingWindow) Add(val float64) {
 	t := sw.clock.Now()
 	sw.AddWithTime(t, val)
 }
 
+// Incr is an alias to insert a data point with value float64(1) and the current time
+func (sw *AvgSlidingWindow) Incr() {
+	sw.Add(1)
+}
+
 // AddWithTime inserts a new data point into the window, with value `val` and time `t`
 func (sw *AvgSlidingWindow) AddWithTime(t time.Time, val float64) {
 	sw.advance()
+
+	defer sw.mux.Unlock()
+	sw.mux.Lock()
 
 	key := t.Round(sw.bucketSize)
 	if !sw.inWindow(key) {
@@ -134,6 +144,8 @@ func (sw *AvgSlidingWindow) AddWithTime(t time.Time, val float64) {
 
 // advance evicts old data points
 func (sw *AvgSlidingWindow) advance() {
+	defer sw.mux.Unlock()
+	sw.mux.Lock()
 	now := sw.clock.Now().Round(sw.bucketSize)
 	windowStart := now.Add(-sw.windowLength)
 	keys := sw.buckets.Keys()
