@@ -72,7 +72,7 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
     function setUp() public virtual override {
         // Configure the oracle to return the output root we've prepared.
         vm.warp(oracle.computeL2Timestamp(_proposedBlockNumber) + 1);
-        oracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
+        oracle.proposeL2Output{ value: 1 ether }(_outputRoot, _proposedBlockNumber, 0, 0);
 
         // Warp beyond the finalization period for the block we've proposed.
         vm.warp(
@@ -218,6 +218,6 @@ contract GasBenchMark_L2OutputOracle is L2OutputOracle_Initializer {
     }
 
     function test_proposeL2Output_benchmark() external {
-        oracle.proposeL2Output(nonZeroHash, nextBlockNumber, 0, 0);
+        oracle.proposeL2Output{ value: 1 ether }(nonZeroHash, nextBlockNumber, 0, 0);
     }
 }
