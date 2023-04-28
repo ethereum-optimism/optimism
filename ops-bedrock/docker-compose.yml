@@ -123,6 +123,7 @@ services:
       OP_PROPOSER_METRICS_ENABLED: "true"
       OP_PROPOSER_ALLOW_NON_FINALIZED: "true"
       OP_PROPOSER_NAMESPACE_ID: "e8e5f679bf7116cb"
+      OP_PROPOSER_DA_RPC: http://da:26659
 
   op-batcher:
     depends_on:

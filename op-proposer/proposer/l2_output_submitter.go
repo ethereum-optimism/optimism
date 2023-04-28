@@ -328,9 +328,11 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 		return err
 	}
 	receipt, err := l.txMgr.Send(ctx, txmgr.TxCandidate{
-		TxData:   data,
-		To:       &l.l2ooContractAddr,
-		GasLimit: 0,
+		TxData: data,
+		To:     &l.l2ooContractAddr,
+		// Use manual limit as proposer tx data may be to small
+		// t=2023-04-28T00:59:37+0000 lvl=warn msg="estimating gas"                     service=proposer gas=87698
+		GasLimit: 100000,
 	})
 	if err != nil {
 		return err

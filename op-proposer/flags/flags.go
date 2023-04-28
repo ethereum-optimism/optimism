@@ -38,6 +38,12 @@ var (
 			"creating a new batch",
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "POLL_INTERVAL"),
 	}
+	DaRpcFlag = cli.StringFlag{
+		Name:     "da-rpc",
+		Usage:    "HTTP provider URL for DA node",
+		Required: true,
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "DA_RPC"),
+	}
 	// Optional flags
 	AllowNonFinalizedFlag = cli.BoolFlag{
 		Name:   "allow-non-finalized",
@@ -53,6 +59,7 @@ var requiredFlags = []cli.Flag{
 	RollupRpcFlag,
 	L2OOAddressFlag,
 	PollIntervalFlag,
+	DaRpcFlag,
 }
 
 var optionalFlags = []cli.Flag{

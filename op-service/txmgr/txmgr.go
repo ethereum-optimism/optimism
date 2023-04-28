@@ -292,6 +292,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 			GasTipCap: gasTipCap,
 			Data:      rawTx.Data,
 		})
+		m.l.Warn("estimating gas", "candidate", candidate, "gasFeeCap", gasFeeCap, "gasTipCap", gasTipCap, "err", err)
 		if err != nil {
 			return nil, fmt.Errorf("failed to estimate gas: %w", err)
 		}
