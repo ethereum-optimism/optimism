@@ -45,7 +45,7 @@ jobs:
             ${{ runner.os }}-go-${{ matrix.go-version }}-
       - name: Build examples
         working-directory: ./example
-        run: make bin/minimal.elf
+        run: make
       - name: build contracts
         working-directory: ./contracts
         run: forge build
