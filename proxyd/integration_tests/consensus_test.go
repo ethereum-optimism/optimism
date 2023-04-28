@@ -78,7 +78,6 @@ func TestConsensus(t *testing.T) {
 		h2.ResetOverrides()
 		bg.Consensus.Unban()
 
-		// advance latest on node2 to 0x2
 		h1.AddOverride(&ms.MethodTemplate{
 			Method:   "net_peerCount",
 			Block:    "",
@@ -395,6 +394,44 @@ func TestConsensus(t *testing.T) {
 		msg := fmt.Sprintf("n1 %d, n2 %d", len(node1.Requests()), len(node2.Requests()))
 		require.GreaterOrEqual(t, len(node1.Requests()), 50, msg)
 		require.GreaterOrEqual(t, len(node2.Requests()), 50, msg)
+	})
+
+	t.Run("load balancing should not hit if node is not healthy", func(t *testing.T) {
+		h1.ResetOverrides()
+		h2.ResetOverrides()
+		bg.Consensus.Unban()
+
+		// node1 should not be serving any traffic
+		h1.AddOverride(&ms.MethodTemplate{
+			Method:   "net_peerCount",
+			Block:    "",
+			Response: buildPeerCountResponse(1),
+		})
+
+		for _, be := range bg.Backends {
+			bg.Consensus.UpdateBackend(ctx, be)
+		}
+		bg.Consensus.UpdateBackendGroupConsensus(ctx)
+
+		require.Equal(t, 1, len(bg.Consensus.GetConsensusGroup()))
+
+		node1.Reset()
+		node2.Reset()
+
+		require.Equal(t, 0, len(node1.Requests()))
+		require.Equal(t, 0, len(node2.Requests()))
+
+		numberReqs := 10
+		for numberReqs > 0 {
+			_, statusCode, err := client.SendRPC("eth_getBlockByNumber", []interface{}{"0x1", false})
+			require.NoError(t, err)
+			require.Equal(t, 200, statusCode)
+			numberReqs--
+		}
+
+		msg := fmt.Sprintf("n1 %d, n2 %d", len(node1.Requests()), len(node2.Requests()))
+		require.Equal(t, len(node1.Requests()), 0, msg)
+		require.Equal(t, len(node2.Requests()), 10, msg)
 	})
 }
 

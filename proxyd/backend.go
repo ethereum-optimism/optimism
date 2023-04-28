@@ -596,36 +596,7 @@ func (b *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch b
 	// When `consensus_aware` is set to `true`, the backend group acts as a load balancer
 	// serving traffic from any backend that agrees in the consensus group
 	if b.Consensus != nil {
-		cg := b.Consensus.GetConsensusGroup()
-		backendsHealthy := make([]*Backend, 0, len(cg))
-		backendsDegraded := make([]*Backend, 0, len(cg))
-		// separate into unhealthy, degraded and healthy backends
-		for _, be := range cg {
-			// unhealthy are filtered out and not attempted
-			if !be.IsHealthy() {
-				continue
-			}
-			if be.IsDegraded() {
-				backendsDegraded = append(backendsDegraded, be)
-				continue
-			}
-			backendsHealthy = append(backendsHealthy, be)
-		}
-
-		// shuffle both slices
-		r := rand.New(rand.NewSource(time.Now().UnixNano()))
-		r.Shuffle(len(backendsHealthy), func(i, j int) {
-			backendsHealthy[i], backendsHealthy[j] = backendsHealthy[j], backendsHealthy[i]
-		})
-		r = rand.New(rand.NewSource(time.Now().UnixNano()))
-		r.Shuffle(len(backendsDegraded), func(i, j int) {
-			backendsDegraded[i], backendsDegraded[j] = backendsDegraded[j], backendsDegraded[i]
-		})
-
-		// healthy are put into a priority position
-		// degraded backends are used as fallback
-		backends = backendsHealthy
-		backends = append(backends, backendsDegraded...)
+		backends = b.loadBalancedConsensusGroup()
 	}
 
 	rpcRequestsTotal.Inc()
@@ -705,6 +676,40 @@ func (b *BackendGroup) ProxyWS(ctx context.Context, clientConn *websocket.Conn, 
 	}
 
 	return nil, ErrNoBackends
+}
+
+func (b *BackendGroup) loadBalancedConsensusGroup() []*Backend {
+	cg := b.Consensus.GetConsensusGroup()
+
+	backendsHealthy := make([]*Backend, 0, len(cg))
+	backendsDegraded := make([]*Backend, 0, len(cg))
+	// separate into healthy, degraded and unhealthy backends
+	for _, be := range cg {
+		// unhealthy are filtered out and not attempted
+		if !be.IsHealthy() {
+			continue
+		}
+		if be.IsDegraded() {
+			backendsDegraded = append(backendsDegraded, be)
+			continue
+		}
+		backendsHealthy = append(backendsHealthy, be)
+	}
+
+	// shuffle both slices
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	r.Shuffle(len(backendsHealthy), func(i, j int) {
+		backendsHealthy[i], backendsHealthy[j] = backendsHealthy[j], backendsHealthy[i]
+	})
+	r.Shuffle(len(backendsDegraded), func(i, j int) {
+		backendsDegraded[i], backendsDegraded[j] = backendsDegraded[j], backendsDegraded[i]
+	})
+
+	// healthy are put into a priority position
+	// degraded backends are used as fallback
+	backendsHealthy = append(backendsHealthy, backendsDegraded...)
+
+	return backendsHealthy
 }
 
 func calcBackoff(i int) time.Duration {
