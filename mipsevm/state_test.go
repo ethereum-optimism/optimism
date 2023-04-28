@@ -76,8 +76,8 @@ func TestState(t *testing.T) {
 	}
 }
 
-func TestMinimal(t *testing.T) {
-	elfProgram, err := elf.Open("../example/bin/minimal.elf")
+func TestHello(t *testing.T) {
+	elfProgram, err := elf.Open("../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
 
 	state, err := LoadELF(elfProgram)

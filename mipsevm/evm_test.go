@@ -107,7 +107,7 @@ func TestEVM(t *testing.T) {
 	}
 }
 
-func TestMinimalEVM(t *testing.T) {
+func TestHelloEVM(t *testing.T) {
 	contracts, err := LoadContracts()
 	require.NoError(t, err)
 
@@ -120,7 +120,7 @@ func TestMinimalEVM(t *testing.T) {
 	}
 	sender := common.Address{0x13, 0x37}
 
-	elfProgram, err := elf.Open("../example/bin/minimal.elf")
+	elfProgram, err := elf.Open("../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
 
 	state, err := LoadELF(elfProgram)
