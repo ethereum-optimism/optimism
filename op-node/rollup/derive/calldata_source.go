@@ -123,7 +123,6 @@ func DataFromEVMTransactions(config *rollup.Config, daCfg *rollup.DAConfig, batc
 				log.Warn("tx in inbox with unauthorized submitter", "index", j, "err", err)
 				continue // not an authorized batch submitter, ignore
 			}
-			out = append(out, tx.Data())
 
 			height, index, err := decodeETHData(tx.Data())
 			if err != nil {
