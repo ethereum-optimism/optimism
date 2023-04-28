@@ -83,6 +83,16 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 		return
 	}
 
+	trackMemAccess := func(effAddr uint32) {
+		if m.memProofEnabled && m.lastMemAccess != effAddr {
+			if m.lastMemAccess != ^uint32(0) {
+				panic(fmt.Errorf("unexpected different mem access at %08x, already have access at %08x buffered", effAddr, m.lastMemAccess))
+			}
+			m.lastMemAccess = effAddr
+			m.memProof = m.state.Memory.MerkleProof(effAddr)
+		}
+	}
+
 	var err error
 	_, err = mu.HookAdd(uc.HOOK_INTR, func(mu uc.Unicorn, intno uint32) {
 		if intno != 17 {
@@ -137,6 +147,7 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 				// leave v0 and v1 zero: read nothing, no error
 			case fdPreimageRead: // pre-image oracle
 				effAddr := a1 & 0xFFffFFfc
+				trackMemAccess(effAddr)
 				mem := st.Memory.GetMemory(effAddr)
 				dat, datLen := readPreimage(st.PreimageKey, st.PreimageOffset)
 				fmt.Printf("reading pre-image data: addr: %08x, offset: %d, datLen: %d, data: %x, key: %s  count: %d\n", a1, st.PreimageOffset, datLen, dat[:datLen], st.PreimageKey, a2)
@@ -190,7 +201,9 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 				}
 				v0 = a2
 			case fdPreimageWrite:
-				mem := st.Memory.GetMemory(a1 & 0xFFffFFfc)
+				effAddr := a1 & 0xFFffFFfc
+				trackMemAccess(effAddr)
+				mem := st.Memory.GetMemory(effAddr)
 				key := st.PreimageKey
 				alignment := a1 & 3
 				space := 4 - alignment
@@ -244,13 +257,7 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 
 	_, err = mu.HookAdd(uc.HOOK_MEM_READ, func(mu uc.Unicorn, access int, addr64 uint64, size int, value int64) {
 		effAddr := uint32(addr64 & 0xFFFFFFFC) // pass effective addr to tracer
-		if m.memProofEnabled && m.lastMemAccess != effAddr {
-			if m.lastMemAccess != ^uint32(0) {
-				panic(fmt.Errorf("unexpected different mem access at %08x, already have access at %08x buffered", effAddr, m.lastMemAccess))
-			}
-			m.lastMemAccess = effAddr
-			m.memProof = m.state.Memory.MerkleProof(effAddr)
-		}
+		trackMemAccess(effAddr)
 	}, 0, ^uint64(0))
 	if err != nil {
 		return nil, fmt.Errorf("failed to set up mem-write hook: %w", err)
@@ -283,13 +290,7 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 		} else {
 			log.Fatal("bad size write to ram")
 		}
-		if m.memProofEnabled && m.lastMemAccess != effAddr {
-			if m.lastMemAccess != ^uint32(0) {
-				panic(fmt.Errorf("unexpected different mem access at %08x, already have access at %08x buffered", effAddr, m.lastMemAccess))
-			}
-			m.lastMemAccess = effAddr
-			m.memProof = m.state.Memory.MerkleProof(effAddr)
-		}
+		trackMemAccess(effAddr)
 		// only set memory after making the proof: we need the pre-state
 		st.Memory.SetMemory(effAddr, post)
 	}, 0, ^uint64(0))

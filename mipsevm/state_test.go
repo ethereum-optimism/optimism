@@ -132,22 +132,7 @@ func (t *testOracle) GetPreimage(k [32]byte) []byte {
 
 var _ PreimageOracle = (*testOracle)(nil)
 
-func TestClaim(t *testing.T) {
-	elfProgram, err := elf.Open("../example/bin/claim.elf")
-	require.NoError(t, err, "open ELF file")
-
-	state, err := LoadELF(elfProgram)
-	require.NoError(t, err, "load ELF into state")
-
-	err = patchVM(elfProgram, state)
-	require.NoError(t, err, "apply Go runtime patches")
-
-	mu, err := NewUnicorn()
-	require.NoError(t, err, "load unicorn")
-	defer mu.Close()
-	err = LoadUnicorn(state, mu)
-	require.NoError(t, err, "load state into unicorn")
-
+func claimTestOracle(t *testing.T) (po PreimageOracle, stdOut string, stdErr string) {
 	s := uint64(1000)
 	a := uint64(3)
 	b := uint64(4)
@@ -198,6 +183,27 @@ func TestClaim(t *testing.T) {
 		},
 	}
 
+	return oracle, fmt.Sprintf("computing %d * %d + %d\nclaim %d is good!\n", s, a, b, s*a+b), "started!"
+}
+
+func TestClaim(t *testing.T) {
+	elfProgram, err := elf.Open("../example/bin/claim.elf")
+	require.NoError(t, err, "open ELF file")
+
+	state, err := LoadELF(elfProgram)
+	require.NoError(t, err, "load ELF into state")
+
+	err = patchVM(elfProgram, state)
+	require.NoError(t, err, "apply Go runtime patches")
+
+	mu, err := NewUnicorn()
+	require.NoError(t, err, "load unicorn")
+	defer mu.Close()
+	err = LoadUnicorn(state, mu)
+	require.NoError(t, err, "load state into unicorn")
+
+	oracle, expectedStdOut, expectedStdErr := claimTestOracle(t)
+
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	us, err := NewUnicornState(mu, state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 	require.NoError(t, err, "hook unicorn to state")
@@ -212,6 +218,6 @@ func TestClaim(t *testing.T) {
 	require.True(t, state.Exited, "must complete program")
 	require.Equal(t, uint8(0), state.ExitCode, "exit with 0")
 
-	require.Equal(t, fmt.Sprintf("computing %d * %d + %d\nclaim %d is good!\n", s, a, b, s*a+b), stdOutBuf.String(), "stdout says hello")
-	require.Equal(t, "started!", stdErrBuf.String(), "stderr silent")
+	require.Equal(t, expectedStdOut, stdOutBuf.String(), "stdout")
+	require.Equal(t, expectedStdErr, stdErrBuf.String(), "stderr")
 }

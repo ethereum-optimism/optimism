@@ -175,13 +175,13 @@ func ParseSourceMap(sources []string, bytecode []byte, sourceMap string) (*Sourc
 	return srcMap, nil
 }
 
-func (s *SourceMap) Tracer(out io.Writer) *SourceMapTracer {
-	return &SourceMapTracer{s, out}
+func NewSourceMapTracer(srcMaps map[common.Address]*SourceMap, out io.Writer) *SourceMapTracer {
+	return &SourceMapTracer{srcMaps, out}
 }
 
 type SourceMapTracer struct {
-	srcMap *SourceMap
-	out    io.Writer
+	srcMaps map[common.Address]*SourceMap
+	out     io.Writer
 }
 
 func (s *SourceMapTracer) CaptureTxStart(gasLimit uint64) {}
@@ -198,12 +198,25 @@ func (s *SourceMapTracer) CaptureEnter(typ vm.OpCode, from common.Address, to co
 
 func (s *SourceMapTracer) CaptureExit(output []byte, gasUsed uint64, err error) {}
 
+func (s *SourceMapTracer) info(codeAddr *common.Address, pc uint64) string {
+	info := "non-contract"
+	if codeAddr != nil {
+		srcMap, ok := s.srcMaps[*codeAddr]
+		if ok {
+			info = srcMap.FormattedInfo(pc)
+		} else {
+			info = "unknown-contract"
+		}
+	}
+	return info
+}
+
 func (s *SourceMapTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64, scope *vm.ScopeContext, rData []byte, depth int, err error) {
-	fmt.Fprintf(s.out, "%-40s : pc %x opcode %s\n", s.srcMap.FormattedInfo(pc), pc, op.String())
+	fmt.Fprintf(s.out, "%-40s : pc %x opcode %s\n", s.info(scope.Contract.CodeAddr, pc), pc, op.String())
 }
 
 func (s *SourceMapTracer) CaptureFault(pc uint64, op vm.OpCode, gas, cost uint64, scope *vm.ScopeContext, depth int, err error) {
-	fmt.Fprintf(s.out, "%-40s: pc %x opcode %s FAULT %v\n", s.srcMap.FormattedInfo(pc), pc, op.String(), err)
+	fmt.Fprintf(s.out, "%-40s: pc %x opcode %s FAULT %v\n", s.info(scope.Contract.CodeAddr, pc), pc, op.String(), err)
 	fmt.Println("----")
 	fmt.Fprintf(s.out, "calldata: %x\n", scope.Contract.Input)
 	fmt.Println("----")

@@ -11,7 +11,7 @@ type State struct {
 	Memory *Memory `json:"memory"`
 
 	PreimageKey    common.Hash `json:"preimageKey"`
-	PreimageOffset uint32      `json:"preimageOffset"`
+	PreimageOffset uint32      `json:"preimageOffset"` // note that the offset includes the 8-byte length prefix
 
 	PC     uint32 `json:"pc"`
 	NextPC uint32 `json:"nextPC"`

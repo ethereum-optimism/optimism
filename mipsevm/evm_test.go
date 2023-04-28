@@ -17,21 +17,32 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func testContractsSetup(t *testing.T) (*Contracts, *Addresses, *SourceMapTracer) {
+	contracts, err := LoadContracts()
+	require.NoError(t, err)
+
+	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{"../contracts/src/MIPS.sol"})
+	require.NoError(t, err)
+	oracleSrcMap, err := contracts.Oracle.SourceMap([]string{"../contracts/src/Oracle.sol"})
+	require.NoError(t, err)
+
+	addrs := &Addresses{
+		MIPS:         common.Address{0: 0xff, 19: 1},
+		Oracle:       common.Address{0: 0xff, 19: 2},
+		Sender:       common.Address{0x13, 0x37},
+		FeeRecipient: common.Address{0xaa},
+	}
+	tracer := NewSourceMapTracer(map[common.Address]*SourceMap{addrs.MIPS: mipsSrcMap, addrs.Oracle: oracleSrcMap}, os.Stdout)
+	return contracts, addrs, tracer
+}
+
 func TestEVM(t *testing.T) {
 	testFiles, err := os.ReadDir("test/bin")
 	require.NoError(t, err)
 
-	contracts, err := LoadContracts()
-	require.NoError(t, err)
-
-	// the first unlisted source seems to be the ABIDecoderV2 code that the compiler inserts
-	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{"../contracts/src/MIPS.sol", "~compiler?", "../contracts/src/MIPS.sol"})
-	require.NoError(t, err)
-
-	addrs := &Addresses{
-		MIPS: common.Address{0: 0xff, 19: 1},
-	}
+	contracts, addrs, tracer := testContractsSetup(t)
 	sender := common.Address{0x13, 0x37}
+	//tracer = logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
 
 	for _, f := range testFiles {
 		t.Run(f.Name(), func(t *testing.T) {
@@ -41,8 +52,7 @@ func TestEVM(t *testing.T) {
 
 			env, evmState := NewEVMEnv(contracts, addrs)
 			env.Config.Debug = false
-			//env.Config.Tracer = logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
-			env.Config.Tracer = mipsSrcMap.Tracer(os.Stdout)
+			env.Config.Tracer = tracer
 
 			fn := path.Join("test/bin", f.Name())
 			programMem, err := os.ReadFile(fn)
@@ -108,16 +118,7 @@ func TestEVM(t *testing.T) {
 }
 
 func TestHelloEVM(t *testing.T) {
-	contracts, err := LoadContracts()
-	require.NoError(t, err)
-
-	// the first unlisted source seems to be the ABIDecoderV2 code that the compiler inserts
-	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{"../contracts/src/MIPS.sol", "~compiler?", "../contracts/src/MIPS.sol"})
-	require.NoError(t, err)
-
-	addrs := &Addresses{
-		MIPS: common.Address{0: 0xff, 19: 1},
-	}
+	contracts, addrs, tracer := testContractsSetup(t)
 	sender := common.Address{0x13, 0x37}
 
 	elfProgram, err := elf.Open("../example/bin/hello.elf")
@@ -140,8 +141,7 @@ func TestHelloEVM(t *testing.T) {
 
 	env, evmState := NewEVMEnv(contracts, addrs)
 	env.Config.Debug = false
-	//env.Config.Tracer = logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
-	env.Config.Tracer = mipsSrcMap.Tracer(os.Stdout)
+	env.Config.Tracer = tracer
 
 	start := time.Now()
 	for i := 0; i < 400_000; i++ {
@@ -187,4 +187,76 @@ func TestHelloEVM(t *testing.T) {
 
 	require.Equal(t, "hello world!", stdOutBuf.String(), "stdout says hello")
 	require.Equal(t, "", stdErrBuf.String(), "stderr silent")
+}
+
+func TestClaimEVM(t *testing.T) {
+	contracts, addrs, tracer := testContractsSetup(t)
+
+	elfProgram, err := elf.Open("../example/bin/claim.elf")
+	require.NoError(t, err, "open ELF file")
+
+	state, err := LoadELF(elfProgram)
+	require.NoError(t, err, "load ELF into state")
+
+	err = patchVM(elfProgram, state)
+	require.NoError(t, err, "apply Go runtime patches")
+
+	mu, err := NewUnicorn()
+	require.NoError(t, err, "load unicorn")
+	defer mu.Close()
+	err = LoadUnicorn(state, mu)
+	require.NoError(t, err, "load state into unicorn")
+
+	oracle, expectedStdOut, expectedStdErr := claimTestOracle(t)
+
+	var stdOutBuf, stdErrBuf bytes.Buffer
+	us, err := NewUnicornState(mu, state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
+	require.NoError(t, err, "hook unicorn to state")
+
+	env, evmState := NewEVMEnv(contracts, addrs)
+	env.Config.Debug = false
+	env.Config.Tracer = tracer
+
+	for i := 0; i < 2000_000; i++ {
+		if us.state.Exited {
+			break
+		}
+
+		insn := state.Memory.GetMemory(state.PC)
+		if i%1000 == 0 { // avoid spamming test logs, we are executing many steps
+			t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
+		}
+
+		stepWitness := us.Step(true)
+		input := stepWitness.EncodeStepInput()
+		startingGas := uint64(30_000_000)
+
+		// we take a snapshot so we can clean up the state, and isolate the logs of this instruction run.
+		snap := env.StateDB.Snapshot()
+
+		// prepare pre-image oracle data, if any
+		if stepWitness.HasPreimage() {
+			poInput, err := stepWitness.EncodePreimageOracleInput()
+			require.NoError(t, err, "encode preimage oracle input")
+			_, leftOverGas, err := env.Call(vm.AccountRef(addrs.Sender), addrs.Oracle, poInput, startingGas, big.NewInt(0))
+			require.NoErrorf(t, err, "evm should not fail, took %d gas", startingGas-leftOverGas)
+		}
+
+		ret, leftOverGas, err := env.Call(vm.AccountRef(addrs.Sender), addrs.MIPS, input, startingGas, big.NewInt(0))
+		require.NoErrorf(t, err, "evm should not fail, took %d gas", startingGas-leftOverGas)
+		require.Len(t, ret, 32, "expecting 32-byte state hash")
+		// remember state hash, to check it against state
+		postHash := common.Hash(*(*[32]byte)(ret))
+		logs := evmState.Logs()
+		require.Equal(t, 1, len(logs), "expecting a log with post-state")
+		evmPost := logs[0].Data
+		require.Equal(t, crypto.Keccak256Hash(evmPost), postHash, "logged state must be accurate")
+		env.StateDB.RevertToSnapshot(snap)
+	}
+
+	require.True(t, state.Exited, "must complete program")
+	require.Equal(t, uint8(0), state.ExitCode, "exit with 0")
+
+	require.Equal(t, expectedStdOut, stdOutBuf.String(), "stdout")
+	require.Equal(t, expectedStdErr, stdErrBuf.String(), "stderr")
 }

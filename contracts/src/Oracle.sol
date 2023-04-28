@@ -12,9 +12,8 @@ contract Oracle {
         require(preimagePartOk[key][offset], "preimage must exist");
         datLen = 32;
         uint256 length = preimageLengths[key];
-        // TODO: insert length prefix before data
-        if(offset + 32 >= length) {
-            datLen = length - offset;
+        if(offset + 32 >= length + 8) { // add 8 for the length-prefix part
+            datLen = length + 8 - offset;
         }
         dat = preimageParts[key][offset];
     }
@@ -36,18 +35,17 @@ contract Oracle {
         bytes32 key;
         bytes32 part;
         assembly {
-            // calldata layout: 4 (sel) + 0x20 (part offset) + 0x20 (start offset) + 0x20 (size) + preimage payload
-            let startOffset := calldataload(0x24)
-            if not(eq(startOffset, 0x44)) { // must always point to expected location of the size value.
-                revert(0, 0)
-            }
-            size := calldataload(0x44)
-            if iszero(lt(partOffset, size)) { // revert if part offset >= size (i.e. parts must be within bounds)
+            size := calldataload(0x44) // len(sig) + len(partOffset) + len(preimage offset) = 4 + 32 + 32 = 0x64
+            if iszero(lt(partOffset, add(size, 8))) { // revert if part offset >= size+8 (i.e. parts must be within bounds)
                 revert(0, 0)
             }
             let ptr := 0x80 // we leave solidity slots 0x40 and 0x60 untouched, and everything after as scratch-memory.
-            calldatacopy(ptr, 0x64, size) // copy preimage payload into memory so we can hash and read it.
-            part := mload(add(ptr, partOffset))  // this will be zero-padded at the end, since memory at end is clean.
+            mstore(ptr, shl(192, size)) // put size as big-endian uint64 at start of pre-image
+            ptr := add(ptr, 8)
+            calldatacopy(ptr, preimage.offset, size) // copy preimage payload into memory so we can hash and read it.
+            // Note that it includes the 8-byte big-endian uint64 length prefix.
+            // this will be zero-padded at the end, since memory at end is clean.
+            part := mload(add(sub(ptr, 8), partOffset))
             let h := keccak256(ptr, size) // compute preimage keccak256 hash
             key := or(and(h, not(shl(248, 0xFF))), shl(248, 2)) // mask out prefix byte, replace with type 2 byte
         }

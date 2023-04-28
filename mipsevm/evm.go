@@ -20,15 +20,21 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-var StepBytes4 = crypto.Keccak256Hash([]byte("Step(bytes32,bytes,bytes)")).Bytes()[:4]
+var (
+	StepBytes4                      = crypto.Keccak256([]byte("Step(bytes32,bytes,bytes)"))[:4]
+	CheatBytes4                     = crypto.Keccak256([]byte("cheat(uint256,bytes32,bytes32,uint256)"))[:4]
+	LoadKeccak256PreimagePartBytes4 = crypto.Keccak256([]byte("loadKeccak256PreimagePart(uint256,bytes)"))[:4]
+)
 
 func LoadContracts() (*Contracts, error) {
 	mips, err := LoadContract("MIPS")
 	if err != nil {
 		return nil, err
 	}
+	oracle, err := LoadContract("Oracle")
 	return &Contracts{
-		MIPS: mips,
+		MIPS:   mips,
+		Oracle: oracle,
 	}, nil
 }
 
@@ -59,17 +65,22 @@ func (c *Contract) SourceMap(sourcePaths []string) (*SourceMap, error) {
 }
 
 type Contracts struct {
-	MIPS *Contract
+	MIPS   *Contract
+	Oracle *Contract
 }
 
 type Addresses struct {
-	MIPS common.Address
+	MIPS         common.Address
+	Oracle       common.Address
+	Sender       common.Address
+	FeeRecipient common.Address
 }
 
 func NewEVMEnv(contracts *Contracts, addrs *Addresses) (*vm.EVM, *state.StateDB) {
 	chainCfg := params.MainnetChainConfig
-	bc := &testChain{}
-	header := bc.GetHeader(common.Hash{}, 100)
+	offsetBlocks := uint64(1000) // blocks after shanghai fork
+	bc := &testChain{startTime: *chainCfg.ShanghaiTime + offsetBlocks*12}
+	header := bc.GetHeader(common.Hash{}, 17034870+offsetBlocks)
 	db := rawdb.NewMemoryDatabase()
 	statedb := state.NewDatabase(db)
 	state, err := state.New(types.EmptyRootHash, statedb, nil)
@@ -81,13 +92,17 @@ func NewEVMEnv(contracts *Contracts, addrs *Addresses) (*vm.EVM, *state.StateDB)
 
 	env := vm.NewEVM(blockContext, vm.TxContext{}, state, chainCfg, vmCfg)
 	// pre-deploy the contracts
-
 	env.StateDB.SetCode(addrs.MIPS, contracts.MIPS.DeployedBytecode.Object)
-	// TODO: any state to set, or immutables to replace, to link the contracts together?
+	env.StateDB.SetCode(addrs.Oracle, contracts.Oracle.DeployedBytecode.Object)
+	env.StateDB.SetState(addrs.MIPS, common.Hash{}, addrs.Oracle.Hash())
+
+	rules := env.ChainConfig().Rules(header.Number, true, header.Time)
+	env.StateDB.Prepare(rules, addrs.Sender, addrs.FeeRecipient, &addrs.MIPS, vm.ActivePrecompiles(rules), nil)
 	return env, state
 }
 
 type testChain struct {
+	startTime uint64
 }
 
 func (d *testChain) Engine() consensus.Engine {
@@ -109,7 +124,7 @@ func (d *testChain) GetHeader(h common.Hash, n uint64) *types.Header {
 		Number:          new(big.Int).SetUint64(n),
 		GasLimit:        30_000_000,
 		GasUsed:         0,
-		Time:            1337,
+		Time:            d.startTime + n*12,
 		Extra:           nil,
 		MixDigest:       common.Hash{},
 		Nonce:           types.BlockNonce{},
