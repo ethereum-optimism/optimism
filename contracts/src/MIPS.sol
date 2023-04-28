@@ -128,7 +128,7 @@ contract MIPS {
     } else if (syscall_no == 4246) {
       // exit group
       state.exited = true;
-      state.exitCode = uint8(state.registers[4]);
+      state.exitCode = uint8(a0);
       return outputState();
     } else if (syscall_no == 4003) { // read
       // args: a0 = fd, a1 = addr, a2 = count
@@ -137,10 +137,10 @@ contract MIPS {
         // leave v0 and v1 zero: read nothing, no error
       } else if (a0 == FD_PREIMAGE_READ) { // pre-image oracle
         // verify proof 1 is correct, and get the existing memory.
-        uint32 mem = readMem(a0 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
+        uint32 mem = readMem(a1 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
         (bytes32 dat, uint256 datLen) = oracle.readPreimage(state.preimageKey, state.preimageOffset);
         assembly { // assembly for more precise ops, and no var count limit
-          let alignment := and(a0, 3) // the read might not start at an aligned address
+          let alignment := and(a1, 3) // the read might not start at an aligned address
           let space := sub(4, alignment) // remaining space in memory word
           if lt(space, datLen) { datLen := space } // if less space than data, shorten data
           if lt(a2, datLen) { datLen := a2 } // if requested to read less, read less
@@ -151,7 +151,7 @@ contract MIPS {
           mask := and(mask, not(suffixMask)) // reduce mask to just cover the data we insert
           mem := or(and(mem, not(mask)), dat) // clear masked part of original memory, and insert data
         }
-        writeMem(a0, 1, mem);
+        writeMem(a1 & 0xFFffFFfc, 1, mem);
         state.preimageOffset += uint32(datLen);
         v0 = uint32(datLen);
       } else if (a0 == FD_HINT_READ) { // hint response
@@ -167,10 +167,10 @@ contract MIPS {
       if (a0 == FD_STDOUT || a0 == FD_STDERR || a0 == FD_HINT_WRITE) {
         v0 = a2; // tell program we have written everything
       } else if (a0 == FD_PREIMAGE_WRITE) { // pre-image oracle
-        uint32 mem = readMem(a0 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
+        uint32 mem = readMem(a1 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
         bytes32 key = state.preimageKey;
         assembly { // assembly for more precise ops, and no var count limit
-          let alignment := and(a0, 3) // the read might not start at an aligned address
+          let alignment := and(a1, 3) // the read might not start at an aligned address
           let space := sub(4, alignment) // remaining space in memory word
           if lt(space, a2) { a2 := space } // if less space than data, shorten data
           key := shl(mul(a2, 8), key) // shift key, make space for new info
@@ -201,10 +201,9 @@ contract MIPS {
         v1 = EINVAL; // cmd not recognized by this kernel
       }
     }
-    // TODO: pre-image oracle read/write
 
     state.registers[2] = v0;
-    state.registers[7] = 0;
+    state.registers[7] = v1;
 
     state.pc = state.nextPC;
     state.nextPC = state.nextPC + 4;
