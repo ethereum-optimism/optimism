@@ -69,7 +69,7 @@ A deposit has the following fields
 - `uint64 gas`: The gas limit for the L2 transaction.
 - `bool isSystemTx`: If true, the transaction does not interact with the L2 block gas pool.
   - Note: boolean is disabled (enforced to be `false`) starting from the Regolith upgrade.
-- `bytes data`: The normal transaction data.
+- `bytes data`: The calldata.
 
 In contrast to [EIP-155] transactions, this transaction type:
 
