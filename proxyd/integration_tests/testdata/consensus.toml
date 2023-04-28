@@ -1,5 +1,5 @@
 [server]
-rpc_port = 8080
+rpc_port = 8545
 
 [backend]
 response_timeout_seconds = 1
