@@ -15,14 +15,14 @@ func (rh rawHint) Hint() string {
 }
 
 func main() {
-	_, _ = os.Stdout.Write([]byte("started!"))
+	_, _ = os.Stderr.Write([]byte("started!"))
 
 	po := preimage.NewOracleClient(preimage.ClientPreimageChannel())
 	hinter := preimage.NewHintWriter(preimage.ClientHinterChannel())
 
-	preHash := po.Get(preimage.LocalIndexKey(0))
-	diffHash := po.Get(preimage.LocalIndexKey(1))
-	claimData := po.Get(preimage.LocalIndexKey(2))
+	preHash := *(*[32]byte)(po.Get(preimage.LocalIndexKey(0)))
+	diffHash := *(*[32]byte)(po.Get(preimage.LocalIndexKey(1)))
+	claimData := *(*[8]byte)(po.Get(preimage.LocalIndexKey(2)))
 
 	// Hints are used to indicate which things the program will access,
 	// so the server can be prepared to serve the corresponding pre-images.
@@ -43,7 +43,7 @@ func main() {
 	fmt.Printf("computing %d * %d + %d\n", s, a, b)
 	sOut := s*a + b
 
-	sClaim := binary.BigEndian.Uint64(claimData)
+	sClaim := binary.BigEndian.Uint64(claimData[:])
 	if sOut != sClaim {
 		fmt.Printf("claim %d is bad! Correct result is %d\n", sOut, sClaim)
 		os.Exit(1)

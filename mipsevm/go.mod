@@ -3,8 +3,9 @@ module mipsevm
 go 1.20
 
 require (
+	github.com/ethereum-optimism/cannon/preimage v0.0.0
 	github.com/ethereum/go-ethereum v1.11.5
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.2
 	github.com/unicorn-engine/unicorn v0.0.0-20230207094436-7b8c63dfe650
 )
 
@@ -50,14 +51,16 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7 // indirect
 	github.com/tklauser/go-sysconf v0.3.5 // indirect
 	github.com/tklauser/numcpus v0.2.2 // indirect
-	golang.org/x/crypto v0.1.0 // indirect
+	golang.org/x/crypto v0.8.0 // indirect
 	golang.org/x/exp v0.0.0-20230206171751-46f607a40771 // indirect
-	golang.org/x/sys v0.5.0 // indirect
-	golang.org/x/text v0.7.0 // indirect
+	golang.org/x/sys v0.7.0 // indirect
+	golang.org/x/text v0.9.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/ethereum-optimism/cannon/preimage v0.0.0 => ../preimage
 
 // We need to point to our local Unicorn clone for the shared object to be located correctly in all our Go commands.
 // See https://github.com/unicorn-engine/unicorn/blob/7b8c63dfe650b5d4d2bf684526161971925e6350/bindings/go/unicorn/unicorn.go#L11

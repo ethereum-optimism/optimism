@@ -32,7 +32,7 @@ type UnicornState struct {
 
 	preimageOracle PreimageOracle
 
-	// cached pre-image data
+	// cached pre-image data, including 8 byte length prefix
 	lastPreimage []byte
 	// key for above preimage
 	lastPreimageKey [32]byte
@@ -70,10 +70,16 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 	readPreimage := func(key [32]byte, offset uint32) (dat [32]byte, datLen uint32) {
 		preimage := m.lastPreimage
 		if key != m.lastPreimageKey {
-			preimage = po.GetPreimage(key)
+			m.lastPreimageKey = key
+			data := po.GetPreimage(key)
+			// add the length prefix
+			preimage = make([]byte, 0, 8+len(data))
+			preimage = binary.BigEndian.AppendUint64(preimage, uint64(len(data)))
+			preimage = append(preimage, data...)
+			m.lastPreimage = preimage
 		}
 		m.lastPreimageOffset = offset
-		datLen = uint32(copy(dat[:], preimage))
+		datLen = uint32(copy(dat[:], preimage[offset:]))
 		return
 	}
 
@@ -130,8 +136,10 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 			case fdStdin:
 				// leave v0 and v1 zero: read nothing, no error
 			case fdPreimageRead: // pre-image oracle
-				mem := st.Memory.GetMemory(a1 & 0xFFffFFfc)
+				effAddr := a1 & 0xFFffFFfc
+				mem := st.Memory.GetMemory(effAddr)
 				dat, datLen := readPreimage(st.PreimageKey, st.PreimageOffset)
+				fmt.Printf("reading pre-image data: addr: %08x, offset: %d, datLen: %d, data: %x, key: %s  count: %d\n", a1, st.PreimageOffset, datLen, dat[:datLen], st.PreimageKey, a2)
 				alignment := a1 & 3
 				space := 4 - alignment
 				if space < datLen {
@@ -143,9 +151,13 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 				var outMem [4]byte
 				binary.BigEndian.PutUint32(outMem[:], mem)
 				copy(outMem[alignment:], dat[:datLen])
-				st.Memory.SetMemory(a1&0xFFffFFfc, binary.BigEndian.Uint32(outMem[:]))
+				st.Memory.SetMemory(effAddr, binary.BigEndian.Uint32(outMem[:]))
+				if err := mu.MemWrite(uint64(effAddr), outMem[:]); err != nil {
+					log.Fatalf("failed to write pre-image data to memory: %v", err)
+				}
 				st.PreimageOffset += datLen
 				v0 = datLen
+				fmt.Printf("read %d pre-image bytes, new offset: %d, eff addr: %08x mem: %08x\n", datLen, st.PreimageOffset, effAddr, outMem)
 			case fdHintRead: // hint response
 				// don't actually read into memory, just say we read it all, we ignore the result anyway
 				v0 = a2
@@ -164,9 +176,19 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 				_, _ = io.Copy(stdErr, st.Memory.ReadMemoryRange(a1, a2))
 				v0 = a2
 			case fdHintWrite:
-				hint, _ := io.ReadAll(st.Memory.ReadMemoryRange(a1, a2))
+				hintData, _ := io.ReadAll(st.Memory.ReadMemoryRange(a1, a2))
+				st.LastHint = append(st.LastHint, hintData...)
+				for len(st.LastHint) >= 4 { // process while there is enough data to check if there are any hints
+					hintLen := binary.BigEndian.Uint32(st.LastHint[:4])
+					if hintLen >= uint32(len(st.LastHint[4:])) {
+						hint := st.LastHint[4 : 4+hintLen] // without the length prefix
+						st.LastHint = st.LastHint[4+hintLen:]
+						po.Hint(hint)
+					} else {
+						break // stop processing hints if there is incomplete data buffered
+					}
+				}
 				v0 = a2
-				po.Hint(hint)
 			case fdPreimageWrite:
 				mem := st.Memory.GetMemory(a1 & 0xFFffFFfc)
 				key := st.PreimageKey
@@ -181,6 +203,7 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 				copy(key[32-a2:], tmp[:])
 				st.PreimageKey = key
 				st.PreimageOffset = 0
+				fmt.Printf("updating pre-image key: %s\n", st.PreimageKey)
 				v0 = a2
 			default:
 				v0 = 0xFFffFFff

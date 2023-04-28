@@ -12,6 +12,7 @@ contract Oracle {
         require(preimagePartOk[key][offset], "preimage must exist");
         datLen = 32;
         uint256 length = preimageLengths[key];
+        // TODO: insert length prefix before data
         if(offset + 32 >= length) {
             datLen = length - offset;
         }
