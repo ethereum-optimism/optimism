@@ -1,6 +1,7 @@
 package mipsevm
 
 import (
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
@@ -31,13 +32,12 @@ type UnicornState struct {
 
 	preimageOracle PreimageOracle
 
-	// number of bytes last read from the oracle.
-	// The read data is preimage[state.PreimageOffset-lastPreimageRead : state.PreimageOffset]
-	// when inspecting the post-step state.
-	lastPreimageRead uint32
-
-	// cached pre-image data for state.PreimageKey
+	// cached pre-image data
 	lastPreimage []byte
+	// key for above preimage
+	lastPreimageKey [32]byte
+	// offset we last read from, or max uint32 if nothing is read this step
+	lastPreimageOffset uint32
 
 	onStep func()
 }
@@ -67,6 +67,16 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 	}
 	st := m.state
 
+	readPreimage := func(key [32]byte, offset uint32) (dat [32]byte, datLen uint32) {
+		preimage := m.lastPreimage
+		if key != m.lastPreimageKey {
+			preimage = po.GetPreimage(key)
+		}
+		m.lastPreimageOffset = offset
+		datLen = uint32(copy(dat[:], preimage))
+		return
+	}
+
 	var err error
 	_, err = mu.HookAdd(uc.HOOK_INTR, func(mu uc.Unicorn, intno uint32) {
 		if intno != 17 {
@@ -75,7 +85,7 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 
 		syscallNum := st.Registers[2] // v0
 		v0 := uint32(0)
-		//v1 := uint32(0)
+		v1 := uint32(0)
 
 		a0 := st.Registers[4]
 		a1 := st.Registers[5]
@@ -83,29 +93,6 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 
 		fmt.Printf("syscall: %d\n", syscallNum)
 		switch syscallNum {
-		case 4004: // write
-			fd := a0
-			addr := a1
-			count := a2
-			switch fd {
-			case fdStdout:
-				_, _ = io.Copy(stdOut, st.Memory.ReadMemoryRange(addr, count))
-				v0 = count
-			case fdStderr:
-				_, _ = io.Copy(stdErr, st.Memory.ReadMemoryRange(addr, count))
-				v0 = count
-			case fdHintWrite:
-				hint, _ := io.ReadAll(st.Memory.ReadMemoryRange(addr, count))
-				v0 = count
-				po.Hint(hint)
-			case fdPreimageWrite:
-				// TODO
-				v0 = count
-			default:
-				v0 = 0xFFffFFff
-				//v1 = MipsEBADF
-				// ignore other output data
-			}
 		case 4090: // mmap
 			sz := a1
 			if sz&pageAddrMask != 0 { // adjust size to align with page size
@@ -130,14 +117,94 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 			}
 		case 4045: // brk
 			v0 = 0x40000000
+		case 4120: // clone (not supported)
+			v0 = 1
 		case 4246: // exit_group
 			st.Exited = true
-			v0, _ := mu.RegRead(uc.MIPS_REG_4)
-			st.ExitCode = uint8(v0)
+			st.ExitCode = uint8(a0)
 			return
+		case 4003: // read
+			// args: a0 = fd, a1 = addr, a2 = count
+			// returns: v0 = read, v1 = err code
+			switch a0 {
+			case fdStdin:
+				// leave v0 and v1 zero: read nothing, no error
+			case fdPreimageRead: // pre-image oracle
+				mem := st.Memory.GetMemory(a1 & 0xFFffFFfc)
+				dat, datLen := readPreimage(st.PreimageKey, st.PreimageOffset)
+				alignment := a1 & 3
+				space := 4 - alignment
+				if space < datLen {
+					datLen = space
+				}
+				if a2 < datLen {
+					datLen = a2
+				}
+				var outMem [4]byte
+				binary.BigEndian.PutUint32(outMem[:], mem)
+				copy(outMem[alignment:], dat[:datLen])
+				st.Memory.SetMemory(a1&0xFFffFFfc, binary.BigEndian.Uint32(outMem[:]))
+				st.PreimageOffset += datLen
+				v0 = datLen
+			case fdHintRead: // hint response
+				// don't actually read into memory, just say we read it all, we ignore the result anyway
+				v0 = a2
+			default:
+				v0 = 0xFFffFFff
+				v1 = MipsEBADF
+			}
+		case 4004: // write
+			// args: a0 = fd, a1 = addr, a2 = count
+			// returns: v0 = written, v1 = err code
+			switch a0 {
+			case fdStdout:
+				_, _ = io.Copy(stdOut, st.Memory.ReadMemoryRange(a1, a2))
+				v0 = a2
+			case fdStderr:
+				_, _ = io.Copy(stdErr, st.Memory.ReadMemoryRange(a1, a2))
+				v0 = a2
+			case fdHintWrite:
+				hint, _ := io.ReadAll(st.Memory.ReadMemoryRange(a1, a2))
+				v0 = a2
+				po.Hint(hint)
+			case fdPreimageWrite:
+				mem := st.Memory.GetMemory(a1 & 0xFFffFFfc)
+				key := st.PreimageKey
+				alignment := a1 & 3
+				space := 4 - alignment
+				if space < a2 {
+					a2 = space
+				}
+				copy(key[:], key[a2:])
+				var tmp [4]byte
+				binary.BigEndian.PutUint32(tmp[:], mem)
+				copy(key[32-a2:], tmp[:])
+				st.PreimageKey = key
+				st.PreimageOffset = 0
+				v0 = a2
+			default:
+				v0 = 0xFFffFFff
+				v1 = MipsEBADF
+			}
+		case 4055: // fcntl
+			// args: a0 = fd, a1 = cmd
+			if a1 == 3 { // F_GETFL: get file descriptor flags
+				switch a0 {
+				case fdStdin, fdPreimageRead, fdHintRead:
+					v0 = 0 // O_RDONLY
+				case fdStdout, fdStderr, fdPreimageWrite, fdHintWrite:
+					v0 = 1 // O_WRONLY
+				default:
+					v0 = 0xFFffFFff
+					v1 = MipsEBADF
+				}
+			} else {
+				v0 = 0xFFffFFff
+				v1 = MipsEINVAL // cmd not recognized by this kernel
+			}
 		}
 		mu.RegWrite(uc.MIPS_REG_V0, uint64(v0))
-		mu.RegWrite(uc.MIPS_REG_A3, 0)
+		mu.RegWrite(uc.MIPS_REG_A3, uint64(v1))
 	}, 0, ^uint64(0))
 	if err != nil {
 		return nil, fmt.Errorf("failed to set up interrupt/syscall hook: %w", err)
@@ -213,6 +280,7 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 func (m *UnicornState) Step(proof bool) (wit *StepWitness) {
 	m.memProofEnabled = proof
 	m.lastMemAccess = ^uint32(0)
+	m.lastPreimageOffset = ^uint32(0)
 
 	if proof {
 		insnProof := m.state.Memory.MerkleProof(m.state.PC)
@@ -269,9 +337,9 @@ func (m *UnicornState) Step(proof bool) (wit *StepWitness) {
 
 	if proof {
 		wit.memProof = append(wit.memProof, m.memProof[:]...)
-		if m.lastPreimageRead > 0 {
-			wit.preimageOffset = m.state.PreimageOffset
-			wit.preimageKey = m.state.PreimageKey
+		if m.lastPreimageOffset != ^uint32(0) {
+			wit.preimageOffset = m.lastPreimageOffset
+			wit.preimageKey = m.lastPreimageKey
 			wit.preimageValue = m.lastPreimage
 		}
 	}
