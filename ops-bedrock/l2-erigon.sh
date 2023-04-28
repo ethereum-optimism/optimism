@@ -7,7 +7,6 @@ COMMON_FLAGS=" \
   --chain dev \
   --datadir /home/boba/datadir \
   --log.console.verbosity dbug \
-  --externalcl \
   "
 
 ERIGON_FLAGS=" \
