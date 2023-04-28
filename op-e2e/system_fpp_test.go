@@ -9,29 +9,15 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	oppcl "github.com/ethereum-optimism/optimism/op-program/client"
 	"github.com/ethereum-optimism/optimism/op-program/client/driver"
 	opp "github.com/ethereum-optimism/optimism/op-program/host"
 	oppconf "github.com/ethereum-optimism/optimism/op-program/host/config"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
-
-// bypass the test runnner if running client to execute the fpp directly
-func init() {
-	if !opp.RunningProgramInClient() {
-		return
-	}
-	logger := oplog.NewLogger(oplog.CLIConfig{
-		Level:  "debug",
-		Format: "text",
-	})
-	oppcl.Main(logger)
-}
 
 func TestVerifyL2OutputRoot(t *testing.T) {
 	testVerifyL2OutputRoot(t, false)
@@ -115,7 +101,10 @@ func testVerifyL2OutputRoot(t *testing.T, detached bool) {
 	fppConfig.L1URL = sys.NodeEndpoint("l1")
 	fppConfig.L2URL = sys.NodeEndpoint("sequencer")
 	fppConfig.DataDir = preimageDir
-	fppConfig.Detached = detached
+	if detached {
+		// When running in detached mode we need to compile the client executable since it will be called directly.
+		fppConfig.ExecCmd = BuildOpProgramClient(t)
+	}
 
 	// Check the FPP confirms the expected output
 	t.Log("Running fault proof in fetching mode")
