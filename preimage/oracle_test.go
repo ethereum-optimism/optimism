@@ -9,15 +9,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"golang.org/x/crypto/sha3"
 )
-
-func keccak256(v []byte) (out [32]byte) {
-	s := sha3.NewLegacyKeccak256()
-	s.Write(v)
-	s.Sum(out[:0])
-	return
-}
 
 type readWritePair struct {
 	io.Reader
@@ -38,11 +30,11 @@ func TestOracle(t *testing.T) {
 
 		preimageByHash := make(map[[32]byte][]byte)
 		for _, p := range preimages {
-			k := Keccak256Key(keccak256(p))
+			k := Keccak256Key(Keccak256(p))
 			preimageByHash[k.PreimageKey()] = p
 		}
 		for _, p := range preimages {
-			k := Keccak256Key(keccak256(p))
+			k := Keccak256Key(Keccak256(p))
 
 			var wg sync.WaitGroup
 			wg.Add(2)
