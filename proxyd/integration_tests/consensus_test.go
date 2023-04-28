@@ -3,6 +3,7 @@ package integration_tests
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path"
@@ -47,6 +48,7 @@ func TestConsensus(t *testing.T) {
 	ctx := context.Background()
 	svr, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
+	client := NewProxydClient("http://127.0.0.1:8545")
 	defer shutdown()
 
 	bg := svr.BackendGroups["node"]
@@ -76,7 +78,6 @@ func TestConsensus(t *testing.T) {
 		h2.ResetOverrides()
 		bg.Consensus.Unban()
 
-		// advance latest on node2 to 0x2
 		h1.AddOverride(&ms.MethodTemplate{
 			Method:   "net_peerCount",
 			Block:    "",
@@ -354,6 +355,83 @@ func TestConsensus(t *testing.T) {
 
 		// should resolve to 0x1, the highest common ancestor
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+	})
+
+	t.Run("load balancing should hit both backends", func(t *testing.T) {
+		h1.ResetOverrides()
+		h2.ResetOverrides()
+		bg.Consensus.Unban()
+
+		for _, be := range bg.Backends {
+			bg.Consensus.UpdateBackend(ctx, be)
+		}
+		bg.Consensus.UpdateBackendGroupConsensus(ctx)
+
+		require.Equal(t, 2, len(bg.Consensus.GetConsensusGroup()))
+
+		node1.Reset()
+		node2.Reset()
+
+		require.Equal(t, 0, len(node1.Requests()))
+		require.Equal(t, 0, len(node2.Requests()))
+
+		// there is a random component to this test,
+		// since our round-robin implementation shuffles the ordering
+		// to achieve uniform distribution
+
+		// so we just make 100 requests per backend and expect the number of requests to be somewhat balanced
+		// i.e. each backend should be hit minimally by at least 50% of the requests
+		consensusGroup := bg.Consensus.GetConsensusGroup()
+
+		numberReqs := len(consensusGroup) * 100
+		for numberReqs > 0 {
+			_, statusCode, err := client.SendRPC("eth_getBlockByNumber", []interface{}{"0x1", false})
+			require.NoError(t, err)
+			require.Equal(t, 200, statusCode)
+			numberReqs--
+		}
+
+		msg := fmt.Sprintf("n1 %d, n2 %d", len(node1.Requests()), len(node2.Requests()))
+		require.GreaterOrEqual(t, len(node1.Requests()), 50, msg)
+		require.GreaterOrEqual(t, len(node2.Requests()), 50, msg)
+	})
+
+	t.Run("load balancing should not hit if node is not healthy", func(t *testing.T) {
+		h1.ResetOverrides()
+		h2.ResetOverrides()
+		bg.Consensus.Unban()
+
+		// node1 should not be serving any traffic
+		h1.AddOverride(&ms.MethodTemplate{
+			Method:   "net_peerCount",
+			Block:    "",
+			Response: buildPeerCountResponse(1),
+		})
+
+		for _, be := range bg.Backends {
+			bg.Consensus.UpdateBackend(ctx, be)
+		}
+		bg.Consensus.UpdateBackendGroupConsensus(ctx)
+
+		require.Equal(t, 1, len(bg.Consensus.GetConsensusGroup()))
+
+		node1.Reset()
+		node2.Reset()
+
+		require.Equal(t, 0, len(node1.Requests()))
+		require.Equal(t, 0, len(node2.Requests()))
+
+		numberReqs := 10
+		for numberReqs > 0 {
+			_, statusCode, err := client.SendRPC("eth_getBlockByNumber", []interface{}{"0x1", false})
+			require.NoError(t, err)
+			require.Equal(t, 200, statusCode)
+			numberReqs--
+		}
+
+		msg := fmt.Sprintf("n1 %d, n2 %d", len(node1.Requests()), len(node2.Requests()))
+		require.Equal(t, len(node1.Requests()), 0, msg)
+		require.Equal(t, len(node2.Requests()), 10, msg)
 	})
 }
 
