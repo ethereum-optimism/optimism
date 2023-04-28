@@ -61,6 +61,9 @@ contract PostSherlockL1 is SafeBuilder {
      * @notice Place the contract addresses in storage so they can be used when building calldata.
      */
     function setUp() external {
+        // HACK: needs refactor
+        PROXY_ADMIN = ProxyAdmin(0x01d3670863c3F4b24D7b107900f0b75d4BbC6e0d);
+
         implementations[GOERLI] = ContractSet({
             L1CrossDomainMessenger: 0x9D1dACf9d9299D17EFFE1aAd559c06bb3Fbf9BC4,
             L1StandardBridge: 0x022Fc3EBAA3d53F8f9b270CC4ABe1B0e4A406253,
