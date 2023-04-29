@@ -1,52 +1,37 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
-import '@nomiclabs/hardhat-ethers'
 
-import { assertContractVariable, deploy } from '../src/deploy-utils'
+import {
+  assertContractVariable,
+  deploy,
+  getContractFromArtifact,
+} from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
+  const { deployer } = await hre.getNamedAccounts()
+  const isLiveDeployer =
+    deployer.toLowerCase() === hre.deployConfig.controller.toLowerCase()
+
+  const DisputeGameFactoryProxy = await getContractFromArtifact(
+    hre,
+    'DisputeGameFactoryProxy'
+  )
+
+  // Deploy the BondManager implementation contract.
   await deploy({
     hre,
-    name: 'L2OutputOracle',
-    args: [
-      hre.deployConfig.l2OutputOracleSubmissionInterval,
-      hre.deployConfig.l2BlockTime,
-      0,
-      0,
-      hre.deployConfig.l2OutputOracleProposer,
-      hre.deployConfig.l2OutputOracleChallenger,
-      hre.deployConfig.finalizationPeriodSeconds,
-    ],
+    name: 'BondManagerImpl',
+    args: [ DisputeGameFactoryProxy.address ],
     postDeployAction: async (contract) => {
       await assertContractVariable(
         contract,
-        'SUBMISSION_INTERVAL',
-        hre.deployConfig.l2OutputOracleSubmissionInterval
-      )
-      await assertContractVariable(
-        contract,
-        'L2_BLOCK_TIME',
-        hre.deployConfig.l2BlockTime
-      )
-      await assertContractVariable(
-        contract,
-        'PROPOSER',
-        hre.deployConfig.l2OutputOracleProposer
-      )
-      await assertContractVariable(
-        contract,
-        'CHALLENGER',
-        hre.deployConfig.l2OutputOracleChallenger
-      )
-      await assertContractVariable(
-        contract,
-        'FINALIZATION_PERIOD_SECONDS',
-        hre.deployConfig.finalizationPeriodSeconds
+        'DISPUTE_GAME_FACTORY',
+        DisputeGameFactoryProxy.address
       )
     },
   })
 }
 
-deployFn.tags = ['L2OutputOracleImpl', 'setup', 'l1']
+deployFn.tags = ['BondManagerImpl', 'setup', 'l1']
 
 export default deployFn
