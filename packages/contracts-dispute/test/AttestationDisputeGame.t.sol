@@ -10,6 +10,10 @@ import { LibClock } from "src/lib/LibClock.sol";
 import { LibHashing } from "src/lib/LibHashing.sol";
 import { LibPosition } from "src/lib/LibPosition.sol";
 
+import { ResourceMetering } from "contracts-bedrock/L1/ResourceMetering.sol";
+import { SystemConfig } from "contracts-bedrock/L1/SystemConfig.sol";
+import { L2OutputOracle } from "contracts-bedrock/L1/L2OutputOracle.sol";
+
 import { AttestationDisputeGame } from "src/AttestationDisputeGame.sol";
 import { IDisputeGameFactory } from "src/interfaces/IDisputeGameFactory.sol";
 import { IDisputeGame } from "src/interfaces/IDisputeGame.sol";
@@ -44,11 +48,12 @@ contract AttestationDisputeGame_Test is Test {
         vm.label(address(bm), "BondManager");
 
         ResourceMetering.ResourceConfig memory _config = ResourceMetering.ResourceConfig({
-            maxGas: 100000000,
-            maxSteps: 100000000,
-            maxTime: 100000000,
-            maxDepth: 100000000,
-            maxSize: 100000000
+            maxResourceLimit: 1000000000,
+            elasticityMultiplier: 2,
+            baseFeeMaxChangeDenominator: 2,
+            minimumBaseFee: 10,
+            systemTxMaxGas: 100000000,
+            maximumBaseFee: 1000
         });
 
         systemConfig = new SystemConfig(
@@ -74,7 +79,7 @@ contract AttestationDisputeGame_Test is Test {
         vm.label(address(l2oo), "L2OutputOracle");
 
         // Create the dispute game implementation
-        disputeGameImplementation = new AttestationDisputeGame(bm, systemConfig, l2oo);
+        disputeGameImplementation = new AttestationDisputeGame(IBondManager(address(bm)), systemConfig, l2oo);
         vm.label(address(disputeGameImplementation), "AttestationDisputeGame_Implementation");
 
         // Set the implementation in the factory
@@ -82,11 +87,11 @@ contract AttestationDisputeGame_Test is Test {
         factory.setImplementation(gt, IDisputeGame(address(disputeGameImplementation)));
 
         // Create the attestation dispute game in the factory
-        bytes memory ed = extraData;
+        bytes memory extraData = bytes("");
         Claim rootClaim = Claim.wrap(bytes32(""));
         vm.expectEmit(false, true, true, false);
         emit DisputeGameCreated(address(0), gt, rootClaim);
-        disputeGameProxy = factory.create(gt, rootClaim, extraData);
+        disputeGameProxy = AttestationDisputeGame(address(factory.create(gt, rootClaim, extraData)));
         assertEq(address(factory.games(gt, rootClaim, extraData)), address(disputeGameProxy));
         vm.label(address(disputeGameProxy), "AttestationDisputeGame_Proxy");
     }
