@@ -22,6 +22,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @custom:value GAS_LIMIT            Represents an update to gas limit on L2.
      * @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
      *                                    block distrubution.
+     * @custom:value SIGNER_SET           Represents an update to the signer set.
+     * @custom:value SIGNATURE_THRESHOLD  Represents an update to the signature threshold.
      */
     enum UpdateType {
         BATCHER,
@@ -76,7 +78,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @notice The `signerSet` is a set of addresses that are allowed to issue positive attestations
      *         for alternative output proposals in the `AttestationDisputeGame`.
      */
-    mapping(address => bool) public signerSet;
+    address[] internal _signerSet;
 
     /**
      * @notice The `signatureThreshold` is the number of positive attestations that must be issued
@@ -262,6 +264,16 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     }
 
     /**
+     * @notice A getter for the signer set.
+     *
+     * @return A list of addresses.
+     */
+    function signerSet() external view returns (address[] memory) {
+        return _signerSet;
+    }
+
+
+    /**
      * @notice An external setter for the resource config. In the future, this
      *         method may emit an event that the `op-node` picks up for when the
      *         resource config is changed.
@@ -318,8 +330,25 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      *        signer should be removed.
      */
     function authenticateSigner(address _signer, bool _authenticated) external onlyOwner {
-        signerSet[_signer] = _authenticated;
-        emit ConfigUpdate(VERSION, UpdateType.SIGNER_SET, abi.encode(_signer, _authenticated));
+        uint256 len = _signerSet.length;
+        for (uint256 i = 0; i < len; i++) {
+            if (_signerSet[i] == _signer) {
+                if (_authenticated) {
+                    revert("SystemConfig: signer already authenticated");
+                } else {
+                    // Remove the signer from the array by swapping it with the last signer
+                    // and then popping the last element.
+                    _signerSet[i] = _signerSet[len - 1];
+                    _signerSet.pop();
+                    emit ConfigUpdate(VERSION, UpdateType.SIGNER_SET, abi.encode(_signer, false));
+                    return;
+                }
+            }
+        }
+        if (_authenticated) {
+            _signerSet.push(_signer);
+            emit ConfigUpdate(VERSION, UpdateType.SIGNER_SET, abi.encode(_signer, true));
+        }
     }
 
     /**

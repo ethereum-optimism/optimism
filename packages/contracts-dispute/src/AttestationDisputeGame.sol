@@ -41,6 +41,9 @@ contract AttestationDisputeGame is IAttestationDisputeGame, Clone, Initializable
     ///         or not they support the `rootClaim` being the valid output for `l2BlockNumber`.
     mapping(address => bool) public challenges;
 
+    /// @notice A list of signer addresses allowed to participate in this game.
+    address[] public frozenSignerSet;
+
     // Initialize the implementation upon deployment.
     constructor(IBondManager _bondmanager, SystemConfig _systemConfig, L2OutputOracle _l2OutputOracle) EIP712() {
         bondManager = _bondmanager;
@@ -55,9 +58,11 @@ contract AttestationDisputeGame is IAttestationDisputeGame, Clone, Initializable
     /// @notice The signer set consists of authorized public keys that may challenge the `rootClaim`.
     /// @return _isAuthorized Whether or not the `addr` is part of the signer set.
     function signerSet(address addr) external view override returns (bool _isAuthorized) {
-        // TODO: Copy the signer set within `initialize` so that it may not be changed mid-flight.
-        // This will require an array rather than a mapping within the `SystemConfig` contract.
-        _isAuthorized = systemConfig.signerSet(addr);
+        for (uint256 i = 0; i < frozenSignerSet.length; i++) {
+            if (frozenSignerSet[i] == addr) {
+                _isAuthorized = true;
+            }
+        }
     }
 
     /// @notice Challenge the `rootClaim`.
@@ -142,6 +147,7 @@ contract AttestationDisputeGame is IAttestationDisputeGame, Clone, Initializable
     /// @notice Initializes the `DisputeGame_Fault` contract.
     function initialize() external initializer {
         createdAt = Timestamp.wrap(uint64(block.timestamp));
+        frozenSignerSet = systemConfig.signerSet();
     }
 
     /// @notice Returns the semantic version of the DisputeGame contract.
@@ -174,7 +180,7 @@ contract AttestationDisputeGame is IAttestationDisputeGame, Clone, Initializable
         bondManager.seizeAndSplit(keccak256(abi.encode(_l2BlockNumber)), attestationSubmitters);
 
         // Delete all outputs from [l2BlockNumber, currentL2BlockNumber]
-        l2OutputOracle.deleteL2Output(l2BlockNumber());
+        l2OutputOracle.deleteL2Outputs(l2BlockNumber());
 
         return status;
     }
