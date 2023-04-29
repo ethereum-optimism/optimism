@@ -5,6 +5,8 @@ optimizer = true
 optimizer_runs = 999999
 
 remappings = [
+  '@dispute/=node_modules/@eth-optimism/contracts-dispute/src/',
+  "cwia=node_modules/@eth-optimism/contracts-dispute/node_modules/clones-with-immutable-args/src",
   '@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/',
   '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/',
   '@rari-capital/solmate/=node_modules/@rari-capital/solmate',

@@ -347,8 +347,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         }
         if (_authenticated) {
             _signerSet.push(_signer);
-            emit ConfigUpdate(VERSION, UpdateType.SIGNER_SET, abi.encode(_signer, true));
         }
+        emit ConfigUpdate(VERSION, UpdateType.SIGNER_SET, abi.encode(_signer, _authenticated));
     }
 
     /**
