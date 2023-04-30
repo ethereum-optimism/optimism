@@ -224,7 +224,12 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
 
         vm.prank(sysConf.owner());
         sysConf.authenticateSigner(signer, authorized);
-        assertEq(sysConf.signerSet(signer), authorized);
+        address[] memory signers = sysConf.signerSet();
+        if (authorized) {
+            assertEq(signers[0], signer);
+        } else {
+            assertEq(signers.length, 0);
+        }
     }
 
     function testFuzz_setSignatureThreshold_succeeds(uint256 signatureThreshold) external {

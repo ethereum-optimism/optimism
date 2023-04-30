@@ -37,6 +37,8 @@ contract BondManager_Test is Test {
         vm.assume(owner != address(0));
         vm.assume(owner != address(bm));
         vm.assume(owner != address(this));
+        // Create2Deployer
+        vm.assume(owner != address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
         vm.assume(amount != 0);
         unchecked {
             vm.assume(block.timestamp + minClaimHold > minClaimHold);
@@ -238,6 +240,7 @@ contract BondManager_Test is Test {
         unchecked {
             vm.assume(block.timestamp + minClaimHold > minClaimHold);
         }
+        assumeNoPrecompiles(owner);
 
         // Post the bond
         vm.deal(address(this), amount);
