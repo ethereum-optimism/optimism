@@ -20,7 +20,7 @@ interface IAttestationDisputeGame is IDisputeGame {
     ///         output proposal. Once this threshold is met by members of the `signerSet`
     ///         calling `challenge`, the game will be resolved to `CHALLENGER_WINS`.
     /// @custom:invariant The `signatureThreshold` may never be greater than the length of the `signerSet`.
-    function signatureThreshold() external view returns (uint256 _signatureThreshold);
+    function frozenSignatureThreshold() external view returns (uint256 _signatureThreshold);
 
     /// @notice Returns the L2 Block Number that the `rootClaim` commits to. Exists within the `extraData`.
     function l2BlockNumber() external view returns (uint256 _l2BlockNumber);

@@ -9,23 +9,19 @@ library SafeCall {
     /// @param _gas      Amount of gas to pass to the call
     /// @param _value    Amount of value to pass to the call
     /// @param _calldata Calldata to pass to the call
-    function call(
-        address _target,
-        uint256 _gas,
-        uint256 _value,
-        bytes memory _calldata
-    ) internal returns (bool) {
+    function call(address _target, uint256 _gas, uint256 _value, bytes memory _calldata) internal returns (bool) {
         bool _success;
         assembly {
-            _success := call(
-                _gas, // gas
-                _target, // recipient
-                _value, // ether value
-                add(_calldata, 32), // inloc
-                mload(_calldata), // inlen
-                0, // outloc
-                0 // outlen
-            )
+            _success :=
+                call(
+                    _gas, // gas
+                    _target, // recipient
+                    _value, // ether value
+                    add(_calldata, 32), // inloc
+                    mload(_calldata), // inlen
+                    0, // outloc
+                    0 // outlen
+                )
         }
         return _success;
     }
