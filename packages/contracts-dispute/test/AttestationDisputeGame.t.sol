@@ -34,14 +34,16 @@ contract AttestationDisputeGame_Test is Test {
     address internal proposer = 0x000000000000000000000000000000000000AbBa;
     address internal owner = 0x000000000000000000000000000000000000ACDC;
     uint256 internal submissionInterval = 1800;
-    uint256 internal l2BlockTime = 2;
+    uint256 internal l2BlockTime = 1;
     uint256 internal startingBlockNumber = 200;
-    uint256 internal startingTimestamp = 1000;
+    uint256 internal startingTimestamp = 2;
 
     /// @notice Emitted when a new dispute game is created by the [DisputeGameFactory]
     event DisputeGameCreated(address indexed disputeProxy, GameType indexed gameType, Claim indexed rootClaim);
 
     function setUp() public {
+        // vm.warp(startingTimestamp);
+
         factory = new DisputeGameFactory(address(this));
         vm.label(address(factory), "DisputeGameFactory");
         bm = new BondManager(factory);
@@ -61,20 +63,19 @@ contract AttestationDisputeGame_Test is Test {
             100, // _overhead,
             100, // _scalar,
             keccak256("BATCHER.HASH"), // _batcherHash,
-            uint64(100000000), // _gasLimit,
+            type(uint64).max, // _gasLimit,
             address(0), // _unsafeBlockSigner,
             _config
         );
         vm.label(address(systemConfig), "SystemConfig");
 
         l2oo = new L2OutputOracle({
-            _submissionInterval: submissionInterval,
             _l2BlockTime: l2BlockTime,
             _startingBlockNumber: startingBlockNumber,
-            _startingTimestamp: block.timestamp + 1,
-            _proposer: proposer,
-            _challenger: owner,
-            _finalizationPeriodSeconds: 7 days
+            _startingTimestamp: block.timestamp,
+            _finalizationPeriodSeconds: 7 days,
+            _bondManager: IBondManager(address(bm)),
+            _disputeGameFactory: IDisputeGameFactory(address(factory))
         });
         vm.label(address(l2oo), "L2OutputOracle");
 
@@ -97,8 +98,8 @@ contract AttestationDisputeGame_Test is Test {
     }
 
     function test_defaultInitialization_succeeds() public {
-        uint256 _signatureThreshold = disputeGameProxy.signatureThreshold();
-        assertEq(_signatureThreshold, 1);
+        IBondManager _bondManager = disputeGameProxy.bondManager();
+        assertEq(address(_bondManager), address(bm));
     }
 
 }

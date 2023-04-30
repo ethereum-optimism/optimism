@@ -35,11 +35,11 @@ contract BondManager {
 
   /// @notice The permissioned dispute game factory.
   /// @dev Used to verify the status of bonds.
-  IDisputeGameFactory public dgf;
+  IDisputeGameFactory public immutable DISPUTE_GAME_FACTORY;
 
   /// @notice Instantiates the bond maanger with the registered dispute game factory.
   constructor(IDisputeGameFactory _dgf) {
-    dgf = _dgf;
+    DISPUTE_GAME_FACTORY = _dgf;
   }
 
   /// @notice Post a bond with a given id and owner.
@@ -76,7 +76,7 @@ contract BondManager {
     require(b.expiration >= block.timestamp, "BondManager: Bond expired.");
 
     IDisputeGame caller = IDisputeGame(msg.sender);
-    IDisputeGame game = dgf.games(GameType.ATTESTATION, caller.rootClaim(), caller.extraData());
+    IDisputeGame game = DISPUTE_GAME_FACTORY.games(GameType.ATTESTATION, caller.rootClaim(), caller.extraData());
     require(msg.sender == address(game), "BondManager: Unauthorized seizure.");
     require(game.status() == GameStatus.CHALLENGER_WINS, "BondManager: Game incomplete.");
 
@@ -97,7 +97,7 @@ contract BondManager {
     require(b.expiration >= block.timestamp, "BondManager: Bond expired.");
 
     IDisputeGame caller = IDisputeGame(msg.sender);
-    IDisputeGame game = dgf.games(GameType.ATTESTATION, caller.rootClaim(), caller.extraData());
+    IDisputeGame game = DISPUTE_GAME_FACTORY.games(GameType.ATTESTATION, caller.rootClaim(), caller.extraData());
     require(msg.sender == address(game), "BondManager: Unauthorized seizure.");
     require(game.status() == GameStatus.CHALLENGER_WINS, "BondManager: Game incomplete.");
 

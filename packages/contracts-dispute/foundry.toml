@@ -9,6 +9,7 @@ remappings = [
   "forge-std=node_modules/forge-std/src",
   "cwia=node_modules/clones-with-immutable-args/src",
   "solady=node_modules/solady/src",
+  '@dispute/=./src',
 
   # Unused, but required to compile `contracts-bedrock`.
   "@openzeppelin/contracts=../contracts-bedrock/node_modules/@openzeppelin/contracts",
