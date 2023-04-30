@@ -241,57 +241,45 @@ func (l *L2OutputSubmitter) Stop() {
 
 // FetchNextOutputInfo gets the block number of the next proposal.
 // It returns: the next block number, if the proposal should be made, error
-func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.OutputResponse, bool, error) {
+func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.OutputResponse, *big.Int, bool, error) {
 	cCtx, cancel := context.WithTimeout(ctx, l.networkTimeout)
 	defer cancel()
-	callOpts := &bind.CallOpts{
-		From:    l.txMgr.From(),
-		Context: cCtx,
-	}
-	nextCheckpointBlock, err := l.l2ooContract.NextBlockNumber(callOpts)
-	if err != nil {
-		l.log.Error("proposer unable to get next block number", "err", err)
-		return nil, false, err
-	}
+
 	// Fetch the current L2 heads
 	cCtx, cancel = context.WithTimeout(ctx, l.networkTimeout)
 	defer cancel()
 	status, err := l.rollupClient.SyncStatus(cCtx)
 	if err != nil {
 		l.log.Error("proposer unable to get sync status", "err", err)
-		return nil, false, err
+		return nil, nil, false, err
 	}
-	// Use either the finalized or safe head depending on the config. Finalized head is default & safer.
-	var currentBlockNumber *big.Int
+
+	// Use either the finalized or safe head depending on the config.
+	// Finalized head is default & safer.
+	currentBlockNumber := new(big.Int).SetUint64(status.FinalizedL2.Number)
 	if l.allowNonFinalized {
 		currentBlockNumber = new(big.Int).SetUint64(status.SafeL2.Number)
-	} else {
-		currentBlockNumber = new(big.Int).SetUint64(status.FinalizedL2.Number)
-	}
-	// Ensure that we do not submit a block in the future
-	if currentBlockNumber.Cmp(nextCheckpointBlock) < 0 {
-		l.log.Info("proposer submission interval has not elapsed", "currentBlockNumber", currentBlockNumber, "nextBlockNumber", nextCheckpointBlock)
-		return nil, false, nil
 	}
 
-	return l.fetchOuput(ctx, nextCheckpointBlock)
+	return l.fetchOuput(ctx, currentBlockNumber)
 }
 
-func (l *L2OutputSubmitter) fetchOuput(ctx context.Context, block *big.Int) (*eth.OutputResponse, bool, error) {
+func (l *L2OutputSubmitter) fetchOuput(ctx context.Context, block *big.Int) (*eth.OutputResponse, *big.Int, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, l.networkTimeout)
 	defer cancel()
+
 	output, err := l.rollupClient.OutputAtBlock(ctx, block.Uint64())
 	if err != nil {
 		l.log.Error("failed to fetch output at block %d: %w", block, err)
-		return nil, false, err
+		return nil, nil, false, err
 	}
 	if output.Version != supportedL2OutputVersion {
 		l.log.Error("unsupported l2 output version: %s", output.Version)
-		return nil, false, errors.New("unsupported l2 output version")
+		return nil, nil, false, errors.New("unsupported l2 output version")
 	}
 	if output.BlockRef.Number != block.Uint64() { // sanity check, e.g. in case of bad RPC caching
 		l.log.Error("invalid blockNumber: next blockNumber is %v, blockNumber of block is %v", block, output.BlockRef.Number)
-		return nil, false, errors.New("invalid blockNumber")
+		return nil, nil, false, errors.New("invalid blockNumber")
 	}
 
 	// Always propose if it's part of the Finalized L2 chain. Or if allowed, if it's part of the safe L2 chain.
@@ -301,9 +289,29 @@ func (l *L2OutputSubmitter) fetchOuput(ctx context.Context, block *big.Int) (*et
 			"l2_safe", output.Status.SafeL2,
 			"l2_finalized", output.Status.FinalizedL2,
 			"allow_non_finalized", l.allowNonFinalized)
-		return nil, false, nil
+		return nil, nil, false, nil
 	}
-	return output, true, nil
+	return output, block, true, nil
+}
+
+// AlreadyProposed checks if the output has already been proposed.
+func (l *L2OutputSubmitter) AlreadyProposed(ctx context.Context, block *big.Int, output [32]byte) bool {
+	ctx, cancel := context.WithTimeout(ctx, defaultDialTimeout)
+	defer cancel()
+	callOpts := &bind.CallOpts{
+		Pending: true,
+		Context: ctx,
+	}
+	proposed, err := l.l2ooContract.GetL2Output(callOpts, block)
+	if err != nil {
+		return false
+	}
+	if output == proposed.OutputRoot {
+		l.metr.RecordValidOutputAlreadyProposed(block, proposed.OutputRoot)
+	} else if proposed.OutputRoot != [32]byte{} {
+		l.metr.RecordInvalidOutputAlreadyProposed(block, proposed.OutputRoot)
+	}
+	return output == proposed.OutputRoot
 }
 
 // ProposeL2OutputTxData creates the transaction data for the ProposeL2Output function
@@ -354,11 +362,14 @@ func (l *L2OutputSubmitter) loop() {
 	for {
 		select {
 		case <-ticker.C:
-			output, shouldPropose, err := l.FetchNextOutputInfo(ctx)
+			output, block, shouldPropose, err := l.FetchNextOutputInfo(ctx)
 			if err != nil {
 				break
 			}
 			if !shouldPropose {
+				break
+			}
+			if l.AlreadyProposed(ctx, block, output.OutputRoot) {
 				break
 			}
 
