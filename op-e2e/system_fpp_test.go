@@ -108,7 +108,7 @@ func testVerifyL2OutputRoot(t *testing.T, detached bool) {
 
 	// Check the FPP confirms the expected output
 	t.Log("Running fault proof in fetching mode")
-	err = opp.FaultProofProgram(log, fppConfig)
+	err = opp.FaultProofProgram(ctx, log, fppConfig)
 	require.NoError(t, err)
 
 	t.Log("Shutting down network")
@@ -124,13 +124,13 @@ func testVerifyL2OutputRoot(t *testing.T, detached bool) {
 	// Should be able to rerun in offline mode using the pre-fetched images
 	fppConfig.L1URL = ""
 	fppConfig.L2URL = ""
-	err = opp.FaultProofProgram(log, fppConfig)
+	err = opp.FaultProofProgram(ctx, log, fppConfig)
 	require.NoError(t, err)
 
 	// Check that a fault is detected if we provide an incorrect claim
 	t.Log("Running fault proof with invalid claim")
 	fppConfig.L2Claim = common.Hash{0xaa}
-	err = opp.FaultProofProgram(log, fppConfig)
+	err = opp.FaultProofProgram(ctx, log, fppConfig)
 	if detached {
 		require.Error(t, err, "exit status 1")
 	} else {

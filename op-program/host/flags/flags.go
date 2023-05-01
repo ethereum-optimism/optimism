@@ -86,6 +86,11 @@ var (
 		Usage:  "Run the specified client program as a separate process detached from the host. Default is to run the client program in the host process.",
 		EnvVar: service.PrefixEnvVar(envVarPrefix, "EXEC"),
 	}
+	Server = cli.BoolFlag{
+		Name:   "server",
+		Usage:  "Run in pre-image server mode without executing any client program.",
+		EnvVar: service.PrefixEnvVar(envVarPrefix, "SERVER"),
+	}
 )
 
 // Flags contains the list of configuration options available to the binary.
@@ -107,6 +112,7 @@ var programFlags = []cli.Flag{
 	L1TrustRPC,
 	L1RPCProviderKind,
 	Exec,
+	Server,
 }
 
 func init() {
