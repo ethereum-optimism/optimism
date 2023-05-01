@@ -1,6 +1,8 @@
 
 on: [push, pull_request]
 name: Cannon Test
+permissions:
+  contents: read
 jobs:
   cannon-test:
     runs-on: ubuntu-latest
@@ -43,6 +45,12 @@ jobs:
           key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-${{ matrix.go-version }}-
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.52
+          working-directory: mipsevm
+          skip-cache: true  # we already have go caching
       - name: Build examples
         working-directory: ./example
         run: make elf
