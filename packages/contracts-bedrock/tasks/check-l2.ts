@@ -33,14 +33,37 @@ const checkPredeploys = async (
   provider: providers.Provider
 ) => {
   console.log('Checking predeploys are configured correctly')
+  const admin = hre.ethers.utils.hexConcat([
+    '0x000000000000000000000000',
+    predeploys.ProxyAdmin,
+  ])
+
+  const codeReq = []
+  const slotReq = []
+  // First loop for requests
   for (let i = 0; i < 2048; i++) {
     const num = hre.ethers.utils.hexZeroPad('0x' + i.toString(16), 2)
     const addr = hre.ethers.utils.getAddress(
       hre.ethers.utils.hexConcat([prefix, num])
     )
 
-    const code = await provider.getCode(addr)
-    if (code === '0x') {
+    codeReq.push(provider.getCode(addr))
+    slotReq.push(provider.getStorageAt(addr, adminSlot))
+  }
+
+  // Wait for all requests to finish
+  // The `JsonRpcBatchProvider` will batch requests in the background.
+  const codeRes = await Promise.all(codeReq)
+  const slotRes = await Promise.all(slotReq)
+
+  // Second loop for response checks
+  for (let i = 0; i < 2048; i++) {
+    const num = hre.ethers.utils.hexZeroPad('0x' + i.toString(16), 2)
+    const addr = hre.ethers.utils.getAddress(
+      hre.ethers.utils.hexConcat([prefix, num])
+    )
+
+    if (codeRes[i] === '0x') {
       throw new Error(`no code found at ${addr}`)
     }
 
@@ -52,13 +75,7 @@ const checkPredeploys = async (
       continue
     }
 
-    const slot = await provider.getStorageAt(addr, adminSlot)
-    const admin = hre.ethers.utils.hexConcat([
-      '0x000000000000000000000000',
-      predeploys.ProxyAdmin,
-    ])
-
-    if (admin !== slot) {
+    if (slotRes[i] !== admin) {
       throw new Error(`incorrect admin slot in ${addr}`)
     }
 
@@ -686,7 +703,9 @@ task('check-l2', 'Checks a freshly migrated L2 system for correct migration')
 
     if (args.l2RpcUrl !== '') {
       console.log('Using CLI URL for provider instead of hardhat network')
-      const provider = new hre.ethers.providers.JsonRpcProvider(args.l2RpcUrl)
+      const provider = new hre.ethers.providers.JsonRpcBatchProvider(
+        args.l2RpcUrl
+      )
       signer = Wallet.createRandom().connect(provider)
     }
 

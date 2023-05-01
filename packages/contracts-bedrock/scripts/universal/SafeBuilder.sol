@@ -2,11 +2,12 @@
 pragma solidity 0.8.15;
 
 import { console } from "forge-std/console.sol";
-import { Script } from "forge-std/Script.sol";
 import { IMulticall3 } from "forge-std/interfaces/IMulticall3.sol";
-import { IGnosisSafe, Enum } from "./IGnosisSafe.sol";
-import { LibSort } from "./LibSort.sol";
-import { Semver } from "../../contracts/universal/Semver.sol";
+
+import { LibSort } from "../libraries/LibSort.sol";
+import { IGnosisSafe, Enum } from "../interfaces/IGnosisSafe.sol";
+import { EnhancedScript } from "../universal/EnhancedScript.sol";
+import { GlobalConstants } from "../universal/GlobalConstants.sol";
 import { ProxyAdmin } from "../../contracts/universal/ProxyAdmin.sol";
 
 /**
@@ -21,22 +22,7 @@ import { ProxyAdmin } from "../../contracts/universal/ProxyAdmin.sol";
  *         for the most simple user experience when using automation and no indexer.
  *         Run the command without the `--broadcast` flag and it will print a tenderly URL.
  */
-abstract contract SafeBuilder is Script {
-    /**
-     * @notice Mainnet chain id.
-     */
-    uint256 constant MAINNET = 1;
-
-    /**
-     * @notice Goerli chain id.
-     */
-    uint256 constant GOERLI = 5;
-
-    /**
-     * @notice Optimism Goerli chain id.
-     */
-    uint256 constant OP_GOERLI = 420;
-
+abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
     /**
      * @notice Interface for multicall3.
      */
@@ -50,7 +36,7 @@ abstract contract SafeBuilder is Script {
     /**
      * @notice The entrypoint to this script.
      */
-    function run(address _safe, address _proxyAdmin) external returns (bool) {
+    function run(address _safe, address _proxyAdmin) public returns (bool) {
         vm.startBroadcast();
         bool success = _run(_safe, _proxyAdmin);
         if (success) _postCheck();
@@ -58,12 +44,19 @@ abstract contract SafeBuilder is Script {
     }
 
     /**
-     * @notice The implementation of the upgrade. Split into its own function
-     *         to allow for testability. This is subject to a race condition if
-     *         the nonce changes by a different transaction finalizing while not
-     *         all of the signers have used this script.
+     * @notice Follow up assertions to ensure that the script ran to completion.
      */
-    function _run(address _safe, address _proxyAdmin) public returns (bool) {
+    function _postCheck() internal virtual view;
+
+    /**
+     * @notice Creates the calldata
+     */
+    function buildCalldata(address _proxyAdmin) internal virtual view returns (bytes memory);
+
+    /**
+     * @notice Internal helper function to compute the safe transaction hash.
+     */
+    function _getTransactionHash(address _safe, address _proxyAdmin) internal returns (bytes32) {
         // Ensure that the required contracts exist
         require(address(multicall).code.length > 0, "multicall3 not deployed");
         require(_safe.code.length > 0, "no code at safe address");
@@ -87,6 +80,23 @@ abstract contract SafeBuilder is Script {
             refundReceiver: address(0),
             _nonce: nonce
         });
+
+        return hash;
+    }
+
+
+    /**
+     * @notice The implementation of the upgrade. Split into its own function
+     *         to allow for testability. This is subject to a race condition if
+     *         the nonce changes by a different transaction finalizing while not
+     *         all of the signers have used this script.
+     */
+    function _run(address _safe, address _proxyAdmin) public returns (bool) {
+        IGnosisSafe safe = IGnosisSafe(payable(_safe));
+        bytes memory data = buildCalldata(_proxyAdmin);
+
+        // Compute the safe transaction hash
+        bytes32 hash = _getTransactionHash(_safe, _proxyAdmin);
 
         // Send a transaction to approve the hash
         safe.approveHash(hash);
@@ -159,52 +169,6 @@ abstract contract SafeBuilder is Script {
     }
 
     /**
-     * @notice Log a tenderly simulation link. The TENDERLY_USERNAME and TENDERLY_PROJECT
-     *         environment variables will be used if they are present. The vm is staticcall'ed
-     *         because of a compiler issue with the higher level ABI.
-     */
-    function logSimulationLink(address _to, bytes memory _data, address _from) public view {
-        (, bytes memory projData) = VM_ADDRESS.staticcall(
-            abi.encodeWithSignature("envOr(string,string)", "TENDERLY_PROJECT", "TENDERLY_PROJECT")
-        );
-        string memory proj = abi.decode(projData, (string));
-
-        (, bytes memory userData) = VM_ADDRESS.staticcall(
-            abi.encodeWithSignature("envOr(string,string)", "TENDERLY_USERNAME", "TENDERLY_USERNAME")
-        );
-        string memory username = abi.decode(userData, (string));
-
-        string memory str = string.concat(
-            "https://dashboard.tenderly.co/",
-            username,
-            "/",
-            proj,
-            "/simulator/new?network=",
-            vm.toString(block.chainid),
-            "&contractAddress=",
-            vm.toString(_to),
-            "&rawFunctionInput=",
-            vm.toString(_data),
-            "&from=",
-            vm.toString(_from)
-        );
-        console.log(str);
-    }
-
-    /**
-     * @notice Follow up assertions to ensure that the script ran to completion.
-     */
-    function _postCheck() internal virtual view;
-
-    /**
-     * @notice Helper function used to compute the hash of Semver's version string to be used in a
-     *         comparison.
-     */
-    function _versionHash(address _addr) internal view returns (bytes32) {
-        return keccak256(bytes(Semver(_addr).version()));
-    }
-
-    /**
      * @notice Builds the signatures by tightly packing them together.
      *         Ensures that they are sorted.
      */
@@ -226,9 +190,5 @@ abstract contract SafeBuilder is Script {
         return signatures;
     }
 
-    /**
-     * @notice Creates the calldata
-     */
-    function buildCalldata(address _proxyAdmin) internal virtual view returns (bytes memory);
 }
 

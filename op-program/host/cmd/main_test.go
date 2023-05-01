@@ -232,6 +232,28 @@ func TestExec(t *testing.T) {
 	})
 }
 
+func TestServerMode(t *testing.T) {
+	t.Run("DefaultFalse", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs())
+		require.False(t, cfg.ServerMode)
+	})
+	t.Run("Enabled", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs("--server"))
+		require.True(t, cfg.ServerMode)
+	})
+	t.Run("EnabledWithArg", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs("--server=true"))
+		require.True(t, cfg.ServerMode)
+	})
+	t.Run("DisabledWithArg", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs("--server=false"))
+		require.False(t, cfg.ServerMode)
+	})
+	t.Run("InvalidArg", func(t *testing.T) {
+		verifyArgsInvalid(t, "invalid boolean value \"foo\" for -server", addRequiredArgs("--server=foo"))
+	})
+}
+
 func verifyArgsInvalid(t *testing.T, messageContains string, cliArgs []string) {
 	_, _, err := runWithArgs(cliArgs)
 	require.ErrorContains(t, err, messageContains)
