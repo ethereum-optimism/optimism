@@ -5,9 +5,9 @@
 
 ---
 
-The cannon (cannon cannon cannon) is an on chain interactive dispute engine implementing EVM-equivalent fault proofs.
-
-It's half geth, half MIPS, and whole awesome.
+Cannon *(cannon cannon cannon)* is an onchain MIPS instruction emulator.
+Cannon supports EVM-equivalent fault proofs by enabling Geth to run onchain,
+one instruction at a time, as part of an interactive dispute game.
 
 * It's Go code
 * ...that runs an EVM
@@ -15,9 +15,6 @@ It's half geth, half MIPS, and whole awesome.
 * ...running compiled Go code
 * ...that runs an EVM
 
-For more information on Cannon's inner workings, check [this overview][overview].
-
-[overview]: https://github.com/ethereum-optimism/optimistic-specs/wiki/Cannon-Overview
 
 ## Directory Layout
 
@@ -31,17 +28,36 @@ unicorn   -- Sub-module, used by mipsevm for offchain MIPS emulation.
 
 ## Building
 
-Pre-requisites: Go, Node.js, Make, and CMake.
+### `unicorn`
 
+To build unicorn from source (git sub-module), run:
 ```
-make build
-make test # verify everything works correctly
+make libunicorn
 ```
+
+### `contracts`
+
+The contracts are compiled with [`forge`](https://github.com/foundry-rs/foundry).
+```
+make contracts
+```
+
+### `mipsevm`
+
+This requires `unicorn` to be built, as well as the `contracts` for testing.
+
+To test:
+```
+make test
+```
+
+Also see notes in `mipsevm/go.mod` about the Unicorn dependency, if you wish to use Cannon as a Go library.
 
 ## License
 
 MIT, see [`LICENSE`](./LICENSE) file.
 
-Note: This code is unaudited. It in NO WAY should be used to secure any money until a lot more
-testing and auditing are done. I have deployed this nowhere, have advised against deploying it, and
-make no guarantees of security of ANY KIND.
+**Note: This code is unaudited.**
+In NO WAY should it be used to secure any monetary value before testing and auditing.
+This is experimental software, and should be treated as such.
+The authors of this project make no guarantees of security of ANY KIND.

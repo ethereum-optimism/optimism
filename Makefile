@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-build: submodules libunicorn mipsevm contracts
+build: submodules libunicorn contracts
 .PHONY: build
 
 submodules:
@@ -38,11 +38,6 @@ libunicorn_rebuild:
 	make libunicorn
 .PHONY: libunicorn_rebuild
 
-mipsevm:
-	cd mipsevm && go build
-.PHONY: mipsevm
-
-
 # Must be a definition and not a rule, otherwise it gets only called once and
 # not before each test as we wish.
 define clear_cache
@@ -61,3 +56,7 @@ clean:
 contracts:
 	cd contracts && forge build
 .PHONY: contracts
+
+test: libunicorn
+	cd mipsevm && go test -v ./...
+.PHONY: test
