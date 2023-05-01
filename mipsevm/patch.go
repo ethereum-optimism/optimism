@@ -69,7 +69,7 @@ func PatchVM(f *elf.File, st *State) error {
 			"runtime.check":
 			// MIPS32 patch: ret (pseudo instruction)
 			// 03e00008 = jr $ra = ret (pseudo instruction)
-			// 00000000 = invalid, make sure it never enters the actual function
+			// 00000000 = nop (executes with delay-slot, but does nothing)
 			if err := st.Memory.SetMemoryRange(uint32(s.Value), bytes.NewReader([]byte{
 				0x03, 0xe0, 0x00, 0x08,
 				0, 0, 0, 0,
