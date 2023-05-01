@@ -419,7 +419,7 @@ contract SystemDictator is OwnableUpgradeable {
     }
 
     /**
-     * @notice Calls the next remaings steps of the migration process.
+     * @notice Calls the remaining steps of the migration process.
      */
     function phase2() external onlyOwner {
         step3();

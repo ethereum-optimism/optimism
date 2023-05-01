@@ -33,6 +33,7 @@ const deployFn: DeployFunction = async (hre) => {
     L2OutputOracle,
     OptimismPortal,
     OptimismMintableERC20Factory,
+    L1ERC721BridgeProxy,
     L1ERC721Bridge,
   ] = await getContractsFromArtifacts(hre, [
     {
@@ -75,6 +76,9 @@ const deployFn: DeployFunction = async (hre) => {
       name: 'OptimismMintableERC20FactoryProxy',
       iface: 'OptimismMintableERC20Factory',
       signerOrProvider: deployer,
+    },
+    {
+      name: 'L1ERC721BridgeProxy',
     },
     {
       name: 'L1ERC721BridgeProxy',
@@ -219,6 +223,12 @@ const deployFn: DeployFunction = async (hre) => {
       assert(
         (await L1StandardBridgeProxy.callStatic.getOwner({
           from: ethers.constants.AddressZero,
+        })) === ProxyAdmin.address
+      )
+
+      assert(
+        (await L1ERC721BridgeProxy.callStatic.admin({
+          from: ProxyAdmin.address,
         })) === ProxyAdmin.address
       )
 
