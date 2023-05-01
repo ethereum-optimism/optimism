@@ -190,6 +190,9 @@ const deployFn: DeployFunction = async (hre) => {
       Step 5 will initialize all Bedrock contracts. After this step is executed, the OptimismPortal
       will be open for deposits but withdrawals will be paused if deploying a production network.
       The Proposer will also be able to submit L2 outputs to the L2OutputOracle.
+
+      Lastly the finalize step will be executed. This will transfer ownership of the ProxyAdmin to
+      the final system owner as specified in the deployment configuration.
     `,
     checks: async () => {
       // Step 3 checks
@@ -300,6 +303,13 @@ const deployFn: DeployFunction = async (hre) => {
         'messenger',
         L1CrossDomainMessenger.address
       )
+
+      // finalize checks
+      await assertContractVariable(
+        ProxyAdmin,
+        'owner',
+        hre.deployConfig.finalSystemOwner
+      )
     },
   })
 
@@ -335,36 +345,12 @@ const deployFn: DeployFunction = async (hre) => {
 
     await assertContractVariable(OptimismPortal, 'paused', false)
 
-    console.log(`
-      You must now finalize the upgrade by calling finalize() on the SystemDictator. This will
-      transfer ownership of the ProxyAdmin to the final system owner as specified in the deployment
-      configuration.
-    `)
-
-    if (isLiveDeployer) {
-      console.log(`Finalizing deployment...`)
-      await SystemDictator.finalize()
-    } else {
-      const tx = await SystemDictator.populateTransaction.finalize()
-      console.log(`Please finalize deployment...`)
-      console.log(`MSD address: ${SystemDictator.address}`)
-      printJsonTransaction(tx)
-      printCastCommand(tx)
-      await printTenderlySimulationLink(SystemDictator.provider, tx)
-    }
-
     await awaitCondition(
       async () => {
         return SystemDictator.finalized()
       },
       5000,
       1000
-    )
-
-    await assertContractVariable(
-      ProxyAdmin,
-      'owner',
-      hre.deployConfig.finalSystemOwner
     )
   }
 }
