@@ -21,8 +21,8 @@ import { IBondManager } from "src/interfaces/IBondManager.sol";
 import { BondManager } from "src/BondManager.sol";
 import { DisputeGameFactory } from "src/DisputeGameFactory.sol";
 
-/// @title
-contract AttestationDisputeGame_Test is Test {
+/// @title L2OutputOracle Tests
+contract L2OutputOracle_Test is Test {
     bytes32 constant TYPE_HASH = 0x2676994b0652bcdf7968635d15b78aac9aaf797cc94c5adeb94376cc28f987d6;
 
     DisputeGameFactory factory;
@@ -108,3 +108,182 @@ contract AttestationDisputeGame_Test is Test {
         assertEq(address(factory.games(gt, rootClaim, extraData)), address(disputeGameProxy));
         vm.label(address(disputeGameProxy), "AttestationDisputeGame_Proxy");
     }
+
+    /*****************************
+     * Delete Tests - Happy Path *
+     *****************************/
+
+    function test_deleteOutputs_singleOutput_succeeds() external {
+        test_proposeL2Output_proposeAnotherOutput_succeeds();
+        test_proposeL2Output_proposeAnotherOutput_succeeds();
+
+        uint256 highestL2BlockNumber = oracle.latestBlockNumber() + 1;
+        Types.OutputProposal memory newLatestOutput = oracle.getL2Output(highestL2BlockNumber - 1);
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, false, false);
+        emit OutputsDeleted(0, highestL2BlockNumber);
+        oracle.deleteL2Output(highestL2BlockNumber);
+
+        // validate that the new latest output is as expected.
+        Types.OutputProposal memory proposal = oracle.getL2Output(highestL2BlockNumber);
+        assertEq(newLatestOutput.outputRoot, proposal.outputRoot);
+        assertEq(newLatestOutput.timestamp, proposal.timestamp);
+    }
+
+
+    /***************************
+     * Delete Tests - Sad Path *
+     ***************************/
+
+    function testFuzz_deleteL2Outputs_nonDisputeGame_reverts(address game) external {
+        uint256 highestL2BlockNumber = oracle.startingBlockNumber();
+
+        vm.prank(game);
+        vm.expectRevert();
+        oracle.deleteL2Outputs(highestL2BlockNumber);
+    }
+
+    function test_deleteL2Outputs_unauthorized_reverts() external {
+        uint256 highestL2BlockNumber = oracle.startingBlockNumber();
+
+        // Create the correct dispute game
+        address proxy = createMockAttestationGame();
+        Claim rootClaim = Claim.wrap(bytes32(""));
+        bytes memory extraData = bytes("");
+        GameType gt = GameType.ATTESTATION;
+        assertEq(address(disputeGameFactory.games(gt, rootClaim, extraData)), proxy);
+
+        // Call delete from an unauthorized game
+        address badGame = createEmptyAttestationGame();
+        vm.prank(badGame);
+        vm.expectRevert("L2OutputOracle: Unauthorized output deletion.");
+        oracle.deleteL2Outputs(highestL2BlockNumber);
+    }
+
+    function test_deleteL2Outputs_gameIncomplete_reverts() external {
+
+    }
+
+    function test_deleteL2Outputs_finalized_reverts() external {
+        // TODO:
+
+        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        uint256 highestL2BlockNumber = oracle.startingBlockNumber() + 1;
+
+
+    }
+}
+
+
+
+/// @dev A mock dispute game for testing bond seizures.
+contract MockAttestationDisputeGame is IDisputeGame {
+    GameStatus internal gameStatus;
+    BondManager bm;
+    Claim internal rc;
+    bytes internal ed;
+    bytes32 internal bondId;
+
+    address[] internal challengers;
+
+    function getChallengers() public view returns (address[] memory) {
+        return challengers;
+    }
+
+    function setBondId(bytes32 bid) external {
+        bondId = bid;
+    }
+
+    function setBondManager(BondManager _bm) external {
+        bm = _bm;
+    }
+
+    function setGameStatus(GameStatus _gs) external {
+        gameStatus = _gs;
+    }
+
+    function setRootClaim(Claim _rc) external {
+        rc = _rc;
+    }
+
+    function setExtraData(bytes memory _ed) external {
+        ed = _ed;
+    }
+
+    /// @dev Allow the contract to receive ether
+    receive() external payable { }
+    fallback() external payable { }
+
+    /// @dev Resolve the game with a split
+    function splitResolve() public {
+        challengers = [address(1), address(2)];
+        bm.seizeAndSplit(bondId, challengers);
+    }
+
+    /// -------------------------------------------
+    /// IInitializable Functions
+    /// -------------------------------------------
+
+    function initialize() external { /* noop */ }
+
+    /// -------------------------------------------
+    /// IVersioned Functions
+    /// -------------------------------------------
+
+    function version() external pure returns (string memory _version) {
+        return "0.1.0";
+    }
+
+    /// -------------------------------------------
+    /// IDisputeGame Functions
+    /// -------------------------------------------
+
+    /// @notice Returns the timestamp that the DisputeGame contract was created at.
+    function createdAt() external pure override returns (Timestamp _createdAt) {
+        return Timestamp.wrap(uint64(0));
+    }
+
+    /// @notice Returns the current status of the game.
+    function status() external view override returns (GameStatus _status) {
+        return gameStatus;
+    }
+
+    /// @notice Getter for the game type.
+    /// @dev `clones-with-immutable-args` argument #1
+    /// @dev The reference impl should be entirely different depending on the type (fault, validity)
+    ///      i.e. The game type should indicate the security model.
+    /// @return _gameType The type of proof system being used.
+    function gameType() external pure returns (GameType _gameType) {
+        return GameType.ATTESTATION;
+    }
+
+    /// @notice Getter for the root claim.
+    /// @return _rootClaim The root claim of the DisputeGame.
+    /// @dev `clones-with-immutable-args` argument #2
+    function rootClaim() external view override returns (Claim _rootClaim) {
+        return rc;
+    }
+
+    /// @notice Getter for the extra data.
+    /// @dev `clones-with-immutable-args` argument #3
+    /// @return _extraData Any extra data supplied to the dispute game contract by the creator.
+    function extraData() external view returns (bytes memory _extraData) {
+        return ed;
+    }
+
+    /// @notice Returns the address of the `BondManager` used
+    function bondManager() external view override returns (IBondManager _bondManager) {
+        return IBondManager(address(bm));
+    }
+
+    /// @notice If all necessary information has been gathered, this function should mark the game
+    ///         status as either `CHALLENGER_WINS` or `DEFENDER_WINS` and return the status of
+    ///         the resolved game. It is at this stage that the bonds should be awarded to the
+    ///         necessary parties.
+    /// @dev May only be called if the `status` is `IN_PROGRESS`.
+    function resolve() external returns (GameStatus _status) {
+        bm.seize(bondId);
+        return gameStatus;
+    }
+}
