@@ -32,6 +32,9 @@ func LoadContracts() (*Contracts, error) {
 		return nil, err
 	}
 	oracle, err := LoadContract("Oracle")
+	if err != nil {
+		return nil, err
+	}
 	return &Contracts{
 		MIPS:   mips,
 		Oracle: oracle,

@@ -20,9 +20,10 @@ func TestUnicornDelaySlot(t *testing.T) {
 	require.NoError(t, mu.MemWrite(4, []byte{0x20, 0x09, 0x0a, 0xFF}), "addi $t1 $r0 0x0aff")
 	require.NoError(t, mu.MemWrite(32, []byte{0x20, 0x09, 0x0b, 0xFF}), "addi $t1 $r0 0x0bff")
 
-	mu.HookAdd(uc.HOOK_CODE, func(mu uc.Unicorn, addr uint64, size uint32) {
+	_, err = mu.HookAdd(uc.HOOK_CODE, func(mu uc.Unicorn, addr uint64, size uint32) {
 		t.Logf("addr: %08x", addr)
 	}, uint64(0), ^uint64(0))
+	require.NoError(t, err)
 	// stop at instruction in addr=4, the delay slot
 	require.NoError(t, mu.StartWithOptions(uint64(0), uint64(4), &uc.UcOptions{
 		Timeout: 0, // 0 to disable, value is in ms.

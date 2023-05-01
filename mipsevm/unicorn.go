@@ -38,8 +38,6 @@ type UnicornState struct {
 	lastPreimageKey [32]byte
 	// offset we last read from, or max uint32 if nothing is read this step
 	lastPreimageOffset uint32
-
-	onStep func()
 }
 
 const (
@@ -239,8 +237,8 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 				v1 = MipsEINVAL // cmd not recognized by this kernel
 			}
 		}
-		mu.RegWrite(uc.MIPS_REG_V0, uint64(v0))
-		mu.RegWrite(uc.MIPS_REG_A3, uint64(v1))
+		_ = mu.RegWrite(uc.MIPS_REG_V0, uint64(v0))
+		_ = mu.RegWrite(uc.MIPS_REG_A3, uint64(v1))
 	}, 0, ^uint64(0))
 	if err != nil {
 		return nil, fmt.Errorf("failed to set up interrupt/syscall hook: %w", err)
@@ -358,6 +356,9 @@ func (m *UnicornState) Step(proof bool) (wit *StepWitness) {
 		Timeout: 0, // 0 to disable, value is in ms.
 		Count:   1,
 	})
+	if err != nil {
+		panic("failed to run unicorn")
+	}
 
 	if proof {
 		wit.memProof = append(wit.memProof, m.memProof[:]...)
