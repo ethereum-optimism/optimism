@@ -51,7 +51,7 @@ func LoadELF(f *elf.File) (*State, error) {
 	return s, nil
 }
 
-func patchVM(f *elf.File, st *State) error {
+func PatchVM(f *elf.File, st *State) error {
 	symbols, err := f.Symbols()
 	if err != nil {
 		return fmt.Errorf("failed to read symbols data, cannot patch program: %w", err)
