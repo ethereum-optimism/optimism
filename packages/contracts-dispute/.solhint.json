@@ -1,0 +1,23 @@
+{
+  "extends": "solhint:recommended",
+  "plugins": ["prettier"],
+  "rules": {
+    "prettier/prettier": "error",
+    "compiler-version": "off",
+    "code-complexity": ["warn", 5],
+    "max-line-length": ["error", 100],
+    "func-param-name-mixedcase": "error",
+    "func-name-mixedcase": "off",
+    "modifier-name-mixedcase": "error",
+    "ordering": "warn",
+    "avoid-low-level-calls": "off",
+    "no-inline-assembly": "off",
+    "no-empty-blocks": "off",
+    "not-rely-on-time": "off",
+    "event-name-camelcase": "off",
+    "reason-string": "off",
+    "avoid-tx-origin": "off",
+    "var-name-mixedcase": "off",
+    "func-visibility": ["warn", { "ignoreConstructors": true }]
+  }
+}
