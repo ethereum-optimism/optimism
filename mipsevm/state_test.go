@@ -27,7 +27,7 @@ const baseAddrStart = 0xbf_c0_00_00
 const endAddr = 0xa7ef00d0
 
 func TestState(t *testing.T) {
-	testFiles, err := os.ReadDir("test/bin")
+	testFiles, err := os.ReadDir("open_mips_tests/test/bin")
 	require.NoError(t, err)
 
 	for _, f := range testFiles {
@@ -37,12 +37,13 @@ func TestState(t *testing.T) {
 			}
 			// TODO: currently tests are compiled as flat binary objects
 			// We can use more standard tooling to compile them to ELF files and get remove maketests.py
-			fn := path.Join("test/bin", f.Name())
+			fn := path.Join("open_mips_tests/test/bin", f.Name())
 			//elfProgram, err := elf.Open()
 			//require.NoError(t, err, "must load test ELF binary")
 			//state, err := LoadELF(elfProgram)
 			//require.NoError(t, err, "must load ELF into state")
 			programMem, err := os.ReadFile(fn)
+			require.NoError(t, err)
 			state := &State{PC: 0, NextPC: 4, Memory: NewMemory()}
 			err = state.Memory.SetMemoryRange(0, bytes.NewReader(programMem))
 			require.NoError(t, err, "load program into state")

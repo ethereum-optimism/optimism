@@ -37,7 +37,7 @@ func testContractsSetup(t *testing.T) (*Contracts, *Addresses, *SourceMapTracer)
 }
 
 func TestEVM(t *testing.T) {
-	testFiles, err := os.ReadDir("test/bin")
+	testFiles, err := os.ReadDir("open_mips_tests/test/bin")
 	require.NoError(t, err)
 
 	contracts, addrs, tracer := testContractsSetup(t)
@@ -54,8 +54,9 @@ func TestEVM(t *testing.T) {
 			env.Config.Debug = false
 			env.Config.Tracer = tracer
 
-			fn := path.Join("test/bin", f.Name())
+			fn := path.Join("open_mips_tests/test/bin", f.Name())
 			programMem, err := os.ReadFile(fn)
+			require.NoError(t, err)
 			state := &State{PC: 0, NextPC: 4, Memory: NewMemory()}
 			err = state.Memory.SetMemoryRange(0, bytes.NewReader(programMem))
 			require.NoError(t, err, "load program into state")
