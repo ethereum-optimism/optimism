@@ -246,4 +246,3 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         assertEq(slot21Expected, slot21After);
     }
 }
-

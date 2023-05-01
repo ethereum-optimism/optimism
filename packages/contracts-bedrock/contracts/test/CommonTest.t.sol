@@ -165,7 +165,6 @@ contract L2OutputOracle_Initializer is CommonTest {
     }
 }
 
-
 contract Portal_Initializer is L2OutputOracle_Initializer {
     // Test target
     OptimismPortal internal opImpl;

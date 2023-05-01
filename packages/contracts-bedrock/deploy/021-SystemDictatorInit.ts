@@ -48,7 +48,10 @@ const deployFn: DeployFunction = async (hre) => {
       addressManager: await getDeploymentAddress(hre, 'Lib_AddressManager'),
     },
     proxyAddressConfig: {
-      disputeGameFactoryProxy: await getDeploymentAddress(hre, "DisputeGameFactoryProxy"),
+      disputeGameFactoryProxy: await getDeploymentAddress(
+        hre,
+        'DisputeGameFactoryProxy'
+      ),
       l2OutputOracleProxy: await getDeploymentAddress(
         hre,
         'L2OutputOracleProxy'
@@ -76,7 +79,10 @@ const deployFn: DeployFunction = async (hre) => {
       systemConfigProxy: await getDeploymentAddress(hre, 'SystemConfigProxy'),
     },
     implementationAddressConfig: {
-      disputeGameFactoryImpl: await getDeploymentAddress(hre, "DisputeGameFactory"),
+      disputeGameFactoryImpl: await getDeploymentAddress(
+        hre,
+        'DisputeGameFactory'
+      ),
       l2OutputOracleImpl: await getDeploymentAddress(hre, 'L2OutputOracle'),
       optimismPortalImpl: await getDeploymentAddress(hre, 'OptimismPortal'),
       l1CrossDomainMessengerImpl: await getDeploymentAddress(
