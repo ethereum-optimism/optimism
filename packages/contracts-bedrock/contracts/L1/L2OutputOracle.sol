@@ -243,6 +243,13 @@ contract L2OutputOracle is Initializable, Semver {
     }
 
     /**
+     * @notice Returns the next bond price.
+     */
+    function getNextBondPrice() external view returns (uint256) {
+        return OUTPUT_BOND_COST;
+    }
+
+    /**
      * @notice Returns an output by index.
      *
      * @param _l2OutputIndex Index of the output to return.

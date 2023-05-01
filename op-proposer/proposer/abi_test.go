@@ -31,13 +31,13 @@ func setupL2OutputOracle() (common.Address, *bind.TransactOpts, *backends.Simula
 	_, _, contract, err := bindings.DeployL2OutputOracle(
 		opts,
 		backend,
-		big.NewInt(10),
-		big.NewInt(2),
-		big.NewInt(0),
-		big.NewInt(0),
-		from,
-		common.Address{0xdd},
-		big.NewInt(100))
+		big.NewInt(10),       // _l2BlockTime
+		big.NewInt(2),        // _startingBlockNumber
+		big.NewInt(0),        // _startingTimestamp
+		big.NewInt(0),        // _finalizationPeriodSeconds
+		common.Address{0xbb}, // _bondManager
+		common.Address{0xdd}, // _disputeGameFactory
+	)
 	if err != nil {
 		return common.Address{}, nil, nil, nil, err
 	}

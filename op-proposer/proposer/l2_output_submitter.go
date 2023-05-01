@@ -330,7 +330,7 @@ func proposeL2OutputTxData(abi *abi.ABI, output *eth.OutputResponse) ([]byte, er
 }
 
 // sendTransaction creates & sends transactions through the underlying transaction manager.
-func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.OutputResponse) error {
+func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.OutputResponse, value *big.Int) error {
 	data, err := l.ProposeL2OutputTxData(output)
 	if err != nil {
 		return err
@@ -339,6 +339,7 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 		TxData:   data,
 		To:       &l.l2ooContractAddr,
 		GasLimit: 0,
+		Value:    value,
 	})
 	if err != nil {
 		return err
@@ -349,6 +350,23 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 		l.log.Info("proposer tx successfully published", "tx_hash", receipt.TxHash)
 	}
 	return nil
+}
+
+// FetchBondPrice fetches the current bond price from the oracle.
+func (l *L2OutputSubmitter) FetchBondPrice(ctx context.Context) (*big.Int, error) {
+	ctx, cancel := context.WithTimeout(ctx, l.networkTimeout)
+	defer cancel()
+
+	callOpts := &bind.CallOpts{
+		Pending: true,
+		Context: ctx,
+	}
+	price, err := l.l2ooContract.GetNextBondPrice(callOpts)
+	if err != nil {
+		return nil, err
+	}
+
+	return price, nil
 }
 
 // loop is responsible for creating & submitting the next outputs
@@ -372,9 +390,14 @@ func (l *L2OutputSubmitter) loop() {
 			if l.AlreadyProposed(ctx, block, output.OutputRoot) {
 				break
 			}
+			value, err := l.FetchBondPrice(ctx)
+			if err != nil {
+				l.log.Error("Failed to fetch bond price", "err", err)
+				break
+			}
 
 			cCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
-			if err := l.sendTransaction(cCtx, output); err != nil {
+			if err := l.sendTransaction(cCtx, output, value); err != nil {
 				l.log.Error("Failed to send proposal transaction", "err", err)
 				cancel()
 				break
