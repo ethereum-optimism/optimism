@@ -419,18 +419,19 @@ contract SystemDictator is OwnableUpgradeable {
     }
 
     /**
-     * @notice Calls the remaining steps of the migration process.
+     * @notice Calls the remaining steps of the migration process, and finalizes.
      */
     function phase2() external onlyOwner {
         step3();
         step4();
         step5();
+        finalize();
     }
 
     /**
      * @notice Tranfers admin ownership to the final owner.
      */
-    function finalize() external onlyOwner {
+    function finalize() public onlyOwner {
         // Transfer ownership of the ProxyAdmin to the final owner.
         config.globalConfig.proxyAdmin.transferOwnership(config.globalConfig.finalOwner);
 
