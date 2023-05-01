@@ -142,6 +142,14 @@ func TestRequireDataDirInNonFetchingMode(t *testing.T) {
 	require.ErrorIs(t, err, ErrDataDirRequired)
 }
 
+func TestRejectExecAndServerMode(t *testing.T) {
+	cfg := validConfig()
+	cfg.ServerMode = true
+	cfg.ExecCmd = "echo"
+	err := cfg.Check()
+	require.ErrorIs(t, err, ErrNoExecInServerMode)
+}
+
 func validConfig() *Config {
 	cfg := NewConfig(validRollupConfig, validL2Genesis, validL1Head, validL2Head, validL2Claim, validL2ClaimBlockNum)
 	cfg.DataDir = "/tmp/configTest"
