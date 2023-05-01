@@ -108,7 +108,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Initializable {
     /// @param claimHash The claim hash that the move is being made against.
     /// @param pivot The pivot point claim provided in response to `claimHash`.
     /// @param isAttack Whether or not the move is an attack or defense.
-    function _move(ClaimHash claimHash, Claim pivot, bool isAttack) internal {
+    function _move(
+        ClaimHash claimHash,
+        Claim pivot,
+        bool isAttack
+    ) internal {
         // TODO: Require & store bond for the pivot point claim
 
         // Get the position of the claimHash
@@ -125,7 +129,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Initializable {
         }
 
         // Get the position of the move.
-        Position pivotPos = isAttack ? LibPosition.attack(claimHashPos) : LibPosition.defend(claimHashPos);
+        Position pivotPos = isAttack
+            ? LibPosition.attack(claimHashPos)
+            : LibPosition.defend(claimHashPos);
 
         // Compute the claim hash for the pivot point claim
         ClaimHash pivotClaimHash = LibHashing.hashClaimPos(pivot, pivotPos);
@@ -161,11 +167,15 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Initializable {
         // In this case, the mover's clock starts at half the game duration minus the time elapsed since the game started.
         if (ClaimHash.unwrap(claimHashParent) == bytes32(0)) {
             // Calculate the time since the game started
-            Duration timeSinceGameStart = Duration.wrap(uint64(block.timestamp - Timestamp.unwrap(gameStart)));
+            Duration timeSinceGameStart = Duration.wrap(
+                uint64(block.timestamp - Timestamp.unwrap(gameStart))
+            );
 
             // Set the clock for the pivot point claim.
             clocks[pivotClaimHash] = LibClock.wrap(
-                Duration.wrap((Duration.unwrap(GAME_DURATION) >> 1) - Duration.unwrap(timeSinceGameStart)),
+                Duration.wrap(
+                    (Duration.unwrap(GAME_DURATION) >> 1) - Duration.unwrap(timeSinceGameStart)
+                ),
                 Timestamp.wrap(uint64(block.timestamp))
             );
         } else {
@@ -177,8 +187,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Initializable {
             Clock newClock = LibClock.wrap(
                 Duration.wrap(
                     uint64(
-                        Duration.unwrap(LibClock.duration(grandparentClock))
-                            - (block.timestamp - Timestamp.unwrap(LibClock.timestamp(parentClock)))
+                        Duration.unwrap(LibClock.duration(grandparentClock)) -
+                            (block.timestamp - Timestamp.unwrap(LibClock.timestamp(parentClock)))
                     )
                 ),
                 Timestamp.wrap(uint64(block.timestamp))
@@ -216,8 +226,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Initializable {
         // We do not need to set the position slot for the root claim; It is already zero.
 
         // The root claim's chess clock begins with half of the game duration.
-        clocks[rootClaimHash] =
-            LibClock.wrap(Duration.wrap(Duration.unwrap(GAME_DURATION) >> 1), Timestamp.wrap(uint64(block.timestamp)));
+        clocks[rootClaimHash] = LibClock.wrap(
+            Duration.wrap(Duration.unwrap(GAME_DURATION) >> 1),
+            Timestamp.wrap(uint64(block.timestamp))
+        );
 
         // The game starts when the `init()` function is called.
         gameStart = Timestamp.wrap(uint64(block.timestamp));

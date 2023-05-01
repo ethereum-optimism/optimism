@@ -16,7 +16,11 @@ contract BondManager_Test is Test {
     BondManager bm;
 
     // DisputeGameFactory events
-    event DisputeGameCreated(address indexed disputeProxy, GameType indexed gameType, Claim indexed rootClaim);
+    event DisputeGameCreated(
+        address indexed disputeProxy,
+        GameType indexed gameType,
+        Claim indexed rootClaim
+    );
 
     // BondManager events
     event BondPosted(bytes32 bondId, address owner, uint256 expiration, uint256 amount);
@@ -33,7 +37,12 @@ contract BondManager_Test is Test {
     /// -------------------------------------------
 
     /// @notice Tests that posting a bond succeeds.
-    function testFuzz_post_succeeds(bytes32 bondId, address owner, uint256 minClaimHold, uint256 amount) public {
+    function testFuzz_post_succeeds(
+        bytes32 bondId,
+        address owner,
+        uint256 minClaimHold,
+        uint256 amount
+    ) public {
         vm.assume(owner != address(0));
         vm.assume(owner != address(bm));
         vm.assume(owner != address(this));
@@ -53,8 +62,12 @@ contract BondManager_Test is Test {
         bm.post{ value: amount }(bondId, owner, minClaimHold);
 
         // Validate the bond
-        (address newFetchedOwner, uint256 fetchedExpiration, bytes32 fetchedBondId, uint256 bondAmount) =
-            bm.bonds(bondId);
+        (
+            address newFetchedOwner,
+            uint256 fetchedExpiration,
+            bytes32 fetchedBondId,
+            uint256 bondAmount
+        ) = bm.bonds(bondId);
         assertEq(newFetchedOwner, owner);
         assertEq(fetchedExpiration, block.timestamp + minClaimHold);
         assertEq(fetchedBondId, bondId);
@@ -62,9 +75,12 @@ contract BondManager_Test is Test {
     }
 
     /// @notice The bond manager should revert if the bond at the given id is already posted.
-    function testFuzz_post_duplicates_reverts(bytes32 bondId, address owner, uint256 minClaimHold, uint256 amount)
-        public
-    {
+    function testFuzz_post_duplicates_reverts(
+        bytes32 bondId,
+        address owner,
+        uint256 minClaimHold,
+        uint256 amount
+    ) public {
         vm.assume(owner != address(0));
         amount = amount / 2;
         vm.assume(amount != 0);
@@ -81,7 +97,11 @@ contract BondManager_Test is Test {
     }
 
     /// @notice Posting with the zero address as the owner fails.
-    function testFuzz_post_zeroAddress_reverts(bytes32 bondId, uint256 minClaimHold, uint256 amount) public {
+    function testFuzz_post_zeroAddress_reverts(
+        bytes32 bondId,
+        uint256 minClaimHold,
+        uint256 amount
+    ) public {
         address owner = address(0);
         vm.deal(address(this), amount);
         vm.expectRevert("BondManager: Owner cannot be the zero address.");
@@ -89,7 +109,11 @@ contract BondManager_Test is Test {
     }
 
     /// @notice Posting zero value bonds should revert.
-    function testFuzz_post_zeroAddress_reverts(bytes32 bondId, address owner, uint256 minClaimHold) public {
+    function testFuzz_post_zeroAddress_reverts(
+        bytes32 bondId,
+        address owner,
+        uint256 minClaimHold
+    ) public {
         vm.assume(owner != address(0));
         uint256 amount = 0;
         vm.deal(address(this), amount);
@@ -108,9 +132,12 @@ contract BondManager_Test is Test {
     }
 
     /// @notice Bonds that expired cannot be seized.
-    function testFuzz_seize_expired_reverts(bytes32 bondId, address owner, uint256 minClaimHold, uint256 amount)
-        public
-    {
+    function testFuzz_seize_expired_reverts(
+        bytes32 bondId,
+        address owner,
+        uint256 minClaimHold,
+        uint256 amount
+    ) public {
         vm.assume(owner != address(0));
         vm.assume(owner != address(bm));
         vm.assume(owner != address(this));
@@ -127,9 +154,12 @@ contract BondManager_Test is Test {
     }
 
     /// @notice Bonds cannot be seized by unauthorized parties.
-    function testFuzz_seize_unauthorized_reverts(bytes32 bondId, address owner, uint256 minClaimHold, uint256 amount)
-        public
-    {
+    function testFuzz_seize_unauthorized_reverts(
+        bytes32 bondId,
+        address owner,
+        uint256 minClaimHold,
+        uint256 amount
+    ) public {
         vm.assume(owner != address(0));
         vm.assume(owner != address(bm));
         vm.assume(owner != address(this));
@@ -147,7 +177,11 @@ contract BondManager_Test is Test {
     }
 
     /// @notice Tests seizing a bond if the game resolves
-    function testFuzz_seize_succeeds(bytes32 bondId, uint256 minClaimHold, bytes calldata extraData) public {
+    function testFuzz_seize_succeeds(
+        bytes32 bondId,
+        uint256 minClaimHold,
+        bytes calldata extraData
+    ) public {
         unchecked {
             vm.assume(block.timestamp + minClaimHold > minClaimHold);
         }
@@ -185,7 +219,7 @@ contract BondManager_Test is Test {
         assertEq(address(spawned).balance, 1 ether);
 
         // Validate that the bond was deleted
-        (address newFetchedOwner,,,) = bm.bonds(bondId);
+        (address newFetchedOwner, , , ) = bm.bonds(bondId);
         assertEq(newFetchedOwner, address(0));
     }
 
@@ -194,7 +228,11 @@ contract BondManager_Test is Test {
     /// -------------------------------------------
 
     /// @notice Tests seizing and splitting a bond if the game resolves
-    function testFuzz_seizeAndSplit_succeeds(bytes32 bondId, uint256 minClaimHold, bytes calldata extraData) public {
+    function testFuzz_seizeAndSplit_succeeds(
+        bytes32 bondId,
+        uint256 minClaimHold,
+        bytes calldata extraData
+    ) public {
         unchecked {
             vm.assume(block.timestamp + minClaimHold > minClaimHold);
         }
@@ -237,7 +275,7 @@ contract BondManager_Test is Test {
         }
 
         // Validate that the bond was deleted
-        (address newFetchedOwner,,,) = bm.bonds(bondId);
+        (address newFetchedOwner, , , ) = bm.bonds(bondId);
         assertEq(newFetchedOwner, address(0));
     }
 
@@ -246,7 +284,12 @@ contract BondManager_Test is Test {
     /// -------------------------------------------
 
     /// @notice Bonds can be reclaimed after the specified amount of time.
-    function testFuzz_reclaim_succeeds(bytes32 bondId, address owner, uint256 minClaimHold, uint256 amount) public {
+    function testFuzz_reclaim_succeeds(
+        bytes32 bondId,
+        address owner,
+        uint256 minClaimHold,
+        uint256 amount
+    ) public {
         vm.assume(owner != address(0));
         vm.assume(owner != address(bm));
         vm.assume(owner != address(this));
@@ -261,7 +304,7 @@ contract BondManager_Test is Test {
         bm.post{ value: amount }(bondId, owner, minClaimHold);
 
         // We can't claim if the block.timestamp is less than the bond expiration.
-        (, uint256 expiration,,) = bm.bonds(bondId);
+        (, uint256 expiration, , ) = bm.bonds(bondId);
         if (expiration > block.timestamp) {
             vm.prank(owner);
             vm.expectRevert("BondManager: Bond isn't claimable yet.");
@@ -311,8 +354,9 @@ contract MockAttestationDisputeGame is IDisputeGame {
     }
 
     /// @dev Allow the contract to receive ether
-    receive() external payable { }
-    fallback() external payable { }
+    receive() external payable {}
+
+    fallback() external payable {}
 
     /// @dev Resolve the game with a split
     function splitResolve() public {
@@ -324,7 +368,9 @@ contract MockAttestationDisputeGame is IDisputeGame {
     /// IInitializable Functions
     /// -------------------------------------------
 
-    function initialize() external { /* noop */ }
+    function initialize() external {
+        /* noop */
+    }
 
     /// -------------------------------------------
     /// IVersioned Functions

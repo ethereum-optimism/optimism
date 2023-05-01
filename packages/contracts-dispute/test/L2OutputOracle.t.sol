@@ -10,7 +10,6 @@ import { L2OutputOracle } from "contracts-bedrock/L1/L2OutputOracle.sol";
 
 /// @title L2OutputOracle Tests
 contract L2OutputOracle_Test is L2OutputOracle_Initializer {
-
     ////////////////////////////////////////////////////////////////
     //           DELETE OUTPUT TESTS - HAPPY PATH                 //
     ////////////////////////////////////////////////////////////////
@@ -38,11 +37,11 @@ contract L2OutputOracle_Test is L2OutputOracle_Initializer {
         uint256 _l2BlockNumber = oracle.startingBlockNumber();
         uint256 proposalTimestamp = block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1;
         vm.warp(proposalTimestamp);
-        oracle.proposeL2Output{value: minimumProposalCost}(
-           bytes32("0x1234"),
-           _l2BlockNumber,
-           0,
-           0
+        oracle.proposeL2Output{ value: minimumProposalCost }(
+            bytes32("0x1234"),
+            _l2BlockNumber,
+            0,
+            0
         );
 
         vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() - 1);
@@ -97,11 +96,11 @@ contract L2OutputOracle_Test is L2OutputOracle_Initializer {
     function test_deleteL2Outputs_finalized_reverts() external {
         uint256 _l2BlockNumber = oracle.startingBlockNumber();
         vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
-        oracle.proposeL2Output{value: minimumProposalCost}(
-           bytes32("0x1234"),
-           _l2BlockNumber,
-           0,
-           0
+        oracle.proposeL2Output{ value: minimumProposalCost }(
+            bytes32("0x1234"),
+            _l2BlockNumber,
+            0,
+            0
         );
 
         vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
@@ -110,4 +109,3 @@ contract L2OutputOracle_Test is L2OutputOracle_Initializer {
         oracle.deleteL2Outputs(_l2BlockNumber);
     }
 }
-

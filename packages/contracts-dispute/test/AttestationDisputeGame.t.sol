@@ -44,7 +44,11 @@ contract AttestationDisputeGame_Test is Test {
     uint256[] signerKeys;
 
     /// @notice Emitted when a new dispute game is created by the [DisputeGameFactory]
-    event DisputeGameCreated(address indexed disputeProxy, GameType indexed gameType, Claim indexed rootClaim);
+    event DisputeGameCreated(
+        address indexed disputeProxy,
+        GameType indexed gameType,
+        Claim indexed rootClaim
+    );
 
     function setUp() public {
         // vm.warp(startingTimestamp);
@@ -92,7 +96,11 @@ contract AttestationDisputeGame_Test is Test {
         vm.label(address(l2oo), "L2OutputOracle");
 
         // Create the dispute game implementation
-        disputeGameImplementation = new AttestationDisputeGame(IBondManager(address(bm)), systemConfig, l2oo);
+        disputeGameImplementation = new AttestationDisputeGame(
+            IBondManager(address(bm)),
+            systemConfig,
+            l2oo
+        );
         vm.label(address(disputeGameImplementation), "AttestationDisputeGame_Implementation");
 
         // Set the implementation in the factory
@@ -104,7 +112,9 @@ contract AttestationDisputeGame_Test is Test {
         Claim rootClaim = Claim.wrap(bytes32(0));
         vm.expectEmit(false, true, true, false);
         emit DisputeGameCreated(address(0), gt, rootClaim);
-        disputeGameProxy = AttestationDisputeGame(address(factory.create(gt, rootClaim, extraData)));
+        disputeGameProxy = AttestationDisputeGame(
+            address(factory.create(gt, rootClaim, extraData))
+        );
         assertEq(address(factory.games(gt, rootClaim, extraData)), address(disputeGameProxy));
         vm.label(address(disputeGameProxy), "AttestationDisputeGame_Proxy");
     }

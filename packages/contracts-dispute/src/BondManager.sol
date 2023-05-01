@@ -46,7 +46,11 @@ contract BondManager {
     /// @param bondId is the id of the bond.
     /// @param owner is the address that owns the bond.
     /// @param minClaimHold is the minimum amount of time the owner must wait before reclaiming their bond.
-    function post(bytes32 bondId, address owner, uint256 minClaimHold) external payable {
+    function post(
+        bytes32 bondId,
+        address owner,
+        uint256 minClaimHold
+    ) external payable {
         require(bonds[bondId].owner == address(0), "BondManager: BondId already posted.");
         require(owner != address(0), "BondManager: Owner cannot be the zero address.");
         require(msg.value > 0, "BondManager: Value must be non-zero.");
@@ -56,7 +60,12 @@ contract BondManager {
         }
         require(expiration >= block.timestamp, "BondManager: Invalid minimum claim hold.");
 
-        bonds[bondId] = Bond({ owner: owner, expiration: expiration, bondId: bondId, amount: msg.value });
+        bonds[bondId] = Bond({
+            owner: owner,
+            expiration: expiration,
+            bondId: bondId,
+            amount: msg.value
+        });
 
         emit BondPosted(bondId, owner, expiration, msg.value);
     }
@@ -70,7 +79,11 @@ contract BondManager {
         require(b.expiration >= block.timestamp, "BondManager: Bond expired.");
 
         IDisputeGame caller = IDisputeGame(msg.sender);
-        IDisputeGame game = DISPUTE_GAME_FACTORY.games(GameType.ATTESTATION, caller.rootClaim(), caller.extraData());
+        IDisputeGame game = DISPUTE_GAME_FACTORY.games(
+            GameType.ATTESTATION,
+            caller.rootClaim(),
+            caller.extraData()
+        );
         require(msg.sender == address(game), "BondManager: Unauthorized seizure.");
         require(game.status() == GameStatus.CHALLENGER_WINS, "BondManager: Game incomplete.");
 
@@ -91,7 +104,11 @@ contract BondManager {
         require(b.expiration >= block.timestamp, "BondManager: Bond expired.");
 
         IDisputeGame caller = IDisputeGame(msg.sender);
-        IDisputeGame game = DISPUTE_GAME_FACTORY.games(GameType.ATTESTATION, caller.rootClaim(), caller.extraData());
+        IDisputeGame game = DISPUTE_GAME_FACTORY.games(
+            GameType.ATTESTATION,
+            caller.rootClaim(),
+            caller.extraData()
+        );
         require(msg.sender == address(game), "BondManager: Unauthorized seizure.");
         require(game.status() == GameStatus.CHALLENGER_WINS, "BondManager: Game incomplete.");
 

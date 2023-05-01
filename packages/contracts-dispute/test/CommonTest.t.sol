@@ -41,7 +41,11 @@ contract CommonTest is Test {
     );
 
     /// @notice Emitted when a new dispute game is created by the [DisputeGameFactory]
-    event DisputeGameCreated(address indexed disputeProxy, GameType indexed gameType, Claim indexed rootClaim);
+    event DisputeGameCreated(
+        address indexed disputeProxy,
+        GameType indexed gameType,
+        Claim indexed rootClaim
+    );
 
     function setUp() public virtual {
         // Give alice and bob some ETH
@@ -96,7 +100,6 @@ contract L2OutputOracle_Initializer is CommonTest {
     uint256 internal l2BlockTime = 1;
     uint256 internal startingBlockNumber = 200;
     uint256 internal startingTimestamp = 2;
-
 
     // Test data
     uint256 initL1Time;
@@ -188,8 +191,13 @@ contract L2OutputOracle_Initializer is CommonTest {
         disputeGameFactory.setImplementation(gt, IDisputeGame(address(disputeGameImplementation)));
 
         // Create the attestation dispute game in the factory
-        disputeGameProxy = MockAttestationDisputeGame(payable(address(disputeGameFactory.create(gt, rootClaim, extraData))));
-        assertEq(address(disputeGameFactory.games(gt, rootClaim, extraData)), address(disputeGameProxy));
+        disputeGameProxy = MockAttestationDisputeGame(
+            payable(address(disputeGameFactory.create(gt, rootClaim, extraData)))
+        );
+        assertEq(
+            address(disputeGameFactory.games(gt, rootClaim, extraData)),
+            address(disputeGameProxy)
+        );
         vm.label(address(disputeGameProxy), "AttestationDisputeGame_Proxy");
 
         // Update the proxy fields
@@ -236,8 +244,9 @@ contract MockAttestationDisputeGame is IDisputeGame {
     }
 
     /// @dev Allow the contract to receive ether
-    receive() external payable { }
-    fallback() external payable { }
+    receive() external payable {}
+
+    fallback() external payable {}
 
     /// @dev Resolve the game with a split
     function splitResolve() public {
@@ -249,7 +258,9 @@ contract MockAttestationDisputeGame is IDisputeGame {
     /// IInitializable Functions
     /// -------------------------------------------
 
-    function initialize() external { /* noop */ }
+    function initialize() external {
+        /* noop */
+    }
 
     /// -------------------------------------------
     /// IVersioned Functions

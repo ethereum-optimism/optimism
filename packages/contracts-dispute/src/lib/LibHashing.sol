@@ -11,7 +11,11 @@ library LibHashing {
     /// @param claim A Claim type.
     /// @param position The position of `claim`.
     /// @return claimHash A hash of abi.encodePacked(claim, position);
-    function hashClaimPos(Claim claim, Position position) internal pure returns (ClaimHash claimHash) {
+    function hashClaimPos(Claim claim, Position position)
+        internal
+        pure
+        returns (ClaimHash claimHash)
+    {
         assembly {
             mstore(0x00, claim)
             mstore(0x20, position)

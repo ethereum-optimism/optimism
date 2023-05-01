@@ -13,7 +13,11 @@ interface IDisputeGameFactory is IOwnable {
     /// @param disputeProxy The address of the dispute game proxy
     /// @param gameType The type of the dispute game proxy's implementation
     /// @param rootClaim The root claim of the dispute game
-    event DisputeGameCreated(address indexed disputeProxy, GameType indexed gameType, Claim indexed rootClaim);
+    event DisputeGameCreated(
+        address indexed disputeProxy,
+        GameType indexed gameType,
+        Claim indexed rootClaim
+    );
 
     /// @notice `games` queries an internal a mapping that maps the hash of `gameType ++ rootClaim ++ extraData`
     ///          to the deployed `DisputeGame` clone.
@@ -22,10 +26,11 @@ interface IDisputeGameFactory is IOwnable {
     /// @param rootClaim The root claim of the DisputeGame.
     /// @param extraData Any extra data that should be provided to the created dispute game.
     /// @return _proxy The clone of the `DisputeGame` created with the given parameters. Returns `address(0)` if nonexistent.
-    function games(GameType gameType, Claim rootClaim, bytes calldata extraData)
-        external
-        view
-        returns (IDisputeGame _proxy);
+    function games(
+        GameType gameType,
+        Claim rootClaim,
+        bytes calldata extraData
+    ) external view returns (IDisputeGame _proxy);
 
     /// @notice `gameImpls` is a mapping that maps `GameType`s to their respective `IDisputeGame` implementations.
     /// @param gameType The type of the dispute game.
@@ -37,9 +42,11 @@ interface IDisputeGameFactory is IOwnable {
     /// @param gameType The type of the DisputeGame - used to decide the proxy implementation
     /// @param rootClaim The root claim of the DisputeGame.
     /// @param extraData Any extra data that should be provided to the created dispute game.
-    function create(GameType gameType, Claim rootClaim, bytes calldata extraData)
-        external
-        returns (IDisputeGame proxy);
+    function create(
+        GameType gameType,
+        Claim rootClaim,
+        bytes calldata extraData
+    ) external returns (IDisputeGame proxy);
 
     /// @notice Sets the implementation contract for a specific `GameType`
     /// @dev May only be called by the `owner`.
