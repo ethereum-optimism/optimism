@@ -2,8 +2,8 @@
 pragma solidity 0.8.15;
 
 import { console } from "forge-std/console.sol";
-import { SafeBuilder } from "./SafeBuilder.sol";
-import { IGnosisSafe, Enum } from "./IGnosisSafe.sol";
+import { SafeBuilder } from "../universal/SafeBuilder.sol";
+import { IGnosisSafe, Enum } from "../libraries/IGnosisSafe.sol";
 import { IMulticall3 } from "forge-std/interfaces/IMulticall3.sol";
 import { Predeploys } from "../../contracts/libraries/Predeploys.sol";
 import { ProxyAdmin } from "../../contracts/universal/ProxyAdmin.sol";
