@@ -8,10 +8,6 @@ import {
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
-  const { deployer } = await hre.getNamedAccounts()
-  const isLiveDeployer =
-    deployer.toLowerCase() === hre.deployConfig.controller.toLowerCase()
-
   const DisputeGameFactoryProxy = await getContractFromArtifact(
     hre,
     'DisputeGameFactoryProxy'
@@ -21,7 +17,7 @@ const deployFn: DeployFunction = async (hre) => {
   await deploy({
     hre,
     name: 'BondManagerImpl',
-    args: [ DisputeGameFactoryProxy.address ],
+    args: [DisputeGameFactoryProxy.address],
     postDeployAction: async (contract) => {
       await assertContractVariable(
         contract,

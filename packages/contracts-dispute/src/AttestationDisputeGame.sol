@@ -116,7 +116,7 @@ contract AttestationDisputeGame is IAttestationDisputeGame, Clone, Initializable
 
         // Hash the `Dispute` struct.
         Hash disputeStructHash;
-        assembly ("memory-safe") {
+        assembly ("memory-safe") { // solhint-disable-line
             // Grab the location of some free memory.
             let ptr := mload(0x40)
 

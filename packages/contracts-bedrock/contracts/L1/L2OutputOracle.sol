@@ -148,15 +148,23 @@ contract L2OutputOracle is Initializable, Semver {
     function deleteL2Outputs(uint256 _l2BlockNumber) external {
         // Validate the caller dispute game is complete
         IDisputeGame caller = IDisputeGame(msg.sender);
-        IDisputeGame game = IDisputeGame(address(DISPUTE_GAME_FACTORY.games(caller.gameType(), caller.rootClaim(), caller.extraData())));
+        IDisputeGame game = IDisputeGame(
+            address(
+                DISPUTE_GAME_FACTORY.games(
+                    caller.gameType(),
+                    caller.rootClaim(),
+                    caller.extraData()
+                )
+            )
+        );
         require(msg.sender == address(game), "L2OutputOracle: Unauthorized output deletion.");
-        require(uint8(game.status()) == uint8(GameStatus.CHALLENGER_WINS), "L2OutputOracle: Game incomplete.");
+        require(
+            uint8(game.status()) == uint8(GameStatus.CHALLENGER_WINS),
+            "L2OutputOracle: Game incomplete."
+        );
 
         uint256 index = l2OutputIndices[_l2BlockNumber];
-        require(
-            index != 0,
-            "L2OutputOracle: No output exists for the given L2 block number"
-        );
+        require(index != 0, "L2OutputOracle: No output exists for the given L2 block number");
 
         // Do not allow deleting any outputs that have already been finalized.
         require(
@@ -191,10 +199,7 @@ contract L2OutputOracle is Initializable, Semver {
         );
 
         uint256 index = l2OutputIndices[_l2BlockNumber];
-        require(
-            index == 0,
-            "L2OutputOracle: Output already exists at the given block number"
-        );
+        require(index == 0, "L2OutputOracle: Output already exists at the given block number");
 
         require(
             computeL2Timestamp(_l2BlockNumber) < block.timestamp,

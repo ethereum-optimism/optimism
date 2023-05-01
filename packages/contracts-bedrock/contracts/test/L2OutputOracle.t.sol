@@ -7,7 +7,9 @@ import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { Proxy } from "../universal/Proxy.sol";
 import { Types } from "../libraries/Types.sol";
 
+import { BondManager } from "@dispute/BondManager.sol";
 import { IBondManager } from "@dispute/interfaces/IBondManager.sol";
+import { DisputeGameFactory } from "@dispute/DisputeGameFactory.sol";
 import { IDisputeGameFactory } from "@dispute/interfaces/IDisputeGameFactory.sol";
 
 contract L2OutputOracleTest is L2OutputOracle_Initializer {
@@ -16,6 +18,10 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     function test_constructor_succeeds() external {
         assertEq(oracle.startingBlockNumber(), startingBlockNumber);
         assertEq(oracle.startingTimestamp(), startingTimestamp);
+        assertEq(address(oracle.BOND_MANAGER()), address(bondManager));
+        assertEq(address(oracle.DISPUTE_GAME_FACTORY()), address(disputeGameFactory));
+        assertEq(oracle.OUTPUT_BOND_COST(), minimumProposalCost);
+        assertEq(oracle.FINALIZATION_PERIOD_SECONDS(), finalizationPeriodSeconds);
     }
 
     function test_constructor_badTimestamp_reverts() external {
@@ -24,7 +30,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
             _l2BlockTime: l2BlockTime,
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: block.timestamp + 1,
-            _finalizationPeriodSeconds: 7 days,
+            _finalizationPeriodSeconds: finalizationPeriodSeconds,
             _bondManager: IBondManager(address(bondManager)),
             _disputeGameFactory: IDisputeGameFactory(address(disputeGameFactory))
         });
@@ -36,7 +42,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
             _l2BlockTime: 0,
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: block.timestamp,
-            _finalizationPeriodSeconds: 7 days,
+            _finalizationPeriodSeconds: finalizationPeriodSeconds,
             _bondManager: IBondManager(address(bondManager)),
             _disputeGameFactory: IDisputeGameFactory(address(disputeGameFactory))
         });
@@ -195,83 +201,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
             l1BlockNumber - 1
         );
     }
-
-    /*****************************
-     * Delete Tests - Happy Path *
-     *****************************/
-
-    // function test_deleteOutputs_singleOutput_succeeds() external {
-    //     test_proposeL2Output_proposeAnotherOutput_succeeds();
-    //     test_proposeL2Output_proposeAnotherOutput_succeeds();
-    //
-    //     uint256 highestL2BlockNumber = oracle.latestBlockNumber() + 1;
-    //     Types.OutputProposal memory newLatestOutput = oracle.getL2Output(highestL2BlockNumber - 1);
-    //
-    //     vm.prank(owner);
-    //     vm.expectEmit(true, true, false, false);
-    //     emit OutputsDeleted(0, highestL2BlockNumber);
-    //     oracle.deleteL2Output(highestL2BlockNumber);
-    //
-    //     // validate that the new latest output is as expected.
-    //     Types.OutputProposal memory proposal = oracle.getL2Output(highestL2BlockNumber);
-    //     assertEq(newLatestOutput.outputRoot, proposal.outputRoot);
-    //     assertEq(newLatestOutput.timestamp, proposal.timestamp);
-    // }
-    //
-    // function test_deleteOutputs_multipleOutputs_succeeds() external {
-    //     test_proposeL2Output_proposeAnotherOutput_succeeds();
-    //     test_proposeL2Output_proposeAnotherOutput_succeeds();
-    //     test_proposeL2Output_proposeAnotherOutput_succeeds();
-    //     test_proposeL2Output_proposeAnotherOutput_succeeds();
-    //
-    //     uint256 highestL2BlockNumber = oracle.latestBlockNumber() + 1;
-    //     Types.OutputProposal memory newLatestOutput = oracle.getL2Output(highestL2BlockNumber);
-    //
-    //     vm.startPrank(owner);
-    //     vm.expectEmit(true, true, false, false);
-    //     emit OutputsDeleted(highestL2BlockNumber - 2, highestL2BlockNumber - 3);
-    //     oracle.deleteL2Output(highestL2BlockNumber - 3);
-    //     vm.expectEmit(true, true, false, false);
-    //     emit OutputsDeleted(highestL2BlockNumber - 1, highestL2BlockNumber - 2);
-    //     oracle.deleteL2Output(highestL2BlockNumber - 2);
-    //     vm.expectEmit(true, true, false, false);
-    //     emit OutputsDeleted(highestL2BlockNumber, highestL2BlockNumber - 1);
-    //     oracle.deleteL2Output(highestL2BlockNumber - 1);
-    //
-    //     Types.OutputProposal memory proposal = oracle.getL2Output(highestL2BlockNumber);
-    //     assertEq(newLatestOutput.outputRoot, proposal.outputRoot);
-    //     assertEq(newLatestOutput.timestamp, proposal.timestamp);
-    //
-    //     // Now when we delete, the highest number should be updated
-    //     vm.expectEmit(true, true, false, false);
-    //     emit OutputsDeleted(0, highestL2BlockNumber);
-    //     oracle.deleteL2Output(highestL2BlockNumber);
-    // }
-
-    /***************************
-     * Delete Tests - Sad Path *
-     ***************************/
-
-    // function test_deleteL2Output_ifNotChallenger_reverts() external {
-    //     uint256 highestL2BlockNumber = oracle.startingBlockNumber();
-
-    //     vm.expectRevert("L2OutputOracle: only the challenger address can delete an output");
-    //     oracle.deleteL2Output(highestL2BlockNumber);
-    // }
-
-    // function test_deleteL2Output_finalized_reverts() external {
-    //     test_proposeL2Output_proposeAnotherOutput_succeeds();
-
-    //     // Warp past the finalization period + 1 second
-    //     vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
-
-    //     uint256 highestL2BlockNumber = oracle.startingBlockNumber() + 1;
-
-    //     // Try to delete a finalized output
-    //     vm.prank(owner);
-    //     vm.expectRevert("L2OutputOracle: cannot delete outputs that have already been finalized");
-    //     oracle.deleteL2Output(highestL2BlockNumber);
-    // }
 }
 
 contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
