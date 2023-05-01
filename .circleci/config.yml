@@ -1276,6 +1276,9 @@ workflows:
           name: op-proposer-lint
           module: op-proposer
       - go-lint:
+          name: op-challenger-lint
+          module: op-challenger
+      - go-lint:
           name: op-program-lint
           module: op-program
       - go-lint:
@@ -1301,6 +1304,9 @@ workflows:
           name: op-proposer-tests
           module: op-proposer
       - go-test:
+          name: op-challenger-tests
+          module: op-challenger
+      - go-test:
           name: op-program-tests
           module: op-program
       - go-test:
@@ -1322,6 +1328,7 @@ workflows:
             - op-e2e-lint
             - op-node-lint
             - op-proposer-lint
+            - op-challenger-lint
             - op-program-lint
             - op-service-lint
             - op-batcher-tests
@@ -1329,6 +1336,7 @@ workflows:
             - op-chain-ops-tests
             - op-node-tests
             - op-proposer-tests
+            - op-challenger-tests
             - op-program-tests
             - op-service-tests
             - op-e2e-WS-tests
@@ -1390,6 +1398,20 @@ workflows:
             - oplabs-gcr
           platforms: "linux/amd64,linux/arm64"
       - docker-build:
+          name: op-challenger-docker-build
+          docker_file: op-challenger/Dockerfile
+          docker_name: op-challenger
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: op-challenger-docker-publish
+          docker_file: op-challenger/Dockerfile
+          docker_name: op-challenger
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - oplabs-gcr
+          platforms: "linux/amd64,linux/arm64"
+      - docker-build:
           name: op-heartbeat-docker-build
           docker_file: op-heartbeat/Dockerfile
           docker_name: op-heartbeat
@@ -1431,6 +1453,7 @@ workflows:
             - op-node-docker-build
             - op-batcher-docker-build
             - op-proposer-docker-build
+            - op-challenger-docker-build
       - hive-test:
           name: hive-test-p2p
           version: <<pipeline.git.revision>>
@@ -1439,6 +1462,7 @@ workflows:
             - op-node-docker-build
             - op-batcher-docker-build
             - op-proposer-docker-build
+            - op-challenger-docker-build
       - hive-test:
           name: hive-test-l1ops
           version: <<pipeline.git.revision>>
@@ -1447,6 +1471,7 @@ workflows:
             - op-node-docker-build
             - op-batcher-docker-build
             - op-proposer-docker-build
+            - op-challenger-docker-build
   release:
     jobs:
       - hold:
@@ -1497,6 +1522,22 @@ workflows:
               ignore: /.*/
           docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+          platforms: "linux/amd64,linux/arm64"
+          context:
+            - oplabs-gcr-release
+          requires:
+            - hold
+      - docker-release:
+          name: op-challenger-docker-release
+          filters:
+            tags:
+              only: /^op-challenger\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: op-challenger/Dockerfile
+          docker_name: op-challenger
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
           platforms: "linux/amd64,linux/arm64"
