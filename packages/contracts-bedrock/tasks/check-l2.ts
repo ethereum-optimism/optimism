@@ -703,7 +703,9 @@ task('check-l2', 'Checks a freshly migrated L2 system for correct migration')
 
     if (args.l2RpcUrl !== '') {
       console.log('Using CLI URL for provider instead of hardhat network')
-      const provider = new hre.ethers.providers.JsonRpcBatchProvider(args.l2RpcUrl)
+      const provider = new hre.ethers.providers.JsonRpcBatchProvider(
+        args.l2RpcUrl
+      )
       signer = Wallet.createRandom().connect(provider)
     }
 
