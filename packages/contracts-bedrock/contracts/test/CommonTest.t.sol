@@ -108,6 +108,7 @@ contract L2OutputOracle_Initializer is CommonTest {
     uint256 internal startingBlockNumber = 200;
     uint256 internal startingTimestamp = 0;
     uint256 internal minimumProposalCost = 1 ether;
+    uint256 internal finalizationPeriodSeconds = 7 days;
     address guardian;
 
     // Test data
@@ -144,7 +145,7 @@ contract L2OutputOracle_Initializer is CommonTest {
             _l2BlockTime: l2BlockTime,
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: startingTimestamp,
-            _finalizationPeriodSeconds: 7 days,
+            _finalizationPeriodSeconds: finalizationPeriodSeconds,
             _bondManager: IBondManager(address(bondManager)),
             _disputeGameFactory: IDisputeGameFactory(address(disputeGameFactory))
         });

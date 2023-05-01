@@ -16,6 +16,10 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     function test_constructor_succeeds() external {
         assertEq(oracle.startingBlockNumber(), startingBlockNumber);
         assertEq(oracle.startingTimestamp(), startingTimestamp);
+        assertEq(address(oracle.BOND_MANAGER()), address(bondManager));
+        assertEq(address(oracle.DISPUTE_GAME_FACTORY()), address(disputeGameFactory));
+        assertEq(oracle.OUTPUT_BOND_COST(), minimumProposalCost);
+        assertEq(oracle.FINALIZATION_PERIOD_SECONDS(), finalizationPeriodSeconds);
     }
 
     function test_constructor_badTimestamp_reverts() external {
@@ -24,7 +28,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
             _l2BlockTime: l2BlockTime,
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: block.timestamp + 1,
-            _finalizationPeriodSeconds: 7 days,
+            _finalizationPeriodSeconds: finalizationPeriodSeconds,
             _bondManager: IBondManager(address(bondManager)),
             _disputeGameFactory: IDisputeGameFactory(address(disputeGameFactory))
         });
@@ -36,7 +40,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
             _l2BlockTime: 0,
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: block.timestamp,
-            _finalizationPeriodSeconds: 7 days,
+            _finalizationPeriodSeconds: finalizationPeriodSeconds,
             _bondManager: IBondManager(address(bondManager)),
             _disputeGameFactory: IDisputeGameFactory(address(disputeGameFactory))
         });
@@ -251,6 +255,14 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     /***************************
      * Delete Tests - Sad Path *
      ***************************/
+
+    function testFuzz_deleteL2Outputs_nonDisputeGame_reverts(address game) external {
+        uint256 highestL2BlockNumber = oracle.startingBlockNumber();
+
+        vm.prank(game);
+        vm.expectRevert();
+        oracle.deleteL2Outputs(highestL2BlockNumber);
+    }
 
     // function test_deleteL2Output_ifNotChallenger_reverts() external {
     //     uint256 highestL2BlockNumber = oracle.startingBlockNumber();
