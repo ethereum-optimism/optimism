@@ -7,8 +7,12 @@ import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { Proxy } from "../universal/Proxy.sol";
 import { Types } from "../libraries/Types.sol";
 
+// import "@dispute/types/Types.sol";
+// import { BondManager } from "@dispute/BondManager.sol";
 import { IBondManager } from "@dispute/interfaces/IBondManager.sol";
+import { IDisputeGame, Claim, GameType, Timestamp, GameStatus } from "@dispute/interfaces/IDisputeGame.sol";
 import { IDisputeGameFactory } from "@dispute/interfaces/IDisputeGameFactory.sol";
+// import "@dispute/interfaces/IDisputeGameFactory.sol";
 
 contract L2OutputOracleTest is L2OutputOracle_Initializer {
     bytes32 proposedOutput1 = keccak256(abi.encode(1));
@@ -264,6 +268,27 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         oracle.deleteL2Outputs(highestL2BlockNumber);
     }
 
+    function test_deleteL2Outputs_unauthorized_reverts() external {
+        uint256 highestL2BlockNumber = oracle.startingBlockNumber();
+
+        // Create the correct dispute game
+        address proxy = createMockAttestationGame();
+        Claim rootClaim = Claim.wrap(bytes32(""));
+        bytes memory extraData = bytes("");
+        GameType gt = GameType.ATTESTATION;
+        assertEq(address(disputeGameFactory.games(gt, rootClaim, extraData)), proxy);
+
+        // Call delete from an unauthorized game
+        address badGame = createEmptyAttestationGame();
+        vm.prank(badGame);
+        vm.expectRevert("L2OutputOracle: Unauthorized output deletion.");
+        oracle.deleteL2Outputs(highestL2BlockNumber);
+    }
+
+    function test_deleteL2Outputs_gameIncomplete_reverts() external {
+
+    }
+
     // function test_deleteL2Output_ifNotChallenger_reverts() external {
     //     uint256 highestL2BlockNumber = oracle.startingBlockNumber();
 
@@ -329,3 +354,4 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         assertEq(slot21Expected, slot21After);
     }
 }
+

@@ -32,10 +32,17 @@ import { SystemConfig } from "../L1/SystemConfig.sol";
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
 import { Constants } from "../libraries/Constants.sol";
 
-import { IBondManager } from "@dispute/interfaces/IBondManager.sol";
-import { IDisputeGameFactory } from "@dispute/interfaces/IDisputeGameFactory.sol";
-import { BondManager } from "@dispute/BondManager.sol";
-import { DisputeGameFactory } from "@dispute/DisputeGameFactory.sol";
+import {
+    IDisputeGame,
+    IDisputeGameFactory,
+    DisputeGameFactory,
+    BondManager,
+    IBondManager,
+    Claim,
+    GameStatus,
+    GameType,
+    Timestamp
+} from "@dispute/DisputeGameFactory.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -93,6 +100,118 @@ contract CommonTest is Test {
     }
 }
 
+/// @dev A mock dispute game for testing bond seizures.
+contract MockAttestationDisputeGame is IDisputeGame {
+    GameStatus internal gameStatus;
+    BondManager bm;
+    Claim internal rc;
+    bytes internal ed;
+    bytes32 internal bondId;
+
+    address[] internal challengers;
+
+    function getChallengers() public view returns (address[] memory) {
+        return challengers;
+    }
+
+    function setBondId(bytes32 bid) external {
+        bondId = bid;
+    }
+
+    function setBondManager(BondManager _bm) external {
+        bm = _bm;
+    }
+
+    function setGameStatus(GameStatus _gs) external {
+        gameStatus = _gs;
+    }
+
+    function setRootClaim(Claim _rc) external {
+        rc = _rc;
+    }
+
+    function setExtraData(bytes memory _ed) external {
+        ed = _ed;
+    }
+
+    /// @dev Allow the contract to receive ether
+    receive() external payable { }
+    fallback() external payable { }
+
+    /// @dev Resolve the game with a split
+    function splitResolve() public {
+        challengers = [address(1), address(2)];
+        bm.seizeAndSplit(bondId, challengers);
+    }
+
+    /// -------------------------------------------
+    /// IInitializable Functions
+    /// -------------------------------------------
+
+    function initialize() external { /* noop */ }
+
+    /// -------------------------------------------
+    /// IVersioned Functions
+    /// -------------------------------------------
+
+    function version() external pure returns (string memory _version) {
+        return "0.1.0";
+    }
+
+    /// -------------------------------------------
+    /// IDisputeGame Functions
+    /// -------------------------------------------
+
+    /// @notice Returns the timestamp that the DisputeGame contract was created at.
+    function createdAt() external pure override returns (Timestamp _createdAt) {
+        return Timestamp.wrap(uint64(0));
+    }
+
+    /// @notice Returns the current status of the game.
+    function status() external view override returns (GameStatus _status) {
+        return gameStatus;
+    }
+
+    /// @notice Getter for the game type.
+    /// @dev `clones-with-immutable-args` argument #1
+    /// @dev The reference impl should be entirely different depending on the type (fault, validity)
+    ///      i.e. The game type should indicate the security model.
+    /// @return _gameType The type of proof system being used.
+    function gameType() external pure returns (GameType _gameType) {
+        return GameType.ATTESTATION;
+    }
+
+    /// @notice Getter for the root claim.
+    /// @return _rootClaim The root claim of the DisputeGame.
+    /// @dev `clones-with-immutable-args` argument #2
+    function rootClaim() external view override returns (Claim _rootClaim) {
+        return rc;
+    }
+
+    /// @notice Getter for the extra data.
+    /// @dev `clones-with-immutable-args` argument #3
+    /// @return _extraData Any extra data supplied to the dispute game contract by the creator.
+    function extraData() external view returns (bytes memory _extraData) {
+        return ed;
+    }
+
+    /// @notice Returns the address of the `BondManager` used
+    function bondManager() external view override returns (IBondManager _bondManager) {
+        return IBondManager(address(bm));
+    }
+
+    /// @notice If all necessary information has been gathered, this function should mark the game
+    ///         status as either `CHALLENGER_WINS` or `DEFENDER_WINS` and return the status of
+    ///         the resolved game. It is at this stage that the bonds should be awarded to the
+    ///         necessary parties.
+    /// @dev May only be called if the `status` is `IN_PROGRESS`.
+    function resolve() external returns (GameStatus _status) {
+        bm.seize(bondId);
+        return gameStatus;
+    }
+}
+
+
 contract L2OutputOracle_Initializer is CommonTest {
     L2OutputOracle oracle;
     L2OutputOracle oracleImpl;
@@ -126,6 +245,23 @@ contract L2OutputOracle_Initializer is CommonTest {
     // Advance the evm's time to meet the L2OutputOracle's requirements for proposeL2Output
     function warpToProposeTime(uint256 _nextBlockNumber) public {
         vm.warp(oracle.computeL2Timestamp(_nextBlockNumber) + 1);
+    }
+
+    function createMockAttestationGame() public returns (address) {
+        Claim rootClaim = Claim.wrap(bytes32(""));
+        bytes memory extraData = bytes("");
+        MockAttestationDisputeGame implementation = new MockAttestationDisputeGame();
+        GameType gt = GameType.ATTESTATION;
+        disputeGameFactory.setImplementation(gt, IDisputeGame(address(implementation)));
+
+        address proxy = address(disputeGameFactory.create(gt, rootClaim, extraData));
+
+        return proxy;
+    }
+
+    function createEmptyAttestationGame() public returns (address) {
+        MockAttestationDisputeGame emptyGame = new MockAttestationDisputeGame();
+        return address(emptyGame);
     }
 
     function setUp() public virtual override {
@@ -164,6 +300,7 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.label(Predeploys.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
     }
 }
+
 
 contract Portal_Initializer is L2OutputOracle_Initializer {
     // Test target

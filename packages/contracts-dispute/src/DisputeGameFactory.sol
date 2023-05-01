@@ -3,6 +3,8 @@ pragma solidity ^0.8.15;
 
 import "src/types/Types.sol";
 import "src/types/Errors.sol";
+import { BondManager } from "src/BondManager.sol";
+import { IBondManager } from "src/interfaces/IBondManager.sol";
 import { Ownable } from "src/util/Ownable.sol";
 import { Initializable } from "src/util/Initializable.sol";
 import { IDisputeGame } from "src/interfaces/IDisputeGame.sol";
