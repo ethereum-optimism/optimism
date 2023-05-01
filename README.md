@@ -15,6 +15,7 @@ one instruction at a time, as part of an interactive dispute game.
 * ...running compiled Go code
 * ...that runs an EVM
 
+For more information, see [Docs](./docs/README.md).
 
 ## Directory Layout
 
