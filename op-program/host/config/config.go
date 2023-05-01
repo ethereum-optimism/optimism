@@ -49,8 +49,9 @@ type Config struct {
 	L2ClaimBlockNumber uint64
 	// L2ChainConfig is the op-geth chain config for the L2 execution engine
 	L2ChainConfig *params.ChainConfig
-	// Detached indicates that the program runs as a separate process
-	Detached bool
+	// ExecCmd specifies the client program to execute in a separate process.
+	// If unset, the fault proof client is run in the same process.
+	ExecCmd string
 }
 
 func (c *Config) Check() error {
@@ -148,7 +149,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 		L1URL:              ctx.GlobalString(flags.L1NodeAddr.Name),
 		L1TrustRPC:         ctx.GlobalBool(flags.L1TrustRPC.Name),
 		L1RPCKind:          sources.RPCProviderKind(ctx.GlobalString(flags.L1RPCProviderKind.Name)),
-		Detached:           ctx.GlobalBool(flags.Detached.Name),
+		ExecCmd:            ctx.String(flags.Exec.Name),
 	}, nil
 }
 
