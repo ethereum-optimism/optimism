@@ -58,17 +58,28 @@ func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Confi
 	if err != nil {
 		return fmt.Errorf("failed to create preimage pipe: %w", err)
 	}
-	defer pHostRW.Close()
+	pClientCloser := oppio.NewSafeClose(pClientRW)
+	defer pClientCloser.Close()
 
 	// Setup client I/O for hint comms
 	hClientRW, hHostRW, err := oppio.CreateBidirectionalChannel()
 	if err != nil {
 		return fmt.Errorf("failed to create hints pipe: %w", err)
 	}
+	hClientCloser := oppio.NewSafeClose(hClientRW)
+	defer hClientCloser.Close()
 
+	// Use a channel to receive the server result so we can wait for it to complete before returning
+	serverErr := make(chan error)
 	go func() {
-		defer hHostRW.Close()
-		err := PreimageServer(ctx, logger, cfg, pHostRW, hHostRW)
+		serverErr <- PreimageServer(ctx, logger, cfg, pHostRW, hHostRW)
+	}()
+	defer func() {
+		// Ensure the client streams are closed to trigger the server to exit
+		pClientCloser.Close()
+		hClientCloser.Close()
+		logger.Debug("Waiting for preimage server to exit")
+		err := <-serverErr
 		if err != nil {
 			logger.Error("preimage server failed", "err", err)
 		}
@@ -100,7 +111,18 @@ func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Confi
 	}
 }
 
+// PreimageServer reads hints and preimage requests from the provided channels and processes those requests.
+// This method will block until both the hinter and preimage handlers complete.
+// If either returns an error both handlers are stopped.
+// The supplied preimageChannel and hintChannel will be closed before this function returns.
 func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, preimageChannel oppio.FileChannel, hintChannel oppio.FileChannel) error {
+	preimageCloser := oppio.NewSafeClose(preimageChannel)
+	hintCloser := oppio.NewSafeClose(hintChannel)
+	closeChannels := func() {
+		_ = preimageCloser.Close()
+		_ = hintCloser.Close()
+	}
+	defer closeChannels()
 	logger.Info("Starting preimage server")
 	var kv kvstore.KV
 	if cfg.DataDir == "" {
@@ -142,8 +164,14 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 	hinterDone := routeHints(logger, hintChannel, hinter)
 	select {
 	case err := <-serverDone:
+		// Close the channels to trigger the hinter to exit and wait for it to complete
+		closeChannels()
+		<-hinterDone
 		return err
 	case err := <-hinterDone:
+		// Close the channels to trigger the oracle server to exit and wait for it to complete
+		closeChannels()
+		<-serverDone
 		return err
 	}
 }
