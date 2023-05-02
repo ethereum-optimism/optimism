@@ -3,32 +3,35 @@ package proxyd
 import (
 	"encoding/json"
 	"errors"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 type RewriteContext struct {
 	latest hexutil.Uint64
 }
 
-type RewriteMode uint8
+type RewriteResult uint8
 
 const (
-	// RewriteNone Request should be forwarded as-is
-	RewriteNone RewriteMode = iota
+	// RewriteNone means request should be forwarded as-is
+	RewriteNone RewriteResult = iota
 
+	// RewriteOverrideError means there was an error attempting to rewrite
 	RewriteOverrideError
 
-	// RewriteOverrideRequest Modified request should be forwarded to the backend
+	// RewriteOverrideRequest means the modified request should be forwarded to the backend
 	RewriteOverrideRequest
 
-	// RewriteOverrideResponse Skip calling the backend and serve the overridden response
+	// RewriteOverrideResponse means to skip calling the backend and serve the overridden response
 	RewriteOverrideResponse
 )
 
 // RewriteResponse modifies the response object to comply with the rewrite context
 // after the method has been called at the backend
-func RewriteResponse(rctx RewriteContext, req *RPCReq, res *RPCRes) (RewriteMode, error) {
+// RewriteResult informs the decision of the rewrite
+func RewriteResponse(rctx RewriteContext, req *RPCReq, res *RPCRes) (RewriteResult, error) {
 	switch req.Method {
 	case "eth_blockNumber":
 		res.Result = rctx.latest
@@ -40,7 +43,7 @@ func RewriteResponse(rctx RewriteContext, req *RPCReq, res *RPCRes) (RewriteMode
 // RewriteRequest modifies the request object to comply with the rewrite context
 // before the method has been called at the backend
 // it returns false if nothing was changed
-func RewriteRequest(rctx RewriteContext, req *RPCReq, res *RPCRes) (RewriteMode, error) {
+func RewriteRequest(rctx RewriteContext, req *RPCReq, res *RPCRes) (RewriteResult, error) {
 	switch req.Method {
 	case "eth_getLogs",
 		"eth_newFilter":
@@ -62,7 +65,7 @@ func RewriteRequest(rctx RewriteContext, req *RPCReq, res *RPCRes) (RewriteMode,
 	return RewriteNone, nil
 }
 
-func rewriteParam(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (RewriteMode, error) {
+func rewriteParam(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (RewriteResult, error) {
 	var p []interface{}
 	json.Unmarshal(req.Params, &p)
 
@@ -110,7 +113,7 @@ func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
 	return param, rw, nil
 }
 
-func rewriteRange(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (RewriteMode, error) {
+func rewriteRange(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (RewriteResult, error) {
 	var p []map[string]interface{}
 	json.Unmarshal(req.Params, &p)
 

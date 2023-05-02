@@ -2,10 +2,11 @@ package proxyd
 
 import (
 	"encoding/json"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/stretchr/testify/require"
 	"strings"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/stretchr/testify/require"
 )
 
 type args struct {
@@ -17,7 +18,7 @@ type args struct {
 type rewriteTest struct {
 	name     string
 	args     args
-	expected RewriteMode
+	expected RewriteResult
 	check    func(*testing.T, args)
 }
 
@@ -419,7 +420,7 @@ func TestRewriteResponse(t *testing.T) {
 	tests := []struct {
 		name     string
 		args     args
-		expected RewriteMode
+		expected RewriteResult
 		check    func(*testing.T, args)
 	}{
 		{
