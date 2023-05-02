@@ -3,11 +3,18 @@ import { DeployConfig } from '../src/deploy-config'
 // NOTE: The 'mainnet' network is currently being used for bedrock migration rehearsals.
 // The system configured below is not yet live on mainnet, and many of the addresses used are
 // unsafe for a production system.
+
+// The following addresses are assigned to multiples roles in the system, therfore we save them
+// as constants to avoid having to change them in multiple places.
+const foundationMultisig = '0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266' // hh test signer 0
+const feeRecipient = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' // hh test signer 1
+const mintManager = '0x5C4e7Ba1E219E47948e6e3F55019A647bA501005'
+
 const config: DeployConfig = {
-  finalSystemOwner: '0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A',
-  controller: '0x78339d822c23d943e4a2d4c3dd5408f66e6d662d',
-  portalGuardian: '0x78339d822c23d943e4a2d4c3dd5408f66e6d662d',
-  proxyAdminOwner: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
+  finalSystemOwner: foundationMultisig,
+  controller: foundationMultisig,
+  portalGuardian: foundationMultisig,
+  proxyAdminOwner: foundationMultisig,
 
   l1StartingBlockTag:
     '0x126e52a0cc0ae18948f567ee9443f4a8f0db67c437706e35baee424eb314a0d0',
@@ -26,16 +33,16 @@ const config: DeployConfig = {
   l2OutputOracleStartingTimestamp: 1679069195,
   l2OutputOracleStartingBlockNumber: 79149704,
   l2OutputOracleProposer: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
-  l2OutputOracleChallenger: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
+  l2OutputOracleChallenger: foundationMultisig,
   finalizationPeriodSeconds: 2,
 
-  baseFeeVaultRecipient: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
-  l1FeeVaultRecipient: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
-  sequencerFeeVaultRecipient: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
+  baseFeeVaultRecipient: feeRecipient,
+  l1FeeVaultRecipient: feeRecipient,
+  sequencerFeeVaultRecipient: feeRecipient,
 
   governanceTokenName: 'Optimism',
   governanceTokenSymbol: 'OP',
-  governanceTokenOwner: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
+  governanceTokenOwner: mintManager,
 
   l2GenesisBlockGasLimit: '0x1c9c380',
   l2GenesisBlockCoinbase: '0x4200000000000000000000000000000000000011',
