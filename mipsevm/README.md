@@ -15,7 +15,7 @@ Supported 55 instructions:
 
 To run:
 1. Load a program into a state, e.g. using `LoadELF`.
-2. Patch the program if necessary: e.g. using `PatchVM` for Go programs.
+2. Patch the program if necessary: e.g. using `PatchGo` for Go programs, `PatchStack` for empty initial stack, etc.
 3. Load the state into a MIPS-32 configured unicorn instance, using `NewUnicorn`, `LoadUnicorn`
 4. Implement the `PreimageOracle` interface
 5. Instrument the emulator with the state, and pre-image oracle, using `NewUnicornState`

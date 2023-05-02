@@ -1,6 +1,9 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/urfave/cli/v2"
 
 	"cannon/cmd"
@@ -15,5 +18,10 @@ func main() {
 		cmd.LoadELFCommand,
 		cmd.RunStepsCommand,
 		cmd.GenProofCommand,
+	}
+	err := app.Run(os.Args)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "error: %v", err)
+		os.Exit(1)
 	}
 }

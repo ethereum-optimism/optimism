@@ -92,8 +92,9 @@ func TestHello(t *testing.T) {
 	state, err := LoadELF(elfProgram)
 	require.NoError(t, err, "load ELF into state")
 
-	err = PatchVM(elfProgram, state)
+	err = PatchGo(elfProgram, state)
 	require.NoError(t, err, "apply Go runtime patches")
+	require.NoError(t, PatchStack(state), "add initial stack")
 
 	mu, err := NewUnicorn()
 	require.NoError(t, err, "load unicorn")
@@ -194,8 +195,9 @@ func TestClaim(t *testing.T) {
 	state, err := LoadELF(elfProgram)
 	require.NoError(t, err, "load ELF into state")
 
-	err = PatchVM(elfProgram, state)
+	err = PatchGo(elfProgram, state)
 	require.NoError(t, err, "apply Go runtime patches")
+	require.NoError(t, PatchStack(state), "add initial stack")
 
 	mu, err := NewUnicorn()
 	require.NoError(t, err, "load unicorn")

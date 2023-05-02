@@ -51,7 +51,7 @@ func LoadELF(f *elf.File) (*State, error) {
 	return s, nil
 }
 
-func PatchVM(f *elf.File, st *State) error {
+func PatchGo(f *elf.File, st *State) error {
 	symbols, err := f.Symbols()
 	if err != nil {
 		return fmt.Errorf("failed to read symbols data, cannot patch program: %w", err)
@@ -82,7 +82,10 @@ func PatchVM(f *elf.File, st *State) error {
 			}
 		}
 	}
+	return nil
+}
 
+func PatchStack(st *State) error {
 	// setup stack pointer
 	sp := uint32(0x7f_ff_d0_00)
 	// allocate 1 page for the initial stack data, and 16KB = 4 pages for the stack to grow

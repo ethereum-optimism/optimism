@@ -7,3 +7,4 @@ venv
 *.log
 example/bin
 contracts/out
+state.json
