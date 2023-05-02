@@ -53,12 +53,31 @@ func Main(logger log.Logger, cfg *config.Config) error {
 
 // FaultProofProgram is the programmatic entry-point for the fault proof program
 func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Config) error {
+	var (
+		serverErr chan error
+		pClientRW oppio.FileChannel
+		hClientRW oppio.FileChannel
+	)
+	defer func() {
+		if pClientRW != nil {
+			_ = pClientRW.Close()
+		}
+		if hClientRW != nil {
+			_ = hClientRW.Close()
+		}
+		if serverErr != nil {
+			err := <-serverErr
+			if err != nil {
+				logger.Error("preimage server failed", "err", err)
+			}
+			logger.Debug("Preimage server stopped")
+		}
+	}()
 	// Setup client I/O for preimage oracle interaction
 	pClientRW, pHostRW, err := oppio.CreateBidirectionalChannel()
 	if err != nil {
 		return fmt.Errorf("failed to create preimage pipe: %w", err)
 	}
-	defer pHostRW.Close()
 
 	// Setup client I/O for hint comms
 	hClientRW, hHostRW, err := oppio.CreateBidirectionalChannel()
@@ -66,13 +85,11 @@ func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Confi
 		return fmt.Errorf("failed to create hints pipe: %w", err)
 	}
 
+	// Use a channel to receive the server result so we can wait for it to complete before returning
+	serverErr = make(chan error)
 	go func() {
-		defer hHostRW.Close()
-		err := PreimageServer(ctx, logger, cfg, pHostRW, hHostRW)
-		if err != nil {
-			logger.Error("preimage server failed", "err", err)
-		}
-		logger.Debug("Preimage server stopped")
+		defer close(serverErr)
+		serverErr <- PreimageServer(ctx, logger, cfg, pHostRW, hHostRW)
 	}()
 
 	var cmd *exec.Cmd
@@ -100,7 +117,25 @@ func FaultProofProgram(ctx context.Context, logger log.Logger, cfg *config.Confi
 	}
 }
 
+// PreimageServer reads hints and preimage requests from the provided channels and processes those requests.
+// This method will block until both the hinter and preimage handlers complete.
+// If either returns an error both handlers are stopped.
+// The supplied preimageChannel and hintChannel will be closed before this function returns.
 func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, preimageChannel oppio.FileChannel, hintChannel oppio.FileChannel) error {
+	var serverDone chan error
+	var hinterDone chan error
+	defer func() {
+		preimageChannel.Close()
+		hintChannel.Close()
+		if serverDone != nil {
+			// Wait for pre-image server to complete
+			<-serverDone
+		}
+		if hinterDone != nil {
+			// Wait for hinter to complete
+			<-hinterDone
+		}
+	}()
 	logger.Info("Starting preimage server")
 	var kv kvstore.KV
 	if cfg.DataDir == "" {
@@ -138,8 +173,8 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 	splitter := kvstore.NewPreimageSourceSplitter(localPreimageSource.Get, getPreimage)
 	preimageGetter := splitter.Get
 
-	serverDone := launchOracleServer(logger, preimageChannel, preimageGetter)
-	hinterDone := routeHints(logger, hintChannel, hinter)
+	serverDone = launchOracleServer(logger, preimageChannel, preimageGetter)
+	hinterDone = routeHints(logger, hintChannel, hinter)
 	select {
 	case err := <-serverDone:
 		return err
