@@ -16,8 +16,7 @@ func main() {
 	app.Description = "MIPS Fault Proof tool"
 	app.Commands = []*cli.Command{
 		cmd.LoadELFCommand,
-		cmd.RunStepsCommand,
-		cmd.GenProofCommand,
+		cmd.RunCommand,
 	}
 	err := app.Run(os.Args)
 	if err != nil {

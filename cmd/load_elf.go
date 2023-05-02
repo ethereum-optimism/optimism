@@ -2,10 +2,7 @@ package cmd
 
 import (
 	"debug/elf"
-	"encoding/json"
 	"fmt"
-	"io"
-	"os"
 
 	"github.com/urfave/cli/v2"
 
@@ -56,23 +53,7 @@ func LoadELF(ctx *cli.Context) error {
 			return fmt.Errorf("failed to apply patch %s: %w", typ, err)
 		}
 	}
-	p := ctx.Path(LoadELFOutFlag.Name)
-	var out io.Writer
-	if p != "" {
-		f, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0755)
-		if err != nil {
-			return fmt.Errorf("failed to open output file: %w", err)
-		}
-		defer f.Close()
-		out = f
-	} else {
-		out = os.Stdout
-	}
-	enc := json.NewEncoder(out)
-	if err := enc.Encode(state); err != nil {
-		return fmt.Errorf("failed to encode state to JSON: %w", err)
-	}
-	return nil
+	return writeJSON[*mipsevm.State](ctx.Path(LoadELFOutFlag.Name), state, true)
 }
 
 var LoadELFCommand = &cli.Command{
