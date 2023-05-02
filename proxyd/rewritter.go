@@ -67,7 +67,10 @@ func RewriteRequest(rctx RewriteContext, req *RPCReq, res *RPCRes) (RewriteResul
 
 func rewriteParam(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (RewriteResult, error) {
 	var p []interface{}
-	json.Unmarshal(req.Params, &p)
+	err := json.Unmarshal(req.Params, &p)
+	if err != nil {
+		return RewriteOverrideError, err
+	}
 
 	if len(p) <= pos {
 		p = append(p, "latest")
@@ -115,7 +118,10 @@ func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
 
 func rewriteRange(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (RewriteResult, error) {
 	var p []map[string]interface{}
-	json.Unmarshal(req.Params, &p)
+	err := json.Unmarshal(req.Params, &p)
+	if err != nil {
+		return RewriteOverrideError, err
+	}
 
 	rw := false
 

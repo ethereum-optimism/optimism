@@ -35,7 +35,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []map[string]interface{}
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, hexutil.Uint64(100).String(), p[0]["fromBlock"])
 			},
 		},
@@ -49,7 +50,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteNone,
 			check: func(t *testing.T, args args) {
 				var p []map[string]interface{}
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, hexutil.Uint64(55).String(), p[0]["fromBlock"])
 			},
 		},
@@ -63,7 +65,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []map[string]interface{}
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, hexutil.Uint64(100).String(), p[0]["fromBlock"])
 			},
 		},
@@ -77,7 +80,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []map[string]interface{}
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, hexutil.Uint64(100).String(), p[0]["toBlock"])
 			},
 		},
@@ -91,7 +95,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteNone,
 			check: func(t *testing.T, args args) {
 				var p []map[string]interface{}
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, hexutil.Uint64(55).String(), p[0]["toBlock"])
 			},
 		},
@@ -105,7 +110,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []map[string]interface{}
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, hexutil.Uint64(100).String(), p[0]["toBlock"])
 			},
 		},
@@ -119,7 +125,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []map[string]interface{}
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, hexutil.Uint64(100).String(), p[0]["fromBlock"])
 				require.Equal(t, hexutil.Uint64(100).String(), p[0]["toBlock"])
 			},
@@ -134,7 +141,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteNone,
 			check: func(t *testing.T, args args) {
 				var p []map[string]interface{}
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, hexutil.Uint64(55).String(), p[0]["fromBlock"])
 				require.Equal(t, hexutil.Uint64(77).String(), p[0]["toBlock"])
 			},
@@ -149,7 +157,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []map[string]interface{}
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, hexutil.Uint64(100).String(), p[0]["fromBlock"])
 				require.Equal(t, hexutil.Uint64(100).String(), p[0]["toBlock"])
 			},
@@ -165,7 +174,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []string
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, 2, len(p))
 				require.Equal(t, "0x123", p[0])
 				require.Equal(t, hexutil.Uint64(100).String(), p[1])
@@ -181,7 +191,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []string
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, 2, len(p))
 				require.Equal(t, "0x123", p[0])
 				require.Equal(t, hexutil.Uint64(100).String(), p[1])
@@ -197,7 +208,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteNone,
 			check: func(t *testing.T, args args) {
 				var p []string
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, 2, len(p))
 				require.Equal(t, "0x123", p[0])
 				require.Equal(t, hexutil.Uint64(55).String(), p[1])
@@ -213,7 +225,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []string
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, 2, len(p))
 				require.Equal(t, "0x123", p[0])
 				require.Equal(t, hexutil.Uint64(100).String(), p[1])
@@ -230,7 +243,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []string
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, 3, len(p))
 				require.Equal(t, "0x123", p[0])
 				require.Equal(t, "5", p[1])
@@ -247,7 +261,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []string
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, 3, len(p))
 				require.Equal(t, "0x123", p[0])
 				require.Equal(t, "5", p[1])
@@ -264,7 +279,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteNone,
 			check: func(t *testing.T, args args) {
 				var p []string
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, 3, len(p))
 				require.Equal(t, "0x123", p[0])
 				require.Equal(t, "5", p[1])
@@ -281,7 +297,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []string
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, 3, len(p))
 				require.Equal(t, "0x123", p[0])
 				require.Equal(t, "5", p[1])
@@ -299,7 +316,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []string
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, 1, len(p))
 				require.Equal(t, hexutil.Uint64(100).String(), p[0])
 			},
@@ -314,7 +332,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []string
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, 1, len(p))
 				require.Equal(t, hexutil.Uint64(100).String(), p[0])
 			},
@@ -329,7 +348,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteNone,
 			check: func(t *testing.T, args args) {
 				var p []string
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, 1, len(p))
 				require.Equal(t, hexutil.Uint64(55).String(), p[0])
 			},
@@ -344,7 +364,8 @@ func TestRewriteRequest(t *testing.T) {
 			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []string
-				json.Unmarshal(args.req.Params, &p)
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
 				require.Equal(t, 1, len(p))
 				require.Equal(t, hexutil.Uint64(100).String(), p[0])
 			},
