@@ -17,7 +17,7 @@ const config: DeployConfig = {
   proxyAdminOwner: foundationMultisig,
 
   l1StartingBlockTag:
-    '0x126e52a0cc0ae18948f567ee9443f4a8f0db67c437706e35baee424eb314a0d0',
+    '0x85e677d1ebe93fa80bce1ebbf1a0aadbab3433eca4a205260dab39e1fc23b428',
   l1ChainID: 1,
   l2ChainID: 10,
   l2BlockTime: 2,
@@ -30,8 +30,8 @@ const config: DeployConfig = {
   batchInboxAddress: '0xff00000000000000000000000000000000000010',
   batchSenderAddress: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
   l2OutputOracleSubmissionInterval: 1800,
-  l2OutputOracleStartingTimestamp: 0, // TBD dynamic config
-  l2OutputOracleStartingBlockNumber: 0, // TBD dynamic config
+  l2OutputOracleStartingTimestamp: 1683043523,
+  l2OutputOracleStartingBlockNumber: 79149121,
   l2OutputOracleProposer: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
   l2OutputOracleChallenger: foundationMultisig,
   finalizationPeriodSeconds: 3600,
