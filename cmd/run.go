@@ -185,7 +185,7 @@ func Run(ctx *cli.Context) error {
 	args := ctx.Args().Slice()
 	for i, arg := range args {
 		if arg == "--" {
-			args = args[i:]
+			args = args[i+1:]
 			break
 		}
 	}
