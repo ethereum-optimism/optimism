@@ -29,12 +29,12 @@ const config: DeployConfig = {
   p2pSequencerAddress: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
   batchInboxAddress: '0xff00000000000000000000000000000000000010',
   batchSenderAddress: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
-  l2OutputOracleSubmissionInterval: 20,
-  l2OutputOracleStartingTimestamp: 1679069195,
-  l2OutputOracleStartingBlockNumber: 79149704,
+  l2OutputOracleSubmissionInterval: 1800,
+  l2OutputOracleStartingTimestamp: 0, // TBD dynamic config
+  l2OutputOracleStartingBlockNumber: 0, // TBD dynamic config
   l2OutputOracleProposer: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
   l2OutputOracleChallenger: foundationMultisig,
-  finalizationPeriodSeconds: 2,
+  finalizationPeriodSeconds: 3600,
 
   baseFeeVaultRecipient: feeRecipient,
   l1FeeVaultRecipient: feeRecipient,
@@ -44,7 +44,7 @@ const config: DeployConfig = {
   governanceTokenSymbol: 'OP',
   governanceTokenOwner: mintManager,
 
-  l2GenesisBlockGasLimit: '0x1c9c380',
+  l2GenesisBlockGasLimit: '0x17D7840',
   l2GenesisBlockCoinbase: '0x4200000000000000000000000000000000000011',
   l2GenesisBlockBaseFeePerGas: '0x3b9aca00',
 
