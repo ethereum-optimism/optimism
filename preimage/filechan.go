@@ -67,14 +67,14 @@ const (
 	PClientWFd = 6
 )
 
-func ClientHinterChannel() FileChannel {
+func ClientHinterChannel() *ReadWritePair {
 	r := os.NewFile(HClientRFd, "preimage-hint-read")
 	w := os.NewFile(HClientWFd, "preimage-hint-write")
 	return NewReadWritePair(r, w)
 }
 
 // ClientPreimageChannel returns a FileChannel for the preimage oracle in a detached context
-func ClientPreimageChannel() FileChannel {
+func ClientPreimageChannel() *ReadWritePair {
 	r := os.NewFile(PClientRFd, "preimage-oracle-read")
 	w := os.NewFile(PClientWFd, "preimage-oracle-write")
 	return NewReadWritePair(r, w)

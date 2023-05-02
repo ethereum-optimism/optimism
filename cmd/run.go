@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -11,6 +13,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	"cannon/mipsevm"
+	"github.com/ethereum-optimism/cannon/preimage"
 )
 
 var (
@@ -71,6 +74,97 @@ type Proof struct {
 	OracleInput hexutil.Bytes `json:"oracle-input"`
 }
 
+type rawHint string
+
+func (rh rawHint) Hint() string {
+	return string(rh)
+}
+
+type rawKey [32]byte
+
+func (rk rawKey) PreimageKey() [32]byte {
+	return rk
+}
+
+type ProcessPreimageOracle struct {
+	pCl *preimage.OracleClient
+	hCl *preimage.HintWriter
+	cmd *exec.Cmd
+}
+
+func NewProcessPreimageOracle(name string, args []string) *ProcessPreimageOracle {
+	if name == "" {
+		return &ProcessPreimageOracle{}
+	}
+
+	pCh := preimage.ClientPreimageChannel()
+	hCh := preimage.ClientHinterChannel()
+
+	cmd := exec.Command(name, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.ExtraFiles = []*os.File{
+		hCh.Reader(),
+		hCh.Writer(),
+		pCh.Reader(),
+		pCh.Writer(),
+	}
+	out := &ProcessPreimageOracle{
+		pCl: preimage.NewOracleClient(pCh),
+		hCl: preimage.NewHintWriter(hCh),
+		cmd: cmd,
+	}
+	return out
+}
+
+func (p *ProcessPreimageOracle) Hint(v []byte) {
+	if p.hCl == nil { // no hint processor
+		return
+	}
+	p.hCl.Hint(rawHint(v))
+}
+
+func (p *ProcessPreimageOracle) GetPreimage(k [32]byte) []byte {
+	if p.pCl == nil {
+		panic("no pre-image retriever available")
+	}
+	return p.pCl.Get(rawKey(k))
+}
+
+func (p *ProcessPreimageOracle) Start() error {
+	if p.cmd == nil {
+		return nil
+	}
+	return p.cmd.Start()
+}
+
+func (p *ProcessPreimageOracle) Close() error {
+	if p.cmd == nil {
+		return nil
+	}
+	_ = p.cmd.Process.Signal(os.Interrupt)
+	p.cmd.WaitDelay = time.Second * 10
+	return p.cmd.Wait()
+}
+
+type StepFn func(proof bool) (*mipsevm.StepWitness, error)
+
+func Guard(proc *os.ProcessState, fn StepFn) StepFn {
+	return func(proof bool) (*mipsevm.StepWitness, error) {
+		wit, err := fn(proof)
+		if err != nil {
+			if proc.Exited() {
+				return nil, fmt.Errorf("pre-image server exited with code %d, resulting in err %v", proc.ExitCode(), err)
+			} else {
+				return nil, err
+			}
+		}
+		return wit, nil
+	}
+}
+
+var _ mipsevm.PreimageOracle = (*ProcessPreimageOracle)(nil)
+
 func Run(ctx *cli.Context) error {
 	state, err := loadJSON[mipsevm.State](ctx.Path(RunInputFlag.Name))
 	if err != nil {
@@ -87,7 +181,24 @@ func Run(ctx *cli.Context) error {
 	outLog := &mipsevm.LoggingWriter{Name: "program std-out", Log: l}
 	errLog := &mipsevm.LoggingWriter{Name: "program std-err", Log: l}
 
-	var po mipsevm.PreimageOracle // TODO need to set this up
+	// split CLI args after first '--'
+	args := ctx.Args().Slice()
+	for i, arg := range args {
+		if arg == "--" {
+			args = args[i:]
+			break
+		}
+	}
+
+	po := NewProcessPreimageOracle(args[0], args[1:])
+	if err := po.Start(); err != nil {
+		return fmt.Errorf("failed to start pre-image oracle server: %w", err)
+	}
+	defer func() {
+		if err := po.Close(); err != nil {
+			l.Error("failed to close pre-image server", "err", err)
+		}
+	}()
 
 	stopAt := ctx.Generic(RunStopAtFlag.Name).(*StepMatcherFlag).Matcher()
 	proofAt := ctx.Generic(RunProofAtFlag.Name).(*StepMatcherFlag).Matcher()
@@ -100,8 +211,20 @@ func Run(ctx *cli.Context) error {
 	proofFmt := ctx.String(RunProofFmtFlag.Name)
 	snapshotFmt := ctx.String(RunSnapshotFmtFlag.Name)
 
+	step := us.Step
+	if po.cmd != nil {
+		step = Guard(po.cmd.ProcessState, step)
+	}
+
 	for !state.Exited {
 		step := state.Step
+
+		//if infoAt(state) {
+		//	s := lookupSymbol(state.PC)
+		//	var sy elf.Symbol
+		//	l.Info("", "insn", state.Memory.GetMemory(state.PC), "pc", state.PC, "symbol", sy.Name)
+		//	// print name
+		//}
 
 		if stopAt(state) {
 			break
@@ -115,7 +238,10 @@ func Run(ctx *cli.Context) error {
 
 		if proofAt(state) {
 			preStateHash := crypto.Keccak256Hash(state.EncodeWitness())
-			witness := us.Step(true)
+			witness, err := us.Step(true)
+			if err != nil {
+				return fmt.Errorf("failed at proof-gen step %d (PC: %08x): %w", step, state.PC, err)
+			}
 			postStateHash := crypto.Keccak256Hash(state.EncodeWitness())
 			proof := &Proof{
 				Step:      step,
@@ -133,7 +259,10 @@ func Run(ctx *cli.Context) error {
 				return fmt.Errorf("failed to write proof data: %w", err)
 			}
 		} else {
-			_ = us.Step(false)
+			_, err = us.Step(false)
+			if err != nil {
+				return fmt.Errorf("failed at step %d (PC: %08x): %w", step, state.PC, err)
+			}
 		}
 	}
 

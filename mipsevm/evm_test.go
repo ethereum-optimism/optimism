@@ -84,7 +84,8 @@ func TestEVM(t *testing.T) {
 				insn := state.Memory.GetMemory(state.PC)
 				t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
 
-				stepWitness := us.Step(true)
+				stepWitness, err := us.Step(true)
+				require.NoError(t, err)
 				input := stepWitness.EncodeStepInput()
 				startingGas := uint64(30_000_000)
 
@@ -155,7 +156,8 @@ func TestHelloEVM(t *testing.T) {
 			t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
 		}
 
-		stepWitness := us.Step(true)
+		stepWitness, err := us.Step(true)
+		require.NoError(t, err)
 		input := stepWitness.EncodeStepInput()
 		startingGas := uint64(30_000_000)
 
@@ -230,7 +232,8 @@ func TestClaimEVM(t *testing.T) {
 			t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
 		}
 
-		stepWitness := us.Step(true)
+		stepWitness, err := us.Step(true)
+		require.NoError(t, err)
 		input := stepWitness.EncodeStepInput()
 		startingGas := uint64(30_000_000)
 

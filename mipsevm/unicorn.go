@@ -299,7 +299,17 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 	return m, nil
 }
 
-func (m *UnicornState) Step(proof bool) (wit *StepWitness) {
+func (m *UnicornState) Step(proof bool) (wit *StepWitness, err error) {
+	defer func() { // pre-image oracle or emulator hooks might panic
+		if a := recover(); a != nil {
+			if ae, ok := a.(error); ok {
+				err = ae
+			} else {
+				err = fmt.Errorf("panic: %v", a)
+			}
+		}
+	}()
+
 	m.memProofEnabled = proof
 	m.lastMemAccess = ^uint32(0)
 	m.lastPreimageOffset = ^uint32(0)
@@ -352,12 +362,12 @@ func (m *UnicornState) Step(proof bool) (wit *StepWitness) {
 
 	// Execute only a single instruction.
 	// The memory and syscall hooks will update the state with any of the dynamic changes.
-	err := m.mu.StartWithOptions(uint64(m.state.PC), uint64(m.state.NextPC), &uc.UcOptions{
+	err = m.mu.StartWithOptions(uint64(m.state.PC), uint64(m.state.NextPC), &uc.UcOptions{
 		Timeout: 0, // 0 to disable, value is in ms.
 		Count:   1,
 	})
 	if err != nil {
-		panic("failed to run unicorn")
+		return nil, err
 	}
 
 	if proof {
@@ -377,7 +387,7 @@ func (m *UnicornState) Step(proof bool) (wit *StepWitness) {
 	// 1) match the registers post-state
 	batch, err := m.mu.RegReadBatch(regBatchKeys)
 	if err != nil {
-		panic(fmt.Errorf("failed to read register batch: %w", err))
+		return nil, fmt.Errorf("failed to read register batch: %w", err)
 	}
 	for i := 0; i < 32; i++ {
 		m.state.Registers[i] = uint32(batch[i])
@@ -393,7 +403,7 @@ func (m *UnicornState) Step(proof bool) (wit *StepWitness) {
 		m.state.PC = oldNextPC
 		err = m.mu.RegWrite(uc.MIPS_REG_PC, uint64(oldNextPC))
 		if err != nil {
-			panic("failed to write PC register")
+			return nil, fmt.Errorf("failed to write PC register: %w", err)
 		}
 
 		m.state.NextPC = newNextPC
