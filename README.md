@@ -4,23 +4,21 @@
   <br />
   <a href="https://optimism.io"><img alt="Optimism" src="https://raw.githubusercontent.com/ethereum-optimism/brand-kit/main/assets/svg/OPTIMISM-R.svg" width=600></a>
   <br />
-  <h3><a href="https://optimism.io">Optimism</a> is a low-cost and lightning-fast Ethereum L2 blockchain.</h3>
+  <h3><a href="https://optimism.io">Optimism</a> is Ethereum, scaled.</h3>
   <br />
 </div>
 
 ## What is Optimism?
 
-Optimism is a low-cost and lightning-fast Ethereum L2 blockchain, **but it's also so much more than that**.
+[Optimism](https://www.optimism.io/) is a project dedicated to scaling Ethereum's technology and expanding its ability to coordinate people from across the world to build effective decentralized economies and governance systems. The [Optimism Collective](https://app.optimism.io/announcement) builds open-source software for running L2 blockchains and aims to address key governance and economic challenges in the wider cryptocurrency ecosystem. Optimism operates on the principle of **impact=profit**, the idea that individuals who positively impact the Collective should be proportionally rewarded with profit. **Change the incentives and you change the world.**
 
-Optimism is the technical foundation for [the Optimism Collective](https://app.optimism.io/announcement), a band of communities, companies, and citizens united by a mutually beneficial pact to adhere to the axiom of **impact=profit** — the principle that positive impact to the collective should be rewarded with profit to the individual.
-We're trying to solve some of the most critical coordination failures facing the crypto ecosystem today.
-**We're particularly focused on creating a sustainable funding stream for the public goods and infrastructure upon which the ecosystem so heavily relies but has so far been unable to adequately reward.**
-We'd love for you to check out [The Optimistic Vision](https://www.optimism.io/vision) to understand more about why we do what we do.
+In this repository, you'll find numerous core components of the OP Stack, the decentralized software stack maintained by the Optimism Collective that powers Optimism and forms the backbone of blockchains like [OP Mainnet](https://explorer.optimism.io/) and [Base](https://www.coinbase.com/blog/introducing-base). Designed to be "aggressively open source," the OP Stack encourages you to explore, modify, extend, and test the code as needed. Although not all elements of the OP Stack are contained here, many of its essential components can be found within this repository. By collaborating on free, open software and shared standards, the Optimism Collective aims to prevent siloed software development and rapidly accelerate the development of the Ethereum ecosystem. Come contribute, build the future, and redefine power, together.
 
 ## Documentation
 
-If you want to build on top of Optimism, take a look at the extensive documentation on the [Optimism Community Hub](http://community.optimism.io/).
-If you want to build Optimism, check out the [Protocol Specs](./specs/).
+- If you want to build on top of OP Mainnet, refer to the [Optimism Community Hub](https://community.optimism.io)
+- If you want to build your own OP Stack based blockchain, refer to the [OP Stack docs](https://stack.optimism.io)
+- If you want to contribute to the OP Stack, check out the [Protocol Specs](./specs)
 
 ## Community
 
@@ -29,20 +27,19 @@ Governance discussion can also be found on the [Optimism Governance Forum](https
 
 ## Contributing
 
-Read through [CONTRIBUTING.md](./CONTRIBUTING.md) for a general overview of our contribution process.
+Read through [CONTRIBUTING.md](./CONTRIBUTING.md) for a general overview of the contributing process for this repository.
 Use the [Developer Quick Start](./CONTRIBUTING.md#development-quick-start) to get your development environment set up to start working on the Optimism Monorepo.
-Then check out our list of [good first issues](https://github.com/ethereum-optimism/optimism/contribute) to find something fun to work on!
+Then check out the list of [Good First Issues](https://github.com/ethereum-optimism/optimism/contribute) to find something fun to work on!
 
 ## Security Policy and Vulnerability Reporting
 
-Please refer to our canonical [Security Policy](https://github.com/ethereum-optimism/.github/blob/master/SECURITY.md) document for detailed information about how to report vulnerabilities in this codebase.
-Bounty hunters are encouraged to check out [our Immunefi bug bounty program](https://immunefi.com/bounty/optimism/).
-We offer up to $2,000,042 for in-scope critical vulnerabilities and [we pay our maximum bug bounty rewards](https://medium.com/ethereum-optimism/disclosure-fixing-a-critical-bug-in-optimisms-geth-fork-a836ebdf7c94).
+Please refer to the canonical [Security Policy](https://github.com/ethereum-optimism/.github/blob/master/SECURITY.md) document for detailed information about how to report vulnerabilities in this codebase.
+Bounty hunters are encouraged to check out [the Optimism Immunefi bug bounty program](https://immunefi.com/bounty/optimism/).
+The Optimism Immunefi program offers up to $2,000,042 for in-scope critical vulnerabilities.
 
 ## The Bedrock Upgrade
 
-Optimism is currently preparing for [its next major upgrade called Bedrock](https://dev.optimism.io/introducing-optimism-bedrock/).
-Bedrock significantly revamps how Optimism works under the hood and will help make Optimism the fastest, cheapest, and most reliable rollup yet.
+OP Mainnet is currently preparing for [its next major upgrade, Bedrock](https://dev.optimism.io/introducing-optimism-bedrock/).
 You can find detailed specifications for the Bedrock upgrade within the [specs folder](./specs) in this repository.
 
 Please note that a significant number of packages and folders within this repository are part of the Bedrock upgrade and are NOT currently running in production.
@@ -69,7 +66,7 @@ Refer to the Directory Structure section below to understand which packages are 
 ├── <a href="./indexer">indexer</a>: indexes and syncs transactions
 ├── <a href="./infra/op-replica">infra/op-replica</a>: Deployment examples and resources for running an Optimism replica
 ├── <a href="./integration-tests">integration-tests</a>: Various integration tests for the Optimism network
-├── <a href="./l2geth">l2geth</a>: Optimism client software, a fork of <a href="https://github.com/ethereum/go-ethereum/tree/v1.9.10">geth v1.9.10</a>  (deprecated for BEDROCK upgrade)
+├── <a href="./l2geth">l2geth</a>: Optimism client software, a fork of <a href="https://github.com/ethereum/go-ethereum/tree/v1.9.10">geth v1.9.10</a>
 ├── <a href="./l2geth-exporter">l2geth-exporter</a>: A prometheus exporter to collect/serve metrics from an L2 geth node
 ├── <a href="./op-exporter">op-exporter</a>: A prometheus exporter to collect/serve metrics from an Optimism node
 ├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
@@ -93,27 +90,25 @@ Refer to the Directory Structure section below to understand which packages are 
 
 | Branch          | Status                                                                           |
 | --------------- | -------------------------------------------------------------------------------- |
-| [master](https://github.com/ethereum-optimism/optimism/tree/master/)                   | Accepts PRs from `develop` when we intend to deploy to mainnet.                                      |
+| [master](https://github.com/ethereum-optimism/optimism/tree/master/)                   | Accepts PRs from `develop` when intending to deploy to production.                  |
 | [develop](https://github.com/ethereum-optimism/optimism/tree/develop/)                 | Accepts PRs that are compatible with `master` OR from `release/X.X.X` branches.                    |
 | release/X.X.X                                                                          | Accepts PRs for all changes, particularly those not backwards compatible with `develop` and `master`. |
 
 ### Overview
 
-We generally follow [this Git branching model](https://nvie.com/posts/a-successful-git-branching-model/).
-Please read the linked post if you're planning to make frequent PRs into this repository (e.g., people working at/with Optimism).
+This repository generally follows [this Git branching model](https://nvie.com/posts/a-successful-git-branching-model/).
+Please read the linked post if you're planning to make frequent PRs into this repository.
 
 ### Production branch
 
-Our production branch is `master`.
-The `master` branch contains the code for our latest "stable" releases.
+The production branch is `master`.
+The `master` branch contains the code for latest "stable" releases.
 Updates from `master` **always** come from the `develop` branch.
-We only ever update the `master` branch when we intend to deploy code within the `develop` to the Optimism mainnet.
-Our update process takes the form of a PR merging the `develop` branch into the `master` branch.
 
 ### Development branch
 
-Our primary development branch is [`develop`](https://github.com/ethereum-optimism/optimism/tree/develop/).
-`develop` contains the most up-to-date software that remains backwards compatible with our latest experimental [network deployments](https://community.optimism.io/docs/useful-tools/networks/).
+The primary development branch is [`develop`](https://github.com/ethereum-optimism/optimism/tree/develop/).
+`develop` contains the most up-to-date software that remains backwards compatible with the latest experimental [network deployments](https://community.optimism.io/docs/useful-tools/networks/).
 If you're making a backwards compatible change, please direct your pull request towards `develop`.
 
 **Changes to contracts within `packages/contracts/contracts` are usually NOT considered backwards compatible and SHOULD be made against a release candidate branch**.
