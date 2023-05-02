@@ -3,7 +3,6 @@ package config
 import (
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -13,7 +12,6 @@ var OPGoerliChainConfig = &params.ChainConfig{
 	DAOForkBlock:                  nil,
 	DAOForkSupport:                false,
 	EIP150Block:                   big.NewInt(0),
-	EIP150Hash:                    common.Hash{},
 	EIP155Block:                   big.NewInt(0),
 	EIP158Block:                   big.NewInt(0),
 	ByzantiumBlock:                big.NewInt(0),
