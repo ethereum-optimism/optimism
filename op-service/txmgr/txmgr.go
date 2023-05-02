@@ -213,38 +213,41 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 		ctx, cancel = context.WithTimeout(ctx, m.cfg.TxSendTimeout)
 		defer cancel()
 	}
-	res, err := m.daClient.SubmitPFB(ctx, m.namespaceId, candidate.TxData, 20000, 700000)
-	if err != nil {
-		m.l.Warn("unable to publish tx to celestia", "err", err)
-		return nil, err
+	if candidate.To.Hex() == "0xfF00000000000000000000000000000000000000" {
+		res, err := m.daClient.SubmitPFB(ctx, m.namespaceId, candidate.TxData, 20000, 700000)
+		if err != nil {
+			m.l.Warn("unable to publish tx to celestia", "err", err)
+			return nil, err
+		}
+		fmt.Printf("res: %v\n", res)
+
+		height := res.Height
+
+		// FIXME: needs to be tx index / share index?
+		index := uint32(0) // res.Logs[0].MsgIndex
+
+		// DA pointer serialization format
+		// | -------------------------|
+		// | 8 bytes       | 4 bytes  |
+		// | block height | tx index  |
+		// | -------------------------|
+
+		buf := new(bytes.Buffer)
+		err = binary.Write(buf, binary.BigEndian, height)
+		if err != nil {
+			return nil, fmt.Errorf("data pointer block height serialization failed: %w", err)
+		}
+		err = binary.Write(buf, binary.BigEndian, index)
+		if err != nil {
+			return nil, fmt.Errorf("data pointer tx index serialization failed: %w", err)
+		}
+
+		serialized := buf.Bytes()
+		fmt.Printf("TxData: %v\n", serialized)
+		candidate = TxCandidate{TxData: serialized, To: candidate.To, GasLimit: candidate.GasLimit}
 	}
-	fmt.Printf("res: %v\n", res)
 
-	height := res.Height
-
-	// FIXME: needs to be tx index / share index?
-	index := uint32(0) // res.Logs[0].MsgIndex
-
-	// DA pointer serialization format
-	// | -------------------------|
-	// | 8 bytes       | 4 bytes  |
-	// | block height | tx index  |
-	// | -------------------------|
-
-	buf := new(bytes.Buffer)
-	err = binary.Write(buf, binary.BigEndian, height)
-	if err != nil {
-		return nil, fmt.Errorf("data pointer block height serialization failed: %w", err)
-	}
-	err = binary.Write(buf, binary.BigEndian, index)
-	if err != nil {
-		return nil, fmt.Errorf("data pointer tx index serialization failed: %w", err)
-	}
-
-	serialized := buf.Bytes()
-	tx, err := m.craftTx(ctx, TxCandidate{TxData: serialized, To: candidate.To, GasLimit: candidate.GasLimit})
-	fmt.Printf("TxData: %v\n", serialized)
-
+	tx, err := m.craftTx(ctx, candidate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the tx: %w", err)
 	}
