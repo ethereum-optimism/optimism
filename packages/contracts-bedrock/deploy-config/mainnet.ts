@@ -22,6 +22,4 @@ import mainnetJson from './mainnet.json'
 //
 // The following role is assigned to the Mint Manager contract:
 // - governanceTokenOwner
-const config: DeployConfig = mainnetJson
-
-export default config
+export const config: DeployConfig = mainnetJson
