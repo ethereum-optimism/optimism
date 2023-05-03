@@ -554,8 +554,13 @@ func TestConsensus(t *testing.T) {
 
 		resRaw, statusCode, err := client.SendRPC("eth_getBlockByNumber", []interface{}{"0x10"})
 		require.NoError(t, err)
-		require.Equal(t, 200, statusCode)
-		RequireEqualJSON(t, []byte("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"block is out of range\"},\"id\":999}\n"), resRaw)
+		require.Equal(t, 400, statusCode)
+
+		var jsonMap map[string]interface{}
+		err = json.Unmarshal(resRaw, &jsonMap)
+		require.NoError(t, err)
+		require.Equal(t, -32019, int(jsonMap["error"].(map[string]interface{})["code"].(float64)))
+		require.Equal(t, "block is out of range", jsonMap["error"].(map[string]interface{})["message"])
 	})
 }
 

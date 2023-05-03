@@ -64,7 +64,7 @@ func TestRewriteRequest(t *testing.T) {
 				res:  nil,
 			},
 			expected:    RewriteOverrideError,
-			expectedErr: ErrBlockOutOfRange,
+			expectedErr: ErrRewriteBlockOutOfRange,
 		},
 		{
 			name: "eth_getLogs toBlock latest",
@@ -104,7 +104,7 @@ func TestRewriteRequest(t *testing.T) {
 				res:  nil,
 			},
 			expected:    RewriteOverrideError,
-			expectedErr: ErrBlockOutOfRange,
+			expectedErr: ErrRewriteBlockOutOfRange,
 		},
 		{
 			name: "eth_getLogs fromBlock, toBlock latest",
@@ -146,7 +146,7 @@ func TestRewriteRequest(t *testing.T) {
 				res:  nil,
 			},
 			expected:    RewriteOverrideError,
-			expectedErr: ErrBlockOutOfRange,
+			expectedErr: ErrRewriteBlockOutOfRange,
 		},
 		/* default block parameter */
 		{
@@ -208,7 +208,7 @@ func TestRewriteRequest(t *testing.T) {
 				res:  nil,
 			},
 			expected:    RewriteOverrideError,
-			expectedErr: ErrBlockOutOfRange,
+			expectedErr: ErrRewriteBlockOutOfRange,
 		},
 		/* default block parameter, at position 2 */
 		{
@@ -273,7 +273,7 @@ func TestRewriteRequest(t *testing.T) {
 				res:  nil,
 			},
 			expected:    RewriteOverrideError,
-			expectedErr: ErrBlockOutOfRange,
+			expectedErr: ErrRewriteBlockOutOfRange,
 		},
 		/* default block parameter, at position 0 */
 		{
@@ -332,7 +332,7 @@ func TestRewriteRequest(t *testing.T) {
 				res:  nil,
 			},
 			expected:    RewriteOverrideError,
-			expectedErr: ErrBlockOutOfRange,
+			expectedErr: ErrRewriteBlockOutOfRange,
 		},
 	}
 

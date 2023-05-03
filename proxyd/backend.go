@@ -90,6 +90,11 @@ var (
 		Message:       "backend is currently not healthy to serve traffic",
 		HTTPErrorCode: 503,
 	}
+	ErrBlockOutOfRange = &RPCErr{
+		Code:          JSONRPCErrorInternal - 19,
+		Message:       "block is out of range",
+		HTTPErrorCode: 400,
+	}
 
 	ErrBackendUnexpectedJSONRPC = errors.New("backend returned an unexpected JSON-RPC response")
 )
@@ -212,6 +217,12 @@ func WithMaxErrorRateThreshold(maxErrorRateThreshold float64) BackendOpt {
 	return func(b *Backend) {
 		b.maxErrorRateThreshold = maxErrorRateThreshold
 	}
+}
+
+type indexedReqRes struct {
+	index int
+	req   *RPCReq
+	res   *RPCRes
 }
 
 func NewBackend(
@@ -593,12 +604,6 @@ func (b *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch b
 
 	backends := b.Backends
 
-	type indexedReqRes struct {
-		index int
-		req   *RPCReq
-		res   *RPCRes
-	}
-
 	overriddenResponses := make([]*indexedReqRes, 0)
 	rewrittenReqs := make([]*RPCReq, 0, len(rpcReqs))
 
@@ -615,7 +620,16 @@ func (b *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch b
 			result, err := RewriteTags(rctx, req, &res)
 			switch result {
 			case RewriteOverrideError:
-				return nil, err
+				overriddenResponses = append(overriddenResponses, &indexedReqRes{
+					index: i,
+					req:   req,
+					res:   &res,
+				})
+				if errors.Is(err, ErrRewriteBlockOutOfRange) {
+					res.Error = ErrBlockOutOfRange
+				} else {
+					res.Error = ErrParseErr
+				}
 			case RewriteOverrideResponse:
 				overriddenResponses = append(overriddenResponses, &indexedReqRes{
 					index: i,
@@ -673,8 +687,8 @@ func (b *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch b
 		// re-apply overridden responses
 		for _, ov := range overriddenResponses {
 			if len(res) > 0 {
-				res = append(res[:ov.index+1], res[ov.index:]...)
-				res[ov.index] = ov.res
+				// insert ov.res at position ov.index
+				res = append(res[:ov.index], append([]*RPCRes{ov.res}, res[ov.index:]...)...)
 			} else {
 				res = append(res, ov.res)
 			}

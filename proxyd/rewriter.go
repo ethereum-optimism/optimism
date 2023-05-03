@@ -29,7 +29,7 @@ const (
 )
 
 var (
-	ErrBlockOutOfRange = errors.New("block is out of range")
+	ErrRewriteBlockOutOfRange = errors.New("block is out of range")
 )
 
 // RewriteTags modifies the request and the response based on block tags
@@ -113,21 +113,18 @@ func rewriteRange(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (Rewri
 		return RewriteOverrideError, err
 	}
 
-	rw := false
-
-	r, err := rewriteTagMap(rctx, p[pos], "fromBlock")
+	modifiedFrom, err := rewriteTagMap(rctx, p[pos], "fromBlock")
 	if err != nil {
 		return RewriteOverrideError, err
 	}
-	rw = r || rw
 
-	r, err = rewriteTagMap(rctx, p[pos], "toBlock")
+	modifiedTo, err := rewriteTagMap(rctx, p[pos], "toBlock")
 	if err != nil {
 		return RewriteOverrideError, err
 	}
-	rw = r || rw
 
-	if rw {
+	// if any of the fields the request have been changed, re-marshal the params
+	if modifiedFrom || modifiedTo {
 		paramsRaw, err := json.Marshal(p)
 		req.Params = paramsRaw
 		if err != nil {
@@ -171,7 +168,7 @@ func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
 		}
 		b := hexutil.Uint64(decode)
 		if b > rctx.latest {
-			return "", false, ErrBlockOutOfRange
+			return "", false, ErrRewriteBlockOutOfRange
 		}
 	}
 	return current, false, nil
