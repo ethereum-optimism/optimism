@@ -60,7 +60,7 @@ contract AdminFAM is FaucetAuthModule, Semver, EIP712Upgradeable {
     address public immutable ADMIN;
 
     /**
-     * @notice EIP712 typehash for the ClaimableInvite type.
+     * @notice EIP712 typehash for the Proof type.
      */
     bytes32 public constant PROOF_TYPEHASH =
         keccak256("Proof(address recipient,bytes32 nonce,bytes id)");
@@ -80,7 +80,7 @@ contract AdminFAM is FaucetAuthModule, Semver, EIP712Upgradeable {
 
 
     /**
-     * @param admin     Admin address that can sign off on drips.
+     * @param admin Admin address that can sign off on drips.
      */
     constructor(
         address admin

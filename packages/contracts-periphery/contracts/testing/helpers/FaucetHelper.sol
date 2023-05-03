@@ -9,7 +9,7 @@ import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
  */
 contract FaucetHelper {
     /**
-     * @notice EIP712 typehash for the ClaimableInvite type.
+     * @notice EIP712 typehash for the Proof type.
      */
     bytes32 public constant PROOF_TYPEHASH =
         keccak256("Proof(address recipient,bytes32 nonce,bytes id)");
@@ -23,7 +23,7 @@ contract FaucetHelper {
         );
 
     /**
-     * @notice Keeps track of current nonce to generate new nonces for each invite.
+     * @notice Keeps track of current nonce to generate new nonces for each drip.
      */
     uint256 public currentNonce;
 
@@ -38,9 +38,9 @@ contract FaucetHelper {
     }
 
     /**
-     * @notice Returns the hash of the struct ClaimableInvite.
+     * @notice Returns the hash of the struct Proof.
      *
-     * @param _proof ClaimableInvite struct to hash.
+     * @param _proof Proof struct to hash.
      *
      * @return EIP-712 typed struct hash.
      */
@@ -64,7 +64,7 @@ contract FaucetHelper {
      * @notice Computes the EIP712 digest with the given domain parameters.
      *         Used for testing that different domain parameters fail.
      *
-     * @param _proof   ClaimableInvite struct to hash.
+     * @param _proof             Proof struct to hash.
      * @param _name              Contract name to use in the EIP712 domain.
      * @param _version           Contract version to use in the EIP712 domain.
      * @param _chainid           Chain ID to use in the EIP712 domain.

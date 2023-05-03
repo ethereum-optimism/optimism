@@ -1,7 +1,6 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-/* Testing utilities */
 import { Test } from "forge-std/Test.sol";
 import { AdminFAM, Faucet } from "../universal/faucet/Faucet.sol";
 import { FaucetHelper } from "../testing/helpers/FaucetHelper.sol";
