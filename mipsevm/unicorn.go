@@ -251,7 +251,7 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 		// TODO: Unmapped memory access can occur when loading from a snapshot that spans unused pages
 		// This callback should return false though to handle invalid memory accesses early
 		if err := mu.MemMap(addr&^4095, 4096); err != nil {
-			fmt.Printf("failed to mmap addr (%x). reason: %v", addr, err)
+			fmt.Printf("failed to mmap addr (%x). reason: %v\n", addr, err)
 		}
 		return true
 	}, 0, ^uint64(0))
