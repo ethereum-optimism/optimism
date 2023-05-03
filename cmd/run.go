@@ -68,6 +68,12 @@ var (
 		Value:    "meta.json",
 		Required: false,
 	}
+	RunInfoAtFlag = &cli.GenericFlag{
+		Name:     "info-at",
+		Usage:    "step pattern to print info at: " + patternHelp,
+		Value:    MustStepMatcherFlag("%1000"),
+		Required: false,
+	}
 )
 
 type Proof struct {
@@ -212,6 +218,7 @@ func Run(ctx *cli.Context) error {
 	stopAt := ctx.Generic(RunStopAtFlag.Name).(*StepMatcherFlag).Matcher()
 	proofAt := ctx.Generic(RunProofAtFlag.Name).(*StepMatcherFlag).Matcher()
 	snapshotAt := ctx.Generic(RunSnapshotAtFlag.Name).(*StepMatcherFlag).Matcher()
+	infoAt := ctx.Generic(RunInfoAtFlag.Name).(*StepMatcherFlag).Matcher()
 
 	var meta *mipsevm.Metadata
 	if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
@@ -241,22 +248,17 @@ func Run(ctx *cli.Context) error {
 	for !state.Exited {
 		step := state.Step
 
-		//if infoAt(state) {
-		//	s := lookupSymbol(state.PC)
-		//	var sy elf.Symbol
-		//	l.Info("", "insn", state.Memory.GetMemory(state.PC), "pc", state.PC, "symbol", sy.Name)
-		//	// print name
-		//}
-		if meta.LookupSymbol(state.PC) == "runtime.notesleep" {
-			return fmt.Errorf("got stuck in Go sleep at step %d", step)
-		}
-		if step%100 == 0 || step > 14_478_400 {
+		name := meta.LookupSymbol(state.PC)
+		if infoAt(state) {
 			l.Info("processing",
 				"step", step,
 				"pc", mipsevm.HexU32(state.PC),
 				"insn", mipsevm.HexU32(state.Memory.GetMemory(state.PC)),
-				"name", meta.LookupSymbol(state.PC),
+				"name", name,
 			)
+		}
+		if name == "runtime.notesleep" { // don't loop forever when we get stuck because of an unexpected bad program
+			return fmt.Errorf("got stuck in Go sleep at step %d", step)
 		}
 
 		if stopAt(state) {
@@ -319,5 +321,6 @@ var RunCommand = &cli.Command{
 		RunSnapshotFmtFlag,
 		RunStopAtFlag,
 		RunMetaFlag,
+		RunInfoAtFlag,
 	},
 }

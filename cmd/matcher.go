@@ -15,6 +15,14 @@ type StepMatcherFlag struct {
 	matcher StepMatcher
 }
 
+func MustStepMatcherFlag(pattern string) *StepMatcherFlag {
+	out := new(StepMatcherFlag)
+	if err := out.Set(pattern); err != nil {
+		panic(err)
+	}
+	return out
+}
+
 func (m *StepMatcherFlag) Set(value string) error {
 	m.repr = value
 	if value == "" || value == "never" {
