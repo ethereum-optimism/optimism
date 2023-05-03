@@ -55,6 +55,15 @@ const (
 	MipsEINVAL = 0x16
 )
 
+func NewNonUnicornState(state *State, po PreimageOracle, stdOut, stdErr io.Writer) *UnicornState {
+	return &UnicornState{
+		state:          state,
+		stdOut:         stdOut,
+		stdErr:         stdErr,
+		preimageOracle: po,
+	}
+}
+
 func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, stdErr io.Writer) (*UnicornState, error) {
 	m := &UnicornState{
 		mu:             mu,
@@ -297,6 +306,34 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 	}
 
 	return m, nil
+}
+
+func (m *UnicornState) NonUnicornStep(proof bool) (wit *StepWitness, err error) {
+	m.memProofEnabled = proof
+	m.lastMemAccess = ^uint32(0)
+	m.lastPreimageOffset = ^uint32(0)
+
+	if proof {
+		insnProof := m.state.Memory.MerkleProof(m.state.PC)
+		wit = &StepWitness{
+			state:    m.state.EncodeWitness(),
+			memProof: insnProof[:],
+		}
+	}
+	err = m.mipsStep()
+	if err != nil {
+		return nil, err
+	}
+
+	if proof {
+		wit.memProof = append(wit.memProof, m.memProof[:]...)
+		if m.lastPreimageOffset != ^uint32(0) {
+			wit.preimageOffset = m.lastPreimageOffset
+			wit.preimageKey = m.lastPreimageKey
+			wit.preimageValue = m.lastPreimage
+		}
+	}
+	return
 }
 
 func (m *UnicornState) Step(proof bool) (wit *StepWitness, err error) {

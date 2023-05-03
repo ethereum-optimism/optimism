@@ -170,13 +170,13 @@ func Run(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	mu, err := mipsevm.NewUnicorn()
-	if err != nil {
-		return fmt.Errorf("failed to create unicorn emulator: %w", err)
-	}
-	if err := mipsevm.LoadUnicorn(state, mu); err != nil {
-		return fmt.Errorf("failed to load state into unicorn emulator: %w", err)
-	}
+	//mu, err := mipsevm.NewUnicorn()
+	//if err != nil {
+	//	return fmt.Errorf("failed to create unicorn emulator: %w", err)
+	//}
+	//if err := mipsevm.LoadUnicorn(state, mu); err != nil {
+	//	return fmt.Errorf("failed to load state into unicorn emulator: %w", err)
+	//}
 	l := Logger(os.Stderr, log.LvlInfo)
 	outLog := &mipsevm.LoggingWriter{Name: "program std-out", Log: l}
 	errLog := &mipsevm.LoggingWriter{Name: "program std-err", Log: l}
@@ -207,14 +207,15 @@ func Run(ctx *cli.Context) error {
 	proofAt := ctx.Generic(RunProofAtFlag.Name).(*StepMatcherFlag).Matcher()
 	snapshotAt := ctx.Generic(RunSnapshotAtFlag.Name).(*StepMatcherFlag).Matcher()
 
-	us, err := mipsevm.NewUnicornState(mu, state, po, outLog, errLog)
-	if err != nil {
-		return fmt.Errorf("failed to setup instrumented VM state: %w", err)
-	}
+	//us, err := mipsevm.NewUnicornState(mu, state, po, outLog, errLog)
+	//if err != nil {
+	//	return fmt.Errorf("failed to setup instrumented VM state: %w", err)
+	//}
+	us := mipsevm.NewNonUnicornState(state, po, outLog, errLog)
 	proofFmt := ctx.String(RunProofFmtFlag.Name)
 	snapshotFmt := ctx.String(RunSnapshotFmtFlag.Name)
 
-	stepFn := us.Step
+	stepFn := us.NonUnicornStep
 	if po.cmd != nil {
 		stepFn = Guard(po.cmd.ProcessState, stepFn)
 	}
@@ -262,7 +263,7 @@ func Run(ctx *cli.Context) error {
 				return fmt.Errorf("failed to write proof data: %w", err)
 			}
 		} else {
-			_, err = us.Step(false)
+			_, err = stepFn(false)
 			if err != nil {
 				return fmt.Errorf("failed at step %d (PC: %08x): %w", step, state.PC, err)
 			}

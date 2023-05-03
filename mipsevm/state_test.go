@@ -74,7 +74,7 @@ func TestState(t *testing.T) {
 				if us.state.PC == endAddr {
 					break
 				}
-				_, err := us.Step(false)
+				_, err := us.NonUnicornStep(false)
 				require.NoError(t, err)
 			}
 			require.Equal(t, uint32(endAddr), us.state.PC, "must reach end")
@@ -110,7 +110,7 @@ func TestHello(t *testing.T) {
 		if us.state.Exited {
 			break
 		}
-		_, err := us.Step(false)
+		_, err := us.NonUnicornStep(false)
 		require.NoError(t, err)
 	}
 
@@ -217,7 +217,7 @@ func TestClaim(t *testing.T) {
 		if us.state.Exited {
 			break
 		}
-		_, err := us.Step(false)
+		_, err := us.NonUnicornStep(false)
 		require.NoError(t, err)
 	}
 
