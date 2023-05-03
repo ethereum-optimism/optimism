@@ -28,6 +28,19 @@ const (
 	RewriteOverrideResponse
 )
 
+var (
+	ErrBlockOutOfRange = errors.New("block is out of range")
+)
+
+// RewriteTags modifies the request and the response based on block tags
+func RewriteTags(rctx RewriteContext, req *RPCReq, res *RPCRes) (RewriteResult, error) {
+	rw, err := RewriteResponse(rctx, req, res)
+	if rw == RewriteOverrideResponse {
+		return rw, err
+	}
+	return RewriteRequest(rctx, req, res)
+}
+
 // RewriteResponse modifies the response object to comply with the rewrite context
 // after the method has been called at the backend
 // RewriteResult informs the decision of the rewrite
@@ -93,29 +106,6 @@ func rewriteParam(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (Rewri
 	return RewriteNone, nil
 }
 
-func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
-	param := current
-	rw := false
-
-	if param == "latest" {
-		param = rctx.latest.String()
-		rw = true
-	}
-
-	if strings.HasPrefix(param, "0x") {
-		decode, err := hexutil.DecodeUint64(param)
-		if err != nil {
-			return "", false, err
-		}
-		b := hexutil.Uint64(decode)
-		if b > rctx.latest {
-			param = rctx.latest.String()
-			rw = true
-		}
-	}
-	return param, rw, nil
-}
-
 func rewriteRange(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (RewriteResult, error) {
 	var p []map[string]interface{}
 	err := json.Unmarshal(req.Params, &p)
@@ -154,29 +144,35 @@ func rewriteTagMap(rctx RewriteContext, m map[string]interface{}, key string) (b
 		return false, nil
 	}
 
-	val, ok := m[key].(string)
+	current, ok := m[key].(string)
 	if !ok {
 		return false, errors.New("expected string")
 	}
 
-	rw := false
-
-	if val == "latest" {
-		m[key] = rctx.latest.String()
-		rw = true
+	val, rw, err := rewriteTag(rctx, current)
+	if err != nil {
+		return false, err
+	}
+	if rw {
+		m[key] = val
+		return true, nil
 	}
 
-	if strings.HasPrefix(val, "0x") {
-		decode, err := hexutil.DecodeUint64(val)
+	return false, nil
+}
+
+func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
+	if current == "latest" {
+		return rctx.latest.String(), true, nil
+	} else if strings.HasPrefix(current, "0x") {
+		decode, err := hexutil.DecodeUint64(current)
 		if err != nil {
-			return false, err
+			return current, false, err
 		}
 		b := hexutil.Uint64(decode)
 		if b > rctx.latest {
-			m[key] = rctx.latest.String()
-			rw = true
+			return "", false, ErrBlockOutOfRange
 		}
 	}
-
-	return rw, nil
+	return current, false, nil
 }

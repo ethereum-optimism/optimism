@@ -593,47 +593,93 @@ func (b *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch b
 
 	backends := b.Backends
 
-	// When `consensus_aware` is set to `true`, the backend group acts as a load balancer
-	// serving traffic from any backend that agrees in the consensus group
+	type indexedReqRes struct {
+		index int
+		req   *RPCReq
+		res   *RPCRes
+	}
+
+	overriddenResponses := make([]*indexedReqRes, 0)
+	rewrittenReqs := make([]*RPCReq, 0, len(rpcReqs))
+
 	if b.Consensus != nil {
+		// When `consensus_aware` is set to `true`, the backend group acts as a load balancer
+		// serving traffic from any backend that agrees in the consensus group
 		backends = b.loadBalancedConsensusGroup()
+
+		// We also rewrite block tags to enforce compliance with consensus
+		rctx := RewriteContext{latest: b.Consensus.GetConsensusBlockNumber()}
+
+		for i, req := range rpcReqs {
+			var res RPCRes
+			result, err := RewriteTags(rctx, req, &res)
+			switch result {
+			case RewriteOverrideError:
+				return nil, err
+			case RewriteOverrideResponse:
+				overriddenResponses = append(overriddenResponses, &indexedReqRes{
+					index: i,
+					req:   req,
+					res:   &res,
+				})
+			case RewriteOverrideRequest, RewriteNone:
+				rewrittenReqs = append(rewrittenReqs, req)
+			}
+		}
+		rpcReqs = rewrittenReqs
 	}
 
 	rpcRequestsTotal.Inc()
 
 	for _, back := range backends {
-		res, err := back.Forward(ctx, rpcReqs, isBatch)
-		if errors.Is(err, ErrMethodNotWhitelisted) {
-			return nil, err
+		res := make([]*RPCRes, 0)
+		var err error
+
+		if len(rpcReqs) > 0 {
+			res, err = back.Forward(ctx, rpcReqs, isBatch)
+			if errors.Is(err, ErrMethodNotWhitelisted) {
+				return nil, err
+			}
+			if errors.Is(err, ErrBackendOffline) {
+				log.Warn(
+					"skipping offline backend",
+					"name", back.Name,
+					"auth", GetAuthCtx(ctx),
+					"req_id", GetReqID(ctx),
+				)
+				continue
+			}
+			if errors.Is(err, ErrBackendOverCapacity) {
+				log.Warn(
+					"skipping over-capacity backend",
+					"name", back.Name,
+					"auth", GetAuthCtx(ctx),
+					"req_id", GetReqID(ctx),
+				)
+				continue
+			}
+			if err != nil {
+				log.Error(
+					"error forwarding request to backend",
+					"name", back.Name,
+					"req_id", GetReqID(ctx),
+					"auth", GetAuthCtx(ctx),
+					"err", err,
+				)
+				continue
+			}
 		}
-		if errors.Is(err, ErrBackendOffline) {
-			log.Warn(
-				"skipping offline backend",
-				"name", back.Name,
-				"auth", GetAuthCtx(ctx),
-				"req_id", GetReqID(ctx),
-			)
-			continue
+
+		// re-apply overridden responses
+		for _, ov := range overriddenResponses {
+			if len(res) > 0 {
+				res = append(res[:ov.index+1], res[ov.index:]...)
+				res[ov.index] = ov.res
+			} else {
+				res = append(res, ov.res)
+			}
 		}
-		if errors.Is(err, ErrBackendOverCapacity) {
-			log.Warn(
-				"skipping over-capacity backend",
-				"name", back.Name,
-				"auth", GetAuthCtx(ctx),
-				"req_id", GetReqID(ctx),
-			)
-			continue
-		}
-		if err != nil {
-			log.Error(
-				"error forwarding request to backend",
-				"name", back.Name,
-				"req_id", GetReqID(ctx),
-				"auth", GetAuthCtx(ctx),
-				"err", err,
-			)
-			continue
-		}
+
 		return res, nil
 	}
 

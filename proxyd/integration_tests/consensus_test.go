@@ -433,6 +433,130 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, len(node1.Requests()), 0, msg)
 		require.Equal(t, len(node2.Requests()), 10, msg)
 	})
+
+	t.Run("rewrite response of eth_blockNumber", func(t *testing.T) {
+		h1.ResetOverrides()
+		h2.ResetOverrides()
+		node1.Reset()
+		node2.Reset()
+		bg.Consensus.Unban()
+
+		// establish the consensus
+
+		h1.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "latest",
+			Response: buildGetBlockResponse("0x2", "hash2"),
+		})
+		h2.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "latest",
+			Response: buildGetBlockResponse("0x2", "hash2"),
+		})
+
+		for _, be := range bg.Backends {
+			bg.Consensus.UpdateBackend(ctx, be)
+		}
+		bg.Consensus.UpdateBackendGroupConsensus(ctx)
+
+		totalRequests := len(node1.Requests()) + len(node2.Requests())
+
+		require.Equal(t, 2, len(bg.Consensus.GetConsensusGroup()))
+
+		// pretend backends advanced in consensus, but we are still serving the latest value of the consensus
+		// until it gets updated again
+
+		h1.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "latest",
+			Response: buildGetBlockResponse("0x3", "hash3"),
+		})
+		h2.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "latest",
+			Response: buildGetBlockResponse("0x3", "hash3"),
+		})
+
+		resRaw, statusCode, err := client.SendRPC("eth_blockNumber", nil)
+		require.NoError(t, err)
+		require.Equal(t, 200, statusCode)
+
+		var jsonMap map[string]interface{}
+		err = json.Unmarshal(resRaw, &jsonMap)
+		require.NoError(t, err)
+		require.Equal(t, "0x2", jsonMap["result"])
+
+		// no extra request hit the backends
+		require.Equal(t, totalRequests, len(node1.Requests())+len(node2.Requests()))
+	})
+
+	t.Run("rewrite request of eth_getBlockByNumber", func(t *testing.T) {
+		h1.ResetOverrides()
+		h2.ResetOverrides()
+		bg.Consensus.Unban()
+
+		// establish the consensus and ban node2 for now
+		h1.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "latest",
+			Response: buildGetBlockResponse("0x2", "hash2"),
+		})
+		h2.AddOverride(&ms.MethodTemplate{
+			Method:   "net_peerCount",
+			Block:    "",
+			Response: buildPeerCountResponse(1),
+		})
+
+		for _, be := range bg.Backends {
+			bg.Consensus.UpdateBackend(ctx, be)
+		}
+		bg.Consensus.UpdateBackendGroupConsensus(ctx)
+
+		require.Equal(t, 1, len(bg.Consensus.GetConsensusGroup()))
+
+		node1.Reset()
+
+		_, statusCode, err := client.SendRPC("eth_getBlockByNumber", []interface{}{"latest"})
+		require.NoError(t, err)
+		require.Equal(t, 200, statusCode)
+
+		var jsonMap map[string]interface{}
+		err = json.Unmarshal(node1.Requests()[0].Body, &jsonMap)
+		require.NoError(t, err)
+		require.Equal(t, "0x2", jsonMap["params"].([]interface{})[0])
+	})
+
+	t.Run("rewrite request of eth_getBlockByNumber - out of range", func(t *testing.T) {
+		h1.ResetOverrides()
+		h2.ResetOverrides()
+		bg.Consensus.Unban()
+
+		// establish the consensus and ban node2 for now
+		h1.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "latest",
+			Response: buildGetBlockResponse("0x2", "hash2"),
+		})
+		h2.AddOverride(&ms.MethodTemplate{
+			Method:   "net_peerCount",
+			Block:    "",
+			Response: buildPeerCountResponse(1),
+		})
+
+		for _, be := range bg.Backends {
+			bg.Consensus.UpdateBackend(ctx, be)
+		}
+		bg.Consensus.UpdateBackendGroupConsensus(ctx)
+
+		require.Equal(t, 1, len(bg.Consensus.GetConsensusGroup()))
+
+		node1.Reset()
+
+		resRaw, statusCode, err := client.SendRPC("eth_getBlockByNumber", []interface{}{"0x10"})
+		require.NoError(t, err)
+		require.Equal(t, 200, statusCode)
+		RequireEqualJSON(t, []byte("{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32000,\"message\":\"block is out of range\"},\"id\":999}\n"), resRaw)
+	})
 }
 
 func backend(bg *proxyd.BackendGroup, name string) *proxyd.Backend {
