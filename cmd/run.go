@@ -214,9 +214,9 @@ func Run(ctx *cli.Context) error {
 	proofFmt := ctx.String(RunProofFmtFlag.Name)
 	snapshotFmt := ctx.String(RunSnapshotFmtFlag.Name)
 
-	step := us.Step
+	stepFn := us.Step
 	if po.cmd != nil {
-		step = Guard(po.cmd.ProcessState, step)
+		stepFn = Guard(po.cmd.ProcessState, stepFn)
 	}
 
 	for !state.Exited {
@@ -241,7 +241,7 @@ func Run(ctx *cli.Context) error {
 
 		if proofAt(state) {
 			preStateHash := crypto.Keccak256Hash(state.EncodeWitness())
-			witness, err := us.Step(true)
+			witness, err := stepFn(true)
 			if err != nil {
 				return fmt.Errorf("failed at proof-gen step %d (PC: %08x): %w", step, state.PC, err)
 			}

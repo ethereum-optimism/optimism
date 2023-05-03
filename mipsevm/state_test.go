@@ -74,7 +74,8 @@ func TestState(t *testing.T) {
 				if us.state.PC == endAddr {
 					break
 				}
-				us.Step(false)
+				_, err := us.Step(false)
+				require.NoError(t, err)
 			}
 			require.Equal(t, uint32(endAddr), us.state.PC, "must reach end")
 			// inspect test result
@@ -109,7 +110,8 @@ func TestHello(t *testing.T) {
 		if us.state.Exited {
 			break
 		}
-		us.Step(false)
+		_, err := us.Step(false)
+		require.NoError(t, err)
 	}
 
 	require.True(t, state.Exited, "must complete program")
@@ -215,7 +217,8 @@ func TestClaim(t *testing.T) {
 		if us.state.Exited {
 			break
 		}
-		us.Step(false)
+		_, err := us.Step(false)
+		require.NoError(t, err)
 	}
 
 	require.True(t, state.Exited, "must complete program")
