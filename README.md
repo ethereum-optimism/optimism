@@ -15,7 +15,7 @@
 
 If you're looking to run the OP Stack + Celestia setup for this repository, please visit the [Optimism & Celestia tutorial](https://docs.celestia.org/developers/optimism) to get started.
 
-## What is Optimism and the OP Stack?
+## What are Optimism and the OP Stack?
 
 Optimism is a low-cost and lightning-fast Ethereum L2 blockchain, **but it's also so much more than that**.
 
