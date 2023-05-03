@@ -104,18 +104,18 @@ type ProcessPreimageOracle struct {
 	cmd *exec.Cmd
 }
 
-func NewProcessPreimageOracle(name string, args []string) *ProcessPreimageOracle {
+func NewProcessPreimageOracle(name string, args []string) (*ProcessPreimageOracle, error) {
 	if name == "" {
-		return &ProcessPreimageOracle{}
+		return &ProcessPreimageOracle{}, nil
 	}
 
 	pClientRW, pOracleRW, err := preimage.CreateBidirectionalChannel()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	hClientRW, hOracleRW, err := preimage.CreateBidirectionalChannel()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	cmd := exec.Command(name, args...)
@@ -132,7 +132,7 @@ func NewProcessPreimageOracle(name string, args []string) *ProcessPreimageOracle
 		hCl: preimage.NewHintWriter(hClientRW),
 		cmd: cmd,
 	}
-	return out
+	return out, nil
 }
 
 func (p *ProcessPreimageOracle) Hint(v []byte) {
@@ -205,7 +205,10 @@ func Run(ctx *cli.Context) error {
 		args = []string{""}
 	}
 
-	po := NewProcessPreimageOracle(args[0], args[1:])
+	po, err := NewProcessPreimageOracle(args[0], args[1:])
+	if err != nil {
+		return fmt.Errorf("failed to create pre-image oracle process: %w", err)
+	}
 	if err := po.Start(); err != nil {
 		return fmt.Errorf("failed to start pre-image oracle server: %w", err)
 	}
