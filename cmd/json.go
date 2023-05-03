@@ -2,12 +2,16 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 )
 
 func loadJSON[X any](inputPath string) (*X, error) {
+	if inputPath == "" {
+		return nil, errors.New("no path specified")
+	}
 	f, err := os.OpenFile(inputPath, os.O_RDONLY, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %q: %w", inputPath, err)

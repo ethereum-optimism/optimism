@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-type Page [pageSize]byte
+type Page [PageSize]byte
 
 func (p *Page) MarshalText() ([]byte, error) {
 	dst := make([]byte, hex.EncodedLen(len(p)))
@@ -16,8 +16,8 @@ func (p *Page) MarshalText() ([]byte, error) {
 }
 
 func (p *Page) UnmarshalText(dat []byte) error {
-	if len(dat) != pageSize*2 {
-		return fmt.Errorf("expected %d hex chars, but got %d", pageSize*2, len(dat))
+	if len(dat) != PageSize*2 {
+		return fmt.Errorf("expected %d hex chars, but got %d", PageSize*2, len(dat))
 	}
 	_, err := hex.Decode(p[:], dat)
 	return err
@@ -26,16 +26,16 @@ func (p *Page) UnmarshalText(dat []byte) error {
 type CachedPage struct {
 	Data *Page
 	// intermediate nodes only
-	Cache [pageSize / 32][32]byte
+	Cache [PageSize / 32][32]byte
 	// true if the intermediate node is valid
-	Ok [pageSize / 32]bool
+	Ok [PageSize / 32]bool
 }
 
 func (p *CachedPage) Invalidate(pageAddr uint32) {
-	if pageAddr >= pageSize {
+	if pageAddr >= PageSize {
 		panic("invalid page addr")
 	}
-	k := (1 << pageAddrSize) | pageAddr
+	k := (1 << PageAddrSize) | pageAddr
 	// first cache layer caches nodes that has two 32 byte leaf nodes.
 	k >>= 5 + 1
 	for k > 0 {
@@ -45,13 +45,13 @@ func (p *CachedPage) Invalidate(pageAddr uint32) {
 }
 
 func (p *CachedPage) InvalidateFull() {
-	p.Ok = [pageSize / 32]bool{} // reset everything to false
+	p.Ok = [PageSize / 32]bool{} // reset everything to false
 }
 
 func (p *CachedPage) MerkleRoot() [32]byte {
 	// hash the bottom layer
-	for i := uint64(0); i < pageSize; i += 64 {
-		j := pageSize/32/2 + i/64
+	for i := uint64(0); i < PageSize; i += 64 {
+		j := PageSize/32/2 + i/64
 		if p.Ok[j] {
 			continue
 		}
@@ -61,7 +61,7 @@ func (p *CachedPage) MerkleRoot() [32]byte {
 	}
 
 	// hash the cache layers
-	for i := pageSize/32 - 2; i > 0; i -= 2 {
+	for i := PageSize/32 - 2; i > 0; i -= 2 {
 		j := i >> 1
 		if p.Ok[j] {
 			continue
@@ -75,12 +75,12 @@ func (p *CachedPage) MerkleRoot() [32]byte {
 
 func (p *CachedPage) MerkleizeSubtree(gindex uint64) [32]byte {
 	_ = p.MerkleRoot() // fill cache
-	if gindex >= pageSize/32 {
-		if gindex >= pageSize/32*2 {
+	if gindex >= PageSize/32 {
+		if gindex >= PageSize/32*2 {
 			panic("gindex too deep")
 		}
 		// it's pointing to a bottom node
-		nodeIndex := gindex & (pageAddrMask >> 5)
+		nodeIndex := gindex & (PageAddrMask >> 5)
 		return *(*[32]byte)(p.Data[nodeIndex*32 : nodeIndex*32+32])
 	}
 	return p.Cache[gindex]

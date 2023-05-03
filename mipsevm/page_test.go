@@ -11,7 +11,7 @@ func TestCachedPage(t *testing.T) {
 	p := &CachedPage{Data: new(Page)}
 	p.Data[42] = 0xab
 
-	gindex := ((uint64(1) << pageAddrSize) | 42) >> 5
+	gindex := ((uint64(1) << PageAddrSize) | 42) >> 5
 	node := common.Hash(p.MerkleizeSubtree(gindex))
 	expectedLeaf := common.Hash{10: 0xab}
 	require.Equal(t, expectedLeaf, node, "leaf nodes should not be hashed")

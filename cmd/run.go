@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
-	"cannon/mipsevm"
+	"github.com/ethereum-optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/cannon/preimage"
 )
 
@@ -60,6 +60,18 @@ var (
 		Name:     "stop-at",
 		Usage:    "step pattern to stop at: " + patternHelp,
 		Value:    new(StepMatcherFlag),
+		Required: false,
+	}
+	RunMetaFlag = &cli.PathFlag{
+		Name:     "meta",
+		Usage:    "path to metadata file for symbol lookup for enhanced debugging info durign execution.",
+		Value:    "meta.json",
+		Required: false,
+	}
+	RunInfoAtFlag = &cli.GenericFlag{
+		Name:     "info-at",
+		Usage:    "step pattern to print info at: " + patternHelp,
+		Value:    MustStepMatcherFlag("%1000"),
 		Required: false,
 	}
 )
@@ -170,13 +182,7 @@ func Run(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	mu, err := mipsevm.NewUnicorn()
-	if err != nil {
-		return fmt.Errorf("failed to create unicorn emulator: %w", err)
-	}
-	if err := mipsevm.LoadUnicorn(state, mu); err != nil {
-		return fmt.Errorf("failed to load state into unicorn emulator: %w", err)
-	}
+
 	l := Logger(os.Stderr, log.LvlInfo)
 	outLog := &mipsevm.LoggingWriter{Name: "program std-out", Log: l}
 	errLog := &mipsevm.LoggingWriter{Name: "program std-err", Log: l}
@@ -206,11 +212,21 @@ func Run(ctx *cli.Context) error {
 	stopAt := ctx.Generic(RunStopAtFlag.Name).(*StepMatcherFlag).Matcher()
 	proofAt := ctx.Generic(RunProofAtFlag.Name).(*StepMatcherFlag).Matcher()
 	snapshotAt := ctx.Generic(RunSnapshotAtFlag.Name).(*StepMatcherFlag).Matcher()
+	infoAt := ctx.Generic(RunInfoAtFlag.Name).(*StepMatcherFlag).Matcher()
 
-	us, err := mipsevm.NewUnicornState(mu, state, po, outLog, errLog)
-	if err != nil {
-		return fmt.Errorf("failed to setup instrumented VM state: %w", err)
+	var meta *mipsevm.Metadata
+	if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
+		l.Info("no metadata file specified, defaulting to empty metadata")
+		meta = &mipsevm.Metadata{Symbols: nil} // provide empty metadata by default
+	} else {
+		if m, err := loadJSON[mipsevm.Metadata](metaPath); err != nil {
+			return fmt.Errorf("failed to load metadata: %w", err)
+		} else {
+			meta = m
+		}
 	}
+
+	us := mipsevm.NewInstrumentedState(state, po, outLog, errLog)
 	proofFmt := ctx.String(RunProofFmtFlag.Name)
 	snapshotFmt := ctx.String(RunSnapshotFmtFlag.Name)
 
@@ -222,12 +238,18 @@ func Run(ctx *cli.Context) error {
 	for !state.Exited {
 		step := state.Step
 
-		//if infoAt(state) {
-		//	s := lookupSymbol(state.PC)
-		//	var sy elf.Symbol
-		//	l.Info("", "insn", state.Memory.GetMemory(state.PC), "pc", state.PC, "symbol", sy.Name)
-		//	// print name
-		//}
+		name := meta.LookupSymbol(state.PC)
+		if infoAt(state) {
+			l.Info("processing",
+				"step", step,
+				"pc", mipsevm.HexU32(state.PC),
+				"insn", mipsevm.HexU32(state.Memory.GetMemory(state.PC)),
+				"name", name,
+			)
+		}
+		if name == "runtime.notesleep" { // don't loop forever when we get stuck because of an unexpected bad program
+			return fmt.Errorf("got stuck in Go sleep at step %d", step)
+		}
 
 		if stopAt(state) {
 			break
@@ -262,7 +284,7 @@ func Run(ctx *cli.Context) error {
 				return fmt.Errorf("failed to write proof data: %w", err)
 			}
 		} else {
-			_, err = us.Step(false)
+			_, err = stepFn(false)
 			if err != nil {
 				return fmt.Errorf("failed at step %d (PC: %08x): %w", step, state.PC, err)
 			}
@@ -288,5 +310,7 @@ var RunCommand = &cli.Command{
 		RunSnapshotAtFlag,
 		RunSnapshotFmtFlag,
 		RunStopAtFlag,
+		RunMetaFlag,
+		RunInfoAtFlag,
 	},
 }

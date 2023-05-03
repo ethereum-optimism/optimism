@@ -6,7 +6,7 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"cannon/cmd"
+	"github.com/ethereum-optimism/cannon/cmd"
 )
 
 func main() {

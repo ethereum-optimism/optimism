@@ -65,6 +65,16 @@ func PatchGo(f *elf.File, st *State) error {
 			"runtime.main.func1",        // patch out: main.func() { newm(sysmon, ....) }
 			"runtime.deductSweepCredit", // uses floating point nums and interacts with gc we disabled
 			"runtime.(*gcControllerState).commit",
+			// these prometheus packages rely on concurrent background things. We cannot run those.
+			"github.com/prometheus/client_golang/prometheus.init",
+			"github.com/prometheus/client_golang/prometheus.init.0",
+			"github.com/prometheus/procfs.init",
+			"github.com/prometheus/common/model.init",
+			"github.com/prometheus/client_model/go.init",
+			"github.com/prometheus/client_model/go.init.0",
+			"github.com/prometheus/client_model/go.init.1",
+			// skip flag pkg init, we need to debug arg-processing more to see why this fails
+			"flag.init",
 			// We need to patch this out, we don't pass float64nan because we don't support floats
 			"runtime.check":
 			// MIPS32 patch: ret (pseudo instruction)
@@ -89,7 +99,7 @@ func PatchStack(st *State) error {
 	// setup stack pointer
 	sp := uint32(0x7f_ff_d0_00)
 	// allocate 1 page for the initial stack data, and 16KB = 4 pages for the stack to grow
-	if err := st.Memory.SetMemoryRange(sp-4*pageSize, bytes.NewReader(make([]byte, 5*pageSize))); err != nil {
+	if err := st.Memory.SetMemoryRange(sp-4*PageSize, bytes.NewReader(make([]byte, 5*PageSize))); err != nil {
 		return fmt.Errorf("failed to allocate page for stack content")
 	}
 	st.Registers[29] = sp

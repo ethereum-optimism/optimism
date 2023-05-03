@@ -1,4 +1,4 @@
-package mipsevm
+package unicorntest
 
 import (
 	"encoding/binary"
@@ -6,7 +6,8 @@ import (
 	"io"
 	"log"
 	"math"
-	"sync"
+
+	"github.com/ethereum-optimism/cannon/mipsevm"
 
 	uc "github.com/unicorn-engine/unicorn/bindings/go/unicorn"
 )
@@ -17,11 +18,9 @@ type PreimageOracle interface {
 }
 
 type UnicornState struct {
-	sync.Mutex
-
 	mu uc.Unicorn
 
-	state *State
+	state *mipsevm.State
 
 	stdOut io.Writer
 	stdErr io.Writer
@@ -55,7 +54,7 @@ const (
 	MipsEINVAL = 0x16
 )
 
-func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, stdErr io.Writer) (*UnicornState, error) {
+func NewUnicornState(mu uc.Unicorn, state *mipsevm.State, po PreimageOracle, stdOut, stdErr io.Writer) (*UnicornState, error) {
 	m := &UnicornState{
 		mu:             mu,
 		state:          state,
@@ -109,8 +108,8 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 		switch syscallNum {
 		case 4090: // mmap
 			sz := a1
-			if sz&pageAddrMask != 0 { // adjust size to align with page size
-				sz += pageSize - (sz & pageAddrMask)
+			if sz&mipsevm.PageAddrMask != 0 { // adjust size to align with page size
+				sz += mipsevm.PageSize - (sz & mipsevm.PageAddrMask)
 			}
 			if a0 == 0 {
 				v0 = st.Heap
@@ -305,7 +304,7 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 	return m, nil
 }
 
-func (m *UnicornState) Step(proof bool) (wit *StepWitness, err error) {
+func (m *UnicornState) Step(proof bool) (wit *mipsevm.StepWitness, err error) {
 	defer func() { // pre-image oracle or emulator hooks might panic
 		if a := recover(); a != nil {
 			if ae, ok := a.(error); ok {
@@ -322,9 +321,9 @@ func (m *UnicornState) Step(proof bool) (wit *StepWitness, err error) {
 
 	if proof {
 		insnProof := m.state.Memory.MerkleProof(m.state.PC)
-		wit = &StepWitness{
-			state:    m.state.EncodeWitness(),
-			memProof: insnProof[:],
+		wit = &mipsevm.StepWitness{
+			State:    m.state.EncodeWitness(),
+			MemProof: insnProof[:],
 		}
 	}
 
@@ -377,11 +376,11 @@ func (m *UnicornState) Step(proof bool) (wit *StepWitness, err error) {
 	}
 
 	if proof {
-		wit.memProof = append(wit.memProof, m.memProof[:]...)
+		wit.MemProof = append(wit.MemProof, m.memProof[:]...)
 		if m.lastPreimageOffset != ^uint32(0) {
-			wit.preimageOffset = m.lastPreimageOffset
-			wit.preimageKey = m.lastPreimageKey
-			wit.preimageValue = m.lastPreimage
+			wit.PreimageOffset = m.lastPreimageOffset
+			wit.PreimageKey = m.lastPreimageKey
+			wit.PreimageValue = m.lastPreimage
 		}
 	}
 
@@ -421,11 +420,11 @@ func NewUnicorn() (uc.Unicorn, error) {
 	return uc.NewUnicorn(uc.ARCH_MIPS, uc.MODE_32|uc.MODE_BIG_ENDIAN)
 }
 
-func LoadUnicorn(st *State, mu uc.Unicorn) error {
+func LoadUnicorn(st *mipsevm.State, mu uc.Unicorn) error {
 	// mmap and write each page of memory state into unicorn
 	for pageIndex, page := range st.Memory.Pages {
-		addr := uint64(pageIndex) << pageAddrSize
-		if err := mu.MemMap(addr, pageSize); err != nil {
+		addr := uint64(pageIndex) << mipsevm.PageAddrSize
+		if err := mu.MemMap(addr, mipsevm.PageSize); err != nil {
 			return fmt.Errorf("failed to mmap page at addr 0x%x: %w", addr, err)
 		}
 		if err := mu.MemWrite(addr, page.Data[:]); err != nil {

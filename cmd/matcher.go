@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"cannon/mipsevm"
+	"github.com/ethereum-optimism/cannon/mipsevm"
 )
 
 type StepMatcher func(st *mipsevm.State) bool
@@ -13,6 +13,14 @@ type StepMatcher func(st *mipsevm.State) bool
 type StepMatcherFlag struct {
 	repr    string
 	matcher StepMatcher
+}
+
+func MustStepMatcherFlag(pattern string) *StepMatcherFlag {
+	out := new(StepMatcherFlag)
+	if err := out.Set(pattern); err != nil {
+		panic(err)
+	}
+	return out
 }
 
 func (m *StepMatcherFlag) Set(value string) error {
