@@ -247,7 +247,13 @@ func NewUnicornState(mu uc.Unicorn, state *State, po PreimageOracle, stdOut, std
 	// Shout if Go mmap calls didn't allocate the memory properly
 	_, err = mu.HookAdd(uc.HOOK_MEM_UNMAPPED, func(mu uc.Unicorn, typ int, addr uint64, size int, value int64) bool {
 		fmt.Printf("MEM UNMAPPED typ %d  addr %016x  size %x  value  %x\n", typ, addr, size, value)
-		return false
+		//return false
+		// TODO: Unmapped memory access can occur when loading from a snapshot that spans unused pages
+		// This callback should return false though to handle invalid memory accesses early
+		if err := mu.MemMap(addr&^4095, 4096); err != nil {
+			fmt.Printf("failed to mmap addr (%x). reason: %v", addr, err)
+		}
+		return true
 	}, 0, ^uint64(0))
 	if err != nil {
 		return nil, fmt.Errorf("failed to set up unmapped-mem-write hook: %w", err)
