@@ -3,11 +3,12 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/proxyd"
 	"io"
 	"net/http"
 	"os"
 	"strings"
+
+	"github.com/ethereum-optimism/optimism/proxyd"
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
