@@ -616,7 +616,7 @@ func (b *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch b
 		rctx := RewriteContext{latest: b.Consensus.GetConsensusBlockNumber()}
 
 		for i, req := range rpcReqs {
-			var res RPCRes
+			res := RPCRes{JSONRPC: JSONRPCVersion, ID: req.ID}
 			result, err := RewriteTags(rctx, req, &res)
 			switch result {
 			case RewriteOverrideError:
