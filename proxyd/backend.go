@@ -202,6 +202,12 @@ func WithProxydIP(ip string) BackendOpt {
 	}
 }
 
+func WithMaxDegradedLatencyThreshold(maxDegradedLatencyThreshold time.Duration) BackendOpt {
+	return func(b *Backend) {
+		b.maxDegradedLatencyThreshold = maxDegradedLatencyThreshold
+	}
+}
+
 func WithMaxLatencyThreshold(maxLatencyThreshold time.Duration) BackendOpt {
 	return func(b *Backend) {
 		b.maxLatencyThreshold = maxLatencyThreshold
