@@ -3,50 +3,57 @@
   <br />
   <br />
   <a href="https://optimism.io"><img alt="Optimism" src="https://raw.githubusercontent.com/ethereum-optimism/brand-kit/main/assets/svg/OPTIMISM-R.svg" width=600></a>
+  <h3><a href="https://optimism.io">Optimism</a> is a low-cost and lightning-fast Ethereum L2 blockchain, built with the OP Stack.</h3>
   <br />
-  <h3><a href="https://optimism.io">Optimism</a> is a low-cost and lightning-fast Ethereum L2 blockchain.</h3>
+  <h3>+</h3>
+  <a href="https://celestia.org"><img alt="Celestia" src="docs/op-stack/src/assets/docs/understand/Celestia-logo-color-color.svg" width=600></a>
+  <h3><a href="https://celestia.org">Celestia</a> is a modular consensus and data network, built to enable anyone to easily deploy their own blockchain with minimal overhead.</h3>
   <br />
 </div>
 
-## What is Optimism?
+## Celestia + OP Stack tutorial
+
+If you're looking to run the OP Stack + Celestia setup for this repository, please visit the [Optimism & Celestia tutorial](https://docs.celestia.org/developers/optimism) to get started.
+
+## What is Optimism and the OP Stack?
 
 Optimism is a low-cost and lightning-fast Ethereum L2 blockchain, **but it's also so much more than that**.
 
-Optimism is the technical foundation for [the Optimism Collective](https://app.optimism.io/announcement), a band of communities, companies, and citizens united by a mutually beneficial pact to adhere to the axiom of **impact=profit** — the principle that positive impact to the collective should be rewarded with profit to the individual.
-We're trying to solve some of the most critical coordination failures facing the crypto ecosystem today.
-**We're particularly focused on creating a sustainable funding stream for the public goods and infrastructure upon which the ecosystem so heavily relies but has so far been unable to adequately reward.**
-We'd love for you to check out [The Optimistic Vision](https://www.optimism.io/vision) to understand more about why we do what we do.
+The OP Stack powers Optimism, an Ethereum L2 blockchain, and forms the technical foundation for the [the Optimism Collective](https://app.optimism.io/announcement)—a group committed to the **impact=profit** principle. This principle rewards individuals for their positive contributions to the collective.
+
+Optimism addresses critical coordination failures in the crypto ecosystem, such as funding public goods and infrastructure. The OP Stack focuses on creating a shared, open-source system for developing new L2 blockchains within the proposed Superchain ecosystem, promoting collaboration and preventing redundant efforts.
+
+As Optimism evolves, the OP Stack will adapt, encompassing components ranging from blockchain infrastructure to governance systems. This software suite aims to simplify L2 blockchain creation while supporting the growth and development of the Optimism ecosystem.
+
+## What is Celestia?
+
+Celestia is a modular consensus and data network, built to enable anyone to easily deploy their own blockchain with minimal overhead.
+
+Celestia is a minimal blockchain that only orders and publishes transactions and does not execute them. By decoupling the consensus and application execution layers, Celestia modularizes the blockchain technology stack and unlocks new possibilities for decentralized application builders. Lean more at [Celestia.org](https://celestia.org).
 
 ## Documentation
 
-If you want to build on top of Optimism, take a look at the extensive documentation on the [Optimism Community Hub](http://community.optimism.io/).
-If you want to build Optimism, check out the [Protocol Specs](./specs/).
+If you want to build on top of Celestia, take a look at the documentation at [docs.celestia.org](https://docs.celestia.org).
+
+If you want to learn more about the OP Stack, check out the documentation at [stack.optimism.io](https://stack.optimism.io/).
 
 ## Community
+
+### Optimism
 
 General discussion happens most frequently on the [Optimism discord](https://discord.gg/optimism).
 Governance discussion can also be found on the [Optimism Governance Forum](https://gov.optimism.io/).
 
-## Contributing
+### Celestia
+
+General discussion happens most frequently on the [Celestia discord](https://discord.com/invite/YsnTPcSfWQ).
+Other discussions can be found on the [Celestia forum](https://forum.celestia.org).
+
+<!-- ## Contributing
 
 Read through [CONTRIBUTING.md](./CONTRIBUTING.md) for a general overview of our contribution process.
 Use the [Developer Quick Start](./CONTRIBUTING.md#development-quick-start) to get your development environment set up to start working on the Optimism Monorepo.
-Then check out our list of [good first issues](https://github.com/ethereum-optimism/optimism/contribute) to find something fun to work on!
-
-## Security Policy and Vulnerability Reporting
-
-Please refer to our canonical [Security Policy](https://github.com/ethereum-optimism/.github/blob/master/SECURITY.md) document for detailed information about how to report vulnerabilities in this codebase.
-Bounty hunters are encouraged to check out [our Immunefi bug bounty program](https://immunefi.com/bounty/optimism/).
-We offer up to $2,000,042 for in-scope critical vulnerabilities and [we pay our maximum bug bounty rewards](https://medium.com/ethereum-optimism/disclosure-fixing-a-critical-bug-in-optimisms-geth-fork-a836ebdf7c94).
-
-## The Bedrock Upgrade
-
-Optimism is currently preparing for [its next major upgrade called Bedrock](https://dev.optimism.io/introducing-optimism-bedrock/).
-Bedrock significantly revamps how Optimism works under the hood and will help make Optimism the fastest, cheapest, and most reliable rollup yet.
-You can find detailed specifications for the Bedrock upgrade within the [specs folder](./specs) in this repository.
-
-Please note that a significant number of packages and folders within this repository are part of the Bedrock upgrade and are NOT currently running in production.
-Refer to the Directory Structure section below to understand which packages are currently running in production and which are intended for use as part of the Bedrock upgrade.
+Then check out our list of [good first issues](https://github.com/ethereum-optimism/optimism/contribute) to find something fun to work on! -->
 
 ## Directory Structure
 
@@ -86,7 +93,7 @@ Refer to the Directory Structure section below to understand which packages are 
 ├── <a href="./ops-bedrock">ops-bedrock</a>: Bedrock devnet work
 └── <a href="./specs">specs</a>: Specs of the rollup starting at the Bedrock upgrade
 </pre>
-
+<!--
 ## Branching Model
 
 ### Active Branches
@@ -159,4 +166,4 @@ It's strongly recommended to avoid merging PRs into develop during an active rel
 
 Code forked from [`go-ethereum`](https://github.com/ethereum/go-ethereum) under the name [`l2geth`](https://github.com/ethereum-optimism/optimism/tree/master/l2geth) is licensed under the [GNU GPLv3](https://gist.github.com/kn9ts/cbe95340d29fc1aaeaa5dd5c059d2e60) in accordance with the [original license](https://github.com/ethereum/go-ethereum/blob/master/COPYING).
 
-All other files within this repository are licensed under the [MIT License](https://github.com/ethereum-optimism/optimism/blob/master/LICENSE) unless stated otherwise.
+All other files within this repository are licensed under the [MIT License](https://github.com/ethereum-optimism/optimism/blob/master/LICENSE) unless stated otherwise. -->
