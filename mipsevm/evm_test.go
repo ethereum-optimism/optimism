@@ -64,18 +64,7 @@ func TestEVM(t *testing.T) {
 			// set the return address ($ra) to jump into when test completes
 			state.Registers[31] = endAddr
 
-			mu, err := NewUnicorn()
-			require.NoError(t, err, "load unicorn")
-			defer mu.Close()
-
-			require.NoError(t, mu.MemMap(baseAddrStart, ((baseAddrEnd-baseAddrStart)&^pageAddrMask)+pageSize))
-			require.NoError(t, mu.MemMap(endAddr&^pageAddrMask, pageSize))
-
-			err = LoadUnicorn(state, mu)
-			require.NoError(t, err, "load state into unicorn")
-
-			us, err := NewUnicornState(mu, state, nil, os.Stdout, os.Stderr)
-			require.NoError(t, err, "hook unicorn to state")
+			us := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
 
 			for i := 0; i < 1000; i++ {
 				if us.state.PC == endAddr {
@@ -84,7 +73,7 @@ func TestEVM(t *testing.T) {
 				insn := state.Memory.GetMemory(state.PC)
 				t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
 
-				stepWitness, err := us.NonUnicornStep(true)
+				stepWitness, err := us.Step(true)
 				require.NoError(t, err)
 				input := stepWitness.EncodeStepInput()
 				startingGas := uint64(30_000_000)
@@ -133,14 +122,8 @@ func TestHelloEVM(t *testing.T) {
 	require.NoError(t, err, "apply Go runtime patches")
 	require.NoError(t, PatchStack(state), "add initial stack")
 
-	mu, err := NewUnicorn()
-	require.NoError(t, err, "load unicorn")
-	defer mu.Close()
-	err = LoadUnicorn(state, mu)
-	require.NoError(t, err, "load state into unicorn")
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	us, err := NewUnicornState(mu, state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
-	require.NoError(t, err, "hook unicorn to state")
+	us := NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 
 	env, evmState := NewEVMEnv(contracts, addrs)
 	env.Config.Debug = false
@@ -156,7 +139,7 @@ func TestHelloEVM(t *testing.T) {
 			t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
 		}
 
-		stepWitness, err := us.NonUnicornStep(true)
+		stepWitness, err := us.Step(true)
 		require.NoError(t, err)
 		input := stepWitness.EncodeStepInput()
 		startingGas := uint64(30_000_000)
@@ -206,17 +189,10 @@ func TestClaimEVM(t *testing.T) {
 	require.NoError(t, err, "apply Go runtime patches")
 	require.NoError(t, PatchStack(state), "add initial stack")
 
-	mu, err := NewUnicorn()
-	require.NoError(t, err, "load unicorn")
-	defer mu.Close()
-	err = LoadUnicorn(state, mu)
-	require.NoError(t, err, "load state into unicorn")
-
 	oracle, expectedStdOut, expectedStdErr := claimTestOracle(t)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	us, err := NewUnicornState(mu, state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
-	require.NoError(t, err, "hook unicorn to state")
+	us := NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 
 	env, evmState := NewEVMEnv(contracts, addrs)
 	env.Config.Debug = false
@@ -232,7 +208,7 @@ func TestClaimEVM(t *testing.T) {
 			t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
 		}
 
-		stepWitness, err := us.NonUnicornStep(true)
+		stepWitness, err := us.Step(true)
 		require.NoError(t, err)
 		input := stepWitness.EncodeStepInput()
 		startingGas := uint64(30_000_000)

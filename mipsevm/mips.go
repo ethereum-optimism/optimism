@@ -6,7 +6,7 @@ import (
 	"io"
 )
 
-func (m *UnicornState) readPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32) {
+func (m *InstrumentedState) readPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32) {
 	preimage := m.lastPreimage
 	if key != m.lastPreimageKey {
 		m.lastPreimageKey = key
@@ -22,7 +22,7 @@ func (m *UnicornState) readPreimage(key [32]byte, offset uint32) (dat [32]byte, 
 	return
 }
 
-func (m *UnicornState) trackMemAccess(effAddr uint32) {
+func (m *InstrumentedState) trackMemAccess(effAddr uint32) {
 	if m.memProofEnabled && m.lastMemAccess != effAddr {
 		if m.lastMemAccess != ^uint32(0) {
 			panic(fmt.Errorf("unexpected different mem access at %08x, already have access at %08x buffered", effAddr, m.lastMemAccess))
@@ -32,7 +32,7 @@ func (m *UnicornState) trackMemAccess(effAddr uint32) {
 	}
 }
 
-func (m *UnicornState) handleSyscall() error {
+func (m *InstrumentedState) handleSyscall() error {
 	syscallNum := m.state.Registers[2] // v0
 	v0 := uint32(0)
 	v1 := uint32(0)
@@ -45,8 +45,8 @@ func (m *UnicornState) handleSyscall() error {
 	switch syscallNum {
 	case 4090: // mmap
 		sz := a1
-		if sz&pageAddrMask != 0 { // adjust size to align with page size
-			sz += pageSize - (sz & pageAddrMask)
+		if sz&PageAddrMask != 0 { // adjust size to align with page size
+			sz += PageSize - (sz & PageAddrMask)
 		}
 		if a0 == 0 {
 			v0 = m.state.Heap
@@ -178,7 +178,7 @@ func (m *UnicornState) handleSyscall() error {
 	return nil
 }
 
-func (m *UnicornState) handleBranch(opcode uint32, insn uint32, rtReg uint32, rs uint32) error {
+func (m *InstrumentedState) handleBranch(opcode uint32, insn uint32, rtReg uint32, rs uint32) error {
 	shouldBranch := false
 	if opcode == 4 || opcode == 5 { // beq/bne
 		rt := m.state.Registers[rtReg]
@@ -208,7 +208,7 @@ func (m *UnicornState) handleBranch(opcode uint32, insn uint32, rtReg uint32, rs
 	return nil
 }
 
-func (m *UnicornState) handleHiLo(fun uint32, rs uint32, rt uint32, storeReg uint32) error {
+func (m *InstrumentedState) handleHiLo(fun uint32, rs uint32, rt uint32, storeReg uint32) error {
 	val := uint32(0)
 	switch fun {
 	case 0x10: // mfhi
@@ -244,7 +244,7 @@ func (m *UnicornState) handleHiLo(fun uint32, rs uint32, rt uint32, storeReg uin
 	return nil
 }
 
-func (m *UnicornState) handleJump(linkReg uint32, dest uint32) error {
+func (m *InstrumentedState) handleJump(linkReg uint32, dest uint32) error {
 	prevPC := m.state.PC
 	m.state.PC = m.state.NextPC
 	m.state.NextPC = dest
@@ -254,7 +254,7 @@ func (m *UnicornState) handleJump(linkReg uint32, dest uint32) error {
 	return nil
 }
 
-func (m *UnicornState) handleRd(storeReg uint32, val uint32, conditional bool) error {
+func (m *InstrumentedState) handleRd(storeReg uint32, val uint32, conditional bool) error {
 	if storeReg >= 32 {
 		panic("invalid register")
 	}
@@ -266,7 +266,7 @@ func (m *UnicornState) handleRd(storeReg uint32, val uint32, conditional bool) e
 	return nil
 }
 
-func (m *UnicornState) mipsStep() error {
+func (m *InstrumentedState) mipsStep() error {
 	if m.state.Exited {
 		return nil
 	}

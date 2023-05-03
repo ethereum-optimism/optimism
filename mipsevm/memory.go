@@ -11,15 +11,15 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+// Note: 2**12 = 4 KiB, the minimum page-size in Unicorn for mmap
+// as well as the Go runtime min phys page size.
 const (
-	// Note: 2**12 = 4 KiB, the minimum page-size in Unicorn for mmap
-	// as well as the Go runtime min phys page size.
-	pageAddrSize = 12
-	pageKeySize  = 32 - pageAddrSize
-	pageSize     = 1 << pageAddrSize
-	pageAddrMask = pageSize - 1
-	maxPageCount = 1 << pageKeySize
-	pageKeyMask  = maxPageCount - 1
+	PageAddrSize = 12
+	PageKeySize  = 32 - PageAddrSize
+	PageSize     = 1 << PageAddrSize
+	PageAddrMask = PageSize - 1
+	MaxPageCount = 1 << PageKeySize
+	PageKeyMask  = MaxPageCount - 1
 )
 
 func HashPair(left, right [32]byte) [32]byte {
@@ -62,12 +62,12 @@ func (m *Memory) Invalidate(addr uint32) {
 	}
 
 	// find page, and invalidate addr within it
-	if p, ok := m.Pages[addr>>pageAddrSize]; ok {
-		p.Invalidate(addr & pageAddrMask)
+	if p, ok := m.Pages[addr>>PageAddrSize]; ok {
+		p.Invalidate(addr & PageAddrMask)
 	}
 
 	// find the gindex of the first page covering the address
-	gindex := ((uint64(1) << 32) | uint64(addr)) >> pageAddrSize
+	gindex := ((uint64(1) << 32) | uint64(addr)) >> PageAddrSize
 
 	for gindex > 0 {
 		m.Nodes[gindex] = nil
@@ -80,9 +80,9 @@ func (m *Memory) MerkleizeSubtree(gindex uint64) [32]byte {
 	if l > 28 {
 		panic("gindex too deep")
 	}
-	if l > pageKeySize {
-		depthIntoPage := l - 1 - pageKeySize
-		pageIndex := (gindex >> depthIntoPage) & pageKeyMask
+	if l > PageKeySize {
+		depthIntoPage := l - 1 - PageKeySize
+		pageIndex := (gindex >> depthIntoPage) & PageKeyMask
 		if p, ok := m.Pages[uint32(pageIndex)]; ok {
 			pageGindex := (1 << depthIntoPage) | (gindex & ((1 << depthIntoPage) - 1))
 			return p.MerkleizeSubtree(pageGindex)
@@ -90,7 +90,7 @@ func (m *Memory) MerkleizeSubtree(gindex uint64) [32]byte {
 			return zeroHashes[28-l] // page does not exist
 		}
 	}
-	if l > pageKeySize+1 {
+	if l > PageKeySize+1 {
 		panic("cannot jump into intermediate node of page")
 	}
 	n, ok := m.Nodes[gindex]
@@ -147,8 +147,8 @@ func (m *Memory) SetMemory(addr uint32, v uint32) {
 		panic(fmt.Errorf("unaligned memory access: %x", addr))
 	}
 
-	pageIndex := addr >> pageAddrSize
-	pageAddr := addr & pageAddrMask
+	pageIndex := addr >> PageAddrSize
+	pageAddr := addr & PageAddrMask
 	p, ok := m.Pages[pageIndex]
 	if !ok {
 		// allocate the page if we have not already.
@@ -165,11 +165,11 @@ func (m *Memory) GetMemory(addr uint32) uint32 {
 	if addr&0x3 != 0 {
 		panic(fmt.Errorf("unaligned memory access: %x", addr))
 	}
-	p, ok := m.Pages[addr>>pageAddrSize]
+	p, ok := m.Pages[addr>>PageAddrSize]
 	if !ok {
 		return 0
 	}
-	pageAddr := addr & pageAddrMask
+	pageAddr := addr & PageAddrMask
 	return binary.BigEndian.Uint32(p.Data[pageAddr : pageAddr+4])
 }
 
@@ -177,7 +177,7 @@ func (m *Memory) AllocPage(pageIndex uint32) *CachedPage {
 	p := &CachedPage{Data: new(Page)}
 	m.Pages[pageIndex] = p
 	// make nodes to root
-	k := (1 << pageKeySize) | uint64(pageIndex)
+	k := (1 << PageKeySize) | uint64(pageIndex)
 	for k > 0 {
 		m.Nodes[k] = nil
 		k >>= 1
@@ -222,8 +222,8 @@ func (m *Memory) UnmarshalJSON(data []byte) error {
 
 func (m *Memory) SetMemoryRange(addr uint32, r io.Reader) error {
 	for {
-		pageIndex := addr >> pageAddrSize
-		pageAddr := addr & pageAddrMask
+		pageIndex := addr >> PageAddrSize
+		pageAddr := addr & PageAddrMask
 		p, ok := m.Pages[pageIndex]
 		if !ok {
 			p = m.AllocPage(pageIndex)
@@ -255,12 +255,12 @@ func (r *memReader) Read(dest []byte) (n int, err error) {
 	// It may wrap around the address range, and may not be aligned
 	endAddr := r.addr + r.count
 
-	pageIndex := r.addr >> pageAddrSize
-	start := r.addr & pageAddrMask
-	end := uint32(pageSize)
+	pageIndex := r.addr >> PageAddrSize
+	start := r.addr & PageAddrMask
+	end := uint32(PageSize)
 
-	if pageIndex == (endAddr >> pageAddrSize) {
-		end = endAddr & pageAddrMask
+	if pageIndex == (endAddr >> PageAddrSize) {
+		end = endAddr & PageAddrMask
 	}
 	p, ok := r.m.Pages[pageIndex]
 	if ok {

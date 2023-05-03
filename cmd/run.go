@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
-	"cannon/mipsevm"
+	"github.com/ethereum-optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/cannon/preimage"
 )
 
@@ -182,13 +182,7 @@ func Run(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	//mu, err := mipsevm.NewUnicorn()
-	//if err != nil {
-	//	return fmt.Errorf("failed to create unicorn emulator: %w", err)
-	//}
-	//if err := mipsevm.LoadUnicorn(state, mu); err != nil {
-	//	return fmt.Errorf("failed to load state into unicorn emulator: %w", err)
-	//}
+
 	l := Logger(os.Stderr, log.LvlInfo)
 	outLog := &mipsevm.LoggingWriter{Name: "program std-out", Log: l}
 	errLog := &mipsevm.LoggingWriter{Name: "program std-err", Log: l}
@@ -232,15 +226,11 @@ func Run(ctx *cli.Context) error {
 		}
 	}
 
-	//us, err := mipsevm.NewUnicornState(mu, state, po, outLog, errLog)
-	//if err != nil {
-	//	return fmt.Errorf("failed to setup instrumented VM state: %w", err)
-	//}
-	us := mipsevm.NewNonUnicornState(state, po, outLog, errLog)
+	us := mipsevm.NewInstrumentedState(state, po, outLog, errLog)
 	proofFmt := ctx.String(RunProofFmtFlag.Name)
 	snapshotFmt := ctx.String(RunSnapshotFmtFlag.Name)
 
-	stepFn := us.NonUnicornStep
+	stepFn := us.Step
 	if po.cmd != nil {
 		stepFn = Guard(po.cmd.ProcessState, stepFn)
 	}

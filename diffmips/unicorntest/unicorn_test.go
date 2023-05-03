@@ -1,4 +1,4 @@
-package mipsevm
+package unicorntest
 
 import (
 	"testing"

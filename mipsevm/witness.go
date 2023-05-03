@@ -11,13 +11,14 @@ import (
 )
 
 type StepWitness struct {
-	state []byte
+	// encoded state witness
+	State []byte
 
-	memProof []byte
+	MemProof []byte
 
-	preimageKey    [32]byte // zeroed when no pre-image is accessed
-	preimageValue  []byte   // including the 8-byte length prefix
-	preimageOffset uint32
+	PreimageKey    [32]byte // zeroed when no pre-image is accessed
+	PreimageValue  []byte   // including the 8-byte length prefix
+	PreimageOffset uint32
 }
 
 func uint32ToBytes32(v uint32) []byte {
@@ -27,30 +28,30 @@ func uint32ToBytes32(v uint32) []byte {
 }
 
 func (wit *StepWitness) EncodeStepInput() []byte {
-	stateHash := crypto.Keccak256Hash(wit.state)
+	stateHash := crypto.Keccak256Hash(wit.State)
 	var input []byte
 	input = append(input, StepBytes4...)
 	input = append(input, stateHash[:]...)
 	input = append(input, uint32ToBytes32(32*3)...)                           // state data offset in bytes
-	input = append(input, uint32ToBytes32(32*3+32+uint32(len(wit.state)))...) // proof data offset in bytes
+	input = append(input, uint32ToBytes32(32*3+32+uint32(len(wit.State)))...) // proof data offset in bytes
 
-	input = append(input, uint32ToBytes32(uint32(len(wit.state)))...) // state data length in bytes
-	input = append(input, wit.state[:]...)
-	input = append(input, uint32ToBytes32(uint32(len(wit.memProof)))...) // proof data length in bytes
-	input = append(input, wit.memProof[:]...)
+	input = append(input, uint32ToBytes32(uint32(len(wit.State)))...) // state data length in bytes
+	input = append(input, wit.State[:]...)
+	input = append(input, uint32ToBytes32(uint32(len(wit.MemProof)))...) // proof data length in bytes
+	input = append(input, wit.MemProof[:]...)
 	return input
 }
 
 func (wit *StepWitness) HasPreimage() bool {
-	return wit.preimageKey != ([32]byte{})
+	return wit.PreimageKey != ([32]byte{})
 }
 
 func (wit *StepWitness) EncodePreimageOracleInput() ([]byte, error) {
-	if wit.preimageKey == ([32]byte{}) {
+	if wit.PreimageKey == ([32]byte{}) {
 		return nil, errors.New("cannot encode pre-image oracle input, witness has no pre-image to proof")
 	}
 
-	switch preimage.KeyType(wit.preimageKey[0]) {
+	switch preimage.KeyType(wit.PreimageKey[0]) {
 	case preimage.LocalKeyType:
 		// We have no on-chain form of preparing the bootstrap pre-images onchain yet.
 		// So instead we cheat them in.
@@ -58,25 +59,25 @@ func (wit *StepWitness) EncodePreimageOracleInput() ([]byte, error) {
 		// rather than going through the global keccak256 oracle.
 		var input []byte
 		input = append(input, CheatBytes4...)
-		input = append(input, uint32ToBytes32(wit.preimageOffset)...)
-		input = append(input, wit.preimageKey[:]...)
+		input = append(input, uint32ToBytes32(wit.PreimageOffset)...)
+		input = append(input, wit.PreimageKey[:]...)
 		var tmp [32]byte
-		copy(tmp[:], wit.preimageValue[wit.preimageOffset:])
+		copy(tmp[:], wit.PreimageValue[wit.PreimageOffset:])
 		input = append(input, tmp[:]...)
-		input = append(input, uint32ToBytes32(uint32(len(wit.preimageValue))-8)...)
+		input = append(input, uint32ToBytes32(uint32(len(wit.PreimageValue))-8)...)
 		// TODO: do we want to pad the end to a multiple of 32 bytes?
 		return input, nil
 	case preimage.Keccak256KeyType:
 		var input []byte
 		input = append(input, LoadKeccak256PreimagePartBytes4...)
-		input = append(input, uint32ToBytes32(wit.preimageOffset)...)
+		input = append(input, uint32ToBytes32(wit.PreimageOffset)...)
 		input = append(input, uint32ToBytes32(32+32)...) // partOffset, calldata offset
-		input = append(input, uint32ToBytes32(uint32(len(wit.preimageValue))-8)...)
-		input = append(input, wit.preimageValue[8:]...)
+		input = append(input, uint32ToBytes32(uint32(len(wit.PreimageValue))-8)...)
+		input = append(input, wit.PreimageValue[8:]...)
 		// TODO: do we want to pad the end to a multiple of 32 bytes?
 		return input, nil
 	default:
 		return nil, fmt.Errorf("unsupported pre-image type %d, cannot prepare preimage with key %x offset %d for oracle",
-			wit.preimageKey[0], wit.preimageKey, wit.preimageOffset)
+			wit.PreimageKey[0], wit.PreimageKey, wit.PreimageOffset)
 	}
 }

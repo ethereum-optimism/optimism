@@ -24,17 +24,10 @@ contracts -- A MIPS emulator implementation, using merkleized state and a pre-im
 example   -- Example programs that can be run and proven with Cannon.
 extra     -- Extra scripts and legacy contracts, deprecated.
 mipsevm   -- Go tooling to test the onchain MIPS implementation, and generate proof data.
-unicorn   -- Sub-module, used by mipsevm for offchain MIPS emulation.
+diffmips  -- MIPS diff testing, to ensure correctness of the main Cannon implementation, with isolated dependencies. 
 ```
 
 ## Building
-
-### `unicorn`
-
-To build unicorn from source (git sub-module), run:
-```
-make libunicorn
-```
 
 ### `contracts`
 
@@ -42,17 +35,6 @@ The contracts are compiled with [`forge`](https://github.com/foundry-rs/foundry)
 ```
 make contracts
 ```
-
-### `mipsevm`
-
-This requires `unicorn` to be built, as well as the `contracts` for testing.
-
-To test:
-```
-make test
-```
-
-Also see notes in `mipsevm/go.mod` about the Unicorn dependency, if you wish to use Cannon as a Go library.
 
 ## License
 

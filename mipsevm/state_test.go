@@ -19,9 +19,8 @@ import (
 	"github.com/ethereum-optimism/cannon/preimage"
 )
 
-// baseAddrStart - baseAddrEnd is used in tests to write the results to
+// 0xbf_c0_00_00 ... baseAddrEnd is used in tests to write the results to
 const baseAddrEnd = 0xbf_ff_ff_f0
-const baseAddrStart = 0xbf_c0_00_00
 
 // endAddr is used as return-address for tests
 const endAddr = 0xa7ef00d0
@@ -51,30 +50,13 @@ func TestState(t *testing.T) {
 			// set the return address ($ra) to jump into when test completes
 			state.Registers[31] = endAddr
 
-			//err = state.SetMemoryRange(baseAddr&^pageAddrMask, bytes.NewReader(make([]byte, pageSize)))
-			//require.NoError(t, err, "must allocate page for the result data")
-			//
-			//err = state.SetMemoryRange(endAddr&^pageAddrMask, bytes.NewReader(make([]byte, pageSize)))
-			//require.NoError(t, err, "must allocate page to return to")
-
-			mu, err := NewUnicorn()
-			require.NoError(t, err, "load unicorn")
-			defer mu.Close()
-
-			require.NoError(t, mu.MemMap(baseAddrStart, ((baseAddrEnd-baseAddrStart)&^pageAddrMask)+pageSize))
-			require.NoError(t, mu.MemMap(endAddr&^pageAddrMask, pageSize))
-
-			err = LoadUnicorn(state, mu)
-			require.NoError(t, err, "load state into unicorn")
-
-			us, err := NewUnicornState(mu, state, nil, os.Stdout, os.Stderr)
-			require.NoError(t, err, "hook unicorn to state")
+			us := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
 
 			for i := 0; i < 1000; i++ {
 				if us.state.PC == endAddr {
 					break
 				}
-				_, err := us.NonUnicornStep(false)
+				_, err := us.Step(false)
 				require.NoError(t, err)
 			}
 			require.Equal(t, uint32(endAddr), us.state.PC, "must reach end")
@@ -97,20 +79,14 @@ func TestHello(t *testing.T) {
 	require.NoError(t, err, "apply Go runtime patches")
 	require.NoError(t, PatchStack(state), "add initial stack")
 
-	mu, err := NewUnicorn()
-	require.NoError(t, err, "load unicorn")
-	defer mu.Close()
-	err = LoadUnicorn(state, mu)
-	require.NoError(t, err, "load state into unicorn")
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	us, err := NewUnicornState(mu, state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
-	require.NoError(t, err, "hook unicorn to state")
+	us := NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 
 	for i := 0; i < 400_000; i++ {
 		if us.state.Exited {
 			break
 		}
-		_, err := us.NonUnicornStep(false)
+		_, err := us.Step(false)
 		require.NoError(t, err)
 	}
 
@@ -201,23 +177,16 @@ func TestClaim(t *testing.T) {
 	require.NoError(t, err, "apply Go runtime patches")
 	require.NoError(t, PatchStack(state), "add initial stack")
 
-	mu, err := NewUnicorn()
-	require.NoError(t, err, "load unicorn")
-	defer mu.Close()
-	err = LoadUnicorn(state, mu)
-	require.NoError(t, err, "load state into unicorn")
-
 	oracle, expectedStdOut, expectedStdErr := claimTestOracle(t)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	us, err := NewUnicornState(mu, state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
-	require.NoError(t, err, "hook unicorn to state")
+	us := NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 
 	for i := 0; i < 2000_000; i++ {
 		if us.state.Exited {
 			break
 		}
-		_, err := us.NonUnicornStep(false)
+		_, err := us.Step(false)
 		require.NoError(t, err)
 	}
 

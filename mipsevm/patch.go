@@ -99,7 +99,7 @@ func PatchStack(st *State) error {
 	// setup stack pointer
 	sp := uint32(0x7f_ff_d0_00)
 	// allocate 1 page for the initial stack data, and 16KB = 4 pages for the stack to grow
-	if err := st.Memory.SetMemoryRange(sp-4*pageSize, bytes.NewReader(make([]byte, 5*pageSize))); err != nil {
+	if err := st.Memory.SetMemoryRange(sp-4*PageSize, bytes.NewReader(make([]byte, 5*PageSize))); err != nil {
 		return fmt.Errorf("failed to allocate page for stack content")
 	}
 	st.Registers[29] = sp

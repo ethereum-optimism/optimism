@@ -72,20 +72,20 @@ func TestMemoryMerkleRoot(t *testing.T) {
 	})
 	t.Run("two empty pages", func(t *testing.T) {
 		m := NewMemory()
-		m.SetMemory(pageSize*3, 0)
-		m.SetMemory(pageSize*10, 0)
+		m.SetMemory(PageSize*3, 0)
+		m.SetMemory(PageSize*10, 0)
 		root := m.MerkleRoot()
 		require.Equal(t, zeroHashes[32-5], root, "zero still")
 	})
 	t.Run("random few pages", func(t *testing.T) {
 		m := NewMemory()
-		m.SetMemory(pageSize*3, 1)
-		m.SetMemory(pageSize*5, 42)
-		m.SetMemory(pageSize*6, 123)
-		p3 := m.MerkleizeSubtree((1 << pageKeySize) | 3)
-		p5 := m.MerkleizeSubtree((1 << pageKeySize) | 5)
-		p6 := m.MerkleizeSubtree((1 << pageKeySize) | 6)
-		z := zeroHashes[pageAddrSize-5]
+		m.SetMemory(PageSize*3, 1)
+		m.SetMemory(PageSize*5, 42)
+		m.SetMemory(PageSize*6, 123)
+		p3 := m.MerkleizeSubtree((1 << PageKeySize) | 3)
+		p5 := m.MerkleizeSubtree((1 << PageKeySize) | 5)
+		p6 := m.MerkleizeSubtree((1 << PageKeySize) | 6)
+		z := zeroHashes[PageAddrSize-5]
 		r1 := HashPair(
 			HashPair(
 				HashPair(z, z),  // 0,1
@@ -96,7 +96,7 @@ func TestMemoryMerkleRoot(t *testing.T) {
 				HashPair(p6, z), // 6,7
 			),
 		)
-		r2 := m.MerkleizeSubtree(1 << (pageKeySize - 3))
+		r2 := m.MerkleizeSubtree(1 << (PageKeySize - 3))
 		require.Equal(t, r1, r2, "expecting manual page combination to match subtree merkle func")
 	})
 	t.Run("invalidate page", func(t *testing.T) {

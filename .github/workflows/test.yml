@@ -16,19 +16,20 @@ jobs:
         with:
           submodules: true
       - name: unicorn commit hash
+        working-directory: ./diffmips/unicorn
         run: |
           git rev-parse HEAD > /tmp/unicorn-commit-hash.txt
       - name: cached libunicorn
         uses: actions/cache@v3
         with:
           path: |
-            ./unicorn/build
+            ./diffmips/unicorn/build
           key:
             unicorn-build-{{ hashFiles('/tmp/unicorn-commit-hash.txt') }}
           restore-keys: |
             unicorn-build-{{ hashFiles('/tmp/unicorn-commit-hash.txt') }}
       - name: install libunicorn
-        working-directory: .
+        working-directory: ./diffmips
         run: make libunicorn
       - uses: actions/cache@v3
         with:
@@ -45,11 +46,17 @@ jobs:
           key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-${{ matrix.go-version }}-
-      - name: golangci-lint
+      - name: main golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
           version: v1.52
-          working-directory: mipsevm
+          working-directory: ./
+          skip-cache: true  # we already have go caching
+      - name: unicorntest golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: v1.52
+          working-directory: ./diffmips/unicorntest
           skip-cache: true  # we already have go caching
       - name: Build examples
         working-directory: ./example
@@ -59,4 +66,7 @@ jobs:
         run: forge build
       - name: mipsevm tests
         working-directory: ./mipsevm
+        run: go test ./...
+      - name: diffmips tests
+        working-directory: ./diffmips/unicorntest
         run: go test ./...

@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"cannon/mipsevm"
+	"github.com/ethereum-optimism/cannon/mipsevm"
 )
 
 type StepMatcher func(st *mipsevm.State) bool
