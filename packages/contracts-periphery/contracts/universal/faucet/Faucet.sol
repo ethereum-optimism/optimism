@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {
     EIP712Upgradeable
@@ -60,15 +59,13 @@ contract AdminFAM is FaucetAuthModule, Semver, EIP712Upgradeable {
      */
     address public immutable ADMIN;
 
-   /**
+    /**
      * @notice EIP712 typehash for the ClaimableInvite type.
      */
     bytes32 public constant PROOF_TYPEHASH =
         keccak256("Proof(address recipient,bytes32 nonce,bytes id)");
-    // bytes32 public constant PROOF_TYPEHASH =
-    //     keccak256("Proof(address recipient,bytes id)");
 
-   /**
+    /**
      * @notice Struct that represents a proof that verifies the admin.
      *
      * @custom:field recipient Address that will be receiving the faucet funds.
@@ -107,13 +104,7 @@ contract AdminFAM is FaucetAuthModule, Semver, EIP712Upgradeable {
         Faucet.DripParameters memory params,
         bytes memory id,
         bytes memory proof
-    )
-        external
-        view
-        returns (
-            bool
-        )
-    {
+    ) external view returns (bool) {
         // Generate a EIP712 typed data hash to compare against the proof.
         bytes32 digest = _hashTypedDataV4(
             keccak256(
@@ -175,13 +166,13 @@ contract Faucet {
      */
     mapping (FaucetAuthModule => mapping (bytes => uint256)) public timeouts;
 
-   /**
+    /**
      * @notice Maps from id to nonces to whether or not they have been used.
      */
     mapping(bytes => mapping(bytes32 => bool)) public usedNonces;
 
-		/**
-		 * @notice Modifier that makes a function admin priviledged.
+	/**
+     * @notice Modifier that makes a function admin priviledged.
      */
     modifier priviledged() {
         require(
@@ -203,14 +194,11 @@ contract Faucet {
     /**
      * @notice Allows users to donate ETH to this contract.
      */
-    receive()
-        external
-        payable
-	    {
-				// Thank you!
-		}
+    receive() external payable {
+	    // Thank you!
+	}
 
-		/**
+   /**
      * @notice Allows the admin to withdraw funds.
      *
      * @param recipient Address to receive the funds.
@@ -219,12 +207,9 @@ contract Faucet {
     function withdraw(
         address payable recipient,
         uint256 amount
-    )
-        public
-        priviledged
-		{
-		    new SafeSend{value: amount}(recipient);
-		}
+    ) public priviledged {
+		new SafeSend{value: amount}(recipient);
+	}
 
     /**
      * @notice Allows the admin to configure an authentication module.
@@ -235,10 +220,7 @@ contract Faucet {
     function configure(
         FaucetAuthModule module,
         ModuleConfig memory config
-    )
-        public
-		priviledged
-    {
+    ) public priviledged {
         modules[module] = config;
     }
 
@@ -251,9 +233,7 @@ contract Faucet {
     function drip(
         DripParameters memory params,
         AuthParameters memory auth
-    )
-        public
-    {
+    ) public {
 	    // Grab the module config once.
 		ModuleConfig memory config = modules[auth.module];
 
