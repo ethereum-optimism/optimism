@@ -8,3 +8,4 @@ venv
 example/bin
 contracts/out
 state.json
+*.json

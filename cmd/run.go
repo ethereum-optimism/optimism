@@ -62,6 +62,12 @@ var (
 		Value:    new(StepMatcherFlag),
 		Required: false,
 	}
+	RunMetaFlag = &cli.PathFlag{
+		Name:     "meta",
+		Usage:    "path to metadata file for symbol lookup for enhanced debugging info durign execution.",
+		Value:    "meta.json",
+		Required: false,
+	}
 )
 
 type Proof struct {
@@ -207,6 +213,18 @@ func Run(ctx *cli.Context) error {
 	proofAt := ctx.Generic(RunProofAtFlag.Name).(*StepMatcherFlag).Matcher()
 	snapshotAt := ctx.Generic(RunSnapshotAtFlag.Name).(*StepMatcherFlag).Matcher()
 
+	var meta *mipsevm.Metadata
+	if metaPath := ctx.Path(RunMetaFlag.Name); metaPath == "" {
+		l.Info("no metadata file specified, defaulting to empty metadata")
+		meta = &mipsevm.Metadata{Symbols: nil} // provide empty metadata by default
+	} else {
+		if m, err := loadJSON[mipsevm.Metadata](metaPath); err != nil {
+			return fmt.Errorf("failed to load metadata: %w", err)
+		} else {
+			meta = m
+		}
+	}
+
 	//us, err := mipsevm.NewUnicornState(mu, state, po, outLog, errLog)
 	//if err != nil {
 	//	return fmt.Errorf("failed to setup instrumented VM state: %w", err)
@@ -229,6 +247,17 @@ func Run(ctx *cli.Context) error {
 		//	l.Info("", "insn", state.Memory.GetMemory(state.PC), "pc", state.PC, "symbol", sy.Name)
 		//	// print name
 		//}
+		if meta.LookupSymbol(state.PC) == "runtime.notesleep" {
+			return fmt.Errorf("got stuck in Go sleep at step %d", step)
+		}
+		if step%100 == 0 || step > 14_478_400 {
+			l.Info("processing",
+				"step", step,
+				"pc", mipsevm.HexU32(state.PC),
+				"insn", mipsevm.HexU32(state.Memory.GetMemory(state.PC)),
+				"name", meta.LookupSymbol(state.PC),
+			)
+		}
 
 		if stopAt(state) {
 			break
@@ -289,5 +318,6 @@ var RunCommand = &cli.Command{
 		RunSnapshotAtFlag,
 		RunSnapshotFmtFlag,
 		RunStopAtFlag,
+		RunMetaFlag,
 	},
 }

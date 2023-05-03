@@ -28,6 +28,12 @@ var (
 		Value:    "state.json",
 		Required: false,
 	}
+	LoadELFMetaFlag = &cli.PathFlag{
+		Name:     "meta",
+		Usage:    "Write metadata file, for symbol lookup during program execution. None if empty.",
+		Value:    "meta.json",
+		Required: false,
+	}
 )
 
 func LoadELF(ctx *cli.Context) error {
@@ -35,6 +41,9 @@ func LoadELF(ctx *cli.Context) error {
 	elfProgram, err := elf.Open(elfPath)
 	if err != nil {
 		return fmt.Errorf("failed to open ELF file %q: %w", elfPath, err)
+	}
+	if elfProgram.Machine != elf.EM_MIPS {
+		return fmt.Errorf("ELF is not big-endian MIPS R3000, but got %q", elfProgram.Machine.String())
 	}
 	state, err := mipsevm.LoadELF(elfProgram)
 	if err != nil {
@@ -53,6 +62,13 @@ func LoadELF(ctx *cli.Context) error {
 			return fmt.Errorf("failed to apply patch %s: %w", typ, err)
 		}
 	}
+	meta, err := mipsevm.MakeMetadata(elfProgram)
+	if err != nil {
+		return fmt.Errorf("failed to compute program metadata: %w", err)
+	}
+	if err := writeJSON[*mipsevm.Metadata](ctx.Path(LoadELFMetaFlag.Name), meta, false); err != nil {
+		return fmt.Errorf("failed to output metadata: %w", err)
+	}
 	return writeJSON[*mipsevm.State](ctx.Path(LoadELFOutFlag.Name), state, true)
 }
 
@@ -65,5 +81,6 @@ var LoadELFCommand = &cli.Command{
 		LoadELFPathFlag,
 		LoadELFPatchFlag,
 		LoadELFOutFlag,
+		LoadELFMetaFlag,
 	},
 }
