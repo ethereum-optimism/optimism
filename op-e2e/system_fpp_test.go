@@ -71,6 +71,8 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 
 	// Avoids flaky test by avoiding reorgs at epoch 0
 	t.Log("Wait for safe head to advance once for setup")
+	// Safe head doesn't exist at genesis. Wait for the first one before proceeding
+	require.NoError(t, waitForSafeHead(ctx, 1, rollupClient))
 	ss, err := l2Seq.BlockByNumber(ctx, big.NewInt(int64(rpc.SafeBlockNumber)))
 	require.NoError(t, err)
 	require.NoError(t, waitForSafeHead(ctx, ss.NumberU64()+cfg.DeployConfig.SequencerWindowSize+1, rollupClient))
