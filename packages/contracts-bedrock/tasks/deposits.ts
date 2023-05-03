@@ -39,11 +39,11 @@ task('deposit', 'Deposits funds onto L2.')
   )
   .setAction(async (args, hre) => {
     const { l1ProviderUrl, l2ProviderUrl, to, amountEth, privateKey } = args
-    const proxy = await hre.deployments.get('OptimismPortalProxy')
+    // const proxy = await hre.deployments.get('OptimismPortalProxy')
 
     const OptimismPortal = await hre.ethers.getContractAt(
       'OptimismPortal',
-      proxy.address
+      '0x6900000000000000000000000000000000000001'
     )
 
     const l1Provider = new providers.JsonRpcProvider(l1ProviderUrl)
