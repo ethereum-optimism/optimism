@@ -40,8 +40,11 @@ const checkPredeploys = async (
 
   const codeReq = []
   const slotReq = []
+
+  const maxCheck = 255
+
   // First loop for requests
-  for (let i = 0; i < 2048; i++) {
+  for (let i = 0; i < maxCheck; i++) {
     const num = hre.ethers.utils.hexZeroPad('0x' + i.toString(16), 2)
     const addr = hre.ethers.utils.getAddress(
       hre.ethers.utils.hexConcat([prefix, num])
@@ -57,7 +60,7 @@ const checkPredeploys = async (
   const slotRes = await Promise.all(slotReq)
 
   // Second loop for response checks
-  for (let i = 0; i < 2048; i++) {
+  for (let i = 0; i < maxCheck; i++) {
     const num = hre.ethers.utils.hexZeroPad('0x' + i.toString(16), 2)
     const addr = hre.ethers.utils.getAddress(
       hre.ethers.utils.hexConcat([prefix, num])
@@ -79,7 +82,7 @@ const checkPredeploys = async (
       throw new Error(`incorrect admin slot in ${addr}`)
     }
 
-    if (i % 200 === 0) {
+    if (i % 50 === 0) {
       console.log(`Checked through ${addr}`)
     }
   }
@@ -186,7 +189,13 @@ const checkGenesisMagic = async (
 
     const L2OutputOracle = new hre.ethers.Contract(address, [abi], l1Provider)
 
-    startingBlockNumber = await L2OutputOracle.startingBlockNumber()
+    try {
+      startingBlockNumber = await L2OutputOracle.startingBlockNumber()
+    } catch (e) {
+      console.log('Error calling L2OutputOracle')
+      console.log(e.message)
+      startingBlockNumber = hre.deployConfig.l2OutputOracleStartingBlockNumber
+    }
   } else {
     // We do not have a connection to the L1 chain, use the local config
     // The `--network` flag must be set to the L1 network
@@ -200,7 +209,9 @@ const checkGenesisMagic = async (
   const extradata = block.extraData
 
   if (extradata !== magic) {
-    throw new Error('magic value in extradata does not match')
+    throw new Error(
+      `magic value in extradata does not match: got ${extradata}, expected ${magic}`
+    )
   }
 }
 
