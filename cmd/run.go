@@ -109,21 +109,27 @@ func NewProcessPreimageOracle(name string, args []string) *ProcessPreimageOracle
 		return &ProcessPreimageOracle{}
 	}
 
-	pCh := preimage.ClientPreimageChannel()
-	hCh := preimage.ClientHinterChannel()
+	pClientRW, pOracleRW, err := preimage.CreateBidirectionalChannel()
+	if err != nil {
+		panic(err)
+	}
+	hClientRW, hOracleRW, err := preimage.CreateBidirectionalChannel()
+	if err != nil {
+		panic(err)
+	}
 
 	cmd := exec.Command(name, args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.ExtraFiles = []*os.File{
-		hCh.Reader(),
-		hCh.Writer(),
-		pCh.Reader(),
-		pCh.Writer(),
+		hOracleRW.Reader(),
+		hOracleRW.Writer(),
+		pOracleRW.Reader(),
+		pOracleRW.Writer(),
 	}
 	out := &ProcessPreimageOracle{
-		pCl: preimage.NewOracleClient(pCh),
-		hCl: preimage.NewHintWriter(hCh),
+		pCl: preimage.NewOracleClient(pClientRW),
+		hCl: preimage.NewHintWriter(hClientRW),
 		cmd: cmd,
 	}
 	return out
