@@ -11,16 +11,15 @@
   <br />
 </div>
 
+## Celestia + OP Stack tutorial
+
+If you're looking to run the OP Stack + Celestia setup for this repository, please visit the [Optimism & Celestia tutorial](https://docs.celestia.org/developers/optimism) to get started.
+
 ## What is Optimism and the OP Stack?
 
 Optimism is a low-cost and lightning-fast Ethereum L2 blockchain, **but it's also so much more than that**.
 
-Optimism is the technical foundation for [the Optimism Collective](https://app.optimism.io/announcement), a band of communities, companies, and citizens united by a mutually beneficial pact to adhere to the axiom of **impact=profit** — the principle that positive impact to the collective should be rewarded with profit to the individual.
-We're trying to solve some of the most critical coordination failures facing the crypto ecosystem today.
-**We're particularly focused on creating a sustainable funding stream for the public goods and infrastructure upon which the ecosystem so heavily relies but has so far been unable to adequately reward.**
-We'd love for you to check out [The Optimistic Vision](https://www.optimism.io/vision) to understand more about why we do what we do.
-
-The OP Stack powers Optimism, an Ethereum L2 blockchain, and forms the technical foundation for the Optimism Collective—a group committed to the impact=profit principle. This principle rewards individuals for their positive contributions to the collective.
+The OP Stack powers Optimism, an Ethereum L2 blockchain, and forms the technical foundation for the [the Optimism Collective](https://app.optimism.io/announcement)—a group committed to the **impact=profit** principle. This principle rewards individuals for their positive contributions to the collective.
 
 Optimism addresses critical coordination failures in the crypto ecosystem, such as funding public goods and infrastructure. The OP Stack focuses on creating a shared, open-source system for developing new L2 blockchains within the proposed Superchain ecosystem, promoting collaboration and preventing redundant efforts.
 
@@ -31,10 +30,6 @@ As Optimism evolves, the OP Stack will adapt, encompassing components ranging fr
 Celestia is a modular consensus and data network, built to enable anyone to easily deploy their own blockchain with minimal overhead.
 
 Celestia is a minimal blockchain that only orders and publishes transactions and does not execute them. By decoupling the consensus and application execution layers, Celestia modularizes the blockchain technology stack and unlocks new possibilities for decentralized application builders. Lean more at [Celestia.org](https://celestia.org).
-
-## Celestia + OP Stack guide
-
-If you're looking to run the OP Stack + Celestia setup for this repository, please visit the [Optimism & Celestia tutorial](https://docs.celestia.org/developers/optimism).
 
 ## Documentation
 
