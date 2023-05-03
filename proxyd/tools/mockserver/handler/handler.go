@@ -99,7 +99,7 @@ func (mh *MockedHandler) Handler(w http.ResponseWriter, req *http.Request) {
 		resBody = responses[0]
 	}
 
-	_, err = fmt.Fprintf(w, resBody)
+	_, err = fmt.Fprint(w, resBody)
 	if err != nil {
 		fmt.Printf("error writing response: %v\n", err)
 	}
