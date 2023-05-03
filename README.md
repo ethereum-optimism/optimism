@@ -3,8 +3,11 @@
   <br />
   <br />
   <a href="https://optimism.io"><img alt="Optimism" src="https://raw.githubusercontent.com/ethereum-optimism/brand-kit/main/assets/svg/OPTIMISM-R.svg" width=600></a>
+  <h3><a href="https://optimism.io">Optimism</a> is a low-cost and lightning-fast Ethereum L2 blockchain, built with the OP Stack.</h3>
   <br />
-  <h3><a href="https://optimism.io">Optimism</a> is a low-cost and lightning-fast Ethereum L2 blockchain.</h3>
+  <h1>x</h1>
+  <a href="https://optimism.io"><img alt="Optimism" src="docs/op-stack/src/assets/docs/understand/Celestia-logo-color-color.svg" width=600></a>
+  <h3><a href="https://celestia.org">Celestia</a> is a modular consensus and data network, built to enable anyone to easily deploy their own blockchain with minimal overhead.</h3>
   <br />
 </div>
 
