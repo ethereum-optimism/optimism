@@ -72,7 +72,7 @@ PRIVATE_KEY=bf7604d9d3a1c7748642b1b7b05c2bd219c9faa91458b370f85e5a40f3b03af7
 Then, run the following from the same directory:
 
 ```bash
-npx hardhat deposit --network devnetL1 --l1-provider-url http://localhost:8545 --l2-provider-url http://localhost:9545 --amount-eth <AMOUNT> --to <ADDRESS>```
+npx hardhat deposit --network devnetL1 --l1-provider-url http://localhost:8545 --l2-provider-url http://localhost:9545 --amount-eth <AMOUNT> --to <ADDRESS>
 ```
 
 ## Directory Structure
