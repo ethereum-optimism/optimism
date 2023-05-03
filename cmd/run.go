@@ -189,6 +189,9 @@ func Run(ctx *cli.Context) error {
 			break
 		}
 	}
+	if len(args) == 0 {
+		args = []string{""}
+	}
 
 	po := NewProcessPreimageOracle(args[0], args[1:])
 	if err := po.Start(); err != nil {
