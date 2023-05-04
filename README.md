@@ -55,6 +55,26 @@ Read through [CONTRIBUTING.md](./CONTRIBUTING.md) for a general overview of our 
 Use the [Developer Quick Start](./CONTRIBUTING.md#development-quick-start) to get your development environment set up to start working on the Optimism Monorepo.
 Then check out our list of [good first issues](https://github.com/ethereum-optimism/optimism/contribute) to find something fun to work on! -->
 
+## Bridging
+
+If you have the OP Stack + Celestia setup running, you can test out bridging from the L1
+to the L2.
+
+To do this, first navigate to the `packages/contracts-bedrock` directory and create a
+`.env` file with the following contents:
+
+```bash
+L1_PROVIDER_URL=http://localhost:8545
+L2_PROVIDER_URL=http://localhost:9545
+PRIVATE_KEY=bf7604d9d3a1c7748642b1b7b05c2bd219c9faa91458b370f85e5a40f3b03af7
+```
+
+Then, run the following from the same directory:
+
+```bash
+npx hardhat deposit --network devnetL1 --l1-provider-url http://localhost:8545 --l2-provider-url http://localhost:9545 --amount-eth <AMOUNT> --to <ADDRESS>
+```
+
 ## Directory Structure
 
 <pre>
