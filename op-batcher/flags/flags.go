@@ -110,6 +110,7 @@ var optionalFlags = []cli.Flag{
 	TargetNumFramesFlag,
 	ApproxComprRatioFlag,
 	StoppedFlag,
+	SequencerHDPathFlag,
 }
 
 func init() {
