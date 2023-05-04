@@ -612,10 +612,20 @@ jobs:
       - run:
           name: markdown lint
           command: yarn lint:specs:check
+
+  bedrock-markdown-links:
+    machine:
+      image: ubuntu-2204:2022.07.1
+    steps:
+      - checkout
       - run:
           name: link lint
           command: |
-            docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback --exclude twitter.com --exclude-mail /input/README.md "/input/specs/**/*.md"
+            make bedrock-markdown-links
+      - slack/notify:
+          channel: C055R639XT9 #notify-link-check
+          event: fail
+          template: basic_fail_1
 
   fuzz-op-node:
     docker:
@@ -1619,3 +1629,15 @@ workflows:
           context:
             - slack
             - oplabs-fpp-nodes
+
+  scheduled-link-check:
+    triggers:
+      - schedule:
+          # Run once a day, only on the develop branch
+          cron: "0 0 * * *"
+          filters:
+            branches:
+              only: [ "develop" ]
+    jobs:
+      - bedrock-markdown-links:
+          context: slack
