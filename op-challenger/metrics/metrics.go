@@ -14,7 +14,7 @@ import (
 	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
-const Namespace = "op_proposer"
+const Namespace = "op_challenger"
 
 type Metricer interface {
 	RecordInfo(version string)
@@ -26,7 +26,9 @@ type Metricer interface {
 	// Record Tx metrics
 	txmetrics.TxMetricer
 
-	RecordL2BlocksProposed(l2ref eth.L2BlockRef)
+	RecordValidOutput(l2ref eth.L2BlockRef)
+	RecordInvalidOutput(l2ref eth.L2BlockRef)
+	RecordOutputChallenged(l2ref eth.L2BlockRef)
 }
 
 type Metrics struct {
@@ -97,12 +99,24 @@ func (m *Metrics) RecordUp() {
 }
 
 const (
-	BlockProposed = "proposed"
+	ValidOutput      = "valid_output"
+	InvalidOutput    = "invalid_output"
+	OutputChallenged = "output_challenged"
 )
 
-// RecordL2BlocksProposed should be called when new L2 block is proposed
-func (m *Metrics) RecordL2BlocksProposed(l2ref eth.L2BlockRef) {
-	m.RecordL2Ref(BlockProposed, l2ref)
+// RecordValidOutput should be called when a valid output is found
+func (m *Metrics) RecordValidOutput(l2ref eth.L2BlockRef) {
+	m.RecordL2Ref(ValidOutput, l2ref)
+}
+
+// RecordInvalidOutput should be called when an invalid output is found
+func (m *Metrics) RecordInvalidOutput(l2ref eth.L2BlockRef) {
+	m.RecordL2Ref(InvalidOutput, l2ref)
+}
+
+// RecordOutputChallenged should be called when an output is challenged
+func (m *Metrics) RecordOutputChallenged(l2ref eth.L2BlockRef) {
+	m.RecordL2Ref(OutputChallenged, l2ref)
 }
 
 func (m *Metrics) Document() []opmetrics.DocumentedMetric {

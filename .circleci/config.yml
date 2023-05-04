@@ -3,6 +3,7 @@ version: 2.1
 orbs:
   go: circleci/go@1.5.0
   gcp-cli: circleci/gcp-cli@3.0.1
+  slack: circleci/slack@4.10.1
 commands:
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
@@ -611,10 +612,20 @@ jobs:
       - run:
           name: markdown lint
           command: yarn lint:specs:check
+
+  bedrock-markdown-links:
+    machine:
+      image: ubuntu-2204:2022.07.1
+    steps:
+      - checkout
       - run:
           name: link lint
           command: |
-            docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback --exclude twitter.com --exclude-mail /input/README.md "/input/specs/**/*.md"
+            make bedrock-markdown-links
+      - slack/notify:
+          channel: C055R639XT9 #notify-link-check
+          event: fail
+          template: basic_fail_1
 
   fuzz-op-node:
     docker:
@@ -1105,6 +1116,21 @@ jobs:
     steps:
       - run: echo Done
 
+  fpp-verify:
+    docker:
+      - image: cimg/go:1.19
+    steps:
+      - checkout
+      - run:
+          name: verify-goerli
+          command: |
+            make verify-goerli
+          working_directory: op-program
+      - slack/notify:
+          channel: C03N11M0BBN
+          event: fail
+          template: basic_fail_1
+
 workflows:
   main:
     jobs:
@@ -1560,6 +1586,21 @@ workflows:
             - oplabs-gcr-release
           requires:
             - hold
+      - docker-build:
+          name: proxyd-docker-release
+          filters:
+            tags:
+              only: /^proxyd\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: proxyd/Dockerfile
+          docker_name: proxyd
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+          context:
+            - oplabs-gcr-release
+          requires:
+            - hold
   release-ci-builder:
     jobs:
       - docker-publish:
@@ -1575,3 +1616,28 @@ workflows:
           docker_context: ./ops/docker/ci-builder
           context:
             - oplabs-gcr
+  scheduled-fpp:
+    triggers:
+      - schedule:
+          # run every 4 hours
+          cron: "0 0,6,12,18 * * *"
+          filters:
+            branches:
+              only: [ "develop" ]
+    jobs:
+      - fpp-verify:
+          context:
+            - slack
+            - oplabs-fpp-nodes
+
+  scheduled-link-check:
+    triggers:
+      - schedule:
+          # Run once a day, only on the develop branch
+          cron: "0 0 * * *"
+          filters:
+            branches:
+              only: [ "develop" ]
+    jobs:
+      - bedrock-markdown-links:
+          context: slack

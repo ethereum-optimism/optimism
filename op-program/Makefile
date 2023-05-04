@@ -33,6 +33,9 @@ test:
 lint:
 	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is"
 
+verify-goerli: op-program-host op-program-client
+	env GO111MODULE=on go run ./verify/cmd/goerli.go $$L1URL $$L2URL
+
 .PHONY: \
 	op-program \
 	clean \
