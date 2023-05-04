@@ -157,6 +157,7 @@ func Start(config *Config) (*Server, func(), error) {
 			opts = append(opts, WithStrippedTrailingXFF())
 		}
 		opts = append(opts, WithProxydIP(os.Getenv("PROXYD_IP")))
+		opts = append(opts, WithSkipPeerCountCheck(cfg.SkipPeerCountCheck))
 
 		back := NewBackend(name, rpcURL, wsURL, lim, rpcRequestSemaphore, opts...)
 		backendNames = append(backendNames, name)
