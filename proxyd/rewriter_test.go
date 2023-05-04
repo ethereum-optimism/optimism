@@ -334,6 +334,18 @@ func TestRewriteRequest(t *testing.T) {
 			expected:    RewriteOverrideError,
 			expectedErr: ErrRewriteBlockOutOfRange,
 		},
+		{
+			name: "eth_getStorageAt using rpc.BlockNumberOrHash",
+			args: args{
+				rctx: RewriteContext{latest: hexutil.Uint64(100)},
+				req: &RPCReq{Method: "eth_getStorageAt", Params: mustMarshalJSON([]string{
+					"0xae851f927ee40de99aabb7461c00f9622ab91d60",
+					"0x65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08",
+					"0x1c4840bcb3de3ac403c0075b46c2c47d4396c5b624b6e1b2874ec04e8879b483"})},
+				res: nil,
+			},
+			expected: RewriteNone,
+		},
 	}
 
 	// generalize tests for other methods with same interface and behavior
