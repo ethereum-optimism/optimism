@@ -80,9 +80,9 @@ contract Faucet_Initializer is Test {
         address _eip712VerifyingContract,
         address recipient,
         bytes memory id,
-        uint256 nonce
+        bytes32 nonce
     ) internal view returns (bytes memory) {
-        AdminFAM.Proof memory proof = AdminFAM.Proof(recipient, bytes32(keccak256(abi.encode(nonce))), id);
+        AdminFAM.Proof memory proof = AdminFAM.Proof(recipient, nonce, id);
         return
             _getSignature(
                 _issuerPrivateKey,
@@ -104,6 +104,7 @@ contract FaucetTest is Faucet_Initializer {
 
     function test_AuthAdmin_drip_succeeds() external {
         _enableFaucetAuthModule();
+        bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory signature
             = issueProofWithEIP712Domain(
                 faucetAuthAdminKey,
@@ -113,17 +114,18 @@ contract FaucetTest is Faucet_Initializer {
                 address(adminFam),
                 fundsReceiver,
                 abi.encodePacked(fundsReceiver),
-                faucetHelper.currentNonce()
+                nonce
             );
 
         vm.prank(nonAdmin);
         faucet.drip(
-            Faucet.DripParameters(payable(fundsReceiver), faucetHelper.consumeNonce()),
+            Faucet.DripParameters(payable(fundsReceiver), nonce),
             Faucet.AuthParameters(adminFam, abi.encodePacked(fundsReceiver), signature));
     }
 
     function test_nonAdmin_drip_fails() external {
         _enableFaucetAuthModule();
+        bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory signature
             = issueProofWithEIP712Domain(
                 nonAdminKey,
@@ -133,13 +135,13 @@ contract FaucetTest is Faucet_Initializer {
                 address(adminFam),
                 fundsReceiver,
                 abi.encodePacked(fundsReceiver),
-                faucetHelper.currentNonce()
+                nonce
             );
 
         vm.prank(nonAdmin);
         vm.expectRevert("Faucet: drip parameters could not be verified by security module");
         faucet.drip(
-            Faucet.DripParameters(payable(fundsReceiver), faucetHelper.consumeNonce()),
+            Faucet.DripParameters(payable(fundsReceiver), nonce),
             Faucet.AuthParameters(adminFam, abi.encodePacked(fundsReceiver), signature));
     }
 }
