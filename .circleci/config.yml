@@ -1576,6 +1576,21 @@ workflows:
             - oplabs-gcr-release
           requires:
             - hold
+      - docker-build:
+          name: proxyd-docker-release
+          filters:
+            tags:
+              only: /^proxyd\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: proxyd/Dockerfile
+          docker_name: proxyd
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+          context:
+            - oplabs-gcr-release
+          requires:
+            - hold
   release-ci-builder:
     jobs:
       - docker-publish:
