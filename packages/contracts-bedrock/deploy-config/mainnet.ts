@@ -34,7 +34,7 @@ const config: DeployConfig = {
   l2OutputOracleStartingBlockNumber: 79149121,
   l2OutputOracleProposer: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
   l2OutputOracleChallenger: foundationMultisig,
-  finalizationPeriodSeconds: 3600,
+  finalizationPeriodSeconds: 1,
 
   baseFeeVaultRecipient: feeRecipient,
   l1FeeVaultRecipient: feeRecipient,
