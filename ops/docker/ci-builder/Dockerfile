@@ -28,7 +28,7 @@ FROM ethereum/client-go:alltools-v1.10.25 as geth
 
 FROM ghcr.io/crytic/echidna/echidna:v2.0.4 as echidna-test
 
-FROM python:3.8.13-slim-bullseye
+FROM python:3.10.11-slim-bullseye
 
 ENV GOPATH=/go
 ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
