@@ -44,6 +44,12 @@ max_response_size_bytes = 5242880
 max_retries = 3
 # Number of seconds to wait before trying an unhealthy backend again.
 out_of_service_seconds = 600
+# Maximum latency accepted to serve requests, default 10s
+max_latency_threshold = "30s"
+# Maximum latency accepted to serve requests before degraded, default 5s
+max_degraded_latency_threshold = "10s"
+# Maximum error rate accepted to serve requests, default 0.5 (i.e. 50%)
+max_error_rate_threshold = 0.3
 
 [backends]
 # A map of backends by name.
@@ -78,6 +84,14 @@ max_ws_conns = 1
 [backend_groups]
 [backend_groups.main]
 backends = ["infura"]
+# Enable consensus awareness for backend group, making it act as a load balancer, default false
+# consensus_aware = true
+# Period in which the backend wont serve requests if banned, default 5m
+# consensus_ban_period = "1m"
+# Maximum delay for update the backend, default 30s
+# consensus_max_update_threshold = "20s"
+# Minimum peer count, default 3
+# consensus_min_peer_count = 4
 
 [backend_groups.alchemy]
 backends = ["alchemy"]
