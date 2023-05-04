@@ -132,6 +132,8 @@ type Backend struct {
 	stripTrailingXFF     bool
 	proxydIP             string
 
+	skipPeerCountCheck bool
+
 	maxDegradedLatencyThreshold time.Duration
 	maxLatencyThreshold         time.Duration
 	maxErrorRateThreshold       float64
@@ -204,6 +206,12 @@ func WithStrippedTrailingXFF() BackendOpt {
 func WithProxydIP(ip string) BackendOpt {
 	return func(b *Backend) {
 		b.proxydIP = ip
+	}
+}
+
+func WithSkipPeerCountCheck(skipPeerCountCheck bool) BackendOpt {
+	return func(b *Backend) {
+		b.skipPeerCountCheck = skipPeerCountCheck
 	}
 }
 

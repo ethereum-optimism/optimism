@@ -227,10 +227,13 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 		return
 	}
 
-	peerCount, err := cp.getPeerCount(ctx, be)
-	if err != nil {
-		log.Warn("error updating backend", "name", be.Name, "err", err)
-		return
+	var peerCount uint64
+	if !be.skipPeerCountCheck {
+		peerCount, err = cp.getPeerCount(ctx, be)
+		if err != nil {
+			log.Warn("error updating backend", "name", be.Name, "err", err)
+			return
+		}
 	}
 
 	latestBlockNumber, latestBlockHash, err := cp.fetchBlock(ctx, be, "latest")
@@ -257,7 +260,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	for _, be := range cp.backendGroup.Backends {
 		peerCount, backendLatestBlockNumber, backendLatestBlockHash, lastUpdate := cp.getBackendState(be)
 
-		if peerCount < cp.minPeerCount {
+		if !be.skipPeerCountCheck && peerCount < cp.minPeerCount {
 			continue
 		}
 		if lastUpdate.Add(cp.maxUpdateThreshold).Before(time.Now()) {
@@ -306,7 +309,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 			bs := cp.backendState[be]
 			notUpdated := bs.lastUpdate.Add(cp.maxUpdateThreshold).Before(time.Now())
 			isBanned := time.Now().Before(bs.bannedUntil)
-			notEnoughPeers := bs.peerCount < cp.minPeerCount
+			notEnoughPeers := !be.skipPeerCountCheck && bs.peerCount < cp.minPeerCount
 			if !be.IsHealthy() || be.IsRateLimited() || !be.Online() || notUpdated || isBanned || notEnoughPeers {
 				filteredBackendsNames = append(filteredBackendsNames, be.Name)
 				continue
@@ -384,7 +387,7 @@ func (cp *ConsensusPoller) fetchBlock(ctx context.Context, be *Backend, block st
 	return
 }
 
-// isSyncing Convenient wrapper to check if the backend is syncing from the network
+// getPeerCount Convenient wrapper to retrieve the current peer count from the backend
 func (cp *ConsensusPoller) getPeerCount(ctx context.Context, be *Backend) (count uint64, err error) {
 	var rpcRes RPCRes
 	err = be.ForwardRPC(ctx, &rpcRes, "67", "net_peerCount")
