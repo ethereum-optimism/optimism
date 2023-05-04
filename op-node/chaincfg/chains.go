@@ -43,14 +43,14 @@ var Goerli = rollup.Config{
 var Mainnet = rollup.Config{
 	Genesis: rollup.Genesis{
 		L1: eth.BlockID{
-			Hash:   common.HexToHash("0x85e677d1ebe93fa80bce1ebbf1a0aadbab3433eca4a205260dab39e1fc23b428"),
-			Number: 16786100,
+			Hash:   common.HexToHash("0xfaa0ca49136c2ed86b6d5d0cf357bc099323d64534eff4501d760186230b0cb9"),
+			Number: 16780230,
 		},
 		L2: eth.BlockID{
-			Hash:   common.HexToHash("0x960cfb929b6d4d8b4b6760a88116b91ac5aa1e95221aa7bd931613bb2d5a8a16"),
-			Number: 79149122,
+			Hash:   common.HexToHash("0x8ced54d739f12aec842ee41f50a6e38ef0759690edec99b9ea0f5b5e948d777c"),
+			Number: 79149098,
 		},
-		L2Time: 1683043523,
+		L2Time: 1683226991,
 		SystemConfig: eth.SystemConfig{
 			BatcherAddr: common.HexToAddress("0x70997970c51812dc3a010c7d01b50e0d17dc79c8"),
 			Overhead:    eth.Bytes32(common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000834")),
@@ -65,8 +65,8 @@ var Mainnet = rollup.Config{
 	L1ChainID:              big.NewInt(1),
 	L2ChainID:              big.NewInt(10),
 	BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000000000010"),
-	DepositContractAddress: common.HexToAddress("0xf9c0bf1cfaab883adb95fed4cfd60133bffab18a"),
-	L1SystemConfigAddress:  common.HexToAddress("0x6f2e42bb4176e9a7352a8bf8886255be9f3d2d13"),
+	DepositContractAddress: common.HexToAddress("0xb468647b04bf657c9ee2de65252037d781eabafd"),
+	L1SystemConfigAddress:  common.HexToAddress("0x408f924baec71cc3968614cb2c58e155a35e6890"),
 	RegolithTime:           u64Ptr(0),
 }
 
