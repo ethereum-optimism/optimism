@@ -244,15 +244,22 @@ func Run(ctx *cli.Context) error {
 		stepFn = Guard(po.cmd.ProcessState, stepFn)
 	}
 
+	start := time.Now()
+	startStep := state.Step
+
 	for !state.Exited {
 		step := state.Step
 
 		name := meta.LookupSymbol(state.PC)
 		if infoAt(state) {
+			delta := time.Since(start)
 			l.Info("processing",
 				"step", step,
 				"pc", mipsevm.HexU32(state.PC),
 				"insn", mipsevm.HexU32(state.Memory.GetMemory(state.PC)),
+				"ips", float64(step-startStep)/(float64(delta)/float64(time.Second)),
+				"pages", len(state.Memory.Pages),
+				"mem", state.Memory.Usage(),
 				"name", name,
 			)
 		}

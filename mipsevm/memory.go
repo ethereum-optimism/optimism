@@ -276,3 +276,18 @@ func (r *memReader) Read(dest []byte) (n int, err error) {
 func (m *Memory) ReadMemoryRange(addr uint32, count uint32) io.Reader {
 	return &memReader{m: m, addr: addr, count: count}
 }
+
+func (m *Memory) Usage() string {
+	total := uint64(len(m.Pages)) * PageSize
+	const unit = 1024
+	if total < unit {
+		return fmt.Sprintf("%d B", total)
+	}
+	div, exp := uint64(unit), 0
+	for n := total / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	// KiB, MiB, GiB, TiB, ...
+	return fmt.Sprintf("%.1f %ciB", float64(total)/float64(div), "KMGTPE"[exp])
+}
