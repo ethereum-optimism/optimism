@@ -78,6 +78,11 @@ func TestNetwork(t *testing.T) {
 		name := name
 		expected := cfg
 		t.Run("Network_"+name, func(t *testing.T) {
+			// TODO(CLI-3936) Re-enable test for other networks once bedrock migration is complete
+			if name != "goerli" {
+				t.Skipf("Not requiring chain config for network %s", name)
+				return
+			}
 			args := replaceRequiredArg("--network", name)
 			cfg := configForArgs(t, args)
 			require.Equal(t, expected, *cfg.Rollup)
