@@ -59,11 +59,11 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	PollIntervalFlag,
 	AllowNonFinalizedFlag,
+	L2OutputHDPathFlag,
 }
 
 func init() {
-	requiredFlags = append(requiredFlags, oprpc.CLIFlags(envVarPrefix)...)
-
+	optionalFlags = append(optionalFlags, oprpc.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(envVarPrefix)...)
