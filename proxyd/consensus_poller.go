@@ -205,7 +205,7 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 	bs := cp.backendState[be]
 	if time.Now().Before(bs.bannedUntil) {
-		log.Warn("skipping backend banned", "backend", be.Name, "bannedUntil", bs.bannedUntil)
+		log.Debug("skipping backend banned", "backend", be.Name, "bannedUntil", bs.bannedUntil)
 		return
 	}
 
@@ -246,7 +246,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 
 	if changed {
 		RecordBackendLatestBlock(be, latestBlockNumber)
-		log.Info("backend state updated", "name", be.Name, "state", bs)
+		log.Debug("backend state updated", "name", be.Name, "state", bs)
 	}
 }
 
@@ -288,7 +288,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	filteredBackendsNames := make([]string, 0, len(cp.backendGroup.Backends))
 
 	if lowestBlock > currentConsensusBlockNumber {
-		log.Info("validating consensus on block", lowestBlock)
+		log.Debug("validating consensus on block", "lowestBlock", lowestBlock)
 	}
 
 	broken := false
@@ -341,7 +341,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 			// walk one block behind and try again
 			proposedBlock -= 1
 			proposedBlockHash = ""
-			log.Info("no consensus, now trying", "block:", proposedBlock)
+			log.Debug("no consensus, now trying", "block:", proposedBlock)
 		}
 	}
 
@@ -356,7 +356,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	cp.consensusGroup = consensusBackends
 	cp.consensusGroupMux.Unlock()
 
-	log.Info("group state", "proposedBlock", proposedBlock, "consensusBackends", strings.Join(consensusBackendsNames, ", "), "filteredBackends", strings.Join(filteredBackendsNames, ", "))
+	log.Debug("group state", "proposedBlock", proposedBlock, "consensusBackends", strings.Join(consensusBackendsNames, ", "), "filteredBackends", strings.Join(filteredBackendsNames, ", "))
 }
 
 // Unban remove any bans from the backends
