@@ -72,6 +72,9 @@ ca_file = ""
 client_cert_file = ""
 # Path to a custom client key file.
 client_key_file = ""
+# Allows backends to skip peer count checking, default false
+# consensus_skip_peer_count = true
+
 
 [backends.alchemy]
 rpc_url = ""
