@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/urfave/cli/v2"
 
@@ -18,9 +22,26 @@ func main() {
 		cmd.LoadELFCommand,
 		cmd.RunCommand,
 	}
-	err := app.Run(os.Args)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		for {
+			<-c
+			cancel()
+			fmt.Println("\r\nExiting...")
+		}
+	}()
+
+	err := app.RunContext(ctx, os.Args)
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "error: %v", err)
-		os.Exit(1)
+		if errors.Is(err, ctx.Err()) {
+			_, _ = fmt.Fprintf(os.Stderr, "command interrupted")
+			os.Exit(130)
+		} else {
+			_, _ = fmt.Fprintf(os.Stderr, "error: %v", err)
+			os.Exit(1)
+		}
 	}
 }

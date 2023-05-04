@@ -41,7 +41,7 @@ func (m *InstrumentedState) handleSyscall() error {
 	a1 := m.state.Registers[5]
 	a2 := m.state.Registers[6]
 
-	fmt.Printf("syscall: %d\n", syscallNum)
+	//fmt.Printf("syscall: %d\n", syscallNum)
 	switch syscallNum {
 	case 4090: // mmap
 		sz := a1
@@ -50,11 +50,11 @@ func (m *InstrumentedState) handleSyscall() error {
 		}
 		if a0 == 0 {
 			v0 = m.state.Heap
-			fmt.Printf("mmap heap 0x%x size 0x%x\n", v0, sz)
+			//fmt.Printf("mmap heap 0x%x size 0x%x\n", v0, sz)
 			m.state.Heap += sz
 		} else {
 			v0 = a0
-			fmt.Printf("mmap hint 0x%x size 0x%x\n", v0, sz)
+			//fmt.Printf("mmap hint 0x%x size 0x%x\n", v0, sz)
 		}
 		// Go does this thing where it first gets memory with PROT_NONE,
 		// and then mmaps with a hint with prot=3 (PROT_READ|WRITE).
@@ -84,7 +84,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			m.trackMemAccess(effAddr)
 			mem := m.state.Memory.GetMemory(effAddr)
 			dat, datLen := m.readPreimage(m.state.PreimageKey, m.state.PreimageOffset)
-			fmt.Printf("reading pre-image data: addr: %08x, offset: %d, datLen: %d, data: %x, key: %s  count: %d\n", a1, m.state.PreimageOffset, datLen, dat[:datLen], m.state.PreimageKey, a2)
+			//fmt.Printf("reading pre-image data: addr: %08x, offset: %d, datLen: %d, data: %x, key: %s  count: %d\n", a1, m.state.PreimageOffset, datLen, dat[:datLen], m.state.PreimageKey, a2)
 			alignment := a1 & 3
 			space := 4 - alignment
 			if space < datLen {
@@ -99,7 +99,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			m.state.Memory.SetMemory(effAddr, binary.BigEndian.Uint32(outMem[:]))
 			m.state.PreimageOffset += datLen
 			v0 = datLen
-			fmt.Printf("read %d pre-image bytes, new offset: %d, eff addr: %08x mem: %08x\n", datLen, m.state.PreimageOffset, effAddr, outMem)
+			//fmt.Printf("read %d pre-image bytes, new offset: %d, eff addr: %08x mem: %08x\n", datLen, m.state.PreimageOffset, effAddr, outMem)
 		case fdHintRead: // hint response
 			// don't actually read into memory, just say we read it all, we ignore the result anyway
 			v0 = a2
@@ -147,7 +147,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			copy(key[32-a2:], tmp[:])
 			m.state.PreimageKey = key
 			m.state.PreimageOffset = 0
-			fmt.Printf("updating pre-image key: %s\n", m.state.PreimageKey)
+			//fmt.Printf("updating pre-image key: %s\n", m.state.PreimageKey)
 			v0 = a2
 		default:
 			v0 = 0xFFffFFff

@@ -162,7 +162,13 @@ func (p *ProcessPreimageOracle) Close() error {
 	}
 	_ = p.cmd.Process.Signal(os.Interrupt)
 	p.cmd.WaitDelay = time.Second * 10
-	return p.cmd.Wait()
+	err := p.cmd.Wait()
+	if err, ok := err.(*exec.ExitError); ok {
+		if err.Success() {
+			return nil
+		}
+	}
+	return err
 }
 
 type StepFn func(proof bool) (*mipsevm.StepWitness, error)
@@ -248,6 +254,10 @@ func Run(ctx *cli.Context) error {
 	startStep := state.Step
 
 	for !state.Exited {
+		if err := ctx.Context.Err(); err != nil {
+			return err
+		}
+
 		step := state.Step
 
 		name := meta.LookupSymbol(state.PC)
