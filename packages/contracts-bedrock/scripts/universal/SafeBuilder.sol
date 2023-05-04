@@ -34,14 +34,10 @@ abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
     address[] internal approvals;
 
     /**
-     * @notice The entrypoint to this script.
+     * -----------------------------------------------------------
+     * Virtual Functions
+     * -----------------------------------------------------------
      */
-    function run(address _safe, address _proxyAdmin) public returns (bool) {
-        vm.startBroadcast();
-        bool success = _run(_safe, _proxyAdmin);
-        if (success) _postCheck();
-        return success;
-    }
 
     /**
      * @notice Follow up assertions to ensure that the script ran to completion.
@@ -56,7 +52,30 @@ abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
     /**
      * @notice Internal helper function to compute the safe transaction hash.
      */
-    function _getTransactionHash(address _safe, address _proxyAdmin) internal returns (bytes32) {
+    function computeSafeTransactionHash(address _safe, address _proxyAdmin) public virtual returns (bytes32) {
+        return _getTransactionHash(_safe, _proxyAdmin);
+    }
+
+    /**
+     * -----------------------------------------------------------
+     * Implemented Functions
+     * -----------------------------------------------------------
+     */
+
+    /**
+     * @notice The entrypoint to this script.
+     */
+    function run(address _safe, address _proxyAdmin) public returns (bool) {
+        vm.startBroadcast();
+        bool success = _run(_safe, _proxyAdmin);
+        if (success) _postCheck();
+        return success;
+    }
+
+    /**
+     * @notice Computes the safe transaction hash for the provided safe and proxy admin.
+     */
+    function _getTransactionHash(address _safe, address _proxyAdmin) internal view returns (bytes32) {
         // Ensure that the required contracts exist
         require(address(multicall).code.length > 0, "multicall3 not deployed");
         require(_safe.code.length > 0, "no code at safe address");
@@ -83,7 +102,6 @@ abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
 
         return hash;
     }
-
 
     /**
      * @notice The implementation of the upgrade. Split into its own function
@@ -189,6 +207,5 @@ abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
         }
         return signatures;
     }
-
 }
 
