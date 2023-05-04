@@ -18,7 +18,6 @@
   "l2OutputOracleStartingBlockNumber": 79149121,
   "l2OutputOracleProposer": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
   "l2OutputOracleChallenger": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-  "proxyAdminOwner": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
   "finalizationPeriodSeconds": 3600,
   "baseFeeVaultRecipient": "0xa3d596EAfaB6B13Ab18D40FaE1A962700C84ADEa",
   "l1FeeVaultRecipient": "0xa3d596EAfaB6B13Ab18D40FaE1A962700C84ADEa",
