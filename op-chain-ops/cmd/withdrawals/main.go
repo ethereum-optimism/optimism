@@ -238,11 +238,11 @@ func main() {
 				// relayed or received
 				isSuccess, err := contracts.L1CrossDomainMessenger.SuccessfulMessages(&bind.CallOpts{}, legacyXdmHash)
 				if err != nil {
-					return err
+					return fmt.Errorf("cannot call successfulMessages: %w", err)
 				}
 				isFailed, err := contracts.L1CrossDomainMessenger.FailedMessages(&bind.CallOpts{}, legacyXdmHash)
 				if err != nil {
-					return err
+					return fmt.Errorf("cannot call failedMessages: %w", err)
 				}
 
 				xdmHash := crypto.Keccak256Hash(withdrawal.Data)
@@ -252,11 +252,11 @@ func main() {
 
 				isSuccessNew, err := contracts.L1CrossDomainMessenger.SuccessfulMessages(&bind.CallOpts{}, xdmHash)
 				if err != nil {
-					return err
+					return fmt.Errorf("cannot call successfulMessages: %w", err)
 				}
 				isFailedNew, err := contracts.L1CrossDomainMessenger.FailedMessages(&bind.CallOpts{}, xdmHash)
 				if err != nil {
-					return err
+					return fmt.Errorf("cannot call failedMessages: %w", err)
 				}
 
 				log.Info("cross domain messenger status", "hash", legacyXdmHash.Hex(), "success", isSuccess, "failed", isFailed, "is-success-new", isSuccessNew, "is-failed-new", isFailedNew)
@@ -319,6 +319,20 @@ func main() {
 				}
 
 				if !isFinalized {
+					for {
+						block, err := clients.L1Client.BlockByNumber(context.Background(), nil)
+						if err != nil {
+							return err
+						}
+						timestamp := new(big.Int).SetUint64(block.Time())
+						end := proven.Timestamp.Add(proven.Timestamp, period)
+						log.Info("Waiting for finalization period", "current", timestamp, "end", end)
+						if timestamp.Cmp(end) > 0 {
+							break
+						}
+						time.Sleep(10 * time.Second)
+					}
+
 					// Get the ETH balance of the withdrawal target *before* the finalization
 					targetBalBefore, err := clients.L1Client.BalanceAt(context.Background(), wd.XDomainTarget, nil)
 					if err != nil {
