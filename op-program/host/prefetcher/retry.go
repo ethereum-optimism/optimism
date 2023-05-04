@@ -47,7 +47,7 @@ func (s *RetryingL1Source) InfoAndTxsByHash(ctx context.Context, blockHash commo
 	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() error {
 		i, t, err := s.source.InfoAndTxsByHash(ctx, blockHash)
 		if err != nil {
-			s.logger.Warn("Failed to retrieve info and txs", "hash", blockHash, "err", err)
+			s.logger.Warn("Failed to retrieve l1 info and txs", "hash", blockHash, "err", err)
 			return err
 		}
 		info = i
@@ -87,7 +87,7 @@ func (s *RetryingL2Source) InfoAndTxsByHash(ctx context.Context, blockHash commo
 	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() error {
 		i, t, err := s.source.InfoAndTxsByHash(ctx, blockHash)
 		if err != nil {
-			s.logger.Warn("Failed to retrieve info and txs", "hash", blockHash, "err", err)
+			s.logger.Warn("Failed to retrieve l2 info and txs", "hash", blockHash, "err", err)
 			return err
 		}
 		info = i
