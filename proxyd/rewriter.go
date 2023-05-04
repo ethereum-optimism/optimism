@@ -3,9 +3,8 @@ package proxyd
 import (
 	"encoding/json"
 	"errors"
-	"strings"
-
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type RewriteContext struct {
@@ -159,15 +158,21 @@ func rewriteTagMap(rctx RewriteContext, m map[string]interface{}, key string) (b
 }
 
 func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
-	if current == "latest" {
+	jv, err := json.Marshal(current)
+	if err != nil {
+		return "", false, err
+	}
+
+	var bnh rpc.BlockNumberOrHash
+	err = bnh.UnmarshalJSON(jv)
+	if err != nil {
+		return "", false, err
+	}
+
+	if bnh.BlockNumber != nil && *bnh.BlockNumber == rpc.LatestBlockNumber {
 		return rctx.latest.String(), true, nil
-	} else if strings.HasPrefix(current, "0x") {
-		decode, err := hexutil.DecodeUint64(current)
-		if err != nil {
-			return current, false, err
-		}
-		b := hexutil.Uint64(decode)
-		if b > rctx.latest {
+	} else if bnh.BlockNumber != nil {
+		if hexutil.Uint64(bnh.BlockNumber.Int64()) > rctx.latest {
 			return "", false, ErrRewriteBlockOutOfRange
 		}
 	}
