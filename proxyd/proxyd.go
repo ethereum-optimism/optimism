@@ -123,6 +123,15 @@ func Start(config *Config) (*Server, func(), error) {
 		if config.BackendOptions.OutOfServiceSeconds != 0 {
 			opts = append(opts, WithOutOfServiceDuration(secondsToDuration(config.BackendOptions.OutOfServiceSeconds)))
 		}
+		if config.BackendOptions.MaxDegradedLatencyThreshold > 0 {
+			opts = append(opts, WithMaxDegradedLatencyThreshold(time.Duration(config.BackendOptions.MaxDegradedLatencyThreshold)))
+		}
+		if config.BackendOptions.MaxLatencyThreshold > 0 {
+			opts = append(opts, WithMaxLatencyThreshold(time.Duration(config.BackendOptions.MaxLatencyThreshold)))
+		}
+		if config.BackendOptions.MaxErrorRateThreshold > 0 {
+			opts = append(opts, WithMaxErrorRateThreshold(config.BackendOptions.MaxErrorRateThreshold))
+		}
 		if cfg.MaxRPS != 0 {
 			opts = append(opts, WithMaxRPS(cfg.MaxRPS))
 		}
@@ -148,6 +157,7 @@ func Start(config *Config) (*Server, func(), error) {
 			opts = append(opts, WithStrippedTrailingXFF())
 		}
 		opts = append(opts, WithProxydIP(os.Getenv("PROXYD_IP")))
+
 		back := NewBackend(name, rpcURL, wsURL, lim, rpcRequestSemaphore, opts...)
 		backendNames = append(backendNames, name)
 		backendsByName[name] = back
@@ -302,14 +312,25 @@ func Start(config *Config) (*Server, func(), error) {
 	}
 
 	for bgName, bg := range backendGroups {
-		if config.BackendGroups[bgName].ConsensusAware {
+		bgcfg := config.BackendGroups[bgName]
+		if bgcfg.ConsensusAware {
 			log.Info("creating poller for consensus aware backend_group", "name", bgName)
 
 			copts := make([]ConsensusOpt, 0)
 
-			if config.BackendGroups[bgName].ConsensusAsyncHandler == "noop" {
+			if bgcfg.ConsensusAsyncHandler == "noop" {
 				copts = append(copts, WithAsyncHandler(NewNoopAsyncHandler()))
 			}
+			if bgcfg.ConsensusBanPeriod > 0 {
+				copts = append(copts, WithBanPeriod(time.Duration(bgcfg.ConsensusBanPeriod)))
+			}
+			if bgcfg.ConsensusMaxUpdateThreshold > 0 {
+				copts = append(copts, WithMaxUpdateThreshold(time.Duration(bgcfg.ConsensusMaxUpdateThreshold)))
+			}
+			if bgcfg.ConsensusMinPeerCount > 0 {
+				copts = append(copts, WithMinPeerCount(uint64(bgcfg.ConsensusMinPeerCount)))
+			}
+
 			cp := NewConsensusPoller(bg, copts...)
 			bg.Consensus = cp
 		}
