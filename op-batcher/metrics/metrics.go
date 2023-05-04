@@ -49,25 +49,25 @@ type Metrics struct {
 	opmetrics.RefMetrics
 	txmetrics.TxMetrics
 
-	Info prometheus.GaugeVec
-	Up   prometheus.Gauge
+	info prometheus.GaugeVec
+	up   prometheus.Gauge
 
 	// label by openend, closed, fully_submitted, timed_out
-	ChannelEvs opmetrics.EventVec
+	channelEvs opmetrics.EventVec
 
-	PendingBlocksCount prometheus.GaugeVec
-	BlocksAddedCount   prometheus.Gauge
+	pendingBlocksCount prometheus.GaugeVec
+	blocksAddedCount   prometheus.Gauge
 
-	ChannelInputBytes       prometheus.GaugeVec
-	ChannelReadyBytes       prometheus.Gauge
-	ChannelOutputBytes      prometheus.Gauge
-	ChannelClosedReason     prometheus.Gauge
-	ChannelNumFrames        prometheus.Gauge
-	ChannelComprRatio       prometheus.Histogram
-	ChannelInputBytesTotal  prometheus.Counter
-	ChannelOutputBytesTotal prometheus.Counter
+	channelInputBytes       prometheus.GaugeVec
+	channelReadyBytes       prometheus.Gauge
+	channelOutputBytes      prometheus.Gauge
+	channelClosedReason     prometheus.Gauge
+	channelNumFrames        prometheus.Gauge
+	channelComprRatio       prometheus.Histogram
+	channelInputBytesTotal  prometheus.Counter
+	channelOutputBytesTotal prometheus.Counter
 
-	BatcherTxEvs opmetrics.EventVec
+	batcherTxEvs opmetrics.EventVec
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -89,75 +89,75 @@ func NewMetrics(procName string) *Metrics {
 		RefMetrics: opmetrics.MakeRefMetrics(ns, factory),
 		TxMetrics:  txmetrics.MakeTxMetrics(ns, factory),
 
-		Info: *factory.NewGaugeVec(prometheus.GaugeOpts{
+		info: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "info",
 			Help:      "Pseudo-metric tracking version and config info",
 		}, []string{
 			"version",
 		}),
-		Up: factory.NewGauge(prometheus.GaugeOpts{
+		up: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "up",
 			Help:      "1 if the op-batcher has finished starting up",
 		}),
 
-		ChannelEvs: opmetrics.NewEventVec(factory, ns, "", "channel", "Channel", []string{"stage"}),
+		channelEvs: opmetrics.NewEventVec(factory, ns, "", "channel", "Channel", []string{"stage"}),
 
-		PendingBlocksCount: *factory.NewGaugeVec(prometheus.GaugeOpts{
+		pendingBlocksCount: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "pending_blocks_count",
 			Help:      "Number of pending blocks, not added to a channel yet.",
 		}, []string{"stage"}),
-		BlocksAddedCount: factory.NewGauge(prometheus.GaugeOpts{
+		blocksAddedCount: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "blocks_added_count",
 			Help:      "Total number of blocks added to current channel.",
 		}),
 
-		ChannelInputBytes: *factory.NewGaugeVec(prometheus.GaugeOpts{
+		channelInputBytes: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "input_bytes",
 			Help:      "Number of input bytes to a channel.",
 		}, []string{"stage"}),
-		ChannelReadyBytes: factory.NewGauge(prometheus.GaugeOpts{
+		channelReadyBytes: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "ready_bytes",
 			Help:      "Number of bytes ready in the compression buffer.",
 		}),
-		ChannelOutputBytes: factory.NewGauge(prometheus.GaugeOpts{
+		channelOutputBytes: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "output_bytes",
 			Help:      "Number of compressed output bytes from a channel.",
 		}),
-		ChannelClosedReason: factory.NewGauge(prometheus.GaugeOpts{
+		channelClosedReason: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "channel_closed_reason",
 			Help:      "Pseudo-metric to record the reason a channel got closed.",
 		}),
-		ChannelNumFrames: factory.NewGauge(prometheus.GaugeOpts{
+		channelNumFrames: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "channel_num_frames",
 			Help:      "Total number of frames of closed channel.",
 		}),
-		ChannelComprRatio: factory.NewHistogram(prometheus.HistogramOpts{
+		channelComprRatio: factory.NewHistogram(prometheus.HistogramOpts{
 			Namespace: ns,
 			Name:      "channel_compr_ratio",
 			Help:      "Compression ratios of closed channel.",
 			Buckets:   append([]float64{0.1, 0.2}, prometheus.LinearBuckets(0.3, 0.05, 14)...),
 		}),
-		ChannelInputBytesTotal: factory.NewCounter(prometheus.CounterOpts{
+		channelInputBytesTotal: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      "input_bytes_total",
 			Help:      "Total number of bytes to a channel.",
 		}),
-		ChannelOutputBytesTotal: factory.NewCounter(prometheus.CounterOpts{
+		channelOutputBytesTotal: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      "output_bytes_total",
 			Help:      "Total number of compressed output bytes from a channel.",
 		}),
 
-		BatcherTxEvs: opmetrics.NewEventVec(factory, ns, "", "batcher_tx", "BatcherTx", []string{"stage"}),
+		batcherTxEvs: opmetrics.NewEventVec(factory, ns, "", "batcher_tx", "BatcherTx", []string{"stage"}),
 	}
 }
 
@@ -177,13 +177,13 @@ func (m *Metrics) StartBalanceMetrics(ctx context.Context,
 // RecordInfo sets a pseudo-metric that contains versioning and
 // config info for the op-batcher.
 func (m *Metrics) RecordInfo(version string) {
-	m.Info.WithLabelValues(version).Set(1)
+	m.info.WithLabelValues(version).Set(1)
 }
 
 // RecordUp sets the up metric to 1.
 func (m *Metrics) RecordUp() {
 	prometheus.MustRegister()
-	m.Up.Set(1)
+	m.up.Set(1)
 }
 
 const (
@@ -210,37 +210,37 @@ func (m *Metrics) RecordL2BlocksLoaded(l2ref eth.L2BlockRef) {
 }
 
 func (m *Metrics) RecordChannelOpened(id derive.ChannelID, numPendingBlocks int) {
-	m.ChannelEvs.Record(StageOpened)
-	m.BlocksAddedCount.Set(0) // reset
-	m.PendingBlocksCount.WithLabelValues(StageOpened).Set(float64(numPendingBlocks))
+	m.channelEvs.Record(StageOpened)
+	m.blocksAddedCount.Set(0) // reset
+	m.pendingBlocksCount.WithLabelValues(StageOpened).Set(float64(numPendingBlocks))
 }
 
 // RecordL2BlocksAdded should be called when L2 block were added to the channel
 // builder, with the latest added block.
 func (m *Metrics) RecordL2BlocksAdded(l2ref eth.L2BlockRef, numBlocksAdded, numPendingBlocks, inputBytes, outputComprBytes int) {
 	m.RecordL2Ref(StageAdded, l2ref)
-	m.BlocksAddedCount.Add(float64(numBlocksAdded))
-	m.PendingBlocksCount.WithLabelValues(StageAdded).Set(float64(numPendingBlocks))
-	m.ChannelInputBytes.WithLabelValues(StageAdded).Set(float64(inputBytes))
-	m.ChannelReadyBytes.Set(float64(outputComprBytes))
+	m.blocksAddedCount.Add(float64(numBlocksAdded))
+	m.pendingBlocksCount.WithLabelValues(StageAdded).Set(float64(numPendingBlocks))
+	m.channelInputBytes.WithLabelValues(StageAdded).Set(float64(inputBytes))
+	m.channelReadyBytes.Set(float64(outputComprBytes))
 }
 
 func (m *Metrics) RecordChannelClosed(id derive.ChannelID, numPendingBlocks int, numFrames int, inputBytes int, outputComprBytes int, reason error) {
-	m.ChannelEvs.Record(StageClosed)
-	m.PendingBlocksCount.WithLabelValues(StageClosed).Set(float64(numPendingBlocks))
-	m.ChannelNumFrames.Set(float64(numFrames))
-	m.ChannelInputBytes.WithLabelValues(StageClosed).Set(float64(inputBytes))
-	m.ChannelOutputBytes.Set(float64(outputComprBytes))
-	m.ChannelInputBytesTotal.Add(float64(inputBytes))
-	m.ChannelOutputBytesTotal.Add(float64(outputComprBytes))
+	m.channelEvs.Record(StageClosed)
+	m.pendingBlocksCount.WithLabelValues(StageClosed).Set(float64(numPendingBlocks))
+	m.channelNumFrames.Set(float64(numFrames))
+	m.channelInputBytes.WithLabelValues(StageClosed).Set(float64(inputBytes))
+	m.channelOutputBytes.Set(float64(outputComprBytes))
+	m.channelInputBytesTotal.Add(float64(inputBytes))
+	m.channelOutputBytesTotal.Add(float64(outputComprBytes))
 
 	var comprRatio float64
 	if inputBytes > 0 {
 		comprRatio = float64(outputComprBytes) / float64(inputBytes)
 	}
-	m.ChannelComprRatio.Observe(comprRatio)
+	m.channelComprRatio.Observe(comprRatio)
 
-	m.ChannelClosedReason.Set(float64(ClosedReasonToNum(reason)))
+	m.channelClosedReason.Set(float64(ClosedReasonToNum(reason)))
 }
 
 func ClosedReasonToNum(reason error) int {
@@ -249,21 +249,21 @@ func ClosedReasonToNum(reason error) int {
 }
 
 func (m *Metrics) RecordChannelFullySubmitted(id derive.ChannelID) {
-	m.ChannelEvs.Record(StageFullySubmitted)
+	m.channelEvs.Record(StageFullySubmitted)
 }
 
 func (m *Metrics) RecordChannelTimedOut(id derive.ChannelID) {
-	m.ChannelEvs.Record(StageTimedOut)
+	m.channelEvs.Record(StageTimedOut)
 }
 
 func (m *Metrics) RecordBatchTxSubmitted() {
-	m.BatcherTxEvs.Record(TxStageSubmitted)
+	m.batcherTxEvs.Record(TxStageSubmitted)
 }
 
 func (m *Metrics) RecordBatchTxSuccess() {
-	m.BatcherTxEvs.Record(TxStageSuccess)
+	m.batcherTxEvs.Record(TxStageSuccess)
 }
 
 func (m *Metrics) RecordBatchTxFailed() {
-	m.BatcherTxEvs.Record(TxStageFailed)
+	m.batcherTxEvs.Record(TxStageFailed)
 }

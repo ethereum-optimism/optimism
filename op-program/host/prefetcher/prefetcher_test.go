@@ -5,9 +5,11 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
 
@@ -121,6 +123,28 @@ func TestFetchL1Receipts(t *testing.T) {
 		l1Cl.ExpectInfoAndTxsByHash(hash, eth.BlockToInfo(block), block.Transactions(), nil)
 		l1Cl.ExpectFetchReceipts(hash, eth.BlockToInfo(block), receipts, nil)
 		defer l1Cl.AssertExpectations(t)
+
+		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
+		header, actualReceipts := oracle.ReceiptsByBlockHash(hash)
+		require.EqualValues(t, hash, header.Hash())
+		assertReceiptsEqual(t, receipts, actualReceipts)
+	})
+
+	// Blocks may have identical RLP receipts for different transactions.
+	// Check that the node already existing is handled
+	t.Run("CommonTrieNodes", func(t *testing.T) {
+		prefetcher, l1Cl, _, kv := createPrefetcher(t)
+		l1Cl.ExpectInfoByHash(hash, eth.BlockToInfo(block), nil)
+		l1Cl.ExpectInfoAndTxsByHash(hash, eth.BlockToInfo(block), block.Transactions(), nil)
+		l1Cl.ExpectFetchReceipts(hash, eth.BlockToInfo(block), receipts, nil)
+		defer l1Cl.AssertExpectations(t)
+
+		// Pre-store one receipt node (but not the whole trie leading to it)
+		// This would happen if an identical receipt was in an earlier block
+		opaqueRcpts, err := eth.EncodeReceipts(receipts)
+		require.NoError(t, err)
+		_, nodes := mpt.WriteTrie(opaqueRcpts)
+		require.NoError(t, kv.Put(preimage.Keccak256Key(crypto.Keccak256Hash(nodes[0])).PreimageKey(), nodes[0]))
 
 		oracle := l1.NewPreimageOracle(asOracleFn(t, prefetcher), asHinter(t, prefetcher))
 		header, actualReceipts := oracle.ReceiptsByBlockHash(hash)
@@ -263,6 +287,7 @@ type l2Client struct {
 }
 
 func createPrefetcher(t *testing.T) (*Prefetcher, *testutils.MockL1Source, *l2Client, kvstore.KV) {
+	logger := testlog.Logger(t, log.LvlDebug)
 	kv := kvstore.NewMemKV()
 
 	l1Source := new(testutils.MockL1Source)
@@ -271,7 +296,7 @@ func createPrefetcher(t *testing.T) (*Prefetcher, *testutils.MockL1Source, *l2Cl
 		MockDebugClient: new(testutils.MockDebugClient),
 	}
 
-	prefetcher := NewPrefetcher(l1Source, l2Source, kv)
+	prefetcher := NewPrefetcher(logger, l1Source, l2Source, kv)
 	return prefetcher, l1Source, l2Source, kv
 }
 

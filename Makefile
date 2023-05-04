@@ -40,6 +40,10 @@ op-proposer:
 	make -C ./op-proposer op-proposer
 .PHONY: op-proposer
 
+op-challenger:
+	make -C ./op-challenger op-challenger
+.PHONY: op-challenger
+
 op-program:
 	make -C ./op-program op-program
 .PHONY: op-program

@@ -2,6 +2,7 @@ package flags
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/urfave/cli"
 
@@ -32,13 +33,14 @@ var (
 		Usage:  "Address of the L2OutputOracle contract",
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L2OO_ADDRESS"),
 	}
+
+	// Optional flags
 	PollIntervalFlag = cli.DurationFlag{
-		Name: "poll-interval",
-		Usage: "Delay between querying L2 for more transactions and " +
-			"creating a new batch",
+		Name:   "poll-interval",
+		Usage:  "How frequently to poll L2 for new blocks",
+		Value:  6 * time.Second,
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "POLL_INTERVAL"),
 	}
-	// Optional flags
 	AllowNonFinalizedFlag = cli.BoolFlag{
 		Name:   "allow-non-finalized",
 		Usage:  "Allow the proposer to submit proposals for L2 blocks derived from non-finalized L1 blocks.",
@@ -52,16 +54,16 @@ var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	RollupRpcFlag,
 	L2OOAddressFlag,
-	PollIntervalFlag,
 }
 
 var optionalFlags = []cli.Flag{
+	PollIntervalFlag,
 	AllowNonFinalizedFlag,
+	L2OutputHDPathFlag,
 }
 
 func init() {
-	requiredFlags = append(requiredFlags, oprpc.CLIFlags(envVarPrefix)...)
-
+	optionalFlags = append(optionalFlags, oprpc.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(envVarPrefix)...)

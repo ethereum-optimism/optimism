@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { CommonTest } from "./CommonTest.t.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
 
-contract SafeCall_call_Test is CommonTest {
+contract SafeCall_Test is CommonTest {
     function testFuzz_call_succeeds(
         address from,
         address to,
@@ -23,6 +23,8 @@ contract SafeCall_call_Test is CommonTest {
         vm.assume(to != address(0x000000000000000000636F6e736F6c652e6c6f67));
         // don't call the create2 deployer
         vm.assume(to != address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
+        // don't call the ffi interface
+        vm.assume(to != address(0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f));
 
         assertEq(from.balance, 0, "from balance is 0");
         vm.deal(from, value);
@@ -61,6 +63,8 @@ contract SafeCall_call_Test is CommonTest {
         vm.assume(to != address(0x000000000000000000636F6e736F6c652e6c6f67));
         // don't call the create2 deployer
         vm.assume(to != address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
+        // don't call the FFIInterface
+        vm.assume(to != address(0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f));
 
         assertEq(from.balance, 0, "from balance is 0");
         vm.deal(from, value);
@@ -87,12 +91,12 @@ contract SafeCall_call_Test is CommonTest {
     function test_callWithMinGas_noLeakageLow_succeeds() external {
         SimpleSafeCaller caller = new SimpleSafeCaller();
 
-        for (uint64 i = 5000; i < 50_000; i++) {
+        for (uint64 i = 40_000; i < 100_000; i++) {
             uint256 snapshot = vm.snapshot();
 
-            // 26,071 is the exact amount of gas required to make the safe call
+            // 65_907 is the exact amount of gas required to make the safe call
             // successfully.
-            if (i < 26_071) {
+            if (i < 65_907) {
                 assertFalse(caller.makeSafeCall(i, 25_000));
             } else {
                 vm.expectCallMinGas(
@@ -114,9 +118,9 @@ contract SafeCall_call_Test is CommonTest {
         for (uint64 i = 15_200_000; i < 15_300_000; i++) {
             uint256 snapshot = vm.snapshot();
 
-            // 15,238,769 is the exact amount of gas required to make the safe call
+            // 15_278_606 is the exact amount of gas required to make the safe call
             // successfully.
-            if (i < 15_238_769) {
+            if (i < 15_278_606) {
                 assertFalse(caller.makeSafeCall(i, 15_000_000));
             } else {
                 vm.expectCallMinGas(

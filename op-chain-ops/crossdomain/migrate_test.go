@@ -12,7 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var big25Million = big.NewInt(25_000_000)
+var (
+	big25Million     = big.NewInt(25_000_000)
+	bigGoerliChainID = big.NewInt(420)
+)
 
 func TestMigrateWithdrawal(t *testing.T) {
 	withdrawals := make([]*crossdomain.LegacyWithdrawal, 0)
@@ -27,7 +30,7 @@ func TestMigrateWithdrawal(t *testing.T) {
 	l1CrossDomainMessenger := common.HexToAddress("0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1")
 	for i, legacy := range withdrawals {
 		t.Run(fmt.Sprintf("test%d", i), func(t *testing.T) {
-			withdrawal, err := crossdomain.MigrateWithdrawal(legacy, &l1CrossDomainMessenger)
+			withdrawal, err := crossdomain.MigrateWithdrawal(legacy, &l1CrossDomainMessenger, bigGoerliChainID)
 			require.Nil(t, err)
 			require.NotNil(t, withdrawal)
 
@@ -50,7 +53,7 @@ func TestMigrateWithdrawalGasLimitMax(t *testing.T) {
 		data[i] = 0xff
 	}
 
-	result := crossdomain.MigrateWithdrawalGasLimit(data)
+	result := crossdomain.MigrateWithdrawalGasLimit(data, bigGoerliChainID)
 	require.Equal(t, result, big25Million.Uint64())
 }
 
@@ -71,20 +74,20 @@ func TestMigrateWithdrawalGasLimit(t *testing.T) {
 		},
 		{
 			input:  []byte{0xff, 0x00},
-			output: 200_000 + 16 + 4,
+			output: 200_000 + 16 + 16,
 		},
 		{
 			input:  []byte{0x00},
-			output: 200_000 + 4,
+			output: 200_000 + 16,
 		},
 		{
 			input:  []byte{0x00, 0x00, 0x00},
-			output: 200_000 + 4 + 4 + 4,
+			output: 200_000 + 16 + 16 + 16,
 		},
 	}
 
 	for _, test := range tests {
-		result := crossdomain.MigrateWithdrawalGasLimit(test.input)
+		result := crossdomain.MigrateWithdrawalGasLimit(test.input, bigGoerliChainID)
 		require.Equal(t, test.output, result)
 	}
 }

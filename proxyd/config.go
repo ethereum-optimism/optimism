@@ -71,10 +71,13 @@ func (t *TOMLDuration) UnmarshalText(b []byte) error {
 }
 
 type BackendOptions struct {
-	ResponseTimeoutSeconds int   `toml:"response_timeout_seconds"`
-	MaxResponseSizeBytes   int64 `toml:"max_response_size_bytes"`
-	MaxRetries             int   `toml:"max_retries"`
-	OutOfServiceSeconds    int   `toml:"out_of_service_seconds"`
+	ResponseTimeoutSeconds      int          `toml:"response_timeout_seconds"`
+	MaxResponseSizeBytes        int64        `toml:"max_response_size_bytes"`
+	MaxRetries                  int          `toml:"max_retries"`
+	OutOfServiceSeconds         int          `toml:"out_of_service_seconds"`
+	MaxDegradedLatencyThreshold TOMLDuration `toml:"max_degraded_latency_threshold"`
+	MaxLatencyThreshold         TOMLDuration `toml:"max_latency_threshold"`
+	MaxErrorRateThreshold       float64      `toml:"max_error_rate_threshold"`
 }
 
 type BackendConfig struct {
@@ -82,6 +85,7 @@ type BackendConfig struct {
 	Password         string `toml:"password"`
 	RPCURL           string `toml:"rpc_url"`
 	WSURL            string `toml:"ws_url"`
+	WSPort           int    `toml:"ws_port"`
 	MaxRPS           int    `toml:"max_rps"`
 	MaxWSConns       int    `toml:"max_ws_conns"`
 	CAFile           string `toml:"ca_file"`
@@ -94,6 +98,13 @@ type BackendsConfig map[string]*BackendConfig
 
 type BackendGroupConfig struct {
 	Backends []string `toml:"backends"`
+
+	ConsensusAware        bool   `toml:"consensus_aware"`
+	ConsensusAsyncHandler string `toml:"consensus_handler"`
+
+	ConsensusBanPeriod          TOMLDuration `toml:"consensus_ban_period"`
+	ConsensusMaxUpdateThreshold TOMLDuration `toml:"consensus_max_update_threshold"`
+	ConsensusMinPeerCount       int          `toml:"consensus_min_peer_count"`
 }
 
 type BackendGroupsConfig map[string]*BackendGroupConfig

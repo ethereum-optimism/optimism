@@ -2,11 +2,10 @@
 pragma solidity 0.8.15;
 
 import { console } from "forge-std/console.sol";
-import { Script } from "forge-std/Script.sol";
+import { SafeBuilder } from "../universal/SafeBuilder.sol";
 import { IMulticall3 } from "forge-std/interfaces/IMulticall3.sol";
-import { IGnosisSafe } from "./IGnosisSafe.sol";
-import { LibSort } from "./LibSort.sol";
-import { Enum } from "./Enum.sol";
+import { IGnosisSafe, Enum } from "../interfaces/IGnosisSafe.sol";
+import { LibSort } from "../libraries/LibSort.sol";
 import { ProxyAdmin } from "../../contracts/universal/ProxyAdmin.sol";
 import { Constants } from "../../contracts/libraries/Constants.sol";
 import { SystemConfig } from "../../contracts/L1/SystemConfig.sol";
@@ -14,32 +13,14 @@ import { ResourceMetering } from "../../contracts/L1/ResourceMetering.sol";
 import { Semver } from "../../contracts/universal/Semver.sol";
 
 /**
- * @title PostSherlock
+ * @title PostSherlockL1
  * @notice Upgrade script for upgrading the L1 contracts after the sherlock audit.
- *         Assumes that a gnosis safe is used as the privileged account and the same
- *         gnosis safe is the owner of the system config and the proxy admin.
- *         This could be optimized by checking for the number of approvals up front
- *         and not submitting the final approval as `execTransaction` can be called when
- *         there are `threshold - 1` approvals.
- *         Uses the "approved hashes" method of interacting with the gnosis safe. Allows
- *         for the most simple user experience when using automation and no indexer.
- *         Run the command without the `--broadcast` flag and it will print a tenderly URL.
  */
-contract PostSherlock is Script {
+contract PostSherlockL1 is SafeBuilder {
     /**
-     * @notice Interface for multicall3.
+     * @notice Address of the ProxyAdmin, passed in via constructor of `run`.
      */
-    IMulticall3 private constant multicall = IMulticall3(MULTICALL3_ADDRESS);
-
-    /**
-     * @notice Mainnet chain id.
-     */
-    uint256 constant MAINNET = 1;
-
-    /**
-     * @notice Goerli chain id.
-     */
-    uint256 constant GOERLI = 5;
+    ProxyAdmin internal PROXY_ADMIN;
 
     /**
      * @notice Represents a set of L1 contracts. Used to represent a set of
@@ -66,33 +47,28 @@ contract PostSherlock is Script {
     mapping(uint256 => ContractSet) internal proxies;
 
     /**
-     * @notice An array of approvals, used to generate the execution transaction.
-     */
-    address[] internal approvals;
-
-    /**
      * @notice The expected versions for the contracts to be upgraded to.
      */
-    string constant internal L1CrossDomainMessenger_Version = "1.1.0";
+    string constant internal L1CrossDomainMessenger_Version = "1.4.0";
     string constant internal L1StandardBridge_Version = "1.1.0";
-    string constant internal L2OutputOracle_Version = "1.2.0";
+    string constant internal L2OutputOracle_Version = "1.3.0";
     string constant internal OptimismMintableERC20Factory_Version = "1.1.0";
-    string constant internal OptimismPortal_Version = "1.3.1";
-    string constant internal SystemConfig_Version = "1.2.0";
-    string constant internal L1ERC721Bridge_Version = "1.1.0";
+    string constant internal OptimismPortal_Version = "1.6.0";
+    string constant internal SystemConfig_Version = "1.3.0";
+    string constant internal L1ERC721Bridge_Version = "1.1.1";
 
     /**
      * @notice Place the contract addresses in storage so they can be used when building calldata.
      */
     function setUp() external {
         implementations[GOERLI] = ContractSet({
-            L1CrossDomainMessenger: 0xfa37a4b2D49E21De63fa2b13D6dB213081E020b3,
-            L1StandardBridge: 0x79179704077E3324CC745A24a5CcC2a80A9B6842,
-            L2OutputOracle: 0x47bBB9054823f27B9B6A71F5cb0eBc785692FF2E,
-            OptimismMintableERC20Factory: 0xF516Fa87f89E4AC7C299aE28263e9EB851dE4781,
-            OptimismPortal: 0xa24A444C6ceeb1d4Fc19D1B78913C22B9d03BbC9,
-            SystemConfig: 0x2FFfe603caA9FA2C20E7F349138475a43284a6b1,
-            L1ERC721Bridge: 0xb460323429B08B9d1d427e6b8A450532988d5fe8
+            L1CrossDomainMessenger: 0x9D1dACf9d9299D17EFFE1aAd559c06bb3Fbf9BC4,
+            L1StandardBridge: 0x022Fc3EBAA3d53F8f9b270CC4ABe1B0e4A406253,
+            L2OutputOracle: 0x0C2b6590De9D61b37094617b5e6f794Ae118176E,
+            OptimismMintableERC20Factory: 0x0EebA1A5da867EB3bc0956f6389d490d0F4b8086,
+            OptimismPortal: 0x9e760aBd847E48A56b4a348Cba56Ae7267FeCE80,
+            SystemConfig: 0x821EE96B88dAA1569F41cD46b0EA87fA89714b45,
+            L1ERC721Bridge: 0x015609dC8cBF8f9947ba571432Bc0d9837c583a4
         });
 
         proxies[GOERLI] = ContractSet({
@@ -107,173 +83,31 @@ contract PostSherlock is Script {
     }
 
     /**
-     * @notice The entrypoint to this script.
-     */
-    function run(address _safe, address _proxyAdmin) external returns (bool) {
-        vm.startBroadcast();
-        bool success = _run(_safe, _proxyAdmin);
-        if (success) _postCheck();
-        return success;
-    }
-
-    /**
-     * @notice The implementation of the upgrade. Split into its own function
-     *         to allow for testability. This is subject to a race condition if
-     *         the nonce changes by a different transaction finalizing while not
-     *         all of the signers have used this script.
-     */
-    function _run(address _safe, address _proxyAdmin) public returns (bool) {
-        // Ensure that the required contracts exist
-        require(address(multicall).code.length > 0, "multicall3 not deployed");
-        require(_safe.code.length > 0, "no code at safe address");
-        require(_proxyAdmin.code.length > 0, "no code at proxy admin address");
-
-        IGnosisSafe safe = IGnosisSafe(payable(_safe));
-        uint256 nonce = safe.nonce();
-
-        bytes memory data = buildCalldata(_proxyAdmin);
-
-        // Compute the safe transaction hash
-        bytes32 hash = safe.getTransactionHash({
-            to: address(multicall),
-            value: 0,
-            data: data,
-            operation: Enum.Operation.DelegateCall,
-            safeTxGas: 0,
-            baseGas: 0,
-            gasPrice: 0,
-            gasToken: address(0),
-            refundReceiver: address(0),
-            _nonce: nonce
-        });
-
-        // Send a transaction to approve the hash
-        safe.approveHash(hash);
-
-        logSimulationLink({
-            _to: address(safe),
-            _from: msg.sender,
-            _data: abi.encodeCall(safe.approveHash, (hash))
-        });
-
-        uint256 threshold = safe.getThreshold();
-        address[] memory owners = safe.getOwners();
-
-        for (uint256 i; i < owners.length; i++) {
-            address owner = owners[i];
-            uint256 approved = safe.approvedHashes(owner, hash);
-            if (approved == 1) {
-                approvals.push(owner);
-            }
-        }
-
-        if (approvals.length >= threshold) {
-            bytes memory signatures = buildSignatures();
-
-            bool success = safe.execTransaction({
-                to: address(multicall),
-                value: 0,
-                data: data,
-                operation: Enum.Operation.DelegateCall,
-                safeTxGas: 0,
-                baseGas: 0,
-                gasPrice: 0,
-                gasToken: address(0),
-                refundReceiver: payable(address(0)),
-                signatures: signatures
-            });
-
-            logSimulationLink({
-                _to: address(safe),
-                _from: msg.sender,
-                _data: abi.encodeCall(
-                    safe.execTransaction,
-                    (
-                        address(multicall),
-                        0,
-                        data,
-                        Enum.Operation.DelegateCall,
-                        0,
-                        0,
-                        0,
-                        address(0),
-                        payable(address(0)),
-                        signatures
-                    )
-                )
-            });
-
-            require(success, "call not successful");
-            return true;
-        } else {
-            console.log("not enough approvals");
-        }
-
-        // Reset the approvals because they are only used transiently.
-        assembly {
-            sstore(approvals.slot, 0)
-        }
-
-        return false;
-    }
-
-    /**
-     * @notice Log a tenderly simulation link. The TENDERLY_USERNAME and TENDERLY_PROJECT
-     *         environment variables will be used if they are present. The vm is staticcall'ed
-     *         because of a compiler issue with the higher level ABI.
-     */
-    function logSimulationLink(address _to, bytes memory _data, address _from) public view {
-        (, bytes memory projData) = VM_ADDRESS.staticcall(
-            abi.encodeWithSignature("envOr(string,string)", "TENDERLY_PROJECT", "TENDERLY_PROJECT")
-        );
-        string memory proj = abi.decode(projData, (string));
-
-        (, bytes memory userData) = VM_ADDRESS.staticcall(
-            abi.encodeWithSignature("envOr(string,string)", "TENDERLY_USERNAME", "TENDERLY_USERNAME")
-        );
-        string memory username = abi.decode(userData, (string));
-
-        string memory str = string.concat(
-            "https://dashboard.tenderly.co/",
-            username,
-            "/",
-            proj,
-            "/simulator/new?network=",
-            vm.toString(block.chainid),
-            "&contractAddress=",
-            vm.toString(_to),
-            "&rawFunctionInput=",
-            vm.toString(_data),
-            "&from=",
-            vm.toString(_from)
-        );
-        console.log(str);
-    }
-
-    /**
      * @notice Follow up assertions to ensure that the script ran to completion.
      */
-    function _postCheck() internal view {
+    function _postCheck() internal override view {
         ContractSet memory prox = getProxies();
-        require(_versionHash(prox.L1CrossDomainMessenger) == keccak256(bytes(L1CrossDomainMessenger_Version)));
-        require(_versionHash(prox.L1StandardBridge) == keccak256(bytes(L1StandardBridge_Version)));
-        require(_versionHash(prox.L2OutputOracle) == keccak256(bytes(L2OutputOracle_Version)));
-        require(_versionHash(prox.OptimismMintableERC20Factory) == keccak256(bytes(OptimismMintableERC20Factory_Version)));
-        require(_versionHash(prox.OptimismPortal) == keccak256(bytes(OptimismPortal_Version)));
-        require(_versionHash(prox.SystemConfig) == keccak256(bytes(SystemConfig_Version)));
-        require(_versionHash(prox.L1ERC721Bridge) == keccak256(bytes(L1ERC721Bridge_Version)));
+        require(_versionHash(prox.L1CrossDomainMessenger) == keccak256(bytes(L1CrossDomainMessenger_Version)), "L1CrossDomainMessenger");
+        require(_versionHash(prox.L1StandardBridge) == keccak256(bytes(L1StandardBridge_Version)), "L1StandardBridge");
+        require(_versionHash(prox.L2OutputOracle) == keccak256(bytes(L2OutputOracle_Version)), "L2OutputOracle");
+        require(_versionHash(prox.OptimismMintableERC20Factory) == keccak256(bytes(OptimismMintableERC20Factory_Version)), "OptimismMintableERC20Factory");
+        require(_versionHash(prox.OptimismPortal) == keccak256(bytes(OptimismPortal_Version)), "OptimismPortal");
+        require(_versionHash(prox.SystemConfig) == keccak256(bytes(SystemConfig_Version)), "SystemConfig");
+        require(_versionHash(prox.L1ERC721Bridge) == keccak256(bytes(L1ERC721Bridge_Version)), "L1ERC721Bridge");
 
         ResourceMetering.ResourceConfig memory rcfg = SystemConfig(prox.SystemConfig).resourceConfig();
         ResourceMetering.ResourceConfig memory dflt = Constants.DEFAULT_RESOURCE_CONFIG();
         require(keccak256(abi.encode(rcfg)) == keccak256(abi.encode(dflt)));
-    }
 
-    /**
-     * @notice Helper function used to compute the hash of Semver's version string to be used in a
-     *         comparison.
-     */
-    function _versionHash(address _addr) internal view returns (bytes32) {
-        return keccak256(bytes(Semver(_addr).version()));
+        // Check that the codehashes of all implementations match the proxies set implementations.
+        ContractSet memory impl = getImplementations();
+        require(PROXY_ADMIN.getProxyImplementation(prox.L1CrossDomainMessenger).codehash == impl.L1CrossDomainMessenger.codehash, "L1CrossDomainMessenger codehash");
+        require(PROXY_ADMIN.getProxyImplementation(prox.L1StandardBridge).codehash == impl.L1StandardBridge.codehash, "L1StandardBridge codehash");
+        require(PROXY_ADMIN.getProxyImplementation(prox.L2OutputOracle).codehash == impl.L2OutputOracle.codehash, "L2OutputOracle codehash");
+        require(PROXY_ADMIN.getProxyImplementation(prox.OptimismMintableERC20Factory).codehash == impl.OptimismMintableERC20Factory.codehash, "OptimismMintableERC20Factory codehash");
+        require(PROXY_ADMIN.getProxyImplementation(prox.OptimismPortal).codehash == impl.OptimismPortal.codehash, "OptimismPortal codehash");
+        require(PROXY_ADMIN.getProxyImplementation(prox.SystemConfig).codehash == impl.SystemConfig.codehash, "SystemConfig codehash");
+        require(PROXY_ADMIN.getProxyImplementation(prox.L1ERC721Bridge).codehash == impl.L1ERC721Bridge.codehash, "L1ERC721Bridge codehash");
     }
 
     /**
@@ -281,22 +115,24 @@ contract PostSherlock is Script {
      *         could be added.
      */
     function test_script_succeeds() skipWhenNotForking external {
-        address safe;
-        address proxyAdmin;
+        address _safe;
+        address _proxyAdmin;
 
         if (block.chainid == GOERLI) {
-            safe = 0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f;
-            proxyAdmin = 0x01d3670863c3F4b24D7b107900f0b75d4BbC6e0d;
+            _safe = 0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f;
+            _proxyAdmin = 0x01d3670863c3F4b24D7b107900f0b75d4BbC6e0d;
+            // Set the proxy admin for the `_postCheck` function
+            PROXY_ADMIN = ProxyAdmin(_proxyAdmin);
         }
 
-        require(safe != address(0) && proxyAdmin != address(0));
+        require(_safe != address(0) && _proxyAdmin != address(0));
 
-        address[] memory owners = IGnosisSafe(payable(safe)).getOwners();
+        address[] memory owners = IGnosisSafe(payable(_safe)).getOwners();
 
         for (uint256 i; i < owners.length; i++) {
             address owner = owners[i];
             vm.startBroadcast(owner);
-            bool success = _run(safe, proxyAdmin);
+            bool success = _run(_safe, _proxyAdmin);
             vm.stopBroadcast();
 
             if (success) {
@@ -309,33 +145,11 @@ contract PostSherlock is Script {
     }
 
     /**
-     * @notice Builds the signatures by tightly packing them together.
-     *         Ensures that they are sorted.
-     */
-    function buildSignatures() internal view returns (bytes memory) {
-        address[] memory addrs = new address[](approvals.length);
-        for (uint256 i; i < approvals.length; i++) {
-            addrs[i] = approvals[i];
-        }
-
-        LibSort.sort(addrs);
-
-        bytes memory signatures;
-        uint8 v = 1;
-        bytes32 s = bytes32(0);
-        for (uint256 i; i < addrs.length; i++) {
-            bytes32 r = bytes32(uint256(uint160(addrs[i])));
-            signatures = bytes.concat(signatures, abi.encodePacked(r, s, v));
-        }
-        return signatures;
-    }
-
-    /**
      * @notice Builds the calldata that the multisig needs to make for the upgrade to happen.
      *         A total of 8 calls are made, 7 upgrade implementations and 1 sets the resource
      *         config to the default value in the SystemConfig contract.
      */
-    function buildCalldata(address _proxyAdmin) internal view returns (bytes memory) {
+    function buildCalldata(address _proxyAdmin) internal override view returns (bytes memory) {
         IMulticall3.Call3[] memory calls = new IMulticall3.Call3[](8);
 
         ContractSet memory impl = getImplementations();

@@ -111,11 +111,28 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     /**
+     * @notice Prevent deposits from being too large to have a sane upper bound
+     *         on unsafe blocks sent over the p2p network.
+     */
+    function test_depositTransaction_largeData_reverts() external {
+        uint256 size = 120_001;
+        uint64 gasLimit = op.minimumGasLimit(uint64(size));
+        vm.expectRevert("OptimismPortal: data too large");
+        op.depositTransaction({
+            _to: address(0),
+            _value: 0,
+            _gasLimit: gasLimit,
+            _isCreation: false,
+            _data: new bytes(size)
+        });
+    }
+
+    /**
      * @notice Prevent gasless deposits from being force processed in L2 by
      *         ensuring that they have a large enough gas limit set.
      */
     function test_depositTransaction_smallGasLimit_reverts() external {
-        vm.expectRevert("OptimismPortal: gas limit must cover instrinsic gas cost");
+        vm.expectRevert("OptimismPortal: gas limit too small");
         op.depositTransaction({
             _to: address(1),
             _value: 0,
@@ -123,6 +140,40 @@ contract OptimismPortal_Test is Portal_Initializer {
             _isCreation: false,
             _data: hex""
         });
+    }
+
+    /**
+     * @notice Fuzz for too small of gas limits
+     */
+    function testFuzz_depositTransaction_smallGasLimit_succeeds(
+        bytes memory _data,
+        bool _shouldFail
+    ) external {
+        vm.assume(_data.length <= type(uint64).max);
+
+        uint64 gasLimit = op.minimumGasLimit(uint64(_data.length));
+        if (_shouldFail) {
+            gasLimit = uint64(bound(gasLimit, 0, gasLimit - 1));
+            vm.expectRevert("OptimismPortal: gas limit too small");
+        }
+
+        op.depositTransaction({
+            _to: address(0x40),
+            _value: 0,
+            _gasLimit: gasLimit,
+            _isCreation: false,
+            _data: _data
+        });
+    }
+
+    /**
+     * @notice Ensure that the 0 calldata case is covered and there is a linearly
+     *         increasing gas limit for larger calldata sizes.
+     */
+    function test_minimumGasLimit_succeeds() external {
+        assertEq(op.minimumGasLimit(0), 21_000);
+        assertTrue(op.minimumGasLimit(2) > op.minimumGasLimit(1));
+        assertTrue(op.minimumGasLimit(3) > op.minimumGasLimit(2));
     }
 
     // Test: depositTransaction should emit the correct log when an EOA deposits a tx with 0 value
@@ -976,12 +1027,21 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         uint256 _gasLimit,
         bytes memory _data
     ) external {
-        // Cannot call the optimism portal
-        vm.assume(_target != address(op));
+        vm.assume(
+            _target != address(op) && // Cannot call the optimism portal or a contract
+                _target.code.length == 0 && // No accounts with code
+                _target != CONSOLE && // The console has no code but behaves like a contract
+                uint160(_target) > 9 // No precompiles (or zero address)
+        );
+
         // Total ETH supply is currently about 120M ETH.
         uint256 value = bound(_value, 0, 200_000_000 ether);
+        vm.deal(address(op), value);
+
         uint256 gasLimit = bound(_gasLimit, 0, 50_000_000);
         uint256 nonce = messagePasser.messageNonce();
+
+        // Get a withdrawal transaction and mock proof from the differential testing script.
         Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction({
             nonce: nonce,
             sender: _sender,
@@ -998,6 +1058,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
             bytes[] memory withdrawalProof
         ) = ffi.getProveWithdrawalTransactionInputs(_tx);
 
+        // Create the output root proof
         Types.OutputRootProof memory proof = Types.OutputRootProof({
             version: bytes32(uint256(0)),
             stateRoot: stateRoot,
@@ -1009,29 +1070,30 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         assertEq(outputRoot, Hashing.hashOutputRootProof(proof));
         assertEq(withdrawalHash, Hashing.hashWithdrawal(_tx));
 
-        // Mock the call to the oracle
+        // Setup the Oracle to return the outputRoot
         vm.mockCall(
             address(oracle),
             abi.encodeWithSelector(oracle.getL2Output.selector),
-            abi.encode(outputRoot, 0)
+            abi.encode(outputRoot, block.timestamp, 100)
         );
 
-        // Start the withdrawal, it must be initiated by the _sender and the
-        // correct value must be passed along
-        vm.deal(_tx.sender, _tx.value);
-        vm.prank(_tx.sender);
-        messagePasser.initiateWithdrawal{ value: _tx.value }(_tx.target, _tx.gasLimit, _tx.data);
-
-        // Ensure that the sentMessages is correct
-        assertEq(messagePasser.sentMessages(withdrawalHash), true);
-
-        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+        // Prove the withdrawal transaction
         op.proveWithdrawalTransaction(
             _tx,
             100, // l2BlockNumber
             proof,
             withdrawalProof
         );
+        (bytes32 _root, , ) = op.provenWithdrawals(withdrawalHash);
+        assertTrue(_root != bytes32(0));
+
+        // Warp past the finalization period
+        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
+
+        // Finalize the withdrawal transaction
+        vm.expectCallMinGas(_tx.target, _tx.value, uint64(_tx.gasLimit), _tx.data);
+        op.finalizeWithdrawalTransaction(_tx);
+        assertTrue(op.finalizedWithdrawals(withdrawalHash));
     }
 }
 
@@ -1118,7 +1180,7 @@ contract OptimismPortalResourceFuzz_Test is Portal_Initializer {
         // Bound resource config
         _maxResourceLimit = uint32(bound(_maxResourceLimit, 21000, MAX_GAS_LIMIT / 8));
         _gasLimit = uint64(bound(_gasLimit, 21000, _maxResourceLimit));
-        _prevBaseFee = uint128(bound(_prevBaseFee, 0, 5 gwei));
+        _prevBaseFee = uint128(bound(_prevBaseFee, 0, 3 gwei));
         // Prevent values that would cause reverts
         vm.assume(gasLimit >= _gasLimit);
         vm.assume(_minimumBaseFee < _maximumBaseFee);

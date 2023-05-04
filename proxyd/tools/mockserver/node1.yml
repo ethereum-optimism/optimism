@@ -1,0 +1,44 @@
+- method: eth_getBlockByNumber
+  block: latest
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash2",
+        "number": "0x2"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0x1
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash1",
+        "number": "0x1"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0x2
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash2",
+        "number": "0x2"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0x3
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash34",
+        "number": "0x3"
+      }
+    }

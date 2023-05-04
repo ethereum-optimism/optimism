@@ -178,17 +178,21 @@ Note that hints may produce multiple pre-images:
 e.g. a hint for an ethereum block with transaction list may prepare pre-images for the header,
 each of the transactions, and the intermediate merkle-nodes that form the transactions-list Merkle Patricia Trie.
 
-Hinting is implemented with a minimal wire-protocol over a blocking one-way stream:
+Hinting is implemented with a request-acknowledgement wire-protocol over a blocking two-way stream:
 
 ```text
-<request> := <length prefix> <hint bytes> <end>
+<request> := <length prefix> <hint bytes>
+
+<repsonse> := <ack>
+
 <length prefix> := big-endian uint32  # length of <hint bytes>
 <hint bytes> := byte sequence
-<end> := 0 byte
+<ack> := 1-byte zero value
 ```
 
-The `<end>` trailing zero byte allows the server to block the program
-(since the communication is blocking) until the hint is processed.
+The ack informs the client that the hint has been processed. Servers may respond to hints and pre-image (see below)
+requests asynchronously as they are on separate streams. To avoid requesting pre-images that are not yet fetched,
+clients should request the pre-image only after it has observed the hint acknowledgement.
 
 ### Pre-image communication
 
@@ -201,7 +205,6 @@ This protocol can be implemented with blocking read/write syscalls.
 <response> := <length prefix> <pre-image bytes>
 
 <length prefix> := big-endian uint64  # length of <pre-image bytes>, note: uint64
-<hint bytes> := byte sequence  #
 ```
 
 The `<length prefix>` here may be arbitrarily high:

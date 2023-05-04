@@ -285,7 +285,7 @@ contract SystemDictator is OwnableUpgradeable {
     /**
      * @notice Removes deprecated addresses from the AddressManager.
      */
-    function step3() external onlyOwner step(EXIT_1_NO_RETURN_STEP) {
+    function step3() public onlyOwner step(EXIT_1_NO_RETURN_STEP) {
         // Remove all deprecated addresses from the AddressManager
         string[17] memory deprecated = [
             "OVM_CanonicalTransactionChain",
@@ -315,7 +315,7 @@ contract SystemDictator is OwnableUpgradeable {
     /**
      * @notice Transfers system ownership to the ProxyAdmin.
      */
-    function step4() external onlyOwner step(PROXY_TRANSFER_STEP) {
+    function step4() public onlyOwner step(PROXY_TRANSFER_STEP) {
         // Transfer ownership of the AddressManager to the ProxyAdmin.
         config.globalConfig.addressManager.transferOwnership(
             address(config.globalConfig.proxyAdmin)
@@ -335,7 +335,7 @@ contract SystemDictator is OwnableUpgradeable {
     /**
      * @notice Upgrades and initializes proxy contracts.
      */
-    function step5() external onlyOwner step(5) {
+    function step5() public onlyOwner step(5) {
         // Dynamic config must be set before we can initialize the L2OutputOracle.
         require(dynamicConfigSet, "SystemDictator: dynamic oracle config is not yet initialized");
 
@@ -419,9 +419,19 @@ contract SystemDictator is OwnableUpgradeable {
     }
 
     /**
+     * @notice Calls the remaining steps of the migration process, and finalizes.
+     */
+    function phase2() external onlyOwner {
+        step3();
+        step4();
+        step5();
+        finalize();
+    }
+
+    /**
      * @notice Tranfers admin ownership to the final owner.
      */
-    function finalize() external onlyOwner {
+    function finalize() public onlyOwner {
         // Transfer ownership of the ProxyAdmin to the final owner.
         config.globalConfig.proxyAdmin.transferOwnership(config.globalConfig.finalOwner);
 

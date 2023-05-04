@@ -26,6 +26,11 @@ var (
 		Usage:  fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
 		EnvVar: service.PrefixEnvVar(envVarPrefix, "NETWORK"),
 	}
+	DataDir = cli.StringFlag{
+		Name:   "datadir",
+		Usage:  "Directory to use for preimage data storage. Default uses in-memory storage",
+		EnvVar: service.PrefixEnvVar(envVarPrefix, "DATADIR"),
+	}
 	L2NodeAddr = cli.StringFlag{
 		Name:   "l2",
 		Usage:  "Address of L2 JSON-RPC endpoint to use (eth and debug namespace required)",
@@ -45,6 +50,11 @@ var (
 		Name:   "l2.claim",
 		Usage:  "Claimed L2 output root to validate",
 		EnvVar: service.PrefixEnvVar(envVarPrefix, "L2_CLAIM"),
+	}
+	L2BlockNumber = cli.Uint64Flag{
+		Name:   "l2.blocknumber",
+		Usage:  "Number of the L2 block that the claim is from",
+		EnvVar: service.PrefixEnvVar(envVarPrefix, "L2_BLOCK_NUM"),
 	}
 	L2GenesisPath = cli.StringFlag{
 		Name:   "l2.genesis",
@@ -71,6 +81,16 @@ var (
 			return &out
 		}(),
 	}
+	Exec = cli.StringFlag{
+		Name:   "exec",
+		Usage:  "Run the specified client program as a separate process detached from the host. Default is to run the client program in the host process.",
+		EnvVar: service.PrefixEnvVar(envVarPrefix, "EXEC"),
+	}
+	Server = cli.BoolFlag{
+		Name:   "server",
+		Usage:  "Run in pre-image server mode without executing any client program.",
+		EnvVar: service.PrefixEnvVar(envVarPrefix, "SERVER"),
+	}
 )
 
 // Flags contains the list of configuration options available to the binary.
@@ -80,15 +100,19 @@ var requiredFlags = []cli.Flag{
 	L1Head,
 	L2Head,
 	L2Claim,
-	L2GenesisPath,
+	L2BlockNumber,
 }
 var programFlags = []cli.Flag{
 	RollupConfig,
 	Network,
+	DataDir,
 	L2NodeAddr,
+	L2GenesisPath,
 	L1NodeAddr,
 	L1TrustRPC,
 	L1RPCProviderKind,
+	Exec,
+	Server,
 }
 
 func init() {
@@ -106,8 +130,11 @@ func CheckRequired(ctx *cli.Context) error {
 	if rollupConfig != "" && network != "" {
 		return fmt.Errorf("cannot specify both %s and %s", RollupConfig.Name, Network.Name)
 	}
+	if network == "" && ctx.GlobalString(L2GenesisPath.Name) == "" {
+		return fmt.Errorf("flag %s is required for custom networks", L2GenesisPath.Name)
+	}
 	for _, flag := range requiredFlags {
-		if ctx.GlobalString(flag.GetName()) == "" {
+		if !ctx.IsSet(flag.GetName()) {
 			return fmt.Errorf("flag %s is required", flag.GetName())
 		}
 	}

@@ -47,7 +47,9 @@ func NewOracleServer(rw io.ReadWriter) *OracleServer {
 	return &OracleServer{rw: rw}
 }
 
-func (o *OracleServer) NextPreimageRequest(getPreimage func(key common.Hash) ([]byte, error)) error {
+type PreimageGetter func(key common.Hash) ([]byte, error)
+
+func (o *OracleServer) NextPreimageRequest(getPreimage PreimageGetter) error {
 	var key common.Hash
 	if _, err := io.ReadFull(o.rw, key[:]); err != nil {
 		if err == io.EOF {

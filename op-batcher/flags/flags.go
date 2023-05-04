@@ -2,6 +2,7 @@ package flags
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/urfave/cli"
 
@@ -33,21 +34,27 @@ var (
 		Usage:  "HTTP provider URL for Rollup node",
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "ROLLUP_RPC"),
 	}
+	// Optional flags
 	SubSafetyMarginFlag = cli.Uint64Flag{
 		Name: "sub-safety-margin",
 		Usage: "The batcher tx submission safety margin (in #L1-blocks) to subtract " +
 			"from a channel's timeout and sequencing window, to guarantee safe inclusion " +
 			"of a channel on L1.",
+		Value:  10,
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "SUB_SAFETY_MARGIN"),
 	}
 	PollIntervalFlag = cli.DurationFlag{
-		Name: "poll-interval",
-		Usage: "Delay between querying L2 for more transactions and " +
-			"creating a new batch",
+		Name:   "poll-interval",
+		Usage:  "How frequently to poll L2 for new blocks",
+		Value:  6 * time.Second,
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "POLL_INTERVAL"),
 	}
-
-	// Optional flags
+	MaxPendingTransactionsFlag = cli.Uint64Flag{
+		Name:   "max-pending-tx",
+		Usage:  "The maximum number of pending transactions. 0 for no limit.",
+		Value:  1,
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "MAX_PENDING_TX"),
+	}
 	MaxChannelDurationFlag = cli.Uint64Flag{
 		Name:   "max-channel-duration",
 		Usage:  "The maximum duration of L1-blocks to keep a channel open. 0 to disable.",
@@ -91,17 +98,19 @@ var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	L2EthRpcFlag,
 	RollupRpcFlag,
-	SubSafetyMarginFlag,
-	PollIntervalFlag,
 }
 
 var optionalFlags = []cli.Flag{
+	SubSafetyMarginFlag,
+	PollIntervalFlag,
+	MaxPendingTransactionsFlag,
 	MaxChannelDurationFlag,
 	MaxL1TxSizeBytesFlag,
 	TargetL1TxSizeBytesFlag,
 	TargetNumFramesFlag,
 	ApproxComprRatioFlag,
 	StoppedFlag,
+	SequencerHDPathFlag,
 }
 
 func init() {

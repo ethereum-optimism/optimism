@@ -60,7 +60,7 @@ commands:
 jobs:
   yarn-monorepo:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: large
     steps:
       - checkout
@@ -286,7 +286,7 @@ jobs:
           command: |
             ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
-  contracts-bedrock-tests:
+  contracts-bedrock-coverage:
     docker:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: large
@@ -304,9 +304,8 @@ jobs:
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
-          name: test and generate coverage
+          name: generate coverage report
           command: yarn coverage:lcov
-          no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -316,9 +315,33 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
 
+  contracts-bedrock-tests:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: print forge version
+          command: forge --version
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: run tests
+          command: yarn test
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+
   contracts-bedrock-checks:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -338,6 +361,13 @@ jobs:
           command: |
             forge --version
             yarn gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: validate deploy configs
+          command: |
+            yarn validate-deploy-configs || echo "export DEPLOY_CONFIG_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -364,6 +394,10 @@ jobs:
               FAILED=1
               echo "Gas snapshot failed, see job output for details."
             fi
+            if [[ "$DEPLOY_CONFIG_STATUS" -ne 0 ]]; then
+              FAILED=1
+              echo "Deploy configs invalid, see job output for details."
+            fi
             if [[ "$STORAGE_SNAPSHOT_STATUS" -ne 0 ]]; then
               echo "Storage snapshot failed, see job output for details."
               FAILED=1
@@ -378,7 +412,7 @@ jobs:
 
   contracts-bedrock-slither:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: large
     steps:
       - checkout
@@ -398,7 +432,7 @@ jobs:
 
   contracts-bedrock-validate-spaces:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -415,7 +449,7 @@ jobs:
 
   bedrock-echidna-build:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -433,7 +467,7 @@ jobs:
 
   bedrock-echidna-run:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     parameters:
       echidna_target:
         description: Which echidna fuzz contract to run
@@ -460,7 +494,7 @@ jobs:
 
   op-bindings-build:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: medium
     steps:
       - checkout
@@ -489,7 +523,7 @@ jobs:
         description: Coverage flag name
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: large
     steps:
       - checkout
@@ -511,6 +545,55 @@ jobs:
       - run:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
+
+  sdk-next-tests:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - check-changed:
+          patterns: sdk,contracts-bedrock,contracts
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - run:
+          name: anvil-l1
+          background: true
+          # atm this is goerli but we should use mainnet after bedrock is live
+          command: anvil --fork-url $ANVIL_L1_FORK_URL --fork-block-number 8847426
+      - run:
+          name: anvil-l2
+          background: true
+          # atm this is goerli but we should use mainnet after bedrock is live
+          command: anvil --fork-url $ANVIL_L2_FORK_URL --port 9545 --fork-block-number 8172732
+      - run:
+          name: build
+          command: yarn build
+          working_directory: packages/sdk
+      - run:
+          name: lint
+          command: yarn lint:check
+          working_directory: packages/sdk
+      - run:
+          name: make sure anvil l1 is up
+          command: npx wait-on tcp:8545 && cast block-number --rpc-url http://localhost:8545
+      - run:
+          name: make sure anvil l2 is up
+          command: npx wait-on tcp:9545 && cast block-number --rpc-url http://localhost:9545
+      - run:
+          name: test:next
+          command: yarn test:next
+          no_output_timeout: 5m
+          working_directory: packages/sdk
+          environment:
+            # anvil[0] test private key
+            VITE_E2E_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+            VITE_E2E_RPC_URL_L1: http://localhost:8545
+            VITE_E2E_RPC_URL_L2: http://localhost:9545
+
 
   bedrock-markdown:
     machine:
@@ -535,7 +618,7 @@ jobs:
 
   fuzz-op-node:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - check-changed:
@@ -547,7 +630,7 @@ jobs:
 
   depcheck:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -588,6 +671,47 @@ jobs:
           command: npx depcheck
           working_directory: integration-tests
 
+  atst-tests:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: '.' }
+      - check-changed:
+          patterns: atst,contracts-periphery
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - run:
+          name: anvil
+          background: true
+          command: anvil --fork-url $ANVIL_L2_FORK_URL_MAINNET --fork-block-number 92093723
+      - run:
+          name: build
+          command: yarn build
+          working_directory: packages/atst
+      - run:
+          name: typecheck
+          command: yarn typecheck
+          working_directory: packages/atst
+      - run:
+          name: lint
+          command: yarn lint:check
+          working_directory: packages/atst
+      - run:
+          name: make sure anvil is up
+          command: npx wait-on tcp:8545 && cast block-number --rpc-url http://localhost:8545
+      - run:
+          name: test
+          command: yarn test
+          no_output_timeout: 5m
+          working_directory: packages/atst
+          environment:
+            CI: true
+
+
   go-lint:
     parameters:
       module:
@@ -609,7 +733,7 @@ jobs:
         description: Go Module Name
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest # only used to enable codecov.
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest # only used to enable codecov.
     resource_class: xlarge
     steps:
       - checkout
@@ -637,7 +761,7 @@ jobs:
         description: If the op-e2e package should use HTTP clients
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: xlarge
     steps:
       - checkout
@@ -676,7 +800,7 @@ jobs:
         type: string
         default: this-package-does-not-exist
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
       - image: cimg/postgres:14.1
     steps:
       - checkout
@@ -705,7 +829,7 @@ jobs:
 
   geth-tests:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - check-changed:
@@ -925,7 +1049,7 @@ jobs:
 
   go-mod-tidy:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - run:
@@ -1007,6 +1131,9 @@ workflows:
       - contracts-bedrock-tests:
           requires:
             - yarn-monorepo
+      - contracts-bedrock-coverage:
+          requires:
+            - yarn-monorepo
       - contracts-bedrock-checks:
           requires:
             - yarn-monorepo
@@ -1017,6 +1144,9 @@ workflows:
           requires:
             - yarn-monorepo
       - op-bindings-build:
+          requires:
+            - yarn-monorepo
+      - atst-tests:
           requires:
             - yarn-monorepo
       - js-lint-test:
@@ -1066,6 +1196,10 @@ workflows:
           coverage_flag: replica-healthcheck-tests
           package_name: replica-healthcheck
           dependencies: "(common-ts|core-utils)"
+          requires:
+            - yarn-monorepo
+      - sdk-next-tests:
+          name: sdk-next-tests
           requires:
             - yarn-monorepo
       - js-lint-test:
@@ -1142,6 +1276,9 @@ workflows:
           name: op-proposer-lint
           module: op-proposer
       - go-lint:
+          name: op-challenger-lint
+          module: op-challenger
+      - go-lint:
           name: op-program-lint
           module: op-program
       - go-lint:
@@ -1167,6 +1304,9 @@ workflows:
           name: op-proposer-tests
           module: op-proposer
       - go-test:
+          name: op-challenger-tests
+          module: op-challenger
+      - go-test:
           name: op-program-tests
           module: op-program
       - go-test:
@@ -1188,6 +1328,7 @@ workflows:
             - op-e2e-lint
             - op-node-lint
             - op-proposer-lint
+            - op-challenger-lint
             - op-program-lint
             - op-service-lint
             - op-batcher-tests
@@ -1195,6 +1336,7 @@ workflows:
             - op-chain-ops-tests
             - op-node-tests
             - op-proposer-tests
+            - op-challenger-tests
             - op-program-tests
             - op-service-tests
             - op-e2e-WS-tests
@@ -1228,6 +1370,20 @@ workflows:
             - oplabs-gcr
           platforms: "linux/amd64,linux/arm64"
       - docker-build:
+          name: op-program-docker-build
+          docker_file: op-program/Dockerfile
+          docker_name: op-program
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: op-program-docker-publish
+          docker_file: op-program/Dockerfile
+          docker_name: op-program
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - oplabs-gcr
+          platforms: "linux/amd64,linux/arm64"
+      - docker-build:
           name: op-proposer-docker-build
           docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
@@ -1237,6 +1393,20 @@ workflows:
           name: op-proposer-docker-publish
           docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - oplabs-gcr
+          platforms: "linux/amd64,linux/arm64"
+      - docker-build:
+          name: op-challenger-docker-build
+          docker_file: op-challenger/Dockerfile
+          docker_name: op-challenger
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: op-challenger-docker-publish
+          docker_file: op-challenger/Dockerfile
+          docker_name: op-challenger
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
@@ -1283,6 +1453,7 @@ workflows:
             - op-node-docker-build
             - op-batcher-docker-build
             - op-proposer-docker-build
+            - op-challenger-docker-build
       - hive-test:
           name: hive-test-p2p
           version: <<pipeline.git.revision>>
@@ -1291,6 +1462,7 @@ workflows:
             - op-node-docker-build
             - op-batcher-docker-build
             - op-proposer-docker-build
+            - op-challenger-docker-build
       - hive-test:
           name: hive-test-l1ops
           version: <<pipeline.git.revision>>
@@ -1299,6 +1471,7 @@ workflows:
             - op-node-docker-build
             - op-batcher-docker-build
             - op-proposer-docker-build
+            - op-challenger-docker-build
   release:
     jobs:
       - hold:
@@ -1349,6 +1522,22 @@ workflows:
               ignore: /.*/
           docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+          platforms: "linux/amd64,linux/arm64"
+          context:
+            - oplabs-gcr-release
+          requires:
+            - hold
+      - docker-release:
+          name: op-challenger-docker-release
+          filters:
+            tags:
+              only: /^op-challenger\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: op-challenger/Dockerfile
+          docker_name: op-challenger
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
           platforms: "linux/amd64,linux/arm64"

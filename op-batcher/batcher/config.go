@@ -26,8 +26,9 @@ type Config struct {
 	RollupNode *sources.RollupClient
 	TxManager  txmgr.TxManager
 
-	NetworkTimeout time.Duration
-	PollInterval   time.Duration
+	NetworkTimeout         time.Duration
+	PollInterval           time.Duration
+	MaxPendingTransactions uint64
 
 	// RollupConfig is queried at startup
 	Rollup *rollup.Config
@@ -75,6 +76,10 @@ type CLIConfig struct {
 	// PollInterval is the delay between querying L2 for more transaction
 	// and creating a new batch.
 	PollInterval time.Duration
+
+	// MaxPendingTransactions is the maximum number of concurrent pending
+	// transactions sent to the transaction manager.
+	MaxPendingTransactions uint64
 
 	// MaxL1TxSize is the maximum size of a batch tx submitted to L1.
 	MaxL1TxSize uint64
@@ -128,16 +133,17 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		PollInterval:    ctx.GlobalDuration(flags.PollIntervalFlag.Name),
 
 		/* Optional Flags */
-		MaxChannelDuration: ctx.GlobalUint64(flags.MaxChannelDurationFlag.Name),
-		MaxL1TxSize:        ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
-		TargetL1TxSize:     ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),
-		TargetNumFrames:    ctx.GlobalInt(flags.TargetNumFramesFlag.Name),
-		ApproxComprRatio:   ctx.GlobalFloat64(flags.ApproxComprRatioFlag.Name),
-		Stopped:            ctx.GlobalBool(flags.StoppedFlag.Name),
-		TxMgrConfig:        txmgr.ReadCLIConfig(ctx),
-		RPCConfig:          rpc.ReadCLIConfig(ctx),
-		LogConfig:          oplog.ReadCLIConfig(ctx),
-		MetricsConfig:      opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:        oppprof.ReadCLIConfig(ctx),
+		MaxPendingTransactions: ctx.GlobalUint64(flags.MaxPendingTransactionsFlag.Name),
+		MaxChannelDuration:     ctx.GlobalUint64(flags.MaxChannelDurationFlag.Name),
+		MaxL1TxSize:            ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
+		TargetL1TxSize:         ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),
+		TargetNumFrames:        ctx.GlobalInt(flags.TargetNumFramesFlag.Name),
+		ApproxComprRatio:       ctx.GlobalFloat64(flags.ApproxComprRatioFlag.Name),
+		Stopped:                ctx.GlobalBool(flags.StoppedFlag.Name),
+		TxMgrConfig:            txmgr.ReadCLIConfig(ctx),
+		RPCConfig:              rpc.ReadCLIConfig(ctx),
+		LogConfig:              oplog.ReadCLIConfig(ctx),
+		MetricsConfig:          opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:            oppprof.ReadCLIConfig(ctx),
 	}
 }

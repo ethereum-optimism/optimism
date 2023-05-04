@@ -2,9 +2,8 @@ package derive
 
 import (
 	"bytes"
-	"encoding/binary"
+	"errors"
 	"fmt"
-	"io"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-service/solabi"
 )
 
 const (
@@ -46,52 +46,51 @@ type L1BlockInfo struct {
 	L1FeeScalar   eth.Bytes32
 }
 
-//+---------+--------------------------+
-//| Bytes   | Field                    |
-//+---------+--------------------------+
-//| 4       | Function signature       |
-//| 24      | Padding for Number       |
-//| 8       | Number                   |
-//| 24      | Padding for Time         |
-//| 8       | Time                     |
-//| 32      | BaseFee                  |
-//| 32      | BlockHash                |
-//| 24      | Padding for SequenceNumber|
-//| 8       | SequenceNumber           |
-//| 12      | Padding for BatcherAddr  |
-//| 20      | BatcherAddr              |
-//| 32      | L1FeeOverhead            |
-//| 32      | L1FeeScalar              |
-//+---------+--------------------------+
+// Binary Format
+// +---------+--------------------------+
+// | Bytes   | Field                    |
+// +---------+--------------------------+
+// | 4       | Function signature       |
+// | 32      | Number                   |
+// | 32      | Time                     |
+// | 32      | BaseFee                  |
+// | 32      | BlockHash                |
+// | 32      | SequenceNumber           |
+// | 32      | BatcherAddr              |
+// | 32      | L1FeeOverhead            |
+// | 32      | L1FeeScalar              |
+// +---------+--------------------------+
 
 func (info *L1BlockInfo) MarshalBinary() ([]byte, error) {
-	writer := bytes.NewBuffer(make([]byte, 0, L1InfoLen))
-
-	writer.Write(L1InfoFuncBytes4)
-	if err := writeSolidityABIUint64(writer, info.Number); err != nil {
+	w := bytes.NewBuffer(make([]byte, 0, L1InfoLen))
+	if err := solabi.WriteSignature(w, L1InfoFuncBytes4); err != nil {
 		return nil, err
 	}
-	if err := writeSolidityABIUint64(writer, info.Time); err != nil {
+	if err := solabi.WriteUint64(w, info.Number); err != nil {
 		return nil, err
 	}
-	// Ensure that the baseFee is not too large.
-	if info.BaseFee.BitLen() > 256 {
-		return nil, fmt.Errorf("base fee exceeds 256 bits: %d", info.BaseFee)
-	}
-	var baseFeeBuf [32]byte
-	info.BaseFee.FillBytes(baseFeeBuf[:])
-	writer.Write(baseFeeBuf[:])
-	writer.Write(info.BlockHash.Bytes())
-	if err := writeSolidityABIUint64(writer, info.SequenceNumber); err != nil {
+	if err := solabi.WriteUint64(w, info.Time); err != nil {
 		return nil, err
 	}
-
-	var addrPadding [12]byte
-	writer.Write(addrPadding[:])
-	writer.Write(info.BatcherAddr.Bytes())
-	writer.Write(info.L1FeeOverhead[:])
-	writer.Write(info.L1FeeScalar[:])
-	return writer.Bytes(), nil
+	if err := solabi.WriteUint256(w, info.BaseFee); err != nil {
+		return nil, err
+	}
+	if err := solabi.WriteHash(w, info.BlockHash); err != nil {
+		return nil, err
+	}
+	if err := solabi.WriteUint64(w, info.SequenceNumber); err != nil {
+		return nil, err
+	}
+	if err := solabi.WriteAddress(w, info.BatcherAddr); err != nil {
+		return nil, err
+	}
+	if err := solabi.WriteEthBytes32(w, info.L1FeeOverhead); err != nil {
+		return nil, err
+	}
+	if err := solabi.WriteEthBytes32(w, info.L1FeeScalar); err != nil {
+		return nil, err
+	}
+	return w.Bytes(), nil
 }
 
 func (info *L1BlockInfo) UnmarshalBinary(data []byte) error {
@@ -100,79 +99,38 @@ func (info *L1BlockInfo) UnmarshalBinary(data []byte) error {
 	}
 	reader := bytes.NewReader(data)
 
-	funcSignature := make([]byte, 4)
-	if _, err := io.ReadFull(reader, funcSignature); err != nil || !bytes.Equal(funcSignature, L1InfoFuncBytes4) {
-		return fmt.Errorf("data does not match L1 info function signature: 0x%x", funcSignature)
-	}
-
-	if blockNumber, err := readSolidityABIUint64(reader); err != nil {
-		return err
-	} else {
-		info.Number = blockNumber
-	}
-	if blockTime, err := readSolidityABIUint64(reader); err != nil {
-		return err
-	} else {
-		info.Time = blockTime
-	}
-
-	var baseFeeBytes [32]byte
-	if _, err := io.ReadFull(reader, baseFeeBytes[:]); err != nil {
-		return fmt.Errorf("expected BaseFee length to be 32 bytes, but got %x", baseFeeBytes)
-	}
-	info.BaseFee = new(big.Int).SetBytes(baseFeeBytes[:])
-	var blockHashBytes [32]byte
-	if _, err := io.ReadFull(reader, blockHashBytes[:]); err != nil {
-		return fmt.Errorf("expected BlockHash length to be 32 bytes, but got %x", blockHashBytes)
-	}
-	info.BlockHash.SetBytes(blockHashBytes[:])
-
-	if sequenceNumber, err := readSolidityABIUint64(reader); err != nil {
-		return err
-	} else {
-		info.SequenceNumber = sequenceNumber
-	}
-
-	var addrPadding [12]byte
-	if _, err := io.ReadFull(reader, addrPadding[:]); err != nil {
-		return fmt.Errorf("expected addrPadding length to be 12 bytes, but got %x", addrPadding)
-	}
-	if _, err := io.ReadFull(reader, info.BatcherAddr[:]); err != nil {
-		return fmt.Errorf("expected BatcherAddr length to be 20 bytes, but got %x", info.BatcherAddr)
-	}
-	if _, err := io.ReadFull(reader, info.L1FeeOverhead[:]); err != nil {
-		return fmt.Errorf("expected L1FeeOverhead length to be 32 bytes, but got %x", info.L1FeeOverhead)
-	}
-	if _, err := io.ReadFull(reader, info.L1FeeScalar[:]); err != nil {
-		return fmt.Errorf("expected L1FeeScalar length to be 32 bytes, but got %x", info.L1FeeScalar)
-	}
-
-	return nil
-}
-
-func writeSolidityABIUint64(w io.Writer, num uint64) error {
-	var padding [24]byte
-	if _, err := w.Write(padding[:]); err != nil {
+	var err error
+	if _, err := solabi.ReadAndValidateSignature(reader, L1InfoFuncBytes4); err != nil {
 		return err
 	}
-	if err := binary.Write(w, binary.BigEndian, num); err != nil {
+	if info.Number, err = solabi.ReadUint64(reader); err != nil {
 		return err
+	}
+	if info.Time, err = solabi.ReadUint64(reader); err != nil {
+		return err
+	}
+	if info.BaseFee, err = solabi.ReadUint256(reader); err != nil {
+		return err
+	}
+	if info.BlockHash, err = solabi.ReadHash(reader); err != nil {
+		return err
+	}
+	if info.SequenceNumber, err = solabi.ReadUint64(reader); err != nil {
+		return err
+	}
+	if info.BatcherAddr, err = solabi.ReadAddress(reader); err != nil {
+		return err
+	}
+	if info.L1FeeOverhead, err = solabi.ReadEthBytes32(reader); err != nil {
+		return err
+	}
+	if info.L1FeeScalar, err = solabi.ReadEthBytes32(reader); err != nil {
+		return err
+	}
+	if !solabi.EmptyReader(reader) {
+		return errors.New("too many bytes")
 	}
 	return nil
-}
-
-func readSolidityABIUint64(r io.Reader) (uint64, error) {
-	var (
-		padding, readPadding [24]byte
-		num                  uint64
-	)
-	if _, err := io.ReadFull(r, readPadding[:]); err != nil || !bytes.Equal(readPadding[:], padding[:]) {
-		return 0, fmt.Errorf("L1BlockInfo number exceeds uint64 bounds: %x", readPadding[:])
-	}
-	if err := binary.Read(r, binary.BigEndian, &num); err != nil {
-		return 0, fmt.Errorf("L1BlockInfo expected number length to be 8 bytes")
-	}
-	return num, nil
 }
 
 // L1InfoDepositTxData is the inverse of L1InfoDeposit, to see where the L2 chain is derived from
