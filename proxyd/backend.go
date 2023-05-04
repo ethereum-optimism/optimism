@@ -90,6 +90,11 @@ var (
 		Message:       "backend is currently not healthy to serve traffic",
 		HTTPErrorCode: 503,
 	}
+	ErrBlockOutOfRange = &RPCErr{
+		Code:          JSONRPCErrorInternal - 19,
+		Message:       "block is out of range",
+		HTTPErrorCode: 400,
+	}
 
 	ErrBackendUnexpectedJSONRPC = errors.New("backend returned an unexpected JSON-RPC response")
 )
@@ -212,6 +217,12 @@ func WithMaxErrorRateThreshold(maxErrorRateThreshold float64) BackendOpt {
 	return func(b *Backend) {
 		b.maxErrorRateThreshold = maxErrorRateThreshold
 	}
+}
+
+type indexedReqRes struct {
+	index int
+	req   *RPCReq
+	res   *RPCRes
 }
 
 func NewBackend(
@@ -593,47 +604,96 @@ func (b *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch b
 
 	backends := b.Backends
 
-	// When `consensus_aware` is set to `true`, the backend group acts as a load balancer
-	// serving traffic from any backend that agrees in the consensus group
+	overriddenResponses := make([]*indexedReqRes, 0)
+	rewrittenReqs := make([]*RPCReq, 0, len(rpcReqs))
+
 	if b.Consensus != nil {
+		// When `consensus_aware` is set to `true`, the backend group acts as a load balancer
+		// serving traffic from any backend that agrees in the consensus group
 		backends = b.loadBalancedConsensusGroup()
+
+		// We also rewrite block tags to enforce compliance with consensus
+		rctx := RewriteContext{latest: b.Consensus.GetConsensusBlockNumber()}
+
+		for i, req := range rpcReqs {
+			res := RPCRes{JSONRPC: JSONRPCVersion, ID: req.ID}
+			result, err := RewriteTags(rctx, req, &res)
+			switch result {
+			case RewriteOverrideError:
+				overriddenResponses = append(overriddenResponses, &indexedReqRes{
+					index: i,
+					req:   req,
+					res:   &res,
+				})
+				if errors.Is(err, ErrRewriteBlockOutOfRange) {
+					res.Error = ErrBlockOutOfRange
+				} else {
+					res.Error = ErrParseErr
+				}
+			case RewriteOverrideResponse:
+				overriddenResponses = append(overriddenResponses, &indexedReqRes{
+					index: i,
+					req:   req,
+					res:   &res,
+				})
+			case RewriteOverrideRequest, RewriteNone:
+				rewrittenReqs = append(rewrittenReqs, req)
+			}
+		}
+		rpcReqs = rewrittenReqs
 	}
 
 	rpcRequestsTotal.Inc()
 
 	for _, back := range backends {
-		res, err := back.Forward(ctx, rpcReqs, isBatch)
-		if errors.Is(err, ErrMethodNotWhitelisted) {
-			return nil, err
+		res := make([]*RPCRes, 0)
+		var err error
+
+		if len(rpcReqs) > 0 {
+			res, err = back.Forward(ctx, rpcReqs, isBatch)
+			if errors.Is(err, ErrMethodNotWhitelisted) {
+				return nil, err
+			}
+			if errors.Is(err, ErrBackendOffline) {
+				log.Warn(
+					"skipping offline backend",
+					"name", back.Name,
+					"auth", GetAuthCtx(ctx),
+					"req_id", GetReqID(ctx),
+				)
+				continue
+			}
+			if errors.Is(err, ErrBackendOverCapacity) {
+				log.Warn(
+					"skipping over-capacity backend",
+					"name", back.Name,
+					"auth", GetAuthCtx(ctx),
+					"req_id", GetReqID(ctx),
+				)
+				continue
+			}
+			if err != nil {
+				log.Error(
+					"error forwarding request to backend",
+					"name", back.Name,
+					"req_id", GetReqID(ctx),
+					"auth", GetAuthCtx(ctx),
+					"err", err,
+				)
+				continue
+			}
 		}
-		if errors.Is(err, ErrBackendOffline) {
-			log.Warn(
-				"skipping offline backend",
-				"name", back.Name,
-				"auth", GetAuthCtx(ctx),
-				"req_id", GetReqID(ctx),
-			)
-			continue
+
+		// re-apply overridden responses
+		for _, ov := range overriddenResponses {
+			if len(res) > 0 {
+				// insert ov.res at position ov.index
+				res = append(res[:ov.index], append([]*RPCRes{ov.res}, res[ov.index:]...)...)
+			} else {
+				res = append(res, ov.res)
+			}
 		}
-		if errors.Is(err, ErrBackendOverCapacity) {
-			log.Warn(
-				"skipping over-capacity backend",
-				"name", back.Name,
-				"auth", GetAuthCtx(ctx),
-				"req_id", GetReqID(ctx),
-			)
-			continue
-		}
-		if err != nil {
-			log.Error(
-				"error forwarding request to backend",
-				"name", back.Name,
-				"req_id", GetReqID(ctx),
-				"auth", GetAuthCtx(ctx),
-				"err", err,
-			)
-			continue
-		}
+
 		return res, nil
 	}
 
