@@ -14,24 +14,24 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
-const envVarPrefix = "OP_PROPOSER"
+const EnvVarPrefix = "OP_PROPOSER"
 
 var (
 	// Required Flags
 	L1EthRpcFlag = cli.StringFlag{
 		Name:   "l1-eth-rpc",
 		Usage:  "HTTP provider URL for L1",
-		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_RPC"),
+		EnvVar: opservice.PrefixEnvVar(EnvVarPrefix, "L1_ETH_RPC"),
 	}
 	RollupRpcFlag = cli.StringFlag{
 		Name:   "rollup-rpc",
 		Usage:  "HTTP provider URL for the rollup node",
-		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "ROLLUP_RPC"),
+		EnvVar: opservice.PrefixEnvVar(EnvVarPrefix, "ROLLUP_RPC"),
 	}
 	L2OOAddressFlag = cli.StringFlag{
 		Name:   "l2oo-address",
 		Usage:  "Address of the L2OutputOracle contract",
-		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L2OO_ADDRESS"),
+		EnvVar: opservice.PrefixEnvVar(EnvVarPrefix, "L2OO_ADDRESS"),
 	}
 
 	// Optional flags
@@ -39,12 +39,12 @@ var (
 		Name:   "poll-interval",
 		Usage:  "How frequently to poll L2 for new blocks",
 		Value:  6 * time.Second,
-		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "POLL_INTERVAL"),
+		EnvVar: opservice.PrefixEnvVar(EnvVarPrefix, "POLL_INTERVAL"),
 	}
 	AllowNonFinalizedFlag = cli.BoolFlag{
 		Name:   "allow-non-finalized",
 		Usage:  "Allow the proposer to submit proposals for L2 blocks derived from non-finalized L1 blocks.",
-		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "ALLOW_NON_FINALIZED"),
+		EnvVar: opservice.PrefixEnvVar(EnvVarPrefix, "ALLOW_NON_FINALIZED"),
 	}
 	// Legacy Flags
 	L2OutputHDPathFlag = txmgr.L2OutputHDPathFlag
@@ -63,11 +63,11 @@ var optionalFlags = []cli.Flag{
 }
 
 func init() {
-	optionalFlags = append(optionalFlags, oprpc.CLIFlags(envVarPrefix)...)
-	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
-	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(envVarPrefix)...)
-	optionalFlags = append(optionalFlags, oppprof.CLIFlags(envVarPrefix)...)
-	optionalFlags = append(optionalFlags, txmgr.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, oprpc.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, txmgr.CLIFlags(EnvVarPrefix)...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }
