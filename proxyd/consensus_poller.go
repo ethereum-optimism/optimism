@@ -205,7 +205,7 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 	bs := cp.backendState[be]
 	if time.Now().Before(bs.bannedUntil) {
-		log.Warn("skipping backend banned", "backend", be.Name, "bannedUntil", bs.bannedUntil)
+		log.Debug("skipping backend banned", "backend", be.Name, "bannedUntil", bs.bannedUntil)
 		return
 	}
 
@@ -227,10 +227,13 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 		return
 	}
 
-	peerCount, err := cp.getPeerCount(ctx, be)
-	if err != nil {
-		log.Warn("error updating backend", "name", be.Name, "err", err)
-		return
+	var peerCount uint64
+	if !be.skipPeerCountCheck {
+		peerCount, err = cp.getPeerCount(ctx, be)
+		if err != nil {
+			log.Warn("error updating backend", "name", be.Name, "err", err)
+			return
+		}
 	}
 
 	latestBlockNumber, latestBlockHash, err := cp.fetchBlock(ctx, be, "latest")
@@ -243,7 +246,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 
 	if changed {
 		RecordBackendLatestBlock(be, latestBlockNumber)
-		log.Info("backend state updated", "name", be.Name, "state", bs)
+		log.Debug("backend state updated", "name", be.Name, "state", bs)
 	}
 }
 
@@ -257,7 +260,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	for _, be := range cp.backendGroup.Backends {
 		peerCount, backendLatestBlockNumber, backendLatestBlockHash, lastUpdate := cp.getBackendState(be)
 
-		if peerCount < cp.minPeerCount {
+		if !be.skipPeerCountCheck && peerCount < cp.minPeerCount {
 			continue
 		}
 		if lastUpdate.Add(cp.maxUpdateThreshold).Before(time.Now()) {
@@ -285,7 +288,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	filteredBackendsNames := make([]string, 0, len(cp.backendGroup.Backends))
 
 	if lowestBlock > currentConsensusBlockNumber {
-		log.Info("validating consensus on block", lowestBlock)
+		log.Debug("validating consensus on block", "lowestBlock", lowestBlock)
 	}
 
 	broken := false
@@ -306,7 +309,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 			bs := cp.backendState[be]
 			notUpdated := bs.lastUpdate.Add(cp.maxUpdateThreshold).Before(time.Now())
 			isBanned := time.Now().Before(bs.bannedUntil)
-			notEnoughPeers := bs.peerCount < cp.minPeerCount
+			notEnoughPeers := !be.skipPeerCountCheck && bs.peerCount < cp.minPeerCount
 			if !be.IsHealthy() || be.IsRateLimited() || !be.Online() || notUpdated || isBanned || notEnoughPeers {
 				filteredBackendsNames = append(filteredBackendsNames, be.Name)
 				continue
@@ -338,7 +341,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 			// walk one block behind and try again
 			proposedBlock -= 1
 			proposedBlockHash = ""
-			log.Info("no consensus, now trying", "block:", proposedBlock)
+			log.Debug("no consensus, now trying", "block:", proposedBlock)
 		}
 	}
 
@@ -353,7 +356,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	cp.consensusGroup = consensusBackends
 	cp.consensusGroupMux.Unlock()
 
-	log.Info("group state", "proposedBlock", proposedBlock, "consensusBackends", strings.Join(consensusBackendsNames, ", "), "filteredBackends", strings.Join(filteredBackendsNames, ", "))
+	log.Debug("group state", "proposedBlock", proposedBlock, "consensusBackends", strings.Join(consensusBackendsNames, ", "), "filteredBackends", strings.Join(filteredBackendsNames, ", "))
 }
 
 // Unban remove any bans from the backends
@@ -384,7 +387,7 @@ func (cp *ConsensusPoller) fetchBlock(ctx context.Context, be *Backend, block st
 	return
 }
 
-// isSyncing Convenient wrapper to check if the backend is syncing from the network
+// getPeerCount Convenient wrapper to retrieve the current peer count from the backend
 func (cp *ConsensusPoller) getPeerCount(ctx context.Context, be *Backend) (count uint64, err error) {
 	var rpcRes RPCRes
 	err = be.ForwardRPC(ctx, &rpcRes, "67", "net_peerCount")
