@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli"
@@ -18,12 +17,6 @@ import (
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-)
-
-const (
-	// defaultDialTimeout is default duration the service will wait on
-	// startup to make a connection to either the L1 or L2 backends.
-	defaultDialTimeout = 5 * time.Second
 )
 
 // Main is the entrypoint into the Batch Submitter. This method returns a
