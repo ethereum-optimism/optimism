@@ -20,6 +20,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -145,12 +147,12 @@ func NewChallengerFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer)
 
 // NewChallengerConfigFromCLIConfig creates the challenger config from the CLI config.
 func NewChallengerConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*Config, error) {
-	l2ooAddress, err := parseAddress(cfg.L2OOAddress)
+	l2ooAddress, err := opservice.ParseAddress(cfg.L2OOAddress)
 	if err != nil {
 		return nil, err
 	}
 
-	dgfAddress, err := parseAddress(cfg.DGFAddress)
+	dgfAddress, err := opservice.ParseAddress(cfg.DGFAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -162,12 +164,12 @@ func NewChallengerConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Met
 
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
 	ctx := context.Background()
-	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
+	l1Client, err := opclient.DialEthClientWithTimeout(ctx, cfg.L1EthRpc, opclient.DefaultDialTimeout)
 	if err != nil {
 		return nil, err
 	}
 
-	rollupClient, err := dialRollupClientWithTimeout(ctx, cfg.RollupRpc)
+	rollupClient, err := opclient.DialRollupClientWithTimeout(ctx, cfg.RollupRpc, opclient.DefaultDialTimeout)
 	if err != nil {
 		return nil, err
 	}

@@ -23,6 +23,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -148,7 +150,7 @@ func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Me
 
 // NewL2OutputSubmitterConfigFromCLIConfig creates the proposer config from the CLI config.
 func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*Config, error) {
-	l2ooAddress, err := parseAddress(cfg.L2OOAddress)
+	l2ooAddress, err := opservice.ParseAddress(cfg.L2OOAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -160,12 +162,12 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metr
 
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
 	ctx := context.Background()
-	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
+	l1Client, err := opclient.DialEthClientWithTimeout(ctx, cfg.L1EthRpc, opclient.DefaultDialTimeout)
 	if err != nil {
 		return nil, err
 	}
 
-	rollupClient, err := dialRollupClientWithTimeout(ctx, cfg.RollupRpc)
+	rollupClient, err := opclient.DialRollupClientWithTimeout(ctx, cfg.RollupRpc, opclient.DefaultDialTimeout)
 	if err != nil {
 		return nil, err
 	}

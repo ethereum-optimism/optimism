@@ -3,14 +3,26 @@ package op_service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 func PrefixEnvVar(prefix, suffix string) string {
 	return prefix + "_" + suffix
+}
+
+// ParseAddress parses an ETH address from a hex string. This method will fail if
+// the address is not a valid hexadecimal address.
+func ParseAddress(address string) (common.Address, error) {
+	if common.IsHexAddress(address) {
+		return common.HexToAddress(address), nil
+	}
+	return common.Address{}, fmt.Errorf("invalid address: %v", address)
 }
 
 // CloseAction runs the function in the background, until it finishes or until it is closed by the user with an interrupt.
