@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
+	"github.com/pkg/profile"
+
 	"github.com/ethereum-optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/cannon/preimage"
 )
@@ -71,7 +73,7 @@ var (
 	RunInfoAtFlag = &cli.GenericFlag{
 		Name:     "info-at",
 		Usage:    "step pattern to print info at: " + patternHelp,
-		Value:    MustStepMatcherFlag("%1000"),
+		Value:    MustStepMatcherFlag("%100000"),
 		Required: false,
 	}
 )
@@ -190,6 +192,8 @@ func Guard(proc *os.ProcessState, fn StepFn) StepFn {
 var _ mipsevm.PreimageOracle = (*ProcessPreimageOracle)(nil)
 
 func Run(ctx *cli.Context) error {
+	defer profile.Start(profile.NoShutdownHook, profile.ProfilePath("."), profile.CPUProfile).Stop()
+
 	state, err := loadJSON[mipsevm.State](ctx.Path(RunInputFlag.Name))
 	if err != nil {
 		return err
@@ -253,14 +257,18 @@ func Run(ctx *cli.Context) error {
 	start := time.Now()
 	startStep := state.Step
 
+	// avoid symbol lookups every instruction by preparing a matcher func
+	sleepCheck := meta.SymbolMatcher("runtime.notesleep")
+
 	for !state.Exited {
-		if err := ctx.Context.Err(); err != nil {
-			return err
+		if state.Step%100 == 0 { // don't do the ctx err check (includes lock) too often
+			if err := ctx.Context.Err(); err != nil {
+				return err
+			}
 		}
 
 		step := state.Step
 
-		name := meta.LookupSymbol(state.PC)
 		if infoAt(state) {
 			delta := time.Since(start)
 			l.Info("processing",
@@ -268,12 +276,13 @@ func Run(ctx *cli.Context) error {
 				"pc", mipsevm.HexU32(state.PC),
 				"insn", mipsevm.HexU32(state.Memory.GetMemory(state.PC)),
 				"ips", float64(step-startStep)/(float64(delta)/float64(time.Second)),
-				"pages", len(state.Memory.Pages),
+				"pages", state.Memory.PageCount(),
 				"mem", state.Memory.Usage(),
-				"name", name,
+				"name", meta.LookupSymbol(state.PC),
 			)
 		}
-		if name == "runtime.notesleep" { // don't loop forever when we get stuck because of an unexpected bad program
+
+		if sleepCheck(state.PC) { // don't loop forever when we get stuck because of an unexpected bad program
 			return fmt.Errorf("got stuck in Go sleep at step %d", step)
 		}
 

@@ -9,3 +9,5 @@ example/bin
 contracts/out
 state.json
 *.json
+*.pprof
+*.out

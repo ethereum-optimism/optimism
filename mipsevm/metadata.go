@@ -50,6 +50,21 @@ func (m *Metadata) LookupSymbol(addr uint32) string {
 	return out.Name
 }
 
+func (m *Metadata) SymbolMatcher(name string) func(addr uint32) bool {
+	for _, s := range m.Symbols {
+		if s.Name == name {
+			start := s.Start
+			end := s.Start + s.Size
+			return func(addr uint32) bool {
+				return addr >= start && addr < end
+			}
+		}
+	}
+	return func(addr uint32) bool {
+		return false
+	}
+}
+
 // HexU32 to lazy-format integer attributes for logging
 type HexU32 uint32
 

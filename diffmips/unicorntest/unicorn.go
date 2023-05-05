@@ -422,15 +422,19 @@ func NewUnicorn() (uc.Unicorn, error) {
 
 func LoadUnicorn(st *mipsevm.State, mu uc.Unicorn) error {
 	// mmap and write each page of memory state into unicorn
-	for pageIndex, page := range st.Memory.Pages {
+	if err := st.Memory.ForEachPage(func(pageIndex uint32, page *mipsevm.Page) error {
 		addr := uint64(pageIndex) << mipsevm.PageAddrSize
 		if err := mu.MemMap(addr, mipsevm.PageSize); err != nil {
 			return fmt.Errorf("failed to mmap page at addr 0x%x: %w", addr, err)
 		}
-		if err := mu.MemWrite(addr, page.Data[:]); err != nil {
+		if err := mu.MemWrite(addr, page[:]); err != nil {
 			return fmt.Errorf("failed to write page at addr 0x%x: %w", addr, err)
 		}
+		return nil
+	}); err != nil {
+		return err
 	}
+
 	// write all registers into unicorn, including PC, LO, HI
 	regValues := make([]uint64, 32+3)
 	// TODO: do we have to sign-extend registers before writing them to unicorn, or are the trailing bits unused?

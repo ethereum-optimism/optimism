@@ -39,20 +39,39 @@ var zeroHashes = func() [256][32]byte {
 
 type Memory struct {
 	// generalized index -> merkle root or nil if invalidated
-	Nodes map[uint64]*[32]byte
+	nodes map[uint64]*[32]byte
 
 	// pageIndex -> cached page
-	Pages map[uint32]*CachedPage
+	pages map[uint32]*CachedPage
 
 	// Note: since we don't de-alloc pages, we don't do ref-counting.
 	// Once a page exists, it doesn't leave memory
+
+	// two caches: we often read instructions from one page, and do memory things with another page.
+	// this prevents map lookups each instruction
+	lastPageKeys [2]uint32
+	lastPage     [2]*CachedPage
 }
 
 func NewMemory() *Memory {
 	return &Memory{
-		Nodes: make(map[uint64]*[32]byte),
-		Pages: make(map[uint32]*CachedPage),
+		nodes:        make(map[uint64]*[32]byte),
+		pages:        make(map[uint32]*CachedPage),
+		lastPageKeys: [2]uint32{^uint32(0), ^uint32(0)}, // default to invalid keys, to not match any pages
 	}
+}
+
+func (m *Memory) PageCount() int {
+	return len(m.pages)
+}
+
+func (m *Memory) ForEachPage(fn func(pageIndex uint32, page *Page) error) error {
+	for pageIndex, cachedPage := range m.pages {
+		if err := fn(pageIndex, cachedPage.Data); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (m *Memory) Invalidate(addr uint32) {
@@ -62,15 +81,21 @@ func (m *Memory) Invalidate(addr uint32) {
 	}
 
 	// find page, and invalidate addr within it
-	if p, ok := m.Pages[addr>>PageAddrSize]; ok {
+	if p, ok := m.pageLookup(addr >> PageAddrSize); ok {
+		prevValid := p.Ok[1]
 		p.Invalidate(addr & PageAddrMask)
+		if !prevValid { // if the page was already invalid before, then nodes to mem-root will also still be.
+			return
+		}
+	} else { // no page? nothing to invalidate
+		return
 	}
 
 	// find the gindex of the first page covering the address
 	gindex := ((uint64(1) << 32) | uint64(addr)) >> PageAddrSize
 
 	for gindex > 0 {
-		m.Nodes[gindex] = nil
+		m.nodes[gindex] = nil
 		gindex >>= 1
 	}
 }
@@ -83,7 +108,7 @@ func (m *Memory) MerkleizeSubtree(gindex uint64) [32]byte {
 	if l > PageKeySize {
 		depthIntoPage := l - 1 - PageKeySize
 		pageIndex := (gindex >> depthIntoPage) & PageKeyMask
-		if p, ok := m.Pages[uint32(pageIndex)]; ok {
+		if p, ok := m.pages[uint32(pageIndex)]; ok {
 			pageGindex := (1 << depthIntoPage) | (gindex & ((1 << depthIntoPage) - 1))
 			return p.MerkleizeSubtree(pageGindex)
 		} else {
@@ -93,7 +118,7 @@ func (m *Memory) MerkleizeSubtree(gindex uint64) [32]byte {
 	if l > PageKeySize+1 {
 		panic("cannot jump into intermediate node of page")
 	}
-	n, ok := m.Nodes[gindex]
+	n, ok := m.nodes[gindex]
 	if !ok {
 		// if the node doesn't exist, the whole sub-tree is zeroed
 		return zeroHashes[28-l]
@@ -104,7 +129,7 @@ func (m *Memory) MerkleizeSubtree(gindex uint64) [32]byte {
 	left := m.MerkleizeSubtree(gindex << 1)
 	right := m.MerkleizeSubtree((gindex << 1) | 1)
 	r := HashPair(left, right)
-	m.Nodes[gindex] = &r
+	m.nodes[gindex] = &r
 	return r
 }
 
@@ -141,6 +166,27 @@ func (m *Memory) MerkleRoot() [32]byte {
 	return m.MerkleizeSubtree(1)
 }
 
+func (m *Memory) pageLookup(pageIndex uint32) (*CachedPage, bool) {
+	// hit caches
+	if pageIndex == m.lastPageKeys[0] {
+		return m.lastPage[0], true
+	}
+	if pageIndex == m.lastPageKeys[1] {
+		return m.lastPage[1], true
+	}
+	p, ok := m.pages[pageIndex]
+
+	// only cache existing pages.
+	if ok {
+		m.lastPageKeys[1] = m.lastPageKeys[0]
+		m.lastPage[1] = m.lastPage[0]
+		m.lastPageKeys[0] = pageIndex
+		m.lastPage[0] = p
+	}
+
+	return p, ok
+}
+
 func (m *Memory) SetMemory(addr uint32, v uint32) {
 	// addr must be aligned to 4 bytes
 	if addr&0x3 != 0 {
@@ -149,7 +195,7 @@ func (m *Memory) SetMemory(addr uint32, v uint32) {
 
 	pageIndex := addr >> PageAddrSize
 	pageAddr := addr & PageAddrMask
-	p, ok := m.Pages[pageIndex]
+	p, ok := m.pageLookup(pageIndex)
 	if !ok {
 		// allocate the page if we have not already.
 		// Go may mmap relatively large ranges, but we only allocate the pages just in time.
@@ -165,7 +211,7 @@ func (m *Memory) GetMemory(addr uint32) uint32 {
 	if addr&0x3 != 0 {
 		panic(fmt.Errorf("unaligned memory access: %x", addr))
 	}
-	p, ok := m.Pages[addr>>PageAddrSize]
+	p, ok := m.pageLookup(addr >> PageAddrSize)
 	if !ok {
 		return 0
 	}
@@ -175,11 +221,11 @@ func (m *Memory) GetMemory(addr uint32) uint32 {
 
 func (m *Memory) AllocPage(pageIndex uint32) *CachedPage {
 	p := &CachedPage{Data: new(Page)}
-	m.Pages[pageIndex] = p
+	m.pages[pageIndex] = p
 	// make nodes to root
 	k := (1 << PageKeySize) | uint64(pageIndex)
 	for k > 0 {
-		m.Nodes[k] = nil
+		m.nodes[k] = nil
 		k >>= 1
 	}
 	return p
@@ -191,8 +237,8 @@ type pageEntry struct {
 }
 
 func (m *Memory) MarshalJSON() ([]byte, error) {
-	pages := make([]pageEntry, 0, len(m.Pages))
-	for k, p := range m.Pages {
+	pages := make([]pageEntry, 0, len(m.pages))
+	for k, p := range m.pages {
 		pages = append(pages, pageEntry{
 			Index: k,
 			Data:  p.Data,
@@ -209,13 +255,15 @@ func (m *Memory) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &pages); err != nil {
 		return err
 	}
-	m.Nodes = make(map[uint64]*[32]byte)
-	m.Pages = make(map[uint32]*CachedPage)
+	m.nodes = make(map[uint64]*[32]byte)
+	m.pages = make(map[uint32]*CachedPage)
+	m.lastPageKeys = [2]uint32{^uint32(0), ^uint32(0)}
+	m.lastPage = [2]*CachedPage{nil, nil}
 	for i, p := range pages {
-		if _, ok := m.Pages[p.Index]; ok {
+		if _, ok := m.pages[p.Index]; ok {
 			return fmt.Errorf("cannot load duplicate page, entry %d, page index %d", i, p.Index)
 		}
-		m.Pages[p.Index] = &CachedPage{Data: p.Data}
+		m.AllocPage(p.Index).Data = p.Data
 	}
 	return nil
 }
@@ -224,7 +272,7 @@ func (m *Memory) SetMemoryRange(addr uint32, r io.Reader) error {
 	for {
 		pageIndex := addr >> PageAddrSize
 		pageAddr := addr & PageAddrMask
-		p, ok := m.Pages[pageIndex]
+		p, ok := m.pageLookup(pageIndex)
 		if !ok {
 			p = m.AllocPage(pageIndex)
 		}
@@ -262,7 +310,7 @@ func (r *memReader) Read(dest []byte) (n int, err error) {
 	if pageIndex == (endAddr >> PageAddrSize) {
 		end = endAddr & PageAddrMask
 	}
-	p, ok := r.m.Pages[pageIndex]
+	p, ok := r.m.pageLookup(pageIndex)
 	if ok {
 		n = copy(dest, p.Data[start:end])
 	} else {
@@ -278,7 +326,7 @@ func (m *Memory) ReadMemoryRange(addr uint32, count uint32) io.Reader {
 }
 
 func (m *Memory) Usage() string {
-	total := uint64(len(m.Pages)) * PageSize
+	total := uint64(len(m.pages)) * PageSize
 	const unit = 1024
 	if total < unit {
 		return fmt.Sprintf("%d B", total)
