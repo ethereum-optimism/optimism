@@ -1,8 +1,12 @@
 //SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { AdminFAM } from "../../universal/faucet/Faucet.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {
+    AdminFaucetAuthModule
+} from "../../universal/faucet/authmodules/AdminFaucetAuthModule.sol";
+import {
+    ECDSAUpgradeable
+} from "@openzeppelin/contracts-upgradeable/utils/cryptography/ECDSAUpgradeable.sol";
 
 /**
  * Simple helper contract that helps with testing the Faucet contract.
@@ -44,23 +48,15 @@ contract FaucetHelper {
      *
      * @return EIP-712 typed struct hash.
      */
-    function getProofStructHash(AdminFAM.Proof memory _proof)
+    function getProofStructHash(AdminFaucetAuthModule.Proof memory _proof)
         public
         pure
         returns (bytes32)
     {
-        return
-            keccak256(
-                abi.encode(
-                    PROOF_TYPEHASH,
-                    _proof.recipient,
-                    _proof.nonce,
-                    _proof.id
-                )
-            );
+        return keccak256(abi.encode(PROOF_TYPEHASH, _proof.recipient, _proof.nonce, _proof.id));
     }
 
-     /**
+    /**
      * @notice Computes the EIP712 digest with the given domain parameters.
      *         Used for testing that different domain parameters fail.
      *
@@ -75,7 +71,7 @@ contract FaucetHelper {
      * @return EIP-712 compatible digest.
      */
     function getDigestWithEIP712Domain(
-        AdminFAM.Proof memory _proof,
+        AdminFaucetAuthModule.Proof memory _proof,
         bytes memory _name,
         bytes memory _version,
         uint256 _chainid,
@@ -90,8 +86,6 @@ contract FaucetHelper {
                 _verifyingContract
             )
         );
-        return
-            ECDSA.toTypedDataHash(domainSeparator, getProofStructHash(_proof));
+        return ECDSAUpgradeable.toTypedDataHash(domainSeparator, getProofStructHash(_proof));
     }
 }
-

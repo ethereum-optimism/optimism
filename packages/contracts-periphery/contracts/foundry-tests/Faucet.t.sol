@@ -2,7 +2,8 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { AdminFAM, Faucet } from "../universal/faucet/Faucet.sol";
+import { Faucet } from "../universal/faucet/Faucet.sol";
+import { AdminFaucetAuthModule } from "../universal/faucet/authmodules/AdminFaucetAuthModule.sol";
 import { FaucetHelper } from "../testing/helpers/FaucetHelper.sol";
 
 contract Faucet_Initializer is Test {
@@ -14,7 +15,7 @@ contract Faucet_Initializer is Test {
     uint256 internal nonAdminKey;
 
     Faucet faucet;
-    AdminFAM adminFam;
+    AdminFaucetAuthModule adminFam;
 
     FaucetHelper faucetHelper;
 
@@ -31,7 +32,7 @@ contract Faucet_Initializer is Test {
         _initializeContracts();
     }
 
-   /**
+    /**
      * @notice Instantiates a Faucet.
      */
     function _initializeContracts() internal {
@@ -40,19 +41,18 @@ contract Faucet_Initializer is Test {
         // Fill faucet with ether.
         vm.deal(address(faucet), 10 ether);
 
-        adminFam = new AdminFAM(faucetAuthAdmin);
+        adminFam = new AdminFaucetAuthModule(faucetAuthAdmin);
         adminFam.initialize("AdminFAM");
 
-        faucetHelper =  new FaucetHelper();
+        faucetHelper = new FaucetHelper();
     }
-
 
     function _enableFaucetAuthModule() internal {
         vm.prank(faucetContractAdmin);
-        faucet.configure(adminFam, Faucet.ModuleConfig(true, 1 days, 1 ether));
+        faucet.configure(adminFam, Faucet.ModuleConfig("OptimistModule", true, 1 days, 1 ether));
     }
 
-   /**
+    /**
      * @notice Get signature as a bytes blob.
      *
      */
@@ -82,7 +82,11 @@ contract Faucet_Initializer is Test {
         bytes memory id,
         bytes32 nonce
     ) internal view returns (bytes memory) {
-        AdminFAM.Proof memory proof = AdminFAM.Proof(recipient, nonce, id);
+        AdminFaucetAuthModule.Proof memory proof = AdminFaucetAuthModule.Proof(
+            recipient,
+            nonce,
+            id
+        );
         return
             _getSignature(
                 _issuerPrivateKey,
@@ -105,43 +109,43 @@ contract FaucetTest is Faucet_Initializer {
     function test_AuthAdmin_drip_succeeds() external {
         _enableFaucetAuthModule();
         bytes32 nonce = faucetHelper.consumeNonce();
-        bytes memory signature
-            = issueProofWithEIP712Domain(
-                faucetAuthAdminKey,
-                bytes("AdminFAM"),
-                bytes(adminFam.version()),
-                block.chainid,
-                address(adminFam),
-                fundsReceiver,
-                abi.encodePacked(fundsReceiver),
-                nonce
-            );
+        bytes memory signature = issueProofWithEIP712Domain(
+            faucetAuthAdminKey,
+            bytes("AdminFAM"),
+            bytes(adminFam.version()),
+            block.chainid,
+            address(adminFam),
+            fundsReceiver,
+            abi.encodePacked(fundsReceiver),
+            nonce
+        );
 
         vm.prank(nonAdmin);
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce),
-            Faucet.AuthParameters(adminFam, abi.encodePacked(fundsReceiver), signature));
+            Faucet.AuthParameters(adminFam, abi.encodePacked(fundsReceiver), signature)
+        );
     }
 
     function test_nonAdmin_drip_fails() external {
         _enableFaucetAuthModule();
         bytes32 nonce = faucetHelper.consumeNonce();
-        bytes memory signature
-            = issueProofWithEIP712Domain(
-                nonAdminKey,
-                bytes("AdminFAM"),
-                bytes(adminFam.version()),
-                block.chainid,
-                address(adminFam),
-                fundsReceiver,
-                abi.encodePacked(fundsReceiver),
-                nonce
-            );
+        bytes memory signature = issueProofWithEIP712Domain(
+            nonAdminKey,
+            bytes("AdminFAM"),
+            bytes(adminFam.version()),
+            block.chainid,
+            address(adminFam),
+            fundsReceiver,
+            abi.encodePacked(fundsReceiver),
+            nonce
+        );
 
         vm.prank(nonAdmin);
         vm.expectRevert("Faucet: drip parameters could not be verified by security module");
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce),
-            Faucet.AuthParameters(adminFam, abi.encodePacked(fundsReceiver), signature));
+            Faucet.AuthParameters(adminFam, abi.encodePacked(fundsReceiver), signature)
+        );
     }
 }
