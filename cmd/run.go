@@ -76,6 +76,10 @@ var (
 		Value:    MustStepMatcherFlag("%100000"),
 		Required: false,
 	}
+	RunPProfCPU = &cli.BoolFlag{
+		Name:  "pprof.cpu",
+		Usage: "enable pprof cpu profiling",
+	}
 )
 
 type Proof struct {
@@ -192,7 +196,9 @@ func Guard(proc *os.ProcessState, fn StepFn) StepFn {
 var _ mipsevm.PreimageOracle = (*ProcessPreimageOracle)(nil)
 
 func Run(ctx *cli.Context) error {
-	defer profile.Start(profile.NoShutdownHook, profile.ProfilePath("."), profile.CPUProfile).Stop()
+	if ctx.Bool(RunPProfCPU.Name) {
+		defer profile.Start(profile.NoShutdownHook, profile.ProfilePath("."), profile.CPUProfile).Stop()
+	}
 
 	state, err := loadJSON[mipsevm.State](ctx.Path(RunInputFlag.Name))
 	if err != nil {
@@ -347,5 +353,6 @@ var RunCommand = &cli.Command{
 		RunStopAtFlag,
 		RunMetaFlag,
 		RunInfoAtFlag,
+		RunPProfCPU,
 	},
 }
