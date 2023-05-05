@@ -181,9 +181,7 @@ const deployFn: DeployFunction = async (hre) => {
     console.log('Transferring ownership of the SystemDictator proxy...')
 
     // Transfer ownership to the controller address.
-    await SystemDictatorProxyWithSigner.transferOwnership(
-      hre.deployConfig.controller
-    )
+    await SystemDictatorProxyWithSigner.changeAdmin(hre.deployConfig.controller)
 
     // Wait for the transaction to execute properly.
     await awaitCondition(
