@@ -118,10 +118,13 @@ contract AdminFaucetAuthModuleTest is Test {
         );
 
         vm.prank(nonAdmin);
-        adminFam.verify(
-            Faucet.DripParameters(payable(fundsReceiver), nonce),
-            abi.encodePacked(fundsReceiver),
-            proof
+        assertEq(
+            adminFam.verify(
+                Faucet.DripParameters(payable(fundsReceiver), nonce),
+                abi.encodePacked(fundsReceiver),
+                proof
+            ),
+            true
         );
     }
 
