@@ -134,8 +134,7 @@ contract Faucet {
 
         // Make sure the timeout has elapsed.
         require(
-            timeouts[_auth.module][_auth.id] == 0 ||
-                timeouts[_auth.module][_auth.id] > block.timestamp,
+            timeouts[_auth.module][_auth.id] < block.timestamp,
             "Faucet: auth cannot be used yet because timeout has not elapsed"
         );
 
