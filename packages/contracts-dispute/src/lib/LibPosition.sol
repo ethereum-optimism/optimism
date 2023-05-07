@@ -7,7 +7,11 @@ import "src/types/Types.sol";
 /// @author clabby <https://github.com/clabby>
 /// @notice This library contains helper functions for working with the `Position` type.
 library LibPosition {
-    function wrap(uint128 _depth, uint128 _indexAtDepth) internal pure returns (Position _position) {
+    function wrap(uint128 _depth, uint128 _indexAtDepth)
+        internal
+        pure
+        returns (Position _position)
+    {
         assembly {
             _position := or(shl(0x80, _depth), _indexAtDepth)
         }
@@ -74,12 +78,20 @@ library LibPosition {
     /// @param maxDepth The maximum depth of the game.
     /// @return _rightIndex The deepest, right most index relative to the `position`.
     /// TODO: Optimize; No need to update the full position in the sub loop.
-    function rightIndex(Position position, uint256 maxDepth) internal pure returns (uint128 _rightIndex) {
+    function rightIndex(Position position, uint256 maxDepth)
+        internal
+        pure
+        returns (uint128 _rightIndex)
+    {
         assembly {
             _rightIndex := shr(0x80, shl(0x80, position))
 
             // Walk down to the max depth by moving right
-            for { let i := shr(0x80, position) } lt(i, sub(maxDepth, 0x01)) { i := add(i, 0x01) } {
+            for {
+                let i := shr(0x80, position)
+            } lt(i, sub(maxDepth, 0x01)) {
+                i := add(i, 0x01)
+            } {
                 _rightIndex := add(0x01, shl(0x01, _rightIndex))
             }
         }
@@ -97,7 +109,10 @@ library LibPosition {
 
         // Defend = { depth: position.depth + 1, indexAtDepth: ((position.indexAtDepth / 2) * 2 + 1) * 2 }
         assembly {
-            _defend := or(shl(0x80, add(_depth, 0x01)), shl(0x01, add(0x01, shl(0x01, shr(0x01, _indexAtDepth)))))
+            _defend := or(
+                shl(0x80, add(_depth, 0x01)),
+                shl(0x01, add(0x01, shl(0x01, shr(0x01, _indexAtDepth))))
+            )
         }
     }
 }

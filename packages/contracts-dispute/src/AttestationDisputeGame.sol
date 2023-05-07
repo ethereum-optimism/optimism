@@ -36,13 +36,14 @@ contract AttestationDisputeGame is IAttestationDisputeGame, Clone, Initializable
 
     /// @notice An array of addresses that have submitted positive attestations for the `rootClaim`.
     address[] public attestationSubmitters;
+    /// @notice A list of signer addresses allowed to participate in this game.
+    address[] public frozenSignerSet;
+    /// @notice The number of authorized signatures required to successfully support the `rootClaim`.
+    uint256 public frozenSignatureThreshold;
 
     /// @notice A mapping of addresses from the `signerSet` to booleans signifying whether
     ///         or not they support the `rootClaim` being the valid output for `l2BlockNumber`.
     mapping(address => bool) public challenges;
-
-    /// @notice A list of signer addresses allowed to participate in this game.
-    address[] public frozenSignerSet;
 
     // Initialize the implementation upon deployment.
     constructor(IBondManager _bondmanager, SystemConfig _systemConfig, L2OutputOracle _l2OutputOracle) EIP712() {
@@ -97,17 +98,9 @@ contract AttestationDisputeGame is IAttestationDisputeGame, Clone, Initializable
         attestationSubmitters.push(msg.sender);
 
         // If the provided signature breaches the signature threshold, resolve the game.
-        if (attestationSubmitters.length == signatureThreshold()) {
+        if (attestationSubmitters.length == frozenSignatureThreshold) {
             resolve();
         }
-    }
-
-    /// @notice The amount of signatures required to successfully challenge the `rootClaim`
-    ///         output proposal. Once this threshold is met by members of the `signerSet`
-    ///         calling `challenge`, the game will be resolved to `CHALLENGER_WINS`.
-    /// @custom:invariant The `signatureThreshold` may never be greater than the length of the `signerSet`.
-    function signatureThreshold() public view returns (uint256 _signatureThreshold) {
-        _signatureThreshold = systemConfig.signatureThreshold();
     }
 
     /// @notice Returns an Ethereum Signed Typed Data hash, as defined in EIP-712, for the
@@ -123,7 +116,7 @@ contract AttestationDisputeGame is IAttestationDisputeGame, Clone, Initializable
 
         // Hash the `Dispute` struct.
         Hash disputeStructHash;
-        assembly ("memory-safe") {
+        assembly ("memory-safe") { // solhint-disable-line
             // Grab the location of some free memory.
             let ptr := mload(0x40)
 
@@ -148,6 +141,7 @@ contract AttestationDisputeGame is IAttestationDisputeGame, Clone, Initializable
     function initialize() external initializer {
         createdAt = Timestamp.wrap(uint64(block.timestamp));
         frozenSignerSet = systemConfig.signerSet();
+        frozenSignatureThreshold = systemConfig.signatureThreshold();
     }
 
     /// @notice Returns the semantic version of the DisputeGame contract.

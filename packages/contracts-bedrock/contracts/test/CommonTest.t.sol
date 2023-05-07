@@ -32,10 +32,10 @@ import { SystemConfig } from "../L1/SystemConfig.sol";
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
 import { Constants } from "../libraries/Constants.sol";
 
-import { IBondManager } from "@dispute/interfaces/IBondManager.sol";
-import { IDisputeGameFactory } from "@dispute/interfaces/IDisputeGameFactory.sol";
 import { BondManager } from "@dispute/BondManager.sol";
+import { IBondManager } from "@dispute/interfaces/IBondManager.sol";
 import { DisputeGameFactory } from "@dispute/DisputeGameFactory.sol";
+import { IDisputeGameFactory } from "@dispute/interfaces/IDisputeGameFactory.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -108,6 +108,7 @@ contract L2OutputOracle_Initializer is CommonTest {
     uint256 internal startingBlockNumber = 200;
     uint256 internal startingTimestamp = 0;
     uint256 internal minimumProposalCost = 1 ether;
+    uint256 internal finalizationPeriodSeconds = 7 days;
     address guardian;
 
     // Test data
@@ -144,7 +145,7 @@ contract L2OutputOracle_Initializer is CommonTest {
             _l2BlockTime: l2BlockTime,
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: startingTimestamp,
-            _finalizationPeriodSeconds: 7 days,
+            _finalizationPeriodSeconds: finalizationPeriodSeconds,
             _bondManager: IBondManager(address(bondManager)),
             _disputeGameFactory: IDisputeGameFactory(address(disputeGameFactory))
         });

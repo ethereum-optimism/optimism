@@ -272,7 +272,6 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         return _signerSet;
     }
 
-
     /**
      * @notice An external setter for the resource config. In the future, this
      *         method may emit an event that the `op-node` picks up for when the
