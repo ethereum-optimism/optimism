@@ -144,6 +144,12 @@ export class CrossChainMessenger {
     bedrock?: boolean
   }) {
     this.bedrock = opts.bedrock ?? false
+
+    if (!this.bedrock) {
+      console.warn(
+        'Bedrock compatibility is disabled in CrossChainMessenger.  Please enable it if you are using Bedrock.'
+      )
+    }
     this.l1SignerOrProvider = toSignerOrProvider(opts.l1SignerOrProvider)
     this.l2SignerOrProvider = toSignerOrProvider(opts.l2SignerOrProvider)
 
