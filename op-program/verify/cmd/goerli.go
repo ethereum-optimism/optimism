@@ -127,7 +127,7 @@ func Run(l1RpcUrl string, l2RpcUrl string, l2OracleAddr common.Address) error {
 }
 
 func runFaultProofProgram(ctx context.Context, args []string) error {
-	ctx, cancel := context.WithTimeout(ctx, 30*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Minute)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, "./bin/op-program", args...)
 	cmd.Stdout = os.Stdout
