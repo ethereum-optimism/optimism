@@ -97,6 +97,44 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, 1, len(consensusGroup))
 	})
 
+	t.Run("prevent using a backend lagging behind", func(t *testing.T) {
+		h1.ResetOverrides()
+		h2.ResetOverrides()
+		bg.Consensus.Unban()
+
+		h1.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "latest",
+			Response: buildGetBlockResponse("0x1", "hash1"),
+		})
+
+		h2.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "latest",
+			Response: buildGetBlockResponse("0x100", "hash0x100"),
+		})
+		h2.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "0x100",
+			Response: buildGetBlockResponse("0x100", "hash0x100"),
+		})
+
+		for _, be := range bg.Backends {
+			bg.Consensus.UpdateBackend(ctx, be)
+		}
+		bg.Consensus.UpdateBackendGroupConsensus(ctx)
+
+		// since we ignored node1, the consensus should be at 0x100
+		require.Equal(t, "0x100", bg.Consensus.GetConsensusBlockNumber().String())
+
+		consensusGroup := bg.Consensus.GetConsensusGroup()
+
+		be := backend(bg, "node1")
+		require.NotNil(t, be)
+		require.NotContains(t, consensusGroup, be)
+		require.Equal(t, 1, len(consensusGroup))
+	})
+
 	t.Run("prevent using a backend not in sync", func(t *testing.T) {
 		h1.ResetOverrides()
 		h2.ResetOverrides()

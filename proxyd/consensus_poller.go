@@ -35,6 +35,7 @@ type ConsensusPoller struct {
 
 	banPeriod          time.Duration
 	maxUpdateThreshold time.Duration
+	maxBlockLag        uint64
 }
 
 type backendState struct {
@@ -160,6 +161,12 @@ func WithMaxUpdateThreshold(maxUpdateThreshold time.Duration) ConsensusOpt {
 	}
 }
 
+func WithMaxBlockLag(maxBlockLag uint64) ConsensusOpt {
+	return func(cp *ConsensusPoller) {
+		cp.maxBlockLag = maxBlockLag
+	}
+}
+
 func WithMinPeerCount(minPeerCount uint64) ConsensusOpt {
 	return func(cp *ConsensusPoller) {
 		cp.minPeerCount = minPeerCount
@@ -181,6 +188,7 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 
 		banPeriod:          5 * time.Minute,
 		maxUpdateThreshold: 30 * time.Second,
+		maxBlockLag:        50,
 		minPeerCount:       3,
 	}
 
@@ -270,7 +278,12 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 			continue
 		}
 
-		if lowestBlock == 0 || backendLatestBlockNumber < lowestBlock {
+		// find the highest common ancestor, ignoring backends that are too far lagging behind
+		// when the backend is too far ahead from current lowest, the current lowest is ignored
+		// when the backend if too far behind, the backend itself is ignored
+		if lowestBlock == 0 ||
+			backendLatestBlockNumber > lowestBlock && uint64(backendLatestBlockNumber-lowestBlock) > cp.maxBlockLag ||
+			backendLatestBlockNumber < lowestBlock && uint64(lowestBlock-backendLatestBlockNumber) < cp.maxBlockLag {
 			lowestBlock = backendLatestBlockNumber
 			lowestBlockHash = backendLatestBlockHash
 		}
@@ -308,12 +321,14 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 				- not banned
 				- with minimum peer count
 				- updated recently
+				- not lagging
 			*/
-			peerCount, _, _, lastUpdate, bannedUntil := cp.getBackendState(be)
+			peerCount, latestBlockNumber, _, lastUpdate, bannedUntil := cp.getBackendState(be)
 			notUpdated := lastUpdate.Add(cp.maxUpdateThreshold).Before(time.Now())
 			isBanned := time.Now().Before(bannedUntil)
 			notEnoughPeers := !be.skipPeerCountCheck && peerCount < cp.minPeerCount
-			if !be.IsHealthy() || be.IsRateLimited() || !be.Online() || notUpdated || isBanned || notEnoughPeers {
+			lagging := (latestBlockNumber < proposedBlock) && uint64(proposedBlock-latestBlockNumber) >= cp.maxBlockLag
+			if !be.IsHealthy() || be.IsRateLimited() || !be.Online() || notUpdated || isBanned || notEnoughPeers || lagging {
 				filteredBackendsNames = append(filteredBackendsNames, be.Name)
 				continue
 			}
