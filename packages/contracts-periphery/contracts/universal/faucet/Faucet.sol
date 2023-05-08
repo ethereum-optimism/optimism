@@ -22,6 +22,20 @@ contract SafeSend {
  */
 contract Faucet {
     /**
+     * @notice Emitted on each drip.
+     * @param authModule The type of authentication that was used for verifying the drip.
+     * @param userId     The id of the user that requested the drip.
+     * @param amount     The amount of funds sent.
+     * @param recipient  The recipient of the drip.
+     */
+    event Drip(
+        string indexed authModule,
+        bytes indexed userId,
+        uint256 amount,
+        address indexed recipient
+    );
+
+    /**
      * @notice Parameters for a drip.
      */
     struct DripParameters {
@@ -147,7 +161,12 @@ contract Faucet {
         // Set the next timestamp at which this auth id can be used.
         timeouts[_auth.module][_auth.id] = block.timestamp + config.ttl;
 
+        // Mark the nonce as used.
+        usedNonces[_auth.id][_params.nonce] = true;
+
         // Execute a safe transfer of ETH to the recipient account.
         new SafeSend{ value: config.amount }(_params.recipient);
+
+        emit Drip(config.name, _auth.id, config.amount, _params.recipient);
     }
 }
