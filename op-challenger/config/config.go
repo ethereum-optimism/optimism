@@ -137,6 +137,9 @@ func NewConfig(
 
 // NewConfigFromCLI parses the Config from the provided flags or environment variables.
 func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
+	if err := flags.CheckRequired(ctx); err != nil {
+		return nil, err
+	}
 	l1EthRpc := ctx.GlobalString(flags.L1EthRpcFlag.Name)
 	if l1EthRpc == "" {
 		return nil, ErrMissingL1EthRPC
