@@ -49,6 +49,8 @@ contract Faucet_Initializer is Test {
 
         // Fill faucet with ether.
         vm.deal(address(faucet), 10 ether);
+        vm.deal(address(faucetContractAdmin), 5 ether);
+        vm.deal(address(nonAdmin), 5 ether);
 
         optimistNftFam = new AdminFaucetAuthModule(faucetAuthAdmin);
         optimistNftFam.initialize("OptimistNftFam");
@@ -59,13 +61,13 @@ contract Faucet_Initializer is Test {
     }
 
     function _enableFaucetAuthModules() internal {
-        vm.prank(faucetContractAdmin);
+        vm.startPrank(faucetContractAdmin);
         faucet.configure(
             optimistNftFam,
             Faucet.ModuleConfig("OptimistNftModule", true, 1 days, 1 ether)
         );
-        vm.prank(faucetContractAdmin);
         faucet.configure(githubFam, Faucet.ModuleConfig("GithubModule", true, 1 days, .05 ether));
+        vm.stopPrank();
     }
 
     /**
@@ -381,5 +383,37 @@ contract FaucetTest is Faucet_Initializer {
             Faucet.AuthParameters(githubFam, abi.encodePacked(fundsReceiver), signature1)
         );
         vm.stopPrank();
+    }
+
+    function test_withdraw_succeeds() external {
+        vm.startPrank(faucetContractAdmin);
+        uint256 recipientBalanceBefore = address(fundsReceiver).balance;
+
+        faucet.withdraw(payable(fundsReceiver), 2 ether);
+
+        uint256 recipientBalanceAfter = address(fundsReceiver).balance;
+        assertEq(
+            recipientBalanceAfter - recipientBalanceBefore,
+            2 ether,
+            "expect increase of 2 ether"
+        );
+        vm.stopPrank();
+    }
+
+    function test_withdraw_nonAdmin_fails() external {
+        vm.prank(nonAdmin);
+        vm.expectRevert("Faucet: function can only be called by admin");
+        faucet.withdraw(payable(fundsReceiver), 2 ether);
+    }
+
+    function test_receive_succeeds() external {
+        uint256 faucetBalanceBefore = address(faucet).balance;
+
+        vm.prank(nonAdmin);
+        (bool success, ) = address(faucet).call{ value: 1 ether }("");
+        assertTrue(success);
+
+        uint256 faucetBalanceAfter = address(faucet).balance;
+        assertEq(faucetBalanceAfter - faucetBalanceBefore, 1 ether, "expect increase of 1 ether");
     }
 }
