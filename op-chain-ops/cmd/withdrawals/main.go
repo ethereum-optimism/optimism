@@ -189,6 +189,7 @@ func main() {
 
 			// Need this to compare in event parsing
 			l1StandardBridgeAddress := common.HexToAddress(ctx.String("l1-standard-bridge-address"))
+			log.Info("L1StandardBridge", "address", l1StandardBridgeAddress)
 
 			if storageOutfile := ctx.String("storage-out"); storageOutfile != "" {
 				ff, err := os.OpenFile(storageOutfile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
@@ -283,7 +284,11 @@ func main() {
 
 				// the value should be set to a boolean in storage
 				if !bytes.Equal(storageValue, abiTrue.Bytes()) {
-					return fmt.Errorf("storage slot %x not found in state", slot.Hex())
+					log.Info("storage slot not found in state", "slot", slot.Hex())
+					if err := writeSuspicious(f, withdrawal, wd, callFrame{}, i, "not in storage"); err != nil {
+						return err
+					}
+					continue
 				}
 
 				legacySlot, err := wd.StorageSlot()
@@ -679,26 +684,7 @@ func proveWithdrawalTransaction(c *contracts, cl *util.Clients, opts *bind.Trans
 	if receipt.Status != types.ReceiptStatusSuccessful {
 		return errors.New("withdrawal proof unsuccessful")
 	}
-
 	log.Info("withdrawal proved", "tx-hash", tx.Hash(), "withdrawal-hash", hash)
-
-	block, err := cl.L1Client.BlockByHash(context.Background(), receipt.BlockHash)
-	if err != nil {
-		return err
-	}
-	initialTime := block.Time()
-	for {
-		log.Info("waiting for finalization")
-		if block.Time() >= initialTime+finalizationPeriod.Uint64() {
-			log.Info("can be finalized")
-			break
-		}
-		time.Sleep(1 * time.Second)
-		block, err = cl.L1Client.BlockByNumber(context.Background(), nil)
-		if err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
