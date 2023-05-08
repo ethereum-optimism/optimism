@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-proposer/flags"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
@@ -36,6 +37,9 @@ var supportedL2OutputVersion = eth.Bytes32{}
 // Main is the entrypoint into the L2 Output Submitter. This method executes the
 // service and blocks until the service exits.
 func Main(version string, cliCtx *cli.Context) error {
+	if err := flags.CheckRequired(cliCtx); err != nil {
+		return err
+	}
 	cfg := NewConfig(cliCtx)
 	if err := cfg.Check(); err != nil {
 		return fmt.Errorf("invalid CLI flags: %w", err)
