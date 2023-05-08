@@ -537,7 +537,8 @@ func TestChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T) {
 	}
 }
 
-// TestChannelBuilder_AddBlock tests the AddBlock function
+// TestChannelBuilder_AddBlock tests the AddBlock function and that the channel gets closed
+// when the target amount of input bytes or L2 blocks is reached
 func TestChannelBuilder_AddBlock(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
 
@@ -563,8 +564,27 @@ func TestChannelBuilder_AddBlock(t *testing.T) {
 	require.Equal(t, 0, len(cb.frames))
 	require.True(t, cb.IsFull())
 
-	// Since the channel output is full, the next call to AddBlock
-	// should return the channel out full error
+	// Since we reached the target amount of input bytes, the channel output is full
+	// and the next call to AddBlock should return the channel out full error
+	require.ErrorIs(t, addMiniBlock(cb), ErrInputTargetReached)
+
+	// Reset the channel builder to test the other reason for channel builder getting full
+	channelConfig = defaultTestChannelConfig
+	channelConfig.TargetNumBlocks = 1
+	require.NoError(t, cb.Reset())
+
+	// Add a nonsense block to the channel builder
+	require.NoError(t, addMiniBlock(cb))
+	require.NoError(t, cb.co.Flush())
+
+	// Check the fields reset in the AddBlock function
+	require.Equal(t, 74, cb.co.InputBytes())
+	require.Equal(t, 1, len(cb.blocks))
+	require.Equal(t, 0, len(cb.frames))
+	require.True(t, cb.IsFull())
+
+	// Since we reached the target number of blocks, the channel output is full
+	// and the next call to AddBlock should return the channel out full error
 	require.ErrorIs(t, addMiniBlock(cb), ErrInputTargetReached)
 }
 
