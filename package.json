@@ -25,6 +25,7 @@
       "@eth-optimism/contracts-bedrock/ds-test",
       "@eth-optimism/contracts-bedrock/forge-std",
       "@eth-optimism/contracts-bedrock/@rari-capital/solmate",
+      "@eth-optimism/contracts-bedrock/clones-with-immutable-args",
       "**/@openzeppelin/*",
       "@eth-optimism/contracts-periphery/ds-test",
       "@eth-optimism/contracts-periphery/forge-std",
