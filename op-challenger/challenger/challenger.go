@@ -13,6 +13,7 @@ import (
 	log "github.com/ethereum/go-ethereum/log"
 
 	config "github.com/ethereum-optimism/optimism/op-challenger/config"
+	flags "github.com/ethereum-optimism/optimism/op-challenger/flags"
 	metrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
 
 	bindings "github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -36,6 +37,8 @@ type Challenger struct {
 	l1Client *ethclient.Client
 
 	rollupClient *sources.RollupClient
+
+	gameType flags.GameType
 
 	// l2 Output Oracle contract
 	l2ooContract     *bindings.L2OutputOracleCaller
@@ -104,9 +107,11 @@ func NewChallenger(cfg config.Config, l log.Logger, m metrics.Metricer) (*Challe
 		ctx:    ctx,
 		cancel: cancel,
 
+		l1Client: l1Client,
+
 		rollupClient: rollupClient,
 
-		l1Client: l1Client,
+		gameType: cfg.GameType,
 
 		l2ooContract:     l2ooContract,
 		l2ooContractAddr: cfg.L2OOAddress,
@@ -120,7 +125,10 @@ func NewChallenger(cfg config.Config, l log.Logger, m metrics.Metricer) (*Challe
 
 // Start runs the challenger in a goroutine.
 func (c *Challenger) Start() error {
-	c.log.Error("challenger not implemented.")
+	c.wg.Add(1)
+	c.log.Info("challenger listening to the L2OutputOracle")
+	go c.oracle()
+	c.log.Info("dispute game factory listening not implemented")
 	return nil
 }
 

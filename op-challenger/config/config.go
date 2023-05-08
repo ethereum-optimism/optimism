@@ -17,6 +17,7 @@ import (
 )
 
 var (
+	ErrInvalidGameType       = errors.New("invalid dispute game type")
 	ErrMissingL1EthRPC       = errors.New("missing l1 eth rpc url")
 	ErrMissingRollupRpc      = errors.New("missing rollup rpc url")
 	ErrMissingL2OOAddress    = errors.New("missing l2 output oracle contract address")
@@ -45,6 +46,9 @@ type Config struct {
 	// DGFAddress is the DisputeGameFactory contract address.
 	DGFAddress common.Address
 
+	// GameType is the type of dispute game to use.
+	GameType flags.GameType
+
 	// NetworkTimeout is the timeout for network requests.
 	NetworkTimeout time.Duration
 
@@ -71,6 +75,9 @@ func (c Config) Check() error {
 	}
 	if c.DGFAddress == (common.Address{}) {
 		return ErrMissingDGFAddress
+	}
+	if !c.GameType.Valid() {
+		return ErrInvalidGameType
 	}
 	if c.NetworkTimeout == 0 {
 		return ErrInvalidNetworkTimeout
@@ -126,6 +133,7 @@ func NewConfig(
 		RollupRpc:      RollupRpc,
 		L2OOAddress:    L2OOAddress,
 		DGFAddress:     DGFAddress,
+		GameType:       flags.DefaultGameType(),
 		NetworkTimeout: NetworkTimeout,
 		TxMgrConfig:    TxMgrConfig,
 		RPCConfig:      RPCConfig,
@@ -156,6 +164,8 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 	if dgfAddress == (common.Address{}) {
 		return nil, ErrMissingDGFAddress
 	}
+	disputeGameType := ctx.GlobalGeneric(flags.DisputeGameTypeFlag.Name).(*flags.DisputeGameType)
+	gameType := disputeGameType.Type()
 
 	txMgrConfig := txmgr.ReadCLIConfig(ctx)
 	rpcConfig := oprpc.ReadCLIConfig(ctx)
@@ -169,6 +179,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 		RollupRpc:   rollupRpc,
 		L2OOAddress: l2ooAddress,
 		DGFAddress:  dgfAddress,
+		GameType:    gameType,
 		TxMgrConfig: &txMgrConfig,
 		// Optional Flags
 		RPCConfig:     &rpcConfig,

@@ -29,6 +29,7 @@ type Metricer interface {
 	RecordValidOutput(l2ref eth.L2BlockRef)
 	RecordInvalidOutput(l2ref eth.L2BlockRef)
 	RecordOutputChallenged(l2ref eth.L2BlockRef)
+	RecordDisputeGameCreated(l2ref eth.L2BlockRef)
 }
 
 type Metrics struct {
@@ -99,9 +100,10 @@ func (m *Metrics) RecordUp() {
 }
 
 const (
-	ValidOutput      = "valid_output"
-	InvalidOutput    = "invalid_output"
-	OutputChallenged = "output_challenged"
+	ValidOutput        = "valid_output"
+	InvalidOutput      = "invalid_output"
+	OutputChallenged   = "output_challenged"
+	DisputeGameCreated = "dispute_game_created"
 )
 
 // RecordValidOutput should be called when a valid output is found
@@ -117,6 +119,11 @@ func (m *Metrics) RecordInvalidOutput(l2ref eth.L2BlockRef) {
 // RecordOutputChallenged should be called when an output is challenged
 func (m *Metrics) RecordOutputChallenged(l2ref eth.L2BlockRef) {
 	m.RecordL2Ref(OutputChallenged, l2ref)
+}
+
+// RecordDisputeGameCreated should be called when a dispute game is created
+func (m *Metrics) RecordDisputeGameCreated(l2ref eth.L2BlockRef) {
+	m.RecordL2Ref(DisputeGameCreated, l2ref)
 }
 
 func (m *Metrics) Document() []opmetrics.DocumentedMetric {
