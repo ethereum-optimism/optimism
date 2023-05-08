@@ -4,7 +4,6 @@ RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
 
 # build op-heartbeat with local monorepo go modules
 COPY ./op-heartbeat /app/op-heartbeat
-COPY ./.git /app/.git
 COPY ./op-heartbeat/go.mod /app/go.mod
 COPY ./op-heartbeat/go.sum /app/go.sum
 
