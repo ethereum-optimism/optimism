@@ -31,6 +31,7 @@ var defaultTestChannelConfig = ChannelConfig{
 	TargetFrameSize:    100000,
 	TargetNumFrames:    1,
 	ApproxComprRatio:   0.4,
+	TargetNumBlocks:    100000, // arbitrary large number
 }
 
 // TestChannelConfig_Check tests the [ChannelConfig] [Check] function.

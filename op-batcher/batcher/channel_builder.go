@@ -13,7 +13,7 @@ import (
 
 var (
 	ErrInvalidChannelTimeout = errors.New("channel timeout is less than the safety margin")
-	ErrInputTargetReached    = errors.New("target amount of input data reached")
+	ErrInputTargetReached    = errors.New("target amount of blocks or input data reached")
 	ErrMaxFrameIndex         = errors.New("max frame index reached (uint16)")
 	ErrMaxDurationReached    = errors.New("max channel duration reached")
 	ErrChannelTimeoutClose   = errors.New("close to channel timeout")
@@ -68,6 +68,8 @@ type ChannelConfig struct {
 	// average from experiments to avoid the chances of creating a small
 	// additional leftover frame.
 	ApproxComprRatio float64
+	// The target number of blocks to include in this channel.
+	TargetNumBlocks int
 }
 
 // Check validates the [ChannelConfig] parameters.
@@ -293,10 +295,16 @@ func (c *channelBuilder) TimedOut(blockNum uint64) bool {
 	return c.timeout != 0 && blockNum >= c.timeout
 }
 
-// inputTargetReached says whether the target amount of input data has been
-// reached in this channel builder. No more blocks can be added afterwards.
+// inputTargetReached says whether the target amount of blocks or input data has
+// been reached in this channel builder. No more blocks can be added afterwards.
 func (c *channelBuilder) inputTargetReached() bool {
-	return uint64(c.co.InputBytes()) >= c.cfg.InputThreshold()
+	return c.blocksTargetReached() || uint64(c.co.InputBytes()) >= c.cfg.InputThreshold()
+}
+
+// blocksTargetReached says whether we have reached the target number of blocks
+// in this channel builder.
+func (c *channelBuilder) blocksTargetReached() bool {
+	return len(c.blocks) >= c.cfg.TargetNumBlocks
 }
 
 // IsFull returns whether the channel is full.
