@@ -83,6 +83,46 @@ func TestRPCCacheImmutableRPCs(t *testing.T) {
 		{
 			req: &RPCReq{
 				JSONRPC: "2.0",
+				Method:  "eth_getBlockByNumber",
+				Params:  []byte(`["safe", false]`),
+				ID:      ID,
+			},
+			res:  nil,
+			name: "eth_getBlockByNumber safe",
+		},
+		{
+			req: &RPCReq{
+				JSONRPC: "2.0",
+				Method:  "eth_getBlockByNumber",
+				Params:  []byte(`["finalized", false]`),
+				ID:      ID,
+			},
+			res:  nil,
+			name: "eth_getBlockByNumber finalized",
+		},
+		{
+			req: &RPCReq{
+				JSONRPC: "2.0",
+				Method:  "eth_getBlockByNumber",
+				Params:  []byte(`["pending", false]`),
+				ID:      ID,
+			},
+			res:  nil,
+			name: "eth_getBlockByNumber pending",
+		},
+		{
+			req: &RPCReq{
+				JSONRPC: "2.0",
+				Method:  "eth_getBlockByNumber",
+				Params:  []byte(`["latest", false]`),
+				ID:      ID,
+			},
+			res:  nil,
+			name: "eth_getBlockByNumber latest",
+		},
+		{
+			req: &RPCReq{
+				JSONRPC: "2.0",
 				Method:  "eth_getBlockRange",
 				Params:  []byte(`["0x1", "0x2", false]`),
 				ID:      ID,
