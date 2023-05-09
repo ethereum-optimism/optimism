@@ -58,25 +58,26 @@ export const migratedWithdrawalGasLimit = (
   const dataCost = BigNumber.from(hexDataLength(data)).mul(
     RELAY_PER_BYTE_DATA_COST
   )
-  let overhead: number
+  let overhead: BigNumber
   if (chainID === 420) {
-    overhead = 200_000
+    overhead = BigNumber.from(200_000)
   } else {
     // Constant overhead
-    overhead =
+    overhead = BigNumber.from(
       RELAY_CONSTANT_OVERHEAD +
-      // Dynamic overhead (EIP-150)
-      (MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR * 1_000_000) /
-        MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR +
-      // Gas reserved for the worst-case cost of 3/5 of the `CALL` opcode's dynamic gas
-      // factors. (Conservative)
-      RELAY_CALL_OVERHEAD +
-      // Relay reserved gas (to ensure execution of `relayMessage` completes after the
-      // subcontext finishes executing) (Conservative)
-      RELAY_RESERVED_GAS +
-      // Gas reserved for the execution between the `hasMinGas` check and the `CALL`
-      // opcode. (Conservative)
-      RELAY_GAS_CHECK_BUFFER
+        // Dynamic overhead (EIP-150)
+        (MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR * 1_000_000) /
+          MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR +
+        // Gas reserved for the worst-case cost of 3/5 of the `CALL` opcode's dynamic gas
+        // factors. (Conservative)
+        RELAY_CALL_OVERHEAD +
+        // Relay reserved gas (to ensure execution of `relayMessage` completes after the
+        // subcontext finishes executing) (Conservative)
+        RELAY_RESERVED_GAS +
+        // Gas reserved for the execution between the `hasMinGas` check and the `CALL`
+        // opcode. (Conservative)
+        RELAY_GAS_CHECK_BUFFER
+    )
   }
 
   let minGasLimit = dataCost.add(overhead)
