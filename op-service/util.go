@@ -25,14 +25,25 @@ func PrefixEnvVar(prefix, suffix string) string {
 // actual env var with that name.
 // It helps validate that the supplied env vars are in fact valid.
 func ValidateEnvVars(prefix string, flags []cli.Flag, log log.Logger) {
-	envVars := make(map[string]struct{})
+	for _, envVar := range validateEnvVars(prefix, os.Environ(), cliFlagsToEnvVars(flags)) {
+		log.Warn("Unknown env var", "prefix", prefix, "env_var", envVar)
+	}
+}
+
+func cliFlagsToEnvVars(flags []cli.Flag) map[string]struct{} {
+	definedEnvVars := make(map[string]struct{})
 	for _, flag := range flags {
 		envVarField := reflect.ValueOf(flag).FieldByName("EnvVar")
 		if envVarField.IsValid() {
-			envVars[envVarField.String()] = struct{}{}
+			definedEnvVars[envVarField.String()] = struct{}{}
 		}
 	}
-	providedEnvVars := os.Environ()
+	return definedEnvVars
+}
+
+// validateEnvVars returns a list of the unknown environment variables that match the prefix.
+func validateEnvVars(prefix string, providedEnvVars []string, definedEnvVars map[string]struct{}) []string {
+	var out []string
 	for _, envVar := range providedEnvVars {
 		parts := strings.Split(envVar, "=")
 		if len(parts) == 0 {
@@ -40,11 +51,12 @@ func ValidateEnvVars(prefix string, flags []cli.Flag, log log.Logger) {
 		}
 		key := parts[0]
 		if strings.HasPrefix(key, prefix) {
-			if _, ok := envVars[key]; !ok {
-				log.Warn("Unknown env var", "prefix", prefix, "env_var", envVar)
+			if _, ok := definedEnvVars[key]; !ok {
+				out = append(out, envVar)
 			}
 		}
 	}
+	return out
 }
 
 // ParseAddress parses an ETH address from a hex string. This method will fail if
