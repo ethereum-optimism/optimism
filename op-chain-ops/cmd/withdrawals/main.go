@@ -223,9 +223,17 @@ func main() {
 			for i := 0; i < len(wds); i += batchSize {
 				log.Info("Proving withdrawals", "start", i, "end", i+batchSize)
 
+				// If we're on the last batch, it's likely that the number of withdrawals in the array is not
+				// divisible by `batchSize`. In this case, we need to adjust the size of the final batch.
+				var upperBound int
+				if i+batchSize > len(wds) {
+					upperBound = len(wds) % batchSize
+				} else {
+					upperBound = batchSize
+				}
+
 				// Iterate through the `batchSize` withdrawals in the current batch and submit them in parallel.
-				// TODO: Don't OOB `wds` arr on the last batch
-				for j := 0; j < batchSize; j++ {
+				for j := 0; j < upperBound; j++ {
 					wd := wds[i+j]
 
 					// Add the goroutine to the waitgroup
@@ -370,9 +378,17 @@ func main() {
 			for i := 0; i < len(wds); i += batchSize {
 				log.Info("Finalizing withdrawals", "start", i, "end", i+batchSize)
 
+				// If we're on the last batch, it's likely that the number of withdrawals in the array is not
+				// divisible by `batchSize`. In this case, we need to adjust the size of the final batch.
+				var upperBound int
+				if i+batchSize > len(wds) {
+					upperBound = len(wds) % batchSize
+				} else {
+					upperBound = batchSize
+				}
+
 				// Iterate through the `batchSize` withdrawals in the current batch and submit them in parallel.
-				// TODO: Don't OOB `wds` arr on the last batch
-				for j := 0; j < batchSize; j++ {
+				for j := 0; j < upperBound; j++ {
 					wd := wds[i+j]
 
 					// Add the goroutine to the waitgroup
