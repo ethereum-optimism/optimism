@@ -37,6 +37,9 @@ var supportedL2OutputVersion = eth.Bytes32{}
 // Main is the entrypoint into the L2 Output Submitter. This method executes the
 // service and blocks until the service exits.
 func Main(version string, cliCtx *cli.Context) error {
+	if err := flags.CheckRequired(cliCtx); err != nil {
+		return err
+	}
 	cfg := NewConfig(cliCtx)
 	if err := cfg.Check(); err != nil {
 		return fmt.Errorf("invalid CLI flags: %w", err)
