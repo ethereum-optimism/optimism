@@ -4,13 +4,12 @@ pragma solidity ^0.8.15;
 import { Claim, GameType } from "../libraries/DisputeTypes.sol";
 
 import { IDisputeGame } from "./IDisputeGame.sol";
-import { IOwnable } from "./IOwnable.sol";
 
 /**
  * @title IDisputeGameFactory
  * @notice The interface for a DisputeGameFactory contract.
  */
-interface IDisputeGameFactory is IOwnable {
+interface IDisputeGameFactory {
     /**
      * @notice Emitted when a new dispute game is created
      * @param disputeProxy The address of the dispute game proxy
