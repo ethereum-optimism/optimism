@@ -63,11 +63,12 @@ export const migratedWithdrawalGasLimit = (
     overhead = BigNumber.from(200_000)
   } else {
     // Dynamic overhead (EIP-150)
-    const dynamicOverhead = MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR.mul(1_000_000).div(MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR)
+    const dynamicOverhead = MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR.mul(
+      1_000_000
+    ).div(MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR)
 
     // Constant overhead
-    overhead = RELAY_CONSTANT_OVERHEAD
-      .add(dynamicOverhead)
+    overhead = RELAY_CONSTANT_OVERHEAD.add(dynamicOverhead)
       .add(RELAY_CALL_OVERHEAD)
       // Gas reserved for the worst-case cost of 3/5 of the `CALL` opcode's dynamic gas
       // factors. (Conservative)
