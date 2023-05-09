@@ -55,15 +55,19 @@ export const migratedWithdrawalGasLimit = (
   chainID: number
 ): BigNumber => {
   // Compute the gas limit and cap at 25 million
-  const dataCost = BigNumber.from(hexDataLength(data)).mul(RELAY_PER_BYTE_DATA_COST)
+  const dataCost = BigNumber.from(hexDataLength(data)).mul(
+    RELAY_PER_BYTE_DATA_COST
+  )
   let overhead: number
   if (chainID === 420) {
     overhead = 200_000
   } else {
     // Constant overhead
-    overhead = RELAY_CONSTANT_OVERHEAD +
+    overhead =
+      RELAY_CONSTANT_OVERHEAD +
       // Dynamic overhead (EIP-150)
-      (MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR * 1_000_000) / MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR +
+      (MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR * 1_000_000) /
+        MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR +
       // Gas reserved for the worst-case cost of 3/5 of the `CALL` opcode's dynamic gas
       // factors. (Conservative)
       RELAY_CALL_OVERHEAD +
