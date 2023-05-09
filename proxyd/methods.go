@@ -271,7 +271,11 @@ func (e *EthGasPriceMethodHandler) PutRPCMethod(context.Context, *RPCReq, *RPCRe
 }
 
 func isBlockDependentParam(s string) bool {
-	return s == "latest" || s == "pending"
+	return s == "earliest" ||
+		s == "latest" ||
+		s == "pending" ||
+		s == "finalized" ||
+		s == "safe"
 }
 
 func decodeGetBlockByNumberParams(params json.RawMessage) (string, bool, error) {
@@ -355,7 +359,11 @@ func decodeEthCallParams(req *RPCReq) (*ethCallParams, string, error) {
 }
 
 func validBlockInput(input string) bool {
-	if input == "earliest" || input == "pending" || input == "latest" {
+	if input == "earliest" ||
+		input == "latest" ||
+		input == "pending" ||
+		input == "finalized" ||
+		input == "safe" {
 		return true
 	}
 	_, err := decodeBlockInput(input)

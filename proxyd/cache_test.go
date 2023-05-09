@@ -73,12 +73,48 @@ func TestRPCCacheImmutableRPCs(t *testing.T) {
 				Params:  []byte(`["earliest", false]`),
 				ID:      ID,
 			},
-			res: &RPCRes{
+			res:  nil,
+			name: "eth_getBlockByNumber earliest",
+		},
+		{
+			req: &RPCReq{
 				JSONRPC: "2.0",
-				Result:  `{"difficulty": "0x1", "number": "0x1"}`,
+				Method:  "eth_getBlockByNumber",
+				Params:  []byte(`["safe", false]`),
 				ID:      ID,
 			},
-			name: "eth_getBlockByNumber earliest",
+			res:  nil,
+			name: "eth_getBlockByNumber safe",
+		},
+		{
+			req: &RPCReq{
+				JSONRPC: "2.0",
+				Method:  "eth_getBlockByNumber",
+				Params:  []byte(`["finalized", false]`),
+				ID:      ID,
+			},
+			res:  nil,
+			name: "eth_getBlockByNumber finalized",
+		},
+		{
+			req: &RPCReq{
+				JSONRPC: "2.0",
+				Method:  "eth_getBlockByNumber",
+				Params:  []byte(`["pending", false]`),
+				ID:      ID,
+			},
+			res:  nil,
+			name: "eth_getBlockByNumber pending",
+		},
+		{
+			req: &RPCReq{
+				JSONRPC: "2.0",
+				Method:  "eth_getBlockByNumber",
+				Params:  []byte(`["latest", false]`),
+				ID:      ID,
+			},
+			res:  nil,
+			name: "eth_getBlockByNumber latest",
 		},
 		{
 			req: &RPCReq{
@@ -101,11 +137,7 @@ func TestRPCCacheImmutableRPCs(t *testing.T) {
 				Params:  []byte(`["earliest", "0x2", false]`),
 				ID:      ID,
 			},
-			res: &RPCRes{
-				JSONRPC: "2.0",
-				Result:  `[{"number": "0x1"}, {"number": "0x2"}]`,
-				ID:      ID,
-			},
+			res:  nil,
 			name: "eth_getBlockRange earliest",
 		},
 	}
