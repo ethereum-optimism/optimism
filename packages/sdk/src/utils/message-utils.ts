@@ -63,6 +63,10 @@ export const migratedWithdrawalGasLimit = (
     overhead = BigNumber.from(200_000)
   } else {
     // Dynamic overhead (EIP-150)
+    // We use a constant 1 million gas limit due to the overhead of simulating all migrated withdrawal
+    // transactions during the migration. This is a conservative estimate, and if a withdrawal
+    // uses more than the minimum gas limit, it will fail and need to be replayed with a higher
+    // gas limit.
     const dynamicOverhead = MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR.mul(
       1_000_000
     ).div(MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR)
