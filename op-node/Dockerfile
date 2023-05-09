@@ -12,7 +12,6 @@ COPY ./op-bindings /app/op-bindings
 COPY ./go.mod /app/go.mod
 COPY ./go.sum /app/go.sum
 COPY ./.git /app/.git
-COPY ./op-geth /app/op-geth
 
 WORKDIR /app/op-node
 
