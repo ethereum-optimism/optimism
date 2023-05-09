@@ -203,23 +203,22 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 
 // UpdateBackend refreshes the consensus state of a single backend
 func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
-	_, _, _, _, bannedUntil := cp.getBackendState(be)
-	if time.Now().Before(bannedUntil) {
-		log.Debug("skipping backend banned", "backend", be.Name, "bannedUntil", bannedUntil)
+	if cp.IsBanned(be) {
+		log.Debug("skipping backend banned", "backend", be.Name)
 		return
 	}
 
 	// if backend it not online or not in a health state we'll only resume checkin it after ban
 	if !be.Online() || !be.IsHealthy() {
-		log.Warn("backend banned - not online or not healthy", "backend", be.Name, "bannedUntil", bannedUntil)
-		bannedUntil = time.Now().Add(cp.banPeriod)
+		log.Warn("backend banned - not online or not healthy", "backend", be.Name)
+		cp.Ban(be)
 	}
 
 	// if backend it not in sync we'll check again after ban
 	inSync, err := cp.isInSync(ctx, be)
 	if err != nil || !inSync {
-		log.Warn("backend banned - not in sync", "backend", be.Name, "bannedUntil", bannedUntil)
-		bannedUntil = time.Now().Add(cp.banPeriod)
+		log.Warn("backend banned - not in sync", "backend", be.Name)
+		cp.Ban(be)
 	}
 
 	// if backend exhausted rate limit we'll skip it for now
@@ -361,6 +360,22 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	cp.consensusGroupMux.Unlock()
 
 	log.Debug("group state", "proposedBlock", proposedBlock, "consensusBackends", strings.Join(consensusBackendsNames, ", "), "filteredBackends", strings.Join(filteredBackendsNames, ", "))
+}
+
+// IsBanned checks if a specific backend is banned
+func (cp *ConsensusPoller) IsBanned(be *Backend) bool {
+	bs := cp.backendState[be]
+	defer bs.backendStateMux.Unlock()
+	bs.backendStateMux.Lock()
+	return time.Now().Before(bs.bannedUntil)
+}
+
+// Ban bans a specific backend
+func (cp *ConsensusPoller) Ban(be *Backend) {
+	bs := cp.backendState[be]
+	defer bs.backendStateMux.Unlock()
+	bs.backendStateMux.Lock()
+	bs.bannedUntil = time.Now().Add(cp.banPeriod)
 }
 
 // Unban remove any bans from the backends
