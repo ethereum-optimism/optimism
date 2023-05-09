@@ -39,7 +39,7 @@ import (
 var abiTrue = common.Hash{31: 0x01}
 
 // batchSize represents the number of withdrawals to prove/finalize at a time.
-var batchSize = 50
+var batchSize = 10
 
 // callFrame represents the response returned from geth's
 // `debug_traceTransaction` callTracer
@@ -232,6 +232,11 @@ func main() {
 					upperBound = batchSize
 				}
 
+				nonce, err := clients.L1Client.NonceAt(context.Background(), opts.From, nil)
+				if err != nil {
+					return err
+				}
+
 				// Iterate through the `batchSize` withdrawals in the current batch and submit them in parallel.
 				for j := 0; j < upperBound; j++ {
 					wd := wds[i+j]
@@ -240,7 +245,7 @@ func main() {
 					wg.Add(1)
 
 					// Submit the proveWithdrawalTransaction in a goroutine
-					go func(wd *crossdomain.LegacyWithdrawal) {
+					go func(wd *crossdomain.LegacyWithdrawal, nonce uint64) {
 						defer wg.Done()
 
 						// migrate the withdrawal
@@ -345,7 +350,12 @@ func main() {
 						// if it has not been proven, then prove it
 						if proven.Timestamp.Cmp(common.Big0) == 0 {
 							log.Info("Proving withdrawal to OptimismPortal")
-							if err := proveWithdrawalTransaction(contracts, clients, opts, withdrawal, bedrockStartingBlockNumber); err != nil {
+
+							// make a copy of opts
+							optsCopy := *opts
+							optsCopy.Nonce = new(big.Int).SetUint64(nonce)
+
+							if err := proveWithdrawalTransaction(contracts, clients, &optsCopy, withdrawal, bedrockStartingBlockNumber); err != nil {
 								log.Error("error proving withdrawal", "err", err)
 								return
 							}
@@ -362,7 +372,7 @@ func main() {
 						} else {
 							log.Info("Withdrawal already proven to OptimismPortal")
 						}
-					}(wd)
+					}(wd, nonce+uint64(j))
 				}
 
 				// Wait for all of the goroutines to finish before moving on to the next batch.
@@ -387,6 +397,11 @@ func main() {
 					upperBound = batchSize
 				}
 
+				nonce, err := clients.L1Client.NonceAt(context.Background(), opts.From, nil)
+				if err != nil {
+					return err
+				}
+
 				// Iterate through the `batchSize` withdrawals in the current batch and submit them in parallel.
 				for j := 0; j < upperBound; j++ {
 					wd := wds[i+j]
@@ -395,7 +410,7 @@ func main() {
 					wg.Add(1)
 
 					// Submit the finalizeWithdrawalTransaction in a goroutine
-					go func(wd *crossdomain.LegacyWithdrawal) {
+					go func(wd *crossdomain.LegacyWithdrawal, nonce uint64) {
 						defer wg.Done()
 
 						// migrate the withdrawal
@@ -479,7 +494,12 @@ func main() {
 							log.Debug("Balance before finalization", "balance", targetBalBefore, "account", wd.XDomainTarget)
 
 							log.Info("Finalizing withdrawal")
-							receipt, err := finalizeWithdrawalTransaction(contracts, clients, opts, wd, withdrawal)
+
+							// make a copy of opts
+							optsCopy := *opts
+							optsCopy.Nonce = new(big.Int).SetUint64(nonce)
+
+							receipt, err := finalizeWithdrawalTransaction(contracts, clients, &optsCopy, wd, withdrawal)
 							if err != nil {
 								log.Error("error finalizing withdrawal", "err", err)
 								return
@@ -629,7 +649,7 @@ func main() {
 						} else {
 							log.Info("Already finalized")
 						}
-					}(wd)
+					}(wd, nonce+uint64(j))
 				}
 
 				wg.Wait()
