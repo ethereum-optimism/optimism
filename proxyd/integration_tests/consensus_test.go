@@ -135,7 +135,7 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, 1, len(consensusGroup))
 	})
 
-	t.Run("prevent using a backend lagging behind 2", func(t *testing.T) {
+	t.Run("prevent using a backend lagging behind - at limit", func(t *testing.T) {
 		h1.ResetOverrides()
 		h2.ResetOverrides()
 		bg.Consensus.Unban()
@@ -146,6 +146,7 @@ func TestConsensus(t *testing.T) {
 			Response: buildGetBlockResponse("0x1", "hash1"),
 		})
 
+		// 0x1 + 50 = 0x33
 		h2.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
 			Block:    "latest",
@@ -163,6 +164,41 @@ func TestConsensus(t *testing.T) {
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 
 		// since we ignored node1, the consensus should be at 0x100
+		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+
+		consensusGroup := bg.Consensus.GetConsensusGroup()
+
+		require.Equal(t, 2, len(consensusGroup))
+	})
+
+	t.Run("prevent using a backend lagging behind - one before limit", func(t *testing.T) {
+		h1.ResetOverrides()
+		h2.ResetOverrides()
+		bg.Consensus.Unban()
+
+		h1.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "latest",
+			Response: buildGetBlockResponse("0x1", "hash1"),
+		})
+
+		// 0x1 + 49 = 0x32
+		h2.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "latest",
+			Response: buildGetBlockResponse("0x32", "hash0x100"),
+		})
+		h2.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "0x100",
+			Response: buildGetBlockResponse("0x32", "hash0x100"),
+		})
+
+		for _, be := range bg.Backends {
+			bg.Consensus.UpdateBackend(ctx, be)
+		}
+		bg.Consensus.UpdateBackendGroupConsensus(ctx)
+
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
 
 		consensusGroup := bg.Consensus.GetConsensusGroup()
