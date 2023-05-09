@@ -46,6 +46,7 @@ func Main(version string, cliCtx *cli.Context) error {
 	}
 
 	l := oplog.NewLogger(cfg.LogConfig)
+	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
 	m := metrics.NewMetrics("default")
 	l.Info("Initializing L2 Output Submitter")
 
