@@ -576,7 +576,7 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 			return nil
 		}
 
-		ctx = context.WithValue(r.Context(), ContextKeyAuth, s.authenticatedPaths[authorization]) // nolint:staticcheck
+		ctx = context.WithValue(ctx, ContextKeyAuth, s.authenticatedPaths[authorization]) // nolint:staticcheck
 	}
 
 	return context.WithValue(
