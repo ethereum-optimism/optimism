@@ -271,7 +271,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 
 	// find the highest block, in order to use it defining the highest non-lagging ancestor block
 	for _, be := range cp.backendGroup.Backends {
-		peerCount, backendLatestBlockNumber, _, lastUpdate := cp.getBackendState(be)
+		peerCount, backendLatestBlockNumber, _, lastUpdate, _ := cp.getBackendState(be)
 
 		if !be.skipPeerCountCheck && peerCount < cp.minPeerCount {
 			continue
