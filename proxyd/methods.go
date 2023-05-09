@@ -271,8 +271,7 @@ func (e *EthGasPriceMethodHandler) PutRPCMethod(context.Context, *RPCReq, *RPCRe
 }
 
 func isBlockDependentParam(s string) bool {
-	return s == "earliest" ||
-		s == "latest" ||
+	return s == "latest" ||
 		s == "pending" ||
 		s == "finalized" ||
 		s == "safe"
