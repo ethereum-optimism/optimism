@@ -103,6 +103,8 @@ type Metrics struct {
 	SequencerInconsistentL1Origin *EventMetrics
 	SequencerResets               *EventMetrics
 
+	L1RequestDurationSeconds *prometheus.HistogramVec
+
 	SequencerBuildingDiffDurationSeconds prometheus.Histogram
 	SequencerBuildingDiffTotal           prometheus.Counter
 
@@ -378,6 +380,14 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "number of unverified execution payloads buffered in quarantine",
 		}),
 
+		L1RequestDurationSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "l1_request_seconds",
+			Buckets: []float64{
+				.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
+			Help: "Histogram of L1 request time",
+		}, []string{"request"}),
+
 		SequencerBuildingDiffDurationSeconds: factory.NewHistogram(prometheus.HistogramOpts{
 			Namespace: ns,
 			Name:      "sequencer_building_diff_seconds",
@@ -587,6 +597,11 @@ func (m *Metrics) RecordBandwidth(ctx context.Context, bwc *libp2pmetrics.Bandwi
 			return
 		}
 	}
+}
+
+// RecordL1RequestTime tracks the amount of time the derivation pipeline spent waiting for L1 data requests.
+func (m *Metrics) RecordL1RequestTime(method string, duration time.Duration) {
+	m.L1RequestDurationSeconds.WithLabelValues(method).Observe(float64(duration) / float64(time.Second))
 }
 
 // RecordSequencerBuildingDiffTime tracks the amount of time the sequencer was allowed between
