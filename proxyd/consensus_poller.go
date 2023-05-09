@@ -263,11 +263,29 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 
 // UpdateBackendGroupConsensus resolves the current group consensus based on the state of the backends
 func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
+	var highestBlock hexutil.Uint64
 	var lowestBlock hexutil.Uint64
 	var lowestBlockHash string
 
 	currentConsensusBlockNumber := cp.GetConsensusBlockNumber()
 
+	// find the highest block, in order to use it defining the highest non-lagging ancestor block
+	for _, be := range cp.backendGroup.Backends {
+		peerCount, backendLatestBlockNumber, _, lastUpdate := cp.getBackendState(be)
+
+		if !be.skipPeerCountCheck && peerCount < cp.minPeerCount {
+			continue
+		}
+		if lastUpdate.Add(cp.maxUpdateThreshold).Before(time.Now()) {
+			continue
+		}
+
+		if backendLatestBlockNumber > highestBlock {
+			highestBlock = backendLatestBlockNumber
+		}
+	}
+
+	// find the highest common ancestor block
 	for _, be := range cp.backendGroup.Backends {
 		peerCount, backendLatestBlockNumber, backendLatestBlockHash, lastUpdate, _ := cp.getBackendState(be)
 
@@ -278,12 +296,12 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 			continue
 		}
 
-		// find the highest common ancestor, ignoring backends that are too far lagging behind
-		// when the backend is too far ahead from current lowest, the current lowest is ignored
-		// when the backend if too far behind, the backend itself is ignored
-		if lowestBlock == 0 ||
-			backendLatestBlockNumber > lowestBlock && uint64(backendLatestBlockNumber-lowestBlock) > cp.maxBlockLag ||
-			backendLatestBlockNumber < lowestBlock && uint64(lowestBlock-backendLatestBlockNumber) < cp.maxBlockLag {
+		// check if backend is lagging behind the highest block
+		if backendLatestBlockNumber < highestBlock && uint64(highestBlock-backendLatestBlockNumber) > cp.maxBlockLag {
+			continue
+		}
+
+		if lowestBlock == 0 || backendLatestBlockNumber < lowestBlock {
 			lowestBlock = backendLatestBlockNumber
 			lowestBlockHash = backendLatestBlockHash
 		}
@@ -323,11 +341,12 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 				- updated recently
 				- not lagging
 			*/
+
 			peerCount, latestBlockNumber, _, lastUpdate, bannedUntil := cp.getBackendState(be)
 			notUpdated := lastUpdate.Add(cp.maxUpdateThreshold).Before(time.Now())
 			isBanned := time.Now().Before(bannedUntil)
 			notEnoughPeers := !be.skipPeerCountCheck && peerCount < cp.minPeerCount
-			lagging := (latestBlockNumber < proposedBlock) && uint64(proposedBlock-latestBlockNumber) >= cp.maxBlockLag
+			lagging := latestBlockNumber < proposedBlock
 			if !be.IsHealthy() || be.IsRateLimited() || !be.Online() || notUpdated || isBanned || notEnoughPeers || lagging {
 				filteredBackendsNames = append(filteredBackendsNames, be.Name)
 				continue
