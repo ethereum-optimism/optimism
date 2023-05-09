@@ -1504,7 +1504,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
+              only: /^(proxyd|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-release:
