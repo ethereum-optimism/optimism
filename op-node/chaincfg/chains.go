@@ -10,6 +10,43 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
+var Mainnet = rollup.Config{
+	Genesis: rollup.Genesis{
+		L1: eth.BlockID{
+			// moose: Update this during migration
+			Hash: common.HexToHash("0x"),
+			// moose: Update this during migration
+			Number: 0,
+		},
+		L2: eth.BlockID{
+			// moose: Update this during migration
+			Hash: common.HexToHash("0x"),
+			// moose: Update this during migration
+			Number: 0,
+		},
+		// moose: Update this during migration
+		L2Time: 0,
+		SystemConfig: eth.SystemConfig{
+			BatcherAddr: common.HexToAddress("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
+			Overhead:    eth.Bytes32(common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000834")),
+			Scalar:      eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000f4240")),
+			GasLimit:    25_000_000,
+		},
+	},
+	BlockTime:         2,
+	MaxSequencerDrift: 600,
+	SeqWindowSize:     3600,
+	ChannelTimeout:    300,
+	L1ChainID:         big.NewInt(1),
+	L2ChainID:         big.NewInt(10),
+	BatchInboxAddress: common.HexToAddress("0xff00000000000000000000000000000000000010"),
+	// moose: Update this during migration
+	DepositContractAddress: common.HexToAddress("0x"),
+	// moose: Update this during migration
+	L1SystemConfigAddress: common.HexToAddress("0x"),
+	RegolithTime:          u64Ptr(0),
+}
+
 var Goerli = rollup.Config{
 	Genesis: rollup.Genesis{
 		L1: eth.BlockID{
@@ -40,39 +77,10 @@ var Goerli = rollup.Config{
 	RegolithTime:           u64Ptr(1679079600),
 }
 
-var Mainnet = rollup.Config{
-	Genesis: rollup.Genesis{
-		L1: eth.BlockID{
-			Hash:   common.HexToHash("0xf0e66a8d7b70c052f8a7aaf225593395be8e1f9a43ca49e5e04221b3e32813df"),
-			Number: 16784890,
-		},
-		L2: eth.BlockID{
-			Hash:   common.HexToHash("0x7425048b0f87c366c3612039091baed2529b31bc3acd2d4393a1268b350b9599"),
-			Number: 79149146,
-		},
-		L2Time: 1683643307,
-		SystemConfig: eth.SystemConfig{
-			BatcherAddr: common.HexToAddress("0x70997970c51812dc3a010c7d01b50e0d17dc79c8"),
-			Overhead:    eth.Bytes32(common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000834")),
-			Scalar:      eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000f4240")),
-			GasLimit:    25_000_000,
-		},
-	},
-	BlockTime:              2,
-	MaxSequencerDrift:      600,
-	SeqWindowSize:          3600,
-	ChannelTimeout:         300,
-	L1ChainID:              big.NewInt(1),
-	L2ChainID:              big.NewInt(10),
-	BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000000000010"),
-	DepositContractAddress: common.HexToAddress("0x47c05BCCA7d57c87083EB4e586007530eE4539e9"),
-	L1SystemConfigAddress:  common.HexToAddress("0x773330693cb7d5D233348E25809770A32483A940"),
-	RegolithTime:           u64Ptr(0),
-}
-
 var NetworksByName = map[string]rollup.Config{
-	"goerli":  Goerli,
-	"mainnet": Mainnet,
+	"goerli": Goerli,
+	// moose: Update this during migration
+	// "mainnet": Mainnet,
 }
 
 var L2ChainIDToNetworkName = func() map[string]string {
