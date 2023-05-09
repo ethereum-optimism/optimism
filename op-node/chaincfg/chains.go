@@ -44,13 +44,11 @@ var Mainnet = rollup.Config{
 	Genesis: rollup.Genesis{
 		L1: eth.BlockID{
 			Hash:   common.HexToHash("0xf0e66a8d7b70c052f8a7aaf225593395be8e1f9a43ca49e5e04221b3e32813df"),
-			Number: 79149146,
+			Number: 16784890,
 		},
 		L2: eth.BlockID{
-			// TODO:
-			Hash: common.HexToHash("0x"),
-			// TODO:
-			Number: 0,
+			Hash:   common.HexToHash("0x7425048b0f87c366c3612039091baed2529b31bc3acd2d4393a1268b350b9599"),
+			Number: 79149146,
 		},
 		L2Time: 1683643307,
 		SystemConfig: eth.SystemConfig{
