@@ -18,9 +18,9 @@ type Claim is bytes32;
 type ClaimHash is bytes32;
 
 /**
- * @notice A bond represents the amount of collateral that a user has locked up in a claim.
+ * @notice A bondamount represents the amount of collateral that a user has locked up in a claim.
  */
-type Bond is uint256;
+type BondAmount is uint256;
 
 /**
  * @notice A dedicated timestamp type.
