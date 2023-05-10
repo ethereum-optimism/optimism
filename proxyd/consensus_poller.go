@@ -239,8 +239,8 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 			log.Warn("error updating backend", "name", be.Name, "err", err)
 			return
 		}
+		RecordConsensusBackendPeerCount(be, peerCount)
 	}
-	RecordConsensusBackendPeerCount(be, peerCount)
 
 	latestBlockNumber, latestBlockHash, err := cp.fetchBlock(ctx, be, "latest")
 	if err != nil {
