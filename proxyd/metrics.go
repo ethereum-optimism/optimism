@@ -265,7 +265,23 @@ var (
 	consensusGroupCount = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: MetricsNamespace,
 		Name:      "group_consensus_count",
-		Help:      "Consensus group count",
+		Help:      "Consensus group serving traffic count",
+	}, []string{
+		"backend_group_name",
+	})
+
+	consensusGroupFilteredCount = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_filtered_count",
+		Help:      "Consensus group filtered out from serving traffic count",
+	}, []string{
+		"backend_group_name",
+	})
+
+	consensusGroupTotalCount = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_total_count",
+		Help:      "Total count of candidates to be part of consensus group",
 	}, []string{
 		"backend_group_name",
 	})
@@ -368,6 +384,14 @@ func RecordGroupConsensusLatestBlock(group *BackendGroup, blockNumber hexutil.Ui
 
 func RecordGroupConsensusCount(group *BackendGroup, count int) {
 	consensusGroupCount.WithLabelValues(group.Name).Set(float64(count))
+}
+
+func RecordGroupConsensusFilteredCount(group *BackendGroup, count int) {
+	consensusGroupFilteredCount.WithLabelValues(group.Name).Set(float64(count))
+}
+
+func RecordGroupTotalCount(group *BackendGroup, count int) {
+	consensusGroupTotalCount.WithLabelValues(group.Name).Set(float64(count))
 }
 
 func RecordBackendLatestBlock(be *Backend, blockNumber hexutil.Uint64) {

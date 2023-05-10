@@ -369,6 +369,8 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 
 	RecordGroupConsensusLatestBlock(cp.backendGroup, proposedBlock)
 	RecordGroupConsensusCount(cp.backendGroup, len(consensusBackends))
+	RecordGroupConsensusFilteredCount(cp.backendGroup, len(filteredBackendsNames))
+	RecordGroupTotalCount(cp.backendGroup, len(cp.backendGroup.Backends))
 
 	log.Debug("group state", "proposedBlock", proposedBlock, "consensusBackends", strings.Join(consensusBackendsNames, ", "), "filteredBackends", strings.Join(filteredBackendsNames, ", "))
 }
