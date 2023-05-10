@@ -19,6 +19,17 @@ var (
 	errLegacyStorageSlotNotFound = errors.New("cannot find storage slot")
 )
 
+// Constants used by `CrossDomainMessenger.baseGas`
+var (
+	RelayConstantOverhead            uint64 = 200_000
+	RelayPerByteDataCost             uint64 = params.TxDataNonZeroGasEIP2028
+	MinGasDynamicOverheadNumerator   uint64 = 64
+	MinGasDynamicOverheadDenominator uint64 = 63
+	RelayCallOverhead                uint64 = 40_000
+	RelayReservedGas                 uint64 = 40_000
+	RelayGasCheckBuffer              uint64 = 5_000
+)
+
 // MigrateWithdrawals will migrate a list of pending withdrawals given a StateDB.
 func MigrateWithdrawals(
 	withdrawals SafeFilteredWithdrawals,
@@ -112,16 +123,38 @@ func MigrateWithdrawalGasLimit(data []byte, chainID *big.Int) uint64 {
 	// Compute the upper bound on the gas limit. This could be more
 	// accurate if individual 0 bytes and non zero bytes were accounted
 	// for.
-	dataCost := uint64(len(data)) * params.TxDataNonZeroGasEIP2028
+	dataCost := uint64(len(data)) * RelayPerByteDataCost
 
 	// Goerli has a lower gas limit than other chains.
-	overhead := uint64(200_000)
-	if chainID.Cmp(big.NewInt(420)) != 0 {
-		overhead = 1_000_000
+	var overhead uint64
+	if chainID.Cmp(big.NewInt(420)) == 0 {
+		overhead = uint64(200_000)
+	} else {
+		// Mimic `baseGas` from `CrossDomainMessenger.sol`
+		overhead = uint64(
+			// Constant overhead
+			RelayConstantOverhead +
+				// Dynamic overhead (EIP-150)
+				// We use a constant 1 million gas limit due to the overhead of simulating all migrated withdrawal
+				// transactions during the migration. This is a conservative estimate, and if a withdrawal
+				// uses more than the minimum gas limit, it will fail and need to be replayed with a higher
+				// gas limit.
+				(MinGasDynamicOverheadNumerator*1_000_000)/MinGasDynamicOverheadDenominator +
+				// Gas reserved for the worst-case cost of 3/5 of the `CALL` opcode's dynamic gas
+				// factors. (Conservative)
+				RelayCallOverhead +
+				// Relay reserved gas (to ensure execution of `relayMessage` completes after the
+				// subcontext finishes executing) (Conservative)
+				RelayReservedGas +
+				// Gas reserved for the execution between the `hasMinGas` check and the `CALL`
+				// opcode. (Conservative)
+				RelayGasCheckBuffer,
+		)
 	}
 
-	// Set the outer gas limit. This cannot be zero
+	// Set the outer minimum gas limit. This cannot be zero
 	gasLimit := dataCost + overhead
+
 	// Cap the gas limit to be 25 million to prevent creating withdrawals
 	// that go over the block gas limit.
 	if gasLimit > 25_000_000 {
