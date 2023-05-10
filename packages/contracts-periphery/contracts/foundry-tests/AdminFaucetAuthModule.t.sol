@@ -30,11 +30,13 @@ contract AdminFaucetAuthModuleTest is Test {
     /**
      * @notice An instance of the `AdminFaucetAuthModule` contract.
      */
-    AdminFaucetAuthModule adminFam;
+    AdminFaucetAuthModule internal adminFam;
     /**
      * @notice An instance of the `FaucetHelper` contract.
      */
-    FaucetHelper faucetHelper;
+    FaucetHelper internal faucetHelper;
+    string internal adminFamName = "AdminFAM";
+    string internal adminFamVersion = "1";
 
     /**
      * @notice Deploy the `AdminFaucetAuthModule` contract.
@@ -46,8 +48,7 @@ contract AdminFaucetAuthModuleTest is Test {
         nonAdminKey = 0xC0C0C0C0;
         nonAdmin = vm.addr(nonAdminKey);
 
-        adminFam = new AdminFaucetAuthModule(admin);
-        adminFam.initialize("AdminFAM");
+        adminFam = new AdminFaucetAuthModule(admin, adminFamName, adminFamVersion);
 
         faucetHelper = new FaucetHelper();
     }
@@ -108,8 +109,8 @@ contract AdminFaucetAuthModuleTest is Test {
         address fundsReceiver = makeAddr("fundsReceiver");
         bytes memory proof = issueProofWithEIP712Domain(
             adminKey,
-            bytes("AdminFAM"),
-            bytes(adminFam.version()),
+            bytes(adminFamName),
+            bytes(adminFamVersion),
             block.chainid,
             address(adminFam),
             fundsReceiver,
@@ -136,8 +137,8 @@ contract AdminFaucetAuthModuleTest is Test {
         address fundsReceiver = makeAddr("fundsReceiver");
         bytes memory proof = issueProofWithEIP712Domain(
             nonAdminKey,
-            bytes("AdminFAM"),
-            bytes(adminFam.version()),
+            bytes(adminFamName),
+            bytes(adminFamVersion),
             block.chainid,
             address(adminFam),
             fundsReceiver,
@@ -166,8 +167,8 @@ contract AdminFaucetAuthModuleTest is Test {
         address randomAddress = makeAddr("randomAddress");
         bytes memory proof = issueProofWithEIP712Domain(
             adminKey,
-            bytes("AdminFAM"),
-            bytes(adminFam.version()),
+            bytes(adminFamName),
+            bytes(adminFamVersion),
             block.chainid,
             address(adminFam),
             fundsReceiver,

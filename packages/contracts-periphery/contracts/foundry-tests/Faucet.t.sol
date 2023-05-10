@@ -23,7 +23,11 @@ contract Faucet_Initializer is Test {
 
     Faucet faucet;
     AdminFaucetAuthModule optimistNftFam;
+    string internal optimistNftFamName = "OptimistNftFam";
+    string internal optimistNftFamVersion = "1";
     AdminFaucetAuthModule githubFam;
+    string internal githubFamName = "GithubFam";
+    string internal githubFamVersion = "1";
 
     FaucetHelper faucetHelper;
 
@@ -52,10 +56,12 @@ contract Faucet_Initializer is Test {
         vm.deal(address(faucetContractAdmin), 5 ether);
         vm.deal(address(nonAdmin), 5 ether);
 
-        optimistNftFam = new AdminFaucetAuthModule(faucetAuthAdmin);
-        optimistNftFam.initialize("OptimistNftFam");
-        githubFam = new AdminFaucetAuthModule(faucetAuthAdmin);
-        githubFam.initialize("GithubFam");
+        optimistNftFam = new AdminFaucetAuthModule(
+            faucetAuthAdmin,
+            optimistNftFamName,
+            optimistNftFamVersion
+        );
+        githubFam = new AdminFaucetAuthModule(faucetAuthAdmin, githubFamName, githubFamVersion);
 
         faucetHelper = new FaucetHelper();
     }
@@ -129,8 +135,8 @@ contract FaucetTest is Faucet_Initializer {
         bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory signature = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
-            bytes("OptimistNftFam"),
-            bytes(optimistNftFam.version()),
+            bytes(optimistNftFamName),
+            bytes(optimistNftFamVersion),
             block.chainid,
             address(optimistNftFam),
             fundsReceiver,
@@ -150,8 +156,8 @@ contract FaucetTest is Faucet_Initializer {
         bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory signature = issueProofWithEIP712Domain(
             nonAdminKey,
-            bytes("OptimistNftFam"),
-            bytes(optimistNftFam.version()),
+            bytes(optimistNftFamName),
+            bytes(optimistNftFamVersion),
             block.chainid,
             address(optimistNftFam),
             fundsReceiver,
@@ -172,8 +178,8 @@ contract FaucetTest is Faucet_Initializer {
         bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory signature = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
-            bytes("OptimistNftFam"),
-            bytes(optimistNftFam.version()),
+            bytes(optimistNftFamName),
+            bytes(optimistNftFamVersion),
             block.chainid,
             address(optimistNftFam),
             fundsReceiver,
@@ -200,8 +206,8 @@ contract FaucetTest is Faucet_Initializer {
         bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory signature = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
-            bytes("GithubFam"),
-            bytes(githubFam.version()),
+            bytes(githubFamName),
+            bytes(githubFamVersion),
             block.chainid,
             address(githubFam),
             fundsReceiver,
@@ -228,8 +234,8 @@ contract FaucetTest is Faucet_Initializer {
         bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory signature = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
-            bytes("GithubFam"),
-            bytes(githubFam.version()),
+            bytes(githubFamName),
+            bytes(githubFamVersion),
             block.chainid,
             address(githubFam),
             fundsReceiver,
@@ -252,8 +258,8 @@ contract FaucetTest is Faucet_Initializer {
         bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory signature = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
-            bytes("GithubFam"),
-            bytes(githubFam.version()),
+            bytes(githubFamName),
+            bytes(githubFamVersion),
             block.chainid,
             address(githubFam),
             fundsReceiver,
@@ -282,8 +288,8 @@ contract FaucetTest is Faucet_Initializer {
         bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory signature = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
-            bytes("GithubFam"),
-            bytes(githubFam.version()),
+            bytes(githubFamName),
+            bytes(githubFamVersion),
             block.chainid,
             address(githubFam),
             fundsReceiver,
@@ -310,8 +316,8 @@ contract FaucetTest is Faucet_Initializer {
         bytes32 nonce0 = faucetHelper.consumeNonce();
         bytes memory signature0 = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
-            bytes("GithubFam"),
-            bytes(githubFam.version()),
+            bytes(githubFamName),
+            bytes(githubFamVersion),
             block.chainid,
             address(githubFam),
             fundsReceiver,
@@ -328,8 +334,8 @@ contract FaucetTest is Faucet_Initializer {
         bytes32 nonce1 = faucetHelper.consumeNonce();
         bytes memory signature1 = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
-            bytes("GithubFam"),
-            bytes(githubFam.version()),
+            bytes(githubFamName),
+            bytes(githubFamVersion),
             block.chainid,
             address(githubFam),
             fundsReceiver,
@@ -350,8 +356,8 @@ contract FaucetTest is Faucet_Initializer {
         bytes32 nonce0 = faucetHelper.consumeNonce();
         bytes memory signature0 = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
-            bytes("GithubFam"),
-            bytes(githubFam.version()),
+            bytes(githubFamName),
+            bytes(githubFamVersion),
             block.chainid,
             address(githubFam),
             fundsReceiver,
@@ -368,8 +374,8 @@ contract FaucetTest is Faucet_Initializer {
         bytes32 nonce1 = faucetHelper.consumeNonce();
         bytes memory signature1 = issueProofWithEIP712Domain(
             faucetAuthAdminKey,
-            bytes("GithubFam"),
-            bytes(githubFam.version()),
+            bytes(githubFamName),
+            bytes(githubFamVersion),
             block.chainid,
             address(githubFam),
             fundsReceiver,

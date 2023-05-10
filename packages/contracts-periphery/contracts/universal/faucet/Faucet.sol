@@ -80,7 +80,7 @@ contract Faucet {
     /**
      * @notice Maps from id to nonces to whether or not they have been used.
      */
-    mapping(bytes => mapping(bytes32 => bool)) public usedNonces;
+    mapping(bytes => mapping(bytes32 => bool)) public nonces;
 
     /**
      * @notice Modifier that makes a function admin priviledged.
@@ -141,10 +141,7 @@ contract Faucet {
         // This checks that the nonce has not been used for this issuer before. The nonces are
         // scoped to the issuer address, so the same nonce can be used by different issuers without
         // clashing.
-        require(
-            usedNonces[_auth.id][_params.nonce] == false,
-            "Faucet: nonce has already been used"
-        );
+        require(nonces[_auth.id][_params.nonce] == false, "Faucet: nonce has already been used");
 
         // Make sure the timeout has elapsed.
         require(
@@ -162,7 +159,7 @@ contract Faucet {
         timeouts[_auth.module][_auth.id] = block.timestamp + config.ttl;
 
         // Mark the nonce as used.
-        usedNonces[_auth.id][_params.nonce] = true;
+        nonces[_auth.id][_params.nonce] = true;
 
         // Execute a safe transfer of ETH to the recipient account.
         new SafeSend{ value: config.amount }(_params.recipient);

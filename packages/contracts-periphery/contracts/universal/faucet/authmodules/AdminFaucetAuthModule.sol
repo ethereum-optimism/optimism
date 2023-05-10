@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
-import {
-    EIP712Upgradeable
-} from "@openzeppelin/contracts-upgradeable/utils/cryptography/draft-EIP712Upgradeable.sol";
+import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/draft-EIP712.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import { IFaucetAuthModule } from "./IFaucetAuthModule.sol";
 import { Faucet } from "../Faucet.sol";
@@ -14,7 +11,7 @@ import { Faucet } from "../Faucet.sol";
  * @notice FaucetAuthModule that allows an admin to sign off on a given faucet drip. Takes an admin
  *         as the constructor argument.
  */
-contract AdminFaucetAuthModule is IFaucetAuthModule, Semver, EIP712Upgradeable {
+contract AdminFaucetAuthModule is IFaucetAuthModule, EIP712 {
     /**
      * @notice Admin address that can sign off on drips.
      */
@@ -40,19 +37,16 @@ contract AdminFaucetAuthModule is IFaucetAuthModule, Semver, EIP712Upgradeable {
     }
 
     /**
-     * @param admin Admin address that can sign off on drips.
+     * @param _admin   Admin address that can sign off on drips.
+     * @param _name    Contract name.
+     * @param _version The current major version of the signing domain.
      */
-    constructor(address admin) Semver(1, 0, 0) {
-        ADMIN = admin;
-    }
-
-    /**
-     * @notice Initializes this contract, setting the EIP712 context.
-     *
-     * @param _name Contract name.
-     */
-    function initialize(string memory _name) public initializer {
-        __EIP712_init(_name, version());
+    constructor(
+        address _admin,
+        string memory _name,
+        string memory _version
+    ) EIP712(_name, _version) {
+        ADMIN = _admin;
     }
 
     /**
