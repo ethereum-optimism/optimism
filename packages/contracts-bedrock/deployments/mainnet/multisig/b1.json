@@ -4,7 +4,7 @@
   "meta": {
     "name": "batch1",
     "description": "AddressManager, L1StandardBridgeProxy, L1ERC721BridgeProxy ownership transfers and phase1().",
-    "txBuilderVersion": "1.13.3",
+    "txBuilderVersion": "1.13.3"
   },
   "transactions": [
     {

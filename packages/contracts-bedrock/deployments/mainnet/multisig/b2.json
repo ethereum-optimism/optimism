@@ -4,7 +4,7 @@
   "meta": {
     "name": "batch2",
     "description": "calls updateDynamicConfig.",
-    "txBuilderVersion": "1.13.3",
+    "txBuilderVersion": "1.13.3"
   },
   "transactions": [
     {
