@@ -8,8 +8,14 @@ import (
 )
 
 type ShadowCompressor struct {
-	// The maximum byte-size a frame can have.
-	MaxFrameSize uint64
+	// The frame size to target when creating channel frames. When adding new
+	// data to the shadow compressor causes the buffer size to be greater than
+	// the target size, the compressor is marked as full.
+	TargetFrameSize uint64
+	// The target number of frames to create in this channel. If the realized
+	// compression ratio is worse than approxComprRatio, additional leftover
+	// frame(s) might get created.
+	TargetNumFrames int
 
 	buf      bytes.Buffer
 	compress *zlib.Writer
@@ -20,9 +26,10 @@ type ShadowCompressor struct {
 	fullErr error
 }
 
-func NewShadowCompressor(maxFrameSize uint64) (derive.Compressor, error) {
+func NewShadowCompressor(targetFrameSize uint64, targetNumFrames int) (derive.Compressor, error) {
 	c := &ShadowCompressor{
-		MaxFrameSize: maxFrameSize,
+		TargetFrameSize: targetFrameSize,
+		TargetNumFrames: targetNumFrames,
 	}
 
 	var err error
@@ -48,7 +55,7 @@ func (t *ShadowCompressor) Write(p []byte) (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		if uint64(t.shadowBuf.Len()) > t.MaxFrameSize {
+		if uint64(t.shadowBuf.Len()) > t.TargetFrameSize*uint64(t.TargetNumFrames) {
 			t.fullErr = derive.CompressorFullErr
 			return 0, t.fullErr
 		}

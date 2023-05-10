@@ -8,7 +8,7 @@ import (
 )
 
 type TargetSizeCompressor struct {
-	// The target number of frames to create per channel. Note that if the
+	// The frame size to target when creating channel frames. Note that if the
 	// realized compression ratio is worse than the approximate, more frames may
 	// actually be created. This also depends on how close TargetFrameSize is to
 	// MaxFrameSize.
