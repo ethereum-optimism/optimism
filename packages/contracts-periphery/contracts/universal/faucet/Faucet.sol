@@ -23,6 +23,7 @@ contract SafeSend {
 contract Faucet {
     /**
      * @notice Emitted on each drip.
+     *
      * @param authModule The type of authentication that was used for verifying the drip.
      * @param userId     The id of the user that requested the drip.
      * @param amount     The amount of funds sent.
