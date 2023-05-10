@@ -39,8 +39,8 @@ services:
 #      - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
   l2:
     build:
-      context: .
-      dockerfile: Dockerfile.l2-erigon
+      context: ..
+      dockerfile: ops-bedrock/Dockerfile.l2-erigon
     ports:
       - "9545:8545"
       - "8060:6060"

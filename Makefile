@@ -5,7 +5,7 @@ BEDROCK_TAGS_REMOTE?=origin
 build: build-go build-ts
 .PHONY: build
 
-build-go: submodules op-node op-proposer op-batcher
+build-go: submodules op-node op-proposer op-batcher op-erigon
 .PHONY: build-go
 
 build-ts: submodules
@@ -45,6 +45,10 @@ op-program:
 	make -C ./op-program op-program
 .PHONY: op-program
 
+op-erigon:
+	make -C ./op-erigon erigon
+.PHONY: op-erigon
+
 mod-tidy:
 	# Below GOPRIVATE line allows mod-tidy to be run immediately after
 	# releasing new versions. This bypasses the Go modules proxy, which
@@ -56,6 +60,7 @@ mod-tidy:
 
 clean:
 	rm -rf ./bin
+	make -C ./op-erigon clean
 .PHONY: clean
 
 nuke: clean devnet-clean
