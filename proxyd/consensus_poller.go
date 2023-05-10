@@ -481,7 +481,7 @@ func (cp *ConsensusPoller) setBackendState(be *Backend, peerCount uint64, blockN
 	bs.peerCount = peerCount
 	bs.latestBlockNumber = blockNumber
 	bs.latestBlockHash = blockHash
-	updateDelay = time.Now().Sub(bs.lastUpdate)
+	updateDelay = time.Since(bs.lastUpdate)
 	bs.lastUpdate = time.Now()
 	bs.backendStateMux.Unlock()
 	return
