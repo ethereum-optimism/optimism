@@ -30,18 +30,16 @@ var Mainnet = rollup.Config{
 			GasLimit:    25_000_000,
 		},
 	},
-	BlockTime:         2,
-	MaxSequencerDrift: 600,
-	SeqWindowSize:     3600,
-	ChannelTimeout:    300,
-	L1ChainID:         big.NewInt(1),
-	L2ChainID:         big.NewInt(10),
-	BatchInboxAddress: common.HexToAddress("0xff00000000000000000000000000000000000010"),
-	// moose: Update this during migration
-	DepositContractAddress: common.HexToAddress("0x"),
-	// moose: Update this during migration
-	L1SystemConfigAddress: common.HexToAddress("0x"),
-	RegolithTime:          u64Ptr(0),
+	BlockTime:              2,
+	MaxSequencerDrift:      600,
+	SeqWindowSize:          3600,
+	ChannelTimeout:         300,
+	L1ChainID:              big.NewInt(1),
+	L2ChainID:              big.NewInt(10),
+	BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000000000010"),
+	DepositContractAddress: common.HexToAddress("0xB468647B04bF657C9ee2de65252037d781eABafD"),
+	L1SystemConfigAddress:  common.HexToAddress("0x408F924BAEC71cC3968614Cb2c58E155A35e6890"),
+	RegolithTime:           u64Ptr(0),
 }
 
 var Goerli = rollup.Config{
