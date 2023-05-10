@@ -1,0 +1,79 @@
+{
+  "version": "1.0",
+  "chainId": "1",
+  "meta": {
+    "name": "batch1",
+    "description": "AddressManager, L1StandardBridgeProxy, L1ERC721BridgeProxy ownership transfers and phase1().",
+    "txBuilderVersion": "1.13.3",
+  },
+  "transactions": [
+    {
+      "to": "0xdE1FCfB0851916CA5101820A69b13a4E276bd81F",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "newOwner",
+            "type": "address"
+          }
+        ],
+        "name": "transferOwnership",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "newOwner": "${TODO_SystemDictatorProxy}"
+      }
+    },
+    {
+      "to": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "_owner",
+            "type": "address"
+          }
+        ],
+        "name": "setOwner",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "_owner": "${TODO_SystemDictatorProxy}"
+      }
+    },
+    {
+      "to": "0x5a7749f83b81B301cAb5f48EB8516B986DAef23D",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "_admin",
+            "type": "address"
+          }
+        ],
+        "name": "changeAdmin",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "_admin": "${TODO_SystemDictatorProxy}"
+      }
+    },
+    {
+      "to": "${TODO_SystemDictatorProxy}",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [],
+        "name": "phase1",
+        "payable": false
+      },
+      "contractInputsValues": null
+    }
+  ]
+}

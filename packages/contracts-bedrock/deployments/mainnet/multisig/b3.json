@@ -1,0 +1,33 @@
+{
+  "version": "1.0",
+  "chainId": "1",
+  "meta": {
+    "name": "batch3",
+    "description": "calls phase2() and unpause().",
+    "txBuilderVersion": "1.13.3",
+  },
+  "transactions": [
+    {
+      "to": "${TODO_SystemDictatorProxy}",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [],
+        "name": "phase2",
+        "payable": false
+      },
+      "contractInputsValues": null
+    },
+    {
+      "to": "${TODO_OptimismPortalProxy}",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [],
+        "name": "unpause",
+        "payable": false
+      },
+      "contractInputsValues": null
+    }
+  ]
+}
