@@ -192,8 +192,23 @@ func (s *Driver) eventLoop() {
 	var sequencerCh <-chan time.Time
 	planSequencerAction := func() {
 		delay := s.sequencer.PlanNextSequencerAction()
+		if delay == 0 {
+			if len(sequencerCh) > 0 {
+				// We want to perform the next action immediately and it's already scheduled so just leave it alone.
+				return
+			}
+			// Otherwise create a channel and trigger it immediately.
+			sequencerTimer.Stop() // Stop the timer as we're not using it now.
+			ch := make(chan time.Time, 1)
+			sequencerCh = ch
+			ch <- time.Now()
+			return
+		}
+
+		// Setup the timer to trigger after the requested delay
 		sequencerCh = sequencerTimer.C
-		if len(sequencerCh) > 0 { // empty if not already drained before resetting
+		if !sequencerTimer.Stop() {
+			// empty channel if the timer had fired before we stopped it
 			<-sequencerCh
 		}
 		sequencerTimer.Reset(delay)
