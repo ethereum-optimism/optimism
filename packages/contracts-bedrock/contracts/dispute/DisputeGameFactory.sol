@@ -12,7 +12,6 @@ import { NoImplementation } from "../libraries/DisputeErrors.sol";
 import { GameAlreadyExists } from "../libraries/DisputeErrors.sol";
 
 import { IDisputeGame } from "./IDisputeGame.sol";
-import { IBondManager } from "./IBondManager.sol";
 import { IDisputeGameFactory } from "./IDisputeGameFactory.sol";
 
 /**

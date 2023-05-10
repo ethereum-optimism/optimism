@@ -328,6 +328,9 @@ func Start(config *Config) (*Server, func(), error) {
 			if bgcfg.ConsensusMaxUpdateThreshold > 0 {
 				copts = append(copts, WithMaxUpdateThreshold(time.Duration(bgcfg.ConsensusMaxUpdateThreshold)))
 			}
+			if bgcfg.ConsensusMaxBlockLag > 0 {
+				copts = append(copts, WithMaxBlockLag(bgcfg.ConsensusMaxBlockLag))
+			}
 			if bgcfg.ConsensusMinPeerCount > 0 {
 				copts = append(copts, WithMinPeerCount(uint64(bgcfg.ConsensusMinPeerCount)))
 			}

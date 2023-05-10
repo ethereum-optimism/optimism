@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { Claim, ClaimHash, Clock, Bond, Position, Timestamp } from "../libraries/DisputeTypes.sol";
+import { Clock } from "../libraries/DisputeTypes.sol";
+import { Claim } from "../libraries/DisputeTypes.sol";
+import { Position } from "../libraries/DisputeTypes.sol";
+import { Timestamp } from "../libraries/DisputeTypes.sol";
+import { ClaimHash } from "../libraries/DisputeTypes.sol";
+import { BondAmount } from "../libraries/DisputeTypes.sol";
 
 import { IDisputeGame } from "./IDisputeGame.sol";
 
@@ -60,7 +65,7 @@ interface IFaultDisputeGame is IDisputeGame {
      * @param claimHash The unique ClaimHash
      * @return bond The Bond associated with the ClaimHash
      */
-    function bonds(ClaimHash claimHash) external view returns (Bond bond);
+    function bonds(ClaimHash claimHash) external view returns (BondAmount bond);
 
     /**
      * @notice Maps a unique ClaimHash its chess clock.

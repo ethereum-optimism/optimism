@@ -5,6 +5,45 @@ import { CommonTest } from "./CommonTest.t.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
 
 contract SafeCall_Test is CommonTest {
+    function testFuzz_send_succeeds(
+        address from,
+        address to,
+        uint256 gas,
+        uint64 value
+    ) external {
+        vm.assume(from.balance == 0);
+        vm.assume(to.balance == 0);
+        // no precompiles (mainnet)
+        assumeNoPrecompiles(to, 1);
+        // don't call the vm
+        vm.assume(to != address(vm));
+        vm.assume(from != address(vm));
+        // don't call the console
+        vm.assume(to != address(0x000000000000000000636F6e736F6c652e6c6f67));
+        // don't call the create2 deployer
+        vm.assume(to != address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
+        // don't call the ffi interface
+        vm.assume(to != address(0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f));
+
+        assertEq(from.balance, 0, "from balance is 0");
+        vm.deal(from, value);
+        assertEq(from.balance, value, "from balance not dealt");
+
+        uint256[2] memory balancesBefore = [from.balance, to.balance];
+
+        vm.expectCall(to, value, bytes(""));
+        vm.prank(from);
+        bool success = SafeCall.send(to, gas, value);
+
+        assertTrue(success, "send not successful");
+        if (from == to) {
+            assertEq(from.balance, balancesBefore[0], "Self-send did not change balance");
+        } else {
+            assertEq(from.balance, balancesBefore[0] - value, "from balance not drained");
+            assertEq(to.balance, balancesBefore[1] + value, "to balance received");
+        }
+    }
+
     function testFuzz_call_succeeds(
         address from,
         address to,
