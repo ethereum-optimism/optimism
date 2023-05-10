@@ -68,7 +68,11 @@ func (w *LegacyWithdrawal) Decode(data []byte) error {
 		return fmt.Errorf("invalid selector: 0x%x", data[0:4])
 	}
 
-	msgSender := data[len(data)-len(predeploys.L2CrossDomainMessengerAddr):]
+	senderData := data[len(data)-len(predeploys.L2CrossDomainMessengerAddr):]
+	messageSender := common.BytesToAddress(senderData)
+	if messageSender != predeploys.L2CrossDomainMessengerAddr {
+		return fmt.Errorf("invalid message sender: %s", messageSender.Hex())
+	}
 
 	raw := data[4 : len(data)-len(predeploys.L2CrossDomainMessengerAddr)]
 
@@ -101,7 +105,7 @@ func (w *LegacyWithdrawal) Decode(data []byte) error {
 		return errors.New("cannot abi decode nonce")
 	}
 
-	w.MessageSender = common.BytesToAddress(msgSender)
+	w.MessageSender = messageSender
 	w.XDomainTarget = target
 	w.XDomainSender = sender
 	w.XDomainData = msgData
