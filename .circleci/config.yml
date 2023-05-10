@@ -1504,7 +1504,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
+              only: /^(proxyd|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-release:
@@ -1586,7 +1586,7 @@ workflows:
             - oplabs-gcr-release
           requires:
             - hold
-      - docker-build:
+      - docker-release:
           name: proxyd-docker-release
           filters:
             tags:
