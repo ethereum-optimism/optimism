@@ -211,7 +211,10 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 
 // UpdateBackend refreshes the consensus state of a single backend
 func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
-	if cp.IsBanned(be) {
+	banned := cp.IsBanned(be)
+	RecordConsensusBackendBanned(be, banned)
+
+	if banned {
 		log.Debug("skipping backend banned", "backend", be.Name)
 		return
 	}
@@ -220,6 +223,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 	if !be.Online() || !be.IsHealthy() {
 		log.Warn("backend banned - not online or not healthy", "backend", be.Name)
 		cp.Ban(be)
+		return
 	}
 
 	// if backend it not in sync we'll check again after ban
@@ -227,7 +231,9 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 	if err != nil || !inSync {
 		log.Warn("backend banned - not in sync", "backend", be.Name)
 		cp.Ban(be)
+		return
 	}
+	RecordConsensusBackendInSync(be, inSync)
 
 	// if backend exhausted rate limit we'll skip it for now
 	if be.IsRateLimited() {
@@ -241,6 +247,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 			log.Warn("error updating backend", "name", be.Name, "err", err)
 			return
 		}
+		RecordConsensusBackendPeerCount(be, peerCount)
 	}
 
 	latestBlockNumber, latestBlockHash, err := cp.fetchBlock(ctx, be, "latest")
@@ -249,15 +256,17 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 		return
 	}
 
-	changed := cp.setBackendState(be, peerCount, latestBlockNumber, latestBlockHash)
+	changed, updateDelay := cp.setBackendState(be, peerCount, latestBlockNumber, latestBlockHash)
 
 	if changed {
 		RecordBackendLatestBlock(be, latestBlockNumber)
+		RecordConsensusBackendUpdateDelay(be, updateDelay)
 		log.Debug("backend state updated",
 			"name", be.Name,
 			"peerCount", peerCount,
 			"latestBlockNumber", latestBlockNumber,
-			"latestBlockHash", latestBlockHash)
+			"latestBlockHash", latestBlockHash,
+			"updateDelay", updateDelay)
 	}
 }
 
@@ -388,10 +397,14 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	}
 
 	cp.tracker.SetConsensusBlockNumber(proposedBlock)
-	RecordGroupConsensusLatestBlock(cp.backendGroup, proposedBlock)
 	cp.consensusGroupMux.Lock()
 	cp.consensusGroup = consensusBackends
 	cp.consensusGroupMux.Unlock()
+
+	RecordGroupConsensusLatestBlock(cp.backendGroup, proposedBlock)
+	RecordGroupConsensusCount(cp.backendGroup, len(consensusBackends))
+	RecordGroupConsensusFilteredCount(cp.backendGroup, len(filteredBackendsNames))
+	RecordGroupTotalCount(cp.backendGroup, len(cp.backendGroup.Backends))
 
 	log.Debug("group state", "proposedBlock", proposedBlock, "consensusBackends", strings.Join(consensusBackendsNames, ", "), "filteredBackends", strings.Join(filteredBackendsNames, ", "))
 }
@@ -497,13 +510,14 @@ func (cp *ConsensusPoller) getBackendState(be *Backend) (peerCount uint64, block
 	return
 }
 
-func (cp *ConsensusPoller) setBackendState(be *Backend, peerCount uint64, blockNumber hexutil.Uint64, blockHash string) (changed bool) {
+func (cp *ConsensusPoller) setBackendState(be *Backend, peerCount uint64, blockNumber hexutil.Uint64, blockHash string) (changed bool, updateDelay time.Duration) {
 	bs := cp.backendState[be]
 	bs.backendStateMux.Lock()
 	changed = bs.latestBlockHash != blockHash
 	bs.peerCount = peerCount
 	bs.latestBlockNumber = blockNumber
 	bs.latestBlockHash = blockHash
+	updateDelay = time.Since(bs.lastUpdate)
 	bs.lastUpdate = time.Now()
 	bs.backendStateMux.Unlock()
 	return
