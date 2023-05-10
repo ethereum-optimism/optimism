@@ -395,5 +395,5 @@ func RecordConsensusBackendInSync(be *Backend, inSync bool) {
 }
 
 func RecordConsensusBackendUpdateDelay(be *Backend, delay time.Duration) {
-	consensusUpdateDelayBackend.WithLabelValues(be.Name).Set(float64(delay.Round(time.Millisecond)))
+	consensusUpdateDelayBackend.WithLabelValues(be.Name).Set(float64(delay.Milliseconds()))
 }
