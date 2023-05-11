@@ -11,7 +11,9 @@ REBUILD_ALL_PATTERNS = [
     r'^\.github/\.*',
     r'^package\.json',
     r'^yarn\.lock',
-    r'ops/check-changed/.*'
+    r'ops/check-changed/.*',
+    r'^go\.mod',
+    r'^go\.sum',
 ]
 
 WHITELISTED_BRANCHES = {

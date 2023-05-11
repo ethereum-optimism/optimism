@@ -6,6 +6,9 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
+
+	"github.com/ethereum-optimism/optimism/proxyd"
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
@@ -46,12 +49,6 @@ func (mh *MockedHandler) Handler(w http.ResponseWriter, req *http.Request) {
 		fmt.Printf("error reading request: %v\n", err)
 	}
 
-	var j map[string]interface{}
-	err = json.Unmarshal(body, &j)
-	if err != nil {
-		fmt.Printf("error reading request: %v\n", err)
-	}
-
 	var template []*MethodTemplate
 	if mh.Autoload {
 		template = append(template, mh.LoadFromFile(mh.AutoloadFile)...)
@@ -60,23 +57,51 @@ func (mh *MockedHandler) Handler(w http.ResponseWriter, req *http.Request) {
 		template = append(template, mh.Overrides...)
 	}
 
-	method := j["method"]
-	block := ""
-	if method == "eth_getBlockByNumber" {
-		block = (j["params"].([]interface{})[0]).(string)
+	batched := proxyd.IsBatch(body)
+	var requests []map[string]interface{}
+	if batched {
+		err = json.Unmarshal(body, &requests)
+		if err != nil {
+			fmt.Printf("error reading request: %v\n", err)
+		}
+	} else {
+		var j map[string]interface{}
+		err = json.Unmarshal(body, &j)
+		if err != nil {
+			fmt.Printf("error reading request: %v\n", err)
+		}
+		requests = append(requests, j)
 	}
 
-	var selectedResponse *string
-	for _, r := range template {
-		if r.Method == method && r.Block == block {
-			selectedResponse = &r.Response
+	var responses []string
+	for _, r := range requests {
+		method := r["method"]
+		block := ""
+		if method == "eth_getBlockByNumber" {
+			block = (r["params"].([]interface{})[0]).(string)
+		}
+
+		var selectedResponse string
+		for _, r := range template {
+			if r.Method == method && r.Block == block {
+				selectedResponse = r.Response
+			}
+		}
+		if selectedResponse != "" {
+			responses = append(responses, selectedResponse)
 		}
 	}
-	if selectedResponse != nil {
-		_, err := fmt.Fprintf(w, *selectedResponse)
-		if err != nil {
-			fmt.Printf("error writing response: %v\n", err)
-		}
+
+	resBody := ""
+	if batched {
+		resBody = "[" + strings.Join(responses, ",") + "]"
+	} else {
+		resBody = responses[0]
+	}
+
+	_, err = fmt.Fprint(w, resBody)
+	if err != nil {
+		fmt.Printf("error writing response: %v\n", err)
 	}
 }
 

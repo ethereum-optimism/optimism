@@ -27,12 +27,6 @@ task('deposit-eth', 'Deposits ether to L2.')
     'http://localhost:9545',
     types.string
   )
-  .addParam(
-    'opNodeProviderUrl',
-    'op-node provider URL',
-    'http://localhost:7545',
-    types.string
-  )
   .addOptionalParam('to', 'Recipient of the ether', '', types.string)
   .addOptionalParam(
     'amount',
