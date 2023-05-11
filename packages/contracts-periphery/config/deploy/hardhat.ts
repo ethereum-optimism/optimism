@@ -12,7 +12,7 @@ const config: DeployConfig = {
     '0x70997970c51812dc3a010c7d01b50e0d17dc79c8',
   optimistAllowlistCoinbaseQuestAttestor:
     '0x70997970c51812dc3a010c7d01b50e0d17dc79c8',
-  faucetAdmin: '',
+  faucetAdmin: '0xEa193Fd9565284E7534dDDA15b07B119e7792644',
   faucetName: '',
   githubFamAdmin: '',
   githubFamName: '',
