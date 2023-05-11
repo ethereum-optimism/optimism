@@ -57,13 +57,15 @@ func (t *ShadowCompressor) Write(p []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if t.Len() > 0 {
-		err = t.shadowCompress.Flush()
-		if err != nil {
-			return 0, err
-		}
-		if uint64(t.shadowBuf.Len()) > t.TargetFrameSize*uint64(t.TargetNumFrames) {
-			t.fullErr = derive.CompressorFullErr
+	err = t.shadowCompress.Flush()
+	if err != nil {
+		return 0, err
+	}
+	if uint64(t.shadowBuf.Len()) > t.TargetFrameSize*uint64(t.TargetNumFrames) {
+		t.fullErr = derive.CompressorFullErr
+		if t.Len() > 0 {
+			// only return an error if we've already written data to this compressor before
+			// (otherwise individual blocks over the target would never be written)
 			return 0, t.fullErr
 		}
 	}
