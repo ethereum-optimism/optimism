@@ -55,6 +55,46 @@ export interface DeployConfig {
   optimistAllowlistCoinbaseQuestAttestor: string
 
   /**
+   * Address of privileged account for the Faucet contract.
+   */
+  faucetAdmin: string
+
+  /**
+   * Name of Faucet contract.
+   */
+  faucetName: string
+
+  /**
+   * Address of admin account for the Github FaucetAuthModule.
+   */
+  githubFamAdmin: string
+
+  /**
+   * Name of Github FaucetAuthModule contract, used for the EIP712 domain separator.
+   */
+  githubFamName: string
+
+  /**
+   * Version of Github FaucetAuthModule contract, used for the EIP712 domain separator.
+   */
+  githubFamVersion: string
+
+  /**
+   * Address of admin account for Optimist FaucetAuthModule.
+   */
+  optimistFamAdmin: string
+
+  /**
+   * Name of Optimist FaucetAuthModule contract, used for the EIP712 domain separator.
+   */
+  optimistFamName: string
+
+  /**
+   * Version of Optimist FaucetAuthModule contract, used for the EIP712 domain separator.
+   */
+  optimistFamVersion: string
+
+  /**
    * Address of the owner of the proxies on L2. There will be a ProxyAdmin deployed as a predeploy
    * after bedrock, so the owner of proxies should be updated to that after the upgrade.
    * This currently is used as the owner of the nft related proxies.
@@ -98,7 +138,30 @@ export const configSpec: DeployConfigSpec<DeployConfig> = {
   optimistAllowlistCoinbaseQuestAttestor: {
     type: 'address',
   },
-
+  faucetAdmin: {
+    type: 'address',
+  },
+  faucetName: {
+    type: 'string',
+  },
+  githubFamAdmin: {
+    type: 'address',
+  },
+  githubFamName: {
+    type: 'string',
+  },
+  githubFamVersion: {
+    type: 'string',
+  },
+  optimistFamAdmin: {
+    type: 'address',
+  },
+  optimistFamName: {
+    type: 'string',
+  },
+  optimistFamVersion: {
+    type: 'string',
+  },
   l2ProxyOwnerAddress: {
     type: 'address',
   },
