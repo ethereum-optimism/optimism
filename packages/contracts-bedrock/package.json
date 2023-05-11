@@ -71,6 +71,7 @@
     "@nomiclabs/hardhat-waffle": "^2.0.0",
     "@rari-capital/solmate": "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
     "clones-with-immutable-args": "https://github.com/Saw-mon-and-Natalie/clones-with-immutable-args.git#105efee1b9127ed7f6fedf139e1fc796ce8791f2",
+    "solady": "https://github.com/Vectorized/solady#369c62f92946764770a3d265f9d8fa6228ac9337",
     "@typechain/ethers-v5": "^10.1.0",
     "@typescript-eslint/eslint-plugin": "^5.45.1",
     "@typescript-eslint/parser": "^5.45.1",
