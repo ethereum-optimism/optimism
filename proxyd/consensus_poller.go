@@ -215,7 +215,15 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 	RecordConsensusBackendBanned(be, banned)
 
 	if banned {
-		log.Debug("skipping backend banned", "backend", be.Name)
+		log.Debug("skipping backend - banned", "backend", be.Name)
+		return
+	}
+
+	// if backend it not in sync we'll check again after ban
+	inSync, err := cp.isInSync(ctx, be)
+	RecordConsensusBackendInSync(be, err == nil && inSync)
+	if err != nil || !inSync {
+		log.Warn("skipping backend - not in sync", "backend", be.Name)
 		return
 	}
 
@@ -225,15 +233,6 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 		cp.Ban(be)
 		return
 	}
-
-	// if backend it not in sync we'll check again after ban
-	inSync, err := cp.isInSync(ctx, be)
-	if err != nil || !inSync {
-		log.Warn("backend banned - not in sync", "backend", be.Name)
-		cp.Ban(be)
-		return
-	}
-	RecordConsensusBackendInSync(be, inSync)
 
 	// if backend exhausted rate limit we'll skip it for now
 	if be.IsRateLimited() {
