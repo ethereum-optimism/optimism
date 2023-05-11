@@ -98,8 +98,7 @@ func TestChannelManagerReturnsErrReorgWhenDrained(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
-			TargetFrameSize:  1,
-			TargetNumFrames:  1,
+			TargetFrameSize:  0,
 			MaxFrameSize:     120_000,
 			ApproxComprRatio: 1.0,
 		})
@@ -333,8 +332,7 @@ func TestChannelManager_TxResend(t *testing.T) {
 	log := testlog.Logger(t, log.LvlError)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
-			TargetFrameSize:  1,
-			TargetNumFrames:  1,
+			TargetFrameSize:  0,
 			MaxFrameSize:     120_000,
 			ApproxComprRatio: 1.0,
 		})
@@ -375,7 +373,7 @@ func TestChannelManagerCloseBeforeFirstUse(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
-			TargetFrameSize:  1,
+			TargetFrameSize:  0,
 			MaxFrameSize:     100,
 			ApproxComprRatio: 1.0,
 			ChannelTimeout:   1000,
