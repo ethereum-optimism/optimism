@@ -58,9 +58,13 @@ contract AdminFaucetAuthModule is IFaucetAuthModule, EIP712 {
         bytes memory _proof
     ) external view returns (bool) {
         // Generate a EIP712 typed data hash to compare against the proof.
-        bytes32 digest = _hashTypedDataV4(
-            keccak256(abi.encode(PROOF_TYPEHASH, _params.recipient, _params.nonce, _id))
-        );
-        return SignatureChecker.isValidSignatureNow(ADMIN, digest, _proof);
+        return
+            SignatureChecker.isValidSignatureNow(
+                ADMIN,
+                _hashTypedDataV4(
+                    keccak256(abi.encode(PROOF_TYPEHASH, _params.recipient, _params.nonce, _id))
+                ),
+                _proof
+            );
     }
 }
