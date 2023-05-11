@@ -362,7 +362,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 				- with minimum peer count
 				- updated recently
 				- not lagging
-			    - in sync
+				- in sync
 			*/
 
 			peerCount, latestBlockNumber, _, lastUpdate, bannedUntil := cp.getBackendState(be)
