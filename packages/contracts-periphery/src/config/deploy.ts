@@ -60,11 +60,6 @@ export interface DeployConfig {
   faucetAdmin: string
 
   /**
-   * Name of Faucet contract.
-   */
-  faucetName: string
-
-  /**
    * Address of admin account for the Github FaucetAuthModule.
    */
   githubFamAdmin: string
@@ -140,9 +135,6 @@ export const configSpec: DeployConfigSpec<DeployConfig> = {
   },
   faucetAdmin: {
     type: 'address',
-  },
-  faucetName: {
-    type: 'string',
   },
   githubFamAdmin: {
     type: 'address',
