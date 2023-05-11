@@ -1,0 +1,30 @@
+{
+  "version": "1.0",
+  "chainId": "1",
+  "meta": {
+    "name": "deleteL2Outputs",
+    "description": "Calls deleteL2Outputs on L2OutputOracle's proxy contract.",
+    "txBuilderVersion": "1.14.1"
+  },
+  "transactions": [
+    {
+      "to": "${TODO_L2OutputOracleProxy}",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "uint256",
+            "name": "_l2OutputIndex",
+            "type": "uint256"
+          }
+        ],
+        "name": "deleteL2Outputs",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "_l2OutputIndex": "${TODO_l2OutputIndex}"
+      }
+    }
+  ]
+}
