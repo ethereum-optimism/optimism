@@ -100,7 +100,7 @@ func (cc *ChannelConfig) Check() error {
 
 func (cc *ChannelConfig) NewCompressor() (derive.Compressor, error) {
 	switch cc.CompressorKind {
-	case flags.CompressorShadow:
+	case flags.ShadowCompressorKind:
 		return NewShadowCompressor(
 			cc.TargetFrameSize,
 			cc.TargetNumFrames,
