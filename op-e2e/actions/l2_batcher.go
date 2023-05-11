@@ -134,7 +134,7 @@ func (s *L2Batcher) Buffer(t Testing) error {
 		if s.l2BatcherCfg.GarbageCfg != nil {
 			ch, err = NewGarbageChannelOut(s.l2BatcherCfg.GarbageCfg)
 		} else {
-			c, e := batcher.NewTargetSizeCompressor(s.l2BatcherCfg.MaxL1TxSize, 1, 1)
+			c, e := batcher.NewRatioCompressor(s.l2BatcherCfg.MaxL1TxSize, 1, 1)
 			require.NoError(t, e, "failed to create compressor")
 			ch, err = derive.NewChannelOut(c)
 		}

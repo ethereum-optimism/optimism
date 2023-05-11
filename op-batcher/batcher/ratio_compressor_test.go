@@ -123,11 +123,11 @@ func TestInputThreshold(t *testing.T) {
 			TargetFrameSize:  tt.input.TargetFrameSize,
 			TargetNumFrames:  tt.input.TargetNumFrames,
 			ApproxComprRatio: tt.input.ApproxComprRatio,
-			CompressorKind:   flags.CompressorTarget,
+			CompressorKind:   flags.RatioCompressorKind,
 		}
 		comp, err := config.NewCompressor()
 		require.NoError(t, err)
-		got := comp.(*batcher.TargetSizeCompressor).InputThreshold()
+		got := comp.(*batcher.RatioCompressor).InputThreshold()
 		tt.assertion(got)
 	}
 }

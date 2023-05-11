@@ -106,7 +106,7 @@ func (cc *ChannelConfig) NewCompressor() (derive.Compressor, error) {
 			cc.TargetNumFrames,
 		)
 	default:
-		return NewTargetSizeCompressor(
+		return NewRatioCompressor(
 			cc.TargetFrameSize,
 			cc.TargetNumFrames,
 			cc.ApproxComprRatio,

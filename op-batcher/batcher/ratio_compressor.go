@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
-type TargetSizeCompressor struct {
+type RatioCompressor struct {
 	// The frame size to target when creating channel frames. Note that if the
 	// realized compression ratio is worse than the approximate, more frames may
 	// actually be created. This also depends on how close TargetFrameSize is to
@@ -27,8 +27,13 @@ type TargetSizeCompressor struct {
 	compress   *zlib.Writer
 }
 
-func NewTargetSizeCompressor(targetFrameSize uint64, targetNumFrames int, approxCompRatio float64) (derive.Compressor, error) {
-	c := &TargetSizeCompressor{
+// NewRatioCompressor creates a new derive.Compressor implementation that uses the target
+// size and a compression ratio parameter to determine how much data can be written to
+// the compressor before it's considered full. The full calculation is as follows:
+//
+//	full = uncompressedLength * approxCompRatio >= targetFrameSize * targetNumFrames
+func NewRatioCompressor(targetFrameSize uint64, targetNumFrames int, approxCompRatio float64) (derive.Compressor, error) {
+	c := &RatioCompressor{
 		TargetFrameSize:  targetFrameSize,
 		TargetNumFrames:  targetNumFrames,
 		ApproxComprRatio: approxCompRatio,
@@ -43,7 +48,7 @@ func NewTargetSizeCompressor(targetFrameSize uint64, targetNumFrames int, approx
 	return c, nil
 }
 
-func (t *TargetSizeCompressor) Write(p []byte) (int, error) {
+func (t *RatioCompressor) Write(p []byte) (int, error) {
 	if err := t.FullErr(); err != nil {
 		return 0, err
 	}
@@ -51,29 +56,29 @@ func (t *TargetSizeCompressor) Write(p []byte) (int, error) {
 	return t.compress.Write(p)
 }
 
-func (t *TargetSizeCompressor) Close() error {
+func (t *RatioCompressor) Close() error {
 	return t.compress.Close()
 }
 
-func (t *TargetSizeCompressor) Read(p []byte) (int, error) {
+func (t *RatioCompressor) Read(p []byte) (int, error) {
 	return t.buf.Read(p)
 }
 
-func (t *TargetSizeCompressor) Reset() {
+func (t *RatioCompressor) Reset() {
 	t.buf.Reset()
 	t.compress.Reset(&t.buf)
 	t.inputBytes = 0
 }
 
-func (t *TargetSizeCompressor) Len() int {
+func (t *RatioCompressor) Len() int {
 	return t.buf.Len()
 }
 
-func (t *TargetSizeCompressor) Flush() error {
+func (t *RatioCompressor) Flush() error {
 	return t.compress.Flush()
 }
 
-func (t *TargetSizeCompressor) FullErr() error {
+func (t *RatioCompressor) FullErr() error {
 	if t.inputTargetReached() {
 		return derive.CompressorFullErr
 	}
@@ -82,12 +87,12 @@ func (t *TargetSizeCompressor) FullErr() error {
 
 // InputThreshold calculates the input data threshold in bytes from the given
 // parameters.
-func (t *TargetSizeCompressor) InputThreshold() uint64 {
+func (t *RatioCompressor) InputThreshold() uint64 {
 	return uint64(float64(t.TargetNumFrames) * float64(t.TargetFrameSize) / t.ApproxComprRatio)
 }
 
 // inputTargetReached says whether the target amount of input data has been
 // reached in this channel builder. No more blocks can be added afterwards.
-func (t *TargetSizeCompressor) inputTargetReached() bool {
+func (t *RatioCompressor) inputTargetReached() bool {
 	return uint64(t.inputBytes) >= t.InputThreshold()
 }

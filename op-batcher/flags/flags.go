@@ -92,7 +92,7 @@ var (
 			flags.EnumString[CompressorKind](CompressorKinds),
 		EnvVar: opservice.PrefixEnvVar(EnvVarPrefix, "COMPRESSOR"),
 		Value: func() *CompressorKind {
-			out := CompressorTarget
+			out := RatioCompressorKind
 			return &out
 		}(),
 	}
@@ -152,13 +152,17 @@ func CheckRequired(ctx *cli.Context) error {
 type CompressorKind string
 
 const (
-	CompressorTarget CompressorKind = "target"
-	CompressorShadow CompressorKind = "shadow"
+	// The RatioCompressorKind kind selects the batcher.RatioCompressor (see
+	// batcher.NewRatioCompressor for a description).
+	RatioCompressorKind CompressorKind = "ratio"
+	// The ShadowCompressorKind kind selects the batcher.ShadowCompressor (see
+	// batcher.NewShadowCompressor for a description).
+	ShadowCompressorKind CompressorKind = "shadow"
 )
 
 var CompressorKinds = []CompressorKind{
-	CompressorTarget,
-	CompressorShadow,
+	RatioCompressorKind,
+	ShadowCompressorKind,
 }
 
 func (kind CompressorKind) String() string {

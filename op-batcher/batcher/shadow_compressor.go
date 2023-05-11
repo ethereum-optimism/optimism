@@ -26,6 +26,13 @@ type ShadowCompressor struct {
 	fullErr error
 }
 
+// NewShadowCompressor creates a new derive.Compressor implementation that contains two
+// compression buffers: one used for size estimation, and one used for the final
+// compressed output. The first is flushed on every write, the second isn't, which means
+// the final compressed data is always slightly smaller than the target. There is one
+// exception to this rule: the first write to the buffer is not checked against the
+// target, which allows individual blocks larger than the target to be included (and will
+// be split across multiple channel frames).
 func NewShadowCompressor(targetFrameSize uint64, targetNumFrames int) (derive.Compressor, error) {
 	c := &ShadowCompressor{
 		TargetFrameSize: targetFrameSize,
