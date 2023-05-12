@@ -40,7 +40,7 @@ func TestCorrectEnvVarPrefix(t *testing.T) {
 		if envVar == "" {
 			t.Errorf("Failed to find EnvVar for flag %v", flag.GetName())
 		}
-		if envVar[:len("OP_CHALLENGER_")] != "OP_CHALLENGER_" {
+		if !strings.HasPrefix(envVar, "OP_CHALLENGER_") {
 			t.Errorf("Flag %v env var (%v) does not start with OP_CHALLENGER_", flag.GetName(), envVar)
 		}
 		if strings.Contains(envVar, "__") {

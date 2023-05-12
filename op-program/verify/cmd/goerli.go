@@ -56,6 +56,7 @@ func Run(l1RpcUrl string, l2RpcUrl string, l2OracleAddr common.Address) error {
 	if err != nil {
 		return fmt.Errorf("get l2 safe head: %w", err)
 	}
+	fmt.Printf("Found L2 finalized head number: %v hash: %v\n", l2FinalizedHead.NumberU64(), l2FinalizedHead.Hash())
 
 	// Find L1 finalized block. Can't be re-orged and must contain all batches for the L2 finalized block
 	l1BlockNum := big.NewInt(int64(rpc.FinalizedBlockNumber))
@@ -63,17 +64,27 @@ func Run(l1RpcUrl string, l2RpcUrl string, l2OracleAddr common.Address) error {
 	if err != nil {
 		return fmt.Errorf("find L1 head: %w", err)
 	}
+	fmt.Printf("Found l1 head block number: %v hash: %v\n", l1HeadBlock.NumberU64(), l1HeadBlock.Hash())
 
 	// Get the most published L2 output from before the finalized block
 	callOpts := &bind.CallOpts{Context: ctx}
 	outputIndex, err := outputOracle.GetL2OutputIndexAfter(callOpts, l2FinalizedHead.Number())
 	if err != nil {
-		return fmt.Errorf("get output index after finalized block: %w", err)
+		fmt.Println("Failed to get output index after finalized block. Checking latest output", "finalized", l2FinalizedHead.Number(), "err", err)
+		outputIndex, err = outputOracle.LatestOutputIndex(callOpts)
+		if err != nil {
+			return fmt.Errorf("get latest output index: %w", err)
+		}
+	} else {
+		outputIndex = outputIndex.Sub(outputIndex, big.NewInt(1))
 	}
-	outputIndex = outputIndex.Sub(outputIndex, big.NewInt(1))
 	output, err := outputOracle.GetL2Output(callOpts, outputIndex)
 	if err != nil {
 		return fmt.Errorf("retrieve latest output: %w", err)
+	}
+	// Check we wound up with an output prior to the finalized block
+	if output.L2BlockNumber.Uint64() > l2FinalizedHead.NumberU64() {
+		return fmt.Errorf("selected output is after finalized head output block: %v, finalized block: %v", output.L2BlockNumber.Uint64(), l2FinalizedHead.NumberU64())
 	}
 
 	l1Head := l1HeadBlock.Hash()
