@@ -71,6 +71,19 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     ResourceMetering.ResourceConfig internal _resourceConfig;
 
     /**
+     * @notice The `attestorSet` is a set of addresses that are allowed to issue positive
+     *         attestations for alternative output proposals in the `AttestationDisputeGame`.
+     */
+    address[] internal _attestorSet;
+
+    /**
+     * @notice The `attestationThreshold` is the number of positive attestations that must be issued
+     *         for a given alternative output proposal in the `AttestationDisputeGame` before it is
+     *         considered to be the canonical output.
+     */
+    uint256 public attestationThreshold;
+
+    /**
      * @notice Emitted when configuration is updated
      *
      * @param version    SystemConfig version.
@@ -80,7 +93,22 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /**
-     * @custom:semver 1.3.0
+     * @notice Emitted when the attestor set is updated.
+     *
+     * @param attestor The address of the attestor.
+     * @param authenticated Whether the attestor is authenticated post-update.
+     */
+    event AttestorSetUpdate(address indexed attestor, bool authenticated);
+
+    /**
+     * @notice Emitted when the attestation threshold is updated.
+     *
+     * @param attestationThreshold The new attestation threshold.
+     */
+    event AttestationThresholdUpdate(uint256 attestationThreshold);
+
+    /**
+     * @custom:semver 1.4.0
      *
      * @param _owner             Initial owner of the contract.
      * @param _overhead          Initial overhead value.
@@ -98,7 +126,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint64 _gasLimit,
         address _unsafeBlockSigner,
         ResourceMetering.ResourceConfig memory _config
-    ) Semver(1, 3, 0) {
+    ) Semver(1, 4, 0) {
         initialize({
             _owner: _owner,
             _overhead: _overhead,
@@ -247,6 +275,15 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     }
 
     /**
+     * @notice A getter for the attestor set.
+     *
+     * @return A list of addresses.
+     */
+    function attestorSet() external view returns (address[] memory) {
+        return _attestorSet;
+    }
+
+    /**
      * @notice An external setter for the resource config. In the future, this
      *         method may emit an event that the `op-node` picks up for when the
      *         resource config is changed.
@@ -293,5 +330,63 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         );
 
         _resourceConfig = _config;
+    }
+
+    /**
+     * @notice An external setter for the `attestorSet` mapping. This method is used to
+     *         authenticate or deauthenticate an attestor in the `AttestationDisputeGame`.
+     *
+     * @param _attestor Address of the attestor to authenticate or deauthenticate.
+     * @param _authenticated True if the attestor should be authenticated, false if the
+     *        attestor should be removed.
+     */
+    function setAttestor(address _attestor, bool _authenticated) external onlyOwner {
+        _setAttestor(_attestor, _authenticated);
+        emit AttestorSetUpdate(_attestor, _authenticated);
+    }
+
+    /**
+     * @notice An internal setter for the attestor set.
+     *
+     * @param _attestor Address of the attestor to authenticate or deauthenticate.
+     * @param _authenticated True if the attestor should be authenticated, false if the
+     *        attestor should be removed.
+
+     */
+    function _setAttestor(address _attestor, bool _authenticated) internal {
+        uint256 len = _attestorSet.length;
+        for (uint256 i = 0; i < len; i++) {
+            if (_attestorSet[i] == _attestor) {
+                if (_authenticated) {
+                    revert("SystemConfig: attestor already authenticated");
+                } else {
+                    // Remove the attestor from the array by swapping it with
+                    // the last attestor and then popping the last element.
+                    _attestorSet[i] = _attestorSet[len - 1];
+                    _attestorSet.pop();
+                    return;
+                }
+            }
+        }
+        if (_authenticated) {
+            _attestorSet.push(_attestor);
+        }
+    }
+
+    /**
+     * @notice An external setter for the `attestationThreshold` variable.
+     *         This method is used to set the number of signatures required
+     *         to invalidate an output proposal in the `AttestationDisputeGame`.
+     *
+     * @param _attestationThreshold The new attestation threshold.
+     */
+    function setAttestationThreshold(uint256 _attestationThreshold) external onlyOwner {
+        require(
+            _attestationThreshold > 0,
+            "SystemConfig: attestation threshold must be greater than 0"
+        );
+
+        attestationThreshold = _attestationThreshold;
+        emit AttestationThresholdUpdate(_attestationThreshold);
     }
 }

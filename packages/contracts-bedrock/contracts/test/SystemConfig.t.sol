@@ -143,6 +143,37 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         vm.expectRevert("SystemConfig: precision loss with target resource limit");
         sysConf.setResourceConfig(config);
     }
+
+    function testFuzz_setAttestor_nonOwner_reverts(address _attestor, bool _authenticated)
+        external
+    {
+        vm.assume(_attestor != sysConf.owner());
+        vm.prank(_attestor);
+        vm.expectRevert("Ownable: caller is not the owner");
+        sysConf.setAttestor(_attestor, _authenticated);
+    }
+
+    function test_setAttestor_alreadyAuthenticated_reverts() external {
+        vm.prank(sysConf.owner());
+        sysConf.setAttestor(address(0x20), true);
+
+        vm.prank(sysConf.owner());
+        vm.expectRevert("SystemConfig: attestor already authenticated");
+        sysConf.setAttestor(address(0x20), true);
+    }
+
+    function testFuzz_setAttestationThreshold_notOwner_reverts(address _caller) external {
+        vm.assume(_caller != sysConf.owner());
+        vm.prank(_caller);
+        vm.expectRevert("Ownable: caller is not the owner");
+        sysConf.setAttestationThreshold(0);
+    }
+
+    function test_setAttestationThreshold_zero_reverts() external {
+        vm.prank(sysConf.owner());
+        vm.expectRevert("SystemConfig: attestation threshold must be greater than 0");
+        sysConf.setAttestationThreshold(0);
+    }
 }
 
 contract SystemConfig_Setters_Test is SystemConfig_Init {
@@ -151,6 +182,10 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         SystemConfig.UpdateType indexed updateType,
         bytes data
     );
+
+    event AttestorSetUpdate(address indexed attestor, bool authenticated);
+
+    event AttestationThresholdUpdate(uint256 attestationThreshold);
 
     function testFuzz_setBatcherHash_succeeds(bytes32 newBatcherHash) external {
         vm.expectEmit(true, true, true, true);
@@ -200,5 +235,48 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         vm.prank(sysConf.owner());
         sysConf.setUnsafeBlockSigner(newUnsafeSigner);
         assertEq(sysConf.unsafeBlockSigner(), newUnsafeSigner);
+    }
+
+    function test_setAttestor_popSwap_succeeds() external {
+        // Create a set of attestors
+        vm.startPrank(sysConf.owner());
+        sysConf.setAttestor(address(0x20), true);
+        sysConf.setAttestor(address(0x21), true);
+        sysConf.setAttestor(address(0x22), true);
+        vm.stopPrank();
+
+        // Remove the first attestor
+        vm.prank(sysConf.owner());
+        sysConf.setAttestor(address(0x20), false);
+
+        // Validate the pop swap
+        address[] memory attestorSet = sysConf.attestorSet();
+        assertEq(attestorSet[0], address(0x22));
+        assertEq(attestorSet[1], address(0x21));
+    }
+
+    function testFuzz_setAttestor_succeeds(address _attestor, bool _authenticated) external {
+        address[] memory cachedAttestors = sysConf.attestorSet();
+        uint256 len = cachedAttestors.length;
+        for (uint256 i = 0; i < len; i++) {
+            if (cachedAttestors[i] == _attestor) {
+                if (_authenticated) {
+                    vm.expectRevert("SystemConfig: attestor already authenticated");
+                } else {
+                    vm.expectEmit(true, true, true, true);
+                    emit AttestorSetUpdate(_attestor, false);
+                }
+            }
+        }
+        vm.prank(sysConf.owner());
+        sysConf.setAttestor(_attestor, _authenticated);
+    }
+
+    function testFuzz_setAttestationThreshold_succeeds(uint256 _attestationThreshold) external {
+        vm.assume(_attestationThreshold > 0);
+        vm.expectEmit(true, true, true, true);
+        emit AttestationThresholdUpdate(_attestationThreshold);
+        vm.prank(sysConf.owner());
+        sysConf.setAttestationThreshold(_attestationThreshold);
     }
 }
