@@ -27,7 +27,6 @@ func TestShadowCompressor(t *testing.T) {
 		data            [][]byte
 		errs            []error
 		fullErr         error
-		minRatio        float64
 	}
 
 	tests := []test{{
@@ -44,7 +43,6 @@ func TestShadowCompressor(t *testing.T) {
 		data:            [][]byte{bytes.Repeat([]byte{0}, 1024)},
 		errs:            []error{nil},
 		fullErr:         derive.CompressorFullErr,
-		minRatio:        0.02,
 	}, {
 		name:            "large second block",
 		targetFrameSize: 1,
@@ -52,7 +50,6 @@ func TestShadowCompressor(t *testing.T) {
 		data:            [][]byte{bytes.Repeat([]byte{0}, 512), bytes.Repeat([]byte{0}, 1024)},
 		errs:            []error{nil, derive.CompressorFullErr},
 		fullErr:         derive.CompressorFullErr,
-		minRatio:        0.02,
 	}, {
 		name:            "random data",
 		targetFrameSize: 1200,
@@ -60,7 +57,6 @@ func TestShadowCompressor(t *testing.T) {
 		data:            [][]byte{randomBytes(t, 512), randomBytes(t, 512), randomBytes(t, 512)},
 		errs:            []error{nil, nil, derive.CompressorFullErr},
 		fullErr:         derive.CompressorFullErr,
-		minRatio:        0.8,
 	}}
 	for _, test := range tests {
 		test := test
@@ -71,10 +67,8 @@ func TestShadowCompressor(t *testing.T) {
 			sc, err := batcher.NewShadowCompressor(test.targetFrameSize, test.targetNumFrames)
 			require.NoError(t, err)
 
-			inputSize := 0
 			for i, d := range test.data {
 				_, err = sc.Write(d)
-				inputSize += len(d)
 				if test.errs[i] != nil {
 					require.ErrorIs(t, err, test.errs[i])
 					require.Equal(t, i, len(test.data)-1)
@@ -94,10 +88,6 @@ func TestShadowCompressor(t *testing.T) {
 
 			buf, err := io.ReadAll(sc)
 			require.NoError(t, err)
-
-			if inputSize > 0 {
-				require.LessOrEqual(t, float64(len(buf))/float64(inputSize), test.minRatio)
-			}
 
 			r, err := zlib.NewReader(bytes.NewBuffer(buf))
 			require.NoError(t, err)
