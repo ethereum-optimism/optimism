@@ -1,7 +1,7 @@
 package compressor
 
 import (
-	"fmt"
+	"strings"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/urfave/cli"
@@ -11,7 +11,7 @@ const (
 	TargetL1TxSizeBytesFlagName = "target-l1-tx-size-bytes"
 	TargetNumFramesFlagName     = "target-num-frames"
 	ApproxComprRatioFlagName    = "approx-compr-ratio"
-	TypeFlagName                = "compressor"
+	KindFlagName                = "compressor"
 )
 
 func CLIFlags(envPrefix string) []cli.Flag {
@@ -35,40 +35,44 @@ func CLIFlags(envPrefix string) []cli.Flag {
 			EnvVar: opservice.PrefixEnvVar(envPrefix, "APPROX_COMPR_RATIO"),
 		},
 		cli.StringFlag{
-			Name:   TypeFlagName,
-			Usage:  "The type of compressor. Valid options: " + FactoryFlags(),
+			Name:   KindFlagName,
+			Usage:  "The type of compressor. Valid options: " + strings.Join(KindKeys, ", "),
 			EnvVar: opservice.PrefixEnvVar(envPrefix, "COMPRESSOR"),
-			Value:  Ratio.FlagValue,
+			Value:  RatioKind,
 		},
 	}
 }
 
 type CLIConfig struct {
-	Type   string
-	Config Config
+	// TargetL1TxSizeBytes to target when creating channel frames. Note that if the
+	// realized compression ratio is worse than the approximate, more frames may
+	// actually be created. This also depends on how close the target is to the
+	// max frame size.
+	TargetL1TxSizeBytes uint64
+	// TargetNumFrames to create in this channel. If the realized compression ratio
+	// is worse than approxComprRatio, additional leftover frame(s) might get created.
+	TargetNumFrames int
+	// ApproxComprRatio to assume. Should be slightly smaller than average from
+	// experiments to avoid the chances of creating a small additional leftover frame.
+	ApproxComprRatio float64
+	// Type of compressor to use. Must be one of KindKeys.
+	Kind string
 }
 
-func (c *CLIConfig) Check() error {
-	_, err := c.Factory()
-	return err
-}
-
-func (c *CLIConfig) Factory() (FactoryFunc, error) {
-	for _, f := range Factories {
-		if f.FlagValue == c.Type {
-			return f.FactoryFunc, nil
-		}
+func (c *CLIConfig) Config() Config {
+	return Config{
+		TargetFrameSize:  c.TargetL1TxSizeBytes - 1, // subtract 1 byte for version
+		TargetNumFrames:  c.TargetNumFrames,
+		ApproxComprRatio: c.ApproxComprRatio,
+		Kind:             c.Kind,
 	}
-	return nil, fmt.Errorf("unknown compressor kind: %q", c.Type)
 }
 
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
-		Type: ctx.GlobalString(TypeFlagName),
-		Config: Config{
-			TargetFrameSize:  ctx.GlobalUint64(TargetL1TxSizeBytesFlagName) - 1, // subtract 1 byte for version,
-			TargetNumFrames:  ctx.GlobalInt(TargetNumFramesFlagName),
-			ApproxComprRatio: ctx.GlobalFloat64(ApproxComprRatioFlagName),
-		},
+		Kind:                ctx.GlobalString(KindFlagName),
+		TargetL1TxSizeBytes: ctx.GlobalUint64(TargetL1TxSizeBytesFlagName),
+		TargetNumFrames:     ctx.GlobalInt(TargetNumFramesFlagName),
+		ApproxComprRatio:    ctx.GlobalFloat64(ApproxComprRatioFlagName),
 	}
 }

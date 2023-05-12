@@ -337,12 +337,9 @@ func TestMigration(t *testing.T) {
 		MaxChannelDuration: 1,
 		MaxL1TxSize:        120_000,
 		CompressorConfig: compressor.CLIConfig{
-			Type: compressor.Ratio.FlagValue,
-			Config: compressor.Config{
-				TargetFrameSize:  100_000 - 1,
-				TargetNumFrames:  1,
-				ApproxComprRatio: 0.4,
-			},
+			TargetL1TxSizeBytes: 100_000,
+			TargetNumFrames:     1,
+			ApproxComprRatio:    0.4,
 		},
 		SubSafetyMargin: 4,
 		PollInterval:    50 * time.Millisecond,

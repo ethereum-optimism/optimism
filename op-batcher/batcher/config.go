@@ -111,9 +111,6 @@ func (c CLIConfig) Check() error {
 	if err := c.TxMgrConfig.Check(); err != nil {
 		return err
 	}
-	if err := c.CompressorConfig.Check(); err != nil {
-		return err
-	}
 	return nil
 }
 

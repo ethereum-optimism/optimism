@@ -58,8 +58,6 @@ type ChannelConfig struct {
 
 	// CompressorConfig contains the configuration for creating new compressors.
 	CompressorConfig compressor.Config
-	// CompressorFactory creates new compressors.
-	CompressorFactory compressor.FactoryFunc
 }
 
 // Check validates the [ChannelConfig] parameters.
@@ -128,7 +126,7 @@ type channelBuilder struct {
 // newChannelBuilder creates a new channel builder or returns an error if the
 // channel out could not be created.
 func newChannelBuilder(cfg ChannelConfig) (*channelBuilder, error) {
-	c, err := cfg.CompressorFactory(cfg.CompressorConfig)
+	c, err := cfg.CompressorConfig.NewCompressor()
 	if err != nil {
 		return nil, err
 	}

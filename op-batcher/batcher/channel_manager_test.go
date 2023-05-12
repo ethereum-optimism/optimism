@@ -104,7 +104,6 @@ func TestChannelManagerReturnsErrReorgWhenDrained(t *testing.T) {
 				TargetFrameSize:  0,
 				ApproxComprRatio: 1.0,
 			},
-			CompressorFactory: compressor.NewRatioCompressor,
 		})
 
 	a := newMiniL2Block(0)
@@ -180,7 +179,6 @@ func TestChannelManager_Clear(t *testing.T) {
 			TargetNumFrames:  1,
 			ApproxComprRatio: 1.0,
 		},
-		CompressorFactory: compressor.NewRatioCompressor,
 	})
 
 	// Channel Manager state should be empty by default
@@ -344,7 +342,6 @@ func TestChannelManager_TxResend(t *testing.T) {
 				TargetFrameSize:  0,
 				ApproxComprRatio: 1.0,
 			},
-			CompressorFactory: compressor.NewRatioCompressor,
 		})
 
 	a, _ := derivetest.RandomL2Block(rng, 4)
@@ -389,7 +386,6 @@ func TestChannelManagerCloseBeforeFirstUse(t *testing.T) {
 				TargetFrameSize:  0,
 				ApproxComprRatio: 1.0,
 			},
-			CompressorFactory: compressor.NewRatioCompressor,
 		})
 
 	a, _ := derivetest.RandomL2Block(rng, 4)
@@ -418,7 +414,6 @@ func TestChannelManagerCloseNoPendingChannel(t *testing.T) {
 				TargetNumFrames:  1,
 				ApproxComprRatio: 1.0,
 			},
-			CompressorFactory: compressor.NewRatioCompressor,
 		})
 	a := newMiniL2Block(0)
 	b := newMiniL2BlockWithNumberParent(0, big.NewInt(1), a.Hash())
@@ -458,7 +453,6 @@ func TestChannelManagerClosePendingChannel(t *testing.T) {
 				TargetFrameSize:  1000,
 				ApproxComprRatio: 1.0,
 			},
-			CompressorFactory: compressor.NewRatioCompressor,
 		})
 
 	a := newMiniL2Block(50_000)
@@ -504,7 +498,6 @@ func TestChannelManagerCloseAllTxsFailed(t *testing.T) {
 				TargetFrameSize:  1000,
 				ApproxComprRatio: 1.0,
 			},
-			CompressorFactory: compressor.NewRatioCompressor,
 		})
 
 	a := newMiniL2Block(50_000)

@@ -34,7 +34,6 @@ var defaultTestChannelConfig = ChannelConfig{
 		TargetNumFrames:  1,
 		ApproxComprRatio: 0.4,
 	},
-	CompressorFactory: compressor.NewRatioCompressor,
 }
 
 // TestChannelConfig_Check tests the [ChannelConfig] [Check] function.
@@ -420,7 +419,7 @@ func TestChannelBuilder_OutputWrongFramePanic(t *testing.T) {
 
 	// Mock the internals of `channelBuilder.outputFrame`
 	// to construct a single frame
-	c, err := channelConfig.CompressorFactory(channelConfig.CompressorConfig)
+	c, err := channelConfig.CompressorConfig.NewCompressor()
 	require.NoError(t, err)
 	co, err := derive.NewChannelOut(c)
 	require.NoError(t, err)
