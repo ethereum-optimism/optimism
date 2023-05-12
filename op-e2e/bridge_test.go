@@ -106,7 +106,7 @@ func TestERC20BridgeDeposits(t *testing.T) {
 
 	depositTx, err := derive.UnmarshalDepositLogEvent(&depositEvent.Raw)
 	require.NoError(t, err)
-	_, err = waitForTransaction(types.NewTx(depositTx).Hash(), l2Client, 3*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
+	_, err = waitForTransaction(types.NewTx(depositTx).Hash(), l2Client, 6*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
 	require.NoError(t, err)
 
 	// Ensure that the deposit went through

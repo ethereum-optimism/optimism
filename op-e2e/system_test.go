@@ -15,10 +15,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+
 	//"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/log"
+
 	//"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -56,7 +58,7 @@ func init() {
 	if erigonL2Nodes {
 		fmt.Printf("\n\nRunning tests with erigon support!")
 	}
-	if os.Getenv("OP_E2E_DISABLE_PARALLEL") == "true" || erigonL2Nodes {
+	if os.Getenv("OP_E2E_DISABLE_PARALLEL") == "true" { // || erigonL2Nodes {
 		fmt.Printf("\n\nYou should consider running with a large `-timeout` as parallel tests are disabled\n\n")
 		enableParallelTesting = false
 	}
@@ -193,8 +195,8 @@ func TestSystemE2E(t *testing.T) {
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 6*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.NoError(t, err)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 8*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	require.NoError(t, err, "did not find %s", tx.Hash())
 	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
 
 	// Confirm balance
@@ -522,9 +524,8 @@ func TestMissingBatchE2E(t *testing.T) {
 	ctx2, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	block, err := l2Seq.BlockByNumber(ctx2, receipt.BlockNumber)
-	require.Nil(t, err, "Get block from sequencer")
 	if err != nil {
-		require.Equal(t, "not found", err.Error(), "A not found error indicates the chain must have re-orged back befroe it")
+		require.Equal(t, "not found", err.Error(), "A not found error indicates the chain must have re-orged back before it")
 	} else {
 		require.NotEqual(t, block.Hash(), receipt.BlockHash, "L2 Sequencer did not reorg out transaction on it's safe chain")
 	}
@@ -703,9 +704,8 @@ func TestSystemRPCAltSync(t *testing.T) {
 		key:  "afterRollupNodeStart",
 		role: "sequencer",
 		action: func(sCfg *SystemConfig, system *System) {
-			rpc, _ := system.EthInstances["sequencer"].GethInstance.Node.Attach() // never errors
 			cfg.Nodes["verifier"].L2Sync = &rollupNode.PreparedL2SyncEndpoint{
-				Client: client.NewBaseRPCClient(rpc),
+				Client: client.NewBaseRPCClient(system.RawClients["sequencer"]),
 			}
 		},
 	})

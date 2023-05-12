@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -96,7 +95,7 @@ func (er *ErigonRunner) Run(t *testing.T) ErigonInstance {
 		"--chain", "dev",
 		"--datadir", er.DataDir,
 		"--log.console.verbosity", "dbug",
-		"--externalcl",
+		// "--internalcl", "false",
 		"--ws",
 		"--mine",
 		// "--miner.etherbase=0x123463a4B065722E99115D6c222f267d9cABb524",
@@ -109,13 +108,7 @@ func (er *ErigonRunner) Run(t *testing.T) ErigonInstance {
 		"--allow-insecure-unlock",
 		"--authrpc.addr=127.0.0.1",
 		"--nat", "none",
-		"--p2p.allowed-ports", func() string {
-			res := make([]string, 1000)
-			for i := range res {
-				res[i] = strconv.Itoa(i + 30000)
-			}
-			return strings.Join(res, ", ")
-		}(),
+		"--p2p.allowed-ports", "0",
 		"--authrpc.port=0",
 		"--authrpc.vhosts=*",
 		"--authrpc.jwtsecret", er.JWTPath,
