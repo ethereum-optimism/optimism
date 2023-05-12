@@ -4,6 +4,7 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
@@ -260,6 +261,62 @@ var (
 	}, []string{
 		"backend_name",
 	})
+
+	consensusGroupCount = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_count",
+		Help:      "Consensus group serving traffic count",
+	}, []string{
+		"backend_group_name",
+	})
+
+	consensusGroupFilteredCount = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_filtered_count",
+		Help:      "Consensus group filtered out from serving traffic count",
+	}, []string{
+		"backend_group_name",
+	})
+
+	consensusGroupTotalCount = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_total_count",
+		Help:      "Total count of candidates to be part of consensus group",
+	}, []string{
+		"backend_group_name",
+	})
+
+	consensusBannedBackends = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "consensus_backend_banned",
+		Help:      "Bool gauge for banned backends",
+	}, []string{
+		"backend_name",
+	})
+
+	consensusPeerCountBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "consensus_backend_peer_count",
+		Help:      "Peer count",
+	}, []string{
+		"backend_name",
+	})
+
+	consensusInSyncBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "consensus_backend_in_sync",
+		Help:      "Bool gauge for backends in sync",
+	}, []string{
+		"backend_name",
+	})
+
+	consensusUpdateDelayBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "consensus_backend_update_delay",
+		Help:      "Delay (ms) for backend update",
+	}, []string{
+		"backend_name",
+	})
 )
 
 func RecordRedisError(source string) {
@@ -321,10 +378,46 @@ func RecordBatchSize(size int) {
 	batchSizeHistogram.Observe(float64(size))
 }
 
+func RecordGroupConsensusLatestBlock(group *BackendGroup, blockNumber hexutil.Uint64) {
+	consensusLatestBlock.WithLabelValues(group.Name).Set(float64(blockNumber))
+}
+
+func RecordGroupConsensusCount(group *BackendGroup, count int) {
+	consensusGroupCount.WithLabelValues(group.Name).Set(float64(count))
+}
+
+func RecordGroupConsensusFilteredCount(group *BackendGroup, count int) {
+	consensusGroupFilteredCount.WithLabelValues(group.Name).Set(float64(count))
+}
+
+func RecordGroupTotalCount(group *BackendGroup, count int) {
+	consensusGroupTotalCount.WithLabelValues(group.Name).Set(float64(count))
+}
+
 func RecordBackendLatestBlock(be *Backend, blockNumber hexutil.Uint64) {
 	backendLatestBlockBackend.WithLabelValues(be.Name).Set(float64(blockNumber))
 }
 
-func RecordGroupConsensusLatestBlock(group *BackendGroup, blockNumber hexutil.Uint64) {
-	consensusLatestBlock.WithLabelValues(group.Name).Set(float64(blockNumber))
+func RecordConsensusBackendBanned(be *Backend, banned bool) {
+	v := float64(0)
+	if banned {
+		v = float64(1)
+	}
+	consensusBannedBackends.WithLabelValues(be.Name).Set(v)
+}
+
+func RecordConsensusBackendPeerCount(be *Backend, peerCount uint64) {
+	consensusPeerCountBackend.WithLabelValues(be.Name).Set(float64(peerCount))
+}
+
+func RecordConsensusBackendInSync(be *Backend, inSync bool) {
+	v := float64(0)
+	if inSync {
+		v = float64(1)
+	}
+	consensusInSyncBackend.WithLabelValues(be.Name).Set(v)
+}
+
+func RecordConsensusBackendUpdateDelay(be *Backend, delay time.Duration) {
+	consensusUpdateDelayBackend.WithLabelValues(be.Name).Set(float64(delay.Milliseconds()))
 }

@@ -2,111 +2,26 @@ package challenger
 
 import (
 	"context"
-	"fmt"
 	_ "net/http/pprof"
-	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli"
+	abi "github.com/ethereum/go-ethereum/accounts/abi"
+	bind "github.com/ethereum/go-ethereum/accounts/abi/bind"
+	common "github.com/ethereum/go-ethereum/common"
+	ethclient "github.com/ethereum/go-ethereum/ethclient"
+	log "github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
-	opservice "github.com/ethereum-optimism/optimism/op-service"
+	config "github.com/ethereum-optimism/optimism/op-challenger/config"
+	metrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
+
+	bindings "github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	sources "github.com/ethereum-optimism/optimism/op-node/sources"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	txmgr "github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
-// Main is the entrypoint into the Challenger. This method executes the
-// service and blocks until the service exits.
-func Main(version string, cliCtx *cli.Context) error {
-	cfg := NewConfig(cliCtx)
-	if err := cfg.Check(); err != nil {
-		return fmt.Errorf("invalid CLI flags: %w", err)
-	}
-
-	l := oplog.NewLogger(cfg.LogConfig)
-	m := metrics.NewMetrics("default")
-	l.Info("Initializing Challenger")
-
-	challengerConfig, err := NewChallengerConfigFromCLIConfig(cfg, l, m)
-	if err != nil {
-		l.Error("Unable to create the Challenger", "error", err)
-		return err
-	}
-
-	challenger, err := NewChallenger(*challengerConfig, l, m)
-	if err != nil {
-		l.Error("Unable to create the Challenger", "error", err)
-		return err
-	}
-
-	l.Info("Starting Challenger")
-	ctx, cancel := context.WithCancel(context.Background())
-	if err := challenger.Start(); err != nil {
-		cancel()
-		l.Error("Unable to start Challenger", "error", err)
-		return err
-	}
-	defer challenger.Stop()
-
-	l.Info("Challenger started")
-	pprofConfig := cfg.PprofConfig
-	if pprofConfig.Enabled {
-		l.Info("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
-		go func() {
-			if err := oppprof.ListenAndServe(ctx, pprofConfig.ListenAddr, pprofConfig.ListenPort); err != nil {
-				l.Error("error starting pprof", "err", err)
-			}
-		}()
-	}
-
-	metricsCfg := cfg.MetricsConfig
-	if metricsCfg.Enabled {
-		l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
-		go func() {
-			if err := m.Serve(ctx, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
-				l.Error("error starting metrics server", err)
-			}
-		}()
-		m.StartBalanceMetrics(ctx, l, challengerConfig.L1Client, challengerConfig.TxManager.From())
-	}
-
-	rpcCfg := cfg.RPCConfig
-	server := oprpc.NewServer(rpcCfg.ListenAddr, rpcCfg.ListenPort, version, oprpc.WithLogger(l))
-	if err := server.Start(); err != nil {
-		cancel()
-		return fmt.Errorf("error starting RPC server: %w", err)
-	}
-
-	m.RecordInfo(version)
-	m.RecordUp()
-
-	interruptChannel := make(chan os.Signal, 1)
-	signal.Notify(interruptChannel, []os.Signal{
-		os.Interrupt,
-		os.Kill,
-		syscall.SIGTERM,
-		syscall.SIGQUIT,
-	}...)
-	<-interruptChannel
-	cancel()
-
-	return nil
-}
-
-// challenger contests invalid L2OutputOracle outputs
+// Challenger contests invalid L2OutputOracle outputs
 type Challenger struct {
 	txMgr txmgr.TxManager
 	wg    sync.WaitGroup
@@ -128,7 +43,6 @@ type Challenger struct {
 	l2ooABI          *abi.ABI
 
 	// dispute game factory contract
-	// TODO(@refcell): add a binding for this contract
 	// dgfContract     *bindings.DisputeGameFactoryCaller
 	dgfContractAddr common.Address
 	// dgfABI          *abi.ABI
@@ -136,59 +50,30 @@ type Challenger struct {
 	networkTimeout time.Duration
 }
 
-// NewChallengerFromCLIConfig creates a new challenger given the CLI Config
-func NewChallengerFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*Challenger, error) {
-	challengerConfig, err := NewChallengerConfigFromCLIConfig(cfg, l, m)
-	if err != nil {
-		return nil, err
-	}
-	return NewChallenger(*challengerConfig, l, m)
-}
+// NewChallenger creates a new Challenger
+func NewChallenger(cfg config.Config, l log.Logger, m metrics.Metricer) (*Challenger, error) {
+	ctx, cancel := context.WithCancel(context.Background())
 
-// NewChallengerConfigFromCLIConfig creates the challenger config from the CLI config.
-func NewChallengerConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*Config, error) {
-	l2ooAddress, err := opservice.ParseAddress(cfg.L2OOAddress)
+	txManager, err := txmgr.NewSimpleTxManager("challenger", l, m, *cfg.TxMgrConfig)
 	if err != nil {
-		return nil, err
-	}
-
-	dgfAddress, err := opservice.ParseAddress(cfg.DGFAddress)
-	if err != nil {
-		return nil, err
-	}
-
-	txManager, err := txmgr.NewSimpleTxManager("challenger", l, m, cfg.TxMgrConfig)
-	if err != nil {
+		cancel()
 		return nil, err
 	}
 
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
-	ctx := context.Background()
 	l1Client, err := opclient.DialEthClientWithTimeout(ctx, cfg.L1EthRpc, opclient.DefaultDialTimeout)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
 	rollupClient, err := opclient.DialRollupClientWithTimeout(ctx, cfg.RollupRpc, opclient.DefaultDialTimeout)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
-	return &Config{
-		L2OutputOracleAddr: l2ooAddress,
-		DisputeGameFactory: dgfAddress,
-		NetworkTimeout:     cfg.TxMgrConfig.NetworkTimeout,
-		L1Client:           l1Client,
-		RollupClient:       rollupClient,
-		TxManager:          txManager,
-	}, nil
-}
-
-// NewChallenger creates a new Challenger
-func NewChallenger(cfg Config, l log.Logger, m metrics.Metricer) (*Challenger, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-
-	l2ooContract, err := bindings.NewL2OutputOracleCaller(cfg.L2OutputOracleAddr, cfg.L1Client)
+	l2ooContract, err := bindings.NewL2OutputOracleCaller(cfg.L2OOAddress, l1Client)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -201,7 +86,7 @@ func NewChallenger(cfg Config, l log.Logger, m metrics.Metricer) (*Challenger, e
 		cancel()
 		return nil, err
 	}
-	log.Info("Connected to L2OutputOracle", "address", cfg.L2OutputOracleAddr, "version", version)
+	l.Info("Connected to L2OutputOracle", "address", cfg.L2OOAddress, "version", version)
 
 	parsed, err := bindings.L2OutputOracleMetaData.GetAbi()
 	if err != nil {
@@ -210,7 +95,7 @@ func NewChallenger(cfg Config, l log.Logger, m metrics.Metricer) (*Challenger, e
 	}
 
 	return &Challenger{
-		txMgr: cfg.TxManager,
+		txMgr: txManager,
 		done:  make(chan struct{}),
 
 		log:  l,
@@ -219,15 +104,15 @@ func NewChallenger(cfg Config, l log.Logger, m metrics.Metricer) (*Challenger, e
 		ctx:    ctx,
 		cancel: cancel,
 
-		rollupClient: cfg.RollupClient,
+		rollupClient: rollupClient,
 
-		l1Client: cfg.L1Client,
+		l1Client: l1Client,
 
 		l2ooContract:     l2ooContract,
-		l2ooContractAddr: cfg.L2OutputOracleAddr,
+		l2ooContractAddr: cfg.L2OOAddress,
 		l2ooABI:          parsed,
 
-		dgfContractAddr: cfg.DisputeGameFactory,
+		dgfContractAddr: cfg.DGFAddress,
 
 		networkTimeout: cfg.NetworkTimeout,
 	}, nil

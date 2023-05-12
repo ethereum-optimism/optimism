@@ -105,6 +105,7 @@ type BackendGroupConfig struct {
 
 	ConsensusBanPeriod          TOMLDuration `toml:"consensus_ban_period"`
 	ConsensusMaxUpdateThreshold TOMLDuration `toml:"consensus_max_update_threshold"`
+	ConsensusMaxBlockLag        uint64       `toml:"consensus_max_block_lag"`
 	ConsensusMinPeerCount       int          `toml:"consensus_min_peer_count"`
 }
 
