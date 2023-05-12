@@ -23,8 +23,7 @@ contract L2OutputOracle_Proposer {
         uint256 _l1BlockNumber
     ) external {
         // Act as the proposer and propose a new output.
-        vm.prank(oracle.PROPOSER());
-        oracle.proposeL2Output(_outputRoot, _l2BlockNumber, _l1BlockHash, _l1BlockNumber);
+        oracle.proposeL2Output{ value: 1 ether }(_outputRoot, _l2BlockNumber, _l1BlockHash, _l1BlockNumber);
     }
 }
 

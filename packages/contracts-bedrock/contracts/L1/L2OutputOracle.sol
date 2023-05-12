@@ -32,16 +32,6 @@ contract L2OutputOracle is Initializable, Semver {
     uint256 public immutable L2_BLOCK_TIME;
 
     /**
-     * @notice The address of the challenger. Can be updated via upgrade.
-     */
-    address public immutable CHALLENGER;
-
-    /**
-     * @notice The address of the proposer. Can be updated via upgrade.
-     */
-    address public immutable PROPOSER;
-
-    /**
      * @notice Minimum time (in seconds) that must elapse before a withdrawal can be finalized.
      */
     uint256 public immutable FINALIZATION_PERIOD_SECONDS;
@@ -113,7 +103,6 @@ contract L2OutputOracle is Initializable, Semver {
      * @param _disputeGameFactory           The dispute game factory to validate dispute game calls.
      */
     constructor(
-        uint256 _submissionInterval,
         uint256 _l2BlockTime,
         uint256 _startingBlockNumber,
         uint256 _startingTimestamp,
@@ -189,7 +178,7 @@ contract L2OutputOracle is Initializable, Semver {
         delete l2Outputs[index - 1];
 
         uint256 l2OutputsLength = l2Outputs.length;
-        emit OutputsDeleted(prevNextL2OutputIndex, _l2OutputIndex);
+        emit OutputsDeleted(l2OutputsLength, l2OutputsLength);
     }
 
     /**
@@ -240,12 +229,11 @@ contract L2OutputOracle is Initializable, Semver {
         }
 
         // Post the bond to the bond manager
-        BOND_MANAGER.post{ value: msg.value }(
-            keccak256(abi.encode(_l2BlockNumber)),
-            msg.sender,
-            uint256(10 days)
-        );
-
+        BOND_MANAGER.post{ value: msg.value }({
+           _bondId: bytes32(abi.encode(_l2BlockNumber)),
+           _bondOwner: msg.sender,
+           _minClaimHold: FINALIZATION_PERIOD_SECONDS
+        });
 
         l2Outputs.push(
             Types.OutputProposal({
@@ -289,9 +277,7 @@ contract L2OutputOracle is Initializable, Semver {
         returns (Types.OutputProposal memory)
     {
         uint256 index = l2OutputIndices[_l2BlockNumber];
-        if (index == 0) {
-            return Types.OutputProposal({ outputRoot: bytes32(0), timestamp: 0, l2BlockNumber: 0 });
-        }
+        require(index != 0, "L2OutputOracle: No output exists for the given L2 block number.");
         return l2Outputs[index - 1];
     }
 

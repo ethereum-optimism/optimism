@@ -32,6 +32,11 @@ import { SystemConfig } from "../L1/SystemConfig.sol";
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
 import { Constants } from "../libraries/Constants.sol";
 
+import { BondManager } from "../dispute/BondManager.sol";
+import { IBondManager } from "../dispute/IBondManager.sol";
+import { DisputeGameFactory } from "../dispute/DisputeGameFactory.sol";
+import { IDisputeGameFactory } from "../dispute/IDisputeGameFactory.sol";
+
 contract CommonTest is Test {
     address alice = address(128);
     address bob = address(256);
@@ -92,17 +97,19 @@ contract L2OutputOracle_Initializer is CommonTest {
     // Test target
     L2OutputOracle oracle;
     L2OutputOracle oracleImpl;
+    BondManager bondManager;
+    DisputeGameFactory disputeGameFactory;
 
     L2ToL1MessagePasser messagePasser =
         L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
 
     // Constructor arguments
-    address internal proposer = 0x000000000000000000000000000000000000AbBa;
     address internal owner = 0x000000000000000000000000000000000000ACDC;
-    uint256 internal submissionInterval = 1800;
     uint256 internal l2BlockTime = 2;
     uint256 internal startingBlockNumber = 200;
-    uint256 internal startingTimestamp = 1000;
+    uint256 internal startingTimestamp = 0;
+    uint256 internal minimumProposalCost = 1 ether;
+    uint256 internal finalizationPeriodSeconds = 7 days;
     address guardian;
 
     // Test data
@@ -126,6 +133,9 @@ contract L2OutputOracle_Initializer is CommonTest {
         super.setUp();
         guardian = makeAddr("guardian");
 
+        disputeGameFactory = new DisputeGameFactory(address(guardian));
+        bondManager = new BondManager(disputeGameFactory);
+
         // By default the first block has timestamp and number zero, which will cause underflows in the
         // tests, so we'll move forward to these block values.
         initL1Time = startingTimestamp + 1;
@@ -133,13 +143,12 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.roll(startingBlockNumber);
         // Deploy the L2OutputOracle and transfer owernship to the proposer
         oracleImpl = new L2OutputOracle({
-            _submissionInterval: submissionInterval,
             _l2BlockTime: l2BlockTime,
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: startingTimestamp,
-            _proposer: proposer,
-            _challenger: owner,
-            _finalizationPeriodSeconds: 7 days
+            _finalizationPeriodSeconds: finalizationPeriodSeconds,
+            _bondManager: IBondManager(address(bondManager)),
+            _disputeGameFactory: IDisputeGameFactory(address(disputeGameFactory))
         });
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
