@@ -1,4 +1,4 @@
-package batcher
+package compressor
 
 import (
 	"bytes"
@@ -8,14 +8,7 @@ import (
 )
 
 type ShadowCompressor struct {
-	// The frame size to target when creating channel frames. When adding new
-	// data to the shadow compressor causes the buffer size to be greater than
-	// the target size, the compressor is marked as full.
-	TargetFrameSize uint64
-	// The target number of frames to create in this channel. If the realized
-	// compression ratio is worse than approxComprRatio, additional leftover
-	// frame(s) might get created.
-	TargetNumFrames int
+	config Config
 
 	buf      bytes.Buffer
 	compress *zlib.Writer
@@ -33,10 +26,9 @@ type ShadowCompressor struct {
 // exception to this rule: the first write to the buffer is not checked against the
 // target, which allows individual blocks larger than the target to be included (and will
 // be split across multiple channel frames).
-func NewShadowCompressor(targetFrameSize uint64, targetNumFrames int) (derive.Compressor, error) {
+func NewShadowCompressor(config Config) (derive.Compressor, error) {
 	c := &ShadowCompressor{
-		TargetFrameSize: targetFrameSize,
-		TargetNumFrames: targetNumFrames,
+		config: config,
 	}
 
 	var err error
@@ -61,7 +53,7 @@ func (t *ShadowCompressor) Write(p []byte) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	if uint64(t.shadowBuf.Len()) > t.TargetFrameSize*uint64(t.TargetNumFrames) {
+	if uint64(t.shadowBuf.Len()) > t.config.TargetFrameSize*uint64(t.config.TargetNumFrames) {
 		t.fullErr = derive.CompressorFullErr
 		if t.Len() > 0 {
 			// only return an error if we've already written data to this compressor before

@@ -1,4 +1,4 @@
-package batcher
+package compressor
 
 import (
 	"bytes"
@@ -8,19 +8,7 @@ import (
 )
 
 type RatioCompressor struct {
-	// The frame size to target when creating channel frames. Note that if the
-	// realized compression ratio is worse than the approximate, more frames may
-	// actually be created. This also depends on how close TargetFrameSize is to
-	// MaxFrameSize.
-	TargetFrameSize uint64
-	// The target number of frames to create in this channel. If the realized
-	// compression ratio is worse than approxComprRatio, additional leftover
-	// frame(s) might get created.
-	TargetNumFrames int
-	// Approximated compression ratio to assume. Should be slightly smaller than
-	// average from experiments to avoid the chances of creating a small
-	// additional leftover frame.
-	ApproxComprRatio float64
+	config Config
 
 	inputBytes int
 	buf        bytes.Buffer
@@ -32,11 +20,9 @@ type RatioCompressor struct {
 // the compressor before it's considered full. The full calculation is as follows:
 //
 //	full = uncompressedLength * approxCompRatio >= targetFrameSize * targetNumFrames
-func NewRatioCompressor(targetFrameSize uint64, targetNumFrames int, approxCompRatio float64) (derive.Compressor, error) {
+func NewRatioCompressor(config Config) (derive.Compressor, error) {
 	c := &RatioCompressor{
-		TargetFrameSize:  targetFrameSize,
-		TargetNumFrames:  targetNumFrames,
-		ApproxComprRatio: approxCompRatio,
+		config: config,
 	}
 
 	compress, err := zlib.NewWriterLevel(&c.buf, zlib.BestCompression)
@@ -88,7 +74,7 @@ func (t *RatioCompressor) FullErr() error {
 // InputThreshold calculates the input data threshold in bytes from the given
 // parameters.
 func (t *RatioCompressor) InputThreshold() uint64 {
-	return uint64(float64(t.TargetNumFrames) * float64(t.TargetFrameSize) / t.ApproxComprRatio)
+	return uint64(float64(t.config.TargetNumFrames) * float64(t.config.TargetFrameSize) / t.config.ApproxComprRatio)
 }
 
 // inputTargetReached says whether the target amount of input data has been

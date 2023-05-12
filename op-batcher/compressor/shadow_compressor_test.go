@@ -1,4 +1,4 @@
-package batcher_test
+package compressor_test
 
 import (
 	"bytes"
@@ -7,7 +7,7 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/stretchr/testify/require"
 )
@@ -64,7 +64,10 @@ func TestShadowCompressor(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, len(test.errs), len(test.data), "invalid test case: len(data) != len(errs)")
 
-			sc, err := batcher.NewShadowCompressor(test.targetFrameSize, test.targetNumFrames)
+			sc, err := compressor.NewShadowCompressor(compressor.Config{
+				TargetFrameSize: test.targetFrameSize,
+				TargetNumFrames: test.targetNumFrames,
+			})
 			require.NoError(t, err)
 
 			for i, d := range test.data {

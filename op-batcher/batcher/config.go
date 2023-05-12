@@ -1,13 +1,13 @@
 package batcher
 
 import (
-	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
@@ -85,26 +85,14 @@ type CLIConfig struct {
 	// MaxL1TxSize is the maximum size of a batch tx submitted to L1.
 	MaxL1TxSize uint64
 
-	// TargetL1TxSize is the target size of a batch tx submitted to L1.
-	TargetL1TxSize uint64
-
-	// TargetNumFrames is the target number of frames per channel.
-	TargetNumFrames int
-
-	// ApproxComprRatio is the approximate compression ratio (<= 1.0) of the used
-	// compression algorithm.
-	ApproxComprRatio float64
-
-	// CompressorKind is the compressor implementation to use.
-	CompressorKind flags.CompressorKind
-
 	Stopped bool
 
-	TxMgrConfig   txmgr.CLIConfig
-	RPCConfig     rpc.CLIConfig
-	LogConfig     oplog.CLIConfig
-	MetricsConfig opmetrics.CLIConfig
-	PprofConfig   oppprof.CLIConfig
+	TxMgrConfig      txmgr.CLIConfig
+	RPCConfig        rpc.CLIConfig
+	LogConfig        oplog.CLIConfig
+	MetricsConfig    opmetrics.CLIConfig
+	PprofConfig      oppprof.CLIConfig
+	CompressorConfig compressor.CLIConfig
 }
 
 func (c CLIConfig) Check() error {
@@ -121,6 +109,9 @@ func (c CLIConfig) Check() error {
 		return err
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {
+		return err
+	}
+	if err := c.CompressorConfig.Check(); err != nil {
 		return err
 	}
 	return nil
@@ -140,15 +131,12 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		MaxPendingTransactions: ctx.GlobalUint64(flags.MaxPendingTransactionsFlag.Name),
 		MaxChannelDuration:     ctx.GlobalUint64(flags.MaxChannelDurationFlag.Name),
 		MaxL1TxSize:            ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
-		TargetL1TxSize:         ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),
-		TargetNumFrames:        ctx.GlobalInt(flags.TargetNumFramesFlag.Name),
-		ApproxComprRatio:       ctx.GlobalFloat64(flags.ApproxComprRatioFlag.Name),
-		CompressorKind:         flags.CompressorKind(strings.ToLower(ctx.GlobalString(flags.CompressorFlag.Name))),
 		Stopped:                ctx.GlobalBool(flags.StoppedFlag.Name),
 		TxMgrConfig:            txmgr.ReadCLIConfig(ctx),
 		RPCConfig:              rpc.ReadCLIConfig(ctx),
 		LogConfig:              oplog.ReadCLIConfig(ctx),
 		MetricsConfig:          opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:            oppprof.ReadCLIConfig(ctx),
+		CompressorConfig:       compressor.ReadCLIConfig(ctx),
 	}
 }

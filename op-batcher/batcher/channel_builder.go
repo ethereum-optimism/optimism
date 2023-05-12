@@ -7,7 +7,7 @@ import (
 	"io"
 	"math"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/flags"
+	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -55,21 +55,11 @@ type ChannelConfig struct {
 	SubSafetyMargin uint64
 	// The maximum byte-size a frame can have.
 	MaxFrameSize uint64
-	// The target number of frames to create per channel. Note that if the
-	// realized compression ratio is worse than the approximate, more frames may
-	// actually be created. This also depends on how close TargetFrameSize is to
-	// MaxFrameSize.
-	TargetFrameSize uint64
-	// The target number of frames to create in this channel. If the realized
-	// compression ratio is worse than approxComprRatio, additional leftover
-	// frame(s) might get created.
-	TargetNumFrames int
-	// Approximated compression ratio to assume. Should be slightly smaller than
-	// average from experiments to avoid the chances of creating a small
-	// additional leftover frame.
-	ApproxComprRatio float64
-	// CompressorKind is the compressor implementation to use.
-	CompressorKind flags.CompressorKind
+
+	// CompressorConfig contains the configuration for creating new compressors.
+	CompressorConfig compressor.Config
+	// CompressorFactory creates new compressors.
+	CompressorFactory compressor.FactoryFunc
 }
 
 // Check validates the [ChannelConfig] parameters.
@@ -96,22 +86,6 @@ func (cc *ChannelConfig) Check() error {
 	}
 
 	return nil
-}
-
-func (cc *ChannelConfig) NewCompressor() (derive.Compressor, error) {
-	switch cc.CompressorKind {
-	case flags.ShadowCompressorKind:
-		return NewShadowCompressor(
-			cc.TargetFrameSize,
-			cc.TargetNumFrames,
-		)
-	default:
-		return NewRatioCompressor(
-			cc.TargetFrameSize,
-			cc.TargetNumFrames,
-			cc.ApproxComprRatio,
-		)
-	}
 }
 
 type frameID struct {
@@ -154,7 +128,7 @@ type channelBuilder struct {
 // newChannelBuilder creates a new channel builder or returns an error if the
 // channel out could not be created.
 func newChannelBuilder(cfg ChannelConfig) (*channelBuilder, error) {
-	c, err := cfg.NewCompressor()
+	c, err := cfg.CompressorFactory(cfg.CompressorConfig)
 	if err != nil {
 		return nil, err
 	}

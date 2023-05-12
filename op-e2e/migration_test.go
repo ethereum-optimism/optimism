@@ -12,6 +12,7 @@ import (
 	"time"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	batchermetrics "github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
@@ -335,12 +336,17 @@ func TestMigration(t *testing.T) {
 		RollupRpc:          rollupNode.HTTPEndpoint(),
 		MaxChannelDuration: 1,
 		MaxL1TxSize:        120_000,
-		TargetL1TxSize:     100_000,
-		TargetNumFrames:    1,
-		ApproxComprRatio:   0.4,
-		SubSafetyMargin:    4,
-		PollInterval:       50 * time.Millisecond,
-		TxMgrConfig:        newTxMgrConfig(forkedL1URL, secrets.Batcher),
+		CompressorConfig: compressor.CLIConfig{
+			Type: compressor.Ratio.FlagValue,
+			Config: compressor.Config{
+				TargetFrameSize:  100_000 - 1,
+				TargetNumFrames:  1,
+				ApproxComprRatio: 0.4,
+			},
+		},
+		SubSafetyMargin: 4,
+		PollInterval:    50 * time.Millisecond,
+		TxMgrConfig:     newTxMgrConfig(forkedL1URL, secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",
