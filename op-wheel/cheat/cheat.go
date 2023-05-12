@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"github.com/ethereum/go-ethereum/log"
 	"io"
 	"math/big"
 	"path/filepath"
@@ -317,6 +318,7 @@ func OvmOwners(conf *OvmOwnersConfig) HeadFn {
 
 func SetBalance(addr common.Address, amount *big.Int) HeadFn {
 	return func(headState *state.StateDB) error {
+		log.Info("Setting balance", "address", addr, "amount", amount)
 		headState.SetBalance(addr, amount)
 		return nil
 	}
