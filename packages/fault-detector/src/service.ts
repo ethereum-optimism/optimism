@@ -10,7 +10,6 @@ import { getChainId, sleep, toRpcHexString } from '@eth-optimism/core-utils'
 import {
   CONTRACT_ADDRESSES,
   CrossChainMessenger,
-  DeepPartial,
   getOEContract,
   L2ChainID,
   OEL1ContractsLike,
@@ -85,13 +84,13 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         optimismPortalAddress: {
           validator: validators.str,
           default: ethers.constants.AddressZero,
-          desc: '[Bedrock] Deployed OptimismPortal contract address. Used to retrieve necessary info for ouput verification. **Required** for custom op chains',
+          desc: '[Custom Bedrock Chains] Deployed OptimismPortal contract address. Used to retrieve necessary info for ouput verification ',
           public: true,
         },
         stateCommitmentChainAddress: {
           validator: validators.str,
           default: ethers.constants.AddressZero,
-          desc: '[Legacy] Deployed StateCommitmentChain contract address. Used to fetch necessary info for output verification. **Required** for custom op chains',
+          desc: '[Custom Legacy Chains] Deployed StateCommitmentChain contract address. Used to fetch necessary info for output verification.',
           public: true,
         },
       },
@@ -125,12 +124,21 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
    * - Legacy: StateCommitmentChain to query for output roots.
    *
    * @param l2ChainId op chain id
-   * @returns DeepPartial<OEL1ContractsLike> addresses needed just for the fault detector
+   * @returns OEL1ContractsLike  set of L1 contracts with only the required addresses set
    */
-  async getOEL1Contracts(
-    l2ChainId: number
-  ): Promise<DeepPartial<OEL1ContractsLike>> {
-    let contracts = {} as OEL1ContractsLike
+  async getOEL1Contracts(l2ChainId: number): Promise<OEL1ContractsLike> {
+    // CrossChainMessenger requires all address to be defined. Default to `AddressZero` to ignore unused contracts
+    let contracts: OEL1ContractsLike = {
+      AddressManager: ethers.constants.AddressZero,
+      L1CrossDomainMessenger: ethers.constants.AddressZero,
+      L1StandardBridge: ethers.constants.AddressZero,
+      StateCommitmentChain: ethers.constants.AddressZero,
+      CanonicalTransactionChain: ethers.constants.AddressZero,
+      BondManager: ethers.constants.AddressZero,
+      OptimismPortal: ethers.constants.AddressZero,
+      L2OutputOracle: ethers.constants.AddressZero,
+    }
+
     const chainType = this.options.bedrock ? 'bedrock' : 'legacy'
     this.logger.info(`Setting contracts for OP chain type: ${chainType}`)
 
@@ -157,7 +165,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         contracts.OptimismPortal = address
 
         this.logger.info('fetching L2OutputOracle contract from OptimismPortal')
-        const opts = { address, signerOrPovider: this.options.l1RpcProvider }
+        const opts = { address, signerOrProvider: this.options.l1RpcProvider }
         const portalContract = getOEContract('OptimismPortal', l2ChainId, opts)
         contracts.L2OutputOracle = await portalContract.L2_ORACLE()
       }
