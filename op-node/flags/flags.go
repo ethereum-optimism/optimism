@@ -14,10 +14,10 @@ import (
 
 // Flags
 
-const envVarPrefix = "OP_NODE"
+const EnvVarPrefix = "OP_NODE"
 
 func prefixEnvVar(name string) string {
-	return envVarPrefix + "_" + name
+	return EnvVarPrefix + "_" + name
 }
 
 var (
@@ -251,7 +251,7 @@ var Flags []cli.Flag
 
 func init() {
 	optionalFlags = append(optionalFlags, p2pFlags...)
-	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
 	Flags = append(requiredFlags, optionalFlags...)
 }
 
