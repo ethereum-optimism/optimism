@@ -51,6 +51,10 @@ func (w *LegacyWithdrawal) Encode() ([]byte, error) {
 		return nil, fmt.Errorf("cannot encode LegacyWithdrawal: %w", err)
 	}
 
+	if w.MessageSender != predeploys.L2CrossDomainMessengerAddr {
+		panic(fmt.Sprintf("cannot encode with invalid message sender: %s", w.MessageSender.Hex()))
+	}
+
 	out := make([]byte, len(enc)+len(predeploys.L2CrossDomainMessengerAddr.Bytes()))
 	copy(out, enc)
 	copy(out[len(enc):], predeploys.L2CrossDomainMessengerAddr.Bytes())
