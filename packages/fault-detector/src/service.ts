@@ -9,7 +9,7 @@ import {
 import { getChainId, sleep, toRpcHexString } from '@eth-optimism/core-utils'
 import {
   CONTRACT_ADDRESSES,
-  CrossChainMessenger, 
+  CrossChainMessenger,
   DeepPartial,
   getOEContract,
   L2ChainID,
