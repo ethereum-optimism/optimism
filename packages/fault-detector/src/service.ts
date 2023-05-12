@@ -127,7 +127,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
    * @returns OEL1ContractsLike  set of L1 contracts with only the required addresses set
    */
   async getOEL1Contracts(l2ChainId: number): Promise<OEL1ContractsLike> {
-    // CrossChainMessenger all address to be defined. So fill out `AddressZero` to ignore unused contracts
+    // CrossChainMessenger requires all address to be defined. Default to `AddressZero` to ignore unused contracts
     let contracts: OEL1ContractsLike = {
       AddressManager: ethers.constants.AddressZero,
       L1CrossDomainMessenger: ethers.constants.AddressZero,
