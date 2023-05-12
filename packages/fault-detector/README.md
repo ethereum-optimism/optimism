@@ -46,6 +46,7 @@ Currently, transaction results take the form of [the root of the Optimism state 
 - For bedrock chains, the state root of the block is published to the [`StateCommitmentChain`](https://github.com/ethereum-optimism/optimism/blob/39b7262cc3ffd78cd314341b8512b2683c1d9af7/packages/contracts/contracts/L1/rollup/StateCommitmentChain.sol) contract on Ethereum.
 
 We can therefore detect differences by, for each block, checking the state root of the given block as reported by an Optimism node and the state root as published to Ethereum.
+In order for the fault detector to differentiate between bedrock and legacy chains, please make sure to specify `--bedrock`.
 
 We export a series of Prometheus metrics that you can use to trigger alerting when issues are detected.
 Check the list of available metrics via `yarn start --help`:
