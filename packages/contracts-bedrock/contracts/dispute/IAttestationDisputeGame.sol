@@ -10,7 +10,7 @@ import { IDisputeGame } from "./IDisputeGame.sol";
  */
 interface IAttestationDisputeGame is IDisputeGame {
     /**
-     * @notice A mapping of addresses from the `signerSet` to booleans signifying whether
+     * @notice A mapping of addresses from the `attestorSet` to booleans signifying whether
      *         or not they have authorized the `rootClaim` to be invalidated.
      * @param challenger The address to check for authorization.
      * @return _challenged Whether or not the `challenger` has challenged the `rootClaim`.
@@ -18,19 +18,19 @@ interface IAttestationDisputeGame is IDisputeGame {
     function challenges(address challenger) external view returns (bool _challenged);
 
     /**
-     * @notice The signer set consists of authorized public keys that may challenge
+     * @notice The attestor set consists of authorized public keys that may challenge
      *         the `rootClaim`.
      * @param addr The address to check for authorization.
-     * @return _isAuthorized Whether or not the `addr` is part of the signer set.
+     * @return _isAuthorized Whether or not the `addr` is part of the attestor set.
      */
-    function signerSet(address addr) external view returns (bool _isAuthorized);
+    function attestorSet(address addr) external view returns (bool _isAuthorized);
 
     /**
      * @notice The amount of signatures required to successfully challenge the `rootClaim`
-     *         output proposal. Once this threshold is met by members of the `signerSet`
+     *         output proposal. Once this threshold is met by members of the `attestorSet`
      *         calling `challenge`, the game will be resolved to `CHALLENGER_WINS`.
      * @custom:invariant The `signatureThreshold` may never be greater than the length
-     *                   of the `signerSet`.
+     *                   of the `attestorSet`.
      * @return _signatureThreshold The amount of signatures required to successfully
      *         challenge the `rootClaim` output proposal.
      */
@@ -46,7 +46,7 @@ interface IAttestationDisputeGame is IDisputeGame {
     /**
      * @notice Challenge the `rootClaim`.
      * @dev - If the `ecrecover`ed address that created the signature is not a part of
-     *        the signer set returned by `signerSet`, this function should revert.
+     *        the attestor set returned by `attestorSet`, this function should revert.
      *      - If the `ecrecover`ed address that created the signature is not the
      *        msg.sender, this function should revert.
      *      - If the signature provided is the signature that breaches the signature
@@ -57,7 +57,7 @@ interface IAttestationDisputeGame is IDisputeGame {
      *        invalid claim.
      * @param signature An EIP-712 signature committing to the `rootClaim` and
      *        `l2BlockNumber` (within the `extraData`) from a key that exists
-     *         within the `signerSet`.
+     *         within the `attestorSet`.
      */
     function challenge(bytes calldata signature) external;
 }

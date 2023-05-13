@@ -83,6 +83,7 @@
     "glob": "^7.1.6",
     "hardhat": "^2.9.6",
     "hardhat-deploy": "^0.11.4",
+    "solady": "https://github.com/Vectorized/solady#369c62f92946764770a3d265f9d8fa6228ac9337",
     "solhint": "^3.3.7",
     "solhint-plugin-prettier": "^0.0.5",
     "ts-node": "^10.9.1",
