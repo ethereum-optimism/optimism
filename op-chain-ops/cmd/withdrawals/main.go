@@ -317,6 +317,9 @@ func main() {
 						"xNonce", wd.XDomainNonce,
 						"xSender", wd.XDomainSender,
 						"sender", wd.MessageSender,
+						"success", isSuccess,
+						"failed", isFailed,
+						"failed-new", isFailedNew,
 					)
 					return
 				}
