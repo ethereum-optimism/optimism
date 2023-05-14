@@ -309,7 +309,15 @@ func main() {
 
 				// the value should be set to a boolean in storage
 				if !bytes.Equal(storageValue, abiTrue.Bytes()) {
-					log.Error("storage slot %x not found in state", "slot", slot.Hex())
+					log.Error(
+						"storage slot not found in state",
+						"slot", slot.Hex(),
+						"xTarget", wd.XDomainTarget,
+						"xData", wd.XDomainData,
+						"xNonce", wd.XDomainNonce,
+						"xSender", wd.XDomainSender,
+						"sender", wd.MessageSender,
+					)
 					return
 				}
 
@@ -886,6 +894,14 @@ func finalizeWithdrawalTransaction(
 	withdrawal *crossdomain.Withdrawal,
 ) (*types.Receipt, error) {
 	if wd.XDomainTarget == (common.Address{}) {
+		log.Warn(
+			"nil withdrawal target",
+			"xTarget", wd.XDomainTarget,
+			"xData", wd.XDomainData,
+			"xNonce", wd.XDomainNonce,
+			"xSender", wd.XDomainSender,
+			"sender", wd.MessageSender,
+		)
 		return nil, errors.New("withdrawal target is nil, should never happen")
 	}
 
