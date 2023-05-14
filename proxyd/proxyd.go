@@ -1,17 +1,14 @@
 package proxyd
 
 import (
-	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/go-redis/redis/v8"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -49,19 +46,6 @@ func Start(config *Config) (*Server, func(), error) {
 
 	if redisClient == nil && config.RateLimit.UseRedis {
 		return nil, nil, errors.New("must specify a Redis URL if UseRedis is true in rate limit config")
-	}
-
-	var lim BackendRateLimiter
-	var err error
-	if config.RateLimit.EnableBackendRateLimiter {
-		if redisClient != nil {
-			lim = NewRedisRateLimiter(redisClient)
-		} else {
-			log.Warn("redis is not configured, using local rate limiter")
-			lim = NewLocalBackendRateLimiter()
-		}
-	} else {
-		lim = noopBackendRateLimiter
 	}
 
 	// While modifying shared globals is a bad practice, the alternative
@@ -159,7 +143,7 @@ func Start(config *Config) (*Server, func(), error) {
 		opts = append(opts, WithProxydIP(os.Getenv("PROXYD_IP")))
 		opts = append(opts, WithSkipPeerCountCheck(cfg.SkipPeerCountCheck))
 
-		back := NewBackend(name, rpcURL, wsURL, lim, rpcRequestSemaphore, opts...)
+		back := NewBackend(name, rpcURL, wsURL, rpcRequestSemaphore, opts...)
 		backendNames = append(backendNames, name)
 		backendsByName[name] = back
 		log.Info("configured backend", "name", name, "rpc_url", rpcURL, "ws_url", wsURL)
@@ -213,41 +197,17 @@ func Start(config *Config) (*Server, func(), error) {
 	}
 
 	var (
-		rpcCache    RPCCache
-		blockNumLVC *EthLastValueCache
-		gasPriceLVC *EthLastValueCache
+		rpcCache RPCCache
+		cache    Cache
 	)
 	if config.Cache.Enabled {
-		var (
-			cache      Cache
-			blockNumFn GetLatestBlockNumFn
-			gasPriceFn GetLatestGasPriceFn
-		)
-
-		if config.Cache.BlockSyncRPCURL == "" {
-			return nil, nil, fmt.Errorf("block sync node required for caching")
-		}
-		blockSyncRPCURL, err := ReadFromEnvOrConfig(config.Cache.BlockSyncRPCURL)
-		if err != nil {
-			return nil, nil, err
-		}
-
 		if redisClient == nil {
 			log.Warn("redis is not configured, using in-memory cache")
 			cache = newMemoryCache()
 		} else {
-			cache = newRedisCache(redisClient)
+			cache = newRedisCache(redisClient, config.Redis.Namespace)
 		}
-		// Ideally, the BlocKSyncRPCURL should be the sequencer or a HA replica that's not far behind
-		ethClient, err := ethclient.Dial(blockSyncRPCURL)
-		if err != nil {
-			return nil, nil, err
-		}
-		defer ethClient.Close()
-
-		blockNumLVC, blockNumFn = makeGetLatestBlockNumFn(ethClient, cache)
-		gasPriceLVC, gasPriceFn = makeGetLatestGasPriceFn(ethClient, cache)
-		rpcCache = newRPCCache(newCacheWithCompression(cache), blockNumFn, gasPriceFn, config.Cache.NumBlockConfirmations)
+		rpcCache = newRPCCache(newCacheWithCompression(cache))
 	}
 
 	srv, err := NewServer(
@@ -345,16 +305,7 @@ func Start(config *Config) (*Server, func(), error) {
 
 	shutdownFunc := func() {
 		log.Info("shutting down proxyd")
-		if blockNumLVC != nil {
-			blockNumLVC.Stop()
-		}
-		if gasPriceLVC != nil {
-			gasPriceLVC.Stop()
-		}
 		srv.Shutdown()
-		if err := lim.FlushBackendWSConns(backendNames); err != nil {
-			log.Error("error flushing backend ws conns", "err", err)
-		}
 		log.Info("goodbye")
 	}
 
@@ -384,40 +335,4 @@ func configureBackendTLS(cfg *BackendConfig) (*tls.Config, error) {
 	}
 
 	return tlsConfig, nil
-}
-
-func makeUint64LastValueFn(client *ethclient.Client, cache Cache, key string, updater lvcUpdateFn) (*EthLastValueCache, func(context.Context) (uint64, error)) {
-	lvc := newLVC(client, cache, key, updater)
-	lvc.Start()
-	return lvc, func(ctx context.Context) (uint64, error) {
-		value, err := lvc.Read(ctx)
-		if err != nil {
-			return 0, err
-		}
-		if value == "" {
-			return 0, fmt.Errorf("%s is unavailable", key)
-		}
-		valueUint, err := strconv.ParseUint(value, 10, 64)
-		if err != nil {
-			return 0, err
-		}
-		return valueUint, nil
-	}
-}
-
-func makeGetLatestBlockNumFn(client *ethclient.Client, cache Cache) (*EthLastValueCache, GetLatestBlockNumFn) {
-	return makeUint64LastValueFn(client, cache, "lvc:block_number", func(ctx context.Context, c *ethclient.Client) (string, error) {
-		blockNum, err := c.BlockNumber(ctx)
-		return strconv.FormatUint(blockNum, 10), err
-	})
-}
-
-func makeGetLatestGasPriceFn(client *ethclient.Client, cache Cache) (*EthLastValueCache, GetLatestGasPriceFn) {
-	return makeUint64LastValueFn(client, cache, "lvc:gas_price", func(ctx context.Context, c *ethclient.Client) (string, error) {
-		gasPrice, err := c.SuggestGasPrice(ctx)
-		if err != nil {
-			return "", err
-		}
-		return gasPrice.String(), nil
-	})
 }

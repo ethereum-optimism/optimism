@@ -9,8 +9,6 @@ url = "$REDIS_URL"
 
 [cache]
 enabled = true
-block_sync_rpc_url = "$GOOD_BACKEND_RPC_URL"
-
 
 [backends]
 [backends.good]

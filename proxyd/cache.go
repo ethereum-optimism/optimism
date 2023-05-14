@@ -2,6 +2,7 @@ package proxyd
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -43,16 +44,18 @@ func (c *cache) Put(ctx context.Context, key string, value string) error {
 }
 
 type redisCache struct {
-	rdb *redis.Client
+	rdb    *redis.Client
+	prefix string
 }
 
-func newRedisCache(rdb *redis.Client) *redisCache {
-	return &redisCache{rdb}
+func newRedisCache(rdb *redis.Client, prefix string) *redisCache {
+	return &redisCache{rdb, prefix}
 }
 
 func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
+	namespacedKey := strings.Join([]string{c.prefix, key}, ":")
 	start := time.Now()
-	val, err := c.rdb.Get(ctx, key).Result()
+	val, err := c.rdb.Get(ctx, namespacedKey).Result()
 	redisCacheDurationSumm.WithLabelValues("GET").Observe(float64(time.Since(start).Milliseconds()))
 
 	if err == redis.Nil {
@@ -65,8 +68,9 @@ func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
 }
 
 func (c *redisCache) Put(ctx context.Context, key string, value string) error {
+	namespacedKey := strings.Join([]string{c.prefix, key}, ":")
 	start := time.Now()
-	err := c.rdb.SetEX(ctx, key, value, redisTTL).Err()
+	err := c.rdb.SetEX(ctx, namespacedKey, value, redisTTL).Err()
 	redisCacheDurationSumm.WithLabelValues("SETEX").Observe(float64(time.Since(start).Milliseconds()))
 
 	if err != nil {
@@ -116,15 +120,21 @@ type rpcCache struct {
 	handlers map[string]RPCMethodHandler
 }
 
-func newRPCCache(cache Cache, getLatestBlockNumFn GetLatestBlockNumFn, getLatestGasPriceFn GetLatestGasPriceFn, numBlockConfirmations int) RPCCache {
+func newRPCCache(cache Cache) RPCCache {
 	handlers := map[string]RPCMethodHandler{
-		"eth_chainId":          &StaticMethodHandler{},
-		"net_version":          &StaticMethodHandler{},
-		"eth_getBlockByNumber": &EthGetBlockByNumberMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
-		"eth_getBlockRange":    &EthGetBlockRangeMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
-		"eth_blockNumber":      &EthBlockNumberMethodHandler{getLatestBlockNumFn},
-		"eth_gasPrice":         &EthGasPriceMethodHandler{getLatestGasPriceFn},
-		"eth_call":             &EthCallMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
+		"eth_chainId": &StaticMethodHandler{},
+		"net_version": &StaticMethodHandler{},
+		/*
+
+			remove methods that reference by number
+			add methods that reference by hash
+
+				"eth_getBlockByNumber": &EthGetBlockByNumberMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
+				"eth_getBlockRange":    &EthGetBlockRangeMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
+				"eth_blockNumber":      &EthBlockNumberMethodHandler{getLatestBlockNumFn},
+				"eth_gasPrice":         &EthGasPriceMethodHandler{getLatestGasPriceFn},
+				"eth_call":             &EthCallMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
+		*/
 	}
 	return &rpcCache{
 		cache:    cache,

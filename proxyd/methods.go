@@ -175,6 +175,7 @@ func (e *EthGetBlockRangeMethodHandler) PutRPCMethod(ctx context.Context, req *R
 	return putImmutableRPCResponse(ctx, e.cache, key, req, res)
 }
 
+// Felipe: oracle risk? we may serve stale responses
 type EthCallMethodHandler struct {
 	cache                 Cache
 	getLatestBlockNumFn   GetLatestBlockNumFn

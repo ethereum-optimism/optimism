@@ -67,7 +67,7 @@ func TestCaching(t *testing.T) {
 				true,
 			},
 			"{\"jsonrpc\": \"2.0\", \"result\": \"dummy_block\", \"id\": 999}",
-			1,
+			2,
 		},
 		{
 			"eth_call",
@@ -80,13 +80,13 @@ func TestCaching(t *testing.T) {
 				"0x60",
 			},
 			"{\"id\":999,\"jsonrpc\":\"2.0\",\"result\":\"dummy_call\"}",
-			1,
+			2,
 		},
 		{
 			"eth_blockNumber",
 			nil,
 			"{\"id\":999,\"jsonrpc\":\"2.0\",\"result\":\"0x64\"}",
-			0,
+			2,
 		},
 		{
 			"eth_call",
@@ -127,15 +127,6 @@ func TestCaching(t *testing.T) {
 			backend.Reset()
 		})
 	}
-
-	t.Run("block numbers update", func(t *testing.T) {
-		hdlr.SetFallbackRoute("eth_blockNumber", "0x100")
-		time.Sleep(1500 * time.Millisecond)
-		resRaw, _, err := client.SendRPC("eth_blockNumber", nil)
-		require.NoError(t, err)
-		RequireEqualJSON(t, []byte("{\"id\":999,\"jsonrpc\":\"2.0\",\"result\":\"0x100\"}"), resRaw)
-		backend.Reset()
-	})
 
 	t.Run("nil responses should not be cached", func(t *testing.T) {
 		hdlr.SetRoute("eth_getBlockByNumber", "999", nil)

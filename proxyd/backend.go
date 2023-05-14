@@ -121,7 +121,6 @@ type Backend struct {
 	wsURL                string
 	authUsername         string
 	authPassword         string
-	rateLimiter          BackendRateLimiter
 	client               *LimitedHTTPClient
 	dialer               *websocket.Dialer
 	maxRetries           int
@@ -243,7 +242,6 @@ func NewBackend(
 	name string,
 	rpcURL string,
 	wsURL string,
-	rateLimiter BackendRateLimiter,
 	rpcSemaphore *semaphore.Weighted,
 	opts ...BackendOpt,
 ) *Backend {
@@ -251,7 +249,6 @@ func NewBackend(
 		Name:            name,
 		rpcURL:          rpcURL,
 		wsURL:           wsURL,
-		rateLimiter:     rateLimiter,
 		maxResponseSize: math.MaxInt64,
 		client: &LimitedHTTPClient{
 			Client:      http.Client{Timeout: 5 * time.Second},
@@ -281,15 +278,6 @@ func NewBackend(
 }
 
 func (b *Backend) Forward(ctx context.Context, reqs []*RPCReq, isBatch bool) ([]*RPCRes, error) {
-	if !b.Online() {
-		RecordBatchRPCError(ctx, b.Name, reqs, ErrBackendOffline)
-		return nil, ErrBackendOffline
-	}
-	if b.IsRateLimited() {
-		RecordBatchRPCError(ctx, b.Name, reqs, ErrBackendOverCapacity)
-		return nil, ErrBackendOverCapacity
-	}
-
 	var lastError error
 	// <= to account for the first attempt not technically being
 	// a retry
@@ -340,89 +328,17 @@ func (b *Backend) Forward(ctx context.Context, reqs []*RPCReq, isBatch bool) ([]
 		return res, err
 	}
 
-	b.setOffline()
 	return nil, wrapErr(lastError, "permanent error forwarding request")
 }
 
 func (b *Backend) ProxyWS(clientConn *websocket.Conn, methodWhitelist *StringSet) (*WSProxier, error) {
-	if !b.Online() {
-		return nil, ErrBackendOffline
-	}
-	if b.IsWSSaturated() {
-		return nil, ErrBackendOverCapacity
-	}
-
 	backendConn, _, err := b.dialer.Dial(b.wsURL, nil) // nolint:bodyclose
 	if err != nil {
-		b.setOffline()
-		if err := b.rateLimiter.DecBackendWSConns(b.Name); err != nil {
-			log.Error("error decrementing backend ws conns", "name", b.Name, "err", err)
-		}
 		return nil, wrapErr(err, "error dialing backend")
 	}
 
 	activeBackendWsConnsGauge.WithLabelValues(b.Name).Inc()
 	return NewWSProxier(b, clientConn, backendConn, methodWhitelist), nil
-}
-
-func (b *Backend) Online() bool {
-	online, err := b.rateLimiter.IsBackendOnline(b.Name)
-	if err != nil {
-		log.Warn(
-			"error getting backend availability, assuming it is offline",
-			"name", b.Name,
-			"err", err,
-		)
-		return false
-	}
-	return online
-}
-
-func (b *Backend) IsRateLimited() bool {
-	if b.maxRPS == 0 {
-		return false
-	}
-
-	usedLimit, err := b.rateLimiter.IncBackendRPS(b.Name)
-	if err != nil {
-		log.Error(
-			"error getting backend used rate limit, assuming limit is exhausted",
-			"name", b.Name,
-			"err", err,
-		)
-		return true
-	}
-
-	return b.maxRPS < usedLimit
-}
-
-func (b *Backend) IsWSSaturated() bool {
-	if b.maxWSConns == 0 {
-		return false
-	}
-
-	incremented, err := b.rateLimiter.IncBackendWSConns(b.Name, b.maxWSConns)
-	if err != nil {
-		log.Error(
-			"error getting backend used ws conns, assuming limit is exhausted",
-			"name", b.Name,
-			"err", err,
-		)
-		return true
-	}
-
-	return !incremented
-}
-
-func (b *Backend) setOffline() {
-	err := b.rateLimiter.SetBackendOffline(b.Name, b.outOfServiceInterval)
-	if err != nil {
-		log.Warn(
-			"error setting backend offline",
-			"name", b.Name,
-			"err", err,
-		)
-	}
 }
 
 // ForwardRPC makes a call directly to a backend and populate the response into `res`
@@ -968,9 +884,6 @@ func (w *WSProxier) backendPump(ctx context.Context, errC chan error) {
 func (w *WSProxier) close() {
 	w.clientConn.Close()
 	w.backendConn.Close()
-	if err := w.backend.rateLimiter.DecBackendWSConns(w.backend.Name); err != nil {
-		log.Error("error decrementing backend ws conns", "name", w.backend.Name, "err", err)
-	}
 	activeBackendWsConnsGauge.WithLabelValues(w.backend.Name).Dec()
 }
 
@@ -982,10 +895,6 @@ func (w *WSProxier) prepareClientMsg(msg []byte) (*RPCReq, error) {
 
 	if !w.methodWhitelist.Has(req.Method) {
 		return req, ErrMethodNotWhitelisted
-	}
-
-	if w.backend.IsRateLimited() {
-		return req, ErrBackendOverCapacity
 	}
 
 	return req, nil
