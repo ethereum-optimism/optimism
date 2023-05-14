@@ -2,17 +2,13 @@ package proxyd
 
 import (
 	"context"
-	"math"
 	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-const numBlockConfirmations = 10
-
 func TestRPCCacheImmutableRPCs(t *testing.T) {
-	const blockHead = math.MaxUint64
 	ctx := context.Background()
 
 	cache := newRPCCache(newMemoryCache())

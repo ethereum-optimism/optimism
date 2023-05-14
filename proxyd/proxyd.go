@@ -146,7 +146,11 @@ func Start(config *Config) (*Server, func(), error) {
 		back := NewBackend(name, rpcURL, wsURL, rpcRequestSemaphore, opts...)
 		backendNames = append(backendNames, name)
 		backendsByName[name] = back
-		log.Info("configured backend", "name", name, "rpc_url", rpcURL, "ws_url", wsURL)
+		log.Info("configured backend",
+			"name", name,
+			"backend_names", backendNames,
+			"rpc_url", rpcURL,
+			"ws_url", wsURL)
 	}
 
 	backendGroups := make(map[string]*BackendGroup)
