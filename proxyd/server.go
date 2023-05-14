@@ -2,6 +2,8 @@ package proxyd
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -589,6 +591,14 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 		ContextKeyReqID, // nolint:staticcheck
 		randStr(10),
 	)
+}
+
+func randStr(l int) string {
+	b := make([]byte, l)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(b)
 }
 
 func (s *Server) isUnlimitedOrigin(origin string) bool {
