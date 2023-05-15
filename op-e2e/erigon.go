@@ -2,6 +2,7 @@ package op_e2e
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -20,17 +21,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func BuildErigon(t *testing.T) string {
-	buildPath := filepath.Join(t.TempDir(), "erigon")
-
-	gt := gomega.NewWithT(t)
+func BuildErigon(buildPath string) error {
 	cmd := exec.Command("go", "build", "-o", buildPath, "github.com/ledgerwatch/erigon/cmd/erigon")
 	cmd.Dir = filepath.Join("..", "op-erigon")
 	sess, err := gexec.Start(cmd, os.Stdout, os.Stderr)
-	gt.Expect(err).NotTo(gomega.HaveOccurred())
-	gt.Eventually(sess, time.Minute).Should(gexec.Exit(0))
+	if err != nil {
+		return err
+	}
+	gm := gomega.NewGomega(func(msg string, callerSkip ...int) {
+		err = errors.New(msg)
+	})
+	gm.Eventually(sess, time.Minute).Should(gexec.Exit(0))
+	if err != nil {
+		return err
+	}
 
-	return buildPath
+	return nil
 }
 
 type ErigonRunner struct {
@@ -45,7 +51,7 @@ type ErigonRunner struct {
 
 func (er *ErigonRunner) Run(t *testing.T) ErigonInstance {
 	if er.BinPath == "" {
-		er.BinPath = BuildErigon(t)
+		t.Error("no erigon bin path set")
 	}
 
 	if er.DataDir == "" {

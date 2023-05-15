@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -43,32 +44,41 @@ import (
 
 var enableParallelTesting bool = true
 
-// Init testing to enable test flags
-var _ = func() bool {
-	testing.Init()
-	return true
-}()
-
 var verboseGethNodes bool
-
-func init() {
-	flag.BoolVar(&verboseGethNodes, "gethlogs", true, "Enable logs on geth nodes")
-	flag.BoolVar(&erigonL2Nodes, "erigon", false, "Enable tests with erigon")
-	flag.Parse()
-	if erigonL2Nodes {
-		fmt.Printf("\n\nRunning tests with erigon support!")
-	}
-	if os.Getenv("OP_E2E_DISABLE_PARALLEL") == "true" { // || erigonL2Nodes {
-		fmt.Printf("\n\nYou should consider running with a large `-timeout` as parallel tests are disabled\n\n")
-		enableParallelTesting = false
-	}
-}
 
 func parallel(t *testing.T) {
 	t.Helper()
 	if enableParallelTesting {
 		t.Parallel()
 	}
+}
+
+func TestMain(m *testing.M) {
+	testing.Init()
+	flag.BoolVar(&verboseGethNodes, "gethlogs", true, "Enable logs on geth nodes")
+	flag.BoolVar(&erigonL2Nodes, "erigon", false, "Enable tests with erigon")
+	flag.Parse()
+	if erigonL2Nodes {
+		fmt.Println("Running tests with erigon support!")
+		buildDir, err := os.MkdirTemp("", "op-e2e-erigon")
+		if err != nil {
+			fmt.Printf("Failed to make erigon build dir: %s\n", err)
+			os.Exit(1)
+		}
+		defer os.RemoveAll(buildDir)
+		erigonBinPath = filepath.Join(buildDir, "erigon")
+		err = BuildErigon(erigonBinPath)
+		if err != nil {
+			fmt.Printf("Failed to build erigon: %s\n", err)
+			os.Exit(2)
+		}
+	}
+
+	if os.Getenv("OP_E2E_DISABLE_PARALLEL") == "true" {
+		fmt.Printf("\n\nYou should consider running with a large `-timeout` as parallel tests are disabled\n\n")
+		enableParallelTesting = false
+	}
+	os.Exit(m.Run())
 }
 
 func TestL2OutputSubmitter(t *testing.T) {

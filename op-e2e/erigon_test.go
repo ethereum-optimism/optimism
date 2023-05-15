@@ -10,12 +10,13 @@ import (
 )
 
 func TestErigonBuildPath(t *testing.T) {
-	binPath := BuildErigon(t)
-	require.FileExists(t, binPath)
+	require.FileExists(t, erigonBinPath)
 }
 
 func TestErigonRunner(t *testing.T) {
-	er := &ErigonRunner{}
+	er := &ErigonRunner{
+		BinPath: erigonBinPath,
+	}
 	es := er.Run(t)
 	t.Cleanup(es.Shutdown)
 	_, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", es.HTTPPort), time.Second)

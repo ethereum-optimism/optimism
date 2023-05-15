@@ -45,7 +45,10 @@ import (
 
 var testingJWTSecret = [32]byte{123}
 
-var erigonL2Nodes bool
+var (
+	erigonL2Nodes bool
+	erigonBinPath string
+)
 
 func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
 	return txmgr.CLIConfig{
@@ -458,6 +461,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		} else {
 			ei := (&ErigonRunner{
 				Name:    name,
+				BinPath: erigonBinPath,
 				ChainID: cfg.DeployConfig.L2ChainID,
 				Genesis: l2Genesis,
 				JWTPath: cfg.JWTFilePath,
