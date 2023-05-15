@@ -2,7 +2,7 @@ import assert from 'assert'
 
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
-import { ethers } from 'ethers'
+import { ethers, BigNumber } from 'ethers'
 
 import { assertContractVariable, deploy } from '../src/deploy-utils'
 
@@ -23,9 +23,14 @@ const deployFn: DeployFunction = async (hre) => {
     .toLowerCase()
 
   const l2GenesisBlockGasLimit = hre.deployConfig.l2GenesisBlockGasLimit
-  const l2GasLimitLowerBound = defaultResourceConfig.systemTxMaxGas + defaultResourceConfig.maxResourceLimit
+  const l2GasLimitLowerBound = BigNumber.from(
+    defaultResourceConfig.systemTxMaxGas +
+      defaultResourceConfig.maxResourceLimit
+  )
   if (l2GenesisBlockGasLimit.lt(l2GasLimitLowerBound)) {
-    throw new Error(`L2 genesis block gas limit must be at least ${l2GasLimitLowerBound}`)
+    throw new Error(
+      `L2 genesis block gas limit must be at least ${l2GasLimitLowerBound}`
+    )
   }
 
   await deploy({
@@ -38,7 +43,7 @@ const deployFn: DeployFunction = async (hre) => {
       batcherHash,
       l2GenesisBlockGasLimit,
       hre.deployConfig.p2pSequencerAddress,
-      defaultResourceConfig
+      defaultResourceConfig,
     ],
     postDeployAction: async (contract) => {
       await assertContractVariable(
@@ -65,8 +70,14 @@ const deployFn: DeployFunction = async (hre) => {
 
       const config = await contract.resourceConfig()
       assert(config.maxResourceLimit === defaultResourceConfig.maxResourceLimit)
-      assert(config.elasticityMultiplier === defaultResourceConfig.elasticityMultiplier)
-      assert(config.baseFeeMaxChangeDenominator === defaultResourceConfig.baseFeeMaxChangeDenominator)
+      assert(
+        config.elasticityMultiplier ===
+          defaultResourceConfig.elasticityMultiplier
+      )
+      assert(
+        config.baseFeeMaxChangeDenominator ===
+          defaultResourceConfig.baseFeeMaxChangeDenominator
+      )
       assert(config.systemTxMaxGas === defaultResourceConfig.systemTxMaxGas)
       assert(config.minimumBaseFee.eq(defaultResourceConfig.minimumBaseFee))
       assert(config.maximumBaseFee.eq(defaultResourceConfig.maximumBaseFee))
