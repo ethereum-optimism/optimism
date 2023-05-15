@@ -55,6 +55,25 @@ Read through [CONTRIBUTING.md](./CONTRIBUTING.md) for a general overview of our 
 Use the [Developer Quick Start](./CONTRIBUTING.md#development-quick-start) to get your development environment set up to start working on the Optimism Monorepo.
 Then check out our list of [good first issues](https://github.com/ethereum-optimism/optimism/contribute) to find something fun to work on! -->
 
+## e2e testing
+
+This repository has updated end-to-end tests in the `op-e2e` package to work with
+Celestia as the data availability (DA) layer.
+
+Currently, the tests assume a working [Celestia devnet](https://github.com/rollkit/local-celestia-devnet) running locally:
+
+```bash
+docker run --platform linux/amd64 -p 26650:26657 -p 26659:26659 ghcr.io/rollkit/local-celestia-devnet:v0.9.5
+```
+
+The e2e tests can be triggered with:
+
+```bash
+cd $HOME/optimism
+cd op-e2e
+make test
+```
+
 ## Bridging
 
 If you have the OP Stack + Celestia setup running, you can test out bridging from the L1
