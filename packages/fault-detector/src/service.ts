@@ -7,7 +7,13 @@ import {
   waitForProvider,
 } from '@eth-optimism/common-ts'
 import { getChainId, sleep, toRpcHexString } from '@eth-optimism/core-utils'
-import { CrossChainMessenger } from '@eth-optimism/sdk'
+import {
+  CONTRACT_ADDRESSES,
+  CrossChainMessenger,
+  getOEContract,
+  L2ChainID,
+  OEL1ContractsLike,
+} from '@eth-optimism/sdk'
 import { Provider } from '@ethersproject/abstract-provider'
 import { ethers, Transaction } from 'ethers'
 import dateformat from 'dateformat'
@@ -26,6 +32,8 @@ type Options = {
   l2RpcProvider: Provider
   startBatchIndex: number
   bedrock: boolean
+  optimismPortalAddress?: string
+  stateCommitmentChainAddress?: string
 }
 
 type Metrics = {
@@ -73,6 +81,18 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
           desc: 'Whether or not the service is running against a Bedrock chain',
           public: true,
         },
+        optimismPortalAddress: {
+          validator: validators.str,
+          default: ethers.constants.AddressZero,
+          desc: '[Custom Bedrock Chains] Deployed OptimismPortal contract address. Used to retrieve necessary info for ouput verification ',
+          public: true,
+        },
+        stateCommitmentChainAddress: {
+          validator: validators.str,
+          default: ethers.constants.AddressZero,
+          desc: '[Custom Legacy Chains] Deployed StateCommitmentChain contract address. Used to fetch necessary info for output verification.',
+          public: true,
+        },
       },
       metricsSpec: {
         highestBatchIndex: {
@@ -93,6 +113,83 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     })
   }
 
+  /**
+   * Provides the required set of addresses used by the fault detector. For recognized op-chains, this
+   * will fallback to the pre-defined set of addresses from options, otherwise aborting if unset.
+   *
+   * Required Contracts
+   * - Bedrock: OptimismPortal (used to also fetch L2OutputOracle address variable). This is the preferred address
+   * since in early versions of bedrock, OptimismPortal holds the FINALIZATION_WINDOW variable instead of L2OutputOracle.
+   * The retrieved L2OutputOracle address from OptimismPortal is used to query for output roots.
+   * - Legacy: StateCommitmentChain to query for output roots.
+   *
+   * @param l2ChainId op chain id
+   * @returns OEL1ContractsLike  set of L1 contracts with only the required addresses set
+   */
+  async getOEL1Contracts(l2ChainId: number): Promise<OEL1ContractsLike> {
+    // CrossChainMessenger requires all address to be defined. Default to `AddressZero` to ignore unused contracts
+    let contracts: OEL1ContractsLike = {
+      AddressManager: ethers.constants.AddressZero,
+      L1CrossDomainMessenger: ethers.constants.AddressZero,
+      L1StandardBridge: ethers.constants.AddressZero,
+      StateCommitmentChain: ethers.constants.AddressZero,
+      CanonicalTransactionChain: ethers.constants.AddressZero,
+      BondManager: ethers.constants.AddressZero,
+      OptimismPortal: ethers.constants.AddressZero,
+      L2OutputOracle: ethers.constants.AddressZero,
+    }
+
+    const chainType = this.options.bedrock ? 'bedrock' : 'legacy'
+    this.logger.info(`Setting contracts for OP chain type: ${chainType}`)
+
+    const knownChainId = L2ChainID[l2ChainId] !== undefined
+    if (knownChainId) {
+      this.logger.info(`Recognized L2 chain id ${L2ChainID[l2ChainId]}`)
+
+      // fallback to the predefined defaults for this chain id
+      contracts = CONTRACT_ADDRESSES[l2ChainId].l1
+    }
+
+    this.logger.info('checking contract address options...')
+    if (this.options.bedrock) {
+      const address = this.options.optimismPortalAddress
+      if (!knownChainId && address === ethers.constants.AddressZero) {
+        this.logger.error('OptimismPortal contract unspecified')
+        throw new Error(
+          '--optimismportalcontractaddress needs to set for custom bedrock op chains'
+        )
+      }
+
+      if (address !== ethers.constants.AddressZero) {
+        this.logger.info('set OptimismPortal contract override')
+        contracts.OptimismPortal = address
+
+        this.logger.info('fetching L2OutputOracle contract from OptimismPortal')
+        const opts = { address, signerOrProvider: this.options.l1RpcProvider }
+        const portalContract = getOEContract('OptimismPortal', l2ChainId, opts)
+        contracts.L2OutputOracle = await portalContract.L2_ORACLE()
+      }
+
+      // ... for a known chain ids without an override, the L2OutputOracle will already
+      // be set via the hardcoded default
+    } else {
+      const address = this.options.stateCommitmentChainAddress
+      if (!knownChainId && address === ethers.constants.AddressZero) {
+        this.logger.error('StateCommitmentChain contract unspecified')
+        throw new Error(
+          '--statecommitmentchainaddress needs to set for custom legacy op chains'
+        )
+      }
+
+      if (address !== ethers.constants.AddressZero) {
+        this.logger.info('set StateCommitmentChain contract override')
+        contracts.StateCommitmentChain = address
+      }
+    }
+
+    return contracts
+  }
+
   async init(): Promise<void> {
     // Connect to L1.
     await waitForProvider(this.options.l1RpcProvider, {
@@ -106,12 +203,15 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       name: 'L2',
     })
 
+    const l1ChainId = await getChainId(this.options.l1RpcProvider)
+    const l2ChainId = await getChainId(this.options.l2RpcProvider)
     this.state.messenger = new CrossChainMessenger({
       l1SignerOrProvider: this.options.l1RpcProvider,
       l2SignerOrProvider: this.options.l2RpcProvider,
-      l1ChainId: await getChainId(this.options.l1RpcProvider),
-      l2ChainId: await getChainId(this.options.l2RpcProvider),
+      l1ChainId,
+      l2ChainId,
       bedrock: this.options.bedrock,
+      contracts: { l1: await this.getOEL1Contracts(l2ChainId) },
     })
 
     // Not diverged by default.

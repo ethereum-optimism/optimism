@@ -109,7 +109,7 @@ func Run(l1RpcUrl string, l2RpcUrl string, l2OracleAddr common.Address) error {
 	defer func() {
 		err := os.RemoveAll(temp)
 		if err != nil {
-			println("Failed to remove temp dir:" + err.Error())
+			fmt.Println("Failed to remove temp dir:" + err.Error())
 		}
 	}()
 	fmt.Printf("Using temp dir: %s\n", temp)
