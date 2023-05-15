@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
-DATADIR=/home/boba/datadir
+DATADIR=/db
 
 COMMON_FLAGS=" \
   --chain dev \
-  --datadir /home/boba/datadir \
+  --datadir ${DATADIR} \
   --log.console.verbosity dbug \
   "
 
@@ -14,7 +14,7 @@ ERIGON_FLAGS=" \
   --ws \
   --mine \
   --miner.etherbase=0x123463a4B065722E99115D6c222f267d9cABb524 \
-  --miner.sigfile /home/boba/datadir/nodekey \
+  --miner.sigfile ${DATADIR}/nodekey \
   --http.port 8545 \
   --http.addr 0.0.0.0 \
   --http.vhosts l2,localhost \
