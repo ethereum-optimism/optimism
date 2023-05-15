@@ -14,6 +14,7 @@ import (
 type BootInfo struct {
 	// TODO(CLI-XXX): The rollup config will be hardcoded. It's configurable for testing purposes.
 	Rollup             *rollup.Config      `json:"rollup"`
+	DAConfig           *rollup.DAConfig    `json:"da_config"`
 	L2ChainConfig      *params.ChainConfig `json:"l2_chain_config"`
 	L1Head             common.Hash         `json:"l1_head"`
 	L2Head             common.Hash         `json:"l2_head"`

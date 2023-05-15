@@ -52,6 +52,7 @@ func RunProgram(logger log.Logger, bootOracle io.Reader, preimageOracle io.ReadW
 	return runDerivation(
 		logger,
 		bootInfo.Rollup,
+		bootInfo.DAConfig,
 		bootInfo.L2ChainConfig,
 		bootInfo.L1Head,
 		bootInfo.L2Head,
@@ -63,7 +64,7 @@ func RunProgram(logger log.Logger, bootOracle io.Reader, preimageOracle io.ReadW
 }
 
 // runDerivation executes the L2 state transition, given a minimal interface to retrieve data.
-func runDerivation(logger log.Logger, cfg *rollup.Config, l2Cfg *params.ChainConfig, l1Head common.Hash, l2Head common.Hash, l2Claim common.Hash, l2ClaimBlockNum uint64, l1Oracle l1.Oracle, l2Oracle l2.Oracle) error {
+func runDerivation(logger log.Logger, cfg *rollup.Config, daCfg *rollup.DAConfig, l2Cfg *params.ChainConfig, l1Head common.Hash, l2Head common.Hash, l2Claim common.Hash, l2ClaimBlockNum uint64, l1Oracle l1.Oracle, l2Oracle l2.Oracle) error {
 	l1Source := l1.NewOracleL1Client(logger, l1Oracle, l1Head)
 	engineBackend, err := l2.NewOracleBackedL2Chain(logger, l2Oracle, l2Cfg, l2Head)
 	if err != nil {
@@ -72,7 +73,7 @@ func runDerivation(logger log.Logger, cfg *rollup.Config, l2Cfg *params.ChainCon
 	l2Source := l2.NewOracleEngine(cfg, logger, engineBackend)
 
 	logger.Info("Starting derivation")
-	d := cldr.NewDriver(logger, cfg, l1Source, l2Source, l2ClaimBlockNum)
+	d := cldr.NewDriver(logger, cfg, daCfg, l1Source, l2Source, l2ClaimBlockNum)
 	for {
 		if err = d.Step(context.Background()); errors.Is(err, io.EOF) {
 			break
