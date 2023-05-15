@@ -1,6 +1,6 @@
 import assert from 'assert'
 
-import { ethers, BigNumber } from 'ethers'
+import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import { awaitCondition } from '@eth-optimism/core-utils'
 import '@eth-optimism/hardhat-deploy-config'
@@ -10,6 +10,7 @@ import {
   getContractsFromArtifacts,
   getDeploymentAddress,
 } from '../src/deploy-utils'
+import { defaultResourceConfig } from '../src/constants'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
@@ -102,16 +103,7 @@ const deployFn: DeployFunction = async (hre) => {
       unsafeBlockSigner: hre.deployConfig.p2pSequencerAddress,
       // The resource config is not exposed to the end user
       // to simplify deploy config. It may be introduced in the future.
-      resourceConfig: {
-        maxResourceLimit: 20_000_000,
-        elasticityMultiplier: 10,
-        baseFeeMaxChangeDenominator: 8,
-        minimumBaseFee: ethers.utils.parseUnits('1', 'gwei'),
-        systemTxMaxGas: 1_000_000,
-        maximumBaseFee: BigNumber.from(
-          '0xffffffffffffffffffffffffffffffff'
-        ).toString(),
-      },
+      resourceConfig: defaultResourceConfig,
     },
   }
 

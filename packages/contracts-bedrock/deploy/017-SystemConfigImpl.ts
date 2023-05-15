@@ -2,27 +2,19 @@ import assert from 'assert'
 
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
-import { ethers, BigNumber } from 'ethers'
+import { BigNumber } from 'ethers'
 
+import { defaultResourceConfig } from '../src/constants'
 import { assertContractVariable, deploy } from '../src/deploy-utils'
-
-const uint128Max = ethers.BigNumber.from('0xffffffffffffffffffffffffffffffff')
-
-const defaultResourceConfig = {
-  maxResourceLimit: 20_000_000,
-  elasticityMultiplier: 10,
-  baseFeeMaxChangeDenominator: 8,
-  minimumBaseFee: ethers.utils.parseUnits('1', 'gwei'),
-  systemTxMaxGas: 1_000_000,
-  maximumBaseFee: uint128Max,
-}
 
 const deployFn: DeployFunction = async (hre) => {
   const batcherHash = hre.ethers.utils
     .hexZeroPad(hre.deployConfig.batchSenderAddress, 32)
     .toLowerCase()
 
-  const l2GenesisBlockGasLimit = hre.deployConfig.l2GenesisBlockGasLimit
+  const l2GenesisBlockGasLimit = BigNumber.from(
+    hre.deployConfig.l2GenesisBlockGasLimit
+  )
   const l2GasLimitLowerBound = BigNumber.from(
     defaultResourceConfig.systemTxMaxGas +
       defaultResourceConfig.maxResourceLimit
