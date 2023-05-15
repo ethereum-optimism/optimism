@@ -25,7 +25,7 @@ func BuildErigon(t *testing.T) string {
 
 	gt := gomega.NewWithT(t)
 	cmd := exec.Command("go", "build", "-o", buildPath, "github.com/ledgerwatch/erigon/cmd/erigon")
-	cmd.Dir = filepath.Join(".", "erigon-build-hack")
+	cmd.Dir = filepath.Join("..", "op-erigon")
 	sess, err := gexec.Start(cmd, os.Stdout, os.Stderr)
 	gt.Expect(err).NotTo(gomega.HaveOccurred())
 	gt.Eventually(sess, time.Minute).Should(gexec.Exit(0))
