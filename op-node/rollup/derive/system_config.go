@@ -63,17 +63,22 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		return fmt.Errorf("invalid SystemConfig update event: %s, expected %s", ev.Topics[0], ConfigUpdateEventABIHash)
 	}
 
-	// indexed 0
+	// Parse receipt log data
 	version := ev.Topics[1]
-	if version != ConfigUpdateEventVersion0 {
-		return fmt.Errorf("unrecognized SystemConfig update event version: %s", version)
-	}
-	// indexed 1
 	updateType := ev.Topics[2]
-
-	// Create a reader of the unindexed data
 	reader := bytes.NewReader(ev.Data)
 
+	// Switch on indexed 0 - the version
+	switch version {
+	case ConfigUpdateEventVersion0:
+		return UpdateSystemConfigVersionZero(destSysCfg, updateType, reader)
+	default:
+		return fmt.Errorf("unrecognized SystemConfig update event version: %s", version)
+	}
+}
+
+// UpdateSystemConfigVersionZero updates the given system config with the given updateType and data.
+func UpdateSystemConfigVersionZero(destSysCfg *eth.SystemConfig, updateType common.Hash, reader *bytes.Reader) error {
 	// Attempt to read unindexed data
 	switch updateType {
 	case SystemConfigUpdateBatcher:
@@ -133,6 +138,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		// Ignored in derivation. This configurable applies to runtime configuration outside of the derivation.
 		return nil
 	default:
-		return fmt.Errorf("unrecognized L1 sysCfg update type: %s", updateType)
+		// Since we explicitly dispatch on version, this should never be reached.
+		return nil
 	}
 }

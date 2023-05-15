@@ -1,6 +1,7 @@
 package derive
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -41,7 +42,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 		log    *types.Log
 		config eth.SystemConfig
 		hook   func(*testing.T, *types.Log) *types.Log
-		err    bool
+		err    error
 	}{
 		{
 			// The log data is ignored by consensus and no modifications to the
@@ -62,7 +63,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 				return log
 			},
 			config: eth.SystemConfig{},
-			err:    false,
+			err:    nil,
 		},
 		{
 			// The batcher address should be updated.
@@ -86,7 +87,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			config: eth.SystemConfig{
 				BatcherAddr: common.Address{19: 0xaa},
 			},
-			err: false,
+			err: nil,
 		},
 		{
 			// The overhead and the scalar should be updated.
@@ -112,7 +113,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 				Overhead: eth.Bytes32{31: 0xff},
 				Scalar:   eth.Bytes32{31: 0xaa},
 			},
-			err: false,
+			err: nil,
 		},
 		{
 			// The gas limit should be updated.
@@ -136,7 +137,39 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			config: eth.SystemConfig{
 				GasLimit: 0xbb,
 			},
-			err: false,
+			err: nil,
+		},
+		{
+			// Unknown update type should not error.
+			name: "SystemConfigUnknownUpdateType",
+			log: &types.Log{
+				Topics: []common.Hash{
+					ConfigUpdateEventABIHash,
+					ConfigUpdateEventVersion0,
+					{31: 0xbb},
+				},
+			},
+			hook: func(t *testing.T, log *types.Log) *types.Log {
+				return log
+			},
+			config: eth.SystemConfig{},
+			err:    nil,
+		},
+		{
+			// Unsupported event version
+			name: "SystemConfigUnsupportedEventVersion",
+			log: &types.Log{
+				Topics: []common.Hash{
+					ConfigUpdateEventABIHash,
+					{31: 0xbb},
+					{31: 0xbb},
+				},
+			},
+			hook: func(t *testing.T, log *types.Log) *types.Log {
+				return log
+			},
+			config: eth.SystemConfig{},
+			err:    fmt.Errorf("unrecognized SystemConfig update event version: %s", common.Hash{31: 0xbb}),
 		},
 		{
 			name: "SystemConfigOneTopic",
@@ -149,7 +182,7 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 				return log
 			},
 			config: eth.SystemConfig{},
-			err:    true,
+			err:    fmt.Errorf("expected 3 event topics (event identity, indexed version, indexed updateType), got 1"),
 		},
 	}
 
@@ -159,8 +192,8 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 			config := eth.SystemConfig{}
 
 			err := ProcessSystemConfigUpdateLogEvent(&config, test.hook(t, test.log))
-			if test.err {
-				require.Error(t, err)
+			if test.err != nil {
+				require.EqualError(t, err, test.err.Error())
 			} else {
 				require.NoError(t, err)
 			}
