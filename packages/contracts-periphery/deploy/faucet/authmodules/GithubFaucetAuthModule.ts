@@ -12,9 +12,11 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
 
   const { deployer } = await hre.getNamedAccounts()
 
+  console.log('Deploying Github Auth Module')
   const { deploy } = await hre.deployments.deterministic(
-    'AdminFaucetAuthModule',
+    'GithubAdminFaucetAuthModule',
     {
+      contract: 'AdminFaucetAuthModule',
       salt: hre.ethers.utils.solidityKeccak256(
         ['string'],
         ['AdminFaucetAuthModule']
