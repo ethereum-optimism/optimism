@@ -92,7 +92,6 @@ contract ExampleCloneFactory {
     }
 }
 
-
 contract Clones_Test is Test {
     function testFuzz_clone_addressArg_succeeds(uint256 argOffset, address param) public {
         ExampleClone implementation = new ExampleClone(argOffset);
@@ -118,7 +117,9 @@ contract Clones_Test is Test {
         assertEq(fetched, param);
     }
 
-    function testFuzz_clone_uintArrayArg_succeeds(uint256 argOffset, uint256[] memory param) public {
+    function testFuzz_clone_uintArrayArg_succeeds(uint256 argOffset, uint256[] memory param)
+        public
+    {
         ExampleClone implementation = new ExampleClone(argOffset);
         ExampleCloneFactory factory = new ExampleCloneFactory(implementation);
         ExampleClone clone = factory.createUintArrayClone(param);
@@ -150,4 +151,3 @@ contract Clones_Test is Test {
         assertEq(fetched, param);
     }
 }
-
