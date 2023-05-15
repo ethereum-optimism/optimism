@@ -8,10 +8,25 @@ import { assertContractVariable, deploy } from '../src/deploy-utils'
 
 const uint128Max = ethers.BigNumber.from('0xffffffffffffffffffffffffffffffff')
 
+const defaultResourceConfig = {
+  maxResourceLimit: 20_000_000,
+  elasticityMultiplier: 10,
+  baseFeeMaxChangeDenominator: 8,
+  minimumBaseFee: ethers.utils.parseUnits('1', 'gwei'),
+  systemTxMaxGas: 1_000_000,
+  maximumBaseFee: uint128Max,
+}
+
 const deployFn: DeployFunction = async (hre) => {
   const batcherHash = hre.ethers.utils
     .hexZeroPad(hre.deployConfig.batchSenderAddress, 32)
     .toLowerCase()
+
+  const l2GenesisBlockGasLimit = hre.deployConfig.l2GenesisBlockGasLimit
+  const l2GasLimitLowerBound = defaultResourceConfig.systemTxMaxGas + defaultResourceConfig.maxResourceLimit
+  if (l2GenesisBlockGasLimit.lt(l2GasLimitLowerBound)) {
+    throw new Error(`L2 genesis block gas limit must be at least ${l2GasLimitLowerBound}`)
+  }
 
   await deploy({
     hre,
@@ -21,16 +36,9 @@ const deployFn: DeployFunction = async (hre) => {
       hre.deployConfig.gasPriceOracleOverhead,
       hre.deployConfig.gasPriceOracleScalar,
       batcherHash,
-      hre.deployConfig.l2GenesisBlockGasLimit,
+      l2GenesisBlockGasLimit,
       hre.deployConfig.p2pSequencerAddress,
-      {
-        maxResourceLimit: 20_000_000,
-        elasticityMultiplier: 10,
-        baseFeeMaxChangeDenominator: 8,
-        systemTxMaxGas: 1_000_000,
-        minimumBaseFee: ethers.utils.parseUnits('1', 'gwei'),
-        maximumBaseFee: uint128Max,
-      },
+      defaultResourceConfig
     ],
     postDeployAction: async (contract) => {
       await assertContractVariable(
@@ -56,12 +64,12 @@ const deployFn: DeployFunction = async (hre) => {
       )
 
       const config = await contract.resourceConfig()
-      assert(config.maxResourceLimit === 20_000_000)
-      assert(config.elasticityMultiplier === 10)
-      assert(config.baseFeeMaxChangeDenominator === 8)
-      assert(config.systemTxMaxGas === 1_000_000)
-      assert(ethers.utils.parseUnits('1', 'gwei').eq(config.minimumBaseFee))
-      assert(config.maximumBaseFee.eq(uint128Max))
+      assert(config.maxResourceLimit === defaultResourceConfig.maxResourceLimit)
+      assert(config.elasticityMultiplier === defaultResourceConfig.elasticityMultiplier)
+      assert(config.baseFeeMaxChangeDenominator === defaultResourceConfig.baseFeeMaxChangeDenominator)
+      assert(config.systemTxMaxGas === defaultResourceConfig.systemTxMaxGas)
+      assert(config.minimumBaseFee.eq(defaultResourceConfig.minimumBaseFee))
+      assert(config.maximumBaseFee.eq(defaultResourceConfig.maximumBaseFee))
     },
   })
 }
