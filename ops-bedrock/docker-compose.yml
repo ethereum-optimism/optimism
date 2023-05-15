@@ -13,7 +13,7 @@ volumes:
 services:
   da:
     platform: linux/x86_64
-    image: "ghcr.io/rollkit/local-celestia-devnet:v0.9.2"
+    image: "ghcr.io/rollkit/local-celestia-devnet:v0.9.5"
     ports:
       - "26657:26657"
       - "26659:26659"
