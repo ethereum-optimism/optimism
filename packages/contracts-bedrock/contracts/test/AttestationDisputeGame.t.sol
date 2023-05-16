@@ -27,10 +27,16 @@ contract AttestationDisputeGame_Test is Portal_Initializer {
 
     bytes32 constant TYPE_HASH = 0x2676994b0652bcdf7968635d15b78aac9aaf797cc94c5adeb94376cc28f987d6;
 
+    // Deployed contracts on setUp()
     DisputeGameFactory factory;
     BondManager bm;
     AttestationDisputeGame disputeGameImplementation;
     AttestationDisputeGame disputeGameProxy;
+
+    // Clones with immutable args parameters
+    bytes public extraData;
+    Claim public rootClaim;
+    uint256 public l2BlockNumber;
 
     // SystemConfig `attestorSet` keys
     uint256[] attestorKeys;
@@ -45,13 +51,16 @@ contract AttestationDisputeGame_Test is Portal_Initializer {
     function setUp() public override {
         super.setUp();
 
+        // Create the dispute game factory
         factory = new DisputeGameFactory(address(this));
         vm.label(address(factory), "DisputeGameFactory");
+
+        // Create the bond manager
         bm = new BondManager(factory);
         vm.label(address(bm), "BondManager");
 
+        // Transfer ownership of the system to this contract
         vm.label(address(systemConfig), "SystemConfig");
-        // Transfer ownership of the system config to this contract
         vm.prank(address(1));
         systemConfig.transferOwnership(address(this));
 
@@ -76,9 +85,9 @@ contract AttestationDisputeGame_Test is Portal_Initializer {
         factory.setImplementation(gt, IDisputeGame(address(disputeGameImplementation)));
 
         // Create the attestation dispute game in the factory
-        uint256 l2BlockNumber = 100;
-        bytes memory extraData = abi.encode(l2BlockNumber);
-        Claim rootClaim = Claim.wrap(bytes32(0));
+        l2BlockNumber = 100;
+        extraData = abi.encode(l2BlockNumber);
+        rootClaim = Claim.wrap(bytes32(0));
         vm.expectEmit(false, true, true, false);
         emit DisputeGameCreated(address(0), gt, rootClaim);
         disputeGameProxy = AttestationDisputeGame(
@@ -130,6 +139,28 @@ contract AttestationDisputeGame_Test is Portal_Initializer {
     }
 
     /**
+     * @dev Test the EIP712 domain separator
+     */
+    function test_eip712Domain_succeeds() public {
+        (
+            bytes1 fields,
+            string memory name,
+            string memory version,
+            uint256 chainId,
+            address verifyingContract,
+            bytes32 salt,
+            uint256[] memory extensions
+        ) = disputeGameProxy.eip712Domain();
+        assertEq(fields, bytes1(0x0f));
+        assertEq(name, "AttestationDisputeGame");
+        assertEq(version, "0.0.1");
+        assertEq(chainId, block.chainid);
+        assertEq(verifyingContract, address(disputeGameProxy));
+        assertEq(salt, bytes32(0));
+        assertEq(extensions.length, 0);
+    }
+
+    /**
      * @dev Tests that the default initialization set the proper values.
      */
     function test_defaultInitialization_succeeds() public {
@@ -155,9 +186,41 @@ contract AttestationDisputeGame_Test is Portal_Initializer {
         assertEq(disputeGameProxy.frozenSignatureThreshold(), systemConfig.attestationThreshold());
     }
 
-    /********************
+    /**
+     * @dev Tests that the bond manager is set correctly.
+     */
+    function test_bondManager_succeeds() public {
+        assertEq(address(disputeGameProxy.BOND_MANAGER()), address(bm));
+    }
+
+    /***********************
+     * CWIA ARGUMENT TESTS *
+     ***********************/
+
+    /**
+     * @dev Test that the extraData is correctly appended to the dispute game clone.
+     */
+    function test_extraData_succeeds() public {
+        assertEq(disputeGameProxy.extraData(), extraData);
+    }
+
+    /**
+     * @dev Test that the root claim is correctly appended to the dispute game clone.
+     */
+    function test_rootClaim_succeeds() public {
+        assertEq(Claim.unwrap(disputeGameProxy.rootClaim()), Claim.unwrap(rootClaim));
+    }
+
+    /**
+     * @dev Test that the L2 block number is correctly appended to the dispute game clone.
+     */
+    function test_l2BlockNumber_succeeds() public {
+        assertEq(disputeGameProxy.l2BlockNumber(), l2BlockNumber);
+    }
+
+    /**********************
      * ATTESTOR SET TESTS *
-     ********************/
+     **********************/
 
     /**
      * @dev Tests that changing the `SystemConfig`'s attestor set does not change the

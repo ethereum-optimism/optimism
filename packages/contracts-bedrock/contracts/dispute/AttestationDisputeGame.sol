@@ -86,16 +86,16 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
 
     /**
      * @notice Initialize the implementation upon deployment.
-     * @param _bondmanager The BondManager contract that is used to manage the bonds for this game.
+     * @param _bondManager The BondManager contract that is used to manage the bonds for this game.
      * @param _systemConfig The L1's SystemConfig contract.
      * @param _l2OutputOracle The L2OutputOracle contract.
      */
     constructor(
-        IBondManager _bondmanager,
+        IBondManager _bondManager,
         SystemConfig _systemConfig,
         L2OutputOracle _l2OutputOracle
     ) EIP712() {
-        BOND_MANAGER = _bondmanager;
+        BOND_MANAGER = _bondManager;
         SYSTEM_CONFIG = _systemConfig;
         L2_OUTPUT_ORACLE = _l2OutputOracle;
     }

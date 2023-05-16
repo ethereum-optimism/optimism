@@ -319,6 +319,9 @@ contract BondManager_Test is Test {
         uint256 minClaimHold,
         uint256 amount
     ) public {
+        vm.assume(owner != address(factory));
+        vm.assume(owner != address(bm));
+        vm.assume(owner != address(this));
         vm.assume(owner != address(0));
         vm.assume(owner.code.length == 0);
         vm.assume(amount != 0);
