@@ -13,14 +13,19 @@ import (
 var Mainnet = rollup.Config{
 	Genesis: rollup.Genesis{
 		L1: eth.BlockID{
-			Hash:   common.HexToHash("0xe738cfb221bbbd19d34290d92dba006ff21ffa6dc42454a131ecfc38e2c7060a"),
-			Number: 16781040,
+			// moose: Update this during migration
+			Hash: common.HexToHash("0x"),
+			// moose: Update this during migration
+			Number: 0,
 		},
 		L2: eth.BlockID{
-			Hash:   common.HexToHash("0x437a930861429f155d367b0142fbef87e20de4dc3cdf76017ef089973be44b99"),
-			Number: 79149098,
+			// moose: Update this during migration
+			Hash: common.HexToHash("0x"),
+			// moose: Update this during migration
+			Number: 0,
 		},
-		L2Time: 1683727547,
+		// moose: Update this during migration
+		L2Time: 0,
 		SystemConfig: eth.SystemConfig{
 			BatcherAddr: common.HexToAddress("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
 			Overhead:    eth.Bytes32(common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000834")),
@@ -28,16 +33,18 @@ var Mainnet = rollup.Config{
 			GasLimit:    25_000_000,
 		},
 	},
-	BlockTime:              2,
-	MaxSequencerDrift:      600,
-	SeqWindowSize:          3600,
-	ChannelTimeout:         300,
-	L1ChainID:              big.NewInt(1),
-	L2ChainID:              big.NewInt(10),
-	BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000000000010"),
-	DepositContractAddress: common.HexToAddress("0xB468647B04bF657C9ee2de65252037d781eABafD"),
-	L1SystemConfigAddress:  common.HexToAddress("0x408F924BAEC71cC3968614Cb2c58E155A35e6890"),
-	RegolithTime:           u64Ptr(0),
+	BlockTime:         2,
+	MaxSequencerDrift: 600,
+	SeqWindowSize:     3600,
+	ChannelTimeout:    300,
+	L1ChainID:         big.NewInt(1),
+	L2ChainID:         big.NewInt(10),
+	BatchInboxAddress: common.HexToAddress("0xff00000000000000000000000000000000000010"),
+	// moose: Update this during migration
+	DepositContractAddress: common.HexToAddress("0x"),
+	// moose: Update this during migration
+	L1SystemConfigAddress: common.HexToAddress("0x"),
+	RegolithTime:          u64Ptr(0),
 }
 
 var Goerli = rollup.Config{
@@ -71,8 +78,9 @@ var Goerli = rollup.Config{
 }
 
 var NetworksByName = map[string]rollup.Config{
-	"goerli":  Goerli,
-	"mainnet": Mainnet,
+	"goerli": Goerli,
+	// moose: Update this during migration
+	// "mainnet": Mainnet,
 }
 
 var L2ChainIDToNetworkName = func() map[string]string {
