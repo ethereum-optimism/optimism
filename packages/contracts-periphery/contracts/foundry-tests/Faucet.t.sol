@@ -80,10 +80,11 @@ contract Faucet_Initializer is Test {
      * @notice Get signature as a bytes blob.
      *
      */
-    function _getSignature(
-        uint256 _signingPrivateKey,
-        bytes32 _digest
-    ) internal pure returns (bytes memory) {
+    function _getSignature(uint256 _signingPrivateKey, bytes32 _digest)
+        internal
+        pure
+        returns (bytes memory)
+    {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(_signingPrivateKey, _digest);
 
         bytes memory signature = abi.encodePacked(r, s, v);
