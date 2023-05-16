@@ -77,11 +77,6 @@ const main = async () => {
     id: proof.id,
     proof: signature,
   }
-  console.log(
-    'recovered signature matches owner',
-    (await OptimistFam.getSignature(dripParams, proof.id, signature)) ===
-      owner.address
-  )
   const dripTx = await Faucet.drip(dripParams, authParams)
   await dripTx.wait()
 }

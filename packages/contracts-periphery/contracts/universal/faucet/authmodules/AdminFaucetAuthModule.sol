@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/draft-EIP712.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import { IFaucetAuthModule } from "./IFaucetAuthModule.sol";
 import { Faucet } from "../Faucet.sol";
@@ -48,17 +47,6 @@ contract AdminFaucetAuthModule is IFaucetAuthModule, EIP712 {
         string memory _version
     ) EIP712(_name, _version) {
         ADMIN = _admin;
-    }
-
-    function getSignature(
-        Faucet.DripParameters memory _params,
-        bytes32 _id,
-        bytes memory _proof
-    ) external view returns (address) {
-        bytes32 digest = _hashTypedDataV4(
-            keccak256(abi.encode(PROOF_TYPEHASH, _params.recipient, _params.nonce, _id))
-        );
-        return ECDSA.recover(digest, _proof);
     }
 
     /**
