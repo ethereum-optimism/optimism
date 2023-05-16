@@ -190,22 +190,6 @@ var (
 		"method",
 	})
 
-	lvcErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
-		Namespace: MetricsNamespace,
-		Name:      "lvc_errors_total",
-		Help:      "Count of lvc errors.",
-	}, []string{
-		"key",
-	})
-
-	lvcPollTimeGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: MetricsNamespace,
-		Name:      "lvc_poll_time_gauge",
-		Help:      "Gauge of lvc poll time.",
-	}, []string{
-		"key",
-	})
-
 	batchRPCShortCircuitsTotal = promauto.NewCounter(prometheus.CounterOpts{
 		Namespace: MetricsNamespace,
 		Name:      "batch_rpc_short_circuits_total",

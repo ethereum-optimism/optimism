@@ -3,9 +3,10 @@ package proxyd
 import (
 	"context"
 	"encoding/json"
-	"github.com/ethereum/go-ethereum/log"
 	"strings"
 	"sync"
+
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type RPCMethodHandler interface {

@@ -1,13 +1,11 @@
 package proxyd
 
 import (
-	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/math"
@@ -369,40 +367,4 @@ func configureBackendTLS(cfg *BackendConfig) (*tls.Config, error) {
 	}
 
 	return tlsConfig, nil
-}
-
-func makeUint64LastValueFn(client *ethclient.Client, cache Cache, key string, updater lvcUpdateFn) (*EthLastValueCache, func(context.Context) (uint64, error)) {
-	lvc := newLVC(client, cache, key, updater)
-	lvc.Start()
-	return lvc, func(ctx context.Context) (uint64, error) {
-		value, err := lvc.Read(ctx)
-		if err != nil {
-			return 0, err
-		}
-		if value == "" {
-			return 0, fmt.Errorf("%s is unavailable", key)
-		}
-		valueUint, err := strconv.ParseUint(value, 10, 64)
-		if err != nil {
-			return 0, err
-		}
-		return valueUint, nil
-	}
-}
-
-func makeGetLatestBlockNumFn(client *ethclient.Client, cache Cache) (*EthLastValueCache, GetLatestBlockNumFn) {
-	return makeUint64LastValueFn(client, cache, "lvc:block_number", func(ctx context.Context, c *ethclient.Client) (string, error) {
-		blockNum, err := c.BlockNumber(ctx)
-		return strconv.FormatUint(blockNum, 10), err
-	})
-}
-
-func makeGetLatestGasPriceFn(client *ethclient.Client, cache Cache) (*EthLastValueCache, GetLatestGasPriceFn) {
-	return makeUint64LastValueFn(client, cache, "lvc:gas_price", func(ctx context.Context, c *ethclient.Client) (string, error) {
-		gasPrice, err := c.SuggestGasPrice(ctx)
-		if err != nil {
-			return "", err
-		}
-		return gasPrice.String(), nil
-	})
 }
