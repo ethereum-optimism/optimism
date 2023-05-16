@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/draft-EIP712.sol";
+import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import { IFaucetAuthModule } from "./IFaucetAuthModule.sol";
 import { Faucet } from "../Faucet.sol";
@@ -21,7 +22,7 @@ contract AdminFaucetAuthModule is IFaucetAuthModule, EIP712 {
      * @notice EIP712 typehash for the Proof type.
      */
     bytes32 public constant PROOF_TYPEHASH =
-        keccak256("Proof(address recipient,bytes32 nonce,bytes id)");
+        keccak256("Proof(address recipient,bytes32 nonce,bytes32 id)");
 
     /**
      * @notice Struct that represents a proof that verifies the admin.
@@ -33,7 +34,7 @@ contract AdminFaucetAuthModule is IFaucetAuthModule, EIP712 {
     struct Proof {
         address recipient;
         bytes32 nonce;
-        bytes id;
+        bytes32 id;
     }
 
     /**
@@ -49,12 +50,23 @@ contract AdminFaucetAuthModule is IFaucetAuthModule, EIP712 {
         ADMIN = _admin;
     }
 
+    function getSignature(
+        Faucet.DripParameters memory _params,
+        bytes32 _id,
+        bytes memory _proof
+    ) external view returns (address) {
+        bytes32 digest = _hashTypedDataV4(
+            keccak256(abi.encode(PROOF_TYPEHASH, _params.recipient, _params.nonce, _id))
+        );
+        return ECDSA.recover(digest, _proof);
+    }
+
     /**
      * @inheritdoc IFaucetAuthModule
      */
     function verify(
         Faucet.DripParameters memory _params,
-        bytes memory _id,
+        bytes32 _id,
         bytes memory _proof
     ) external view returns (bool) {
         // Generate a EIP712 typed data hash to compare against the proof.
