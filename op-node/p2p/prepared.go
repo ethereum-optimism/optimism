@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/metrics"
 
@@ -23,7 +24,13 @@ type Prepared struct {
 	LocalNode *enode.LocalNode
 	UDPv5     *discover.UDPv5
 
-	EnableReqRespSync bool
+	EnableReqRespSync   bool
+	EnablePeerBanning   bool
+	PeerScoreParams     pubsub.PeerScoreParams
+	TopicScoreParams    pubsub.TopicScoreParams
+	BandScoreThresholds *BandScoreThresholds
+	Gater               connmgr.ConnectionGater
+	ConnMgr             connmgr.ConnManager
 }
 
 var _ SetupP2P = (*Prepared)(nil)
@@ -44,7 +51,16 @@ func (p *Prepared) Check() error {
 
 // Host creates a libp2p host service. Returns nil, nil if p2p is disabled.
 func (p *Prepared) Host(log log.Logger, reporter metrics.Reporter) (host.Host, error) {
-	return p.HostP2P, nil
+	h := &extrasHost{
+		Host: p.HostP2P,
+
+		ConnMgr: p.ConnMgr,
+	}
+	// Only add the connection gater if it offers the full interface we're looking for.
+	if g, ok := p.Gater.(ConnectionGater); ok {
+		h.Gater = g
+	}
+	return h, nil
 }
 
 // Discovery creates a disc-v5 service. Returns nil, nil, nil if discovery is disabled.
@@ -69,19 +85,19 @@ func (p *Prepared) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
 }
 
 func (p *Prepared) PeerScoringParams() *pubsub.PeerScoreParams {
-	return nil
+	return &p.PeerScoreParams
 }
 
 func (p *Prepared) PeerBandScorer() *BandScoreThresholds {
-	return nil
+	return p.BandScoreThresholds
 }
 
 func (p *Prepared) BanPeers() bool {
-	return false
+	return p.EnablePeerBanning
 }
 
 func (p *Prepared) TopicScoringParams() *pubsub.TopicScoreParams {
-	return nil
+	return &p.TopicScoreParams
 }
 
 func (p *Prepared) Disabled() bool {
@@ -90,4 +106,18 @@ func (p *Prepared) Disabled() bool {
 
 func (p *Prepared) ReqRespSyncEnabled() bool {
 	return p.EnableReqRespSync
+}
+
+type extrasHost struct {
+	host.Host
+	Gater   ConnectionGater
+	ConnMgr connmgr.ConnManager
+}
+
+func (h *extrasHost) ConnectionGater() ConnectionGater {
+	return h.Gater
+}
+
+func (h *extrasHost) ConnectionManager() connmgr.ConnManager {
+	return h.ConnMgr
 }

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/p2pstub"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
@@ -20,6 +21,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
+	ds "github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/sync"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/require"
 
@@ -160,6 +163,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 				L1EpochPollInterval: time.Second * 4,
 			},
 		},
+		P2pNodes: map[string]*p2pstub.Config{},
 		Loggers: map[string]log.Logger{
 			"verifier":  testlog.Logger(t, log.LvlInfo).New("role", "verifier"),
 			"sequencer": testlog.Logger(t, log.LvlInfo).New("role", "sequencer"),
@@ -197,6 +201,7 @@ type SystemConfig struct {
 
 	Premine        map[common.Address]*big.Int
 	Nodes          map[string]*rollupNode.Config // Per node config. Don't use populate rollup.Config
+	P2pNodes       map[string]*p2pstub.Config    // Nodes that run only a basic p2p stack
 	Loggers        map[string]log.Logger
 	GethOptions    map[string][]GethOption
 	ProposerLogger log.Logger
@@ -209,6 +214,9 @@ type SystemConfig struct {
 
 	// Enables req-resp sync in the P2P nodes
 	P2PReqRespSync bool
+
+	// Enables peer scoring and banning in the P2P nodes
+	P2PPeerScoring bool
 
 	// If the proposer can make proposals for L2 blocks derived from L1 blocks which are not finalized on L1 yet.
 	NonFinalizedProposals bool
@@ -229,6 +237,7 @@ type System struct {
 	Backends          map[string]*geth_eth.Ethereum
 	Clients           map[string]*ethclient.Client
 	RollupNodes       map[string]*rollupNode.OpNode
+	P2PNodes          map[string]*p2pstub.P2PNode
 	L2OutputSubmitter *l2os.L2OutputSubmitter
 	BatchSubmitter    *bss.BatchSubmitter
 	Mocknet           mocknet.Mocknet
@@ -300,6 +309,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		Backends:    make(map[string]*geth_eth.Ethereum),
 		Clients:     make(map[string]*ethclient.Client),
 		RollupNodes: make(map[string]*rollupNode.OpNode),
+		P2PNodes:    make(map[string]*p2pstub.P2PNode),
 	}
 	didErrAfterStart := false
 	defer func() {
@@ -308,6 +318,9 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 				node.Close()
 			}
 			for _, node := range sys.Nodes {
+				node.Close()
+			}
+			for _, node := range sys.P2PNodes {
 				node.Close()
 			}
 		}
@@ -472,7 +485,10 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 			h.Network()
 			_, ok := cfg.Nodes[name]
 			if !ok {
-				return nil, fmt.Errorf("node %s from p2p topology not found in actual nodes map", name)
+				_, ok = cfg.P2pNodes[name]
+				if !ok {
+					return nil, fmt.Errorf("node %s from p2p topology not found in actual nodes or p2p nodes map", name)
+				}
 			}
 			// TODO we can enable discv5 in the testnodes to test discovery of new peers.
 			// Would need to mock though, and the discv5 implementation does not provide nice mocks here.
@@ -481,6 +497,33 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 				LocalNode:         nil,
 				UDPv5:             nil,
 				EnableReqRespSync: cfg.P2PReqRespSync,
+			}
+			if cfg.P2PPeerScoring {
+				p.PeerScoreParams = p2p.LightPeerScoreParams(defaultConfig.BlockTime)
+				p.TopicScoreParams = p2p.LightTopicScoreParams(defaultConfig.BlockTime)
+				scorer, err := p2p.NewBandScorer("-100:banned;-40:graylist;-20:restricted;-10:negative;0:nopx;10:positive;20:friend;")
+				if err != nil {
+					return nil, fmt.Errorf("create band scorer: %w", err)
+				}
+				p.BandScoreThresholds = scorer
+				p.EnablePeerBanning = true
+
+				p2pConfig := &p2p.Config{
+					PeersLo: 0,
+					PeersHi: 100000,
+					Store:   sync.MutexWrap(ds.NewMapDatastore()),
+				}
+				gater, err := p2p.DefaultConnGater(p2pConfig)
+				if err != nil {
+					return nil, fmt.Errorf("create connection gater: %w", err)
+				}
+				p.Gater = gater
+
+				connMgr, err := p2p.DefaultConnManager(p2pConfig)
+				if err != nil {
+					return nil, fmt.Errorf("create connection manager: %w", err)
+				}
+				p.ConnMgr = connMgr
 			}
 			p2pNodes[name] = p
 			return p, nil
@@ -548,6 +591,28 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		if action, ok := opts.Get("afterRollupNodeStart", name); ok {
 			action(&cfg, sys)
 		}
+	}
+
+	// Create and start stub p2p nodes
+	for name, nodeConfig := range cfg.P2pNodes {
+		c := *nodeConfig // copy
+		c.Rollup = makeRollupConfig()
+		p, ok := p2pNodes[name]
+		if !ok {
+			return nil, fmt.Errorf("p2p node %v created but not attached to network", name)
+		}
+		c.P2P = p
+		node, err := p2pstub.NewP2pNode(cfg.Loggers[name], c)
+		if err != nil {
+			didErrAfterStart = true
+			return nil, err
+		}
+		err = node.Start(context.Background())
+		if err != nil {
+			didErrAfterStart = true
+			return nil, err
+		}
+		sys.P2PNodes[name] = node
 	}
 
 	if cfg.P2PTopology != nil {
