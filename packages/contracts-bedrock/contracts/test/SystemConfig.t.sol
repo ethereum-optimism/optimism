@@ -192,10 +192,6 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         bytes data
     );
 
-    event AttestorSetUpdate(address indexed attestor, bool authenticated);
-
-    event AttestationThresholdUpdate(uint256 attestationThreshold);
-
     function testFuzz_setBatcherHash_succeeds(bytes32 newBatcherHash) external {
         vm.expectEmit(true, true, true, true);
         emit ConfigUpdate(0, SystemConfig.UpdateType.BATCHER, abi.encode(newBatcherHash));
@@ -271,9 +267,6 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
             if (cachedAttestors[i] == _attestor) {
                 if (_authenticated) {
                     vm.expectRevert("SystemConfig: attestor already authenticated");
-                } else {
-                    vm.expectEmit(true, true, true, true);
-                    emit AttestorSetUpdate(_attestor, false);
                 }
             }
         }
@@ -284,8 +277,6 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
     function testFuzz_setAttestationThreshold_succeeds(uint256 _attestationThreshold) external {
         vm.assume(_attestationThreshold > 0);
         vm.assume(_attestationThreshold <= 10_000);
-        vm.expectEmit(true, true, true, true);
-        emit AttestationThresholdUpdate(_attestationThreshold);
         vm.prank(sysConf.owner());
         sysConf.setAttestationThreshold(_attestationThreshold);
     }

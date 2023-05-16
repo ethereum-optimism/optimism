@@ -94,21 +94,6 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /**
-     * @notice Emitted when the attestor set is updated.
-     *
-     * @param attestor The address of the attestor.
-     * @param authenticated Whether the attestor is authenticated post-update.
-     */
-    event AttestorSetUpdate(address indexed attestor, bool authenticated);
-
-    /**
-     * @notice Emitted when the attestation threshold is updated.
-     *
-     * @param attestationThreshold The new attestation threshold.
-     */
-    event AttestationThresholdUpdate(uint256 attestationThreshold);
-
-    /**
      * @custom:semver 1.4.0
      *
      * @param _owner             Initial owner of the contract.
@@ -343,7 +328,6 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      */
     function setAttestor(address _attestor, bool _authenticated) external onlyOwner {
         _setAttestor(_attestor, _authenticated);
-        emit AttestorSetUpdate(_attestor, _authenticated);
     }
 
     /**
@@ -392,6 +376,5 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         );
 
         attestationThreshold = _attestationThreshold;
-        emit AttestationThresholdUpdate(_attestationThreshold);
     }
 }
