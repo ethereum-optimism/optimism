@@ -21,8 +21,6 @@ interface IDisputeGame is IInitializable, IVersioned {
      */
     event Resolved(GameStatus indexed status);
 
-    /// @notice Returns the timestamp that the DisputeGame contract was created at.
-
     /**
      * @notice Returns the timestamp that the DisputeGame contract was created at.
      * @return _createdAt The timestamp that the DisputeGame contract was created at.

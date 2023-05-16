@@ -34,11 +34,6 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
         Hash.wrap(keccak256("Dispute(bytes32 outputRoot,uint256 l2BlockNumber)"));
 
     /**
-     * @notice The current version of the `AttestationDisputeGame` contract.
-     */
-    string public constant VERSION = "0.0.1";
-
-    /**
      * @notice The BondManager contract that is used to manage the bonds for this game.
      */
     IBondManager public immutable BOND_MANAGER;
@@ -52,6 +47,11 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
      * @notice The L2OutputOracle contract.
      */
     L2OutputOracle public immutable L2_OUTPUT_ORACLE;
+
+    /**
+     * @notice The current version of the `AttestationDisputeGame` contract.
+     */
+    string internal constant VERSION = "0.0.1";
 
     /**
      * @notice The timestamp that the DisputeGame contract was created at.
@@ -206,15 +206,6 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
     }
 
     /**
-     * @notice Returns the semantic version of the DisputeGame contract.
-     * @dev Current version: 0.0.1
-     * @return The semantic version of the DisputeGame contract.
-     */
-    function version() external pure override returns (string memory) {
-        return VERSION;
-    }
-
-    /**
      * @notice Returns the address of the `BondManager` used.
      * @return _bondManager The address of the `BondManager` used.
      */
@@ -258,6 +249,14 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
      */
     function gameType() public pure override returns (GameType) {
         return GameType.ATTESTATION;
+    }
+
+    /**
+     * @notice Returns the semantic version of the contract
+     * @return _version The semantic version of the contract
+     */
+    function version() external pure override returns (string memory _version) {
+        _version = VERSION;
     }
 
     /**
