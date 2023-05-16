@@ -44,6 +44,11 @@ error ClaimAlreadyExists();
 ////////////////////////////////////////////////////////////////
 
 /**
+ * @notice Thrown when a game is not in progress and is challenged.
+ */
+error GameNotInProgress();
+
+/**
  * @notice Thrown when an invalid signature is submitted to `challenge`.
  */
 error InvalidSignature();

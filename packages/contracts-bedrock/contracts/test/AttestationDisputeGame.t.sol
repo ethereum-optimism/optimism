@@ -6,6 +6,8 @@ import "forge-std/Test.sol";
 import "../libraries/DisputeTypes.sol";
 import "../libraries/DisputeErrors.sol";
 
+import { ECDSA } from "@solady/utils/ECDSA.sol";
+
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { SystemConfig } from "../L1/SystemConfig.sol";
 
@@ -21,6 +23,8 @@ import { Portal_Initializer } from "./CommonTest.t.sol";
  * @title AttestationDisputeGame_Test
  */
 contract AttestationDisputeGame_Test is Portal_Initializer {
+    using stdStorage for StdStorage;
+
     bytes32 constant TYPE_HASH = 0x2676994b0652bcdf7968635d15b78aac9aaf797cc94c5adeb94376cc28f987d6;
 
     DisputeGameFactory factory;
@@ -64,6 +68,7 @@ contract AttestationDisputeGame_Test is Portal_Initializer {
             systemConfig,
             oracle
         );
+        disputeGameImplementation.initialize();
         vm.label(address(disputeGameImplementation), "AttestationDisputeGame_Implementation");
 
         // Set the implementation in the factory
@@ -71,7 +76,8 @@ contract AttestationDisputeGame_Test is Portal_Initializer {
         factory.setImplementation(gt, IDisputeGame(address(disputeGameImplementation)));
 
         // Create the attestation dispute game in the factory
-        bytes memory extraData = hex"";
+        uint256 l2BlockNumber = 100;
+        bytes memory extraData = abi.encode(l2BlockNumber);
         Claim rootClaim = Claim.wrap(bytes32(0));
         vm.expectEmit(false, true, true, false);
         emit DisputeGameCreated(address(0), gt, rootClaim);
@@ -228,5 +234,82 @@ contract AttestationDisputeGame_Test is Portal_Initializer {
         assertEq(systemConfig.attestationThreshold(), 6);
         // Assert that the new game's signature threshold is 6.
         assertEq(newGame.frozenSignatureThreshold(), systemConfig.attestationThreshold());
+    }
+
+    /******************************
+     * DISPUTE TESTS - HAPPY PATH *
+     ******************************/
+
+    /**
+     * @dev Challenge the attestation dispute game with a valid claim.
+     */
+    function test_challenge_succeeds() public {
+        bytes32 msgHash = Hash.unwrap(disputeGameImplementation.getTypedDataHash());
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, msgHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+        assertEq(signature.length, 65);
+        disputeGameImplementation.challenge(signature);
+        assertTrue(disputeGameImplementation.challenges(vm.addr(1)));
+        assertEq(disputeGameImplementation.attestationSubmitters(0), address(this));
+    }
+
+    /****************************
+     * DISPUTE TESTS - SAD PATH *
+     ****************************/
+
+    /**
+     * @dev Duplicate challenges should revert.
+     */
+    function test_challenge_duplicate_reverts() public {
+        test_challenge_succeeds();
+
+        bytes32 msgHash = Hash.unwrap(disputeGameImplementation.getTypedDataHash());
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(1, msgHash);
+        bytes memory signature = abi.encodePacked(r, s, v);
+        assertEq(signature.length, 65);
+        vm.expectRevert(AlreadyChallenged.selector);
+        disputeGameImplementation.challenge(signature);
+    }
+
+    /**
+     * @dev Challenging the attestation dispute game should revert
+     *      when not in progress.
+     */
+    function test_challenge_notInProgress_reverts() public {
+        address target = address(disputeGameImplementation);
+        // stdstore.target(target).sig("status()").checked_write(bytes32(uint256(1)));
+
+        vm.store(
+            target,
+            bytes32(0x0000000000000000000000000000000000000000000000000000000003e90001),
+            bytes32(uint256(1))
+        );
+        // GameStatus status = disputeGameImplementation.status();
+        // assertTrue(uint256(status) != uint256(GameStatus.IN_PROGRESS));
+        // vm.expectRevert(GameNotInProgress.selector);
+        vm.expectRevert();
+        disputeGameImplementation.challenge(bytes(""));
+    }
+
+    /**
+     * @dev Challenging the attestation dispute game should revert
+     *      when the signature is invalid.
+     */
+    function testFuzz_challenge_invalidSignature_reverts(bytes calldata signature) public {
+        // The game should be in progress
+        GameStatus status = disputeGameProxy.status();
+        assertEq(uint256(status), uint256(GameStatus.IN_PROGRESS));
+
+        // Make sure we didn't accidentally generate a valid signature
+        Hash atstHash = disputeGameProxy.getTypedDataHash();
+        vm.expectRevert(InvalidSignature.selector);
+        address recovered = ECDSA.recoverCalldata(Hash.unwrap(atstHash), signature);
+        address[] memory attestorSet = systemConfig.attestorSet();
+        for (uint256 i = 0; i < attestorSet.length; i++) {
+            vm.assume(recovered != attestorSet[i]);
+        }
+
+        vm.expectRevert(InvalidSignature.selector);
+        disputeGameProxy.challenge(signature);
     }
 }

@@ -14,6 +14,7 @@ import { GameStatus } from "../libraries/DisputeTypes.sol";
 
 import { InvalidSignature } from "../libraries/DisputeErrors.sol";
 import { AlreadyChallenged } from "../libraries/DisputeErrors.sol";
+import { GameNotInProgress } from "../libraries/DisputeErrors.sol";
 
 import { IAttestationDisputeGame } from "./IAttestationDisputeGame.sol";
 import { IBondManager } from "./IBondManager.sol";
@@ -127,6 +128,10 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
      *        exists within the `attestorSet`.
      */
     function challenge(bytes calldata signature) external {
+        if (status != GameStatus.IN_PROGRESS) {
+            revert GameNotInProgress();
+        }
+
         // Attempt to recover the signature provided. Solady's ECDSA library
         // will revert if the signer cannot be recovered from the given signature.
         address recovered = ECDSA.recoverCalldata(Hash.unwrap(getTypedDataHash()), signature);
