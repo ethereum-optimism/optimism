@@ -367,7 +367,7 @@ func RecordCacheMiss(method string) {
 }
 
 func RecordCacheError(method string) {
-	cacheMissesTotal.WithLabelValues(method).Inc()
+	cacheErrorsTotal.WithLabelValues(method).Inc()
 }
 
 func RecordBatchSize(size int) {
