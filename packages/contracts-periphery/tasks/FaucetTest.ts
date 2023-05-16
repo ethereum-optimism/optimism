@@ -47,11 +47,10 @@ const main = async () => {
       [await hre.ethers.provider.getTransactionCount(owner.address)]
     )
   )
-  const signedId = await owner.signMessage(owner.address)
   const proof = {
     recipient: owner.address,
     nonce: encodedNonce,
-    id: hre.ethers.utils.keccak256(signedId),
+    id: hre.ethers.utils.keccak256(owner.address),
   }
   const domain = {
     name: deployConfig.optimistFamName,
