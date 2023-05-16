@@ -57,11 +57,10 @@ contract AdminFaucetAuthModuleTest is Test {
      * @notice Get signature as a bytes blob.
      *
      */
-    function _getSignature(uint256 _signingPrivateKey, bytes32 _digest)
-        internal
-        pure
-        returns (bytes memory)
-    {
+    function _getSignature(
+        uint256 _signingPrivateKey,
+        bytes32 _digest
+    ) internal pure returns (bytes memory) {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(_signingPrivateKey, _digest);
 
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -80,7 +79,7 @@ contract AdminFaucetAuthModuleTest is Test {
         uint256 _eip712Chainid,
         address _eip712VerifyingContract,
         address recipient,
-        bytes memory id,
+        bytes32 id,
         bytes32 nonce
     ) internal view returns (bytes memory) {
         AdminFaucetAuthModule.Proof memory proof = AdminFaucetAuthModule.Proof(
@@ -114,7 +113,7 @@ contract AdminFaucetAuthModuleTest is Test {
             block.chainid,
             address(adminFam),
             fundsReceiver,
-            abi.encodePacked(fundsReceiver),
+            keccak256(abi.encodePacked(fundsReceiver)),
             nonce
         );
 
@@ -122,7 +121,7 @@ contract AdminFaucetAuthModuleTest is Test {
         assertEq(
             adminFam.verify(
                 Faucet.DripParameters(payable(fundsReceiver), nonce),
-                abi.encodePacked(fundsReceiver),
+                keccak256(abi.encodePacked(fundsReceiver)),
                 proof
             ),
             true
@@ -142,7 +141,7 @@ contract AdminFaucetAuthModuleTest is Test {
             block.chainid,
             address(adminFam),
             fundsReceiver,
-            abi.encodePacked(fundsReceiver),
+            keccak256(abi.encodePacked(fundsReceiver)),
             nonce
         );
 
@@ -150,7 +149,7 @@ contract AdminFaucetAuthModuleTest is Test {
         assertEq(
             adminFam.verify(
                 Faucet.DripParameters(payable(fundsReceiver), nonce),
-                abi.encodePacked(fundsReceiver),
+                keccak256(abi.encodePacked(fundsReceiver)),
                 proof
             ),
             false
@@ -172,7 +171,7 @@ contract AdminFaucetAuthModuleTest is Test {
             block.chainid,
             address(adminFam),
             fundsReceiver,
-            abi.encodePacked(fundsReceiver),
+            keccak256(abi.encodePacked(fundsReceiver)),
             nonce
         );
 
@@ -180,7 +179,7 @@ contract AdminFaucetAuthModuleTest is Test {
         assertEq(
             adminFam.verify(
                 Faucet.DripParameters(payable(fundsReceiver), nonce),
-                abi.encodePacked(randomAddress),
+                keccak256(abi.encodePacked(randomAddress)),
                 proof
             ),
             false

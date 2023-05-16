@@ -17,7 +17,7 @@ interface IFaucetAuthModule {
      */
     function verify(
         Faucet.DripParameters memory _params,
-        bytes memory _id,
+        bytes32 _id,
         bytes memory _proof
     ) external view returns (bool);
 }

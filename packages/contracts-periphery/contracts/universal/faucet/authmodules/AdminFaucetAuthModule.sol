@@ -21,7 +21,7 @@ contract AdminFaucetAuthModule is IFaucetAuthModule, EIP712 {
      * @notice EIP712 typehash for the Proof type.
      */
     bytes32 public constant PROOF_TYPEHASH =
-        keccak256("Proof(address recipient,bytes32 nonce,bytes id)");
+        keccak256("Proof(address recipient,bytes32 nonce,bytes32 id)");
 
     /**
      * @notice Struct that represents a proof that verifies the admin.
@@ -33,7 +33,7 @@ contract AdminFaucetAuthModule is IFaucetAuthModule, EIP712 {
     struct Proof {
         address recipient;
         bytes32 nonce;
-        bytes id;
+        bytes32 id;
     }
 
     /**
@@ -54,7 +54,7 @@ contract AdminFaucetAuthModule is IFaucetAuthModule, EIP712 {
      */
     function verify(
         Faucet.DripParameters memory _params,
-        bytes memory _id,
+        bytes32 _id,
         bytes memory _proof
     ) external view returns (bool) {
         // Generate a EIP712 typed data hash to compare against the proof.
