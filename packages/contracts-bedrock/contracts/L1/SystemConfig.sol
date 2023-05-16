@@ -77,9 +77,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     address[] internal _attestorSet;
 
     /**
-     * @notice The `attestationThreshold` is the number of positive attestations that must be issued
-     *         for a given alternative output proposal in the `AttestationDisputeGame` before it is
-     *         considered to be the canonical output.
+     * @notice The `attestationThreshold` is the ratio of attestations that must be issued
+     *         for a given alternative output proposal in the `AttestationDisputeGame` before
+     *         it is considered to be the canonical output.
+     *         The `attestationThreshold` is denominated in basis points.
      */
     uint256 public attestationThreshold;
 
@@ -375,7 +376,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
 
     /**
      * @notice An external setter for the `attestationThreshold` variable.
-     *         This method is used to set the number of signatures required
+     *         This method is used to set the percent (in basis points) required
      *         to invalidate an output proposal in the `AttestationDisputeGame`.
      *
      * @param _attestationThreshold The new attestation threshold.
@@ -384,6 +385,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         require(
             _attestationThreshold > 0,
             "SystemConfig: attestation threshold must be greater than 0"
+        );
+        require(
+            _attestationThreshold <= 10_000,
+            "SystemConfig: attestation threshold must not exceed 10,000"
         );
 
         attestationThreshold = _attestationThreshold;

@@ -174,6 +174,15 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         vm.expectRevert("SystemConfig: attestation threshold must be greater than 0");
         sysConf.setAttestationThreshold(0);
     }
+
+    function testFuzz_setAttestationThreshold_exceedMax_reverts(uint256 _attestationThreshold)
+        external
+    {
+        vm.assume(_attestationThreshold > 10_000);
+        vm.prank(sysConf.owner());
+        vm.expectRevert("SystemConfig: attestation threshold must not exceed 10,000");
+        sysConf.setAttestationThreshold(_attestationThreshold);
+    }
 }
 
 contract SystemConfig_Setters_Test is SystemConfig_Init {
@@ -274,6 +283,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
 
     function testFuzz_setAttestationThreshold_succeeds(uint256 _attestationThreshold) external {
         vm.assume(_attestationThreshold > 0);
+        vm.assume(_attestationThreshold <= 10_000);
         vm.expectEmit(true, true, true, true);
         emit AttestationThresholdUpdate(_attestationThreshold);
         vm.prank(sysConf.owner());
