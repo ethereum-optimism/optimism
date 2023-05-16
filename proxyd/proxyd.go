@@ -213,17 +213,10 @@ func Start(config *Config) (*Server, func(), error) {
 	}
 
 	var (
-		rpcCache    RPCCache
-		blockNumLVC *EthLastValueCache
-		gasPriceLVC *EthLastValueCache
+		cache    Cache
+		rpcCache RPCCache
 	)
 	if config.Cache.Enabled {
-		var (
-			cache      Cache
-			blockNumFn GetLatestBlockNumFn
-			gasPriceFn GetLatestGasPriceFn
-		)
-
 		if config.Cache.BlockSyncRPCURL == "" {
 			return nil, nil, fmt.Errorf("block sync node required for caching")
 		}
@@ -245,9 +238,7 @@ func Start(config *Config) (*Server, func(), error) {
 		}
 		defer ethClient.Close()
 
-		blockNumLVC, blockNumFn = makeGetLatestBlockNumFn(ethClient, cache)
-		gasPriceLVC, gasPriceFn = makeGetLatestGasPriceFn(ethClient, cache)
-		rpcCache = newRPCCache(newCacheWithCompression(cache), blockNumFn, gasPriceFn, config.Cache.NumBlockConfirmations)
+		rpcCache = newRPCCache(newCacheWithCompression(cache))
 	}
 
 	srv, err := NewServer(
@@ -345,12 +336,6 @@ func Start(config *Config) (*Server, func(), error) {
 
 	shutdownFunc := func() {
 		log.Info("shutting down proxyd")
-		if blockNumLVC != nil {
-			blockNumLVC.Stop()
-		}
-		if gasPriceLVC != nil {
-			gasPriceLVC.Stop()
-		}
 		srv.Shutdown()
 		if err := lim.FlushBackendWSConns(backendNames); err != nil {
 			log.Error("error flushing backend ws conns", "err", err)

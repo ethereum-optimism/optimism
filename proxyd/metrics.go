@@ -182,6 +182,14 @@ var (
 		"method",
 	})
 
+	cacheErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: MetricsNamespace,
+		Name:      "cache_errors_total",
+		Help:      "Number of cache errors.",
+	}, []string{
+		"method",
+	})
+
 	lvcErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: MetricsNamespace,
 		Name:      "lvc_errors_total",
@@ -371,6 +379,10 @@ func RecordCacheHit(method string) {
 }
 
 func RecordCacheMiss(method string) {
+	cacheMissesTotal.WithLabelValues(method).Inc()
+}
+
+func RecordCacheError(method string) {
 	cacheMissesTotal.WithLabelValues(method).Inc()
 }
 

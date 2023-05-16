@@ -116,15 +116,17 @@ type rpcCache struct {
 	handlers map[string]RPCMethodHandler
 }
 
-func newRPCCache(cache Cache, getLatestBlockNumFn GetLatestBlockNumFn, getLatestGasPriceFn GetLatestGasPriceFn, numBlockConfirmations int) RPCCache {
+func newRPCCache(cache Cache) RPCCache {
 	handlers := map[string]RPCMethodHandler{
-		"eth_chainId":          &StaticMethodHandler{},
-		"net_version":          &StaticMethodHandler{},
-		"eth_getBlockByNumber": &EthGetBlockByNumberMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
-		"eth_getBlockRange":    &EthGetBlockRangeMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
-		"eth_blockNumber":      &EthBlockNumberMethodHandler{getLatestBlockNumFn},
-		"eth_gasPrice":         &EthGasPriceMethodHandler{getLatestGasPriceFn},
-		"eth_call":             &EthCallMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
+		"eth_chainId":                           &StaticMethodHandler{cache: cache},
+		"net_version":                           &StaticMethodHandler{cache: cache},
+		"eth_getBlockTransactionCountByHash":    &StaticMethodHandler{cache: cache},
+		"eth_getUncleCountByBlockHash":          &StaticMethodHandler{cache: cache},
+		"eth_getBlockByHash":                    &StaticMethodHandler{cache: cache},
+		"eth_getTransactionByHash":              &StaticMethodHandler{cache: cache},
+		"eth_getTransactionByBlockHashAndIndex": &StaticMethodHandler{cache: cache},
+		"eth_getUncleByBlockHashAndIndex":       &StaticMethodHandler{cache: cache},
+		"eth_getTransactionReceipt":             &StaticMethodHandler{cache: cache},
 	}
 	return &rpcCache{
 		cache:    cache,
@@ -138,12 +140,14 @@ func (c *rpcCache) GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 		return nil, nil
 	}
 	res, err := handler.GetRPCMethod(ctx, req)
-	if res != nil {
-		if res == nil {
-			RecordCacheMiss(req.Method)
-		} else {
-			RecordCacheHit(req.Method)
-		}
+	if err != nil {
+		RecordCacheError(req.Method)
+		return nil, err
+	}
+	if res == nil {
+		RecordCacheMiss(req.Method)
+	} else {
+		RecordCacheHit(req.Method)
 	}
 	return res, err
 }
