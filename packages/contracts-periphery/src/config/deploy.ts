@@ -98,6 +98,7 @@ export const configSpec: DeployConfigSpec<DeployConfig> = {
   optimistAllowlistCoinbaseQuestAttestor: {
     type: 'address',
   },
+
   l2ProxyOwnerAddress: {
     type: 'address',
   },
