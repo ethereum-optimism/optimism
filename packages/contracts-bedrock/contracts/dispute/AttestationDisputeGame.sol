@@ -190,7 +190,7 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
             disputeStructHash := keccak256(ptr, 0x60)
 
             // Update the free memory pointer
-            mstore(0x40, and(add(ptr, 0x7F), not(0x1F))
+            mstore(0x40, and(add(ptr, 0x7F), not(0x1F)))
         }
 
         _typedDataHash = Hash.wrap(_hashTypedData(Hash.unwrap(disputeStructHash)));
@@ -231,6 +231,10 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
      * @return _status The status of the resolved game.
      */
     function resolve() public returns (GameStatus _status) {
+        if (status != GameStatus.IN_PROGRESS) {
+            revert GameNotInProgress();
+        }
+
         // Set the status as `CHALLENGER_WINS`.
         status = GameStatus.CHALLENGER_WINS;
 
