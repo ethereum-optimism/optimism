@@ -11,8 +11,25 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// basic implementation of the Compressor interface that does no compression
+type nonCompressor struct {
+	bytes.Buffer
+}
+
+func (s *nonCompressor) Flush() error {
+	return nil
+}
+
+func (s *nonCompressor) Close() error {
+	return nil
+}
+
+func (s *nonCompressor) FullErr() error {
+	return nil
+}
+
 func TestChannelOutAddBlock(t *testing.T) {
-	cout, err := NewChannelOut()
+	cout, err := NewChannelOut(&nonCompressor{})
 	require.NoError(t, err)
 
 	t.Run("returns err if first tx is not an l1info tx", func(t *testing.T) {
@@ -33,7 +50,7 @@ func TestChannelOutAddBlock(t *testing.T) {
 // max size that is below the fixed frame size overhead of 23, will return
 // an error.
 func TestOutputFrameSmallMaxSize(t *testing.T) {
-	cout, err := NewChannelOut()
+	cout, err := NewChannelOut(&nonCompressor{})
 	require.NoError(t, err)
 
 	// Call OutputFrame with the range of small max size values that err
