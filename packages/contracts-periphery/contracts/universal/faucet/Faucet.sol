@@ -49,7 +49,6 @@ contract Faucet {
      */
     struct AuthParameters {
         IFaucetAuthModule module;
-        // bytes id;
         bytes32 id;
         bytes proof;
     }
