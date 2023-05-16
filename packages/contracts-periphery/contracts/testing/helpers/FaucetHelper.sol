@@ -48,9 +48,11 @@ contract FaucetHelper {
      *
      * @return EIP-712 typed struct hash.
      */
-    function getProofStructHash(
-        AdminFaucetAuthModule.Proof memory _proof
-    ) public pure returns (bytes32) {
+    function getProofStructHash(AdminFaucetAuthModule.Proof memory _proof)
+        public
+        pure
+        returns (bytes32)
+    {
         return keccak256(abi.encode(PROOF_TYPEHASH, _proof.recipient, _proof.nonce, _proof.id));
     }
 
