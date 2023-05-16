@@ -186,7 +186,11 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
             // Store the L2 block number that the `rootClaim` commits to.
             mstore(add(ptr, 0x40), _l2BlockNumber)
 
+            // Hash the `Dispute` struct.
             disputeStructHash := keccak256(ptr, 0x60)
+
+            // Update the free memory pointer
+            mstore(0x40, and(add(ptr, 0x7F), not(0x1F))
         }
 
         _typedDataHash = Hash.wrap(_hashTypedData(Hash.unwrap(disputeStructHash)));
