@@ -97,7 +97,7 @@ type Peerstore interface {
 type Scorer interface {
 	OnConnect()
 	OnDisconnect()
-	SnapshotHook() pubsub.PeerScoreInspectFn
+	SnapshotHook() pubsub.ExtendedPeerScoreInspectFn
 }
 
 // NewScorer returns a new peer scorer.
@@ -114,18 +114,18 @@ func NewScorer(peerGater PeerGater, peerStore Peerstore, metricer GossipMetricer
 // SnapshotHook returns a function that is called periodically by the pubsub library to inspect the peer scores.
 // It is passed into the pubsub library as a [pubsub.ExtendedPeerScoreInspectFn] in the [pubsub.WithPeerScoreInspect] option.
 // The returned [pubsub.ExtendedPeerScoreInspectFn] is called with a mapping of peer IDs to peer score snapshots.
-func (s *scorer) SnapshotHook() pubsub.PeerScoreInspectFn {
-	return func(m map[peer.ID]float64) {
+func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
+	return func(m map[peer.ID]*pubsub.PeerScoreSnapshot) {
 		scoreMap := make(map[string]float64)
 		// Zero out all bands.
 		for _, b := range s.bandScoreThresholds.bands {
 			scoreMap[b.band] = 0
 		}
 		// Now set the new scores.
-		for id, score := range m {
-			band := s.bandScoreThresholds.Bucket(score)
+		for id, snap := range m {
+			band := s.bandScoreThresholds.Bucket(snap.Score)
 			scoreMap[band] += 1
-			s.gater.Update(id, score)
+			s.gater.Update(id, snap.Score)
 		}
 		s.metricer.SetPeerScores(scoreMap)
 	}
