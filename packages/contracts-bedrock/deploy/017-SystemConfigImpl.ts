@@ -70,9 +70,21 @@ const deployFn: DeployFunction = async (hre) => {
         config.baseFeeMaxChangeDenominator ===
           defaultResourceConfig.baseFeeMaxChangeDenominator
       )
-      assert(config.systemTxMaxGas === defaultResourceConfig.systemTxMaxGas)
-      assert(config.minimumBaseFee.eq(defaultResourceConfig.minimumBaseFee))
-      assert(config.maximumBaseFee.eq(defaultResourceConfig.maximumBaseFee))
+      assert(
+        BigNumber.from(config.systemTxMaxGas).eq(
+          defaultResourceConfig.systemTxMaxGas
+        )
+      )
+      assert(
+        BigNumber.from(config.minimumBaseFee).eq(
+          defaultResourceConfig.minimumBaseFee
+        )
+      )
+      assert(
+        BigNumber.from(config.maximumBaseFee).eq(
+          defaultResourceConfig.maximumBaseFee
+        )
+      )
     },
   })
 }
