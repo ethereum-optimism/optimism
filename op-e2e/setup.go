@@ -3,6 +3,7 @@ package op_e2e
 import (
 	"context"
 	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -23,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
+	"github.com/libp2p/go-libp2p/p2p/net/conngater"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/require"
 
@@ -514,6 +516,11 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 					Store:   sync.MutexWrap(ds.NewMapDatastore()),
 				}
 				gater, err := p2p.DefaultConnGater(p2pConfig)
+				basicGater, ok := gater.(*conngater.BasicConnectionGater)
+				if !ok {
+					return nil, errors.New("connection gater not a BasicConnectionGater")
+				}
+				gater = p2pstub.NewMocknetGater(h.ID(), basicGater, sys.Mocknet)
 				if err != nil {
 					return nil, fmt.Errorf("create connection gater: %w", err)
 				}

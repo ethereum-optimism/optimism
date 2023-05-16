@@ -38,8 +38,8 @@ func TestBanPeerSendingInvalidGossip(t *testing.T) {
 	require.NoError(t, nastyDude.PublishGossip(ctx, p2pstub.BlockTopic, []byte{2}))
 	require.NoError(t, nastyDude.PublishGossip(ctx, p2pstub.BlockTopic, []byte{3}))
 
-	// TODO: Make this work
-	// require.NoError(t, nastyDude.WaitForPeerCount(0), "should be disconnected for bad behaviour")
+	// TODO: Need to update production code to actually disconnect when banning, currently it just blocks new connections
+	require.NoError(t, nastyDude.WaitForPeerCount(0), "should be disconnected for bad behaviour")
 
 	sequencerId := sys.RollupNodes["sequencer"].P2P().Host().ID()
 	require.NoError(t, nastyDude.DisconnectPeer(sequencerId))

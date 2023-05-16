@@ -56,8 +56,12 @@ func (p *Prepared) Host(log log.Logger, reporter metrics.Reporter) (host.Host, e
 
 		ConnMgr: p.ConnMgr,
 	}
-	// Only add the connection gater if it offers the full interface we're looking for.
-	if g, ok := p.Gater.(ConnectionGater); ok {
+	if p.Gater != nil {
+		// Require the connection gater we use to implement the full interface
+		g, ok := p.Gater.(ConnectionGater)
+		if !ok {
+			return nil, errors.New("connection gater not a ConnectionGater")
+		}
 		h.Gater = g
 	}
 	return h, nil
