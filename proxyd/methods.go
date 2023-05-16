@@ -67,7 +67,7 @@ func (e *StaticMethodHandler) PutRPCMethod(ctx context.Context, req *RPCReq, res
 
 	err := e.cache.Put(ctx, key, string(value))
 	if err != nil {
-		log.Error("error marshalling value to put into cache", "key", key, "method", req.Method, "err", err)
+		log.Error("error putting into cache", "key", key, "method", req.Method, "err", err)
 		return err
 	}
 	return nil

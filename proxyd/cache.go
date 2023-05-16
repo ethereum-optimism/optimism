@@ -103,9 +103,6 @@ func (c *cacheWithCompression) Put(ctx context.Context, key string, value string
 	return c.cache.Put(ctx, key, string(encodedVal))
 }
 
-type GetLatestBlockNumFn func(ctx context.Context) (uint64, error)
-type GetLatestGasPriceFn func(ctx context.Context) (uint64, error)
-
 type RPCCache interface {
 	GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error)
 	PutRPC(ctx context.Context, req *RPCReq, res *RPCRes) error
@@ -117,16 +114,17 @@ type rpcCache struct {
 }
 
 func newRPCCache(cache Cache) RPCCache {
+	staticHandler := &StaticMethodHandler{cache: cache}
 	handlers := map[string]RPCMethodHandler{
-		"eth_chainId":                           &StaticMethodHandler{cache: cache},
-		"net_version":                           &StaticMethodHandler{cache: cache},
-		"eth_getBlockTransactionCountByHash":    &StaticMethodHandler{cache: cache},
-		"eth_getUncleCountByBlockHash":          &StaticMethodHandler{cache: cache},
-		"eth_getBlockByHash":                    &StaticMethodHandler{cache: cache},
-		"eth_getTransactionByHash":              &StaticMethodHandler{cache: cache},
-		"eth_getTransactionByBlockHashAndIndex": &StaticMethodHandler{cache: cache},
-		"eth_getUncleByBlockHashAndIndex":       &StaticMethodHandler{cache: cache},
-		"eth_getTransactionReceipt":             &StaticMethodHandler{cache: cache},
+		"eth_chainId":                           staticHandler,
+		"net_version":                           staticHandler,
+		"eth_getBlockTransactionCountByHash":    staticHandler,
+		"eth_getUncleCountByBlockHash":          staticHandler,
+		"eth_getBlockByHash":                    staticHandler,
+		"eth_getTransactionByHash":              staticHandler,
+		"eth_getTransactionByBlockHashAndIndex": staticHandler,
+		"eth_getUncleByBlockHashAndIndex":       staticHandler,
+		"eth_getTransactionReceipt":             staticHandler,
 	}
 	return &rpcCache{
 		cache:    cache,
@@ -149,7 +147,7 @@ func (c *rpcCache) GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 	} else {
 		RecordCacheHit(req.Method)
 	}
-	return res, err
+	return res, nil
 }
 
 func (c *rpcCache) PutRPC(ctx context.Context, req *RPCReq, res *RPCRes) error {
