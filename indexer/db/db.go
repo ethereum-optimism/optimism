@@ -1,3 +1,6 @@
+// Packaege db contains the database connection and the database schema
+// The schema is specified in [schema.go](schema.go).
+// Included are data-access-object methods for abstracting accessing data on the database
 package db
 
 import (

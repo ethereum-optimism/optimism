@@ -20,11 +20,6 @@ type Withdrawal struct {
 	BedrockHash *common.Hash
 }
 
-// String returns the tx hash for the withdrawal.
-func (w Withdrawal) String() string {
-	return w.TxHash.String()
-}
-
 // WithdrawalJSON contains Withdrawal data suitable for JSON serialization.
 type WithdrawalJSON struct {
 	GUID                     string          `json:"guid"`
