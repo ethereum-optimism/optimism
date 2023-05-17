@@ -115,13 +115,13 @@ func (p *L2Proposer) sendTx(t Testing, data []byte) {
 }
 
 func (p *L2Proposer) CanPropose(t Testing) bool {
-	_, shouldPropose, err := p.driver.FetchNextOutputInfo(t.Ctx())
+	_, _, shouldPropose, err := p.driver.FetchNextOutputInfo(t.Ctx())
 	require.NoError(t, err)
 	return shouldPropose
 }
 
 func (p *L2Proposer) ActMakeProposalTx(t Testing) {
-	output, shouldPropose, err := p.driver.FetchNextOutputInfo(t.Ctx())
+	output, _, shouldPropose, err := p.driver.FetchNextOutputInfo(t.Ctx())
 	if !shouldPropose {
 		return
 	}
