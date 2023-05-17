@@ -55,7 +55,9 @@ mod-tidy:
 	# can take a while to index new versions.
 	#
 	# See https://proxy.golang.org/ for more info.
-	export GOPRIVATE="github.com/ethereum-optimism,github.com/bobanetwork" && go mod tidy
+	export GOPRIVATE="github.com/ethereum-optimism,github.com/bobanetwork"
+	export GOPROXY="https://proxy.golang.org,direct"
+	go mod tidy
 .PHONY: mod-tidy
 
 clean:
