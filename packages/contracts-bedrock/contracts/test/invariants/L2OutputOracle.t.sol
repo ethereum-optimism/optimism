@@ -23,8 +23,7 @@ contract L2OutputOracle_Proposer {
         uint256 _l1BlockNumber
     ) external {
         // Act as the proposer and propose a new output.
-        vm.prank(oracle.PROPOSER());
-        oracle.proposeL2Output(_outputRoot, _l2BlockNumber, _l1BlockHash, _l1BlockNumber);
+        oracle.proposeL2Output{ value: 1 ether }(_outputRoot, _l2BlockNumber, _l1BlockHash, _l1BlockNumber);
     }
 }
 
@@ -36,6 +35,9 @@ contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is L2OutputOracle_In
 
         // Create a proposer actor.
         actor = new L2OutputOracle_Proposer(oracle, vm);
+
+        // Give the actor some ETH
+        vm.deal(address(actor), type(uint128).max);
 
         // Set the target contract to the proposer actor.
         targetContract(address(actor));

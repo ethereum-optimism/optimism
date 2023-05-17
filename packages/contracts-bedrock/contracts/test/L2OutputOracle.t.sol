@@ -7,16 +7,22 @@ import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { Proxy } from "../universal/Proxy.sol";
 import { Types } from "../libraries/Types.sol";
 
+import { BondManager } from "../dispute/BondManager.sol";
+import { IBondManager } from "../dispute/IBondManager.sol";
+import { DisputeGameFactory } from "../dispute/DisputeGameFactory.sol";
+import { IDisputeGameFactory } from "../dispute/IDisputeGameFactory.sol";
+
 contract L2OutputOracleTest is L2OutputOracle_Initializer {
     bytes32 proposedOutput1 = keccak256(abi.encode(1));
 
     function test_constructor_succeeds() external {
-        assertEq(oracle.PROPOSER(), proposer);
-        assertEq(oracle.CHALLENGER(), owner);
-        assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);
         assertEq(oracle.latestBlockNumber(), startingBlockNumber);
         assertEq(oracle.startingBlockNumber(), startingBlockNumber);
         assertEq(oracle.startingTimestamp(), startingTimestamp);
+        assertEq(address(oracle.BOND_MANAGER()), address(bondManager));
+        assertEq(address(oracle.DISPUTE_GAME_FACTORY()), address(disputeGameFactory));
+        assertEq(oracle.OUTPUT_BOND_COST(), minimumProposalCost);
+        assertEq(oracle.FINALIZATION_PERIOD_SECONDS(), finalizationPeriodSeconds);
     }
 
     function test_constructor_badTimestamp_reverts() external {
@@ -24,39 +30,24 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
         // startingTimestamp is in the future
         new L2OutputOracle({
-            _submissionInterval: submissionInterval,
             _l2BlockTime: l2BlockTime,
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: block.timestamp + 1,
-            _proposer: proposer,
-            _challenger: owner,
-            _finalizationPeriodSeconds: 7 days
+            _finalizationPeriodSeconds: finalizationPeriodSeconds,
+            _bondManager: IBondManager(address(bondManager)),
+            _disputeGameFactory: IDisputeGameFactory(address(disputeGameFactory))
         });
     }
 
     function test_constructor_l2BlockTimeZero_reverts() external {
         vm.expectRevert("L2OutputOracle: L2 block time must be greater than 0");
         new L2OutputOracle({
-            _submissionInterval: submissionInterval,
             _l2BlockTime: 0,
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: block.timestamp,
-            _proposer: proposer,
-            _challenger: owner,
-            _finalizationPeriodSeconds: 7 days
-        });
-    }
-
-    function test_constructor_submissionInterval_reverts() external {
-        vm.expectRevert("L2OutputOracle: submission interval must be greater than 0");
-        new L2OutputOracle({
-            _submissionInterval: 0,
-            _l2BlockTime: l2BlockTime,
-            _startingBlockNumber: startingBlockNumber,
-            _startingTimestamp: block.timestamp,
-            _proposer: proposer,
-            _challenger: owner,
-            _finalizationPeriodSeconds: 7 days
+            _finalizationPeriodSeconds: finalizationPeriodSeconds,
+            _bondManager: IBondManager(address(bondManager)),
+            _disputeGameFactory: IDisputeGameFactory(address(disputeGameFactory))
         });
     }
 
@@ -70,8 +61,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
         // Roll to after the block number we'll propose
         warpToProposeTime(proposedNumber);
-        vm.prank(proposer);
-        oracle.proposeL2Output(proposedOutput1, proposedNumber, 0, 0);
+        oracle.proposeL2Output{ value: 1 ether }(proposedOutput1, proposedNumber, 0, 0);
         assertEq(oracle.latestBlockNumber(), proposedNumber);
     }
 
@@ -80,7 +70,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         uint256 nextOutputIndex = oracle.nextOutputIndex();
         warpToProposeTime(nextBlockNumber);
-        vm.prank(proposer);
         oracle.proposeL2Output(proposedOutput1, nextBlockNumber, 0, 0);
 
         Types.OutputProposal memory proposal = oracle.getL2Output(nextOutputIndex);
@@ -97,7 +86,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         bytes32 output1 = keccak256(abi.encode(1));
         uint256 nextBlockNumber1 = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber1);
-        vm.prank(proposer);
         oracle.proposeL2Output(output1, nextBlockNumber1, 0, 0);
 
         // Querying with exact same block as proposed returns the proposal.
@@ -110,7 +98,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         bytes32 output1 = keccak256(abi.encode(1));
         uint256 nextBlockNumber1 = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber1);
-        vm.prank(proposer);
         oracle.proposeL2Output(output1, nextBlockNumber1, 0, 0);
 
         // Querying with previous block returns the proposal too.
@@ -123,25 +110,21 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         bytes32 output1 = keccak256(abi.encode(1));
         uint256 nextBlockNumber1 = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber1);
-        vm.prank(proposer);
         oracle.proposeL2Output(output1, nextBlockNumber1, 0, 0);
 
         bytes32 output2 = keccak256(abi.encode(2));
         uint256 nextBlockNumber2 = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber2);
-        vm.prank(proposer);
         oracle.proposeL2Output(output2, nextBlockNumber2, 0, 0);
 
         bytes32 output3 = keccak256(abi.encode(3));
         uint256 nextBlockNumber3 = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber3);
-        vm.prank(proposer);
         oracle.proposeL2Output(output3, nextBlockNumber3, 0, 0);
 
         bytes32 output4 = keccak256(abi.encode(4));
         uint256 nextBlockNumber4 = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber4);
-        vm.prank(proposer);
         oracle.proposeL2Output(output4, nextBlockNumber4, 0, 0);
 
         // Querying with a block number between the first and second proposal
@@ -168,7 +151,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(
             oracle.nextBlockNumber(),
             // The return value should match this arithmetic
-            oracle.latestBlockNumber() + oracle.SUBMISSION_INTERVAL()
+            oracle.latestBlockNumber() + 1
         );
     }
 
@@ -207,15 +190,13 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         warpToProposeTime(nextBlockNumber);
         uint256 proposedNumber = oracle.latestBlockNumber();
 
-        // Ensure the submissionInterval is enforced
-        assertEq(nextBlockNumber, proposedNumber + submissionInterval);
+        assertEq(nextBlockNumber, proposedNumber + 1);
 
         vm.roll(nextBlockNumber + 1);
 
         vm.expectEmit(true, true, true, true);
         emit OutputProposed(proposedOutput2, nextOutputIndex, nextBlockNumber, block.timestamp);
 
-        vm.prank(proposer);
         oracle.proposeL2Output(proposedOutput2, nextBlockNumber, 0, 0);
     }
 
@@ -228,7 +209,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
-        vm.prank(proposer);
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber, prevL1BlockHash, prevL1BlockNumber);
     }
 
@@ -251,7 +231,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         bytes32 outputToPropose = bytes32(0);
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
-        vm.prank(proposer);
         vm.expectRevert("L2OutputOracle: L2 output proposal cannot be the zero hash");
         oracle.proposeL2Output(outputToPropose, nextBlockNumber, 0, 0);
     }
@@ -260,7 +239,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     function test_proposeL2Output_unexpectedBlockNumber_reverts() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
-        vm.prank(proposer);
         vm.expectRevert("L2OutputOracle: block number must be equal to next expected block number");
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber - 1, 0, 0);
     }
@@ -270,7 +248,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         uint256 nextTimestamp = oracle.computeL2Timestamp(nextBlockNumber);
         vm.warp(nextTimestamp);
-        vm.prank(proposer);
         vm.expectRevert("L2OutputOracle: cannot propose L2 output in the future");
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber, 0, 0);
     }
@@ -280,7 +257,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     function test_proposeL2Output_wrongFork_reverts() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
-        vm.prank(proposer);
         vm.expectRevert(
             "L2OutputOracle: block hash does not match the hash at the expected height"
         );
@@ -304,7 +280,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
-        vm.prank(proposer);
 
         // This will fail when foundry no longer returns zerod block hashes
         vm.expectRevert(
@@ -333,7 +308,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         // validate latestBlockNumber has been reduced
         uint256 latestBlockNumberAfter = oracle.latestBlockNumber();
         uint256 latestOutputIndexAfter = oracle.latestOutputIndex();
-        assertEq(latestBlockNumber - submissionInterval, latestBlockNumberAfter);
+        assertEq(latestBlockNumber - 1, latestBlockNumberAfter);
 
         // validate that the new latest output is as expected.
         Types.OutputProposal memory proposal = oracle.getL2Output(latestOutputIndexAfter);
@@ -359,7 +334,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         // validate latestBlockNumber has been reduced
         uint256 latestBlockNumberAfter = oracle.latestBlockNumber();
         uint256 latestOutputIndexAfter = oracle.latestOutputIndex();
-        assertEq(latestBlockNumber - submissionInterval * 3, latestBlockNumberAfter);
+        assertEq(latestBlockNumber - 1 * 3, latestBlockNumberAfter);
 
         // validate that the new latest output is as expected.
         Types.OutputProposal memory proposal = oracle.getL2Output(latestOutputIndexAfter);
@@ -370,13 +345,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     /***************************
      * Delete Tests - Sad Path *
      ***************************/
-
-    function test_deleteL2Outputs_ifNotChallenger_reverts() external {
-        uint256 latestBlockNumber = oracle.latestBlockNumber();
-
-        vm.expectRevert("L2OutputOracle: only the challenger address can delete outputs");
-        oracle.deleteL2Outputs(latestBlockNumber);
-    }
 
     function test_deleteL2Outputs_nonExistent_reverts() external {
         test_proposeL2Output_proposeAnotherOutput_succeeds();
@@ -429,13 +397,9 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
     }
 
     function test_initValuesOnProxy_succeeds() external {
-        assertEq(submissionInterval, oracleImpl.SUBMISSION_INTERVAL());
         assertEq(l2BlockTime, oracleImpl.L2_BLOCK_TIME());
         assertEq(startingBlockNumber, oracleImpl.startingBlockNumber());
         assertEq(startingTimestamp, oracleImpl.startingTimestamp());
-
-        assertEq(proposer, oracleImpl.PROPOSER());
-        assertEq(owner, oracleImpl.CHALLENGER());
     }
 
     function test_initializeProxy_alreadyInitialized_reverts() external {
