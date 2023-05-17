@@ -352,7 +352,7 @@ func (l *L2OutputSubmitter) FetchBondPrice(ctx context.Context) (*big.Int, error
 		Pending: true,
 		Context: ctx,
 	}
-	price, err := l.l2ooContract.GetNextBondPrice(callOpts)
+	price, err := l.l2ooContract.OUTPUTBONDCOST(callOpts)
 	if err != nil {
 		return nil, err
 	}
