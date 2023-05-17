@@ -62,7 +62,7 @@ export const updateOracleCache = async <TSubmissionEventArgs>(
   const endBlock = await oracle.contract.provider.getBlockNumber()
   logger?.info('visiting uncached oracle events for range', {
     node: 'l1',
-    cachedTillBlock: cache.highestBlock,
+    cachedUntilBlock: cache.highestBlock,
     latestBlock: endBlock,
   })
 
