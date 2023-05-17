@@ -148,7 +148,7 @@ export const findEventForStateBatch = async <TSubmissionEventArgs>(
   }
 
   // Update the event cache if we don't have the event.
-  logger?.info('event not cached from index. warming cache...', { index })
+  logger?.info('event not cached for index. warming cache...', { index })
   await updateOracleCache(oracle, logger)
 
   // Event better be in cache now!
