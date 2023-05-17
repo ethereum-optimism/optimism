@@ -24,8 +24,8 @@
 # This script is safe to run multiple times. It stores state in `.devnet`, and
 # contracts-bedrock/deployments/devnetL1.
 #
-# Don't run this script directly. Run it using the makefile, e.g. `make devnet-up`.
-# To clean up your devnet, run `make devnet-clean`.
+# Don't run this script directly. Run it using the makefile, e.g. `make testnet-up`.
+# To clean up your devnet, run `make testnet-clean`.
 
 set -eu
 
@@ -82,8 +82,8 @@ fi
 (
   cd ops-bedrock
   echo "Bringing up L1..."
-  DOCKER_BUILDKIT=1 docker-compose -f docker-compose-devnet.yml build --progress plain
-  docker-compose -f docker-compose-devnet.ymlup -d l1
+  DOCKER_BUILDKIT=1 docker-compose -f docker-compose-testnet.yml build  --progress plain
+  docker-compose -f docker-compose-testnet.yml up -d l1
   wait_up $L1_URL
 )
 
@@ -91,7 +91,7 @@ fi
 (
   cd ops-bedrock
   echo "Bringing up L2..."
-  docker-compose -f docker-compose-devnet.yml up -d l2
+  docker-compose -f docker-compose-testnet.yml up -d l2
   wait_up $L2_URL
 )
 
@@ -102,10 +102,10 @@ L2OO_ADDRESS="0x6900000000000000000000000000000000000000"
   cd ops-bedrock
   echo "Bringing up devnet..."
   L2OO_ADDRESS="$L2OO_ADDRESS" \
-      docker-compose -f docker-compose-devnet.yml up -d op-proposer op-batcher
+      docker-compose -f docker-compose-testnet.yml up -d op-proposer op-batcher
 
   echo "Bringing up stateviz webserver..."
-  docker-compose -f docker-compose-devnet.yml up -d stateviz
+  docker-compose -f docker-compose-testnet.yml up -d stateviz
 )
 
 echo "Devnet ready."

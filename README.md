@@ -13,7 +13,7 @@
 
 ## Celestia + OP Stack tutorial
 
-If you're looking to run the OP Stack + Celestia setup for this repository, please visit the [Optimism & Celestia tutorial](https://docs.celestia.org/developers/optimism) to get started.
+If you're looking to run the OP Stack + Celestia setup for this repository, please visit the [Optimism & Celestia guides and tutorials](https://docs.celestia.org/developers/intro-to-op-stack/) to get started.
 
 ## What are Optimism and the OP Stack?
 
