@@ -267,6 +267,9 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     this.logger.info('starting height', {
       startBatchIndex: this.state.currentBatchIndex,
     })
+
+    // Set the initial metrics.
+    this.metrics.isCurrentlyMismatched.set(0)
   }
 
   async routes(router: ExpressRouter): Promise<void> {
@@ -278,6 +281,8 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
   }
 
   async main(): Promise<void> {
+    const startMs = Date.now()
+
     let latestBatchIndex: number
     try {
       latestBatchIndex = (await this.state.oo.getTotalElements()).toNumber()
@@ -520,9 +525,12 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       }
     }
 
+    const elapsedMs = Date.now() - startMs
+
     // Mark the current batch index as checked
-    this.logger.info(`checked batch ok`, {
+    this.logger.info('checked batch ok', {
       batchIndex: this.state.currentBatchIndex,
+      timeMs: elapsedMs,
     })
     this.metrics.highestBatchIndex.set(
       {
