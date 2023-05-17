@@ -4,7 +4,7 @@ The cli entry point for the indexer.
 
 - **Overview**
 
-`main()` function in [cmd/idnexer/main.go](./main.go) is entrypoint to program.   It parses the cli flags to pass into the [indexer](../../indexer.go)
+`main()` function in [cmd/indexer/main.go](./main.go) is entrypoint to program.   It parses the cli flags to pass into the [indexer](../../indexer.go)
 
 - **Details**
 
