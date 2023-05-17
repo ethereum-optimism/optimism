@@ -35,7 +35,7 @@ func TestBuildOptimism(t *testing.T) {
 			"recipient": common.HexToAddress("0x1234567890123456789012345678901234567890"),
 		},
 		"BobaL2": {
-			"bridge": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"bridge":      common.HexToAddress("0x1234567890123456789012345678901234567890"),
 			"remoteToken": common.HexToAddress("0x0123456789012345678901234567890123456789"),
 		},
 	})
