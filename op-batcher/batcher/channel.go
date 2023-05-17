@@ -41,7 +41,7 @@ func newPendingChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig)
 
 // TxFailed records a transaction as failed. It will attempt to resubmit the data
 // in the failed transaction.
-func (s *channel) TxFailed(id txID) bool {
+func (s *channel) TxFailed(id txID) {
 	if data, ok := s.pendingTransactions[id]; ok {
 		s.log.Trace("marked transaction as failed", "id", id)
 		// Note: when the batcher is changed to send multiple frames per tx,
@@ -54,8 +54,6 @@ func (s *channel) TxFailed(id txID) bool {
 	}
 
 	s.metr.RecordBatchTxFailed()
-
-	return len(s.pendingTransactions) == 0 && len(s.confirmedTransactions) == 0
 }
 
 // TxConfirmed marks a transaction as confirmed on L1. Unfortunately even if all frames in
