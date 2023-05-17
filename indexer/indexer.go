@@ -1,3 +1,10 @@
+// The main entrypoint to the indexer application.
+// The service is designed to
+//   - index Ethereum blockchain data from L1 and L2 nodes
+//   - store that data in a database
+//   - serve it over a REST API (deprecated)
+//
+// It also serves health checks and can be configured to provide metrics
 package indexer
 
 import (
