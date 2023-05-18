@@ -586,7 +586,7 @@ jobs:
           command: npx wait-on tcp:9545 && cast block-number --rpc-url http://localhost:9545
       - run:
           name: test:next
-          command: yarn test:next
+          command: yarn test:next:run
           no_output_timeout: 5m
           working_directory: packages/sdk
           environment:
