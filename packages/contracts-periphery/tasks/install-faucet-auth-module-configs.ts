@@ -7,16 +7,13 @@ import 'hardhat-deploy'
 import { getModuleConfigs, isSameConfig } from '../src/config/faucet'
 
 task('install-faucet-auth-module-configs').setAction(async (args, hre) => {
-  // Add this back in after testing
-  // console.log(`connecting to ledger...`)
-  // const signer = new LedgerSigner(
-  //   hre.ethers.provider,
-  //   'default',
-  //   hre.ethers.utils.defaultPath
-  // )
+  console.log(`connecting to ledger...`)
+  const signer = new LedgerSigner(
+    hre.ethers.provider,
+    'default',
+    hre.ethers.utils.defaultPath
+  )
 
-  const [owner] = await hre.ethers.getSigners()
-  const signer = owner
   console.log(`connecting to Faucet...`)
 
   const Faucet = await hre.ethers.getContractAt(
@@ -24,7 +21,7 @@ task('install-faucet-auth-module-configs').setAction(async (args, hre) => {
     (
       await hre.deployments.get('Faucet')
     ).address,
-    owner
+    signer
   )
 
   console.log(`loading local versions of module configs for network...`)
