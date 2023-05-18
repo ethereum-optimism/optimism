@@ -79,7 +79,7 @@ var Subcommands = cli.Commands{
 		},
 	},
 	{
-		Name:  "getenr",
+		Name:  "reqenr",
 		Usage: "Requests an ENR from a node",
 		Flags: []cli.Flag{
 			cli.StringFlag{

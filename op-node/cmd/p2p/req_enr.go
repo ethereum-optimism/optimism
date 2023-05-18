@@ -9,7 +9,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/urfave/cli"
+
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -19,21 +22,16 @@ import (
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 
-	"github.com/urfave/cli"
-
 	rollupP2P "github.com/ethereum-optimism/optimism/op-node/p2p"
 	rollupCli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	rollup "github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
-var b64format = base64.RawURLEncoding
-
+// enrPrefix is the prefix for enrs.
 const enrPrefix = "enr:"
 
-// wrappedEnr is a wrapper around the [enode.Node] type.
-type wrappedEnr struct {
-	Node *enode.Node
-}
+// b64format is the base64 encoding format used for enrs.
+var b64format = base64.RawURLEncoding
 
 // RequestEnr requests an enr from a node peer.
 func RequestEnr(ctx *cli.Context) error {
@@ -61,11 +59,11 @@ func RequestEnr(ctx *cli.Context) error {
 	}
 
 	// Parse the enr argument string
-	wrappedEnr, err := ParseENR(enrStr, enode.ValidSchemes)
+	remoteNode, err := ParseENR(enrStr, enode.ValidSchemes)
 	if err != nil {
 		return fmt.Errorf("failed to parse enr: %w", err)
 	}
-	log.Debug("Parsed enr", "enr", wrappedEnr.Node.String())
+	log.Debug("Parsed enr", "enr", remoteNode.String())
 
 	// Create a new op-node rollup p2p config
 	p2pConfig, err := rollupCli.NewConfig(ctx, blockTime)
@@ -73,6 +71,7 @@ func RequestEnr(ctx *cli.Context) error {
 		return fmt.Errorf("failed to load p2p config: %w", err)
 	}
 	log.Debug("Created p2p config, starting discovery...")
+
 	// Create a new host
 	bwc := metrics.NewBandwidthCounter()
 	host, err := p2pConfig.Host(log.Root(), bwc)
@@ -109,14 +108,8 @@ func RequestEnr(ctx *cli.Context) error {
 
 	for {
 		// Printing discovery stats
-		log.Debug(
-			"Discovery stats",
-			"node_id", dv5Udp.LocalNode().Node().IP(),
-			"udp", dv5Udp.LocalNode().Node().UDP(),
-			"pubkey", dv5Udp.LocalNode().Node().Pubkey(),
-			"node_count", len(dv5Udp.AllNodes()),
-		)
-		nodeRecord, err := dv5Udp.RequestENR(wrappedEnr.Node)
+		go LogDiscoveryStats(log.Root(), dv5Udp)
+		nodeRecord, err := dv5Udp.RequestENR(remoteNode)
 		if err != nil {
 			log.Warn("Failed to request ENR", "err", err)
 		} else {
@@ -130,6 +123,19 @@ func RequestEnr(ctx *cli.Context) error {
 	// quitC <- struct{}{}
 
 	// return nil
+}
+
+// LogDiscoveryStats logs discovery stats.
+func LogDiscoveryStats(log log.Logger, dv5Udp *discover.UDPv5) {
+	log.Debug("Printing discovery stats...")
+	log.Debug("Node ID", "node_id", dv5Udp.LocalNode().Node().IP())
+	log.Debug("Udp Address", "udp_addr", dv5Udp.LocalNode().Node().UDP())
+	log.Debug("Pubkey", "pubkey", dv5Udp.LocalNode().Node().Pubkey())
+	for _, node := range dv5Udp.AllNodes() {
+		log.Debug("Node", "node", node)
+		time.Sleep(10 * time.Millisecond)
+	}
+	log.Debug("Total Nodes", "total_nodes", len(dv5Udp.AllNodes()))
 }
 
 // MonitorPeers periodically checks the status of static peers and reconnects
@@ -182,7 +188,7 @@ func DialStaticPeer(ctx context.Context, log log.Logger, net network.Network, pe
 }
 
 // ParseENR parses an enr string into a [wrappedEnr].
-func ParseENR(e string, validSchemes enr.IdentityScheme) (*wrappedEnr, error) {
+func ParseENR(e string, validSchemes enr.IdentityScheme) (*enode.Node, error) {
 	e = e[len(enrPrefix):]
 	enc, err := b64format.DecodeString(e)
 	if err != nil {
@@ -196,5 +202,5 @@ func ParseENR(e string, validSchemes enr.IdentityScheme) (*wrappedEnr, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid enr: %w", err)
 	}
-	return &wrappedEnr{n}, nil
+	return n, nil
 }
