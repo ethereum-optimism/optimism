@@ -564,12 +564,12 @@ jobs:
           name: anvil-l1
           background: true
           # atm this is goerli but we should use mainnet after bedrock is live
-          command: anvil --fork-url $ANVIL_L1_FORK_URL --fork-block-number 8847426
+          command: anvil --fork-url $ANVIL_L1_FORK_URL --fork-block-number 9023108
       - run:
           name: anvil-l2
           background: true
           # atm this is goerli but we should use mainnet after bedrock is live
-          command: anvil --fork-url $ANVIL_L2_FORK_URL --port 9545 --fork-block-number 8172732
+          command: anvil --fork-url $ANVIL_L2_FORK_URL --port 9545 --fork-block-number 9504811
       - run:
           name: build
           command: yarn build
@@ -586,7 +586,7 @@ jobs:
           command: npx wait-on tcp:9545 && cast block-number --rpc-url http://localhost:9545
       - run:
           name: test:next
-          command: yarn test:next
+          command: yarn test:next:run
           no_output_timeout: 5m
           working_directory: packages/sdk
           environment:
