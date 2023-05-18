@@ -1,6 +1,7 @@
 package l2
 
 import (
+	"fmt"
 	"math/big"
 	"testing"
 
@@ -54,7 +55,7 @@ func TestGet(t *testing.T) {
 		db := NewOracleBackedDB(oracle)
 		key := make([]byte, common.HashLength)
 		copy(rawdb.CodePrefix, key)
-		println(key[0])
+		fmt.Println(key[0])
 		expected := []byte{1, 2, 3}
 		oracle.Data[common.BytesToHash(key)] = expected
 		val, err := db.Get(key)

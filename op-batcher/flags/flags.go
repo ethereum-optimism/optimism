@@ -6,6 +6,7 @@ import (
 
 	"github.com/urfave/cli"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -67,24 +68,6 @@ var (
 		Value:  120_000,
 		EnvVar: opservice.PrefixEnvVar(EnvVarPrefix, "MAX_L1_TX_SIZE_BYTES"),
 	}
-	TargetL1TxSizeBytesFlag = cli.Uint64Flag{
-		Name:   "target-l1-tx-size-bytes",
-		Usage:  "The target size of a batch tx submitted to L1.",
-		Value:  100_000,
-		EnvVar: opservice.PrefixEnvVar(EnvVarPrefix, "TARGET_L1_TX_SIZE_BYTES"),
-	}
-	TargetNumFramesFlag = cli.IntFlag{
-		Name:   "target-num-frames",
-		Usage:  "The target number of frames to create per channel",
-		Value:  1,
-		EnvVar: opservice.PrefixEnvVar(EnvVarPrefix, "TARGET_NUM_FRAMES"),
-	}
-	ApproxComprRatioFlag = cli.Float64Flag{
-		Name:   "approx-compr-ratio",
-		Usage:  "The approximate compression ratio (<= 1.0)",
-		Value:  0.4,
-		EnvVar: opservice.PrefixEnvVar(EnvVarPrefix, "APPROX_COMPR_RATIO"),
-	}
 	StoppedFlag = cli.BoolFlag{
 		Name:   "stopped",
 		Usage:  "Initialize the batcher in a stopped state. The batcher can be started using the admin_startBatcher RPC",
@@ -106,9 +89,6 @@ var optionalFlags = []cli.Flag{
 	MaxPendingTransactionsFlag,
 	MaxChannelDurationFlag,
 	MaxL1TxSizeBytesFlag,
-	TargetL1TxSizeBytesFlag,
-	TargetNumFramesFlag,
-	ApproxComprRatioFlag,
 	StoppedFlag,
 	SequencerHDPathFlag,
 }
@@ -120,6 +100,7 @@ func init() {
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, rpc.CLIFlags(EnvVarPrefix)...)
 	optionalFlags = append(optionalFlags, txmgr.CLIFlags(EnvVarPrefix)...)
+	optionalFlags = append(optionalFlags, compressor.CLIFlags(EnvVarPrefix)...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }
