@@ -79,6 +79,21 @@ var Subcommands = cli.Commands{
 		},
 	},
 	{
+		Name:  "getenr",
+		Usage: "Requests an ENR from a node",
+		Flags: []cli.Flag{
+			cli.StringFlag{
+				Name:  "enr",
+				Usage: "base64-encoded ENR to request",
+			},
+			cli.IntFlag{
+				Name:  "block-time",
+				Usage: "L2 Block Time",
+			},
+		},
+		Action: RequestEnr,
+	},
+	{
 		Name:  "pub2id",
 		Usage: "Reads a public key from STDIN, and returns a peer ID",
 		Action: func(ctx *cli.Context) error {
