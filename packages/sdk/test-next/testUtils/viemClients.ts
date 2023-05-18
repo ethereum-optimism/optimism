@@ -6,7 +6,7 @@ import {
 } from 'viem'
 import { goerli, optimismGoerli } from 'viem/chains'
 
-// TODO: use env vars to determine chain so we can support alternate l1/l2 pairs
+// we should instead use env vars to determine chain so we can support alternate l1/l2 pairs
 const L1_CHAIN = goerli;
 const L2_CHAIN = optimismGoerli;
 const L1_RPC_URL = 'http://localhost:8545';

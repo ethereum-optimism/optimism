@@ -13,7 +13,7 @@ import { l1Provider, l2Provider } from './testUtils/ethersProviders'
 
 const ECO_WHALE: Address = '0xBd11c836279a1352ce737FbBFba36b20734B04e7'
 
-// TODO: use tokenlist as source of truth
+// we should instead use tokenlist as source of truth
 const ECO_L1_TOKEN_ADDRESS: Address = '0x3E87d4d9E69163E7590f9b39a70853cf25e5ABE3'
 const ECO_L2_TOKEN_ADDRESS: Address = '0x54bBECeA38ff36D32323f8A754683C1F5433A89f'
 
@@ -46,11 +46,9 @@ const getL2ERC20TokenBalance = async (ownerAddress: Address) => {
 
 describe('ECO token', () => {
   it('sdk should be able to deposit to l1 bridge contract correctly', async () => {
-    // this code is a bit whack because of the mix of viem + ethers
-    // TODO: use anviljs, and use viem entirely once the sdk supports it
     await l1TestClient.impersonateAccount({ address: ECO_WHALE })
-    const l1EcoWhaleSigner = await l1Provider.getSigner(ECO_WHALE);
 
+    const l1EcoWhaleSigner = await l1Provider.getSigner(ECO_WHALE);
     const preBridgeL1EcoWhaleBalance = await getL1ERC20TokenBalance(ECO_WHALE)
 
     const crossChainMessenger = new CrossChainMessenger({
