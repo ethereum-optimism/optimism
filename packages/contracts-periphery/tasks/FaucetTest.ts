@@ -23,23 +23,13 @@ const main = async () => {
     faucetDeployment.address,
     owner
   )
+
   // Send eth to faucet
   const transactionHash = await owner.sendTransaction({
     to: faucetDeployment.address,
     value: hre.ethers.utils.parseEther('1.0'),
   })
   await transactionHash.wait()
-  const optimistModuleConfig = {
-    name: 'OPTIMIST_ADMIN_AUTH',
-    enabled: true,
-    ttl: 3600,
-    amount: hre.ethers.utils.parseEther('0.02'),
-  }
-  const optimistConfigureTx = await Faucet.configure(
-    optimistFamAddress,
-    optimistModuleConfig
-  )
-  await optimistConfigureTx.wait()
 
   const encodedNonce = hre.ethers.utils.keccak256(
     hre.ethers.utils.defaultAbiCoder.encode(
