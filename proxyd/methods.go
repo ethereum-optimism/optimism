@@ -2,8 +2,9 @@ package proxyd
 
 import (
 	"context"
-	"encoding/base64"
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -21,8 +22,10 @@ type StaticMethodHandler struct {
 }
 
 func (e *StaticMethodHandler) key(req *RPCReq) string {
-	// signature is a cache-friendly base64-encoded string with json.RawMessage param contents
-	signature := base64.StdEncoding.EncodeToString(req.Params)
+	// signature is the hashed json.RawMessage param contents
+	h := sha256.New()
+	h.Write(req.Params)
+	signature := fmt.Sprintf("%x", h.Sum(nil))
 	return strings.Join([]string{"cache", req.Method, signature}, ":")
 }
 
