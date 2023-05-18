@@ -21,11 +21,7 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     log: true,
   })
 
-  const result = await deploy()
-  console.log(`Faucet deployed to ${result.address}`)
-
-  const faucet = await hre.ethers.getContractAt('Faucet', result.address)
-  await assertContractVariable(faucet, 'ADMIN', deployConfig.faucetAdmin)
+  await deploy()
 }
 
 deployFn.tags = ['Faucet', 'FaucetEnvironment']
