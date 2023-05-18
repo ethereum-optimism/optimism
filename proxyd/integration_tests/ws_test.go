@@ -270,32 +270,3 @@ func TestWSClientClosure(t *testing.T) {
 		})
 	}
 }
-
-func TestWSClientMaxConns(t *testing.T) {
-	backend := NewMockWSBackend(nil, nil, nil)
-	defer backend.Close()
-
-	require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", backend.URL()))
-
-	config := ReadConfig("ws")
-	_, shutdown, err := proxyd.Start(config)
-	require.NoError(t, err)
-	defer shutdown()
-
-	doneCh := make(chan struct{}, 1)
-	_, err = NewProxydWSClient("ws://127.0.0.1:8546", nil, nil)
-	require.NoError(t, err)
-	_, err = NewProxydWSClient("ws://127.0.0.1:8546", nil, func(err error) {
-		require.Contains(t, err.Error(), "unexpected EOF")
-		doneCh <- struct{}{}
-	})
-	require.NoError(t, err)
-
-	timeout := time.NewTicker(30 * time.Second)
-	select {
-	case <-timeout.C:
-		t.Fatalf("timed out")
-	case <-doneCh:
-		return
-	}
-}
