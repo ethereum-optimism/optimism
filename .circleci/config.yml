@@ -4,6 +4,12 @@ orbs:
   go: circleci/go@1.5.0
   gcp-cli: circleci/gcp-cli@3.0.1
 commands:
+  checkout-with-submodules:
+    description: "Checkout and init submodules as needed"
+    steps:
+      - checkout
+      - run: git submodule sync --recursive
+      - run: git submodule update --recursive --init
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
     parameters:
@@ -209,27 +215,31 @@ jobs:
       image: ubuntu-2204:2022.07.1
       resource_class: xlarge
     steps:
-      - gcp-oidc-authenticate
-      # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
-      # https://support.circleci.com/hc/en-us/articles/7323511028251-How-to-set-custom-DNS-on-Ubuntu-based-images-using-netplan
-      - run: sudo sed -i '13 i \ \ \ \ \ \ \ \ \ \ \ \ nameservers:' /etc/netplan/50-cloud-init.yaml
-      - run: sudo sed -i '14 i \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ addresses:' /etc/netplan/50-cloud-init.yaml
-      - run: sudo sed -i "s/addresses:/ addresses":" [8.8.8.8, 8.8.4.4] /g" /etc/netplan/50-cloud-init.yaml
-      - run: cat /etc/netplan/50-cloud-init.yaml
-      - run: sudo netplan apply
-      - checkout
-      - run:
-          name: Build & Publish
-          command: |
-            gcloud auth configure-docker <<parameters.registry>>
-            IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
-            docker context create buildx-build
-            docker buildx create --use buildx-build
-            docker buildx build --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
-              $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
-              -f <<parameters.docker_file>> \
-              <<parameters.docker_context>>
+      - when:
+          condition: false
+          steps:
+            - gcp-oidc-authenticate
+            # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
+            # https://support.circleci.com/hc/en-us/articles/7323511028251-How-to-set-custom-DNS-on-Ubuntu-based-images-using-netplan
+            - run: sudo sed -i '13 i \ \ \ \ \ \ \ \ \ \ \ \ nameservers:' /etc/netplan/50-cloud-init.yaml
+            - run: sudo sed -i '14 i \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ addresses:' /etc/netplan/50-cloud-init.yaml
+            - run: sudo sed -i "s/addresses:/ addresses":" [8.8.8.8, 8.8.4.4] /g" /etc/netplan/50-cloud-init.yaml
+            - run: cat /etc/netplan/50-cloud-init.yaml
+            - run: sudo netplan apply
+            - checkout
+            - run:
+                name: Build & Publish
+                command: |
+                  gcloud auth configure-docker <<parameters.registry>>
+                  IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
+                  DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
+                  docker context create buildx-build
+                  docker buildx create --use buildx-build
+                  docker buildx build --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
+                    $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
+                    -f <<parameters.docker_file>> \
+                    <<parameters.docker_context>>
+      - run: /bin/true
 
   docker-release:
     environment:
@@ -726,7 +736,7 @@ jobs:
     environment:
       DOCKER_BUILDKIT: 1
     steps:
-      - checkout
+      - checkout-with-submodules
       - check-changed:
           patterns: op-(.+),packages,integration-tests
       - run:
