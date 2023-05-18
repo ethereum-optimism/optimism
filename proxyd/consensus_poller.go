@@ -17,11 +17,14 @@ const (
 	PollerInterval = 1 * time.Second
 )
 
+type OnConsensusBroken func()
+
 // ConsensusPoller checks the consensus state for each member of a BackendGroup
 // resolves the highest common block for multiple nodes, and reconciles the consensus
 // in case of block hash divergence to minimize re-orgs
 type ConsensusPoller struct {
 	cancelFunc context.CancelFunc
+	listeners  []OnConsensusBroken
 
 	backendGroup      *BackendGroup
 	backendState      map[*Backend]*backendState
@@ -148,6 +151,16 @@ func WithAsyncHandler(asyncHandler ConsensusAsyncHandler) ConsensusOpt {
 	return func(cp *ConsensusPoller) {
 		cp.asyncHandler = asyncHandler
 	}
+}
+
+func WithListener(listener OnConsensusBroken) ConsensusOpt {
+	return func(cp *ConsensusPoller) {
+		cp.AddListener(listener)
+	}
+}
+
+func (cp *ConsensusPoller) AddListener(listener OnConsensusBroken) {
+	cp.listeners = append(cp.listeners, listener)
 }
 
 func WithBanPeriod(banPeriod time.Duration) ConsensusOpt {
@@ -354,6 +367,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 				- with minimum peer count
 				- updated recently
 				- not lagging
+				- in sync
 			*/
 
 			peerCount, inSync, latestBlockNumber, _, lastUpdate, bannedUntil := cp.getBackendState(be)
@@ -397,7 +411,9 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	}
 
 	if broken {
-		// propagate event to other interested parts, such as cache invalidator
+		for _, l := range cp.listeners {
+			l()
+		}
 		log.Info("consensus broken", "currentConsensusBlockNumber", currentConsensusBlockNumber, "proposedBlock", proposedBlock, "proposedBlockHash", proposedBlockHash)
 	}
 
