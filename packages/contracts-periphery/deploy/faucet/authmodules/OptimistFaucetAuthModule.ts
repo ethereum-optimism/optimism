@@ -13,8 +13,9 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   const { deployer } = await hre.getNamedAccounts()
 
   const { deploy } = await hre.deployments.deterministic(
-    'AdminFaucetAuthModule',
+    'OptimistAdminFaucetAuthModule',
     {
+      contract: 'AdminFaucetAuthModule',
       salt: hre.ethers.utils.solidityKeccak256(
         ['string'],
         ['AdminFaucetAuthModule']

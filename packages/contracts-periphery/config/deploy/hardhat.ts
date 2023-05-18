@@ -12,14 +12,13 @@ const config: DeployConfig = {
     '0x70997970c51812dc3a010c7d01b50e0d17dc79c8',
   optimistAllowlistCoinbaseQuestAttestor:
     '0x70997970c51812dc3a010c7d01b50e0d17dc79c8',
-  faucetAdmin: '',
-  faucetName: '',
-  githubFamAdmin: '',
-  githubFamName: '',
-  githubFamVersion: '',
-  optimistFamAdmin: '',
-  optimistFamName: '',
-  optimistFamVersion: '',
+  faucetAdmin: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+  githubFamAdmin: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+  githubFamName: 'GithubFam',
+  githubFamVersion: '1',
+  optimistFamAdmin: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+  optimistFamName: 'OptimistFam',
+  optimistFamVersion: '1',
 }
 
 export default config

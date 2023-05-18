@@ -1,4 +1,5 @@
 import { DeployConfigSpec } from '@eth-optimism/hardhat-deploy-config/dist/src/types'
+import { ethers } from 'ethers/lib'
 
 /**
  * Defines the configuration for a deployment.
@@ -57,42 +58,37 @@ export interface DeployConfig {
   /**
    * Address of privileged account for the Faucet contract.
    */
-  faucetAdmin: string
-
-  /**
-   * Name of Faucet contract.
-   */
-  faucetName: string
+  faucetAdmin?: string
 
   /**
    * Address of admin account for the Github FaucetAuthModule.
    */
-  githubFamAdmin: string
+  githubFamAdmin?: string
 
   /**
    * Name of Github FaucetAuthModule contract, used for the EIP712 domain separator.
    */
-  githubFamName: string
+  githubFamName?: string
 
   /**
    * Version of Github FaucetAuthModule contract, used for the EIP712 domain separator.
    */
-  githubFamVersion: string
+  githubFamVersion?: string
 
   /**
    * Address of admin account for Optimist FaucetAuthModule.
    */
-  optimistFamAdmin: string
+  optimistFamAdmin?: string
 
   /**
    * Name of Optimist FaucetAuthModule contract, used for the EIP712 domain separator.
    */
-  optimistFamName: string
+  optimistFamName?: string
 
   /**
    * Version of Optimist FaucetAuthModule contract, used for the EIP712 domain separator.
    */
-  optimistFamVersion: string
+  optimistFamVersion?: string
 
   /**
    * Address of the owner of the proxies on L2. There will be a ProxyAdmin deployed as a predeploy
@@ -140,27 +136,31 @@ export const configSpec: DeployConfigSpec<DeployConfig> = {
   },
   faucetAdmin: {
     type: 'address',
-  },
-  faucetName: {
-    type: 'string',
+    default: ethers.constants.AddressZero,
   },
   githubFamAdmin: {
     type: 'address',
+    default: ethers.constants.AddressZero,
   },
   githubFamName: {
     type: 'string',
+    default: 'GithubFam',
   },
   githubFamVersion: {
     type: 'string',
+    default: '1',
   },
   optimistFamAdmin: {
     type: 'address',
+    default: ethers.constants.AddressZero,
   },
   optimistFamName: {
     type: 'string',
+    default: 'OptimistFam',
   },
   optimistFamVersion: {
     type: 'string',
+    default: '1',
   },
   l2ProxyOwnerAddress: {
     type: 'address',
