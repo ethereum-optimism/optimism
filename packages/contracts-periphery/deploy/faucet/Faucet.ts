@@ -4,7 +4,6 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import '@nomiclabs/hardhat-ethers'
 import '@eth-optimism/hardhat-deploy-config'
 import 'hardhat-deploy'
-import { assertContractVariable } from '@eth-optimism/contracts-bedrock/src/deploy-utils'
 
 import type { DeployConfig } from '../../src'
 
