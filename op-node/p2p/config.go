@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -132,8 +133,8 @@ type ConnectionGater interface {
 	ListBlockedSubnets() []*net.IPNet
 }
 
-func DefaultConnGater(conf *Config) (connmgr.ConnectionGater, error) {
-	return conngater.NewBasicConnectionGater(conf.Store)
+func DefaultConnGater(store ds.Datastore, ps store.ScoreDatastore) (connmgr.ConnectionGater, error) {
+	return conngater.NewBasicConnectionGater(store)
 }
 
 func DefaultConnManager(conf *Config) (connmgr.ConnManager, error) {

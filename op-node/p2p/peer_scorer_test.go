@@ -1,14 +1,20 @@
 package p2p_test
 
 import (
+	"context"
 	"testing"
 
 	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	log "github.com/ethereum/go-ethereum/log"
+	ds "github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/sync"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	peer "github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoreds"
+	"github.com/stretchr/testify/require"
 	suite "github.com/stretchr/testify/suite"
 )
 
@@ -18,7 +24,7 @@ type PeerScorerTestSuite struct {
 
 	// mockConnGater *p2pMocks.ConnectionGater
 	mockGater    *p2pMocks.PeerGater
-	mockStore    *p2pMocks.Peerstore
+	store        store.ExtendedPeerstore
 	mockMetricer *p2pMocks.GossipMetricer
 	bandScorer   *p2p.BandScoreThresholds
 	logger       log.Logger
@@ -27,7 +33,13 @@ type PeerScorerTestSuite struct {
 // SetupTest sets up the test suite.
 func (testSuite *PeerScorerTestSuite) SetupTest() {
 	testSuite.mockGater = &p2pMocks.PeerGater{}
-	testSuite.mockStore = &p2pMocks.Peerstore{}
+
+	s := sync.MutexWrap(ds.NewMapDatastore())
+	ps, err := pstoreds.NewPeerstore(context.Background(), s, pstoreds.DefaultOpts())
+	require.NoError(testSuite.T(), err)
+	eps, err := store.NewExtendedPeerstore(ps, s)
+	require.NoError(testSuite.T(), err)
+	testSuite.store = eps
 	testSuite.mockMetricer = &p2pMocks.GossipMetricer{}
 	bandScorer, err := p2p.NewBandScorer("-40:graylist;0:friend;")
 	testSuite.NoError(err)
@@ -44,7 +56,7 @@ func TestPeerScorer(t *testing.T) {
 func (testSuite *PeerScorerTestSuite) TestScorer_OnConnect() {
 	scorer := p2p.NewScorer(
 		testSuite.mockGater,
-		testSuite.mockStore,
+		testSuite.store,
 		testSuite.mockMetricer,
 		testSuite.bandScorer,
 		testSuite.logger,
@@ -56,7 +68,7 @@ func (testSuite *PeerScorerTestSuite) TestScorer_OnConnect() {
 func (testSuite *PeerScorerTestSuite) TestScorer_OnDisconnect() {
 	scorer := p2p.NewScorer(
 		testSuite.mockGater,
-		testSuite.mockStore,
+		testSuite.store,
 		testSuite.mockMetricer,
 		testSuite.bandScorer,
 		testSuite.logger,
@@ -68,7 +80,7 @@ func (testSuite *PeerScorerTestSuite) TestScorer_OnDisconnect() {
 func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHook() {
 	scorer := p2p.NewScorer(
 		testSuite.mockGater,
-		testSuite.mockStore,
+		testSuite.store,
 		testSuite.mockMetricer,
 		testSuite.bandScorer,
 		testSuite.logger,
@@ -115,7 +127,7 @@ func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHook() {
 func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHookBlocksPeer() {
 	scorer := p2p.NewScorer(
 		testSuite.mockGater,
-		testSuite.mockStore,
+		testSuite.store,
 		testSuite.mockMetricer,
 		testSuite.bandScorer,
 		testSuite.logger,

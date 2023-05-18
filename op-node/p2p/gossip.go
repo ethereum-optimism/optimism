@@ -5,10 +5,12 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/golang/snappy"
 	lru "github.com/hashicorp/golang-lru"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -176,7 +178,12 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, g ConnectionGater, cfg *r
 		pubsub.WithBlacklist(denyList),
 		pubsub.WithEventTracer(&gossipTracer{m: m}),
 	}
-	gossipOpts = append(gossipOpts, ConfigurePeerScoring(h, g, gossipConf, m, log)...)
+
+	eps, ok := h.Peerstore().(store.ExtendedPeerstore)
+	if !ok {
+		return nil, errors.New("peerstore must implement ExtendedPeerstore")
+	}
+	gossipOpts = append(gossipOpts, ConfigurePeerScoring(g, eps, gossipConf, m, log)...)
 	gossipOpts = append(gossipOpts, gossipConf.ConfigureGossip(cfg)...)
 	return pubsub.NewGossipSub(p2pCtx, h, gossipOpts...)
 }

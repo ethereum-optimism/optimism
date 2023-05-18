@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	libp2p "github.com/libp2p/go-libp2p"
 	lconf "github.com/libp2p/go-libp2p/config"
 	"github.com/libp2p/go-libp2p/core/connmgr"
@@ -132,9 +133,14 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter) (host.Host, 
 		return nil, fmt.Errorf("failed to derive pubkey from network priv key: %w", err)
 	}
 
-	ps, err := pstoreds.NewPeerstore(context.Background(), conf.Store, pstoreds.DefaultOpts())
+	basePS, err := pstoreds.NewPeerstore(context.Background(), conf.Store, pstoreds.DefaultOpts())
 	if err != nil {
 		return nil, fmt.Errorf("failed to open peerstore: %w", err)
+	}
+
+	ps, err := store.NewExtendedPeerstore(basePS, conf.Store)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create extended peerstore: %w", err)
 	}
 
 	if err := ps.AddPrivKey(pid, conf.Priv); err != nil {
@@ -144,7 +150,7 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter) (host.Host, 
 		return nil, fmt.Errorf("failed to set up peerstore with pub key: %w", err)
 	}
 
-	connGtr, err := DefaultConnGater(conf)
+	connGtr, err := DefaultConnGater(conf.Store, ps)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open connection gater: %w", err)
 	}

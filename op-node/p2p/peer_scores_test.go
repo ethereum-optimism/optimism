@@ -9,7 +9,11 @@ import (
 
 	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	testlog "github.com/ethereum-optimism/optimism/op-node/testlog"
+	ds "github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/sync"
+	"github.com/stretchr/testify/require"
 
 	"github.com/stretchr/testify/mock"
 	suite "github.com/stretchr/testify/suite"
@@ -28,7 +32,6 @@ type PeerScoresTestSuite struct {
 	suite.Suite
 
 	mockGater    *p2pMocks.ConnectionGater
-	mockStore    *p2pMocks.Peerstore
 	mockMetricer *p2pMocks.GossipMetricer
 	bandScorer   p2p.BandScoreThresholds
 	logger       log.Logger
@@ -37,7 +40,6 @@ type PeerScoresTestSuite struct {
 // SetupTest sets up the test suite.
 func (testSuite *PeerScoresTestSuite) SetupTest() {
 	testSuite.mockGater = &p2pMocks.ConnectionGater{}
-	testSuite.mockStore = &p2pMocks.Peerstore{}
 	testSuite.mockMetricer = &p2pMocks.GossipMetricer{}
 	bandScorer, err := p2p.NewBandScorer("0:graylist;")
 	testSuite.NoError(err)
@@ -71,7 +73,9 @@ func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []
 	for _, h := range hosts {
 		rt := pubsub.DefaultGossipSubRouter(h)
 		opts := []pubsub.Option{}
-		opts = append(opts, p2p.ConfigurePeerScoring(h, testSuite.mockGater, &p2p.Config{
+		s, err := store.NewExtendedPeerstore(h.Peerstore(), sync.MutexWrap(ds.NewMapDatastore()))
+		require.NoError(testSuite.T(), err)
+		opts = append(opts, p2p.ConfigurePeerScoring(testSuite.mockGater, s, &p2p.Config{
 			BandScoreThresholds: testSuite.bandScorer,
 			PeerScoring: pubsub.PeerScoreParams{
 				AppSpecificScore: func(p peer.ID) float64 {

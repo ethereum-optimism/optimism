@@ -6,13 +6,14 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	log "github.com/ethereum/go-ethereum/log"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	peer "github.com/libp2p/go-libp2p/core/peer"
 )
 
 type scorer struct {
-	peerStore           Peerstore
+	peerStore           store.ExtendedPeerstore
 	metricer            GossipMetricer
 	log                 log.Logger
 	gater               PeerGater
@@ -101,7 +102,7 @@ type Scorer interface {
 }
 
 // NewScorer returns a new peer scorer.
-func NewScorer(peerGater PeerGater, peerStore Peerstore, metricer GossipMetricer, bandScoreThresholds *BandScoreThresholds, log log.Logger) Scorer {
+func NewScorer(peerGater PeerGater, peerStore store.ExtendedPeerstore, metricer GossipMetricer, bandScoreThresholds *BandScoreThresholds, log log.Logger) Scorer {
 	return &scorer{
 		peerStore:           peerStore,
 		metricer:            metricer,
@@ -123,6 +124,10 @@ func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
 		}
 		// Now set the new scores.
 		for id, snap := range m {
+			if err := s.peerStore.SetGossipScore(id, snap.Score); err != nil {
+				s.log.Error("Updating gossip score failed", "peer", id, "err", err)
+				// Not much we can do really - carry on and hope the next update works
+			}
 			band := s.bandScoreThresholds.Bucket(snap.Score)
 			scoreMap[band] += 1
 			s.gater.Update(id, snap.Score)

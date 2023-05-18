@@ -465,6 +465,8 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 			if p, ok := p2pNodes[name]; ok {
 				return p, nil
 			}
+			// TODO: This will need to be modified to use sys.Mocknet.AddPeerWithPeerstore so we can make the peerstore
+			// an extended peerstore.
 			h, err := sys.Mocknet.GenPeer()
 			if err != nil {
 				return nil, fmt.Errorf("failed to init p2p host for node %s", name)
