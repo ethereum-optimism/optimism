@@ -25,7 +25,4 @@ const l2Provider = new ethers.providers.JsonRpcProvider({
   headers: jsonRpcHeaders,
 })
 
-export {
-  l1Provider,
-  l2Provider
-}
+export { l1Provider, l2Provider }
