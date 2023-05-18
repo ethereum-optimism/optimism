@@ -531,23 +531,23 @@ type BackendGroup struct {
 	Consensus *ConsensusPoller
 }
 
-func (b *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, error) {
+func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, error) {
 	if len(rpcReqs) == 0 {
 		return nil, nil
 	}
 
-	backends := b.Backends
+	backends := bg.Backends
 
 	overriddenResponses := make([]*indexedReqRes, 0)
 	rewrittenReqs := make([]*RPCReq, 0, len(rpcReqs))
 
-	if b.Consensus != nil {
+	if bg.Consensus != nil {
 		// When `consensus_aware` is set to `true`, the backend group acts as a load balancer
 		// serving traffic from any backend that agrees in the consensus group
-		backends = b.loadBalancedConsensusGroup()
+		backends = bg.loadBalancedConsensusGroup()
 
 		// We also rewrite block tags to enforce compliance with consensus
-		rctx := RewriteContext{latest: b.Consensus.GetConsensusBlockNumber()}
+		rctx := RewriteContext{latest: bg.Consensus.GetConsensusBlockNumber()}
 
 		for i, req := range rpcReqs {
 			res := RPCRes{JSONRPC: JSONRPCVersion, ID: req.ID}
@@ -635,8 +635,8 @@ func (b *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch b
 	return nil, ErrNoBackends
 }
 
-func (b *BackendGroup) ProxyWS(ctx context.Context, clientConn *websocket.Conn, methodWhitelist *StringSet) (*WSProxier, error) {
-	for _, back := range b.Backends {
+func (bg *BackendGroup) ProxyWS(ctx context.Context, clientConn *websocket.Conn, methodWhitelist *StringSet) (*WSProxier, error) {
+	for _, back := range bg.Backends {
 		proxier, err := back.ProxyWS(clientConn, methodWhitelist)
 		if errors.Is(err, ErrBackendOffline) {
 			log.Warn(
@@ -672,8 +672,8 @@ func (b *BackendGroup) ProxyWS(ctx context.Context, clientConn *websocket.Conn, 
 	return nil, ErrNoBackends
 }
 
-func (b *BackendGroup) loadBalancedConsensusGroup() []*Backend {
-	cg := b.Consensus.GetConsensusGroup()
+func (bg *BackendGroup) loadBalancedConsensusGroup() []*Backend {
+	cg := bg.Consensus.GetConsensusGroup()
 
 	backendsHealthy := make([]*Backend, 0, len(cg))
 	backendsDegraded := make([]*Backend, 0, len(cg))
@@ -704,6 +704,12 @@ func (b *BackendGroup) loadBalancedConsensusGroup() []*Backend {
 	backendsHealthy = append(backendsHealthy, backendsDegraded...)
 
 	return backendsHealthy
+}
+
+func (bg *BackendGroup) Shutdown() {
+	if bg.Consensus != nil {
+		bg.Consensus.Shutdown()
+	}
 }
 
 func calcBackoff(i int) time.Duration {

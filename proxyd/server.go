@@ -225,9 +225,7 @@ func (s *Server) Shutdown() {
 		_ = s.wsServer.Shutdown(context.Background())
 	}
 	for _, bg := range s.BackendGroups {
-		if bg.Consensus != nil {
-			bg.Consensus.Shutdown()
-		}
+		bg.Shutdown()
 	}
 }
 
