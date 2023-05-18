@@ -32,7 +32,8 @@ type CacheConfig struct {
 }
 
 type RedisConfig struct {
-	URL string `toml:"url"`
+	URL       string `toml:"url"`
+	Namespace string `toml:"namespace"`
 }
 
 type MetricsConfig struct {
@@ -42,14 +43,13 @@ type MetricsConfig struct {
 }
 
 type RateLimitConfig struct {
-	UseRedis                 bool                                `toml:"use_redis"`
-	EnableBackendRateLimiter bool                                `toml:"enable_backend_rate_limiter"`
-	BaseRate                 int                                 `toml:"base_rate"`
-	BaseInterval             TOMLDuration                        `toml:"base_interval"`
-	ExemptOrigins            []string                            `toml:"exempt_origins"`
-	ExemptUserAgents         []string                            `toml:"exempt_user_agents"`
-	ErrorMessage             string                              `toml:"error_message"`
-	MethodOverrides          map[string]*RateLimitMethodOverride `toml:"method_overrides"`
+	UseRedis         bool                                `toml:"use_redis"`
+	BaseRate         int                                 `toml:"base_rate"`
+	BaseInterval     TOMLDuration                        `toml:"base_interval"`
+	ExemptOrigins    []string                            `toml:"exempt_origins"`
+	ExemptUserAgents []string                            `toml:"exempt_user_agents"`
+	ErrorMessage     string                              `toml:"error_message"`
+	MethodOverrides  map[string]*RateLimitMethodOverride `toml:"method_overrides"`
 }
 
 type RateLimitMethodOverride struct {
