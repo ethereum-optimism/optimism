@@ -26,9 +26,7 @@ type ServerConfig struct {
 }
 
 type CacheConfig struct {
-	Enabled               bool   `toml:"enabled"`
-	BlockSyncRPCURL       string `toml:"block_sync_rpc_url"`
-	NumBlockConfirmations int    `toml:"num_block_confirmations"`
+	Enabled bool `toml:"enabled"`
 }
 
 type RedisConfig struct {
