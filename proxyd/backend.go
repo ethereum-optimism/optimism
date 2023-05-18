@@ -706,6 +706,12 @@ func (b *BackendGroup) loadBalancedConsensusGroup() []*Backend {
 	return backendsHealthy
 }
 
+func (bg *BackendGroup) Shutdown() {
+	if bg.Consensus != nil {
+		bg.Consensus.Shutdown()
+	}
+}
+
 func calcBackoff(i int) time.Duration {
 	jitter := float64(rand.Int63n(250))
 	ms := math.Min(math.Pow(2, float64(i))*1000+jitter, 3000)
