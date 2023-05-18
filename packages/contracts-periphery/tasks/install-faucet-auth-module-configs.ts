@@ -80,5 +80,5 @@ task('install-faucet-auth-module-configs').setAction(async (args, hre) => {
     }
   }
 
-  console.log(`config is fully installed`)
+  console.log(`configs are fully installed`)
 })
