@@ -9,7 +9,7 @@ import { FaucetHelper } from "../testing/helpers/FaucetHelper.sol";
 contract Faucet_Initializer is Test {
     event Drip(
         string indexed authModule,
-        bytes indexed userId,
+        bytes32 indexed userId,
         uint256 amount,
         address indexed recipient
     );
@@ -103,7 +103,7 @@ contract Faucet_Initializer is Test {
         uint256 _eip712Chainid,
         address _eip712VerifyingContract,
         address recipient,
-        bytes memory id,
+        bytes32 id,
         bytes32 nonce
     ) internal view returns (bytes memory) {
         AdminFaucetAuthModule.Proof memory proof = AdminFaucetAuthModule.Proof(
@@ -140,14 +140,18 @@ contract FaucetTest is Faucet_Initializer {
             block.chainid,
             address(optimistNftFam),
             fundsReceiver,
-            abi.encodePacked(fundsReceiver),
+            keccak256(abi.encodePacked(fundsReceiver)),
             nonce
         );
 
         vm.prank(nonAdmin);
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce),
-            Faucet.AuthParameters(optimistNftFam, abi.encodePacked(fundsReceiver), signature)
+            Faucet.AuthParameters(
+                optimistNftFam,
+                keccak256(abi.encodePacked(fundsReceiver)),
+                signature
+            )
         );
     }
 
@@ -161,7 +165,7 @@ contract FaucetTest is Faucet_Initializer {
             block.chainid,
             address(optimistNftFam),
             fundsReceiver,
-            abi.encodePacked(fundsReceiver),
+            keccak256(abi.encodePacked(fundsReceiver)),
             nonce
         );
 
@@ -169,7 +173,11 @@ contract FaucetTest is Faucet_Initializer {
         vm.expectRevert("Faucet: drip parameters could not be verified by security module");
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce),
-            Faucet.AuthParameters(optimistNftFam, abi.encodePacked(fundsReceiver), signature)
+            Faucet.AuthParameters(
+                optimistNftFam,
+                keccak256(abi.encodePacked(fundsReceiver)),
+                signature
+            )
         );
     }
 
@@ -183,7 +191,7 @@ contract FaucetTest is Faucet_Initializer {
             block.chainid,
             address(optimistNftFam),
             fundsReceiver,
-            abi.encodePacked(fundsReceiver),
+            keccak256(abi.encodePacked(fundsReceiver)),
             nonce
         );
 
@@ -191,7 +199,11 @@ contract FaucetTest is Faucet_Initializer {
         vm.prank(nonAdmin);
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce),
-            Faucet.AuthParameters(optimistNftFam, abi.encodePacked(fundsReceiver), signature)
+            Faucet.AuthParameters(
+                optimistNftFam,
+                keccak256(abi.encodePacked(fundsReceiver)),
+                signature
+            )
         );
         uint256 recipientBalanceAfter = address(fundsReceiver).balance;
         assertEq(
@@ -211,7 +223,7 @@ contract FaucetTest is Faucet_Initializer {
             block.chainid,
             address(githubFam),
             fundsReceiver,
-            abi.encodePacked(fundsReceiver),
+            keccak256(abi.encodePacked(fundsReceiver)),
             nonce
         );
 
@@ -219,7 +231,7 @@ contract FaucetTest is Faucet_Initializer {
         vm.prank(nonAdmin);
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce),
-            Faucet.AuthParameters(githubFam, abi.encodePacked(fundsReceiver), signature)
+            Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
         uint256 recipientBalanceAfter = address(fundsReceiver).balance;
         assertEq(
@@ -239,17 +251,22 @@ contract FaucetTest is Faucet_Initializer {
             block.chainid,
             address(githubFam),
             fundsReceiver,
-            abi.encodePacked(fundsReceiver),
+            keccak256(abi.encodePacked(fundsReceiver)),
             nonce
         );
 
         vm.expectEmit(true, true, true, true, address(faucet));
-        emit Drip("GithubModule", abi.encodePacked(fundsReceiver), .05 ether, fundsReceiver);
+        emit Drip(
+            "GithubModule",
+            keccak256(abi.encodePacked(fundsReceiver)),
+            .05 ether,
+            fundsReceiver
+        );
 
         vm.prank(nonAdmin);
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce),
-            Faucet.AuthParameters(githubFam, abi.encodePacked(fundsReceiver), signature)
+            Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
     }
 
@@ -263,14 +280,14 @@ contract FaucetTest is Faucet_Initializer {
             block.chainid,
             address(githubFam),
             fundsReceiver,
-            abi.encodePacked(fundsReceiver),
+            keccak256(abi.encodePacked(fundsReceiver)),
             nonce
         );
 
         vm.startPrank(faucetContractAdmin);
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce),
-            Faucet.AuthParameters(githubFam, abi.encodePacked(fundsReceiver), signature)
+            Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
 
         faucet.configure(githubFam, Faucet.ModuleConfig("GithubModule", false, 1 days, .05 ether));
@@ -278,7 +295,7 @@ contract FaucetTest is Faucet_Initializer {
         vm.expectRevert("Faucet: provided auth module is not supported by this faucet");
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce),
-            Faucet.AuthParameters(githubFam, abi.encodePacked(fundsReceiver), signature)
+            Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
         vm.stopPrank();
     }
@@ -293,20 +310,20 @@ contract FaucetTest is Faucet_Initializer {
             block.chainid,
             address(githubFam),
             fundsReceiver,
-            abi.encodePacked(fundsReceiver),
+            keccak256(abi.encodePacked(fundsReceiver)),
             nonce
         );
 
         vm.startPrank(faucetContractAdmin);
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce),
-            Faucet.AuthParameters(githubFam, abi.encodePacked(fundsReceiver), signature)
+            Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
 
         vm.expectRevert("Faucet: nonce has already been used");
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce),
-            Faucet.AuthParameters(githubFam, abi.encodePacked(fundsReceiver), signature)
+            Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
         vm.stopPrank();
     }
@@ -321,14 +338,14 @@ contract FaucetTest is Faucet_Initializer {
             block.chainid,
             address(githubFam),
             fundsReceiver,
-            abi.encodePacked(fundsReceiver),
+            keccak256(abi.encodePacked(fundsReceiver)),
             nonce0
         );
 
         vm.startPrank(faucetContractAdmin);
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce0),
-            Faucet.AuthParameters(githubFam, abi.encodePacked(fundsReceiver), signature0)
+            Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature0)
         );
 
         bytes32 nonce1 = faucetHelper.consumeNonce();
@@ -339,14 +356,14 @@ contract FaucetTest is Faucet_Initializer {
             block.chainid,
             address(githubFam),
             fundsReceiver,
-            abi.encodePacked(fundsReceiver),
+            keccak256(abi.encodePacked(fundsReceiver)),
             nonce1
         );
 
         vm.expectRevert("Faucet: auth cannot be used yet because timeout has not elapsed");
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce1),
-            Faucet.AuthParameters(githubFam, abi.encodePacked(fundsReceiver), signature1)
+            Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature1)
         );
         vm.stopPrank();
     }
@@ -361,14 +378,14 @@ contract FaucetTest is Faucet_Initializer {
             block.chainid,
             address(githubFam),
             fundsReceiver,
-            abi.encodePacked(fundsReceiver),
+            keccak256(abi.encodePacked(fundsReceiver)),
             nonce0
         );
 
         vm.startPrank(faucetContractAdmin);
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce0),
-            Faucet.AuthParameters(githubFam, abi.encodePacked(fundsReceiver), signature0)
+            Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature0)
         );
 
         bytes32 nonce1 = faucetHelper.consumeNonce();
@@ -379,14 +396,14 @@ contract FaucetTest is Faucet_Initializer {
             block.chainid,
             address(githubFam),
             fundsReceiver,
-            abi.encodePacked(fundsReceiver),
+            keccak256(abi.encodePacked(fundsReceiver)),
             nonce1
         );
 
         vm.warp(startingTimestamp + 1 days + 1 seconds);
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce1),
-            Faucet.AuthParameters(githubFam, abi.encodePacked(fundsReceiver), signature1)
+            Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature1)
         );
         vm.stopPrank();
     }

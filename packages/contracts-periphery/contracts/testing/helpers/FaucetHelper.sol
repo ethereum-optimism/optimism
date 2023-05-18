@@ -16,7 +16,7 @@ contract FaucetHelper {
      * @notice EIP712 typehash for the Proof type.
      */
     bytes32 public constant PROOF_TYPEHASH =
-        keccak256("Proof(address recipient,bytes32 nonce,bytes id)");
+        keccak256("Proof(address recipient,bytes32 nonce,bytes32 id)");
 
     /**
      * @notice EIP712 typehash for the EIP712Domain type that is included as part of the signature.

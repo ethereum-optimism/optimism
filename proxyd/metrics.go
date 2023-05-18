@@ -182,20 +182,12 @@ var (
 		"method",
 	})
 
-	lvcErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	cacheErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: MetricsNamespace,
-		Name:      "lvc_errors_total",
-		Help:      "Count of lvc errors.",
+		Name:      "cache_errors_total",
+		Help:      "Number of cache errors.",
 	}, []string{
-		"key",
-	})
-
-	lvcPollTimeGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: MetricsNamespace,
-		Name:      "lvc_poll_time_gauge",
-		Help:      "Gauge of lvc poll time.",
-	}, []string{
-		"key",
+		"method",
 	})
 
 	batchRPCShortCircuitsTotal = promauto.NewCounter(prometheus.CounterOpts{
@@ -372,6 +364,10 @@ func RecordCacheHit(method string) {
 
 func RecordCacheMiss(method string) {
 	cacheMissesTotal.WithLabelValues(method).Inc()
+}
+
+func RecordCacheError(method string) {
+	cacheErrorsTotal.WithLabelValues(method).Inc()
 }
 
 func RecordBatchSize(size int) {
