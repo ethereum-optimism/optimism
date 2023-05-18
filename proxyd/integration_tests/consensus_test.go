@@ -94,6 +94,7 @@ func TestConsensus(t *testing.T) {
 		consensusGroup := bg.Consensus.GetConsensusGroup()
 
 		require.NotContains(t, consensusGroup, be)
+		require.False(t, bg.Consensus.IsBanned(be))
 		require.Equal(t, 1, len(consensusGroup))
 	})
 
@@ -132,6 +133,7 @@ func TestConsensus(t *testing.T) {
 		be := backend(bg, "node1")
 		require.NotNil(t, be)
 		require.NotContains(t, consensusGroup, be)
+		require.False(t, bg.Consensus.IsBanned(be))
 		require.Equal(t, 1, len(consensusGroup))
 	})
 
@@ -232,6 +234,7 @@ func TestConsensus(t *testing.T) {
 		consensusGroup := bg.Consensus.GetConsensusGroup()
 
 		require.NotContains(t, consensusGroup, be)
+		require.False(t, bg.Consensus.IsBanned(be))
 		require.Equal(t, 1, len(consensusGroup))
 	})
 

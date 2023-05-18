@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -98,9 +99,11 @@ func TestChannelManagerReturnsErrReorgWhenDrained(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
-			TargetFrameSize:  0,
-			MaxFrameSize:     120_000,
-			ApproxComprRatio: 1.0,
+			MaxFrameSize: 120_000,
+			CompressorConfig: compressor.Config{
+				TargetFrameSize:  0,
+				ApproxComprRatio: 1.0,
+			},
 		})
 
 	a := newMiniL2Block(0)
@@ -170,9 +173,12 @@ func TestChannelManager_Clear(t *testing.T) {
 		ChannelTimeout: 10,
 		// Have to set the max frame size here otherwise the channel builder would not
 		// be able to output any frames
-		MaxFrameSize:     24,
-		TargetFrameSize:  24,
-		ApproxComprRatio: 1.0,
+		MaxFrameSize: 24,
+		CompressorConfig: compressor.Config{
+			TargetFrameSize:  24,
+			TargetNumFrames:  1,
+			ApproxComprRatio: 1.0,
+		},
 	})
 
 	// Channel Manager state should be empty by default
@@ -331,9 +337,11 @@ func TestChannelManager_TxResend(t *testing.T) {
 	log := testlog.Logger(t, log.LvlError)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
-			TargetFrameSize:  0,
-			MaxFrameSize:     120_000,
-			ApproxComprRatio: 1.0,
+			MaxFrameSize: 120_000,
+			CompressorConfig: compressor.Config{
+				TargetFrameSize:  0,
+				ApproxComprRatio: 1.0,
+			},
 		})
 
 	a, _ := derivetest.RandomL2Block(rng, 4)
@@ -372,10 +380,12 @@ func TestChannelManagerCloseBeforeFirstUse(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
-			TargetFrameSize:  0,
-			MaxFrameSize:     100,
-			ApproxComprRatio: 1.0,
-			ChannelTimeout:   1000,
+			MaxFrameSize:   100,
+			ChannelTimeout: 1000,
+			CompressorConfig: compressor.Config{
+				TargetFrameSize:  0,
+				ApproxComprRatio: 1.0,
+			},
 		})
 
 	a, _ := derivetest.RandomL2Block(rng, 4)
@@ -397,10 +407,13 @@ func TestChannelManagerCloseNoPendingChannel(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
-			TargetFrameSize:  0,
-			MaxFrameSize:     100,
-			ApproxComprRatio: 1.0,
-			ChannelTimeout:   1000,
+			MaxFrameSize:   100,
+			ChannelTimeout: 1000,
+			CompressorConfig: compressor.Config{
+				TargetFrameSize:  1,
+				TargetNumFrames:  1,
+				ApproxComprRatio: 1.0,
+			},
 		})
 	a := newMiniL2Block(0)
 	b := newMiniL2BlockWithNumberParent(0, big.NewInt(1), a.Hash())
@@ -433,11 +446,13 @@ func TestChannelManagerClosePendingChannel(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
-			TargetNumFrames:  100,
-			TargetFrameSize:  1000,
-			MaxFrameSize:     1000,
-			ApproxComprRatio: 1.0,
-			ChannelTimeout:   1000,
+			MaxFrameSize:   1000,
+			ChannelTimeout: 1000,
+			CompressorConfig: compressor.Config{
+				TargetNumFrames:  100,
+				TargetFrameSize:  1000,
+				ApproxComprRatio: 1.0,
+			},
 		})
 
 	a := newMiniL2Block(50_000)
@@ -476,11 +491,13 @@ func TestChannelManagerCloseAllTxsFailed(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
-			TargetNumFrames:  100,
-			TargetFrameSize:  1000,
-			MaxFrameSize:     1000,
-			ApproxComprRatio: 1.0,
-			ChannelTimeout:   1000,
+			MaxFrameSize:   1000,
+			ChannelTimeout: 1000,
+			CompressorConfig: compressor.Config{
+				TargetNumFrames:  100,
+				TargetFrameSize:  1000,
+				ApproxComprRatio: 1.0,
+			},
 		})
 
 	a := newMiniL2Block(50_000)
