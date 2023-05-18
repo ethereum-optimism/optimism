@@ -17,7 +17,7 @@
     "lint:fix": "yarn lint:check --fix",
     "pre-commit": "lint-staged",
     "test": "hardhat test",
-    "test:next": "vitest test-next/proveMessage.spec.ts",
+    "test:next": "vitest run",
     "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json",
     "autogen:docs": "typedoc --out docs src/index.ts"
   },
@@ -48,7 +48,9 @@
     "typedoc": "^0.22.13",
     "mocha": "^10.0.0",
     "vitest": "^0.28.3",
-    "zod": "^3.11.6"
+    "zod": "^3.11.6",
+    "viem": "^0.3.30",
+    "isomorphic-fetch": "^3.0.0"
   },
   "dependencies": {
     "@eth-optimism/contracts": "0.5.40",
