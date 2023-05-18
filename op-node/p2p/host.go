@@ -144,12 +144,12 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter) (host.Host, 
 		return nil, fmt.Errorf("failed to set up peerstore with pub key: %w", err)
 	}
 
-	connGtr, err := conf.ConnGater(conf)
+	connGtr, err := DefaultConnGater(conf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open connection gater: %w", err)
 	}
 
-	connMngr, err := conf.ConnMngr(conf)
+	connMngr, err := DefaultConnManager(conf)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open connection manager: %w", err)
 	}

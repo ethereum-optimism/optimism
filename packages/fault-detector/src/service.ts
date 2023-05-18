@@ -72,7 +72,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         startBatchIndex: {
           validator: validators.num,
           default: -1,
-          desc: 'Batch index to start checking from',
+          desc: 'Batch index to start checking from. For bedrock chains, this is the L2 height to start from',
           public: true,
         },
         bedrock: {
@@ -124,7 +124,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
    * - Legacy: StateCommitmentChain to query for output roots.
    *
    * @param l2ChainId op chain id
-   * @returns OEL1ContractsLike  set of L1 contracts with only the required addresses set
+   * @returns OEL1ContractsLike set of L1 contracts with only the required addresses set
    */
   async getOEL1Contracts(l2ChainId: number): Promise<OEL1ContractsLike> {
     // CrossChainMessenger requires all address to be defined. Default to `AddressZero` to ignore unused contracts
@@ -219,6 +219,8 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
 
     // We use this a lot, a bit cleaner to pull out to the top level of the state object.
     this.state.fpw = await this.state.messenger.getChallengePeriodSeconds()
+    this.logger.info(`fault proof window is ${this.state.fpw} seconds`)
+
     if (this.options.bedrock) {
       const oo = this.state.messenger.contracts.l1.L2OutputOracle
       this.state.oo = {
@@ -238,25 +240,25 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     }
 
     // Populate the event cache.
-    this.logger.info(`warming event cache, this might take a while...`)
-    await updateOracleCache(this.state.oo)
+    this.logger.info('warming event cache, this might take a while...')
+    await updateOracleCache(this.state.oo, this.logger)
 
     // Figure out where to start syncing from.
     if (this.options.startBatchIndex === -1) {
-      this.logger.info(`finding appropriate starting height`)
+      this.logger.info('finding appropriate starting unfinalized batch')
       const firstUnfinalized = await findFirstUnfinalizedStateBatchIndex(
         this.state.oo,
-        this.state.fpw
+        this.state.fpw,
+        this.logger
       )
 
       // We may not have an unfinalized batches in the case where no batches have been submitted
       // for the entire duration of the FPW. We generally do not expect this to happen on mainnet,
       // but it happens often on testnets because the FPW is very short.
       if (firstUnfinalized === undefined) {
-        this.logger.info(`no unfinalized batches found, starting from latest`)
-        this.state.currentBatchIndex = (
-          await this.state.oo.getTotalElements()
-        ).toNumber()
+        this.logger.info('no unfinalized batches found. skipping all batches.')
+        const totalBatches = await this.state.oo.getTotalElements()
+        this.state.currentBatchIndex = totalBatches.toNumber() - 1
       } else {
         this.state.currentBatchIndex = firstUnfinalized
       }
@@ -264,8 +266,8 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       this.state.currentBatchIndex = this.options.startBatchIndex
     }
 
-    this.logger.info('starting height', {
-      startBatchIndex: this.state.currentBatchIndex,
+    this.logger.info('starting batch', {
+      batchIndex: this.state.currentBatchIndex,
     })
 
     // Set the initial metrics.
@@ -285,49 +287,50 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
 
     let latestBatchIndex: number
     try {
-      latestBatchIndex = (await this.state.oo.getTotalElements()).toNumber()
+      const totalBatches = await this.state.oo.getTotalElements()
+      latestBatchIndex = totalBatches.toNumber() - 1
     } catch (err) {
-      this.logger.error(`got error when connecting to node`, {
+      this.logger.error('failed to query total # of batches', {
         error: err,
         node: 'l1',
-        section: 'getTotalBatches',
+        section: 'getTotalElements',
       })
       this.metrics.nodeConnectionFailures.inc({
         layer: 'l1',
-        section: 'getTotalBatches',
+        section: 'getTotalElements',
       })
       await sleep(15000)
       return
     }
 
-    if (this.state.currentBatchIndex >= latestBatchIndex) {
+    if (this.state.currentBatchIndex > latestBatchIndex) {
+      this.logger.info('batch index is ahead of the oracle. waiting...', {
+        batchIndex: this.state.currentBatchIndex,
+        latestBatchIndex,
+      })
       await sleep(15000)
       return
-    } else {
-      this.metrics.highestBatchIndex.set(
-        {
-          type: 'known',
-        },
-        latestBatchIndex
-      )
     }
 
-    this.logger.info(`checking batch`, {
+    this.metrics.highestBatchIndex.set({ type: 'known' }, latestBatchIndex)
+    this.logger.info('checking batch', {
       batchIndex: this.state.currentBatchIndex,
-      latestIndex: latestBatchIndex,
+      latestBatchIndex,
     })
 
     let event: PartialEvent
     try {
       event = await findEventForStateBatch(
         this.state.oo,
-        this.state.currentBatchIndex
+        this.state.currentBatchIndex,
+        this.logger
       )
     } catch (err) {
-      this.logger.error(`got error when connecting to node`, {
+      this.logger.error('failed to fetch event associated with batch', {
         error: err,
         node: 'l1',
         section: 'findEventForStateBatch',
+        batchIndex: this.state.currentBatchIndex,
       })
       this.metrics.nodeConnectionFailures.inc({
         layer: 'l1',
@@ -341,7 +344,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     try {
       latestBlock = await this.options.l2RpcProvider.getBlockNumber()
     } catch (err) {
-      this.logger.error(`got error when connecting to node`, {
+      this.logger.error('failed to query L2 block height', {
         error: err,
         node: 'l2',
         section: 'getBlockNumber',
@@ -355,27 +358,29 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     }
 
     if (this.options.bedrock) {
-      if (latestBlock < event.args.l2BlockNumber.toNumber()) {
-        this.logger.info(`node is behind, waiting for sync`, {
-          batchEnd: event.args.l2BlockNumber.toNumber(),
-          latestBlock,
+      const outputBlockNumber = event.args.l2BlockNumber.toNumber()
+      if (latestBlock < outputBlockNumber) {
+        this.logger.info('L2 node is behind, waiting for sync...', {
+          l2BlockHeight: latestBlock,
+          outputBlock: outputBlockNumber,
         })
         return
       }
 
-      let targetBlock: any
+      let outputBlock: any
       try {
-        targetBlock = await (
+        outputBlock = await (
           this.options.l2RpcProvider as ethers.providers.JsonRpcProvider
         ).send('eth_getBlockByNumber', [
-          toRpcHexString(event.args.l2BlockNumber.toNumber()),
+          toRpcHexString(outputBlockNumber),
           false,
         ])
       } catch (err) {
-        this.logger.error(`got error when connecting to node`, {
+        this.logger.error('failed to fetch output block', {
           error: err,
           node: 'l2',
           section: 'getBlock',
+          block: outputBlockNumber,
         })
         this.metrics.nodeConnectionFailures.inc({
           layer: 'l2',
@@ -392,13 +397,14 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         ).send('eth_getProof', [
           this.state.messenger.contracts.l2.BedrockMessagePasser.address,
           [],
-          toRpcHexString(event.args.l2BlockNumber.toNumber()),
+          toRpcHexString(outputBlockNumber),
         ])
       } catch (err) {
-        this.logger.error(`got error when connecting to node`, {
+        this.logger.error('failed to fetch message passer proof', {
           error: err,
           node: 'l2',
           section: 'getProof',
+          block: outputBlockNumber,
         })
         this.metrics.nodeConnectionFailures.inc({
           layer: 'l2',
@@ -412,22 +418,22 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         ['uint256', 'bytes32', 'bytes32', 'bytes32'],
         [
           0,
-          targetBlock.stateRoot,
+          outputBlock.stateRoot,
           messagePasserProofResponse.storageHash,
-          targetBlock.hash,
+          outputBlock.hash,
         ]
       )
 
       if (outputRoot !== event.args.outputRoot) {
         this.state.diverged = true
         this.metrics.isCurrentlyMismatched.set(1)
-        this.logger.error(`state root mismatch`, {
-          blockNumber: targetBlock.number,
+        this.logger.error('state root mismatch', {
+          blockNumber: outputBlock.number,
           expectedStateRoot: event.args.outputRoot,
           actualStateRoot: outputRoot,
           finalizationTime: dateformat(
             new Date(
-              (ethers.BigNumber.from(targetBlock.timestamp).toNumber() +
+              (ethers.BigNumber.from(outputBlock.timestamp).toNumber() +
                 this.state.fpw) *
                 1000
             ),
@@ -443,7 +449,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
           event.transactionHash
         )
       } catch (err) {
-        this.logger.error(`got error when connecting to node`, {
+        this.logger.error('failed to acquire batch transaction', {
           error: err,
           node: 'l1',
           section: 'getTransaction',
@@ -466,9 +472,10 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       const batchEnd = batchStart + batchSize
 
       if (latestBlock < batchEnd) {
-        this.logger.info(`node is behind, waiting for sync`, {
-          batchEnd,
-          latestBlock,
+        this.logger.info('L2 node is behind. waiting for sync...', {
+          batchBlockStart: batchStart,
+          batchBlockEnd: batchEnd,
+          l2BlockHeight: latestBlock,
         })
         return
       }
@@ -487,7 +494,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
             false,
           ])
         } catch (err) {
-          this.logger.error(`got error when connecting to node`, {
+          this.logger.error('failed to query for blocks in batch', {
             error: err,
             node: 'l2',
             section: 'getBlockRange',
@@ -507,7 +514,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         if (blocks[i].stateRoot !== stateRoot) {
           this.state.diverged = true
           this.metrics.isCurrentlyMismatched.set(1)
-          this.logger.error(`state root mismatch`, {
+          this.logger.error('state root mismatch', {
             blockNumber: blocks[i].number,
             expectedStateRoot: blocks[i].stateRoot,
             actualStateRoot: stateRoot,
@@ -533,9 +540,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       timeMs: elapsedMs,
     })
     this.metrics.highestBatchIndex.set(
-      {
-        type: 'checked',
-      },
+      { type: 'checked' },
       this.state.currentBatchIndex
     )
 
