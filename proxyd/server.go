@@ -222,6 +222,11 @@ func (s *Server) Shutdown() {
 	if s.wsServer != nil {
 		_ = s.wsServer.Shutdown(context.Background())
 	}
+	for _, bg := range s.BackendGroups {
+		if bg.Consensus != nil {
+			bg.Consensus.Shutdown()
+		}
+	}
 }
 
 func (s *Server) HandleHealthz(w http.ResponseWriter, r *http.Request) {
