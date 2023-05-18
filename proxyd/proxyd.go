@@ -51,19 +51,6 @@ func Start(config *Config) (*Server, func(), error) {
 		return nil, nil, errors.New("must specify a Redis URL if UseRedis is true in rate limit config")
 	}
 
-	var lim BackendRateLimiter
-	var err error
-	if config.RateLimit.EnableBackendRateLimiter {
-		if redisClient != nil {
-			lim = NewRedisRateLimiter(redisClient)
-		} else {
-			log.Warn("redis is not configured, using local rate limiter")
-			lim = NewLocalBackendRateLimiter()
-		}
-	} else {
-		lim = noopBackendRateLimiter
-	}
-
 	// While modifying shared globals is a bad practice, the alternative
 	// is to clone these errors on every invocation. This is inefficient.
 	// We'd also have to make sure that errors.Is and errors.As continue
@@ -159,10 +146,14 @@ func Start(config *Config) (*Server, func(), error) {
 		opts = append(opts, WithProxydIP(os.Getenv("PROXYD_IP")))
 		opts = append(opts, WithSkipPeerCountCheck(cfg.SkipPeerCountCheck))
 
-		back := NewBackend(name, rpcURL, wsURL, lim, rpcRequestSemaphore, opts...)
+		back := NewBackend(name, rpcURL, wsURL, rpcRequestSemaphore, opts...)
 		backendNames = append(backendNames, name)
 		backendsByName[name] = back
-		log.Info("configured backend", "name", name, "rpc_url", rpcURL, "ws_url", wsURL)
+		log.Info("configured backend",
+			"name", name,
+			"backend_names", backendNames,
+			"rpc_url", rpcURL,
+			"ws_url", wsURL)
 	}
 
 	backendGroups := make(map[string]*BackendGroup)
@@ -352,9 +343,6 @@ func Start(config *Config) (*Server, func(), error) {
 			gasPriceLVC.Stop()
 		}
 		srv.Shutdown()
-		if err := lim.FlushBackendWSConns(backendNames); err != nil {
-			log.Error("error flushing backend ws conns", "err", err)
-		}
 		log.Info("goodbye")
 	}
 
