@@ -106,9 +106,6 @@ type Config struct {
 	// Underlying store that hosts connection-gater and peerstore data.
 	Store ds.Batching
 
-	ConnGater func(conf *Config) (connmgr.ConnectionGater, error)
-	ConnMngr  func(conf *Config) (connmgr.ConnManager, error)
-
 	EnableReqRespSync bool
 }
 
@@ -192,12 +189,6 @@ func (conf *Config) Check() error {
 	}
 	if conf.PeersLo == 0 || conf.PeersHi == 0 || conf.PeersLo > conf.PeersHi {
 		return fmt.Errorf("peers lo/hi tides are invalid: %d, %d", conf.PeersLo, conf.PeersHi)
-	}
-	if conf.ConnMngr == nil {
-		return errors.New("need a connection manager")
-	}
-	if conf.ConnGater == nil {
-		return errors.New("need a connection gater")
 	}
 	if conf.MeshD <= 0 || conf.MeshD > maxMeshParam {
 		return fmt.Errorf("mesh D param must not be 0 or exceed %d, but got %d", maxMeshParam, conf.MeshD)

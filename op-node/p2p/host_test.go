@@ -12,12 +12,10 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
-	tswarm "github.com/libp2p/go-libp2p/p2p/net/swarm/testing"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
@@ -54,10 +52,6 @@ func TestingConfig(t *testing.T) *Config {
 		TimeoutAccept:       time.Second * 2,
 		TimeoutDial:         time.Second * 2,
 		Store:               sync.MutexWrap(ds.NewMapDatastore()),
-		ConnGater: func(conf *Config) (connmgr.ConnectionGater, error) {
-			return tswarm.DefaultMockConnectionGater(), nil
-		},
-		ConnMngr: DefaultConnManager,
 	}
 }
 
@@ -113,8 +107,6 @@ func TestP2PFull(t *testing.T) {
 		TimeoutAccept:       time.Second * 2,
 		TimeoutDial:         time.Second * 2,
 		Store:               sync.MutexWrap(ds.NewMapDatastore()),
-		ConnGater:           DefaultConnGater,
-		ConnMngr:            DefaultConnManager,
 	}
 	// copy config A, and change the settings for B
 	confB := confA
@@ -262,8 +254,6 @@ func TestDiscovery(t *testing.T) {
 		TimeoutDial:         time.Second * 2,
 		Store:               sync.MutexWrap(ds.NewMapDatastore()),
 		DiscoveryDB:         discDBA,
-		ConnGater:           DefaultConnGater,
-		ConnMngr:            DefaultConnManager,
 	}
 	// copy config A, and change the settings for B
 	confB := confA

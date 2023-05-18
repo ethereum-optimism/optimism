@@ -70,9 +70,6 @@ func NewConfig(ctx *cli.Context, blockTime uint64) (*p2p.Config, error) {
 		return nil, fmt.Errorf("failed to load p2p topic scoring options: %w", err)
 	}
 
-	conf.ConnGater = p2p.DefaultConnGater
-	conf.ConnMngr = p2p.DefaultConnManager
-
 	conf.EnableReqRespSync = ctx.GlobalBool(flags.SyncReqRespFlag.Name)
 
 	return conf, nil
