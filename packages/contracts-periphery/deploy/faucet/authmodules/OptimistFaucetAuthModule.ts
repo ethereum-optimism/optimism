@@ -1,10 +1,10 @@
 /* Imports: External */
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
-
 import '@nomiclabs/hardhat-ethers'
 import '@eth-optimism/hardhat-deploy-config'
 import 'hardhat-deploy'
+
 import type { DeployConfig } from '../../../src'
 
 const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
