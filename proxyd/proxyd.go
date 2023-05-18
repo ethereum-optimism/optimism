@@ -236,7 +236,7 @@ func Start(config *Config) (*Server, func(), error) {
 			log.Warn("redis is not configured, using in-memory cache")
 			cache = newMemoryCache()
 		} else {
-			cache = newRedisCache(redisClient)
+			cache = newRedisCache(redisClient, config.Redis.Namespace)
 		}
 		// Ideally, the BlocKSyncRPCURL should be the sequencer or a HA replica that's not far behind
 		ethClient, err := ethclient.Dial(blockSyncRPCURL)
