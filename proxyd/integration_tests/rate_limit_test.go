@@ -21,23 +21,6 @@ const frontendOverLimitResponseWithID = `{"error":{"code":-32016,"message":"over
 
 var ethChainID = "eth_chainId"
 
-func TestBackendMaxRPSLimit(t *testing.T) {
-	goodBackend := NewMockBackend(BatchedResponseHandler(200, goodResponse))
-	defer goodBackend.Close()
-
-	require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", goodBackend.URL()))
-
-	config := ReadConfig("backend_rate_limit")
-	client := NewProxydClient("http://127.0.0.1:8545")
-	_, shutdown, err := proxyd.Start(config)
-	require.NoError(t, err)
-	defer shutdown()
-	limitedRes, codes := spamReqs(t, client, ethChainID, 503, 3)
-	require.Equal(t, 2, codes[200])
-	require.Equal(t, 1, codes[503])
-	RequireEqualJSON(t, []byte(noBackendsResponse), limitedRes)
-}
-
 func TestFrontendMaxRPSLimit(t *testing.T) {
 	goodBackend := NewMockBackend(BatchedResponseHandler(200, goodResponse))
 	defer goodBackend.Close()

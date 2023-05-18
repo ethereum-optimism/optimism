@@ -46,7 +46,7 @@ type State = {
   fpw: number
   oo: OutputOracle<any>
   messenger: CrossChainMessenger
-  highestCheckedBatchIndex: number
+  currentBatchIndex: number
   diverged: boolean
 }
 
@@ -254,27 +254,22 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       // but it happens often on testnets because the FPW is very short.
       if (firstUnfinalized === undefined) {
         this.logger.info(`no unfinalized batches found, starting from latest`)
-        this.state.highestCheckedBatchIndex = (
+        this.state.currentBatchIndex = (
           await this.state.oo.getTotalElements()
         ).toNumber()
       } else {
-        this.state.highestCheckedBatchIndex = firstUnfinalized
+        this.state.currentBatchIndex = firstUnfinalized
       }
     } else {
-      this.state.highestCheckedBatchIndex = this.options.startBatchIndex
+      this.state.currentBatchIndex = this.options.startBatchIndex
     }
 
-    this.logger.info(`starting height`, {
-      startBatchIndex: this.state.highestCheckedBatchIndex,
+    this.logger.info('starting height', {
+      startBatchIndex: this.state.currentBatchIndex,
     })
 
     // Set the initial metrics.
-    this.metrics.highestBatchIndex.set(
-      {
-        type: 'checked',
-      },
-      this.state.highestCheckedBatchIndex
-    )
+    this.metrics.isCurrentlyMismatched.set(0)
   }
 
   async routes(router: ExpressRouter): Promise<void> {
@@ -286,6 +281,8 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
   }
 
   async main(): Promise<void> {
+    const startMs = Date.now()
+
     let latestBatchIndex: number
     try {
       latestBatchIndex = (await this.state.oo.getTotalElements()).toNumber()
@@ -303,7 +300,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       return
     }
 
-    if (this.state.highestCheckedBatchIndex >= latestBatchIndex) {
+    if (this.state.currentBatchIndex >= latestBatchIndex) {
       await sleep(15000)
       return
     } else {
@@ -316,7 +313,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     }
 
     this.logger.info(`checking batch`, {
-      batchIndex: this.state.highestCheckedBatchIndex,
+      batchIndex: this.state.currentBatchIndex,
       latestIndex: latestBatchIndex,
     })
 
@@ -324,7 +321,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     try {
       event = await findEventForStateBatch(
         this.state.oo,
-        this.state.highestCheckedBatchIndex
+        this.state.currentBatchIndex
       )
     } catch (err) {
       this.logger.error(`got error when connecting to node`, {
@@ -528,20 +525,24 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       }
     }
 
-    this.logger.info(`checked batch ok`, {
-      batchIndex: this.state.highestCheckedBatchIndex,
-    })
+    const elapsedMs = Date.now() - startMs
 
-    this.state.highestCheckedBatchIndex++
+    // Mark the current batch index as checked
+    this.logger.info('checked batch ok', {
+      batchIndex: this.state.currentBatchIndex,
+      timeMs: elapsedMs,
+    })
     this.metrics.highestBatchIndex.set(
       {
         type: 'checked',
       },
-      this.state.highestCheckedBatchIndex
+      this.state.currentBatchIndex
     )
 
-    // If we got through the above without throwing an error, we should be fine to reset.
+    // If we got through the above without throwing an error, we should be
+    // fine to reset and move onto the next batch
     this.state.diverged = false
+    this.state.currentBatchIndex++
     this.metrics.isCurrentlyMismatched.set(0)
   }
 }

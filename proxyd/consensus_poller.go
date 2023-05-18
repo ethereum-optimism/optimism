@@ -17,11 +17,14 @@ const (
 	PollerInterval = 1 * time.Second
 )
 
+type OnConsensusBroken func()
+
 // ConsensusPoller checks the consensus state for each member of a BackendGroup
 // resolves the highest common block for multiple nodes, and reconciles the consensus
 // in case of block hash divergence to minimize re-orgs
 type ConsensusPoller struct {
 	cancelFunc context.CancelFunc
+	listeners  []OnConsensusBroken
 
 	backendGroup      *BackendGroup
 	backendState      map[*Backend]*backendState
@@ -150,6 +153,16 @@ func WithAsyncHandler(asyncHandler ConsensusAsyncHandler) ConsensusOpt {
 	}
 }
 
+func WithListener(listener OnConsensusBroken) ConsensusOpt {
+	return func(cp *ConsensusPoller) {
+		cp.AddListener(listener)
+	}
+}
+
+func (cp *ConsensusPoller) AddListener(listener OnConsensusBroken) {
+	cp.listeners = append(cp.listeners, listener)
+}
+
 func WithBanPeriod(banPeriod time.Duration) ConsensusOpt {
 	return func(cp *ConsensusPoller) {
 		cp.banPeriod = banPeriod
@@ -220,14 +233,8 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 		return
 	}
 
-	// if backend exhausted rate limit we'll skip it for now
-	if be.IsRateLimited() {
-		log.Debug("skipping backend - rate limited", "backend", be.Name)
-		return
-	}
-
-	// if backend it not online or not in a health state we'll only resume checkin it after ban
-	if !be.Online() || !be.IsHealthy() {
+	// if backend is not healthy state we'll only resume checking it after ban
+	if !be.IsHealthy() {
 		log.Warn("backend banned - not online or not healthy", "backend", be.Name)
 		cp.Ban(be)
 		return
@@ -348,12 +355,11 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 			/*
 				a serving node needs to be:
 				- healthy (network)
-				- not rate limited
-				- online
+				- updated recently
 				- not banned
 				- with minimum peer count
-				- updated recently
-				- not lagging
+				- not lagging latest block
+				- in sync
 			*/
 
 			peerCount, inSync, latestBlockNumber, _, lastUpdate, bannedUntil := cp.getBackendState(be)
@@ -361,7 +367,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 			isBanned := time.Now().Before(bannedUntil)
 			notEnoughPeers := !be.skipPeerCountCheck && peerCount < cp.minPeerCount
 			lagging := latestBlockNumber < proposedBlock
-			if !be.IsHealthy() || be.IsRateLimited() || !be.Online() || notUpdated || isBanned || notEnoughPeers || lagging || !inSync {
+			if !be.IsHealthy() || notUpdated || isBanned || notEnoughPeers || lagging || !inSync {
 				filteredBackendsNames = append(filteredBackendsNames, be.Name)
 				continue
 			}
@@ -398,6 +404,9 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 
 	if broken {
 		// propagate event to other interested parts, such as cache invalidator
+		for _, l := range cp.listeners {
+			l()
+		}
 		log.Info("consensus broken", "currentConsensusBlockNumber", currentConsensusBlockNumber, "proposedBlock", proposedBlock, "proposedBlockHash", proposedBlockHash)
 	}
 

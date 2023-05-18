@@ -2,6 +2,7 @@ package proxyd
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -43,16 +44,24 @@ func (c *cache) Put(ctx context.Context, key string, value string) error {
 }
 
 type redisCache struct {
-	rdb *redis.Client
+	rdb    *redis.Client
+	prefix string
 }
 
-func newRedisCache(rdb *redis.Client) *redisCache {
-	return &redisCache{rdb}
+func newRedisCache(rdb *redis.Client, prefix string) *redisCache {
+	return &redisCache{rdb, prefix}
+}
+
+func (c *redisCache) namespaced(key string) string {
+	if c.prefix == "" {
+		return key
+	}
+	return strings.Join([]string{c.prefix, key}, ":")
 }
 
 func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
 	start := time.Now()
-	val, err := c.rdb.Get(ctx, key).Result()
+	val, err := c.rdb.Get(ctx, c.namespaced(key)).Result()
 	redisCacheDurationSumm.WithLabelValues("GET").Observe(float64(time.Since(start).Milliseconds()))
 
 	if err == redis.Nil {
@@ -66,7 +75,7 @@ func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
 
 func (c *redisCache) Put(ctx context.Context, key string, value string) error {
 	start := time.Now()
-	err := c.rdb.SetEX(ctx, key, value, redisTTL).Err()
+	err := c.rdb.SetEX(ctx, c.namespaced(key), value, redisTTL).Err()
 	redisCacheDurationSumm.WithLabelValues("SETEX").Observe(float64(time.Since(start).Milliseconds()))
 
 	if err != nil {
