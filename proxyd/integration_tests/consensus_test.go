@@ -94,6 +94,7 @@ func TestConsensus(t *testing.T) {
 		consensusGroup := bg.Consensus.GetConsensusGroup()
 
 		require.NotContains(t, consensusGroup, be)
+		require.False(t, bg.Consensus.IsBanned(be))
 		require.Equal(t, 1, len(consensusGroup))
 	})
 
@@ -132,6 +133,7 @@ func TestConsensus(t *testing.T) {
 		be := backend(bg, "node1")
 		require.NotNil(t, be)
 		require.NotContains(t, consensusGroup, be)
+		require.False(t, bg.Consensus.IsBanned(be))
 		require.Equal(t, 1, len(consensusGroup))
 	})
 
@@ -232,6 +234,7 @@ func TestConsensus(t *testing.T) {
 		consensusGroup := bg.Consensus.GetConsensusGroup()
 
 		require.NotContains(t, consensusGroup, be)
+		require.False(t, bg.Consensus.IsBanned(be))
 		require.Equal(t, 1, len(consensusGroup))
 	})
 
@@ -286,6 +289,11 @@ func TestConsensus(t *testing.T) {
 		h2.ResetOverrides()
 		bg.Consensus.Unban()
 
+		listenerCalled := false
+		bg.Consensus.AddListener(func() {
+			listenerCalled = true
+		})
+
 		for _, be := range bg.Backends {
 			bg.Consensus.UpdateBackend(ctx, be)
 		}
@@ -331,7 +339,7 @@ func TestConsensus(t *testing.T) {
 		// should resolve to 0x1, since 0x2 is out of consensus at the moment
 		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
 
-		// later, when impl events, listen to broken consensus event
+		require.True(t, listenerCalled)
 	})
 
 	t.Run("broken consensus with depth 2", func(t *testing.T) {
