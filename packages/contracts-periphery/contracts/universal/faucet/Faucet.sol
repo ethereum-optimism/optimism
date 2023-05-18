@@ -31,7 +31,7 @@ contract Faucet {
      */
     event Drip(
         string indexed authModule,
-        bytes indexed userId,
+        bytes32 indexed userId,
         uint256 amount,
         address indexed recipient
     );
@@ -49,7 +49,7 @@ contract Faucet {
      */
     struct AuthParameters {
         IFaucetAuthModule module;
-        bytes id;
+        bytes32 id;
         bytes proof;
     }
 
@@ -76,12 +76,12 @@ contract Faucet {
     /**
      * @notice Mapping of authentication IDs to the next timestamp at which they can be used.
      */
-    mapping(IFaucetAuthModule => mapping(bytes => uint256)) public timeouts;
+    mapping(IFaucetAuthModule => mapping(bytes32 => uint256)) public timeouts;
 
     /**
      * @notice Maps from id to nonces to whether or not they have been used.
      */
-    mapping(bytes => mapping(bytes32 => bool)) public nonces;
+    mapping(bytes32 => mapping(bytes32 => bool)) public nonces;
 
     /**
      * @notice Modifier that makes a function admin priviledged.
