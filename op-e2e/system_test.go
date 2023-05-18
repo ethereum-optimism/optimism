@@ -241,12 +241,14 @@ func TestPendingGasLimit(t *testing.T) {
 	cfg.GethOptions["sequencer"] = []GethOption{
 		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
 			ethCfg.Miner.GasCeil = 10_000_000
+			ethCfg.Miner.RollupComputePendingBlock = true
 			return nil
 		},
 	}
 	cfg.GethOptions["verifier"] = []GethOption{
 		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
 			ethCfg.Miner.GasCeil = 9_000_000
+			ethCfg.Miner.RollupComputePendingBlock = true
 			return nil
 		},
 	}
@@ -1370,4 +1372,44 @@ func latestBlock(t *testing.T, client *ethclient.Client) uint64 {
 	blockAfter, err := client.BlockNumber(ctx)
 	require.Nil(t, err, "Error getting latest block")
 	return blockAfter
+}
+
+// TestPendingBlockIsLatest tests that we serve the latest block as pending block
+func TestPendingBlockIsLatest(t *testing.T) {
+	InitParallel(t)
+
+	cfg := DefaultSystemConfig(t)
+	sys, err := cfg.Start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+	l2Seq := sys.Clients["sequencer"]
+
+	t.Run("block", func(t *testing.T) {
+		for i := 0; i < 10; i++ {
+			pending, err := l2Seq.BlockByNumber(context.Background(), big.NewInt(-1))
+			require.NoError(t, err)
+			latest, err := l2Seq.BlockByNumber(context.Background(), nil)
+			require.NoError(t, err)
+			if pending.NumberU64() == latest.NumberU64() {
+				require.Equal(t, pending.Hash(), latest.Hash(), "pending must exactly match latest block")
+				return
+			}
+			// re-try until we have the same number, as the requests are not an atomic bundle, and the sequencer may create a block.
+		}
+		t.Fatal("failed to get pending block with same number as latest block")
+	})
+	t.Run("header", func(t *testing.T) {
+		for i := 0; i < 10; i++ {
+			pending, err := l2Seq.HeaderByNumber(context.Background(), big.NewInt(-1))
+			require.NoError(t, err)
+			latest, err := l2Seq.HeaderByNumber(context.Background(), nil)
+			require.NoError(t, err)
+			if pending.Number.Uint64() == latest.Number.Uint64() {
+				require.Equal(t, pending.Hash(), latest.Hash(), "pending must exactly match latest header")
+				return
+			}
+			// re-try until we have the same number, as the requests are not an atomic bundle, and the sequencer may create a block.
+		}
+		t.Fatal("failed to get pending header with same number as latest header")
+	})
 }
