@@ -6,6 +6,7 @@ response_timeout_seconds = 1
 
 [redis]
 url = "$REDIS_URL"
+namespace = "proxyd"
 
 [cache]
 enabled = true

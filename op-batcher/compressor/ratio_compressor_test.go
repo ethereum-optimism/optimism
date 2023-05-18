@@ -1,10 +1,10 @@
-package batcher_test
+package compressor_test
 
 import (
 	"math"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/stretchr/testify/require"
 )
 
@@ -118,12 +118,13 @@ func TestInputThreshold(t *testing.T) {
 
 	// Validate each test case
 	for _, tt := range tests {
-		config := batcher.ChannelConfig{
+		comp, err := compressor.NewRatioCompressor(compressor.Config{
 			TargetFrameSize:  tt.input.TargetFrameSize,
 			TargetNumFrames:  tt.input.TargetNumFrames,
 			ApproxComprRatio: tt.input.ApproxComprRatio,
-		}
-		got := config.InputThreshold()
+		})
+		require.NoError(t, err)
+		got := comp.(*compressor.RatioCompressor).InputThreshold()
 		tt.assertion(got)
 	}
 }

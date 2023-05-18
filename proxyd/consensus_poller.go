@@ -47,6 +47,7 @@ type backendState struct {
 	latestBlockNumber hexutil.Uint64
 	latestBlockHash   string
 	peerCount         uint64
+	inSync            bool
 
 	lastUpdate time.Time
 
@@ -228,7 +229,13 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 	RecordConsensusBackendBanned(be, banned)
 
 	if banned {
-		log.Debug("skipping backend banned", "backend", be.Name)
+		log.Debug("skipping backend - banned", "backend", be.Name)
+		return
+	}
+
+	// if backend exhausted rate limit we'll skip it for now
+	if be.IsRateLimited() {
+		log.Debug("skipping backend - rate limited", "backend", be.Name)
 		return
 	}
 
@@ -241,24 +248,16 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 
 	// if backend it not in sync we'll check again after ban
 	inSync, err := cp.isInSync(ctx, be)
-	if err != nil || !inSync {
-		log.Warn("backend banned - not in sync", "backend", be.Name)
-		cp.Ban(be)
-		return
-	}
-	RecordConsensusBackendInSync(be, inSync)
-
-	// if backend exhausted rate limit we'll skip it for now
-	if be.IsRateLimited() {
-		return
+	RecordConsensusBackendInSync(be, err == nil && inSync)
+	if err != nil {
+		log.Warn("error updating backend sync state", "name", be.Name, "err", err)
 	}
 
 	var peerCount uint64
 	if !be.skipPeerCountCheck {
 		peerCount, err = cp.getPeerCount(ctx, be)
 		if err != nil {
-			log.Warn("error updating backend", "name", be.Name, "err", err)
-			return
+			log.Warn("error updating backend peer count", "name", be.Name, "err", err)
 		}
 		RecordConsensusBackendPeerCount(be, peerCount)
 	}
@@ -266,10 +265,9 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 	latestBlockNumber, latestBlockHash, err := cp.fetchBlock(ctx, be, "latest")
 	if err != nil {
 		log.Warn("error updating backend", "name", be.Name, "err", err)
-		return
 	}
 
-	changed, updateDelay := cp.setBackendState(be, peerCount, latestBlockNumber, latestBlockHash)
+	changed, updateDelay := cp.setBackendState(be, peerCount, inSync, latestBlockNumber, latestBlockHash)
 
 	if changed {
 		RecordBackendLatestBlock(be, latestBlockNumber)
@@ -277,6 +275,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 		log.Debug("backend state updated",
 			"name", be.Name,
 			"peerCount", peerCount,
+			"inSync", inSync,
 			"latestBlockNumber", latestBlockNumber,
 			"latestBlockHash", latestBlockHash,
 			"updateDelay", updateDelay)
@@ -293,9 +292,12 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 
 	// find the highest block, in order to use it defining the highest non-lagging ancestor block
 	for _, be := range cp.backendGroup.Backends {
-		peerCount, backendLatestBlockNumber, _, lastUpdate, _ := cp.getBackendState(be)
+		peerCount, inSync, backendLatestBlockNumber, _, lastUpdate, _ := cp.getBackendState(be)
 
 		if !be.skipPeerCountCheck && peerCount < cp.minPeerCount {
+			continue
+		}
+		if !inSync {
 			continue
 		}
 		if lastUpdate.Add(cp.maxUpdateThreshold).Before(time.Now()) {
@@ -309,9 +311,12 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 
 	// find the highest common ancestor block
 	for _, be := range cp.backendGroup.Backends {
-		peerCount, backendLatestBlockNumber, backendLatestBlockHash, lastUpdate, _ := cp.getBackendState(be)
+		peerCount, inSync, backendLatestBlockNumber, backendLatestBlockHash, lastUpdate, _ := cp.getBackendState(be)
 
 		if !be.skipPeerCountCheck && peerCount < cp.minPeerCount {
+			continue
+		}
+		if !inSync {
 			continue
 		}
 		if lastUpdate.Add(cp.maxUpdateThreshold).Before(time.Now()) {
@@ -365,12 +370,12 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 				- in sync
 			*/
 
-			peerCount, latestBlockNumber, _, lastUpdate, bannedUntil := cp.getBackendState(be)
+			peerCount, inSync, latestBlockNumber, _, lastUpdate, bannedUntil := cp.getBackendState(be)
 			notUpdated := lastUpdate.Add(cp.maxUpdateThreshold).Before(time.Now())
 			isBanned := time.Now().Before(bannedUntil)
 			notEnoughPeers := !be.skipPeerCountCheck && peerCount < cp.minPeerCount
 			lagging := latestBlockNumber < proposedBlock
-			if !be.IsHealthy() || be.IsRateLimited() || !be.Online() || notUpdated || isBanned || notEnoughPeers || lagging {
+			if !be.IsHealthy() || be.IsRateLimited() || !be.Online() || notUpdated || isBanned || notEnoughPeers || lagging || !inSync {
 				filteredBackendsNames = append(filteredBackendsNames, be.Name)
 				continue
 			}
@@ -514,23 +519,25 @@ func (cp *ConsensusPoller) isInSync(ctx context.Context, be *Backend) (result bo
 	return res, nil
 }
 
-func (cp *ConsensusPoller) getBackendState(be *Backend) (peerCount uint64, blockNumber hexutil.Uint64, blockHash string, lastUpdate time.Time, bannedUntil time.Time) {
+func (cp *ConsensusPoller) getBackendState(be *Backend) (peerCount uint64, inSync bool, blockNumber hexutil.Uint64, blockHash string, lastUpdate time.Time, bannedUntil time.Time) {
 	bs := cp.backendState[be]
+	defer bs.backendStateMux.Unlock()
 	bs.backendStateMux.Lock()
 	peerCount = bs.peerCount
+	inSync = bs.inSync
 	blockNumber = bs.latestBlockNumber
 	blockHash = bs.latestBlockHash
 	lastUpdate = bs.lastUpdate
 	bannedUntil = bs.bannedUntil
-	bs.backendStateMux.Unlock()
 	return
 }
 
-func (cp *ConsensusPoller) setBackendState(be *Backend, peerCount uint64, blockNumber hexutil.Uint64, blockHash string) (changed bool, updateDelay time.Duration) {
+func (cp *ConsensusPoller) setBackendState(be *Backend, peerCount uint64, inSync bool, blockNumber hexutil.Uint64, blockHash string) (changed bool, updateDelay time.Duration) {
 	bs := cp.backendState[be]
 	bs.backendStateMux.Lock()
 	changed = bs.latestBlockHash != blockHash
 	bs.peerCount = peerCount
+	bs.inSync = inSync
 	bs.latestBlockNumber = blockNumber
 	bs.latestBlockHash = blockHash
 	updateDelay = time.Since(bs.lastUpdate)

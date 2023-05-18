@@ -37,7 +37,6 @@ func newRPCServer(ctx context.Context, rpcCfg *RPCConfig, rollupCfg *rollup.Conf
 		apis: []rpc.API{{
 			Namespace:     "optimism",
 			Service:       api,
-			Public:        true,
 			Authenticated: false,
 		}},
 		appVersion: appVersion,
@@ -51,7 +50,6 @@ func (s *rpcServer) EnableAdminAPI(api *adminAPI) {
 		Namespace:     "admin",
 		Version:       "",
 		Service:       api,
-		Public:        true, // TODO: this field is deprecated. Do we even need this anymore?
 		Authenticated: false,
 	})
 }
@@ -61,7 +59,6 @@ func (s *rpcServer) EnableP2P(backend *p2p.APIBackend) {
 		Namespace:     p2p.NamespaceRPC,
 		Version:       "",
 		Service:       backend,
-		Public:        true,
 		Authenticated: false,
 	})
 }
