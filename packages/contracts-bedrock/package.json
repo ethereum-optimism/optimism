@@ -56,8 +56,7 @@
     "@eth-optimism/core-utils": "^0.12.0",
     "@openzeppelin/contracts": "4.7.3",
     "@openzeppelin/contracts-upgradeable": "4.7.3",
-    "ethers": "^5.7.0",
-    "hardhat": "^2.9.6"
+    "ethers": "^5.7.0"
   },
   "devDependencies": {
     "@eth-optimism/hardhat-deploy-config": "^0.2.6",
@@ -82,6 +81,7 @@
     "ethereum-waffle": "^3.0.0",
     "forge-std": "https://github.com/foundry-rs/forge-std.git#46264e9788017fc74f9f58b7efa0bc6e1df6d410",
     "glob": "^7.1.6",
+    "hardhat": "^2.9.6",
     "hardhat-deploy": "^0.11.4",
     "solhint": "^3.3.7",
     "solhint-plugin-prettier": "^0.0.5",
