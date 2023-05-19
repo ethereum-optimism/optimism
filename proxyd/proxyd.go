@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/go-redis/redis/v8"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -206,27 +205,12 @@ func Start(config *Config) (*Server, func(), error) {
 		rpcCache RPCCache
 	)
 	if config.Cache.Enabled {
-		if config.Cache.BlockSyncRPCURL == "" {
-			return nil, nil, fmt.Errorf("block sync node required for caching")
-		}
-		blockSyncRPCURL, err := ReadFromEnvOrConfig(config.Cache.BlockSyncRPCURL)
-		if err != nil {
-			return nil, nil, err
-		}
-
 		if redisClient == nil {
 			log.Warn("redis is not configured, using in-memory cache")
 			cache = newMemoryCache()
 		} else {
 			cache = newRedisCache(redisClient, config.Redis.Namespace)
 		}
-		// Ideally, the BlocKSyncRPCURL should be the sequencer or a HA replica that's not far behind
-		ethClient, err := ethclient.Dial(blockSyncRPCURL)
-		if err != nil {
-			return nil, nil, err
-		}
-		defer ethClient.Close()
-
 		rpcCache = newRPCCache(newCacheWithCompression(cache))
 	}
 
