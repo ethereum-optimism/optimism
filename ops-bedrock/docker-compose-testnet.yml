@@ -21,7 +21,7 @@ services:
       - NODE_TYPE=light
       - P2P_NETWORK=blockspacerace
     volumes:
-      - $HOME:/home/celestia
+      - $HOME/.celestia-light-blockspacerace-0/:/home/celestia/.celestia-light-blockspacerace-0/
     ports:
       - "26657:26657"
       - "26659:26659"
