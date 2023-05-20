@@ -2,6 +2,7 @@ package challenger
 
 import (
 	"testing"
+	// "time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -38,3 +39,21 @@ func TestLogStore_NewSubscription(t *testing.T) {
 	require.Equal(t, 1, len(logStore.subMap))
 	require.Equal(t, 1, len(logStore.subEscapes))
 }
+
+// TestLogStore_Spawn test the Spawn method on a [logStore].
+// func TestLogStore_Spawn(t *testing.T) {
+// 	query := ethereum.FilterQuery{}
+// 	logStore := NewLogStore(query)
+// 	require.Equal(t, 0, len(logStore.subMap))
+// 	require.Equal(t, 0, len(logStore.subEscapes))
+// 	require.Equal(t, SubscriptionId(0), logStore.currentSubId)
+//
+// 	logStore.client = &mockLogFilterClient{}
+//
+// 	// Spawn the new subscription
+// 	// wait 5 seconds for the task to be prioritized
+// 	err := logStore.Spawn()
+// 	time.Sleep(5 * time.Second)
+// 	require.NoError(t, err)
+// 	require.Equal(t, 1, len(logStore.subMap))
+// }
