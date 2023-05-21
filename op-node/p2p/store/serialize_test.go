@@ -3,7 +3,7 @@ package store
 import (
 	"testing"
 
-	"github.com/status-im/keycard-go/hexutils"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,7 +30,7 @@ func TestParseHistoricSerializationsV0(t *testing.T) {
 	}{
 		{
 			name:     "GossipOnly",
-			data:     hexutils.HexToBytes("40934A18644523F6"),
+			data:     common.Hex2Bytes("40934A18644523F6"),
 			expected: PeerScores{Gossip: 1234.52382},
 		},
 	}

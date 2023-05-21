@@ -21,8 +21,6 @@ type scoreBook struct {
 
 var scoresBase = ds.NewKey("/peers/scores")
 
-type ScoreType string
-
 const (
 	scoreDataV0    = "0"
 	scoreCacheSize = 100
@@ -65,14 +63,19 @@ func (d *scoreBook) getPeerScoresNoLock(id peer.ID) (PeerScores, error) {
 	return scores, nil
 }
 
-func (d *scoreBook) SetGossipScore(id peer.ID, score float64) error {
+func (d *scoreBook) SetScore(id peer.ID, scoreType ScoreType, score float64) error {
 	d.Lock()
 	defer d.Unlock()
 	scores, err := d.getPeerScoresNoLock(id)
 	if err != nil {
 		return err
 	}
-	scores.Gossip = score
+	switch scoreType {
+	case TypeGossip:
+		scores.Gossip = score
+	default:
+		return fmt.Errorf("unknown score type: %v", scoreType)
+	}
 	data, err := serializeScoresV0(scores)
 	if err != nil {
 		return fmt.Errorf("encode scores for peer %v: %w", id, err)

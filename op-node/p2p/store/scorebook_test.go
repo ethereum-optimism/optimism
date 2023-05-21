@@ -21,7 +21,7 @@ func TestRoundTripGossipScore(t *testing.T) {
 	id := peer.ID("aaaa")
 	store := createMemoryStore(t)
 	score := 123.45
-	err := store.SetGossipScore(id, score)
+	err := store.SetScore(id, TypeGossip, score)
 	require.NoError(t, err)
 
 	assertPeerScores(t, store, id, PeerScores{Gossip: score})
@@ -31,8 +31,8 @@ func TestUpdateGossipScore(t *testing.T) {
 	id := peer.ID("aaaa")
 	store := createMemoryStore(t)
 	score := 123.45
-	require.NoError(t, store.SetGossipScore(id, 444.223))
-	require.NoError(t, store.SetGossipScore(id, score))
+	require.NoError(t, store.SetScore(id, TypeGossip, 444.223))
+	require.NoError(t, store.SetScore(id, TypeGossip, score))
 
 	assertPeerScores(t, store, id, PeerScores{Gossip: score})
 }
@@ -43,8 +43,8 @@ func TestStoreScoresForMultiplePeers(t *testing.T) {
 	store := createMemoryStore(t)
 	score1 := 123.45
 	score2 := 453.22
-	require.NoError(t, store.SetGossipScore(id1, score1))
-	require.NoError(t, store.SetGossipScore(id2, score2))
+	require.NoError(t, store.SetScore(id1, TypeGossip, score1))
+	require.NoError(t, store.SetScore(id2, TypeGossip, score2))
 
 	assertPeerScores(t, store, id1, PeerScores{Gossip: score1})
 	assertPeerScores(t, store, id2, PeerScores{Gossip: score2})
@@ -56,13 +56,19 @@ func TestPersistData(t *testing.T) {
 	backingStore := sync.MutexWrap(ds.NewMapDatastore())
 	store := createPeerstoreWithBacking(t, backingStore)
 
-	require.NoError(t, store.SetGossipScore(id, score))
+	require.NoError(t, store.SetScore(id, TypeGossip, score))
 
 	// Close and recreate a new store from the same backing
 	require.NoError(t, store.Close())
 	store = createPeerstoreWithBacking(t, backingStore)
 
 	assertPeerScores(t, store, id, PeerScores{Gossip: score})
+}
+
+func TestUnknownScoreType(t *testing.T) {
+	store := createMemoryStore(t)
+	err := store.SetScore("aaaa", 92832, 244.24)
+	require.ErrorContains(t, err, "unknown score type")
 }
 
 func assertPeerScores(t *testing.T, store ExtendedPeerstore, id peer.ID, expected PeerScores) {
