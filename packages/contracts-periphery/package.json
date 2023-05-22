@@ -57,6 +57,7 @@
     "@eth-optimism/core-utils": "^0.12.1",
     "@eth-optimism/hardhat-deploy-config": "^0.2.6",
     "@ethersproject/hardware-wallets": "^5.7.0",
+    "@chugsplash/plugins": "^0.16.5",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
     "@nomiclabs/hardhat-waffle": "^2.0.3",

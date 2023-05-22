@@ -846,6 +846,10 @@ jobs:
             foundryup
             echo 'export PATH=$HOME/.foundry/bin:$PATH' >> $BASH_ENV
       - run:
+          name: Install supported npm
+          command: |
+            npm i -g npm@8.11.0
+      - run:
           name: Install and build
           command: |
             yarn install

@@ -1,0 +1,17 @@
+name: Deploy Periphery Contracts With ChugSplash
+env:
+  PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+  IPFS_PROJECT_ID: ${{ secrets.IPFS_PROJECT_ID }}
+  IPFS_API_KEY_SECRET: ${{ secrets.IPFS_API_KEY_SECRET }}
+  CHUGSPLASH_API_KEY: ${{ secrets.CHUGSPLASH_API_KEY }}
+  ALCHEMY_API_KEY: ${{ secrets.ALCHEMY_API_KEY }}
+
+on: workflow_dispatch
+
+jobs:
+  chugsplash-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: yarn install
+      - run: npx hardhat chugsplash-propose --config-path <path to ChugSplash config> --network goerli --confirm

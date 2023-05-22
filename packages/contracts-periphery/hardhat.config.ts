@@ -16,6 +16,7 @@ import '@typechain/hardhat'
 import 'solidity-coverage'
 import 'hardhat-gas-reporter'
 import 'hardhat-deploy'
+import '@chugsplash/plugins'
 
 // Hardhat tasks
 import './tasks'
