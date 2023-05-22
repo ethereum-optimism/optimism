@@ -3,12 +3,10 @@ package store
 import (
 	"bytes"
 	"encoding/binary"
-
-	pool "github.com/libp2p/go-buffer-pool"
 )
 
 func serializeScoresV0(scores PeerScores) ([]byte, error) {
-	var b pool.Buffer
+	var b bytes.Buffer
 	err := binary.Write(&b, binary.BigEndian, scores.Gossip)
 	if err != nil {
 		return nil, err
