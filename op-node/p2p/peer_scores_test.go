@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/clock"
+
 	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
@@ -72,9 +74,10 @@ func (c *customPeerstoreNetwork) Close() error {
 // getNetHosts generates a slice of hosts using the [libp2p/go-libp2p] library.
 func getNetHosts(testSuite *PeerScoresTestSuite, ctx context.Context, n int) []host.Host {
 	var out []host.Host
+	log := testlog.Logger(testSuite.T(), log.LvlError)
 	for i := 0; i < n; i++ {
 		swarm := tswarm.GenSwarm(testSuite.T())
-		eps, err := store.NewExtendedPeerstore(ctx, swarm.Peerstore(), sync.MutexWrap(ds.NewMapDatastore()))
+		eps, err := store.NewExtendedPeerstore(ctx, log, clock.SystemClock, swarm.Peerstore(), sync.MutexWrap(ds.NewMapDatastore()))
 		netw := &customPeerstoreNetwork{swarm, eps}
 		require.NoError(testSuite.T(), err)
 		h := bhost.NewBlankHost(netw)
