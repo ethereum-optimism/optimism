@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	log "github.com/ethereum/go-ethereum/log"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	peer "github.com/libp2p/go-libp2p/core/peer"
@@ -91,6 +92,8 @@ type Peerstore interface {
 
 	// Peers returns all of the peer IDs stored across all inner stores.
 	Peers() peer.IDSlice
+
+	SetScore(peer.ID, store.ScoreType, float64) error
 }
 
 // Scorer is a peer scorer that scores peers based on application-specific metrics.
@@ -123,6 +126,12 @@ func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
 		}
 		// Now set the new scores.
 		for id, snap := range m {
+			scores := make(map[store.ScoreType]float64)
+			scores[store.TypeGossip] = snap.Score
+
+			if err := s.peerStore.SetScore(id, store.TypeGossip, snap.Score); err != nil {
+				s.log.Warn("Unable to update peer gossip score", "err", err)
+			}
 			band := s.bandScoreThresholds.Bucket(snap.Score)
 			scoreMap[band] += 1
 			s.gater.Update(id, snap.Score)

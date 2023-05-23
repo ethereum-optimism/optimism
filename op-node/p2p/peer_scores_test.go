@@ -7,11 +7,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/clock"
+
 	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	testlog "github.com/ethereum-optimism/optimism/op-node/testlog"
-
+	ds "github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/sync"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peerstore"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	suite "github.com/stretchr/testify/suite"
 
 	log "github.com/ethereum/go-ethereum/log"
@@ -50,11 +57,29 @@ func TestPeerScores(t *testing.T) {
 	suite.Run(t, new(PeerScoresTestSuite))
 }
 
+type customPeerstoreNetwork struct {
+	network.Network
+	ps peerstore.Peerstore
+}
+
+func (c *customPeerstoreNetwork) Peerstore() peerstore.Peerstore {
+	return c.ps
+}
+
+func (c *customPeerstoreNetwork) Close() error {
+	_ = c.ps.Close()
+	return c.Network.Close()
+}
+
 // getNetHosts generates a slice of hosts using the [libp2p/go-libp2p] library.
 func getNetHosts(testSuite *PeerScoresTestSuite, ctx context.Context, n int) []host.Host {
 	var out []host.Host
+	log := testlog.Logger(testSuite.T(), log.LvlError)
 	for i := 0; i < n; i++ {
-		netw := tswarm.GenSwarm(testSuite.T())
+		swarm := tswarm.GenSwarm(testSuite.T())
+		eps, err := store.NewExtendedPeerstore(ctx, log, clock.SystemClock, swarm.Peerstore(), sync.MutexWrap(ds.NewMapDatastore()))
+		netw := &customPeerstoreNetwork{swarm, eps}
+		require.NoError(testSuite.T(), err)
 		h := bhost.NewBlankHost(netw)
 		testSuite.T().Cleanup(func() { h.Close() })
 		out = append(out, h)
