@@ -2,7 +2,8 @@
   "finalSystemOwner": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
   "controller": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
   "portalGuardian": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
-  "l1StartingBlockTag": "",
+  "proxyAdminOwner": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+  "l1StartingBlockTag": "0xb93c84fe245e56ea3cb489e4d8941502d1f8b7d564a6d5b552b594b2f3a34264",
   "l1ChainID": 1,
   "l2ChainID": 10,
   "l2BlockTime": 2,
@@ -13,12 +14,11 @@
   "batchInboxAddress": "0xff00000000000000000000000000000000000010",
   "batchSenderAddress": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
   "l2OutputOracleSubmissionInterval": 1800,
-  "l2OutputOracleStartingTimestamp": 0,
-  "l2OutputOracleStartingBlockNumber": 0,
+  "l2OutputOracleStartingTimestamp": 1684859387,
+  "l2OutputOracleStartingBlockNumber": 79149099,
   "l2OutputOracleProposer": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
   "l2OutputOracleChallenger": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
   "finalizationPeriodSeconds": 3600,
-  "proxyAdminOwner": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
   "baseFeeVaultRecipient": "0xa3d596EAfaB6B13Ab18D40FaE1A962700C84ADEa",
   "l1FeeVaultRecipient": "0xa3d596EAfaB6B13Ab18D40FaE1A962700C84ADEa",
   "sequencerFeeVaultRecipient": "0xa3d596EAfaB6B13Ab18D40FaE1A962700C84ADEa",
@@ -34,3 +34,4 @@
   "eip1559Elasticity": 10,
   "l2GenesisRegolithTimeOffset": "0x0"
 }
+
