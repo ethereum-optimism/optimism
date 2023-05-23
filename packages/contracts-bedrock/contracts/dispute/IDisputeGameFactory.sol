@@ -24,6 +24,13 @@ interface IDisputeGameFactory {
     );
 
     /**
+     * @notice Emitted when a new game implementation added to the factory
+     * @param impl The implementation contract for the given `GameType`.
+     * @param gameType The type of the DisputeGame.
+     */
+    event ImplementationSet(address indexed impl, GameType indexed gameType);
+
+    /**
      * @notice `games` queries an internal a mapping that maps the hash of
      *         `gameType ++ rootClaim ++ extraData` to the deployed `DisputeGame` clone.
      * @dev `++` equates to concatenation.
