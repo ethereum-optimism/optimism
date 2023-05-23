@@ -13,14 +13,14 @@ import (
 var Mainnet = rollup.Config{
 	Genesis: rollup.Genesis{
 		L1: eth.BlockID{
-			Hash:   common.HexToHash("0xe738cfb221bbbd19d34290d92dba006ff21ffa6dc42454a131ecfc38e2c7060a"),
-			Number: 16781040,
+			Hash:   common.HexToHash("0xb93c84fe245e56ea3cb489e4d8941502d1f8b7d564a6d5b552b594b2f3a34264"),
+			Number: 16780560,
 		},
 		L2: eth.BlockID{
-			Hash:   common.HexToHash("0x437a930861429f155d367b0142fbef87e20de4dc3cdf76017ef089973be44b99"),
+			Hash:   common.HexToHash("0x6b245eb6ee900d13a002c6f98b5bf4489d00c52c40f6bc7cefeaa076afd4776e"),
 			Number: 79149098,
 		},
-		L2Time: 1683727547,
+		L2Time: 1684859387,
 		SystemConfig: eth.SystemConfig{
 			BatcherAddr: common.HexToAddress("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
 			Overhead:    eth.Bytes32(common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000834")),
