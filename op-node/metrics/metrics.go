@@ -70,6 +70,10 @@ type Metricer interface {
 	ClientPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration)
 	ServerPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration)
 	PayloadsQuarantineSize(n int)
+	RecordPeerUnban()
+	RecordIPUnban()
+	RecordDial(allow bool)
+	RecordAccept(allow bool)
 }
 
 // Metrics tracks all the metrics for the op-node.
@@ -133,6 +137,10 @@ type Metrics struct {
 	PeerScores        *prometheus.GaugeVec
 	GossipEventsTotal *prometheus.CounterVec
 	BandwidthTotal    *prometheus.GaugeVec
+	PeerUnbans        prometheus.Counter
+	IPUnbans          prometheus.Counter
+	Dials             *prometheus.CounterVec
+	Accepts           *prometheus.CounterVec
 
 	ChannelInputBytes prometheus.Counter
 
@@ -335,6 +343,30 @@ func NewMetrics(procName string) *Metrics {
 		}, []string{
 			"direction",
 		}),
+		PeerUnbans: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "peer_unbans",
+			Help:      "Count of peer unbans",
+		}),
+		IPUnbans: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "ip_unbans",
+			Help:      "Count of IP unbans",
+		}),
+		Dials: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "dials",
+			Help:      "Count of outgoing dial attempts, with label to filter to allowed attempts",
+		}, []string{"allow"}),
+		Accepts: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "accepts",
+			Help:      "Count of incoming dial attempts to accept, with label to filter to allowed attempts",
+		}, []string{"allow"}),
 
 		ChannelInputBytes: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
@@ -663,6 +695,30 @@ func (m *Metrics) RecordChannelInputBytes(inputCompressedBytes int) {
 	m.ChannelInputBytes.Add(float64(inputCompressedBytes))
 }
 
+func (m *Metrics) RecordPeerUnban() {
+	m.PeerUnbans.Inc()
+}
+
+func (m *Metrics) RecordIPUnban() {
+	m.IPUnbans.Inc()
+}
+
+func (m *Metrics) RecordDial(allow bool) {
+	if allow {
+		m.Dials.WithLabelValues("true").Inc()
+	} else {
+		m.Dials.WithLabelValues("false").Inc()
+	}
+}
+
+func (m *Metrics) RecordAccept(allow bool) {
+	if allow {
+		m.Accepts.WithLabelValues("true").Inc()
+	} else {
+		m.Accepts.WithLabelValues("false").Inc()
+	}
+}
+
 type noopMetricer struct{}
 
 var NoopMetrics Metricer = new(noopMetricer)
@@ -767,4 +823,16 @@ func (n *noopMetricer) PayloadsQuarantineSize(int) {
 }
 
 func (n *noopMetricer) RecordChannelInputBytes(int) {
+}
+
+func (n *noopMetricer) RecordPeerUnban() {
+}
+
+func (n *noopMetricer) RecordIPUnban() {
+}
+
+func (n *noopMetricer) RecordDial(allow bool) {
+}
+
+func (n *noopMetricer) RecordAccept(allow bool) {
 }
