@@ -18,7 +18,7 @@ contract DisputeGameFactory_Test is Test {
         Claim indexed rootClaim
     );
 
-    event ImplementationSet(address impl, GameType gameType);
+    event ImplementationSet(address indexed impl, GameType indexed gameType);
 
     function setUp() public {
         factory = new DisputeGameFactory(address(this));

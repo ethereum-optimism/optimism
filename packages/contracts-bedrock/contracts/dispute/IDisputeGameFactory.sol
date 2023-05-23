@@ -25,10 +25,10 @@ interface IDisputeGameFactory {
 
     /**
      * @notice Emitted when a new game implementation added to the factory
-     * @param gameType The type of the DisputeGame.
      * @param impl The implementation contract for the given `GameType`.
+     * @param gameType The type of the DisputeGame.
      */
-    event ImplementationSet(address impl, GameType gameType);
+    event ImplementationSet(address indexed impl, GameType indexed gameType);
 
     /**
      * @notice `games` queries an internal a mapping that maps the hash of
