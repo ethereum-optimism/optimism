@@ -1,15 +1,18 @@
 package store
 
 import (
+	"strconv"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRoundtripScoresV0(t *testing.T) {
-	scores := PeerScores{
-		Gossip: 1234.52382,
+	scores := scoreRecord{
+		PeerScores: PeerScores{Gossip: 1234.52382},
+		lastUpdate: time.UnixMilli(1923841),
 	}
 	data, err := serializeScoresV0(scores)
 	require.NoError(t, err)
@@ -24,19 +27,20 @@ func TestRoundtripScoresV0(t *testing.T) {
 // A new entry should be added to this test each time any fields are changed to ensure it can always be deserialized
 func TestParseHistoricSerializationsV0(t *testing.T) {
 	tests := []struct {
-		name     string
 		data     []byte
-		expected PeerScores
+		expected scoreRecord
 	}{
 		{
-			name:     "GossipOnly",
-			data:     common.Hex2Bytes("40934A18644523F6"),
-			expected: PeerScores{Gossip: 1234.52382},
+			data: common.Hex2Bytes("00000000001D5B0140934A18644523F6"),
+			expected: scoreRecord{
+				PeerScores: PeerScores{Gossip: 1234.52382},
+				lastUpdate: time.UnixMilli(1923841),
+			},
 		},
 	}
-	for _, test := range tests {
+	for idx, test := range tests {
 		test := test
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(strconv.Itoa(idx), func(t *testing.T) {
 			result, err := deserializeScoresV0(test.data)
 			require.NoError(t, err)
 			require.Equal(t, test.expected, result)
