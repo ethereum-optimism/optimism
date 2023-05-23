@@ -5,6 +5,7 @@ import (
 
 	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	log "github.com/ethereum/go-ethereum/log"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -78,6 +79,9 @@ func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHook() {
 	// Mock the peer gater call
 	testSuite.mockGater.On("Update", peer.ID("peer1"), float64(-100)).Return(nil).Once()
 
+	// Expect updating the peer store
+	testSuite.mockStore.On("SetScore", peer.ID("peer1"), store.TypeGossip, float64(-100)).Return(nil).Once()
+
 	// The metricer should then be called with the peer score band map
 	testSuite.mockMetricer.On("SetPeerScores", map[string]float64{
 		"friend":   0,
@@ -94,6 +98,8 @@ func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHook() {
 
 	// Change the peer score now to a different band
 	testSuite.mockGater.On("Update", peer.ID("peer1"), float64(0)).Return(nil).Once()
+	// Expect updating the peer store
+	testSuite.mockStore.On("SetScore", peer.ID("peer1"), store.TypeGossip, float64(0)).Return(nil).Once()
 
 	// The metricer should then be called with the peer score band map
 	testSuite.mockMetricer.On("SetPeerScores", map[string]float64{
@@ -124,6 +130,8 @@ func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHookBlocksPeer() {
 
 	// Mock the peer gater call
 	testSuite.mockGater.On("Update", peer.ID("peer1"), float64(-101)).Return(nil)
+	// Expect updating the peer store
+	testSuite.mockStore.On("SetScore", peer.ID("peer1"), store.TypeGossip, float64(-101)).Return(nil).Once()
 
 	// The metricer should then be called with the peer score band map
 	testSuite.mockMetricer.On("SetPeerScores", map[string]float64{
