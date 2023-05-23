@@ -1,12 +1,15 @@
 package challenger
 
 import (
+	"context"
 	"sync"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-service/backoff"
 )
 
 // logStore manages log subscriptions.
@@ -18,12 +21,10 @@ type logStore struct {
 	// this locks the entire log store
 	mu      sync.Mutex
 	logList []types.Log
-	logMap  map[common.Hash]types.Log
+	logMap  map[common.Hash][]types.Log
 
-	// Log sbscriptions
-	currentSubId SubscriptionId
-	subMap       map[SubscriptionId]Subscription
-	subEscapes   map[SubscriptionId]chan struct{}
+	// Log subscriptions
+	subscription *Subscription
 
 	// Client to query for logs
 	client ethereum.LogFilterer
@@ -33,76 +34,112 @@ type logStore struct {
 }
 
 // NewLogStore creates a new log store.
-func NewLogStore(query ethereum.FilterQuery) *logStore {
+func NewLogStore(query ethereum.FilterQuery, client ethereum.LogFilterer, log log.Logger) *logStore {
 	return &logStore{
 		query:        query,
 		mu:           sync.Mutex{},
 		logList:      make([]types.Log, 0),
-		logMap:       make(map[common.Hash]types.Log),
-		currentSubId: 0,
-		subMap:       make(map[SubscriptionId]Subscription),
-		subEscapes:   make(map[SubscriptionId]chan struct{}),
+		logMap:       make(map[common.Hash][]types.Log),
+		subscription: NewSubscription(query, client, log),
+		client:       client,
+		log:          log,
 	}
 }
 
-// newSubscription creates a new subscription.
-func (l *logStore) newSubscription(query ethereum.FilterQuery) (SubscriptionId, error) {
-	id := l.currentSubId.Increment()
-	subscription := Subscription{
-		id:     id,
-		query:  query,
-		client: l.client,
-	}
-	err := subscription.Subscribe()
-	if err != nil {
-		return SubscriptionId(0), err
-	}
-	l.subMap[id] = subscription
-	l.subEscapes[id] = make(chan struct{})
-	return id, nil
-}
-
-// Spawn constructs a new log subscription and listens for logs.
+// Subscribe starts the subscription.
 // This function spawns a new goroutine.
-func (l *logStore) Spawn() error {
-	subId, err := l.newSubscription(l.query)
+func (l *logStore) Subscribe() error {
+	if l.subscription == nil {
+		l.log.Error("subscription zeroed out")
+		return nil
+	}
+	err := l.subscription.Subscribe()
 	if err != nil {
+		l.log.Error("failed to subscribe", "err", err)
 		return err
 	}
-	go l.dispatchLogs(subId)
 	return nil
+}
+
+// Start starts the log store.
+// This function spawns a new goroutine.
+func (l *logStore) Start() {
+	go l.dispatchLogs()
 }
 
 // Quit stops all log store asynchronous tasks.
 func (l *logStore) Quit() {
-	for _, channel := range l.subEscapes {
-		channel <- struct{}{}
-		close(channel)
+	if l.subscription != nil {
+		l.subscription.Quit()
 	}
+}
+
+// buildBackoffStrategy builds a [backoff.Strategy].
+func (l *logStore) buildBackoffStrategy() backoff.Strategy {
+	return &backoff.ExponentialStrategy{
+		Min:       1000,
+		Max:       20_000,
+		MaxJitter: 250,
+	}
+}
+
+// resubscribe resubscribes to the log store subscription with a backoff.
+func (l *logStore) resubscribe() error {
+	l.log.Info("resubscribing to subscription", "id", l.subscription.ID())
+	ctx := context.Background()
+	backoffStrategy := l.buildBackoffStrategy()
+	return backoff.DoCtx(ctx, 10, backoffStrategy, func() error {
+		if l.subscription == nil {
+			l.log.Error("subscription zeroed out")
+			return nil
+		}
+		err := l.subscription.Subscribe()
+		if err == nil {
+			l.log.Info("subscription reconnected", "id", l.subscription.ID())
+		}
+		return err
+	})
+}
+
+// insertLog inserts a log into the log store.
+func (l *logStore) insertLog(log types.Log) {
+	l.mu.Lock()
+	l.logList = append(l.logList, log)
+	l.logMap[log.BlockHash] = append(l.logMap[log.BlockHash], log)
+	l.mu.Unlock()
+}
+
+// GetLogs returns all logs in the log store.
+func (l *logStore) GetLogs() []types.Log {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.logList
+}
+
+// GetLogByBlockHash returns all logs in the log store for a given block hash.
+func (l *logStore) GetLogByBlockHash(blockHash common.Hash) []types.Log {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.logMap[blockHash]
 }
 
 // dispatchLogs dispatches logs to the log store.
 // This function is intended to be run as a goroutine.
-func (l *logStore) dispatchLogs(subId SubscriptionId) {
-	subscription := l.subMap[subId]
+func (l *logStore) dispatchLogs() {
 	for {
 		select {
-		case err := <-subscription.sub.Err():
+		case err := <-l.subscription.sub.Err():
 			l.log.Error("log subscription error", "err", err)
 			for {
-				l.log.Info("resubscribing to subscription", "id", subId)
-				err := subscription.Subscribe()
+				err = l.resubscribe()
 				if err == nil {
 					break
 				}
 			}
-		case log := <-subscription.logs:
-			l.mu.Lock()
-			l.logList = append(l.logList, log)
-			l.logMap[log.BlockHash] = log
-			l.mu.Unlock()
-		case <-l.subEscapes[subId]:
-			l.log.Info("subscription received shutoff signal", "id", subId)
+		case log := <-l.subscription.logs:
+			l.insertLog(log)
+		case <-l.subscription.quit:
+			l.log.Info("received quit signal from subscription", "id", l.subscription.ID())
 			return
 		}
 	}

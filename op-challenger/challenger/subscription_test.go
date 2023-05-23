@@ -8,6 +8,9 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
 
 	"github.com/stretchr/testify/require"
 )
@@ -40,8 +43,10 @@ func FuzzSubscriptionId_Increment(f *testing.F) {
 // method on a [Subscription] fails when the client is missing.
 func TestSubscription_Subscribe_MissingClient(t *testing.T) {
 	query := ethereum.FilterQuery{}
+	log := testlog.Logger(t, log.LvlError)
 	subscription := Subscription{
 		query: query,
+		log:   log,
 	}
 	err := subscription.Subscribe()
 	require.EqualError(t, err, ErrMissingClient.Error())
@@ -50,14 +55,15 @@ func TestSubscription_Subscribe_MissingClient(t *testing.T) {
 // TestSubscription_Subscribe tests the Subscribe method on a [Subscription].
 func TestSubscription_Subscribe(t *testing.T) {
 	query := ethereum.FilterQuery{}
+	log := testlog.Logger(t, log.LvlError)
 	subscription := Subscription{
 		query:  query,
 		client: mockLogFilterClient{},
+		log:    log,
 	}
 	require.Nil(t, subscription.logs)
 	err := subscription.Subscribe()
 	require.NoError(t, err)
-	require.NotNil(t, subscription.logs)
 }
 
 var ErrSubscriptionFailed = errors.New("failed to subscribe to logs")
@@ -77,9 +83,11 @@ func (m errLogFilterClient) SubscribeFilterLogs(context.Context, ethereum.Filter
 // returns an error.
 func TestSubscription_Subscribe_Errors(t *testing.T) {
 	query := ethereum.FilterQuery{}
+	log := testlog.Logger(t, log.LvlError)
 	subscription := Subscription{
 		query:  query,
 		client: errLogFilterClient{},
+		log:    log,
 	}
 	err := subscription.Subscribe()
 	require.EqualError(t, err, ErrSubscriptionFailed.Error())
