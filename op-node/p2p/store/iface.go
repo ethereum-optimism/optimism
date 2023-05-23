@@ -6,7 +6,7 @@ import (
 )
 
 type PeerScores struct {
-	Gossip float64
+	Gossip float64 `json:"gossip"`
 }
 
 type ScoreType int

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	decredSecp "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p-testing/netutil"
 	"github.com/libp2p/go-libp2p/core/connmgr"
@@ -106,6 +107,11 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 				return nil, fmt.Errorf("unexpected pubkey type: %T", pub)
 			}
 			info.NodeID = enode.PubkeyToIDV4((*decredSecp.PublicKey)(typedPub).ToECDSA())
+		}
+	}
+	if eps, ok := pstore.(store.ExtendedPeerstore); ok {
+		if dat, err := eps.GetPeerScores(id); err == nil {
+			info.PeerScores = dat
 		}
 	}
 	if dat, err := pstore.Get(id, "ProtocolVersion"); err == nil {
