@@ -130,10 +130,8 @@ func newRPCCache(cache Cache) RPCCache {
 		"eth_getBlockTransactionCountByHash":    staticHandler,
 		"eth_getUncleCountByBlockHash":          staticHandler,
 		"eth_getBlockByHash":                    staticHandler,
-		"eth_getTransactionByHash":              staticHandler,
 		"eth_getTransactionByBlockHashAndIndex": staticHandler,
 		"eth_getUncleByBlockHashAndIndex":       staticHandler,
-		"eth_getTransactionReceipt":             staticHandler,
 	}
 	return &rpcCache{
 		cache:    cache,
