@@ -2,7 +2,10 @@ import {
   predeploys,
   getDeployedContractDefinition,
 } from '@eth-optimism/contracts'
-import { predeploys as bedrockPredeploys } from '@eth-optimism/contracts-bedrock'
+import {
+  predeploys as bedrockPredeploys,
+  getContractDefinition,
+} from '@eth-optimism/contracts-bedrock'
 
 import {
   L1ChainID,
@@ -77,8 +80,8 @@ const getL1ContractsByNetworkName = (network: string): OEL1ContractsLike => {
     StateCommitmentChain: getDeployedAddress('StateCommitmentChain'),
     CanonicalTransactionChain: getDeployedAddress('CanonicalTransactionChain'),
     BondManager: getDeployedAddress('BondManager'),
-    OptimismPortal: getDeployedAddress('OptimismPortal'),
-    L2OutputOracle: getDeployedAddress('L2OutputOracle'),
+    OptimismPortal: getContractDefinition('OptimismPortal').address,
+    L2OutputOracle: getContractDefinition('L2OutputOracle').address,
   }
 }
 
