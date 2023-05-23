@@ -1,6 +1,7 @@
 package p2p
 
 import (
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	log "github.com/ethereum/go-ethereum/log"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	host "github.com/libp2p/go-libp2p/core/host"
@@ -14,8 +15,13 @@ func ConfigurePeerScoring(h host.Host, g ConnectionGater, gossipConf GossipSetup
 	peerScoreThresholds := NewPeerScoreThresholds()
 	banEnabled := gossipConf.BanPeers()
 	peerGater := NewPeerGater(g, log, banEnabled)
-	scorer := NewScorer(peerGater, h.Peerstore(), m, gossipConf.PeerBandScorer(), log)
 	opts := []pubsub.Option{}
+	eps, ok := h.Peerstore().(store.ExtendedPeerstore)
+	if !ok {
+		log.Warn("Disabling peer scoring. Peerstore does not support peer scores")
+		return opts
+	}
+	scorer := NewScorer(peerGater, eps, m, gossipConf.PeerBandScorer(), log)
 	// Check the app specific score since libp2p doesn't export it's [validate] function :/
 	if peerScoreParams != nil && peerScoreParams.AppSpecificScore != nil {
 		opts = []pubsub.Option{
