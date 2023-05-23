@@ -7,6 +7,8 @@ import (
 	"net"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/p2p/gating"
+
 	decredSecp "github.com/decred/dcrd/dcrec/secp256k1/v4"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p-testing/netutil"
@@ -47,7 +49,7 @@ type Node interface {
 	// GossipOut returns the gossip output/info control
 	GossipOut() GossipOut
 	// ConnectionGater returns the connection gater, to ban/unban peers with, may be nil
-	ConnectionGater() ConnectionGater
+	ConnectionGater() gating.BlockingConnectionGater
 	// ConnectionManager returns the connection manager, to protect peers with, may be nil
 	ConnectionManager() connmgr.ConnManager
 }

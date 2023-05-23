@@ -1,4 +1,4 @@
-package p2p_test
+package p2p
 
 import (
 	"context"
@@ -7,7 +7,11 @@ import (
 	"testing"
 	"time"
 
-	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
+	ds "github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/sync"
+	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoreds"
+	"github.com/stretchr/testify/require"
+
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
 	testlog "github.com/ethereum-optimism/optimism/op-node/testlog"
 
@@ -27,19 +31,17 @@ import (
 type PeerScoresTestSuite struct {
 	suite.Suite
 
-	mockGater    *p2pMocks.ConnectionGater
 	mockStore    *p2pMocks.Peerstore
 	mockMetricer *p2pMocks.GossipMetricer
-	bandScorer   p2p.BandScoreThresholds
+	bandScorer   BandScoreThresholds
 	logger       log.Logger
 }
 
 // SetupTest sets up the test suite.
 func (testSuite *PeerScoresTestSuite) SetupTest() {
-	testSuite.mockGater = &p2pMocks.ConnectionGater{}
 	testSuite.mockStore = &p2pMocks.Peerstore{}
 	testSuite.mockMetricer = &p2pMocks.GossipMetricer{}
-	bandScorer, err := p2p.NewBandScorer("0:graylist;")
+	bandScorer, err := NewBandScorer("0:graylist;")
 	testSuite.NoError(err)
 	testSuite.bandScorer = *bandScorer
 	testSuite.logger = testlog.Logger(testSuite.T(), log.LvlError)
@@ -71,7 +73,13 @@ func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []
 	for _, h := range hosts {
 		rt := pubsub.DefaultGossipSubRouter(h)
 		opts := []pubsub.Option{}
-		opts = append(opts, p2p.ConfigurePeerScoring(h, testSuite.mockGater, &p2p.Config{
+
+		store := sync.MutexWrap(ds.NewMapDatastore())
+		peerStore, err := pstoreds.NewPeerstore(context.Background(), store, pstoreds.DefaultOpts())
+		require.NoError(testSuite.T(), err)
+
+		scorer := NewScorer(peerStore, testSuite.mockMetricer, &testSuite.bandScorer, logger)
+		opts = append(opts, ConfigurePeerScoring(&Config{
 			BandScoreThresholds: testSuite.bandScorer,
 			PeerScoring: pubsub.PeerScoreParams{
 				AppSpecificScore: func(p peer.ID) float64 {
@@ -85,7 +93,7 @@ func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []
 				DecayInterval:     time.Second,
 				DecayToZero:       0.01,
 			},
-		}, testSuite.mockMetricer, logger)...)
+		}, scorer, logger)...)
 		ps, err := pubsub.NewGossipSubWithRouter(ctx, h, rt, opts...)
 		if err != nil {
 			panic(err)
@@ -124,8 +132,6 @@ func (testSuite *PeerScoresTestSuite) TestNegativeScores() {
 	defer cancel()
 
 	testSuite.mockMetricer.On("SetPeerScores", mock.Anything).Return(nil)
-
-	testSuite.mockGater.On("ListBlockedPeers").Return([]peer.ID{})
 
 	// Construct 20 hosts using the [getNetHosts] function.
 	hosts := getNetHosts(testSuite, ctx, 20)

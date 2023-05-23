@@ -13,9 +13,8 @@ import (
 
 type scorer struct {
 	peerStore           Peerstore
-	metricer            GossipMetricer
+	metricer            ScoreMetrics
 	log                 log.Logger
-	gater               PeerGater
 	bandScoreThresholds *BandScoreThresholds
 }
 
@@ -95,25 +94,29 @@ type Peerstore interface {
 
 // Scorer is a peer scorer that scores peers based on application-specific metrics.
 type Scorer interface {
-	OnConnect()
-	OnDisconnect()
+	OnConnect(id peer.ID)
+	OnDisconnect(id peer.ID)
 	SnapshotHook() pubsub.ExtendedPeerScoreInspectFn
 }
 
+type ScoreMetrics interface {
+	SetPeerScores(map[string]float64)
+}
+
 // NewScorer returns a new peer scorer.
-func NewScorer(peerGater PeerGater, peerStore Peerstore, metricer GossipMetricer, bandScoreThresholds *BandScoreThresholds, log log.Logger) Scorer {
+func NewScorer(peerStore Peerstore, metricer ScoreMetrics, bandScoreThresholds *BandScoreThresholds, log log.Logger) Scorer {
 	return &scorer{
 		peerStore:           peerStore,
 		metricer:            metricer,
 		log:                 log,
-		gater:               peerGater,
 		bandScoreThresholds: bandScoreThresholds,
 	}
 }
 
-// SnapshotHook returns a function that is called periodically by the pubsub library to inspect the peer scores.
+// SnapshotHook returns a function that is called periodically by the pubsub library to inspect the gossip peer scores.
 // It is passed into the pubsub library as a [pubsub.ExtendedPeerScoreInspectFn] in the [pubsub.WithPeerScoreInspect] option.
 // The returned [pubsub.ExtendedPeerScoreInspectFn] is called with a mapping of peer IDs to peer score snapshots.
+// The incoming peer score snapshots only contain gossip-score components.
 func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
 	return func(m map[peer.ID]*pubsub.PeerScoreSnapshot) {
 		scoreMap := make(map[string]float64)
@@ -122,23 +125,21 @@ func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
 			scoreMap[b.band] = 0
 		}
 		// Now set the new scores.
-		for id, snap := range m {
+		for _, snap := range m {
 			band := s.bandScoreThresholds.Bucket(snap.Score)
 			scoreMap[band] += 1
-			s.gater.Update(id, snap.Score)
 		}
 		s.metricer.SetPeerScores(scoreMap)
+		// TODO: store components in peerstore
 	}
 }
 
 // OnConnect is called when a peer connects.
-// See [p2p.NotificationsMetricer] for invocation.
-func (s *scorer) OnConnect() {
-	// no-op
+func (s *scorer) OnConnect(id peer.ID) {
+	// TODO: apply decay to scores, based on last connection time
 }
 
 // OnDisconnect is called when a peer disconnects.
-// See [p2p.NotificationsMetricer] for invocation.
-func (s *scorer) OnDisconnect() {
-	// no-op
+func (s *scorer) OnDisconnect(id peer.ID) {
+	// TODO: persist disconnect-time
 }

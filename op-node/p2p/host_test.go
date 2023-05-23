@@ -59,10 +59,10 @@ func TestingConfig(t *testing.T) *Config {
 func TestP2PSimple(t *testing.T) {
 	confA := TestingConfig(t)
 	confB := TestingConfig(t)
-	hostA, err := confA.Host(testlog.Logger(t, log.LvlError).New("host", "A"), nil)
+	hostA, err := confA.Host(testlog.Logger(t, log.LvlError).New("host", "A"), nil, metrics.NoopMetrics)
 	require.NoError(t, err, "failed to launch host A")
 	defer hostA.Close()
-	hostB, err := confB.Host(testlog.Logger(t, log.LvlError).New("host", "B"), nil)
+	hostB, err := confB.Host(testlog.Logger(t, log.LvlError).New("host", "B"), nil, metrics.NoopMetrics)
 	require.NoError(t, err, "failed to launch host B")
 	defer hostB.Close()
 	err = hostA.Connect(context.Background(), peer.AddrInfo{ID: hostB.ID(), Addrs: hostB.Addrs()})

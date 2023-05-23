@@ -16,8 +16,6 @@ import (
 type PeerScorerTestSuite struct {
 	suite.Suite
 
-	// mockConnGater *p2pMocks.ConnectionGater
-	mockGater    *p2pMocks.PeerGater
 	mockStore    *p2pMocks.Peerstore
 	mockMetricer *p2pMocks.GossipMetricer
 	bandScorer   *p2p.BandScoreThresholds
@@ -26,7 +24,6 @@ type PeerScorerTestSuite struct {
 
 // SetupTest sets up the test suite.
 func (testSuite *PeerScorerTestSuite) SetupTest() {
-	testSuite.mockGater = &p2pMocks.PeerGater{}
 	testSuite.mockStore = &p2pMocks.Peerstore{}
 	testSuite.mockMetricer = &p2pMocks.GossipMetricer{}
 	bandScorer, err := p2p.NewBandScorer("-40:graylist;0:friend;")
@@ -43,40 +40,34 @@ func TestPeerScorer(t *testing.T) {
 // TestScorer_OnConnect ensures we can call the OnConnect method on the peer scorer.
 func (testSuite *PeerScorerTestSuite) TestScorer_OnConnect() {
 	scorer := p2p.NewScorer(
-		testSuite.mockGater,
 		testSuite.mockStore,
 		testSuite.mockMetricer,
 		testSuite.bandScorer,
 		testSuite.logger,
 	)
-	scorer.OnConnect()
+	scorer.OnConnect(peer.ID("alice"))
 }
 
 // TestScorer_OnDisconnect ensures we can call the OnDisconnect method on the peer scorer.
 func (testSuite *PeerScorerTestSuite) TestScorer_OnDisconnect() {
 	scorer := p2p.NewScorer(
-		testSuite.mockGater,
 		testSuite.mockStore,
 		testSuite.mockMetricer,
 		testSuite.bandScorer,
 		testSuite.logger,
 	)
-	scorer.OnDisconnect()
+	scorer.OnDisconnect(peer.ID("alice"))
 }
 
 // TestScorer_SnapshotHook tests running the snapshot hook on the peer scorer.
 func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHook() {
 	scorer := p2p.NewScorer(
-		testSuite.mockGater,
 		testSuite.mockStore,
 		testSuite.mockMetricer,
 		testSuite.bandScorer,
 		testSuite.logger,
 	)
 	inspectFn := scorer.SnapshotHook()
-
-	// Mock the peer gater call
-	testSuite.mockGater.On("Update", peer.ID("peer1"), float64(-100)).Return(nil).Once()
 
 	// The metricer should then be called with the peer score band map
 	testSuite.mockMetricer.On("SetPeerScores", map[string]float64{
@@ -91,9 +82,6 @@ func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHook() {
 		},
 	}
 	inspectFn(snapshotMap)
-
-	// Change the peer score now to a different band
-	testSuite.mockGater.On("Update", peer.ID("peer1"), float64(0)).Return(nil).Once()
 
 	// The metricer should then be called with the peer score band map
 	testSuite.mockMetricer.On("SetPeerScores", map[string]float64{
@@ -114,16 +102,12 @@ func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHook() {
 // This implies that the peer should be blocked.
 func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHookBlocksPeer() {
 	scorer := p2p.NewScorer(
-		testSuite.mockGater,
 		testSuite.mockStore,
 		testSuite.mockMetricer,
 		testSuite.bandScorer,
 		testSuite.logger,
 	)
 	inspectFn := scorer.SnapshotHook()
-
-	// Mock the peer gater call
-	testSuite.mockGater.On("Update", peer.ID("peer1"), float64(-101)).Return(nil)
 
 	// The metricer should then be called with the peer score band map
 	testSuite.mockMetricer.On("SetPeerScores", map[string]float64{
