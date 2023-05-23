@@ -77,8 +77,8 @@ const getL1ContractsByNetworkName = (network: string): OEL1ContractsLike => {
     StateCommitmentChain: getDeployedAddress('StateCommitmentChain'),
     CanonicalTransactionChain: getDeployedAddress('CanonicalTransactionChain'),
     BondManager: getDeployedAddress('BondManager'),
-    OptimismPortal: '0x5b47E1A08Ea6d985D6649300584e6722Ec4B1383' as const,
-    L2OutputOracle: '0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0' as const,
+    OptimismPortal: getDeployedAddress('OptimismPortal'),
+    L2OutputOracle: getDeployedAddress('L2OutputOracle'),
   }
 }
 
