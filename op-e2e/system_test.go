@@ -706,7 +706,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 	snapLog.SetHandler(log.DiscardHandler())
 
 	// Create a peer, and hook up alice and bob
-	h, err := sys.Mocknet.GenPeer()
+	h, err := sys.newMockNetPeer()
 	require.NoError(t, err)
 	_, err = sys.Mocknet.LinkPeers(sys.RollupNodes["alice"].P2P().Host().ID(), h.ID())
 	require.NoError(t, err)
