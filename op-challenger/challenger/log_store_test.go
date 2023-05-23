@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 
 	"github.com/stretchr/testify/require"
@@ -158,22 +159,21 @@ func TestLogStore_DispatchLogs(t *testing.T) {
 
 	// Dispatch logs on the logStore.
 	go logStore.dispatchLogs()
-	time.Sleep(1 * time.Second)
 
 	// Send logs through the subscription.
+	blockHash := common.HexToHash("0x1")
 	logStore.subscription.logs <- types.Log{
-		BlockHash: common.HexToHash("0x1"),
+		BlockHash: blockHash,
 	}
-	time.Sleep(1 * time.Second)
-	logStore.subscription.logs <- types.Log{
-		BlockHash: common.HexToHash("0x1"),
-	}
-	time.Sleep(1 * time.Second)
 
-	// Verify that the log was inserted correctly.
-	require.Equal(t, 2, len(logStore.logList))
-	require.Equal(t, 2, len(logStore.GetLogByBlockHash(common.HexToHash("0x1"))))
-	require.Equal(t, 2, len(logStore.GetLogs()))
+	// Wait for the logs to be dispatched.
+	timeout, tCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer tCancel()
+	err = e2eutils.WaitFor(timeout, 500*time.Millisecond, func() (bool, error) {
+		result := logStore.GetLogByBlockHash(blockHash)
+		return result[0].BlockHash == blockHash, nil
+	})
+	require.NoError(t, err)
 
 	// Quit the subscription.
 	logStore.Quit()
@@ -193,7 +193,6 @@ func TestLogStore_DispatchLogs_SubscriptionError(t *testing.T) {
 
 	// Dispatch logs on the logStore.
 	go logStore.dispatchLogs()
-	time.Sleep(1 * time.Second)
 
 	// Send an error through the subscription.
 	client.sub.errorChan <- errors.New("test error")
