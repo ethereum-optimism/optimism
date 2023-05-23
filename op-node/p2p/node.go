@@ -6,10 +6,14 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
-
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/gating"
-
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/discover"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/hashicorp/go-multierror"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/connmgr"
@@ -17,15 +21,6 @@ import (
 	p2pmetrics "github.com/libp2p/go-libp2p/core/metrics"
 	"github.com/libp2p/go-libp2p/core/network"
 	ma "github.com/multiformats/go-multiaddr"
-
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
-
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/discover"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
 // NodeP2P is a p2p node, which can be used to gossip messages.
