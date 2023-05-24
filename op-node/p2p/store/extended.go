@@ -15,6 +15,8 @@ type extendedStore struct {
 	peerstore.Peerstore
 	peerstore.CertifiedAddrBook
 	*scoreBook
+	*peerBanBook
+	*ipBanBook
 }
 
 func NewExtendedPeerstore(ctx context.Context, logger log.Logger, clock clock.Clock, ps peerstore.Peerstore, store ds.Batching) (ExtendedPeerstore, error) {
@@ -27,10 +29,22 @@ func NewExtendedPeerstore(ctx context.Context, logger log.Logger, clock clock.Cl
 		return nil, fmt.Errorf("create scorebook: %w", err)
 	}
 	sb.startGC()
+	pb, err := newPeerBanBook(ctx, logger, clock, store)
+	if err != nil {
+		return nil, fmt.Errorf("create peer ban book: %w", err)
+	}
+	pb.startGC()
+	ib, err := newIPBanBook(ctx, logger, clock, store)
+	if err != nil {
+		return nil, fmt.Errorf("create IP ban book: %w", err)
+	}
+	ib.startGC()
 	return &extendedStore{
 		Peerstore:         ps,
 		CertifiedAddrBook: cab,
 		scoreBook:         sb,
+		peerBanBook:       pb,
+		ipBanBook:         ib,
 	}, nil
 }
 
