@@ -26,20 +26,20 @@ func TestRoundTripGossipScore(t *testing.T) {
 	id := peer.ID("aaaa")
 	store := createMemoryStore(t)
 	score := 123.45
-	err := store.SetScore(id, TypeGossip, score)
+	err := store.SetScore(id, &GossipScores{Total: score})
 	require.NoError(t, err)
 
-	assertPeerScores(t, store, id, PeerScores{Gossip: score})
+	assertPeerScores(t, store, id, PeerScores{Gossip: GossipScores{Total: score}})
 }
 
 func TestUpdateGossipScore(t *testing.T) {
 	id := peer.ID("aaaa")
 	store := createMemoryStore(t)
 	score := 123.45
-	require.NoError(t, store.SetScore(id, TypeGossip, 444.223))
-	require.NoError(t, store.SetScore(id, TypeGossip, score))
+	require.NoError(t, store.SetScore(id, &GossipScores{Total: 444.223}))
+	require.NoError(t, store.SetScore(id, &GossipScores{Total: score}))
 
-	assertPeerScores(t, store, id, PeerScores{Gossip: score})
+	assertPeerScores(t, store, id, PeerScores{Gossip: GossipScores{Total: score}})
 }
 
 func TestStoreScoresForMultiplePeers(t *testing.T) {
@@ -48,11 +48,11 @@ func TestStoreScoresForMultiplePeers(t *testing.T) {
 	store := createMemoryStore(t)
 	score1 := 123.45
 	score2 := 453.22
-	require.NoError(t, store.SetScore(id1, TypeGossip, score1))
-	require.NoError(t, store.SetScore(id2, TypeGossip, score2))
+	require.NoError(t, store.SetScore(id1, &GossipScores{Total: score1}))
+	require.NoError(t, store.SetScore(id2, &GossipScores{Total: score2}))
 
-	assertPeerScores(t, store, id1, PeerScores{Gossip: score1})
-	assertPeerScores(t, store, id2, PeerScores{Gossip: score2})
+	assertPeerScores(t, store, id1, PeerScores{Gossip: GossipScores{Total: score1}})
+	assertPeerScores(t, store, id2, PeerScores{Gossip: GossipScores{Total: score2}})
 }
 
 func TestPersistData(t *testing.T) {
@@ -61,19 +61,13 @@ func TestPersistData(t *testing.T) {
 	backingStore := sync.MutexWrap(ds.NewMapDatastore())
 	store := createPeerstoreWithBacking(t, backingStore)
 
-	require.NoError(t, store.SetScore(id, TypeGossip, score))
+	require.NoError(t, store.SetScore(id, &GossipScores{Total: score}))
 
 	// Close and recreate a new store from the same backing
 	require.NoError(t, store.Close())
 	store = createPeerstoreWithBacking(t, backingStore)
 
-	assertPeerScores(t, store, id, PeerScores{Gossip: score})
-}
-
-func TestUnknownScoreType(t *testing.T) {
-	store := createMemoryStore(t)
-	err := store.SetScore("aaaa", 92832, 244.24)
-	require.ErrorContains(t, err, "unknown score type")
+	assertPeerScores(t, store, id, PeerScores{Gossip: GossipScores{Total: score}})
 }
 
 func TestCloseCompletes(t *testing.T) {
@@ -98,17 +92,17 @@ func TestPrune(t *testing.T) {
 
 	firstStore := clock.Now()
 	// Set some scores all 30 minutes apart so they have different expiry times
-	require.NoError(t, book.SetScore("aaaa", TypeGossip, 123.45))
+	require.NoError(t, book.SetScore("aaaa", &GossipScores{Total: 123.45}))
 	clock.AdvanceTime(30 * time.Minute)
-	require.NoError(t, book.SetScore("bbbb", TypeGossip, 123.45))
+	require.NoError(t, book.SetScore("bbbb", &GossipScores{Total: 123.45}))
 	clock.AdvanceTime(30 * time.Minute)
-	require.NoError(t, book.SetScore("cccc", TypeGossip, 123.45))
+	require.NoError(t, book.SetScore("cccc", &GossipScores{Total: 123.45}))
 	clock.AdvanceTime(30 * time.Minute)
-	require.NoError(t, book.SetScore("dddd", TypeGossip, 123.45))
+	require.NoError(t, book.SetScore("dddd", &GossipScores{Total: 123.45}))
 	clock.AdvanceTime(30 * time.Minute)
 
 	// Update bbbb again which should extend its expiry
-	require.NoError(t, book.SetScore("bbbb", TypeGossip, 123.45))
+	require.NoError(t, book.SetScore("bbbb", &GossipScores{Total: 123.45}))
 
 	require.True(t, hasScoreRecorded("aaaa"))
 	require.True(t, hasScoreRecorded("bbbb"))
@@ -153,7 +147,7 @@ func TestPruneMultipleBatches(t *testing.T) {
 	// Set scores for more peers than the max batch size
 	peerCount := maxPruneBatchSize*3 + 5
 	for i := 0; i < peerCount; i++ {
-		require.NoError(t, book.SetScore(peer.ID(strconv.Itoa(i)), TypeGossip, 123.45))
+		require.NoError(t, book.SetScore(peer.ID(strconv.Itoa(i)), &GossipScores{Total: 123.45}))
 	}
 	clock.AdvanceTime(expiryPeriod + 1)
 	require.NoError(t, book.prune())

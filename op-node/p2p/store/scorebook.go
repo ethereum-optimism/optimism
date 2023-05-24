@@ -26,8 +26,8 @@ const (
 var scoresBase = ds.NewKey("/peers/scores")
 
 type scoreRecord struct {
-	PeerScores
-	lastUpdate time.Time
+	PeerScores PeerScores `json:"peerScores"`
+	LastUpdate int64      `json:"lastUpdate"` // unix timestamp in seconds
 }
 
 type scoreBook struct {
@@ -91,21 +91,15 @@ func (d *scoreBook) getRecord(id peer.ID) (scoreRecord, error) {
 	return record, nil
 }
 
-func (d *scoreBook) SetScore(id peer.ID, scoreType ScoreType, score float64) error {
+func (d *scoreBook) SetScore(id peer.ID, diff ScoreDiff) error {
 	d.Lock()
 	defer d.Unlock()
 	scores, err := d.getRecord(id)
 	if err != nil {
 		return err
 	}
-	scores.lastUpdate = d.clock.Now()
-	scores.Gossip = score
-	switch scoreType {
-	case TypeGossip:
-		scores.Gossip = score
-	default:
-		return fmt.Errorf("unknown score type: %v", scoreType)
-	}
+	scores.LastUpdate = d.clock.Now().Unix()
+	diff.Apply(&scores)
 	data, err := serializeScoresV0(scores)
 	if err != nil {
 		return fmt.Errorf("encode scores for peer %v: %w", id, err)
@@ -145,7 +139,7 @@ func (d *scoreBook) prune() error {
 		if err != nil {
 			return err
 		}
-		if record.lastUpdate.Add(expiryPeriod).Before(d.clock.Now()) {
+		if time.Unix(record.LastUpdate, 0).Add(expiryPeriod).Before(d.clock.Now()) {
 			if pending > maxPruneBatchSize {
 				if err := batch.Commit(d.ctx); err != nil {
 					return err

@@ -1,36 +1,14 @@
 package store
 
-import (
-	"bytes"
-	"encoding/binary"
-	"time"
-)
+import "encoding/json"
 
 func serializeScoresV0(scores scoreRecord) ([]byte, error) {
-	var b bytes.Buffer
-	err := binary.Write(&b, binary.BigEndian, scores.lastUpdate.UnixMilli())
-	if err != nil {
-		return nil, err
-	}
-	err = binary.Write(&b, binary.BigEndian, scores.Gossip)
-	if err != nil {
-		return nil, err
-	}
-	return b.Bytes(), nil
+	// v0 just serializes to JSON. New/unrecognized values default to 0.
+	return json.Marshal(&scores)
 }
 
 func deserializeScoresV0(data []byte) (scoreRecord, error) {
-	var scores scoreRecord
-	r := bytes.NewReader(data)
-	var lastUpdate int64
-	err := binary.Read(r, binary.BigEndian, &lastUpdate)
-	if err != nil {
-		return scoreRecord{}, err
-	}
-	scores.lastUpdate = time.UnixMilli(lastUpdate)
-	err = binary.Read(r, binary.BigEndian, &scores.Gossip)
-	if err != nil {
-		return scoreRecord{}, err
-	}
-	return scores, nil
+	var out scoreRecord
+	err := json.Unmarshal(data, &out)
+	return out, err
 }

@@ -5,6 +5,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	log "github.com/ethereum/go-ethereum/log"
@@ -14,10 +17,10 @@ import (
 
 type scorer struct {
 	peerStore           Peerstore
-	metricer            GossipMetricer
+	metricer            ScoreMetrics
 	log                 log.Logger
-	gater               PeerGater
 	bandScoreThresholds *BandScoreThresholds
+	cfg                 *rollup.Config
 }
 
 // scorePair holds a band and its corresponding threshold.
@@ -93,31 +96,37 @@ type Peerstore interface {
 	// Peers returns all of the peer IDs stored across all inner stores.
 	Peers() peer.IDSlice
 
-	SetScore(peer.ID, store.ScoreType, float64) error
+	SetScore(id peer.ID, diff store.ScoreDiff) error
 }
 
 // Scorer is a peer scorer that scores peers based on application-specific metrics.
 type Scorer interface {
-	OnConnect()
-	OnDisconnect()
+	OnConnect(id peer.ID)
+	OnDisconnect(id peer.ID)
 	SnapshotHook() pubsub.ExtendedPeerScoreInspectFn
 }
 
+type ScoreMetrics interface {
+	SetPeerScores(map[string]float64)
+}
+
 // NewScorer returns a new peer scorer.
-func NewScorer(peerGater PeerGater, peerStore Peerstore, metricer GossipMetricer, bandScoreThresholds *BandScoreThresholds, log log.Logger) Scorer {
+func NewScorer(cfg *rollup.Config, peerStore Peerstore, metricer ScoreMetrics, bandScoreThresholds *BandScoreThresholds, log log.Logger) Scorer {
 	return &scorer{
 		peerStore:           peerStore,
 		metricer:            metricer,
 		log:                 log,
-		gater:               peerGater,
 		bandScoreThresholds: bandScoreThresholds,
+		cfg:                 cfg,
 	}
 }
 
-// SnapshotHook returns a function that is called periodically by the pubsub library to inspect the peer scores.
+// SnapshotHook returns a function that is called periodically by the pubsub library to inspect the gossip peer scores.
 // It is passed into the pubsub library as a [pubsub.ExtendedPeerScoreInspectFn] in the [pubsub.WithPeerScoreInspect] option.
 // The returned [pubsub.ExtendedPeerScoreInspectFn] is called with a mapping of peer IDs to peer score snapshots.
+// The incoming peer score snapshots only contain gossip-score components.
 func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
+	blocksTopicName := blocksTopicV1(s.cfg)
 	return func(m map[peer.ID]*pubsub.PeerScoreSnapshot) {
 		scoreMap := make(map[string]float64)
 		// Zero out all bands.
@@ -126,28 +135,36 @@ func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
 		}
 		// Now set the new scores.
 		for id, snap := range m {
-			scores := make(map[store.ScoreType]float64)
-			scores[store.TypeGossip] = snap.Score
-
-			if err := s.peerStore.SetScore(id, store.TypeGossip, snap.Score); err != nil {
+			diff := store.GossipScores{
+				Total:              snap.Score,
+				Blocks:             store.TopicScores{},
+				IPColocationFactor: snap.IPColocationFactor,
+				BehavioralPenalty:  snap.BehaviourPenalty,
+			}
+			if topSnap, ok := snap.Topics[blocksTopicName]; ok {
+				diff.Blocks.TimeInMesh = float64(topSnap.TimeInMesh) / float64(time.Second)
+				diff.Blocks.MeshMessageDeliveries = uint64(topSnap.MeshMessageDeliveries)
+				diff.Blocks.FirstMessageDeliveries = uint64(topSnap.FirstMessageDeliveries)
+				diff.Blocks.InvalidMessageDeliveries = uint64(topSnap.InvalidMessageDeliveries)
+			}
+			if err := s.peerStore.SetScore(id, &diff); err != nil {
 				s.log.Warn("Unable to update peer gossip score", "err", err)
 			}
+		}
+		for _, snap := range m {
 			band := s.bandScoreThresholds.Bucket(snap.Score)
 			scoreMap[band] += 1
-			s.gater.Update(id, snap.Score)
 		}
 		s.metricer.SetPeerScores(scoreMap)
 	}
 }
 
 // OnConnect is called when a peer connects.
-// See [p2p.NotificationsMetricer] for invocation.
-func (s *scorer) OnConnect() {
-	// no-op
+func (s *scorer) OnConnect(id peer.ID) {
+	// TODO(CLI-4003): apply decay to scores, based on last connection time
 }
 
 // OnDisconnect is called when a peer disconnects.
-// See [p2p.NotificationsMetricer] for invocation.
-func (s *scorer) OnDisconnect() {
-	// no-op
+func (s *scorer) OnDisconnect(id peer.ID) {
+	// TODO(CLI-4003): persist disconnect-time
 }
