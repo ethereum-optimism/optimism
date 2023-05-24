@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ledgerwatch/erigon/boba-bindings/solc"
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/solc"
 
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/common"

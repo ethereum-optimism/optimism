@@ -6,7 +6,7 @@ package bindings
 import (
 	"encoding/json"
 
-	"github.com/ledgerwatch/erigon/boba-bindings/solc"
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/solc"
 )
 
 const L2ToL1MessagePasserStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"contracts/L2/L2ToL1MessagePasser.sol:L2ToL1MessagePasser\",\"label\":\"sentMessages\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_mapping(t_bytes32,t_bool)\"},{\"astId\":1001,\"contract\":\"contracts/L2/L2ToL1MessagePasser.sol:L2ToL1MessagePasser\",\"label\":\"msgNonce\",\"offset\":0,\"slot\":\"1\",\"type\":\"t_uint240\"}],\"types\":{\"t_bool\":{\"encoding\":\"inplace\",\"label\":\"bool\",\"numberOfBytes\":\"1\"},\"t_bytes32\":{\"encoding\":\"inplace\",\"label\":\"bytes32\",\"numberOfBytes\":\"32\"},\"t_mapping(t_bytes32,t_bool)\":{\"encoding\":\"mapping\",\"label\":\"mapping(bytes32 =\u003e bool)\",\"numberOfBytes\":\"32\",\"key\":\"t_bytes32\",\"value\":\"t_bool\"},\"t_uint240\":{\"encoding\":\"inplace\",\"label\":\"uint240\",\"numberOfBytes\":\"30\"}}}"

@@ -3,7 +3,7 @@ package hardhat_test
 import (
 	"testing"
 
-	"github.com/ledgerwatch/erigon/boba-bindings/hardhat"
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/hardhat"
 
 	"github.com/stretchr/testify/require"
 )

@@ -6,7 +6,7 @@ package bindings
 import (
 	"encoding/json"
 
-	"github.com/ledgerwatch/erigon/boba-bindings/solc"
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/solc"
 )
 
 const DeployerWhitelistStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"contracts/legacy/DeployerWhitelist.sol:DeployerWhitelist\",\"label\":\"owner\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_address\"},{\"astId\":1001,\"contract\":\"contracts/legacy/DeployerWhitelist.sol:DeployerWhitelist\",\"label\":\"whitelist\",\"offset\":0,\"slot\":\"1\",\"type\":\"t_mapping(t_address,t_bool)\"}],\"types\":{\"t_address\":{\"encoding\":\"inplace\",\"label\":\"address\",\"numberOfBytes\":\"20\"},\"t_bool\":{\"encoding\":\"inplace\",\"label\":\"bool\",\"numberOfBytes\":\"1\"},\"t_mapping(t_address,t_bool)\":{\"encoding\":\"mapping\",\"label\":\"mapping(address =\u003e bool)\",\"numberOfBytes\":\"32\",\"key\":\"t_address\",\"value\":\"t_bool\"}}}"

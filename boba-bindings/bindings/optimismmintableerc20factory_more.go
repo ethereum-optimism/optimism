@@ -6,7 +6,7 @@ package bindings
 import (
 	"encoding/json"
 
-	"github.com/ledgerwatch/erigon/boba-bindings/solc"
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/solc"
 )
 
 const OptimismMintableERC20FactoryStorageLayoutJSON = "{\"storage\":null,\"types\":{}}"

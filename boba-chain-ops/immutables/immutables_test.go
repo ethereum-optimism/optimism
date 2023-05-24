@@ -4,8 +4,8 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/immutables"
 	"github.com/ledgerwatch/erigon-lib/common"
-	"github.com/ledgerwatch/erigon/boba-chain-ops/immutables"
 	"github.com/stretchr/testify/require"
 )
 

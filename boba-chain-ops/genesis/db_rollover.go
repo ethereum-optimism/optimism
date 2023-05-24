@@ -3,10 +3,10 @@ package genesis
 import (
 	"fmt"
 
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/ether"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ledgerwatch/erigon-lib/kv"
-	"github.com/ledgerwatch/erigon/boba-chain-ops/crossdomain"
-	"github.com/ledgerwatch/erigon/boba-chain-ops/ether"
 	"github.com/ledgerwatch/erigon/core/types"
 )
 

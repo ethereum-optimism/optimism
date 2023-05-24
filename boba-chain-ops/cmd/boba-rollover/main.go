@@ -12,10 +12,11 @@ import (
 
 	"github.com/ledgerwatch/erigon-lib/common/datadir"
 	"github.com/ledgerwatch/erigon-lib/kv"
-	"github.com/ledgerwatch/erigon/boba-chain-ops/crossdomain"
-	"github.com/ledgerwatch/erigon/boba-chain-ops/genesis"
 	"github.com/ledgerwatch/erigon/node"
 	"github.com/ledgerwatch/erigon/node/nodecfg"
+
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/genesis"
 )
 
 func main() {

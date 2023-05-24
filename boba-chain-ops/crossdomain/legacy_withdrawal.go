@@ -7,11 +7,11 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"
 	"github.com/ledgerwatch/erigon/accounts/abi"
-	"github.com/ledgerwatch/erigon/boba-bindings/bindings"
-	"github.com/ledgerwatch/erigon/boba-bindings/predeploys"
 	"github.com/ledgerwatch/erigon/crypto"
 )
 

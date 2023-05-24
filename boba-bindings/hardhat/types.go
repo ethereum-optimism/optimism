@@ -3,10 +3,10 @@ package hardhat
 import (
 	"encoding/json"
 
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/solc"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"
 	"github.com/ledgerwatch/erigon/accounts/abi"
-	"github.com/ledgerwatch/erigon/boba-bindings/solc"
 )
 
 // Deployment represents a hardhat-deploy artifact file

@@ -6,11 +6,11 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/accounts/abi"
-	"github.com/ledgerwatch/erigon/boba-bindings/bindings"
-	"github.com/ledgerwatch/erigon/boba-bindings/predeploys"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/params"
 )

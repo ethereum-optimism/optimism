@@ -3,6 +3,7 @@ module github.com/bobanetwork/v3-anchorage/boba-chain-ops
 go 1.19
 
 require (
+	github.com/bobanetwork/v3-anchorage/boba-bindings v0.0.0-00010101000000-000000000000
 	github.com/c2h5oh/datasize v0.0.0-20220606134207-859f65c6625b
 	github.com/ethereum/go-ethereum v1.10.25
 	github.com/holiman/uint256 v1.2.2
@@ -167,3 +168,5 @@ require (
 replace github.com/ledgerwatch/erigon => ../op-erigon
 
 replace github.com/ledgerwatch/erigon-lib => ../op-erigon/erigon-lib
+
+replace github.com/bobanetwork/v3-anchorage/boba-bindings => ../boba-bindings

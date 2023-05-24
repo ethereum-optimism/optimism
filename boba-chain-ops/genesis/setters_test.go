@@ -4,11 +4,11 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/immutables"
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/state"
 	"github.com/ledgerwatch/erigon-lib/chain"
 	"github.com/ledgerwatch/erigon-lib/common"
-	"github.com/ledgerwatch/erigon/boba-bindings/predeploys"
-	"github.com/ledgerwatch/erigon/boba-chain-ops/immutables"
-	"github.com/ledgerwatch/erigon/boba-chain-ops/state"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/stretchr/testify/require"
 )

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/ledgerwatch/erigon/boba-bindings/ast"
-	"github.com/ledgerwatch/erigon/boba-bindings/hardhat"
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/ast"
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/hardhat"
 )
 
 type flags struct {
@@ -104,7 +104,7 @@ package {{.Package}}
 import (
 	"encoding/json"
 
-	"github.com/ledgerwatch/erigon/boba-bindings/solc"
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/solc"
 )
 
 const {{.Name}}StorageLayoutJSON = "{{.StorageLayout}}"

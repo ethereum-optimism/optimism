@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ledgerwatch/erigon/boba-bindings/bindings"
-	"github.com/ledgerwatch/erigon/boba-bindings/predeploys"
-	"github.com/ledgerwatch/erigon/boba-chain-ops/crossdomain"
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ledgerwatch/erigon-lib/common"

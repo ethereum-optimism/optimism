@@ -4,7 +4,7 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ledgerwatch/erigon/boba-chain-ops/crossdomain"
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
 	"github.com/stretchr/testify/require"
 )
 

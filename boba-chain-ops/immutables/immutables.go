@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/deployer"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"
 	"github.com/ledgerwatch/erigon/accounts/abi/bind"
 	"github.com/ledgerwatch/erigon/accounts/abi/bind/backends"
-	"github.com/ledgerwatch/erigon/boba-bindings/bindings"
-	"github.com/ledgerwatch/erigon/boba-bindings/predeploys"
-	"github.com/ledgerwatch/erigon/boba-chain-ops/deployer"
 	"github.com/ledgerwatch/erigon/core/types"
 
 	"github.com/ethereum/go-ethereum/log"
