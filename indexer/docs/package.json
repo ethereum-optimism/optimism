@@ -1,0 +1,14 @@
+{
+  "name": "@evmts/docs",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vitepress build .",
+    "dev": "vitepress dev .",
+    "preview": "vitepress preview ."
+  },
+  "devDependencies": {
+    "vitepress": "1.0.0-alpha.76"
+  }
+}
