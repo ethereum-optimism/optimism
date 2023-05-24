@@ -5,9 +5,9 @@ import (
 
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/ether"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/log/v3"
 )
 
 func RolloverDB(chaindb kv.RwDB, genesis *types.Genesis, migrationData *crossdomain.MigrationData, commit, noCheck bool) error {

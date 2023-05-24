@@ -12,7 +12,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"
 	"github.com/ledgerwatch/erigon/common/hexutil"
 
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ledgerwatch/log/v3"
 )
 
 // SentMessage represents an entry in the JSON file that is created by

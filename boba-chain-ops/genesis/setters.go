@@ -11,7 +11,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/core/types"
 
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ledgerwatch/log/v3"
 )
 
 // UntouchableCodeHashes contains code hashes of all the contracts

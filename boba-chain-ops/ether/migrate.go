@@ -8,9 +8,10 @@ import (
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/util"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/log/v3"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -136,19 +137,17 @@ func doMigration(g *types.Genesis, addresses []common.Address, allowances []*cro
 		}
 	}()
 
-	err := IterateState(g, func(key, value common.Hash, errCh chan error) {
+	err := IterateState(g, func(key, value common.Hash) error {
 		// We can safely ignore specific slots (totalSupply, name, symbol).
 		if ignoredSlots[key] {
-			errCh <- nil
-			return
+			return nil
 		}
 
 		slotType, ok := slotsInp[key]
 		if !ok {
 			log.Error("unknown storage slot in state", "slot", key.String())
 			if !noCheck {
-				errCh <- fmt.Errorf("unknown storage slot in state: %s", key.String())
-				return
+				return fmt.Errorf("unknown storage slot in state: %s", key.String())
 			}
 		}
 
@@ -169,8 +168,7 @@ func doMigration(g *types.Genesis, addresses []common.Address, allowances []*cro
 				"balance", bal.String(),
 			)
 			if !noCheck {
-				errCh <- fmt.Errorf("account has non-zero balance in state - should never happen: %s", addr.String())
-				return
+				return fmt.Errorf("account has non-zero balance in state - should never happen: %s", addr.String())
 			}
 		}
 
@@ -189,14 +187,14 @@ func doMigration(g *types.Genesis, addresses []common.Address, allowances []*cro
 			// Should never happen.
 			if noCheck {
 				log.Error("unknown slot type", "slot", key, "type", slotType)
-				errCh <- nil
+				return nil
 			} else {
-				log.Crit("unknown slot type %d, should never happen", slotType)
+				log.Error("unknown slot type %d, should never happen", slotType)
+				return fmt.Errorf("unknown slot type %d, should never happen", slotType)
 			}
 		}
 
-		errCh <- nil
-		return
+		return nil
 	})
 
 	if err != nil {
@@ -250,27 +248,24 @@ func doMigration(g *types.Genesis, addresses []common.Address, allowances []*cro
 	return nil
 }
 
-func IterateState(g *types.Genesis, cb func(key, value common.Hash, errCh chan error)) error {
+func IterateState(g *types.Genesis, cb func(key, value common.Hash) error) error {
 	// Deep copy
 	storage := make(map[common.Hash]common.Hash)
 	for key, value := range g.Alloc[predeploys.LegacyERC20ETHAddr].Storage {
 		storage[key] = value
 	}
 
-	errCh := make(chan error, len(storage))
-
+	var eg errgroup.Group
 	for key, value := range storage {
-		go cb(key, value, errCh)
+		innerKey, innerValue := key, value
+		eg.Go(func() error {
+			return cb(innerKey, innerValue)
+		})
 	}
 
-	for i := 0; i < len(storage); i++ {
-		if err := <-errCh; err != nil {
-			log.Error("error during iteration", "err", err)
-			return err
-		}
+	if err := eg.Wait(); err != nil {
+		return err
 	}
-
-	close(errCh)
 
 	return nil
 }

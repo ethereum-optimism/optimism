@@ -2,11 +2,11 @@ package genesis
 
 import (
 	"encoding/json"
-	"reflect"
 	"testing"
 
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMigrateAlloc(t *testing.T) {
@@ -47,14 +47,8 @@ func TestMigrateAlloc(t *testing.T) {
 		},
 	}
 	bytes, err := json.Marshal(input)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 	genesisAlloc, err := MigrateAlloc(bytes)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !reflect.DeepEqual(genesisAlloc, expected) {
-		t.Fatal("expected", expected, "got", genesisAlloc)
-	}
+	require.NoError(t, err)
+	require.Equal(t, expected, genesisAlloc)
 }

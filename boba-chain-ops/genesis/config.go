@@ -17,7 +17,7 @@ import (
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/rpc"
 
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ledgerwatch/log/v3"
 )
 
 var (

@@ -3,7 +3,6 @@ package ether
 import (
 	"math/big"
 	"math/rand"
-	"reflect"
 	"testing"
 
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
@@ -34,12 +33,8 @@ func TestSetBalance(t *testing.T) {
 		CalcOVMETHStorageKey(common.Address{2}):                       {2},
 		CalcAllowanceStorageKey(common.Address{1}, common.Address{2}): {3},
 	}
-	if !reflect.DeepEqual(accountState, g.Alloc[common.Address{1}]) {
-		t.Fatal("expected", accountState, "got", g.Alloc[common.Address{1}])
-	}
-	if !reflect.DeepEqual(storageState, g.Alloc[predeploys.LegacyERC20ETHAddr].Storage) {
-		t.Fatal("expected", storageState, "got", g.Alloc[predeploys.LegacyERC20ETHAddr].Storage)
-	}
+	require.Equal(t, accountState, g.Alloc[common.Address{1}])
+	require.Equal(t, storageState, g.Alloc[predeploys.LegacyERC20ETHAddr].Storage)
 	SetBalance(g, common.Address{1}, big.NewInt(1), CalcAllowanceStorageKey(common.Address{1}, common.Address{2}))
 	accountState = types.GenesisAccount{
 		Balance: big.NewInt(1),

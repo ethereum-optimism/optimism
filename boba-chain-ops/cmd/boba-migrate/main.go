@@ -7,10 +7,9 @@ import (
 	"os"
 
 	"github.com/c2h5oh/datasize"
-	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ledgerwatch/log/v3"
 
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/datadir"
@@ -25,7 +24,7 @@ import (
 )
 
 func main() {
-	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd()))))
+	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat()))
 
 	app := &cli.App{
 		Name:  "boba-migrate",
@@ -117,7 +116,7 @@ func main() {
 			log.Root().SetHandler(
 				log.LvlFilterHandler(
 					logLevel,
-					log.StreamHandler(os.Stdout, log.TerminalFormat(isatty.IsTerminal(os.Stdout.Fd()))),
+					log.StreamHandler(os.Stdout, log.TerminalFormat()),
 				),
 			)
 

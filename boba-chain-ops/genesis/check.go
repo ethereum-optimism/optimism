@@ -15,12 +15,12 @@ import (
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/ether"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/state"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/util"
-	"github.com/ethereum/go-ethereum/log"
 	libcommon "github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon/common"
 	"github.com/ledgerwatch/erigon/core/rawdb"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/log/v3"
 )
 
 var (
@@ -124,9 +124,17 @@ func PostCheckMigratedDB(
 	if num == nil {
 		return fmt.Errorf("cannot find header number for %s", hash)
 	}
+	if *num != 0 {
+		return fmt.Errorf("expected chain tip to be block 0, but got %d", *num)
+	}
 
 	header := rawdb.ReadHeader(tx, hash, *num)
 	log.Info("Read header from database", "number", *num)
+
+	bobaGenesisHash := libcommon.HexToHash(chain.GetBobaGenesisHash(g.Config.ChainID))
+	if header.Hash() != bobaGenesisHash {
+		return fmt.Errorf("expected chain tip to be %s, but got %s", bobaGenesisHash, header.Hash())
+	}
 
 	bobaGenesisExtraData := common.Hex2Bytes(chain.GetBobaGenesisExtraData(g.Config.ChainID))
 	if !bytes.Equal(header.Extra, bobaGenesisExtraData) {
@@ -418,39 +426,34 @@ func PostCheckLegacyETH(tx kv.Tx, g *types.Genesis, migrationData crossdomain.Mi
 	threshold := 100 - int(100*OVMETHSampleLikelihood)
 	progress := util.ProgressLogger(100, "checking legacy eth balance slots")
 	var innerErr error
-	err := ether.IterateState(g, func(key, value libcommon.Hash, errCh chan error) {
+	err := ether.IterateState(g, func(key, value libcommon.Hash) error {
 		// Stop iterating if we've checked enough slots.
 		if count >= MaxOVMETHSlotChecks {
-			errCh <- nil
-			return
+			return nil
 		}
 
 		val := rand.Intn(100)
 
 		// Randomly sample storage slots.
 		if val > threshold {
-			errCh <- nil
-			return
+			return nil
 		}
 
 		// Ignore fixed slots.
 		if _, ok := LegacyETHCheckSlots[key]; ok {
-			errCh <- nil
-			return
+			return nil
 		}
 
 		// Ignore allowances.
 		if allowanceSlots[key] {
-			errCh <- nil
-			return
+			return nil
 		}
 
 		// Grab the address, and bail if we can't find it.
 		addr, ok := addresses[key]
 		if !ok {
 			innerErr = fmt.Errorf("unknown OVM_ETH storage slot %s", key)
-			errCh <- innerErr
-			return
+			return innerErr
 		}
 
 		// Pull out the pre-migration OVM ETH balance, and the state balance.
@@ -460,39 +463,36 @@ func PostCheckLegacyETH(tx kv.Tx, g *types.Genesis, migrationData crossdomain.Mi
 		// Pre-migration state balance should be zero.
 		if ovmETHStateBalance.Cmp(libcommon.Big0) != 0 {
 			innerErr = fmt.Errorf("expected OVM_ETH pre-migration state balance for %s to be 0, but got %s", addr, ovmETHStateBalance)
-			errCh <- innerErr
-			return
+			return innerErr
 		}
 
 		// Migrated state balance should equal the OVM ETH balance.
 		account, err := state.GetAccount(tx, addr)
 		if err != nil {
 			innerErr = fmt.Errorf("failed to get account for %s: %w", addr, err)
-			errCh <- innerErr
-			return
+			return innerErr
 		}
 		_, balance, err := decodeNonceBalanceFromStorage(account)
 		if err != nil {
 			innerErr = fmt.Errorf("failed to decode nonce and balance for %s: %w", addr, err)
-			errCh <- innerErr
-			return
+			return innerErr
 		}
 		migratedStateBalance := new(big.Int).SetBytes(balance)
 		if migratedStateBalance.Cmp(ovmETHBalance) != 0 {
 			innerErr = fmt.Errorf("expected OVM_ETH post-migration state balance for %s to be %s, but got %s", addr, ovmETHStateBalance, migratedStateBalance)
-			errCh <- innerErr
-			return
+			return innerErr
 		}
 		// Migrated OVM ETH balance should be zero, since we wipe the slots.
 		migratedBalance, err := state.GetStorage(tx, predeploys.LegacyERC20ETHAddr, key)
 		if migratedBalance.Big().Cmp(libcommon.Big0) != 0 {
 			innerErr = fmt.Errorf("expected OVM_ETH post-migration ERC20 balance for %s to be 0, but got %s", addr, migratedBalance)
-			errCh <- innerErr
-			return
+			return innerErr
 		}
 
 		progress()
 		count++
+
+		return nil
 	})
 
 	if err != nil {
