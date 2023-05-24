@@ -30,3 +30,38 @@ host: "127.0.0.1"
 port: 7300
 ```
 
+## Deploying and running indexer
+
+`@eth-optimism/indexer` consists of a single Golang server 
+
+In addition to the app itself, you will also need a Postgres instance
+To run or deploy your app a docker container is provided. 
+
+```yaml Example docker-compose.yml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:latest
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -q -U db_username -d db_name" ]
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/data/postgres
+
+  indexer:
+    image: eth-optimism/indexer
+    ports:
+      - 8080:8080
+    volumes:
+      - /path/to/my/indexer.toml:/indexer/indexer.toml
+    depends_on:
+      postgres:
+        condition: service_healthy
+        
+volumes:
+  postgres_data:
+
+```
+
