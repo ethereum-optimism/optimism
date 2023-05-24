@@ -113,6 +113,7 @@ contract DisputeGameFactory is Ownable, IDisputeGameFactory {
      */
     function setImplementation(GameType gameType, IDisputeGame impl) external onlyOwner {
         gameImpls[gameType] = impl;
+        emit ImplementationSet(address(impl), gameType);
     }
 
     /**

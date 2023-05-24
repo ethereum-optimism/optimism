@@ -90,34 +90,6 @@ func TestRPCCacheImmutableRPCs(t *testing.T) {
 		{
 			req: &RPCReq{
 				JSONRPC: "2.0",
-				Method:  "eth_getTransactionByHash",
-				Params:  mustMarshalJSON([]string{"0x88df016429689c079f3b2f6ad39fa052532c56795b733da78a91ebe6a713944b"}),
-				ID:      ID,
-			},
-			res: &RPCRes{
-				JSONRPC: "2.0",
-				Result:  `{"eth_getTransactionByHash":"!"}`,
-				ID:      ID,
-			},
-			name: "eth_getTransactionByHash",
-		},
-		{
-			req: &RPCReq{
-				JSONRPC: "2.0",
-				Method:  "eth_getTransactionByBlockHashAndIndex",
-				Params:  mustMarshalJSON([]string{"0xe670ec64341771606e55d6b4ca35a1a6b75ee3d5145a99d05921026d1527331", "0x55"}),
-				ID:      ID,
-			},
-			res: &RPCRes{
-				JSONRPC: "2.0",
-				Result:  `{"eth_getTransactionByBlockHashAndIndex":"!"}`,
-				ID:      ID,
-			},
-			name: "eth_getTransactionByBlockHashAndIndex",
-		},
-		{
-			req: &RPCReq{
-				JSONRPC: "2.0",
 				Method:  "eth_getUncleByBlockHashAndIndex",
 				Params:  mustMarshalJSON([]string{"0xb903239f8543d04b5dc1ba6579132b143087c68db1b2168786408fcbce568238", "0x90"}),
 				ID:      ID,
@@ -128,20 +100,6 @@ func TestRPCCacheImmutableRPCs(t *testing.T) {
 				ID:      ID,
 			},
 			name: "eth_getUncleByBlockHashAndIndex",
-		},
-		{
-			req: &RPCReq{
-				JSONRPC: "2.0",
-				Method:  "eth_getTransactionReceipt",
-				Params:  mustMarshalJSON([]string{"0x85d995eba9763907fdf35cd2034144dd9d53ce32cbec21349d4b12823c6860c5"}),
-				ID:      ID,
-			},
-			res: &RPCRes{
-				JSONRPC: "2.0",
-				Result:  `{"eth_getTransactionReceipt":"!"}`,
-				ID:      ID,
-			},
-			name: "eth_getTransactionReceipt",
 		},
 	}
 

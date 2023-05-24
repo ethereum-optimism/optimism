@@ -18,6 +18,8 @@ contract DisputeGameFactory_Test is Test {
         Claim indexed rootClaim
     );
 
+    event ImplementationSet(address indexed impl, GameType indexed gameType);
+
     function setUp() public {
         factory = new DisputeGameFactory(address(this));
         fakeClone = new FakeClone();
@@ -104,6 +106,9 @@ contract DisputeGameFactory_Test is Test {
     function test_setImplementation_succeeds() public {
         // There should be no implementation for the `GameType.FAULT` enum value, it has not been set.
         assertEq(address(factory.gameImpls(GameType.FAULT)), address(0));
+
+        vm.expectEmit(true, true, true, true, address(factory));
+        emit ImplementationSet(address(1), GameType.FAULT);
 
         // Set the implementation for the `GameType.FAULT` enum value.
         factory.setImplementation(GameType.FAULT, IDisputeGame(address(1)));
