@@ -43,12 +43,13 @@ COPY check-changed.sh /usr/local/bin/check-changed
 
 RUN apt-get update && \
   apt-get install -y bash curl openssh-client git build-essential ca-certificates jq musl gnupg coreutils && \
-  curl -sL https://deb.nodesource.com/setup_16.x -o nodesource_setup.sh && \
+  curl -sL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh -o nvm_install.sh && \
   curl -sL https://go.dev/dl/go1.19.linux-amd64.tar.gz -o go1.19.linux-amd64.tar.gz && \
   tar -C /usr/local/ -xzvf go1.19.linux-amd64.tar.gz && \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt && \
-  bash nodesource_setup.sh && \
-  apt-get install -y nodejs && \
+  bash nvm_install.sh && \
+  nvm install 16.16.0 && \
+  nvm use 16.16.0 && \
   npm i -g yarn && \
   npm i -g depcheck && \
   pip install slither-analyzer==0.9.1 && \
