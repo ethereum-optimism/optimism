@@ -78,12 +78,6 @@ func TestCaching(t *testing.T) {
 			1,
 		},
 		{
-			"eth_getTransactionByHash",
-			[]interface{}{"0x88df016429689c079f3b2f6ad39fa052532c56795b733da78a91ebe6a713944b"},
-			"{\"jsonrpc\": \"2.0\", \"result\": \"eth_getTransactionByHash\", \"id\": 999}",
-			1,
-		},
-		{
 			"eth_getTransactionByBlockHashAndIndex",
 			[]interface{}{"0xe670ec64341771606e55d6b4ca35a1a6b75ee3d5145a99d05921026d1527331", "0x55"},
 			"{\"jsonrpc\": \"2.0\", \"result\": \"eth_getTransactionByBlockHashAndIndex\", \"id\": 999}",
@@ -95,12 +89,6 @@ func TestCaching(t *testing.T) {
 			"{\"jsonrpc\": \"2.0\", \"result\": \"eth_getUncleByBlockHashAndIndex\", \"id\": 999}",
 			1,
 		},
-		{
-			"eth_getTransactionReceipt",
-			[]interface{}{"0x85d995eba9763907fdf35cd2034144dd9d53ce32cbec21349d4b12823c6860c5"},
-			"{\"jsonrpc\": \"2.0\", \"result\": \"eth_getTransactionReceipt\", \"id\": 999}",
-			1,
-		},
 		/* not cacheable */
 		{
 			"eth_getBlockByNumber",
@@ -109,6 +97,18 @@ func TestCaching(t *testing.T) {
 				true,
 			},
 			"{\"jsonrpc\": \"2.0\", \"result\": \"eth_getBlockByNumber\", \"id\": 999}",
+			2,
+		},
+		{
+			"eth_getTransactionReceipt",
+			[]interface{}{"0x85d995eba9763907fdf35cd2034144dd9d53ce32cbec21349d4b12823c6860c5"},
+			"{\"jsonrpc\": \"2.0\", \"result\": \"eth_getTransactionReceipt\", \"id\": 999}",
+			2,
+		},
+		{
+			"eth_getTransactionByHash",
+			[]interface{}{"0x88df016429689c079f3b2f6ad39fa052532c56795b733da78a91ebe6a713944b"},
+			"{\"jsonrpc\": \"2.0\", \"result\": \"eth_getTransactionByHash\", \"id\": 999}",
 			2,
 		},
 		{

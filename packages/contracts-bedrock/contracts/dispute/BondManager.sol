@@ -13,7 +13,9 @@ import { IDisputeGameFactory } from "./IDisputeGameFactory.sol";
  * @notice The Bond Manager serves as an escrow for permissionless output proposal bonds.
  */
 contract BondManager {
-    // The Bond Type
+    /**
+     * @notice The Bond Type
+     */
     struct Bond {
         address owner;
         uint256 expiration;
@@ -57,6 +59,13 @@ contract BondManager {
      * @dev Used to verify the status of bonds.
      */
     IDisputeGameFactory public immutable DISPUTE_GAME_FACTORY;
+
+    /**
+     * @notice Amount of gas used to transfer ether when splitting the bond.
+     *         This is a reasonable amount of gas for a transfer, even to a smart contract.
+     *         The number of participants is bound of by the block gas limit.
+     */
+    uint256 private constant TRANSFER_GAS = 30_000;
 
     /**
      * @notice Instantiates the bond maanger with the registered dispute game factory.
@@ -147,13 +156,14 @@ contract BondManager {
 
         uint256 len = _claimRecipients.length;
         uint256 proportionalAmount = b.amount / len;
-        for (uint256 i = 0; i < len; i++) {
-            bool success = SafeCall.send(
-                payable(_claimRecipients[i]),
-                gasleft() / len,
-                proportionalAmount
-            );
-            require(success, "BondManager: Failed to send Ether.");
+        // Send the proportional amount to each recipient. Do not revert if a send fails as that
+        // will prevent other recipients from receiving their share.
+        for (uint256 i; i < len; i++) {
+            SafeCall.send({
+                _target: payable(_claimRecipients[i]),
+                _gas: TRANSFER_GAS,
+                _value: proportionalAmount
+            });
         }
     }
 
