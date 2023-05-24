@@ -195,9 +195,6 @@ func (n *NodeP2P) ConnectionManager() connmgr.ConnManager {
 }
 
 func (n *NodeP2P) BanPeer(id peer.ID, expiration time.Time) error {
-	if err := n.gater.BlockPeer(id); err != nil {
-		return fmt.Errorf("failed to block peer: %w", err)
-	}
 	if err := n.store.SetPeerBanExpiration(id, expiration); err != nil {
 		return fmt.Errorf("failed to set peer ban expiry: %w", err)
 	}
@@ -208,9 +205,6 @@ func (n *NodeP2P) BanPeer(id peer.ID, expiration time.Time) error {
 }
 
 func (n *NodeP2P) BanIP(ip net.IP, expiration time.Time) error {
-	if err := n.gater.BlockAddr(ip); err != nil {
-		return fmt.Errorf("failed to block IP: %w", err)
-	}
 	if err := n.store.SetIPBanExpiration(ip, expiration); err != nil {
 		return fmt.Errorf("failed to set IP ban expiry: %w", err)
 	}
