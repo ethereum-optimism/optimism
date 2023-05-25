@@ -1529,7 +1529,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(proxyd|op-[a-z0-9\-]*)\/v.*/
+              only: /^(fault-detector|proxyd|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-release:
