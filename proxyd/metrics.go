@@ -309,6 +309,30 @@ var (
 	}, []string{
 		"backend_name",
 	})
+
+	avgLatencyBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_avg_latency",
+		Help:      "Average latency per backend",
+	}, []string{
+		"backend_name",
+	})
+
+	networkErrorCountBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_net_error_count",
+		Help:      "Network error count per backend",
+	}, []string{
+		"backend_name",
+	})
+
+	requestCountBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_request_count",
+		Help:      "Request count per backend",
+	}, []string{
+		"backend_name",
+	})
 )
 
 func RecordRedisError(source string) {
@@ -390,30 +414,42 @@ func RecordGroupTotalCount(group *BackendGroup, count int) {
 	consensusGroupTotalCount.WithLabelValues(group.Name).Set(float64(count))
 }
 
-func RecordBackendLatestBlock(be *Backend, blockNumber hexutil.Uint64) {
-	backendLatestBlockBackend.WithLabelValues(be.Name).Set(float64(blockNumber))
+func RecordBackendLatestBlock(b *Backend, blockNumber hexutil.Uint64) {
+	backendLatestBlockBackend.WithLabelValues(b.Name).Set(float64(blockNumber))
 }
 
-func RecordConsensusBackendBanned(be *Backend, banned bool) {
+func RecordConsensusBackendBanned(b *Backend, banned bool) {
 	v := float64(0)
 	if banned {
 		v = float64(1)
 	}
-	consensusBannedBackends.WithLabelValues(be.Name).Set(v)
+	consensusBannedBackends.WithLabelValues(b.Name).Set(v)
 }
 
-func RecordConsensusBackendPeerCount(be *Backend, peerCount uint64) {
-	consensusPeerCountBackend.WithLabelValues(be.Name).Set(float64(peerCount))
+func RecordConsensusBackendPeerCount(b *Backend, peerCount uint64) {
+	consensusPeerCountBackend.WithLabelValues(b.Name).Set(float64(peerCount))
 }
 
-func RecordConsensusBackendInSync(be *Backend, inSync bool) {
+func RecordConsensusBackendInSync(b *Backend, inSync bool) {
 	v := float64(0)
 	if inSync {
 		v = float64(1)
 	}
-	consensusInSyncBackend.WithLabelValues(be.Name).Set(v)
+	consensusInSyncBackend.WithLabelValues(b.Name).Set(v)
 }
 
-func RecordConsensusBackendUpdateDelay(be *Backend, delay time.Duration) {
-	consensusUpdateDelayBackend.WithLabelValues(be.Name).Set(float64(delay.Milliseconds()))
+func RecordConsensusBackendUpdateDelay(b *Backend, delay time.Duration) {
+	consensusUpdateDelayBackend.WithLabelValues(b.Name).Set(float64(delay.Milliseconds()))
+}
+
+func RecordBackendNetworkLatencyAverageSlidingWindow(b *Backend, avgLatency float64) {
+	avgLatencyBackend.WithLabelValues(b.Name).Set(avgLatency)
+}
+
+func RecordBackendNetworkRequestCountSlidingWindow(b *Backend, count uint) {
+	requestCountBackend.WithLabelValues(b.Name).Set(float64(count))
+}
+
+func RecordBackendNetworkErrorCountSlidingWindow(b *Backend, count uint) {
+	networkErrorCountBackend.WithLabelValues(b.Name).Set(float64(count))
 }
