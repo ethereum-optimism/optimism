@@ -1,6 +1,7 @@
 package gating
 
 import (
+	"errors"
 	"time"
 
 	"github.com/libp2p/go-libp2p/core/network"
@@ -47,7 +48,7 @@ func AddBanExpiry(gater BlockingConnectionGater, store ExpiryStore, log log.Logg
 func (g *ExpiryConnectionGater) peerBanExpiryCheck(p peer.ID) (allow bool) {
 	// if the peer is blocked, check if it's time to unblock
 	expiry, err := g.store.GetPeerBanExpiration(p)
-	if err == store.UnknownBanErr {
+	if errors.Is(err, store.UnknownBanErr) {
 		return true // peer is allowed if it has not been banned
 	}
 	if err != nil {
@@ -74,7 +75,7 @@ func (g *ExpiryConnectionGater) addrBanExpiryCheck(ma multiaddr.Multiaddr) (allo
 	}
 	// if just the IP is blocked, check if it's time to unblock
 	expiry, err := g.store.GetIPBanExpiration(ip)
-	if err == store.UnknownBanErr {
+	if errors.Is(err, store.UnknownBanErr) {
 		return true // IP is allowed if it has not been banned
 	}
 	if err != nil {
