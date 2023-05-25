@@ -442,8 +442,8 @@ func RecordConsensusBackendUpdateDelay(b *Backend, delay time.Duration) {
 	consensusUpdateDelayBackend.WithLabelValues(b.Name).Set(float64(delay.Milliseconds()))
 }
 
-func RecordBackendNetworkLatencyAverageSlidingWindow(b *Backend, avgLatency float64) {
-	avgLatencyBackend.WithLabelValues(b.Name).Set(avgLatency)
+func RecordBackendNetworkLatencyAverageSlidingWindow(b *Backend, avgLatency time.Duration) {
+	avgLatencyBackend.WithLabelValues(b.Name).Set(float64(avgLatency.Milliseconds()))
 }
 
 func RecordBackendNetworkRequestCountSlidingWindow(b *Backend, count uint) {

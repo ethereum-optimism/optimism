@@ -482,7 +482,7 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	}
 	duration := time.Since(start)
 	b.latencySlidingWindow.Add(float64(duration))
-	RecordBackendNetworkLatencyAverageSlidingWindow(b, b.latencySlidingWindow.Avg())
+	RecordBackendNetworkLatencyAverageSlidingWindow(b, time.Duration(b.latencySlidingWindow.Avg()))
 
 	sortBatchRPCResponse(rpcReqs, res)
 	return res, nil
