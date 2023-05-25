@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/core"
 	"io"
 	"math"
 	"net/http"
@@ -651,19 +652,18 @@ func (s *Server) rateLimitSender(ctx context.Context, req *RPCReq) error {
 
 	// Convert the transaction into a Message object so that we can get the
 	// sender. This method performs an ecrecover, which can be expensive.
-	msg, err := tx.AsMessage(types.LatestSignerForChainID(tx.ChainId()), nil)
+	msg, err := core.TransactionToMessage(tx, types.LatestSignerForChainID(tx.ChainId()), nil)
 	if err != nil {
 		log.Debug("could not get message from transaction", "err", err, "req_id", GetReqID(ctx))
 		return ErrInvalidParams(err.Error())
 	}
-
-	ok, err := s.senderLim.Take(ctx, fmt.Sprintf("%s:%d", msg.From().Hex(), tx.Nonce()))
+	ok, err := s.senderLim.Take(ctx, fmt.Sprintf("%s:%d", msg.From.Hex(), tx.Nonce()))
 	if err != nil {
 		log.Error("error taking from sender limiter", "err", err, "req_id", GetReqID(ctx))
 		return ErrInternal
 	}
 	if !ok {
-		log.Debug("sender rate limit exceeded", "sender", msg.From(), "req_id", GetReqID(ctx))
+		log.Debug("sender rate limit exceeded", "sender", msg.From.Hex(), "req_id", GetReqID(ctx))
 		return ErrOverSenderRateLimit
 	}
 
