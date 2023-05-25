@@ -639,6 +639,18 @@ jobs:
           command: make fuzz
           working_directory: op-node
 
+  fuzz-op-chain-ops:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - check-changed:
+          patterns: op-chain-ops,op-bindings
+      - run:
+          name: Fuzz
+          command: make fuzz
+          working_directory: op-chain-ops
+
   depcheck:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
@@ -1282,6 +1294,7 @@ workflows:
       - semgrep-scan
       - go-mod-tidy
       - fuzz-op-node
+      - fuzz-op-chain-ops
       - bedrock-markdown
       - go-lint:
           name: op-batcher-lint
