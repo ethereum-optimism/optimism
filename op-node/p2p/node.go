@@ -126,7 +126,10 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 				n.scorer.OnDisconnect(conn.RemotePeer())
 			},
 		})
-		n.peerMonitor = monitor.NewPeerMonitor(resourcesCtx, log, clock.SystemClock, n.host.Network(), n.connMgr, eps, n, -100, 1*time.Hour)
+		peerManager := monitor.NewPeerManagerAdapter(n.host.Network(), n.connMgr, eps)
+		// TODO: minScore shouldn't just be hard coded here
+		// TODO: Ban duration needs to be set sensibly and probably should be a magic number here
+		n.peerMonitor = monitor.NewPeerMonitor(resourcesCtx, log, clock.SystemClock, peerManager, -100, 1*time.Hour)
 		n.peerMonitor.Start()
 		// notify of any new connections/streams/etc.
 		n.host.Network().Notify(NewNetworkNotifier(log, metrics))

@@ -16,38 +16,25 @@ const (
 	checkInterval = 1 * time.Second
 )
 
-//go:generate mockery --name Scores --output mocks/ --with-expecter=true
-type Scores interface {
-	GetPeerScore(id peer.ID) (float64, error)
-}
-
-// ConnectedPeers enables querying the set of currently connected peers and disconnecting peers
-//
-//go:generate mockery --name ConnectedPeers --output mocks/ --with-expecter=true
-type ConnectedPeers interface {
+//go:generate mockery --name PeerManager --output mocks/ --with-expecter=true
+type PeerManager interface {
 	Peers() []peer.ID
-	ClosePeer(peer.ID) error
-}
-
-//go:generate mockery --name PeerProtector --output mocks/ --with-expecter=true
-type PeerProtector interface {
+	GetPeerScore(id peer.ID) (float64, error)
 	IsProtected(peer.ID) bool
-}
-
-//go:generate mockery --name PeerBlocker --output mocks/ --with-expecter=true
-type PeerBlocker interface {
+	// TODO: Consider combining Close and Ban into a single call and have the adapter deal with the two calls
+	ClosePeer(peer.ID) error
 	BanPeer(peer.ID, time.Time) error
 }
 
+// PeerMonitor runs a background process to periodically check for peers with scores below a minimum.
+// When it finds bad peers, it disconnects and bans them.
+// A delay is introduced between each peer being checked to avoid spikes in system load.
 type PeerMonitor struct {
 	ctx         context.Context
 	cancelFn    context.CancelFunc
 	l           log.Logger
 	clock       clock.Clock
-	peers       ConnectedPeers
-	protector   PeerProtector
-	scores      Scores
-	blocker     PeerBlocker
+	manager     PeerManager
 	minScore    float64
 	banDuration time.Duration
 
@@ -58,17 +45,14 @@ type PeerMonitor struct {
 	nextPeerIdx int
 }
 
-func NewPeerMonitor(ctx context.Context, l log.Logger, clock clock.Clock, peers ConnectedPeers, protector PeerProtector, scores Scores, blocker PeerBlocker, minScore float64, banDuration time.Duration) *PeerMonitor {
+func NewPeerMonitor(ctx context.Context, l log.Logger, clock clock.Clock, manager PeerManager, minScore float64, banDuration time.Duration) *PeerMonitor {
 	ctx, cancelFn := context.WithCancel(ctx)
 	return &PeerMonitor{
 		ctx:         ctx,
 		cancelFn:    cancelFn,
 		l:           l,
 		clock:       clock,
-		peers:       peers,
-		protector:   protector,
-		scores:      scores,
-		blocker:     blocker,
+		manager:     manager,
 		minScore:    minScore,
 		banDuration: banDuration,
 	}
@@ -90,25 +74,25 @@ func (k *PeerMonitor) Stop() {
 func (k *PeerMonitor) checkNextPeer() error {
 	// Get a new list of peers to check if we've checked all peers in the previous list
 	if k.nextPeerIdx >= len(k.peerList) {
-		k.peerList = k.peers.Peers()
+		k.peerList = k.manager.Peers()
 		k.nextPeerIdx = 0
 	}
 	id := k.peerList[k.nextPeerIdx]
 	k.nextPeerIdx++
-	score, err := k.scores.GetPeerScore(id)
+	score, err := k.manager.GetPeerScore(id)
 	if err != nil {
 		return fmt.Errorf("retrieve score for peer %v: %w", id, err)
 	}
 	if score > k.minScore {
 		return nil
 	}
-	if k.protector.IsProtected(id) {
+	if k.manager.IsProtected(id) {
 		return nil
 	}
-	if err := k.peers.ClosePeer(id); err != nil {
+	if err := k.manager.ClosePeer(id); err != nil {
 		return fmt.Errorf("disconnecting peer %v: %w", id, err)
 	}
-	if err := k.blocker.BanPeer(id, k.clock.Now().Add(k.banDuration)); err != nil {
+	if err := k.manager.BanPeer(id, k.clock.Now().Add(k.banDuration)); err != nil {
 		return fmt.Errorf("banning peer %v: %w", id, err)
 	}
 

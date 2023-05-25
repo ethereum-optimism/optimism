@@ -17,19 +17,16 @@ import (
 
 const kickerBanDuration = 10 * time.Minute
 
-func peerKickerSetup(t *testing.T) (*PeerMonitor, *clock2.DeterministicClock, *mocks.ConnectedPeers, *mocks.PeerProtector, *mocks.Scores, *mocks.PeerBlocker) {
+func peerKickerSetup(t *testing.T) (*PeerMonitor, *clock2.DeterministicClock, *mocks.PeerManager) {
 	l := testlog.Logger(t, log.LvlInfo)
 	clock := clock2.NewDeterministicClock(time.UnixMilli(10000))
-	peers := mocks.NewConnectedPeers(t)
-	protector := mocks.NewPeerProtector(t)
-	blocker := mocks.NewPeerBlocker(t)
-	scores := mocks.NewScores(t)
-	kicker := NewPeerMonitor(context.Background(), l, clock, peers, protector, scores, blocker, -100, kickerBanDuration)
-	return kicker, clock, peers, protector, scores, blocker
+	manager := mocks.NewPeerManager(t)
+	kicker := NewPeerMonitor(context.Background(), l, clock, manager, -100, kickerBanDuration)
+	return kicker, clock, manager
 }
 
 func TestPeriodicallyCheckNextPeer(t *testing.T) {
-	kicker, clock, _, _, _, _ := peerKickerSetup(t)
+	kicker, clock, _ := peerKickerSetup(t)
 	// Each time a step is performed, it calls Done on the wait group so we can wait for it to be performed
 	stepCh := make(chan struct{}, 10)
 	kicker.bgTasks.Add(1)
@@ -66,10 +63,10 @@ func TestCheckNextPeer(t *testing.T) {
 	}
 
 	t.Run("Check each peer then refresh list", func(t *testing.T) {
-		kicker, _, peers, _, scores, _ := peerKickerSetup(t)
-		peers.EXPECT().Peers().Return(peerIDs).Once()
+		kicker, _, manager := peerKickerSetup(t)
+		manager.EXPECT().Peers().Return(peerIDs).Once()
 		for _, id := range peerIDs {
-			scores.EXPECT().GetPeerScore(id).Return(1, nil).Once()
+			manager.EXPECT().GetPeerScore(id).Return(1, nil).Once()
 
 			require.NoError(t, kicker.checkNextPeer())
 		}
@@ -80,32 +77,32 @@ func TestCheckNextPeer(t *testing.T) {
 			peer.ID("z"),
 			peer.ID("a"),
 		}
-		peers.EXPECT().Peers().Return(updatedPeers).Once()
+		manager.EXPECT().Peers().Return(updatedPeers).Once()
 		for _, id := range updatedPeers {
-			scores.EXPECT().GetPeerScore(id).Return(1, nil).Once()
+			manager.EXPECT().GetPeerScore(id).Return(1, nil).Once()
 
 			require.NoError(t, kicker.checkNextPeer())
 		}
 	})
 
 	t.Run("Close and ban peer when below min score", func(t *testing.T) {
-		kicker, clock, peers, protector, scores, blocker := peerKickerSetup(t)
+		kicker, clock, manager := peerKickerSetup(t)
 		id := peerIDs[0]
-		peers.EXPECT().Peers().Return(peerIDs).Once()
-		scores.EXPECT().GetPeerScore(id).Return(-101, nil).Once()
-		protector.EXPECT().IsProtected(id).Return(false).Once()
-		peers.EXPECT().ClosePeer(id).Return(nil).Once()
-		blocker.EXPECT().BanPeer(id, clock.Now().Add(kickerBanDuration)).Return(nil).Once()
+		manager.EXPECT().Peers().Return(peerIDs).Once()
+		manager.EXPECT().GetPeerScore(id).Return(-101, nil).Once()
+		manager.EXPECT().IsProtected(id).Return(false).Once()
+		manager.EXPECT().ClosePeer(id).Return(nil).Once()
+		manager.EXPECT().BanPeer(id, clock.Now().Add(kickerBanDuration)).Return(nil).Once()
 
 		require.NoError(t, kicker.checkNextPeer())
 	})
 
 	t.Run("Do not close protected peer when below min score", func(t *testing.T) {
-		kicker, _, peers, protector, scores, _ := peerKickerSetup(t)
+		kicker, _, manager := peerKickerSetup(t)
 		id := peerIDs[0]
-		peers.EXPECT().Peers().Return(peerIDs).Once()
-		scores.EXPECT().GetPeerScore(id).Return(-101, nil).Once()
-		protector.EXPECT().IsProtected(id).Return(true)
+		manager.EXPECT().Peers().Return(peerIDs).Once()
+		manager.EXPECT().GetPeerScore(id).Return(-101, nil).Once()
+		manager.EXPECT().IsProtected(id).Return(true)
 
 		require.NoError(t, kicker.checkNextPeer())
 	})
