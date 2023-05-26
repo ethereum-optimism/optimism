@@ -22,6 +22,15 @@ contract ChainRegistry {
     event DeploymentClaimed(string deployment, address admin);
 
     /**
+     * @notice Emitted any time the admin transfers ownership of a
+     *         deployment to a new admin address
+     *
+     * @param oldAdmin The former admin who made the change
+     * @param newAdmin The new admin
+     */
+    event AdminChanged(address oldAdmin, address newAdmin);
+
+    /**
      * @notice Struct representing a deployment entry with
      *         a contract's name and associated address
      */
@@ -49,6 +58,19 @@ contract ChainRegistry {
         deployments[_deployment] = _admin;
 
         emit DeploymentClaimed(_deployment, _admin);
+    }
+
+    /**
+     * @notice Transfers ownership of a deployment to a new admin
+     *
+     * @param _deployment The deployment to transfer ownership of
+     * @param _newAdmin The new admin to transfer ownership to
+     */
+    function transferAdmin(string calldata _deployment, address _newAdmin) public {
+        if (msg.sender != deployments[_deployment]) revert OnlyDeploymentAdmin();
+        deployments[_deployment] = _newAdmin;
+
+        emit AdminChanged(msg.sender, _newAdmin);
     }
 
     /**

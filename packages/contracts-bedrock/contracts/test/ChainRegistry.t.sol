@@ -59,6 +59,18 @@ contract ChainRegistryTest is Test {
     }
 
     /**
+     * @notice A deployment admin can transfer ownership to a new admin
+     */
+    function test_transferAdmin() public {
+        string memory _deployment = _claim();
+
+        vm.prank(makeAddr("admin"));
+        chainRegistry.transferAdmin(_deployment, makeAddr("newAdmin"));
+
+        assertEq(chainRegistry.deployments(_deployment), makeAddr("newAdmin"));
+    }
+
+    /**
      * @notice The deployment admin can register contract addresses for the deployment
      */
     function test_register() public {
