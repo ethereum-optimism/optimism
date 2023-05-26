@@ -49,6 +49,7 @@ RUN apt-get update && \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt && \
   bash nodesource_setup.sh && \
   apt-get install -y nodejs && \
+  npm i -g npm@8.11.0 \
   npm i -g yarn && \
   npm i -g depcheck && \
   pip install slither-analyzer==0.9.1 && \
