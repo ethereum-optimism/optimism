@@ -95,7 +95,7 @@ func TestLogStore_Subscribe_EstablishesSubscription(t *testing.T) {
 	defer logStore.Quit()
 	require.Equal(t, 0, client.subcount)
 	require.False(t, logStore.Subscribed())
-	require.NoError(t, logStore.Subscribe())
+	require.NoError(t, logStore.Subscribe(context.Background()))
 	require.True(t, logStore.Subscribed())
 	require.Equal(t, 1, client.subcount)
 }
@@ -103,7 +103,7 @@ func TestLogStore_Subscribe_EstablishesSubscription(t *testing.T) {
 func TestLogStore_Subscribe_ReceivesLogs(t *testing.T) {
 	logStore, client := newLogStore(t)
 	defer logStore.Quit()
-	require.NoError(t, logStore.Subscribe())
+	require.NoError(t, logStore.Subscribe(context.Background()))
 
 	mockLog := types.Log{
 		BlockHash: common.HexToHash("0x1"),
@@ -122,7 +122,7 @@ func TestLogStore_Subscribe_ReceivesLogs(t *testing.T) {
 func TestLogStore_Subscribe_SubscriptionErrors(t *testing.T) {
 	logStore, client := newLogStore(t)
 	defer logStore.Quit()
-	require.NoError(t, logStore.Subscribe())
+	require.NoError(t, logStore.Subscribe(context.Background()))
 
 	client.sub.errorChan <- ErrTestError
 
@@ -143,19 +143,19 @@ func TestLogStore_Subscribe_NoClient_Panics(t *testing.T) {
 		}
 	}()
 	logStore, _ := newErrorLogStore(t, nil)
-	require.NoError(t, logStore.Subscribe())
+	require.NoError(t, logStore.Subscribe(context.Background()))
 }
 
 func TestLogStore_Subscribe_ErrorSubscribing(t *testing.T) {
 	logStore, _ := newErrorLogStore(t, &errLogStoreClient{})
 	require.False(t, logStore.Subscribed())
-	require.EqualError(t, logStore.Subscribe(), ErrTestError.Error())
+	require.EqualError(t, logStore.Subscribe(context.Background()), ErrTestError.Error())
 }
 
 func TestLogStore_Quit_ResetsSubscription(t *testing.T) {
 	logStore, _ := newLogStore(t)
 	require.False(t, logStore.Subscribed())
-	require.NoError(t, logStore.Subscribe())
+	require.NoError(t, logStore.Subscribe(context.Background()))
 	require.True(t, logStore.Subscribed())
 	logStore.Quit()
 	require.False(t, logStore.Subscribed())
