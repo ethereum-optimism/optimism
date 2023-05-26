@@ -1394,6 +1394,7 @@ func TestPendingBlockIsLatest(t *testing.T) {
 
 	t.Run("block", func(t *testing.T) {
 		for i := 0; i < 10; i++ {
+			// TODO(CLI-4044): pending-block ID change
 			pending, err := l2Seq.BlockByNumber(context.Background(), big.NewInt(-1))
 			require.NoError(t, err)
 			latest, err := l2Seq.BlockByNumber(context.Background(), nil)
@@ -1408,6 +1409,7 @@ func TestPendingBlockIsLatest(t *testing.T) {
 	})
 	t.Run("header", func(t *testing.T) {
 		for i := 0; i < 10; i++ {
+			// TODO(CLI-4044): pending-block ID change
 			pending, err := l2Seq.HeaderByNumber(context.Background(), big.NewInt(-1))
 			require.NoError(t, err)
 			latest, err := l2Seq.HeaderByNumber(context.Background(), nil)
