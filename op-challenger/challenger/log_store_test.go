@@ -17,25 +17,43 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockLogStoreClient implements the [ethereum.LogFilter] interface for testing.
 type mockLogStoreClient struct {
-	sub mockSubscription
+	sub      mockSubscription
+	logs     chan<- types.Log
+	subcount int
 }
 
-func newMockLogStoreClient() mockLogStoreClient {
-	return mockLogStoreClient{
+func newMockLogStoreClient() *mockLogStoreClient {
+	return &mockLogStoreClient{
 		sub: mockSubscription{
 			errorChan: make(chan error),
 		},
 	}
 }
 
-func (m mockLogStoreClient) FilterLogs(context.Context, ethereum.FilterQuery) ([]types.Log, error) {
+func (m *mockLogStoreClient) FilterLogs(context.Context, ethereum.FilterQuery) ([]types.Log, error) {
 	panic("this should not be called by the Subscription.Subscribe method")
 }
 
-func (m mockLogStoreClient) SubscribeFilterLogs(context.Context, ethereum.FilterQuery, chan<- types.Log) (ethereum.Subscription, error) {
+func (m *mockLogStoreClient) SubscribeFilterLogs(ctx context.Context, query ethereum.FilterQuery, logs chan<- types.Log) (ethereum.Subscription, error) {
+	m.subcount = m.subcount + 1
+	m.logs = logs
 	return m.sub, nil
+}
+
+var (
+	ErrTestError = errors.New("test error")
+)
+
+// errLogStoreClient implements the [ethereum.LogFilter] interface for testing.
+type errLogStoreClient struct{}
+
+func (m errLogStoreClient) FilterLogs(context.Context, ethereum.FilterQuery) ([]types.Log, error) {
+	panic("this should not be called by the Subscription.Subscribe method")
+}
+
+func (m errLogStoreClient) SubscribeFilterLogs(context.Context, ethereum.FilterQuery, chan<- types.Log) (ethereum.Subscription, error) {
+	return nil, ErrTestError
 }
 
 type mockSubscription struct {
@@ -48,178 +66,107 @@ func (m mockSubscription) Err() <-chan error {
 
 func (m mockSubscription) Unsubscribe() {}
 
-// TestLogStore_NewLogStore tests the NewLogStore method on a [logStore].
-func TestLogStore_NewLogStore(t *testing.T) {
+func newLogStore(t *testing.T) (*logStore, *mockLogStoreClient) {
 	query := ethereum.FilterQuery{}
 	client := newMockLogStoreClient()
 	log := testlog.Logger(t, log.LvlError)
-	logStore := NewLogStore(query, client, log)
-	require.Equal(t, query, logStore.query)
-	require.Equal(t, []types.Log{}, logStore.logList)
-	require.Equal(t, make(map[common.Hash][]types.Log), logStore.logMap)
-	require.Equal(t, SubscriptionId(0), logStore.subscription.id)
-	require.Equal(t, client, logStore.client)
+	return NewLogStore(query, client, log), client
 }
 
-// TestLogStore_Subscribe tests the [Subscribe] method on a [logStore].
-func TestLogStore_Subscribe(t *testing.T) {
+func newErrorLogStore(t *testing.T, client *errLogStoreClient) (*logStore, *errLogStoreClient) {
 	query := ethereum.FilterQuery{}
-	client := newMockLogStoreClient()
 	log := testlog.Logger(t, log.LvlError)
-	logStore := NewLogStore(query, client, log)
-
-	// The subscription should not be started by default.
-	require.False(t, logStore.subscription.Started())
-
-	// Subscribe to the logStore.
-	err := logStore.Subscribe()
-	require.NoError(t, err)
-	require.True(t, logStore.subscription.Started())
+	return NewLogStore(query, client, log), client
 }
 
-// TestLogStore_Subscribe_MissingClient tests the [Subscribe] method on a [logStore]
-// fails when the client is missing.
-func TestLogStore_Subscribe_MissingClient(t *testing.T) {
-	query := ethereum.FilterQuery{}
-	log := testlog.Logger(t, log.LvlError)
-	logStore := NewLogStore(query, nil, log)
-	err := logStore.Subscribe()
-	require.EqualError(t, err, ErrMissingClient.Error())
+func TestLogStore_NewLogStore_NotSubscribed(t *testing.T) {
+	logStore, _ := newLogStore(t)
+	require.False(t, logStore.Subscribed())
 }
 
-// TestLogStore_Quit tests the [Quit] method on a [logStore].
-func TestLogStore_Quit(t *testing.T) {
-	query := ethereum.FilterQuery{}
-	client := newMockLogStoreClient()
-	log := testlog.Logger(t, log.LvlError)
-	logStore := NewLogStore(query, client, log)
-
-	// A nil subscription should not cause a panic.
-	logStore.subscription = nil
-	logStore.Quit()
-
-	// Subscribe to the logStore.
-	err := logStore.Subscribe()
-	require.NoError(t, err)
-
-	// Quit the subscription
-	logStore.Quit()
-	require.Nil(t, logStore.subscription)
+func TestLogStore_NewLogStore_EmptyLogs(t *testing.T) {
+	logStore, _ := newLogStore(t)
+	require.Empty(t, logStore.GetLogs())
+	require.Empty(t, logStore.GetLogByBlockHash(common.Hash{}))
 }
 
-// TestLogStore_Resubsribe tests the [Resubscribe] method on a [logStore].
-func TestLogStore_Resubscribe(t *testing.T) {
-	query := ethereum.FilterQuery{}
-	client := newMockLogStoreClient()
-	log := testlog.Logger(t, log.LvlError)
-	logStore := NewLogStore(query, client, log)
-
-	// Subscribe to the logStore.
-	err := logStore.Subscribe()
-	require.NoError(t, err)
-
-	// Resubscribe to the logStore.
-	err = logStore.resubscribe()
-	require.NoError(t, err)
+func TestLogStore_Subscribe_EstablishesSubscription(t *testing.T) {
+	logStore, client := newLogStore(t)
+	defer logStore.Quit()
+	require.Equal(t, 0, client.subcount)
+	require.False(t, logStore.Subscribed())
+	require.NoError(t, logStore.Subscribe())
+	require.True(t, logStore.Subscribed())
+	require.Equal(t, 1, client.subcount)
 }
 
-// TestLogStore_Logs tests log methods on a [logStore].
-func TestLogStore_Logs(t *testing.T) {
-	query := ethereum.FilterQuery{}
-	client := newMockLogStoreClient()
-	log := testlog.Logger(t, log.LvlError)
-	logStore := NewLogStore(query, client, log)
+func TestLogStore_Subscribe_ReceivesLogs(t *testing.T) {
+	logStore, client := newLogStore(t)
+	defer logStore.Quit()
+	require.NoError(t, logStore.Subscribe())
 
-	require.Equal(t, []types.Log{}, logStore.GetLogs())
-	require.Equal(t, []types.Log(nil), logStore.GetLogByBlockHash(common.HexToHash("0x1")))
-
-	// Insert logs.
-	logStore.insertLog(types.Log{
+	mockLog := types.Log{
 		BlockHash: common.HexToHash("0x1"),
-	})
-	logStore.insertLog(types.Log{
-		BlockHash: common.HexToHash("0x1"),
-	})
-
-	// Validate log insertion.
-	require.Equal(t, 2, len(logStore.GetLogs()))
-	require.Equal(t, 2, len(logStore.GetLogByBlockHash(common.HexToHash("0x1"))))
-}
-
-// TestLogStore_DispatchLogs tests the [DispatchLogs] method on the [logStore].
-func TestLogStore_DispatchLogs(t *testing.T) {
-	query := ethereum.FilterQuery{}
-	client := newMockLogStoreClient()
-	log := testlog.Logger(t, log.LvlError)
-	logStore := NewLogStore(query, client, log)
-
-	// Subscribe to the logStore.
-	err := logStore.Subscribe()
-	require.NoError(t, err)
-
-	// Dispatch logs on the logStore.
-	go logStore.dispatchLogs()
-
-	// Send logs through the subscription.
-	blockHash := common.HexToHash("0x1")
-	logStore.subscription.logs <- types.Log{
-		BlockHash: blockHash,
 	}
+	client.logs <- mockLog
 
-	// Wait for the logs to be dispatched.
-	timeout, tCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	timeout, tCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer tCancel()
-	err = e2eutils.WaitFor(timeout, 500*time.Millisecond, func() (bool, error) {
-		result := logStore.GetLogByBlockHash(blockHash)
-		return result[0].BlockHash == blockHash, nil
+	err := e2eutils.WaitFor(timeout, 500*time.Millisecond, func() (bool, error) {
+		result := logStore.GetLogByBlockHash(mockLog.BlockHash)
+		return result[0].BlockHash == mockLog.BlockHash, nil
 	})
 	require.NoError(t, err)
-
-	// Quit the subscription.
-	logStore.Quit()
 }
 
-// TestLogStore_DispatchLogs_SubscriptionError tests the [DispatchLogs] method on the [logStore]
-// when the subscription returns an error.
-func TestLogStore_DispatchLogs_SubscriptionError(t *testing.T) {
-	query := ethereum.FilterQuery{}
-	client := newMockLogStoreClient()
-	log := testlog.Logger(t, log.LvlError)
-	logStore := NewLogStore(query, client, log)
+func TestLogStore_Subscribe_SubscriptionErrors(t *testing.T) {
+	logStore, client := newLogStore(t)
+	defer logStore.Quit()
+	require.NoError(t, logStore.Subscribe())
 
-	// Subscribe to the logStore.
-	err := logStore.Subscribe()
+	client.sub.errorChan <- ErrTestError
+
+	timeout, tCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer tCancel()
+	err := e2eutils.WaitFor(timeout, 500*time.Millisecond, func() (bool, error) {
+		subcount := client.subcount == 2
+		started := logStore.subscription.Started()
+		return subcount && started, nil
+	})
 	require.NoError(t, err)
-
-	// Dispatch logs on the logStore.
-	go logStore.dispatchLogs()
-
-	// Send an error through the subscription.
-	client.sub.errorChan <- errors.New("test error")
-	time.Sleep(1 * time.Second)
-
-	// Check that the subscription was restarted.
-	require.True(t, logStore.subscription.Started())
-
-	// Quit the subscription.
-	logStore.Quit()
 }
 
-// TestLogStore_Start tests the [Start] method on the [logStore].
-func TestLogStore_Start(t *testing.T) {
-	query := ethereum.FilterQuery{}
-	client := newMockLogStoreClient()
-	log := testlog.Logger(t, log.LvlError)
-	logStore := NewLogStore(query, client, log)
+func TestLogStore_Subscribe_NoClient_Panics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("expected nil client to panic")
+		}
+	}()
+	logStore, _ := newErrorLogStore(t, nil)
+	require.NoError(t, logStore.Subscribe())
+}
 
-	// Subscribe to the logStore.
-	err := logStore.Subscribe()
-	require.NoError(t, err)
+func TestLogStore_Subscribe_ErrorSubscribing(t *testing.T) {
+	logStore, _ := newErrorLogStore(t, &errLogStoreClient{})
+	require.False(t, logStore.Subscribed())
+	require.EqualError(t, logStore.Subscribe(), ErrTestError.Error())
+}
 
-	// Start the logStore.
-	logStore.Start()
-	time.Sleep(1 * time.Second)
+func TestLogStore_Quit_ResetsSubscription(t *testing.T) {
+	logStore, _ := newLogStore(t)
+	require.False(t, logStore.Subscribed())
+	require.NoError(t, logStore.Subscribe())
+	require.True(t, logStore.Subscribed())
+	logStore.Quit()
+	require.False(t, logStore.Subscribed())
+}
 
-	// Quit the subscription.
+func TestLogStore_Quit_NoSubscription_Panics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("expected no subscription to panic")
+		}
+	}()
+	logStore, _ := newErrorLogStore(t, nil)
 	logStore.Quit()
 }

@@ -2,15 +2,10 @@ package challenger
 
 import (
 	"context"
-	"errors"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-)
-
-var (
-	ErrMissingClient = errors.New("missing client")
 )
 
 // SubscriptionId is a unique subscription ID.
@@ -28,6 +23,8 @@ type Subscription struct {
 	id SubscriptionId
 	// The current subscription
 	sub ethereum.Subscription
+	// If the subscription is started
+	started bool
 	// The query used to create the subscription
 	query ethereum.FilterQuery
 	// The log channel
@@ -43,13 +40,14 @@ type Subscription struct {
 // NewSubscription creates a new subscription.
 func NewSubscription(query ethereum.FilterQuery, client ethereum.LogFilterer, log log.Logger) *Subscription {
 	return &Subscription{
-		id:     SubscriptionId(0),
-		sub:    nil,
-		query:  query,
-		logs:   make(chan types.Log),
-		quit:   make(chan struct{}),
-		client: client,
-		log:    log,
+		id:      SubscriptionId(0),
+		sub:     nil,
+		started: false,
+		query:   query,
+		logs:    make(chan types.Log),
+		quit:    make(chan struct{}),
+		client:  client,
+		log:     log,
 	}
 }
 
@@ -60,22 +58,19 @@ func (s *Subscription) ID() SubscriptionId {
 
 // Started returns true if the subscription has started.
 func (s *Subscription) Started() bool {
-	return s.sub != nil
+	return s.started
 }
 
 // Subscribe constructs the subscription.
 func (s *Subscription) Subscribe() error {
 	s.log.Info("Subscribing to", "query", s.query.Topics, "id", s.id)
-	if s.client == nil {
-		s.log.Error("missing client")
-		return ErrMissingClient
-	}
 	sub, err := s.client.SubscribeFilterLogs(context.Background(), s.query, s.logs)
 	if err != nil {
 		s.log.Error("failed to subscribe to logs", "err", err)
 		return err
 	}
 	s.sub = sub
+	s.started = true
 	return nil
 }
 
@@ -84,5 +79,6 @@ func (s *Subscription) Quit() {
 	s.log.Info("Quitting subscription", "id", s.id)
 	s.sub.Unsubscribe()
 	s.quit <- struct{}{}
+	s.started = false
 	s.log.Info("Quit subscription", "id", s.id)
 }

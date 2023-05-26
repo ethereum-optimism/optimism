@@ -23,7 +23,7 @@ type logStore struct {
 	logList []types.Log
 	logMap  map[common.Hash][]types.Log
 
-	// Log subscriptions
+	// Log subscription
 	subscription *Subscription
 
 	// Client to query for logs
@@ -46,32 +46,50 @@ func NewLogStore(query ethereum.FilterQuery, client ethereum.LogFilterer, log lo
 	}
 }
 
+// Subscribed returns true if the subscription has started.
+func (l *logStore) Subscribed() bool {
+	return l.subscription.Started()
+}
+
+// Query returns the log filter query.
+func (l *logStore) Query() ethereum.FilterQuery {
+	return l.query
+}
+
+// Client returns the log filter client.
+func (l *logStore) Client() ethereum.LogFilterer {
+	return l.client
+}
+
+// GetLogs returns all logs in the log store.
+func (l *logStore) GetLogs() []types.Log {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.logList
+}
+
+// GetLogByBlockHash returns all logs in the log store for a given block hash.
+func (l *logStore) GetLogByBlockHash(blockHash common.Hash) []types.Log {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.logMap[blockHash]
+}
+
 // Subscribe starts the subscription.
 // This function spawns a new goroutine.
 func (l *logStore) Subscribe() error {
-	if l.subscription == nil {
-		l.log.Error("subscription zeroed out")
-		return nil
-	}
 	err := l.subscription.Subscribe()
 	if err != nil {
 		l.log.Error("failed to subscribe", "err", err)
 		return err
 	}
-	return nil
-}
-
-// Start starts the log store.
-// This function spawns a new goroutine.
-func (l *logStore) Start() {
 	go l.dispatchLogs()
+	return nil
 }
 
 // Quit stops all log store asynchronous tasks.
 func (l *logStore) Quit() {
-	if l.subscription != nil {
-		l.subscription.Quit()
-	}
+	l.subscription.Quit()
 }
 
 // buildBackoffStrategy builds a [backoff.Strategy].
@@ -83,9 +101,10 @@ func (l *logStore) buildBackoffStrategy() backoff.Strategy {
 	}
 }
 
-// resubscribe resubscribes to the log store subscription with a backoff.
+// resubscribe attempts to re-establish the log store internal
+// subscription with a backoff strategy.
 func (l *logStore) resubscribe() error {
-	l.log.Info("resubscribing to subscription", "id", l.subscription.ID())
+	l.log.Info("resubscribing")
 	ctx := context.Background()
 	backoffStrategy := l.buildBackoffStrategy()
 	return backoff.DoCtx(ctx, 10, backoffStrategy, func() error {
@@ -107,20 +126,6 @@ func (l *logStore) insertLog(log types.Log) {
 	l.logList = append(l.logList, log)
 	l.logMap[log.BlockHash] = append(l.logMap[log.BlockHash], log)
 	l.mu.Unlock()
-}
-
-// GetLogs returns all logs in the log store.
-func (l *logStore) GetLogs() []types.Log {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.logList
-}
-
-// GetLogByBlockHash returns all logs in the log store for a given block hash.
-func (l *logStore) GetLogByBlockHash(blockHash common.Hash) []types.Log {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.logMap[blockHash]
 }
 
 // dispatchLogs dispatches logs to the log store.

@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockLogFilterClient implements the [ethereum.LogFilter] interface for testing.
 type mockLogFilterClient struct{}
 
 func (m mockLogFilterClient) FilterLogs(context.Context, ethereum.FilterQuery) ([]types.Log, error) {
@@ -26,7 +25,12 @@ func (m mockLogFilterClient) SubscribeFilterLogs(context.Context, ethereum.Filte
 	return nil, nil
 }
 
-// FuzzSubscriptionId_Increment tests the Increment method on a [SubscriptionId].
+func newSubscription(t *testing.T, client *mockLogFilterClient) (*Subscription, *mockLogFilterClient) {
+	query := ethereum.FilterQuery{}
+	log := testlog.Logger(t, log.LvlError)
+	return NewSubscription(query, client, log), client
+}
+
 func FuzzSubscriptionId_Increment(f *testing.F) {
 	maxUint64 := uint64(math.MaxUint64)
 	f.Fuzz(func(t *testing.T, id uint64) {
@@ -39,31 +43,20 @@ func FuzzSubscriptionId_Increment(f *testing.F) {
 	})
 }
 
-// TestSubscription_Subscribe_MissingClient tests the Subscribe
-// method on a [Subscription] fails when the client is missing.
-func TestSubscription_Subscribe_MissingClient(t *testing.T) {
-	query := ethereum.FilterQuery{}
-	log := testlog.Logger(t, log.LvlError)
-	subscription := Subscription{
-		query: query,
-		log:   log,
-	}
-	err := subscription.Subscribe()
-	require.EqualError(t, err, ErrMissingClient.Error())
+func TestSubscription_Subscribe_NilClient_Panics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("expected nil client to panic")
+		}
+	}()
+	subscription, _ := newSubscription(t, nil)
+	require.NoError(t, subscription.Subscribe())
 }
 
-// TestSubscription_Subscribe tests the Subscribe method on a [Subscription].
 func TestSubscription_Subscribe(t *testing.T) {
-	query := ethereum.FilterQuery{}
-	log := testlog.Logger(t, log.LvlError)
-	subscription := Subscription{
-		query:  query,
-		client: mockLogFilterClient{},
-		log:    log,
-	}
-	require.Nil(t, subscription.logs)
-	err := subscription.Subscribe()
-	require.NoError(t, err)
+	subscription, _ := newSubscription(t, &mockLogFilterClient{})
+	require.NoError(t, subscription.Subscribe())
+	require.True(t, subscription.Started())
 }
 
 var ErrSubscriptionFailed = errors.New("failed to subscribe to logs")
@@ -78,10 +71,7 @@ func (m errLogFilterClient) SubscribeFilterLogs(context.Context, ethereum.Filter
 	return nil, ErrSubscriptionFailed
 }
 
-// TestSubscription_Subscribe_Errors tests the Subscribe
-// method on a [Subscription] errors if the LogFilter client
-// returns an error.
-func TestSubscription_Subscribe_Errors(t *testing.T) {
+func TestSubscription_Subscribe_SubscriptionErrors(t *testing.T) {
 	query := ethereum.FilterQuery{}
 	log := testlog.Logger(t, log.LvlError)
 	subscription := Subscription{
@@ -89,6 +79,5 @@ func TestSubscription_Subscribe_Errors(t *testing.T) {
 		client: errLogFilterClient{},
 		log:    log,
 	}
-	err := subscription.Subscribe()
-	require.EqualError(t, err, ErrSubscriptionFailed.Error())
+	require.EqualError(t, subscription.Subscribe(), ErrSubscriptionFailed.Error())
 }
