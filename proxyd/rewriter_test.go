@@ -167,6 +167,21 @@ func TestRewriteRequest(t *testing.T) {
 			},
 		},
 		{
+			name: "eth_getCode not enough params, should do nothing",
+			args: args{
+				rctx: RewriteContext{latest: hexutil.Uint64(100)},
+				req:  &RPCReq{Method: "eth_getCode", Params: mustMarshalJSON([]string{})},
+				res:  nil,
+			},
+			expected: RewriteNone,
+			check: func(t *testing.T, args args) {
+				var p []string
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
+				require.Equal(t, 0, len(p))
+			},
+		},
+		{
 			name: "eth_getCode latest",
 			args: args{
 				rctx: RewriteContext{latest: hexutil.Uint64(100)},
