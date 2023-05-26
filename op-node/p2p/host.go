@@ -163,9 +163,7 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 	if err != nil {
 		return nil, fmt.Errorf("failed to open connection gater: %w", err)
 	}
-	// TODO(CLI-4015): apply connGtr enhancements
-	// connGtr = gating.AddBanExpiry(connGtr, ps, log, cl, reporter)
-	//connGtr = gating.AddScoring(connGtr, ps, 0)
+	connGtr = gating.AddBanExpiry(connGtr, ps, log, clock.SystemClock, metrics)
 	connGtr = gating.AddMetering(connGtr, metrics)
 
 	connMngr, err := DefaultConnManager(conf)
