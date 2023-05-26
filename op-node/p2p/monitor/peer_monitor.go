@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	// Time delay between checking the score of each peer to avoid
+	// Time delay between checking the score of each peer to avoid activity spikes
 	checkInterval = 1 * time.Second
+	banDuration   = 1 * time.Hour
 )
 
 //go:generate mockery --name PeerManager --output mocks/ --with-expecter=true
@@ -29,13 +30,12 @@ type PeerManager interface {
 // When it finds bad peers, it disconnects and bans them.
 // A delay is introduced between each peer being checked to avoid spikes in system load.
 type PeerMonitor struct {
-	ctx         context.Context
-	cancelFn    context.CancelFunc
-	l           log.Logger
-	clock       clock.Clock
-	manager     PeerManager
-	minScore    float64
-	banDuration time.Duration
+	ctx      context.Context
+	cancelFn context.CancelFunc
+	l        log.Logger
+	clock    clock.Clock
+	manager  PeerManager
+	minScore float64
 
 	bgTasks sync.WaitGroup
 
@@ -44,16 +44,15 @@ type PeerMonitor struct {
 	nextPeerIdx int
 }
 
-func NewPeerMonitor(ctx context.Context, l log.Logger, clock clock.Clock, manager PeerManager, minScore float64, banDuration time.Duration) *PeerMonitor {
+func NewPeerMonitor(ctx context.Context, l log.Logger, clock clock.Clock, manager PeerManager, minScore float64) *PeerMonitor {
 	ctx, cancelFn := context.WithCancel(ctx)
 	return &PeerMonitor{
-		ctx:         ctx,
-		cancelFn:    cancelFn,
-		l:           l,
-		clock:       clock,
-		manager:     manager,
-		minScore:    minScore,
-		banDuration: banDuration,
+		ctx:      ctx,
+		cancelFn: cancelFn,
+		l:        l,
+		clock:    clock,
+		manager:  manager,
+		minScore: minScore,
 	}
 }
 func (k *PeerMonitor) Start() {
@@ -92,7 +91,7 @@ func (k *PeerMonitor) checkNextPeer() error {
 	if k.manager.IsStatic(id) {
 		return nil
 	}
-	if err := k.manager.BanPeer(id, k.clock.Now().Add(k.banDuration)); err != nil {
+	if err := k.manager.BanPeer(id, k.clock.Now().Add(banDuration)); err != nil {
 		return fmt.Errorf("banning peer %v: %w", id, err)
 	}
 
