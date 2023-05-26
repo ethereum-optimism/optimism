@@ -467,7 +467,7 @@ func RecordBackendFinalizedBlock(b *Backend, blockNumber hexutil.Uint64) {
 }
 
 func RecordBackendUnexpectedBlockTags(b *Backend, unexpected bool) {
-	backendFinalizedBlockBackend.WithLabelValues(b.Name).Set(boolToFloat64(unexpected))
+	backendUnexpectedBlockTagsBackend.WithLabelValues(b.Name).Set(boolToFloat64(unexpected))
 }
 
 func RecordConsensusBackendBanned(b *Backend, banned bool) {
