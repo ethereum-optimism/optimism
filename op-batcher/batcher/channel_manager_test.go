@@ -114,8 +114,8 @@ func TestChannelManager_Clear(t *testing.T) {
 	}
 	require.NoError(m.AddL2Block(a))
 
-	// Make sure there is a channel builder
-	require.NoError(m.ensureChannelWithRoom(l1BlockID))
+	// Make sure there is a channel
+	require.NoError(m.ensureChannelWithSpace(l1BlockID))
 	require.NotNil(m.currentChannel)
 	require.Len(m.currentChannel.confirmedTransactions, 0)
 

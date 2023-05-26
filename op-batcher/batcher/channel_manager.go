@@ -155,7 +155,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 		return txData{}, io.EOF
 	}
 
-	if err := s.ensureChannelWithRoom(l1Head); err != nil {
+	if err := s.ensureChannelWithSpace(l1Head); err != nil {
 		return txData{}, err
 	}
 
@@ -175,12 +175,15 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	return s.nextTxData(s.currentChannel)
 }
 
-func (s *channelManager) ensureChannelWithRoom(l1Head eth.BlockID) error {
+// ensureChannelWithSpace ensures currentChannel is populated with a channel that has
+// space for more data (i.e. channel.IsFull returns false). If currentChannel is nil
+// or full, a new channel is created.
+func (s *channelManager) ensureChannelWithSpace(l1Head eth.BlockID) error {
 	if s.currentChannel != nil && !s.currentChannel.IsFull() {
 		return nil
 	}
 
-	pc, err := newPendingChannel(s.log, s.metr, s.cfg)
+	pc, err := newChannel(s.log, s.metr, s.cfg)
 	if err != nil {
 		return fmt.Errorf("creating new channel: %w", err)
 	}

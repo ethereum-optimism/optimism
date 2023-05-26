@@ -11,6 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// channel is a lightweight wrapper around a channelBuilder which keeps track of pending
+// and confirmed transactions for a single channel.
 type channel struct {
 	log  log.Logger
 	metr metrics.Metricer
@@ -24,7 +26,7 @@ type channel struct {
 	confirmedTransactions map[txID]eth.BlockID
 }
 
-func newPendingChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig) (*channel, error) {
+func newChannel(log log.Logger, metr metrics.Metricer, cfg ChannelConfig) (*channel, error) {
 	cb, err := newChannelBuilder(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("creating new channel: %w", err)

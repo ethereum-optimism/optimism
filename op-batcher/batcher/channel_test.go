@@ -26,7 +26,7 @@ func TestChannelTimeout(t *testing.T) {
 	require.Nil(t, m.currentChannel)
 
 	// Set the pending channel
-	require.NoError(t, m.ensureChannelWithRoom(eth.BlockID{}))
+	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
 	channel := m.currentChannel
 	require.NotNil(t, channel)
 
@@ -71,7 +71,7 @@ func TestChannelNextTxData(t *testing.T) {
 	// Set the pending channel
 	// The nextTxData function should still return EOF
 	// since the pending channel has no frames
-	require.NoError(t, m.ensureChannelWithRoom(eth.BlockID{}))
+	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
 	channel := m.currentChannel
 	require.NotNil(t, channel)
 	returnedTxData, err = m.nextTxData(channel)
@@ -100,8 +100,8 @@ func TestChannelNextTxData(t *testing.T) {
 	require.Equal(t, expectedTxData, channel.pendingTransactions[expectedChannelID])
 }
 
-// TestChannelManagerTxConfirmed checks the [ChannelManager.TxConfirmed] function.
-func TestChannelManagerTxConfirmed(t *testing.T) {
+// TestChannelTxConfirmed checks the [ChannelManager.TxConfirmed] function.
+func TestChannelTxConfirmed(t *testing.T) {
 	// Create a channel manager
 	log := testlog.Logger(t, log.LvlCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
@@ -113,7 +113,7 @@ func TestChannelManagerTxConfirmed(t *testing.T) {
 
 	// Let's add a valid pending transaction to the channel manager
 	// So we can demonstrate that TxConfirmed's correctness
-	require.NoError(t, m.ensureChannelWithRoom(eth.BlockID{}))
+	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
 	channelID := m.currentChannel.ID()
 	frame := frameData{
 		data: []byte{},
@@ -153,15 +153,15 @@ func TestChannelManagerTxConfirmed(t *testing.T) {
 	require.Equal(t, blockID, m.currentChannel.confirmedTransactions[expectedChannelID])
 }
 
-// TestChannelManagerTxFailed checks the [ChannelManager.TxFailed] function.
-func TestChannelManagerTxFailed(t *testing.T) {
+// TestChannelTxFailed checks the [ChannelManager.TxFailed] function.
+func TestChannelTxFailed(t *testing.T) {
 	// Create a channel manager
 	log := testlog.Logger(t, log.LvlCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{})
 
 	// Let's add a valid pending transaction to the channel
 	// manager so we can demonstrate correctness
-	require.NoError(t, m.ensureChannelWithRoom(eth.BlockID{}))
+	require.NoError(t, m.ensureChannelWithSpace(eth.BlockID{}))
 	channelID := m.currentChannel.ID()
 	frame := frameData{
 		data: []byte{},
