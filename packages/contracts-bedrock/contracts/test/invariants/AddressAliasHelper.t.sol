@@ -1,8 +1,8 @@
 pragma solidity 0.8.15;
 
-import {Test} from "forge-std/Test.sol";
-import {StdInvariant} from "forge-std/StdInvariant.sol";
-import {AddressAliasHelper} from "../../vendor/AddressAliasHelper.sol";
+import { Test } from "forge-std/Test.sol";
+import { StdInvariant } from "forge-std/StdInvariant.sol";
+import { AddressAliasHelper } from "../../vendor/AddressAliasHelper.sol";
 
 contract AddressAliasHelper_Converter {
     bool public failedRoundtrip;
@@ -35,7 +35,7 @@ contract AddressAliasHelper_AddressAliasing_Invariant is StdInvariant, Test {
 
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = actor.convertRoundTrip.selector;
-        FuzzSelector memory selector = FuzzSelector({addr: address(actor), selectors: selectors});
+        FuzzSelector memory selector = FuzzSelector({ addr: address(actor), selectors: selectors });
         targetSelector(selector);
     }
 
