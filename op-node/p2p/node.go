@@ -4,7 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"strconv"
+	"time"
+
+	"github.com/libp2p/go-libp2p/core/peer"
+	manet "github.com/multiformats/go-multiaddr/net"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -29,6 +34,8 @@ type NodeP2P struct {
 	gater   gating.BlockingConnectionGater // p2p gater, to ban/unban peers with, may be nil even with p2p enabled
 	scorer  Scorer                         // writes score-updates to the peerstore and keeps metrics of score changes
 	connMgr connmgr.ConnManager            // p2p conn manager, to keep a reliable number of peers, may be nil even with p2p enabled
+	store   store.ExtendedPeerstore        // peerstore of host, with extra bindings for scoring and banning
+	log     log.Logger
 	// the below components are all optional, and may be nil. They require the host to not be nil.
 	dv5Local *enode.LocalNode // p2p discovery identity
 	dv5Udp   *discover.UDPv5  // p2p discovery service
@@ -60,6 +67,8 @@ func NewNodeP2P(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.
 
 func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.Logger, setup SetupP2P, gossipIn GossipIn, l2Chain L2Chain, runCfg GossipRuntimeConfig, metrics metrics.Metricer) error {
 	bwc := p2pmetrics.NewBandwidthCounter()
+
+	n.log = log
 
 	var err error
 	// nil if disabled.
@@ -105,6 +114,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		if !ok {
 			return fmt.Errorf("cannot init without extended peerstore: %w", err)
 		}
+		n.store = eps
 		n.scorer = NewScorer(rollupCfg, eps, metrics, setup.PeerBandScorer(), log)
 		n.host.Network().Notify(&network.NotifyBundle{
 			ConnectedF: func(_ network.Network, conn network.Conn) {
@@ -182,6 +192,36 @@ func (n *NodeP2P) ConnectionGater() gating.BlockingConnectionGater {
 
 func (n *NodeP2P) ConnectionManager() connmgr.ConnManager {
 	return n.connMgr
+}
+
+func (n *NodeP2P) BanPeer(id peer.ID, expiration time.Time) error {
+	if err := n.store.SetPeerBanExpiration(id, expiration); err != nil {
+		return fmt.Errorf("failed to set peer ban expiry: %w", err)
+	}
+	if err := n.host.Network().ClosePeer(id); err != nil {
+		return fmt.Errorf("failed to close peer connection: %w", err)
+	}
+	return nil
+}
+
+func (n *NodeP2P) BanIP(ip net.IP, expiration time.Time) error {
+	if err := n.store.SetIPBanExpiration(ip, expiration); err != nil {
+		return fmt.Errorf("failed to set IP ban expiry: %w", err)
+	}
+	// kick all peers that match this IP
+	for _, conn := range n.host.Network().Conns() {
+		addr := conn.RemoteMultiaddr()
+		remoteIP, err := manet.ToIP(addr)
+		if err != nil {
+			continue
+		}
+		if remoteIP.Equal(ip) {
+			if err := conn.Close(); err != nil {
+				n.log.Error("failed to close connection to peer with banned IP", "peer", conn.RemotePeer(), "ip", ip)
+			}
+		}
+	}
+	return nil
 }
 
 func (n *NodeP2P) Close() error {

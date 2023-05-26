@@ -110,19 +110,19 @@ func TestPrune(t *testing.T) {
 	require.True(t, hasScoreRecorded("dddd"))
 
 	elapsedTime := clock.Now().Sub(firstStore)
-	timeToFirstExpiry := expiryPeriod - elapsedTime
+	timeToFirstExpiry := book.book.recordExpiry - elapsedTime
 	// Advance time until the score for aaaa should be pruned.
 	clock.AdvanceTime(timeToFirstExpiry + 1)
-	require.NoError(t, book.prune())
+	require.NoError(t, book.book.prune())
 	// Clear the cache so reads have to come from the database
-	book.cache.Purge()
+	book.book.cache.Purge()
 	require.False(t, hasScoreRecorded("aaaa"), "should have pruned aaaa record")
 
 	// Advance time so cccc, dddd and the original bbbb entry should be pruned
 	clock.AdvanceTime(90 * time.Minute)
-	require.NoError(t, book.prune())
+	require.NoError(t, book.book.prune())
 	// Clear the cache so reads have to come from the database
-	book.cache.Purge()
+	book.book.cache.Purge()
 
 	require.False(t, hasScoreRecorded("cccc"), "should have pruned cccc record")
 	require.False(t, hasScoreRecorded("dddd"), "should have pruned cccc record")
@@ -149,10 +149,10 @@ func TestPruneMultipleBatches(t *testing.T) {
 	for i := 0; i < peerCount; i++ {
 		require.NoError(t, book.SetScore(peer.ID(strconv.Itoa(i)), &GossipScores{Total: 123.45}))
 	}
-	clock.AdvanceTime(expiryPeriod + 1)
-	require.NoError(t, book.prune())
+	clock.AdvanceTime(book.book.recordExpiry + 1)
+	require.NoError(t, book.book.prune())
 	// Clear the cache so reads have to come from the database
-	book.cache.Purge()
+	book.book.cache.Purge()
 
 	for i := 0; i < peerCount; i++ {
 		require.Falsef(t, hasScoreRecorded(peer.ID(strconv.Itoa(i))), "Should prune record peer %v", i)
