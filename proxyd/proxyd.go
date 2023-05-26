@@ -214,6 +214,17 @@ func Start(config *Config) (*Server, func(), error) {
 		rpcCache = newRPCCache(newCacheWithCompression(cache))
 	}
 
+	validators := []RPCValidator{
+		basicRPCValidator{},
+	}
+	if config.ExternalRPCValidator.Enabled {
+		validators = append(validators, newExternalRPCValidator(
+			config.ExternalRPCValidator.URL,
+			config.ExternalRPCValidator.FailOpen,
+			time.Duration(config.ExternalRPCValidator.TimeoutMs),
+		))
+	}
+
 	srv, err := NewServer(
 		backendGroups,
 		wsBackendGroup,
@@ -230,6 +241,7 @@ func Start(config *Config) (*Server, func(), error) {
 		config.Server.MaxRequestBodyLogLen,
 		config.BatchConfig.MaxSize,
 		redisClient,
+		validators,
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error creating server: %w", err)

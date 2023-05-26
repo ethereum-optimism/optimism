@@ -62,6 +62,7 @@ type Server struct {
 	rpcServer              *http.Server
 	wsServer               *http.Server
 	cache                  RPCCache
+	rpcValidators          []RPCValidator
 	srvMu                  sync.Mutex
 }
 
@@ -83,6 +84,7 @@ func NewServer(
 	maxRequestBodyLogLen int,
 	maxBatchSize int,
 	redisClient *redis.Client,
+	rpcValidators []RPCValidator,
 ) (*Server, error) {
 	if cache == nil {
 		cache = &NoopRPCCache{}
@@ -175,6 +177,7 @@ func NewServer(
 		senderLim:              senderLim,
 		limExemptOrigins:       limExemptOrigins,
 		limExemptUserAgents:    limExemptUserAgents,
+		rpcValidators:          rpcValidators,
 	}, nil
 }
 
@@ -389,9 +392,17 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 			continue
 		}
 
-		if err := ValidateRPCReq(parsedReq); err != nil {
-			RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
-			responses[i] = NewRPCErrorRes(nil, err)
+		isAllowed := true
+		for _, v := range s.rpcValidators {
+			ok, reason := v.IsAllowed(ctx, parsedReq)
+			if !ok {
+				RecordRPCError(ctx, BackendProxyd, MethodUnknown, err)
+				responses[i] = NewRPCErrorRes(nil, ErrInvalidRequest(reason))
+				isAllowed = false
+				break
+			}
+		}
+		if !isAllowed {
 			continue
 		}
 

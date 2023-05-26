@@ -116,22 +116,6 @@ func ParseRPCRes(r io.Reader) (*RPCRes, error) {
 	return res, nil
 }
 
-func ValidateRPCReq(req *RPCReq) error {
-	if req.JSONRPC != JSONRPCVersion {
-		return ErrInvalidRequest("invalid JSON-RPC version")
-	}
-
-	if req.Method == "" {
-		return ErrInvalidRequest("no method specified")
-	}
-
-	if !IsValidID(req.ID) {
-		return ErrInvalidRequest("invalid ID")
-	}
-
-	return nil
-}
-
 func NewRPCErrorRes(id json.RawMessage, err error) *RPCRes {
 	var rpcErr *RPCErr
 	if rr, ok := err.(*RPCErr); ok {
