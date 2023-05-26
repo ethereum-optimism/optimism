@@ -556,7 +556,11 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 		backends = bg.loadBalancedConsensusGroup()
 
 		// We also rewrite block tags to enforce compliance with consensus
-		rctx := RewriteContext{latest: bg.Consensus.GetConsensusBlockNumber()}
+		rctx := RewriteContext{
+			latest:    bg.Consensus.GetLatestBlockNumber(),
+			finalized: bg.Consensus.GetFinalizedBlockNumber(),
+			safe:      bg.Consensus.GetSafeBlockNumber(),
+		}
 
 		for i, req := range rpcReqs {
 			res := RPCRes{JSONRPC: JSONRPCVersion, ID: req.ID}

@@ -63,3 +63,69 @@
         "number": "0x3"
       }
     }
+- method: eth_getBlockByNumber
+  block: finalized
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_finalized",
+        "number": "0x555"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0x555
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_finalized",
+        "number": "0x555"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: safe
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_safe",
+        "number": "0x551"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0x555
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_safe",
+        "number": "0x551"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0x5
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash5",
+        "number": "0x5"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0x20
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash20",
+        "number": "0x20"
+      }
+    }

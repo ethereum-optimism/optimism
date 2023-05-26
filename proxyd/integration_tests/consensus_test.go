@@ -61,7 +61,7 @@ func TestConsensus(t *testing.T) {
 		bg.Consensus.Unban()
 
 		// unknown consensus at init
-		require.Equal(t, "0x0", bg.Consensus.GetConsensusBlockNumber().String())
+		require.Equal(t, "0x0", bg.Consensus.GetLatestBlockNumber().String())
 
 		// first poll
 		for _, be := range bg.Backends {
@@ -70,7 +70,9 @@ func TestConsensus(t *testing.T) {
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 
 		// consensus at block 0x1
-		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+		require.Equal(t, "0x1", bg.Consensus.GetLatestBlockNumber().String())
+		require.Equal(t, "0x555", bg.Consensus.GetFinalizedBlockNumber().String())
+		require.Equal(t, "0x551", bg.Consensus.GetSafeBlockNumber().String())
 	})
 
 	t.Run("prevent using a backend with low peer count", func(t *testing.T) {
@@ -108,6 +110,16 @@ func TestConsensus(t *testing.T) {
 			Block:    "latest",
 			Response: buildGetBlockResponse("0x1", "hash1"),
 		})
+		h1.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "finalized",
+			Response: buildGetBlockResponse("0x1", "hash1"),
+		})
+		h1.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "safe",
+			Response: buildGetBlockResponse("0x1", "hash1"),
+		})
 
 		h2.AddOverride(&ms.MethodTemplate{
 			Method:   "eth_getBlockByNumber",
@@ -126,7 +138,9 @@ func TestConsensus(t *testing.T) {
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 
 		// since we ignored node1, the consensus should be at 0x100
-		require.Equal(t, "0x100", bg.Consensus.GetConsensusBlockNumber().String())
+		require.Equal(t, "0x100", bg.Consensus.GetLatestBlockNumber().String())
+		require.Equal(t, "0x555", bg.Consensus.GetFinalizedBlockNumber().String())
+		require.Equal(t, "0x551", bg.Consensus.GetSafeBlockNumber().String())
 
 		consensusGroup := bg.Consensus.GetConsensusGroup()
 
@@ -166,7 +180,7 @@ func TestConsensus(t *testing.T) {
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 
 		// since we ignored node1, the consensus should be at 0x100
-		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+		require.Equal(t, "0x1", bg.Consensus.GetLatestBlockNumber().String())
 
 		consensusGroup := bg.Consensus.GetConsensusGroup()
 
@@ -201,7 +215,7 @@ func TestConsensus(t *testing.T) {
 		}
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 
-		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+		require.Equal(t, "0x1", bg.Consensus.GetLatestBlockNumber().String())
 
 		consensusGroup := bg.Consensus.GetConsensusGroup()
 
@@ -249,7 +263,7 @@ func TestConsensus(t *testing.T) {
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 
 		// all nodes start at block 0x1
-		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+		require.Equal(t, "0x1", bg.Consensus.GetLatestBlockNumber().String())
 
 		// advance latest on node2 to 0x2
 		h2.AddOverride(&ms.MethodTemplate{
@@ -265,7 +279,7 @@ func TestConsensus(t *testing.T) {
 
 		// consensus should stick to 0x1, since node1 is still lagging there
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
-		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+		require.Equal(t, "0x1", bg.Consensus.GetLatestBlockNumber().String())
 
 		// advance latest on node1 to 0x2
 		h1.AddOverride(&ms.MethodTemplate{
@@ -281,7 +295,82 @@ func TestConsensus(t *testing.T) {
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 
 		// should stick to 0x2, since now all nodes are at 0x2
-		require.Equal(t, "0x2", bg.Consensus.GetConsensusBlockNumber().String())
+		require.Equal(t, "0x2", bg.Consensus.GetLatestBlockNumber().String())
+	})
+
+	t.Run("should use lowest safe and finalized", func(t *testing.T) {
+		h1.ResetOverrides()
+		h2.ResetOverrides()
+		bg.Consensus.Unban()
+
+		for _, be := range bg.Backends {
+			bg.Consensus.UpdateBackend(ctx, be)
+		}
+		bg.Consensus.UpdateBackendGroupConsensus(ctx)
+
+		h2.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "finalized",
+			Response: buildGetBlockResponse("0x559", "hash559"),
+		})
+		h2.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "safe",
+			Response: buildGetBlockResponse("0x558", "hash558"),
+		})
+
+		// poll for group consensus
+		for _, be := range bg.Backends {
+			bg.Consensus.UpdateBackend(ctx, be)
+		}
+
+		bg.Consensus.UpdateBackendGroupConsensus(ctx)
+
+		require.Equal(t, "0x555", bg.Consensus.GetFinalizedBlockNumber().String())
+		require.Equal(t, "0x551", bg.Consensus.GetSafeBlockNumber().String())
+	})
+
+	t.Run("advance safe and finalized", func(t *testing.T) {
+		h1.ResetOverrides()
+		h2.ResetOverrides()
+		bg.Consensus.Unban()
+
+		for _, be := range bg.Backends {
+			bg.Consensus.UpdateBackend(ctx, be)
+		}
+		bg.Consensus.UpdateBackendGroupConsensus(ctx)
+
+		h1.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "finalized",
+			Response: buildGetBlockResponse("0x556", "hash556"),
+		})
+		h1.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "safe",
+			Response: buildGetBlockResponse("0x552", "hash552"),
+		})
+
+		h2.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "finalized",
+			Response: buildGetBlockResponse("0x559", "hash559"),
+		})
+		h2.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "safe",
+			Response: buildGetBlockResponse("0x558", "hash558"),
+		})
+
+		// poll for group consensus
+		for _, be := range bg.Backends {
+			bg.Consensus.UpdateBackend(ctx, be)
+		}
+
+		bg.Consensus.UpdateBackendGroupConsensus(ctx)
+
+		require.Equal(t, "0x556", bg.Consensus.GetFinalizedBlockNumber().String())
+		require.Equal(t, "0x552", bg.Consensus.GetSafeBlockNumber().String())
 	})
 
 	t.Run("broken consensus", func(t *testing.T) {
@@ -300,7 +389,7 @@ func TestConsensus(t *testing.T) {
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 
 		// all nodes start at block 0x1
-		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+		require.Equal(t, "0x1", bg.Consensus.GetLatestBlockNumber().String())
 
 		// advance latest on both nodes to 0x2
 		h1.AddOverride(&ms.MethodTemplate{
@@ -321,7 +410,7 @@ func TestConsensus(t *testing.T) {
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 
 		// at 0x2
-		require.Equal(t, "0x2", bg.Consensus.GetConsensusBlockNumber().String())
+		require.Equal(t, "0x2", bg.Consensus.GetLatestBlockNumber().String())
 
 		// make node2 diverge on hash
 		h2.AddOverride(&ms.MethodTemplate{
@@ -337,7 +426,7 @@ func TestConsensus(t *testing.T) {
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 
 		// should resolve to 0x1, since 0x2 is out of consensus at the moment
-		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+		require.Equal(t, "0x1", bg.Consensus.GetLatestBlockNumber().String())
 
 		require.True(t, listenerCalled)
 	})
@@ -353,7 +442,7 @@ func TestConsensus(t *testing.T) {
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 
 		// all nodes start at block 0x1
-		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+		require.Equal(t, "0x1", bg.Consensus.GetLatestBlockNumber().String())
 
 		// advance latest on both nodes to 0x2
 		h1.AddOverride(&ms.MethodTemplate{
@@ -374,7 +463,7 @@ func TestConsensus(t *testing.T) {
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 
 		// at 0x2
-		require.Equal(t, "0x2", bg.Consensus.GetConsensusBlockNumber().String())
+		require.Equal(t, "0x2", bg.Consensus.GetLatestBlockNumber().String())
 
 		// advance latest on both nodes to 0x3
 		h1.AddOverride(&ms.MethodTemplate{
@@ -395,7 +484,7 @@ func TestConsensus(t *testing.T) {
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 
 		// at 0x3
-		require.Equal(t, "0x3", bg.Consensus.GetConsensusBlockNumber().String())
+		require.Equal(t, "0x3", bg.Consensus.GetLatestBlockNumber().String())
 
 		// make node2 diverge on hash for blocks 0x2 and 0x3
 		h2.AddOverride(&ms.MethodTemplate{
@@ -416,7 +505,7 @@ func TestConsensus(t *testing.T) {
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 
 		// should resolve to 0x1
-		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+		require.Equal(t, "0x1", bg.Consensus.GetLatestBlockNumber().String())
 	})
 
 	t.Run("fork in advanced block", func(t *testing.T) {
@@ -430,7 +519,7 @@ func TestConsensus(t *testing.T) {
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 
 		// all nodes start at block 0x1
-		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+		require.Equal(t, "0x1", bg.Consensus.GetLatestBlockNumber().String())
 
 		// make nodes 1 and 2 advance in forks
 		h1.AddOverride(&ms.MethodTemplate{
@@ -471,7 +560,7 @@ func TestConsensus(t *testing.T) {
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
 
 		// should resolve to 0x1, the highest common ancestor
-		require.Equal(t, "0x1", bg.Consensus.GetConsensusBlockNumber().String())
+		require.Equal(t, "0x1", bg.Consensus.GetLatestBlockNumber().String())
 	})
 
 	t.Run("load balancing should hit both backends", func(t *testing.T) {
@@ -607,7 +696,7 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, totalRequests, len(node1.Requests())+len(node2.Requests()))
 	})
 
-	t.Run("rewrite request of eth_getBlockByNumber", func(t *testing.T) {
+	t.Run("rewrite request of eth_getBlockByNumber for latest", func(t *testing.T) {
 		h1.ResetOverrides()
 		h2.ResetOverrides()
 		bg.Consensus.Unban()
@@ -641,6 +730,88 @@ func TestConsensus(t *testing.T) {
 		err = json.Unmarshal(node1.Requests()[0].Body, &jsonMap)
 		require.NoError(t, err)
 		require.Equal(t, "0x2", jsonMap["params"].([]interface{})[0])
+	})
+
+	t.Run("rewrite request of eth_getBlockByNumber for finalized", func(t *testing.T) {
+		h1.ResetOverrides()
+		h2.ResetOverrides()
+		bg.Consensus.Unban()
+
+		// establish the consensus and ban node2 for now
+		h1.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "latest",
+			Response: buildGetBlockResponse("0x20", "hash20"),
+		})
+		h1.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "finalized",
+			Response: buildGetBlockResponse("0x5", "hash5"),
+		})
+		h2.AddOverride(&ms.MethodTemplate{
+			Method:   "net_peerCount",
+			Block:    "",
+			Response: buildPeerCountResponse(1),
+		})
+
+		for _, be := range bg.Backends {
+			bg.Consensus.UpdateBackend(ctx, be)
+		}
+		bg.Consensus.UpdateBackendGroupConsensus(ctx)
+
+		require.Equal(t, 1, len(bg.Consensus.GetConsensusGroup()))
+
+		node1.Reset()
+
+		_, statusCode, err := client.SendRPC("eth_getBlockByNumber", []interface{}{"finalized"})
+		require.NoError(t, err)
+		require.Equal(t, 200, statusCode)
+
+		var jsonMap map[string]interface{}
+		err = json.Unmarshal(node1.Requests()[0].Body, &jsonMap)
+		require.NoError(t, err)
+		require.Equal(t, "0x5", jsonMap["params"].([]interface{})[0])
+	})
+
+	t.Run("rewrite request of eth_getBlockByNumber for safe", func(t *testing.T) {
+		h1.ResetOverrides()
+		h2.ResetOverrides()
+		bg.Consensus.Unban()
+
+		// establish the consensus and ban node2 for now
+		h1.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "latest",
+			Response: buildGetBlockResponse("0x20", "hash20"),
+		})
+		h1.AddOverride(&ms.MethodTemplate{
+			Method:   "eth_getBlockByNumber",
+			Block:    "safe",
+			Response: buildGetBlockResponse("0x1", "hash1"),
+		})
+		h2.AddOverride(&ms.MethodTemplate{
+			Method:   "net_peerCount",
+			Block:    "",
+			Response: buildPeerCountResponse(1),
+		})
+
+		for _, be := range bg.Backends {
+			bg.Consensus.UpdateBackend(ctx, be)
+		}
+		bg.Consensus.UpdateBackendGroupConsensus(ctx)
+
+		require.Equal(t, 1, len(bg.Consensus.GetConsensusGroup()))
+
+		node1.Reset()
+
+		_, statusCode, err := client.SendRPC("eth_getBlockByNumber", []interface{}{"safe"})
+		require.NoError(t, err)
+		require.Equal(t, 200, statusCode)
+
+		var jsonMap map[string]interface{}
+		err = json.Unmarshal(node1.Requests()[0].Body, &jsonMap)
+		require.NoError(t, err)
+		require.Equal(t, "0x1", jsonMap["params"].([]interface{})[0])
 	})
 
 	t.Run("rewrite request of eth_getBlockByNumber - out of range", func(t *testing.T) {
