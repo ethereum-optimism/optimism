@@ -1,4 +1,4 @@
-# op-chain-ops
+# boba-chain-ops
 
 This package performs state regenesis. It takes the following input:
 

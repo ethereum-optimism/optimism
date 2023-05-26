@@ -117,7 +117,7 @@ func GetBobaTokenL1Address(chainId *big.Int) string {
 	}
 	// Bobabeam
 	if BobabeamChainId.Cmp(chainId) == 0 {
-		return BobaTokenGoerliL1Address
+		return ""
 	}
 	return ""
 }
