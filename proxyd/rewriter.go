@@ -85,8 +85,12 @@ func rewriteParam(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (Rewri
 		return RewriteOverrideError, err
 	}
 
-	if len(p) <= pos {
+	// we assume latest if the param is missing,
+	// and we don't rewrite if there is not enough params
+	if len(p) == pos {
 		p = append(p, "latest")
+	} else if len(p) < pos {
+		return RewriteNone, nil
 	}
 
 	val, rw, err := rewriteTag(rctx, p[pos].(string))
@@ -159,13 +163,6 @@ func rewriteTagMap(rctx RewriteContext, m map[string]interface{}, key string) (b
 }
 
 func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
-	// If a tag is the safe or finalized block number, don't rewrite it.
-	// We have a custom check here because the rpc.BlockNumberOrHash type
-	// doesn't support these custom tags yet.
-	if current == "safe" || current == "finalized" {
-		return current, false, nil
-	}
-
 	jv, err := json.Marshal(current)
 	if err != nil {
 		return "", false, err
@@ -177,10 +174,21 @@ func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
 		return "", false, err
 	}
 
-	if bnh.BlockNumber != nil && *bnh.BlockNumber == rpc.LatestBlockNumber {
+	// this is a hash, not a block
+	if bnh.BlockNumber == nil {
+		return current, false, nil
+	}
+
+	switch *bnh.BlockNumber {
+	case rpc.SafeBlockNumber,
+		rpc.FinalizedBlockNumber,
+		rpc.PendingBlockNumber,
+		rpc.EarliestBlockNumber:
+		return current, false, nil
+	case rpc.LatestBlockNumber:
 		return rctx.latest.String(), true, nil
-	} else if bnh.BlockNumber != nil {
-		if hexutil.Uint64(bnh.BlockNumber.Int64()) > rctx.latest {
+	default:
+		if bnh.BlockNumber.Int64() > int64(rctx.latest) {
 			return "", false, ErrRewriteBlockOutOfRange
 		}
 	}
