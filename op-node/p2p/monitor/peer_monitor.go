@@ -20,9 +20,8 @@ const (
 type PeerManager interface {
 	Peers() []peer.ID
 	GetPeerScore(id peer.ID) (float64, error)
-	IsProtected(peer.ID) bool
-	// TODO: Consider combining Close and Ban into a single call and have the adapter deal with the two calls
-	ClosePeer(peer.ID) error
+	IsStatic(peer.ID) bool
+	// BanPeer bans the peer until the specified time and disconnects any existing connections.
 	BanPeer(peer.ID, time.Time) error
 }
 
@@ -77,6 +76,10 @@ func (k *PeerMonitor) checkNextPeer() error {
 		k.peerList = k.manager.Peers()
 		k.nextPeerIdx = 0
 	}
+	if len(k.peerList) == 0 {
+		// No peers to check
+		return nil
+	}
 	id := k.peerList[k.nextPeerIdx]
 	k.nextPeerIdx++
 	score, err := k.manager.GetPeerScore(id)
@@ -86,11 +89,8 @@ func (k *PeerMonitor) checkNextPeer() error {
 	if score > k.minScore {
 		return nil
 	}
-	if k.manager.IsProtected(id) {
+	if k.manager.IsStatic(id) {
 		return nil
-	}
-	if err := k.manager.ClosePeer(id); err != nil {
-		return fmt.Errorf("disconnecting peer %v: %w", id, err)
 	}
 	if err := k.manager.BanPeer(id, k.clock.Now().Add(k.banDuration)); err != nil {
 		return fmt.Errorf("banning peer %v: %w", id, err)

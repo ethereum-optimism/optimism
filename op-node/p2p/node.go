@@ -126,11 +126,9 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 				n.scorer.OnDisconnect(conn.RemotePeer())
 			},
 		})
-		peerManager := monitor.NewPeerManagerAdapter(n.host.Network(), n.connMgr, eps)
 		// TODO: minScore shouldn't just be hard coded here
-		// TODO: Ban duration needs to be set sensibly and probably should be a magic number here
-		n.peerMonitor = monitor.NewPeerMonitor(resourcesCtx, log, clock.SystemClock, peerManager, -100, 1*time.Hour)
-		n.peerMonitor.Start()
+		// TODO: Ban duration needs to be set sensibly and probably shouldn't be a magic number here
+		n.peerMonitor = monitor.NewPeerMonitor(resourcesCtx, log, clock.SystemClock, n, -100, 1*time.Hour)
 		// notify of any new connections/streams/etc.
 		n.host.Network().Notify(NewNetworkNotifier(log, metrics))
 		// note: the IDDelta functionality was removed from libP2P, and no longer needs to be explicitly disabled.
@@ -158,6 +156,8 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		if metrics != nil {
 			go metrics.RecordBandwidth(resourcesCtx, bwc)
 		}
+
+		n.peerMonitor.Start()
 	}
 	return nil
 }
@@ -199,6 +199,23 @@ func (n *NodeP2P) ConnectionGater() gating.BlockingConnectionGater {
 
 func (n *NodeP2P) ConnectionManager() connmgr.ConnManager {
 	return n.connMgr
+}
+
+func (n *NodeP2P) Peers() []peer.ID {
+	return n.host.Network().Peers()
+}
+
+func (n *NodeP2P) GetPeerScore(id peer.ID) (float64, error) {
+	scores, err := n.store.GetPeerScores(id)
+	if err != nil {
+		return 0, err
+	}
+	return scores.Gossip.Total, nil
+}
+
+func (n *NodeP2P) IsStatic(id peer.ID) bool {
+	// TODO: "static" constant should be shared with host layer rather than hard-coded here
+	return n.connMgr != nil && n.connMgr.IsProtected(id, "static")
 }
 
 func (n *NodeP2P) BanPeer(id peer.ID, expiration time.Time) error {

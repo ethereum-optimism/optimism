@@ -66,48 +66,6 @@ func (_c *PeerManager_BanPeer_Call) RunAndReturn(run func(peer.ID, time.Time) er
 	return _c
 }
 
-// ClosePeer provides a mock function with given fields: _a0
-func (_m *PeerManager) ClosePeer(_a0 peer.ID) error {
-	ret := _m.Called(_a0)
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(peer.ID) error); ok {
-		r0 = rf(_a0)
-	} else {
-		r0 = ret.Error(0)
-	}
-
-	return r0
-}
-
-// PeerManager_ClosePeer_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClosePeer'
-type PeerManager_ClosePeer_Call struct {
-	*mock.Call
-}
-
-// ClosePeer is a helper method to define mock.On call
-//   - _a0 peer.ID
-func (_e *PeerManager_Expecter) ClosePeer(_a0 interface{}) *PeerManager_ClosePeer_Call {
-	return &PeerManager_ClosePeer_Call{Call: _e.mock.On("ClosePeer", _a0)}
-}
-
-func (_c *PeerManager_ClosePeer_Call) Run(run func(_a0 peer.ID)) *PeerManager_ClosePeer_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(peer.ID))
-	})
-	return _c
-}
-
-func (_c *PeerManager_ClosePeer_Call) Return(_a0 error) *PeerManager_ClosePeer_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *PeerManager_ClosePeer_Call) RunAndReturn(run func(peer.ID) error) *PeerManager_ClosePeer_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetPeerScore provides a mock function with given fields: id
 func (_m *PeerManager) GetPeerScore(id peer.ID) (float64, error) {
 	ret := _m.Called(id)
@@ -161,7 +119,7 @@ func (_c *PeerManager_GetPeerScore_Call) RunAndReturn(run func(peer.ID) (float64
 }
 
 // IsProtected provides a mock function with given fields: _a0
-func (_m *PeerManager) IsProtected(_a0 peer.ID) bool {
+func (_m *PeerManager) IsStatic(_a0 peer.ID) bool {
 	ret := _m.Called(_a0)
 
 	var r0 bool
@@ -174,7 +132,7 @@ func (_m *PeerManager) IsProtected(_a0 peer.ID) bool {
 	return r0
 }
 
-// PeerManager_IsProtected_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsProtected'
+// PeerManager_IsProtected_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsStatic'
 type PeerManager_IsProtected_Call struct {
 	*mock.Call
 }
@@ -182,7 +140,7 @@ type PeerManager_IsProtected_Call struct {
 // IsProtected is a helper method to define mock.On call
 //   - _a0 peer.ID
 func (_e *PeerManager_Expecter) IsProtected(_a0 interface{}) *PeerManager_IsProtected_Call {
-	return &PeerManager_IsProtected_Call{Call: _e.mock.On("IsProtected", _a0)}
+	return &PeerManager_IsProtected_Call{Call: _e.mock.On("IsStatic", _a0)}
 }
 
 func (_c *PeerManager_IsProtected_Call) Run(run func(_a0 peer.ID)) *PeerManager_IsProtected_Call {

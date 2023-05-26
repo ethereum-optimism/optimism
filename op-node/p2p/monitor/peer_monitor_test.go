@@ -15,27 +15,27 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const kickerBanDuration = 10 * time.Minute
+const monitorBanDuration = 10 * time.Minute
 
-func peerKickerSetup(t *testing.T) (*PeerMonitor, *clock2.DeterministicClock, *mocks.PeerManager) {
+func peerMonitorSetup(t *testing.T) (*PeerMonitor, *clock2.DeterministicClock, *mocks.PeerManager) {
 	l := testlog.Logger(t, log.LvlInfo)
 	clock := clock2.NewDeterministicClock(time.UnixMilli(10000))
 	manager := mocks.NewPeerManager(t)
-	kicker := NewPeerMonitor(context.Background(), l, clock, manager, -100, kickerBanDuration)
-	return kicker, clock, manager
+	monitor := NewPeerMonitor(context.Background(), l, clock, manager, -100, monitorBanDuration)
+	return monitor, clock, manager
 }
 
 func TestPeriodicallyCheckNextPeer(t *testing.T) {
-	kicker, clock, _ := peerKickerSetup(t)
+	monitor, clock, _ := peerMonitorSetup(t)
 	// Each time a step is performed, it calls Done on the wait group so we can wait for it to be performed
 	stepCh := make(chan struct{}, 10)
-	kicker.bgTasks.Add(1)
+	monitor.bgTasks.Add(1)
 	var actionErr error
-	go kicker.background(func() error {
+	go monitor.background(func() error {
 		stepCh <- struct{}{}
 		return actionErr
 	})
-	defer kicker.Stop()
+	defer monitor.Stop()
 	// Wait for the step ticker to be started
 	clock.WaitForNewPendingTaskWithTimeout(30 * time.Second)
 
@@ -62,13 +62,19 @@ func TestCheckNextPeer(t *testing.T) {
 		peer.ID("c"),
 	}
 
+	t.Run("No peers", func(t *testing.T) {
+		monitor, _, manager := peerMonitorSetup(t)
+		manager.EXPECT().Peers().Return(nil).Once()
+		require.NoError(t, monitor.checkNextPeer())
+	})
+
 	t.Run("Check each peer then refresh list", func(t *testing.T) {
-		kicker, _, manager := peerKickerSetup(t)
+		monitor, _, manager := peerMonitorSetup(t)
 		manager.EXPECT().Peers().Return(peerIDs).Once()
 		for _, id := range peerIDs {
 			manager.EXPECT().GetPeerScore(id).Return(1, nil).Once()
 
-			require.NoError(t, kicker.checkNextPeer())
+			require.NoError(t, monitor.checkNextPeer())
 		}
 
 		updatedPeers := []peer.ID{
@@ -81,30 +87,29 @@ func TestCheckNextPeer(t *testing.T) {
 		for _, id := range updatedPeers {
 			manager.EXPECT().GetPeerScore(id).Return(1, nil).Once()
 
-			require.NoError(t, kicker.checkNextPeer())
+			require.NoError(t, monitor.checkNextPeer())
 		}
 	})
 
 	t.Run("Close and ban peer when below min score", func(t *testing.T) {
-		kicker, clock, manager := peerKickerSetup(t)
+		monitor, clock, manager := peerMonitorSetup(t)
 		id := peerIDs[0]
 		manager.EXPECT().Peers().Return(peerIDs).Once()
 		manager.EXPECT().GetPeerScore(id).Return(-101, nil).Once()
 		manager.EXPECT().IsProtected(id).Return(false).Once()
-		manager.EXPECT().ClosePeer(id).Return(nil).Once()
-		manager.EXPECT().BanPeer(id, clock.Now().Add(kickerBanDuration)).Return(nil).Once()
+		manager.EXPECT().BanPeer(id, clock.Now().Add(monitorBanDuration)).Return(nil).Once()
 
-		require.NoError(t, kicker.checkNextPeer())
+		require.NoError(t, monitor.checkNextPeer())
 	})
 
 	t.Run("Do not close protected peer when below min score", func(t *testing.T) {
-		kicker, _, manager := peerKickerSetup(t)
+		monitor, _, manager := peerMonitorSetup(t)
 		id := peerIDs[0]
 		manager.EXPECT().Peers().Return(peerIDs).Once()
 		manager.EXPECT().GetPeerScore(id).Return(-101, nil).Once()
 		manager.EXPECT().IsProtected(id).Return(true)
 
-		require.NoError(t, kicker.checkNextPeer())
+		require.NoError(t, monitor.checkNextPeer())
 	})
 }
 
