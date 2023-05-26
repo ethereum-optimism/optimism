@@ -1232,6 +1232,14 @@ func TestFees(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, l1Fee, gpoL1Fee, "l1 fee mismatch")
 
+	require.Equal(t, receipt.L1Fee, l1Fee, "l1 fee in receipt is correct")
+	require.Equal(t,
+		new(big.Float).Mul(
+			new(big.Float).SetInt(l1Header.BaseFee),
+			new(big.Float).Mul(new(big.Float).SetInt(receipt.L1GasUsed), receipt.FeeScalar),
+		),
+		new(big.Float).SetInt(receipt.L1Fee), "fee field in receipt matches gas used times scalar times basefee")
+
 	// Calculate total fee
 	baseFeeRecipientDiff.Add(baseFeeRecipientDiff, coinbaseDiff)
 	totalFee := new(big.Int).Add(baseFeeRecipientDiff, l1FeeRecipientDiff)
