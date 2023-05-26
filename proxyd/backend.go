@@ -374,7 +374,6 @@ func (b *Backend) ForwardRPC(ctx context.Context, res *RPCRes, id string, method
 func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, error) {
 	// we are concerned about network error rates, so we record 1 request independently of how many are in the batch
 	b.networkRequestsSlidingWindow.Incr()
-	RecordBackendNetworkRequestCountSlidingWindow(b, b.networkRequestsSlidingWindow.Count())
 
 	isSingleElementBatch := len(rpcReqs) == 1
 
@@ -391,7 +390,7 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", b.rpcURL, bytes.NewReader(body))
 	if err != nil {
 		b.networkErrorsSlidingWindow.Incr()
-		RecordBackendNetworkErrorCountSlidingWindow(b, b.networkErrorsSlidingWindow.Count())
+		RecordBackendNetworkErrorRateSlidingWindow(b, b.ErrorRate())
 		return nil, wrapErr(err, "error creating backend request")
 	}
 
@@ -413,7 +412,7 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	httpRes, err := b.client.DoLimited(httpReq)
 	if err != nil {
 		b.networkErrorsSlidingWindow.Incr()
-		RecordBackendNetworkErrorCountSlidingWindow(b, b.networkErrorsSlidingWindow.Count())
+		RecordBackendNetworkErrorRateSlidingWindow(b, b.ErrorRate())
 		return nil, wrapErr(err, "error in backend request")
 	}
 
@@ -432,7 +431,7 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	// Alchemy returns a 400 on bad JSONs, so handle that case
 	if httpRes.StatusCode != 200 && httpRes.StatusCode != 400 {
 		b.networkErrorsSlidingWindow.Incr()
-		RecordBackendNetworkErrorCountSlidingWindow(b, b.networkErrorsSlidingWindow.Count())
+		RecordBackendNetworkErrorRateSlidingWindow(b, b.ErrorRate())
 		return nil, fmt.Errorf("response code %d", httpRes.StatusCode)
 	}
 
@@ -440,7 +439,7 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	resB, err := io.ReadAll(io.LimitReader(httpRes.Body, b.maxResponseSize))
 	if err != nil {
 		b.networkErrorsSlidingWindow.Incr()
-		RecordBackendNetworkErrorCountSlidingWindow(b, b.networkErrorsSlidingWindow.Count())
+		RecordBackendNetworkErrorRateSlidingWindow(b, b.ErrorRate())
 		return nil, wrapErr(err, "error reading response body")
 	}
 
@@ -458,18 +457,18 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 			// Infura may return a single JSON-RPC response if, for example, the batch contains a request for an unsupported method
 			if responseIsNotBatched(resB) {
 				b.networkErrorsSlidingWindow.Incr()
-				RecordBackendNetworkErrorCountSlidingWindow(b, b.networkErrorsSlidingWindow.Count())
+				RecordBackendNetworkErrorRateSlidingWindow(b, b.ErrorRate())
 				return nil, ErrBackendUnexpectedJSONRPC
 			}
 			b.networkErrorsSlidingWindow.Incr()
-			RecordBackendNetworkErrorCountSlidingWindow(b, b.networkErrorsSlidingWindow.Count())
+			RecordBackendNetworkErrorRateSlidingWindow(b, b.ErrorRate())
 			return nil, ErrBackendBadResponse
 		}
 	}
 
 	if len(rpcReqs) != len(res) {
 		b.networkErrorsSlidingWindow.Incr()
-		RecordBackendNetworkErrorCountSlidingWindow(b, b.networkErrorsSlidingWindow.Count())
+		RecordBackendNetworkErrorRateSlidingWindow(b, b.ErrorRate())
 		return nil, ErrBackendUnexpectedJSONRPC
 	}
 
@@ -483,6 +482,7 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	duration := time.Since(start)
 	b.latencySlidingWindow.Add(float64(duration))
 	RecordBackendNetworkLatencyAverageSlidingWindow(b, time.Duration(b.latencySlidingWindow.Avg()))
+	RecordBackendNetworkErrorRateSlidingWindow(b, b.ErrorRate())
 
 	sortBatchRPCResponse(rpcReqs, res)
 	return res, nil
@@ -490,11 +490,7 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 
 // IsHealthy checks if the backend is able to serve traffic, based on dynamic parameters
 func (b *Backend) IsHealthy() bool {
-	errorRate := float64(0)
-	// avoid division-by-zero when the window is empty
-	if b.networkRequestsSlidingWindow.Sum() >= 10 {
-		errorRate = b.networkErrorsSlidingWindow.Sum() / b.networkRequestsSlidingWindow.Sum()
-	}
+	errorRate := b.ErrorRate()
 	avgLatency := time.Duration(b.latencySlidingWindow.Avg())
 	if errorRate >= b.maxErrorRateThreshold {
 		return false
@@ -503,6 +499,16 @@ func (b *Backend) IsHealthy() bool {
 		return false
 	}
 	return true
+}
+
+// ErrorRate returns the instant error rate of the backend
+func (b *Backend) ErrorRate() (errorRate float64) {
+	// we only really start counting the error rate after a minimum of 10 requests
+	// this is to avoid false positives when the backend is just starting up
+	if b.networkRequestsSlidingWindow.Sum() >= 10 {
+		errorRate = b.networkErrorsSlidingWindow.Sum() / b.networkRequestsSlidingWindow.Sum()
+	}
+	return errorRate
 }
 
 // IsDegraded checks if the backend is serving traffic in a degraded state (i.e. used as a last resource)

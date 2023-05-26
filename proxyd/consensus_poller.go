@@ -275,23 +275,42 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 		log.Warn("error updating backend", "name", be.Name, "err", err)
 	}
 
-	finalizedBlockNumber, _, err := cp.fetchBlock(ctx, be, "finalized")
-	if err != nil {
-		log.Warn("error updating backend", "name", be.Name, "err", err)
-	}
-
 	safeBlockNumber, _, err := cp.fetchBlock(ctx, be, "safe")
 	if err != nil {
 		log.Warn("error updating backend", "name", be.Name, "err", err)
 	}
 
+	finalizedBlockNumber, _, err := cp.fetchBlock(ctx, be, "finalized")
+	if err != nil {
+		log.Warn("error updating backend", "name", be.Name, "err", err)
+	}
+
+	_, _, _, _, oldFinalized, oldSafe, _, _ := cp.getBackendState(be)
+	expectedBlockTags := cp.checkExpectedBlockTags(finalizedBlockNumber, oldFinalized, safeBlockNumber, oldSafe, latestBlockNumber)
+
 	changed, updateDelay := cp.setBackendState(be, peerCount, inSync,
 		latestBlockNumber, latestBlockHash,
 		finalizedBlockNumber, safeBlockNumber)
 
+	RecordBackendLatestBlock(be, latestBlockNumber)
+	RecordBackendSafeBlock(be, safeBlockNumber)
+	RecordBackendFinalizedBlock(be, finalizedBlockNumber)
+	RecordBackendUnexpectedBlockTags(be, !expectedBlockTags)
+	RecordConsensusBackendUpdateDelay(be, updateDelay)
+
+	if !expectedBlockTags {
+		log.Warn("backend banned - unexpected block tags",
+			"backend", be.Name,
+			"oldFinalized", oldFinalized,
+			"finalizedBlockNumber", finalizedBlockNumber,
+			"oldSafe", oldSafe,
+			"safeBlockNumber", safeBlockNumber,
+			"latestBlockNumber", latestBlockNumber,
+		)
+		cp.Ban(be)
+	}
+
 	if changed {
-		RecordBackendLatestBlock(be, latestBlockNumber)
-		RecordConsensusBackendUpdateDelay(be, updateDelay)
 		log.Debug("backend state updated",
 			"name", be.Name,
 			"peerCount", peerCount,
@@ -302,6 +321,19 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 			"safeBlockNumber", safeBlockNumber,
 			"updateDelay", updateDelay)
 	}
+}
+
+// checkExpectedBlockTags for unexpected conditions on block tags
+// - finalized block number should never decrease
+// - safe block number should never decrease
+// - finalized block should be < safe block < latest block
+func (cp *ConsensusPoller) checkExpectedBlockTags(currentFinalized hexutil.Uint64, oldFinalized hexutil.Uint64,
+	currentSafe hexutil.Uint64, oldSafe hexutil.Uint64,
+	currentLatest hexutil.Uint64) bool {
+	return currentFinalized >= oldFinalized &&
+		currentSafe >= oldSafe &&
+		currentFinalized <= currentSafe &&
+		currentSafe <= currentLatest
 }
 
 // UpdateBackendGroupConsensus resolves the current group consensus based on the state of the backends
@@ -320,6 +352,9 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	for _, be := range cp.backendGroup.Backends {
 		peerCount, inSync, backendLatestBlockNumber, _, _, _, lastUpdate, _ := cp.getBackendState(be)
 
+		if cp.IsBanned(be) {
+			continue
+		}
 		if !be.skipPeerCountCheck && peerCount < cp.minPeerCount {
 			continue
 		}
@@ -339,6 +374,9 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	for _, be := range cp.backendGroup.Backends {
 		peerCount, inSync, backendLatestBlockNumber, backendLatestBlockHash, backendFinalizedBlockNumber, backendSafeBlockNumber, lastUpdate, _ := cp.getBackendState(be)
 
+		if cp.IsBanned(be) {
+			continue
+		}
 		if !be.skipPeerCountCheck && peerCount < cp.minPeerCount {
 			continue
 		}
@@ -451,13 +489,17 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	}
 
 	cp.tracker.SetLatestBlockNumber(proposedBlock)
-	cp.tracker.SetFinalizedBlockNumber(lowestFinalizedBlock)
 	cp.tracker.SetSafeBlockNumber(lowestSafeBlock)
+	cp.tracker.SetFinalizedBlockNumber(lowestFinalizedBlock)
+
 	cp.consensusGroupMux.Lock()
 	cp.consensusGroup = consensusBackends
 	cp.consensusGroupMux.Unlock()
 
 	RecordGroupConsensusLatestBlock(cp.backendGroup, proposedBlock)
+	RecordGroupConsensusSafeBlock(cp.backendGroup, lowestSafeBlock)
+	RecordGroupConsensusFinalizedBlock(cp.backendGroup, lowestFinalizedBlock)
+
 	RecordGroupConsensusCount(cp.backendGroup, len(consensusBackends))
 	RecordGroupConsensusFilteredCount(cp.backendGroup, len(filteredBackendsNames))
 	RecordGroupTotalCount(cp.backendGroup, len(cp.backendGroup.Backends))
@@ -481,13 +523,10 @@ func (cp *ConsensusPoller) Ban(be *Backend) {
 	bs.bannedUntil = time.Now().Add(cp.banPeriod)
 }
 
-// Unban remove any bans from the backends
-func (cp *ConsensusPoller) Unban() {
+// Reset remove any bans from the backends and reset their states
+func (cp *ConsensusPoller) Reset() {
 	for _, be := range cp.backendGroup.Backends {
-		bs := cp.backendState[be]
-		bs.backendStateMux.Lock()
-		bs.bannedUntil = time.Now().Add(-10 * time.Hour)
-		bs.backendStateMux.Unlock()
+		cp.backendState[be] = &backendState{}
 	}
 }
 

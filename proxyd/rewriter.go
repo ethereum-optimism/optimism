@@ -10,8 +10,8 @@ import (
 
 type RewriteContext struct {
 	latest    hexutil.Uint64
-	finalized hexutil.Uint64
 	safe      hexutil.Uint64
+	finalized hexutil.Uint64
 }
 
 type RewriteResult uint8
