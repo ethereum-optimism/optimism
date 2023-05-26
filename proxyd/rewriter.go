@@ -85,8 +85,12 @@ func rewriteParam(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (Rewri
 		return RewriteOverrideError, err
 	}
 
-	if len(p) <= pos {
+	// we assume latest if the param is missing,
+	// and we don't rewrite if there is not enough params
+	if len(p) == pos {
 		p = append(p, "latest")
+	} else if len(p) < pos {
+		return RewriteNone, nil
 	}
 
 	val, rw, err := rewriteTag(rctx, p[pos].(string))
@@ -170,6 +174,7 @@ func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
 		return "", false, err
 	}
 
+	// this is a hash, not a block
 	if bnh.BlockNumber == nil {
 		return current, false, nil
 	}
@@ -183,7 +188,7 @@ func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
 	case rpc.LatestBlockNumber:
 		return rctx.latest.String(), true, nil
 	default:
-		if hexutil.Uint64(bnh.BlockNumber.Int64()) > rctx.latest {
+		if bnh.BlockNumber.Int64() > int64(rctx.latest) {
 			return "", false, ErrRewriteBlockOutOfRange
 		}
 	}
