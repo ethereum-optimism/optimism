@@ -49,7 +49,8 @@
     "echidna:encoding": "echidna-test --contract EchidnaFuzzEncoding --config ./echidna.yaml .",
     "echidna:portal": "echidna-test --contract EchidnaFuzzOptimismPortal --config ./echidna.yaml .",
     "echidna:hashing": "echidna-test --contract EchidnaFuzzHashing --config ./echidna.yaml .",
-    "echidna:metering": "echidna-test --contract EchidnaFuzzResourceMetering --config ./echidna.yaml ."
+    "echidna:metering": "echidna-test --contract EchidnaFuzzResourceMetering --config ./echidna.yaml .",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.12.0",

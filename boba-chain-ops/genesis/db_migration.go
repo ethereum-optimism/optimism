@@ -69,6 +69,13 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 	// At this point we've fully verified the witness data for the migration, so we can begin the
 	// actual migration process.
 
+	// We need to wipe the legacy contracts from the genesis, because the legacy contracts are the
+	// legacy implementation of the predeployed contracts. We want to replace the legacy contracts
+	// with the new predeployed contracts, so we need to wipe the legacy contracts first.
+	if err := WipeBobaLegacyProxyImplementation(genesis); err != nil {
+		return fmt.Errorf("cannot wipe legacy predeploy: %w", err)
+	}
+
 	// We need to wipe the storage of every predeployed contract EXCEPT for the GovernanceToken,
 	// WETH9, the DeployerWhitelist, the LegacyMessagePasser, and LegacyERC20ETH. We have verified
 	// that none of the legacy storage (other than the aforementioned contracts) is accessible and

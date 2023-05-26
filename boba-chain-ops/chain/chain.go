@@ -18,6 +18,8 @@ var (
 	BobaGoerliGenesisRoot = "0x36c808dc3bb586c14bebde3ca630a4d49a1fdad0b01d7e58f96f2fcd1aa0003d"
 	// Boba Goerli genesis block hash
 	BobaGoerliGenesisBlockHash = "0xde36bac664c1215f9a7d87cddd3745594b351d3464e8a624e322eddd59ccacf3"
+	// Goerli L1 BOBA Address
+	BobaTokenGoerliL1Address = "0xeCCD355862591CBB4bB7E7dD55072070ee3d0fC1"
 
 	// Bobabeam
 	BobabeamChainId = big.NewInt(1294)
@@ -104,6 +106,18 @@ func GetBobaGenesisHash(chainId *big.Int) string {
 	// Bobabeam
 	if BobabeamChainId.Cmp(chainId) == 0 {
 		return BobabeamGenesisBlockHash
+	}
+	return ""
+}
+
+func GetBobaTokenL1Address(chainId *big.Int) string {
+	// Boba Goerli L1
+	if BobaGoerliChainId.Cmp(chainId) == 0 {
+		return BobaTokenGoerliL1Address
+	}
+	// Bobabeam
+	if BobabeamChainId.Cmp(chainId) == 0 {
+		return BobaTokenGoerliL1Address
 	}
 	return ""
 }

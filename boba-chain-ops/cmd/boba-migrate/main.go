@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -170,6 +171,16 @@ func main() {
 			}
 			genesisBlock.Alloc = *genesisAlloc
 
+			// deep copy genesis for later checking
+			var genesisBlockOrigin types.Genesis
+			genesisByte, err := json.Marshal(genesisBlock)
+			if err != nil {
+				return err
+			}
+			if err := json.Unmarshal(genesisByte, &genesisBlockOrigin); err != nil {
+				return err
+			}
+
 			// TODO: use hardhat to get the deployment addresses
 			// network := ctx.String("network")
 			// deployments := strings.Split(ctx.String("hardhat-deployments"), ",")
@@ -267,7 +278,7 @@ func main() {
 
 			if err := genesis.PostCheckMigratedDB(
 				postChaindb,
-				genesisBlock,
+				&genesisBlockOrigin,
 				migrationData,
 				&config.L1CrossDomainMessengerProxy,
 				config.L1ChainID,

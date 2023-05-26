@@ -19,7 +19,6 @@ func GetAccount(tx kv.Tx, addr common.Address) ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to read storage from database: %w", err)
 		}
-		// Storage is 20 bytes account address + 8 byte incarnation + 32 byte storage key
 		if len(k) == 20 && common.BytesToAddress(k[:20]) == addr {
 			value = v
 			break

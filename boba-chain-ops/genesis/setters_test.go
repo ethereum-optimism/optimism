@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/ether"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/immutables"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/state"
 	"github.com/ledgerwatch/erigon-lib/chain"
@@ -30,7 +31,9 @@ func TestWipePredeployStorage(t *testing.T) {
 		g.Alloc[a] = types.GenesisAccount{
 			Code: code,
 			Storage: map[common.Hash]common.Hash{
-				storeVal: storeVal,
+				storeVal:                                storeVal,
+				ether.BobaLegacyProxyOwnerSlot:          {31: 0xff},
+				ether.BobaLegacyProxyImplementationSlot: {31: 0xff},
 			},
 			Nonce: uint64(nonce),
 		}
@@ -40,6 +43,19 @@ func TestWipePredeployStorage(t *testing.T) {
 
 	for _, addr := range predeploys.Predeploys {
 		if FrozenStoragePredeploys[*addr] {
+			expected := types.GenesisAccount{
+				Code: code,
+				Storage: map[common.Hash]common.Hash{
+					storeVal:                                storeVal,
+					ether.BobaLegacyProxyOwnerSlot:          {31: 0xff},
+					ether.BobaLegacyProxyImplementationSlot: {31: 0xff},
+				},
+				Nonce: uint64(nonce),
+			}
+			require.Equal(t, expected, g.Alloc[*addr])
+			continue
+		}
+		if BobaUntouchablePredeploys[*addr] {
 			expected := types.GenesisAccount{
 				Code: code,
 				Storage: map[common.Hash]common.Hash{
@@ -57,6 +73,33 @@ func TestWipePredeployStorage(t *testing.T) {
 		}
 		require.Equal(t, expected, g.Alloc[*addr])
 	}
+}
+
+func TestWipeBobaLegacyImplementation(t *testing.T) {
+	g := &types.Genesis{
+		Config: &chain.Config{
+			ChainID: big.NewInt(2888),
+		},
+		Alloc: types.GenesisAlloc{},
+	}
+	expectedG := &types.Genesis{
+		Config: &chain.Config{
+			ChainID: big.NewInt(2888),
+		},
+		Alloc: types.GenesisAlloc{},
+	}
+	for _, addr := range predeploys.LegacyBobaProxyImplementation {
+		g.Alloc[*addr] = types.GenesisAccount{
+			Code: []byte{1, 2, 3},
+			Storage: map[common.Hash]common.Hash{
+				ether.BobaLegacyProxyOwnerSlot: {31: 0xff},
+			},
+		}
+		expectedG.Alloc[*addr] = types.GenesisAccount{}
+	}
+
+	WipeBobaLegacyProxyImplementation(g)
+	require.Equal(t, expectedG, g)
 }
 
 func TestSetImplementations(t *testing.T) {
@@ -92,8 +135,11 @@ func TestSetImplementations(t *testing.T) {
 			"recipient": common.HexToAddress("0x1234567890123456789012345678901234567890"),
 		},
 		"BobaL2": {
-			"bridge":      common.HexToAddress("0x1234567890123456789012345678901234567890"),
-			"remoteToken": common.HexToAddress("0x0123456789012345678901234567890123456789"),
+			"l2Bridge":  common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"l1Token":   common.HexToAddress("0x0123456789012345678901234567890123456789"),
+			"_name":     "BOBA Token",
+			"_symbol":   "BOBA",
+			"_decimals": uint8(18),
 		},
 	}
 	storage := make(state.StorageConfig)
@@ -125,11 +171,6 @@ func TestSetImplementations(t *testing.T) {
 		"symbol":   "WETH",
 		"decimals": 18,
 	}
-	storage["GovernanceToken"] = state.StorageValues{
-		"_name":   "Test Token",
-		"_symbol": "TEST",
-		"_owner":  common.Address{1},
-	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": common.Address{1},
 	}
@@ -137,8 +178,11 @@ func TestSetImplementations(t *testing.T) {
 		"_owner": common.Address{1},
 	}
 	storage["BobaL2"] = state.StorageValues{
-		"_name":   "Boba L2",
-		"_symbol": "BOBA",
+		"l2Bridge":  common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		"l1Token":   common.HexToAddress("0x0123456789012345678901234567890123456789"),
+		"_name":     "BOBA Token",
+		"_symbol":   "BOBA",
+		"_decimals": uint8(18),
 	}
 	storage["BobaTuringCredit"] = state.StorageValues{}
 

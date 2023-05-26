@@ -35,8 +35,11 @@ func TestBuildOptimism(t *testing.T) {
 			"recipient": common.HexToAddress("0x1234567890123456789012345678901234567890"),
 		},
 		"BobaL2": {
-			"bridge":      common.HexToAddress("0x1234567890123456789012345678901234567890"),
-			"remoteToken": common.HexToAddress("0x0123456789012345678901234567890123456789"),
+			"l2Bridge":  common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"l1Token":   common.HexToAddress("0x0123456789012345678901234567890123456789"),
+			"_name":     "BOBA Token",
+			"_symbol":   "BOBA",
+			"_decimals": uint8(18),
 		},
 	})
 	require.Nil(t, err)
@@ -60,6 +63,7 @@ func TestBuildOptimism(t *testing.T) {
 		"LegacyERC20ETH":                true,
 		"BobaL2":                        true,
 		"BobaTuringCredit":              true,
+		"BobaGasPriceOracle":            true,
 	}
 
 	// Only the exact contracts that we care about are being

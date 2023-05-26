@@ -15,7 +15,6 @@ bindings: l1block-bindings \
 	gas-price-oracle-bindings \
 	legacy-message-passer-bindings \
 	address-manager-bindings \
-	boba-l1-bindings \
 	l2-cross-domain-messenger-bindings \
 	l2-standard-bridge-bindings \
 	sequencer-fee-vault-bindings \
@@ -26,13 +25,16 @@ bindings: l1block-bindings \
 	erc20-bindings \
 	weth9-bindings \
 	deployer-whitelist-bindings \
-	boba-turing-credit-bindings \
 	l2-erc721-bridge-bindings \
 	l1-erc721-bridge-bindings \
 	optimism-mintable-erc721-factory-bindings \
 	l1-fee-vault-bindings \
 	basefee-vault-bindings \
-	legacy-erc20-eth-bindings
+	legacy-erc20-eth-bindings \
+	boba-l1-bindings \
+	boba-turing-credit-bindings \
+	boba-l2-bindings \
+	boba-gas-price-oracle-bindings
 
 version:
 	forge --version
@@ -59,12 +61,6 @@ l2-output-oracle-bindings: compile
 
 address-manager-bindings: compile
 	./gen_bindings.sh contracts/legacy/AddressManager.sol:AddressManager $(pkg)
-
-boba-l1-bindings: compile
-	./gen_bindings.sh contracts/boba/BOBA.sol:BOBA $(pkg)
-
-boba-turing-credit-bindings: compile
-	./gen_bindings.sh contracts/boba/BobaTuringCredit.sol:BobaTuringCredit $(pkg)
 
 l1block-bindings: compile
 	./gen_bindings.sh contracts/L2/L1Block.sol:L1Block $(pkg)
@@ -129,11 +125,23 @@ deployer-whitelist-bindings: compile
 l1-blocknumber-bindings: compile
 	./gen_bindings.sh contracts/legacy/L1BlockNumber.sol:L1BlockNumber $(pkg)
 
+boba-l1-bindings: compile
+	./gen_bindings.sh contracts/boba/BOBA.sol:BOBA $(pkg)
+
+boba-turing-credit-bindings: compile
+	./gen_bindings.sh contracts/boba/BobaTuringCredit.sol:BobaTuringCredit $(pkg)
+
+boba-l2-bindings: compile
+	./gen_bindings.sh contracts/boba/L2GovernanceERC20.sol:L2GovernanceERC20 $(pkg)
+
+boba-gas-price-oracle-bindings: compile
+	./gen_bindings.sh contracts/boba/Boba_GasPriceOracle.sol:Boba_GasPriceOracle $(pkg)
+
 more:
 	go run ./gen/main.go \
 		-artifacts ../packages/contracts-bedrock/artifacts \
 		-out ./bindings \
-		-contracts SystemConfig,OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,LegacyMessagePasser,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken,L1CrossDomainMessenger,L2ERC721Bridge,OptimismMintableERC721Factory,ProxyAdmin,BobaTuringCredit,OptimismMintableERC20 \
+		-contracts SystemConfig,OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,LegacyMessagePasser,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken,L1CrossDomainMessenger,L2ERC721Bridge,OptimismMintableERC721Factory,ProxyAdmin,BobaTuringCredit,OptimismMintableERC20,L2GovernanceERC20,Boba_GasPriceOracle \
 		-package bindings
 
 mkdir:
