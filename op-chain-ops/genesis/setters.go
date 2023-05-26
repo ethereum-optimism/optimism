@@ -1,6 +1,7 @@
 package genesis
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -108,6 +109,9 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 	depBytecode, err := bindings.GetDeployedBytecode("Proxy")
 	if err != nil {
 		return err
+	}
+	if len(depBytecode) == 0 {
+		return errors.New("Proxy has empty bytecode")
 	}
 
 	for i := uint64(0); i <= count; i++ {

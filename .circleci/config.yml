@@ -248,6 +248,10 @@ jobs:
       docker_context:
         description: Docker build context
         type: string
+      docker_target:
+        description: "target build stage"
+        type: string
+        default: ""
       registry:
         description: Docker registry
         type: string
@@ -278,7 +282,7 @@ jobs:
             DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
             docker context create buildx-build
             docker buildx create --use buildx-build
-            docker buildx build --platform=<<parameters.platforms>> --push \
+            docker buildx build --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
               $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
               -f <<parameters.docker_file>> \
               <<parameters.docker_context>>
@@ -638,6 +642,18 @@ jobs:
           name: Fuzz
           command: make fuzz
           working_directory: op-node
+
+  fuzz-op-chain-ops:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - check-changed:
+          patterns: op-chain-ops,op-bindings
+      - run:
+          name: Fuzz
+          command: make fuzz
+          working_directory: op-chain-ops
 
   depcheck:
     docker:
@@ -1282,6 +1298,7 @@ workflows:
       - semgrep-scan
       - go-mod-tidy
       - fuzz-op-node
+      - fuzz-op-chain-ops
       - bedrock-markdown
       - go-lint:
           name: op-batcher-lint
@@ -1471,6 +1488,14 @@ workflows:
           docker_target: wd-mon
           context:
             - oplabs-gcr
+      - docker-publish:
+          name: fault-detector-docker-publish
+          docker_file: ./ops/docker/Dockerfile.packages
+          docker_name: fault-detector
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_target: fault-detector
+          context:
+            - oplabs-gcr
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
@@ -1504,7 +1529,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(proxyd|op-[a-z0-9\-]*)\/v.*/
+              only: /^(fault-detector|proxyd|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-release:
@@ -1565,6 +1590,23 @@ workflows:
           docker_file: op-challenger/Dockerfile
           docker_name: op-challenger
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+          platforms: "linux/amd64,linux/arm64"
+          context:
+            - oplabs-gcr-release
+          requires:
+            - hold
+      - docker-release:
+          name: fault-detector-docker-release
+          filters:
+            tags:
+              only: /^fault-detector\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: ./ops/docker/Dockerfile.packages
+          docker_name: fault-detector
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_target: fault-detector
           docker_context: .
           platforms: "linux/amd64,linux/arm64"
           context:

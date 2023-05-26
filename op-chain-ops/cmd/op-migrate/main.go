@@ -164,8 +164,14 @@ func main() {
 			l1RpcURL := ctx.String("l1-rpc-url")
 			l1Client, err := ethclient.Dial(l1RpcURL)
 			if err != nil {
-				return err
+				return fmt.Errorf("cannot dial L1 client: %w", err)
 			}
+
+			chainId, err := l1Client.ChainID(context.Background())
+			if err != nil {
+				return fmt.Errorf("failed to get L1 ChainID: %w", err)
+			}
+			log.Info("L1 ChainID", "chainId", chainId)
 
 			var block *types.Block
 			tag := config.L1StartingBlockTag
@@ -181,14 +187,16 @@ func main() {
 				return fmt.Errorf("invalid l1StartingBlockTag in deploy config: %v", tag)
 			}
 			if err != nil {
-				return err
+				return fmt.Errorf("cannot fetch L1 starting block tag: %w", err)
 			}
 
 			dbCache := ctx.Int("db-cache")
 			dbHandles := ctx.Int("db-handles")
-			ldb, err := db.Open(ctx.String("db-path"), dbCache, dbHandles)
+			dbPath := ctx.String("db-path")
+			log.Info("Opening database", "dbCache", dbCache, "dbHandles", dbHandles, "dbPath", dbPath)
+			ldb, err := db.Open(dbPath, dbCache, dbHandles)
 			if err != nil {
-				return err
+				return fmt.Errorf("cannot open DB: %w", err)
 			}
 
 			// Read the required deployment addresses from disk if required
@@ -217,7 +225,7 @@ func main() {
 				return err
 			}
 
-			postLDB, err := db.Open(ctx.String("db-path"), dbCache, dbHandles)
+			postLDB, err := db.Open(dbPath, dbCache, dbHandles)
 			if err != nil {
 				return err
 			}
