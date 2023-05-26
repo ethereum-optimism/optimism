@@ -14,6 +14,9 @@ contract ChainRegistryTest is Test {
      */
     ChainRegistry public chainRegistry;
 
+    event DeploymentClaimed(string deployment, address admin);
+    event AdminChanged(address oldAdmin, address newAdmin);
+
     /**
      * @notice Deploys the ChainRegistry
      */
@@ -28,6 +31,10 @@ contract ChainRegistryTest is Test {
      */
     function _claim() public returns (string memory) {
         string memory _deployment = "deployment";
+
+        vm.expectEmit(false, false, false, true);
+        emit DeploymentClaimed(_deployment, makeAddr("admin"));
+
         chainRegistry.claimDeployment(_deployment, makeAddr("admin"));
 
         return _deployment;
@@ -64,10 +71,23 @@ contract ChainRegistryTest is Test {
     function test_transferAdmin() public {
         string memory _deployment = _claim();
 
+        vm.expectEmit(false, false, false, true);
+        emit AdminChanged(makeAddr("admin"), makeAddr("newAdmin"));
+
         vm.prank(makeAddr("admin"));
         chainRegistry.transferAdmin(_deployment, makeAddr("newAdmin"));
 
         assertEq(chainRegistry.deployments(_deployment), makeAddr("newAdmin"));
+    }
+
+    /**
+     * @notice Only the admin can transfer ownership of a deployment
+     */
+    function test_revertTransferAdminIfNotAdmin() public {
+        string memory _deployment = _claim();
+
+        vm.expectRevert(ChainRegistry.OnlyDeploymentAdmin.selector);
+        chainRegistry.transferAdmin(_deployment, makeAddr("newAdmin"));
     }
 
     /**
