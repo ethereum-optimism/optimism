@@ -1,0 +1,50 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:latest
+    environment:
+      - POSTGRES_USER=db_username
+      - POSTGRES_PASSWORD=db_password
+      - POSTGRES_DB=db_name
+      - PGDATA=/data/postgres
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -q -U db_username -d db_name" ]
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/data/postgres
+
+  indexer:
+    build:
+      context: ..
+      dockerfile: indexer/Dockerfile
+    healthcheck:
+      test: wget localhost:8080/healthz -q -O - > /dev/null 2>&1
+    environment:
+      # Note that you must index goerli with INDEXER_BEDROCK=false first, then
+      # reindex with INDEXER_BEDROCK=true or seed the database
+      - INDEXER_BEDROCK=${INDEXER_BEDROCK_GOERLI:-true}
+      - INDEXER_BUILD_ENV=${INDEXER_BUILD_ENV:-development}
+      - INDEXER_DB_PORT=${INDEXER_DB_PORT:-5432}
+      - INDEXER_DB_USER=${INDEXER_DB_USER:-db_username}
+      - INDEXER_DB_PASSWORD=${INDEXER_DB_PASSWORD:-db_password}
+      - INDEXER_DB_NAME=${INDEXER_DB_NAME:-db_name}
+      - INDEXER_DB_HOST=${INDEXER_DB_HOST:-postgres}
+      - INDEXER_CHAIN_ID=${INDEXER_CHAIN_ID:-5}
+      - INDEXER_L1_ETH_RPC=$INDEXER_L1_ETH_RPC
+      - INDEXER_L2_ETH_RPC=$INDEXER_L2_ETH_RPC
+      - INDEXER_REST_HOSTNAME=0.0.0.0
+      - INDEXER_REST_PORT=8080
+      - INDEXER_BEDROCK_L1_STANDARD_BRIDGE=0
+      - INDEXER_BEDROCK_L1_STANDARD_BRIDGE=0x636Af16bf2f682dD3109e60102b8E1A089FedAa8
+      - INDEXER_BEDROCK_OPTIMISM_PORTAL=0xB7040fd32359688346A3D1395a42114cf8E3b9b2
+    ports:
+      - 8080:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+        
+volumes:
+  postgres_data:
