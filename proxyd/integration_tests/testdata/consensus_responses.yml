@@ -108,6 +108,17 @@
       }
     }
 - method: eth_getBlockByNumber
+  block: 0x91
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0x91",
+        "number": "0x91"
+      }
+    }
+- method: eth_getBlockByNumber
   block: safe
   response: >
     {
@@ -149,5 +160,16 @@
       "result": {
         "hash": "hash_0xc1",
         "number": "0xc1"
+      }
+    }
+- method: eth_getBlockByNumber
+  block: 0xd1
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0xd1",
+        "number": "0xd1"
       }
     }

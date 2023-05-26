@@ -406,11 +406,6 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 		}
 	}
 
-	// no block to propose (i.e. initializing consensus)
-	if lowestLatestBlock == 0 {
-		return
-	}
-
 	proposedBlock := lowestLatestBlock
 	proposedBlockHash := lowestLatestBlockHash
 	hasConsensus := false
@@ -424,59 +419,63 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 		log.Debug("validating consensus on block", "lowestLatestBlock", lowestLatestBlock)
 	}
 
-	broken := false
-	for !hasConsensus {
-		allAgreed := true
-		consensusBackends = consensusBackends[:0]
-		filteredBackendsNames = filteredBackendsNames[:0]
-		for _, be := range cp.backendGroup.Backends {
-			/*
-				a serving node needs to be:
-				- healthy (network)
-				- updated recently
-				- not banned
-				- with minimum peer count
-				- not lagging latest block
-				- in sync
-			*/
+	// if there is no block to propose, the consensus is automatically broken
+	broken := proposedBlock == 0 && currentConsensusBlockNumber > 0
 
-			peerCount, inSync, latestBlockNumber, _, _, _, lastUpdate, bannedUntil := cp.getBackendState(be)
-			notUpdated := lastUpdate.Add(cp.maxUpdateThreshold).Before(time.Now())
-			isBanned := time.Now().Before(bannedUntil)
-			notEnoughPeers := !be.skipPeerCountCheck && peerCount < cp.minPeerCount
-			lagging := latestBlockNumber < proposedBlock
-			if !be.IsHealthy() || notUpdated || isBanned || notEnoughPeers || lagging || !inSync {
-				filteredBackendsNames = append(filteredBackendsNames, be.Name)
-				continue
-			}
+	if proposedBlock > 0 {
+		for !hasConsensus {
+			allAgreed := true
+			consensusBackends = consensusBackends[:0]
+			filteredBackendsNames = filteredBackendsNames[:0]
+			for _, be := range cp.backendGroup.Backends {
+				/*
+					a serving node needs to be:
+					- healthy (network)
+					- updated recently
+					- not banned
+					- with minimum peer count
+					- not lagging latest block
+					- in sync
+				*/
 
-			actualBlockNumber, actualBlockHash, err := cp.fetchBlock(ctx, be, proposedBlock.String())
-			if err != nil {
-				log.Warn("error updating backend", "name", be.Name, "err", err)
-				continue
-			}
-			if proposedBlockHash == "" {
-				proposedBlockHash = actualBlockHash
-			}
-			blocksDontMatch := (actualBlockNumber != proposedBlock) || (actualBlockHash != proposedBlockHash)
-			if blocksDontMatch {
-				if currentConsensusBlockNumber >= actualBlockNumber {
-					log.Warn("backend broke consensus", "name", be.Name, "blockNum", actualBlockNumber, "proposedBlockNum", proposedBlock, "blockHash", actualBlockHash, "proposedBlockHash", proposedBlockHash)
-					broken = true
+				peerCount, inSync, latestBlockNumber, _, _, _, lastUpdate, bannedUntil := cp.getBackendState(be)
+				notUpdated := lastUpdate.Add(cp.maxUpdateThreshold).Before(time.Now())
+				isBanned := time.Now().Before(bannedUntil)
+				notEnoughPeers := !be.skipPeerCountCheck && peerCount < cp.minPeerCount
+				lagging := latestBlockNumber < proposedBlock
+				if !be.IsHealthy() || notUpdated || isBanned || notEnoughPeers || lagging || !inSync {
+					filteredBackendsNames = append(filteredBackendsNames, be.Name)
+					continue
 				}
-				allAgreed = false
-				break
+
+				actualBlockNumber, actualBlockHash, err := cp.fetchBlock(ctx, be, proposedBlock.String())
+				if err != nil {
+					log.Warn("error updating backend", "name", be.Name, "err", err)
+					continue
+				}
+				if proposedBlockHash == "" {
+					proposedBlockHash = actualBlockHash
+				}
+				blocksDontMatch := (actualBlockNumber != proposedBlock) || (actualBlockHash != proposedBlockHash)
+				if blocksDontMatch {
+					if currentConsensusBlockNumber >= actualBlockNumber {
+						log.Warn("backend broke consensus", "name", be.Name, "blockNum", actualBlockNumber, "proposedBlockNum", proposedBlock, "blockHash", actualBlockHash, "proposedBlockHash", proposedBlockHash)
+						broken = true
+					}
+					allAgreed = false
+					break
+				}
+				consensusBackends = append(consensusBackends, be)
+				consensusBackendsNames = append(consensusBackendsNames, be.Name)
 			}
-			consensusBackends = append(consensusBackends, be)
-			consensusBackendsNames = append(consensusBackendsNames, be.Name)
-		}
-		if allAgreed {
-			hasConsensus = true
-		} else {
-			// walk one block behind and try again
-			proposedBlock -= 1
-			proposedBlockHash = ""
-			log.Debug("no consensus, now trying", "block:", proposedBlock)
+			if allAgreed {
+				hasConsensus = true
+			} else {
+				// walk one block behind and try again
+				proposedBlock -= 1
+				proposedBlockHash = ""
+				log.Debug("no consensus, now trying", "block:", proposedBlock)
+			}
 		}
 	}
 
@@ -521,6 +520,16 @@ func (cp *ConsensusPoller) Ban(be *Backend) {
 	defer bs.backendStateMux.Unlock()
 	bs.backendStateMux.Lock()
 	bs.bannedUntil = time.Now().Add(cp.banPeriod)
+	bs.safeBlockNumber = 0
+	bs.finalizedBlockNumber = 0
+}
+
+// Unban remove any bans from the backends
+func (cp *ConsensusPoller) Unban(be *Backend) {
+	bs := cp.backendState[be]
+	defer bs.backendStateMux.Unlock()
+	bs.backendStateMux.Lock()
+	bs.bannedUntil = time.Now().Add(-10 * time.Hour)
 }
 
 // Reset remove any bans from the backends and reset their states

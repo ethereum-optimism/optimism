@@ -330,6 +330,82 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, 1, len(consensusGroup))
 	})
 
+	t.Run("recover after safe and finalized dropped", func(t *testing.T) {
+		reset()
+		useOnlyNode1()
+		overrideBlock("node1", "latest", "0xd1")
+		overrideBlock("node1", "safe", "0xb1")
+		overrideBlock("node1", "finalized", "0x91")
+		update()
+
+		consensusGroup := bg.Consensus.GetConsensusGroup()
+		require.NotContains(t, consensusGroup, nodes["node1"].backend)
+		require.True(t, bg.Consensus.IsBanned(nodes["node1"].backend))
+		require.Equal(t, 0, len(consensusGroup))
+
+		// unban and see if it recovers
+		bg.Consensus.Unban(nodes["node1"].backend)
+		update()
+
+		consensusGroup = bg.Consensus.GetConsensusGroup()
+		require.Contains(t, consensusGroup, nodes["node1"].backend)
+		require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend))
+		require.Equal(t, 1, len(consensusGroup))
+
+		require.Equal(t, "0xd1", bg.Consensus.GetLatestBlockNumber().String())
+		require.Equal(t, "0x91", bg.Consensus.GetFinalizedBlockNumber().String())
+		require.Equal(t, "0xb1", bg.Consensus.GetSafeBlockNumber().String())
+	})
+
+	t.Run("latest dropped below safe, then recovered", func(t *testing.T) {
+		reset()
+		useOnlyNode1()
+		overrideBlock("node1", "latest", "0xd1")
+		update()
+
+		consensusGroup := bg.Consensus.GetConsensusGroup()
+		require.NotContains(t, consensusGroup, nodes["node1"].backend)
+		require.True(t, bg.Consensus.IsBanned(nodes["node1"].backend))
+		require.Equal(t, 0, len(consensusGroup))
+
+		// unban and see if it recovers
+		bg.Consensus.Unban(nodes["node1"].backend)
+		overrideBlock("node1", "safe", "0xb1")
+		overrideBlock("node1", "finalized", "0x91")
+		update()
+
+		consensusGroup = bg.Consensus.GetConsensusGroup()
+		require.Contains(t, consensusGroup, nodes["node1"].backend)
+		require.False(t, bg.Consensus.IsBanned(nodes["node1"].backend))
+		require.Equal(t, 1, len(consensusGroup))
+
+		require.Equal(t, "0xd1", bg.Consensus.GetLatestBlockNumber().String())
+		require.Equal(t, "0x91", bg.Consensus.GetFinalizedBlockNumber().String())
+		require.Equal(t, "0xb1", bg.Consensus.GetSafeBlockNumber().String())
+	})
+
+	t.Run("latest dropped below safe, and stayed inconsistent after ban", func(t *testing.T) {
+		reset()
+		useOnlyNode1()
+		overrideBlock("node1", "latest", "0xd1")
+		update()
+
+		consensusGroup := bg.Consensus.GetConsensusGroup()
+		require.NotContains(t, consensusGroup, nodes["node1"].backend)
+		require.True(t, bg.Consensus.IsBanned(nodes["node1"].backend))
+		require.Equal(t, 0, len(consensusGroup))
+
+		// unban and see if it recovers - it should not since the blocks stays the same
+		bg.Consensus.Unban(nodes["node1"].backend)
+		update()
+
+		// should be banned again
+		consensusGroup = bg.Consensus.GetConsensusGroup()
+		require.NotContains(t, consensusGroup, nodes["node1"].backend)
+		require.True(t, bg.Consensus.IsBanned(nodes["node1"].backend))
+		require.Equal(t, 0, len(consensusGroup))
+	})
+
 	t.Run("broken consensus", func(t *testing.T) {
 		reset()
 		listenerCalled := false
