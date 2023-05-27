@@ -141,7 +141,8 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 		return nil, fmt.Errorf("failed to open peerstore: %w", err)
 	}
 
-	ps, err := store.NewExtendedPeerstore(context.Background(), log, clock.SystemClock, basePs, conf.Store)
+	peerScoreParams := conf.PeerScoringParams()
+	ps, err := store.NewExtendedPeerstore(context.Background(), log, clock.SystemClock, basePs, conf.Store, peerScoreParams.RetainScore)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open extended peerstore: %w", err)
 	}
