@@ -8,7 +8,7 @@ contract AddressAliasHelper_Converter {
     bool public failedRoundtrip;
 
     /**
-     * @dev Allows the actor to convert l1 tp l2 address and vice versa.
+     * @dev Allows the actor to convert L1 to L2 addresses and vice versa.
      */
     function convertRoundTrip(address addr) external {
         // Alias our address
