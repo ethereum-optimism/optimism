@@ -175,12 +175,12 @@ func TestConsensus(t *testing.T) {
 
 	t.Run("prevent using a backend lagging behind", func(t *testing.T) {
 		reset()
-		// node2 is 51 blocks ahead of node1 (0x101 + 51 = 0x134)
-		overrideBlock("node2", "latest", "0x134")
+		// node2 is 8+1 blocks ahead of node1 (0x101 + 8+1 = 0x10a)
+		overrideBlock("node2", "latest", "0x10a")
 		update()
 
-		// since we ignored node1, the consensus should be at 0x133
-		require.Equal(t, "0x134", bg.Consensus.GetLatestBlockNumber().String())
+		// since we ignored node1, the consensus should be at 0x10a
+		require.Equal(t, "0x10a", bg.Consensus.GetLatestBlockNumber().String())
 		require.Equal(t, "0xe1", bg.Consensus.GetSafeBlockNumber().String())
 		require.Equal(t, "0xc1", bg.Consensus.GetFinalizedBlockNumber().String())
 
@@ -192,8 +192,8 @@ func TestConsensus(t *testing.T) {
 
 	t.Run("prevent using a backend lagging behind - one before limit", func(t *testing.T) {
 		reset()
-		// node2 is 50 blocks ahead of node1 (0x101 + 50 = 0x133)
-		overrideBlock("node2", "latest", "0x133")
+		// node2 is 8 blocks ahead of node1 (0x101 + 8 = 0x109)
+		overrideBlock("node2", "latest", "0x109")
 		update()
 
 		// both nodes are in consensus with the lowest block

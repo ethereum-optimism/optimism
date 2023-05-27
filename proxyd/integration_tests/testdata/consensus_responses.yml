@@ -64,6 +64,17 @@
       }
     }
 - method: eth_getBlockByNumber
+  block: 0x10a
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "hash": "hash_0x10a",
+        "number": "0x10a"
+      }
+    }
+- method: eth_getBlockByNumber
   block: 0x132
   response: >
     {
