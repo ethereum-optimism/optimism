@@ -102,6 +102,9 @@ func (d *recordsBook[K, V]) deleteRecord(key K) error {
 
 func (d *recordsBook[K, V]) getRecord(key K) (v V, err error) {
 	if val, ok := d.cache.Get(key); ok {
+		if d.hasExpired(val) {
+			return v, UnknownRecordErr
+		}
 		return val, nil
 	}
 	data, err := d.store.Get(d.ctx, d.dsKey(key))
@@ -113,6 +116,9 @@ func (d *recordsBook[K, V]) getRecord(key K) (v V, err error) {
 	v = d.newRecord()
 	if err := v.UnmarshalBinary(data); err != nil {
 		return v, fmt.Errorf("invalid value for key %v: %w", key, err)
+	}
+	if d.hasExpired(v) {
+		return v, UnknownRecordErr
 	}
 	d.cache.Add(key, v)
 	return v, nil
@@ -142,9 +148,9 @@ func (d *recordsBook[K, V]) SetRecord(key K, diff recordDiff[V]) error {
 }
 
 // prune deletes entries from the store that are older than the configured prune expiration.
-// Note that the expiry period is not a strict TTL. Entries that are eligible for deletion may still be present
-// either because the prune function hasn't yet run or because they are still preserved in the in-memory cache after
-// having been deleted from the database.
+// Entries that are eligible for deletion may still be present either because the prune function hasn't yet run or
+// because they are still preserved in the in-memory cache after having been deleted from the database.
+// Such expired entries are filtered out in getRecord
 func (d *recordsBook[K, V]) prune() error {
 	results, err := d.store.Query(d.ctx, query.Query{
 		Prefix: d.dsBaseKey.String(),
@@ -168,7 +174,7 @@ func (d *recordsBook[K, V]) prune() error {
 		if err := v.UnmarshalBinary(result.Value); err != nil {
 			return err
 		}
-		if v.LastUpdated().Add(d.recordExpiry).Before(d.clock.Now()) {
+		if d.hasExpired(v) {
 			if pending > maxPruneBatchSize {
 				if err := batch.Commit(d.ctx); err != nil {
 					return err
@@ -189,6 +195,10 @@ func (d *recordsBook[K, V]) prune() error {
 		return err
 	}
 	return nil
+}
+
+func (d *recordsBook[K, V]) hasExpired(v V) bool {
+	return v.LastUpdated().Add(d.recordExpiry).Before(d.clock.Now())
 }
 
 func (d *recordsBook[K, V]) Close() {
