@@ -212,9 +212,6 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
 	state := make(map[*Backend]*backendState, len(bg.Backends))
-	for _, be := range bg.Backends {
-		state[be] = &backendState{}
-	}
 
 	cp := &ConsensusPoller{
 		cancelFunc:   cancelFunc,
@@ -239,6 +236,7 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 		cp.asyncHandler = NewPollerAsyncHandler(ctx, cp)
 	}
 
+	cp.Reset()
 	cp.asyncHandler.Init()
 
 	return cp
@@ -291,11 +289,11 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 		log.Warn("error updating backend - finalized block", "name", be.Name, "err", err)
 	}
 
+	// just for readability
 	oldFinalized := bs.finalizedBlockNumber
 	oldSafe := bs.safeBlockNumber
 
-	updateDelay := time.Since(bs.lastUpdate)
-	RecordConsensusBackendUpdateDelay(be, updateDelay)
+	RecordConsensusBackendUpdateDelay(be, bs.lastUpdate)
 
 	changed := cp.setBackendState(be, peerCount, inSync,
 		latestBlockNumber, latestBlockHash,
@@ -314,7 +312,7 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 			"latestBlockHash", latestBlockHash,
 			"finalizedBlockNumber", finalizedBlockNumber,
 			"safeBlockNumber", safeBlockNumber,
-			"updateDelay", updateDelay)
+			"lastUpdate", bs.lastUpdate)
 	}
 
 	// sanity check for latest, safe and finalized block tags
@@ -658,7 +656,7 @@ func (cp *ConsensusPoller) getConsensusCandidates() map[*Backend]*backendState {
 	lagging := make([]*Backend, 0, len(candidates))
 	for be, bs := range candidates {
 		// check if backend is lagging behind the highest block
-		if bs.latestBlockNumber < highestLatestBlock && uint64(highestLatestBlock-bs.latestBlockNumber) > cp.maxBlockLag {
+		if uint64(highestLatestBlock-bs.latestBlockNumber) > cp.maxBlockLag {
 			lagging = append(lagging, be)
 		}
 	}
