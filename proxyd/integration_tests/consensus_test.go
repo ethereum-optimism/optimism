@@ -283,6 +283,34 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, "0xe2", bg.Consensus.GetSafeBlockNumber().String())
 	})
 
+	t.Run("ban backend if error rate is too high", func(t *testing.T) {
+		reset()
+		useOnlyNode1()
+
+		// replace node1 handler with one that always returns 500
+		oldHandler := nodes["node1"].mockBackend.handler
+		defer func() { nodes["node1"].mockBackend.handler = oldHandler }()
+
+		nodes["node1"].mockBackend.SetHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(503)
+		}))
+
+		numberReqs := 10
+		for numberReqs > 0 {
+			_, statusCode, err := client.SendRPC("eth_getBlockByNumber", []interface{}{"0x101", false})
+			require.NoError(t, err)
+			require.Equal(t, 503, statusCode)
+			numberReqs--
+		}
+
+		update()
+
+		consensusGroup := bg.Consensus.GetConsensusGroup()
+		require.NotContains(t, consensusGroup, nodes["node1"].backend)
+		require.True(t, bg.Consensus.IsBanned(nodes["node1"].backend))
+		require.Equal(t, 0, len(consensusGroup))
+	})
+
 	t.Run("ban backend if tags are messed - safe < finalized", func(t *testing.T) {
 		reset()
 		overrideBlock("node1", "finalized", "0xb1")
