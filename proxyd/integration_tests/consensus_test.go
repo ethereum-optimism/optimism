@@ -17,16 +17,15 @@ import (
 )
 
 type nodeContext struct {
-	mockBackend *MockBackend
-	backend     *proxyd.Backend
-	handler     *ms.MockedHandler
+	backend     *proxyd.Backend   // this is the actual backend impl in proxyd
+	mockBackend *MockBackend      // this is the fake backend that we can use to mock responses
+	handler     *ms.MockedHandler // this is where we control the state of mocked responses
 }
 
-func TestConsensus(t *testing.T) {
+func setup(t *testing.T) (map[string]nodeContext, *proxyd.BackendGroup, *ProxydHTTPClient, func()) {
+	// setup mock servers
 	node1 := NewMockBackend(nil)
-	defer node1.Close()
 	node2 := NewMockBackend(nil)
-	defer node2.Close()
 
 	dir, err := os.Getwd()
 	require.NoError(t, err)
@@ -50,16 +49,19 @@ func TestConsensus(t *testing.T) {
 	node1.SetHandler(http.HandlerFunc(h1.Handler))
 	node2.SetHandler(http.HandlerFunc(h2.Handler))
 
+	// setup proxyd
 	config := ReadConfig("consensus")
-	ctx := context.Background()
 	svr, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
-	client := NewProxydClient("http://127.0.0.1:8545")
-	defer shutdown()
 
+	// expose the proxyd client
+	client := NewProxydClient("http://127.0.0.1:8545")
+
+	// expose the backend group
 	bg := svr.BackendGroups["node"]
 	require.NotNil(t, bg)
 	require.NotNil(t, bg.Consensus)
+	require.Equal(t, 2, len(bg.Backends)) // should match config
 
 	// convenient mapping to access the nodes by name
 	nodes := map[string]nodeContext{
@@ -75,14 +77,16 @@ func TestConsensus(t *testing.T) {
 		},
 	}
 
-	reset := func() {
-		for _, node := range nodes {
-			node.handler.ResetOverrides()
-			node.mockBackend.Reset()
-		}
-		bg.Consensus.ClearListeners()
-		bg.Consensus.Reset()
-	}
+	return nodes, bg, client, shutdown
+}
+
+func TestConsensus(t *testing.T) {
+	nodes, bg, client, shutdown := setup(t)
+	defer nodes["node1"].mockBackend.Close()
+	defer nodes["node2"].mockBackend.Close()
+	defer shutdown()
+
+	ctx := context.Background()
 
 	// poll for updated consensus
 	update := func() {
@@ -90,6 +94,16 @@ func TestConsensus(t *testing.T) {
 			bg.Consensus.UpdateBackend(ctx, be)
 		}
 		bg.Consensus.UpdateBackendGroupConsensus(ctx)
+	}
+
+	// convenient methods to manipulate state and mock responses
+	reset := func() {
+		for _, node := range nodes {
+			node.handler.ResetOverrides()
+			node.mockBackend.Reset()
+		}
+		bg.Consensus.ClearListeners()
+		bg.Consensus.Reset()
 	}
 
 	override := func(node string, method string, block string, response string) {
@@ -132,6 +146,7 @@ func TestConsensus(t *testing.T) {
 		}))
 	}
 
+	// force ban node2 and make sure node1 is the only one in consensus
 	useOnlyNode1 := func() {
 		overridePeerCount("node2", 0)
 		update()
@@ -139,7 +154,7 @@ func TestConsensus(t *testing.T) {
 		consensusGroup := bg.Consensus.GetConsensusGroup()
 		require.Equal(t, 1, len(consensusGroup))
 		require.Contains(t, consensusGroup, nodes["node1"].backend)
-		node1.Reset()
+		nodes["node1"].mockBackend.Reset()
 	}
 
 	t.Run("initial consensus", func(t *testing.T) {
@@ -534,11 +549,11 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, 2, len(bg.Consensus.GetConsensusGroup()))
 
 		// reset request counts
-		node1.Reset()
-		node2.Reset()
+		nodes["node1"].mockBackend.Reset()
+		nodes["node2"].mockBackend.Reset()
 
-		require.Equal(t, 0, len(node1.Requests()))
-		require.Equal(t, 0, len(node2.Requests()))
+		require.Equal(t, 0, len(nodes["node1"].mockBackend.Requests()))
+		require.Equal(t, 0, len(nodes["node2"].mockBackend.Requests()))
 
 		// there is a random component to this test,
 		// since our round-robin implementation shuffles the ordering
@@ -556,9 +571,10 @@ func TestConsensus(t *testing.T) {
 			numberReqs--
 		}
 
-		msg := fmt.Sprintf("n1 %d, n2 %d", len(node1.Requests()), len(node2.Requests()))
-		require.GreaterOrEqual(t, len(node1.Requests()), 50, msg)
-		require.GreaterOrEqual(t, len(node2.Requests()), 50, msg)
+		msg := fmt.Sprintf("n1 %d, n2 %d",
+			len(nodes["node1"].mockBackend.Requests()), len(nodes["node2"].mockBackend.Requests()))
+		require.GreaterOrEqual(t, len(nodes["node1"].mockBackend.Requests()), 50, msg)
+		require.GreaterOrEqual(t, len(nodes["node2"].mockBackend.Requests()), 50, msg)
 	})
 
 	t.Run("load balancing should not hit if node is not healthy", func(t *testing.T) {
@@ -566,11 +582,11 @@ func TestConsensus(t *testing.T) {
 		useOnlyNode1()
 
 		// reset request counts
-		node1.Reset()
-		node2.Reset()
+		nodes["node1"].mockBackend.Reset()
+		nodes["node2"].mockBackend.Reset()
 
-		require.Equal(t, 0, len(node1.Requests()))
-		require.Equal(t, 0, len(node2.Requests()))
+		require.Equal(t, 0, len(nodes["node1"].mockBackend.Requests()))
+		require.Equal(t, 0, len(nodes["node1"].mockBackend.Requests()))
 
 		numberReqs := 10
 		for numberReqs > 0 {
@@ -580,16 +596,17 @@ func TestConsensus(t *testing.T) {
 			numberReqs--
 		}
 
-		msg := fmt.Sprintf("n1 %d, n2 %d", len(node1.Requests()), len(node2.Requests()))
-		require.Equal(t, len(node1.Requests()), 10, msg)
-		require.Equal(t, len(node2.Requests()), 0, msg)
+		msg := fmt.Sprintf("n1 %d, n2 %d",
+			len(nodes["node1"].mockBackend.Requests()), len(nodes["node2"].mockBackend.Requests()))
+		require.Equal(t, len(nodes["node1"].mockBackend.Requests()), 10, msg)
+		require.Equal(t, len(nodes["node2"].mockBackend.Requests()), 0, msg)
 	})
 
 	t.Run("rewrite response of eth_blockNumber", func(t *testing.T) {
 		reset()
 		update()
 
-		totalRequests := len(node1.Requests()) + len(node2.Requests())
+		totalRequests := len(nodes["node1"].mockBackend.Requests()) + len(nodes["node2"].mockBackend.Requests())
 		require.Equal(t, 2, len(bg.Consensus.GetConsensusGroup()))
 
 		resRaw, statusCode, err := client.SendRPC("eth_blockNumber", nil)
@@ -602,7 +619,8 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, "0x101", jsonMap["result"])
 
 		// no extra request hit the backends
-		require.Equal(t, totalRequests, len(node1.Requests())+len(node2.Requests()))
+		require.Equal(t, totalRequests,
+			len(nodes["node1"].mockBackend.Requests())+len(nodes["node2"].mockBackend.Requests()))
 	})
 
 	t.Run("rewrite request of eth_getBlockByNumber for latest", func(t *testing.T) {
@@ -614,7 +632,7 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, 200, statusCode)
 
 		var jsonMap map[string]interface{}
-		err = json.Unmarshal(node1.Requests()[0].Body, &jsonMap)
+		err = json.Unmarshal(nodes["node1"].mockBackend.Requests()[0].Body, &jsonMap)
 		require.NoError(t, err)
 		require.Equal(t, "0x101", jsonMap["params"].([]interface{})[0])
 	})
@@ -628,7 +646,7 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, 200, statusCode)
 
 		var jsonMap map[string]interface{}
-		err = json.Unmarshal(node1.Requests()[0].Body, &jsonMap)
+		err = json.Unmarshal(nodes["node1"].mockBackend.Requests()[0].Body, &jsonMap)
 		require.NoError(t, err)
 		require.Equal(t, "0xc1", jsonMap["params"].([]interface{})[0])
 	})
@@ -642,7 +660,7 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, 200, statusCode)
 
 		var jsonMap map[string]interface{}
-		err = json.Unmarshal(node1.Requests()[0].Body, &jsonMap)
+		err = json.Unmarshal(nodes["node1"].mockBackend.Requests()[0].Body, &jsonMap)
 		require.NoError(t, err)
 		require.Equal(t, "0xe1", jsonMap["params"].([]interface{})[0])
 	})
