@@ -564,8 +564,8 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 		// We also rewrite block tags to enforce compliance with consensus
 		rctx := RewriteContext{
 			latest:    bg.Consensus.GetLatestBlockNumber(),
-			finalized: bg.Consensus.GetFinalizedBlockNumber(),
 			safe:      bg.Consensus.GetSafeBlockNumber(),
+			finalized: bg.Consensus.GetFinalizedBlockNumber(),
 		}
 
 		for i, req := range rpcReqs {
