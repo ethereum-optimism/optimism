@@ -57,7 +57,7 @@ type backendState struct {
 	bannedUntil time.Time
 }
 
-func (bs backendState) IsBanned() bool {
+func (bs *backendState) IsBanned() bool {
 	return time.Now().Before(bs.bannedUntil)
 }
 
@@ -394,7 +394,7 @@ func (cp *ConsensusPoller) UpdateBackendGroupConsensus(ctx context.Context) {
 	if proposedBlock > 0 {
 		for !hasConsensus {
 			allAgreed := true
-			for be, _ := range candidates {
+			for be := range candidates {
 				actualBlockNumber, actualBlockHash, err := cp.fetchBlock(ctx, be, proposedBlock.String())
 				if err != nil {
 					log.Warn("error updating backend", "name", be.Name, "err", err)
