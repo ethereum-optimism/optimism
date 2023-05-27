@@ -9,11 +9,6 @@ pragma solidity 0.8.15;
 contract ChainRegistry {
 
     /**
-     * @notice Only the deployment admin can claim a deployment
-     */
-    error OnlyDeploymentAdmin();
-
-    /**
      * @notice Emitted any time a deployment is claimed
      *
      * @param deployment The name of the deployment claimed
@@ -50,11 +45,23 @@ contract ChainRegistry {
     mapping(string => mapping(string => address)) public registry;
 
     /**
+     * @notice Only the deployment admin can claim a deployment
+     *
+     * @param _deployment the deployment to check admin privilege for
+     */
+    modifier onlyAdmin(string calldata _deployment) {
+        require(msg.sender == deployments[_deployment], "Only deployment admin");
+        _;
+    }
+
+    /**
      * @notice Claims a deployment
      *
-     * @param _deployment The deployment to claim
+     * @param _deployment The deployment name to claim
+     * @param _admin The deployment's admin
      */
     function claimDeployment(string calldata _deployment, address _admin) public {
+        require(deployments[_deployment] == address(0), "Deployment already claimed");
         deployments[_deployment] = _admin;
 
         emit DeploymentClaimed(_deployment, _admin);
@@ -66,8 +73,7 @@ contract ChainRegistry {
      * @param _deployment The deployment to transfer ownership of
      * @param _newAdmin The new admin to transfer ownership to
      */
-    function transferAdmin(string calldata _deployment, address _newAdmin) public {
-        if (msg.sender != deployments[_deployment]) revert OnlyDeploymentAdmin();
+    function transferAdmin(string calldata _deployment, address _newAdmin) public onlyAdmin(_deployment) {
         deployments[_deployment] = _newAdmin;
 
         emit AdminChanged(msg.sender, _newAdmin);
@@ -79,8 +85,7 @@ contract ChainRegistry {
      * @param _deployment The deployment to register entries in
      * @param _entries An array of entries to register
      */
-    function register(string calldata _deployment, DeploymentEntry[] calldata _entries) public {
-        if (msg.sender != deployments[_deployment]) revert OnlyDeploymentAdmin();
+    function register(string calldata _deployment, DeploymentEntry[] calldata _entries) public onlyAdmin(_deployment) {
         for (uint i = 0; i < _entries.length; i++) {
             registry[_deployment][_entries[i].entryName] = _entries[i].entryAddress;
         }

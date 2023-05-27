@@ -66,6 +66,16 @@ contract ChainRegistryTest is Test {
     }
 
     /**
+     * @notice A user cannot claim an already claimed deployment
+     */
+    function test_revertDeploymentAlreadyClaimed() public {
+        string memory _deployment = _claim();
+
+        vm.expectRevert("Deployment already claimed");
+        chainRegistry.claimDeployment(_deployment, makeAddr("newAdmin"));
+    }
+
+    /**
      * @notice A deployment admin can transfer ownership to a new admin
      */
     function test_transferAdmin() public {
@@ -86,7 +96,7 @@ contract ChainRegistryTest is Test {
     function test_revertTransferAdminIfNotAdmin() public {
         string memory _deployment = _claim();
 
-        vm.expectRevert(ChainRegistry.OnlyDeploymentAdmin.selector);
+        vm.expectRevert("Only deployment admin");
         chainRegistry.transferAdmin(_deployment, makeAddr("newAdmin"));
     }
 
@@ -104,7 +114,7 @@ contract ChainRegistryTest is Test {
     function test_revertRegisterIfNotAdmin() public {
         string memory _deployment = _claim();
 
-        vm.expectRevert(ChainRegistry.OnlyDeploymentAdmin.selector);
+        vm.expectRevert("Only deployment admin");
         chainRegistry.register(_deployment, new ChainRegistry.DeploymentEntry[](0));
     }
 

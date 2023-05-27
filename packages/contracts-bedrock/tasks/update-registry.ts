@@ -3,6 +3,11 @@ import path from 'path'
 
 import { task } from 'hardhat/config'
 
+/**
+ * Updates the ChainRegistry contract by claiming new deployments
+ * and registering new contract addresses for existing deployments
+ */
+
 task('update-registry', 'Update OP Stack Chain Registry')
   .addParam('registry', 'The address of the OpStackChainRegistry contract')
   .addParam(
@@ -10,10 +15,8 @@ task('update-registry', 'Update OP Stack Chain Registry')
     'The path to the folder containing the deployment files'
   )
   .setAction(async (args, hre) => {
-    const OpStackChainRegistry = await hre.ethers.getContractFactory(
-      'OpStackChainRegistry'
-    )
-    const registry = OpStackChainRegistry.attach(args.registry)
+    const ChainRegistry = await hre.ethers.getContractFactory('ChainRegistry')
+    const registry = ChainRegistry.attach(args.registry)
 
     const deploymentFolder = path.resolve(__dirname, args.deploymentFolder)
 
@@ -25,8 +28,8 @@ task('update-registry', 'Update OP Stack Chain Registry')
       const filePath = path.join(deploymentFolder, file)
       const artifact = JSON.parse(fs.readFileSync(filePath, 'utf8'))
 
-      const deploymentName = file.replace('.json', '')
-      const entryName = deploymentName
+      const deploymentName = path.basename(path.dirname(filePath))
+      const entryName = file.replace('.json', '')
       const entryAddress = artifact.address
 
       const deploymentAdmin = await hre.ethers.provider.getSigner().getAddress()
@@ -34,12 +37,7 @@ task('update-registry', 'Update OP Stack Chain Registry')
       // Check if the deployment has already been claimed.
       const existingAdmin = await registry.deployments(deploymentName)
       if (existingAdmin !== deploymentAdmin) {
-        const deployment = {
-          deploymentName,
-          deploymentAdmin,
-        }
-
-        await registry.claimDeployment(deployment)
+        await registry.claimDeployment(deploymentName, deploymentAdmin)
       }
 
       // Check if the entry has already been registered.
