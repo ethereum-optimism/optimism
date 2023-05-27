@@ -428,7 +428,7 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, "0xb1", bg.Consensus.GetSafeBlockNumber().String())
 	})
 
-	t.Run("latest dropped below safe, and stayed inconsistent after ban", func(t *testing.T) {
+	t.Run("latest dropped below safe, and stayed inconsistent", func(t *testing.T) {
 		reset()
 		useOnlyNode1()
 		overrideBlock("node1", "latest", "0xd1")
