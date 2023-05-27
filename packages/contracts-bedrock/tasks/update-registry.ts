@@ -11,14 +11,19 @@ import { task } from 'hardhat/config'
 task('update-registry', 'Update OP Stack Chain Registry')
   .addParam('registry', 'The address of the OpStackChainRegistry contract')
   .addParam(
-    'deploymentFolder',
+    'deployment',
     'The path to the folder containing the deployment files'
   )
   .setAction(async (args, hre) => {
-    const ChainRegistry = await hre.ethers.getContractFactory('ChainRegistry')
-    const registry = ChainRegistry.attach(args.registry)
+    const registry = await hre.ethers.getContractAt(
+      'ChainRegistry',
+      args.registry
+    )
 
-    const deploymentFolder = path.resolve(__dirname, args.deploymentFolder)
+    const deploymentFolder = path.resolve(
+      __dirname,
+      `../deployments/${args.deployment}`
+    )
 
     const deploymentFiles = fs
       .readdirSync(deploymentFolder)
@@ -38,6 +43,10 @@ task('update-registry', 'Update OP Stack Chain Registry')
       const existingAdmin = await registry.deployments(deploymentName)
       if (existingAdmin !== deploymentAdmin) {
         await registry.claimDeployment(deploymentName, deploymentAdmin)
+
+        console.log(
+          `Claimed deployment ${deploymentName} for ${deploymentAdmin}`
+        )
       }
 
       // Check if the entry has already been registered.
@@ -51,6 +60,8 @@ task('update-registry', 'Update OP Stack Chain Registry')
         ]
 
         await registry.register(deploymentName, entries)
+
+        console.log(`Registered ${entryName} at ${entryAddress}`)
       }
     }
 

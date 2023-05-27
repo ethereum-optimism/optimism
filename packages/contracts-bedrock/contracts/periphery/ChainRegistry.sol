@@ -101,7 +101,7 @@ contract ChainRegistry {
      */
     function query(string calldata _deployment, string[] calldata _names) public view returns (address[] memory) {
         address[] memory addresses = new address[](_names.length);
-        for (uint i = 0; i < _names.length; i++) {
+        for (uint i; i < _names.length; i++) {
             addresses[i] = registry[_deployment][_names[i]];
         }
         return addresses;
