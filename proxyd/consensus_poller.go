@@ -177,6 +177,10 @@ func (cp *ConsensusPoller) AddListener(listener OnConsensusBroken) {
 	cp.listeners = append(cp.listeners, listener)
 }
 
+func (cp *ConsensusPoller) ClearListeners() {
+	cp.listeners = []OnConsensusBroken{}
+}
+
 func WithBanPeriod(banPeriod time.Duration) ConsensusOpt {
 	return func(cp *ConsensusPoller) {
 		cp.banPeriod = banPeriod
@@ -524,7 +528,7 @@ func (cp *ConsensusPoller) Ban(be *Backend) {
 	bs.finalizedBlockNumber = 0
 }
 
-// Unban remove any bans from the backends
+// Unban removes any bans from the backends
 func (cp *ConsensusPoller) Unban(be *Backend) {
 	bs := cp.backendState[be]
 	defer bs.backendStateMux.Unlock()
@@ -532,14 +536,14 @@ func (cp *ConsensusPoller) Unban(be *Backend) {
 	bs.bannedUntil = time.Now().Add(-10 * time.Hour)
 }
 
-// Reset remove any bans from the backends and reset their states
+// Reset reset all backend states
 func (cp *ConsensusPoller) Reset() {
 	for _, be := range cp.backendGroup.Backends {
 		cp.backendState[be] = &backendState{}
 	}
 }
 
-// fetchBlock Convenient wrapper to make a request to get a block directly from the backend
+// fetchBlock is a convenient wrapper to make a request to get a block directly from the backend
 func (cp *ConsensusPoller) fetchBlock(ctx context.Context, be *Backend, block string) (blockNumber hexutil.Uint64, blockHash string, err error) {
 	var rpcRes RPCRes
 	err = be.ForwardRPC(ctx, &rpcRes, "67", "eth_getBlockByNumber", block, false)
@@ -557,7 +561,7 @@ func (cp *ConsensusPoller) fetchBlock(ctx context.Context, be *Backend, block st
 	return
 }
 
-// getPeerCount Convenient wrapper to retrieve the current peer count from the backend
+// getPeerCount is a convenient wrapper to retrieve the current peer count from the backend
 func (cp *ConsensusPoller) getPeerCount(ctx context.Context, be *Backend) (count uint64, err error) {
 	var rpcRes RPCRes
 	err = be.ForwardRPC(ctx, &rpcRes, "67", "net_peerCount")

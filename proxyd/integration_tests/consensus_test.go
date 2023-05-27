@@ -80,6 +80,7 @@ func TestConsensus(t *testing.T) {
 			node.handler.ResetOverrides()
 			node.mockBackend.Reset()
 		}
+		bg.Consensus.ClearListeners()
 		bg.Consensus.Reset()
 	}
 
