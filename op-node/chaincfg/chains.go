@@ -13,14 +13,14 @@ import (
 var Mainnet = rollup.Config{
 	Genesis: rollup.Genesis{
 		L1: eth.BlockID{
-			Hash:   common.HexToHash(""),
-			Number: 0,
+			Hash:   common.HexToHash("0x3ef7b122ab371d8d74e436740d17a8a428bc4fe5088117bf9602bcda57bf6dbe"),
+			Number: 16780180,
 		},
 		L2: eth.BlockID{
-			Hash:   common.HexToHash(""),
-			Number: 0,
+			Hash:   common.HexToHash("0x9c81b4a3280a742b13c6436369a02e861c056b648ef20bd24ec5090f51c617c4"),
+			Number: 79149098,
 		},
-		L2Time: 0,
+		L2Time: 1685385347,
 		SystemConfig: eth.SystemConfig{
 			BatcherAddr: common.HexToAddress("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
 			Overhead:    eth.Bytes32(common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000834")),
@@ -35,8 +35,8 @@ var Mainnet = rollup.Config{
 	L1ChainID:              big.NewInt(1),
 	L2ChainID:              big.NewInt(10),
 	BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000000000010"),
-	DepositContractAddress: common.HexToAddress(""),
-	L1SystemConfigAddress:  common.HexToAddress(""),
+	DepositContractAddress: common.HexToAddress("0xb468647b04bf657c9ee2de65252037d781eabafd"),
+	L1SystemConfigAddress:  common.HexToAddress("0x408f924baec71cc3968614cb2c58e155a35e6890"),
 	RegolithTime:           u64Ptr(0),
 }
 
