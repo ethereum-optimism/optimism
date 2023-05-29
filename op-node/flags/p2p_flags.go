@@ -51,6 +51,20 @@ var (
 		Required: false,
 		EnvVar:   p2pEnv("PEER_BANNING"),
 	}
+	BanningThreshold = cli.Float64Flag{
+		Name:     "p2p.ban.threshold",
+		Usage:    "The minimum score below which peers are disconnected and banned.",
+		Required: false,
+		Value:    -100,
+		EnvVar:   p2pEnv("PEER_BANNING_THRESHOLD"),
+	}
+	BanningDuration = cli.DurationFlag{
+		Name:     "p2p.ban.duration",
+		Usage:    "The duration that peers are banned for.",
+		Required: false,
+		Value:    1 * time.Hour,
+		EnvVar:   p2pEnv("PEER_BANNING_DURATION"),
+	}
 
 	TopicScoring = cli.StringFlag{
 		Name: "p2p.scoring.topics",
@@ -294,6 +308,8 @@ var p2pFlags = []cli.Flag{
 	PeerScoring,
 	PeerScoreBands,
 	Banning,
+	BanningThreshold,
+	BanningDuration,
 	TopicScoring,
 	ListenIP,
 	ListenTCPPort,

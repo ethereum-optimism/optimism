@@ -15,11 +15,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testBanDuration = 2 * time.Hour
+
 func peerMonitorSetup(t *testing.T) (*PeerMonitor, *clock2.DeterministicClock, *mocks.PeerManager) {
 	l := testlog.Logger(t, log.LvlInfo)
 	clock := clock2.NewDeterministicClock(time.UnixMilli(10000))
 	manager := mocks.NewPeerManager(t)
-	monitor := NewPeerMonitor(context.Background(), l, clock, manager, -100)
+	monitor := NewPeerMonitor(context.Background(), l, clock, manager, -100, testBanDuration)
 	return monitor, clock, manager
 }
 
@@ -95,7 +97,7 @@ func TestCheckNextPeer(t *testing.T) {
 		manager.EXPECT().Peers().Return(peerIDs).Once()
 		manager.EXPECT().GetPeerScore(id).Return(-101, nil).Once()
 		manager.EXPECT().IsProtected(id).Return(false).Once()
-		manager.EXPECT().BanPeer(id, clock.Now().Add(banDuration)).Return(nil).Once()
+		manager.EXPECT().BanPeer(id, clock.Now().Add(testBanDuration)).Return(nil).Once()
 
 		require.NoError(t, monitor.checkNextPeer())
 	})

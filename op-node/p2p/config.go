@@ -44,6 +44,10 @@ type SetupP2P interface {
 	// Discovery creates a disc-v5 service. Returns nil, nil, nil if discovery is disabled.
 	Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort uint16) (*enode.LocalNode, *discover.UDPv5, error)
 	TargetPeers() uint
+	BanPeers() bool
+	BanThreshold() float64
+	BanDuration() time.Duration
+	PeerBandScorer() *BandScoreThresholds
 	GossipSetupConfigurables
 	ReqRespSyncEnabled() bool
 }
@@ -66,8 +70,11 @@ type Config struct {
 	// Peer Score Band Thresholds
 	BandScoreThresholds BandScoreThresholds
 
-	// Whether to ban peers based on their [PeerScoring] score.
+	// Whether to ban peers based on their [PeerScoring] score. Should be negative.
 	BanningEnabled bool
+	// Minimum score before peers are disconnected and banned
+	BanningThreshold float64
+	BanningDuration  time.Duration
 
 	ListenIP      net.IP
 	ListenTCPPort uint16
@@ -141,6 +148,14 @@ func (conf *Config) PeerBandScorer() *BandScoreThresholds {
 
 func (conf *Config) BanPeers() bool {
 	return conf.BanningEnabled
+}
+
+func (conf *Config) BanThreshold() float64 {
+	return conf.BanningThreshold
+}
+
+func (conf *Config) BanDuration() time.Duration {
+	return conf.BanningDuration
 }
 
 func (conf *Config) TopicScoringParams() *pubsub.TopicScoreParams {

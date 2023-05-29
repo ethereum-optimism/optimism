@@ -14,7 +14,6 @@ import (
 const (
 	// Time delay between checking the score of each peer to avoid activity spikes
 	checkInterval = 1 * time.Second
-	banDuration   = 1 * time.Hour
 )
 
 //go:generate mockery --name PeerManager --output mocks/ --with-expecter=true
@@ -30,12 +29,13 @@ type PeerManager interface {
 // When it finds bad peers, it disconnects and bans them.
 // A delay is introduced between each peer being checked to avoid spikes in system load.
 type PeerMonitor struct {
-	ctx      context.Context
-	cancelFn context.CancelFunc
-	l        log.Logger
-	clock    clock.Clock
-	manager  PeerManager
-	minScore float64
+	ctx         context.Context
+	cancelFn    context.CancelFunc
+	l           log.Logger
+	clock       clock.Clock
+	manager     PeerManager
+	minScore    float64
+	banDuration time.Duration
 
 	bgTasks sync.WaitGroup
 
@@ -44,54 +44,55 @@ type PeerMonitor struct {
 	nextPeerIdx int
 }
 
-func NewPeerMonitor(ctx context.Context, l log.Logger, clock clock.Clock, manager PeerManager, minScore float64) *PeerMonitor {
+func NewPeerMonitor(ctx context.Context, l log.Logger, clock clock.Clock, manager PeerManager, minScore float64, banDuration time.Duration) *PeerMonitor {
 	ctx, cancelFn := context.WithCancel(ctx)
 	return &PeerMonitor{
-		ctx:      ctx,
-		cancelFn: cancelFn,
-		l:        l,
-		clock:    clock,
-		manager:  manager,
-		minScore: minScore,
+		ctx:         ctx,
+		cancelFn:    cancelFn,
+		l:           l,
+		clock:       clock,
+		manager:     manager,
+		minScore:    minScore,
+		banDuration: banDuration,
 	}
 }
-func (k *PeerMonitor) Start() {
-	k.bgTasks.Add(1)
-	go k.background(k.checkNextPeer)
+func (p *PeerMonitor) Start() {
+	p.bgTasks.Add(1)
+	go p.background(p.checkNextPeer)
 }
 
-func (k *PeerMonitor) Stop() {
-	k.cancelFn()
-	k.bgTasks.Wait()
+func (p *PeerMonitor) Stop() {
+	p.cancelFn()
+	p.bgTasks.Wait()
 }
 
 // checkNextPeer checks the next peer and disconnects and bans it if its score is too low and its not protected.
 // The first call gets the list of current peers and checks the first one, then each subsequent call checks the next
 // peer in the list.  When the end of the list is reached, an updated list of connected peers is retrieved and the process
 // starts again.
-func (k *PeerMonitor) checkNextPeer() error {
+func (p *PeerMonitor) checkNextPeer() error {
 	// Get a new list of peers to check if we've checked all peers in the previous list
-	if k.nextPeerIdx >= len(k.peerList) {
-		k.peerList = k.manager.Peers()
-		k.nextPeerIdx = 0
+	if p.nextPeerIdx >= len(p.peerList) {
+		p.peerList = p.manager.Peers()
+		p.nextPeerIdx = 0
 	}
-	if len(k.peerList) == 0 {
+	if len(p.peerList) == 0 {
 		// No peers to check
 		return nil
 	}
-	id := k.peerList[k.nextPeerIdx]
-	k.nextPeerIdx++
-	score, err := k.manager.GetPeerScore(id)
+	id := p.peerList[p.nextPeerIdx]
+	p.nextPeerIdx++
+	score, err := p.manager.GetPeerScore(id)
 	if err != nil {
 		return fmt.Errorf("retrieve score for peer %v: %w", id, err)
 	}
-	if score > k.minScore {
+	if score > p.minScore {
 		return nil
 	}
-	if k.manager.IsStatic(id) {
+	if p.manager.IsStatic(id) {
 		return nil
 	}
-	if err := k.manager.BanPeer(id, k.clock.Now().Add(banDuration)); err != nil {
+	if err := p.manager.BanPeer(id, p.clock.Now().Add(p.banDuration)); err != nil {
 		return fmt.Errorf("banning peer %v: %w", id, err)
 	}
 
@@ -100,17 +101,17 @@ func (k *PeerMonitor) checkNextPeer() error {
 
 // background is intended to run as a separate go routine. It will call the supplied action function every checkInterval
 // until the context is done.
-func (k *PeerMonitor) background(action func() error) {
-	defer k.bgTasks.Done()
-	ticker := k.clock.NewTicker(checkInterval)
+func (p *PeerMonitor) background(action func() error) {
+	defer p.bgTasks.Done()
+	ticker := p.clock.NewTicker(checkInterval)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-k.ctx.Done():
+		case <-p.ctx.Done():
 			return
 		case <-ticker.Ch():
 			if err := action(); err != nil {
-				k.l.Warn("Error while checking connected peer score", "err", err)
+				p.l.Warn("Error while checking connected peer score", "err", err)
 			}
 		}
 	}

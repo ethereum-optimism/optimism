@@ -33,8 +33,7 @@ import (
 )
 
 const (
-	staticPeerTag        = "static"
-	minAcceptedPeerScore = -100
+	staticPeerTag = "static"
 )
 
 type ExtraHostFeatures interface {
