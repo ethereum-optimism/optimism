@@ -35,8 +35,8 @@ type NodeP2P struct {
 	gater       gating.BlockingConnectionGater // p2p gater, to ban/unban peers with, may be nil even with p2p enabled
 	scorer      Scorer                         // writes score-updates to the peerstore and keeps metrics of score changes
 	connMgr     connmgr.ConnManager            // p2p conn manager, to keep a reliable number of peers, may be nil even with p2p enabled
+	peerMonitor *monitor.PeerMonitor           // peer monitor to disconnect bad peers, may be nil even with p2p enabled
 	store       store.ExtendedPeerstore        // peerstore of host, with extra bindings for scoring and banning
-	peerMonitor *monitor.PeerMonitor           // peer monitor to disconnect bad peers
 	log         log.Logger
 	// the below components are all optional, and may be nil. They require the host to not be nil.
 	dv5Local *enode.LocalNode // p2p discovery identity
@@ -126,7 +126,6 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 				n.scorer.OnDisconnect(conn.RemotePeer())
 			},
 		})
-		n.peerMonitor = monitor.NewPeerMonitor(resourcesCtx, log, clock.SystemClock, n, minAcceptedPeerScore)
 		// notify of any new connections/streams/etc.
 		n.host.Network().Notify(NewNetworkNotifier(log, metrics))
 		// note: the IDDelta functionality was removed from libP2P, and no longer needs to be explicitly disabled.
@@ -155,7 +154,10 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 			go metrics.RecordBandwidth(resourcesCtx, bwc)
 		}
 
-		n.peerMonitor.Start()
+		if setup.BanPeers() {
+			n.peerMonitor = monitor.NewPeerMonitor(resourcesCtx, log, clock.SystemClock, n, minAcceptedPeerScore)
+			n.peerMonitor.Start()
+		}
 	}
 	return nil
 }
@@ -247,7 +249,9 @@ func (n *NodeP2P) BanIP(ip net.IP, expiration time.Time) error {
 
 func (n *NodeP2P) Close() error {
 	var result *multierror.Error
-	n.peerMonitor.Stop()
+	if n.peerMonitor != nil {
+		n.peerMonitor.Stop()
+	}
 	if n.dv5Udp != nil {
 		n.dv5Udp.Close()
 	}
