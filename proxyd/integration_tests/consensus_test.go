@@ -267,8 +267,8 @@ func TestConsensus(t *testing.T) {
 		overrideBlock("node2", "safe", "0xe2")
 		update()
 
-		require.Equal(t, "0xc1", bg.Consensus.GetFinalizedBlockNumber().String())
 		require.Equal(t, "0xe1", bg.Consensus.GetSafeBlockNumber().String())
+		require.Equal(t, "0xc1", bg.Consensus.GetFinalizedBlockNumber().String())
 	})
 
 	t.Run("advance safe and finalized", func(t *testing.T) {
@@ -279,8 +279,8 @@ func TestConsensus(t *testing.T) {
 		overrideBlock("node2", "safe", "0xe2")
 		update()
 
-		require.Equal(t, "0xc2", bg.Consensus.GetFinalizedBlockNumber().String())
 		require.Equal(t, "0xe2", bg.Consensus.GetSafeBlockNumber().String())
+		require.Equal(t, "0xc2", bg.Consensus.GetFinalizedBlockNumber().String())
 	})
 
 	t.Run("ban backend if error rate is too high", func(t *testing.T) {
@@ -317,8 +317,8 @@ func TestConsensus(t *testing.T) {
 		overrideBlock("node1", "safe", "0xa1")
 		update()
 
-		require.Equal(t, "0xc1", bg.Consensus.GetFinalizedBlockNumber().String())
 		require.Equal(t, "0xe1", bg.Consensus.GetSafeBlockNumber().String())
+		require.Equal(t, "0xc1", bg.Consensus.GetFinalizedBlockNumber().String())
 
 		consensusGroup := bg.Consensus.GetConsensusGroup()
 		require.NotContains(t, consensusGroup, nodes["node1"].backend)
@@ -349,8 +349,8 @@ func TestConsensus(t *testing.T) {
 		update()
 
 		require.Equal(t, "0x101", bg.Consensus.GetLatestBlockNumber().String())
-		require.Equal(t, "0xc1", bg.Consensus.GetFinalizedBlockNumber().String())
 		require.Equal(t, "0xe1", bg.Consensus.GetSafeBlockNumber().String())
+		require.Equal(t, "0xc1", bg.Consensus.GetFinalizedBlockNumber().String())
 
 		consensusGroup := bg.Consensus.GetConsensusGroup()
 		require.NotContains(t, consensusGroup, nodes["node1"].backend)
@@ -365,8 +365,8 @@ func TestConsensus(t *testing.T) {
 		update()
 
 		require.Equal(t, "0x101", bg.Consensus.GetLatestBlockNumber().String())
-		require.Equal(t, "0xc1", bg.Consensus.GetFinalizedBlockNumber().String())
 		require.Equal(t, "0xe1", bg.Consensus.GetSafeBlockNumber().String())
+		require.Equal(t, "0xc1", bg.Consensus.GetFinalizedBlockNumber().String())
 
 		consensusGroup := bg.Consensus.GetConsensusGroup()
 		require.NotContains(t, consensusGroup, nodes["node1"].backend)
@@ -397,8 +397,8 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, 1, len(consensusGroup))
 
 		require.Equal(t, "0xd1", bg.Consensus.GetLatestBlockNumber().String())
-		require.Equal(t, "0x91", bg.Consensus.GetFinalizedBlockNumber().String())
 		require.Equal(t, "0xb1", bg.Consensus.GetSafeBlockNumber().String())
+		require.Equal(t, "0x91", bg.Consensus.GetFinalizedBlockNumber().String())
 	})
 
 	t.Run("latest dropped below safe, then recovered", func(t *testing.T) {
@@ -424,8 +424,8 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, 1, len(consensusGroup))
 
 		require.Equal(t, "0xd1", bg.Consensus.GetLatestBlockNumber().String())
-		require.Equal(t, "0x91", bg.Consensus.GetFinalizedBlockNumber().String())
 		require.Equal(t, "0xb1", bg.Consensus.GetSafeBlockNumber().String())
+		require.Equal(t, "0x91", bg.Consensus.GetFinalizedBlockNumber().String())
 	})
 
 	t.Run("latest dropped below safe, and stayed inconsistent", func(t *testing.T) {
