@@ -18,7 +18,7 @@
   "l2OutputOracleProposer": "0x473300df21D047806A082244b417f96b32f13A33",
   "l2OutputOracleChallenger": "0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A",
   "finalizationPeriodSeconds": 604800,
-  "proxyAdminOwner": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+  "proxyAdminOwner": "0x7871d1187A97cbbE40710aC119AA3d412944e4Fe",
   "baseFeeVaultRecipient": "0xa3d596EAfaB6B13Ab18D40FaE1A962700C84ADEa",
   "l1FeeVaultRecipient": "0xa3d596EAfaB6B13Ab18D40FaE1A962700C84ADEa",
   "sequencerFeeVaultRecipient": "0xa3d596EAfaB6B13Ab18D40FaE1A962700C84ADEa",
