@@ -11,9 +11,7 @@ const deployFn: DeployFunction = async (hre) => {
     )
   }
   if (hre.deployConfig.l2OutputOracleSubmissionInterval === 0) {
-    throw new Error(
-      'L2OutputOracle deployment: submissionInterval cannot be 0'
-    )
+    throw new Error('L2OutputOracle deployment: submissionInterval cannot be 0')
   }
 
   await deploy({
