@@ -81,7 +81,7 @@ func TestPrune(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	store := sync.MutexWrap(ds.NewMapDatastore())
 	clock := clock.NewDeterministicClock(time.UnixMilli(1000))
-	book, err := newScoreBook(ctx, logger, clock, store)
+	book, err := newScoreBook(ctx, logger, clock, store, 24*time.Hour)
 	require.NoError(t, err)
 
 	hasScoreRecorded := func(id peer.ID) bool {
@@ -135,7 +135,7 @@ func TestPruneMultipleBatches(t *testing.T) {
 	defer cancelFunc()
 	logger := testlog.Logger(t, log.LvlInfo)
 	clock := clock.NewDeterministicClock(time.UnixMilli(1000))
-	book, err := newScoreBook(ctx, logger, clock, sync.MutexWrap(ds.NewMapDatastore()))
+	book, err := newScoreBook(ctx, logger, clock, sync.MutexWrap(ds.NewMapDatastore()), 24*time.Hour)
 	require.NoError(t, err)
 
 	hasScoreRecorded := func(id peer.ID) bool {
@@ -159,6 +159,31 @@ func TestPruneMultipleBatches(t *testing.T) {
 	}
 }
 
+// Check that scores that are eligible for pruning are not returned, even if they haven't yet been removed
+func TestIgnoreOutdatedScores(t *testing.T) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+	logger := testlog.Logger(t, log.LvlInfo)
+	clock := clock.NewDeterministicClock(time.UnixMilli(1000))
+	retentionPeriod := 24 * time.Hour
+	book, err := newScoreBook(ctx, logger, clock, sync.MutexWrap(ds.NewMapDatastore()), retentionPeriod)
+	require.NoError(t, err)
+
+	require.NoError(t, book.SetScore("a", &GossipScores{Total: 123.45}))
+	clock.AdvanceTime(retentionPeriod + 1)
+
+	// Not available from cache
+	scores, err := book.GetPeerScores("a")
+	require.NoError(t, err)
+	require.Equal(t, scores, PeerScores{})
+
+	book.book.cache.Purge()
+	// Not available from disk
+	scores, err = book.GetPeerScores("a")
+	require.NoError(t, err)
+	require.Equal(t, scores, PeerScores{})
+}
+
 func assertPeerScores(t *testing.T, store ExtendedPeerstore, id peer.ID, expected PeerScores) {
 	result, err := store.GetPeerScores(id)
 	require.NoError(t, err)
@@ -174,8 +199,8 @@ func createPeerstoreWithBacking(t *testing.T, store *sync.MutexDatastore) Extend
 	ps, err := pstoreds.NewPeerstore(context.Background(), store, pstoreds.DefaultOpts())
 	require.NoError(t, err, "Failed to create peerstore")
 	logger := testlog.Logger(t, log.LvlInfo)
-	clock := clock.NewDeterministicClock(time.UnixMilli(100))
-	eps, err := NewExtendedPeerstore(context.Background(), logger, clock, ps, store)
+	c := clock.NewDeterministicClock(time.UnixMilli(100))
+	eps, err := NewExtendedPeerstore(context.Background(), logger, c, ps, store, 24*time.Hour)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = eps.Close()

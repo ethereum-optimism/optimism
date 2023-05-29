@@ -326,33 +326,33 @@ func TestRewriteRequest(t *testing.T) {
 		{
 			name: "eth_getBlockByNumber finalized",
 			args: args{
-				rctx: RewriteContext{latest: hexutil.Uint64(100)},
+				rctx: RewriteContext{latest: hexutil.Uint64(100), finalized: hexutil.Uint64(55)},
 				req:  &RPCReq{Method: "eth_getBlockByNumber", Params: mustMarshalJSON([]string{"finalized"})},
 				res:  nil,
 			},
-			expected: RewriteNone,
+			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []string
 				err := json.Unmarshal(args.req.Params, &p)
 				require.Nil(t, err)
 				require.Equal(t, 1, len(p))
-				require.Equal(t, "finalized", p[0])
+				require.Equal(t, hexutil.Uint64(55).String(), p[0])
 			},
 		},
 		{
 			name: "eth_getBlockByNumber safe",
 			args: args{
-				rctx: RewriteContext{latest: hexutil.Uint64(100)},
+				rctx: RewriteContext{latest: hexutil.Uint64(100), safe: hexutil.Uint64(50)},
 				req:  &RPCReq{Method: "eth_getBlockByNumber", Params: mustMarshalJSON([]string{"safe"})},
 				res:  nil,
 			},
-			expected: RewriteNone,
+			expected: RewriteOverrideRequest,
 			check: func(t *testing.T, args args) {
 				var p []string
 				err := json.Unmarshal(args.req.Params, &p)
 				require.Nil(t, err)
 				require.Equal(t, 1, len(p))
-				require.Equal(t, "safe", p[0])
+				require.Equal(t, hexutil.Uint64(50).String(), p[0])
 			},
 		},
 		{

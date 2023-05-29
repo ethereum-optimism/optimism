@@ -679,7 +679,7 @@ func (sys *System) newMockNetPeer() (host.Host, error) {
 	_ = ps.AddPubKey(p, sk.GetPublic())
 
 	ds := sync.MutexWrap(ds.NewMapDatastore())
-	eps, err := store.NewExtendedPeerstore(context.Background(), log.Root(), clock.SystemClock, ps, ds)
+	eps, err := store.NewExtendedPeerstore(context.Background(), log.Root(), clock.SystemClock, ps, ds, 24*time.Hour)
 	if err != nil {
 		return nil, err
 	}
