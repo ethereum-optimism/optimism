@@ -43,11 +43,10 @@ type ConsensusPoller struct {
 type backendState struct {
 	backendStateMux sync.Mutex
 
-	latestBlockNumber hexutil.Uint64
-	latestBlockHash   string
-
-	finalizedBlockNumber hexutil.Uint64
+	latestBlockNumber    hexutil.Uint64
+	latestBlockHash      string
 	safeBlockNumber      hexutil.Uint64
+	finalizedBlockNumber hexutil.Uint64
 
 	peerCount uint64
 	inSync    bool
@@ -77,14 +76,14 @@ func (ct *ConsensusPoller) GetLatestBlockNumber() hexutil.Uint64 {
 	return ct.tracker.GetLatestBlockNumber()
 }
 
-// GetFinalizedBlockNumber returns the `finalized` agreed block number in a consensus
-func (ct *ConsensusPoller) GetFinalizedBlockNumber() hexutil.Uint64 {
-	return ct.tracker.GetFinalizedBlockNumber()
-}
-
 // GetSafeBlockNumber returns the `safe` agreed block number in a consensus
 func (ct *ConsensusPoller) GetSafeBlockNumber() hexutil.Uint64 {
 	return ct.tracker.GetSafeBlockNumber()
+}
+
+// GetFinalizedBlockNumber returns the `finalized` agreed block number in a consensus
+func (ct *ConsensusPoller) GetFinalizedBlockNumber() hexutil.Uint64 {
+	return ct.tracker.GetFinalizedBlockNumber()
 }
 
 func (cp *ConsensusPoller) Shutdown() {
@@ -212,9 +211,6 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 	ctx, cancelFunc := context.WithCancel(context.Background())
 
 	state := make(map[*Backend]*backendState, len(bg.Backends))
-	for _, be := range bg.Backends {
-		state[be] = &backendState{}
-	}
 
 	cp := &ConsensusPoller{
 		cancelFunc:   cancelFunc,
@@ -239,6 +235,7 @@ func NewConsensusPoller(bg *BackendGroup, opts ...ConsensusOpt) *ConsensusPoller
 		cp.asyncHandler = NewPollerAsyncHandler(ctx, cp)
 	}
 
+	cp.Reset()
 	cp.asyncHandler.Init()
 
 	return cp
@@ -291,15 +288,11 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 		log.Warn("error updating backend - finalized block", "name", be.Name, "err", err)
 	}
 
-	oldFinalized := bs.finalizedBlockNumber
-	oldSafe := bs.safeBlockNumber
-
-	updateDelay := time.Since(bs.lastUpdate)
-	RecordConsensusBackendUpdateDelay(be, updateDelay)
+	RecordConsensusBackendUpdateDelay(be, bs.lastUpdate)
 
 	changed := cp.setBackendState(be, peerCount, inSync,
 		latestBlockNumber, latestBlockHash,
-		finalizedBlockNumber, safeBlockNumber)
+		safeBlockNumber, finalizedBlockNumber)
 
 	RecordBackendLatestBlock(be, latestBlockNumber)
 	RecordBackendSafeBlock(be, safeBlockNumber)
@@ -312,25 +305,25 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 			"inSync", inSync,
 			"latestBlockNumber", latestBlockNumber,
 			"latestBlockHash", latestBlockHash,
-			"finalizedBlockNumber", finalizedBlockNumber,
 			"safeBlockNumber", safeBlockNumber,
-			"updateDelay", updateDelay)
+			"finalizedBlockNumber", finalizedBlockNumber,
+			"lastUpdate", bs.lastUpdate)
 	}
 
 	// sanity check for latest, safe and finalized block tags
 	expectedBlockTags := cp.checkExpectedBlockTags(
-		finalizedBlockNumber, oldFinalized,
-		safeBlockNumber, oldSafe,
-		latestBlockNumber)
+		latestBlockNumber,
+		bs.safeBlockNumber, safeBlockNumber,
+		bs.finalizedBlockNumber, finalizedBlockNumber)
 
 	RecordBackendUnexpectedBlockTags(be, !expectedBlockTags)
 
 	if !expectedBlockTags {
 		log.Warn("backend banned - unexpected block tags",
 			"backend", be.Name,
-			"oldFinalized", oldFinalized,
+			"oldFinalized", bs.finalizedBlockNumber,
 			"finalizedBlockNumber", finalizedBlockNumber,
-			"oldSafe", oldSafe,
+			"oldSafe", bs.safeBlockNumber,
 			"safeBlockNumber", safeBlockNumber,
 			"latestBlockNumber", latestBlockNumber,
 		)
@@ -342,9 +335,10 @@ func (cp *ConsensusPoller) UpdateBackend(ctx context.Context, be *Backend) {
 // - finalized block number should never decrease
 // - safe block number should never decrease
 // - finalized block should be <= safe block <= latest block
-func (cp *ConsensusPoller) checkExpectedBlockTags(currentFinalized hexutil.Uint64, oldFinalized hexutil.Uint64,
-	currentSafe hexutil.Uint64, oldSafe hexutil.Uint64,
-	currentLatest hexutil.Uint64) bool {
+func (cp *ConsensusPoller) checkExpectedBlockTags(
+	currentLatest hexutil.Uint64,
+	oldSafe hexutil.Uint64, currentSafe hexutil.Uint64,
+	oldFinalized hexutil.Uint64, currentFinalized hexutil.Uint64) bool {
 	return currentFinalized >= oldFinalized &&
 		currentSafe >= oldSafe &&
 		currentFinalized <= currentSafe &&
@@ -596,8 +590,8 @@ func (cp *ConsensusPoller) getBackendState(be *Backend) *backendState {
 
 func (cp *ConsensusPoller) setBackendState(be *Backend, peerCount uint64, inSync bool,
 	latestBlockNumber hexutil.Uint64, latestBlockHash string,
-	finalizedBlockNumber hexutil.Uint64,
-	safeBlockNumber hexutil.Uint64) bool {
+	safeBlockNumber hexutil.Uint64,
+	finalizedBlockNumber hexutil.Uint64) bool {
 	bs := cp.backendState[be]
 	bs.backendStateMux.Lock()
 	changed := bs.latestBlockHash != latestBlockHash
@@ -658,7 +652,7 @@ func (cp *ConsensusPoller) getConsensusCandidates() map[*Backend]*backendState {
 	lagging := make([]*Backend, 0, len(candidates))
 	for be, bs := range candidates {
 		// check if backend is lagging behind the highest block
-		if bs.latestBlockNumber < highestLatestBlock && uint64(highestLatestBlock-bs.latestBlockNumber) > cp.maxBlockLag {
+		if uint64(highestLatestBlock-bs.latestBlockNumber) > cp.maxBlockLag {
 			lagging = append(lagging, be)
 		}
 	}
