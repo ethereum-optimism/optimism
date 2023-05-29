@@ -24,7 +24,7 @@
   "sequencerFeeVaultRecipient": "0xa3d596EAfaB6B13Ab18D40FaE1A962700C84ADEa",
   "governanceTokenName": "Optimism",
   "governanceTokenSymbol": "OP",
-  "governanceTokenOwner": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+  "governanceTokenOwner": "0x5C4e7Ba1E219E47948e6e3F55019A647bA501005",
   "l2GenesisBlockGasLimit": "0x1c9c380",
   "l2GenesisBlockCoinbase": "0x4200000000000000000000000000000000000011",
   "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
