@@ -22,6 +22,7 @@ no_match_contract = 'EchidnaFuzz'
 
 fs_permissions = [
   { 'access'='read-write', 'path'='./.resource-metering.csv' },
+  { 'access'='read', 'path'='./deployments/' },
 ]
 
 [profile.ci]
