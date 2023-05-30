@@ -218,7 +218,7 @@ Finally, we’ll need to update `~/optimism/op-node/rollup/derive/attributes.go`
     ```go
     l1BurnTx, err := L1BurnDepositBytes(seqNumber, l1Info, sysConfig)
     if err != nil {
-            return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))
+            return nil, NewCriticalError(fmt.Errorf("failed to create l1BurnTx: %w", err))
     }
     ```
     
