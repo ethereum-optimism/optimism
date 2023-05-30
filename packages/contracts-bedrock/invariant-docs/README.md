@@ -7,6 +7,8 @@ This directory contains documentation for all defined invariant tests within `co
 
 ## Table of Contents
 - [AddressAliasing](./AddressAliasing.md)
+- [Burn.Eth](./Burn.Eth.md)
+- [Burn.Gas](./Burn.Gas.md)
 - [Burn](./Burn.md)
 - [CrossDomainMessenger](./CrossDomainMessenger.md)
 - [Encoding](./Encoding.md)
