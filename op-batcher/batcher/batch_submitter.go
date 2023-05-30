@@ -4,9 +4,6 @@ import (
 	"context"
 	"fmt"
 	_ "net/http/pprof"
-	"os"
-	"os/signal"
-	"syscall"
 
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli"
@@ -16,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
@@ -98,14 +96,7 @@ func Main(version string, cliCtx *cli.Context) error {
 	m.RecordInfo(version)
 	m.RecordUp()
 
-	interruptChannel := make(chan os.Signal, 1)
-	signal.Notify(interruptChannel, []os.Signal{
-		os.Interrupt,
-		os.Kill,
-		syscall.SIGTERM,
-		syscall.SIGQUIT,
-	}...)
-	<-interruptChannel
+	opio.BlockOnInterrupts()
 	if err := server.Stop(); err != nil {
 		l.Error("Error shutting down http server: %w", err)
 	}
