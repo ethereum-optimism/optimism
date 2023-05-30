@@ -57,6 +57,9 @@ var (
 	LegacyETHCheckSlots = map[libcommon.Hash]libcommon.Hash{
 		// Bridge
 		{31: 0x06}: libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000010"),
+		// L1 token address
+		// This is only applied to alt l2s (bobabeam, bobaopera)
+		{31: 0x05}: {},
 		// Symbol
 		{31: 0x04}: libcommon.HexToHash("0x4554480000000000000000000000000000000000000000000000000000000006"),
 		// Name
@@ -469,14 +472,45 @@ func PostCheckLegacyETH(tx kv.Tx, g *types.Genesis, migrationData crossdomain.Mi
 		addresses[ether.CalcOVMETHStorageKey(addr)] = addr
 	}
 
-	log.Info("checking legacy eth fixed storage slots")
-	for slot, expValue := range LegacyETHCheckSlots {
-		actValue, err := state.GetStorage(tx, predeploys.LegacyERC20ETHAddr, slot)
-		if err != nil {
-			return fmt.Errorf("failed to get storage for %s: %w", slot, err)
+	// This is for bobabeam and bobaopera
+	// We don't touch any of the old slots except the balance slots
+	if crossdomain.CustomLegacyETHSlotCheck[int(g.Config.ChainID.Int64())] == true {
+		log.Info("checking legacy eth fixed storage slots for custom chain", "chainID", g.Config.ChainID)
+		defaultSlots := []libcommon.Hash{
+			libcommon.BytesToHash([]byte{2}),
+			libcommon.BytesToHash([]byte{3}),
+			libcommon.BytesToHash([]byte{4}),
+			libcommon.BytesToHash([]byte{5}),
+			libcommon.BytesToHash([]byte{6}),
 		}
-		if *actValue != expValue {
-			return fmt.Errorf("expected slot %s on %s to be %s, but got %s", slot, predeploys.LegacyERC20ETHAddr, expValue, actValue)
+		for _, slot := range defaultSlots {
+			if g.Alloc[predeploys.LegacyERC20ETHAddr].Storage[slot] != (libcommon.Hash{}) {
+				actValue, err := state.GetStorage(tx, predeploys.LegacyERC20ETHAddr, slot)
+				if err != nil {
+					return fmt.Errorf("failed to get storage for %s: %w", slot, err)
+				}
+				// The total supply should be 0
+				if slot == libcommon.BytesToHash([]byte{2}) {
+					if *actValue != (libcommon.Hash{}) {
+						return fmt.Errorf("expected slot %s on %s to be %s, but got %s", slot, predeploys.LegacyERC20ETHAddr, (libcommon.Hash{}), actValue)
+					}
+					continue
+				}
+				if *actValue != g.Alloc[predeploys.LegacyERC20ETHAddr].Storage[slot] {
+					return fmt.Errorf("expected slot %s on %s to be %s, but got %s", slot, predeploys.LegacyERC20ETHAddr, g.Alloc[predeploys.LegacyERC20ETHAddr].Storage[slot], actValue)
+				}
+			}
+		}
+	} else {
+		log.Info("checking legacy eth fixed storage slots", "chainID", g.Config.ChainID)
+		for slot, expValue := range LegacyETHCheckSlots {
+			actValue, err := state.GetStorage(tx, predeploys.LegacyERC20ETHAddr, slot)
+			if err != nil {
+				return fmt.Errorf("failed to get storage for %s: %w", slot, err)
+			}
+			if *actValue != expValue {
+				return fmt.Errorf("expected slot %s on %s to be %s, but got %s", slot, predeploys.LegacyERC20ETHAddr, expValue, actValue)
+			}
 		}
 	}
 

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/c2h5oh/datasize"
@@ -9,11 +11,15 @@ import (
 
 	"github.com/ledgerwatch/log/v3"
 
+	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/datadir"
 	"github.com/ledgerwatch/erigon-lib/kv"
+	"github.com/ledgerwatch/erigon/core/rawdb"
+	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/node"
 	"github.com/ledgerwatch/erigon/node/nodecfg"
 
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/chain"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/genesis"
 )
@@ -128,6 +134,16 @@ func main() {
 			}
 			genesisBlock.Alloc = *genesisAlloc
 
+			// deep copy genesis for later checking
+			var genesisBlockOrigin types.Genesis
+			genesisByte, err := json.Marshal(genesisBlock)
+			if err != nil {
+				return err
+			}
+			if err := json.Unmarshal(genesisByte, &genesisBlockOrigin); err != nil {
+				return err
+			}
+
 			dbPath := ctx.String("db-path")
 			mdbxDBSize := ctx.String("db-size-limit")
 
@@ -176,14 +192,35 @@ func main() {
 			}
 			defer postChaindb.Close()
 
-			tx, err := postChaindb.BeginRw(context.Background())
+			tx, err := postChaindb.BeginRo(context.Background())
 			if err != nil {
 				log.Error("failed to begin write genesis block", "err", err)
 				return err
 			}
 			defer tx.Rollback()
 
-			if err := genesis.PostCheckLegacyETH(tx, genesisBlock, migrationData); err != nil {
+			hash := rawdb.ReadHeadHeaderHash(tx)
+			log.Info("Reading chain tip from database", "hash", hash)
+			num := rawdb.ReadHeaderNumber(tx, hash)
+			if num == nil {
+				log.Error("failed to read chain tip from database", "hash", hash)
+				return fmt.Errorf("cannot find header number for %s", hash)
+			}
+			if *num != 0 {
+				log.Error("chain tip is not genesis block", "hash", hash)
+				return fmt.Errorf("expected chain tip to be block 0, but got %d", *num)
+			}
+
+			header := rawdb.ReadHeader(tx, hash, *num)
+			log.Info("Read header from database", "number", *num)
+
+			bobaGenesisHash := common.HexToHash(chain.GetBobaGenesisHash(genesisBlockOrigin.Config.ChainID))
+			if header.Hash() != bobaGenesisHash {
+				log.Error("genesis block hash mismatch", "expected", bobaGenesisHash, "got", header.Hash())
+				return fmt.Errorf("genesis block hash mismatch, expected %s, got %s", bobaGenesisHash, header.Hash())
+			}
+
+			if err := genesis.PostCheckLegacyETH(tx, &genesisBlockOrigin, migrationData); err != nil {
 				log.Error("failed to post check legacy eth", "err", err)
 				return err
 			}

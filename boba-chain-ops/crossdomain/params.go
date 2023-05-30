@@ -14,10 +14,21 @@ type Params struct {
 }
 
 var ParamsByChainID = map[int]*Params{
-	28: {
+	// Ethereum Mainnet L2
+	288: {
 		new(big.Int),
 	},
+	// Goerli L2
 	2888: {
 		new(big.Int),
 	},
+	// Bobabeam
+	1294: {
+		new(big.Int),
+	},
+}
+
+var CustomLegacyETHSlotCheck = map[int]bool{
+	// Custom slot check for Bobabeam
+	1294: true,
 }
