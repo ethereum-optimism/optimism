@@ -31,6 +31,10 @@ Celestia is a modular consensus and data network, built to enable anyone to easi
 
 Celestia is a minimal blockchain that only orders and publishes transactions and does not execute them. By decoupling the consensus and application execution layers, Celestia modularizes the blockchain technology stack and unlocks new possibilities for decentralized application builders. Lean more at [Celestia.org](https://celestia.org).
 
+## Maintenance
+
+The maintenance guide for this repository can be found in the Wiki tab of the repository or [here](https://github.com/celestiaorg/optimism/wiki).
+
 ## Documentation
 
 If you want to build on top of Celestia, take a look at the documentation at [docs.celestia.org](https://docs.celestia.org).
