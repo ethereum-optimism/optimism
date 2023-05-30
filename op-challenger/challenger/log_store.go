@@ -108,7 +108,7 @@ func (l *logStore) buildBackoffStrategy() backoff.Strategy {
 // resubscribe attempts to re-establish the log store internal
 // subscription with a backoff strategy.
 func (l *logStore) resubscribe(ctx context.Context) error {
-	l.log.Info("resubscribing")
+	l.log.Info("log store resubscribing with backoff")
 	backoffStrategy := l.buildBackoffStrategy()
 	return backoff.DoCtx(ctx, 10, backoffStrategy, func() error {
 		if l.subscription == nil {

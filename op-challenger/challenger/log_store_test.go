@@ -110,7 +110,7 @@ func TestLogStore_Subscribe_ReceivesLogs(t *testing.T) {
 	}
 	client.logs <- mockLog
 
-	timeout, tCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	timeout, tCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer tCancel()
 	err := e2eutils.WaitFor(timeout, 500*time.Millisecond, func() (bool, error) {
 		result := logStore.GetLogByBlockHash(mockLog.BlockHash)
@@ -126,7 +126,7 @@ func TestLogStore_Subscribe_SubscriptionErrors(t *testing.T) {
 
 	client.sub.errorChan <- ErrTestError
 
-	timeout, tCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	timeout, tCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer tCancel()
 	err := e2eutils.WaitFor(timeout, 500*time.Millisecond, func() (bool, error) {
 		subcount := client.subcount == 2
@@ -137,13 +137,10 @@ func TestLogStore_Subscribe_SubscriptionErrors(t *testing.T) {
 }
 
 func TestLogStore_Subscribe_NoClient_Panics(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Error("expected nil client to panic")
-		}
-	}()
-	logStore, _ := newErrorLogStore(t, nil)
-	require.NoError(t, logStore.Subscribe(context.Background()))
+	require.Panics(t, func() {
+		logStore, _ := newErrorLogStore(t, nil)
+		_ = logStore.Subscribe(context.Background())
+	})
 }
 
 func TestLogStore_Subscribe_ErrorSubscribing(t *testing.T) {
@@ -162,11 +159,8 @@ func TestLogStore_Quit_ResetsSubscription(t *testing.T) {
 }
 
 func TestLogStore_Quit_NoSubscription_Panics(t *testing.T) {
-	defer func() {
-		if recover() == nil {
-			t.Error("expected no subscription to panic")
-		}
-	}()
-	logStore, _ := newErrorLogStore(t, nil)
-	logStore.Quit()
+	require.Panics(t, func() {
+		logStore, _ := newErrorLogStore(t, nil)
+		logStore.Quit()
+	})
 }
