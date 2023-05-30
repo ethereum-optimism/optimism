@@ -46,7 +46,7 @@ contract ChainRegistry {
     /**
      * @notice Only the deployment admin can claim a deployment
      *
-     * @param _deployment the deployment to check admin privilege for
+     * @param _deployment The deployment to check admin privilege for
      */
     modifier onlyAdmin(string calldata _deployment) {
         require(msg.sender == deployments[_deployment], "Only deployment admin");
