@@ -38,10 +38,15 @@ const checkPredeploys = async (
     predeploys.ProxyAdmin,
   ])
 
+  // We only check predeploys 0x420..00 through 0x420..FF on the mainnet network to
+  // reduce the probability of an RPC timeout. After the migration, all predeploys
+  // from 0x420..00 through 0x420..07FF should be checked.
+  const maxCheck = hre.network.name === 'mainnet' ? 256 : 2048
+
   const codeReq = []
   const slotReq = []
   // First loop for requests
-  for (let i = 0; i < 2048; i++) {
+  for (let i = 0; i < maxCheck; i++) {
     const num = hre.ethers.utils.hexZeroPad('0x' + i.toString(16), 2)
     const addr = hre.ethers.utils.getAddress(
       hre.ethers.utils.hexConcat([prefix, num])
@@ -57,7 +62,7 @@ const checkPredeploys = async (
   const slotRes = await Promise.all(slotReq)
 
   // Second loop for response checks
-  for (let i = 0; i < 2048; i++) {
+  for (let i = 0; i < maxCheck; i++) {
     const num = hre.ethers.utils.hexZeroPad('0x' + i.toString(16), 2)
     const addr = hre.ethers.utils.getAddress(
       hre.ethers.utils.hexConcat([prefix, num])
@@ -79,7 +84,7 @@ const checkPredeploys = async (
       throw new Error(`incorrect admin slot in ${addr}`)
     }
 
-    if (i % 200 === 0) {
+    if (i % (maxCheck / 4) === 0) {
       console.log(`Checked through ${addr}`)
     }
   }
@@ -186,7 +191,16 @@ const checkGenesisMagic = async (
 
     const L2OutputOracle = new hre.ethers.Contract(address, [abi], l1Provider)
 
-    startingBlockNumber = await L2OutputOracle.startingBlockNumber()
+    // In the migration, the L2OutputOracle proxy is not yet initialized when we
+    // want to run this script. Fall back on the local config if we get an error
+    // fetching the starting block number.
+    try {
+      startingBlockNumber = await L2OutputOracle.startingBlockNumber()
+    } catch (e) {
+      console.log(`Error fetching startingBlockNumber:\n${e.message}`)
+      console.log('Falling back to local config.')
+      startingBlockNumber = hre.deployConfig.l2OutputOracleStartingBlockNumber
+    }
   } else {
     // We do not have a connection to the L1 chain, use the local config
     // The `--network` flag must be set to the L1 network
@@ -200,7 +214,9 @@ const checkGenesisMagic = async (
   const extradata = block.extraData
 
   if (extradata !== magic) {
-    throw new Error('magic value in extradata does not match')
+    throw new Error(
+      `magic value in extradata does not match: got ${extradata}, expected ${magic}`
+    )
   }
 }
 

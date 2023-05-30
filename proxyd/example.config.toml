@@ -93,8 +93,8 @@ backends = ["infura"]
 # consensus_ban_period = "1m"
 # Maximum delay for update the backend, default 30s
 # consensus_max_update_threshold = "20s"
-# Maximum block lag, default 50
-# consensus_max_block_lag = 10
+# Maximum block lag, default 8
+# consensus_max_block_lag = 16
 # Minimum peer count, default 3
 # consensus_min_peer_count = 4
 
