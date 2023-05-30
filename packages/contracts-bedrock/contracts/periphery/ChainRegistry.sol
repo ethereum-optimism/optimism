@@ -7,12 +7,11 @@ pragma solidity 0.8.15;
  *         contract addresses for an OP Stack chain
  */
 contract ChainRegistry {
-
     /**
      * @notice Emitted any time a deployment is claimed
      *
      * @param deployment The name of the deployment claimed
-     * @param admin The admin of the deployment claimed
+     * @param admin      The admin of the deployment claimed
      */
     event DeploymentClaimed(string deployment, address admin);
 
@@ -58,7 +57,7 @@ contract ChainRegistry {
      * @notice Claims a deployment
      *
      * @param _deployment The deployment name to claim
-     * @param _admin The deployment's admin
+     * @param _admin      The deployment's admin
      */
     function claimDeployment(string calldata _deployment, address _admin) public {
         require(deployments[_deployment] == address(0), "Deployment already claimed");
@@ -71,9 +70,12 @@ contract ChainRegistry {
      * @notice Transfers ownership of a deployment to a new admin
      *
      * @param _deployment The deployment to transfer ownership of
-     * @param _newAdmin The new admin to transfer ownership to
+     * @param _newAdmin   The new admin to transfer ownership to
      */
-    function transferAdmin(string calldata _deployment, address _newAdmin) public onlyAdmin(_deployment) {
+    function transferAdmin(
+        string calldata _deployment,
+        address _newAdmin
+    ) public onlyAdmin(_deployment) {
         deployments[_deployment] = _newAdmin;
 
         emit AdminChanged(msg.sender, _newAdmin);
@@ -83,9 +85,12 @@ contract ChainRegistry {
      * @notice Registers entries in a deployment
      *
      * @param _deployment The deployment to register entries in
-     * @param _entries An array of entries to register
+     * @param _entries    An array of entries to register
      */
-    function register(string calldata _deployment, DeploymentEntry[] calldata _entries) public onlyAdmin(_deployment) {
+    function register(
+        string calldata _deployment,
+        DeploymentEntry[] calldata _entries
+    ) public onlyAdmin(_deployment) {
         for (uint i = 0; i < _entries.length; i++) {
             registry[_deployment][_entries[i].entryName] = _entries[i].entryAddress;
         }
@@ -95,11 +100,14 @@ contract ChainRegistry {
      * @notice Queries the chain registry for a list of deployment addresses
      *
      * @param _deployment The deployment to query
-     * @param _names An array of names to query the addresses for
+     * @param _names      An array of names to query the addresses for
      *
      * @return An array of contract addresses for the names queried
      */
-    function query(string calldata _deployment, string[] calldata _names) public view returns (address[] memory) {
+    function query(
+        string calldata _deployment,
+        string[] calldata _names
+    ) public view returns (address[] memory) {
         address[] memory addresses = new address[](_names.length);
         for (uint i; i < _names.length; i++) {
             addresses[i] = registry[_deployment][_names[i]];
