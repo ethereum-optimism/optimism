@@ -86,8 +86,9 @@ func (d *scoreBook) GetPeerScore(id peer.ID) (float64, error) {
 	return scores.Gossip.Total, nil
 }
 
-func (d *scoreBook) SetScore(id peer.ID, diff ScoreDiff) error {
-	return d.book.SetRecord(id, diff)
+func (d *scoreBook) SetScore(id peer.ID, diff ScoreDiff) (PeerScores, error) {
+	v, err := d.book.SetRecord(id, diff)
+	return v.PeerScores, err
 }
 
 func (d *scoreBook) Close() {

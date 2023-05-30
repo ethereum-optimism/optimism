@@ -36,7 +36,7 @@ type PeerScoresTestSuite struct {
 	suite.Suite
 
 	mockStore    *p2pMocks.Peerstore
-	mockMetricer *p2pMocks.GossipMetricer
+	mockMetricer *p2pMocks.ScoreMetrics
 	bandScorer   BandScoreThresholds
 	logger       log.Logger
 }
@@ -44,7 +44,7 @@ type PeerScoresTestSuite struct {
 // SetupTest sets up the test suite.
 func (testSuite *PeerScoresTestSuite) SetupTest() {
 	testSuite.mockStore = &p2pMocks.Peerstore{}
-	testSuite.mockMetricer = &p2pMocks.GossipMetricer{}
+	testSuite.mockMetricer = &p2pMocks.ScoreMetrics{}
 	bandScorer, err := NewBandScorer("0:graylist;")
 	testSuite.NoError(err)
 	testSuite.bandScorer = *bandScorer
@@ -157,7 +157,7 @@ func (testSuite *PeerScoresTestSuite) TestNegativeScores() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	testSuite.mockMetricer.On("SetPeerScores", mock.Anything).Return(nil)
+	testSuite.mockMetricer.On("SetPeerScores", mock.Anything, mock.Anything).Return(nil)
 
 	// Construct 20 hosts using the [getNetHosts] function.
 	hosts := getNetHosts(testSuite, ctx, 20)

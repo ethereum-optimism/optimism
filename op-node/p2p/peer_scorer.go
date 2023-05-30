@@ -96,7 +96,7 @@ type Peerstore interface {
 	// Peers returns all of the peer IDs stored across all inner stores.
 	Peers() peer.IDSlice
 
-	SetScore(id peer.ID, diff store.ScoreDiff) error
+	SetScore(id peer.ID, diff store.ScoreDiff) (store.PeerScores, error)
 }
 
 // Scorer is a peer scorer that scores peers based on application-specific metrics.
@@ -106,8 +106,9 @@ type Scorer interface {
 	SnapshotHook() pubsub.ExtendedPeerScoreInspectFn
 }
 
+//go:generate mockery --name ScoreMetrics --output mocks/
 type ScoreMetrics interface {
-	SetPeerScores(map[string]float64)
+	SetPeerScores(map[string]float64, []store.PeerScores)
 }
 
 // NewScorer returns a new peer scorer.
@@ -129,6 +130,7 @@ func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
 	blocksTopicName := blocksTopicV1(s.cfg)
 	return func(m map[peer.ID]*pubsub.PeerScoreSnapshot) {
 		scoreMap := make(map[string]float64)
+		allScores := make([]store.PeerScores, 0, len(m))
 		// Zero out all bands.
 		for _, b := range s.bandScoreThresholds.bands {
 			scoreMap[b.band] = 0
@@ -147,15 +149,17 @@ func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
 				diff.Blocks.FirstMessageDeliveries = topSnap.FirstMessageDeliveries
 				diff.Blocks.InvalidMessageDeliveries = topSnap.InvalidMessageDeliveries
 			}
-			if err := s.peerStore.SetScore(id, &diff); err != nil {
+			if peerScores, err := s.peerStore.SetScore(id, &diff); err != nil {
 				s.log.Warn("Unable to update peer gossip score", "err", err)
+			} else {
+				allScores = append(allScores, peerScores)
 			}
 		}
 		for _, snap := range m {
 			band := s.bandScoreThresholds.Bucket(snap.Score)
 			scoreMap[band] += 1
 		}
-		s.metricer.SetPeerScores(scoreMap)
+		s.metricer.SetPeerScores(scoreMap, allScores)
 	}
 }
 

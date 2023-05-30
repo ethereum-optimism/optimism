@@ -46,17 +46,27 @@ func (_m *Peerstore) Peers() peer.IDSlice {
 }
 
 // SetScore provides a mock function with given fields: id, diff
-func (_m *Peerstore) SetScore(id peer.ID, diff store.ScoreDiff) error {
+func (_m *Peerstore) SetScore(id peer.ID, diff store.ScoreDiff) (store.PeerScores, error) {
 	ret := _m.Called(id, diff)
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(peer.ID, store.ScoreDiff) error); ok {
+	var r0 store.PeerScores
+	var r1 error
+	if rf, ok := ret.Get(0).(func(peer.ID, store.ScoreDiff) (store.PeerScores, error)); ok {
+		return rf(id, diff)
+	}
+	if rf, ok := ret.Get(0).(func(peer.ID, store.ScoreDiff) store.PeerScores); ok {
 		r0 = rf(id, diff)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(store.PeerScores)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(peer.ID, store.ScoreDiff) error); ok {
+		r1 = rf(id, diff)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 type mockConstructorTestingTNewPeerstore interface {
