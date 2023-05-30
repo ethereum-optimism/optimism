@@ -65,16 +65,7 @@ func (c *Challenger) Client() *ethclient.Client {
 }
 
 func (c *Challenger) NewOracleSubscription() (*Subscription, error) {
-	query, err := BuildOutputLogFilter(c.l2ooABI)
-	if err != nil {
-		return nil, err
-	}
-	return NewSubscription(query, c.Client(), c.log), nil
-}
-
-// NewFactorySubscription creates a new [Subscription] listening to the DisputeGameFactory contract.
-func (c *Challenger) NewFactorySubscription() (*Subscription, error) {
-	query, err := BuildDisputeGameLogFilter(c.dgfABI)
+	query, err := c.BuildOutputLogFilter()
 	if err != nil {
 		return nil, err
 	}

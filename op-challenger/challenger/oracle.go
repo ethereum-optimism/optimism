@@ -34,3 +34,8 @@ func BuildOutputLogFilter(l2ooABI *abi.ABI) (ethereum.FilterQuery, error) {
 
 	return query, nil
 }
+
+// BuildOutputLogFilter creates a filter query for the L2OutputOracle contract.
+func (c *Challenger) BuildOutputLogFilter() (ethereum.FilterQuery, error) {
+	return BuildOutputLogFilter(c.l2ooABI)
+}
