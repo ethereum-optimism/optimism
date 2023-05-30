@@ -7,9 +7,9 @@ import (
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
-	nodeflags "github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	service "github.com/ethereum-optimism/optimism/op-service"
+	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
@@ -74,7 +74,7 @@ var (
 	L1RPCProviderKind = cli.GenericFlag{
 		Name: "l1.rpckind",
 		Usage: "The kind of RPC provider, used to inform optimal transactions receipts fetching, and thus reduce costs. Valid options: " +
-			nodeflags.EnumString[sources.RPCProviderKind](sources.RPCProviderKinds),
+			openum.EnumString(sources.RPCProviderKinds),
 		EnvVar: service.PrefixEnvVar(EnvVarPrefix, "L1_RPC_KIND"),
 		Value: func() *sources.RPCProviderKind {
 			out := sources.RPCKindBasic

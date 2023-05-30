@@ -9,7 +9,9 @@ import (
 )
 
 type RewriteContext struct {
-	latest hexutil.Uint64
+	latest    hexutil.Uint64
+	safe      hexutil.Uint64
+	finalized hexutil.Uint64
 }
 
 type RewriteResult uint8
@@ -180,11 +182,13 @@ func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
 	}
 
 	switch *bnh.BlockNumber {
-	case rpc.SafeBlockNumber,
-		rpc.FinalizedBlockNumber,
-		rpc.PendingBlockNumber,
+	case rpc.PendingBlockNumber,
 		rpc.EarliestBlockNumber:
 		return current, false, nil
+	case rpc.FinalizedBlockNumber:
+		return rctx.finalized.String(), true, nil
+	case rpc.SafeBlockNumber:
+		return rctx.safe.String(), true, nil
 	case rpc.LatestBlockNumber:
 		return rctx.latest.String(), true, nil
 	default:

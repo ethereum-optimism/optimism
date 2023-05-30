@@ -76,7 +76,7 @@ func getNetHosts(testSuite *PeerScoresTestSuite, ctx context.Context, n int) []h
 	log := testlog.Logger(testSuite.T(), log.LvlError)
 	for i := 0; i < n; i++ {
 		swarm := tswarm.GenSwarm(testSuite.T())
-		eps, err := store.NewExtendedPeerstore(ctx, log, clock.SystemClock, swarm.Peerstore(), sync.MutexWrap(ds.NewMapDatastore()))
+		eps, err := store.NewExtendedPeerstore(ctx, log, clock.SystemClock, swarm.Peerstore(), sync.MutexWrap(ds.NewMapDatastore()), 1*time.Hour)
 		netw := &customPeerstoreNetwork{swarm, eps}
 		require.NoError(testSuite.T(), err)
 		h := bhost.NewBlankHost(netw)
@@ -99,7 +99,7 @@ func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []
 		dataStore := sync.MutexWrap(ds.NewMapDatastore())
 		peerStore, err := pstoreds.NewPeerstore(context.Background(), dataStore, pstoreds.DefaultOpts())
 		require.NoError(testSuite.T(), err)
-		extPeerStore, err := store.NewExtendedPeerstore(context.Background(), logger, clock.SystemClock, peerStore, dataStore)
+		extPeerStore, err := store.NewExtendedPeerstore(context.Background(), logger, clock.SystemClock, peerStore, dataStore, 1*time.Hour)
 		require.NoError(testSuite.T(), err)
 
 		scorer := NewScorer(
