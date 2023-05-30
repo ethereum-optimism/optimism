@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 
 	opnode "github.com/ethereum-optimism/optimism/op-node"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -64,7 +67,17 @@ func Main(cliCtx *cli.Context) error {
 		return fmt.Errorf("uninitialized discovery service")
 	}
 
-	p2pNode.DiscoveryProcess(ctx, logger, config, p2pConfig.TargetPeers())
+	go p2pNode.DiscoveryProcess(ctx, logger, config, p2pConfig.TargetPeers())
+
+	interruptChannel := make(chan os.Signal, 1)
+	signal.Notify(interruptChannel, []os.Signal{
+		os.Interrupt,
+		os.Kill,
+		syscall.SIGTERM,
+		syscall.SIGQUIT,
+	}...)
+	<-interruptChannel
+
 	return nil
 }
 
