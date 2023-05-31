@@ -3,9 +3,10 @@ package proxyd
 import (
 	"context"
 	"encoding/json"
-	"github.com/ethereum/go-ethereum/rpc"
 	"strings"
 	"time"
+
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/golang/snappy"
