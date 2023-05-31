@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -24,10 +25,15 @@ type EthClient interface {
 	FinalizedBlockHeight() (*big.Int, error)
 	BlockHeadersByRange(*big.Int, *big.Int) ([]*types.Header, error)
 
+	// TODO: probably will remove this
 	RawRpcClient() *rpc.Client
 }
 
+// TODO:
+//   - Have client transparently support retry semantics
+//   - Members should be private and supply the needed methods
 type client struct {
+	ethClient *ethclient.Client
 	rpcClient *rpc.Client
 }
 
@@ -99,7 +105,7 @@ func (c *client) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]*types.
 
 		header := batchElem.Result.(*types.Header)
 		if i > 0 && header.ParentHash != headers[i-1].Hash() {
-			// Warn here that we got a bad (malicious?) response
+			// TODO: Log here that we got a bad (malicious?) response
 			break
 		}
 
