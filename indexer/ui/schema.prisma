@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model airdrops {
+  address                String @id @db.VarChar(42)
+  voter_amount           String @default("0") @db.VarChar
+  multisig_signer_amount String @default("0") @db.VarChar
+  gitcoin_amount         String @default("0") @db.VarChar
+  active_bridged_amount  String @default("0") @db.VarChar
+  op_user_amount         String @default("0") @db.VarChar
+  op_repeat_user_amount  String @default("0") @db.VarChar
+  op_og_amount           String @default("0") @db.VarChar
+  bonus_amount           String @default("0") @db.VarChar
+  total_amount           String @db.VarChar
+}
+
+model deposits {
+  guid         String    @id @db.VarChar
+  from_address String    @db.VarChar
+  to_address   String    @db.VarChar
+  l1_token     String    @db.VarChar
+  l2_token     String    @db.VarChar
+  amount       String    @db.VarChar
+  data         Bytes
+  log_index    Int
+  block_hash   String    @db.VarChar
+  tx_hash      String    @db.VarChar
+  l1_blocks    l1_blocks @relation(fields: [block_hash], references: [hash], onDelete: NoAction, onUpdate: NoAction)
+  l1_tokens    l1_tokens @relation(fields: [l1_token], references: [address], onDelete: NoAction, onUpdate: NoAction)
+}
+
+model l1_blocks {
+  hash          String          @id @db.VarChar
+  parent_hash   String          @db.VarChar
+  number        Int             @unique(map: "l1_blocks_number")
+  timestamp     Int
+  deposits      deposits[]
+  state_batches state_batches[]
+}
+
+model l1_tokens {
+  address  String     @id @db.VarChar
+  name     String     @db.VarChar
+  symbol   String     @db.VarChar
+  decimals Int
+  deposits deposits[]
+}
+
+model l2_blocks {
+  hash        String        @id @db.VarChar
+  parent_hash String        @db.VarChar
+  number      Int           @unique(map: "l2_blocks_number")
+  timestamp   Int
+  withdrawals withdrawals[]
+}
+
+model l2_tokens {
+  address     String        @id
+  name        String
+  symbol      String
+  decimals    Int
+  withdrawals withdrawals[]
+}
+
+model state_batches {
+  index       Int           @id
+  root        String        @db.VarChar
+  size        Int
+  prev_total  Int
+  extra_data  Bytes
+  block_hash  String        @db.VarChar
+  l1_blocks   l1_blocks     @relation(fields: [block_hash], references: [hash], onDelete: NoAction, onUpdate: NoAction)
+  withdrawals withdrawals[]
+
+  @@index([block_hash], map: "state_batches_block_hash")
+  @@index([prev_total], map: "state_batches_prev_total")
+  @@index([size], map: "state_batches_size")
+}
+
+model withdrawals {
+  guid                              String         @id @db.VarChar
+  from_address                      String         @db.VarChar
+  to_address                        String         @db.VarChar
+  l1_token                          String         @db.VarChar
+  l2_token                          String         @db.VarChar
+  amount                            String         @db.VarChar
+  data                              Bytes
+  log_index                         Int
+  block_hash                        String         @db.VarChar
+  tx_hash                           String         @db.VarChar
+  state_batch                       Int?
+  br_withdrawal_hash                String?        @db.VarChar
+  br_withdrawal_proven_tx_hash      String?        @db.VarChar
+  br_withdrawal_proven_log_index    Int?
+  br_withdrawal_finalized_tx_hash   String?        @db.VarChar
+  br_withdrawal_finalized_log_index Int?
+  br_withdrawal_finalized_success   Boolean?
+  l2_blocks                         l2_blocks      @relation(map: "l2", fields: [block_hash], references: [hash], onDelete: NoAction, onUpdate: NoAction)
+  l2_tokens                         l2_tokens      @relation(fields: [l2_token], references: [address], onDelete: NoAction, onUpdate: NoAction)
+  state_batches                     state_batches? @relation(fields: [state_batch], references: [index], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([br_withdrawal_hash], map: "withdrawals_br_withdrawal_hash")
+}
