@@ -4,6 +4,10 @@ test:
 lint:
 	golangci-lint run -E asciicheck,goimports,misspell ./...
 
+generate-mocks:
+	go generate ./...
+
 .PHONY: \
 	test \
-	lint
+	lint \
+	generate-mocks
