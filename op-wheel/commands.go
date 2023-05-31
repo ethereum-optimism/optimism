@@ -271,6 +271,17 @@ var (
 			return ch.RunAndClose(cheat.SetBalance(addrFlagValue("address", ctx), bigFlagValue("balance", ctx)))
 		}),
 	}
+	CheatSetCodeCmd = cli.Command{
+		Name: "code",
+		Flags: []cli.Flag{
+			DataDirFlag,
+			addrFlag("address", "Address to change code of"),
+			cli.StringFlag{Name: "code", Usage: "New code of the account"},
+		},
+		Action: CheatAction(false, func(ctx *cli.Context, ch *cheat.Cheater) error {
+			return ch.RunAndClose(cheat.SetCode(addrFlagValue("address", ctx), ctx.String("code")))
+		}),
+	}
 	CheatSetNonceCmd = cli.Command{
 		Name: "nonce",
 		Flags: []cli.Flag{
@@ -440,6 +451,7 @@ var CheatCmd = cli.Command{
 	Subcommands: []cli.Command{
 		CheatStorageCmd,
 		CheatSetBalanceCmd,
+		CheatSetCodeCmd,
 		CheatSetNonceCmd,
 		CheatOvmOwnersCmd,
 		CheatPrintHeadBlock,

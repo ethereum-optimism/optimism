@@ -379,6 +379,13 @@ func SetBalance(addr common.Address, amount *big.Int) HeadFn {
 	}
 }
 
+func SetCode(addr common.Address, code string) HeadFn {
+	return func(headState *state.StateDB) error {
+		headState.SetCode(addr, common.FromHex(code))
+		return nil
+	}
+}
+
 func SetNonce(addr common.Address, nonce uint64) HeadFn {
 	return func(headState *state.StateDB) error {
 		headState.SetNonce(addr, nonce)
