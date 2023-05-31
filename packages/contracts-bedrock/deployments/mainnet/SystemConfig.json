@@ -1,0 +1,931 @@
+{
+  "address": "0x5efa852e92800D1C982711761e45c3FE39a2b6D8",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_owner",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_overhead",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_scalar",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "_batcherHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint64",
+          "name": "_gasLimit",
+          "type": "uint64"
+        },
+        {
+          "internalType": "address",
+          "name": "_unsafeBlockSigner",
+          "type": "address"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint32",
+              "name": "maxResourceLimit",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint8",
+              "name": "elasticityMultiplier",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint8",
+              "name": "baseFeeMaxChangeDenominator",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint32",
+              "name": "minimumBaseFee",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint32",
+              "name": "systemTxMaxGas",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint128",
+              "name": "maximumBaseFee",
+              "type": "uint128"
+            }
+          ],
+          "internalType": "struct ResourceMetering.ResourceConfig",
+          "name": "_config",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "version",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "enum SystemConfig.UpdateType",
+          "name": "updateType",
+          "type": "uint8"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes",
+          "name": "data",
+          "type": "bytes"
+        }
+      ],
+      "name": "ConfigUpdate",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint8",
+          "name": "version",
+          "type": "uint8"
+        }
+      ],
+      "name": "Initialized",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "previousOwner",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnershipTransferred",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "UNSAFE_BLOCK_SIGNER_SLOT",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "VERSION",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "batcherHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "gasLimit",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_owner",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_overhead",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_scalar",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "_batcherHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint64",
+          "name": "_gasLimit",
+          "type": "uint64"
+        },
+        {
+          "internalType": "address",
+          "name": "_unsafeBlockSigner",
+          "type": "address"
+        },
+        {
+          "components": [
+            {
+              "internalType": "uint32",
+              "name": "maxResourceLimit",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint8",
+              "name": "elasticityMultiplier",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint8",
+              "name": "baseFeeMaxChangeDenominator",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint32",
+              "name": "minimumBaseFee",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint32",
+              "name": "systemTxMaxGas",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint128",
+              "name": "maximumBaseFee",
+              "type": "uint128"
+            }
+          ],
+          "internalType": "struct ResourceMetering.ResourceConfig",
+          "name": "_config",
+          "type": "tuple"
+        }
+      ],
+      "name": "initialize",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "minimumGasLimit",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "overhead",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "renounceOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "resourceConfig",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint32",
+              "name": "maxResourceLimit",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint8",
+              "name": "elasticityMultiplier",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint8",
+              "name": "baseFeeMaxChangeDenominator",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint32",
+              "name": "minimumBaseFee",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint32",
+              "name": "systemTxMaxGas",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint128",
+              "name": "maximumBaseFee",
+              "type": "uint128"
+            }
+          ],
+          "internalType": "struct ResourceMetering.ResourceConfig",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "scalar",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_batcherHash",
+          "type": "bytes32"
+        }
+      ],
+      "name": "setBatcherHash",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_overhead",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_scalar",
+          "type": "uint256"
+        }
+      ],
+      "name": "setGasConfig",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "_gasLimit",
+          "type": "uint64"
+        }
+      ],
+      "name": "setGasLimit",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint32",
+              "name": "maxResourceLimit",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint8",
+              "name": "elasticityMultiplier",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint8",
+              "name": "baseFeeMaxChangeDenominator",
+              "type": "uint8"
+            },
+            {
+              "internalType": "uint32",
+              "name": "minimumBaseFee",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint32",
+              "name": "systemTxMaxGas",
+              "type": "uint32"
+            },
+            {
+              "internalType": "uint128",
+              "name": "maximumBaseFee",
+              "type": "uint128"
+            }
+          ],
+          "internalType": "struct ResourceMetering.ResourceConfig",
+          "name": "_config",
+          "type": "tuple"
+        }
+      ],
+      "name": "setResourceConfig",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_unsafeBlockSigner",
+          "type": "address"
+        }
+      ],
+      "name": "setUnsafeBlockSigner",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "unsafeBlockSigner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "version",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0xc2e308f1592110ec6d8d4bcdca1a6c8c8372aba0246d938fafbd901260ebcdfb",
+  "receipt": {
+    "to": null,
+    "from": "0x354F3f4ECdcA5E0A7acE08d71348cdC1Dab48960",
+    "contractAddress": "0x5efa852e92800D1C982711761e45c3FE39a2b6D8",
+    "transactionIndex": 67,
+    "gasUsed": "1607593",
+    "logsBloom": "0x000088000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000200000000000000000008000000000000000000000000000000004000000000000000000000000200000000000000000000c0000000000000000000000020010000000000000000000400000000000000000000000000000000000000000000000000800000000000040000000000000000000000000000000020000100000000000000001000000000000000000000000000000000000000000000",
+    "blockHash": "0x5d9427076bc5d430d72d7d87a93672080daa97829abd58948a14c5a027a323c8",
+    "transactionHash": "0xc2e308f1592110ec6d8d4bcdca1a6c8c8372aba0246d938fafbd901260ebcdfb",
+    "logs": [
+      {
+        "transactionIndex": 67,
+        "blockNumber": 17365812,
+        "transactionHash": "0xc2e308f1592110ec6d8d4bcdca1a6c8c8372aba0246d938fafbd901260ebcdfb",
+        "address": "0x5efa852e92800D1C982711761e45c3FE39a2b6D8",
+        "topics": [
+          "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x000000000000000000000000354f3f4ecdca5e0a7ace08d71348cdc1dab48960"
+        ],
+        "data": "0x",
+        "logIndex": 153,
+        "blockHash": "0x5d9427076bc5d430d72d7d87a93672080daa97829abd58948a14c5a027a323c8"
+      },
+      {
+        "transactionIndex": 67,
+        "blockNumber": 17365812,
+        "transactionHash": "0xc2e308f1592110ec6d8d4bcdca1a6c8c8372aba0246d938fafbd901260ebcdfb",
+        "address": "0x5efa852e92800D1C982711761e45c3FE39a2b6D8",
+        "topics": [
+          "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+          "0x000000000000000000000000354f3f4ecdca5e0a7ace08d71348cdc1dab48960",
+          "0x0000000000000000000000009ba6e03d8b90de867373db8cf1a58d2f7f006b3a"
+        ],
+        "data": "0x",
+        "logIndex": 154,
+        "blockHash": "0x5d9427076bc5d430d72d7d87a93672080daa97829abd58948a14c5a027a323c8"
+      },
+      {
+        "transactionIndex": 67,
+        "blockNumber": 17365812,
+        "transactionHash": "0xc2e308f1592110ec6d8d4bcdca1a6c8c8372aba0246d938fafbd901260ebcdfb",
+        "address": "0x5efa852e92800D1C982711761e45c3FE39a2b6D8",
+        "topics": [
+          "0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498"
+        ],
+        "data": "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "logIndex": 155,
+        "blockHash": "0x5d9427076bc5d430d72d7d87a93672080daa97829abd58948a14c5a027a323c8"
+      }
+    ],
+    "blockNumber": 17365812,
+    "cumulativeGasUsed": "7584396",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [
+    "0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A",
+    188,
+    684000,
+    "0x0000000000000000000000006887246668a3b87f54deb3b94ba47a6f63f32985",
+    "0x1c9c380",
+    "0xAAAA45d9549EDA09E70937013520214382Ffc4A2",
+    {
+      "maxResourceLimit": 20000000,
+      "elasticityMultiplier": 10,
+      "baseFeeMaxChangeDenominator": 8,
+      "systemTxMaxGas": 1000000,
+      "minimumBaseFee": "1000000000",
+      "maximumBaseFee": "340282366920938463463374607431768211455"
+    }
+  ],
+  "numDeployments": 1,
+  "solcInputHash": "13ac93d026822f719ad110af836d1582",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_overhead\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_scalar\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_batcherHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint64\",\"name\":\"_gasLimit\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"_unsafeBlockSigner\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"uint32\",\"name\":\"maxResourceLimit\",\"type\":\"uint32\"},{\"internalType\":\"uint8\",\"name\":\"elasticityMultiplier\",\"type\":\"uint8\"},{\"internalType\":\"uint8\",\"name\":\"baseFeeMaxChangeDenominator\",\"type\":\"uint8\"},{\"internalType\":\"uint32\",\"name\":\"minimumBaseFee\",\"type\":\"uint32\"},{\"internalType\":\"uint32\",\"name\":\"systemTxMaxGas\",\"type\":\"uint32\"},{\"internalType\":\"uint128\",\"name\":\"maximumBaseFee\",\"type\":\"uint128\"}],\"internalType\":\"struct ResourceMetering.ResourceConfig\",\"name\":\"_config\",\"type\":\"tuple\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"version\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"enum SystemConfig.UpdateType\",\"name\":\"updateType\",\"type\":\"uint8\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"}],\"name\":\"ConfigUpdate\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"UNSAFE_BLOCK_SIGNER_SLOT\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"VERSION\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"batcherHash\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"gasLimit\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_overhead\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_scalar\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_batcherHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint64\",\"name\":\"_gasLimit\",\"type\":\"uint64\"},{\"internalType\":\"address\",\"name\":\"_unsafeBlockSigner\",\"type\":\"address\"},{\"components\":[{\"internalType\":\"uint32\",\"name\":\"maxResourceLimit\",\"type\":\"uint32\"},{\"internalType\":\"uint8\",\"name\":\"elasticityMultiplier\",\"type\":\"uint8\"},{\"internalType\":\"uint8\",\"name\":\"baseFeeMaxChangeDenominator\",\"type\":\"uint8\"},{\"internalType\":\"uint32\",\"name\":\"minimumBaseFee\",\"type\":\"uint32\"},{\"internalType\":\"uint32\",\"name\":\"systemTxMaxGas\",\"type\":\"uint32\"},{\"internalType\":\"uint128\",\"name\":\"maximumBaseFee\",\"type\":\"uint128\"}],\"internalType\":\"struct ResourceMetering.ResourceConfig\",\"name\":\"_config\",\"type\":\"tuple\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"minimumGasLimit\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"overhead\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"resourceConfig\",\"outputs\":[{\"components\":[{\"internalType\":\"uint32\",\"name\":\"maxResourceLimit\",\"type\":\"uint32\"},{\"internalType\":\"uint8\",\"name\":\"elasticityMultiplier\",\"type\":\"uint8\"},{\"internalType\":\"uint8\",\"name\":\"baseFeeMaxChangeDenominator\",\"type\":\"uint8\"},{\"internalType\":\"uint32\",\"name\":\"minimumBaseFee\",\"type\":\"uint32\"},{\"internalType\":\"uint32\",\"name\":\"systemTxMaxGas\",\"type\":\"uint32\"},{\"internalType\":\"uint128\",\"name\":\"maximumBaseFee\",\"type\":\"uint128\"}],\"internalType\":\"struct ResourceMetering.ResourceConfig\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"scalar\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_batcherHash\",\"type\":\"bytes32\"}],\"name\":\"setBatcherHash\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_overhead\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_scalar\",\"type\":\"uint256\"}],\"name\":\"setGasConfig\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"_gasLimit\",\"type\":\"uint64\"}],\"name\":\"setGasLimit\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"uint32\",\"name\":\"maxResourceLimit\",\"type\":\"uint32\"},{\"internalType\":\"uint8\",\"name\":\"elasticityMultiplier\",\"type\":\"uint8\"},{\"internalType\":\"uint8\",\"name\":\"baseFeeMaxChangeDenominator\",\"type\":\"uint8\"},{\"internalType\":\"uint32\",\"name\":\"minimumBaseFee\",\"type\":\"uint32\"},{\"internalType\":\"uint32\",\"name\":\"systemTxMaxGas\",\"type\":\"uint32\"},{\"internalType\":\"uint128\",\"name\":\"maximumBaseFee\",\"type\":\"uint128\"}],\"internalType\":\"struct ResourceMetering.ResourceConfig\",\"name\":\"_config\",\"type\":\"tuple\"}],\"name\":\"setResourceConfig\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_unsafeBlockSigner\",\"type\":\"address\"}],\"name\":\"setUnsafeBlockSigner\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"unsafeBlockSigner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"events\":{\"ConfigUpdate(uint256,uint8,bytes)\":{\"params\":{\"data\":\"Encoded update data.\",\"updateType\":\"Type of update.\",\"version\":\"SystemConfig version.\"}}},\"kind\":\"dev\",\"methods\":{\"constructor\":{\"custom:semver\":\"1.3.0\",\"params\":{\"_batcherHash\":\"Initial batcher hash.\",\"_config\":\"Initial resource config.\",\"_gasLimit\":\"Initial gas limit.\",\"_overhead\":\"Initial overhead value.\",\"_owner\":\"Initial owner of the contract.\",\"_scalar\":\"Initial scalar value.\",\"_unsafeBlockSigner\":\"Initial unsafe block signer address.\"}},\"initialize(address,uint256,uint256,bytes32,uint64,address,(uint32,uint8,uint8,uint32,uint32,uint128))\":{\"params\":{\"_batcherHash\":\"Initial batcher hash.\",\"_config\":\"Initial ResourceConfig.\",\"_gasLimit\":\"Initial gas limit.\",\"_overhead\":\"Initial overhead value.\",\"_owner\":\"Initial owner of the contract.\",\"_scalar\":\"Initial scalar value.\",\"_unsafeBlockSigner\":\"Initial unsafe block signer address.\"}},\"minimumGasLimit()\":{\"returns\":{\"_0\":\"uint64\"}},\"owner()\":{\"details\":\"Returns the address of the current owner.\"},\"renounceOwnership()\":{\"details\":\"Leaves the contract without owner. It will not be possible to call `onlyOwner` functions anymore. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby removing any functionality that is only available to the owner.\"},\"resourceConfig()\":{\"returns\":{\"_0\":\"ResourceConfig\"}},\"setBatcherHash(bytes32)\":{\"params\":{\"_batcherHash\":\"New batcher hash.\"}},\"setGasConfig(uint256,uint256)\":{\"params\":{\"_overhead\":\"New overhead value.\",\"_scalar\":\"New scalar value.\"}},\"setGasLimit(uint64)\":{\"params\":{\"_gasLimit\":\"New gas limit.\"}},\"setResourceConfig((uint32,uint8,uint8,uint32,uint32,uint128))\":{\"params\":{\"_config\":\"The new resource config values.\"}},\"setUnsafeBlockSigner(address)\":{\"params\":{\"_unsafeBlockSigner\":\"New unsafe block signer address.\"}},\"transferOwnership(address)\":{\"details\":\"Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.\"},\"unsafeBlockSigner()\":{\"returns\":{\"_0\":\"Address of the unsafe block signer.\"}},\"version()\":{\"returns\":{\"_0\":\"Semver contract version as a string.\"}}},\"title\":\"SystemConfig\",\"version\":1},\"userdoc\":{\"events\":{\"ConfigUpdate(uint256,uint8,bytes)\":{\"notice\":\"Emitted when configuration is updated\"}},\"kind\":\"user\",\"methods\":{\"UNSAFE_BLOCK_SIGNER_SLOT()\":{\"notice\":\"Storage slot that the unsafe block signer is stored at. Storing it at this         deterministic storage slot allows for decoupling the storage layout from the way         that `solc` lays out storage. The `op-node` uses a storage proof to fetch this value.\"},\"VERSION()\":{\"notice\":\"Version identifier, used for upgrades.\"},\"batcherHash()\":{\"notice\":\"Identifier for the batcher. For version 1 of this configuration, this is represented         as an address left-padded with zeros to 32 bytes.\"},\"gasLimit()\":{\"notice\":\"L2 block gas limit.\"},\"initialize(address,uint256,uint256,bytes32,uint64,address,(uint32,uint8,uint8,uint32,uint32,uint128))\":{\"notice\":\"Initializer. The resource config must be set before the         require check.\"},\"minimumGasLimit()\":{\"notice\":\"Returns the minimum L2 gas limit that can be safely set for the system to         operate. The L2 gas limit must be larger than or equal to the amount of         gas that is allocated for deposits per block plus the amount of gas that         is allocated for the system transaction.         This function is used to determine if changes to parameters are safe.\"},\"overhead()\":{\"notice\":\"Fixed L2 gas overhead. Used as part of the L2 fee calculation.\"},\"resourceConfig()\":{\"notice\":\"A getter for the resource config. Ensures that the struct is         returned instead of a tuple.\"},\"scalar()\":{\"notice\":\"Dynamic L2 gas overhead. Used as part of the L2 fee calculation.\"},\"setBatcherHash(bytes32)\":{\"notice\":\"Updates the batcher hash.\"},\"setGasConfig(uint256,uint256)\":{\"notice\":\"Updates gas config.\"},\"setGasLimit(uint64)\":{\"notice\":\"Updates the L2 gas limit.\"},\"setResourceConfig((uint32,uint8,uint8,uint32,uint32,uint128))\":{\"notice\":\"An external setter for the resource config. In the future, this         method may emit an event that the `op-node` picks up for when the         resource config is changed.\"},\"setUnsafeBlockSigner(address)\":{\"notice\":\"Updates the unsafe block signer address.\"},\"unsafeBlockSigner()\":{\"notice\":\"High level getter for the unsafe block signer address. Unsafe blocks can be         propagated across the p2p network if they are signed by the key corresponding to         this address.\"},\"version()\":{\"notice\":\"Returns the full semver contract version.\"}},\"notice\":\"The SystemConfig contract is used to manage configuration of an Optimism network. All         configuration is stored on L1 and picked up by L2 as part of the derviation of the L2         chain.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/L1/SystemConfig.sol\":\"SystemConfig\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"none\"},\"optimizer\":{\"enabled\":true,\"runs\":999999},\"remappings\":[\":@cwia/=node_modules/clones-with-immutable-args/src/\",\":@openzeppelin/=node_modules/@openzeppelin/\",\":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/\",\":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/\",\":@rari-capital/=node_modules/@rari-capital/\",\":@rari-capital/solmate/=node_modules/@rari-capital/solmate/\",\":clones-with-immutable-args/=node_modules/clones-with-immutable-args/\",\":ds-test/=node_modules/ds-test/src/\",\":forge-std/=node_modules/forge-std/src/\"]},\"sources\":{\"contracts/L1/ResourceMetering.sol\":{\"keccak256\":\"0xbd7b9532a70d8c842bfce0ea971be50d02fbbf0227c9ad55c71ac68d438010f4\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://4969f478dd54e89392cda2ea0c5edcf1be55a5dee43a0e410527b6e3bcb85c88\",\"dweb:/ipfs/QmU2crAojw8DRDsz7PAPrereazjFsKh9wtfTpTDVh6NLfW\"]},\"contracts/L1/SystemConfig.sol\":{\"keccak256\":\"0x2202e03df7b5f70b0cf1cf942afe51cab165bf35864a77d6a77dc82c55653689\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://42ec7d69b192c6199bf28ccf1d19d896f01807039f6bdc3e871b52eb7d9ee645\",\"dweb:/ipfs/QmPmWLf9a9FJ2fYQi9nP73e4QRnAMDbrfNwLS1u8KZgrEs\"]},\"contracts/libraries/Arithmetic.sol\":{\"keccak256\":\"0xc8858039f87e48e6f18c1af8bc0b03e57cfef564acddfd06e4d91e3db7ac5ed6\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://2fc79af1e844aa6dc1c68067bfe1d359df8d4e9a3e8881afb3bcfcbf68071714\",\"dweb:/ipfs/QmcNC4k8zmvwj4kZizSenTiWbx2DJQPbwqXXLF4iMbkRVD\"]},\"contracts/libraries/Burn.sol\":{\"keccak256\":\"0x54233b226ba6919dc46d438bc790108d8f855001002a1b9c3c37aed7a83e5f3f\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://4051a4baca357a9191a6c9e3aa1593a17b69dd7915966e23e4cb269e9c1d9ed4\",\"dweb:/ipfs/QmadKjGKvxm53abVHQdsxrXBc8e9jXywu6vvhkAgjsx59J\"]},\"contracts/universal/Semver.sol\":{\"keccak256\":\"0x400059d3edb9efc9c23e6fbc18de6710f9235a4ffba4ab23bdb9f825273f093b\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://9baf7797439c0ae6512f4639dfc6a1934dbd4e4d7cbb8e63e99264ff47682c9e\",\"dweb:/ipfs/QmawAuhppPyeoZH3rC1uh87xDELa9Lyfw5pYsBqE8myE1m\"]},\"node_modules/@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol\":{\"keccak256\":\"0x247c62047745915c0af6b955470a72d1696ebad4352d7d3011aef1a2463cd888\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://d7fc8396619de513c96b6e00301b88dd790e83542aab918425633a5f7297a15a\",\"dweb:/ipfs/QmXbP4kiZyp7guuS7xe8KaybnwkRPGrBc2Kbi3vhcTfpxb\"]},\"node_modules/@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol\":{\"keccak256\":\"0x0203dcadc5737d9ef2c211d6fa15d18ebc3b30dfa51903b64870b01a062b0b4e\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://6eb2fd1e9894dbe778f4b8131adecebe570689e63cf892f4e21257bfe1252497\",\"dweb:/ipfs/QmXgUGNfZvrn6N2miv3nooSs7Jm34A41qz94fu2GtDFcx8\"]},\"node_modules/@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol\":{\"keccak256\":\"0x611aa3f23e59cfdd1863c536776407b3e33d695152a266fa7cfb34440a29a8a3\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://9b4b2110b7f2b3eb32951bc08046fa90feccffa594e1176cb91cdfb0e94726b4\",\"dweb:/ipfs/QmSxLwYjicf9zWFuieRc8WQwE4FisA1Um5jp1iSa731TGt\"]},\"node_modules/@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol\":{\"keccak256\":\"0x963ea7f0b48b032eef72fe3a7582edf78408d6f834115b9feadd673a4d5bd149\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://d6520943ea55fdf5f0bafb39ed909f64de17051bc954ff3e88c9e5621412c79c\",\"dweb:/ipfs/QmWZ4rAKTQbNG2HxGs46AcTXShsVytKeLs7CUCdCSv5N7a\"]},\"node_modules/@openzeppelin/contracts/proxy/utils/Initializable.sol\":{\"keccak256\":\"0x2a21b14ff90012878752f230d3ffd5c3405e5938d06c97a7d89c0a64561d0d66\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://3313a8f9bb1f9476857c9050067b31982bf2140b83d84f3bc0cec1f62bbe947f\",\"dweb:/ipfs/Qma17Pk8NRe7aB4UD3jjVxk7nSFaov3eQyv86hcyqkwJRV\"]},\"node_modules/@openzeppelin/contracts/utils/Address.sol\":{\"keccak256\":\"0xd6153ce99bcdcce22b124f755e72553295be6abcd63804cfdffceb188b8bef10\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://35c47bece3c03caaa07fab37dd2bb3413bfbca20db7bd9895024390e0a469487\",\"dweb:/ipfs/QmPGWT2x3QHcKxqe6gRmAkdakhbaRgx3DLzcakHz5M4eXG\"]},\"node_modules/@openzeppelin/contracts/utils/Strings.sol\":{\"keccak256\":\"0xaf159a8b1923ad2a26d516089bceca9bdeaeacd04be50983ea00ba63070f08a3\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://6f2cf1c531122bc7ca96b8c8db6a60deae60441e5223065e792553d4849b5638\",\"dweb:/ipfs/QmPBdJmBBABMDCfyDjCbdxgiqRavgiSL88SYPGibgbPas9\"]},\"node_modules/@openzeppelin/contracts/utils/math/Math.sol\":{\"keccak256\":\"0xd15c3e400531f00203839159b2b8e7209c5158b35618f570c695b7e47f12e9f0\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://b600b852e0597aa69989cc263111f02097e2827edc1bdc70306303e3af5e9929\",\"dweb:/ipfs/QmU4WfM28A1nDqghuuGeFmN3CnVrk6opWtiF65K4vhFPeC\"]},\"node_modules/@openzeppelin/contracts/utils/math/SignedMath.sol\":{\"keccak256\":\"0xb3ebde1c8d27576db912d87c3560dab14adfb9cd001be95890ec4ba035e652e7\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://a709421c4f5d4677db8216055d2d4dac96a613efdb08178a9f7041f0c5cef689\",\"dweb:/ipfs/QmYs2rStvVLDnSJs8HgaMD1ABwoKKWdiVbQyNfLfFWTjTy\"]},\"node_modules/@rari-capital/solmate/src/utils/FixedPointMathLib.sol\":{\"keccak256\":\"0x622fcd8a49e132df5ec7651cc6ae3aaf0cf59bdcd67a9a804a1b9e2485113b7d\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://af77088eb606427d4c55e578984a615779c86bc30646a20f7bb27299ba390f7c\",\"dweb:/ipfs/QmZGQdhdQDtHc7gZXWrKXgA3govc74X8U63BiWhPQK3mK8\"]}},\"version\":1}",
+  "bytecode": "0x60e06040523480156200001157600080fd5b50604051620022d2380380620022d2833981016040819052620000349162000859565b6001608052600360a052600060c052620000548787878787878762000061565b5050505050505062000a59565b600054610100900460ff1615808015620000825750600054600160ff909116105b80620000b257506200009f306200027060201b62000adf1760201c565b158015620000b2575060005460ff166001145b6200011b5760405162461bcd60e51b815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201526d191e481a5b9a5d1a585b1a5e995960921b60648201526084015b60405180910390fd5b6000805460ff1916600117905580156200013f576000805461ff0019166101001790555b620001496200027f565b6200015488620002e7565b606587905560668690556067859055606880546001600160401b0319166001600160401b038616179055620001a7837f65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c0855565b620001b28262000366565b620001bc620006bb565b6001600160401b0316846001600160401b031610156200021f5760405162461bcd60e51b815260206004820152601f60248201527f53797374656d436f6e6669673a20676173206c696d697420746f6f206c6f7700604482015260640162000112565b801562000266576000805461ff0019169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b5050505050505050565b6001600160a01b03163b151590565b600054610100900460ff16620002db5760405162461bcd60e51b815260206004820152602b6024820152600080516020620022b283398151915260448201526a6e697469616c697a696e6760a81b606482015260840162000112565b620002e5620006e8565b565b620002f16200074f565b6001600160a01b038116620003585760405162461bcd60e51b815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201526564647265737360d01b606482015260840162000112565b6200036381620007ab565b50565b8060a001516001600160801b0316816060015163ffffffff161115620003f55760405162461bcd60e51b815260206004820152603560248201527f53797374656d436f6e6669673a206d696e206261736520666565206d7573742060448201527f6265206c657373207468616e206d617820626173650000000000000000000000606482015260840162000112565b6001816040015160ff1611620004665760405162461bcd60e51b815260206004820152602f60248201527f53797374656d436f6e6669673a2064656e6f6d696e61746f72206d757374206260448201526e65206c6172676572207468616e203160881b606482015260840162000112565b606854608082015182516001600160401b0390921691620004889190620009a8565b63ffffffff161115620004de5760405162461bcd60e51b815260206004820152601f60248201527f53797374656d436f6e6669673a20676173206c696d697420746f6f206c6f7700604482015260640162000112565b6000816020015160ff16116200054f5760405162461bcd60e51b815260206004820152602f60248201527f53797374656d436f6e6669673a20656c6173746963697479206d756c7469706c60448201526e06965722063616e6e6f74206265203608c1b606482015260840162000112565b8051602082015163ffffffff82169160ff9091169062000571908290620009d3565b6200057d919062000a05565b63ffffffff1614620005f85760405162461bcd60e51b815260206004820152603760248201527f53797374656d436f6e6669673a20707265636973696f6e206c6f73732077697460448201527f6820746172676574207265736f75726365206c696d6974000000000000000000606482015260840162000112565b805160698054602084015160408501516060860151608087015160a09097015163ffffffff96871664ffffffffff199095169490941764010000000060ff948516021764ffffffffff60281b191665010000000000939092169290920263ffffffff60301b19161766010000000000009185169190910217600160501b600160f01b0319166a01000000000000000000009390941692909202600160701b600160f01b03191692909217600160701b6001600160801b0390921691909102179055565b606954600090620006e39063ffffffff6a010000000000000000000082048116911662000a34565b905090565b600054610100900460ff16620007445760405162461bcd60e51b815260206004820152602b6024820152600080516020620022b283398151915260448201526a6e697469616c697a696e6760a81b606482015260840162000112565b620002e533620007ab565b6033546001600160a01b03163314620002e55760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e6572604482015260640162000112565b603380546001600160a01b038381166001600160a01b0319831681179093556040519116919082907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e090600090a35050565b80516001600160a01b03811681146200081557600080fd5b919050565b805163ffffffff811681146200081557600080fd5b805160ff811681146200081557600080fd5b80516001600160801b03811681146200081557600080fd5b60008060008060008060008789036101808112156200087757600080fd5b6200088289620007fd565b60208a015160408b015160608c015160808d0151939b50919950975095506001600160401b038082168214620008b757600080fd5b819550620008c860a08c01620007fd565b945060c060bf1984011215620008dd57600080fd5b604051925060c08301915082821081831117156200090b57634e487b7160e01b600052604160045260246000fd5b506040526200091d60c08a016200081a565b81526200092d60e08a016200082f565b6020820152620009416101008a016200082f565b6040820152620009556101208a016200081a565b6060820152620009696101408a016200081a565b60808201526200097d6101608a0162000841565b60a08201528091505092959891949750929550565b634e487b7160e01b600052601160045260246000fd5b600063ffffffff808316818516808303821115620009ca57620009ca62000992565b01949350505050565b600063ffffffff80841680620009f957634e487b7160e01b600052601260045260246000fd5b92169190910492915050565b600063ffffffff8083168185168183048111821515161562000a2b5762000a2b62000992565b02949350505050565b60006001600160401b03828116848216808303821115620009ca57620009ca62000992565b60805160a05160c05161182962000a89600039600061056e015260006105450152600061051c01526118296000f3fe608060405234801561001057600080fd5b50600436106101515760003560e01c8063b40a817c116100cd578063f2fde38b11610081578063f68016b711610066578063f68016b7146103f7578063f975e9251461040b578063ffa1ad741461041e57600080fd5b8063f2fde38b146103db578063f45e65d8146103ee57600080fd5b8063c9b26f61116100b2578063c9b26f611461028b578063cc731b021461029e578063e81b2c6d146103d257600080fd5b8063b40a817c14610265578063c71973f61461027857600080fd5b80634f16540b11610124578063715018a611610109578063715018a61461022c5780638da5cb5b14610234578063935f029e1461025257600080fd5b80634f16540b146101f057806354fd4d501461021757600080fd5b80630c18c1621461015657806318d13918146101725780631fd19ee1146101875780634add321d146101cf575b600080fd5b61015f60655481565b6040519081526020015b60405180910390f35b610185610180366004611307565b610426565b005b7f65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08545b60405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610169565b6101d76104ea565b60405167ffffffffffffffff9091168152602001610169565b61015f7f65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c0881565b61021f610515565b60405161016991906113a3565b6101856105b8565b60335473ffffffffffffffffffffffffffffffffffffffff166101aa565b6101856102603660046113b6565b6105cc565b6101856102733660046113f0565b610665565b610185610286366004611548565b610750565b610185610299366004611564565b610764565b6103626040805160c081018252600080825260208201819052918101829052606081018290526080810182905260a0810191909152506040805160c08101825260695463ffffffff8082168352640100000000820460ff9081166020850152650100000000008304169383019390935266010000000000008104831660608301526a0100000000000000000000810490921660808201526e0100000000000000000000000000009091046fffffffffffffffffffffffffffffffff1660a082015290565b6040516101699190600060c08201905063ffffffff80845116835260ff602085015116602084015260ff6040850151166040840152806060850151166060840152806080850151166080840152506fffffffffffffffffffffffffffffffff60a08401511660a083015292915050565b61015f60675481565b6101856103e9366004611307565b610794565b61015f60665481565b6068546101d79067ffffffffffffffff1681565b61018561041936600461157d565b610848565b61015f600081565b61042e610afb565b610456817f65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c0855565b6040805173ffffffffffffffffffffffffffffffffffffffff8316602082015260009101604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0818403018152919052905060035b60007f1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be836040516104de91906113a3565b60405180910390a35050565b6069546000906105109063ffffffff6a010000000000000000000082048116911661161f565b905090565b60606105407f0000000000000000000000000000000000000000000000000000000000000000610b7c565b6105697f0000000000000000000000000000000000000000000000000000000000000000610b7c565b6105927f0000000000000000000000000000000000000000000000000000000000000000610b7c565b6040516020016105a49392919061164b565b604051602081830303815290604052905090565b6105c0610afb565b6105ca6000610cb9565b565b6105d4610afb565b606582905560668190556040805160208101849052908101829052600090606001604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe08184030181529190529050600160007f1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be8360405161065891906113a3565b60405180910390a3505050565b61066d610afb565b6106756104ea565b67ffffffffffffffff168167ffffffffffffffff1610156106f7576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601f60248201527f53797374656d436f6e6669673a20676173206c696d697420746f6f206c6f770060448201526064015b60405180910390fd5b606880547fffffffffffffffffffffffffffffffffffffffffffffffff00000000000000001667ffffffffffffffff831690811790915560408051602080820193909352815180820390930183528101905260026104ad565b610758610afb565b61076181610d30565b50565b61076c610afb565b60678190556040805160208082018490528251808303909101815290820190915260006104ad565b61079c610afb565b73ffffffffffffffffffffffffffffffffffffffff811661083f576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f646472657373000000000000000000000000000000000000000000000000000060648201526084016106ee565b61076181610cb9565b600054610100900460ff16158080156108685750600054600160ff909116105b806108825750303b158015610882575060005460ff166001145b61090e576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201527f647920696e697469616c697a656400000000000000000000000000000000000060648201526084016106ee565b600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00166001179055801561096c57600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff166101001790555b6109746111a4565b61097d88610794565b606587905560668690556067859055606880547fffffffffffffffffffffffffffffffffffffffffffffffff00000000000000001667ffffffffffffffff86161790557f65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c088390556109ed82610d30565b6109f56104ea565b67ffffffffffffffff168467ffffffffffffffff161015610a72576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601f60248201527f53797374656d436f6e6669673a20676173206c696d697420746f6f206c6f770060448201526064016106ee565b8015610ad557600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b5050505050505050565b73ffffffffffffffffffffffffffffffffffffffff163b151590565b60335473ffffffffffffffffffffffffffffffffffffffff1633146105ca576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016106ee565b606081600003610bbf57505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b8115610be95780610bd3816116c1565b9150610be29050600a83611728565b9150610bc3565b60008167ffffffffffffffff811115610c0457610c0461140b565b6040519080825280601f01601f191660200182016040528015610c2e576020820181803683370190505b5090505b8415610cb157610c4360018361173c565b9150610c50600a86611753565b610c5b906030611767565b60f81b818381518110610c7057610c7061177f565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a905350610caa600a86611728565b9450610c32565b949350505050565b6033805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681179093556040519116919082907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e090600090a35050565b8060a001516fffffffffffffffffffffffffffffffff16816060015163ffffffff161115610de0576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603560248201527f53797374656d436f6e6669673a206d696e206261736520666565206d7573742060448201527f6265206c657373207468616e206d61782062617365000000000000000000000060648201526084016106ee565b6001816040015160ff1611610e77576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602f60248201527f53797374656d436f6e6669673a2064656e6f6d696e61746f72206d757374206260448201527f65206c6172676572207468616e2031000000000000000000000000000000000060648201526084016106ee565b6068546080820151825167ffffffffffffffff90921691610e9891906117ae565b63ffffffff161115610f06576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601f60248201527f53797374656d436f6e6669673a20676173206c696d697420746f6f206c6f770060448201526064016106ee565b6000816020015160ff1611610f9d576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602f60248201527f53797374656d436f6e6669673a20656c6173746963697479206d756c7469706c60448201527f6965722063616e6e6f742062652030000000000000000000000000000000000060648201526084016106ee565b8051602082015163ffffffff82169160ff90911690610fbd9082906117cd565b610fc791906117f0565b63ffffffff161461105a576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603760248201527f53797374656d436f6e6669673a20707265636973696f6e206c6f73732077697460448201527f6820746172676574207265736f75726365206c696d697400000000000000000060648201526084016106ee565b805160698054602084015160408501516060860151608087015160a09097015163ffffffff9687167fffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000009095169490941764010000000060ff94851602177fffffffffffffffffffffffffffffffffffffffffffff0000000000ffffffffff166501000000000093909216929092027fffffffffffffffffffffffffffffffffffffffffffff00000000ffffffffffff1617660100000000000091851691909102177fffff0000000000000000000000000000000000000000ffffffffffffffffffff166a010000000000000000000093909416929092027fffff00000000000000000000000000000000ffffffffffffffffffffffffffff16929092176e0100000000000000000000000000006fffffffffffffffffffffffffffffffff90921691909102179055565b600054610100900460ff1661123b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e6700000000000000000000000000000000000000000060648201526084016106ee565b6105ca600054610100900460ff166112d5576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e6700000000000000000000000000000000000000000060648201526084016106ee565b6105ca33610cb9565b803573ffffffffffffffffffffffffffffffffffffffff8116811461130257600080fd5b919050565b60006020828403121561131957600080fd5b611322826112de565b9392505050565b60005b8381101561134457818101518382015260200161132c565b83811115611353576000848401525b50505050565b60008151808452611371816020860160208601611329565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b6020815260006113226020830184611359565b600080604083850312156113c957600080fd5b50508035926020909101359150565b803567ffffffffffffffff8116811461130257600080fd5b60006020828403121561140257600080fd5b611322826113d8565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b803563ffffffff8116811461130257600080fd5b803560ff8116811461130257600080fd5b80356fffffffffffffffffffffffffffffffff8116811461130257600080fd5b600060c0828403121561149157600080fd5b60405160c0810181811067ffffffffffffffff821117156114db577f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6040529050806114ea8361143a565b81526114f86020840161144e565b60208201526115096040840161144e565b604082015261151a6060840161143a565b606082015261152b6080840161143a565b608082015261153c60a0840161145f565b60a08201525092915050565b600060c0828403121561155a57600080fd5b611322838361147f565b60006020828403121561157657600080fd5b5035919050565b6000806000806000806000610180888a03121561159957600080fd5b6115a2886112de565b96506020880135955060408801359450606088013593506115c5608089016113d8565b92506115d360a089016112de565b91506115e28960c08a0161147f565b905092959891949750929550565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600067ffffffffffffffff808316818516808303821115611642576116426115f0565b01949350505050565b6000845161165d818460208901611329565b80830190507f2e000000000000000000000000000000000000000000000000000000000000008082528551611699816001850160208a01611329565b600192019182015283516116b4816002840160208801611329565b0160020195945050505050565b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82036116f2576116f26115f0565b5060010190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b600082611737576117376116f9565b500490565b60008282101561174e5761174e6115f0565b500390565b600082611762576117626116f9565b500690565b6000821982111561177a5761177a6115f0565b500190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b600063ffffffff808316818516808303821115611642576116426115f0565b600063ffffffff808416806117e4576117e46116f9565b92169190910492915050565b600063ffffffff80831681851681830481118215151615611813576118136115f0565b0294935050505056fea164736f6c634300080f000a496e697469616c697a61626c653a20636f6e7472616374206973206e6f742069",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b50600436106101515760003560e01c8063b40a817c116100cd578063f2fde38b11610081578063f68016b711610066578063f68016b7146103f7578063f975e9251461040b578063ffa1ad741461041e57600080fd5b8063f2fde38b146103db578063f45e65d8146103ee57600080fd5b8063c9b26f61116100b2578063c9b26f611461028b578063cc731b021461029e578063e81b2c6d146103d257600080fd5b8063b40a817c14610265578063c71973f61461027857600080fd5b80634f16540b11610124578063715018a611610109578063715018a61461022c5780638da5cb5b14610234578063935f029e1461025257600080fd5b80634f16540b146101f057806354fd4d501461021757600080fd5b80630c18c1621461015657806318d13918146101725780631fd19ee1146101875780634add321d146101cf575b600080fd5b61015f60655481565b6040519081526020015b60405180910390f35b610185610180366004611307565b610426565b005b7f65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c08545b60405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610169565b6101d76104ea565b60405167ffffffffffffffff9091168152602001610169565b61015f7f65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c0881565b61021f610515565b60405161016991906113a3565b6101856105b8565b60335473ffffffffffffffffffffffffffffffffffffffff166101aa565b6101856102603660046113b6565b6105cc565b6101856102733660046113f0565b610665565b610185610286366004611548565b610750565b610185610299366004611564565b610764565b6103626040805160c081018252600080825260208201819052918101829052606081018290526080810182905260a0810191909152506040805160c08101825260695463ffffffff8082168352640100000000820460ff9081166020850152650100000000008304169383019390935266010000000000008104831660608301526a0100000000000000000000810490921660808201526e0100000000000000000000000000009091046fffffffffffffffffffffffffffffffff1660a082015290565b6040516101699190600060c08201905063ffffffff80845116835260ff602085015116602084015260ff6040850151166040840152806060850151166060840152806080850151166080840152506fffffffffffffffffffffffffffffffff60a08401511660a083015292915050565b61015f60675481565b6101856103e9366004611307565b610794565b61015f60665481565b6068546101d79067ffffffffffffffff1681565b61018561041936600461157d565b610848565b61015f600081565b61042e610afb565b610456817f65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c0855565b6040805173ffffffffffffffffffffffffffffffffffffffff8316602082015260009101604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0818403018152919052905060035b60007f1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be836040516104de91906113a3565b60405180910390a35050565b6069546000906105109063ffffffff6a010000000000000000000082048116911661161f565b905090565b60606105407f0000000000000000000000000000000000000000000000000000000000000000610b7c565b6105697f0000000000000000000000000000000000000000000000000000000000000000610b7c565b6105927f0000000000000000000000000000000000000000000000000000000000000000610b7c565b6040516020016105a49392919061164b565b604051602081830303815290604052905090565b6105c0610afb565b6105ca6000610cb9565b565b6105d4610afb565b606582905560668190556040805160208101849052908101829052600090606001604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe08184030181529190529050600160007f1d2b0bda21d56b8bd12d4f94ebacffdfb35f5e226f84b461103bb8beab6353be8360405161065891906113a3565b60405180910390a3505050565b61066d610afb565b6106756104ea565b67ffffffffffffffff168167ffffffffffffffff1610156106f7576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601f60248201527f53797374656d436f6e6669673a20676173206c696d697420746f6f206c6f770060448201526064015b60405180910390fd5b606880547fffffffffffffffffffffffffffffffffffffffffffffffff00000000000000001667ffffffffffffffff831690811790915560408051602080820193909352815180820390930183528101905260026104ad565b610758610afb565b61076181610d30565b50565b61076c610afb565b60678190556040805160208082018490528251808303909101815290820190915260006104ad565b61079c610afb565b73ffffffffffffffffffffffffffffffffffffffff811661083f576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f646472657373000000000000000000000000000000000000000000000000000060648201526084016106ee565b61076181610cb9565b600054610100900460ff16158080156108685750600054600160ff909116105b806108825750303b158015610882575060005460ff166001145b61090e576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201527f647920696e697469616c697a656400000000000000000000000000000000000060648201526084016106ee565b600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00166001179055801561096c57600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff166101001790555b6109746111a4565b61097d88610794565b606587905560668690556067859055606880547fffffffffffffffffffffffffffffffffffffffffffffffff00000000000000001667ffffffffffffffff86161790557f65a7ed542fb37fe237fdfbdd70b31598523fe5b32879e307bae27a0bd9581c088390556109ed82610d30565b6109f56104ea565b67ffffffffffffffff168467ffffffffffffffff161015610a72576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601f60248201527f53797374656d436f6e6669673a20676173206c696d697420746f6f206c6f770060448201526064016106ee565b8015610ad557600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b5050505050505050565b73ffffffffffffffffffffffffffffffffffffffff163b151590565b60335473ffffffffffffffffffffffffffffffffffffffff1633146105ca576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016106ee565b606081600003610bbf57505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b8115610be95780610bd3816116c1565b9150610be29050600a83611728565b9150610bc3565b60008167ffffffffffffffff811115610c0457610c0461140b565b6040519080825280601f01601f191660200182016040528015610c2e576020820181803683370190505b5090505b8415610cb157610c4360018361173c565b9150610c50600a86611753565b610c5b906030611767565b60f81b818381518110610c7057610c7061177f565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a905350610caa600a86611728565b9450610c32565b949350505050565b6033805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681179093556040519116919082907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e090600090a35050565b8060a001516fffffffffffffffffffffffffffffffff16816060015163ffffffff161115610de0576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603560248201527f53797374656d436f6e6669673a206d696e206261736520666565206d7573742060448201527f6265206c657373207468616e206d61782062617365000000000000000000000060648201526084016106ee565b6001816040015160ff1611610e77576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602f60248201527f53797374656d436f6e6669673a2064656e6f6d696e61746f72206d757374206260448201527f65206c6172676572207468616e2031000000000000000000000000000000000060648201526084016106ee565b6068546080820151825167ffffffffffffffff90921691610e9891906117ae565b63ffffffff161115610f06576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601f60248201527f53797374656d436f6e6669673a20676173206c696d697420746f6f206c6f770060448201526064016106ee565b6000816020015160ff1611610f9d576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602f60248201527f53797374656d436f6e6669673a20656c6173746963697479206d756c7469706c60448201527f6965722063616e6e6f742062652030000000000000000000000000000000000060648201526084016106ee565b8051602082015163ffffffff82169160ff90911690610fbd9082906117cd565b610fc791906117f0565b63ffffffff161461105a576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603760248201527f53797374656d436f6e6669673a20707265636973696f6e206c6f73732077697460448201527f6820746172676574207265736f75726365206c696d697400000000000000000060648201526084016106ee565b805160698054602084015160408501516060860151608087015160a09097015163ffffffff9687167fffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000009095169490941764010000000060ff94851602177fffffffffffffffffffffffffffffffffffffffffffff0000000000ffffffffff166501000000000093909216929092027fffffffffffffffffffffffffffffffffffffffffffff00000000ffffffffffff1617660100000000000091851691909102177fffff0000000000000000000000000000000000000000ffffffffffffffffffff166a010000000000000000000093909416929092027fffff00000000000000000000000000000000ffffffffffffffffffffffffffff16929092176e0100000000000000000000000000006fffffffffffffffffffffffffffffffff90921691909102179055565b600054610100900460ff1661123b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e6700000000000000000000000000000000000000000060648201526084016106ee565b6105ca600054610100900460ff166112d5576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e6700000000000000000000000000000000000000000060648201526084016106ee565b6105ca33610cb9565b803573ffffffffffffffffffffffffffffffffffffffff8116811461130257600080fd5b919050565b60006020828403121561131957600080fd5b611322826112de565b9392505050565b60005b8381101561134457818101518382015260200161132c565b83811115611353576000848401525b50505050565b60008151808452611371816020860160208601611329565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b6020815260006113226020830184611359565b600080604083850312156113c957600080fd5b50508035926020909101359150565b803567ffffffffffffffff8116811461130257600080fd5b60006020828403121561140257600080fd5b611322826113d8565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b803563ffffffff8116811461130257600080fd5b803560ff8116811461130257600080fd5b80356fffffffffffffffffffffffffffffffff8116811461130257600080fd5b600060c0828403121561149157600080fd5b60405160c0810181811067ffffffffffffffff821117156114db577f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6040529050806114ea8361143a565b81526114f86020840161144e565b60208201526115096040840161144e565b604082015261151a6060840161143a565b606082015261152b6080840161143a565b608082015261153c60a0840161145f565b60a08201525092915050565b600060c0828403121561155a57600080fd5b611322838361147f565b60006020828403121561157657600080fd5b5035919050565b6000806000806000806000610180888a03121561159957600080fd5b6115a2886112de565b96506020880135955060408801359450606088013593506115c5608089016113d8565b92506115d360a089016112de565b91506115e28960c08a0161147f565b905092959891949750929550565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600067ffffffffffffffff808316818516808303821115611642576116426115f0565b01949350505050565b6000845161165d818460208901611329565b80830190507f2e000000000000000000000000000000000000000000000000000000000000008082528551611699816001850160208a01611329565b600192019182015283516116b4816002840160208801611329565b0160020195945050505050565b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82036116f2576116f26115f0565b5060010190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b600082611737576117376116f9565b500490565b60008282101561174e5761174e6115f0565b500390565b600082611762576117626116f9565b500690565b6000821982111561177a5761177a6115f0565b500190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b600063ffffffff808316818516808303821115611642576116426115f0565b600063ffffffff808416806117e4576117e46116f9565b92169190910492915050565b600063ffffffff80831681851681830481118215151615611813576118136115f0565b0294935050505056fea164736f6c634300080f000a",
+  "devdoc": {
+    "version": 1,
+    "kind": "dev",
+    "methods": {
+      "constructor": {
+        "params": {
+          "_batcherHash": "Initial batcher hash.",
+          "_config": "Initial resource config.",
+          "_gasLimit": "Initial gas limit.",
+          "_overhead": "Initial overhead value.",
+          "_owner": "Initial owner of the contract.",
+          "_scalar": "Initial scalar value.",
+          "_unsafeBlockSigner": "Initial unsafe block signer address."
+        }
+      },
+      "initialize(address,uint256,uint256,bytes32,uint64,address,(uint32,uint8,uint8,uint32,uint32,uint128))": {
+        "params": {
+          "_batcherHash": "Initial batcher hash.",
+          "_config": "Initial ResourceConfig.",
+          "_gasLimit": "Initial gas limit.",
+          "_overhead": "Initial overhead value.",
+          "_owner": "Initial owner of the contract.",
+          "_scalar": "Initial scalar value.",
+          "_unsafeBlockSigner": "Initial unsafe block signer address."
+        }
+      },
+      "minimumGasLimit()": {
+        "returns": {
+          "_0": "uint64"
+        }
+      },
+      "owner()": {
+        "details": "Returns the address of the current owner."
+      },
+      "renounceOwnership()": {
+        "details": "Leaves the contract without owner. It will not be possible to call `onlyOwner` functions anymore. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby removing any functionality that is only available to the owner."
+      },
+      "resourceConfig()": {
+        "returns": {
+          "_0": "ResourceConfig"
+        }
+      },
+      "setBatcherHash(bytes32)": {
+        "params": {
+          "_batcherHash": "New batcher hash."
+        }
+      },
+      "setGasConfig(uint256,uint256)": {
+        "params": {
+          "_overhead": "New overhead value.",
+          "_scalar": "New scalar value."
+        }
+      },
+      "setGasLimit(uint64)": {
+        "params": {
+          "_gasLimit": "New gas limit."
+        }
+      },
+      "setResourceConfig((uint32,uint8,uint8,uint32,uint32,uint128))": {
+        "params": {
+          "_config": "The new resource config values."
+        }
+      },
+      "setUnsafeBlockSigner(address)": {
+        "params": {
+          "_unsafeBlockSigner": "New unsafe block signer address."
+        }
+      },
+      "transferOwnership(address)": {
+        "details": "Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner."
+      },
+      "unsafeBlockSigner()": {
+        "returns": {
+          "_0": "Address of the unsafe block signer."
+        }
+      },
+      "version()": {
+        "returns": {
+          "_0": "Semver contract version as a string."
+        }
+      }
+    },
+    "events": {
+      "ConfigUpdate(uint256,uint8,bytes)": {
+        "params": {
+          "data": "Encoded update data.",
+          "updateType": "Type of update.",
+          "version": "SystemConfig version."
+        }
+      }
+    },
+    "title": "SystemConfig"
+  },
+  "userdoc": {
+    "version": 1,
+    "kind": "user",
+    "methods": {
+      "UNSAFE_BLOCK_SIGNER_SLOT()": {
+        "notice": "Storage slot that the unsafe block signer is stored at. Storing it at this         deterministic storage slot allows for decoupling the storage layout from the way         that `solc` lays out storage. The `op-node` uses a storage proof to fetch this value."
+      },
+      "VERSION()": {
+        "notice": "Version identifier, used for upgrades."
+      },
+      "batcherHash()": {
+        "notice": "Identifier for the batcher. For version 1 of this configuration, this is represented         as an address left-padded with zeros to 32 bytes."
+      },
+      "gasLimit()": {
+        "notice": "L2 block gas limit."
+      },
+      "initialize(address,uint256,uint256,bytes32,uint64,address,(uint32,uint8,uint8,uint32,uint32,uint128))": {
+        "notice": "Initializer. The resource config must be set before the         require check."
+      },
+      "minimumGasLimit()": {
+        "notice": "Returns the minimum L2 gas limit that can be safely set for the system to         operate. The L2 gas limit must be larger than or equal to the amount of         gas that is allocated for deposits per block plus the amount of gas that         is allocated for the system transaction.         This function is used to determine if changes to parameters are safe."
+      },
+      "overhead()": {
+        "notice": "Fixed L2 gas overhead. Used as part of the L2 fee calculation."
+      },
+      "resourceConfig()": {
+        "notice": "A getter for the resource config. Ensures that the struct is         returned instead of a tuple."
+      },
+      "scalar()": {
+        "notice": "Dynamic L2 gas overhead. Used as part of the L2 fee calculation."
+      },
+      "setBatcherHash(bytes32)": {
+        "notice": "Updates the batcher hash."
+      },
+      "setGasConfig(uint256,uint256)": {
+        "notice": "Updates gas config."
+      },
+      "setGasLimit(uint64)": {
+        "notice": "Updates the L2 gas limit."
+      },
+      "setResourceConfig((uint32,uint8,uint8,uint32,uint32,uint128))": {
+        "notice": "An external setter for the resource config. In the future, this         method may emit an event that the `op-node` picks up for when the         resource config is changed."
+      },
+      "setUnsafeBlockSigner(address)": {
+        "notice": "Updates the unsafe block signer address."
+      },
+      "unsafeBlockSigner()": {
+        "notice": "High level getter for the unsafe block signer address. Unsafe blocks can be         propagated across the p2p network if they are signed by the key corresponding to         this address."
+      },
+      "version()": {
+        "notice": "Returns the full semver contract version."
+      }
+    },
+    "events": {
+      "ConfigUpdate(uint256,uint8,bytes)": {
+        "notice": "Emitted when configuration is updated"
+      }
+    },
+    "notice": "The SystemConfig contract is used to manage configuration of an Optimism network. All         configuration is stored on L1 and picked up by L2 as part of the derviation of the L2         chain."
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 52671,
+        "contract": "contracts/L1/SystemConfig.sol:SystemConfig",
+        "label": "_initialized",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint8"
+      },
+      {
+        "astId": 52674,
+        "contract": "contracts/L1/SystemConfig.sol:SystemConfig",
+        "label": "_initializing",
+        "offset": 1,
+        "slot": "0",
+        "type": "t_bool"
+      },
+      {
+        "astId": 53099,
+        "contract": "contracts/L1/SystemConfig.sol:SystemConfig",
+        "label": "__gap",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_array(t_uint256)50_storage"
+      },
+      {
+        "astId": 52543,
+        "contract": "contracts/L1/SystemConfig.sol:SystemConfig",
+        "label": "_owner",
+        "offset": 0,
+        "slot": "51",
+        "type": "t_address"
+      },
+      {
+        "astId": 52663,
+        "contract": "contracts/L1/SystemConfig.sol:SystemConfig",
+        "label": "__gap",
+        "offset": 0,
+        "slot": "52",
+        "type": "t_array(t_uint256)49_storage"
+      },
+      {
+        "astId": 2292,
+        "contract": "contracts/L1/SystemConfig.sol:SystemConfig",
+        "label": "overhead",
+        "offset": 0,
+        "slot": "101",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 2295,
+        "contract": "contracts/L1/SystemConfig.sol:SystemConfig",
+        "label": "scalar",
+        "offset": 0,
+        "slot": "102",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 2298,
+        "contract": "contracts/L1/SystemConfig.sol:SystemConfig",
+        "label": "batcherHash",
+        "offset": 0,
+        "slot": "103",
+        "type": "t_bytes32"
+      },
+      {
+        "astId": 2301,
+        "contract": "contracts/L1/SystemConfig.sol:SystemConfig",
+        "label": "gasLimit",
+        "offset": 0,
+        "slot": "104",
+        "type": "t_uint64"
+      },
+      {
+        "astId": 2305,
+        "contract": "contracts/L1/SystemConfig.sol:SystemConfig",
+        "label": "_resourceConfig",
+        "offset": 0,
+        "slot": "105",
+        "type": "t_struct(ResourceConfig)1945_storage"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_array(t_uint256)49_storage": {
+        "encoding": "inplace",
+        "label": "uint256[49]",
+        "numberOfBytes": "1568",
+        "base": "t_uint256"
+      },
+      "t_array(t_uint256)50_storage": {
+        "encoding": "inplace",
+        "label": "uint256[50]",
+        "numberOfBytes": "1600",
+        "base": "t_uint256"
+      },
+      "t_bool": {
+        "encoding": "inplace",
+        "label": "bool",
+        "numberOfBytes": "1"
+      },
+      "t_bytes32": {
+        "encoding": "inplace",
+        "label": "bytes32",
+        "numberOfBytes": "32"
+      },
+      "t_struct(ResourceConfig)1945_storage": {
+        "encoding": "inplace",
+        "label": "struct ResourceMetering.ResourceConfig",
+        "numberOfBytes": "32",
+        "members": [
+          {
+            "astId": 1934,
+            "contract": "contracts/L1/SystemConfig.sol:SystemConfig",
+            "label": "maxResourceLimit",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_uint32"
+          },
+          {
+            "astId": 1936,
+            "contract": "contracts/L1/SystemConfig.sol:SystemConfig",
+            "label": "elasticityMultiplier",
+            "offset": 4,
+            "slot": "0",
+            "type": "t_uint8"
+          },
+          {
+            "astId": 1938,
+            "contract": "contracts/L1/SystemConfig.sol:SystemConfig",
+            "label": "baseFeeMaxChangeDenominator",
+            "offset": 5,
+            "slot": "0",
+            "type": "t_uint8"
+          },
+          {
+            "astId": 1940,
+            "contract": "contracts/L1/SystemConfig.sol:SystemConfig",
+            "label": "minimumBaseFee",
+            "offset": 6,
+            "slot": "0",
+            "type": "t_uint32"
+          },
+          {
+            "astId": 1942,
+            "contract": "contracts/L1/SystemConfig.sol:SystemConfig",
+            "label": "systemTxMaxGas",
+            "offset": 10,
+            "slot": "0",
+            "type": "t_uint32"
+          },
+          {
+            "astId": 1944,
+            "contract": "contracts/L1/SystemConfig.sol:SystemConfig",
+            "label": "maximumBaseFee",
+            "offset": 14,
+            "slot": "0",
+            "type": "t_uint128"
+          }
+        ]
+      },
+      "t_uint128": {
+        "encoding": "inplace",
+        "label": "uint128",
+        "numberOfBytes": "16"
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      },
+      "t_uint32": {
+        "encoding": "inplace",
+        "label": "uint32",
+        "numberOfBytes": "4"
+      },
+      "t_uint64": {
+        "encoding": "inplace",
+        "label": "uint64",
+        "numberOfBytes": "8"
+      },
+      "t_uint8": {
+        "encoding": "inplace",
+        "label": "uint8",
+        "numberOfBytes": "1"
+      }
+    }
+  }
+}

@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 	_ "net/http/pprof"
-	"os"
-	"os/signal"
-	"syscall"
 
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
@@ -73,14 +71,7 @@ func Main(logger log.Logger, version string, cfg *config.Config) error {
 	m.RecordInfo(version)
 	m.RecordUp()
 
-	interruptChannel := make(chan os.Signal, 1)
-	signal.Notify(interruptChannel, []os.Signal{
-		os.Interrupt,
-		os.Kill,
-		syscall.SIGTERM,
-		syscall.SIGQUIT,
-	}...)
-	<-interruptChannel
+	opio.BlockOnInterrupts()
 	cancel()
 
 	return nil

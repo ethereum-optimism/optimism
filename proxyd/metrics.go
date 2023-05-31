@@ -482,7 +482,12 @@ func RecordConsensusBackendInSync(b *Backend, inSync bool) {
 	consensusInSyncBackend.WithLabelValues(b.Name).Set(boolToFloat64(inSync))
 }
 
-func RecordConsensusBackendUpdateDelay(b *Backend, delay time.Duration) {
+func RecordConsensusBackendUpdateDelay(b *Backend, lastUpdate time.Time) {
+	// avoid recording the delay for the first update
+	if lastUpdate.IsZero() {
+		return
+	}
+	delay := time.Since(lastUpdate)
 	consensusUpdateDelayBackend.WithLabelValues(b.Name).Set(float64(delay.Milliseconds()))
 }
 

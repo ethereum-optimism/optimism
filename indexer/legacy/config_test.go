@@ -1,21 +1,21 @@
-package indexer_test
+package legacy_test
 
 import (
 	"fmt"
 	"testing"
 
-	indexer "github.com/ethereum-optimism/optimism/indexer"
+	legacy "github.com/ethereum-optimism/optimism/indexer/legacy"
 	"github.com/stretchr/testify/require"
 )
 
 var validateConfigTests = []struct {
 	name   string
-	cfg    indexer.Config
+	cfg    legacy.Config
 	expErr error
 }{
 	{
 		name: "bad log level",
-		cfg: indexer.Config{
+		cfg: legacy.Config{
 			LogLevel: "unknown",
 		},
 		expErr: fmt.Errorf("unknown level: unknown"),
@@ -27,7 +27,7 @@ var validateConfigTests = []struct {
 func TestValidateConfig(t *testing.T) {
 	for _, test := range validateConfigTests {
 		t.Run(test.name, func(t *testing.T) {
-			err := indexer.ValidateConfig(&test.cfg)
+			err := legacy.ValidateConfig(&test.cfg)
 			require.Equal(t, err, test.expErr)
 		})
 	}
