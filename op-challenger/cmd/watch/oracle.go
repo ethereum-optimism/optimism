@@ -7,11 +7,11 @@ import (
 	"os/signal"
 	"syscall"
 
-	log "github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/log"
 
-	challenger "github.com/ethereum-optimism/optimism/op-challenger/challenger"
-	config "github.com/ethereum-optimism/optimism/op-challenger/config"
-	metrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-challenger/challenger"
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 )
 
 // Oracle listens to the L2OutputOracle for newly proposed outputs.
