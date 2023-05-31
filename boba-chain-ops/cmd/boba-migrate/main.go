@@ -172,6 +172,11 @@ func main() {
 			}
 			genesisBlock.Alloc = *genesisAlloc
 
+			if genesisBlock.Difficulty == nil || genesisBlock.Difficulty.Cmp(common.Big0) == 0 {
+				log.Warn("difficulty is not set in genesis config, setting to 1")
+				genesisBlock.Difficulty = common.Big1
+			}
+
 			// deep copy genesis for later checking
 			var genesisBlockOrigin types.Genesis
 			genesisByte, err := json.Marshal(genesisBlock)
