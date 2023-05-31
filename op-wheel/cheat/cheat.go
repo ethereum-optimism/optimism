@@ -14,6 +14,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
@@ -379,9 +380,9 @@ func SetBalance(addr common.Address, amount *big.Int) HeadFn {
 	}
 }
 
-func SetCode(addr common.Address, code string) HeadFn {
+func SetCode(addr common.Address, code hexutil.Bytes) HeadFn {
 	return func(headState *state.StateDB) error {
-		headState.SetCode(addr, common.FromHex(code))
+		headState.SetCode(addr, code)
 		return nil
 	}
 }
