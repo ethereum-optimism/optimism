@@ -8,8 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/urfave/cli"
 
+	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/flags"
-	"github.com/ethereum-optimism/optimism/indexer/legacy"
 )
 
 var (
@@ -36,7 +36,7 @@ func main() {
 	app.Description = "Service for indexing deposits and withdrawals " +
 		"by account on L1 and L2"
 
-	app.Action = legacy.Main(GitVersion)
+	app.Action = indexer.Main(GitVersion)
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
