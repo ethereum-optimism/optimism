@@ -3,6 +3,7 @@ rpc_port = 8545
 
 [backend]
 response_timeout_seconds = 1
+max_degraded_latency_threshold = "30ms"
 
 [backends]
 [backends.node1]
