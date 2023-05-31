@@ -71,6 +71,7 @@ The following request methods are rewritten:
 * `eth_getBlockByNumber`
 * `eth_getTransactionByBlockNumberAndIndex`
 * `eth_getUncleByBlockNumberAndIndex`
+* `debug_getRawReceipts`
 
 And `eth_blockNumber` response is overridden with current block consensus.
 
@@ -86,7 +87,7 @@ Cache use Redis and can be enabled for the following immutable methods:
 * `eth_getBlockByHash`
 * `eth_getTransactionByBlockHashAndIndex`
 * `eth_getUncleByBlockHashAndIndex`
-
+* `debug_getRawReceipts` (block hash only)
 
 ## Metrics
 
