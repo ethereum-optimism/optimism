@@ -72,8 +72,7 @@ var Goerli = rollup.Config{
 
 var NetworksByName = map[string]rollup.Config{
 	"goerli": Goerli,
-	// moose: Update this during migration
-	// "mainnet": Mainnet,
+	"mainnet": Mainnet,
 }
 
 var L2ChainIDToNetworkName = func() map[string]string {
