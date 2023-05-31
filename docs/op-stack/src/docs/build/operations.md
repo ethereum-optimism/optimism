@@ -57,7 +57,7 @@ Just wait until it is.
 ## Adding nodes
 
 To add nodes to the rollup, you need to initialize `op-node` and `op-geth`, similar to what you did for the first node.
-You should *not* add an `op-bathcer`, there should be only one.
+You should *not* add an `op-batcher`, there should be only one.
 
 1. Configure the OS and prerequisites as you did for the first node.
 1. Build the Optimism monorepo and `op-geth` as you did for the first node.
