@@ -9,18 +9,19 @@ import (
 	"github.com/go-chi/chi"
 )
 
-// Database interface for deposits
-type DepositDB interface {
+// TODO in this pr most of these types should be coming from the ORM instead
+
+// DepositsDAO represents the Database Access Object for deposits
+type DepositDAO interface {
 	GetDeposits(limit int, cursor string, sortDirection string) ([]Deposit, string, bool, error)
 }
 
-// Database interface for withdrawals
-type WithdrawalDB interface {
+// WithdrawalDAO represents the Database Access Object for deposits
+type WithdrawalDAO interface {
 	GetWithdrawals(limit int, cursor string, sortDirection string, sortBy string) ([]Withdrawal, string, bool, error)
 }
 
 // Deposit data structure
-// TODO this should be coming from the ORM instead
 type Deposit struct {
 	Guid            string        `json:"guid"`
 	Amount          string        `json:"amount"`
@@ -34,7 +35,6 @@ type Deposit struct {
 }
 
 // Withdrawal data structure
-// TODO this should be coming from teh ORM instead
 type Withdrawal struct {
 	Guid            string        `json:"guid"`
 	Amount          string        `json:"amount"`
@@ -88,7 +88,7 @@ func (a *Api) DepositsHandler(w http.ResponseWriter, r *http.Request) {
 	cursor := r.URL.Query().Get("cursor")
 	sortDirection := r.URL.Query().Get("sortDirection")
 
-	deposits, nextCursor, hasNextPage, err := a.DepositDB.GetDeposits(limit, cursor, sortDirection)
+	deposits, nextCursor, hasNextPage, err := a.DepositDAO.GetDeposits(limit, cursor, sortDirection)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -109,7 +109,7 @@ func (a *Api) WithdrawalsHandler(w http.ResponseWriter, r *http.Request) {
 	sortDirection := r.URL.Query().Get("sortDirection")
 	sortBy := r.URL.Query().Get("sortBy")
 
-	withdrawals, nextCursor, hasNextPage, err := a.WithdrawalDB.GetWithdrawals(limit, cursor, sortDirection, sortBy)
+	withdrawals, nextCursor, hasNextPage, err := a.WithdrawalDAO.GetWithdrawals(limit, cursor, sortDirection, sortBy)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -143,18 +143,18 @@ func jsonResponse(w http.ResponseWriter, data interface{}, statusCode int) {
 }
 
 type Api struct {
-	Router       *chi.Mux
-	DepositDB    DepositDB
-	WithdrawalDB WithdrawalDB
+	Router        *chi.Mux
+	DepositDAO    DepositDAO
+	WithdrawalDAO WithdrawalDAO
 }
 
-func NewApi(depositDB DepositDB, withdrawalDB WithdrawalDB) *Api {
+func NewApi(depositDAO DepositDAO, withdrawalDAO WithdrawalDAO) *Api {
 	r := chi.NewRouter()
 
 	api := &Api{
-		Router:       r,
-		DepositDB:    depositDB,
-		WithdrawalDB: withdrawalDB,
+		Router:        r,
+		DepositDAO:    depositDAO,
+		WithdrawalDAO: withdrawalDAO,
 	}
 
 	r.Get("/api/v0/deposits", api.DepositsHandler)
