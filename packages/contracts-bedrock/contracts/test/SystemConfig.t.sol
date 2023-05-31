@@ -171,16 +171,24 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
 
     function test_setAttestationThreshold_zero_reverts() external {
         vm.prank(sysConf.owner());
-        vm.expectRevert("SystemConfig: attestation threshold must be greater than 0");
+        vm.expectRevert(
+            "SystemConfig: attestation threshold must be in the range (0, MAX_ATTESTOR_SET_SIZE]"
+        );
         sysConf.setAttestationThreshold(0);
     }
 
     function testFuzz_setAttestationThreshold_exceedMax_reverts(uint256 _attestationThreshold)
         external
     {
-        vm.assume(_attestationThreshold > 10_000);
+        _attestationThreshold = bound(
+            _attestationThreshold,
+            sysConf.MAX_ATTESTOR_SET_SIZE() + 1,
+            type(uint256).max
+        );
         vm.prank(sysConf.owner());
-        vm.expectRevert("SystemConfig: attestation threshold must not exceed 10,000");
+        vm.expectRevert(
+            "SystemConfig: attestation threshold must be in the range (0, MAX_ATTESTOR_SET_SIZE]"
+        );
         sysConf.setAttestationThreshold(_attestationThreshold);
     }
 }
@@ -275,8 +283,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
     }
 
     function testFuzz_setAttestationThreshold_succeeds(uint256 _attestationThreshold) external {
-        vm.assume(_attestationThreshold > 0);
-        vm.assume(_attestationThreshold <= 10_000);
+        _attestationThreshold = bound(_attestationThreshold, 1, sysConf.MAX_ATTESTOR_SET_SIZE());
         vm.prank(sysConf.owner());
         sysConf.setAttestationThreshold(_attestationThreshold);
     }

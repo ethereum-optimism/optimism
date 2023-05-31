@@ -43,6 +43,12 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
 
     /**
+     * @notice The maximum size of the attestor set. With 16 attestors, each signature submitter
+     *         will receive around ~0.03125 ETH for their submission.
+     */
+    uint256 public constant MAX_ATTESTOR_SET_SIZE = 16;
+
+    /**
      * @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
      */
     uint256 public overhead;
@@ -327,33 +333,28 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      *        attestor should be removed.
      */
     function setAttestor(address _attestor, bool _authenticated) external onlyOwner {
-        _setAttestor(_attestor, _authenticated);
-    }
-
-    /**
-     * @notice An internal setter for the attestor set.
-     *
-     * @param _attestor Address of the attestor to authenticate or deauthenticate.
-     * @param _authenticated True if the attestor should be authenticated, false if the
-     *        attestor should be removed.
-
-     */
-    function _setAttestor(address _attestor, bool _authenticated) internal {
         uint256 len = _attestorSet.length;
-        for (uint256 i = 0; i < len; i++) {
+        for (uint256 i; i < len; ) {
             if (_attestorSet[i] == _attestor) {
-                if (_authenticated) {
-                    revert("SystemConfig: attestor already authenticated");
-                } else {
-                    // Remove the attestor from the array by swapping it with
-                    // the last attestor and then popping the last element.
-                    _attestorSet[i] = _attestorSet[len - 1];
-                    _attestorSet.pop();
-                    return;
-                }
+                require(!_authenticated, "SystemConfig: attestor already authenticated");
+
+                // Remove the attestor from the array by swapping it with
+                // the last attestor and then popping the last element.
+                _attestorSet[i] = _attestorSet[len - 1];
+                _attestorSet.pop();
+                return;
+            }
+            unchecked {
+                ++i;
             }
         }
+
+        // If the attestor is not in the array, add it.
         if (_authenticated) {
+            require(
+                _attestorSet.length < MAX_ATTESTOR_SET_SIZE,
+                "SystemConfig: attestor set is full"
+            );
             _attestorSet.push(_attestor);
         }
     }
@@ -367,14 +368,9 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      */
     function setAttestationThreshold(uint256 _attestationThreshold) external onlyOwner {
         require(
-            _attestationThreshold > 0,
-            "SystemConfig: attestation threshold must be greater than 0"
+            _attestationThreshold > 0 && _attestationThreshold <= MAX_ATTESTOR_SET_SIZE,
+            "SystemConfig: attestation threshold must be in the range (0, MAX_ATTESTOR_SET_SIZE]"
         );
-        require(
-            _attestationThreshold <= 10_000,
-            "SystemConfig: attestation threshold must not exceed 10,000"
-        );
-
         attestationThreshold = _attestationThreshold;
     }
 }
