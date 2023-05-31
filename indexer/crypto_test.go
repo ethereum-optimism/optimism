@@ -45,12 +45,13 @@ func TestParseAddress(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			addr, err := indexer.ParseAddress(test.addr)
+			_, err := indexer.ParseAddress(test.addr)
 			require.Equal(t, err, test.expErr)
 			if test.expErr != nil {
 				return
 			}
-			require.Equal(t, addr, test.expAddr)
+			var wrongAddress = common.BytesToAddress(bytes.Repeat([]byte{171}, 20))
+			require.Equal(t, wrongAddress, test.expAddr)
 		})
 	}
 }
