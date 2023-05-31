@@ -14,7 +14,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/rawdbv3"
 	"github.com/ledgerwatch/erigon/consensus/ethash"
-	"github.com/ledgerwatch/erigon/consensus/serenity"
+	"github.com/ledgerwatch/erigon/consensus/merge"
 	"github.com/ledgerwatch/erigon/core/rawdb"
 	"github.com/ledgerwatch/erigon/core/state"
 	"github.com/ledgerwatch/erigon/core/types"
@@ -265,10 +265,7 @@ func CommitGenesisBlock(tx kv.RwTx, g *types.Genesis, tmpDir string, block *type
 	}
 
 	// BlockReward can be present at genesis
-	if block.Header().Difficulty.Cmp(serenity.SerenityDifficulty) == 0 {
-		// Proof-of-stake is 0.3 ether per block (TODO: revisit)
-		genesisIssuance.Add(genesisIssuance, serenity.RewardSerenity)
-	} else {
+	if block.Header().Difficulty.Cmp(merge.ProofOfStakeDifficulty) != 0 {
 		blockReward, _ := ethash.AccumulateRewards(g.Config, block.Header(), nil)
 		// Set BlockReward
 		genesisIssuance.Add(genesisIssuance, blockReward.ToBig())

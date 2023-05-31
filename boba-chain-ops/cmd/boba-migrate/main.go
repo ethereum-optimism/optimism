@@ -107,6 +107,7 @@ func main() {
 			},
 		},
 		Action: func(ctx *cli.Context) error {
+			logger := log.New()
 			logLevel, err := log.LvlFromString(ctx.String("log-level"))
 			if err != nil {
 				logLevel = log.LvlInfo
@@ -190,7 +191,7 @@ func main() {
 			// }
 
 			l1RpcURL := ctx.String("l1-rpc-url")
-			l1Client, err := rpc.Dial(l1RpcURL)
+			l1Client, err := rpc.Dial(l1RpcURL, logger)
 			if err != nil {
 				return err
 			}
@@ -232,10 +233,10 @@ func main() {
 			}
 			nodeConfig.Dirs = datadir.New(dbPath)
 
-			stack, err := node.New(&nodeConfig)
+			stack, err := node.New(&nodeConfig, logger)
 			defer stack.Close()
 
-			chaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB)
+			chaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB, logger)
 			if err != nil {
 				log.Error("failed to open chaindb", "err", err)
 				return err
@@ -269,7 +270,7 @@ func main() {
 			// close the database handle
 			chaindb.Close()
 
-			postChaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB)
+			postChaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB, logger)
 			if err != nil {
 				log.Error("failed to open post chaindb", "err", err)
 				return err
