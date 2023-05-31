@@ -143,9 +143,9 @@ func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
 			}
 			if topSnap, ok := snap.Topics[blocksTopicName]; ok {
 				diff.Blocks.TimeInMesh = float64(topSnap.TimeInMesh) / float64(time.Second)
-				diff.Blocks.MeshMessageDeliveries = uint64(topSnap.MeshMessageDeliveries)
-				diff.Blocks.FirstMessageDeliveries = uint64(topSnap.FirstMessageDeliveries)
-				diff.Blocks.InvalidMessageDeliveries = uint64(topSnap.InvalidMessageDeliveries)
+				diff.Blocks.MeshMessageDeliveries = topSnap.MeshMessageDeliveries
+				diff.Blocks.FirstMessageDeliveries = topSnap.FirstMessageDeliveries
+				diff.Blocks.InvalidMessageDeliveries = topSnap.InvalidMessageDeliveries
 			}
 			if err := s.peerStore.SetScore(id, &diff); err != nil {
 				s.log.Warn("Unable to update peer gossip score", "err", err)
