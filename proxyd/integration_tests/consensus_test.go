@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
@@ -628,6 +629,55 @@ func TestConsensus(t *testing.T) {
 			len(nodes["node1"].mockBackend.Requests()), len(nodes["node2"].mockBackend.Requests()))
 		require.Equal(t, len(nodes["node1"].mockBackend.Requests()), 10, msg)
 		require.Equal(t, len(nodes["node2"].mockBackend.Requests()), 0, msg)
+	})
+
+	t.Run("load balancing should not hit if node is degraded", func(t *testing.T) {
+		reset()
+		useOnlyNode1()
+
+		// replace node1 handler with one that adds a 500ms delay
+		oldHandler := nodes["node1"].mockBackend.handler
+		defer func() { nodes["node1"].mockBackend.handler = oldHandler }()
+
+		nodes["node1"].mockBackend.SetHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			time.Sleep(500 * time.Millisecond)
+			oldHandler.ServeHTTP(w, r)
+		}))
+
+		update()
+
+		// send 10 requests to make node1 degraded
+		numberReqs := 10
+		for numberReqs > 0 {
+			_, statusCode, err := client.SendRPC("eth_getBlockByNumber", []interface{}{"0x101", false})
+			require.NoError(t, err)
+			require.Equal(t, 200, statusCode)
+			numberReqs--
+		}
+
+		// bring back node2
+		nodes["node2"].handler.ResetOverrides()
+		update()
+
+		// reset request counts
+		nodes["node1"].mockBackend.Reset()
+		nodes["node2"].mockBackend.Reset()
+
+		require.Equal(t, 0, len(nodes["node1"].mockBackend.Requests()))
+		require.Equal(t, 0, len(nodes["node2"].mockBackend.Requests()))
+
+		numberReqs = 10
+		for numberReqs > 0 {
+			_, statusCode, err := client.SendRPC("eth_getBlockByNumber", []interface{}{"0x101", false})
+			require.NoError(t, err)
+			require.Equal(t, 200, statusCode)
+			numberReqs--
+		}
+
+		msg := fmt.Sprintf("n1 %d, n2 %d",
+			len(nodes["node1"].mockBackend.Requests()), len(nodes["node2"].mockBackend.Requests()))
+		require.Equal(t, 0, len(nodes["node1"].mockBackend.Requests()), msg)
+		require.Equal(t, 10, len(nodes["node2"].mockBackend.Requests()), msg)
 	})
 
 	t.Run("rewrite response of eth_blockNumber", func(t *testing.T) {

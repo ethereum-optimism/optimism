@@ -40,7 +40,7 @@ var (
 			"Should be provided in following format: <threshold>:<label>;<threshold>:<label>;..." +
 			"For example: -40:graylist;-20:restricted;0:nopx;20:friend;",
 		Required: false,
-		Value:    "-40:graylist;-20:restricted;0:nopx;20:friend;",
+		Value:    "-40:<=-40;-10:<=-10;-5:<=-05;-0.05:<=-00.05;0:<=0;0.05:<=00.05;5:<=05;10:<=10;20:<=20;100:>20;",
 		EnvVar:   p2pEnv("SCORE_BANDS"),
 	}
 
