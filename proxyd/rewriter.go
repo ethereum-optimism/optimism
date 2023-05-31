@@ -63,24 +63,26 @@ func RewriteRequest(rctx RewriteContext, req *RPCReq, res *RPCRes) (RewriteResul
 	case "eth_getLogs",
 		"eth_newFilter":
 		return rewriteRange(rctx, req, res, 0)
+	case "debug_getRawReceipts":
+		return rewriteParam(rctx, req, res, 0, true)
 	case "eth_getBalance",
 		"eth_getCode",
 		"eth_getTransactionCount",
 		"eth_call":
-		return rewriteParam(rctx, req, res, 1)
+		return rewriteParam(rctx, req, res, 1, false)
 	case "eth_getStorageAt":
-		return rewriteParam(rctx, req, res, 2)
+		return rewriteParam(rctx, req, res, 2, false)
 	case "eth_getBlockTransactionCountByNumber",
 		"eth_getUncleCountByBlockNumber",
 		"eth_getBlockByNumber",
 		"eth_getTransactionByBlockNumberAndIndex",
 		"eth_getUncleByBlockNumberAndIndex":
-		return rewriteParam(rctx, req, res, 0)
+		return rewriteParam(rctx, req, res, 0, false)
 	}
 	return RewriteNone, nil
 }
 
-func rewriteParam(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (RewriteResult, error) {
+func rewriteParam(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int, required bool) (RewriteResult, error) {
 	var p []interface{}
 	err := json.Unmarshal(req.Params, &p)
 	if err != nil {
@@ -89,9 +91,9 @@ func rewriteParam(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (Rewri
 
 	// we assume latest if the param is missing,
 	// and we don't rewrite if there is not enough params
-	if len(p) == pos {
+	if len(p) == pos && !required {
 		p = append(p, "latest")
-	} else if len(p) < pos {
+	} else if len(p) <= pos {
 		return RewriteNone, nil
 	}
 

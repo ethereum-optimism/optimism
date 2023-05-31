@@ -71,6 +71,7 @@ The following request methods are rewritten:
 * `eth_getBlockByNumber`
 * `eth_getTransactionByBlockNumberAndIndex`
 * `eth_getUncleByBlockNumberAndIndex`
+* `debug_getRawReceipts`
 
 And `eth_blockNumber` response is overridden with current block consensus.
 
