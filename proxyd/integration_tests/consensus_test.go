@@ -635,7 +635,7 @@ func TestConsensus(t *testing.T) {
 		reset()
 		useOnlyNode1()
 
-		// replace node1 handler with one that adds a 100ms delay
+		// replace node1 handler with one that adds a 500ms delay
 		oldHandler := nodes["node1"].mockBackend.handler
 		defer func() { nodes["node1"].mockBackend.handler = oldHandler }()
 
