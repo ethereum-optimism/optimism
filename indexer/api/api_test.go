@@ -1,4 +1,4 @@
-package api_test
+package api
 
 import (
 	"encoding/json"
@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/indexer/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -16,20 +15,20 @@ type MockDB struct {
 	mock.Mock
 }
 
-func (db *MockDB) GetDeposits(limit int, cursor string, sortDirection string) ([]api.Deposit, string, bool, error) {
+func (db *MockDB) GetDeposits(limit int, cursor string, sortDirection string) ([]Deposit, string, bool, error) {
 	args := db.Called(limit, cursor, sortDirection)
-	return args.Get(0).([]api.Deposit), args.String(1), args.Bool(2), args.Error(3)
+	return args.Get(0).([]Deposit), args.String(1), args.Bool(2), args.Error(3)
 }
 
-func (db *MockDB) GetWithdrawals(limit int, cursor string, sortDirection string, sortBy string) ([]api.Withdrawal, string, bool, error) {
+func (db *MockDB) GetWithdrawals(limit int, cursor string, sortDirection string, sortBy string) ([]Withdrawal, string, bool, error) {
 	args := db.Called(limit, cursor, sortDirection, sortBy)
-	return args.Get(0).([]api.Withdrawal), args.String(1), args.Bool(2), args.Error(3)
+	return args.Get(0).([]Withdrawal), args.String(1), args.Bool(2), args.Error(3)
 }
 
 func TestApi(t *testing.T) {
 	mockDB := new(MockDB)
 
-	mockDeposits := []api.Deposit{
+	mockDeposits := []Deposit{
 		{
 			Guid:            "test-guid",
 			Amount:          "1000",
@@ -41,7 +40,7 @@ func TestApi(t *testing.T) {
 		},
 	}
 
-	mockWithdrawals := []api.Withdrawal{
+	mockWithdrawals := []Withdrawal{
 		{
 			Guid:            "test-guid",
 			Amount:          "1000",
@@ -57,7 +56,7 @@ func TestApi(t *testing.T) {
 
 	mockDB.On("GetWithdrawals", 10, "", "", "").Return(mockWithdrawals, "nextCursor", false, nil)
 
-	testApi := api.NewApi(mockDB, mockDB)
+	testApi := NewApi(mockDB, mockDB)
 
 	req, _ := http.NewRequest("GET", "/api/v0/deposits", nil)
 	rr := httptest.NewRecorder()
@@ -66,7 +65,7 @@ func TestApi(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code, "status code should be 200")
 
 	// TODO make this type exist
-	var depositsResponse api.DepositsResponse
+	var depositsResponse DepositsResponse
 	err := json.Unmarshal(rr.Body.Bytes(), &depositsResponse)
 	assert.NoError(t, err)
 
