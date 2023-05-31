@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -33,7 +32,6 @@ type EthClient interface {
 //   - Have client transparently support retry semantics
 //   - Members should be private and supply the needed methods
 type client struct {
-	ethClient *ethclient.Client
 	rpcClient *rpc.Client
 }
 
