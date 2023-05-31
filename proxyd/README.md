@@ -87,7 +87,7 @@ Cache use Redis and can be enabled for the following immutable methods:
 * `eth_getBlockByHash`
 * `eth_getTransactionByBlockHashAndIndex`
 * `eth_getUncleByBlockHashAndIndex`
-
+* `debug_getRawReceipts` (block hash only)
 
 ## Metrics
 
