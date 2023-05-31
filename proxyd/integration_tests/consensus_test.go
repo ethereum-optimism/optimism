@@ -640,13 +640,13 @@ func TestConsensus(t *testing.T) {
 		defer func() { nodes["node1"].mockBackend.handler = oldHandler }()
 
 		nodes["node1"].mockBackend.SetHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(500 * time.Millisecond)
 			oldHandler.ServeHTTP(w, r)
 		}))
 
 		update()
 
-		// send 10 requests - so the latency window should be at ~100ms
+		// send 10 requests to make node1 degraded
 		numberReqs := 10
 		for numberReqs > 0 {
 			_, statusCode, err := client.SendRPC("eth_getBlockByNumber", []interface{}{"0x101", false})
@@ -676,8 +676,8 @@ func TestConsensus(t *testing.T) {
 
 		msg := fmt.Sprintf("n1 %d, n2 %d",
 			len(nodes["node1"].mockBackend.Requests()), len(nodes["node2"].mockBackend.Requests()))
-		require.Equal(t, len(nodes["node1"].mockBackend.Requests()), 0, msg)
-		require.Equal(t, len(nodes["node2"].mockBackend.Requests()), 10, msg)
+		require.Equal(t, 0, len(nodes["node1"].mockBackend.Requests()), msg)
+		require.Equal(t, 10, len(nodes["node2"].mockBackend.Requests()), msg)
 	})
 
 	t.Run("rewrite response of eth_blockNumber", func(t *testing.T) {
