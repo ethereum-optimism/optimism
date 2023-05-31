@@ -20,6 +20,7 @@ type WithdrawalDB interface {
 }
 
 // Deposit data structure
+// TODO this should be coming from the ORM instead
 type Deposit struct {
 	Guid            string        `json:"guid"`
 	Amount          string        `json:"amount"`
@@ -33,6 +34,7 @@ type Deposit struct {
 }
 
 // Withdrawal data structure
+// TODO this should be coming from teh ORM instead
 type Withdrawal struct {
 	Guid            string        `json:"guid"`
 	Amount          string        `json:"amount"`
@@ -80,49 +82,46 @@ type PaginationResponse struct {
 	HasNextPage bool        `json:"hasNextPage"`
 }
 
-func getDepositsHandler(depositDB DepositDB) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		limit := getIntFromQuery(r, "limit", 10)
-		cursor := r.URL.Query().Get("cursor")
-		sortDirection := r.URL.Query().Get("sortDirection")
+func (a *Api) DepositsHandler(w http.ResponseWriter, r *http.Request) {
 
-		deposits, nextCursor, hasNextPage, err := depositDB.GetDeposits(limit, cursor, sortDirection)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+	limit := getIntFromQuery(r, "limit", 10)
+	cursor := r.URL.Query().Get("cursor")
+	sortDirection := r.URL.Query().Get("sortDirection")
 
-		response := PaginationResponse{
-			Data:        deposits,
-			Cursor:      nextCursor,
-			HasNextPage: hasNextPage,
-		}
-
-		jsonResponse(w, response, http.StatusOK)
+	deposits, nextCursor, hasNextPage, err := a.DepositDB.GetDeposits(limit, cursor, sortDirection)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
+
+	response := PaginationResponse{
+		Data:        deposits,
+		Cursor:      nextCursor,
+		HasNextPage: hasNextPage,
+	}
+
+	jsonResponse(w, response, http.StatusOK)
 }
 
-func getWithdrawalsHandler(withdrawalDB WithdrawalDB) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		limit := getIntFromQuery(r, "limit", 10)
-		cursor := r.URL.Query().Get("cursor")
-		sortDirection := r.URL.Query().Get("sortDirection")
-		sortBy := r.URL.Query().Get("sortBy")
+func (a *Api) WithdrawalsHandler(w http.ResponseWriter, r *http.Request) {
+	limit := getIntFromQuery(r, "limit", 10)
+	cursor := r.URL.Query().Get("cursor")
+	sortDirection := r.URL.Query().Get("sortDirection")
+	sortBy := r.URL.Query().Get("sortBy")
 
-		withdrawals, nextCursor, hasNextPage, err := withdrawalDB.GetWithdrawals(limit, cursor, sortDirection, sortBy)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		response := PaginationResponse{
-			Data:        withdrawals,
-			Cursor:      nextCursor,
-			HasNextPage: hasNextPage,
-		}
-
-		jsonResponse(w, response, http.StatusOK)
+	withdrawals, nextCursor, hasNextPage, err := a.WithdrawalDB.GetWithdrawals(limit, cursor, sortDirection, sortBy)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
+
+	response := PaginationResponse{
+		Data:        withdrawals,
+		Cursor:      nextCursor,
+		HasNextPage: hasNextPage,
+	}
+
+	jsonResponse(w, response, http.StatusOK)
 }
 
 func getIntFromQuery(r *http.Request, key string, defaultValue int) int {
@@ -152,14 +151,17 @@ type Api struct {
 func NewApi(depositDB DepositDB, withdrawalDB WithdrawalDB) *Api {
 	r := chi.NewRouter()
 
-	r.Get("/api/v0/deposits", getDepositsHandler(depositDB))
-	r.Get("/api/v0/withdrawals", getWithdrawalsHandler(withdrawalDB))
-
-	return &Api{
+	api := &Api{
 		Router:       r,
 		DepositDB:    depositDB,
 		WithdrawalDB: withdrawalDB,
 	}
+
+	r.Get("/api/v0/deposits", api.DepositsHandler)
+	r.Get("/api/v0/withdrawals", api.WithdrawalsHandler)
+
+	return api
+
 }
 
 func (a *Api) Listen(port string) {
