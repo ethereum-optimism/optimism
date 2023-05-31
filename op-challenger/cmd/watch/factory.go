@@ -1,6 +1,7 @@
 package watch
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/signal"
@@ -28,6 +29,8 @@ func Factory(logger log.Logger, cfg *config.Config) error {
 	}
 
 	logger.Info("Listening for DisputeGameCreated events from the DisputeGameFactory contract", "dgf", cfg.DGFAddress.String())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	subscription, err := service.NewFactorySubscription()
 	if err != nil {
@@ -41,7 +44,18 @@ func Factory(logger log.Logger, cfg *config.Config) error {
 		return err
 	}
 
-	defer subscription.Quit()
+	metricsCfg := cfg.MetricsConfig
+	if metricsCfg.Enabled {
+		log.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
+		go func() {
+			if err := m.Serve(ctx, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
+				logger.Error("error starting metrics server", err)
+			}
+		}()
+		m.StartBalanceMetrics(ctx, logger, service.Client(), service.From())
+	}
+
+	m.RecordUp()
 
 	interruptChannel := make(chan os.Signal, 1)
 	signal.Notify(interruptChannel, []os.Signal{

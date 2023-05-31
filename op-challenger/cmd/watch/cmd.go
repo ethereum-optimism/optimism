@@ -25,4 +25,25 @@ var Subcommands = cli.Commands{
 			return Oracle(logger, cfg)
 		},
 	},
+<<<<<<< HEAD
+=======
+	{
+		Name:  "factory",
+		Usage: "Watches the DisputeGameFactory for new dispute games",
+		Action: func(ctx *cli.Context) error {
+			logger, err := config.LoggerFromCLI(ctx)
+			if err != nil {
+				return err
+			}
+			logger.Info("Listening for new dispute games")
+
+			cfg, err := config.NewConfigFromCLI(ctx)
+			if err != nil {
+				return err
+			}
+
+			return Factory(logger, cfg)
+		},
+	},
+>>>>>>> 3d199507d (Add DisputeGameFactory dispute game creation listening logic.)
 }
