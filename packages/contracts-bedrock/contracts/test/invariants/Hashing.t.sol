@@ -166,6 +166,6 @@ contract Hashing_Invariant is StdInvariant, Test {
     function invariant_hash_xdomain_msg_1() external {
         // ASSERTION: A call to hashCrossDomainMessage and hashCrossDomainMessageV1
         // should always match when the version passed is 1
-        assertEq(actor.failedCrossDomainHashV1(), false);
+        assertFalse(actor.failedCrossDomainHashV1());
     }
 }
