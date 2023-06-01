@@ -10,7 +10,7 @@ import (
  */
 
 type ContractEvent struct {
-	GUID            string `gorm:"primaryKey"`
+	GUID            string
 	BlockHash       common.Hash
 	TransactionHash common.Hash
 

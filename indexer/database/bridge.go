@@ -25,7 +25,7 @@ type TokenPair struct {
 }
 
 type Deposit struct {
-	GUID                 string `gorm:"primaryKey"`
+	GUID                 string
 	InitiatedL1EventGUID string
 
 	Tx        Transaction `gorm:"embedded"`
@@ -38,7 +38,7 @@ type DepositWithTransactionHash struct {
 }
 
 type Withdrawal struct {
-	GUID                 string `gorm:"primaryKey"`
+	GUID                 string
 	InitiatedL2EventGUID string
 
 	WithdrawalHash       common.Hash

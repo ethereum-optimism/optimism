@@ -15,9 +15,9 @@ import (
  */
 
 type BlockHeader struct {
-	Hash       common.Hash    `gorm:"primaryKey"`
-	ParentHash common.Hash    `gorm:"unique"`
-	Number     pgtype.Numeric `gorm:"unique"`
+	Hash       common.Hash
+	ParentHash common.Hash
+	Number     pgtype.Numeric
 	Timestamp  uint64
 }
 
@@ -35,8 +35,8 @@ type L2BlockHeader struct {
 }
 
 type LegacyStateBatch struct {
-	Index       uint64      `gorm:"primaryKey"`
-	Root        common.Hash `gorm:"unique"`
+	Index       uint64
+	Root        common.Hash
 	Size        uint64
 	PrevTotal   uint64
 	L1BlockHash common.Hash
