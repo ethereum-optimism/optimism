@@ -8,6 +8,25 @@
   },
   "transactions": [
     {
+      "to": "0x543bA4AADBAb8f9025686Bd03993043599c6fB04",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+        ],
+        "name": "transferOwnership",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "newOwner": "0xB4453CEb33d2e67FA244A24acf2E50CEF31F53cB"
+      }
+    },
+    {
       "to": "0xdE1FCfB0851916CA5101820A69b13a4E276bd81F",
       "value": "0",
       "data": null,

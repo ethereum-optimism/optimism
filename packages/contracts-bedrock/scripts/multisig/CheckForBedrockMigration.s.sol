@@ -95,7 +95,7 @@ contract BedrockMigrationChecker is Script, StdAssertions {
 
     function checkL1ProxyAdmin(ContractSet memory contracts) internal {
         console2.log("Checking L1ProxyAdmin %s", contracts.L1ProxyAdmin);
-        checkAddressIsExpected(contracts.SystemDictatorProxy, contracts.L1ProxyAdmin, "owner()");
+        checkAddressIsExpected(contracts.L1UpgradeKey, contracts.L1ProxyAdmin, "owner()");
     }
 
     function checkL1StandardBridgeImpl(ContractSet memory contracts) internal {
