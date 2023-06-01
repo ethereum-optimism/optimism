@@ -7,9 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/google/uuid"
 	"io"
 	"math"
 	"math/rand"
@@ -19,6 +16,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/google/uuid"
 
 	sw "github.com/ethereum-optimism/optimism/proxyd/pkg/avg-sliding-window"
 
@@ -415,7 +416,7 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 
 	originalRequests := rpcReqs
 	translatedReqs := make(map[string]*RPCReq, len(rpcReqs))
-	derivedRequests := make([]*RPCReq, 0, 0)
+	derivedRequests := make([]*RPCReq, 0)
 	// translate consensus_getReceipts to receipts target
 	// right now we only support non-batched
 	if !isBatch {

@@ -90,6 +90,9 @@ func (mh *MockedHandler) Handler(w http.ResponseWriter, req *http.Request) {
 		if selectedResponse != "" {
 			var rpcRes proxyd.RPCRes
 			err = json.Unmarshal([]byte(selectedResponse), &rpcRes)
+			if err != nil {
+				panic(err)
+			}
 			idJson, _ := json.Marshal(r["id"])
 			rpcRes.ID = idJson
 			res, _ := json.Marshal(rpcRes)

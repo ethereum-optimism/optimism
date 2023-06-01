@@ -802,6 +802,7 @@ func TestConsensus(t *testing.T) {
 
 		var resJsonMap map[string]interface{}
 		err = json.Unmarshal(resRaw, &resJsonMap)
+		require.NoError(t, err)
 
 		require.Equal(t, "debug_getRawReceipts", resJsonMap["result"].(map[string]interface{})["method"].(string))
 		require.Equal(t, "debug_getRawReceipts", resJsonMap["result"].(map[string]interface{})["result"].(map[string]interface{})["_"])
@@ -824,6 +825,7 @@ func TestConsensus(t *testing.T) {
 
 		var resJsonMap map[string]interface{}
 		err = json.Unmarshal(resRaw, &resJsonMap)
+		require.NoError(t, err)
 
 		require.Equal(t, "debug_getRawReceipts", resJsonMap["result"].(map[string]interface{})["method"].(string))
 		require.Equal(t, "debug_getRawReceipts", resJsonMap["result"].(map[string]interface{})["result"].(map[string]interface{})["_"])
