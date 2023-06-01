@@ -140,7 +140,7 @@ contract Hashing_Invariant is StdInvariant, Test {
      */
     function invariant_hash_xdomain_msg_high_version() external {
         // ASSERTION: The round trip aliasing done in testRoundTrip(...) should never fail.
-        assertEq(actor.failedCrossDomainHashHighVersion(), false);
+        assertFalse(actor.failedCrossDomainHashHighVersion());
     }
 
     /**
