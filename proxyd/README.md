@@ -89,6 +89,59 @@ Cache use Redis and can be enabled for the following immutable methods:
 * `eth_getUncleByBlockHashAndIndex`
 * `debug_getRawReceipts` (block hash only)
 
+## Meta method `consensus_getReceipts`
+
+To support backends with different specifications in the same backend group,
+proxyd exposes a convenient method to fetch receipts abstracting away
+what specific backend will serve the request.
+
+Each backend can specify their preferred method to fetch receipts with `consensus_receipts_target`.
+
+This method takes **both** the blockNumberOrHash **and** list of transaction hashes to fetch the receipts,
+and then after selecting the backend to serve the request,
+it translates to the correct target with the appropriate parameters.
+
+Note that only one of the parameters will be actually used depending on the target.
+
+Request params
+```json
+{
+  "jsonrpc":"2.0",
+  "id": 1,
+  "params": {
+    "blockNumberOrHash": "0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b",
+    "transactions": [
+      "0xe670ec64341771606e55d6b4ca35a1a6b75ee3d5145a99d05921026d1527331",
+      "0x88df016429689c079f3b2f6ad39fa052532c56795b733da78a91ebe6a713944b"
+    ]
+  }
+}
+```
+
+It currently supports translation to the following targets:
+* `debug_getRawReceipts(blockOrHash)` (default)
+* `alchemy_getTransactionReceipts(blockOrHash)`
+* `eth_getTransactionReceipt(txHash)` batched
+
+The selected target is returned in the response, in a wrapped result.
+
+Response
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "method": "eth_getTransactionReceipt",
+    "result": {
+      // the actual raw result from backend
+    }
+  }
+}
+```
+
+See [op-node receipt fetcher](https://github.com/ethereum-optimism/optimism/blob/186e46a47647a51a658e699e9ff047d39444c2de/op-node/sources/receipts.go#L186-L253).
+
+
 ## Metrics
 
 See `metrics.go` for a list of all available metrics.
