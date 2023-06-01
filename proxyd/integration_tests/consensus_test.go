@@ -848,6 +848,7 @@ func TestConsensus(t *testing.T) {
 
 		var resJsonMap map[string]interface{}
 		err = json.Unmarshal(resRaw, &resJsonMap)
+		require.NoError(t, err)
 
 		require.Equal(t, "debug_getRawReceipts", resJsonMap["result"].(map[string]interface{})["method"].(string))
 		require.Equal(t, "debug_getRawReceipts", resJsonMap["result"].(map[string]interface{})["result"].(map[string]interface{})["_"])
@@ -874,6 +875,7 @@ func TestConsensus(t *testing.T) {
 
 		var resJsonMap map[string]interface{}
 		err = json.Unmarshal(resRaw, &resJsonMap)
+		require.NoError(t, err)
 
 		require.Equal(t, "alchemy_getTransactionReceipts", resJsonMap["result"].(map[string]interface{})["method"].(string))
 		require.Equal(t, "alchemy_getTransactionReceipts", resJsonMap["result"].(map[string]interface{})["result"].(map[string]interface{})["_"])
@@ -912,6 +914,7 @@ func TestConsensus(t *testing.T) {
 
 		var resJsonMap map[string]interface{}
 		err = json.Unmarshal(resRaw, &resJsonMap)
+		require.NoError(t, err)
 
 		require.Equal(t, "eth_getTransactionReceipt", resJsonMap["result"].(map[string]interface{})["method"].(string))
 		require.Equal(t, 4, len(resJsonMap["result"].(map[string]interface{})["result"].([]interface{})))
