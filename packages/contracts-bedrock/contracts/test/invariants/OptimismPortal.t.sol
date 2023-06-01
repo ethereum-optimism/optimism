@@ -32,9 +32,7 @@ contract OptimismPortal_Depositor {
         portal.depositTransaction{ value: _mint }(_to, _value, _gasLimit, _isCreation, _data);
         failedToComplete = false;
     }
-
 }
-
 
 contract OptimismPortal_Invariant_Harness is Portal_Initializer {
     // Reusable default values for a test withdrawal
