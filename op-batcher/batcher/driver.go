@@ -2,7 +2,6 @@ package batcher
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -46,17 +45,6 @@ type BatchSubmitter struct {
 // NewBatchSubmitterFromCLIConfig initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
 func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*BatchSubmitter, error) {
-	var nid [8]byte
-
-	if cfg.TxMgrConfig.NamespaceId == "" {
-		return nil, errors.New("namespace id cannot be blank")
-	}
-	namespaceId, err := hex.DecodeString(cfg.TxMgrConfig.NamespaceId)
-	if err != nil {
-		return nil, err
-	}
-	copy(nid[:], namespaceId)
-
 	ctx := context.Background()
 
 	// Connect to L1 and L2 providers. Perform these last since they are the
@@ -111,12 +99,12 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 		return nil, err
 	}
 
-	return NewBatchSubmitter(ctx, nid, batcherCfg, l, m)
+	return NewBatchSubmitter(ctx, batcherCfg, l, m)
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
-func NewBatchSubmitter(ctx context.Context, nid [8]byte, cfg Config, l log.Logger, m metrics.Metricer) (*BatchSubmitter, error) {
+func NewBatchSubmitter(ctx context.Context, cfg Config, l log.Logger, m metrics.Metricer) (*BatchSubmitter, error) {
 	balance, err := cfg.L1Client.BalanceAt(ctx, cfg.TxManager.From(), nil)
 	if err != nil {
 		return nil, err

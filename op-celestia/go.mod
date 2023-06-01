@@ -2,7 +2,7 @@ module github.com/ethereum-optimism/optimism/op-celestia
 
 go 1.19
 
-require github.com/celestiaorg/go-cnc v0.3.0
+require github.com/celestiaorg/go-cnc v0.4.1
 
 require (
 	github.com/go-resty/resty/v2 v2.7.0 // indirect

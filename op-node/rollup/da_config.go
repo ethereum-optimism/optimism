@@ -8,26 +8,27 @@ import (
 )
 
 type DAConfig struct {
-	Rpc         string
-	NamespaceId [8]byte
-	Client      *cnc.Client
+	Rpc       string
+	Namespace cnc.Namespace
+	Client    *cnc.Client
 }
 
-func NewDAConfig(rpc string, namespaceId string) (*DAConfig, error) {
-	var nid [8]byte
-	n, err := hex.DecodeString(namespaceId)
+func NewDAConfig(rpc string, ns string) (*DAConfig, error) {
+	nsBytes, err := hex.DecodeString(ns)
 	if err != nil {
 		return &DAConfig{}, err
 	}
-	copy(nid[:], n)
+
+	namespace := cnc.MustNewV0(nsBytes)
+
 	daClient, err := cnc.NewClient(rpc, cnc.WithTimeout(30*time.Second))
 	if err != nil {
 		return &DAConfig{}, err
 	}
 
 	return &DAConfig{
-		NamespaceId: nid,
-		Rpc:         rpc,
-		Client:      daClient,
+		Namespace: namespace,
+		Rpc:       rpc,
+		Client:    daClient,
 	}, nil
 }

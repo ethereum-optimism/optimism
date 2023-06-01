@@ -47,7 +47,7 @@ var (
 	NamespaceId = cli.StringFlag{
 		Name:   "namespace-id",
 		Usage:  "Namespace ID for DA node",
-		Value:  "e8e5f679bf7116cb",
+		Value:  "000008e5f679bf7116cb",
 		EnvVar: prefixEnvVar("NAMESPACE_ID"),
 	}
 	Network = cli.StringFlag{

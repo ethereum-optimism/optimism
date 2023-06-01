@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	data, _ := hex.DecodeString(os.Args[1])
+	data, _ := hex.DecodeString(os.Args[2])
 	buf := bytes.NewBuffer(data)
 	var height int64
 	err := binary.Read(buf, binary.BigEndian, &height)
@@ -31,10 +31,12 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	namespaceId, _ := hex.DecodeString("e8e5f679bf7116cbe5f679ef")
-	var nid [8]byte
-	copy(nid[:], namespaceId)
-	namespacedData, err := client.NamespacedData(context.Background(), nid, uint64(height))
+	nsBytes, err := hex.DecodeString(os.Args[1])
+	if err != nil {
+		panic(err)
+	}
+	namespace := cnc.MustNewV0(nsBytes)
+	namespacedData, err := client.NamespacedData(context.Background(), namespace, uint64(height))
 	if err != nil {
 		panic(err)
 	}

@@ -88,8 +88,8 @@ type SimpleTxManager struct {
 	name    string
 	chainID *big.Int
 
-	daClient    *cnc.Client
-	namespaceId [8]byte
+	daClient  *cnc.Client
+	namespace cnc.Namespace
 
 	backend ETHBackend
 	l       log.Logger
@@ -115,27 +115,26 @@ func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLI
 		return nil, err
 	}
 
-	var nid [8]byte
-
 	if cfg.NamespaceId == "" {
 		return nil, errors.New("namespace id cannot be blank")
 	}
-	namespaceId, err := hex.DecodeString(cfg.NamespaceId)
+	nsBytes, err := hex.DecodeString(cfg.NamespaceId)
 	if err != nil {
 		return nil, err
 	}
-	copy(nid[:], namespaceId)
+
+	namespace := cnc.MustNewV0(nsBytes)
 
 	return &SimpleTxManager{
-		chainID:     conf.ChainID,
-		name:        name,
-		cfg:         conf,
-		daClient:    daClient,
-		namespaceId: nid,
-		backend:     conf.Backend,
-		l:           l.New("service", name),
-		metr:        m,
-		resetC:      make(chan struct{}),
+		chainID:   conf.ChainID,
+		name:      name,
+		cfg:       conf,
+		daClient:  daClient,
+		namespace: namespace,
+		backend:   conf.Backend,
+		l:         l.New("service", name),
+		metr:      m,
+		resetC:    make(chan struct{}),
 	}, nil
 }
 
@@ -219,7 +218,7 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 	// frame pointer to celestia, while retaining the proposer pathway that
 	// writes the state commitment data to ethereum.
 	if candidate.To.Hex() == "0xfF00000000000000000000000000000000000000" {
-		res, err := m.daClient.SubmitPFB(ctx, m.namespaceId, candidate.TxData, 20000, 700000)
+		res, err := m.daClient.SubmitPFB(ctx, m.namespace, candidate.TxData, 70000, 700000)
 		if err != nil {
 			m.l.Warn("unable to publish tx to celestia", "err", err)
 			return nil, err
