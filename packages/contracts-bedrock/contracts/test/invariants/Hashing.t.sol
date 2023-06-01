@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {Test} from "forge-std/Test.sol";
-import {StdInvariant} from "forge-std/StdInvariant.sol";
+import { Test } from "forge-std/Test.sol";
+import { StdInvariant } from "forge-std/StdInvariant.sol";
 import { Encoding } from "../../libraries/Encoding.sol";
 import { Hashing } from "../../libraries/Hashing.sol";
 
@@ -114,9 +114,6 @@ contract Hash_CrossDomainHasher {
             failedCrossDomainHashV1 = true;
         }
     }
-
-
-
 }
 
 contract Hashing_Invariant is StdInvariant, Test {
@@ -172,5 +169,3 @@ contract Hashing_Invariant is StdInvariant, Test {
         assertEq(actor.failedCrossDomainHashV1(), false);
     }
 }
-
-
