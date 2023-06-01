@@ -358,6 +358,14 @@ var (
 		"backend_name",
 	})
 
+	degradedBackends = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_degraded",
+		Help:      "Bool gauge for degraded backends",
+	}, []string{
+		"backend_name",
+	})
+
 	networkErrorRateBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: MetricsNamespace,
 		Name:      "backend_error_rate",
@@ -482,12 +490,18 @@ func RecordConsensusBackendInSync(b *Backend, inSync bool) {
 	consensusInSyncBackend.WithLabelValues(b.Name).Set(boolToFloat64(inSync))
 }
 
-func RecordConsensusBackendUpdateDelay(b *Backend, delay time.Duration) {
+func RecordConsensusBackendUpdateDelay(b *Backend, lastUpdate time.Time) {
+	// avoid recording the delay for the first update
+	if lastUpdate.IsZero() {
+		return
+	}
+	delay := time.Since(lastUpdate)
 	consensusUpdateDelayBackend.WithLabelValues(b.Name).Set(float64(delay.Milliseconds()))
 }
 
 func RecordBackendNetworkLatencyAverageSlidingWindow(b *Backend, avgLatency time.Duration) {
 	avgLatencyBackend.WithLabelValues(b.Name).Set(float64(avgLatency.Milliseconds()))
+	degradedBackends.WithLabelValues(b.Name).Set(boolToFloat64(b.IsDegraded()))
 }
 
 func RecordBackendNetworkErrorRateSlidingWindow(b *Backend, rate float64) {

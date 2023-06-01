@@ -38,13 +38,27 @@ services:
       - INDEXER_REST_HOSTNAME=0.0.0.0
       - INDEXER_REST_PORT=8080
       - INDEXER_BEDROCK_L1_STANDARD_BRIDGE=0
-      - INDEXER_BEDROCK_L1_STANDARD_BRIDGE=0x636Af16bf2f682dD3109e60102b8E1A089FedAa8
-      - INDEXER_BEDROCK_OPTIMISM_PORTAL=0xB7040fd32359688346A3D1395a42114cf8E3b9b2
+      - INDEXER_BEDROCK_L1_STANDARD_BRIDGE=${INDEXER_BEDROCK_L1_STANDARD_BRIDGE:-0x636Af16bf2f682dD3109e60102b8E1A089FedAa8}
+      - INDEXER_BEDROCK_OPTIMISM_PORTAL=${INDEXER_BEDROCK_OPTIMISM_PORTAL:-0xB7040fd32359688346A3D1395a42114cf8E3b9b2}
+      - INDEXER_L1_ADDRESS_MANAGER_ADDRESS=${INDEXER_L1_ADDRESS_MANAGER_ADDRESS:-0xdE1FCfB0851916CA5101820A69b13a4E276bd81F}
     ports:
       - 8080:8080
     depends_on:
       postgres:
         condition: service_healthy
         
+  ui:
+    build:
+      context: ..
+      dockerfile: indexer/ui/Dockerfile
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://db_username:db_password@postgres:5432/db_name}
+    ports:
+      - 5555:5555
+    healthcheck:
+      test: wget localhost:5555 -q -O - > /dev/null 2>&1
+    depends_on:
+      postgres:
+        condition: service_healthy
 volumes:
   postgres_data:

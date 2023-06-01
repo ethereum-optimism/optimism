@@ -130,8 +130,8 @@ task('deposit-eth', 'Deposits ether to L2.')
       contractAddrs = {
         l1: {
           AddressManager: Deployment__AddressManager.address,
-          L1CrossDomainMessenger: Deployment__L1CrossDomainMessenger,
-          L1StandardBridge: Deployment__L1StandardBridge,
+          L1CrossDomainMessenger: Deployment__L1CrossDomainMessenger.address,
+          L1StandardBridge: Deployment__L1StandardBridge.address,
           StateCommitmentChain: ethers.constants.AddressZero,
           CanonicalTransactionChain: ethers.constants.AddressZero,
           BondManager: ethers.constants.AddressZero,
