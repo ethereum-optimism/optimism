@@ -2,17 +2,17 @@
  * BLOCK DATA
  */
 
-CREATE TABLE IF NOT EXISTS l1_blocks (
+CREATE TABLE IF NOT EXISTS l1_block_headers (
 	hash        VARCHAR NOT NULL PRIMARY KEY,
 	parent_hash VARCHAR NOT NULL,
 	number      NUMERIC NOT NULL,
 	timestamp   INTEGER NOT NULL,
 
     CONSTRAINT
-        l1_parent_hash_fkey FOREIGN KEY(parent_hash) REFERENCES l1_blocks(hash)
+        l1_parent_hash_fkey FOREIGN KEY(parent_hash) REFERENCES l1_block_headers(hash)
 );
 
-CREATE TABLE IF NOT EXISTS l2_blocks (
+CREATE TABLE IF NOT EXISTS l2_block_headers (
     -- Block header
 	hash                     VARCHAR NOT NULL PRIMARY KEY,
 	parent_hash              VARCHAR NOT NULL,
@@ -20,11 +20,11 @@ CREATE TABLE IF NOT EXISTS l2_blocks (
 	timestamp                INTEGER NOT NULL,
 
     -- Finalization information
-    l1_block_hash            VARCHAR NOT NULL REFERENCES l1_blocks(hash),
+    l1_block_hash            VARCHAR NOT NULL REFERENCES l1_block_headers(hash),
     legacy_state_batch_index INTEGER,
 
     CONSTRAINT
-        l2_parent_hash_fkey FOREIGN KEY(parent_hash) REFERENCES l2_blocks(hash)
+        l2_parent_hash_fkey FOREIGN KEY(parent_hash) REFERENCES l2_block_headers(hash)
 );
 
 CREATE TABLE IF NOT EXISTS legacy_state_batches (
@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS legacy_state_batches (
 	prev_total    INTEGER NOT NULL,
 
     -- Finalization information
-	l1_block_hash VARCHAR NOT NULL REFERENCES l1_blocks(hash)
+	l1_block_hash VARCHAR NOT NULL REFERENCES l1_block_headers(hash)
 );
 
 /** 
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS legacy_state_batches (
 
 CREATE TABLE IF NOT EXISTS l1_contract_events (
     guid             VARCHAR NOT NULL PRIMARY KEY,
-	block_hash       VARCHAR NOT NULL REFERENCES l1_blocks(hash),
+	block_hash       VARCHAR NOT NULL REFERENCES l1_block_headers(hash),
     transaction_hash VARCHAR NOT NULL,
     event_signature  VARCHAR NOT NULL,
     log_index        INTEGER NOT NULL
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS l1_contract_events (
 
 CREATE TABLE IF NOT EXISTS l2_contract_events (
     guid             VARCHAR NOT NULL PRIMARY KEY,
-	block_hash       VARCHAR NOT NULL REFERENCES l2_blocks(hash),
+	block_hash       VARCHAR NOT NULL REFERENCES l2_block_headers(hash),
     transaction_hash VARCHAR NOT NULL,
     event_signature  VARCHAR NOT NULL,
     log_index        INTEGER NOT NULL
