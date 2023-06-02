@@ -5,6 +5,7 @@ WORKDIR /app
 RUN echo {} > package.json && \
   npm install prisma
 
+COPY indexer/ui/prisma.sh prisma.sh
 COPY indexer/ui/schema.prisma schema.prisma
 
 RUN npx prisma generate --schema schema.prisma
