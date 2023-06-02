@@ -51,6 +51,8 @@ func main() {
 					return err
 				}
 
+				log.Info("Requires an archive node")
+
 				log.Info("Connecting to AddressManager", "address", addresses.AddressManager)
 				addressManager, err := bindings.NewAddressManager(addresses.AddressManager, clients.L1Client)
 				if err != nil {
@@ -70,28 +72,42 @@ func main() {
 					time.Sleep(3 * time.Second)
 				}
 
+				shutoffBlock, err := addressManager.GetAddress(&bind.CallOpts{}, "DTL_SHUTOFF_BLOCK")
+				if err != nil {
+					return err
+				}
+				shutoffHeight := shutoffBlock.Big()
+
 				log.Info("Connecting to CanonicalTransactionChain", "address", addresses.CanonicalTransactionChain)
 				ctc, err := legacy_bindings.NewCanonicalTransactionChain(addresses.CanonicalTransactionChain, clients.L1Client)
 				if err != nil {
 					return err
 				}
 
-				queueLength, err := ctc.GetQueueLength(&bind.CallOpts{})
+				queueLength, err := ctc.GetQueueLength(&bind.CallOpts{
+					BlockNumber: shutoffHeight,
+				})
 				if err != nil {
 					return err
 				}
 
-				totalElements, err := ctc.GetTotalElements(&bind.CallOpts{})
+				totalElements, err := ctc.GetTotalElements(&bind.CallOpts{
+					BlockNumber: shutoffHeight,
+				})
 				if err != nil {
 					return err
 				}
 
-				totalBatches, err := ctc.GetTotalBatches(&bind.CallOpts{})
+				totalBatches, err := ctc.GetTotalBatches(&bind.CallOpts{
+					BlockNumber: shutoffHeight,
+				})
 				if err != nil {
 					return err
 				}
 
-				pending, err := ctc.GetNumPendingQueueElements(&bind.CallOpts{})
+				pending, err := ctc.GetNumPendingQueueElements(&bind.CallOpts{
+					BlockNumber: shutoffHeight,
+				})
 				if err != nil {
 					return err
 				}
@@ -131,6 +147,7 @@ func main() {
 					if err != nil {
 						return err
 					}
+
 					// If the queue origin is l1, then it is a deposit.
 					if json.QueueOrigin == "l1" {
 						if json.QueueIndex == nil {
@@ -138,12 +155,26 @@ func main() {
 							return fmt.Errorf("queue index is nil for tx %s at height %d", hash.Hex(), blockNumber)
 						}
 						queueIndex := uint64(*json.QueueIndex)
+						if json.L1BlockNumber == nil {
+							// This should never happen.
+							return fmt.Errorf("L1 block number is nil for tx %s at height %d", hash.Hex(), blockNumber)
+						}
+						l1BlockNumber := json.L1BlockNumber.ToInt()
+						log.Info("Deposit found", "l2-block", blockNumber, "l1-block", l1BlockNumber, "queue-index", queueIndex)
+
+						// This should never happen
+						if json.L1BlockNumber.ToInt().Uint64() > shutoffHeight.Uint64() {
+							log.Warn("Lost deposit")
+							return fmt.Errorf("Lost deposit: %s", hash.Hex())
+						}
+
 						// Check to see if the final deposit was ingested. Subtract 1 here to handle zero
 						// indexing.
 						if queueIndex == queueLength.Uint64()-1 {
 							log.Info("Found final deposit in l2geth", "queue-index", queueIndex)
 							break
 						}
+
 						// If the queue index is less than the queue length, then not all deposits have
 						// been ingested by l2geth yet. This means that we need to reset the blocknumber
 						// to the latest block number to restart walking backwards to find deposits that
@@ -258,7 +289,7 @@ func waitForTotalElements(wg *sync.WaitGroup, contract RollupContract, client *e
 		log.Info(
 			"Waiting for elements to be submitted",
 			"name", name,
-			"count", totalElements.Uint64()-bn,
+			"count", bn-totalElements.Uint64(),
 			"height", bn,
 			"total-elements", totalElements.Uint64(),
 		)
