@@ -19,13 +19,13 @@ aside.sidebar {
 p.sidebar-heading {
   color: #323A43 !important;
   font-family: 'Open Sans', sans-serif;
-  font-weight: 600;
+  font-weight: 600 !important;
   font-size: 14px !important;
   line-height: 24px !important;
   min-height: 36px;
-  margin-left: 32px;
+  margin-left: 20px;
   padding: 8px 16px !important;
-  width: calc(100% - 64px) !important;
+  width: calc(100% - 60px) !important;
   border-radius: 8px;
 }
 
@@ -34,18 +34,20 @@ a.sidebar-link {
   font-size: 14px !important;
   line-height: 24px !important;
   min-height: 36px;
-  margin-left: 32px;
+  margin-top: 3px;
+  margin-left: 20px;
   padding: 8px 16px !important;
-  width: calc(100% - 64px) !important;
+  width: calc(100% - 60px) !important;
   border-radius: 8px;
 }
 
-section.sidebar-group a.sidebar-link  {
-  margin-left: 44px;
-  width: calc(100% - 64px) !important;
+section.sidebar-group a.sidebar-link,
+section.sidebar-group p.sidebar-heading.clickable  {
+  margin-left: 32px;
+  width: calc(100% - 60px) !important;
 }
 
-.sidebar-links:not(.sidebar-group-items) > li > a.sidebar-link {  
+.sidebar-links:not(.sidebar-group-items) > li > a.sidebar-link {
   font-weight: 600 !important;
   color: #323A43 !important;
 }
