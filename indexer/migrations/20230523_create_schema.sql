@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS l2_block_headers (
 
     -- Finalization information
     l1_block_hash            VARCHAR REFERENCES l1_block_headers(hash),
-    legacy_state_batch_index INTEGER
+    legacy_state_batch_index INTEGER REFERENCES legacy_state_batches(index)
 );
 
 CREATE TABLE IF NOT EXISTS legacy_state_batches (
@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS deposits (
 	l1_token_address VARCHAR NOT NULL,
 	l2_token_address VARCHAR NOT NULL,
 	amount           UINT256,
-	data             BYTEA NOT NULL
+	data             VARCHAR NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS withdrawals (
@@ -95,5 +95,5 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 	l1_token_address VARCHAR NOT NULL,
 	l2_token_address VARCHAR NOT NULL,
 	amount           UINT256,
-	data             BYTEA NOT NULL
+	data             VARCHAR NOT NULL
 );

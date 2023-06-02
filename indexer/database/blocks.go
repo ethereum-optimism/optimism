@@ -1,13 +1,12 @@
 package database
 
 import (
-	"database/sql"
+	"context"
 	"errors"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/jackc/pgtype"
 	"gorm.io/gorm"
 )
 
@@ -18,7 +17,7 @@ import (
 type BlockHeader struct {
 	Hash       common.Hash `gorm:"primaryKey;serializer:json"`
 	ParentHash common.Hash `gorm:"serializer:json"`
-	Number     pgtype.Numeric
+	Number     U256
 	Timestamp  uint64
 }
 
@@ -30,13 +29,16 @@ type L2BlockHeader struct {
 	BlockHeader
 
 	// Marked when the proposed output is finalized on L1.
-	// All bedrock blocks will have `LegacyStateBatchIndex == NULL`
+	// All bedrock blocks will have `LegacyStateBatchIndex ^== NULL`
 	L1BlockHash           *common.Hash `gorm:"serializer:json"`
-	LegacyStateBatchIndex sql.NullInt64
+	LegacyStateBatchIndex *uint64
 }
 
 type LegacyStateBatch struct {
-	Index       uint64      `gorm:"primaryKey"`
+	// `default:0` is added since gorm would interepret 0 as NULL
+	// violating the primary key constraint.
+	Index uint64 `gorm:"primaryKey;default:0"`
+
 	Root        common.Hash `gorm:"serializer:json"`
 	Size        uint64
 	PrevTotal   uint64
@@ -44,8 +46,8 @@ type LegacyStateBatch struct {
 }
 
 type BlocksView interface {
-	LatestL1BlockHeight() (*big.Int, error)
-	LatestL2BlockHeight() (*big.Int, error)
+	FinalizedL1BlockHeight() (*big.Int, error)
+	FinalizedL2BlockHeight() (*big.Int, error)
 }
 
 type BlocksDB interface {
@@ -81,18 +83,21 @@ func (db *blocksDB) StoreLegacyStateBatch(stateBatch *LegacyStateBatch) error {
 	// Event though transaction control flow is managed, could we benefit
 	// from a nested transaction here?
 
+	// Handle edge case where gorm interprets the nil representation of uint256
+	// as a NULL insertion. This causes issues with the non-null constaint as a
+	// primary key
 	result := db.gorm.Create(stateBatch)
 	if result.Error != nil {
 		return result.Error
 	}
 
-	// Mark this index & l1 block hash for all applicable l2 blocks
-	l2Headers := make([]L2BlockHeader, stateBatch.Size)
+	// Mark this state batch index & l1 block hash for all applicable l2 blocks
+	l2Headers := make([]*L2BlockHeader, stateBatch.Size)
 
 	// [start, end] range is inclusive. Since `PrevTotal` is the index of the prior batch, no
 	// need to substract one when adding the size
-	startHeight := pgtype.Numeric{Int: big.NewInt(int64(stateBatch.PrevTotal + 1)), Status: pgtype.Present}
-	endHeight := pgtype.Numeric{Int: big.NewInt(int64(stateBatch.PrevTotal + stateBatch.Size)), Status: pgtype.Present}
+	startHeight := U256{Int: big.NewInt(int64(stateBatch.PrevTotal + 1))}
+	endHeight := U256{Int: big.NewInt(int64(stateBatch.PrevTotal + stateBatch.Size))}
 	result = db.gorm.Where("number BETWEEN ? AND ?", &startHeight, &endHeight).Find(&l2Headers)
 	if result.Error != nil {
 		return result.Error
@@ -101,7 +106,7 @@ func (db *blocksDB) StoreLegacyStateBatch(stateBatch *LegacyStateBatch) error {
 	}
 
 	for _, header := range l2Headers {
-		header.LegacyStateBatchIndex = sql.NullInt64{Int64: int64(stateBatch.Index), Valid: true}
+		header.LegacyStateBatchIndex = &stateBatch.Index
 		header.L1BlockHash = &stateBatch.L1BlockHash
 	}
 
@@ -109,14 +114,14 @@ func (db *blocksDB) StoreLegacyStateBatch(stateBatch *LegacyStateBatch) error {
 	return result.Error
 }
 
-func (db *blocksDB) LatestL1BlockHeight() (*big.Int, error) {
-	var latestHeader L1BlockHeader
-	result := db.gorm.Order("number desc").First(&latestHeader)
+func (db *blocksDB) FinalizedL1BlockHeight() (*big.Int, error) {
+	var l1Header L1BlockHeader
+	result := db.gorm.Order("number DESC").Take(&l1Header)
 	if result.Error != nil {
 		return nil, result.Error
 	}
 
-	return latestHeader.Number.Int, nil
+	return l1Header.Number.Int, nil
 }
 
 // L2
@@ -126,14 +131,15 @@ func (db *blocksDB) StoreL2BlockHeaders(headers []*L2BlockHeader) error {
 	return result.Error
 }
 
-func (db *blocksDB) LatestL2BlockHeight() (*big.Int, error) {
-	var latestHeader L2BlockHeader
-	result := db.gorm.Order("number desc").First(&latestHeader)
+func (db *blocksDB) FinalizedL2BlockHeight() (*big.Int, error) {
+	var l2Header L2BlockHeader
+	result := db.gorm.Order("number DESC").Take(&l2Header)
 	if result.Error != nil {
 		return nil, result.Error
 	}
 
-	return latestHeader.Number.Int, nil
+	result.Logger.Info(context.Background(), "number ", l2Header.Number)
+	return l2Header.Number.Int, nil
 }
 
 func (db *blocksDB) MarkFinalizedL1RootForL2Block(l2Root, l1Root common.Hash) error {

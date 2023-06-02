@@ -1,10 +1,8 @@
 package database
 
 import (
-	"database/sql"
-
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/jackc/pgtype"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"gorm.io/gorm"
 )
 
@@ -15,8 +13,8 @@ import (
 type Transaction struct {
 	FromAddress common.Address `gorm:"serializer:json"`
 	ToAddress   common.Address `gorm:"serializer:json"`
-	Amount      pgtype.Numeric
-	Data        []byte
+	Amount      U256
+	Data        hexutil.Bytes `gorom:"serializer:json"`
 }
 
 type TokenPair struct {
@@ -42,8 +40,8 @@ type Withdrawal struct {
 	InitiatedL2EventGUID string
 
 	WithdrawalHash       common.Hash `gorm:"serializer:json"`
-	ProvenL1EventGUID    sql.NullString
-	FinalizedL1EventGUID sql.NullString
+	ProvenL1EventGUID    *string
+	FinalizedL1EventGUID *string
 
 	Tx        Transaction `gorm:"embedded"`
 	TokenPair TokenPair   `gorm:"embedded"`
@@ -96,7 +94,7 @@ func (db *bridgeDB) DepositsByAddress(address common.Address) ([]*DepositWithTra
 	joinQuery := depositsQuery.Joins("left join l1_contract_events transaction_hash as l1_transaction_hash ON deposit.initiated_l1_event_guid = l1_contract_events.guid")
 
 	deposits := []DepositWithTransactionHash{}
-	result := joinQuery.Scan(&deposits)
+	result := joinQuery.Limit(100).Scan(&deposits)
 	if result.Error != nil {
 		return nil, result.Error
 	}
@@ -119,7 +117,7 @@ func (db *bridgeDB) MarkProvenWithdrawalEvent(guid, provenL1EventGuid string) er
 	var withdrawal Withdrawal
 	result := db.gorm.First(&withdrawal, "guid = ?", guid)
 	if result.Error == nil {
-		withdrawal.ProvenL1EventGUID = sql.NullString{String: provenL1EventGuid, Valid: true}
+		withdrawal.ProvenL1EventGUID = &provenL1EventGuid
 		db.gorm.Save(&withdrawal)
 	}
 
@@ -130,7 +128,7 @@ func (db *bridgeDB) MarkFinalizedWithdrawalEvent(guid, finalizedL1EventGuid stri
 	var withdrawal Withdrawal
 	result := db.gorm.First(&withdrawal, "guid = ?", guid)
 	if result.Error == nil {
-		withdrawal.FinalizedL1EventGUID = sql.NullString{String: finalizedL1EventGuid, Valid: true}
+		withdrawal.FinalizedL1EventGUID = &finalizedL1EventGuid
 		db.gorm.Save(&withdrawal)
 	}
 
