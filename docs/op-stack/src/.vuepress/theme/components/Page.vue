@@ -1,7 +1,5 @@
 <template>
   <main class="page">
-    <BreadCrumb :key="$route.path" />
-
     <slot name="top" />
 
     <PageInfo :key="$route.path" />
