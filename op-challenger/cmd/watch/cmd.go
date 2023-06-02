@@ -25,11 +25,4 @@ var Subcommands = cli.Commands{
 			return Oracle(logger, cfg)
 		},
 	},
-	{
-		Name:  "factory",
-		Usage: "Watches the DisputeGameFactory for new dispute games",
-		Action: func(ctx *cli.Context) error {
-			panic("factory not implemented")
-		},
-	},
 }
