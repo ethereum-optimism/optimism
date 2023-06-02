@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"errors"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -15,7 +16,7 @@ import (
  */
 
 type BlockHeader struct {
-	Hash       common.Hash `gorm:"serializer:json"`
+	Hash       common.Hash `gorm:"primaryKey;serializer:json"`
 	ParentHash common.Hash `gorm:"serializer:json"`
 	Number     pgtype.Numeric
 	Timestamp  uint64
@@ -30,16 +31,16 @@ type L2BlockHeader struct {
 
 	// Marked when the proposed output is finalized on L1.
 	// All bedrock blocks will have `LegacyStateBatchIndex == NULL`
-	L1BlockHash           *common.Hash
+	L1BlockHash           *common.Hash `gorm:"serializer:json"`
 	LegacyStateBatchIndex sql.NullInt64
 }
 
 type LegacyStateBatch struct {
-	Index       uint64
-	Root        common.Hash
+	Index       uint64      `gorm:"primaryKey"`
+	Root        common.Hash `gorm:"serializer:json"`
 	Size        uint64
 	PrevTotal   uint64
-	L1BlockHash common.Hash
+	L1BlockHash common.Hash `gorm:"serializer:json"`
 }
 
 type BlocksView interface {
@@ -95,6 +96,8 @@ func (db *blocksDB) StoreLegacyStateBatch(stateBatch *LegacyStateBatch) error {
 	result = db.gorm.Where("number BETWEEN ? AND ?", &startHeight, &endHeight).Find(&l2Headers)
 	if result.Error != nil {
 		return result.Error
+	} else if result.RowsAffected != int64(stateBatch.Size) {
+		return errors.New("state batch size exceeds number of indexed l2 blocks")
 	}
 
 	for _, header := range l2Headers {
@@ -135,11 +138,14 @@ func (db *blocksDB) LatestL2BlockHeight() (*big.Int, error) {
 
 func (db *blocksDB) MarkFinalizedL1RootForL2Block(l2Root, l1Root common.Hash) error {
 	var l2Header L2BlockHeader
-	result := db.gorm.First(&l2Header, "hash = ?", l2Root)
-	if result.Error == nil {
-		l2Header.L1BlockHash = &l1Root
-		db.gorm.Save(&l2Header)
+	l2Header.Hash = l2Root // set the primary key
+
+	result := db.gorm.First(&l2Header)
+	if result.Error != nil {
+		return result.Error
 	}
 
+	l2Header.L1BlockHash = &l1Root
+	result = db.gorm.Save(&l2Header)
 	return result.Error
 }

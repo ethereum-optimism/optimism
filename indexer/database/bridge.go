@@ -25,7 +25,7 @@ type TokenPair struct {
 }
 
 type Deposit struct {
-	GUID                 string
+	GUID                 string `gorm:"primaryKey"`
 	InitiatedL1EventGUID string
 
 	Tx        Transaction `gorm:"embedded"`
@@ -38,7 +38,7 @@ type DepositWithTransactionHash struct {
 }
 
 type Withdrawal struct {
-	GUID                 string
+	GUID                 string `gorm:"primaryKey"`
 	InitiatedL2EventGUID string
 
 	WithdrawalHash       common.Hash `gorm:"serializer:json"`
@@ -92,11 +92,10 @@ func (db *bridgeDB) StoreDeposits(deposits []*Deposit) error {
 
 func (db *bridgeDB) DepositsByAddress(address common.Address) ([]*DepositWithTransactionHash, error) {
 	// validate this query
-	depositsQuery := db.gorm.Table("deposits").Where("from_address = ?", address).Select("deposits.*")
+	depositsQuery := db.gorm.Table("deposits").Where(&Transaction{FromAddress: address})
 	joinQuery := depositsQuery.Joins("left join l1_contract_events transaction_hash as l1_transaction_hash ON deposit.initiated_l1_event_guid = l1_contract_events.guid")
 
 	deposits := []DepositWithTransactionHash{}
-
 	result := joinQuery.Scan(&deposits)
 	if result.Error != nil {
 		return nil, result.Error
