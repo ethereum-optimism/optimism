@@ -24,6 +24,29 @@ const getPluginConfig = (themeConfig) => {
                     ? { delay: themeConfig.smoothScroll }
                     : themeConfig.smoothScroll || { delay: 500 },
         ],
+        [
+            "@vuepress/blog",
+            themeConfig.blog === false
+                ? false
+                : {
+                    frontmatters: [
+                        {
+                            id: "tag",
+                            keys: ["tag", "tags"],
+                            path: "/tag/",
+                            layout: "Blog",
+                            scopeLayout: "Blog",
+                        },
+                        {
+                            id: "category",
+                            keys: ["category", "categories"],
+                            path: "/category/",
+                            layout: "Blog",
+                            scopeLayout: "Blog",
+                        },
+                    ],
+                },
+        ],
         ["@vuepress/last-updated", false],
         "@vuepress/nprogress",
         [

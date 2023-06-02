@@ -48,5 +48,5 @@ func TestBuildOutputLogFilter_Fails(t *testing.T) {
 	// Build the filter
 	_, err := BuildOutputLogFilter(&l2ooABI)
 	require.Error(t, err)
-	require.Equal(t, ErrMissingEvent, err)
+	require.ErrorIs(t, err, ErrMissingEvent)
 }

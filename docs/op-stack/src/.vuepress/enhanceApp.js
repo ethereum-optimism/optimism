@@ -13,7 +13,12 @@ export default ({ router }) => {
 // the refresh button. For more details see:
 // https://linear.app/optimism/issue/FE-1003/investigate-archive-issue-on-docs
 const registerAutoReload = () => {
-    event.$on('sw-updated', e => e.skipWaiting().then(() => {
-      location.reload(true);
-    }))
+    event.$on('sw-updated', e => {
+        e.skipWaiting().then(() => 
+        {
+          if (typeof location !== 'undefined')
+            location.reload(true);
+        }
+      )
+    })
 }

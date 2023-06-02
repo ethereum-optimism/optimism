@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math/big"
 	"time"
@@ -17,6 +18,28 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
+
+type PayloadAttributesV2 struct {
+	Timestamp             uint64              `json:"timestamp"`
+	Random                common.Hash         `json:"prevRandao"`
+	SuggestedFeeRecipient common.Address      `json:"suggestedFeeRecipient"`
+	Withdrawals           []*types.Withdrawal `json:"withdrawals"`
+}
+
+func (p PayloadAttributesV2) MarshalJSON() ([]byte, error) {
+	type PayloadAttributes struct {
+		Timestamp             hexutil.Uint64      `json:"timestamp"             gencodec:"required"`
+		Random                common.Hash         `json:"prevRandao"            gencodec:"required"`
+		SuggestedFeeRecipient common.Address      `json:"suggestedFeeRecipient" gencodec:"required"`
+		Withdrawals           []*types.Withdrawal `json:"withdrawals"`
+	}
+	var enc PayloadAttributes
+	enc.Timestamp = hexutil.Uint64(p.Timestamp)
+	enc.Random = p.Random
+	enc.SuggestedFeeRecipient = p.SuggestedFeeRecipient
+	enc.Withdrawals = make([]*types.Withdrawal, 0)
+	return json.Marshal(&enc)
+}
 
 func DialClient(ctx context.Context, endpoint string, jwtSecret [32]byte) (client.RPC, error) {
 	auth := node.NewJWTAuth(jwtSecret)
@@ -69,7 +92,7 @@ func headSafeFinalized(ctx context.Context, client client.RPC) (head *types.Bloc
 
 func insertBlock(ctx context.Context, client client.RPC, payload *engine.ExecutableData) error {
 	var payloadResult *engine.PayloadStatusV1
-	if err := client.CallContext(ctx, &payloadResult, "engine_newPayloadV1", payload); err != nil {
+	if err := client.CallContext(ctx, &payloadResult, "engine_newPayloadV2", payload); err != nil {
 		return fmt.Errorf("failed to insert block %d: %w", payload.Number, err)
 	}
 	if payloadResult.Status != string(eth.ExecutionValid) {
@@ -80,7 +103,7 @@ func insertBlock(ctx context.Context, client client.RPC, payload *engine.Executa
 
 func updateForkchoice(ctx context.Context, client client.RPC, head, safe, finalized common.Hash) error {
 	var post engine.ForkChoiceResponse
-	if err := client.CallContext(ctx, &post, "engine_forkchoiceUpdatedV1",
+	if err := client.CallContext(ctx, &post, "engine_forkchoiceUpdatedV2",
 		engine.ForkchoiceStateV1{
 			HeadBlockHash:      head,
 			SafeBlockHash:      safe,
@@ -112,21 +135,17 @@ func BuildBlock(ctx context.Context, client client.RPC, status *StatusData, sett
 		}
 	}
 	var pre engine.ForkChoiceResponse
-	if err := client.CallContext(ctx, &pre, "engine_forkchoiceUpdatedV1",
+	if err := client.CallContext(ctx, &pre, "engine_forkchoiceUpdatedV2",
 		engine.ForkchoiceStateV1{
 			HeadBlockHash:      status.Head.Hash,
 			SafeBlockHash:      status.Safe.Hash,
 			FinalizedBlockHash: status.Finalized.Hash,
-		}, engine.PayloadAttributes{
+		}, PayloadAttributesV2{
 			Timestamp:             timestamp,
 			Random:                settings.Random,
 			SuggestedFeeRecipient: settings.FeeRecipient,
-			// TODO: maybe use the L2 fields to hack in tx embedding CLI option?
-			//Transactions:          nil,
-			//NoTxPool:              false,
-			//GasLimit:              nil,
 		}); err != nil {
-		return nil, fmt.Errorf("failed to set forkchoice with new block: %w", err)
+		return nil, fmt.Errorf("failed to set forkchoice when building new block: %w", err)
 	}
 	if pre.PayloadStatus.Status != string(eth.ExecutionValid) {
 		return nil, fmt.Errorf("pre-block forkchoice update was not valid: %v", pre.PayloadStatus.ValidationError)
@@ -139,19 +158,19 @@ func BuildBlock(ctx context.Context, client client.RPC, status *StatusData, sett
 	case <-time.After(settings.BuildTime):
 	}
 
-	var payload *engine.ExecutableData
-	if err := client.CallContext(ctx, &payload, "engine_getPayloadV1", pre.PayloadID); err != nil {
+	var payload *engine.ExecutionPayloadEnvelope
+	if err := client.CallContext(ctx, &payload, "engine_getPayloadV2", pre.PayloadID); err != nil {
 		return nil, fmt.Errorf("failed to get payload %v, %d time after instructing engine to build it: %w", pre.PayloadID, settings.BuildTime, err)
 	}
 
-	if err := insertBlock(ctx, client, payload); err != nil {
+	if err := insertBlock(ctx, client, payload.ExecutionPayload); err != nil {
 		return nil, err
 	}
-	if err := updateForkchoice(ctx, client, payload.BlockHash, status.Safe.Hash, status.Finalized.Hash); err != nil {
+	if err := updateForkchoice(ctx, client, payload.ExecutionPayload.BlockHash, status.Safe.Hash, status.Finalized.Hash); err != nil {
 		return nil, err
 	}
 
-	return payload, nil
+	return payload.ExecutionPayload, nil
 }
 
 func Auto(ctx context.Context, metrics Metricer, client client.RPC, log log.Logger, shutdown <-chan struct{}, settings *BlockBuildingSettings) error {

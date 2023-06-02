@@ -1,15 +1,19 @@
 package store
 
 import (
+	"errors"
+	"net"
+	"time"
+
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
 )
 
 type TopicScores struct {
 	TimeInMesh               float64 `json:"timeInMesh"` // in seconds
-	FirstMessageDeliveries   uint64  `json:"firstMessageDeliveries"`
-	MeshMessageDeliveries    uint64  `json:"meshMessageDeliveries"`
-	InvalidMessageDeliveries uint64  `json:"invalidMessageDeliveries"`
+	FirstMessageDeliveries   float64 `json:"firstMessageDeliveries"`
+	MeshMessageDeliveries    float64 `json:"meshMessageDeliveries"`
+	InvalidMessageDeliveries float64 `json:"invalidMessageDeliveries"`
 }
 
 type GossipScores struct {
@@ -33,6 +37,9 @@ type ScoreDatastore interface {
 	// GetPeerScores returns the current scores for the specified peer
 	GetPeerScores(id peer.ID) (PeerScores, error)
 
+	// GetPeerScore returns the current combined score for the specified peer
+	GetPeerScore(id peer.ID) (float64, error)
+
 	// SetScore applies the given store diff to the specified peer
 	SetScore(id peer.ID, diff ScoreDiff) error
 }
@@ -44,9 +51,29 @@ type ScoreDiff interface {
 	Apply(score *scoreRecord)
 }
 
+var UnknownBanErr = errors.New("unknown ban")
+
+type PeerBanStore interface {
+	// SetPeerBanExpiration create the peer ban with expiration time.
+	// If expiry == time.Time{} then the ban is deleted.
+	SetPeerBanExpiration(id peer.ID, expiry time.Time) error
+	// GetPeerBanExpiration gets the peer ban expiration time, or UnknownBanErr error if none exists.
+	GetPeerBanExpiration(id peer.ID) (time.Time, error)
+}
+
+type IPBanStore interface {
+	// SetIPBanExpiration create the IP ban with expiration time.
+	// If expiry == time.Time{} then the ban is deleted.
+	SetIPBanExpiration(ip net.IP, expiry time.Time) error
+	// GetIPBanExpiration gets the IP ban expiration time, or UnknownBanErr error if none exists.
+	GetIPBanExpiration(ip net.IP) (time.Time, error)
+}
+
 // ExtendedPeerstore defines a type-safe API to work with additional peer metadata based on a libp2p peerstore.Peerstore
 type ExtendedPeerstore interface {
 	peerstore.Peerstore
 	ScoreDatastore
 	peerstore.CertifiedAddrBook
+	PeerBanStore
+	IPBanStore
 }
