@@ -1,3 +1,7 @@
+
+CREATE DOMAIN UINT256 AS NUMERIC NOT NULL
+    CHECK (VALUE >= 0 AND VALUE < 2^256 and SCALE(VALUE) = 0);
+
 /**
  * BLOCK DATA
  */
@@ -5,26 +9,20 @@
 CREATE TABLE IF NOT EXISTS l1_block_headers (
 	hash        VARCHAR NOT NULL PRIMARY KEY,
 	parent_hash VARCHAR NOT NULL,
-	number      NUMERIC NOT NULL,
-	timestamp   INTEGER NOT NULL,
-
-    CONSTRAINT
-        l1_parent_hash_fkey FOREIGN KEY(parent_hash) REFERENCES l1_block_headers(hash)
+	number      UINT256,
+	timestamp   INTEGER NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS l2_block_headers (
     -- Block header
 	hash                     VARCHAR NOT NULL PRIMARY KEY,
 	parent_hash              VARCHAR NOT NULL,
-	number                   NUMERIC NOT NULL,
+	number                   UINT256,
 	timestamp                INTEGER NOT NULL,
 
     -- Finalization information
-    l1_block_hash            VARCHAR NOT NULL REFERENCES l1_block_headers(hash),
-    legacy_state_batch_index INTEGER,
-
-    CONSTRAINT
-        l2_parent_hash_fkey FOREIGN KEY(parent_hash) REFERENCES l2_block_headers(hash)
+    l1_block_hash            VARCHAR REFERENCES l1_block_headers(hash),
+    legacy_state_batch_index INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS legacy_state_batches (
@@ -33,7 +31,9 @@ CREATE TABLE IF NOT EXISTS legacy_state_batches (
 	size          INTEGER NOT NULL,
 	prev_total    INTEGER NOT NULL,
 
-    -- Finalization information
+    -- Finalization information. Unlike `l2_block_headers` the NOT NULL
+    -- constraint is added since the l1 block hash will be known when
+    -- when reading the output event
 	l1_block_hash VARCHAR NOT NULL REFERENCES l1_block_headers(hash)
 );
 
@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS deposits (
 	to_address       VARCHAR NOT NULL,
 	l1_token_address VARCHAR NOT NULL,
 	l2_token_address VARCHAR NOT NULL,
-	amount           NUMERIC NOT NULL,
+	amount           UINT256,
 	data             BYTEA NOT NULL
 );
 
@@ -94,6 +94,6 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 	to_address       VARCHAR NOT NULL,
 	l1_token_address VARCHAR NOT NULL,
 	l2_token_address VARCHAR NOT NULL,
-	amount           NUMERIC NOT NULL,
+	amount           UINT256,
 	data             BYTEA NOT NULL
 );
