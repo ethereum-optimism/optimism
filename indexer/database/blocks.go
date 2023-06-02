@@ -15,18 +15,18 @@ import (
  */
 
 type BlockHeader struct {
-	Hash       common.Hash
-	ParentHash common.Hash
+	Hash       common.Hash `gorm:"serializer:json"`
+	ParentHash common.Hash `gorm:"serializer:json"`
 	Number     pgtype.Numeric
 	Timestamp  uint64
 }
 
 type L1BlockHeader struct {
-	*BlockHeader
+	BlockHeader
 }
 
 type L2BlockHeader struct {
-	*BlockHeader
+	BlockHeader
 
 	// Marked when the proposed output is finalized on L1.
 	// All bedrock blocks will have `LegacyStateBatchIndex == NULL`

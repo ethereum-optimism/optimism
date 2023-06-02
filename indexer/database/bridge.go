@@ -13,15 +13,15 @@ import (
  */
 
 type Transaction struct {
-	fromAddress common.Address
-	toAddress   common.Address
-	amount      pgtype.Numeric
-	data        []byte
+	FromAddress common.Address `gorm:"serializer:json"`
+	ToAddress   common.Address `gorm:"serializer:json"`
+	Amount      pgtype.Numeric
+	Data        []byte
 }
 
 type TokenPair struct {
-	l1TokenAddress common.Address
-	l2TokenAddress common.Address
+	L1TokenAddress common.Address `gorm:"serializer:json"`
+	L2TokenAddress common.Address `gorm:"serializer:json"`
 }
 
 type Deposit struct {
@@ -33,15 +33,15 @@ type Deposit struct {
 }
 
 type DepositWithTransactionHash struct {
-	Deposit           *Deposit `gorm:"embedded"`
-	L1TransactionHash common.Hash
+	Deposit           *Deposit    `gorm:"embedded"`
+	L1TransactionHash common.Hash `gorm:"serializer:json"`
 }
 
 type Withdrawal struct {
 	GUID                 string
 	InitiatedL2EventGUID string
 
-	WithdrawalHash       common.Hash
+	WithdrawalHash       common.Hash `gorm:"serializer:json"`
 	ProvenL1EventGUID    sql.NullString
 	FinalizedL1EventGUID sql.NullString
 
@@ -51,10 +51,10 @@ type Withdrawal struct {
 
 type WithdrawalWithTransactionHashes struct {
 	Withdrawal        *Withdrawal `gorm:"embedded"`
-	L2TransactionHash common.Hash
+	L2TransactionHash common.Hash `gorm:"serializer:json"`
 
-	ProvenL1TransactionHash    *common.Hash
-	FinalizedL1TransactionHash *common.Hash
+	ProvenL1TransactionHash    *common.Hash `gorm:"serializer:json"`
+	FinalizedL1TransactionHash *common.Hash `gorm:"serializer:json"`
 }
 
 type BridgeView interface {

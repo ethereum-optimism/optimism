@@ -11,19 +11,19 @@ import (
 
 type ContractEvent struct {
 	GUID            string
-	BlockHash       common.Hash
-	TransactionHash common.Hash
+	BlockHash       common.Hash `gorm:"serializer:json"`
+	TransactionHash common.Hash `gorm:"serializer:json"`
 
-	EventSignature []byte
+	EventSignature []byte `gorm:"serializer:json"`
 	LogIndex       uint64
 }
 
 type L1ContractEvent struct {
-	*ContractEvent
+	ContractEvent `gorm:"embedded"`
 }
 
 type L2ContractEvent struct {
-	*ContractEvent
+	ContractEvent `gorm:"embedded"`
 }
 
 type ContractEventsView interface {
