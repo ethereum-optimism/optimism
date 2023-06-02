@@ -38,6 +38,7 @@ func newLogTraversal(t *testing.T) (*logTraversal, *mocks.MinimalEthClient) {
 		mockClient,
 		&ethereum.FilterQuery{},
 		testlog.Logger(t, log.LvlError),
+		big.NewInt(0),
 	)
 	return logTraversal, mockClient
 }

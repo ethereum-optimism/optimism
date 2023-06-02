@@ -30,7 +30,7 @@ type logTraversal struct {
 	client          MinimalEthClient
 	query           *ethereum.FilterQuery
 	quit            chan struct{}
-	mutex           sync.Mutex
+	mutex           sync.RWMutex
 	lastBlockNumber *big.Int
 	started         bool
 }
@@ -46,14 +46,14 @@ type MinimalEthClient interface {
 // NewLogTraversal creates a new log traversal.
 // The [MinimalEthClient] passed into this function should be built using an op-service backoff client as the
 // underlying [client.RPC] passed into the op-node EthClient.
-func NewLogTraversal(client MinimalEthClient, query *ethereum.FilterQuery, log log.Logger) *logTraversal {
+func NewLogTraversal(client MinimalEthClient, query *ethereum.FilterQuery, log log.Logger, lastBlockNumber *big.Int) *logTraversal {
 	return &logTraversal{
 		client:          client,
 		query:           query,
 		quit:            make(chan struct{}),
 		log:             log,
-		mutex:           sync.Mutex{},
-		lastBlockNumber: big.NewInt(0),
+		mutex:           sync.RWMutex{},
+		lastBlockNumber: lastBlockNumber,
 	}
 }
 
@@ -99,7 +99,7 @@ func (l *logTraversal) onNewHead(ctx context.Context, headers chan *types.Header
 			return
 		case header := <-headers:
 			l.log.Info("Received new head", "number", header.Number)
-			l.dispatchNewHead(ctx, header, handleLog, true)
+			l.dispatchNewHead(ctx, header, handleLog)
 		}
 	}
 }
@@ -145,32 +145,37 @@ func (l *logTraversal) spawnCatchup(ctx context.Context, start *big.Int, end *bi
 	}
 }
 
-// updateBlockNumber updates the last block number with a mutex lock.
+// updateBlockNumber updates the last block number.
 func (l *logTraversal) updateBlockNumber(blockNumber *big.Int) {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 	l.lastBlockNumber = blockNumber
 }
 
+// accessBlockNumber retrieves the last block number.
+func (l *logTraversal) accessBlockNumber() *big.Int {
+	l.mutex.RLock()
+	defer l.mutex.RUnlock()
+	return l.lastBlockNumber
+}
+
 // dispatchNewHead dispatches a new head.
-func (l *logTraversal) dispatchNewHead(ctx context.Context, header *types.Header, handleLog func(*types.Log) error, allowCatchup bool) {
+func (l *logTraversal) dispatchNewHead(ctx context.Context, header *types.Header, handleLog func(*types.Log) error) {
 	info, err := l.client.InfoByHash(ctx, header.Hash())
 	if err != nil {
 		l.log.Error("Failed to fetch block", "err", err)
 		return
 	}
 
-	expectedBlockNumber := l.lastBlockNumber.Add(l.lastBlockNumber, big.NewInt(1))
+	expectedBlockNumber := l.accessBlockNumber()
+	expectedBlockNumber = expectedBlockNumber.Add(expectedBlockNumber, big.NewInt(1))
 	currentBlockNumber := big.NewInt(int64(info.NumberU64()))
-	if l.lastBlockNumber.Cmp(big.NewInt(0)) != 0 && currentBlockNumber.Cmp(expectedBlockNumber) == 1 {
+	if currentBlockNumber.Cmp(expectedBlockNumber) == 1 {
 		l.log.Warn("Detected skipped block", "expectedBlockNumber", expectedBlockNumber, "currentBlockNumber", currentBlockNumber)
-		if allowCatchup {
-			endBlockNum := currentBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
-			l.log.Warn("Spawning catchup thread", "start", expectedBlockNumber, "end", endBlockNum)
-			go l.spawnCatchup(ctx, expectedBlockNumber, endBlockNum, handleLog)
-		} else {
-			l.log.Warn("Missed block detected with catchup disabled")
-		}
+		endBlockNum := currentBlockNumber.Sub(currentBlockNumber, big.NewInt(1))
+		l.log.Warn("Spawning catchup thread", "start", expectedBlockNumber, "end", endBlockNum)
+		go l.spawnCatchup(ctx, expectedBlockNumber, endBlockNum, handleLog)
+
 	}
 	l.updateBlockNumber(currentBlockNumber)
 
