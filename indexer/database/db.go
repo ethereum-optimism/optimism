@@ -1,3 +1,4 @@
+// Database module defines the data DB struct which wraps specific DB interfaces for L1/L2 block headers, contract events, bridging schemas.
 package database
 
 import (
@@ -15,7 +16,7 @@ type DB struct {
 
 func NewDB(dsn string) (*DB, error) {
 	gorm, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		// The indexer will explictly manage the transaction
+		// The indexer will explicitly manage the transaction
 		// flow processing blocks
 		SkipDefaultTransaction: true,
 	})

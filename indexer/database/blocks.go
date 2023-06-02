@@ -95,7 +95,7 @@ func (db *blocksDB) StoreLegacyStateBatch(stateBatch *LegacyStateBatch) error {
 	l2Headers := make([]*L2BlockHeader, stateBatch.Size)
 
 	// [start, end] range is inclusive. Since `PrevTotal` is the index of the prior batch, no
-	// need to substract one when adding the size
+	// need to subtract one when adding the size
 	startHeight := U256{Int: big.NewInt(int64(stateBatch.PrevTotal + 1))}
 	endHeight := U256{Int: big.NewInt(int64(stateBatch.PrevTotal + stateBatch.Size))}
 	result = db.gorm.Where("number BETWEEN ? AND ?", &startHeight, &endHeight).Find(&l2Headers)
