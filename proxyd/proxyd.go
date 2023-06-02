@@ -328,12 +328,13 @@ func Start(config *Config) (*Server, func(), error) {
 
 func validateReceiptsTarget(val string) (string, error) {
 	if val == "" {
-		val = "debug_getRawReceipts"
+		val = ReceiptsTargetDebugGetRawReceipts
 	}
 	switch val {
-	case "debug_getRawReceipts",
-		"eth_getTransactionReceipt",
-		"alchemy_getTransactionReceipts":
+	case ReceiptsTargetDebugGetRawReceipts,
+		ReceiptsTargetAlchemyGetTransactionReceipts,
+		ReceiptsTargetEthGetTransactionReceipts,
+		ReceiptsTargetParityGetTransactionReceipts:
 		return val, nil
 	default:
 		return "", fmt.Errorf("invalid receipts target: %s", val)
