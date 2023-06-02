@@ -6,20 +6,24 @@ import (
 	"sync"
 	"time"
 
-	abi "github.com/ethereum/go-ethereum/accounts/abi"
-	bind "github.com/ethereum/go-ethereum/accounts/abi/bind"
-	common "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	ethclient "github.com/ethereum/go-ethereum/ethclient"
-	log "github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/log"
 
-	config "github.com/ethereum-optimism/optimism/op-challenger/config"
-	metrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 
-	bindings "github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	sources "github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
-	txmgr "github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
+
+type OutputAPI interface {
+	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
+}
 
 // Challenger contests invalid L2OutputOracle outputs
 type Challenger struct {
@@ -35,7 +39,7 @@ type Challenger struct {
 
 	l1Client *ethclient.Client
 
-	rollupClient *sources.RollupClient
+	rollupClient OutputAPI
 
 	// l2 Output Oracle contract
 	l2ooContract     *bindings.L2OutputOracleCaller
