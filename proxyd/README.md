@@ -95,43 +95,36 @@ To support backends with different specifications in the same backend group,
 proxyd exposes a convenient method to fetch receipts abstracting away
 what specific backend will serve the request.
 
-Each backend can specify their preferred method to fetch receipts with `consensus_receipts_target`.
+Each backend specifies their preferred method to fetch receipts with `consensus_receipts_target` config,
+which will be translated from `consensus_getReceipts`.
 
-This method takes **both** the blockNumberOrHash **and** list of transaction hashes to fetch the receipts,
-and then after selecting the backend to serve the request,
-it translates to the correct target with the appropriate parameters.
+This method takes a `blockNumberOrHash` (i.e. `tag|qty|hash`)
+and returns the receipts for all transactions in the block.
 
-Note that only one of the parameters will be actually used depending on the target.
-
-Request params
+Request example
 ```json
 {
   "jsonrpc":"2.0",
   "id": 1,
-  "params": {
-    "blockNumberOrHash": "0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b",
-    "transactions": [
-      "0xe670ec64341771606e55d6b4ca35a1a6b75ee3d5145a99d05921026d1527331",
-      "0x88df016429689c079f3b2f6ad39fa052532c56795b733da78a91ebe6a713944b"
-    ]
-  }
+  "params": ["0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b"]
 }
 ```
 
 It currently supports translation to the following targets:
 * `debug_getRawReceipts(blockOrHash)` (default)
 * `alchemy_getTransactionReceipts(blockOrHash)`
-* `eth_getTransactionReceipt(txHash)` batched
+* `parity_getBlockReceipts(blockOrHash)`
+* `eth_getBlockReceipts(blockOrHash)`
 
 The selected target is returned in the response, in a wrapped result.
 
-Response
+Response example
 ```json
 {
   "jsonrpc": "2.0",
   "id": 1,
   "result": {
-    "method": "eth_getTransactionReceipt",
+    "method": "debug_getRawReceipts",
     "result": {
       // the actual raw result from backend
     }

@@ -788,6 +788,10 @@ func TestConsensus(t *testing.T) {
 	t.Run("translate consensus_getReceipts to debug_getRawReceipts", func(t *testing.T) {
 		reset()
 		useOnlyNode1()
+		update()
+
+		// reset request counts
+		nodes["node1"].mockBackend.Reset()
 
 		resRaw, statusCode, err := client.SendRPC("consensus_getReceipts", []interface{}{map[string]interface{}{
 			"blockOrHash": "0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b"}})
@@ -811,6 +815,10 @@ func TestConsensus(t *testing.T) {
 	t.Run("translate consensus_getReceipts to debug_getRawReceipts with latest block tag", func(t *testing.T) {
 		reset()
 		useOnlyNode1()
+		update()
+
+		// reset request counts
+		nodes["node1"].mockBackend.Reset()
 
 		resRaw, statusCode, err := client.SendRPC("consensus_getReceipts", []interface{}{map[string]interface{}{
 			"blockOrHash": "latest"}})
@@ -834,6 +842,10 @@ func TestConsensus(t *testing.T) {
 	t.Run("translate consensus_getReceipts to debug_getRawReceipts with block number", func(t *testing.T) {
 		reset()
 		useOnlyNode1()
+		update()
+
+		// reset request counts
+		nodes["node1"].mockBackend.Reset()
 
 		resRaw, statusCode, err := client.SendRPC("consensus_getReceipts", []interface{}{map[string]interface{}{
 			"blockOrHash": "0x55"}})
@@ -854,9 +866,13 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, "debug_getRawReceipts", resJsonMap["result"].(map[string]interface{})["result"].(map[string]interface{})["_"])
 	})
 
-	t.Run("translate consensus_getReceipts to alchemy_getTransactionReceipts", func(t *testing.T) {
+	t.Run("translate consensus_getReceipts to alchemy_getTransactionReceipts with block hash", func(t *testing.T) {
 		reset()
 		useOnlyNode1()
+		update()
+
+		// reset request counts
+		nodes["node1"].mockBackend.Reset()
 
 		nodes["node1"].backend.Override(proxyd.WithConsensusReceiptTarget("alchemy_getTransactionReceipts"))
 		defer nodes["node1"].backend.Override(proxyd.WithConsensusReceiptTarget("debug_getRawReceipts"))
@@ -871,7 +887,7 @@ func TestConsensus(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Equal(t, "alchemy_getTransactionReceipts", reqJsonMap["method"])
-		require.Equal(t, "0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b", reqJsonMap["params"].([]interface{})[0])
+		require.Equal(t, "0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b", reqJsonMap["params"].([]interface{})[0].(map[string]interface{})["blockHash"])
 
 		var resJsonMap map[string]interface{}
 		err = json.Unmarshal(resRaw, &resJsonMap)
@@ -881,47 +897,79 @@ func TestConsensus(t *testing.T) {
 		require.Equal(t, "alchemy_getTransactionReceipts", resJsonMap["result"].(map[string]interface{})["result"].(map[string]interface{})["_"])
 	})
 
-	t.Run("translate consensus_getReceipts to eth_getTransactionReceipt batched", func(t *testing.T) {
+	t.Run("translate consensus_getReceipts to alchemy_getTransactionReceipts with block number", func(t *testing.T) {
 		reset()
 		useOnlyNode1()
+		update()
 
-		nodes["node1"].backend.Override(proxyd.WithConsensusReceiptTarget("eth_getTransactionReceipt"))
+		// reset request counts
+		nodes["node1"].mockBackend.Reset()
+
+		nodes["node1"].backend.Override(proxyd.WithConsensusReceiptTarget("alchemy_getTransactionReceipts"))
 		defer nodes["node1"].backend.Override(proxyd.WithConsensusReceiptTarget("debug_getRawReceipts"))
 
 		resRaw, statusCode, err := client.SendRPC("consensus_getReceipts", []interface{}{map[string]interface{}{
-			"blockOrHash": "0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b",
-			"transactions": []string{
-				"0x85d995eba9763907fdf35cd2034144dd9d53ce32cbec21349d4b12823c6860c5",
-				"0x85d995eba9763907fdf35cd2034144dd9d53ce32cbec21349d4b12823c6860c6",
-				"0x85d995eba9763907fdf35cd2034144dd9d53ce32cbec21349d4b12823c6860c7",
-				"0x85d995eba9763907fdf35cd2034144dd9d53ce32cbec21349d4b12823c6860c8",
-			}}})
+			"blockOrHash": "0x55"}})
 		require.NoError(t, err)
 		require.Equal(t, 200, statusCode)
 
-		var reqJsonMap []map[string]interface{}
+		var reqJsonMap map[string]interface{}
 		err = json.Unmarshal(nodes["node1"].mockBackend.Requests()[0].Body, &reqJsonMap)
 
 		require.NoError(t, err)
-		require.Equal(t, 4, len(reqJsonMap))
-		for _, req := range reqJsonMap {
-			require.Equal(t, "eth_getTransactionReceipt", req["method"])
-		}
-		require.Equal(t, "0x85d995eba9763907fdf35cd2034144dd9d53ce32cbec21349d4b12823c6860c5", reqJsonMap[0]["params"].([]interface{})[0])
-		require.Equal(t, "0x85d995eba9763907fdf35cd2034144dd9d53ce32cbec21349d4b12823c6860c6", reqJsonMap[1]["params"].([]interface{})[0])
-		require.Equal(t, "0x85d995eba9763907fdf35cd2034144dd9d53ce32cbec21349d4b12823c6860c7", reqJsonMap[2]["params"].([]interface{})[0])
-		require.Equal(t, "0x85d995eba9763907fdf35cd2034144dd9d53ce32cbec21349d4b12823c6860c8", reqJsonMap[3]["params"].([]interface{})[0])
+		require.Equal(t, "alchemy_getTransactionReceipts", reqJsonMap["method"])
+		require.Equal(t, "0x55", reqJsonMap["params"].([]interface{})[0].(map[string]interface{})["blockNumber"])
 
 		var resJsonMap map[string]interface{}
 		err = json.Unmarshal(resRaw, &resJsonMap)
 		require.NoError(t, err)
 
-		require.Equal(t, "eth_getTransactionReceipt", resJsonMap["result"].(map[string]interface{})["method"].(string))
-		require.Equal(t, 4, len(resJsonMap["result"].(map[string]interface{})["result"].([]interface{})))
-		for _, res := range resJsonMap["result"].(map[string]interface{})["result"].([]interface{}) {
-			require.Equal(t, "eth_getTransactionReceipt", res.(map[string]interface{})["_"])
-		}
+		require.Equal(t, "alchemy_getTransactionReceipts", resJsonMap["result"].(map[string]interface{})["method"].(string))
+		require.Equal(t, "alchemy_getTransactionReceipts", resJsonMap["result"].(map[string]interface{})["result"].(map[string]interface{})["_"])
+	})
 
+	t.Run("translate consensus_getReceipts to alchemy_getTransactionReceipts with latest block tag", func(t *testing.T) {
+		reset()
+		useOnlyNode1()
+		update()
+
+		// reset request counts
+		nodes["node1"].mockBackend.Reset()
+
+		nodes["node1"].backend.Override(proxyd.WithConsensusReceiptTarget("alchemy_getTransactionReceipts"))
+		defer nodes["node1"].backend.Override(proxyd.WithConsensusReceiptTarget("debug_getRawReceipts"))
+
+		resRaw, statusCode, err := client.SendRPC("consensus_getReceipts", []interface{}{map[string]interface{}{
+			"blockOrHash": "latest"}})
+		require.NoError(t, err)
+		require.Equal(t, 200, statusCode)
+
+		var reqJsonMap map[string]interface{}
+		err = json.Unmarshal(nodes["node1"].mockBackend.Requests()[0].Body, &reqJsonMap)
+
+		require.NoError(t, err)
+		require.Equal(t, "alchemy_getTransactionReceipts", reqJsonMap["method"])
+		require.Equal(t, "0x101", reqJsonMap["params"].([]interface{})[0].(map[string]interface{})["blockNumber"])
+
+		var resJsonMap map[string]interface{}
+		err = json.Unmarshal(resRaw, &resJsonMap)
+		require.NoError(t, err)
+
+		require.Equal(t, "alchemy_getTransactionReceipts", resJsonMap["result"].(map[string]interface{})["method"].(string))
+		require.Equal(t, "alchemy_getTransactionReceipts", resJsonMap["result"].(map[string]interface{})["result"].(map[string]interface{})["_"])
+	})
+
+	t.Run("translate consensus_getReceipts to unsupported consensus_receipts_target", func(t *testing.T) {
+		reset()
+		useOnlyNode1()
+
+		nodes["node1"].backend.Override(proxyd.WithConsensusReceiptTarget("unsupported_consensus_receipts_target"))
+		defer nodes["node1"].backend.Override(proxyd.WithConsensusReceiptTarget("debug_getRawReceipts"))
+
+		_, statusCode, err := client.SendRPC("consensus_getReceipts", []interface{}{map[string]interface{}{
+			"blockOrHash": "latest"}})
+		require.NoError(t, err)
+		require.Equal(t, 400, statusCode)
 	})
 
 	t.Run("consensus_getReceipts should not be used in a batch", func(t *testing.T) {

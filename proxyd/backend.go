@@ -17,11 +17,9 @@ import (
 	"sync"
 	"time"
 
+	sw "github.com/ethereum-optimism/optimism/proxyd/pkg/avg-sliding-window"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/google/uuid"
-
-	sw "github.com/ethereum-optimism/optimism/proxyd/pkg/avg-sliding-window"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/gorilla/websocket"
@@ -103,6 +101,7 @@ var (
 	ErrBackendUnexpectedJSONRPC = errors.New("backend returned an unexpected JSON-RPC response")
 
 	ErrConsensusGetReceiptsCantBeBatched = errors.New("consensus_getReceipts cannot be batched")
+	ErrConsensusGetReceiptsInvalidTarget = errors.New("unsupported consensus_receipts_target")
 )
 
 func ErrInvalidRequest(msg string) *RPCErr {
@@ -252,18 +251,26 @@ type indexedReqRes struct {
 }
 
 const ConsensusGetReceiptsMethod = "consensus_getReceipts"
-const ReceiptsTargetEthTransactionReceipt = "eth_getTransactionReceipt"
-const ReceiptsTargetDebugGetRawReceipts = "debug_getRawReceipts"
-const ReceiptsTargetGetTransactionReceipts = "alchemy_getTransactionReceipts"
 
-type ConsensusGetReceiptsReq struct {
+const ReceiptsTargetDebugGetRawReceipts = "debug_getRawReceipts"
+const ReceiptsTargetAlchemyGetTransactionReceipts = "alchemy_getTransactionReceipts"
+const ReceiptsTargetParityGetTransactionReceipts = "parity_getBlockReceipts"
+const ReceiptsTargetEthGetTransactionReceipts = "eth_getBlockReceipts"
+
+type ConsensusGetReceiptsRequest struct {
 	BlockOrHash  *rpc.BlockNumberOrHash `json:"blockOrHash"`
 	Transactions []common.Hash          `json:"transactions"`
 }
 
-type ConsensusGetReceiptsRes struct {
+type ConsensusGetReceiptsResult struct {
 	Method string      `json:"method"`
 	Result interface{} `json:"result"`
+}
+
+// BlockHashOrNumberParameter is a non-conventional wrapper used by alchemy_getTransactionReceipts
+type BlockHashOrNumberParameter struct {
+	BlockHash   *common.Hash     `json:"blockHash"`
+	BlockNumber *rpc.BlockNumber `json:"blockNumber"`
 }
 
 func NewBackend(
@@ -331,8 +338,15 @@ func (b *Backend) Forward(ctx context.Context, reqs []*RPCReq, isBatch bool) ([]
 		switch err {
 		case nil: // do nothing
 		case ErrConsensusGetReceiptsCantBeBatched:
-			log.Debug(
+			log.Warn(
 				"Received unsupported batch request for consensus_getReceipts",
+				"name", b.Name,
+				"req_id", GetReqID(ctx),
+				"err", err,
+			)
+		case ErrConsensusGetReceiptsInvalidTarget:
+			log.Error(
+				"Unsupported consensus_receipts_target for consensus_getReceipts",
 				"name", b.Name,
 				"req_id", GetReqID(ctx),
 				"err", err,
@@ -414,58 +428,56 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	// we are concerned about network error rates, so we record 1 request independently of how many are in the batch
 	b.networkRequestsSlidingWindow.Incr()
 
-	originalRequests := rpcReqs
 	translatedReqs := make(map[string]*RPCReq, len(rpcReqs))
-	derivedRequests := make([]*RPCReq, 0)
 	// translate consensus_getReceipts to receipts target
 	// right now we only support non-batched
-	if !isBatch {
+	if isBatch {
+		for _, rpcReq := range rpcReqs {
+			if rpcReq.Method == ConsensusGetReceiptsMethod {
+				return nil, ErrConsensusGetReceiptsCantBeBatched
+			}
+		}
+	} else {
 		for _, rpcReq := range rpcReqs {
 			if rpcReq.Method == ConsensusGetReceiptsMethod {
 				translatedReqs[string(rpcReq.ID)] = rpcReq
 				rpcReq.Method = b.receiptsTarget
-				var reqParams []ConsensusGetReceiptsReq
+				var reqParams []ConsensusGetReceiptsRequest
 				err := json.Unmarshal(rpcReq.Params, &reqParams)
 				if err != nil {
 					return nil, ErrInvalidRequest("invalid request")
 				}
 				bnh := reqParams[0].BlockOrHash
-				switch b.receiptsTarget {
+
+				var translatedParams []byte
+				switch rpcReq.Method {
 				case ReceiptsTargetDebugGetRawReceipts,
-					ReceiptsTargetGetTransactionReceipts: // block or hash
+					ReceiptsTargetEthGetTransactionReceipts,
+					ReceiptsTargetParityGetTransactionReceipts:
+					// conventional methods use an array of strings having either block number or block hash
+					// i.e. ["0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b"]
 					params := make([]string, 1)
 					if bnh.BlockNumber != nil {
 						params[0] = bnh.BlockNumber.String()
 					} else {
 						params[0] = bnh.BlockHash.Hex()
 					}
-					rawParams := mustMarshalJSON(params)
-					rpcReq.Params = rawParams
-				case ReceiptsTargetEthTransactionReceipt: // list of tx hashes
-					for _, txHash := range reqParams[0].Transactions {
-						params := make([]common.Hash, 1)
-						params[0] = txHash
-						rawParams := mustMarshalJSON(params)
-						randomID := mustMarshalJSON(uuid.New().String())
-						dReq := &RPCReq{
-							JSONRPC: rpcReq.JSONRPC,
-							Method:  ReceiptsTargetEthTransactionReceipt,
-							Params:  rawParams,
-							ID:      randomID,
-						}
-						derivedRequests = append(derivedRequests, dReq)
+					translatedParams = mustMarshalJSON(params)
+				case ReceiptsTargetAlchemyGetTransactionReceipts:
+					// alchemy uses an array of object with either block number or block hash
+					// i.e. [{ blockHash: "0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b" }]
+					params := make([]BlockHashOrNumberParameter, 1)
+					if bnh.BlockNumber != nil {
+						params[0].BlockNumber = bnh.BlockNumber
+					} else {
+						params[0].BlockHash = bnh.BlockHash
 					}
+					translatedParams = mustMarshalJSON(params)
+				default:
+					return nil, ErrConsensusGetReceiptsInvalidTarget
 				}
-			}
-		}
-		// replace the original request with the derived requests
-		if len(derivedRequests) > 0 {
-			rpcReqs = derivedRequests
-		}
-	} else {
-		for _, rpcReq := range rpcReqs {
-			if rpcReq.Method == ConsensusGetReceiptsMethod {
-				return nil, ErrConsensusGetReceiptsCantBeBatched
+
+				rpcReq.Params = translatedParams
 			}
 		}
 	}
@@ -582,32 +594,14 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	for _, res := range rpcRes {
 		translatedReq, exist := translatedReqs[string(res.ID)]
 		if exist {
-			res.Result = ConsensusGetReceiptsRes{
+			res.Result = ConsensusGetReceiptsResult{
 				Method: translatedReq.Method,
 				Result: res.Result,
 			}
 		}
 	}
+
 	sortBatchRPCResponse(rpcReqs, rpcRes)
-
-	// if the translated requests originated derived requests, wrap their results
-	if len(derivedRequests) > 0 {
-		results := make([]interface{}, 0, len(rpcRes))
-		for _, res := range rpcRes {
-			results = append(results, res.Result)
-		}
-
-		wrappedRes := &RPCRes{
-			JSONRPC: originalRequests[0].JSONRPC,
-			Result: ConsensusGetReceiptsRes{
-				Method: rpcReqs[0].Method,
-				Result: results,
-			},
-			ID: originalRequests[0].ID,
-		}
-
-		rpcRes = []*RPCRes{wrappedRes}
-	}
 
 	return rpcRes, nil
 }
@@ -728,10 +722,9 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 
 		if len(rpcReqs) > 0 {
 			res, err = back.Forward(ctx, rpcReqs, isBatch)
-			if errors.Is(err, ErrConsensusGetReceiptsCantBeBatched) {
-				return nil, err
-			}
-			if errors.Is(err, ErrMethodNotWhitelisted) {
+			if errors.Is(err, ErrConsensusGetReceiptsCantBeBatched) ||
+				errors.Is(err, ErrConsensusGetReceiptsInvalidTarget) ||
+				errors.Is(err, ErrMethodNotWhitelisted) {
 				return nil, err
 			}
 			if errors.Is(err, ErrBackendOffline) {
