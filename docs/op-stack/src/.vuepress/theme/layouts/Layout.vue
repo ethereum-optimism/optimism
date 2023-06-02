@@ -1,4 +1,5 @@
 <template>
+  <v-app v-if="!loading">
   <Common :sidebar="true">
     <template #navbar-start>
       <slot name="navbar-start">
@@ -80,6 +81,7 @@
       </Page>
     </template>
   </Common>
+</v-app>
 </template>
 
 <script src="./Layout" />
