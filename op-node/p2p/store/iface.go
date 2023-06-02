@@ -37,6 +37,9 @@ type ScoreDatastore interface {
 	// GetPeerScores returns the current scores for the specified peer
 	GetPeerScores(id peer.ID) (PeerScores, error)
 
+	// GetPeerScore returns the current combined score for the specified peer
+	GetPeerScore(id peer.ID) (float64, error)
+
 	// SetScore applies the given store diff to the specified peer
 	SetScore(id peer.ID, diff ScoreDiff) error
 }

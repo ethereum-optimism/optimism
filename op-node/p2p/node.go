@@ -206,11 +206,7 @@ func (n *NodeP2P) Peers() []peer.ID {
 }
 
 func (n *NodeP2P) GetPeerScore(id peer.ID) (float64, error) {
-	scores, err := n.store.GetPeerScores(id)
-	if err != nil {
-		return 0, err
-	}
-	return scores.Gossip.Total, nil
+	return n.store.GetPeerScore(id)
 }
 
 func (n *NodeP2P) IsStatic(id peer.ID) bool {
