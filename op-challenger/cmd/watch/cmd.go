@@ -25,8 +25,6 @@ var Subcommands = cli.Commands{
 			return Oracle(logger, cfg)
 		},
 	},
-<<<<<<< HEAD
-=======
 	{
 		Name:  "factory",
 		Usage: "Watches the DisputeGameFactory for new dispute games",
@@ -45,5 +43,4 @@ var Subcommands = cli.Commands{
 			return Factory(logger, cfg)
 		},
 	},
->>>>>>> 3d199507d (Add DisputeGameFactory dispute game creation listening logic.)
 }
