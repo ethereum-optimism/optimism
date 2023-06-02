@@ -3,18 +3,18 @@ import {
   getDeployedContractDefinition,
 } from '@eth-optimism/contracts'
 import { predeploys as bedrockPredeploys } from '@eth-optimism/contracts-bedrock'
-// import portalArtifactsMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/OptimismPortalProxy.json'
+import portalArtifactsMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/OptimismPortalProxy.json'
 import portalArtifactsGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/OptimismPortalProxy.json'
-// import l2OutputOracleArtifactsMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/L2OutputOracleProxy.json'
+import l2OutputOracleArtifactsMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/L2OutputOracleProxy.json'
 import l2OutputOracleArtifactsGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/L2OutputOracleProxy.json'
 
 const portalAddresses = {
-  // mainnet: portalArtifactsMainnet,
+  mainnet: portalArtifactsMainnet,
   goerli: portalArtifactsGoerli,
 }
 
 const l2OutputOracleAddresses = {
-  // mainnet: l2OutputOracleArtifactsMainnet,
+  mainnet: l2OutputOracleArtifactsMainnet,
   goerli: l2OutputOracleArtifactsGoerli,
 }
 
@@ -92,7 +92,7 @@ const getL1ContractsByNetworkName = (network: string): OEL1ContractsLike => {
     StateCommitmentChain: getDeployedAddress('StateCommitmentChain'),
     CanonicalTransactionChain: getDeployedAddress('CanonicalTransactionChain'),
     BondManager: getDeployedAddress('BondManager'),
-    OptimismPortal: portalAddresses[network]?.address,
+    OptimismPortal: portalAddresses[network].address,
     L2OutputOracle: l2OutputOracleAddresses[network].address,
   }
 }
