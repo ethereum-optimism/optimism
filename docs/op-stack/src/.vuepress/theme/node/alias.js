@@ -7,6 +7,7 @@ const getAlias = (themeConfig, ctx) => {
     // Resolve algolia
     const isAlgoliaSearch = Boolean(themeConfig.algolia) ||
         Object.keys((siteConfig.locales && themeConfig.locales) || {}).some((base) => themeConfig.locales[base].algolia);
+    const blogEnabled = themeConfig.blog !== false;
     const commentEnabled = themeConfig.comment &&
         themeConfig.comment.type &&
         themeConfig.comment.type !== "disable";
@@ -18,6 +19,18 @@ const getAlias = (themeConfig, ctx) => {
             ? themeConfig.algoliaType === "full"
                 ? (0, path_1.resolve)(__dirname, "../components/AlgoliaSearch/Full.vue")
                 : (0, path_1.resolve)(__dirname, "../components/AlgoliaSearch/Dropdown.vue")
+            : noopModule,
+        "@BlogInfo": blogEnabled
+            ? (0, path_1.resolve)(__dirname, "../components/Blog/BlogInfo.vue")
+            : noopModule,
+        "@BloggerInfo": blogEnabled
+            ? (0, path_1.resolve)(__dirname, "../components/Blog/BloggerInfo.vue")
+            : noopModule,
+        "@BlogHome": blogEnabled
+            ? (0, path_1.resolve)(__dirname, "../components/Blog/BlogHome.vue")
+            : noopModule,
+        "@BlogPage": blogEnabled
+            ? (0, path_1.resolve)(__dirname, "../components/Blog/BlogPage.vue")
             : noopModule,
         "@ContentTop": custom.contentTop
             ? (0, path_1.resolve)(ctx.sourceDir, ".vuepress", custom.contentTop)
