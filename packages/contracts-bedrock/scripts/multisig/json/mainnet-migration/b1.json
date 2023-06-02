@@ -3,7 +3,7 @@
   "chainId": "1",
   "meta": {
     "name": "batch1",
-    "description": "AddressManager.transferOwnership, L1StandardBridgeProxy.setOwner, L1ERC721BridgeProxy.changeAdmin, and SystemDictatorProxy.phase1.",
+    "description": "ProxyAdmin.transferOwnership, AddressManager.transferOwnership, L1StandardBridgeProxy.setOwner, L1ERC721BridgeProxy.changeAdmin, and SystemDictatorProxy.phase1.",
     "txBuilderVersion": "1.13.3"
   },
   "transactions": [
