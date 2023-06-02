@@ -101,7 +101,7 @@ model withdrawals {
   br_withdrawal_finalized_tx_hash   String?        @db.VarChar
   br_withdrawal_finalized_log_index Int?
   br_withdrawal_finalized_success   Boolean?
-  l2_blocks                         l2_blocks      @relation(map: "l2", fields: [block_hash], references: [hash], onDelete: NoAction, onUpdate: NoAction)
+  l2_blocks                         l2_blocks      @relation(fields: [block_hash], references: [hash], onDelete: NoAction, onUpdate: NoAction, map: "l2")
   l2_tokens                         l2_tokens      @relation(fields: [l2_token], references: [address], onDelete: NoAction, onUpdate: NoAction)
   state_batches                     state_batches? @relation(fields: [state_batch], references: [index], onDelete: NoAction, onUpdate: NoAction)
 
