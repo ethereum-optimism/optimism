@@ -31,6 +31,9 @@ contracts=(
   contracts/legacy/L1ChugSplashProxy.sol:L1ChugSplashProxy
   contracts/universal/OptimismMintableERC20.sol:OptimismMintableERC20
   contracts/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory
+  contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory
+  contracts/dispute/BondManager.sol:BondManager
+  contracts/dispute/AttestationDisputeGame.sol:AttestationDisputeGame
 )
 
 dir=$(dirname "$0")

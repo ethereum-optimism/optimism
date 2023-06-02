@@ -250,3 +250,36 @@
 
 | Name | Type | Slot | Offset | Bytes | Contract |
 |------|------|------|--------|-------|----------|
+
+=======================
+➡ contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory
+=======================
+
+| Name         | Type                                            | Slot | Offset | Bytes | Contract                                                    |
+|--------------|-------------------------------------------------|------|--------|-------|-------------------------------------------------------------|
+| _owner       | address                                         | 0    | 0      | 20    | contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory |
+| gameImpls    | mapping(enum GameType => contract IDisputeGame) | 1    | 0      | 32    | contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory |
+| disputeGames | mapping(Hash => contract IDisputeGame)          | 2    | 0      | 32    | contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory |
+
+=======================
+➡ contracts/dispute/BondManager.sol:BondManager
+=======================
+
+| Name  | Type                                        | Slot | Offset | Bytes | Contract                                      |
+|-------|---------------------------------------------|------|--------|-------|-----------------------------------------------|
+| bonds | mapping(bytes32 => struct BondManager.Bond) | 0    | 0      | 32    | contracts/dispute/BondManager.sol:BondManager |
+
+=======================
+➡ contracts/dispute/AttestationDisputeGame.sol:AttestationDisputeGame
+=======================
+
+| Name                     | Type                     | Slot | Offset | Bytes | Contract                                                            |
+|--------------------------|--------------------------|------|--------|-------|---------------------------------------------------------------------|
+| _initialized             | uint8                    | 0    | 0      | 1     | contracts/dispute/AttestationDisputeGame.sol:AttestationDisputeGame |
+| _initializing            | bool                     | 0    | 1      | 1     | contracts/dispute/AttestationDisputeGame.sol:AttestationDisputeGame |
+| createdAt                | Timestamp                | 0    | 2      | 8     | contracts/dispute/AttestationDisputeGame.sol:AttestationDisputeGame |
+| status                   | enum GameStatus          | 0    | 10     | 1     | contracts/dispute/AttestationDisputeGame.sol:AttestationDisputeGame |
+| attestationSubmitters    | address[]                | 1    | 0      | 32    | contracts/dispute/AttestationDisputeGame.sol:AttestationDisputeGame |
+| frozenAttestorSet        | address[]                | 2    | 0      | 32    | contracts/dispute/AttestationDisputeGame.sol:AttestationDisputeGame |
+| frozenSignatureThreshold | uint256                  | 3    | 0      | 32    | contracts/dispute/AttestationDisputeGame.sol:AttestationDisputeGame |
+| challenges               | mapping(address => bool) | 4    | 0      | 32    | contracts/dispute/AttestationDisputeGame.sol:AttestationDisputeGame |

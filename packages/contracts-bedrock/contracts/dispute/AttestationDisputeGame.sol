@@ -1,24 +1,20 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
+import "../libraries/DisputeTypes.sol";
+import "../libraries/DisputeErrors.sol";
+
+import { Clone } from "../libraries/Clone.sol";
 import { EIP712 } from "@solady/utils/EIP712.sol";
 import { ECDSA } from "@solady/utils/ECDSA.sol";
-
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
-import { Hash } from "../libraries/DisputeTypes.sol";
-import { Claim } from "../libraries/DisputeTypes.sol";
-import { GameType } from "../libraries/DisputeTypes.sol";
-import { Timestamp } from "../libraries/DisputeTypes.sol";
-import { GameStatus } from "../libraries/DisputeTypes.sol";
+import { IAttestationDisputeGame } from "./interfaces/IAttestationDisputeGame.sol";
+import { IDisputeGame } from "./interfaces/IDisputeGame.sol";
+import { IInitializable } from "./interfaces/IInitializable.sol";
+import { IVersioned } from "./interfaces/IVersioned.sol";
+import { IBondManager } from "./interfaces/IBondManager.sol";
 
-import { InvalidSignature } from "../libraries/DisputeErrors.sol";
-import { AlreadyChallenged } from "../libraries/DisputeErrors.sol";
-import { GameNotInProgress } from "../libraries/DisputeErrors.sol";
-
-import { IAttestationDisputeGame } from "./IAttestationDisputeGame.sol";
-import { IBondManager } from "./IBondManager.sol";
-import { Clone } from "../libraries/Clone.sol";
 import { SystemConfig } from "../L1/SystemConfig.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 
@@ -54,12 +50,12 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
     string internal constant VERSION = "0.0.1";
 
     /**
-     * @notice The timestamp that the DisputeGame contract was created at.
+     * @inheritdoc IDisputeGame
      */
     Timestamp public createdAt;
 
     /**
-     * @notice The current status of the game.
+     * @inheritdoc IDisputeGame
      */
     GameStatus public status;
 
@@ -74,13 +70,12 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
     address[] public frozenAttestorSet;
 
     /**
-     * @notice The number of authorized signatures required to successfully support the `rootClaim`.
+     * @inheritdoc IAttestationDisputeGame
      */
     uint256 public frozenSignatureThreshold;
 
     /**
-     * @notice A mapping of addresses from the `attestorSet` to booleans signifying whether
-     *         or not they support the `rootClaim` being the valid output for `l2BlockNumber`.
+     * @inheritdoc IAttestationDisputeGame
      */
     mapping(address => bool) public challenges;
 
@@ -101,9 +96,7 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
     }
 
     /**
-     * @notice The signer set consists of authorized public keys that may challenge the `rootClaim`.
-     * @param addr The address to check if it is part of the signer set.
-     * @return _isAuthorized Whether or not the `addr` is part of the signer set.
+     * @inheritdoc IAttestationDisputeGame
      */
     function attestorSet(address addr) public view override returns (bool _isAuthorized) {
         for (uint256 i = 0; i < frozenAttestorSet.length; i++) {
@@ -114,18 +107,7 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
     }
 
     /**
-     * @notice Challenge the `rootClaim`.
-     * @dev - If the `ecrecover`ed address that created the signature is not a part of the
-     *      signer set returned by `attestorSet`, this function should revert.
-     *      - If the signature provided is the signature that breaches
-     *      the signature threshold, the function should call the `resolve`
-     *      function to resolve the game as `CHALLENGER_WINS`.
-     *      - When the game resolves, the bond attached to the root claim
-     *      should be distributed among the signers who participated in
-     *      challenging the invalid claim.
-     * @param signature An EIP-712 signature committing to the `rootClaim`
-     *        and `l2BlockNumber` (within the `extraData`) from a key that
-     *        exists within the `attestorSet`.
+     * @inheritdoc IAttestationDisputeGame
      */
     function challenge(bytes calldata signature) external {
         if (status != GameStatus.IN_PROGRESS) {
@@ -197,7 +179,7 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
     }
 
     /**
-     * @notice Initializes the contract.
+     * @inheritdoc IInitializable
      */
     function initialize() external initializer {
         createdAt = Timestamp.wrap(uint64(block.timestamp));
@@ -206,20 +188,14 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
     }
 
     /**
-     * @notice Returns the address of the `BondManager` used.
-     * @return _bondManager The address of the `BondManager` used.
+     * @inheritdoc IDisputeGame
      */
     function bondManager() external view returns (IBondManager _bondManager) {
         _bondManager = BOND_MANAGER;
     }
 
     /**
-     * @notice If all necessary information has been gathered, this function should mark the game
-     *         status as either `CHALLENGER_WINS` or `DEFENDER_WINS` and return the status of
-     *         the resolved game. It is at this stage that the bonds should be awarded to the
-     *         necessary parties.
-     * @dev May only be called if the `status` is `IN_PROGRESS`.
-     * @return _status The status of the resolved game.
+     * @inheritdoc IDisputeGame
      */
     function resolve() public returns (GameStatus _status) {
         if (status != GameStatus.IN_PROGRESS) {
@@ -242,18 +218,14 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
     }
 
     /**
-     * @notice Returns the type of proof system being used for the AttestationDisputeGame.
-     * @dev The reference impl should be entirely different depending on the type (fault, validity)
-     *      i.e. The game type should indicate the security model.
-     * @return _gameType The type of proof system being used.
+     * @inheritdoc IDisputeGame
      */
     function gameType() public pure override returns (GameType) {
         return GameType.ATTESTATION;
     }
 
     /**
-     * @notice Returns the semantic version of the contract
-     * @return _version The semantic version of the contract
+     * @inheritdoc IVersioned
      */
     function version() external pure override returns (string memory _version) {
         _version = VERSION;
@@ -275,28 +247,21 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
     }
 
     /**
-     * @notice Returns the extra data supplied to the dispute game contract by the creator.
-     *         This is just the L2 block number that the root claim commits to.
-     * @dev `clones-with-immutable-args` argument #3
-     * @return _extraData Any extra data supplied to the dispute game contract by the creator.
+     * @inheritdoc IDisputeGame
      */
     function extraData() external pure returns (bytes memory _extraData) {
         _extraData = _getArgDynBytes(0x20, 0x20);
     }
 
     /**
-     * @notice Fetches the root claim from the calldata appended by the CWIA proxy.
-     * @dev `clones-with-immutable-args` argument #2
-     * @return _rootClaim The root claim of the DisputeGame.
+     * @inheritdoc IDisputeGame
      */
     function rootClaim() public pure returns (Claim _rootClaim) {
         _rootClaim = Claim.wrap(_getArgFixedBytes(0x00));
     }
 
     /**
-     * @notice Fetches the L2 block number that the `rootClaim` commits to.
-     *         Exists within the `extraData`.
-     * @return _l2BlockNumber The L2 block number that the `rootClaim` commits to.
+     * @inheritdoc IAttestationDisputeGame
      */
     function l2BlockNumber() public pure returns (uint256 _l2BlockNumber) {
         _l2BlockNumber = _getArgUint256(0x20);

@@ -12,9 +12,9 @@ import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { SystemConfig } from "../L1/SystemConfig.sol";
 
 import { AttestationDisputeGame } from "../dispute/AttestationDisputeGame.sol";
-import { IDisputeGameFactory } from "../dispute/IDisputeGameFactory.sol";
-import { IDisputeGame } from "../dispute/IDisputeGame.sol";
-import { IBondManager } from "../dispute/IBondManager.sol";
+import { IDisputeGameFactory } from "../dispute/interfaces/IDisputeGameFactory.sol";
+import { IDisputeGame } from "../dispute/interfaces/IDisputeGame.sol";
+import { IBondManager } from "../dispute/interfaces/IBondManager.sol";
 import { BondManager } from "../dispute/BondManager.sol";
 import { DisputeGameFactory } from "../dispute/DisputeGameFactory.sol";
 import { Portal_Initializer } from "./CommonTest.t.sol";
