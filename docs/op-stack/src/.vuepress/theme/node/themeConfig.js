@@ -2,6 +2,7 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.resolveThemeConfig = void 0;
 const vuepress_shared_1 = require("@mr-hope/vuepress-shared");
+const encrypt_1 = require("./encrypt");
 const setThemeLocales = (themeConfig, rootLang) => {
     const rootLangPath = (0, vuepress_shared_1.lang2Path)(rootLang);
     // set locate for base
@@ -16,6 +17,8 @@ const setThemeLocales = (themeConfig, rootLang) => {
 };
 const resolveThemeConfig = (themeConfig, rootLang) => {
     setThemeLocales(themeConfig, rootLang);
+    if (themeConfig.encrypt)
+        (0, encrypt_1.resolveEncrypt)(themeConfig.encrypt);
 };
 exports.resolveThemeConfig = resolveThemeConfig;
 //# sourceMappingURL=themeConfig.js.map
