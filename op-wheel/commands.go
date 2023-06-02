@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -179,6 +180,10 @@ func addrFlag(name string, usage string) cli.GenericFlag {
 	return textFlag[*common.Address](name, usage, new(common.Address))
 }
 
+func bytesFlag(name string, usage string) cli.GenericFlag {
+	return textFlag[*hexutil.Bytes](name, usage, new(hexutil.Bytes))
+}
+
 func hashFlag(name string, usage string) cli.GenericFlag {
 	return textFlag[*common.Hash](name, usage, new(common.Hash))
 }
@@ -189,6 +194,10 @@ func bigFlag(name string, usage string) cli.GenericFlag {
 
 func addrFlagValue(name string, ctx *cli.Context) common.Address {
 	return *ctx.Generic(name).(*TextFlag[*common.Address]).Value
+}
+
+func bytesFlagValue(name string, ctx *cli.Context) hexutil.Bytes {
+	return *ctx.Generic(name).(*TextFlag[*hexutil.Bytes]).Value
 }
 
 func hashFlagValue(name string, ctx *cli.Context) common.Hash {
@@ -269,6 +278,17 @@ var (
 		},
 		Action: CheatAction(false, func(ctx *cli.Context, ch *cheat.Cheater) error {
 			return ch.RunAndClose(cheat.SetBalance(addrFlagValue("address", ctx), bigFlagValue("balance", ctx)))
+		}),
+	}
+	CheatSetCodeCmd = cli.Command{
+		Name: "code",
+		Flags: []cli.Flag{
+			DataDirFlag,
+			addrFlag("address", "Address to change code of"),
+			bytesFlag("code", "New code of the account"),
+		},
+		Action: CheatAction(false, func(ctx *cli.Context, ch *cheat.Cheater) error {
+			return ch.RunAndClose(cheat.SetCode(addrFlagValue("address", ctx), bytesFlagValue("code", ctx)))
 		}),
 	}
 	CheatSetNonceCmd = cli.Command{
@@ -440,6 +460,7 @@ var CheatCmd = cli.Command{
 	Subcommands: []cli.Command{
 		CheatStorageCmd,
 		CheatSetBalanceCmd,
+		CheatSetCodeCmd,
 		CheatSetNonceCmd,
 		CheatOvmOwnersCmd,
 		CheatPrintHeadBlock,

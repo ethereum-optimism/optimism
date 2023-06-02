@@ -86,7 +86,7 @@ func (p *PeerMonitor) checkNextPeer() error {
 	if err != nil {
 		return fmt.Errorf("retrieve score for peer %v: %w", id, err)
 	}
-	if score > p.minScore {
+	if score >= p.minScore {
 		return nil
 	}
 	if p.manager.IsStatic(id) {

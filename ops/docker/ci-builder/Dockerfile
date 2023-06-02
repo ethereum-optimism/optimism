@@ -97,3 +97,11 @@ RUN echo "downloading and verifying Codecov uploader" && \
   cp codecov /usr/local/bin/codecov && \
   chmod +x /usr/local/bin/codecov  && \
   rm codecov
+
+RUN echo "downloading mockery tool" && \
+  mkdir -p mockery-tmp-dir && \
+  curl -o mockery-tmp-dir/mockery.tar.gz -sL https://github.com/vektra/mockery/releases/download/v2.28.1/mockery_2.28.1_Linux_x86_64.tar.gz && \
+  tar -xzvf mockery-tmp-dir/mockery.tar.gz -C mockery-tmp-dir && \
+  cp mockery-tmp-dir/mockery /usr/local/bin/mockery && \
+  chmod +x /usr/local/bin/mockery && \
+  rm -rf mockery-tmp-dir
