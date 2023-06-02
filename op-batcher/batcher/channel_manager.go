@@ -32,10 +32,12 @@ type channelManager struct {
 	// last block hash - for reorg detection
 	tip common.Hash
 
-	// Pending data returned by TxData waiting on Tx Confirmed/Failed
+	// channel to write new block data to
 	currentChannel *channel
-	channelQueue   []*channel
-	txChannels     map[txID]*channel
+	// channels to read frame data from, for writing batches onchain
+	channelQueue []*channel
+	// used to lookup channels by tx ID upon tx success / failure
+	txChannels map[txID]*channel
 
 	// if set to true, prevents production of any new channel frames
 	closed bool
