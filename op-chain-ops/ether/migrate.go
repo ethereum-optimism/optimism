@@ -109,6 +109,7 @@ func doMigration(mutableDB *state.StateDB, dbFactory util.DBFactory, addresses [
 	// Kick off a background process to collect
 	// values from the channel and add them to the map.
 	var count int
+	var dups int
 	progress := util.ProgressLogger(1000, "Migrated OVM_ETH storage slot")
 	go func() {
 		defer func() { doneCh <- struct{}{} }()
@@ -120,6 +121,7 @@ func doMigration(mutableDB *state.StateDB, dbFactory util.DBFactory, addresses [
 			// why we may have to filter out duplicates.
 			if seenAccounts[account.address] {
 				log.Info("skipping duplicate account during iteration", "addr", account.address)
+				dups++
 				continue
 			}
 
@@ -198,7 +200,25 @@ func doMigration(mutableDB *state.StateDB, dbFactory util.DBFactory, addresses [
 	<-doneCh
 
 	// Log how many slots were iterated over.
-	log.Info("Iterated legacy balances", "count", count)
+	log.Info("Iterated legacy balances", "count", count, "dups", dups, "total", count+dups)
+	log.Info("Comparison to input list of legacy accounts",
+		"total_input", len(addresses),
+		"diff_count", len(addresses)-count,
+		"diff_total", len(addresses)-(count+dups),
+	)
+
+	// Print first 10 accounts without balance
+	aleft := 10
+	log.Info("Listing first %d accounts without balance", aleft)
+	for i, a := range addresses {
+		if !seenAccounts[a] {
+			log.Info("Account[%d] without balance", i, "addr", a)
+			aleft--
+		}
+		if aleft == 0 {
+			break
+		}
+	}
 
 	// Verify the supply delta. Recorded total supply in the LegacyERC20ETH contract may be higher
 	// than the actual migrated amount because self-destructs will remove ETH supply in a way that
