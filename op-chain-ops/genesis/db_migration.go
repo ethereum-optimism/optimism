@@ -68,7 +68,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	// Ensure that the timestamp for the Bedrock transition block is greater than the timestamp of
 	// the last legacy block.
-	if uint64(config.L2OutputOracleStartingTimestamp) <= header.Time {
+	if uint64(config.L2OutputOracleStartingTimestamp) < header.Time {
 		return nil, fmt.Errorf(
 			"output oracle starting timestamp (%d) is less than the header timestamp (%d)", config.L2OutputOracleStartingTimestamp, header.Time,
 		)
