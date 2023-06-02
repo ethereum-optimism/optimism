@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"math/big"
-	"sync"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -30,7 +29,6 @@ type logTraversal struct {
 	client          MinimalEthClient
 	query           *ethereum.FilterQuery
 	quit            chan struct{}
-	mutex           sync.RWMutex
 	lastBlockNumber *big.Int
 	started         bool
 }
@@ -52,14 +50,8 @@ func NewLogTraversal(client MinimalEthClient, query *ethereum.FilterQuery, log l
 		query:           query,
 		quit:            make(chan struct{}),
 		log:             log,
-		mutex:           sync.RWMutex{},
 		lastBlockNumber: lastBlockNumber,
 	}
-}
-
-// LastBlockNumber returns the last block number that was traversed.
-func (l *logTraversal) LastBlockNumber() *big.Int {
-	return l.lastBlockNumber
 }
 
 // Quit quits the log traversal.
@@ -145,20 +137,6 @@ func (l *logTraversal) spawnCatchup(ctx context.Context, start *big.Int, end *bi
 	}
 }
 
-// updateBlockNumber updates the last block number.
-func (l *logTraversal) updateBlockNumber(blockNumber *big.Int) {
-	l.mutex.Lock()
-	defer l.mutex.Unlock()
-	l.lastBlockNumber = blockNumber
-}
-
-// accessBlockNumber retrieves the last block number.
-func (l *logTraversal) accessBlockNumber() *big.Int {
-	l.mutex.RLock()
-	defer l.mutex.RUnlock()
-	return l.lastBlockNumber
-}
-
 // dispatchNewHead dispatches a new head.
 func (l *logTraversal) dispatchNewHead(ctx context.Context, header *types.Header, handleLog func(*types.Log) error) {
 	info, err := l.client.InfoByHash(ctx, header.Hash())
@@ -167,7 +145,7 @@ func (l *logTraversal) dispatchNewHead(ctx context.Context, header *types.Header
 		return
 	}
 
-	expectedBlockNumber := l.accessBlockNumber()
+	expectedBlockNumber := l.lastBlockNumber
 	expectedBlockNumber = expectedBlockNumber.Add(expectedBlockNumber, big.NewInt(1))
 	currentBlockNumber := big.NewInt(int64(info.NumberU64()))
 	if currentBlockNumber.Cmp(expectedBlockNumber) == 1 {
@@ -177,7 +155,7 @@ func (l *logTraversal) dispatchNewHead(ctx context.Context, header *types.Header
 		go l.spawnCatchup(ctx, expectedBlockNumber, endBlockNum, handleLog)
 
 	}
-	l.updateBlockNumber(currentBlockNumber)
+	l.lastBlockNumber = currentBlockNumber
 
 	_ = l.fetchAndProcessLogs(ctx, info, handleLog)
 }

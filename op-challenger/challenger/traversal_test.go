@@ -97,7 +97,7 @@ func TestLogTraversal_Start_ReceivesNewHeads_NoTransactions(t *testing.T) {
 	timeout, tCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer tCancel()
 	err := e2eutils.WaitFor(timeout, 500*time.Millisecond, func() (bool, error) {
-		return logTraversal.LastBlockNumber().Cmp(firstHeader.Number) == 0, nil
+		return logTraversal.lastBlockNumber.Cmp(firstHeader.Number) == 0, nil
 	})
 	require.NoError(t, err)
 }
@@ -166,7 +166,7 @@ func TestLogTraversal_Start_ReceivesNewHeads_Transactions(t *testing.T) {
 	timeout, tCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer tCancel()
 	err := e2eutils.WaitFor(timeout, 500*time.Millisecond, func() (bool, error) {
-		return logTraversal.LastBlockNumber().Cmp(firstHeader.Number) == 0, nil
+		return logTraversal.lastBlockNumber.Cmp(firstHeader.Number) == 0, nil
 	})
 	require.NoError(t, err)
 }
