@@ -257,11 +257,6 @@ const ReceiptsTargetAlchemyGetTransactionReceipts = "alchemy_getTransactionRecei
 const ReceiptsTargetParityGetTransactionReceipts = "parity_getBlockReceipts"
 const ReceiptsTargetEthGetTransactionReceipts = "eth_getBlockReceipts"
 
-type ConsensusGetReceiptsRequest struct {
-	BlockOrHash  *rpc.BlockNumberOrHash `json:"blockOrHash"`
-	Transactions []common.Hash          `json:"transactions"`
-}
-
 type ConsensusGetReceiptsResult struct {
 	Method string      `json:"method"`
 	Result interface{} `json:"result"`
@@ -442,12 +437,11 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 			if rpcReq.Method == ConsensusGetReceiptsMethod {
 				translatedReqs[string(rpcReq.ID)] = rpcReq
 				rpcReq.Method = b.receiptsTarget
-				var reqParams []ConsensusGetReceiptsRequest
+				var reqParams []rpc.BlockNumberOrHash
 				err := json.Unmarshal(rpcReq.Params, &reqParams)
 				if err != nil {
 					return nil, ErrInvalidRequest("invalid request")
 				}
-				bnh := reqParams[0].BlockOrHash
 
 				var translatedParams []byte
 				switch rpcReq.Method {
@@ -457,20 +451,20 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 					// conventional methods use an array of strings having either block number or block hash
 					// i.e. ["0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b"]
 					params := make([]string, 1)
-					if bnh.BlockNumber != nil {
-						params[0] = bnh.BlockNumber.String()
+					if reqParams[0].BlockNumber != nil {
+						params[0] = reqParams[0].BlockNumber.String()
 					} else {
-						params[0] = bnh.BlockHash.Hex()
+						params[0] = reqParams[0].BlockHash.Hex()
 					}
 					translatedParams = mustMarshalJSON(params)
 				case ReceiptsTargetAlchemyGetTransactionReceipts:
 					// alchemy uses an array of object with either block number or block hash
 					// i.e. [{ blockHash: "0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b" }]
 					params := make([]BlockHashOrNumberParameter, 1)
-					if bnh.BlockNumber != nil {
-						params[0].BlockNumber = bnh.BlockNumber
+					if reqParams[0].BlockNumber != nil {
+						params[0].BlockNumber = reqParams[0].BlockNumber
 					} else {
-						params[0].BlockHash = bnh.BlockHash
+						params[0].BlockHash = reqParams[0].BlockHash
 					}
 					translatedParams = mustMarshalJSON(params)
 				default:

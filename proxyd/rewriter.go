@@ -63,9 +63,7 @@ func RewriteRequest(rctx RewriteContext, req *RPCReq, res *RPCRes) (RewriteResul
 	case "eth_getLogs",
 		"eth_newFilter":
 		return rewriteRange(rctx, req, res, 0)
-	case "consensus_getReceipts":
-		return rewriteGetReceiptsParams(rctx, req, res)
-	case "debug_getRawReceipts":
+	case "debug_getRawReceipts", "consensus_getReceipts":
 		return rewriteParam(rctx, req, res, 0, true)
 	case "eth_getBalance",
 		"eth_getCode",
@@ -80,38 +78,6 @@ func RewriteRequest(rctx RewriteContext, req *RPCReq, res *RPCRes) (RewriteResul
 		"eth_getTransactionByBlockNumberAndIndex",
 		"eth_getUncleByBlockNumberAndIndex":
 		return rewriteParam(rctx, req, res, 0, false)
-	}
-	return RewriteNone, nil
-}
-
-func rewriteGetReceiptsParams(rctx RewriteContext, req *RPCReq, res *RPCRes) (RewriteResult, error) {
-	var p []interface{}
-	err := json.Unmarshal(req.Params, &p)
-	if err != nil {
-		return RewriteOverrideError, err
-	}
-
-	if len(p) != 1 {
-		return RewriteNone, nil
-	}
-
-	if m, ok := p[0].(map[string]interface{}); !ok || m["blockOrHash"] == nil {
-		return RewriteNone, nil
-	}
-
-	val, rw, err := rewriteTag(rctx, p[0].(map[string]interface{})["blockOrHash"].(string))
-	if err != nil {
-		return RewriteOverrideError, err
-	}
-
-	if rw {
-		p[0].(map[string]interface{})["blockOrHash"] = val
-		paramRaw, err := json.Marshal(p)
-		if err != nil {
-			return RewriteOverrideError, err
-		}
-		req.Params = paramRaw
-		return RewriteOverrideRequest, nil
 	}
 	return RewriteNone, nil
 }

@@ -793,8 +793,8 @@ func TestConsensus(t *testing.T) {
 		// reset request counts
 		nodes["node1"].mockBackend.Reset()
 
-		resRaw, statusCode, err := client.SendRPC("consensus_getReceipts", []interface{}{map[string]interface{}{
-			"blockOrHash": "0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b"}})
+		resRaw, statusCode, err := client.SendRPC("consensus_getReceipts",
+			[]interface{}{"0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b"})
 		require.NoError(t, err)
 		require.Equal(t, 200, statusCode)
 
@@ -820,8 +820,9 @@ func TestConsensus(t *testing.T) {
 		// reset request counts
 		nodes["node1"].mockBackend.Reset()
 
-		resRaw, statusCode, err := client.SendRPC("consensus_getReceipts", []interface{}{map[string]interface{}{
-			"blockOrHash": "latest"}})
+		resRaw, statusCode, err := client.SendRPC("consensus_getReceipts",
+			[]interface{}{"latest"})
+
 		require.NoError(t, err)
 		require.Equal(t, 200, statusCode)
 
@@ -847,8 +848,9 @@ func TestConsensus(t *testing.T) {
 		// reset request counts
 		nodes["node1"].mockBackend.Reset()
 
-		resRaw, statusCode, err := client.SendRPC("consensus_getReceipts", []interface{}{map[string]interface{}{
-			"blockOrHash": "0x55"}})
+		resRaw, statusCode, err := client.SendRPC("consensus_getReceipts",
+			[]interface{}{"0x55"})
+
 		require.NoError(t, err)
 		require.Equal(t, 200, statusCode)
 
@@ -877,8 +879,9 @@ func TestConsensus(t *testing.T) {
 		nodes["node1"].backend.Override(proxyd.WithConsensusReceiptTarget("alchemy_getTransactionReceipts"))
 		defer nodes["node1"].backend.Override(proxyd.WithConsensusReceiptTarget("debug_getRawReceipts"))
 
-		resRaw, statusCode, err := client.SendRPC("consensus_getReceipts", []interface{}{map[string]interface{}{
-			"blockOrHash": "0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b"}})
+		resRaw, statusCode, err := client.SendRPC("consensus_getReceipts",
+			[]interface{}{"0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b"})
+
 		require.NoError(t, err)
 		require.Equal(t, 200, statusCode)
 
@@ -908,8 +911,9 @@ func TestConsensus(t *testing.T) {
 		nodes["node1"].backend.Override(proxyd.WithConsensusReceiptTarget("alchemy_getTransactionReceipts"))
 		defer nodes["node1"].backend.Override(proxyd.WithConsensusReceiptTarget("debug_getRawReceipts"))
 
-		resRaw, statusCode, err := client.SendRPC("consensus_getReceipts", []interface{}{map[string]interface{}{
-			"blockOrHash": "0x55"}})
+		resRaw, statusCode, err := client.SendRPC("consensus_getReceipts",
+			[]interface{}{"0x55"})
+
 		require.NoError(t, err)
 		require.Equal(t, 200, statusCode)
 
@@ -939,8 +943,9 @@ func TestConsensus(t *testing.T) {
 		nodes["node1"].backend.Override(proxyd.WithConsensusReceiptTarget("alchemy_getTransactionReceipts"))
 		defer nodes["node1"].backend.Override(proxyd.WithConsensusReceiptTarget("debug_getRawReceipts"))
 
-		resRaw, statusCode, err := client.SendRPC("consensus_getReceipts", []interface{}{map[string]interface{}{
-			"blockOrHash": "latest"}})
+		resRaw, statusCode, err := client.SendRPC("consensus_getReceipts",
+			[]interface{}{"latest"})
+
 		require.NoError(t, err)
 		require.Equal(t, 200, statusCode)
 
@@ -966,8 +971,9 @@ func TestConsensus(t *testing.T) {
 		nodes["node1"].backend.Override(proxyd.WithConsensusReceiptTarget("unsupported_consensus_receipts_target"))
 		defer nodes["node1"].backend.Override(proxyd.WithConsensusReceiptTarget("debug_getRawReceipts"))
 
-		_, statusCode, err := client.SendRPC("consensus_getReceipts", []interface{}{map[string]interface{}{
-			"blockOrHash": "latest"}})
+		_, statusCode, err := client.SendRPC("consensus_getReceipts",
+			[]interface{}{"latest"})
+
 		require.NoError(t, err)
 		require.Equal(t, 400, statusCode)
 	})
@@ -978,7 +984,7 @@ func TestConsensus(t *testing.T) {
 
 		_, statusCode, err := client.SendBatchRPC(
 			NewRPCReq("1", "eth_getBlockByNumber", []interface{}{"latest"}),
-			NewRPCReq("2", "consensus_getReceipts", []interface{}{"0x102"}),
+			NewRPCReq("2", "consensus_getReceipts", []interface{}{"0x55"}),
 			NewRPCReq("3", "eth_getBlockByNumber", []interface{}{"0xe1"}))
 		require.NoError(t, err)
 		require.Equal(t, 400, statusCode)
