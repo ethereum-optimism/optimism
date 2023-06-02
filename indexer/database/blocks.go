@@ -80,12 +80,9 @@ func (db *blocksDB) StoreL1BlockHeaders(headers []*L1BlockHeader) error {
 }
 
 func (db *blocksDB) StoreLegacyStateBatch(stateBatch *LegacyStateBatch) error {
-	// Event though transaction control flow is managed, could we benefit
+	// Even though transaction control flow is managed, could we benefit
 	// from a nested transaction here?
 
-	// Handle edge case where gorm interprets the nil representation of uint256
-	// as a NULL insertion. This causes issues with the non-null constaint as a
-	// primary key
 	result := db.gorm.Create(stateBatch)
 	if result.Error != nil {
 		return result.Error
