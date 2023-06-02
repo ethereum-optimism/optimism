@@ -79,7 +79,7 @@ type CLIConfig struct {
 	PollInterval time.Duration
 
 	// MaxPendingTransactions is the maximum number of concurrent pending
-	// transactions sent to the transaction manager.
+	// transactions sent to the transaction manager (0 == no limit).
 	MaxPendingTransactions uint64
 
 	// MaxL1TxSize is the maximum size of a batch tx submitted to L1.
