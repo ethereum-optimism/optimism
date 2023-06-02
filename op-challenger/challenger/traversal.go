@@ -5,7 +5,6 @@ import (
 	"errors"
 	"math/big"
 	"sync"
-	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -17,6 +16,8 @@ import (
 )
 
 var (
+	// ErrFailedToFetchReceipts is returned when the receipts for a block could not be fetched.
+	ErrFailedToFetchReceipts = errors.New("failed to fetch receipts")
 	// ErrAlreadyStarted is returned when the log traversal has already been started.
 	ErrAlreadyStarted = errors.New("already started")
 	// ExponentialBackoff is the default backoff strategy.
@@ -43,6 +44,8 @@ type MinimalEthClient interface {
 }
 
 // NewLogTraversal creates a new log traversal.
+// The [MinimalEthClient] passed into this function should be built using an op-service backoff client as the
+// underlying [client.RPC] passed into the op-node EthClient.
 func NewLogTraversal(client MinimalEthClient, query *ethereum.FilterQuery, log log.Logger) *logTraversal {
 	return &logTraversal{
 		client:          client,
@@ -59,61 +62,6 @@ func (l *logTraversal) LastBlockNumber() *big.Int {
 	return l.lastBlockNumber
 }
 
-// fetchBlockByHash gracefully fetches block info by hash with a backoff.
-func (l *logTraversal) fetchBlockInfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {
-	var info eth.BlockInfo
-	err := backoff.DoCtx(ctx, 5, ExponentialBackoff, func() error {
-		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-		defer cancel()
-		var err error
-		info, err = l.client.InfoByHash(ctx, hash)
-		return err
-	})
-	return info, err
-}
-
-// fetchBlockByNumber gracefully fetches block info by number with a backoff.
-func (l *logTraversal) fetchBlockInfoByNumber(ctx context.Context, number uint64) (eth.BlockInfo, error) {
-	var info eth.BlockInfo
-	err := backoff.DoCtx(ctx, 5, ExponentialBackoff, func() error {
-		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-		defer cancel()
-		var err error
-		info, err = l.client.InfoByNumber(ctx, number)
-		return err
-	})
-	return info, err
-}
-
-// fetchBlockReceipts fetches receipts for a block by hash with a backoff.
-func (l *logTraversal) fetchBlockReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error) {
-	var receipts types.Receipts
-	err := backoff.DoCtx(ctx, 5, ExponentialBackoff, func() error {
-		ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-		defer cancel()
-		var err error
-		_, receipts, err = l.client.FetchReceipts(ctx, hash)
-		return err
-	})
-	if err != nil {
-		return nil, err
-	}
-	return receipts, nil
-}
-
-// subscribeNewHead subscribes to new heads with a backoff.
-func (l *logTraversal) subscribeNewHead(ctx context.Context, headers chan *types.Header) (ethereum.Subscription, error) {
-	var sub ethereum.Subscription
-	err := backoff.DoCtx(ctx, 4, ExponentialBackoff, func() error {
-		ctx, cancel := context.WithTimeout(ctx, time.Second*5)
-		defer cancel()
-		var err error
-		sub, err = l.client.SubscribeNewHead(ctx, headers)
-		return err
-	})
-	return sub, err
-}
-
 // Quit quits the log traversal.
 func (l *logTraversal) Quit() {
 	l.quit <- struct{}{}
@@ -126,7 +74,7 @@ func (l *logTraversal) Start(ctx context.Context, handleLog func(*types.Log) err
 		return ErrAlreadyStarted
 	}
 	headers := make(chan *types.Header)
-	sub, err := l.subscribeNewHead(ctx, headers)
+	sub, err := l.client.SubscribeNewHead(ctx, headers)
 	if err != nil {
 		l.log.Error("Failed to subscribe to new heads", "err", err)
 		return err
@@ -156,37 +104,43 @@ func (l *logTraversal) onNewHead(ctx context.Context, headers chan *types.Header
 	}
 }
 
+// fetchAndProcessLogs fetches and processes logs given a [eth.BlockInfo].
+func (l *logTraversal) fetchAndProcessLogs(ctx context.Context, info eth.BlockInfo, handleLog func(*types.Log) error) error {
+	_, receipts, err := l.client.FetchReceipts(ctx, info.Hash())
+	if err != nil {
+		l.log.Error("Failed to fetch receipts", "err", err)
+		return ErrFailedToFetchReceipts
+	}
+	for _, receipt := range receipts {
+		for _, log := range receipt.Logs {
+			err := handleLog(log)
+			if err != nil {
+				l.log.Error("Failed to handle log", "err", err)
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // spawnCatchup spawns a new goroutine to "catchup" for missed/skipped blocks.
 func (l *logTraversal) spawnCatchup(ctx context.Context, start *big.Int, end *big.Int, handleLog func(*types.Log) error) {
 	for {
-		// Break if we've caught up (start > end).
 		if start.Cmp(end) == 1 {
 			l.log.Info("Traversal caught up", "start", start, "end", end)
 			return
 		}
 
-		info, err := l.fetchBlockInfoByNumber(ctx, start.Uint64())
+		info, err := l.client.InfoByNumber(ctx, start.Uint64())
 		if err != nil {
 			l.log.Error("Failed to fetch block", "err", err)
 			return
 		}
 
-		receipts, err := l.fetchBlockReceipts(ctx, info.Hash())
-		if err != nil {
-			l.log.Error("Failed to fetch receipts", "err", err)
+		if err := l.fetchAndProcessLogs(ctx, info, handleLog); err != nil {
 			return
 		}
-		for _, receipt := range receipts {
-			for _, log := range receipt.Logs {
-				err := handleLog(log)
-				if err != nil {
-					l.log.Error("Failed to handle log", "err", err)
-					return
-				}
-			}
-		}
 
-		// Increment to the next block to catch up to
 		start = start.Add(start, big.NewInt(1))
 	}
 }
@@ -200,11 +154,12 @@ func (l *logTraversal) updateBlockNumber(blockNumber *big.Int) {
 
 // dispatchNewHead dispatches a new head.
 func (l *logTraversal) dispatchNewHead(ctx context.Context, header *types.Header, handleLog func(*types.Log) error, allowCatchup bool) {
-	info, err := l.fetchBlockInfoByHash(ctx, header.Hash())
+	info, err := l.client.InfoByHash(ctx, header.Hash())
 	if err != nil {
 		l.log.Error("Failed to fetch block", "err", err)
 		return
 	}
+
 	expectedBlockNumber := l.lastBlockNumber.Add(l.lastBlockNumber, big.NewInt(1))
 	currentBlockNumber := big.NewInt(int64(info.NumberU64()))
 	if l.lastBlockNumber.Cmp(big.NewInt(0)) != 0 && currentBlockNumber.Cmp(expectedBlockNumber) == 1 {
@@ -218,18 +173,6 @@ func (l *logTraversal) dispatchNewHead(ctx context.Context, header *types.Header
 		}
 	}
 	l.updateBlockNumber(currentBlockNumber)
-	receipts, err := l.fetchBlockReceipts(ctx, info.Hash())
-	if err != nil {
-		l.log.Error("Failed to fetch receipts", "err", err)
-		return
-	}
-	for _, receipt := range receipts {
-		for _, log := range receipt.Logs {
-			err := handleLog(log)
-			if err != nil {
-				l.log.Error("Failed to handle log", "err", err)
-				return
-			}
-		}
-	}
+
+	_ = l.fetchAndProcessLogs(ctx, info, handleLog)
 }

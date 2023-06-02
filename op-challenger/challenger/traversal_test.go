@@ -191,7 +191,7 @@ func TestLogTraversal_Start_SubscriptionErrors(t *testing.T) {
 	require.EqualError(
 		t,
 		logTraversal.Start(context.Background(), handleLog),
-		"operation failed permanently after 4 attempts: subscription failed",
+		"subscription failed",
 	)
 	require.False(t, logTraversal.Started())
 }
