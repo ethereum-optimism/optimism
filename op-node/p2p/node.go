@@ -8,14 +8,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/libp2p/go-libp2p/core/peer"
-	manet "github.com/multiformats/go-multiaddr/net"
-
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/gating"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/monitor"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -25,17 +24,20 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	p2pmetrics "github.com/libp2p/go-libp2p/core/metrics"
 	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
 )
 
 // NodeP2P is a p2p node, which can be used to gossip messages.
 type NodeP2P struct {
-	host    host.Host                      // p2p host (optional, may be nil)
-	gater   gating.BlockingConnectionGater // p2p gater, to ban/unban peers with, may be nil even with p2p enabled
-	scorer  Scorer                         // writes score-updates to the peerstore and keeps metrics of score changes
-	connMgr connmgr.ConnManager            // p2p conn manager, to keep a reliable number of peers, may be nil even with p2p enabled
-	store   store.ExtendedPeerstore        // peerstore of host, with extra bindings for scoring and banning
-	log     log.Logger
+	host        host.Host                      // p2p host (optional, may be nil)
+	gater       gating.BlockingConnectionGater // p2p gater, to ban/unban peers with, may be nil even with p2p enabled
+	scorer      Scorer                         // writes score-updates to the peerstore and keeps metrics of score changes
+	connMgr     connmgr.ConnManager            // p2p conn manager, to keep a reliable number of peers, may be nil even with p2p enabled
+	peerMonitor *monitor.PeerMonitor           // peer monitor to disconnect bad peers, may be nil even with p2p enabled
+	store       store.ExtendedPeerstore        // peerstore of host, with extra bindings for scoring and banning
+	log         log.Logger
 	// the below components are all optional, and may be nil. They require the host to not be nil.
 	dv5Local *enode.LocalNode // p2p discovery identity
 	dv5Udp   *discover.UDPv5  // p2p discovery service
@@ -151,6 +153,11 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		if metrics != nil {
 			go metrics.RecordBandwidth(resourcesCtx, bwc)
 		}
+
+		if setup.BanPeers() {
+			n.peerMonitor = monitor.NewPeerMonitor(resourcesCtx, log, clock.SystemClock, n, setup.BanThreshold(), setup.BanDuration())
+			n.peerMonitor.Start()
+		}
 	}
 	return nil
 }
@@ -194,6 +201,22 @@ func (n *NodeP2P) ConnectionManager() connmgr.ConnManager {
 	return n.connMgr
 }
 
+func (n *NodeP2P) Peers() []peer.ID {
+	return n.host.Network().Peers()
+}
+
+func (n *NodeP2P) GetPeerScore(id peer.ID) (float64, error) {
+	scores, err := n.store.GetPeerScores(id)
+	if err != nil {
+		return 0, err
+	}
+	return scores.Gossip.Total, nil
+}
+
+func (n *NodeP2P) IsStatic(id peer.ID) bool {
+	return n.connMgr != nil && n.connMgr.IsProtected(id, staticPeerTag)
+}
+
 func (n *NodeP2P) BanPeer(id peer.ID, expiration time.Time) error {
 	if err := n.store.SetPeerBanExpiration(id, expiration); err != nil {
 		return fmt.Errorf("failed to set peer ban expiry: %w", err)
@@ -226,6 +249,9 @@ func (n *NodeP2P) BanIP(ip net.IP, expiration time.Time) error {
 
 func (n *NodeP2P) Close() error {
 	var result *multierror.Error
+	if n.peerMonitor != nil {
+		n.peerMonitor.Stop()
+	}
 	if n.dv5Udp != nil {
 		n.dv5Udp.Close()
 	}
