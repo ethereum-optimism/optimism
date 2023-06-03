@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/log"
@@ -19,12 +20,12 @@ type extendedStore struct {
 	*ipBanBook
 }
 
-func NewExtendedPeerstore(ctx context.Context, logger log.Logger, clock clock.Clock, ps peerstore.Peerstore, store ds.Batching) (ExtendedPeerstore, error) {
+func NewExtendedPeerstore(ctx context.Context, logger log.Logger, clock clock.Clock, ps peerstore.Peerstore, store ds.Batching, scoreRetention time.Duration) (ExtendedPeerstore, error) {
 	cab, ok := peerstore.GetCertifiedAddrBook(ps)
 	if !ok {
 		return nil, errors.New("peerstore should also be a certified address book")
 	}
-	sb, err := newScoreBook(ctx, logger, clock, store)
+	sb, err := newScoreBook(ctx, logger, clock, store, scoreRetention)
 	if err != nil {
 		return nil, fmt.Errorf("create scorebook: %w", err)
 	}

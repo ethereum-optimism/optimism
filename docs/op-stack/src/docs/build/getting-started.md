@@ -501,14 +501,6 @@ cd ~/optimism/op-proposer
     --l1-eth-rpc $L1_RPC
 ```
 
-<!--
-::: warning Change before moving to production
-
-The `--allow-non-finalized` flag allows for faster tests on a test network. 
-However, in production you would probably want to only submit proposals on properly finalized blocks.
-
-:::
--->
 
 ## Get some ETH on your Rollup
 

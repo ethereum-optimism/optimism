@@ -1,4 +1,4 @@
-package indexer
+package legacy
 
 import (
 	"errors"

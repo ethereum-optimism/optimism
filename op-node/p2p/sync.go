@@ -368,6 +368,7 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 		}
 
 		if _, ok := s.inFlight[num]; ok {
+			log.Debug("request still in-flight, not rescheduling sync request", "num", num)
 			continue // request still in flight
 		}
 		pr := peerRequest{num: num, complete: new(atomic.Bool)}

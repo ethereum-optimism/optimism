@@ -30,7 +30,8 @@ bindings: l1block-bindings \
 	optimism-mintable-erc721-factory-bindings \
 	l1-fee-vault-bindings \
 	basefee-vault-bindings \
-	legacy-erc20-eth-bindings
+	legacy-erc20-eth-bindings \
+	dispute-game-factory-bindings
 
 version:
 	forge --version
@@ -121,6 +122,9 @@ deployer-whitelist-bindings: compile
 
 l1-blocknumber-bindings: compile
 	./gen_bindings.sh contracts/legacy/L1BlockNumber.sol:L1BlockNumber $(pkg)
+
+dispute-game-factory-bindings: compile
+	./gen_bindings.sh contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory $(pkg)
 
 more:
 	go run ./gen/main.go \
