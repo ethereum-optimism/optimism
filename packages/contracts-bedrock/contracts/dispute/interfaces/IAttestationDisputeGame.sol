@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
+import "../../libraries/DisputeTypes.sol";
+
 import { IDisputeGame } from "./IDisputeGame.sol";
 
 /**
@@ -60,4 +62,12 @@ interface IAttestationDisputeGame is IDisputeGame {
      *         within the `attestorSet`.
      */
     function challenge(bytes calldata signature) external;
+
+    /**
+     * @notice Returns an Ethereum Signed Typed Data hash, as defined in EIP-712, for the
+     *         `Dispute` struct. This hash is signed by members of the `attestorSet` to
+     *         issue a positive attestation for the `rootClaim`.
+     * @return _typedDataHash The EIP-712 hash of the `Dispute` struct.
+     */
+    function getTypedDataHash() external view returns (Hash _typedDataHash);
 }

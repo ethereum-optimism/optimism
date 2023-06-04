@@ -53,15 +53,13 @@ contract BondManager_Test is Test {
         vm.assume(owner != address(this));
         // Create2Deployer
         vm.assume(owner != address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
-        vm.assume(amount != 0);
-        unchecked {
-            vm.assume(block.timestamp + minClaimHold > minClaimHold);
-        }
+        amount = uint128(bound(amount, 1, type(uint128).max));
+        minClaimHold = uint128(bound(minClaimHold, 0, type(uint128).max - block.timestamp));
 
         vm.deal(address(this), amount);
 
         vm.expectEmit(true, true, true, true);
-        uint256 expiration = block.timestamp + minClaimHold;
+        uint128 expiration = uint128(block.timestamp + minClaimHold);
         emit BondPosted(bondId, owner, expiration, amount);
 
         bm.post{ value: amount }(bondId, owner, minClaimHold);
@@ -90,10 +88,8 @@ contract BondManager_Test is Test {
     ) public {
         vm.assume(owner != address(0));
         amount = amount / 2;
-        vm.assume(amount != 0);
-        unchecked {
-            vm.assume(block.timestamp + minClaimHold > minClaimHold);
-        }
+        amount = uint128(bound(amount, 1, type(uint128).max));
+        minClaimHold = uint128(bound(minClaimHold, 0, type(uint128).max - block.timestamp));
 
         vm.deal(address(this), amount);
         bm.post{ value: amount }(bondId, owner, minClaimHold);
@@ -158,10 +154,8 @@ contract BondManager_Test is Test {
         vm.assume(owner != address(0));
         vm.assume(owner != address(bm));
         vm.assume(owner != address(this));
-        vm.assume(amount != 0);
-        unchecked {
-            vm.assume(block.timestamp + minClaimHold + 1 > minClaimHold);
-        }
+        amount = uint128(bound(amount, 1, type(uint128).max));
+        minClaimHold = uint128(bound(minClaimHold, 0, type(uint128).max - block.timestamp));
         vm.deal(address(this), amount);
         bm.post{ value: amount }(bondId, owner, minClaimHold);
 
@@ -182,10 +176,9 @@ contract BondManager_Test is Test {
         vm.assume(owner != address(0));
         vm.assume(owner != address(bm));
         vm.assume(owner != address(this));
-        vm.assume(amount != 0);
-        unchecked {
-            vm.assume(block.timestamp + minClaimHold > minClaimHold);
-        }
+        amount = uint128(bound(amount, 1, type(uint128).max));
+        minClaimHold = uint128(bound(minClaimHold, 0, type(uint128).max - block.timestamp));
+
         vm.deal(address(this), amount);
         bm.post{ value: amount }(bondId, owner, minClaimHold);
 
@@ -203,9 +196,7 @@ contract BondManager_Test is Test {
         uint128 minClaimHold,
         bytes calldata extraData
     ) public {
-        unchecked {
-            vm.assume(block.timestamp + minClaimHold > minClaimHold);
-        }
+        minClaimHold = uint128(bound(minClaimHold, 0, type(uint128).max - block.timestamp));
 
         vm.deal(address(this), 1 ether);
         bm.post{ value: 1 ether }(bondId, address(0xba5ed), minClaimHold);
@@ -258,9 +249,7 @@ contract BondManager_Test is Test {
         uint128 minClaimHold,
         bytes calldata extraData
     ) public {
-        unchecked {
-            vm.assume(block.timestamp + minClaimHold > minClaimHold);
-        }
+        minClaimHold = uint128(bound(minClaimHold, 0, type(uint128).max - block.timestamp));
 
         vm.deal(address(this), 1 ether);
         bm.post{ value: 1 ether }(bondId, address(0xba5ed), minClaimHold);
@@ -324,10 +313,8 @@ contract BondManager_Test is Test {
         vm.assume(owner != address(this));
         vm.assume(owner != address(0));
         vm.assume(owner.code.length == 0);
-        vm.assume(amount != 0);
-        unchecked {
-            vm.assume(block.timestamp + minClaimHold > minClaimHold);
-        }
+        amount = uint128(bound(amount, 1, type(uint128).max));
+        minClaimHold = uint128(bound(minClaimHold, 0, type(uint128).max - block.timestamp));
         assumeNoPrecompiles(owner);
 
         // Post the bond

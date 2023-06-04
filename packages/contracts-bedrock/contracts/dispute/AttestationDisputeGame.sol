@@ -95,6 +95,10 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
         L2_OUTPUT_ORACLE = _l2OutputOracle;
     }
 
+    ////////////////////////////////////////////////////////////////
+    //          `IAttestationDisputeGame` implementation          //
+    ////////////////////////////////////////////////////////////////
+
     /**
      * @inheritdoc IAttestationDisputeGame
      */
@@ -142,10 +146,7 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
     }
 
     /**
-     * @notice Returns an Ethereum Signed Typed Data hash, as defined in EIP-712, for the
-     *         `Dispute` struct. This hash is signed by members of the `attestorSet` to
-     *         issue a positive attestation for the `rootClaim`.
-     * @return _typedDataHash The EIP-712 hash of the `Dispute` struct.
+     * @inheritdoc IAttestationDisputeGame
      */
     function getTypedDataHash() public view returns (Hash _typedDataHash) {
         // Copy the `DISPUTE_TYPE_HASH` onto the stack.
@@ -177,6 +178,17 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
 
         _typedDataHash = Hash.wrap(_hashTypedData(Hash.unwrap(disputeStructHash)));
     }
+
+    /**
+     * @inheritdoc IAttestationDisputeGame
+     */
+    function l2BlockNumber() public pure returns (uint256 _l2BlockNumber) {
+        _l2BlockNumber = _getArgUint256(0x20);
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //               `IDisputeGame` implementation                //
+    ////////////////////////////////////////////////////////////////
 
     /**
      * @inheritdoc IInitializable
@@ -232,21 +244,6 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
     }
 
     /**
-     * @notice Overrides the EIP712 domain information
-     * @return _name The name of the domain.
-     * @return _version The version of the domain.
-     */
-    function _domainNameAndVersion()
-        internal
-        pure
-        override
-        returns (string memory _name, string memory _version)
-    {
-        _name = "AttestationDisputeGame";
-        _version = VERSION;
-    }
-
-    /**
      * @inheritdoc IDisputeGame
      */
     function extraData() external pure returns (bytes memory _extraData) {
@@ -260,10 +257,22 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
         _rootClaim = Claim.wrap(_getArgFixedBytes(0x00));
     }
 
+    ////////////////////////////////////////////////////////////////
+    //                     INTERNAL FUNCTIONS                     //
+    ////////////////////////////////////////////////////////////////
+
     /**
-     * @inheritdoc IAttestationDisputeGame
+     * @notice Overrides the EIP712 domain information
+     * @return _name The name of the domain.
+     * @return _version The version of the domain.
      */
-    function l2BlockNumber() public pure returns (uint256 _l2BlockNumber) {
-        _l2BlockNumber = _getArgUint256(0x20);
+    function _domainNameAndVersion()
+        internal
+        pure
+        override
+        returns (string memory _name, string memory _version)
+    {
+        _name = "AttestationDisputeGame";
+        _version = VERSION;
     }
 }

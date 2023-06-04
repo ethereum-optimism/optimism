@@ -40,6 +40,10 @@ contract DisputeGameFactory is Ownable, IDisputeGameFactory {
         transferOwnership(_owner);
     }
 
+    ////////////////////////////////////////////////////////////////
+    //                     EXTERNAL FUNCTIONS                     //
+    ////////////////////////////////////////////////////////////////
+
     /**
      * @inheritdoc IDisputeGameFactory
      */
@@ -88,14 +92,6 @@ contract DisputeGameFactory is Ownable, IDisputeGameFactory {
     /**
      * @inheritdoc IDisputeGameFactory
      */
-    function setImplementation(GameType gameType, IDisputeGame impl) external onlyOwner {
-        gameImpls[gameType] = impl;
-        emit ImplementationSet(address(impl), gameType);
-    }
-
-    /**
-     * @inheritdoc IDisputeGameFactory
-     */
     function getGameUUID(
         GameType gameType,
         Claim rootClaim,
@@ -130,5 +126,17 @@ contract DisputeGameFactory is Ownable, IDisputeGameFactory {
             mstore(rootClaimOffset, tempB)
             mstore(pointerOffset, tempC)
         }
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //                      OWNER FUNCTIONS                       //
+    ////////////////////////////////////////////////////////////////
+
+    /**
+     * @inheritdoc IDisputeGameFactory
+     */
+    function setImplementation(GameType gameType, IDisputeGame impl) external onlyOwner {
+        gameImpls[gameType] = impl;
+        emit ImplementationSet(address(impl), gameType);
     }
 }

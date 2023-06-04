@@ -50,13 +50,17 @@ contract BondManager is IBondManager {
         DISPUTE_GAME_FACTORY = _disputeGameFactory;
     }
 
+    ////////////////////////////////////////////////////////////////
+    //                     EXTERNAL FUNCTIONS                     //
+    ////////////////////////////////////////////////////////////////
+
     /**
      * @inheritdoc IBondManager
      */
     function post(
         bytes32 _bondId,
         address _bondOwner,
-        uint256 _minClaimHold
+        uint128 _minClaimHold
     ) external payable {
         require(bonds[_bondId].owner == address(0), "BondManager: BondId already posted.");
         require(_bondOwner != address(0), "BondManager: Owner cannot be the zero address.");

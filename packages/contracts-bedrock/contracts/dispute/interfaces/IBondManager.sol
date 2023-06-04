@@ -43,7 +43,7 @@ interface IBondManager {
     function post(
         bytes32 _bondId,
         address _bondOwner,
-        uint256 _minClaimHold
+        uint128 _minClaimHold
     ) external payable;
 
     /**
