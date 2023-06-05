@@ -1,0 +1,33 @@
+{
+  "version": "1.0",
+  "chainId": "1",
+  "meta": {
+    "name": "batch3",
+    "description": "SystemDictatorProxy.phase2 and OptimismPortalProxy.unpause.",
+    "txBuilderVersion": "1.13.3"
+  },
+  "transactions": [
+    {
+      "to": "0xB4453CEb33d2e67FA244A24acf2E50CEF31F53cB",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [],
+        "name": "phase2",
+        "payable": false
+      },
+      "contractInputsValues": {}
+    },
+    {
+      "to": "0xbEb5Fc579115071764c7423A4f12eDde41f106Ed",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [],
+        "name": "unpause",
+        "payable": false
+      },
+      "contractInputsValues": {}
+    }
+  ]
+}
