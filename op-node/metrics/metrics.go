@@ -142,7 +142,7 @@ type Metrics struct {
 	IPUnbans            prometheus.Counter
 	Dials               *prometheus.CounterVec
 	Accepts             *prometheus.CounterVec
-	PeerScoresHistogram *ReplaceableHistogramVec
+	PeerScoresHistogram *prometheus.HistogramVec
 
 	ChannelInputBytes prometheus.Counter
 
@@ -324,7 +324,7 @@ func NewMetrics(procName string) *Metrics {
 		}, []string{
 			"band",
 		}),
-		PeerScoresHistogram: NewReplaceableHistogramVec(registry, prometheus.HistogramOpts{
+		PeerScoresHistogram: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: ns,
 			Name:      "peer_scores_histogram",
 			Help:      "Histogram of currrently connected peer scores",
@@ -462,17 +462,15 @@ func NewMetrics(procName string) *Metrics {
 // SetPeerScores updates the peer score [prometheus.GaugeVec].
 // This takes a map of labels to scores.
 func (m *Metrics) SetPeerScores(scores map[string]float64, allScores []store.PeerScores) {
-	m.PeerScoresHistogram.Replace(func(h *prometheus.HistogramVec) {
-		for _, scores := range allScores {
-			h.WithLabelValues("total").Observe(scores.Gossip.Total)
-			h.WithLabelValues("ipColocation").Observe(scores.Gossip.IPColocationFactor)
-			h.WithLabelValues("behavioralPenalty").Observe(scores.Gossip.BehavioralPenalty)
-			h.WithLabelValues("blocksFirstMessage").Observe(scores.Gossip.Blocks.FirstMessageDeliveries)
-			h.WithLabelValues("blocksTimeInMesh").Observe(scores.Gossip.Blocks.TimeInMesh)
-			h.WithLabelValues("blocksMessageDeliveries").Observe(scores.Gossip.Blocks.MeshMessageDeliveries)
-			h.WithLabelValues("blocksInvalidMessageDeliveries").Observe(scores.Gossip.Blocks.InvalidMessageDeliveries)
-		}
-	})
+	for _, scores := range allScores {
+		m.PeerScoresHistogram.WithLabelValues("total").Observe(scores.Gossip.Total)
+		m.PeerScoresHistogram.WithLabelValues("ipColocation").Observe(scores.Gossip.IPColocationFactor)
+		m.PeerScoresHistogram.WithLabelValues("behavioralPenalty").Observe(scores.Gossip.BehavioralPenalty)
+		m.PeerScoresHistogram.WithLabelValues("blocksFirstMessage").Observe(scores.Gossip.Blocks.FirstMessageDeliveries)
+		m.PeerScoresHistogram.WithLabelValues("blocksTimeInMesh").Observe(scores.Gossip.Blocks.TimeInMesh)
+		m.PeerScoresHistogram.WithLabelValues("blocksMessageDeliveries").Observe(scores.Gossip.Blocks.MeshMessageDeliveries)
+		m.PeerScoresHistogram.WithLabelValues("blocksInvalidMessageDeliveries").Observe(scores.Gossip.Blocks.InvalidMessageDeliveries)
+	}
 	for label, score := range scores {
 		m.PeerScores.WithLabelValues(label).Set(score)
 	}
