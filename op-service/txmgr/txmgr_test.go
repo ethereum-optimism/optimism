@@ -277,7 +277,7 @@ func TestTxMgrConfirmAtMinGasPrice(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	receipt, err := h.mgr.send(ctx, tx)
+	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
@@ -305,7 +305,7 @@ func TestTxMgrNeverConfirmCancel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	receipt, err := h.mgr.send(ctx, tx)
+	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Equal(t, err, context.DeadlineExceeded)
 	require.Nil(t, receipt)
 }
@@ -334,7 +334,7 @@ func TestTxMgrConfirmsAtHigherGasPrice(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	receipt, err := h.mgr.send(ctx, tx)
+	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, h.gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
@@ -365,7 +365,7 @@ func TestTxMgrBlocksOnFailingRpcCalls(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	receipt, err := h.mgr.send(ctx, tx)
+	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Equal(t, err, context.DeadlineExceeded)
 	require.Nil(t, receipt)
 }
@@ -443,7 +443,7 @@ func TestTxMgrOnlyOnePublicationSucceeds(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	receipt, err := h.mgr.send(ctx, tx)
+	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Nil(t, err)
 
 	require.NotNil(t, receipt)
@@ -478,7 +478,7 @@ func TestTxMgrConfirmsMinGasPriceAfterBumping(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	receipt, err := h.mgr.send(ctx, tx)
+	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, h.gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
@@ -523,7 +523,7 @@ func TestTxMgrDoesntAbortNonceTooLowAfterMiningTx(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	receipt, err := h.mgr.send(ctx, tx)
+	receipt, err := h.mgr.sendTx(ctx, tx)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, h.gasPricer.expGasFeeCap().Uint64(), receipt.GasUsed)
@@ -869,4 +869,41 @@ func TestErrStringMatch(t *testing.T) {
 			require.Equal(t, test.match, errStringMatch(test.err, test.target))
 		})
 	}
+}
+
+func TestNonceReset(t *testing.T) {
+	conf := configWithNumConfs(1)
+	conf.SafeAbortNonceTooLowCount = 1
+	h := newTestHarnessWithConfig(t, conf)
+
+	index := -1
+	var nonces []uint64
+	sendTx := func(ctx context.Context, tx *types.Transaction) error {
+		index++
+		nonces = append(nonces, tx.Nonce())
+		// fail every 3rd tx
+		if index%3 == 0 {
+			return core.ErrNonceTooLow
+		}
+		txHash := tx.Hash()
+		h.backend.mine(&txHash, tx.GasFeeCap())
+		return nil
+	}
+	h.backend.setTxSender(sendTx)
+
+	ctx := context.Background()
+	for i := 0; i < 8; i++ {
+		_, err := h.mgr.Send(ctx, TxCandidate{
+			To: &common.Address{},
+		})
+		// expect every 3rd tx to fail
+		if i%3 == 0 {
+			require.Error(t, err)
+		} else {
+			require.NoError(t, err)
+		}
+	}
+
+	// internal nonce tracking should be reset every 3rd tx
+	require.Equal(t, []uint64{0, 0, 1, 2, 0, 1, 2, 0}, nonces)
 }

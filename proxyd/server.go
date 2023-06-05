@@ -2,6 +2,8 @@ package proxyd
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/ethereum/go-ethereum/core"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -39,7 +43,7 @@ const (
 var emptyArrayResponse = json.RawMessage("[]")
 
 type Server struct {
-	backendGroups          map[string]*BackendGroup
+	BackendGroups          map[string]*BackendGroup
 	wsBackendGroup         *BackendGroup
 	wsMethodWhitelist      *StringSet
 	rpcMethodMappings      map[string]string
@@ -152,7 +156,7 @@ func NewServer(
 	}
 
 	return &Server{
-		backendGroups:        backendGroups,
+		BackendGroups:        backendGroups,
 		wsBackendGroup:       wsBackendGroup,
 		wsMethodWhitelist:    wsMethodWhitelist,
 		rpcMethodMappings:    rpcMethodMappings,
@@ -221,6 +225,9 @@ func (s *Server) Shutdown() {
 	}
 	if s.wsServer != nil {
 		_ = s.wsServer.Shutdown(context.Background())
+	}
+	for _, bg := range s.BackendGroups {
+		bg.Shutdown()
 	}
 }
 
@@ -476,7 +483,7 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 			start := i * s.maxUpstreamBatchSize
 			end := int(math.Min(float64(start+s.maxUpstreamBatchSize), float64(len(cacheMisses))))
 			elems := cacheMisses[start:end]
-			res, err := s.backendGroups[group.backendGroup].Forward(ctx, createBatchRequest(elems), isBatch)
+			res, err := s.BackendGroups[group.backendGroup].Forward(ctx, createBatchRequest(elems), isBatch)
 			if err != nil {
 				log.Error(
 					"error forwarding RPC batch",
@@ -559,7 +566,7 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 	}
 	ctx := context.WithValue(r.Context(), ContextKeyXForwardedFor, xff) // nolint:staticcheck
 
-	if s.authenticatedPaths == nil {
+	if len(s.authenticatedPaths) == 0 {
 		// handle the edge case where auth is disabled
 		// but someone sends in an auth key anyway
 		if authorization != "" {
@@ -576,7 +583,7 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 			return nil
 		}
 
-		ctx = context.WithValue(r.Context(), ContextKeyAuth, s.authenticatedPaths[authorization]) // nolint:staticcheck
+		ctx = context.WithValue(ctx, ContextKeyAuth, s.authenticatedPaths[authorization]) // nolint:staticcheck
 	}
 
 	return context.WithValue(
@@ -584,6 +591,14 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 		ContextKeyReqID, // nolint:staticcheck
 		randStr(10),
 	)
+}
+
+func randStr(l int) string {
+	b := make([]byte, l)
+	if _, err := rand.Read(b); err != nil {
+		panic(err)
+	}
+	return hex.EncodeToString(b)
 }
 
 func (s *Server) isUnlimitedOrigin(origin string) bool {
@@ -638,19 +653,18 @@ func (s *Server) rateLimitSender(ctx context.Context, req *RPCReq) error {
 
 	// Convert the transaction into a Message object so that we can get the
 	// sender. This method performs an ecrecover, which can be expensive.
-	msg, err := tx.AsMessage(types.LatestSignerForChainID(tx.ChainId()), nil)
+	msg, err := core.TransactionToMessage(tx, types.LatestSignerForChainID(tx.ChainId()), nil)
 	if err != nil {
 		log.Debug("could not get message from transaction", "err", err, "req_id", GetReqID(ctx))
 		return ErrInvalidParams(err.Error())
 	}
-
-	ok, err := s.senderLim.Take(ctx, fmt.Sprintf("%s:%d", msg.From().Hex(), tx.Nonce()))
+	ok, err := s.senderLim.Take(ctx, fmt.Sprintf("%s:%d", msg.From.Hex(), tx.Nonce()))
 	if err != nil {
 		log.Error("error taking from sender limiter", "err", err, "req_id", GetReqID(ctx))
 		return ErrInternal
 	}
 	if !ok {
-		log.Debug("sender rate limit exceeded", "sender", msg.From(), "req_id", GetReqID(ctx))
+		log.Debug("sender rate limit exceeded", "sender", msg.From.Hex(), "req_id", GetReqID(ctx))
 		return ErrOverSenderRateLimit
 	}
 

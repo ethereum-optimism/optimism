@@ -4,6 +4,9 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -179,20 +182,12 @@ var (
 		"method",
 	})
 
-	lvcErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	cacheErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: MetricsNamespace,
-		Name:      "lvc_errors_total",
-		Help:      "Count of lvc errors.",
+		Name:      "cache_errors_total",
+		Help:      "Number of cache errors.",
 	}, []string{
-		"key",
-	})
-
-	lvcPollTimeGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: MetricsNamespace,
-		Name:      "lvc_poll_time_gauge",
-		Help:      "Gauge of lvc poll time.",
-	}, []string{
-		"key",
+		"method",
 	})
 
 	batchRPCShortCircuitsTotal = promauto.NewCounter(prometheus.CounterOpts{
@@ -241,6 +236,142 @@ var (
 		Namespace: MetricsNamespace,
 		Name:      "rate_limit_take_errors",
 		Help:      "Count of errors taking frontend rate limits",
+	})
+
+	consensusLatestBlock = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_latest_block",
+		Help:      "Consensus latest block",
+	}, []string{
+		"backend_group_name",
+	})
+
+	consensusSafeBlock = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_safe_block",
+		Help:      "Consensus safe block",
+	}, []string{
+		"backend_group_name",
+	})
+
+	consensusFinalizedBlock = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_finalized_block",
+		Help:      "Consensus finalized block",
+	}, []string{
+		"backend_group_name",
+	})
+
+	backendLatestBlockBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_latest_block",
+		Help:      "Current latest block observed per backend",
+	}, []string{
+		"backend_name",
+	})
+
+	backendSafeBlockBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_safe_block",
+		Help:      "Current safe block observed per backend",
+	}, []string{
+		"backend_name",
+	})
+
+	backendFinalizedBlockBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_finalized_block",
+		Help:      "Current finalized block observed per backend",
+	}, []string{
+		"backend_name",
+	})
+
+	backendUnexpectedBlockTagsBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_unexpected_block_tags",
+		Help:      "Bool gauge for unexpected block tags",
+	}, []string{
+		"backend_name",
+	})
+
+	consensusGroupCount = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_count",
+		Help:      "Consensus group serving traffic count",
+	}, []string{
+		"backend_group_name",
+	})
+
+	consensusGroupFilteredCount = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_filtered_count",
+		Help:      "Consensus group filtered out from serving traffic count",
+	}, []string{
+		"backend_group_name",
+	})
+
+	consensusGroupTotalCount = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_total_count",
+		Help:      "Total count of candidates to be part of consensus group",
+	}, []string{
+		"backend_group_name",
+	})
+
+	consensusBannedBackends = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "consensus_backend_banned",
+		Help:      "Bool gauge for banned backends",
+	}, []string{
+		"backend_name",
+	})
+
+	consensusPeerCountBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "consensus_backend_peer_count",
+		Help:      "Peer count",
+	}, []string{
+		"backend_name",
+	})
+
+	consensusInSyncBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "consensus_backend_in_sync",
+		Help:      "Bool gauge for backends in sync",
+	}, []string{
+		"backend_name",
+	})
+
+	consensusUpdateDelayBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "consensus_backend_update_delay",
+		Help:      "Delay (ms) for backend update",
+	}, []string{
+		"backend_name",
+	})
+
+	avgLatencyBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_avg_latency",
+		Help:      "Average latency per backend",
+	}, []string{
+		"backend_name",
+	})
+
+	degradedBackends = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_degraded",
+		Help:      "Bool gauge for degraded backends",
+	}, []string{
+		"backend_name",
+	})
+
+	networkErrorRateBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_error_rate",
+		Help:      "Request error rate per backend",
+	}, []string{
+		"backend_name",
 	})
 )
 
@@ -299,6 +430,87 @@ func RecordCacheMiss(method string) {
 	cacheMissesTotal.WithLabelValues(method).Inc()
 }
 
+func RecordCacheError(method string) {
+	cacheErrorsTotal.WithLabelValues(method).Inc()
+}
+
 func RecordBatchSize(size int) {
 	batchSizeHistogram.Observe(float64(size))
+}
+
+func RecordGroupConsensusLatestBlock(group *BackendGroup, blockNumber hexutil.Uint64) {
+	consensusLatestBlock.WithLabelValues(group.Name).Set(float64(blockNumber))
+}
+
+func RecordGroupConsensusSafeBlock(group *BackendGroup, blockNumber hexutil.Uint64) {
+	consensusSafeBlock.WithLabelValues(group.Name).Set(float64(blockNumber))
+}
+
+func RecordGroupConsensusFinalizedBlock(group *BackendGroup, blockNumber hexutil.Uint64) {
+	consensusFinalizedBlock.WithLabelValues(group.Name).Set(float64(blockNumber))
+}
+
+func RecordGroupConsensusCount(group *BackendGroup, count int) {
+	consensusGroupCount.WithLabelValues(group.Name).Set(float64(count))
+}
+
+func RecordGroupConsensusFilteredCount(group *BackendGroup, count int) {
+	consensusGroupFilteredCount.WithLabelValues(group.Name).Set(float64(count))
+}
+
+func RecordGroupTotalCount(group *BackendGroup, count int) {
+	consensusGroupTotalCount.WithLabelValues(group.Name).Set(float64(count))
+}
+
+func RecordBackendLatestBlock(b *Backend, blockNumber hexutil.Uint64) {
+	backendLatestBlockBackend.WithLabelValues(b.Name).Set(float64(blockNumber))
+}
+
+func RecordBackendSafeBlock(b *Backend, blockNumber hexutil.Uint64) {
+	backendSafeBlockBackend.WithLabelValues(b.Name).Set(float64(blockNumber))
+}
+
+func RecordBackendFinalizedBlock(b *Backend, blockNumber hexutil.Uint64) {
+	backendFinalizedBlockBackend.WithLabelValues(b.Name).Set(float64(blockNumber))
+}
+
+func RecordBackendUnexpectedBlockTags(b *Backend, unexpected bool) {
+	backendUnexpectedBlockTagsBackend.WithLabelValues(b.Name).Set(boolToFloat64(unexpected))
+}
+
+func RecordConsensusBackendBanned(b *Backend, banned bool) {
+	consensusBannedBackends.WithLabelValues(b.Name).Set(boolToFloat64(banned))
+}
+
+func RecordConsensusBackendPeerCount(b *Backend, peerCount uint64) {
+	consensusPeerCountBackend.WithLabelValues(b.Name).Set(float64(peerCount))
+}
+
+func RecordConsensusBackendInSync(b *Backend, inSync bool) {
+	consensusInSyncBackend.WithLabelValues(b.Name).Set(boolToFloat64(inSync))
+}
+
+func RecordConsensusBackendUpdateDelay(b *Backend, lastUpdate time.Time) {
+	// avoid recording the delay for the first update
+	if lastUpdate.IsZero() {
+		return
+	}
+	delay := time.Since(lastUpdate)
+	consensusUpdateDelayBackend.WithLabelValues(b.Name).Set(float64(delay.Milliseconds()))
+}
+
+func RecordBackendNetworkLatencyAverageSlidingWindow(b *Backend, avgLatency time.Duration) {
+	avgLatencyBackend.WithLabelValues(b.Name).Set(float64(avgLatency.Milliseconds()))
+	degradedBackends.WithLabelValues(b.Name).Set(boolToFloat64(b.IsDegraded()))
+}
+
+func RecordBackendNetworkErrorRateSlidingWindow(b *Backend, rate float64) {
+	networkErrorRateBackend.WithLabelValues(b.Name).Set(rate)
+}
+
+func boolToFloat64(b bool) float64 {
+	if b {
+		return 1
+	}
+	return 0
 }

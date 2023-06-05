@@ -10,8 +10,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
@@ -104,7 +107,7 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 		_ = ch.Close()
 		return fmt.Errorf("failed to commit state change: %w", err)
 	}
-	header := preHeader // copy the header
+	header := types.CopyHeader(preHeader) // copy the header
 	header.Root = stateRoot
 	blockHash := header.Hash()
 
@@ -373,6 +376,13 @@ func OvmOwners(conf *OvmOwnersConfig) HeadFn {
 func SetBalance(addr common.Address, amount *big.Int) HeadFn {
 	return func(headState *state.StateDB) error {
 		headState.SetBalance(addr, amount)
+		return nil
+	}
+}
+
+func SetCode(addr common.Address, code hexutil.Bytes) HeadFn {
+	return func(headState *state.StateDB) error {
+		headState.SetCode(addr, code)
 		return nil
 	}
 }

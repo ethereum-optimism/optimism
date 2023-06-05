@@ -3,6 +3,7 @@ package p2p
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -43,7 +44,7 @@ func (p *Prepared) Check() error {
 }
 
 // Host creates a libp2p host service. Returns nil, nil if p2p is disabled.
-func (p *Prepared) Host(log log.Logger, reporter metrics.Reporter) (host.Host, error) {
+func (p *Prepared) Host(log log.Logger, reporter metrics.Reporter, metrics HostMetrics) (host.Host, error) {
 	return p.HostP2P, nil
 }
 
@@ -62,8 +63,10 @@ func (p *Prepared) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort u
 	return p.LocalNode, p.UDPv5, nil
 }
 
-func (p *Prepared) ConfigureGossip(params *pubsub.GossipSubParams) []pubsub.Option {
-	return nil
+func (p *Prepared) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
+	return []pubsub.Option{
+		pubsub.WithGossipSubParams(BuildGlobalGossipParams(rollupCfg)),
+	}
 }
 
 func (p *Prepared) PeerScoringParams() *pubsub.PeerScoreParams {
@@ -76,6 +79,14 @@ func (p *Prepared) PeerBandScorer() *BandScoreThresholds {
 
 func (p *Prepared) BanPeers() bool {
 	return false
+}
+
+func (p *Prepared) BanThreshold() float64 {
+	return -100
+}
+
+func (p *Prepared) BanDuration() time.Duration {
+	return 1 * time.Hour
 }
 
 func (p *Prepared) TopicScoringParams() *pubsub.TopicScoreParams {

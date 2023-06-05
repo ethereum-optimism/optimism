@@ -12,10 +12,11 @@ import {
   getContractsFromArtifacts,
   printJsonTransaction,
   isStep,
-  doStep,
   printTenderlySimulationLink,
   printCastCommand,
   liveDeployer,
+  doPhase,
+  isStartOfPhase,
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -32,6 +33,7 @@ const deployFn: DeployFunction = async (hre) => {
     L2OutputOracle,
     OptimismPortal,
     OptimismMintableERC20Factory,
+    L1ERC721BridgeProxy,
     L1ERC721Bridge,
   ] = await getContractsFromArtifacts(hre, [
     {
@@ -77,6 +79,9 @@ const deployFn: DeployFunction = async (hre) => {
     },
     {
       name: 'L1ERC721BridgeProxy',
+    },
+    {
+      name: 'L1ERC721BridgeProxy',
       iface: 'L1ERC721Bridge',
       signerOrProvider: deployer,
     },
@@ -90,65 +95,9 @@ const deployFn: DeployFunction = async (hre) => {
     disabled: process.env.DISABLE_LIVE_DEPLOYER,
   })
 
-  // Step 3 clears out some state from the AddressManager.
-  await doStep({
-    isLiveDeployer,
-    SystemDictator,
-    step: 3,
-    message: `
-      Step 3 will clear out some legacy state from the AddressManager. Once you execute this step,
-      you WILL NOT BE ABLE TO RESTART THE SYSTEM using exit1(). You should confirm that the L2
-      system is entirely operational before executing this step.
-    `,
-    checks: async () => {
-      const deads = [
-        'OVM_CanonicalTransactionChain',
-        'OVM_L2CrossDomainMessenger',
-        'OVM_DecompressionPrecompileAddress',
-        'OVM_Sequencer',
-        'OVM_Proposer',
-        'OVM_ChainStorageContainer-CTC-batches',
-        'OVM_ChainStorageContainer-CTC-queue',
-        'OVM_CanonicalTransactionChain',
-        'OVM_StateCommitmentChain',
-        'OVM_BondManager',
-        'OVM_ExecutionManager',
-        'OVM_FraudVerifier',
-        'OVM_StateManagerFactory',
-        'OVM_StateTransitionerFactory',
-        'OVM_SafetyChecker',
-        'OVM_L1MultiMessageRelayer',
-        'BondManager',
-      ]
-      for (const dead of deads) {
-        const addr = await AddressManager.getAddress(dead)
-        assert(addr === ethers.constants.AddressZero)
-      }
-    },
-  })
-
-  // Step 4 transfers ownership of the AddressManager and L1StandardBridge to the ProxyAdmin.
-  await doStep({
-    isLiveDeployer,
-    SystemDictator,
-    step: 4,
-    message: `
-      Step 4 will transfer ownership of the AddressManager and L1StandardBridge to the ProxyAdmin.
-    `,
-    checks: async () => {
-      await assertContractVariable(AddressManager, 'owner', ProxyAdmin.address)
-
-      assert(
-        (await L1StandardBridgeProxy.callStatic.getOwner({
-          from: ethers.constants.AddressZero,
-        })) === ProxyAdmin.address
-      )
-    },
-  })
-
   // Make sure the dynamic system configuration has been set.
   if (
-    (await isStep(SystemDictator, 5)) &&
+    (await isStartOfPhase(SystemDictator, 2)) &&
     !(await SystemDictator.dynamicConfigSet())
   ) {
     console.log(`
@@ -225,17 +174,68 @@ const deployFn: DeployFunction = async (hre) => {
     )
   }
 
-  // Step 5 initializes all contracts.
-  await doStep({
+  await doPhase({
     isLiveDeployer,
     SystemDictator,
-    step: 5,
+    phase: 2,
     message: `
+      Phase 2 includes the following steps:
+
+      Step 3 will clear out some legacy state from the AddressManager. Once you execute this step,
+      you WILL NOT BE ABLE TO RESTART THE SYSTEM using exit1(). You should confirm that the L2
+      system is entirely operational before executing this step.
+
+      Step 4 will transfer ownership of the AddressManager and L1StandardBridge to the ProxyAdmin.
+
       Step 5 will initialize all Bedrock contracts. After this step is executed, the OptimismPortal
       will be open for deposits but withdrawals will be paused if deploying a production network.
       The Proposer will also be able to submit L2 outputs to the L2OutputOracle.
+
+      Lastly the finalize step will be executed. This will transfer ownership of the ProxyAdmin to
+      the final system owner as specified in the deployment configuration.
     `,
     checks: async () => {
+      // Step 3 checks
+      const deads = [
+        'OVM_CanonicalTransactionChain',
+        'OVM_L2CrossDomainMessenger',
+        'OVM_DecompressionPrecompileAddress',
+        'OVM_Sequencer',
+        'OVM_Proposer',
+        'OVM_ChainStorageContainer-CTC-batches',
+        'OVM_ChainStorageContainer-CTC-queue',
+        'OVM_CanonicalTransactionChain',
+        'OVM_StateCommitmentChain',
+        'OVM_BondManager',
+        'OVM_ExecutionManager',
+        'OVM_FraudVerifier',
+        'OVM_StateManagerFactory',
+        'OVM_StateTransitionerFactory',
+        'OVM_SafetyChecker',
+        'OVM_L1MultiMessageRelayer',
+        'BondManager',
+      ]
+      for (const dead of deads) {
+        const addr = await AddressManager.getAddress(dead)
+        assert(addr === ethers.constants.AddressZero)
+      }
+
+      // Step 4 checks
+      await assertContractVariable(AddressManager, 'owner', ProxyAdmin.address)
+
+      assert(
+        (await L1StandardBridgeProxy.callStatic.getOwner({
+          from: ethers.constants.AddressZero,
+        })) === ProxyAdmin.address
+      )
+
+      assert(
+        (await L1ERC721BridgeProxy.callStatic.admin({
+          from: ProxyAdmin.address,
+        })) === ProxyAdmin.address
+      )
+
+      // Step 5 checks
       // Check L2OutputOracle was initialized properly.
       await assertContractVariable(
         L2OutputOracle,
@@ -303,6 +303,13 @@ const deployFn: DeployFunction = async (hre) => {
         'messenger',
         L1CrossDomainMessenger.address
       )
+
+      // finalize checks
+      await assertContractVariable(
+        ProxyAdmin,
+        'owner',
+        hre.deployConfig.finalSystemOwner
+      )
     },
   })
 
@@ -338,36 +345,12 @@ const deployFn: DeployFunction = async (hre) => {
 
     await assertContractVariable(OptimismPortal, 'paused', false)
 
-    console.log(`
-      You must now finalize the upgrade by calling finalize() on the SystemDictator. This will
-      transfer ownership of the ProxyAdmin to the final system owner as specified in the deployment
-      configuration.
-    `)
-
-    if (isLiveDeployer) {
-      console.log(`Finalizing deployment...`)
-      await SystemDictator.finalize()
-    } else {
-      const tx = await SystemDictator.populateTransaction.finalize()
-      console.log(`Please finalize deployment...`)
-      console.log(`MSD address: ${SystemDictator.address}`)
-      printJsonTransaction(tx)
-      printCastCommand(tx)
-      await printTenderlySimulationLink(SystemDictator.provider, tx)
-    }
-
     await awaitCondition(
       async () => {
         return SystemDictator.finalized()
       },
       5000,
       1000
-    )
-
-    await assertContractVariable(
-      ProxyAdmin,
-      'owner',
-      hre.deployConfig.finalSystemOwner
     )
   }
 }

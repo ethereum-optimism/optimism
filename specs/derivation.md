@@ -107,7 +107,7 @@ To derive the L2 blocks in an epoch `E`, we need the following inputs:
   is the sequencing window size (note that this means that epochs are overlapping). In particular, we need:
   - The [batcher transactions][g-batcher-transaction] included in the sequencing window. These allow us to
       reconstruct [sequencer batches][g-sequencer-batch] containing the transactions to include in L2 blocks (each batch
-      maps to a single L2 block).
+      contains a list of L2 blocks).
     - Note that it is impossible to have a batcher transaction containing a batch relative to epoch `E` on L1 block
         `E`, as the batch must contain the hash of L1 block `E`.
   - The [deposits][g-deposits] made in L1 block `E` (in the form of events emitted by the [deposit

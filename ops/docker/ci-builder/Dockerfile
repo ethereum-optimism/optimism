@@ -49,6 +49,7 @@ RUN apt-get update && \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt && \
   bash nodesource_setup.sh && \
   apt-get install -y nodejs && \
+  npm i -g npm@8.11.0 \
   npm i -g yarn && \
   npm i -g depcheck && \
   pip install slither-analyzer==0.9.1 && \
@@ -96,3 +97,11 @@ RUN echo "downloading and verifying Codecov uploader" && \
   cp codecov /usr/local/bin/codecov && \
   chmod +x /usr/local/bin/codecov  && \
   rm codecov
+
+RUN echo "downloading mockery tool" && \
+  mkdir -p mockery-tmp-dir && \
+  curl -o mockery-tmp-dir/mockery.tar.gz -sL https://github.com/vektra/mockery/releases/download/v2.28.1/mockery_2.28.1_Linux_x86_64.tar.gz && \
+  tar -xzvf mockery-tmp-dir/mockery.tar.gz -C mockery-tmp-dir && \
+  cp mockery-tmp-dir/mockery /usr/local/bin/mockery && \
+  chmod +x /usr/local/bin/mockery && \
+  rm -rf mockery-tmp-dir

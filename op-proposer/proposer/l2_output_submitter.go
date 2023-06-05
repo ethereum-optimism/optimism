@@ -6,10 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	_ "net/http/pprof"
-	"os"
-	"os/signal"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -22,8 +19,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-proposer/flags"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -34,12 +35,16 @@ var supportedL2OutputVersion = eth.Bytes32{}
 // Main is the entrypoint into the L2 Output Submitter. This method executes the
 // service and blocks until the service exits.
 func Main(version string, cliCtx *cli.Context) error {
+	if err := flags.CheckRequired(cliCtx); err != nil {
+		return err
+	}
 	cfg := NewConfig(cliCtx)
 	if err := cfg.Check(); err != nil {
 		return fmt.Errorf("invalid CLI flags: %w", err)
 	}
 
 	l := oplog.NewLogger(cfg.LogConfig)
+	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
 	m := metrics.NewMetrics("default")
 	l.Info("Initializing L2 Output Submitter")
 
@@ -96,14 +101,7 @@ func Main(version string, cliCtx *cli.Context) error {
 	m.RecordInfo(version)
 	m.RecordUp()
 
-	interruptChannel := make(chan os.Signal, 1)
-	signal.Notify(interruptChannel, []os.Signal{
-		os.Interrupt,
-		os.Kill,
-		syscall.SIGTERM,
-		syscall.SIGQUIT,
-	}...)
-	<-interruptChannel
+	opio.BlockOnInterrupts()
 	cancel()
 
 	return nil
@@ -148,7 +146,7 @@ func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Me
 
 // NewL2OutputSubmitterConfigFromCLIConfig creates the proposer config from the CLI config.
 func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*Config, error) {
-	l2ooAddress, err := parseAddress(cfg.L2OOAddress)
+	l2ooAddress, err := opservice.ParseAddress(cfg.L2OOAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -160,12 +158,12 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metr
 
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
 	ctx := context.Background()
-	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
+	l1Client, err := opclient.DialEthClientWithTimeout(ctx, cfg.L1EthRpc, opclient.DefaultDialTimeout)
 	if err != nil {
 		return nil, err
 	}
 
-	rollupClient, err := dialRollupClientWithTimeout(ctx, cfg.RollupRpc)
+	rollupClient, err := opclient.DialRollupClientWithTimeout(ctx, cfg.RollupRpc, opclient.DefaultDialTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -189,7 +187,7 @@ func NewL2OutputSubmitter(cfg Config, l log.Logger, m metrics.Metricer) (*L2Outp
 	l2ooContract, err := bindings.NewL2OutputOracleCaller(cfg.L2OutputOracleAddr, cfg.L1Client)
 	if err != nil {
 		cancel()
-		return nil, err
+		return nil, fmt.Errorf("failed to create L2OO at address %s: %w", cfg.L2OutputOracleAddr, err)
 	}
 
 	cCtx, cCancel := context.WithTimeout(ctx, cfg.NetworkTimeout)

@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
@@ -1003,6 +1004,105 @@ func TestBlockBuildingRace(t *testing.T) {
 
 	require.NoError(t, eq.Step(context.Background()))
 	require.Nil(t, eq.safeAttributes, "attributes should now be invalidated")
+
+	l1F.AssertExpectations(t)
+	eng.AssertExpectations(t)
+}
+
+func TestResetLoop(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	eng := &testutils.MockEngine{}
+	l1F := &testutils.MockL1Source{}
+
+	rng := rand.New(rand.NewSource(1234))
+
+	refA := testutils.RandomBlockRef(rng)
+	refA0 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         0,
+		ParentHash:     common.Hash{},
+		Time:           refA.Time,
+		L1Origin:       refA.ID(),
+		SequenceNumber: 0,
+	}
+	gasLimit := eth.Uint64Quantity(20_000_000)
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L1:     refA.ID(),
+			L2:     refA0.ID(),
+			L2Time: refA0.Time,
+			SystemConfig: eth.SystemConfig{
+				BatcherAddr: common.Address{42},
+				Overhead:    [32]byte{123},
+				Scalar:      [32]byte{42},
+				GasLimit:    20_000_000,
+			},
+		},
+		BlockTime:     1,
+		SeqWindowSize: 2,
+	}
+	refA1 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         refA0.Number + 1,
+		ParentHash:     refA0.Hash,
+		Time:           refA0.Time + cfg.BlockTime,
+		L1Origin:       refA.ID(),
+		SequenceNumber: 1,
+	}
+	refA2 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         refA1.Number + 1,
+		ParentHash:     refA1.Hash,
+		Time:           refA1.Time + cfg.BlockTime,
+		L1Origin:       refA.ID(),
+		SequenceNumber: 2,
+	}
+
+	attrs := &eth.PayloadAttributes{
+		Timestamp:             eth.Uint64Quantity(refA2.Time),
+		PrevRandao:            eth.Bytes32{},
+		SuggestedFeeRecipient: common.Address{},
+		Transactions:          nil,
+		NoTxPool:              false,
+		GasLimit:              &gasLimit,
+	}
+
+	eng.ExpectL2BlockRefByLabel(eth.Finalized, refA0, nil)
+	eng.ExpectL2BlockRefByLabel(eth.Safe, refA1, nil)
+	eng.ExpectL2BlockRefByLabel(eth.Unsafe, refA2, nil)
+	eng.ExpectL2BlockRefByHash(refA1.Hash, refA1, nil)
+	eng.ExpectL2BlockRefByHash(refA0.Hash, refA0, nil)
+	eng.ExpectSystemConfigByL2Hash(refA0.Hash, cfg.Genesis.SystemConfig, nil)
+	l1F.ExpectL1BlockRefByNumber(refA.Number, refA, nil)
+	l1F.ExpectL1BlockRefByHash(refA.Hash, refA, nil)
+	l1F.ExpectL1BlockRefByHash(refA.Hash, refA, nil)
+
+	prev := &fakeAttributesQueue{origin: refA, attrs: attrs}
+
+	eq := NewEngineQueue(logger, cfg, eng, metrics.NoopMetrics, prev, l1F)
+	eq.unsafeHead = refA2
+	eq.safeHead = refA1
+	eq.finalized = refA0
+
+	// Qeueue up the safe attributes
+	require.Nil(t, eq.safeAttributes)
+	require.ErrorIs(t, eq.Step(context.Background()), NotEnoughData)
+	require.NotNil(t, eq.safeAttributes)
+
+	// Peform the reset
+	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
+
+	// Expect a FCU after the reset
+	preFc := &eth.ForkchoiceState{
+		HeadBlockHash:      refA2.Hash,
+		SafeBlockHash:      refA0.Hash,
+		FinalizedBlockHash: refA0.Hash,
+	}
+	eng.ExpectForkchoiceUpdate(preFc, nil, nil, nil)
+	require.NoError(t, eq.Step(context.Background()), "clean forkchoice state after reset")
+
+	// Crux of the test. Should be in a valid state after the reset.
+	require.ErrorIs(t, eq.Step(context.Background()), NotEnoughData, "Should be able to step after a reset")
 
 	l1F.AssertExpectations(t)
 	eng.AssertExpectations(t)

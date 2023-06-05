@@ -9,13 +9,9 @@ const deployFn: DeployFunction = async (hre) => {
     throw new Error(
       'L2OutputOracle deployment: l2BlockTime must be greater than 0'
     )
-  } else if (
-    hre.deployConfig.l2OutputOracleSubmissionInterval <=
-    hre.deployConfig.l2BlockTime
-  ) {
-    throw new Error(
-      'L2OutputOracle deployment: submissionInterval must be greater than the l2BlockTime'
-    )
+  }
+  if (hre.deployConfig.l2OutputOracleSubmissionInterval === 0) {
+    throw new Error('L2OutputOracle deployment: submissionInterval cannot be 0')
   }
 
   await deploy({

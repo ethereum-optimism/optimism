@@ -8,13 +8,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi/test"
+	l2test "github.com/ethereum-optimism/optimism/op-program/client/l2/test"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -42,17 +43,6 @@ func TestGetBlocks(t *testing.T) {
 	}
 }
 
-func TestUnknownBlock(t *testing.T) {
-	_, chain := setupOracleBackedChain(t, 1)
-	hash := common.HexToHash("0x556677881122")
-	blockNumber := uint64(1)
-	require.Nil(t, chain.GetBlockByHash(hash))
-	require.Nil(t, chain.GetHeaderByHash(hash))
-	require.Nil(t, chain.GetBlock(hash, blockNumber))
-	require.Nil(t, chain.GetHeader(hash, blockNumber))
-	require.False(t, chain.HasBlockAndState(hash, blockNumber))
-}
-
 func TestCanonicalHashNotFoundPastChainHead(t *testing.T) {
 	blocks, chain := setupOracleBackedChainWithLowerHead(t, 5, 3)
 
@@ -69,7 +59,7 @@ func TestCanonicalHashNotFoundPastChainHead(t *testing.T) {
 func TestAppendToChain(t *testing.T) {
 	blocks, chain := setupOracleBackedChainWithLowerHead(t, 4, 3)
 	newBlock := blocks[4]
-	require.Nil(t, chain.GetBlockByHash(newBlock.Hash()), "block unknown before being added")
+	require.Nil(t, chain.GetBlock(newBlock.Hash(), newBlock.NumberU64()), "block unknown before being added")
 
 	require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock))
 	require.Equal(t, blocks[3].Header(), chain.CurrentHeader(), "should not update chain head yet")
@@ -113,9 +103,7 @@ func TestUpdateStateDatabaseWhenImportingBlock(t *testing.T) {
 
 	require.NotEqual(t, blocks[1].Root(), newBlock.Root(), "block should have modified world state")
 
-	require.Panics(t, func() {
-		_, _ = chain.StateAt(newBlock.Root())
-	}, "state from non-imported block should not be available")
+	require.False(t, chain.HasBlockAndState(newBlock.Root(), newBlock.NumberU64()), "state from non-imported block should not be available")
 
 	err = chain.InsertBlockWithoutSetHead(newBlock)
 	require.NoError(t, err)
@@ -133,6 +121,66 @@ func TestRejectBlockWithStateRootMismatch(t *testing.T) {
 
 	err := chain.InsertBlockWithoutSetHead(invalidBlock)
 	require.ErrorContains(t, err, "block root mismatch")
+}
+
+func TestGetHeaderByNumber(t *testing.T) {
+	t.Run("Forwards", func(t *testing.T) {
+		blocks, chain := setupOracleBackedChain(t, 10)
+		for _, block := range blocks {
+			result := chain.GetHeaderByNumber(block.NumberU64())
+			require.Equal(t, block.Header(), result)
+		}
+	})
+	t.Run("Reverse", func(t *testing.T) {
+		blocks, chain := setupOracleBackedChain(t, 10)
+		for i := len(blocks) - 1; i >= 0; i-- {
+			block := blocks[i]
+			result := chain.GetHeaderByNumber(block.NumberU64())
+			require.Equal(t, block.Header(), result)
+		}
+	})
+	t.Run("AppendedBlock", func(t *testing.T) {
+		_, chain := setupOracleBackedChain(t, 10)
+
+		// Append a block
+		newBlock := createBlock(t, chain)
+		require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock))
+		_, err := chain.SetCanonical(newBlock)
+		require.NoError(t, err)
+
+		require.Equal(t, newBlock.Header(), chain.GetHeaderByNumber(newBlock.NumberU64()))
+	})
+	t.Run("AppendedBlockAfterLookup", func(t *testing.T) {
+		blocks, chain := setupOracleBackedChain(t, 10)
+		// Look up an early block to prime the block cache
+		require.Equal(t, blocks[0].Header(), chain.GetHeaderByNumber(blocks[0].NumberU64()))
+
+		// Append a block
+		newBlock := createBlock(t, chain)
+		require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock))
+		_, err := chain.SetCanonical(newBlock)
+		require.NoError(t, err)
+
+		require.Equal(t, newBlock.Header(), chain.GetHeaderByNumber(newBlock.NumberU64()))
+	})
+	t.Run("AppendedMultipleBlocks", func(t *testing.T) {
+		blocks, chain := setupOracleBackedChainWithLowerHead(t, 5, 2)
+
+		// Append a few blocks
+		newBlock1 := blocks[3]
+		newBlock2 := blocks[4]
+		newBlock3 := blocks[5]
+		require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock1))
+		require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock2))
+		require.NoError(t, chain.InsertBlockWithoutSetHead(newBlock3))
+
+		_, err := chain.SetCanonical(newBlock3)
+		require.NoError(t, err)
+
+		require.Equal(t, newBlock3.Header(), chain.GetHeaderByNumber(newBlock3.NumberU64()), "Lookup block3")
+		require.Equal(t, newBlock2.Header(), chain.GetHeaderByNumber(newBlock2.NumberU64()), "Lookup block2")
+		require.Equal(t, newBlock1.Header(), chain.GetHeaderByNumber(newBlock1.NumberU64()), "Lookup block1")
+	})
 }
 
 func assertBlockDataAvailable(t *testing.T, chain *OracleBackedL2Chain, block *types.Block, blockNumber uint64) {
@@ -156,13 +204,16 @@ func setupOracleBackedChainWithLowerHead(t *testing.T, blockCount int, headBlock
 	return blocks, chain
 }
 
-func setupOracle(t *testing.T, blockCount int, headBlockNumber int) (*params.ChainConfig, []*types.Block, *stubBlockOracle) {
+func setupOracle(t *testing.T, blockCount int, headBlockNumber int) (*params.ChainConfig, []*types.Block, *l2test.StubBlockOracle) {
 	deployConfig := &genesis.DeployConfig{
 		L1ChainID:              900,
 		L2ChainID:              901,
 		L2BlockTime:            2,
 		FundDevAccounts:        true,
 		L2GenesisBlockGasLimit: 30_000_000,
+		// Arbitrary non-zero difficulty in genesis.
+		// This is slightly weird for a chain starting post-merge but it happens so need to make sure it works
+		L2GenesisBlockDifficulty: (*hexutil.Big)(big.NewInt(100)),
 	}
 	l1Genesis, err := genesis.NewL1Genesis(deployConfig)
 	require.NoError(t, err)
@@ -181,7 +232,7 @@ func setupOracle(t *testing.T, blockCount int, headBlockNumber int) (*params.Cha
 	genesisBlock := l2Genesis.MustCommit(db)
 	blocks, _ := core.GenerateChain(chainCfg, genesisBlock, consensus, db, blockCount, func(i int, gen *core.BlockGen) {})
 	blocks = append([]*types.Block{genesisBlock}, blocks...)
-	oracle := newStubBlockOracle(blocks[:headBlockNumber+1], db)
+	oracle := l2test.NewStubOracleWithBlocks(t, blocks[:headBlockNumber+1], db)
 	return chainCfg, blocks, oracle
 }
 
@@ -208,28 +259,8 @@ func createBlock(t *testing.T, chain *OracleBackedL2Chain) *types.Block {
 	return blocks[0]
 }
 
-type stubBlockOracle struct {
-	blocks map[common.Hash]*types.Block
-	kvStateOracle
-}
-
-func newStubBlockOracle(chain []*types.Block, db ethdb.Database) *stubBlockOracle {
-	blocks := make(map[common.Hash]*types.Block, len(chain))
-	for _, block := range chain {
-		blocks[block.Hash()] = block
-	}
-	return &stubBlockOracle{
-		blocks:        blocks,
-		kvStateOracle: kvStateOracle{source: db},
-	}
-}
-
-func (o stubBlockOracle) BlockByHash(blockHash common.Hash) *types.Block {
-	return o.blocks[blockHash]
-}
-
 func TestEngineAPITests(t *testing.T) {
-	test.RunEngineAPITests(t, func() engineapi.EngineBackend {
+	test.RunEngineAPITests(t, func(t *testing.T) engineapi.EngineBackend {
 		_, chain := setupOracleBackedChain(t, 0)
 		return chain
 	})

@@ -266,7 +266,7 @@ func main() {
 		checkErr(err, "Error creating secure trie")
 
 		// Put a "true" bool in the storage slot
-		state.Update(hash.Bytes(), []byte{0x01})
+		state.UpdateStorage(common.Address{}, hash.Bytes(), []byte{0x01})
 
 		// Create a secure trie for the world state
 		world, err := trie.NewStateTrie(
@@ -283,7 +283,7 @@ func main() {
 		}
 		writer := new(bytes.Buffer)
 		checkErr(account.EncodeRLP(writer), "Error encoding account")
-		world.Update(predeploys.L2ToL1MessagePasserAddr.Bytes(), writer.Bytes())
+		world.UpdateStorage(common.Address{}, predeploys.L2ToL1MessagePasserAddr.Bytes(), writer.Bytes())
 
 		// Get the proof
 		var proof proofList

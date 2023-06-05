@@ -86,8 +86,6 @@ func (l1t *L1Traversal) AdvanceL1Block(ctx context.Context) error {
 }
 
 // Reset sets the internal L1 block to the supplied base.
-// Note that the next call to `NextL1Block` will return the block after `base`
-// TODO: Walk one back/figure this out.
 func (l1t *L1Traversal) Reset(ctx context.Context, base eth.L1BlockRef, cfg eth.SystemConfig) error {
 	l1t.block = base
 	l1t.done = false

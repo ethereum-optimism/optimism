@@ -25,7 +25,7 @@ const config: HardhatUserConfig = {
     local: {
       live: false,
       url: 'http://localhost:8545',
-      saveDeployments: false,
+      saveDeployments: !!process.env.SAVE_DEPLOYMENTS || false,
       accounts: [
         'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
       ],
@@ -93,12 +93,6 @@ const config: HardhatUserConfig = {
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
       live: true,
     },
-    'final-migration-rehearsal': {
-      chainId: 5,
-      url: process.env.L1_RPC || '',
-      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
-      live: true,
-    },
     'internal-devnet': {
       chainId: 5,
       url: process.env.L1_RPC || '',
@@ -146,10 +140,6 @@ const config: HardhatUserConfig = {
         '../contracts-periphery/deployments/mainnet',
       ],
       'goerli-forked': [
-        '../contracts/deployments/goerli',
-        '../contracts-periphery/deployments/goerli',
-      ],
-      'final-migration-rehearsal': [
         '../contracts/deployments/goerli',
         '../contracts-periphery/deployments/goerli',
       ],

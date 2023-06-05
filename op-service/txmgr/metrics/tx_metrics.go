@@ -12,6 +12,7 @@ type TxMetricer interface {
 	RecordGasBumpCount(int)
 	RecordTxConfirmationLatency(int64)
 	RecordNonce(uint64)
+	RecordPendingTx(pending int64)
 	TxConfirmed(*types.Receipt)
 	TxPublished(string)
 	RPCError()
@@ -24,6 +25,7 @@ type TxMetrics struct {
 	txFeeHistogram     prometheus.Histogram
 	LatencyConfirmedTx prometheus.Gauge
 	currentNonce       prometheus.Gauge
+	pendingTxs         prometheus.Gauge
 	txPublishError     *prometheus.CounterVec
 	publishEvent       metrics.Event
 	confirmEvent       metrics.EventVec
@@ -82,10 +84,16 @@ func MakeTxMetrics(ns string, factory metrics.Factory) TxMetrics {
 			Help:      "Current nonce of the from address",
 			Subsystem: "txmgr",
 		}),
+		pendingTxs: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "pending_txs",
+			Help:      "Number of transactions pending receipts",
+			Subsystem: "txmgr",
+		}),
 		txPublishError: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      "tx_publish_error_count",
-			Help:      "Count of publish errors. Labells are sanitized error strings",
+			Help:      "Count of publish errors. Labels are sanitized error strings",
 			Subsystem: "txmgr",
 		}, []string{"error"}),
 		confirmEvent: metrics.NewEventVec(factory, ns, "txmgr", "confirm", "tx confirm", []string{"status"}),
@@ -93,7 +101,7 @@ func MakeTxMetrics(ns string, factory metrics.Factory) TxMetrics {
 		rpcError: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      "rpc_error_count",
-			Help:      "Temporrary: Count of RPC errors (like timeouts) that have occurrred",
+			Help:      "Temporary: Count of RPC errors (like timeouts) that have occurred",
 			Subsystem: "txmgr",
 		}),
 	}
@@ -101,6 +109,10 @@ func MakeTxMetrics(ns string, factory metrics.Factory) TxMetrics {
 
 func (t *TxMetrics) RecordNonce(nonce uint64) {
 	t.currentNonce.Set(float64(nonce))
+}
+
+func (t *TxMetrics) RecordPendingTx(pending int64) {
+	t.pendingTxs.Set(float64(pending))
 }
 
 // TxConfirmed records lots of information about the confirmed transaction

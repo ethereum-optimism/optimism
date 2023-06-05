@@ -70,6 +70,10 @@ type Metricer interface {
 	ClientPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration)
 	ServerPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration)
 	PayloadsQuarantineSize(n int)
+	RecordPeerUnban()
+	RecordIPUnban()
+	RecordDial(allow bool)
+	RecordAccept(allow bool)
 }
 
 // Metrics tracks all the metrics for the op-node.
@@ -103,6 +107,8 @@ type Metrics struct {
 	SequencerInconsistentL1Origin *EventMetrics
 	SequencerResets               *EventMetrics
 
+	L1RequestDurationSeconds *prometheus.HistogramVec
+
 	SequencerBuildingDiffDurationSeconds prometheus.Histogram
 	SequencerBuildingDiffTotal           prometheus.Counter
 
@@ -131,6 +137,10 @@ type Metrics struct {
 	PeerScores        *prometheus.GaugeVec
 	GossipEventsTotal *prometheus.CounterVec
 	BandwidthTotal    *prometheus.GaugeVec
+	PeerUnbans        prometheus.Counter
+	IPUnbans          prometheus.Counter
+	Dials             *prometheus.CounterVec
+	Accepts           *prometheus.CounterVec
 
 	ChannelInputBytes prometheus.Counter
 
@@ -333,6 +343,30 @@ func NewMetrics(procName string) *Metrics {
 		}, []string{
 			"direction",
 		}),
+		PeerUnbans: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "peer_unbans",
+			Help:      "Count of peer unbans",
+		}),
+		IPUnbans: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "ip_unbans",
+			Help:      "Count of IP unbans",
+		}),
+		Dials: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "dials",
+			Help:      "Count of outgoing dial attempts, with label to filter to allowed attempts",
+		}, []string{"allow"}),
+		Accepts: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "accepts",
+			Help:      "Count of incoming dial attempts to accept, with label to filter to allowed attempts",
+		}, []string{"allow"}),
 
 		ChannelInputBytes: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
@@ -377,6 +411,14 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "payloads_quarantine_total",
 			Help:      "number of unverified execution payloads buffered in quarantine",
 		}),
+
+		L1RequestDurationSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "l1_request_seconds",
+			Buckets: []float64{
+				.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
+			Help: "Histogram of L1 request time",
+		}, []string{"request"}),
 
 		SequencerBuildingDiffDurationSeconds: factory.NewHistogram(prometheus.HistogramOpts{
 			Namespace: ns,
@@ -589,6 +631,11 @@ func (m *Metrics) RecordBandwidth(ctx context.Context, bwc *libp2pmetrics.Bandwi
 	}
 }
 
+// RecordL1RequestTime tracks the amount of time the derivation pipeline spent waiting for L1 data requests.
+func (m *Metrics) RecordL1RequestTime(method string, duration time.Duration) {
+	m.L1RequestDurationSeconds.WithLabelValues(method).Observe(float64(duration) / float64(time.Second))
+}
+
 // RecordSequencerBuildingDiffTime tracks the amount of time the sequencer was allowed between
 // start to finish, incl. sealing, minus the block time.
 // Ideally this is 0, realistically the sequencer scheduler may be busy with other jobs like syncing sometimes.
@@ -646,6 +693,30 @@ func (m *Metrics) PayloadsQuarantineSize(n int) {
 
 func (m *Metrics) RecordChannelInputBytes(inputCompressedBytes int) {
 	m.ChannelInputBytes.Add(float64(inputCompressedBytes))
+}
+
+func (m *Metrics) RecordPeerUnban() {
+	m.PeerUnbans.Inc()
+}
+
+func (m *Metrics) RecordIPUnban() {
+	m.IPUnbans.Inc()
+}
+
+func (m *Metrics) RecordDial(allow bool) {
+	if allow {
+		m.Dials.WithLabelValues("true").Inc()
+	} else {
+		m.Dials.WithLabelValues("false").Inc()
+	}
+}
+
+func (m *Metrics) RecordAccept(allow bool) {
+	if allow {
+		m.Accepts.WithLabelValues("true").Inc()
+	} else {
+		m.Accepts.WithLabelValues("false").Inc()
+	}
 }
 
 type noopMetricer struct{}
@@ -752,4 +823,16 @@ func (n *noopMetricer) PayloadsQuarantineSize(int) {
 }
 
 func (n *noopMetricer) RecordChannelInputBytes(int) {
+}
+
+func (n *noopMetricer) RecordPeerUnban() {
+}
+
+func (n *noopMetricer) RecordIPUnban() {
+}
+
+func (n *noopMetricer) RecordDial(allow bool) {
+}
+
+func (n *noopMetricer) RecordAccept(allow bool) {
 }
