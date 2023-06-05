@@ -19,7 +19,6 @@ func TestRegenerateBlock(t *testing.T) {
 	privateClient := &node.MockRPC{}
 
 	to := common.HexToAddress("0x00000000000000000000000000000000deadbeef")
-	// R := uint256.NewInt(1)
 	transaction := &types.LegacyTx{
 		GasPrice: uint256.NewInt(0),
 		CommonTx: types.CommonTx{
@@ -67,6 +66,7 @@ func TestRegenerateBlock(t *testing.T) {
 	legacyClient.SetResponse("GetTransactionByHash", fakeTransaction)
 	err = b.RegenerateBlock()
 	require.Error(t, err)
+	require.ErrorContains(t, err, "not match")
 
 	legacyClient.SetResponse("GetTransactionByHash", transaction)
 	err = b.RegenerateBlock()
@@ -98,13 +98,15 @@ func TestRegenerateBlock(t *testing.T) {
 	})
 	err = b.RegenerateBlock()
 	require.Error(t, err)
+	require.ErrorContains(t, err, "payload is invalid")
 
 	privateClient.SetResponse("NewPayloadV1", &node.PayloadStatusV1{
-		Status:          "INVALID",
+		Status:          "VALID",
 		LatestValidHash: &common.Hash{1},
 	})
 	err = b.RegenerateBlock()
 	require.Error(t, err)
+	require.ErrorContains(t, err, "latest valid hash is not correct")
 
 	privateClient.SetResponse("NewPayloadV1", &node.PayloadStatusV1{
 		Status:          "VALID",

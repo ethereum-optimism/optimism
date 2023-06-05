@@ -1,0 +1,25 @@
+version: '3.4'
+
+services:
+  boba-regenerate:
+    image: bobanetwork/boba-chain-ops
+    build:
+      context: ..
+      dockerfile: ./boba-chain-ops/Dockerfile
+    command: boba-regenerate
+    # environment:
+      # JWT_SECRET_PATH: /jwt/jwt_secret.txt
+    # volumes:
+      #- /jwt_secret.txt:/jwt/jwt_secret.txt
+
+  # boba-rollover:
+  #   image: bobanetwork/boba-chain-ops
+  #   build:
+  #     context: ..
+  #     dockerfile: ./boba-chain-ops/Dockerfile
+
+  # boba-migrate:
+  #   image: bobanetwork/boba-chain-ops
+  #   build:
+  #     context: ..
+  #     dockerfile: ./boba-chain-ops/Dockerfile

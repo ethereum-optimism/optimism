@@ -36,9 +36,10 @@ func main() {
 				EnvVars: []string{"L2_LEGACY_ENDPOINT"},
 			},
 			&cli.StringFlag{
-				Name:    "jwt-secret-path",
-				Usage:   "Path to the file containing the JWT secret",
-				EnvVars: []string{"JWT_SECRET_PATH"},
+				Name:     "jwt-secret-path",
+				Usage:    "Path to the file containing the JWT secret",
+				EnvVars:  []string{"JWT_SECRET_PATH"},
+				Required: true,
 			},
 			&cli.StringFlag{
 				Name:    "rpc-time-out",

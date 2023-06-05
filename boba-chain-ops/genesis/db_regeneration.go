@@ -194,7 +194,7 @@ func (b *BuilderEngine) RegenerateBlock() error {
 	}
 	if *payloadStatus.LatestValidHash != executionPayload.BlockHash {
 		log.Warn("Latest valid hash is not correct", "pending", executionPayload.BlockHash, "latest", payloadStatus.LatestValidHash)
-		return fmt.Errorf("Latest valid hash is not correct")
+		return fmt.Errorf("latest valid hash is not correct")
 	}
 
 	// Step 4: Submit block
