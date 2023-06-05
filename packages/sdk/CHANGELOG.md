@@ -1,5 +1,24 @@
 # @eth-optimism/sdk
 
+## 2.1.0
+
+### Minor Changes
+
+- 5063a69fb: Update sdk contract addresses for bedrock
+
+### Patch Changes
+
+- a1b7ff9e3: add eco bridge adapter
+- 8133872ed: Fix firefox bug with getTokenPair
+- afc2ab8c9: Update the migrated withdrawal gas limit for non goerli networks
+- aa854bdd8: Add warning if bedrock is not turned on
+- Updated dependencies [f1e867177]
+- Updated dependencies [197884eae]
+- Updated dependencies [6eb05430d]
+- Updated dependencies [5063a69fb]
+  - @eth-optimism/contracts-bedrock@0.14.0
+  - @eth-optimism/contracts@0.6.0
+
 ## 2.0.2
 
 ### Patch Changes
