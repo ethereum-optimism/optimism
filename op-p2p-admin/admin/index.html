@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>P2P Manager</title>
+
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <style>
+    body {
+      padding: 0;
+      margin: 0;
+    }
+    html, body {
+      height: 100%;
+      width: 100%;
+    }
+  </style>
+
+  <link rel="stylesheet" href="https://unpkg.com/tabulator-tables@5.5.0/dist/css/tabulator.min.css"
+        integrity="sha384-Nue0qQlfT9gmDFaYgmYQYiO9ACPrMHNJ0yphMkvY497sBfI1Qf8UZ6zIfuzQbPqP" crossorigin="anonymous">
+
+</head>
+<body>
+
+Peers
+<div id="peers-table"></div>
+
+<script type="text/javascript" src="https://unpkg.com/tabulator-tables@5.5.0/dist/js/tabulator.min.js"
+        integrity="sha384-yw4gKd4T929NrSXoXK1+l6F5me98mtOEVePQKtl539AM6E+/IJO9rov6NN1PWQvv" crossorigin="anonymous">
+</script>
+
+<script>
+  window.p2ptable = new Tabulator("#peers-table", {
+    movableColumns: true,
+    layout: "fitDataStretch",
+    persistenceID: "persistentPeerTableConfigV0",
+    persistence: {
+      sort: true,
+      filter: true,
+      columns: true,
+    },
+    columns: [
+
+    ],
+  });
+  window.p2ptable.setData("/api/peers")
+</script>
+</body>
+</html>
