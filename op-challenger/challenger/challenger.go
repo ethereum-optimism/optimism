@@ -72,6 +72,15 @@ func (c *Challenger) NewOracleSubscription() (*Subscription, error) {
 	return NewSubscription(query, c.Client(), c.log), nil
 }
 
+// NewFactorySubscription creates a new [Subscription] listening to the DisputeGameFactory contract.
+func (c *Challenger) NewFactorySubscription() (*Subscription, error) {
+	query, err := BuildDisputeGameLogFilter(c.dgfABI)
+	if err != nil {
+		return nil, err
+	}
+	return NewSubscription(query, c.Client(), c.log), nil
+}
+
 // NewChallenger creates a new Challenger
 func NewChallenger(cfg config.Config, l log.Logger, m metrics.Metricer) (*Challenger, error) {
 	ctx, cancel := context.WithCancel(context.Background())
