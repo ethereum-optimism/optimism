@@ -65,7 +65,7 @@ func (c *Challenger) Client() *ethclient.Client {
 }
 
 func (c *Challenger) NewOracleSubscription() (*Subscription, error) {
-	query, err := c.BuildOutputLogFilter()
+	query, err := BuildOutputLogFilter(c.l2ooABI)
 	if err != nil {
 		return nil, err
 	}
