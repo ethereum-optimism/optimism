@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/actor-tests",
-  "version": "0.0.24",
+  "version": "0.0.25",
   "description": "A library and suite of tests to stress test Optimism Bedrock.",
   "license": "MIT",
   "author": "",
@@ -18,9 +18,9 @@
     "test:coverage": "yarn test"
   },
   "dependencies": {
-    "@eth-optimism/contracts-bedrock": "0.13.2",
+    "@eth-optimism/contracts-bedrock": "0.14.0",
     "@eth-optimism/core-utils": "^0.12.0",
-    "@eth-optimism/sdk": "^2.0.2",
+    "@eth-optimism/sdk": "^2.1.0",
     "@types/chai": "^4.2.18",
     "@types/chai-as-promised": "^7.1.4",
     "async-mutex": "^0.3.2",
