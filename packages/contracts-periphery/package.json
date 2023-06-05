@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-periphery",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "[Optimism] External (out-of-protocol) L1 and L2 smart contracts for Optimism",
   "main": "dist/index",
   "types": "dist/index",
@@ -53,7 +53,7 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "devDependencies": {
-    "@eth-optimism/contracts-bedrock": "0.13.2",
+    "@eth-optimism/contracts-bedrock": "0.14.0",
     "@eth-optimism/core-utils": "^0.12.0",
     "@eth-optimism/hardhat-deploy-config": "^0.2.6",
     "@ethersproject/hardware-wallets": "^5.7.0",

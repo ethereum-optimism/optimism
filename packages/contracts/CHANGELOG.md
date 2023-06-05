@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.0
+
+### Minor Changes
+
+- 5063a69fb: Update sdk contract addresses for bedrock
+
 ## 0.5.40
 
 ### Patch Changes
