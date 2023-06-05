@@ -1,4 +1,4 @@
-package challenger
+package main
 
 import (
 	"context"
@@ -10,8 +10,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-challenger/challenger"
+
+	"github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
 // Main is the entrypoint into the Challenger. This method executes the
@@ -24,7 +27,7 @@ func Main(logger log.Logger, version string, cfg *config.Config) error {
 	m := metrics.NewMetrics("default")
 	logger.Info("Initializing Challenger")
 
-	challenger, err := NewChallenger(*cfg, logger, m)
+	service, err := challenger.NewChallenger(*cfg, logger, m)
 	if err != nil {
 		logger.Error("Unable to create the Challenger", "error", err)
 		return err
@@ -32,19 +35,19 @@ func Main(logger log.Logger, version string, cfg *config.Config) error {
 
 	logger.Info("Starting Challenger")
 	ctx, cancel := context.WithCancel(context.Background())
-	if err := challenger.Start(); err != nil {
+	if err := service.Start(); err != nil {
 		cancel()
 		logger.Error("Unable to start Challenger", "error", err)
 		return err
 	}
-	defer challenger.Stop()
+	defer service.Stop()
 
 	logger.Info("Challenger started")
 	pprofConfig := cfg.PprofConfig
 	if pprofConfig.Enabled {
 		logger.Info("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
 		go func() {
-			if err := oppprof.ListenAndServe(ctx, pprofConfig.ListenAddr, pprofConfig.ListenPort); err != nil {
+			if err := pprof.ListenAndServe(ctx, pprofConfig.ListenAddr, pprofConfig.ListenPort); err != nil {
 				logger.Error("error starting pprof", "err", err)
 			}
 		}()
@@ -58,11 +61,11 @@ func Main(logger log.Logger, version string, cfg *config.Config) error {
 				logger.Error("error starting metrics server", err)
 			}
 		}()
-		m.StartBalanceMetrics(ctx, logger, challenger.l1Client, challenger.txMgr.From())
+		m.StartBalanceMetrics(ctx, logger, service.Client(), service.From())
 	}
 
 	rpcCfg := cfg.RPCConfig
-	server := oprpc.NewServer(rpcCfg.ListenAddr, rpcCfg.ListenPort, version, oprpc.WithLogger(logger))
+	server := rpc.NewServer(rpcCfg.ListenAddr, rpcCfg.ListenPort, version, rpc.WithLogger(logger))
 	if err := server.Start(); err != nil {
 		cancel()
 		return fmt.Errorf("error starting RPC server: %w", err)
