@@ -16,7 +16,8 @@ type Config struct {
 	// ApproxComprRatio to assume. Should be slightly smaller than average from
 	// experiments to avoid the chances of creating a small additional leftover frame.
 	ApproxComprRatio float64
-	// Kind of compressor to use. Must
+	// Kind of compressor to use. Must be one of KindKeys. If unset, NewCompressor
+	// will default to RatioKind.
 	Kind string
 }
 

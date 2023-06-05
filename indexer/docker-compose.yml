@@ -60,5 +60,20 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+
+  prisma-check: 
+    restart: "no"
+    build:
+      context: ..
+      dockerfile: indexer/ui/Dockerfile
+    command: ./prisma.sh --check
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://db_username:db_password@postgres:5432/db_name}
+    depends_on:
+      indexer:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres_data:

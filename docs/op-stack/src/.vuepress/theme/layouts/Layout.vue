@@ -1,5 +1,5 @@
 <template>
-  <Common :sidebar="true">
+  <Common :sidebar="$frontmatter.blog !== true">
     <template #navbar-start>
       <slot name="navbar-start">
         <NavbarStart />
@@ -43,7 +43,9 @@
     </template>
 
     <template #default="slotProps">
-      <Home v-if="$frontmatter.home" />
+      <BlogHome v-if="$frontmatter.blog && $themeConfig.blog !== false" />
+
+      <Home v-else-if="$frontmatter.home" />
 
       <Page
         v-else

@@ -1370,6 +1370,49 @@ func TestStopStartBatcher(t *testing.T) {
 	require.Greater(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain did not advance after batcher was restarted")
 }
 
+func TestBatcherMultiTx(t *testing.T) {
+	InitParallel(t)
+
+	cfg := DefaultSystemConfig(t)
+	cfg.BatcherTargetL1TxSizeBytes = 2 // ensures that batcher txs are as small as possible
+	cfg.DisableBatcher = true
+	sys, err := cfg.Start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	l1Client := sys.Clients["l1"]
+	l2Seq := sys.Clients["sequencer"]
+
+	_, err = waitForBlock(big.NewInt(10), l2Seq, time.Duration(cfg.DeployConfig.L2BlockTime*15)*time.Second)
+	require.Nil(t, err, "Waiting for L2 blocks")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	l1Number, err := l1Client.BlockNumber(ctx)
+	require.Nil(t, err)
+
+	// start batch submission
+	err = sys.BatchSubmitter.Start()
+	require.Nil(t, err)
+
+	// wait for 3 L1 blocks
+	_, err = waitForBlock(big.NewInt(int64(l1Number)+3), l1Client, time.Duration(cfg.DeployConfig.L1BlockTime*5)*time.Second)
+	require.Nil(t, err, "Waiting for l1 blocks")
+
+	// count the number of transactions submitted to L1 in the last 3 blocks
+	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	totalTxCount := 0
+	for i := int64(0); i < 3; i++ {
+		block, err := l1Client.BlockByNumber(ctx, big.NewInt(int64(l1Number)+i+1))
+		require.Nil(t, err)
+		totalTxCount += len(block.Transactions())
+	}
+
+	// expect at least 10 batcher transactions, given 10 L2 blocks were generated above
+	require.GreaterOrEqual(t, totalTxCount, 10)
+}
+
 func safeAddBig(a *big.Int, b *big.Int) *big.Int {
 	return new(big.Int).Add(a, b)
 }

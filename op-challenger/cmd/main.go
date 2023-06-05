@@ -1,16 +1,15 @@
 package main
 
 import (
-	"fmt"
 	"os"
-
-	challenger "github.com/ethereum-optimism/optimism/op-challenger/challenger"
-	config "github.com/ethereum-optimism/optimism/op-challenger/config"
-	flags "github.com/ethereum-optimism/optimism/op-challenger/flags"
-	version "github.com/ethereum-optimism/optimism/op-challenger/version"
 
 	log "github.com/ethereum/go-ethereum/log"
 	cli "github.com/urfave/cli"
+
+	watch "github.com/ethereum-optimism/optimism/op-challenger/cmd/watch"
+	config "github.com/ethereum-optimism/optimism/op-challenger/config"
+	flags "github.com/ethereum-optimism/optimism/op-challenger/flags"
+	version "github.com/ethereum-optimism/optimism/op-challenger/version"
 
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
@@ -37,7 +36,7 @@ var VersionWithMeta = func() string {
 
 func main() {
 	args := os.Args
-	if err := run(args, challenger.Main); err != nil {
+	if err := run(args, Main); err != nil {
 		log.Crit("Application failed", "err", err)
 	}
 }
@@ -59,7 +58,7 @@ func run(args []string, action ConfigAction) error {
 	app.Usage = "Challenge Invalid L2OutputOracle Outputs"
 	app.Description = "A modular op-stack challenge agent for dispute games written in golang."
 	app.Action = func(ctx *cli.Context) error {
-		logger, err := setupLogging(ctx)
+		logger, err := config.LoggerFromCLI(ctx)
 		if err != nil {
 			return err
 		}
@@ -71,15 +70,12 @@ func run(args []string, action ConfigAction) error {
 		}
 		return action(logger, VersionWithMeta, cfg)
 	}
+	app.Commands = []cli.Command{
+		{
+			Name:        "watch",
+			Subcommands: watch.Subcommands,
+		},
+	}
 
 	return app.Run(args)
-}
-
-func setupLogging(ctx *cli.Context) (log.Logger, error) {
-	logCfg := oplog.ReadCLIConfig(ctx)
-	if err := logCfg.Check(); err != nil {
-		return nil, fmt.Errorf("log config error: %w", err)
-	}
-	logger := oplog.NewLogger(logCfg)
-	return logger, nil
 }

@@ -16,10 +16,10 @@ Prisma can be viewed at [localhost:5555](http://localhost:5555)
 
 The [prisma schema](https://www.prisma.io/docs/reference/api-reference/prisma-schema-reference) is what allows prisma to work. It is automatically generated from the db schema.
 
-To update the schema to the latest db schema simply pass in the database url to [prisma pull](https://www.prisma.io/docs/reference/api-reference/command-reference#db-pull). Prisma pull will introspect the schema and generate a prisma schema
+To update the schema to the latest db schema start the database and run [./ui/prisma.sh](./prisma.sh).  Optionally pass in a DATABASE_URL if not the default
 
 ```bash
-DATABASE_URL=postgresql://db_username:db_password@postgres:5432/db_name npx prisma db pull
+DATABASE_URL=postgresql://db_username:db_password@postgres:5432/db_name
 ```
 
 ## Other functionality
