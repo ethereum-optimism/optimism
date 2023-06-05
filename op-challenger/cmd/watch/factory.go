@@ -41,6 +41,8 @@ func Factory(logger log.Logger, cfg *config.Config) error {
 		return err
 	}
 
+	defer subscription.Quit()
+
 	interruptChannel := make(chan os.Signal, 1)
 	signal.Notify(interruptChannel, []os.Signal{
 		os.Interrupt,
