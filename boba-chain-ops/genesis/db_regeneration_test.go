@@ -2,9 +2,11 @@ package genesis
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/node"
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/node/nodefakes"
 	"github.com/holiman/uint256"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/hexutility"
@@ -13,10 +15,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	ErrGetLatestBlock = errors.New("GetLatestBlock mock rpc error")
+	ErrGetBlockByNum  = errors.New("GetBlockByNumber mock rpc error")
+	ErrGetTxByHash    = errors.New("GetTransactionByHash mock rpc error")
+	ErrForkchoice     = errors.New("ForkchoiceUpdateV1 mock rpc error")
+	ErrGetPayload     = errors.New("GetPayloadV1 mock rpc error")
+	ErrNewPayload     = errors.New("NewPayloadV1 mock rpc error")
+)
+
 func TestRegenerateBlock(t *testing.T) {
-	publicClient := &node.MockRPC{}
-	legacyClient := &node.MockRPC{}
-	privateClient := &node.MockRPC{}
+	publicClient := &nodefakes.FakeRPC{}
+	legacyClient := &nodefakes.FakeRPC{}
+	privateClient := &nodefakes.FakeRPC{}
 
 	to := common.HexToAddress("0x00000000000000000000000000000000deadbeef")
 	transaction := &types.LegacyTx{
@@ -44,17 +55,19 @@ func TestRegenerateBlock(t *testing.T) {
 		hardforkBlockNumber: 1,
 	}
 
-	publicClient.SetResponse("GetLatestBlock", "")
+	publicClient.GetLatestBlockReturns(nil, ErrGetLatestBlock)
 	err := b.RegenerateBlock()
-	require.ErrorIs(t, err, node.ErrGetLatestBlock)
+	require.ErrorIs(t, err, ErrGetLatestBlock)
 
-	publicClient.SetResponse("GetLatestBlock", &node.Block{Number: 0})
+	publicClient.GetLatestBlockReturns(&node.Block{Number: 0}, nil)
+	legacyClient.GetBlockByNumberReturns(nil, ErrGetBlockByNum)
 	err = b.RegenerateBlock()
-	require.ErrorIs(t, err, node.ErrGetBlockByNum)
+	require.ErrorIs(t, err, ErrGetBlockByNum)
 
-	legacyClient.SetResponse("GetBlockByNumber", &block)
+	legacyClient.GetBlockByNumberReturns(&block, nil)
+	legacyClient.GetTransactionByHashReturns(nil, ErrGetTxByHash)
 	err = b.RegenerateBlock()
-	require.ErrorIs(t, err, node.ErrGetTxByHash)
+	require.ErrorIs(t, err, ErrGetTxByHash)
 
 	fakeTransaction := &types.LegacyTx{
 		GasPrice: uint256.NewInt(100),
@@ -63,55 +76,58 @@ func TestRegenerateBlock(t *testing.T) {
 			To:  &to,
 		},
 	}
-	legacyClient.SetResponse("GetTransactionByHash", fakeTransaction)
+	legacyClient.GetTransactionByHashReturns(fakeTransaction, nil)
 	err = b.RegenerateBlock()
 	require.Error(t, err)
 	require.ErrorContains(t, err, "not match")
 
-	legacyClient.SetResponse("GetTransactionByHash", transaction)
+	legacyClient.GetTransactionByHashReturns(transaction, nil)
+	privateClient.ForkchoiceUpdateV1Returns(nil, ErrForkchoice)
 	err = b.RegenerateBlock()
-	require.ErrorIs(t, err, node.ErrForkchoice)
+	require.ErrorIs(t, err, ErrForkchoice)
 
-	privateClient.SetResponse("ForkchoiceUpdateV1", &node.ForkchoiceUpdatedResult{
+	privateClient.ForkchoiceUpdateV1Returns(&node.ForkchoiceUpdatedResult{
 		PayloadStatus: node.PayloadStatusV1{
 			Status: "VALID",
 		},
 		PayloadID: &node.PayloadID{1},
-	})
+	}, nil)
+	privateClient.GetPayloadV1Returns(nil, ErrNewPayload)
 	err = b.RegenerateBlock()
-	require.ErrorIs(t, err, node.ErrGetPayload)
+	require.ErrorIs(t, err, ErrNewPayload)
 
 	marshalTransactions, err := types.MarshalTransactionsBinary(types.Transactions{transaction})
 	require.NoError(t, err)
 	executionPayloadTx := make([]hexutility.Bytes, 1)
 	executionPayloadTx[0] = hexutility.Bytes(marshalTransactions[0])
-	privateClient.SetResponse("GetPayloadV1", &commands.ExecutionPayload{
+	privateClient.GetPayloadV1Returns(&commands.ExecutionPayload{
 		BlockHash:    block.Hash,
 		Transactions: executionPayloadTx,
-	})
+	}, nil)
+	privateClient.NewPayloadV1Returns(nil, ErrNewPayload)
 	err = b.RegenerateBlock()
-	require.ErrorIs(t, err, node.ErrNewPayload)
+	require.ErrorIs(t, err, ErrNewPayload)
 
-	privateClient.SetResponse("NewPayloadV1", &node.PayloadStatusV1{
+	privateClient.NewPayloadV1Returns(&node.PayloadStatusV1{
 		Status:          "INVALID",
 		LatestValidHash: &block.Hash,
-	})
+	}, nil)
 	err = b.RegenerateBlock()
 	require.Error(t, err)
 	require.ErrorContains(t, err, "payload is invalid")
 
-	privateClient.SetResponse("NewPayloadV1", &node.PayloadStatusV1{
+	privateClient.NewPayloadV1Returns(&node.PayloadStatusV1{
 		Status:          "VALID",
 		LatestValidHash: &common.Hash{1},
-	})
+	}, nil)
 	err = b.RegenerateBlock()
 	require.Error(t, err)
 	require.ErrorContains(t, err, "latest valid hash is not correct")
 
-	privateClient.SetResponse("NewPayloadV1", &node.PayloadStatusV1{
+	privateClient.NewPayloadV1Returns(&node.PayloadStatusV1{
 		Status:          "VALID",
 		LatestValidHash: &block.Hash,
-	})
+	}, nil)
 	err = b.RegenerateBlock()
 	require.NoError(t, err)
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/ledgerwatch/log/v3"
 )
 
+//go:generate go run github.com/maxbrunsfeld/counterfeiter/v6 . RPC
 type RPC interface {
 	SetJWTAuth(jwtSecret *[32]byte) error
 	SetHeader(key, value string)

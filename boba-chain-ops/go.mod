@@ -5,6 +5,7 @@ go 1.19
 require (
 	github.com/bobanetwork/v3-anchorage/boba-bindings v0.0.0-00010101000000-000000000000
 	github.com/c2h5oh/datasize v0.0.0-20220606134207-859f65c6625b
+	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/holiman/uint256 v1.2.2
 	github.com/ledgerwatch/erigon v1.10.16
 	github.com/ledgerwatch/erigon-lib v0.0.0-20230529131121-c7c31ee01f09
@@ -70,7 +71,6 @@ require (
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/goccy/go-json v0.9.11 // indirect
 	github.com/gofrs/flock v0.8.1 // indirect
-	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
@@ -98,6 +98,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.18 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
+	github.com/maxbrunsfeld/counterfeiter/v6 v6.6.1 // indirect
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
