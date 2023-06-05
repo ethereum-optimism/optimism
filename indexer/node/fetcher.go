@@ -1,33 +1,27 @@
 package node
 
 import (
+	"errors"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-const (
-	// Max number of headers that's bee returned by the Fetcher at once. This will
-	// eventually be configurable
-	maxHeaderBatchSize = 50
-)
+// Max number of headers that's bee returned by the Fetcher at once.
+const maxHeaderBatchSize = 50
+
+var ErrFetcherAndProviderMismatchedState = errors.New("the fetcher and provider have diverged in finalized state")
 
 type Fetcher struct {
-	ethClient EthClient
-
-	// TODO: Store the last header block hash to ensure
-	// the next batch of headers builds on top
-	nextStartingBlockHeight *big.Int
+	ethClient  EthClient
+	lastHeader *types.Header
 }
 
 // NewFetcher instantiates a new instance of Fetcher against the supplied rpc client.
-// The Fetcher will start retrieving blocks starting at `fromBlockHeight`.
-func NewFetcher(ethClient EthClient, fromBlockHeight *big.Int) (*Fetcher, error) {
-	fetcher := &Fetcher{
-		ethClient:               ethClient,
-		nextStartingBlockHeight: fromBlockHeight,
-	}
-
+// The Fetcher will start fetching blocks starting from the supplied header unless
+// nil, indicating genesis.
+func NewFetcher(ethClient EthClient, fromHeader *types.Header) (*Fetcher, error) {
+	fetcher := &Fetcher{ethClient: ethClient, lastHeader: fromHeader}
 	return fetcher, nil
 }
 
@@ -39,25 +33,32 @@ func (f *Fetcher) NextFinalizedHeaders() ([]*types.Header, error) {
 		return nil, err
 	}
 
-	// TODO:
-	//  - (unlikely) What do we do if our connected node is suddently behind by many blocks?
-	if f.nextStartingBlockHeight.Cmp(finalizedBlockHeight) >= 0 {
+	if f.lastHeader != nil && f.lastHeader.Number.Cmp(finalizedBlockHeight) >= 0 {
+		// Warn if our fetcher is ahead of the provider. The fetcher should always
+		// be behind or at head with the provider.
 		return nil, nil
 	}
 
-	// clamp to the max batch size. the range is inclusive so +1 when computing the count
-	endHeight := finalizedBlockHeight
-	count := new(big.Int).Sub(endHeight, f.nextStartingBlockHeight).Uint64() + 1
-	if count > maxHeaderBatchSize {
-		endHeight = new(big.Int).Add(f.nextStartingBlockHeight, big.NewInt(maxHeaderBatchSize-1))
+	nextHeight := bigZero
+	if f.lastHeader != nil {
+		nextHeight = new(big.Int).Add(f.lastHeader.Number, bigOne)
 	}
 
-	headers, err := f.ethClient.BlockHeadersByRange(f.nextStartingBlockHeight, endHeight)
+	endHeight := clampBigInt(nextHeight, finalizedBlockHeight, maxHeaderBatchSize)
+	headers, err := f.ethClient.BlockHeadersByRange(nextHeight, endHeight)
 	if err != nil {
 		return nil, err
 	}
 
 	numHeaders := int64(len(headers))
-	f.nextStartingBlockHeight = endHeight.Add(f.nextStartingBlockHeight, big.NewInt(numHeaders))
+	if numHeaders == 0 {
+		return nil, nil
+	} else if f.lastHeader != nil && headers[0].ParentHash != f.lastHeader.Hash() {
+		// The indexer's state is in an irrecovorable state relative the provider. This
+		// SHOULD NEVER happens since the indexer is dealing with only finalize blcoks.
+		return nil, ErrFetcherAndProviderMismatchedState
+	}
+
+	f.lastHeader = headers[numHeaders-1]
 	return headers, nil
 }

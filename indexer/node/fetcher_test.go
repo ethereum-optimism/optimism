@@ -10,64 +10,113 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-func bigIntMatcher(num int64) func(*big.Int) bool {
-	return func(bi *big.Int) bool { return bi.Int64() == num }
+// make a set of headers which chain correctly
+func makeHeaders(numHeaders uint64, prevHeader *types.Header) []*types.Header {
+	headers := make([]*types.Header, numHeaders)
+	for i := range headers {
+		if i == 0 {
+			if prevHeader == nil {
+				// genesis
+				headers[i] = &types.Header{Number: big.NewInt(0)}
+			} else {
+				// chain onto the previous header
+				headers[i] = &types.Header{Number: big.NewInt(prevHeader.Number.Int64() + 1)}
+				headers[i].ParentHash = prevHeader.Hash()
+			}
+		} else {
+			prevHeader = headers[i-1]
+			headers[i] = &types.Header{Number: big.NewInt(prevHeader.Number.Int64() + 1)}
+			headers[i].ParentHash = prevHeader.Hash()
+		}
+	}
+
+	return headers
 }
 
-func TestNextFinalizedHeadersNoOp(t *testing.T) {
+func TestFetcherNextFinalizedHeadersNoOp(t *testing.T) {
 	client := new(MockEthClient)
-	fetcher, err := NewFetcher(client, big.NewInt(1))
+
+	// start from block 0 as the latest fetched block
+	lastHeader := &types.Header{Number: bigZero}
+	fetcher, err := NewFetcher(client, lastHeader)
 	assert.NoError(t, err)
 
-	// no new headers
-	client.On("FinalizedBlockHeight").Return(big.NewInt(1), nil)
+	// no new headers when matched with head
+	client.On("FinalizedBlockHeight").Return(big.NewInt(0), nil)
 	headers, err := fetcher.NextFinalizedHeaders()
 	assert.NoError(t, err)
 	assert.Empty(t, headers)
 }
 
-func TestNextFinalizedHeadersCursor(t *testing.T) {
+func TestFetcherNextFinalizedHeadersCursored(t *testing.T) {
 	client := new(MockEthClient)
-	fetcher, err := NewFetcher(client, big.NewInt(1))
+
+	// start from genesis
+	fetcher, err := NewFetcher(client, nil)
 	assert.NoError(t, err)
 
-	// 5 available headers [1..5]
-	client.On("FinalizedBlockHeight").Return(big.NewInt(5), nil)
-
-	headers := make([]*types.Header, 5)
-	for i := range headers {
-		headers[i] = new(types.Header)
-	}
-
-	client.On("BlockHeadersByRange", mock.MatchedBy(bigIntMatcher(1)), mock.MatchedBy(bigIntMatcher(5))).Return(headers, nil)
-
+	// blocks [0..4]
+	headers := makeHeaders(5, nil)
+	client.On("FinalizedBlockHeight").Return(big.NewInt(4), nil).Times(1) // Times so that we can override next
+	client.On("BlockHeadersByRange", mock.MatchedBy(bigIntMatcher(0)), mock.MatchedBy(bigIntMatcher(4))).Return(headers, nil)
 	headers, err = fetcher.NextFinalizedHeaders()
 	assert.NoError(t, err)
 	assert.Len(t, headers, 5)
 
-	// [1.. 5] nextHeight == 6
-	assert.Equal(t, fetcher.nextStartingBlockHeight.Int64(), int64(6))
+	// blocks [5..9]
+	headers = makeHeaders(5, headers[len(headers)-1])
+	client.On("FinalizedBlockHeight").Return(big.NewInt(9), nil)
+	client.On("BlockHeadersByRange", mock.MatchedBy(bigIntMatcher(5)), mock.MatchedBy(bigIntMatcher(9))).Return(headers, nil)
+	headers, err = fetcher.NextFinalizedHeaders()
+	assert.NoError(t, err)
+	assert.Len(t, headers, 5)
 }
 
-func TestNextFinalizedHeadersMaxHeaderBatch(t *testing.T) {
+func TestFetcherNextFinalizedHeadersMaxHeaderBatch(t *testing.T) {
 	client := new(MockEthClient)
-	fetcher, err := NewFetcher(client, big.NewInt(1))
+
+	// start from genesis
+	fetcher, err := NewFetcher(client, nil)
 	assert.NoError(t, err)
 
-	client.On("FinalizedBlockHeight").Return(big.NewInt(2*maxHeaderBatchSize), nil)
-
-	headers := make([]*types.Header, maxHeaderBatchSize)
-	for i := range headers {
-		headers[i] = new(types.Header)
-	}
+	// blocks [0..maxBatchSize] size == maxBatchSize = 1
+	headers := makeHeaders(maxHeaderBatchSize, nil)
+	client.On("FinalizedBlockHeight").Return(big.NewInt(maxHeaderBatchSize), nil)
 
 	// clamped by the max batch size
-	client.On("BlockHeadersByRange", mock.MatchedBy(bigIntMatcher(1)), mock.MatchedBy(bigIntMatcher(maxHeaderBatchSize))).Return(headers, nil)
-
+	client.On("BlockHeadersByRange", mock.MatchedBy(bigIntMatcher(0)), mock.MatchedBy(bigIntMatcher(maxHeaderBatchSize-1))).Return(headers, nil)
 	headers, err = fetcher.NextFinalizedHeaders()
 	assert.NoError(t, err)
 	assert.Len(t, headers, maxHeaderBatchSize)
 
-	// [1..maxHeaderBatchSize], nextHeight == 1+maxHeaderBatchSize
-	assert.Equal(t, fetcher.nextStartingBlockHeight.Int64(), int64(1+maxHeaderBatchSize))
+	// blocks [maxBatchSize..maxBatchSize]
+	headers = makeHeaders(1, headers[len(headers)-1])
+	client.On("BlockHeadersByRange", mock.MatchedBy(bigIntMatcher(maxHeaderBatchSize)), mock.MatchedBy(bigIntMatcher(maxHeaderBatchSize))).Return(headers, nil)
+	headers, err = fetcher.NextFinalizedHeaders()
+	assert.NoError(t, err)
+	assert.Len(t, headers, 1)
+}
+
+func TestFetcherMismatchedProviderStateError(t *testing.T) {
+	client := new(MockEthClient)
+
+	// start from genesis
+	fetcher, err := NewFetcher(client, nil)
+	assert.NoError(t, err)
+
+	// blocks [0..4]
+	headers := makeHeaders(5, nil)
+	client.On("FinalizedBlockHeight").Return(big.NewInt(4), nil).Times(1) // Times so that we can override next
+	client.On("BlockHeadersByRange", mock.MatchedBy(bigIntMatcher(0)), mock.MatchedBy(bigIntMatcher(4))).Return(headers, nil)
+	headers, err = fetcher.NextFinalizedHeaders()
+	assert.NoError(t, err)
+	assert.Len(t, headers, 5)
+
+	// blocks [5..9]. Next batch is not chained correctly (starts again from genesis)
+	headers = makeHeaders(5, nil)
+	client.On("FinalizedBlockHeight").Return(big.NewInt(9), nil)
+	client.On("BlockHeadersByRange", mock.MatchedBy(bigIntMatcher(5)), mock.MatchedBy(bigIntMatcher(9))).Return(headers, nil)
+	headers, err = fetcher.NextFinalizedHeaders()
+	assert.Nil(t, headers)
+	assert.Equal(t, ErrFetcherAndProviderMismatchedState, err)
 }
