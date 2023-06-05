@@ -191,7 +191,7 @@ contract BedrockMigrationChecker is Script, StdAssertions {
 
     function getContracts(string memory bedrockJsonDir) internal returns (ContractSet memory) {
         return ContractSet({
-            AddressManager: getAddressFromJson(string.concat(bedrockJsonDir, "/Lib_AddressManager.json")),
+            AddressManager: getAddressFromJson(string.concat(bedrockJsonDir, "/AddressManager.json")),
                     L1CrossDomainMessengerImpl: getAddressFromJson(string.concat(bedrockJsonDir, "/L1CrossDomainMessenger.json")),
                     L1CrossDomainMessengerProxy: getAddressFromJson(string.concat(bedrockJsonDir, "/L1CrossDomainMessengerProxy.json")),
                 L1ERC721BridgeImpl: getAddressFromJson(string.concat(bedrockJsonDir, "/L1ERC721Bridge.json")),
