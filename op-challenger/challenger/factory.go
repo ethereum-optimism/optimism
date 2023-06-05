@@ -31,8 +31,3 @@ func BuildDisputeGameLogFilter(contract *abi.ABI) (ethereum.FilterQuery, error) 
 
 	return query, nil
 }
-
-// BuildDisputeGameLogFilter creates a filter query for the DisputeGameFactory contract.
-func (c *Challenger) BuildDisputeGameLogFilter() (ethereum.FilterQuery, error) {
-	return BuildDisputeGameLogFilter(c.dgfABI)
-}

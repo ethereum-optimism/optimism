@@ -74,7 +74,7 @@ func (c *Challenger) NewOracleSubscription() (*Subscription, error) {
 
 // NewFactorySubscription creates a new [Subscription] listening to the DisputeGameFactory contract.
 func (c *Challenger) NewFactorySubscription() (*Subscription, error) {
-	query, err := c.BuildDisputeGameLogFilter()
+	query, err := BuildDisputeGameLogFilter(c.dgfABI)
 	if err != nil {
 		return nil, err
 	}
