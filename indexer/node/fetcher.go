@@ -54,8 +54,8 @@ func (f *Fetcher) NextFinalizedHeaders() ([]*types.Header, error) {
 	if numHeaders == 0 {
 		return nil, nil
 	} else if f.lastHeader != nil && headers[0].ParentHash != f.lastHeader.Hash() {
-		// The indexer's state is in an irrecoverable state relative the provider. This
-		// SHOULD NEVER happens since the indexer is dealing with only finalize blcoks.
+		// The indexer's state is in an irrecoverable state relative to the provider. This
+		// should never happen since the indexer is dealing with only finalized blocks.
 		return nil, ErrFetcherAndProviderMismatchedState
 	}
 
