@@ -182,7 +182,7 @@ func doMigration(mutableDB *state.StateDB, dbFactory util.DBFactory, addresses [
 			if noCheck {
 				log.Error("unknown slot type", "slot", key, "type", slotType)
 			} else {
-				log.Crit("unknown slot type %d, should never happen", slotType)
+				log.Crit("unknown slot type, should never happen", "type", slotType)
 			}
 		}
 
@@ -209,10 +209,10 @@ func doMigration(mutableDB *state.StateDB, dbFactory util.DBFactory, addresses [
 
 	// Print first 10 accounts without balance
 	aleft := 10
-	log.Info("Listing first %d accounts without balance", aleft)
+	log.Info("Listing first accounts without balance", "num", aleft)
 	for i, a := range addresses {
 		if !seenAccounts[a] {
-			log.Info("Account[%d] without balance", i, "addr", a)
+			log.Info("Account without balance", "idx", i, "addr", a)
 			aleft--
 		}
 		if aleft == 0 {
