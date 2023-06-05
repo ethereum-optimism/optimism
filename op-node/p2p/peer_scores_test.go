@@ -37,7 +37,6 @@ type PeerScoresTestSuite struct {
 
 	mockStore    *p2pMocks.Peerstore
 	mockMetricer *p2pMocks.ScoreMetrics
-	bandScorer   BandScoreThresholds
 	logger       log.Logger
 }
 
@@ -45,9 +44,6 @@ type PeerScoresTestSuite struct {
 func (testSuite *PeerScoresTestSuite) SetupTest() {
 	testSuite.mockStore = &p2pMocks.Peerstore{}
 	testSuite.mockMetricer = &p2pMocks.ScoreMetrics{}
-	bandScorer, err := NewBandScorer("0:graylist;")
-	testSuite.NoError(err)
-	testSuite.bandScorer = *bandScorer
 	testSuite.logger = testlog.Logger(testSuite.T(), log.LvlError)
 }
 
@@ -104,9 +100,8 @@ func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []
 
 		scorer := NewScorer(
 			&rollup.Config{L2ChainID: big.NewInt(123)},
-			extPeerStore, testSuite.mockMetricer, &testSuite.bandScorer, logger)
+			extPeerStore, testSuite.mockMetricer, logger)
 		opts = append(opts, ConfigurePeerScoring(&Config{
-			BandScoreThresholds: testSuite.bandScorer,
 			PeerScoring: pubsub.PeerScoreParams{
 				AppSpecificScore: func(p peer.ID) float64 {
 					if p == hosts[0].ID() {

@@ -13,9 +13,9 @@ type ScoreMetrics struct {
 	mock.Mock
 }
 
-// SetPeerScores provides a mock function with given fields: _a0, _a1
-func (_m *ScoreMetrics) SetPeerScores(_a0 map[string]float64, _a1 []store.PeerScores) {
-	_m.Called(_a0, _a1)
+// SetPeerScores provides a mock function with given fields: _a0
+func (_m *ScoreMetrics) SetPeerScores(_a0 []store.PeerScores) {
+	_m.Called(_a0)
 }
 
 type mockConstructorTestingTNewScoreMetrics interface {

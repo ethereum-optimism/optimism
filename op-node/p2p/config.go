@@ -47,7 +47,6 @@ type SetupP2P interface {
 	BanPeers() bool
 	BanThreshold() float64
 	BanDuration() time.Duration
-	PeerBandScorer() *BandScoreThresholds
 	GossipSetupConfigurables
 	ReqRespSyncEnabled() bool
 }
@@ -66,9 +65,6 @@ type Config struct {
 	// Pubsub Scoring Parameters
 	PeerScoring  pubsub.PeerScoreParams
 	TopicScoring pubsub.TopicScoreParams
-
-	// Peer Score Band Thresholds
-	BandScoreThresholds BandScoreThresholds
 
 	// Whether to ban peers based on their [PeerScoring] score. Should be negative.
 	BanningEnabled bool
@@ -140,10 +136,6 @@ func (conf *Config) Disabled() bool {
 
 func (conf *Config) PeerScoringParams() *pubsub.PeerScoreParams {
 	return &conf.PeerScoring
-}
-
-func (conf *Config) PeerBandScorer() *BandScoreThresholds {
-	return &conf.BandScoreThresholds
 }
 
 func (conf *Config) BanPeers() bool {
