@@ -51,16 +51,6 @@ func main() {
 				Usage:    "Path to ovm-addresses.json",
 				Required: true,
 			},
-			&cli.StringFlag{
-				Name:     "ovm-allowances",
-				Usage:    "Path to ovm-allowances.json",
-				Required: true,
-			},
-			&cli.StringFlag{
-				Name:     "witness-file",
-				Usage:    "Path to witness file",
-				Required: true,
-			},
 			&cli.BoolFlag{
 				Name:  "dry-run",
 				Usage: "Dry run the upgrade by not committing the database",
@@ -100,29 +90,18 @@ func main() {
 			if err != nil {
 				return err
 			}
-			ovmAllowances, err := crossdomain.NewAllowances(ctx.String("ovm-allowances"))
-			if err != nil {
-				return err
-			}
-			evmMessages, evmAddresses, err := crossdomain.ReadWitnessData(ctx.String("witness-file"))
-			if err != nil {
-				return err
-			}
 
 			log.Info(
-				"Loaded witness data",
+				"Loaded data",
 				"ovmAddresses", len(ovmAddresses),
-				"evmAddresses", len(evmAddresses),
-				"ovmAllowances", len(ovmAllowances),
-				"evmMessages", len(evmMessages),
 			)
 
 			migrationData := crossdomain.MigrationData{
 				OvmAddresses:  ovmAddresses,
-				EvmAddresses:  evmAddresses,
-				OvmAllowances: ovmAllowances,
+				EvmAddresses:  crossdomain.OVMETHAddresses{},
+				OvmAllowances: []*crossdomain.Allowance{},
 				OvmMessages:   []*crossdomain.SentMessage{},
-				EvmMessages:   evmMessages,
+				EvmMessages:   []*crossdomain.SentMessage{},
 			}
 
 			genesisAlloc, err := genesis.NewAlloc(ctx.String("alloc-path"))
