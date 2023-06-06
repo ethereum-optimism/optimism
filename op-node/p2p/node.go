@@ -89,9 +89,14 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 			n.gater = extra.ConnectionGater()
 			n.connMgr = extra.ConnectionManager()
 		}
+		eps, ok := n.host.Peerstore().(store.ExtendedPeerstore)
+		if !ok {
+			return fmt.Errorf("cannot init without extended peerstore: %w", err)
+		}
+		appScorer := newPeerApplicationScorer(log, clock.SystemClock, setup.ApplicationScoringParams(), eps, n.host.Network().Peers)
 		// Activate the P2P req-resp sync if enabled by feature-flag.
 		if setup.ReqRespSyncEnabled() {
-			n.syncCl = NewSyncClient(log, rollupCfg, n.host.NewStream, gossipIn.OnUnsafeL2Payload, metrics)
+			n.syncCl = NewSyncClient(log, rollupCfg, n.host.NewStream, gossipIn.OnUnsafeL2Payload, metrics, appScorer)
 			n.host.Network().Notify(&network.NotifyBundle{
 				ConnectedF: func(nw network.Network, conn network.Conn) {
 					n.syncCl.AddPeer(conn.RemotePeer())
@@ -112,20 +117,8 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 				n.host.SetStreamHandler(PayloadByNumberProtocolID(rollupCfg.L2ChainID), payloadByNumber)
 			}
 		}
-		eps, ok := n.host.Peerstore().(store.ExtendedPeerstore)
-		if !ok {
-			return fmt.Errorf("cannot init without extended peerstore: %w", err)
-		}
 		n.store = eps
-		n.scorer = NewScorer(rollupCfg, eps, metrics, log)
-		n.host.Network().Notify(&network.NotifyBundle{
-			ConnectedF: func(_ network.Network, conn network.Conn) {
-				n.scorer.OnConnect(conn.RemotePeer())
-			},
-			DisconnectedF: func(_ network.Network, conn network.Conn) {
-				n.scorer.OnDisconnect(conn.RemotePeer())
-			},
-		})
+		n.scorer = NewScorer(rollupCfg, eps, metrics, log, appScorer)
 		// notify of any new connections/streams/etc.
 		n.host.Network().Notify(NewNetworkNotifier(log, metrics))
 		// note: the IDDelta functionality was removed from libP2P, and no longer needs to be explicitly disabled.

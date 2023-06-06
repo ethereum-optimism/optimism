@@ -27,9 +27,31 @@ func (g GossipScores) Apply(rec *scoreRecord) {
 	rec.PeerScores.Gossip = g
 }
 
+type ReqRespScores struct {
+	ValidResponses   float64 `json:"validResponses"`
+	ErrorResponses   float64 `json:"errorResponses"`
+	RejectedPayloads float64 `json:"rejectedPayloads"`
+}
+
+type ReqRespScoreAdjuster func(target *ReqRespScores)
+
+type ReqRespScoresDiff struct {
+	adjuster ReqRespScoreAdjuster
+}
+
+func NewReqRespScoresDiff(adjuster ReqRespScoreAdjuster) ReqRespScoresDiff {
+	return ReqRespScoresDiff{
+		adjuster: adjuster,
+	}
+}
+
+func (r ReqRespScoresDiff) Apply(rec *scoreRecord) {
+	r.adjuster(&rec.PeerScores.ReqResp)
+}
+
 type PeerScores struct {
-	Gossip      GossipScores `json:"gossip"`
-	ReqRespSync float64      `json:"reqRespSync"`
+	Gossip  GossipScores  `json:"gossip"`
+	ReqResp ReqRespScores `json:"reqResp"`
 }
 
 // ScoreDatastore defines a type-safe API for getting and setting libp2p peer score information
