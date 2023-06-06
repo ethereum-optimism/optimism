@@ -40,7 +40,7 @@
         "payable": false
       },
       "contractInputsValues": {
-        "_l2OutputOracleDynamicConfig": "[TBD, TBD]",
+        "_l2OutputOracleDynamicConfig": "[105235063, 1686068903]",
         "_optimismPortalDynamicConfig": "true"
       }
     }
