@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"os/exec"
 
@@ -21,9 +22,12 @@ import (
 	oppio "github.com/ethereum-optimism/optimism/op-program/io"
 	"github.com/ethereum-optimism/optimism/op-program/preimage"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+const maxRPCRetries = math.MaxInt
 
 type L2Source struct {
 	*sources.L2Client
@@ -199,16 +203,21 @@ func makePrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *
 		return nil, fmt.Errorf("failed to setup L2 RPC: %w", err)
 	}
 
+	l1Backoff := opclient.NewRetryingClient(l1RPC, maxRPCRetries)
+	l2Backoff := opclient.NewRetryingClient(l2RPC, maxRPCRetries)
+
 	l1ClCfg := sources.L1ClientDefaultConfig(cfg.Rollup, cfg.L1TrustRPC, cfg.L1RPCKind)
-	l2ClCfg := sources.L2ClientDefaultConfig(cfg.Rollup, true)
-	l1Cl, err := sources.NewL1Client(l1RPC, logger, nil, l1ClCfg)
+	l1Cl, err := sources.NewL1Client(l1Backoff, logger, nil, l1ClCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L1 client: %w", err)
 	}
-	l2Cl, err := sources.NewL2Client(l2RPC, logger, nil, l2ClCfg)
+
+	l2ClCfg := sources.L2ClientDefaultConfig(cfg.Rollup, true)
+	l2Cl, err := sources.NewL2Client(l2Backoff, logger, nil, l2ClCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L2 client: %w", err)
 	}
+
 	l2DebugCl := &L2Source{L2Client: l2Cl, DebugClient: sources.NewDebugClient(l2RPC.CallContext)}
 	return prefetcher.NewPrefetcher(logger, l1Cl, l2DebugCl, kv), nil
 }

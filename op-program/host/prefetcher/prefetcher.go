@@ -42,8 +42,8 @@ type Prefetcher struct {
 func NewPrefetcher(logger log.Logger, l1Fetcher L1Source, l2Fetcher L2Source, kvStore kvstore.KV) *Prefetcher {
 	return &Prefetcher{
 		logger:    logger,
-		l1Fetcher: NewRetryingL1Source(logger, l1Fetcher),
-		l2Fetcher: NewRetryingL2Source(logger, l2Fetcher),
+		l1Fetcher: l1Fetcher,
+		l2Fetcher: l2Fetcher,
 		kvStore:   kvStore,
 	}
 }
