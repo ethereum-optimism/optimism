@@ -158,8 +158,18 @@ abstract contract ResourceMetering is Initializable {
         // this point. Since we're at the end of the modifier, this should be pretty accurate. Acts
         // effectively like a dynamic stipend (with a minimum value).
         uint256 usedGas = _initialGas - gasleft();
+
         if (gasCost > usedGas) {
-            Burn.gas(gasCost - usedGas);
+            uint256 gasToBurn = gasCost - usedGas;
+
+            // TODO figure out how big this buffer should be
+            uint256 BUFFER = 420;
+            require(
+                gasToBurn + BUFFER > gasLeft(),
+                "ResourceMetering: insufficient l1 gas to cover eip1559 burn"
+            );
+
+            Burn.gas(gasToBurn);
         }
     }
 
