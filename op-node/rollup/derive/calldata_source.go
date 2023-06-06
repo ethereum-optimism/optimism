@@ -149,7 +149,7 @@ func DataFromEVMTransactions(config *rollup.Config, daCfg *rollup.DAConfig, batc
 				data, err := daCfg.Client.NamespacedData(context.Background(), daCfg.Namespace, uint64(height))
 				if err != nil {
 					log.Warn("unable to retrieve data from da", "err", err)
-					return nil, err
+					continue
 				}
 				log.Warn("retrieved data", "data", hex.EncodeToString(data[index]))
 				out = append(out, data[index])
