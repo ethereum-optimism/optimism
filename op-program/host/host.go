@@ -27,7 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-const maxAttempts = math.MaxInt // Succeed or die trying
+const maxRPCRetries = math.MaxInt
 
 type L2Source struct {
 	*sources.L2Client
@@ -203,8 +203,8 @@ func makePrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *
 		return nil, fmt.Errorf("failed to setup L2 RPC: %w", err)
 	}
 
-	l1Backoff := opclient.NewBackoffClient(l1RPC, maxAttempts)
-	l2Backoff := opclient.NewBackoffClient(l2RPC, maxAttempts)
+	l1Backoff := opclient.NewRetryingClient(l1RPC, maxRPCRetries)
+	l2Backoff := opclient.NewRetryingClient(l2RPC, maxRPCRetries)
 
 	l1ClCfg := sources.L1ClientDefaultConfig(cfg.Rollup, cfg.L1TrustRPC, cfg.L1RPCKind)
 	l1Cl, err := sources.NewL1Client(l1Backoff, logger, nil, l1ClCfg)

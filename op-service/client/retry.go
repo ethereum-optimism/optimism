@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/rpc"
 
+	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-service/backoff"
 )
 
@@ -15,30 +16,20 @@ var (
 	ExponentialBackoff = backoff.Exponential()
 )
 
-// InnerRPC is a minimal [client.RPC] interface that is used by the backoff client.
-//
-//go:generate mockery --name InnerRPC --output ./mocks/
-type InnerRPC interface {
-	Close()
-	CallContext(ctx context.Context, result any, method string, args ...any) error
-	BatchCallContext(ctx context.Context, b []rpc.BatchElem) error
-	EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error)
-}
-
-// backoffEthClient wraps a [InnerRPC] with a backoff strategy.
-type backoffEthClient struct {
-	c             InnerRPC
+// retryingClient wraps a [client.RPC] with a backoff strategy.
+type retryingClient struct {
+	c             client.RPC
 	retryAttempts int
 	strategy      backoff.Strategy
 }
 
-// NewBackoffClient creates a new backoff client.
+// NewRetryingClient creates a new retrying client.
 // The backoff strategy is optional, if not provided, the default exponential backoff strategy is used.
-func NewBackoffClient(c InnerRPC, retries int, strategy ...backoff.Strategy) *backoffEthClient {
+func NewRetryingClient(c client.RPC, retries int, strategy ...backoff.Strategy) *retryingClient {
 	if len(strategy) == 0 {
 		strategy = []backoff.Strategy{ExponentialBackoff}
 	}
-	return &backoffEthClient{
+	return &retryingClient{
 		c:             c,
 		retryAttempts: retries,
 		strategy:      strategy[0],
@@ -46,15 +37,15 @@ func NewBackoffClient(c InnerRPC, retries int, strategy ...backoff.Strategy) *ba
 }
 
 // BackoffStrategy returns the [backoff.Strategy] used by the client.
-func (b *backoffEthClient) BackoffStrategy() backoff.Strategy {
+func (b *retryingClient) BackoffStrategy() backoff.Strategy {
 	return b.strategy
 }
 
-func (b *backoffEthClient) Close() {
+func (b *retryingClient) Close() {
 	b.c.Close()
 }
 
-func (b *backoffEthClient) CallContext(ctx context.Context, result any, method string, args ...any) error {
+func (b *retryingClient) CallContext(ctx context.Context, result any, method string, args ...any) error {
 	return backoff.DoCtx(ctx, b.retryAttempts, b.strategy, func() error {
 		cCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
@@ -62,7 +53,7 @@ func (b *backoffEthClient) CallContext(ctx context.Context, result any, method s
 	})
 }
 
-func (b *backoffEthClient) BatchCallContext(ctx context.Context, batch []rpc.BatchElem) error {
+func (b *retryingClient) BatchCallContext(ctx context.Context, batch []rpc.BatchElem) error {
 	return backoff.DoCtx(ctx, b.retryAttempts, b.strategy, func() error {
 		cCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 		defer cancel()
@@ -71,7 +62,7 @@ func (b *backoffEthClient) BatchCallContext(ctx context.Context, batch []rpc.Bat
 	})
 }
 
-func (b *backoffEthClient) EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error) {
+func (b *retryingClient) EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error) {
 	var sub ethereum.Subscription
 	err := backoff.DoCtx(ctx, b.retryAttempts, b.strategy, func() error {
 		var err error
