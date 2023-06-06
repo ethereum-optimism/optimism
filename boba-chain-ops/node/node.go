@@ -2,14 +2,17 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/big"
 	"time"
 
+	ethereum "github.com/ledgerwatch/erigon"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/cmd/rpcdaemon/commands"
 	"github.com/ledgerwatch/erigon/common/hexutil"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/erigon/eth/tracers"
 	"github.com/ledgerwatch/erigon/rpc"
 	"github.com/ledgerwatch/log/v3"
 )
@@ -18,12 +21,15 @@ import (
 type RPC interface {
 	SetJWTAuth(jwtSecret *[32]byte) error
 	SetHeader(key, value string)
+	GetBlockNumber() (*big.Int, error)
 	GetLatestBlock() (*Block, error)
 	GetBlockByNumber(blockNumber *big.Int) (*Block, error)
 	GetTransactionByHash(txHash *common.Hash) (types.Transaction, error)
 	ForkchoiceUpdateV1(fc *commands.ForkChoiceState, attributes *commands.PayloadAttributes) (*ForkchoiceUpdatedResult, error)
 	GetPayloadV1(payloadID *PayloadID) (*commands.ExecutionPayload, error)
 	NewPayloadV1(executionPayload *commands.ExecutionPayload) (*PayloadStatusV1, error)
+	TraceTransaction(txHash *common.Hash) (*TraceTransaction, error)
+	GetLogs(filter *ethereum.FilterQuery) ([]*types.Log, error)
 }
 
 type BackendRPC struct {
@@ -63,6 +69,19 @@ func (r *BackendRPC) RefreshJWTAuth() error {
 		return fmt.Errorf("failed to refresh jwt auth: %w", err)
 	}
 	return nil
+}
+
+func (r *BackendRPC) GetBlockNumber() (*big.Int, error) {
+	if err := r.RefreshJWTAuth(); err != nil {
+		return nil, err
+	}
+	var blockNumber *hexutil.Big
+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
+	defer cancel()
+	if err := r.client.CallContext(ctx, &blockNumber, "eth_blockNumber"); err != nil {
+		return nil, err
+	}
+	return (*big.Int)(blockNumber), nil
 }
 
 func (r *BackendRPC) GetLatestBlock() (*Block, error) {
@@ -141,4 +160,72 @@ func (r *BackendRPC) NewPayloadV1(executionPayload *commands.ExecutionPayload) (
 		return nil, fmt.Errorf("Failed to execute new payloadId: %v", err)
 	}
 	return result, nil
+}
+
+func (r *BackendRPC) TraceTransaction(txHash *common.Hash) (*TraceTransaction, error) {
+	if err := r.RefreshJWTAuth(); err != nil {
+		return nil, err
+	}
+
+	var traceResult *TraceTransaction
+
+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
+	defer cancel()
+
+	tracerType := "callTracer"
+	tracerTimeout := r.timeout.String()
+	config := &tracers.TraceConfig{
+		Tracer:  &tracerType,
+		Timeout: &tracerTimeout,
+	}
+
+	if err := r.client.CallContext(ctx, &traceResult, "debug_traceTransaction", txHash, config); err != nil {
+		return nil, err
+	}
+	return traceResult, nil
+}
+
+func (r *BackendRPC) GetLogs(filter *ethereum.FilterQuery) ([]*types.Log, error) {
+	if err := r.RefreshJWTAuth(); err != nil {
+		return nil, err
+	}
+
+	filterArg, err := toFilterArg(filter)
+	if err != nil {
+		return nil, err
+	}
+
+	var logs []*types.Log
+	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
+	defer cancel()
+	if err := r.client.CallContext(ctx, &logs, "eth_getLogs", filterArg); err != nil {
+		return nil, err
+	}
+	return logs, nil
+}
+
+func toFilterArg(q *ethereum.FilterQuery) (interface{}, error) {
+	arg := map[string]interface{}{
+		"address": q.Addresses,
+		"topics":  q.Topics,
+	}
+	if q.BlockHash != nil {
+		arg["blockHash"] = *q.BlockHash
+		if q.FromBlock != nil || q.ToBlock != nil {
+			return nil, errors.New("cannot specify both BlockHash and FromBlock/ToBlock")
+		}
+	} else {
+		if q.FromBlock == nil || q.FromBlock.Sign() < 0 {
+			arg["fromBlock"] = "0x0"
+		} else {
+			arg["fromBlock"] = hexutil.EncodeBig(q.FromBlock)
+		}
+
+		if q.ToBlock == nil || q.ToBlock.Sign() < 0 {
+			arg["toBlock"] = "0x0"
+		} else {
+			arg["toBlock"] = hexutil.EncodeBig(q.ToBlock)
+		}
+	}
+	return arg, nil
 }

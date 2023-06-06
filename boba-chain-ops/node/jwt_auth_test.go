@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ledgerwatch/erigon/rpc"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,20 +18,24 @@ func TestReadJWTAuthSecret(t *testing.T) {
 
 func TestNewJWTAuth(t *testing.T) {
 	jwt := JWTAuth{}
-	mockClient := &MockRPC{}
+	client := &BackendRPC{
+		client: &rpc.Client{},
+	}
 	jwtSecret := [32]byte{1}
-	err := jwt.NewJWTAuth(mockClient, &jwtSecret)
+	err := jwt.NewJWTAuth(client, &jwtSecret)
 	require.NoError(t, err)
 	require.Equal(t, *jwt.JWTSecret, jwtSecret)
 }
 
 func TestRefreshJWTAuth(t *testing.T) {
 	jwt := JWTAuth{}
-	mockClient := &MockRPC{}
+	client := &BackendRPC{
+		client: &rpc.Client{},
+	}
 	oldSignedTime := time.Now().Add(-time.Second * 31)
 	jwt.SignedTime = oldSignedTime
 	jwt.JWTSecret = &[32]byte{1}
-	err := jwt.RefreshJWTAuth(mockClient)
+	err := jwt.RefreshJWTAuth(client)
 	require.NoError(t, err)
 	require.NotEqual(t, jwt.SignedTime, oldSignedTime)
 }

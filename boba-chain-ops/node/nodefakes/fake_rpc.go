@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/node"
+	ethereum "github.com/ledgerwatch/erigon"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/cmd/rpcdaemon/commands"
 	"github.com/ledgerwatch/erigon/core/types"
@@ -39,6 +40,18 @@ type FakeRPC struct {
 		result1 *node.Block
 		result2 error
 	}
+	GetBlockNumberStub        func() (*big.Int, error)
+	getBlockNumberMutex       sync.RWMutex
+	getBlockNumberArgsForCall []struct {
+	}
+	getBlockNumberReturns struct {
+		result1 *big.Int
+		result2 error
+	}
+	getBlockNumberReturnsOnCall map[int]struct {
+		result1 *big.Int
+		result2 error
+	}
 	GetLatestBlockStub        func() (*node.Block, error)
 	getLatestBlockMutex       sync.RWMutex
 	getLatestBlockArgsForCall []struct {
@@ -49,6 +62,19 @@ type FakeRPC struct {
 	}
 	getLatestBlockReturnsOnCall map[int]struct {
 		result1 *node.Block
+		result2 error
+	}
+	GetLogsStub        func(*ethereum.FilterQuery) ([]*types.Log, error)
+	getLogsMutex       sync.RWMutex
+	getLogsArgsForCall []struct {
+		arg1 *ethereum.FilterQuery
+	}
+	getLogsReturns struct {
+		result1 []*types.Log
+		result2 error
+	}
+	getLogsReturnsOnCall map[int]struct {
+		result1 []*types.Log
 		result2 error
 	}
 	GetPayloadV1Stub        func(*node.PayloadID) (*commands.ExecutionPayload, error)
@@ -106,6 +132,19 @@ type FakeRPC struct {
 	}
 	setJWTAuthReturnsOnCall map[int]struct {
 		result1 error
+	}
+	TraceTransactionStub        func(*common.Hash) (*node.TraceTransaction, error)
+	traceTransactionMutex       sync.RWMutex
+	traceTransactionArgsForCall []struct {
+		arg1 *common.Hash
+	}
+	traceTransactionReturns struct {
+		result1 *node.TraceTransaction
+		result2 error
+	}
+	traceTransactionReturnsOnCall map[int]struct {
+		result1 *node.TraceTransaction
+		result2 error
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
@@ -240,6 +279,62 @@ func (fake *FakeRPC) GetBlockByNumberReturnsOnCall(i int, result1 *node.Block, r
 	}{result1, result2}
 }
 
+func (fake *FakeRPC) GetBlockNumber() (*big.Int, error) {
+	fake.getBlockNumberMutex.Lock()
+	ret, specificReturn := fake.getBlockNumberReturnsOnCall[len(fake.getBlockNumberArgsForCall)]
+	fake.getBlockNumberArgsForCall = append(fake.getBlockNumberArgsForCall, struct {
+	}{})
+	stub := fake.GetBlockNumberStub
+	fakeReturns := fake.getBlockNumberReturns
+	fake.recordInvocation("GetBlockNumber", []interface{}{})
+	fake.getBlockNumberMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeRPC) GetBlockNumberCallCount() int {
+	fake.getBlockNumberMutex.RLock()
+	defer fake.getBlockNumberMutex.RUnlock()
+	return len(fake.getBlockNumberArgsForCall)
+}
+
+func (fake *FakeRPC) GetBlockNumberCalls(stub func() (*big.Int, error)) {
+	fake.getBlockNumberMutex.Lock()
+	defer fake.getBlockNumberMutex.Unlock()
+	fake.GetBlockNumberStub = stub
+}
+
+func (fake *FakeRPC) GetBlockNumberReturns(result1 *big.Int, result2 error) {
+	fake.getBlockNumberMutex.Lock()
+	defer fake.getBlockNumberMutex.Unlock()
+	fake.GetBlockNumberStub = nil
+	fake.getBlockNumberReturns = struct {
+		result1 *big.Int
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRPC) GetBlockNumberReturnsOnCall(i int, result1 *big.Int, result2 error) {
+	fake.getBlockNumberMutex.Lock()
+	defer fake.getBlockNumberMutex.Unlock()
+	fake.GetBlockNumberStub = nil
+	if fake.getBlockNumberReturnsOnCall == nil {
+		fake.getBlockNumberReturnsOnCall = make(map[int]struct {
+			result1 *big.Int
+			result2 error
+		})
+	}
+	fake.getBlockNumberReturnsOnCall[i] = struct {
+		result1 *big.Int
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeRPC) GetLatestBlock() (*node.Block, error) {
 	fake.getLatestBlockMutex.Lock()
 	ret, specificReturn := fake.getLatestBlockReturnsOnCall[len(fake.getLatestBlockArgsForCall)]
@@ -292,6 +387,70 @@ func (fake *FakeRPC) GetLatestBlockReturnsOnCall(i int, result1 *node.Block, res
 	}
 	fake.getLatestBlockReturnsOnCall[i] = struct {
 		result1 *node.Block
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRPC) GetLogs(arg1 *ethereum.FilterQuery) ([]*types.Log, error) {
+	fake.getLogsMutex.Lock()
+	ret, specificReturn := fake.getLogsReturnsOnCall[len(fake.getLogsArgsForCall)]
+	fake.getLogsArgsForCall = append(fake.getLogsArgsForCall, struct {
+		arg1 *ethereum.FilterQuery
+	}{arg1})
+	stub := fake.GetLogsStub
+	fakeReturns := fake.getLogsReturns
+	fake.recordInvocation("GetLogs", []interface{}{arg1})
+	fake.getLogsMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeRPC) GetLogsCallCount() int {
+	fake.getLogsMutex.RLock()
+	defer fake.getLogsMutex.RUnlock()
+	return len(fake.getLogsArgsForCall)
+}
+
+func (fake *FakeRPC) GetLogsCalls(stub func(*ethereum.FilterQuery) ([]*types.Log, error)) {
+	fake.getLogsMutex.Lock()
+	defer fake.getLogsMutex.Unlock()
+	fake.GetLogsStub = stub
+}
+
+func (fake *FakeRPC) GetLogsArgsForCall(i int) *ethereum.FilterQuery {
+	fake.getLogsMutex.RLock()
+	defer fake.getLogsMutex.RUnlock()
+	argsForCall := fake.getLogsArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeRPC) GetLogsReturns(result1 []*types.Log, result2 error) {
+	fake.getLogsMutex.Lock()
+	defer fake.getLogsMutex.Unlock()
+	fake.GetLogsStub = nil
+	fake.getLogsReturns = struct {
+		result1 []*types.Log
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRPC) GetLogsReturnsOnCall(i int, result1 []*types.Log, result2 error) {
+	fake.getLogsMutex.Lock()
+	defer fake.getLogsMutex.Unlock()
+	fake.GetLogsStub = nil
+	if fake.getLogsReturnsOnCall == nil {
+		fake.getLogsReturnsOnCall = make(map[int]struct {
+			result1 []*types.Log
+			result2 error
+		})
+	}
+	fake.getLogsReturnsOnCall[i] = struct {
+		result1 []*types.Log
 		result2 error
 	}{result1, result2}
 }
@@ -582,6 +741,70 @@ func (fake *FakeRPC) SetJWTAuthReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
+func (fake *FakeRPC) TraceTransaction(arg1 *common.Hash) (*node.TraceTransaction, error) {
+	fake.traceTransactionMutex.Lock()
+	ret, specificReturn := fake.traceTransactionReturnsOnCall[len(fake.traceTransactionArgsForCall)]
+	fake.traceTransactionArgsForCall = append(fake.traceTransactionArgsForCall, struct {
+		arg1 *common.Hash
+	}{arg1})
+	stub := fake.TraceTransactionStub
+	fakeReturns := fake.traceTransactionReturns
+	fake.recordInvocation("TraceTransaction", []interface{}{arg1})
+	fake.traceTransactionMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeRPC) TraceTransactionCallCount() int {
+	fake.traceTransactionMutex.RLock()
+	defer fake.traceTransactionMutex.RUnlock()
+	return len(fake.traceTransactionArgsForCall)
+}
+
+func (fake *FakeRPC) TraceTransactionCalls(stub func(*common.Hash) (*node.TraceTransaction, error)) {
+	fake.traceTransactionMutex.Lock()
+	defer fake.traceTransactionMutex.Unlock()
+	fake.TraceTransactionStub = stub
+}
+
+func (fake *FakeRPC) TraceTransactionArgsForCall(i int) *common.Hash {
+	fake.traceTransactionMutex.RLock()
+	defer fake.traceTransactionMutex.RUnlock()
+	argsForCall := fake.traceTransactionArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeRPC) TraceTransactionReturns(result1 *node.TraceTransaction, result2 error) {
+	fake.traceTransactionMutex.Lock()
+	defer fake.traceTransactionMutex.Unlock()
+	fake.TraceTransactionStub = nil
+	fake.traceTransactionReturns = struct {
+		result1 *node.TraceTransaction
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeRPC) TraceTransactionReturnsOnCall(i int, result1 *node.TraceTransaction, result2 error) {
+	fake.traceTransactionMutex.Lock()
+	defer fake.traceTransactionMutex.Unlock()
+	fake.TraceTransactionStub = nil
+	if fake.traceTransactionReturnsOnCall == nil {
+		fake.traceTransactionReturnsOnCall = make(map[int]struct {
+			result1 *node.TraceTransaction
+			result2 error
+		})
+	}
+	fake.traceTransactionReturnsOnCall[i] = struct {
+		result1 *node.TraceTransaction
+		result2 error
+	}{result1, result2}
+}
+
 func (fake *FakeRPC) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
@@ -589,8 +812,12 @@ func (fake *FakeRPC) Invocations() map[string][][]interface{} {
 	defer fake.forkchoiceUpdateV1Mutex.RUnlock()
 	fake.getBlockByNumberMutex.RLock()
 	defer fake.getBlockByNumberMutex.RUnlock()
+	fake.getBlockNumberMutex.RLock()
+	defer fake.getBlockNumberMutex.RUnlock()
 	fake.getLatestBlockMutex.RLock()
 	defer fake.getLatestBlockMutex.RUnlock()
+	fake.getLogsMutex.RLock()
+	defer fake.getLogsMutex.RUnlock()
 	fake.getPayloadV1Mutex.RLock()
 	defer fake.getPayloadV1Mutex.RUnlock()
 	fake.getTransactionByHashMutex.RLock()
@@ -601,6 +828,8 @@ func (fake *FakeRPC) Invocations() map[string][][]interface{} {
 	defer fake.setHeaderMutex.RUnlock()
 	fake.setJWTAuthMutex.RLock()
 	defer fake.setJWTAuthMutex.RUnlock()
+	fake.traceTransactionMutex.RLock()
+	defer fake.traceTransactionMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value

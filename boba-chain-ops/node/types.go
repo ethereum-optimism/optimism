@@ -59,3 +59,14 @@ type PayloadStatusV1 struct {
 	LatestValidHash *common.Hash         `json:"latestValidHash,omitempty"`
 	ValidationError *string              `json:"validationError,omitempty"`
 }
+
+type TraceTransaction struct {
+	From    common.Address      `json:"from"`
+	Value   hexutil.Big         `json:"value"`
+	Gas     hexutil.Uint64      `json:"gas"`
+	GasUsed hexutil.Uint64      `json:"gasUsed"`
+	Input   hexutility.Bytes    `json:"input"`
+	Output  hexutility.Bytes    `json:"output"`
+	To      common.Address      `json:"to,omitempty"`
+	Calls   []*TraceTransaction `json:"calls,omitempty"`
+}
