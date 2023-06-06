@@ -118,7 +118,7 @@ func (_c *PeerManager_GetPeerScore_Call) RunAndReturn(run func(peer.ID) (float64
 	return _c
 }
 
-// IsProtected provides a mock function with given fields: _a0
+// IsStatic provides a mock function with given fields: _a0
 func (_m *PeerManager) IsStatic(_a0 peer.ID) bool {
 	ret := _m.Called(_a0)
 
@@ -132,30 +132,30 @@ func (_m *PeerManager) IsStatic(_a0 peer.ID) bool {
 	return r0
 }
 
-// PeerManager_IsProtected_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsStatic'
-type PeerManager_IsProtected_Call struct {
+// PeerManager_IsStatic_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'IsStatic'
+type PeerManager_IsStatic_Call struct {
 	*mock.Call
 }
 
-// IsProtected is a helper method to define mock.On call
+// IsStatic is a helper method to define mock.On call
 //   - _a0 peer.ID
-func (_e *PeerManager_Expecter) IsProtected(_a0 interface{}) *PeerManager_IsProtected_Call {
-	return &PeerManager_IsProtected_Call{Call: _e.mock.On("IsStatic", _a0)}
+func (_e *PeerManager_Expecter) IsStatic(_a0 interface{}) *PeerManager_IsStatic_Call {
+	return &PeerManager_IsStatic_Call{Call: _e.mock.On("IsStatic", _a0)}
 }
 
-func (_c *PeerManager_IsProtected_Call) Run(run func(_a0 peer.ID)) *PeerManager_IsProtected_Call {
+func (_c *PeerManager_IsStatic_Call) Run(run func(_a0 peer.ID)) *PeerManager_IsStatic_Call {
 	_c.Call.Run(func(args mock.Arguments) {
 		run(args[0].(peer.ID))
 	})
 	return _c
 }
 
-func (_c *PeerManager_IsProtected_Call) Return(_a0 bool) *PeerManager_IsProtected_Call {
+func (_c *PeerManager_IsStatic_Call) Return(_a0 bool) *PeerManager_IsStatic_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *PeerManager_IsProtected_Call) RunAndReturn(run func(peer.ID) bool) *PeerManager_IsProtected_Call {
+func (_c *PeerManager_IsStatic_Call) RunAndReturn(run func(peer.ID) bool) *PeerManager_IsStatic_Call {
 	_c.Call.Return(run)
 	return _c
 }

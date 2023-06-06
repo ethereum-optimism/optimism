@@ -117,7 +117,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 			return fmt.Errorf("cannot init without extended peerstore: %w", err)
 		}
 		n.store = eps
-		n.scorer = NewScorer(rollupCfg, eps, metrics, setup.PeerBandScorer(), log)
+		n.scorer = NewScorer(rollupCfg, eps, metrics, log)
 		n.host.Network().Notify(&network.NotifyBundle{
 			ConnectedF: func(_ network.Network, conn network.Conn) {
 				n.scorer.OnConnect(conn.RemotePeer())
