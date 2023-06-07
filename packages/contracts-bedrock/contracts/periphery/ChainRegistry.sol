@@ -72,10 +72,10 @@ contract ChainRegistry {
      * @param _deployment The deployment to transfer ownership of
      * @param _newAdmin   The new admin to transfer ownership to
      */
-    function transferAdmin(
-        string calldata _deployment,
-        address _newAdmin
-    ) public onlyAdmin(_deployment) {
+    function transferAdmin(string calldata _deployment, address _newAdmin)
+        public
+        onlyAdmin(_deployment)
+    {
         deployments[_deployment] = _newAdmin;
 
         emit AdminChanged(msg.sender, _newAdmin);
@@ -87,11 +87,11 @@ contract ChainRegistry {
      * @param _deployment The deployment to register entries in
      * @param _entries    An array of entries to register
      */
-    function register(
-        string calldata _deployment,
-        DeploymentEntry[] calldata _entries
-    ) public onlyAdmin(_deployment) {
-        for (uint i = 0; i < _entries.length; i++) {
+    function register(string calldata _deployment, DeploymentEntry[] calldata _entries)
+        public
+        onlyAdmin(_deployment)
+    {
+        for (uint256 i = 0; i < _entries.length; i++) {
             registry[_deployment][_entries[i].entryName] = _entries[i].entryAddress;
         }
     }
@@ -104,12 +104,13 @@ contract ChainRegistry {
      *
      * @return An array of contract addresses for the names queried
      */
-    function query(
-        string calldata _deployment,
-        string[] calldata _names
-    ) public view returns (address[] memory) {
+    function query(string calldata _deployment, string[] calldata _names)
+        public
+        view
+        returns (address[] memory)
+    {
         address[] memory addresses = new address[](_names.length);
-        for (uint i; i < _names.length; i++) {
+        for (uint256 i; i < _names.length; i++) {
             addresses[i] = registry[_deployment][_names[i]];
         }
         return addresses;
