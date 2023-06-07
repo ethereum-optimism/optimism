@@ -1304,6 +1304,9 @@ workflows:
           name: op-batcher-lint
           module: op-batcher
       - go-lint:
+          name: op-bootnode-lint
+          module: op-bootnode
+      - go-lint:
           name: op-bindings-lint
           module: op-bindings
       - go-lint:
@@ -1366,6 +1369,7 @@ workflows:
       - bedrock-go-tests:
           requires:
             - op-batcher-lint
+            - op-bootnode-lint
             - op-bindings-lint
             - op-chain-ops-lint
             - op-e2e-lint
