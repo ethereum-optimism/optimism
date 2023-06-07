@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	batchermetrics "github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -231,6 +232,10 @@ type System struct {
 	L2OutputSubmitter *l2os.L2OutputSubmitter
 	BatchSubmitter    *bss.BatchSubmitter
 	Mocknet           mocknet.Mocknet
+}
+
+func (sys *System) NodeEndpoint(name string) string {
+	return selectEndpoint(sys.Nodes[name])
 }
 
 func (sys *System) Close() {
@@ -589,17 +594,20 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 
 	// Batch Submitter
 	sys.BatchSubmitter, err = bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
-		L1EthRpc:           sys.Nodes["l1"].WSEndpoint(),
-		L2EthRpc:           sys.Nodes["sequencer"].WSEndpoint(),
-		RollupRpc:          sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		MaxChannelDuration: 1,
-		MaxL1TxSize:        120_000,
-		TargetL1TxSize:     100_000,
-		TargetNumFrames:    1,
-		ApproxComprRatio:   0.4,
-		SubSafetyMargin:    4,
-		PollInterval:       50 * time.Millisecond,
-		TxMgrConfig:        newTxMgrConfig(sys.Nodes["l1"].WSEndpoint(), cfg.Secrets.Batcher),
+		L1EthRpc:               sys.Nodes["l1"].WSEndpoint(),
+		L2EthRpc:               sys.Nodes["sequencer"].WSEndpoint(),
+		RollupRpc:              sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		MaxPendingTransactions: 1,
+		MaxChannelDuration:     1,
+		MaxL1TxSize:            120_000,
+		CompressorConfig: compressor.CLIConfig{
+			TargetL1TxSizeBytes: 100_000,
+			TargetNumFrames:     1,
+			ApproxComprRatio:    0.4,
+		},
+		SubSafetyMargin: 4,
+		PollInterval:    50 * time.Millisecond,
+		TxMgrConfig:     newTxMgrConfig(sys.Nodes["l1"].WSEndpoint(), cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",
@@ -619,13 +627,17 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	return sys, nil
 }
 
-func configureL1(rollupNodeCfg *rollupNode.Config, l1Node *node.Node) {
-	l1EndpointConfig := l1Node.WSEndpoint()
+func selectEndpoint(node *node.Node) string {
 	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
 	if useHTTP {
 		log.Info("using HTTP client")
-		l1EndpointConfig = l1Node.HTTPEndpoint()
+		return node.HTTPEndpoint()
 	}
+	return node.WSEndpoint()
+}
+
+func configureL1(rollupNodeCfg *rollupNode.Config, l1Node *node.Node) {
+	l1EndpointConfig := selectEndpoint(l1Node)
 	rollupNodeCfg.L1 = &rollupNode.L1EndpointConfig{
 		L1NodeAddr:       l1EndpointConfig,
 		L1TrustRPC:       false,

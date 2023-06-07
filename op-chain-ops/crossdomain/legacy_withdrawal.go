@@ -57,7 +57,9 @@ func (w *LegacyWithdrawal) Encode() ([]byte, error) {
 	return out, nil
 }
 
-// Decode will decode a serialized LegacyWithdrawal
+// Decode will decode a serialized LegacyWithdrawal. There is a known inconsistency
+// where the decoded `msg.sender` is not authenticated. A round trip of encoding and
+// decoding with a spoofed withdrawal will result in a different message being recovered.
 func (w *LegacyWithdrawal) Decode(data []byte) error {
 	if len(data) < len(predeploys.L2CrossDomainMessengerAddr)+4 {
 		return fmt.Errorf("withdrawal data too short: %d", len(data))
@@ -68,6 +70,8 @@ func (w *LegacyWithdrawal) Decode(data []byte) error {
 		return fmt.Errorf("invalid selector: 0x%x", data[0:4])
 	}
 
+	// This should be the L2CrossDomainMessenger address but is not guaranteed
+	// to be.
 	msgSender := data[len(data)-len(predeploys.L2CrossDomainMessengerAddr):]
 
 	raw := data[4 : len(data)-len(predeploys.L2CrossDomainMessengerAddr)]

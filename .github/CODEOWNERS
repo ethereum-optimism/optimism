@@ -13,13 +13,13 @@
 /packages/core-utils            @ethereum-optimism/legacy-reviewers
 /packages/data-transport-layer  @ethereum-optimism/legacy-reviewers
 /packages/chain-mon             @smartcontracts
-/packages/fault-detector        @ethereum-optimism/legacy-reviewers
+/packages/fault-detector        @ethereum-optimism/devxpod
 /packages/hardhat-deploy-config @ethereum-optimism/legacy-reviewers
 /packages/message-relayer       @ethereum-optimism/legacy-reviewers
 /packages/migration-data        @ethereum-optimism/legacy-reviewers
 /packages/replica-healthcheck   @ethereum-optimism/legacy-reviewers
-/packages/sdk                   @ethereum-optimism/ecopod
-/packages/atst                  @ethereum-optimism/ecopod
+/packages/sdk                   @ethereum-optimism/devxpod
+/packages/atst                  @ethereum-optimism/devxpod
 
 # Bedrock codebases
 /bedrock-devnet @ethereum-optimism/go-reviewers
@@ -42,7 +42,7 @@
 
 # Misc
 /proxyd           @ethereum-optimism/infra-reviewers
-/indexer          @ethereum-optimism/infra-reviewers
+/indexer          @ethereum-optimism/devxpod
 /infra            @ethereum-optimism/infra-reviewers
 /specs            @ethereum-optimism/contract-reviewers @ethereum-optimism/go-reviewers
 /endpoint-monitor @ethereum-optimism/infra-reviewers

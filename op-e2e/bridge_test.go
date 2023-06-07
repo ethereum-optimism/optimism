@@ -20,10 +20,7 @@ import (
 // TestERC20BridgeDeposits tests the the L1StandardBridge bridge ERC20
 // functionality.
 func TestERC20BridgeDeposits(t *testing.T) {
-	parallel(t)
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
+	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
 

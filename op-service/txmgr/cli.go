@@ -60,10 +60,8 @@ func CLIFlags(envPrefix string) []cli.Flag {
 			Usage:  "The HD path used to derive the sequencer wallet from the mnemonic. The mnemonic flag must also be set.",
 			EnvVar: opservice.PrefixEnvVar(envPrefix, "HD_PATH"),
 		},
-		SequencerHDPathFlag,
-		L2OutputHDPathFlag,
 		cli.StringFlag{
-			Name:   "private-key",
+			Name:   PrivateKeyFlagName,
 			Usage:  "The private key to use with the service. Must not be used with mnemonic.",
 			EnvVar: opservice.PrefixEnvVar(envPrefix, "PRIVATE_KEY"),
 		},

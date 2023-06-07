@@ -82,7 +82,7 @@ func (s *channelManager) TxFailed(id txID) {
 	}
 
 	s.metr.RecordBatchTxFailed()
-	if s.closed && len(s.confirmedTransactions) == 0 && len(s.pendingTransactions) == 0 {
+	if s.closed && len(s.confirmedTransactions) == 0 && len(s.pendingTransactions) == 0 && s.pendingChannel != nil {
 		s.log.Info("Channel has no submitted transactions, clearing for shutdown", "chID", s.pendingChannel.ID())
 		s.clearPendingChannel()
 	}
@@ -199,6 +199,11 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 		return txData{}, io.EOF
 	}
 
+	// we have blocks, but we cannot add them to the channel right now
+	if s.pendingChannel != nil && s.pendingChannel.IsFull() {
+		return txData{}, io.EOF
+	}
+
 	if err := s.ensurePendingChannel(l1Head); err != nil {
 		return txData{}, err
 	}
@@ -266,6 +271,7 @@ func (s *channelManager) processBlocks() error {
 		}
 		blocksAdded += 1
 		latestL2ref = l2BlockRefFromBlockAndL1Info(block, l1info)
+		s.metr.RecordL2BlockInChannel(block)
 		// current block got added but channel is now full
 		if s.pendingChannel.IsFull() {
 			break
@@ -336,6 +342,8 @@ func (s *channelManager) AddL2Block(block *types.Block) error {
 	if s.tip != (common.Hash{}) && s.tip != block.ParentHash() {
 		return ErrReorg
 	}
+
+	s.metr.RecordL2BlockInPendingQueue(block)
 	s.blocks = append(s.blocks, block)
 	s.tip = block.Hash()
 

@@ -12,7 +12,11 @@ import {
   OEL2ContractsLike,
   BridgeAdapterData,
 } from '../interfaces'
-import { StandardBridgeAdapter, DAIBridgeAdapter } from '../adapters'
+import {
+  StandardBridgeAdapter,
+  DAIBridgeAdapter,
+  ECOBridgeAdapter,
+} from '../adapters'
 
 export const DEPOSIT_CONFIRMATION_BLOCKS: {
   [ChainID in L2ChainID]: number
@@ -23,6 +27,7 @@ export const DEPOSIT_CONFIRMATION_BLOCKS: {
   [L2ChainID.OPTIMISM_HARDHAT_DEVNET]: 2 as const,
   [L2ChainID.OPTIMISM_BEDROCK_LOCAL_DEVNET]: 2 as const,
   [L2ChainID.OPTIMISM_BEDROCK_ALPHA_TESTNET]: 12 as const,
+  [L2ChainID.BASE_GOERLI]: 12 as const,
 }
 
 export const CHAIN_BLOCK_TIMES: {
@@ -157,6 +162,22 @@ export const CONTRACT_ADDRESSES: {
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
+  [L2ChainID.BASE_GOERLI]: {
+    l1: {
+      AddressManager: '0x4Cf6b56b14c6CFcB72A75611080514F94624c54e' as const,
+      L1CrossDomainMessenger:
+        '0x8e5693140eA606bcEB98761d9beB1BC87383706D' as const,
+      L1StandardBridge: '0xfA6D8Ee5BE770F84FC001D098C4bD604Fe01284a' as const,
+      StateCommitmentChain:
+        '0x0000000000000000000000000000000000000000' as const,
+      CanonicalTransactionChain:
+        '0x0000000000000000000000000000000000000000' as const,
+      BondManager: '0x0000000000000000000000000000000000000000' as const,
+      OptimismPortal: '0xe93c8cD0D409341205A592f8c4Ac1A5fe5585cfA' as const,
+      L2OutputOracle: '0x2A35891ff30313CcFa6CE88dcf3858bb075A2298' as const,
+    },
+    l2: DEFAULT_L2_CONTRACT_ADDRESSES,
+  },
 }
 
 /**
@@ -187,6 +208,11 @@ export const BRIDGE_ADAPTER_DATA: {
       Adapter: DAIBridgeAdapter,
       l1Bridge: '0x05a388Db09C2D44ec0b00Ee188cD42365c42Df23' as const,
       l2Bridge: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65' as const,
+    },
+    ECO: {
+      Adapter: ECOBridgeAdapter,
+      l1Bridge: '0x7a01E277B8fDb8CDB2A2258508514716359f44A0' as const,
+      l2Bridge: '0x7a01E277B8fDb8CDB2A2258508514716359f44A0' as const,
     },
   },
 }

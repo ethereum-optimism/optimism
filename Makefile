@@ -40,6 +40,10 @@ op-proposer:
 	make -C ./op-proposer op-proposer
 .PHONY: op-proposer
 
+op-challenger:
+	make -C ./op-challenger op-challenger
+.PHONY: op-challenger
+
 op-program:
 	make -C ./op-program op-program
 .PHONY: op-program
@@ -116,3 +120,6 @@ tag-bedrock-go-modules:
 update-op-geth:
 	./ops/scripts/update-op-geth.py
 .PHONY: update-op-geth
+
+bedrock-markdown-links:
+	docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback --exclude twitter.com --exclude explorer.optimism.io --exclude-mail /input/README.md "/input/specs/**/*.md"

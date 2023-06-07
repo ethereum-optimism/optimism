@@ -1,4 +1,4 @@
-FROM golang:1.19.0-alpine3.15 as builder
+FROM golang:1.19.9-alpine3.16 as builder
 
 RUN apk add --no-cache make gcc musl-dev linux-headers
 
@@ -14,7 +14,7 @@ WORKDIR /app/op-wheel
 
 RUN go build -o op-wheel ./cmd/main.go
 
-FROM alpine:3.15
+FROM alpine:3.16
 
 COPY --from=builder /app/op-wheel/op-wheel /usr/local/bin
 

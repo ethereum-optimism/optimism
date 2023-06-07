@@ -15,7 +15,7 @@ import (
 func RandomL2Block(rng *rand.Rand, txCount int) (*types.Block, []*types.Receipt) {
 	l1Block := types.NewBlock(testutils.RandomHeader(rng),
 		nil, nil, nil, trie.NewStackTrie(nil))
-	l1InfoTx, err := derive.L1InfoDeposit(0, l1Block, eth.SystemConfig{}, testutils.RandomBool(rng))
+	l1InfoTx, err := derive.L1InfoDeposit(0, eth.BlockToInfo(l1Block), eth.SystemConfig{}, testutils.RandomBool(rng))
 	if err != nil {
 		panic("L1InfoDeposit: " + err.Error())
 	}

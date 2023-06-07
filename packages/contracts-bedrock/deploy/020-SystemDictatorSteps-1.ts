@@ -13,6 +13,7 @@ import {
   getDeploymentAddress,
   doOwnershipTransfer,
   doPhase,
+  liveDeployer,
 } from '../src/deploy-utils'
 
 const uint128Max = ethers.BigNumber.from('0xffffffffffffffffffffffffffffffff')
@@ -66,8 +67,12 @@ const deployFn: DeployFunction = async (hre) => {
   ])
 
   // If we have the key for the controller then we don't need to wait for external txns.
-  const isLiveDeployer =
-    deployer.toLowerCase() === hre.deployConfig.controller.toLowerCase()
+  // Set the DISABLE_LIVE_DEPLOYER=true in the env to ensure the script will pause to simulate scenarios
+  // where the controller is not the deployer.
+  const isLiveDeployer = await liveDeployer({
+    hre,
+    disabled: process.env.DISABLE_LIVE_DEPLOYER,
+  })
 
   // Transfer ownership of the ProxyAdmin to the SystemDictator.
   if ((await ProxyAdmin.owner()) !== SystemDictator.address) {

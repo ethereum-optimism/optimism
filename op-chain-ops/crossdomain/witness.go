@@ -41,6 +41,40 @@ func NewSentMessageFromJSON(path string) ([]*SentMessage, error) {
 	return j, nil
 }
 
+// decodeWitnessCalldata abi decodes the calldata encoded in the input witness
+// file. It errors if the 4 byte selector is not specifically for `passMessageToL1`.
+// It also errors if the abi decoding fails.
+func decodeWitnessCalldata(msg []byte) ([]byte, error) {
+	abi, err := bindings.LegacyMessagePasserMetaData.GetAbi()
+	if err != nil {
+		panic("should always be able to get message passer abi")
+	}
+
+	if size := len(msg); size < 4 {
+		return nil, fmt.Errorf("message too short: %d", size)
+	}
+
+	method, err := abi.MethodById(msg[:4])
+	if err != nil {
+		return nil, err
+	}
+
+	if method.Sig != "passMessageToL1(bytes)" {
+		return nil, fmt.Errorf("unknown method: %s", method.Name)
+	}
+
+	out, err := method.Inputs.Unpack(msg[4:])
+	if err != nil {
+		return nil, err
+	}
+
+	cast, ok := out[0].([]byte)
+	if !ok {
+		panic("should always be able to cast type []byte")
+	}
+	return cast, nil
+}
+
 // ReadWitnessData will read messages and addresses from a raw l2geth state
 // dump file.
 func ReadWitnessData(path string) ([]*SentMessage, OVMETHAddresses, error) {
@@ -72,30 +106,18 @@ func ReadWitnessData(path string) ([]*SentMessage, OVMETHAddresses, error) {
 				msg = "0x" + msg
 			}
 
-			abi, err := bindings.LegacyMessagePasserMetaData.GetAbi()
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get abi: %w", err)
-			}
-
 			msgB := hexutil.MustDecode(msg)
-			method, err := abi.MethodById(msgB[:4])
-			if err != nil {
-				return nil, nil, fmt.Errorf("failed to get method: %w", err)
-			}
 
-			out, err := method.Inputs.Unpack(msgB[4:])
+			// Skip any errors
+			calldata, err := decodeWitnessCalldata(msgB)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to unpack: %w", err)
-			}
-
-			cast, ok := out[0].([]byte)
-			if !ok {
-				return nil, nil, fmt.Errorf("failed to cast to bytes")
+				log.Warn("cannot decode witness calldata", "err", err)
+				continue
 			}
 
 			witnesses = append(witnesses, &SentMessage{
 				Who: common.HexToAddress(splits[1]),
-				Msg: cast,
+				Msg: calldata,
 			})
 		case "ETH":
 			addresses[common.HexToAddress(splits[1])] = true

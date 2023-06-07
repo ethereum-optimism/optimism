@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
@@ -104,7 +106,7 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 		_ = ch.Close()
 		return fmt.Errorf("failed to commit state change: %w", err)
 	}
-	header := preHeader // copy the header
+	header := types.CopyHeader(preHeader) // copy the header
 	header.Root = stateRoot
 	blockHash := header.Hash()
 
