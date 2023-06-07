@@ -9,7 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	ethclient "github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
@@ -17,7 +18,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	opclient "github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -45,11 +46,13 @@ type Challenger struct {
 	l2ooContract     *bindings.L2OutputOracleCaller
 	l2ooContractAddr common.Address
 	l2ooABI          *abi.ABI
+	l2ooLogs         chan types.Log
 
 	// dispute game factory contract
 	dgfContract     *bindings.DisputeGameFactoryCaller
 	dgfContractAddr common.Address
 	dgfABI          *abi.ABI
+	dgfLogs         chan types.Log
 
 	networkTimeout time.Duration
 }
@@ -92,13 +95,13 @@ func NewChallenger(cfg config.Config, l log.Logger, m metrics.Metricer) (*Challe
 	}
 
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
-	l1Client, err := opclient.DialEthClientWithTimeout(ctx, cfg.L1EthRpc, opclient.DefaultDialTimeout)
+	l1Client, err := client.DialEthClientWithTimeout(ctx, cfg.L1EthRpc, client.DefaultDialTimeout)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
 
-	rollupClient, err := opclient.DialRollupClientWithTimeout(ctx, cfg.RollupRpc, opclient.DefaultDialTimeout)
+	rollupClient, err := client.DialRollupClientWithTimeout(ctx, cfg.RollupRpc, client.DefaultDialTimeout)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -163,9 +166,14 @@ func NewChallenger(cfg config.Config, l log.Logger, m metrics.Metricer) (*Challe
 	}, nil
 }
 
-// Start runs the challenger in a goroutine.
+// Start runs the core challenger components.
+// Method calls are non-blocking and spawn goroutines.
 func (c *Challenger) Start() error {
-	c.log.Error("challenger not implemented.")
+	c.log.Info("Challenger starting...")
+	c.indexer()
+	c.log.Info("Indexer spawned.")
+	c.dispatch()
+	c.log.Info("Dispatching initiated.")
 	return nil
 }
 
