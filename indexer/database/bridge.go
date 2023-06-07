@@ -1,6 +1,8 @@
 package database
 
 import (
+	"errors"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"gorm.io/gorm"
@@ -99,6 +101,10 @@ func (db *bridgeDB) DepositsByAddress(address common.Address) ([]*DepositWithTra
 	deposits := make([]*DepositWithTransactionHash, 100)
 	result := filteredQuery.Scan(&deposits)
 	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
 		return nil, result.Error
 	}
 
@@ -115,27 +121,29 @@ func (db *bridgeDB) StoreWithdrawals(withdrawals []*Withdrawal) error {
 func (db *bridgeDB) MarkProvenWithdrawalEvent(guid, provenL1EventGuid string) error {
 	var withdrawal Withdrawal
 	result := db.gorm.First(&withdrawal, "guid = ?", guid)
-	if result.Error == nil {
-		withdrawal.ProvenL1EventGUID = &provenL1EventGuid
-		db.gorm.Save(&withdrawal)
+	if result.Error != nil {
+		return result.Error
 	}
 
+	withdrawal.ProvenL1EventGUID = &provenL1EventGuid
+	result = db.gorm.Save(&withdrawal)
 	return result.Error
 }
 
 func (db *bridgeDB) MarkFinalizedWithdrawalEvent(guid, finalizedL1EventGuid string) error {
 	var withdrawal Withdrawal
 	result := db.gorm.First(&withdrawal, "guid = ?", guid)
-	if result.Error == nil {
-		withdrawal.FinalizedL1EventGUID = &finalizedL1EventGuid
-		db.gorm.Save(&withdrawal)
+	if result.Error != nil {
+		return result.Error
 	}
 
+	withdrawal.FinalizedL1EventGUID = &finalizedL1EventGuid
+	result = db.gorm.Save(&withdrawal)
 	return result.Error
 }
 
 func (db *bridgeDB) WithdrawalsByAddress(address common.Address) ([]*WithdrawalWithTransactionHashes, error) {
-	withdrawalsQuery := db.gorm.Debug().Table("withdrawals").Select("withdrawals.*, l2_contract_events.transaction_hash AS l2_transaction_hash, proven_l1_contract_events.transaction_hash AS proven_l1_transaction_hash, finalized_l1_contract_events.transaction_hash AS finalized_l1_transaction_hash")
+	withdrawalsQuery := db.gorm.Table("withdrawals").Select("withdrawals.*, l2_contract_events.transaction_hash AS l2_transaction_hash, proven_l1_contract_events.transaction_hash AS proven_l1_transaction_hash, finalized_l1_contract_events.transaction_hash AS finalized_l1_transaction_hash")
 
 	eventsJoinQuery := withdrawalsQuery.Joins("LEFT JOIN l2_contract_events ON withdrawals.initiated_l2_event_guid = l2_contract_events.guid")
 	provenJoinQuery := eventsJoinQuery.Joins("LEFT JOIN l1_contract_events AS proven_l1_contract_events ON withdrawals.proven_l1_event_guid = proven_l1_contract_events.guid")
@@ -147,6 +155,10 @@ func (db *bridgeDB) WithdrawalsByAddress(address common.Address) ([]*WithdrawalW
 	withdrawals := make([]*WithdrawalWithTransactionHashes, 100)
 	result := filteredQuery.Scan(&withdrawals)
 	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
 		return nil, result.Error
 	}
 
