@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-service/feature"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
@@ -179,13 +180,13 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		rawTx.Gas = candidate.GasLimit
 	} else {
 		// Calculate the intrinsic gas for the transaction
-		gas, err := m.backend.EstimateGas(ctx, ethereum.CallMsg{
+		gas, err := m.backend.EstimateGas(ctx, feature.CustomizeCraftL1CallMsg(ethereum.CallMsg{
 			From:      m.cfg.From,
 			To:        candidate.To,
 			GasFeeCap: gasFeeCap,
 			GasTipCap: gasTipCap,
 			Data:      rawTx.Data,
-		})
+		}))
 		if err != nil {
 			return nil, fmt.Errorf("failed to estimate gas: %w", err)
 		}
@@ -194,7 +195,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 
 	ctx, cancel = context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
-	return m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
+	return m.cfg.Signer(ctx, m.cfg.From, types.NewTx(feature.CustomizeCraftL1Transaction(rawTx)))
 }
 
 // send submits the same transaction several times with increasing gas prices as necessary.
@@ -392,7 +393,7 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 		return tx
 	}
 
-	rawTx := &types.DynamicFeeTx{
+	rawTx := feature.CustomizeCraftL1Transaction(&types.DynamicFeeTx{
 		ChainID:    tx.ChainId(),
 		Nonce:      tx.Nonce(),
 		GasTipCap:  gasTipCap,
@@ -402,7 +403,7 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 		Value:      tx.Value(),
 		Data:       tx.Data(),
 		AccessList: tx.AccessList(),
-	}
+	})
 	ctx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
 	newTx, err := m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
@@ -430,10 +431,10 @@ func (m *SimpleTxManager) suggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	if err != nil {
 		m.metr.RPCError()
 		return nil, nil, fmt.Errorf("failed to fetch the suggested basefee: %w", err)
-	} else if head.BaseFee == nil {
+	} else if feature.CustomizeSuggestedL1BaseFee(head.BaseFee) == nil {
 		return nil, nil, errors.New("txmgr does not support pre-london blocks that do not have a basefee")
 	}
-	return tip, head.BaseFee, nil
+	return tip, feature.CustomizeSuggestedL1BaseFee(head.BaseFee), nil
 }
 
 // calcThresholdValue returns x * priceBumpPercent / 100

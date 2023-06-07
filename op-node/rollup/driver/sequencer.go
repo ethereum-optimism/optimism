@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-service/feature"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -83,6 +84,12 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context) error {
 	attrs, err := d.attrBuilder.PreparePayloadAttributes(fetchCtx, l2Head, l1Origin.ID())
 	if err != nil {
 		return err
+	}
+
+	// Request coordinator for the permission to start building a new block.
+	// If we are not allowed to build a block, then we wait for the next block time.
+	if feature.Coordinator != nil && !feature.Coordinator.RequestBuildingBlock() {
+		return fmt.Errorf("failed to request permission for building block")
 	}
 
 	// If our next L2 block timestamp is beyond the Sequencer drift threshold, then we must produce

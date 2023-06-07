@@ -371,6 +371,10 @@ func (s *Driver) ResetDerivationPipeline(ctx context.Context) error {
 	}
 }
 
+func (s *Driver) SequencerStopped(_ctx context.Context) bool {
+	return s.driverConfig.SequencerStopped
+}
+
 func (s *Driver) StartSequencer(ctx context.Context, blockHash common.Hash) error {
 	if !s.driverConfig.SequencerEnabled {
 		return errors.New("sequencer is not enabled")

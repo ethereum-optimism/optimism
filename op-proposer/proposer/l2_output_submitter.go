@@ -26,6 +26,8 @@ import (
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+
+	"github.com/ethereum-optimism/optimism/op-service/feature"
 )
 
 var supportedL2OutputVersion = eth.Bytes32{}
@@ -316,7 +318,7 @@ func proposeL2OutputTxData(abi *abi.ABI, output *eth.OutputResponse) ([]byte, er
 		"proposeL2Output",
 		output.OutputRoot,
 		new(big.Int).SetUint64(output.BlockRef.Number),
-		output.Status.CurrentL1.Hash,
+		feature.CustomizeProposeL1BlockHash(output.Status.CurrentL1.Hash),
 		new(big.Int).SetUint64(output.Status.CurrentL1.Number))
 }
 

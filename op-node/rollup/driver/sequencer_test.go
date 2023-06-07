@@ -302,7 +302,7 @@ func TestSequencerChaosMonkey(t *testing.T) {
 		}
 	})
 
-	seq := NewSequencer(log, cfg, engControl, attrBuilder, originSelector, metrics.NoopMetrics)
+	seq := NewSequencer(log, cfg, engControl, nil, attrBuilder, originSelector, metrics.NoopMetrics)
 	seq.timeNow = clockFn
 
 	// try to build 1000 blocks, with 5x as many planning attempts, to handle errors and clock problems

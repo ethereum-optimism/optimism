@@ -20,6 +20,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+
+	"github.com/ethereum-optimism/optimism/op-service/feature"
 )
 
 var (
@@ -430,7 +432,7 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	if block.Number() == nil {
 		return storage, errors.New("block number not set")
 	}
-	if block.BaseFee() == nil {
+	if feature.CustomizeL1BaseFeeByTransactions(block.BaseFee(), block.Transactions()) == nil {
 		return storage, errors.New("block base fee not set")
 	}
 
@@ -446,7 +448,7 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	storage["L1Block"] = state.StorageValues{
 		"number":         block.Number(),
 		"timestamp":      block.Time(),
-		"basefee":        block.BaseFee(),
+		"basefee":        feature.CustomizeL1BaseFeeByTransactions(block.BaseFee(), block.Transactions()),
 		"hash":           block.Hash(),
 		"sequenceNumber": 0,
 		"batcherHash":    config.BatchSenderAddress.Hash(),

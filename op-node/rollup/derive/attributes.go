@@ -11,6 +11,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+
+	"github.com/ethereum-optimism/optimism/op-service/feature"
 )
 
 // L1ReceiptsFetcher fetches L1 header info and receipts for the payload attributes derivation (the info tx and deposits)
@@ -98,6 +100,14 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	if nextL2Time < l1Info.Time() {
 		return nil, NewResetError(fmt.Errorf("cannot build L2 block on top %s for time %d before L1 origin %s at time %d",
 			l2Parent, nextL2Time, eth.ToBlockID(l1Info), l1Info.Time()))
+	}
+
+	if feature.EnableCustomizeL1BlockBaseFee {
+		_, receipts, err := ba.l1.FetchReceipts(ctx, epoch.Hash)
+		if err != nil {
+			return nil, NewTemporaryError(fmt.Errorf("failed to fetch L1 block receipts: %w", err))
+		}
+		l1Info = feature.CustomizeL1BlockInfoByReceipts(l1Info, receipts)
 	}
 
 	l1InfoTx, err := L1InfoDepositBytes(seqNumber, l1Info, sysConfig, ba.cfg.IsRegolith(nextL2Time))

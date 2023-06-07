@@ -27,6 +27,7 @@ type driverClient interface {
 	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error)
 	ResetDerivationPipeline(context.Context) error
+	SequencerStopped(ctx context.Context) bool
 	StartSequencer(ctx context.Context, blockHash common.Hash) error
 	StopSequencer(context.Context) (common.Hash, error)
 }
@@ -52,6 +53,10 @@ func (n *adminAPI) ResetDerivationPipeline(ctx context.Context) error {
 	recordDur := n.m.RecordRPCServerRequest("admin_resetDerivationPipeline")
 	defer recordDur()
 	return n.dr.ResetDerivationPipeline(ctx)
+}
+
+func (n *adminAPI) SequencerStopped(ctx context.Context) bool {
+	return n.dr.SequencerStopped(ctx)
 }
 
 func (n *adminAPI) StartSequencer(ctx context.Context, blockHash common.Hash) error {
