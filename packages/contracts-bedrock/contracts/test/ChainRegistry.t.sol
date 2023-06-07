@@ -47,9 +47,10 @@ contract ChainRegistryTest is Test {
      *
      * @return Returns the entries registered
      */
-    function _register(
-        string memory _deployment
-    ) public returns (ChainRegistry.DeploymentEntry[] memory) {
+    function _register(string memory _deployment)
+        public
+        returns (ChainRegistry.DeploymentEntry[] memory)
+    {
         ChainRegistry.DeploymentEntry[] memory _entries = new ChainRegistry.DeploymentEntry[](2);
         _entries[0] = ChainRegistry.DeploymentEntry("entry1", makeAddr("entry1"));
         _entries[1] = ChainRegistry.DeploymentEntry("entry2", makeAddr("entry2"));
