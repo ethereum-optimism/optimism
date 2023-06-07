@@ -65,7 +65,6 @@ func NewIndexer(ctx *cli.Context) (*Indexer, error) {
 	// do json format too
 	// TODO https://linear.app/optimism/issue/DX-55/api-implement-rest-api-with-mocked-data
 
-	// defaults to debug unless explicitly set
 	logLevel, err := log.LvlFromString(ctx.GlobalString(flags.LogLevelFlag.Name))
 	if err != nil {
 		return nil, err
@@ -100,7 +99,13 @@ func NewIndexer(ctx *cli.Context) (*Indexer, error) {
 		return nil, err
 	}
 
-	return &Indexer{db, l1Processor, l2Processor}, nil
+	indexer := &Indexer{
+		db:          db,
+		l1Processor: l1Processor,
+		l2Processor: l2Processor,
+	}
+
+	return indexer, nil
 }
 
 // Serve spins up a REST API server at the given hostname and port.
@@ -113,6 +118,7 @@ func (b *Indexer) Serve() error {
 func (b *Indexer) Start() error {
 	go b.l1Processor.Start()
 	go b.l2Processor.Start()
+
 	return nil
 }
 

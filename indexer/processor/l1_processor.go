@@ -14,7 +14,7 @@ type L1Processor struct {
 
 func NewL1Processor(ethClient node.EthClient, db *database.DB) (*L1Processor, error) {
 	l1ProcessLog := log.New("processor", "l1")
-	l1ProcessLog.Info("creating processor")
+	l1ProcessLog.Info("initializing processor")
 
 	latestHeader, err := db.Blocks.FinalizedL1BlockHeader()
 	if err != nil {
@@ -23,9 +23,10 @@ func NewL1Processor(ethClient node.EthClient, db *database.DB) (*L1Processor, er
 
 	var fromL1Header *types.Header
 	if latestHeader != nil {
-		l1ProcessLog.Info("detected last indexed state", "height", latestHeader.Number.Int, "hash", latestHeader.Hash)
+		l1ProcessLog.Info("detected last indexed block", "height", latestHeader.Number.Int, "hash", latestHeader.Hash)
 		l1Header, err := ethClient.BlockHeaderByHash(latestHeader.Hash)
 		if err != nil {
+			l1ProcessLog.Error("unable to fetch header for last indexed block", "hash", latestHeader.Hash, "err", err)
 			return nil, err
 		}
 

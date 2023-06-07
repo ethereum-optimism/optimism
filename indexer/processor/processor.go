@@ -24,45 +24,40 @@ type processor struct {
 	processLog log.Logger
 }
 
-// Start kicks off the processing loop. This is a blocking operation and should be run within its own goroutine
+// Start kicks off the processing loop
 func (p processor) Start() {
 	pollTicker := time.NewTicker(defaultLoopInterval)
 	p.processLog.Info("starting processor...")
 
-	for {
-		select {
-		case <-pollTicker.C:
-			p.processLog.Info("checking for new headers...")
+	// Make this loop stoppable
+	for range pollTicker.C {
+		p.processLog.Info("checking for new headers...")
 
-			headers, err := p.fetcher.NextFinalizedHeaders()
-			if err != nil {
-				p.processLog.Error("unable to query for headers", "err", err)
-				continue
-			}
+		headers, err := p.fetcher.NextFinalizedHeaders()
+		if err != nil {
+			p.processLog.Error("unable to query for headers", "err", err)
+			continue
+		}
 
-			if len(headers) == 0 {
-				p.processLog.Info("no new headers. indexer must be at head...")
-				continue
-			}
+		if len(headers) == 0 {
+			p.processLog.Info("no new headers. indexer must be at head...")
+			continue
+		}
 
-			batchLog := p.processLog.New("startHeight", headers[0].Number, "endHeight", headers[len(headers)-1].Number)
-			batchLog.Info("indexing batch of headers")
+		batchLog := p.processLog.New("startHeight", headers[0].Number, "endHeight", headers[len(headers)-1].Number)
+		batchLog.Info("indexing batch of headers")
 
-			// process the headers within a databse transaction
-			err = p.db.Transaction(func(db *database.DB) error {
-				return p.processFn(db, headers)
-			})
+		// wrap operations within a single transaction
+		err = p.db.Transaction(func(db *database.DB) error {
+			return p.processFn(db, headers)
+		})
 
-			if err != nil {
-				// TODO: next poll should retry starting from this same batch of headers
-				batchLog.Info("error while indexing batch", "err", err)
-				panic(err)
-			} else {
-				batchLog.Info("done indexing batch")
-			}
+		if err != nil {
+			// TODO(DX-79) next poll should retry starting from this same batch of headers
+			batchLog.Info("unable to index batch", "err", err)
+			panic(err)
+		} else {
+			batchLog.Info("done indexing batch")
 		}
 	}
 }
-
-// Stop kills the goroutine running the processing loop
-func (p processor) Stop() {}
