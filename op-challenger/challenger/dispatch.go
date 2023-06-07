@@ -13,6 +13,7 @@ func (c *Challenger) dispatch() {
 				return
 			case log := <-c.l2ooLogs:
 				c.log.Info("Dispatch received oracle log", "log", log)
+				// c.ValidateOutput(log)
 			case log := <-c.dgfLogs:
 				c.log.Info("Dispatch received factory log", "log", log)
 			}
