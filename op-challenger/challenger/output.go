@@ -5,6 +5,8 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
@@ -15,7 +17,20 @@ var (
 	ErrInvalidBlockNumber = errors.New("invalid block number")
 	// ErrUnsupportedL2OOVersion is returned when the output version is not supported.
 	ErrUnsupportedL2OOVersion = errors.New("unsupported l2oo version")
+	// ErrInvalidOutputLogTopic is returned when the output log topic is invalid.
+	ErrInvalidOutputLogTopic = errors.New("invalid output log topic")
 )
+
+// ParseOutputLog parses a log from the L2OutputOracle contract.
+func (c *Challenger) ParseOutputLog(log *types.Log) (*big.Int, eth.Bytes32, error) {
+	// Validate the first topic is the output log topic
+	if log.Topics[0] != c.l2ooABI.Events["OutputProposed"].ID {
+		return nil, eth.Bytes32{}, ErrInvalidOutputLogTopic
+	}
+	l2BlockNumber := new(big.Int).SetBytes(log.Topics[3][:])
+	expected := log.Topics[1]
+	return l2BlockNumber, eth.Bytes32(expected), nil
+}
 
 // ValidateOutput checks that a given output is expected via a trusted rollup node rpc.
 // It returns: if the output is correct, the fetched output, error

@@ -10,12 +10,48 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 )
+
+func TestParseOutputLog_Succeeds(t *testing.T) {
+	challenger := newTestChallenger(t, eth.OutputResponse{}, true)
+	expectedBlockNumber := big.NewInt(0x04)
+	expectedOutputRoot := eth.Bytes32{0x02}
+	logTopic := challenger.l2ooABI.Events["OutputProposed"].ID
+	log := types.Log{
+		Topics: []common.Hash{logTopic, common.Hash(expectedOutputRoot), {0x03}, common.BigToHash(expectedBlockNumber)},
+	}
+	parsedBlockNumber, parsedOutputRoot, err := challenger.ParseOutputLog(&log)
+	require.NoError(t, err)
+	require.Equal(t, expectedBlockNumber, parsedBlockNumber)
+	require.Equal(t, expectedOutputRoot, parsedOutputRoot)
+}
+
+func TestParseOutputLog_WrongLogTopic_Errors(t *testing.T) {
+	challenger := newTestChallenger(t, eth.OutputResponse{}, true)
+	_, _, err := challenger.ParseOutputLog(&types.Log{
+		Topics: []common.Hash{{0x01}, {0x02}, {0x03}, {0x04}},
+	})
+	require.ErrorIs(t, err, ErrInvalidOutputLogTopic)
+}
+
+func TestParseOutputLog_BadLog_Panics(t *testing.T) {
+	challenger := newTestChallenger(t, eth.OutputResponse{}, true)
+	logTopic := challenger.l2ooABI.Events["OutputProposed"].ID
+	require.Panics(t, func() {
+		log := types.Log{
+			Topics: []common.Hash{logTopic, {0x02}, {0x03}},
+		}
+		_, _, _ = challenger.ParseOutputLog(&log)
+	})
+}
 
 func TestChallenger_ValidateOutput_RollupClientErrors(t *testing.T) {
 	output := eth.OutputResponse{
@@ -127,11 +163,14 @@ func newTestChallenger(t *testing.T, output eth.OutputResponse, errors bool) *Ch
 	outputApi := newMockOutputApi(output, errors)
 	log := testlog.Logger(t, log.LvlError)
 	metr := metrics.NewMetrics("test")
+	parsedL2oo, err := bindings.L2OutputOracleMetaData.GetAbi()
+	require.NoError(t, err)
 	challenger := Challenger{
 		rollupClient:   outputApi,
 		log:            log,
 		metr:           metr,
 		networkTimeout: time.Duration(5) * time.Second,
+		l2ooABI:        parsedL2oo,
 	}
 	return &challenger
 }
