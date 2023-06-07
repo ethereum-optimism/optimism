@@ -6,7 +6,7 @@ DOCKER_REPO=$1
 GIT_TAG=$2
 GIT_SHA=$3
 
-IMAGE_NAME=$(echo "$GIT_TAG" | grep -Eow '^(fault-detector|proxyd|op-[a-z0-9\-]*)' || true)
+IMAGE_NAME=$(echo "$GIT_TAG" | grep -Eow '^(fault-detector|proxyd|indexer|op-[a-z0-9\-]*)' || true)
 if [ -z "$IMAGE_NAME" ]; then
   echo "image name could not be parsed from git tag '$GIT_TAG'"
   exit 1
