@@ -66,10 +66,10 @@ A deposit has the following fields
   deposited transaction is a contract creation.
 - `uint256 mint`: The ETH value to mint on L2.
 - `uint256 value`: The ETH value to send to the recipient account.
-- `bytes data`: The input data.
+- `uint64 gas`: The gas limit for the L2 transaction.
 - `bool isSystemTx`: If true, the transaction does not interact with the L2 block gas pool.
   - Note: boolean is disabled (enforced to be `false`) starting from the Regolith upgrade.
-- `uint64 gasLimit`: The gasLimit for the L2 transaction.
+- `bytes data`: The calldata.
 
 In contrast to [EIP-155] transactions, this transaction type:
 

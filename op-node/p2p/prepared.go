@@ -62,8 +62,10 @@ func (p *Prepared) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort u
 	return p.LocalNode, p.UDPv5, nil
 }
 
-func (p *Prepared) ConfigureGossip(params *pubsub.GossipSubParams) []pubsub.Option {
-	return nil
+func (p *Prepared) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
+	return []pubsub.Option{
+		pubsub.WithGossipSubParams(BuildGlobalGossipParams(rollupCfg)),
+	}
 }
 
 func (p *Prepared) PeerScoringParams() *pubsub.PeerScoreParams {

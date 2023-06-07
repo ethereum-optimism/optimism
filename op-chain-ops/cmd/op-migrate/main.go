@@ -202,6 +202,10 @@ func main() {
 
 			dryRun := ctx.Bool("dry-run")
 			noCheck := ctx.Bool("no-check")
+			if noCheck {
+				panic("must run with check on")
+			}
+
 			// Perform the migration
 			res, err := genesis.MigrateDB(ldb, config, block, &migrationData, !dryRun, noCheck)
 			if err != nil {
@@ -223,6 +227,7 @@ func main() {
 				migrationData,
 				&config.L1CrossDomainMessengerProxy,
 				config.L1ChainID,
+				config.L2ChainID,
 				config.FinalSystemOwner,
 				config.ProxyAdminOwner,
 				&derive.L1BlockInfo{

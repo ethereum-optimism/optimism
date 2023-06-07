@@ -54,7 +54,8 @@ type GossipSetupConfigurables interface {
 	PeerScoringParams() *pubsub.PeerScoreParams
 	TopicScoringParams() *pubsub.TopicScoreParams
 	BanPeers() bool
-	ConfigureGossip(params *pubsub.GossipSubParams) []pubsub.Option
+	// ConfigureGossip creates configuration options to apply to the GossipSub setup
+	ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option
 	PeerBandScorer() *BandScoreThresholds
 }
 
@@ -124,7 +125,10 @@ func BuildMsgIdFn(cfg *rollup.Config) pubsub.MsgIdFunction {
 	}
 }
 
-func (p *Config) ConfigureGossip(params *pubsub.GossipSubParams) []pubsub.Option {
+func (p *Config) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
+	params := BuildGlobalGossipParams(rollupCfg)
+
+	// override with CLI changes
 	params.D = p.MeshD
 	params.Dlo = p.MeshDLo
 	params.Dhi = p.MeshDHi
@@ -132,6 +136,7 @@ func (p *Config) ConfigureGossip(params *pubsub.GossipSubParams) []pubsub.Option
 
 	// in the future we may add more advanced options like scoring and PX / direct-mesh / episub
 	return []pubsub.Option{
+		pubsub.WithGossipSubParams(params),
 		pubsub.WithFloodPublish(p.FloodPublish),
 	}
 }
@@ -157,7 +162,6 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, g ConnectionGater, cfg *r
 	if err != nil {
 		return nil, err
 	}
-	params := BuildGlobalGossipParams(cfg)
 	gossipOpts := []pubsub.Option{
 		pubsub.WithMaxMessageSize(maxGossipSize),
 		pubsub.WithMessageIdFn(BuildMsgIdFn(cfg)),
@@ -170,11 +174,10 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, g ConnectionGater, cfg *r
 		pubsub.WithSeenMessagesTTL(seenMessagesTTL),
 		pubsub.WithPeerExchange(false),
 		pubsub.WithBlacklist(denyList),
-		pubsub.WithGossipSubParams(params),
 		pubsub.WithEventTracer(&gossipTracer{m: m}),
 	}
 	gossipOpts = append(gossipOpts, ConfigurePeerScoring(h, g, gossipConf, m, log)...)
-	gossipOpts = append(gossipOpts, gossipConf.ConfigureGossip(&params)...)
+	gossipOpts = append(gossipOpts, gossipConf.ConfigureGossip(cfg)...)
 	return pubsub.NewGossipSub(p2pCtx, h, gossipOpts...)
 }
 

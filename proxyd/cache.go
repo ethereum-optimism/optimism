@@ -2,6 +2,7 @@ package proxyd
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -43,16 +44,24 @@ func (c *cache) Put(ctx context.Context, key string, value string) error {
 }
 
 type redisCache struct {
-	rdb *redis.Client
+	rdb    *redis.Client
+	prefix string
 }
 
-func newRedisCache(rdb *redis.Client) *redisCache {
-	return &redisCache{rdb}
+func newRedisCache(rdb *redis.Client, prefix string) *redisCache {
+	return &redisCache{rdb, prefix}
+}
+
+func (c *redisCache) namespaced(key string) string {
+	if c.prefix == "" {
+		return key
+	}
+	return strings.Join([]string{c.prefix, key}, ":")
 }
 
 func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
 	start := time.Now()
-	val, err := c.rdb.Get(ctx, key).Result()
+	val, err := c.rdb.Get(ctx, c.namespaced(key)).Result()
 	redisCacheDurationSumm.WithLabelValues("GET").Observe(float64(time.Since(start).Milliseconds()))
 
 	if err == redis.Nil {
@@ -66,7 +75,7 @@ func (c *redisCache) Get(ctx context.Context, key string) (string, error) {
 
 func (c *redisCache) Put(ctx context.Context, key string, value string) error {
 	start := time.Now()
-	err := c.rdb.SetEX(ctx, key, value, redisTTL).Err()
+	err := c.rdb.SetEX(ctx, c.namespaced(key), value, redisTTL).Err()
 	redisCacheDurationSumm.WithLabelValues("SETEX").Observe(float64(time.Since(start).Milliseconds()))
 
 	if err != nil {
@@ -103,9 +112,6 @@ func (c *cacheWithCompression) Put(ctx context.Context, key string, value string
 	return c.cache.Put(ctx, key, string(encodedVal))
 }
 
-type GetLatestBlockNumFn func(ctx context.Context) (uint64, error)
-type GetLatestGasPriceFn func(ctx context.Context) (uint64, error)
-
 type RPCCache interface {
 	GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error)
 	PutRPC(ctx context.Context, req *RPCReq, res *RPCRes) error
@@ -116,15 +122,18 @@ type rpcCache struct {
 	handlers map[string]RPCMethodHandler
 }
 
-func newRPCCache(cache Cache, getLatestBlockNumFn GetLatestBlockNumFn, getLatestGasPriceFn GetLatestGasPriceFn, numBlockConfirmations int) RPCCache {
+func newRPCCache(cache Cache) RPCCache {
+	staticHandler := &StaticMethodHandler{cache: cache}
 	handlers := map[string]RPCMethodHandler{
-		"eth_chainId":          &StaticMethodHandler{},
-		"net_version":          &StaticMethodHandler{},
-		"eth_getBlockByNumber": &EthGetBlockByNumberMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
-		"eth_getBlockRange":    &EthGetBlockRangeMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
-		"eth_blockNumber":      &EthBlockNumberMethodHandler{getLatestBlockNumFn},
-		"eth_gasPrice":         &EthGasPriceMethodHandler{getLatestGasPriceFn},
-		"eth_call":             &EthCallMethodHandler{cache, getLatestBlockNumFn, numBlockConfirmations},
+		"eth_chainId":                           staticHandler,
+		"net_version":                           staticHandler,
+		"eth_getBlockTransactionCountByHash":    staticHandler,
+		"eth_getUncleCountByBlockHash":          staticHandler,
+		"eth_getBlockByHash":                    staticHandler,
+		"eth_getTransactionByHash":              staticHandler,
+		"eth_getTransactionByBlockHashAndIndex": staticHandler,
+		"eth_getUncleByBlockHashAndIndex":       staticHandler,
+		"eth_getTransactionReceipt":             staticHandler,
 	}
 	return &rpcCache{
 		cache:    cache,
@@ -138,14 +147,16 @@ func (c *rpcCache) GetRPC(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 		return nil, nil
 	}
 	res, err := handler.GetRPCMethod(ctx, req)
-	if res != nil {
-		if res == nil {
-			RecordCacheMiss(req.Method)
-		} else {
-			RecordCacheHit(req.Method)
-		}
+	if err != nil {
+		RecordCacheError(req.Method)
+		return nil, err
 	}
-	return res, err
+	if res == nil {
+		RecordCacheMiss(req.Method)
+	} else {
+		RecordCacheHit(req.Method)
+	}
+	return res, nil
 }
 
 func (c *rpcCache) PutRPC(ctx context.Context, req *RPCReq, res *RPCRes) error {

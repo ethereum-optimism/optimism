@@ -187,7 +187,8 @@ module.exports = {
         children: [
           '/docs/security/faq.md',
           '/docs/security/policy.md',
-          '/docs/security/pause.md'
+          '/docs/security/pause.md',          
+          '/docs/security/forced-withdrawal.md',
         ]
       },
     ],  // end of sidebar

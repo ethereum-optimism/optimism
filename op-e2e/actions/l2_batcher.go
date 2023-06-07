@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -133,7 +134,13 @@ func (s *L2Batcher) Buffer(t Testing) error {
 		if s.l2BatcherCfg.GarbageCfg != nil {
 			ch, err = NewGarbageChannelOut(s.l2BatcherCfg.GarbageCfg)
 		} else {
-			ch, err = derive.NewChannelOut()
+			c, e := compressor.NewRatioCompressor(compressor.Config{
+				TargetFrameSize:  s.l2BatcherCfg.MaxL1TxSize,
+				TargetNumFrames:  1,
+				ApproxComprRatio: 1,
+			})
+			require.NoError(t, e, "failed to create compressor")
+			ch, err = derive.NewChannelOut(c)
 		}
 		require.NoError(t, err, "failed to create channel")
 		s.l2ChannelOut = ch
