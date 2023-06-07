@@ -10,7 +10,7 @@ services:
     # environment:
       # JWT_SECRET_PATH: /jwt/jwt_secret.txt
     # volumes:
-      #- /jwt_secret.txt:/jwt/jwt_secret.txt
+      #- /:/jwt
 
   boba-crawler:
     image: bobanetwork/boba-chain-ops
@@ -18,10 +18,11 @@ services:
       context: ..
       dockerfile: ./boba-chain-ops/Dockerfile
     command: boba-crawler
-    # environment:
-    #   OUTPUT_PATH: '/eth-addresses.json'
-    # volumes:
-    #   -  /eth-addresses.json/:/eth-addresses.json
+    environment:
+      OUTPUT_PATH: '/addr/eth-addresses.json'
+    restart: always
+    #volumes:
+      #- /:/addr
 
   # boba-rollover:
   #   image: bobanetwork/boba-chain-ops
