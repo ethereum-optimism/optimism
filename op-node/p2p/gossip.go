@@ -53,10 +53,8 @@ var MessageDomainValidSnappy = [4]byte{1, 0, 0, 0}
 type GossipSetupConfigurables interface {
 	PeerScoringParams() *pubsub.PeerScoreParams
 	TopicScoringParams() *pubsub.TopicScoreParams
-	BanPeers() bool
 	// ConfigureGossip creates configuration options to apply to the GossipSub setup
 	ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option
-	PeerBandScorer() *BandScoreThresholds
 }
 
 type GossipRuntimeConfig interface {
@@ -66,8 +64,6 @@ type GossipRuntimeConfig interface {
 //go:generate mockery --name GossipMetricer
 type GossipMetricer interface {
 	RecordGossipEvent(evType int32)
-	// Peer Scoring Metric Funcs
-	SetPeerScores(map[string]float64)
 }
 
 func blocksTopicV1(cfg *rollup.Config) string {
@@ -157,7 +153,7 @@ func BuildGlobalGossipParams(cfg *rollup.Config) pubsub.GossipSubParams {
 
 // NewGossipSub configures a new pubsub instance with the specified parameters.
 // PubSub uses a GossipSubRouter as it's router under the hood.
-func NewGossipSub(p2pCtx context.Context, h host.Host, g ConnectionGater, cfg *rollup.Config, gossipConf GossipSetupConfigurables, m GossipMetricer, log log.Logger) (*pubsub.PubSub, error) {
+func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, gossipConf GossipSetupConfigurables, scorer Scorer, m GossipMetricer, log log.Logger) (*pubsub.PubSub, error) {
 	denyList, err := pubsub.NewTimeCachedBlacklist(30 * time.Second)
 	if err != nil {
 		return nil, err
@@ -176,7 +172,7 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, g ConnectionGater, cfg *r
 		pubsub.WithBlacklist(denyList),
 		pubsub.WithEventTracer(&gossipTracer{m: m}),
 	}
-	gossipOpts = append(gossipOpts, ConfigurePeerScoring(h, g, gossipConf, m, log)...)
+	gossipOpts = append(gossipOpts, ConfigurePeerScoring(gossipConf, scorer, log)...)
 	gossipOpts = append(gossipOpts, gossipConf.ConfigureGossip(cfg)...)
 	return pubsub.NewGossipSub(p2pCtx, h, gossipOpts...)
 }

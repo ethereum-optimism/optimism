@@ -20,8 +20,8 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/db"
+	"github.com/ethereum-optimism/optimism/indexer/legacy"
 	"github.com/ethereum-optimism/optimism/indexer/services/l1"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -60,7 +60,7 @@ func TestBedrockIndexer(t *testing.T) {
 	l2Opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Alice, cfg.L2ChainIDBig())
 	require.NoError(t, err)
 
-	idxrCfg := indexer.Config{
+	idxrCfg := legacy.Config{
 		ChainID:                        cfg.DeployConfig.L1ChainID,
 		L1EthRpc:                       sys.Nodes["l1"].HTTPEndpoint(),
 		L2EthRpc:                       sys.Nodes["sequencer"].HTTPEndpoint(),
@@ -83,7 +83,7 @@ func TestBedrockIndexer(t *testing.T) {
 		BedrockL1StandardBridgeAddress: cfg.DeployConfig.L1StandardBridgeProxy,
 		BedrockOptimismPortalAddress:   cfg.DeployConfig.OptimismPortalProxy,
 	}
-	idxr, err := indexer.NewIndexer(idxrCfg)
+	idxr, err := legacy.NewIndexer(idxrCfg)
 	require.NoError(t, err)
 
 	errCh := make(chan error, 1)

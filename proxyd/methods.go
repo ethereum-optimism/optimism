@@ -17,8 +17,9 @@ type RPCMethodHandler interface {
 }
 
 type StaticMethodHandler struct {
-	cache Cache
-	m     sync.RWMutex
+	cache  Cache
+	m      sync.RWMutex
+	filter func(*RPCReq) bool
 }
 
 func (e *StaticMethodHandler) key(req *RPCReq) string {
@@ -33,6 +34,10 @@ func (e *StaticMethodHandler) GetRPCMethod(ctx context.Context, req *RPCReq) (*R
 	if e.cache == nil {
 		return nil, nil
 	}
+	if e.filter != nil && !e.filter(req) {
+		return nil, nil
+	}
+
 	e.m.RLock()
 	defer e.m.RUnlock()
 
@@ -60,6 +65,9 @@ func (e *StaticMethodHandler) GetRPCMethod(ctx context.Context, req *RPCReq) (*R
 
 func (e *StaticMethodHandler) PutRPCMethod(ctx context.Context, req *RPCReq, res *RPCRes) error {
 	if e.cache == nil {
+		return nil
+	}
+	if e.filter != nil && !e.filter(req) {
 		return nil
 	}
 

@@ -1,25 +1,14 @@
 package store
 
-import (
-	"bytes"
-	"encoding/binary"
-)
+import "encoding/json"
 
-func serializeScoresV0(scores PeerScores) ([]byte, error) {
-	var b bytes.Buffer
-	err := binary.Write(&b, binary.BigEndian, scores.Gossip)
-	if err != nil {
-		return nil, err
-	}
-	return b.Bytes(), nil
+func serializeScoresV0(scores scoreRecord) ([]byte, error) {
+	// v0 just serializes to JSON. New/unrecognized values default to 0.
+	return json.Marshal(&scores)
 }
 
-func deserializeScoresV0(data []byte) (PeerScores, error) {
-	var scores PeerScores
-	r := bytes.NewReader(data)
-	err := binary.Read(r, binary.BigEndian, &scores.Gossip)
-	if err != nil {
-		return PeerScores{}, err
-	}
-	return scores, nil
+func deserializeScoresV0(data []byte) (scoreRecord, error) {
+	var out scoreRecord
+	err := json.Unmarshal(data, &out)
+	return out, err
 }

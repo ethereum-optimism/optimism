@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts",
-  "version": "0.5.40",
+  "version": "0.6.0",
   "description": "[Optimism] L1 and L2 smart contracts for Optimism",
   "main": "dist/index",
   "types": "dist/index",

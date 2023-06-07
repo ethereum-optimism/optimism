@@ -23,6 +23,7 @@ on:
           - op-proposer
           - proxyd
           - indexer
+          - fault-detector
       prerelease:
         description: Increment major/minor/patch as prerelease?
         required: false

@@ -95,7 +95,7 @@ func (mh *MockedHandler) Handler(w http.ResponseWriter, req *http.Request) {
 	resBody := ""
 	if batched {
 		resBody = "[" + strings.Join(responses, ",") + "]"
-	} else {
+	} else if len(responses) > 0 {
 		resBody = responses[0]
 	}
 

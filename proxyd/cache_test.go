@@ -90,34 +90,6 @@ func TestRPCCacheImmutableRPCs(t *testing.T) {
 		{
 			req: &RPCReq{
 				JSONRPC: "2.0",
-				Method:  "eth_getTransactionByHash",
-				Params:  mustMarshalJSON([]string{"0x88df016429689c079f3b2f6ad39fa052532c56795b733da78a91ebe6a713944b"}),
-				ID:      ID,
-			},
-			res: &RPCRes{
-				JSONRPC: "2.0",
-				Result:  `{"eth_getTransactionByHash":"!"}`,
-				ID:      ID,
-			},
-			name: "eth_getTransactionByHash",
-		},
-		{
-			req: &RPCReq{
-				JSONRPC: "2.0",
-				Method:  "eth_getTransactionByBlockHashAndIndex",
-				Params:  mustMarshalJSON([]string{"0xe670ec64341771606e55d6b4ca35a1a6b75ee3d5145a99d05921026d1527331", "0x55"}),
-				ID:      ID,
-			},
-			res: &RPCRes{
-				JSONRPC: "2.0",
-				Result:  `{"eth_getTransactionByBlockHashAndIndex":"!"}`,
-				ID:      ID,
-			},
-			name: "eth_getTransactionByBlockHashAndIndex",
-		},
-		{
-			req: &RPCReq{
-				JSONRPC: "2.0",
 				Method:  "eth_getUncleByBlockHashAndIndex",
 				Params:  mustMarshalJSON([]string{"0xb903239f8543d04b5dc1ba6579132b143087c68db1b2168786408fcbce568238", "0x90"}),
 				ID:      ID,
@@ -132,16 +104,16 @@ func TestRPCCacheImmutableRPCs(t *testing.T) {
 		{
 			req: &RPCReq{
 				JSONRPC: "2.0",
-				Method:  "eth_getTransactionReceipt",
-				Params:  mustMarshalJSON([]string{"0x85d995eba9763907fdf35cd2034144dd9d53ce32cbec21349d4b12823c6860c5"}),
+				Method:  "debug_getRawReceipts",
+				Params:  mustMarshalJSON([]string{"0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b"}),
 				ID:      ID,
 			},
 			res: &RPCRes{
 				JSONRPC: "2.0",
-				Result:  `{"eth_getTransactionReceipt":"!"}`,
+				Result:  `{"debug_getRawReceipts":"!"}`,
 				ID:      ID,
 			},
-			name: "eth_getTransactionReceipt",
+			name: "debug_getRawReceipts",
 		},
 	}
 
@@ -214,6 +186,15 @@ func TestRPCCacheUnsupportedMethod(t *testing.T) {
 				Method:  "eth_gasPrice",
 				ID:      ID,
 			},
+		},
+		{
+			req: &RPCReq{
+				JSONRPC: "2.0",
+				Method:  "debug_getRawReceipts",
+				Params:  mustMarshalJSON([]string{"0x100"}),
+				ID:      ID,
+			},
+			name: "debug_getRawReceipts",
 		},
 	}
 
