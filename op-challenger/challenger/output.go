@@ -19,49 +19,65 @@ var (
 	ErrUnsupportedL2OOVersion = errors.New("unsupported l2oo version")
 	// ErrInvalidOutputLogTopic is returned when the output log topic is invalid.
 	ErrInvalidOutputLogTopic = errors.New("invalid output log topic")
+	// ErrInvalidOutputTopicLength is returned when the output log topic length is invalid.
+	ErrInvalidOutputTopicLength = errors.New("invalid output log topic length")
 )
 
+// OutputProposal is a proposal for an output root
+// in the L2OutputOracle for a given L2 block number.
+type OutputProposal struct {
+	L2BlockNumber *big.Int
+	OutputRoot    eth.Bytes32
+}
+
 // ParseOutputLog parses a log from the L2OutputOracle contract.
-func (c *Challenger) ParseOutputLog(log *types.Log) (*big.Int, eth.Bytes32, error) {
+func (c *Challenger) ParseOutputLog(log *types.Log) (*OutputProposal, error) {
+	// Check the length of log topics
+	if len(log.Topics) != 4 {
+		return nil, ErrInvalidOutputTopicLength
+	}
 	// Validate the first topic is the output log topic
 	if log.Topics[0] != c.l2ooABI.Events["OutputProposed"].ID {
-		return nil, eth.Bytes32{}, ErrInvalidOutputLogTopic
+		return nil, ErrInvalidOutputLogTopic
 	}
 	l2BlockNumber := new(big.Int).SetBytes(log.Topics[3][:])
 	expected := log.Topics[1]
-	return l2BlockNumber, eth.Bytes32(expected), nil
+	return &OutputProposal{
+		L2BlockNumber: l2BlockNumber,
+		OutputRoot:    eth.Bytes32(expected),
+	}, nil
 }
 
 // ValidateOutput checks that a given output is expected via a trusted rollup node rpc.
 // It returns: if the output is correct, the fetched output, error
-func (c *Challenger) ValidateOutput(ctx context.Context, l2BlockNumber *big.Int, expected eth.Bytes32) (bool, *eth.Bytes32, error) {
+func (c *Challenger) ValidateOutput(ctx context.Context, proposal OutputProposal) (bool, eth.Bytes32, error) {
 	// Fetch the output from the rollup node
 	ctx, cancel := context.WithTimeout(ctx, c.networkTimeout)
 	defer cancel()
-	output, err := c.rollupClient.OutputAtBlock(ctx, l2BlockNumber.Uint64())
+	output, err := c.rollupClient.OutputAtBlock(ctx, proposal.L2BlockNumber.Uint64())
 	if err != nil {
-		c.log.Error("Failed to fetch output", "blockNum", l2BlockNumber, "err", err)
-		return false, nil, err
+		c.log.Error("Failed to fetch output", "blockNum", proposal.L2BlockNumber, "err", err)
+		return false, eth.Bytes32{}, err
 	}
 
 	// Compare the output root to the expected output root
-	equalRoots, err := c.compareOutputRoots(output, expected, l2BlockNumber)
+	equalRoots, err := c.compareOutputRoots(output, proposal)
 	if err != nil {
-		return false, nil, err
+		return false, eth.Bytes32{}, err
 	}
 
-	return equalRoots, &output.OutputRoot, nil
+	return equalRoots, output.OutputRoot, nil
 }
 
 // compareOutputRoots compares the output root of the given block number to the expected output root.
-func (c *Challenger) compareOutputRoots(received *eth.OutputResponse, expected eth.Bytes32, blockNumber *big.Int) (bool, error) {
+func (c *Challenger) compareOutputRoots(received *eth.OutputResponse, expected OutputProposal) (bool, error) {
 	if received.Version != supportedL2OutputVersion {
 		c.log.Error("Unsupported l2 output version", "version", received.Version)
 		return false, ErrUnsupportedL2OOVersion
 	}
-	if received.BlockRef.Number != blockNumber.Uint64() {
-		c.log.Error("Invalid blockNumber", "expected", blockNumber, "actual", received.BlockRef.Number)
+	if received.BlockRef.Number != expected.L2BlockNumber.Uint64() {
+		c.log.Error("Invalid blockNumber", "expected", expected.L2BlockNumber, "actual", received.BlockRef.Number)
 		return false, ErrInvalidBlockNumber
 	}
-	return received.OutputRoot == expected, nil
+	return received.OutputRoot == expected.OutputRoot, nil
 }
