@@ -341,7 +341,7 @@ contract BondManager_Test is Test {
  * @title MockAttestationDisputeGame
  * @dev A mock dispute game for testing bond seizures.
  */
-contract MockAttestationDisputeGame is IDisputeGame {
+contract MockAttestationDisputeGame {
     GameStatus internal gameStatus;
     BondManager bm;
     Claim internal rc;
@@ -409,11 +409,11 @@ contract MockAttestationDisputeGame is IDisputeGame {
      * -------------------------------------------
      */
 
-    function createdAt() external pure override returns (Timestamp _createdAt) {
+    function createdAt() external pure returns (Timestamp _createdAt) {
         return Timestamp.wrap(uint64(0));
     }
 
-    function status() external view override returns (GameStatus _status) {
+    function status() external view returns (GameStatus _status) {
         return gameStatus;
     }
 
@@ -421,7 +421,7 @@ contract MockAttestationDisputeGame is IDisputeGame {
         return GameType.ATTESTATION;
     }
 
-    function rootClaim() external view override returns (Claim _rootClaim) {
+    function rootClaim() external view returns (Claim _rootClaim) {
         return rc;
     }
 
@@ -429,7 +429,21 @@ contract MockAttestationDisputeGame is IDisputeGame {
         return ed;
     }
 
-    function bondManager() external view override returns (IBondManager _bondManager) {
+    function gameData()
+        external
+        pure
+        returns (
+            GameType,
+            Claim,
+            bytes memory
+        )
+    {
+        assembly {
+            revert(0, 0)
+        }
+    }
+
+    function bondManager() external view returns (IBondManager _bondManager) {
         return IBondManager(address(bm));
     }
 

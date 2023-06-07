@@ -335,8 +335,7 @@ contract AttestationDisputeGame_Test is Portal_Initializer {
     }
 
     /**
-     * @dev Challenging the attestation dispute game should revert
-     *      when not in progress.
+     * @dev Challenging the attestation dispute game should revert when not in progress.
      */
     function test_challenge_notInProgress_reverts() public {
         address target = address(disputeGameImplementation);
@@ -355,8 +354,7 @@ contract AttestationDisputeGame_Test is Portal_Initializer {
     }
 
     /**
-     * @dev Challenging the attestation dispute game should revert
-     *      when the signature is invalid.
+     * @dev Challenging the attestation dispute game should revert when the signature is invalid.
      */
     function testFuzz_challenge_invalidSignature_reverts(bytes calldata signature) public {
         // The game should be in progress

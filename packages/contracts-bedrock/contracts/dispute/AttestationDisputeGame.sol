@@ -172,8 +172,8 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
             // Hash the `Dispute` struct.
             disputeStructHash := keccak256(ptr, 0x60)
 
-            // Update the free memory pointer
-            mstore(0x40, and(add(ptr, 0x7F), not(0x1F)))
+            // Update the free memory pointer.
+            mstore(0x40, add(ptr, 0x60))
         }
 
         _typedDataHash = Hash.wrap(_hashTypedData(Hash.unwrap(disputeStructHash)));
@@ -246,7 +246,7 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
     /**
      * @inheritdoc IDisputeGame
      */
-    function extraData() external pure returns (bytes memory _extraData) {
+    function extraData() public pure returns (bytes memory _extraData) {
         _extraData = _getArgDynBytes(0x20, 0x20);
     }
 
@@ -255,6 +255,23 @@ contract AttestationDisputeGame is Initializable, IAttestationDisputeGame, Clone
      */
     function rootClaim() public pure returns (Claim _rootClaim) {
         _rootClaim = Claim.wrap(_getArgFixedBytes(0x00));
+    }
+
+    /**
+     * @inheritdoc IDisputeGame
+     */
+    function gameData()
+        external
+        pure
+        returns (
+            GameType _gameType,
+            Claim _rootClaim,
+            bytes memory _extraData
+        )
+    {
+        _gameType = gameType();
+        _rootClaim = Claim.wrap(_getArgFixedBytes(0x00));
+        _extraData = _getArgDynBytes(0x20, 0x20);
     }
 
     ////////////////////////////////////////////////////////////////

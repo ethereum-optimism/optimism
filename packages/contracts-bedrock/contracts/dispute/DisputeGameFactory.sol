@@ -72,8 +72,7 @@ contract DisputeGameFactory is Ownable, IDisputeGameFactory {
         }
 
         // Clone the implementation contract and initialize it with the given parameters.
-        bytes memory data = abi.encodePacked(rootClaim, extraData);
-        proxy = IDisputeGame(address(impl).clone(data));
+        proxy = IDisputeGame(address(impl).clone(abi.encodePacked(rootClaim, extraData)));
         proxy.initialize();
 
         // Compute the unique identifier for the dispute game.
