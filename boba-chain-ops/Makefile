@@ -10,7 +10,7 @@ build:
 	env GO111MODULE=on go build -o ./bin/boba-crawler ./cmd/boba-crawler
 
 boba-migrate:
-	env GO111MODULE=on go build -o ./bin/boba-migrat ./cmd/boba-migrate
+	env GO111MODULE=on go build -o ./bin/boba-migrate ./cmd/boba-migrate
 
 boba-regenerate:
 	env GO111MODULE=on go build -o ./bin/boba-regenerate ./cmd/boba-regenerate
