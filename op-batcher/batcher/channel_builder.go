@@ -119,6 +119,8 @@ type channelBuilder struct {
 	blocks []*types.Block
 	// frames data queue, to be send as txs
 	frames []frameData
+	// total frames counter
+	numFrames int
 	// total amount of output data of all frames created yet
 	outputBytes int
 }
@@ -382,6 +384,7 @@ func (c *channelBuilder) outputFrame() error {
 		data: buf.Bytes(),
 	}
 	c.frames = append(c.frames, frame)
+	c.numFrames++
 	c.outputBytes += len(frame.data)
 	return err // possibly io.EOF (last frame)
 }
@@ -394,6 +397,12 @@ func (c *channelBuilder) Close() {
 	}
 }
 
+// TotalFrames returns the total number of frames that were created in this channel so far.
+// It does not decrease when the frames queue is being emptied.
+func (c *channelBuilder) TotalFrames() int {
+	return c.numFrames
+}
+
 // HasFrame returns whether there's any available frame. If true, it can be
 // popped using NextFrame().
 //
@@ -403,7 +412,9 @@ func (c *channelBuilder) HasFrame() bool {
 	return len(c.frames) > 0
 }
 
-func (c *channelBuilder) NumFrames() int {
+// PendingFrames returns the number of pending frames in the frames queue.
+// It is larger zero iff HasFrames() returns true.
+func (c *channelBuilder) PendingFrames() int {
 	return len(c.frames)
 }
 

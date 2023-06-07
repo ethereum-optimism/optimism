@@ -269,7 +269,7 @@ func (s *channelManager) outputFrames() error {
 	s.metr.RecordChannelClosed(
 		s.currentChannel.ID(),
 		len(s.blocks),
-		s.currentChannel.NumFrames(),
+		s.currentChannel.TotalFrames(),
 		inBytes,
 		outBytes,
 		s.currentChannel.FullErr(),
@@ -282,7 +282,7 @@ func (s *channelManager) outputFrames() error {
 	s.log.Info("Channel closed",
 		"id", s.currentChannel.ID(),
 		"blocks_pending", len(s.blocks),
-		"num_frames", s.currentChannel.NumFrames(),
+		"num_frames", s.currentChannel.TotalFrames(),
 		"input_bytes", inBytes,
 		"output_bytes", outBytes,
 		"full_reason", s.currentChannel.FullErr(),

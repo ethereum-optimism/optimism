@@ -115,7 +115,7 @@ func (s *channel) isTimedOut() bool {
 
 // pendingChannelIsFullySubmitted returns true if the channel has been fully submitted.
 func (s *channel) isFullySubmitted() bool {
-	return s.IsFull() && len(s.pendingTransactions)+s.NumFrames() == 0
+	return s.IsFull() && len(s.pendingTransactions)+s.PendingFrames() == 0
 }
 
 func (s *channel) NoneSubmitted() bool {
@@ -170,8 +170,12 @@ func (s *channel) OutputBytes() int {
 	return s.channelBuilder.OutputBytes()
 }
 
-func (s *channel) NumFrames() int {
-	return s.channelBuilder.NumFrames()
+func (s *channel) TotalFrames() int {
+	return s.channelBuilder.TotalFrames()
+}
+
+func (s *channel) PendingFrames() int {
+	return s.channelBuilder.PendingFrames()
 }
 
 func (s *channel) OutputFrames() error {
