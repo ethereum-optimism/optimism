@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -19,6 +20,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 )
+
+func TestChallenger_OutputProposed_Signature(t *testing.T) {
+	computed := crypto.Keccak256Hash([]byte("OutputProposed(bytes32,uint256,uint256,uint256)"))
+	challenger := newTestChallenger(t, eth.OutputResponse{}, true)
+	expected := challenger.l2ooABI.Events["OutputProposed"].ID
+	require.Equal(t, expected, computed)
+}
 
 func TestParseOutputLog_Succeeds(t *testing.T) {
 	challenger := newTestChallenger(t, eth.OutputResponse{}, true)
