@@ -35,7 +35,7 @@ contract Oracle {
         bytes32 key;
         bytes32 part;
         assembly {
-            size := calldataload(0x44) // len(sig) + len(partOffset) + len(preimage offset) = 4 + 32 + 32 = 0x64
+            size := calldataload(0x44) // len(sig) + len(partOffset) + len(preimage offset) = 4 + 32 + 32 = 0x44
             if iszero(lt(partOffset, add(size, 8))) { // revert if part offset >= size+8 (i.e. parts must be within bounds)
                 revert(0, 0)
             }
