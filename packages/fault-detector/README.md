@@ -24,8 +24,14 @@ a custom op chain, the necessary contract addresses must also be set associated 
 
 Once your environment variables or flags have been set, run the service via:
 
+```bash
+yarn dev
 ```
-yarn start
+
+Or run the production app
+
+```bash
+yarn preview
 ```
 
 ## Ports
