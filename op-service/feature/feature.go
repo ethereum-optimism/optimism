@@ -165,7 +165,7 @@ func calcAvgGasPriceByBlockReceipts(receipts types.Receipts) *big.Int {
 	nonZeroTxsCnt := big.NewInt(0)
 	nonZeroTxsSum := big.NewInt(0)
 	for _, tx := range receipts {
-		if tx.L1GasPrice.Cmp(common.Big0) > 0 {
+		if tx.L1GasPrice != nil && tx.L1GasPrice.Cmp(common.Big0) > 0 {
 			nonZeroTxsCnt.Add(nonZeroTxsCnt, big.NewInt(1))
 			nonZeroTxsSum.Add(nonZeroTxsSum, tx.L1GasPrice)
 		}
