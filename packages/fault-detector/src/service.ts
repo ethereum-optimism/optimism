@@ -78,7 +78,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         },
         bedrock: {
           validator: validators.bool,
-          default: false,
+          default: true,
           desc: 'Whether or not the service is running against a Bedrock chain',
           public: true,
         },
