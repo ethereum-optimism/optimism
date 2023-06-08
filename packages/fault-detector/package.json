@@ -9,10 +9,12 @@
     "dist/*"
   ],
   "scripts": {
-    "start": "ts-node ./src/service.ts",
+    "start": "node --enable-source-maps dist/src/service.js",
+    "dev": "tsx watch ./src/service.ts",
     "test": "hardhat test",
     "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json",
     "build": "tsc -p tsconfig.json",
+    "preview": "yarn build && yarn start",
     "clean": "rimraf dist/ ./tsconfig.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
     "pre-commit": "lint-staged",
@@ -44,7 +46,7 @@
     "ethers": "^5.7.0",
     "hardhat": "^2.9.6",
     "lodash": "^4.17.21",
-    "ts-node": "^10.9.1"
+    "tsx": "^3.12.7"
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.8.1",
