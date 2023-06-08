@@ -84,7 +84,7 @@ func NewCli(GitVersion string, GitCommit string, GitDate string) *Cli {
 
 	app := &cli.App{
 		Version:     fmt.Sprintf("%s-%s", GitVersion, params.VersionWithCommit(GitCommit, GitDate)),
-		Description: "Service for indexing deposits and withdrawals by account",
+		Description: "An indexer of all optimism events with a serving api layer",
 		Commands: []*cli.Command{
 			{
 				Name:        "api",
