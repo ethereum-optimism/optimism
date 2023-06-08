@@ -397,13 +397,13 @@ func TestChannelBuilder_NextFrame(t *testing.T) {
 	cb.PushFrame(frameData)
 
 	// There should only be 1 frame in the channel builder
-	require.Equal(t, 1, cb.NumFrames())
+	require.Equal(t, 1, cb.PendingFrames())
 
 	// We should be able to increment to the next frame
 	constructedFrame := cb.NextFrame()
 	require.Equal(t, expectedTx, constructedFrame.id)
 	require.Equal(t, expectedBytes, constructedFrame.data)
-	require.Equal(t, 0, cb.NumFrames())
+	require.Equal(t, 0, cb.PendingFrames())
 
 	// The next call should panic since the length of frames is 0
 	require.PanicsWithValue(t, "no next frame", func() { cb.NextFrame() })
@@ -450,7 +450,7 @@ func TestChannelBuilder_OutputFramesWorks(t *testing.T) {
 	cb, err := newChannelBuilder(channelConfig)
 	require.NoError(t, err)
 	require.False(t, cb.IsFull())
-	require.Equal(t, 0, cb.NumFrames())
+	require.Equal(t, 0, cb.PendingFrames())
 
 	// Calling OutputFrames without having called [AddBlock]
 	// should return no error
@@ -466,7 +466,7 @@ func TestChannelBuilder_OutputFramesWorks(t *testing.T) {
 	// Check how many ready bytes
 	// There should be more than the max frame size ready
 	require.Greater(t, uint64(cb.co.ReadyBytes()), channelConfig.MaxFrameSize)
-	require.Equal(t, 0, cb.NumFrames())
+	require.Equal(t, 0, cb.PendingFrames())
 
 	// The channel should not be full
 	// but we want to output the frames for testing anyways
@@ -476,7 +476,7 @@ func TestChannelBuilder_OutputFramesWorks(t *testing.T) {
 	require.NoError(t, cb.OutputFrames())
 
 	// There should be many frames in the channel builder now
-	require.Greater(t, cb.NumFrames(), 1)
+	require.Greater(t, cb.PendingFrames(), 1)
 	for _, frame := range cb.frames {
 		require.Len(t, frame.data, int(channelConfig.MaxFrameSize))
 	}
@@ -515,7 +515,7 @@ func TestChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T) {
 	cb, err := newChannelBuilder(channelConfig)
 	require.NoError(t, err)
 	require.False(t, cb.IsFull())
-	require.Equal(t, 0, cb.NumFrames())
+	require.Equal(t, 0, cb.PendingFrames())
 	for {
 		lBlock := types.NewBlock(&types.Header{
 			BaseFee:    common.Big0,
@@ -684,6 +684,49 @@ func TestFramePublished(t *testing.T) {
 	require.Equal(t, uint64(1000), cb.timeout)
 }
 
+func TestChannelBuilder_PendingFrames_TotalFrames(t *testing.T) {
+	const tnf = 8
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	require := require.New(t)
+	cfg := defaultTestChannelConfig
+	cfg.CompressorConfig.TargetFrameSize = 1000
+	cfg.MaxFrameSize = 1000
+	cfg.CompressorConfig.TargetNumFrames = tnf
+	cfg.CompressorConfig.Kind = "shadow"
+	cb, err := newChannelBuilder(cfg)
+	require.NoError(err)
+
+	// initial builder should be empty
+	require.Zero(cb.PendingFrames())
+	require.Zero(cb.TotalFrames())
+
+	// fill up
+	for {
+		block, _ := dtest.RandomL2Block(rng, 4)
+		_, err := cb.AddBlock(block)
+		if cb.IsFull() {
+			break
+		}
+		require.NoError(err)
+	}
+	require.NoError(cb.OutputFrames())
+
+	nf := cb.TotalFrames()
+	// require 1 < nf < tnf
+	// (because of compression we won't necessarily land exactly at tnf, that's ok)
+	require.Greater(nf, 1)
+	require.LessOrEqual(nf, tnf)
+	require.Equal(nf, cb.PendingFrames())
+
+	// empty queue
+	for pf := nf - 1; pf >= 0; pf-- {
+		require.True(cb.HasFrame())
+		_ = cb.NextFrame()
+		require.Equal(cb.PendingFrames(), pf)
+		require.Equal(cb.TotalFrames(), nf)
+	}
+}
+
 func TestChannelBuilder_InputBytes(t *testing.T) {
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -726,7 +769,7 @@ func TestChannelBuilder_OutputBytes(t *testing.T) {
 
 	require.NoError(cb.OutputFrames())
 	require.True(cb.IsFull())
-	require.Greater(cb.NumFrames(), 1)
+	require.Greater(cb.PendingFrames(), 1)
 
 	var flen int
 	for cb.HasFrame() {

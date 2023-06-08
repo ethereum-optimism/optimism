@@ -1325,6 +1325,9 @@ workflows:
           name: op-batcher-lint
           module: op-batcher
       - go-lint:
+          name: op-bootnode-lint
+          module: op-bootnode
+      - go-lint:
           name: op-bindings-lint
           module: op-bindings
       - go-lint:
@@ -1387,6 +1390,7 @@ workflows:
       - bedrock-go-tests:
           requires:
             - op-batcher-lint
+            - op-bootnode-lint
             - op-bindings-lint
             - op-chain-ops-lint
             - op-e2e-lint
@@ -1552,7 +1556,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(fault-detector|proxyd|op-[a-z0-9\-]*)\/v.*/
+              only: /^(fault-detector|proxyd|indexer|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-release:
@@ -1660,6 +1664,21 @@ workflows:
               ignore: /.*/
           docker_file: proxyd/Dockerfile
           docker_name: proxyd
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+          context:
+            - oplabs-gcr-release
+          requires:
+            - hold
+      - docker-release:
+          name: indexer-docker-release
+          filters:
+            tags:
+              only: /^indexer\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: indexer/Dockerfile
+          docker_name: indexer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
           context:
