@@ -92,7 +92,7 @@ const deployFn: DeployFunction = async (hre) => {
   // where the controller is not the deployer.
   const isLiveDeployer = await liveDeployer({
     hre,
-    disabled: process.env.DISABLE_LIVE_DEPLOYER,
+    disabled: process.env.DISABLE_LIVE_DEPLOYER === '1',
   })
 
   // Make sure the dynamic system configuration has been set.

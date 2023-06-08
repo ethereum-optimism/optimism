@@ -71,7 +71,7 @@ const deployFn: DeployFunction = async (hre) => {
   // where the controller is not the deployer.
   const isLiveDeployer = await liveDeployer({
     hre,
-    disabled: process.env.DISABLE_LIVE_DEPLOYER,
+    disabled: process.env.DISABLE_LIVE_DEPLOYER === '1',
   })
 
   // Transfer ownership of the ProxyAdmin to the SystemDictator.

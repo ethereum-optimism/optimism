@@ -364,7 +364,7 @@ export const doOwnershipTransfer = async (opts: {
  */
 export const liveDeployer = async (opts: {
   hre: HardhatRuntimeEnvironment
-  disabled: string | undefined
+  disabled: boolean | undefined
 }): Promise<boolean> => {
   if (!!opts.disabled) {
     console.log('Live deployer manually disabled')
