@@ -32,6 +32,14 @@ op-node:
 	make -C ./op-node op-node
 .PHONY: op-node
 
+generate-mocks-op-node:
+	make -C ./op-node generate-mocks
+.PHONY: generate-mocks-op-node
+
+generate-mocks-op-service:
+	make -C ./op-service generate-mocks
+.PHONY: generate-mocks-op-service
+
 op-batcher:
 	make -C ./op-batcher op-batcher
 .PHONY: op-batcher

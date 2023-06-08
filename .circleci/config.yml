@@ -738,7 +738,6 @@ jobs:
           environment:
             CI: true
 
-
   go-lint:
     parameters:
       module:
@@ -1147,6 +1146,28 @@ jobs:
           event: fail
           template: basic_fail_1
 
+  check-generated-mocks-op-node:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - check-changed:
+          patterns: op-node
+      - run:
+          name: check-generated-mocks
+          command: make generate-mocks-op-node && git diff --exit-code
+
+  check-generated-mocks-op-service:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - check-changed:
+          patterns: op-service
+      - run:
+          name: check-generated-mocks
+          command: make generate-mocks-op-service && git diff --exit-code
+
 workflows:
   main:
     jobs:
@@ -1527,6 +1548,8 @@ workflows:
             - op-batcher-docker-build
             - op-proposer-docker-build
             - op-challenger-docker-build
+      - check-generated-mocks-op-node
+      - check-generated-mocks-op-service
   release:
     jobs:
       - hold:
