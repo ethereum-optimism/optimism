@@ -9,7 +9,7 @@ import {
 import { CrossChainMessenger } from '@eth-optimism/sdk'
 import { getChainId, sleep } from '@eth-optimism/core-utils'
 import { Provider } from '@ethersproject/abstract-provider'
-import { Event } from 'ethers'
+import { ethers, Event } from 'ethers'
 import dateformat from 'dateformat'
 
 import { version } from '../../package.json'
@@ -19,6 +19,7 @@ type Options = {
   l2RpcProvider: Provider
   startBlockNumber: number
   sleepTimeMs: number
+  optimismPortalAddress: string
 }
 
 type Metrics = {
@@ -65,6 +66,11 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
           desc: 'Time in ms to sleep when waiting for a node',
           public: true,
         },
+        optimismPortalAddress: {
+          validator: validators.str,
+          desc: 'overridden optimism portal address',
+          default: '',
+        },
       },
       metricsSpec: {
         withdrawalsValidated: {
@@ -98,12 +104,35 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
       name: 'L2',
     })
 
-    this.state.messenger = new CrossChainMessenger({
-      l1SignerOrProvider: this.options.l1RpcProvider,
-      l2SignerOrProvider: this.options.l2RpcProvider,
-      l1ChainId: await getChainId(this.options.l1RpcProvider),
-      l2ChainId: await getChainId(this.options.l2RpcProvider),
-    })
+    if (this.options.optimismPortalAddress) {
+      this.state.messenger = new CrossChainMessenger({
+        l1SignerOrProvider: this.options.l1RpcProvider,
+        l2SignerOrProvider: this.options.l2RpcProvider,
+        l1ChainId: await getChainId(this.options.l1RpcProvider),
+        l2ChainId: await getChainId(this.options.l2RpcProvider),
+        bedrock: true,
+        contracts: {
+          l1: {
+            AddressManager: ethers.constants.AddressZero,
+            L1CrossDomainMessenger: ethers.constants.AddressZero,
+            L1StandardBridge: ethers.constants.AddressZero,
+            StateCommitmentChain: ethers.constants.AddressZero,
+            CanonicalTransactionChain: ethers.constants.AddressZero,
+            BondManager: ethers.constants.AddressZero,
+            OptimismPortal: this.options.optimismPortalAddress,
+            L2OutputOracle: ethers.constants.AddressZero,
+          },
+        },
+      })
+    } else {
+      this.state.messenger = new CrossChainMessenger({
+        l1SignerOrProvider: this.options.l1RpcProvider,
+        l2SignerOrProvider: this.options.l2RpcProvider,
+        l1ChainId: await getChainId(this.options.l1RpcProvider),
+        l2ChainId: await getChainId(this.options.l2RpcProvider),
+        bedrock: true,
+      })
+    }
 
     // Not detected by default.
     this.state.forgeryDetected = false
