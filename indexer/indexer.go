@@ -1,20 +1,17 @@
 package indexer
 
 import (
-	"context"
+	"fmt"
 	"os"
-	"time"
 
-	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum-optimism/optimism/indexer/database"
+	"github.com/ethereum-optimism/optimism/indexer/flags"
+	"github.com/ethereum-optimism/optimism/indexer/node"
+	"github.com/ethereum-optimism/optimism/indexer/processor"
+
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/urfave/cli"
-)
 
-const (
-	// defaultDialTimeout is default duration the service will wait on
-	// startup to make a connection to either the L1 or L2 backends.
-	defaultDialTimeout = 5 * time.Second
+	"github.com/urfave/cli"
 )
 
 // Main is the entrypoint into the indexer service. This method returns
@@ -23,7 +20,23 @@ const (
 // e.g. GitVersion, to be captured and used once the function is executed.
 func Main(gitVersion string) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
-		log.Info("Initializing indexer")
+		log.Info("initializing indexer")
+		indexer, err := NewIndexer(ctx)
+		if err != nil {
+			log.Error("unable to initialize indexer", "err", err)
+			return err
+		}
+
+		log.Info("starting indexer")
+		if err := indexer.Start(); err != nil {
+			log.Error("unable to start indexer", "err", err)
+		}
+
+		defer indexer.Stop()
+		log.Info("indexer started")
+
+		// Never terminate
+		<-(chan struct{})(nil)
 		return nil
 	}
 }
@@ -31,53 +44,61 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 // Indexer is a service that configures the necessary resources for
 // running the Sync and BlockHandler sub-services.
 type Indexer struct {
-	l1Client *ethclient.Client
-	l2Client *ethclient.Client
+	db *database.DB
+
+	l1Processor *processor.L1Processor
+	l2Processor *processor.L2Processor
 }
 
 // NewIndexer initializes the Indexer, gathering any resources
 // that will be needed by the TxIndexer and StateIndexer
 // sub-services.
-func NewIndexer() (*Indexer, error) {
-	ctx := context.Background()
-
-	var logHandler log.Handler = log.StreamHandler(os.Stdout, log.TerminalFormat(true))
+func NewIndexer(ctx *cli.Context) (*Indexer, error) {
 	// TODO https://linear.app/optimism/issue/DX-55/api-implement-rest-api-with-mocked-data
 	// do json format too
 	// TODO https://linear.app/optimism/issue/DX-55/api-implement-rest-api-with-mocked-data
-	// pass in loglevel from config
-	// logHandler = log.StreamHandler(os.Stdout, log.JSONFormat())
-	logLevel, err := log.LvlFromString("info")
+
+	logLevel, err := log.LvlFromString(ctx.GlobalString(flags.LogLevelFlag.Name))
 	if err != nil {
 		return nil, err
 	}
 
+	logHandler := log.StreamHandler(os.Stdout, log.TerminalFormat(true))
 	log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
 
-	// Connect to L1 and L2 providers. Perform these last since they are the
-	// most expensive.
-	// TODO https://linear.app/optimism/issue/DX-55/api-implement-rest-api-with-mocked-data
-	// pass in rpc url from config
-	l1Client, _, err := dialEthClientWithTimeout(ctx, "http://localhost:8545")
+	dsn := fmt.Sprintf("database=%s", ctx.GlobalString(flags.DBNameFlag.Name))
+	db, err := database.NewDB(dsn)
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO https://linear.app/optimism/issue/DX-55/api-implement-rest-api-with-mocked-data
-	// pass in rpc url from config
-	l2Client, _, err := dialEthClientWithTimeout(ctx, "http://localhost:9545")
+	// L1 Processor
+	l1EthClient, err := node.NewEthClient(ctx.GlobalString(flags.L1EthRPCFlag.Name))
+	if err != nil {
+		return nil, err
+	}
+	l1Processor, err := processor.NewL1Processor(l1EthClient, db)
 	if err != nil {
 		return nil, err
 	}
 
+	// L2Processor
+	l2EthClient, err := node.NewEthClient(ctx.GlobalString(flags.L2EthRPCFlag.Name))
+	if err != nil {
+		return nil, err
+	}
+	l2Processor, err := processor.NewL2Processor(l2EthClient, db)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Indexer{
-		l1Client: l1Client,
-		l2Client: l2Client,
-	}, nil
+	indexer := &Indexer{
+		db:          db,
+		l1Processor: l1Processor,
+		l2Processor: l2Processor,
+	}
+
+	return indexer, nil
 }
 
 // Serve spins up a REST API server at the given hostname and port.
@@ -88,25 +109,12 @@ func (b *Indexer) Serve() error {
 // Start starts the starts the indexing service on L1 and L2 chains and also
 // starts the REST server.
 func (b *Indexer) Start() error {
+	go b.l1Processor.Start()
+	go b.l2Processor.Start()
+
 	return nil
 }
 
 // Stop stops the indexing service on L1 and L2 chains.
 func (b *Indexer) Stop() {
-}
-
-// dialL1EthClientWithTimeout attempts to dial the L1 provider using the
-// provided URL. If the dial doesn't complete within defaultDialTimeout seconds,
-// this method will return an error.
-func dialEthClientWithTimeout(ctx context.Context, url string) (
-	*ethclient.Client, *rpc.Client, error) {
-
-	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
-	defer cancel()
-
-	c, err := rpc.DialContext(ctxt, url)
-	if err != nil {
-		return nil, nil, err
-	}
-	return ethclient.NewClient(c), c, nil
 }

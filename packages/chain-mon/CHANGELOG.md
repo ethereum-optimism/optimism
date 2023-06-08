@@ -1,5 +1,20 @@
 # @eth-optimism/drippie-mon
 
+## 0.3.1
+
+### Patch Changes
+
+- a26c484af: Fixes a bug in the wd-mon service where a node connection failure event was not handled correctly
+- Updated dependencies [2129dafa3]
+- Updated dependencies [a1b7ff9e3]
+- Updated dependencies [8133872ed]
+- Updated dependencies [afc2ab8c9]
+- Updated dependencies [188d1e930]
+- Updated dependencies [5063a69fb]
+- Updated dependencies [aa854bdd8]
+  - @eth-optimism/contracts-periphery@1.0.8
+  - @eth-optimism/sdk@2.1.0
+
 ## 0.3.0
 
 ### Minor Changes

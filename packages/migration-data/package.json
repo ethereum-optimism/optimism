@@ -33,7 +33,7 @@
   },
   "devDependencies": {
     "commander": "^9.0.0",
-    "@eth-optimism/contracts": "0.5.40",
+    "@eth-optimism/contracts": "0.6.0",
     "@eth-optimism/old-contracts": "npm:@eth-optimism/contracts@0.4.10",
     "ethers": "^5.7.0",
     "ts-node": "^10.9.1"

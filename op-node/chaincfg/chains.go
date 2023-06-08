@@ -13,19 +13,14 @@ import (
 var Mainnet = rollup.Config{
 	Genesis: rollup.Genesis{
 		L1: eth.BlockID{
-			// moose: Update this during migration
-			Hash: common.HexToHash("0x"),
-			// moose: Update this during migration
-			Number: 0,
+			Hash:   common.HexToHash("0x438335a20d98863a4c0c97999eb2481921ccd28553eac6f913af7c12aec04108"),
+			Number: 17422590,
 		},
 		L2: eth.BlockID{
-			// moose: Update this during migration
-			Hash: common.HexToHash("0x"),
-			// moose: Update this during migration
-			Number: 0,
+			Hash:   common.HexToHash("0xdbf6a80fef073de06add9b0d14026d6e5a86c85f6d102c36d3d8e9cf89c2afd3"),
+			Number: 105235063,
 		},
-		// moose: Update this during migration
-		L2Time: 0,
+		L2Time: 1686068903,
 		SystemConfig: eth.SystemConfig{
 			BatcherAddr: common.HexToAddress("0x6887246668a3b87f54deb3b94ba47a6f63f32985"),
 			Overhead:    eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000000bc")),
@@ -76,9 +71,8 @@ var Goerli = rollup.Config{
 }
 
 var NetworksByName = map[string]rollup.Config{
-	"goerli": Goerli,
-	// moose: Update this during migration
-	// "mainnet": Mainnet,
+	"goerli":  Goerli,
+	"mainnet": Mainnet,
 }
 
 var L2ChainIDToNetworkName = func() map[string]string {

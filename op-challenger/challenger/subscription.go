@@ -61,6 +61,11 @@ func (s *Subscription) Started() bool {
 	return s.started
 }
 
+// Logs returns the log channel.
+func (s *Subscription) Logs() <-chan types.Log {
+	return s.logs
+}
+
 // Subscribe constructs the subscription.
 func (s *Subscription) Subscribe() error {
 	s.log.Info("Subscribing to", "query", s.query.Topics, "id", s.id)

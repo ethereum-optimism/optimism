@@ -32,6 +32,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/clock"
 )
 
+const (
+	staticPeerTag = "static"
+)
+
 type ExtraHostFeatures interface {
 	host.Host
 	ConnectionGater() gating.BlockingConnectionGater
@@ -67,7 +71,7 @@ func (e *extraHost) initStaticPeers() {
 		e.Peerstore().AddAddrs(addr.ID, addr.Addrs, time.Hour*24*7)
 		// We protect the peer, so the connection manager doesn't decide to prune it.
 		// We tag it with "static" so other protects/unprotects with different tags don't affect this protection.
-		e.connMgr.Protect(addr.ID, "static")
+		e.connMgr.Protect(addr.ID, staticPeerTag)
 		// Try to dial the node in the background
 		go func(addr *peer.AddrInfo) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
@@ -159,9 +163,7 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 	if err != nil {
 		return nil, fmt.Errorf("failed to open connection gater: %w", err)
 	}
-	// TODO(CLI-4015): apply connGtr enhancements
-	// connGtr = gating.AddBanExpiry(connGtr, ps, log, cl, reporter)
-	//connGtr = gating.AddScoring(connGtr, ps, 0)
+	connGtr = gating.AddBanExpiry(connGtr, ps, log, clock.SystemClock, metrics)
 	connGtr = gating.AddMetering(connGtr, metrics)
 
 	connMngr, err := DefaultConnManager(conf)

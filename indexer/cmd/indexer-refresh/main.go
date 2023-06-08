@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/indexer"
+	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/flags"
 )
 
@@ -28,8 +29,18 @@ func main() {
 		),
 	)
 
+	// TODO https://linear.app/optimism/issue/DX-55/api-implement-rest-api-with-mocked-data
+	// don't hardcode this
+	conf, err := config.LoadConfig("../../indexer.toml")
+
+	if err != nil {
+		log.Crit("Failed to load config", "message", err)
+	}
+
+	log.Debug("Loaded config", "config", conf)
+
 	app := cli.NewApp()
-	app.Flags = flags.Flags
+	app.Flags = []cli.Flag{flags.LogLevelFlag, flags.L1EthRPCFlag, flags.L2EthRPCFlag, flags.DBNameFlag}
 	app.Version = fmt.Sprintf("%s-%s", GitVersion, params.VersionWithCommit(GitCommit, GitDate))
 	app.Name = "indexer"
 	app.Usage = "Indexer Service"
@@ -37,8 +48,7 @@ func main() {
 		"by account on L1 and L2"
 
 	app.Action = indexer.Main(GitVersion)
-	err := app.Run(os.Args)
-	if err != nil {
+	if err := app.Run(os.Args); err != nil {
 		log.Crit("Application failed", "message", err)
 	}
 }
