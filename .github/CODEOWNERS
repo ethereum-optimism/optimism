@@ -2,7 +2,6 @@
 /batch-submitter                @ethereum-optimism/legacy-reviewers
 /bss-core                       @ethereum-optimism/legacy-reviewers
 /gas-oracle                     @ethereum-optimism/legacy-reviewers
-/integration-tests              @ethereum-optimism/legacy-reviewers
 /l2geth                         @ethereum-optimism/legacy-reviewers
 /l2geth-exporter                @ethereum-optimism/legacy-reviewers
 /packages/actor-tests           @ethereum-optimism/legacy-reviewers

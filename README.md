@@ -65,7 +65,6 @@ Refer to the Directory Structure section below to understand which packages are 
 ├── <a href="./gas-oracle">gas-oracle</a>: Service for updating L1 gas prices on L2
 ├── <a href="./indexer">indexer</a>: indexes and syncs transactions
 ├── <a href="./infra/op-replica">infra/op-replica</a>: Deployment examples and resources for running an Optimism replica
-├── <a href="./integration-tests">integration-tests</a>: Various integration tests for the Optimism network
 ├── <a href="./l2geth">l2geth</a>: Optimism client software, a fork of <a href="https://github.com/ethereum/go-ethereum/tree/v1.9.10">geth v1.9.10</a>
 ├── <a href="./l2geth-exporter">l2geth-exporter</a>: A prometheus exporter to collect/serve metrics from an L2 geth node
 ├── <a href="./op-exporter">op-exporter</a>: A prometheus exporter to collect/serve metrics from an Optimism node
