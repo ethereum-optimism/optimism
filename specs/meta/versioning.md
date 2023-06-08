@@ -31,7 +31,6 @@ Go modules which are not yet versioned:
 ./gas-oracle       (changesets)
 ./indexer          (changesets)
 ./l2geth           (changesets)
-./l2geth-exporter  (changesets)
 ./op-exporter      (changesets)
 ./proxyd           (changesets)
 ./state-surgery
