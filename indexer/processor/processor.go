@@ -52,8 +52,9 @@ func (p processor) Start() {
 			return p.processFn(db, headers)
 		})
 
+		// TODO(DX-79) if processFn failed, the next poll should retry starting from this same batch of headers
+
 		if err != nil {
-			// TODO(DX-79) next poll should retry starting from this same batch of headers
 			batchLog.Info("unable to index batch", "err", err)
 			panic(err)
 		} else {
