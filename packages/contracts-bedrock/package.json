@@ -30,6 +30,7 @@
     "coverage:lcov": "yarn build:differential && yarn build:fuzz && forge coverage --report lcov",
     "gas-snapshot": "yarn build:differential && yarn build:fuzz && forge snapshot --no-match-test 'testDiff|testFuzz|invariant|generateArtifact'",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
+    "validate-deploy-configs": "hardhat compile && hardhat generate-deploy-config && ./scripts/validate-deploy-configs.sh",
     "validate-spacers": "hardhat compile && hardhat validate-spacers",
     "slither": "./scripts/slither.sh",
     "slither:triage": "TRIAGE_MODE=1 ./scripts/slither.sh",
@@ -55,8 +56,7 @@
     "@eth-optimism/core-utils": "^0.12.0",
     "@openzeppelin/contracts": "4.7.3",
     "@openzeppelin/contracts-upgradeable": "4.7.3",
-    "ethers": "^5.7.0",
-    "hardhat": "^2.9.6"
+    "ethers": "^5.7.0"
   },
   "devDependencies": {
     "@eth-optimism/hardhat-deploy-config": "^0.2.6",
@@ -69,6 +69,7 @@
     "@nomiclabs/hardhat-ethers": "^2.0.0",
     "@nomiclabs/hardhat-waffle": "^2.0.0",
     "@rari-capital/solmate": "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
+    "clones-with-immutable-args": "https://github.com/Saw-mon-and-Natalie/clones-with-immutable-args.git#105efee1b9127ed7f6fedf139e1fc796ce8791f2",
     "@typechain/ethers-v5": "^10.1.0",
     "@typescript-eslint/eslint-plugin": "^5.45.1",
     "@typescript-eslint/parser": "^5.45.1",
@@ -80,6 +81,7 @@
     "ethereum-waffle": "^3.0.0",
     "forge-std": "https://github.com/foundry-rs/forge-std.git#46264e9788017fc74f9f58b7efa0bc6e1df6d410",
     "glob": "^7.1.6",
+    "hardhat": "^2.9.6",
     "hardhat-deploy": "^0.11.4",
     "solhint": "^3.3.7",
     "solhint-plugin-prettier": "^0.0.5",

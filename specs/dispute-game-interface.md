@@ -196,14 +196,19 @@ interface IDisputeGame_OutputAttestation is IDisputeGame {
     function challenges(address challenger) external view returns (bool _challenged);
 
     /// @notice The signer set consists of authorized public keys that may challenge the `rootClaim`.
-    /// @return An array of authorized signers.
-    function signerSet() external view returns (address[] memory _signers);
+    ///         This set of signers is snapshotted from the `SystemConfig` upon creation of the game.
+    /// @return An array of authorized signers from the `SystemConfig` contract.
+    function frozenSignerSet() external view returns (address[] memory _signers);
+
+    /// @notice The signer set consists of authorized public keys that may challenge the `rootClaim`.
+    /// @return _isAuthorized Whether or not the `addr` is part of the frozen signer set.
+    function signerSet(address addr) external view override returns (bool _isAuthorized);
 
     /// @notice The amount of signatures required to successfully challenge the `rootClaim`
     ///         output proposal. Once this threshold is met by members of the `signerSet`
     ///         calling `challenge`, the game will be resolved to `CHALLENGER_WINS`.
     /// @custom:invariant The `signatureThreshold` may never be greater than the length of the `signerSet`.
-    function signatureThreshold() public view returns (uint16 _signatureThreshold);
+    function frozenSignatureThreshold() external view returns (uint256 _signatureThreshold);
 
     /// @notice Returns the L2 Block Number that the `rootClaim` commits to. Exists within the `extraData`.
     function l2BlockNumber() public view returns (uint256 _l2BlockNumber);
@@ -211,8 +216,6 @@ interface IDisputeGame_OutputAttestation is IDisputeGame {
     /// @notice Challenge the `rootClaim`.
     /// @dev - If the `ecrecover`ed address that created the signature is not a part of the
     ///      signer set returned by `signerSet`, this function should revert.
-    ///      - If the `ecrecover`ed address that created the signature is not the msg.sender,
-    ///      this function should revert.
     ///      - If the signature provided is the signature that breaches the signature threshold,
     ///      the function should call the `resolve` function to resolve the game as `CHALLENGER_WINS`.
     ///      - When the game resolves, the bond attached to the root claim should be distributed among

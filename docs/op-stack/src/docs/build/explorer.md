@@ -11,7 +11,8 @@ One easy way to do this is to use [Blockscout](https://www.blockscout.com/).
 ### Archive mode
 
 Blockscout expects to interact with an Ethereum execution client in [archive mode](https://www.alchemy.com/overviews/archive-nodes#archive-nodes).
-To create such a node, follow the [directions to add a node](./getting-started.md#adding-nodes), but in the command you use to start `op-geth` replace:
+If your `op-geth` is running in full mode, you can create a separate archive node.
+To do so, follow the [directions to add a node](./getting-started.md#adding-nodes), but in the command you use to start `op-geth` replace:
 
 ```sh
 	--gcmode=full \

@@ -93,7 +93,7 @@ def clamp(v: i256, min: u128, max: u128) -> u128:
 if prev_num == now_num:
     now_basefee = prev_basefee
     now_bought_gas = prev_bought_gas + requested_gas
-elif prev_num != now_num :
+elif prev_num != now_num:
     # Width extension and conversion to signed integer math
     gas_used_delta = int128(prev_bought_gas) - int128(TARGET_RESOURCE_LIMIT)
     # Use truncating (round to 0) division - solidity's default.
@@ -101,18 +101,18 @@ elif prev_num != now_num :
     base_fee_per_gas_delta = prev_basefee * gas_used_delta / TARGET_RESOURCE_LIMIT / BASE_FEE_MAX_CHANGE_DENOMINATOR
     now_basefee_wide = prev_basefee + base_fee_per_gas_delta
 
-    now_basefee = clamp(now_basefee_wide, min=MINIMUM_BASEFEE, max=UINT_64_MAX_VALUE)
+    now_basefee = clamp(now_basefee_wide, min=MINIMUM_BASEFEE, max=UINT_128_MAX_VALUE)
     now_bought_gas =  requested_gas
 
-# If we skipped multiple blocks between the previous block and now update the basefee again.
-# This is not exactly the same as iterating the above function, but quite close for reasonable
-# gas target values. It is also constant time wrt the number of missed blocks which is important
-# for keeping gas usage stable.
-if prev_num + 1 < now_num:
-    n = now_num - prev_num - 1
-    # Apply 7/8 reduction to prev_basefee for the n empty blocks in a row.
-    now_basefee_wide = prev_basefee * pow(1-(1/BASE_FEE_MAX_CHANGE_DENOMINATOR), n)
-    now_basefee = clamp(now_basefee_wide, min=MINIMUM_BASEFEE, max=UINT_64_MAX_VALUE)
+    # If we skipped multiple blocks between the previous block and now update the basefee again.
+    # This is not exactly the same as iterating the above function, but quite close for reasonable
+    # gas target values. It is also constant time wrt the number of missed blocks which is important
+    # for keeping gas usage stable.
+    if prev_num + 1 < now_num:
+        n = now_num - prev_num - 1
+        # Apply 7/8 reduction to prev_basefee for the n empty blocks in a row.
+        now_basefee_wide = now_basefee * pow(1-(1/BASE_FEE_MAX_CHANGE_DENOMINATOR), n)
+        now_basefee = clamp(now_basefee_wide, min=MINIMUM_BASEFEE, max=type(uint128).max)
 
 require(now_bought_gas < MAX_RESOURCE_LIMIT)
 

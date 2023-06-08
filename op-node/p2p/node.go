@@ -6,6 +6,14 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/gating"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/discover"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/hashicorp/go-multierror"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/connmgr"
@@ -13,22 +21,14 @@ import (
 	p2pmetrics "github.com/libp2p/go-libp2p/core/metrics"
 	"github.com/libp2p/go-libp2p/core/network"
 	ma "github.com/multiformats/go-multiaddr"
-
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
-
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/discover"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
 // NodeP2P is a p2p node, which can be used to gossip messages.
 type NodeP2P struct {
-	host    host.Host           // p2p host (optional, may be nil)
-	gater   ConnectionGater     // p2p gater, to ban/unban peers with, may be nil even with p2p enabled
-	connMgr connmgr.ConnManager // p2p conn manager, to keep a reliable number of peers, may be nil even with p2p enabled
+	host    host.Host                      // p2p host (optional, may be nil)
+	gater   gating.BlockingConnectionGater // p2p gater, to ban/unban peers with, may be nil even with p2p enabled
+	scorer  Scorer                         // writes score-updates to the peerstore and keeps metrics of score changes
+	connMgr connmgr.ConnManager            // p2p conn manager, to keep a reliable number of peers, may be nil even with p2p enabled
 	// the below components are all optional, and may be nil. They require the host to not be nil.
 	dv5Local *enode.LocalNode // p2p discovery identity
 	dv5Udp   *discover.UDPv5  // p2p discovery service
@@ -63,7 +63,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 
 	var err error
 	// nil if disabled.
-	n.host, err = setup.Host(log, bwc)
+	n.host, err = setup.Host(log, bwc, metrics)
 	if err != nil {
 		if n.dv5Udp != nil {
 			n.dv5Udp.Close()
@@ -71,6 +71,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		return fmt.Errorf("failed to start p2p host: %w", err)
 	}
 
+	// TODO(CLI-4016): host is not optional, NodeP2P as a whole is. This if statement is wrong
 	if n.host != nil {
 		// Enable extra features, if any. During testing we don't setup the most advanced host all the time.
 		if extra, ok := n.host.(ExtraHostFeatures); ok {
@@ -100,10 +101,23 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 				n.host.SetStreamHandler(PayloadByNumberProtocolID(rollupCfg.L2ChainID), payloadByNumber)
 			}
 		}
+		eps, ok := n.host.Peerstore().(store.ExtendedPeerstore)
+		if !ok {
+			return fmt.Errorf("cannot init without extended peerstore: %w", err)
+		}
+		n.scorer = NewScorer(rollupCfg, eps, metrics, setup.PeerBandScorer(), log)
+		n.host.Network().Notify(&network.NotifyBundle{
+			ConnectedF: func(_ network.Network, conn network.Conn) {
+				n.scorer.OnConnect(conn.RemotePeer())
+			},
+			DisconnectedF: func(_ network.Network, conn network.Conn) {
+				n.scorer.OnDisconnect(conn.RemotePeer())
+			},
+		})
 		// notify of any new connections/streams/etc.
 		n.host.Network().Notify(NewNetworkNotifier(log, metrics))
 		// note: the IDDelta functionality was removed from libP2P, and no longer needs to be explicitly disabled.
-		n.gs, err = NewGossipSub(resourcesCtx, n.host, n.gater, rollupCfg, setup, metrics, log)
+		n.gs, err = NewGossipSub(resourcesCtx, n.host, rollupCfg, setup, n.scorer, metrics, log)
 		if err != nil {
 			return fmt.Errorf("failed to start gossipsub router: %w", err)
 		}
@@ -162,7 +176,7 @@ func (n *NodeP2P) GossipOut() GossipOut {
 	return n.gsOut
 }
 
-func (n *NodeP2P) ConnectionGater() ConnectionGater {
+func (n *NodeP2P) ConnectionGater() gating.BlockingConnectionGater {
 	return n.gater
 }
 

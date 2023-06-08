@@ -40,13 +40,14 @@ func BuildErigon(buildPath string) error {
 }
 
 type ErigonRunner struct {
-	Name    string
-	BinPath string
-	DataDir string
-	JWTPath string
-	ChainID uint64
-	GasCeil uint64
-	Genesis *core.Genesis
+	Name     string
+	BinPath  string
+	DataDir  string
+	JWTPath  string
+	ChainID  uint64
+	GasCeil  uint64
+	GasPrice uint64
+	Genesis  *core.Genesis
 }
 
 func (er *ErigonRunner) Run(t *testing.T) ErigonInstance {
@@ -107,6 +108,7 @@ func (er *ErigonRunner) Run(t *testing.T) ErigonInstance {
 		// "--miner.etherbase=0x123463a4B065722E99115D6c222f267d9cABb524",
 		// "--miner.sigfile", "/home/boba/datadir/nodekey",
 		"--miner.gaslimit", strconv.FormatUint(er.GasCeil, 10),
+		// "--miner.gasprice", strconv.FormatUint(er.GasPrice, 10),
 		"--http.port", "0",
 		"--http.addr", "127.0.0.1",
 		"--http.api", "eth,debug,net,engine,erigon,web3",

@@ -15,13 +15,17 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-proposer/flags"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
+	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -33,12 +37,16 @@ var supportedL2OutputVersion = eth.Bytes32{}
 // Main is the entrypoint into the L2 Output Submitter. This method executes the
 // service and blocks until the service exits.
 func Main(version string, cliCtx *cli.Context) error {
+	if err := flags.CheckRequired(cliCtx); err != nil {
+		return err
+	}
 	cfg := NewConfig(cliCtx)
 	if err := cfg.Check(); err != nil {
 		return fmt.Errorf("invalid CLI flags: %w", err)
 	}
 
 	l := oplog.NewLogger(cfg.LogConfig)
+	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, l)
 	m := metrics.NewMetrics("default")
 	l.Info("Initializing L2 Output Submitter")
 
@@ -147,7 +155,7 @@ func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Me
 
 // NewL2OutputSubmitterConfigFromCLIConfig creates the proposer config from the CLI config.
 func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*Config, error) {
-	l2ooAddress, err := parseAddress(cfg.L2OOAddress)
+	l2ooAddress, err := opservice.ParseAddress(cfg.L2OOAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -159,12 +167,12 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metr
 
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
 	ctx := context.Background()
-	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
+	l1Client, err := opclient.DialEthClientWithTimeout(ctx, cfg.L1EthRpc, opclient.DefaultDialTimeout)
 	if err != nil {
 		return nil, err
 	}
 
-	rollupClient, err := dialRollupClientWithTimeout(ctx, cfg.RollupRpc)
+	rollupClient, err := opclient.DialRollupClientWithTimeout(ctx, cfg.RollupRpc, opclient.DefaultDialTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -334,7 +342,11 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 	if err != nil {
 		return err
 	}
-	l.log.Info("proposer tx successfully published", "tx_hash", receipt.TxHash)
+	if receipt.Status == types.ReceiptStatusFailed {
+		l.log.Error("proposer tx successfully published but reverted", "tx_hash", receipt.TxHash)
+	} else {
+		l.log.Info("proposer tx successfully published", "tx_hash", receipt.TxHash)
+	}
 	return nil
 }
 
