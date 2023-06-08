@@ -9,7 +9,6 @@
       "batch-submitter",
       "bss-core",
       "gas-oracle",
-      "integration-tests",
       "l2geth-exporter",
       "l2geth",
       "ops/docker/rpc-proxy",

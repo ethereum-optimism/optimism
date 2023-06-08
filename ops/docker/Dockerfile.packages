@@ -60,14 +60,12 @@ WORKDIR /opt/optimism
 
 # Copy manifest files into the image in
 # preparation for `yarn install`.
-COPY integration-tests/package.json ./integration-tests/package.json
 COPY --from=manifests /tmp/manifests  ./
 COPY *.json ./
 
 RUN yarn install --frozen-lockfile && yarn cache clean
 
 COPY ./packages ./packages
-COPY ./integration-tests ./integration-tests
 
 RUN yarn build
 
@@ -94,11 +92,6 @@ FROM base as data-transport-layer
 WORKDIR /opt/optimism/packages/data-transport-layer
 COPY ./ops/scripts/dtl.sh .
 CMD ["node", "dist/src/services/run.js"]
-
-FROM base as integration-tests
-WORKDIR /opt/optimism/integration-tests
-COPY ./ops/scripts/integration-tests.sh ./
-CMD ["yarn", "test:integration"]
 
 
 FROM base as message-relayer

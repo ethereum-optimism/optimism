@@ -24,6 +24,5 @@ build deployer "ethereumoptimism/deployer:latest" "./ops/docker/Dockerfile.deplo
 build dtl "ethereumoptimism/data-transport-layer:latest" "./ops/docker/Dockerfile.data-transport-layer" .
 build relayer "ethereumoptimism/message-relayer:latest" "./ops/docker/Dockerfile.message-relayer" .
 build relayer "ethereumoptimism/fault-detector:latest" "./ops/docker/Dockerfile.fault-detector" .
-build integration-tests "ethereumoptimism/integration-tests:latest" "./ops/docker/Dockerfile.integration-tests" .
 
 wait
