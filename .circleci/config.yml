@@ -738,7 +738,6 @@ jobs:
           environment:
             CI: true
 
-
   go-lint:
     parameters:
       module:
@@ -1147,6 +1146,28 @@ jobs:
           event: fail
           template: basic_fail_1
 
+  check-generated-mocks-op-node:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - check-changed:
+          patterns: op-node
+      - run:
+          name: check-generated-mocks
+          command: make generate-mocks-op-node && git diff --exit-code
+
+  check-generated-mocks-op-service:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - check-changed:
+          patterns: op-service
+      - run:
+          name: check-generated-mocks
+          command: make generate-mocks-op-service && git diff --exit-code
+
 workflows:
   main:
     jobs:
@@ -1304,6 +1325,9 @@ workflows:
           name: op-batcher-lint
           module: op-batcher
       - go-lint:
+          name: op-bootnode-lint
+          module: op-bootnode
+      - go-lint:
           name: op-bindings-lint
           module: op-bindings
       - go-lint:
@@ -1366,6 +1390,7 @@ workflows:
       - bedrock-go-tests:
           requires:
             - op-batcher-lint
+            - op-bootnode-lint
             - op-bindings-lint
             - op-chain-ops-lint
             - op-e2e-lint
@@ -1523,13 +1548,15 @@ workflows:
             - op-batcher-docker-build
             - op-proposer-docker-build
             - op-challenger-docker-build
+      - check-generated-mocks-op-node
+      - check-generated-mocks-op-service
   release:
     jobs:
       - hold:
           type: approval
           filters:
             tags:
-              only: /^(fault-detector|proxyd|op-[a-z0-9\-]*)\/v.*/
+              only: /^(fault-detector|proxyd|indexer|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-release:
@@ -1637,6 +1664,21 @@ workflows:
               ignore: /.*/
           docker_file: proxyd/Dockerfile
           docker_name: proxyd
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+          context:
+            - oplabs-gcr-release
+          requires:
+            - hold
+      - docker-release:
+          name: indexer-docker-release
+          filters:
+            tags:
+              only: /^indexer\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: indexer/Dockerfile
+          docker_name: indexer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
           context:

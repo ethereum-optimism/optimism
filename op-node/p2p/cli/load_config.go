@@ -58,11 +58,7 @@ func NewConfig(ctx *cli.Context, blockTime uint64) (*p2p.Config, error) {
 		return nil, fmt.Errorf("failed to load p2p peer scoring options: %w", err)
 	}
 
-	if err := loadPeerScoreBands(conf, ctx); err != nil {
-		return nil, fmt.Errorf("failed to load p2p peer score bands: %w", err)
-	}
-
-	if err := loadBanningOption(conf, ctx); err != nil {
+	if err := loadBanningOptions(conf, ctx); err != nil {
 		return nil, fmt.Errorf("failed to load banning option: %w", err)
 	}
 
@@ -124,21 +120,11 @@ func loadPeerScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64)
 	return nil
 }
 
-// loadPeerScoreBands loads [p2p.BandScorer] from the CLI context.
-func loadPeerScoreBands(conf *p2p.Config, ctx *cli.Context) error {
-	scoreBands := ctx.GlobalString(flags.PeerScoreBands.Name)
-	bandScorer, err := p2p.NewBandScorer(scoreBands)
-	if err != nil {
-		return err
-	}
-	conf.BandScoreThresholds = *bandScorer
-	return nil
-}
-
-// loadBanningOption loads whether or not to ban peers from the CLI context.
-func loadBanningOption(conf *p2p.Config, ctx *cli.Context) error {
-	ban := ctx.GlobalBool(flags.Banning.Name)
-	conf.BanningEnabled = ban
+// loadBanningOptions loads whether or not to ban peers from the CLI context.
+func loadBanningOptions(conf *p2p.Config, ctx *cli.Context) error {
+	conf.BanningEnabled = ctx.GlobalBool(flags.Banning.Name)
+	conf.BanningThreshold = ctx.GlobalFloat64(flags.BanningThreshold.Name)
+	conf.BanningDuration = ctx.GlobalDuration(flags.BanningDuration.Name)
 	return nil
 }
 

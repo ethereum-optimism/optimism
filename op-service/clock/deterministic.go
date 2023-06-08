@@ -136,6 +136,12 @@ func (s *DeterministicClock) addPending(t action) {
 	}
 }
 
+func (s *DeterministicClock) WaitForNewPendingTaskWithTimeout(timeout time.Duration) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return s.WaitForNewPendingTask(ctx)
+}
+
 // WaitForNewPendingTask blocks until a new task is scheduled since the last time this method was called.
 // true is returned if a new task was scheduled, false if the context completed before a new task was added.
 func (s *DeterministicClock) WaitForNewPendingTask(ctx context.Context) bool {

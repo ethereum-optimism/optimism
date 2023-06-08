@@ -36,18 +36,14 @@ type PeerScoresTestSuite struct {
 	suite.Suite
 
 	mockStore    *p2pMocks.Peerstore
-	mockMetricer *p2pMocks.GossipMetricer
-	bandScorer   BandScoreThresholds
+	mockMetricer *p2pMocks.ScoreMetrics
 	logger       log.Logger
 }
 
 // SetupTest sets up the test suite.
 func (testSuite *PeerScoresTestSuite) SetupTest() {
 	testSuite.mockStore = &p2pMocks.Peerstore{}
-	testSuite.mockMetricer = &p2pMocks.GossipMetricer{}
-	bandScorer, err := NewBandScorer("0:graylist;")
-	testSuite.NoError(err)
-	testSuite.bandScorer = *bandScorer
+	testSuite.mockMetricer = &p2pMocks.ScoreMetrics{}
 	testSuite.logger = testlog.Logger(testSuite.T(), log.LvlError)
 }
 
@@ -104,9 +100,8 @@ func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []
 
 		scorer := NewScorer(
 			&rollup.Config{L2ChainID: big.NewInt(123)},
-			extPeerStore, testSuite.mockMetricer, &testSuite.bandScorer, logger)
+			extPeerStore, testSuite.mockMetricer, logger)
 		opts = append(opts, ConfigurePeerScoring(&Config{
-			BandScoreThresholds: testSuite.bandScorer,
 			PeerScoring: pubsub.PeerScoreParams{
 				AppSpecificScore: func(p peer.ID) float64 {
 					if p == hosts[0].ID() {
@@ -157,7 +152,7 @@ func (testSuite *PeerScoresTestSuite) TestNegativeScores() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	testSuite.mockMetricer.On("SetPeerScores", mock.Anything).Return(nil)
+	testSuite.mockMetricer.On("SetPeerScores", mock.Anything, mock.Anything).Return(nil)
 
 	// Construct 20 hosts using the [getNetHosts] function.
 	hosts := getNetHosts(testSuite, ctx, 20)
