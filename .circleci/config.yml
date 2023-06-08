@@ -93,7 +93,6 @@ jobs:
             - "packages/drippie-mon/node_modules"
             - "packages/fault-detector/node_modules"
             - "packages/hardhat-deploy-config/node_modules"
-            - "packages/integration-tests-bedrock/node_modules"
             - "packages/message-relayer/node_modules"
             - "packages/migration-data/node_modules"
             - "packages/replica-healthcheck/node_modules"
@@ -693,10 +692,6 @@ jobs:
           name: Check sdk
           command: npx depcheck
           working_directory: packages/sdk
-      - run:
-          name: Check integration-tests
-          command: npx depcheck
-          working_directory: integration-tests
 
   atst-tests:
     docker:
@@ -878,7 +873,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: op-(.+),packages,integration-tests
+          patterns: op-(.+),packages
       - run:
           name: Install latest golang
           command: |
@@ -1004,35 +999,6 @@ jobs:
                 command: |
                   docker logs ops-bedrock-op-proposer-1 || echo "No logs."
                 when: on_fail
-
-  integration-tests:
-    machine:
-      image: ubuntu-2204:2022.07.1
-    environment:
-      DOCKER_BUILDKIT: 1
-    parallelism: 3
-    steps:
-      - checkout
-      - check-changed:
-          patterns: l2geth,common-ts,contracts,core-utils,message-relayer,data-transport-layer,replica-healthcheck,sdk,batch-submitter,gas-oracle,bss-core,integration-tests
-      - run:
-          name: Bring up the stack
-          command: |
-            docker-compose build --progress=plain
-            docker-compose up -d --scale replica_healthcheck=1
-          working_directory: ops
-      - run:
-          name: Wait for sequencer
-          command: bash scripts/wait-for-sequencer.sh
-          working_directory: ops
-      - run:
-          name: Run integration tests
-          command: |
-            circleci tests glob "../integration-tests/test/*.spec.ts" | circleci tests split | tee splits.txt
-            docker-compose run integration_tests $(cat splits.txt)
-          working_directory: ops
-      - run:
-          command: echo "Done."
 
   semgrep-scan:
     parameters:
@@ -1315,7 +1281,6 @@ workflows:
           binary_name: op-heartbeat
           working_directory: op-heartbeat
       - geth-tests
-      - integration-tests
       - semgrep-scan
       - go-mod-tidy
       - fuzz-op-node
