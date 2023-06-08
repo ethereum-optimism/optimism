@@ -42,6 +42,7 @@
     "@types/dateformat": "^5.0.0",
     "chai-as-promised": "^7.1.1",
     "dateformat": "^4.5.1",
+    "dotenv": "^16.1.4",
     "ethereum-waffle": "^3.4.4",
     "ethers": "^5.7.0",
     "hardhat": "^2.9.6",
