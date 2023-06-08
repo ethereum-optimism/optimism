@@ -2,10 +2,12 @@ package api
 
 import (
 	"encoding/json"
+	"log"
+	"net/http"
+
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/go-chi/chi"
-	"net/http"
 )
 
 type PaginationResponse struct {
@@ -72,7 +74,9 @@ func (a *Api) WithdrawalsHandler(w http.ResponseWriter, r *http.Request) {
 func jsonResponse(w http.ResponseWriter, data interface{}, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(data)
+	if err := json.NewEncoder(w).Encode(data); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
 }
 
 type Api struct {
@@ -98,5 +102,8 @@ func NewApi(bv database.BridgeView) *Api {
 }
 
 func (a *Api) Listen(port string) {
-	http.ListenAndServe(port, a.Router)
+	err := http.ListenAndServe(port, a.Router)
+	if err != nil {
+		log.Fatal("Http server failed to start listening", err)
+	}
 }
