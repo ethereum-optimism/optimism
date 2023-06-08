@@ -31,7 +31,7 @@ func TestChallenger_OutputProposed_Signature(t *testing.T) {
 func TestParseOutputLog_Succeeds(t *testing.T) {
 	challenger := newTestChallenger(t, eth.OutputResponse{}, true)
 	expectedBlockNumber := big.NewInt(0x04)
-	expectedOutputRoot := eth.Bytes32{0x02}
+	expectedOutputRoot := [32]byte{0x02}
 	logTopic := challenger.l2ooABI.Events["OutputProposed"].ID
 	log := types.Log{
 		Topics: []common.Hash{logTopic, common.Hash(expectedOutputRoot), {0x03}, common.BigToHash(expectedBlockNumber)},
@@ -68,7 +68,7 @@ func TestChallenger_ValidateOutput_RollupClientErrors(t *testing.T) {
 
 	challenger := newTestChallenger(t, output, true)
 
-	checked := OutputProposal{
+	checked := bindings.TypesOutputProposal{
 		L2BlockNumber: big.NewInt(0),
 		OutputRoot:    output.OutputRoot,
 	}
@@ -87,7 +87,7 @@ func TestChallenger_ValidateOutput_ErrorsWithWrongVersion(t *testing.T) {
 
 	challenger := newTestChallenger(t, output, false)
 
-	checked := OutputProposal{
+	checked := bindings.TypesOutputProposal{
 		L2BlockNumber: big.NewInt(0),
 		OutputRoot:    output.OutputRoot,
 	}
@@ -106,7 +106,7 @@ func TestChallenger_ValidateOutput_ErrorsInvalidBlockNumber(t *testing.T) {
 
 	challenger := newTestChallenger(t, output, false)
 
-	checked := OutputProposal{
+	checked := bindings.TypesOutputProposal{
 		L2BlockNumber: big.NewInt(1),
 		OutputRoot:    output.OutputRoot,
 	}
@@ -125,7 +125,7 @@ func TestOutput_ValidateOutput(t *testing.T) {
 
 	challenger := newTestChallenger(t, output, false)
 
-	checked := OutputProposal{
+	checked := bindings.TypesOutputProposal{
 		L2BlockNumber: big.NewInt(0),
 		OutputRoot:    output.OutputRoot,
 	}
@@ -144,7 +144,7 @@ func TestChallenger_CompareOutputRoots_ErrorsWithDifferentRoots(t *testing.T) {
 
 	challenger := newTestChallenger(t, output, false)
 
-	checked := OutputProposal{
+	checked := bindings.TypesOutputProposal{
 		L2BlockNumber: big.NewInt(0),
 		OutputRoot:    output.OutputRoot,
 	}
@@ -162,7 +162,7 @@ func TestChallenger_CompareOutputRoots_ErrInvalidBlockNumber(t *testing.T) {
 
 	challenger := newTestChallenger(t, output, false)
 
-	checked := OutputProposal{
+	checked := bindings.TypesOutputProposal{
 		L2BlockNumber: big.NewInt(1),
 		OutputRoot:    output.OutputRoot,
 	}
@@ -180,7 +180,7 @@ func TestChallenger_CompareOutputRoots_Succeeds(t *testing.T) {
 
 	challenger := newTestChallenger(t, output, false)
 
-	checked := OutputProposal{
+	checked := bindings.TypesOutputProposal{
 		L2BlockNumber: big.NewInt(0),
 		OutputRoot:    output.OutputRoot,
 	}
@@ -188,7 +188,7 @@ func TestChallenger_CompareOutputRoots_Succeeds(t *testing.T) {
 	require.True(t, valid)
 	require.NoError(t, err)
 
-	checked = OutputProposal{
+	checked = bindings.TypesOutputProposal{
 		L2BlockNumber: big.NewInt(0),
 		OutputRoot:    eth.Bytes32{0x01},
 	}

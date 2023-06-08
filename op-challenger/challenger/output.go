@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
@@ -23,15 +24,8 @@ var (
 	ErrInvalidOutputTopicLength = errors.New("invalid output log topic length")
 )
 
-// OutputProposal is a proposal for an output root
-// in the L2OutputOracle for a given L2 block number.
-type OutputProposal struct {
-	L2BlockNumber *big.Int
-	OutputRoot    eth.Bytes32
-}
-
 // ParseOutputLog parses a log from the L2OutputOracle contract.
-func (c *Challenger) ParseOutputLog(log *types.Log) (*OutputProposal, error) {
+func (c *Challenger) ParseOutputLog(log *types.Log) (*bindings.TypesOutputProposal, error) {
 	// Check the length of log topics
 	if len(log.Topics) != 4 {
 		return nil, ErrInvalidOutputTopicLength
@@ -42,7 +36,7 @@ func (c *Challenger) ParseOutputLog(log *types.Log) (*OutputProposal, error) {
 	}
 	l2BlockNumber := new(big.Int).SetBytes(log.Topics[3][:])
 	expected := log.Topics[1]
-	return &OutputProposal{
+	return &bindings.TypesOutputProposal{
 		L2BlockNumber: l2BlockNumber,
 		OutputRoot:    eth.Bytes32(expected),
 	}, nil
@@ -50,7 +44,7 @@ func (c *Challenger) ParseOutputLog(log *types.Log) (*OutputProposal, error) {
 
 // ValidateOutput checks that a given output is expected via a trusted rollup node rpc.
 // It returns: if the output is correct, the fetched output, error
-func (c *Challenger) ValidateOutput(ctx context.Context, proposal OutputProposal) (bool, eth.Bytes32, error) {
+func (c *Challenger) ValidateOutput(ctx context.Context, proposal bindings.TypesOutputProposal) (bool, eth.Bytes32, error) {
 	// Fetch the output from the rollup node
 	ctx, cancel := context.WithTimeout(ctx, c.networkTimeout)
 	defer cancel()
@@ -70,7 +64,7 @@ func (c *Challenger) ValidateOutput(ctx context.Context, proposal OutputProposal
 }
 
 // compareOutputRoots compares the output root of the given block number to the expected output root.
-func (c *Challenger) compareOutputRoots(received *eth.OutputResponse, expected OutputProposal) (bool, error) {
+func (c *Challenger) compareOutputRoots(received *eth.OutputResponse, expected bindings.TypesOutputProposal) (bool, error) {
 	if received.Version != supportedL2OutputVersion {
 		c.log.Error("Unsupported l2 output version", "version", received.Version)
 		return false, ErrUnsupportedL2OOVersion
