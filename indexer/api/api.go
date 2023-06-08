@@ -2,79 +2,12 @@ package api
 
 import (
 	"encoding/json"
-	"net/http"
-	"strconv"
-	"time"
-
+	"github.com/ethereum-optimism/optimism/indexer/database"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/go-chi/chi"
+	"net/http"
 )
 
-// TODO in this pr most of these types should be coming from the ORM instead
-
-// DepositsDAO represents the Database Access Object for deposits
-type DepositDAO interface {
-	GetDeposits(limit int, cursor string, sortDirection string) ([]Deposit, string, bool, error)
-}
-
-// WithdrawalDAO represents the Database Access Object for deposits
-type WithdrawalDAO interface {
-	GetWithdrawals(limit int, cursor string, sortDirection string, sortBy string) ([]Withdrawal, string, bool, error)
-}
-
-// Deposit data structure
-type Deposit struct {
-	Guid            string        `json:"guid"`
-	Amount          string        `json:"amount"`
-	BlockNumber     int           `json:"blockNumber"`
-	BlockTimestamp  time.Time     `json:"blockTimestamp"`
-	From            string        `json:"from"`
-	To              string        `json:"to"`
-	TransactionHash string        `json:"transactionHash"`
-	L1Token         TokenListItem `json:"l1Token"`
-	L2Token         TokenListItem `json:"l2Token"`
-}
-
-// Withdrawal data structure
-type Withdrawal struct {
-	Guid            string        `json:"guid"`
-	Amount          string        `json:"amount"`
-	BlockNumber     int           `json:"blockNumber"`
-	BlockTimestamp  time.Time     `json:"blockTimestamp"`
-	From            string        `json:"from"`
-	To              string        `json:"to"`
-	TransactionHash string        `json:"transactionHash"`
-	WithdrawalState string        `json:"withdrawalState"`
-	Proof           *ProofClaim   `json:"proof"`
-	Claim           *ProofClaim   `json:"claim"`
-	L1Token         TokenListItem `json:"l1Token"`
-	L2Token         TokenListItem `json:"l2Token"`
-}
-
-// TokenListItem data structure
-type TokenListItem struct {
-	ChainId    int        `json:"chainId"`
-	Address    string     `json:"address"`
-	Name       string     `json:"name"`
-	Symbol     string     `json:"symbol"`
-	Decimals   int        `json:"decimals"`
-	LogoURI    string     `json:"logoURI"`
-	Extensions Extensions `json:"extensions"`
-}
-
-// Extensions data structure
-type Extensions struct {
-	OptimismBridgeAddress string `json:"optimismBridgeAddress"`
-	BridgeType            string `json:"bridgeType"`
-}
-
-// ProofClaim data structure
-type ProofClaim struct {
-	TransactionHash string    `json:"transactionHash"`
-	BlockTimestamp  time.Time `json:"blockTimestamp"`
-	BlockNumber     int       `json:"blockNumber"`
-}
-
-// PaginationResponse for paginated responses
 type PaginationResponse struct {
 	// TODO type this better
 	Data        interface{} `json:"data"`
@@ -83,57 +16,57 @@ type PaginationResponse struct {
 }
 
 func (a *Api) DepositsHandler(w http.ResponseWriter, r *http.Request) {
+	bv := a.bridgeView
 
-	limit := getIntFromQuery(r, "limit", 10)
-	cursor := r.URL.Query().Get("cursor")
-	sortDirection := r.URL.Query().Get("sortDirection")
+	address := common.HexToAddress(chi.URLParam(r, "address"))
 
-	deposits, nextCursor, hasNextPage, err := a.DepositDAO.GetDeposits(limit, cursor, sortDirection)
+	// limit := getIntFromQuery(r, "limit", 10)
+	// cursor := r.URL.Query().Get("cursor")
+	// sortDirection := r.URL.Query().Get("sortDirection")
+
+	deposits, err := bv.DepositsByAddress(address)
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	// This is not the shape of the response we want!!!
+	// will add in the individual features in future prs 1 by 1
 	response := PaginationResponse{
-		Data:        deposits,
-		Cursor:      nextCursor,
-		HasNextPage: hasNextPage,
+		Data: deposits,
+		// Cursor:      nextCursor,
+		HasNextPage: false,
 	}
 
 	jsonResponse(w, response, http.StatusOK)
 }
 
 func (a *Api) WithdrawalsHandler(w http.ResponseWriter, r *http.Request) {
-	limit := getIntFromQuery(r, "limit", 10)
-	cursor := r.URL.Query().Get("cursor")
-	sortDirection := r.URL.Query().Get("sortDirection")
-	sortBy := r.URL.Query().Get("sortBy")
+	bv := a.bridgeView
 
-	withdrawals, nextCursor, hasNextPage, err := a.WithdrawalDAO.GetWithdrawals(limit, cursor, sortDirection, sortBy)
+	address := common.HexToAddress(chi.URLParam(r, "address"))
+
+	// limit := getIntFromQuery(r, "limit", 10)
+	// cursor := r.URL.Query().Get("cursor")
+	// sortDirection := r.URL.Query().Get("sortDirection")
+
+	withdrawals, err := bv.WithdrawalsByAddress(address)
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	// This is not the shape of the response we want!!!
+	// will add in the individual features in future prs 1 by 1
 	response := PaginationResponse{
-		Data:        withdrawals,
-		Cursor:      nextCursor,
-		HasNextPage: hasNextPage,
+		Data: withdrawals,
+		// Cursor:      nextCursor,
+		HasNextPage: false,
 	}
 
 	jsonResponse(w, response, http.StatusOK)
-}
-
-func getIntFromQuery(r *http.Request, key string, defaultValue int) int {
-	valueStr := r.URL.Query().Get(key)
-	if valueStr == "" {
-		return defaultValue
-	}
-	value, err := strconv.Atoi(valueStr)
-	if err != nil {
-		return defaultValue
-	}
-	return value
 }
 
 func jsonResponse(w http.ResponseWriter, data interface{}, statusCode int) {
@@ -143,22 +76,22 @@ func jsonResponse(w http.ResponseWriter, data interface{}, statusCode int) {
 }
 
 type Api struct {
-	Router        *chi.Mux
-	DepositDAO    DepositDAO
-	WithdrawalDAO WithdrawalDAO
+	Router     *chi.Mux
+	bridgeView database.BridgeView
 }
 
-func NewApi(depositDAO DepositDAO, withdrawalDAO WithdrawalDAO) *Api {
+func NewApi(bv database.BridgeView) *Api {
 	r := chi.NewRouter()
 
 	api := &Api{
-		Router:        r,
-		DepositDAO:    depositDAO,
-		WithdrawalDAO: withdrawalDAO,
+		Router:     r,
+		bridgeView: bv,
 	}
-
-	r.Get("/api/v0/deposits", api.DepositsHandler)
-	r.Get("/api/v0/withdrawals", api.WithdrawalsHandler)
+	// these regex are .+ because I wasn't sure what they should be
+	// don't want a regex for addresses because would prefer to validate the address
+	// with go-ethereum and throw a friendly error message
+	r.Get("/api/v0/deposits/{address:.+}", api.DepositsHandler)
+	r.Get("/api/v0/withdrawals/{address:.+}", api.WithdrawalsHandler)
 
 	return api
 

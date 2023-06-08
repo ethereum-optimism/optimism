@@ -1,92 +1,67 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
+	"github.com/ethereum-optimism/optimism/indexer/database"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
 
-type MockDB struct {
-	mock.Mock
-}
+// MockBridgeView mocks the BridgeView interface
+type MockBridgeView struct{}
 
-func (db *MockDB) GetDeposits(limit int, cursor string, sortDirection string) ([]Deposit, string, bool, error) {
-	args := db.Called(limit, cursor, sortDirection)
-	return args.Get(0).([]Deposit), args.String(1), args.Bool(2), args.Error(3)
-}
-
-func (db *MockDB) GetWithdrawals(limit int, cursor string, sortDirection string, sortBy string) ([]Withdrawal, string, bool, error) {
-	args := db.Called(limit, cursor, sortDirection, sortBy)
-	return args.Get(0).([]Withdrawal), args.String(1), args.Bool(2), args.Error(3)
-}
-
-func TestApi(t *testing.T) {
-	mockDB := new(MockDB)
-
-	mockDeposits := []Deposit{
+// DepositsByAddress mocks returning deposits by an address
+func (mbv *MockBridgeView) DepositsByAddress(address common.Address) ([]*database.DepositWithTransactionHash, error) {
+	return []*database.DepositWithTransactionHash{
 		{
-			Guid:            "test-guid",
-			Amount:          "1000",
-			BlockNumber:     123,
-			BlockTimestamp:  time.Unix(123456, 0),
-			From:            "0x1",
-			To:              "0x2",
-			TransactionHash: "0x3",
+			Deposit: database.Deposit{
+				GUID:                 "mockGUID1",
+				InitiatedL1EventGUID: "mockEventGUID1",
+				Tx:                   database.Transaction{},
+				TokenPair:            database.TokenPair{},
+			},
+			L1TransactionHash: common.HexToHash("0x123"),
 		},
-	}
+	}, nil
+}
 
-	mockWithdrawals := []Withdrawal{
+// WithdrawalsByAddress mocks returning withdrawals by an address
+func (mbv *MockBridgeView) WithdrawalsByAddress(address common.Address) ([]*database.WithdrawalWithTransactionHashes, error) {
+	return []*database.WithdrawalWithTransactionHashes{
 		{
-			Guid:            "test-guid",
-			Amount:          "1000",
-			BlockNumber:     123,
-			BlockTimestamp:  time.Unix(123456, 0),
-			From:            "0x1",
-			To:              "0x2",
-			TransactionHash: "0x3",
+			Withdrawal: database.Withdrawal{
+				GUID:                 "mockGUID2",
+				InitiatedL2EventGUID: "mockEventGUID2",
+				WithdrawalHash:       common.HexToHash("0x456"),
+				Tx:                   database.Transaction{},
+				TokenPair:            database.TokenPair{},
+			},
+			L2TransactionHash: common.HexToHash("0x789"),
 		},
-	}
+	}, nil
+}
 
-	mockDB.On("GetDeposits", 10, "", "").Return(mockDeposits, "nextCursor", false, nil)
+func TestDepositsHandler(t *testing.T) {
+	api := NewApi(&MockBridgeView{})
+	request, err := http.NewRequest("GET", "/api/v0/deposits/0x123", nil)
+	assert.Nil(t, err)
 
-	mockDB.On("GetWithdrawals", 10, "", "", "").Return(mockWithdrawals, "nextCursor", false, nil)
+	responseRecorder := httptest.NewRecorder()
+	api.Router.ServeHTTP(responseRecorder, request)
 
-	testApi := NewApi(mockDB, mockDB)
+	assert.Equal(t, http.StatusOK, responseRecorder.Code)
+}
 
-	req, _ := http.NewRequest("GET", "/api/v0/deposits", nil)
-	rr := httptest.NewRecorder()
-	testApi.Router.ServeHTTP(rr, req)
+func TestWithdrawalsHandler(t *testing.T) {
+	api := NewApi(&MockBridgeView{})
+	request, err := http.NewRequest("GET", "/api/v0/withdrawals/0x123", nil)
+	assert.Nil(t, err)
 
-	assert.Equal(t, http.StatusOK, rr.Code, "status code should be 200")
+	responseRecorder := httptest.NewRecorder()
+	api.Router.ServeHTTP(responseRecorder, request)
 
-	// TODO make this type exist
-	var depositsResponse DepositsResponse
-	err := json.Unmarshal(rr.Body.Bytes(), &depositsResponse)
-	assert.NoError(t, err)
-
-	assert.Equal(t, mockDeposits, depositsResponse.Data)
-
-	req, _ = http.NewRequest("GET", "/api/v0/withdrawals", nil)
-	rr = httptest.NewRecorder()
-	testApi.Router.ServeHTTP(rr, req)
-
-	assert.Equal(t, http.StatusOK, rr.Code, "status code should be 200")
-
-	// TODO make this type exist
-	var withdrawalsResponse WithdrawalsResponse
-	err = json
-	err = json.Unmarshal(rr.Body.Bytes(), &withdrawalsResponse)
-	assert.NoError(t, err)
-
-	// Assert response data
-	assert.Equal(t, mockWithdrawals, withdrawalsResponse.Data)
-
-	// Finally, assert that the methods were called with the expected parameters
-	mockDB.AssertCalled(t, "GetDeposits", 10, "", "")
-	mockDB.AssertCalled(t, "GetWithdrawals", 10, "", "", "")
+	assert.Equal(t, http.StatusOK, responseRecorder.Code)
 }
