@@ -15,7 +15,7 @@ func clampBigInt(start, end *big.Int, size uint64) *big.Int {
 		return end
 	}
 
-	// we result the allocated temp as the new end
+	// we re-use the allocated temp as the new end
 	temp.Add(start, big.NewInt(int64(size-1)))
 	return temp
 }

@@ -40,7 +40,7 @@ func main() {
 	log.Debug("Loaded config", "config", conf)
 
 	app := cli.NewApp()
-	app.Flags = flags.Flags
+	app.Flags = []cli.Flag{flags.LogLevelFlag, flags.L1EthRPCFlag, flags.L2EthRPCFlag, flags.DBNameFlag}
 	app.Version = fmt.Sprintf("%s-%s", GitVersion, params.VersionWithCommit(GitCommit, GitDate))
 	app.Name = "indexer"
 	app.Usage = "Indexer Service"

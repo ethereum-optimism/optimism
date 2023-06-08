@@ -46,8 +46,8 @@ type LegacyStateBatch struct {
 }
 
 type BlocksView interface {
-	FinalizedL1BlockHeight() (*big.Int, error)
-	FinalizedL2BlockHeight() (*big.Int, error)
+	FinalizedL1BlockHeader() (*L1BlockHeader, error)
+	FinalizedL2BlockHeader() (*L2BlockHeader, error)
 }
 
 type BlocksDB interface {
@@ -80,9 +80,6 @@ func (db *blocksDB) StoreL1BlockHeaders(headers []*L1BlockHeader) error {
 }
 
 func (db *blocksDB) StoreLegacyStateBatch(stateBatch *LegacyStateBatch) error {
-	// Even though transaction control flow is managed, could we benefit
-	// from a nested transaction here?
-
 	result := db.gorm.Create(stateBatch)
 	if result.Error != nil {
 		return result.Error
@@ -111,14 +108,19 @@ func (db *blocksDB) StoreLegacyStateBatch(stateBatch *LegacyStateBatch) error {
 	return result.Error
 }
 
-func (db *blocksDB) FinalizedL1BlockHeight() (*big.Int, error) {
+// FinalizedL1BlockHeader returns the latest L1 block header stored in the database, nil otherwise
+func (db *blocksDB) FinalizedL1BlockHeader() (*L1BlockHeader, error) {
 	var l1Header L1BlockHeader
 	result := db.gorm.Order("number DESC").Take(&l1Header)
 	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
 		return nil, result.Error
 	}
 
-	return l1Header.Number.Int, nil
+	return &l1Header, nil
 }
 
 // L2
@@ -128,17 +130,24 @@ func (db *blocksDB) StoreL2BlockHeaders(headers []*L2BlockHeader) error {
 	return result.Error
 }
 
-func (db *blocksDB) FinalizedL2BlockHeight() (*big.Int, error) {
+// FinalizedL2BlockHeader returns the latest L2 block header stored in the database, nil otherwise
+func (db *blocksDB) FinalizedL2BlockHeader() (*L2BlockHeader, error) {
 	var l2Header L2BlockHeader
 	result := db.gorm.Order("number DESC").Take(&l2Header)
 	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
 		return nil, result.Error
 	}
 
 	result.Logger.Info(context.Background(), "number ", l2Header.Number)
-	return l2Header.Number.Int, nil
+	return &l2Header, nil
 }
 
+// MarkFinalizedL1RootForL2Block updates the stored L2 block header with the L1 block
+// that contains the output proposal for the L2 root.
 func (db *blocksDB) MarkFinalizedL1RootForL2Block(l2Root, l1Root common.Hash) error {
 	var l2Header L2BlockHeader
 	l2Header.Hash = l2Root // set the primary key
