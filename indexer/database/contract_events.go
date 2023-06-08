@@ -29,8 +29,6 @@ type L2ContractEvent struct {
 }
 
 type ContractEventsView interface {
-	L1ContractEventByGUID(string) (*L1ContractEvent, error)
-	L2ContractEventByGUID(string) (*L2ContractEvent, error)
 }
 
 type ContractEventsDB interface {
@@ -59,29 +57,9 @@ func (db *contractEventsDB) StoreL1ContractEvents(events []*L1ContractEvent) err
 	return result.Error
 }
 
-func (db *contractEventsDB) L1ContractEventByGUID(guid string) (*L1ContractEvent, error) {
-	var event L1ContractEvent
-	result := db.gorm.First(&event, "guid = ?", guid)
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	return &event, nil
-}
-
 // L2
 
 func (db *contractEventsDB) StoreL2ContractEvents(events []*L2ContractEvent) error {
 	result := db.gorm.Create(&events)
 	return result.Error
-}
-
-func (db *contractEventsDB) L2ContractEventByGUID(guid string) (*L2ContractEvent, error) {
-	var event L2ContractEvent
-	result := db.gorm.First(&event, "guid = ?", guid)
-	if result.Error != nil {
-		return nil, result.Error
-	}
-
-	return &event, nil
 }
