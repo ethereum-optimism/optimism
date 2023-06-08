@@ -3,7 +3,6 @@ package indexer
 import (
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/flags"
@@ -13,12 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/urfave/cli"
-)
-
-const (
-	// defaultDialTimeout is default duration the service will wait on
-	// startup to make a connection to either the L1 or L2 backends.
-	defaultDialTimeout = 5 * time.Second
 )
 
 // Main is the entrypoint into the indexer service. This method returns
