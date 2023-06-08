@@ -8,7 +8,7 @@ import { ChainRegistry } from "../periphery/ChainRegistry.sol";
  * @title  ChainRegistryTest
  * @notice Test coverage of ChainRegistry
  */
-contract ChainRegistryTest is Test {
+contract ChainRegistry_Test is Test {
     /**
      * @notice ChainRegistry
      */
@@ -74,7 +74,7 @@ contract ChainRegistryTest is Test {
     function test_revertDeploymentAlreadyClaimed() public {
         string memory _deployment = _claim();
 
-        vm.expectRevert("Deployment already claimed");
+        vm.expectRevert("ChainRegistry: deployment already claimed");
         chainRegistry.claimDeployment(_deployment, makeAddr("newAdmin"));
     }
 
@@ -99,7 +99,7 @@ contract ChainRegistryTest is Test {
     function test_revertTransferAdminIfNotAdmin() public {
         string memory _deployment = _claim();
 
-        vm.expectRevert("Only deployment admin");
+        vm.expectRevert("ChainRegistry: only deployment admin");
         chainRegistry.transferAdmin(_deployment, makeAddr("newAdmin"));
     }
 
@@ -117,7 +117,7 @@ contract ChainRegistryTest is Test {
     function test_revertRegisterIfNotAdmin() public {
         string memory _deployment = _claim();
 
-        vm.expectRevert("Only deployment admin");
+        vm.expectRevert("ChainRegistry: only deployment admin");
         chainRegistry.register(_deployment, new ChainRegistry.DeploymentEntry[](0));
     }
 

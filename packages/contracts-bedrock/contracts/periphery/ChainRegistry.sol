@@ -8,23 +8,6 @@ pragma solidity 0.8.15;
  */
 contract ChainRegistry {
     /**
-     * @notice Emitted any time a deployment is claimed
-     *
-     * @param deployment The name of the deployment claimed
-     * @param admin      The admin of the deployment claimed
-     */
-    event DeploymentClaimed(string deployment, address admin);
-
-    /**
-     * @notice Emitted any time the admin transfers ownership of a
-     *         deployment to a new admin address
-     *
-     * @param oldAdmin The former admin who made the change
-     * @param newAdmin The new admin
-     */
-    event AdminChanged(address oldAdmin, address newAdmin);
-
-    /**
      * @notice Struct representing a deployment entry with
      *         a contract's name and associated address
      */
@@ -44,12 +27,29 @@ contract ChainRegistry {
     mapping(string => mapping(string => address)) public registry;
 
     /**
+     * @notice Emitted any time a deployment is claimed
+     *
+     * @param deployment The name of the deployment claimed
+     * @param admin      The admin of the deployment claimed
+     */
+    event DeploymentClaimed(string deployment, address admin);
+
+    /**
+     * @notice Emitted any time the admin transfers ownership of a
+     *         deployment to a new admin address
+     *
+     * @param oldAdmin The former admin who made the change
+     * @param newAdmin The new admin
+     */
+    event AdminChanged(address oldAdmin, address newAdmin);
+
+    /**
      * @notice Only the deployment admin can claim a deployment
      *
      * @param _deployment The deployment to check admin privilege for
      */
     modifier onlyAdmin(string calldata _deployment) {
-        require(msg.sender == deployments[_deployment], "Only deployment admin");
+        require(msg.sender == deployments[_deployment], "ChainRegistry: only deployment admin");
         _;
     }
 
@@ -60,7 +60,10 @@ contract ChainRegistry {
      * @param _admin      The deployment's admin
      */
     function claimDeployment(string calldata _deployment, address _admin) public {
-        require(deployments[_deployment] == address(0), "Deployment already claimed");
+        require(
+            deployments[_deployment] == address(0),
+            "ChainRegistry: deployment already claimed"
+        );
         deployments[_deployment] = _admin;
 
         emit DeploymentClaimed(_deployment, _admin);
