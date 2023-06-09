@@ -1,6 +1,5 @@
 # Legacy codebases
 /l2geth                         @ethereum-optimism/legacy-reviewers
-/packages/actor-tests           @ethereum-optimism/legacy-reviewers
 /packages/common-ts             @ethereum-optimism/typescript-reviewers
 /packages/contracts             @ethereum-optimism/contract-reviewers
 /packages/contracts-bedrock     @ethereum-optimism/contract-reviewers
