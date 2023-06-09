@@ -80,7 +80,6 @@ jobs:
           paths:
             - "node_modules"
             - "packages/actor-tests/node_modules"
-            - "packages/atst/node_modules"
             - "packages/balance-monitor/node_modules"
             - "packages/chain-mon/node_modules"
             - "packages/common-ts/node_modules"
@@ -675,46 +674,6 @@ jobs:
           command: npx depcheck
           working_directory: packages/sdk
 
-  atst-tests:
-    docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
-    steps:
-      - checkout
-      - attach_workspace: { at: '.' }
-      - check-changed:
-          patterns: atst,contracts-periphery
-      - restore_cache:
-          name: Restore Yarn Package Cache
-          keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
-      - run:
-          name: anvil
-          background: true
-          command: anvil --fork-url $ANVIL_L2_FORK_URL_MAINNET --fork-block-number 92093723
-      - run:
-          name: build
-          command: yarn build
-          working_directory: packages/atst
-      - run:
-          name: typecheck
-          command: yarn typecheck
-          working_directory: packages/atst
-      - run:
-          name: lint
-          command: yarn lint:check
-          working_directory: packages/atst
-      - run:
-          name: make sure anvil is up
-          command: npx wait-on tcp:8545 && cast block-number --rpc-url http://localhost:8545
-      - run:
-          name: test
-          command: yarn test
-          no_output_timeout: 5m
-          working_directory: packages/atst
-          environment:
-            CI: true
-
   go-lint:
     parameters:
       module:
@@ -1155,9 +1114,6 @@ workflows:
           requires:
             - yarn-monorepo
       - op-bindings-build:
-          requires:
-            - yarn-monorepo
-      - atst-tests:
           requires:
             - yarn-monorepo
       - js-lint-test:
