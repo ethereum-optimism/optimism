@@ -19,6 +19,29 @@ services:
   indexer:
     build:
       context: ..
+      dockerfile: indexer/Dockerfile.refresh
+    command: ["indexer-refresh", "processor"]
+    # healthcheck:
+    # Add healthcheck once figure out good way how
+    # maybe after we add metrics?
+    ports:
+      - 8080:8080
+    environment:
+      - INDEXER_DB_PORT=5432
+      - INDEXER_DB_USER=db_username
+      - INDEXER_DB_PASSWORD=db_password
+      - INDEXER_DB_NAME=db_name
+      - INDEXER_DB_HOST=postgres
+      - INDEXER_CONFIG=/configs/indexer.toml
+    volumes:
+      - ./indexer.toml:/configs/indexer.toml
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build:
+      context: ..
       dockerfile: indexer/Dockerfile
     healthcheck:
       test: wget localhost:8080/healthz -q -O - > /dev/null 2>&1
