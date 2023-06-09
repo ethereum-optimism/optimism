@@ -98,7 +98,7 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 	return func(db *database.DB, headers []*types.Header) error {
 		numHeaders := len(headers)
 
-		/** Index Blocks **/
+		/** Index All L2 Blocks **/
 
 		l2Headers := make([]*database.L2BlockHeader, len(headers))
 		l2HeaderMap := make(map[common.Hash]*types.Header)
@@ -116,7 +116,7 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 			l2HeaderMap[blockHash] = header
 		}
 
-		/** Index Contract Events **/
+		/** Watch for Contract Events **/
 
 		logFilter := ethereum.FilterQuery{FromBlock: headers[0].Number, ToBlock: headers[numHeaders-1].Number, Addresses: contractAddrs}
 		logs, err := rawEthClient.FilterLogs(context.Background(), logFilter)

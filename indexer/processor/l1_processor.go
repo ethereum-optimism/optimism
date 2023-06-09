@@ -94,23 +94,12 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 
 		/** Index Blocks **/
 
-		l1Headers := make([]*database.L1BlockHeader, numHeaders)
 		l1HeaderMap := make(map[common.Hash]*types.Header)
-		for i, header := range headers {
-			blockHash := header.Hash()
-			l1Headers[i] = &database.L1BlockHeader{
-				BlockHeader: database.BlockHeader{
-					Hash:       blockHash,
-					ParentHash: header.ParentHash,
-					Number:     database.U256{Int: header.Number},
-					Timestamp:  header.Time,
-				},
-			}
-
-			l1HeaderMap[blockHash] = header
+		for _, header := range headers {
+			l1HeaderMap[header.Hash()] = header
 		}
 
-		/** Index Contract Events **/
+		/** Watch for Contract Events **/
 
 		logFilter := ethereum.FilterQuery{FromBlock: headers[0].Number, ToBlock: headers[numHeaders-1].Number, Addresses: contractAddrs}
 		logs, err := rawEthClient.FilterLogs(context.Background(), logFilter)
@@ -120,6 +109,7 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 
 		numLogs := len(logs)
 		l1ContractEvents := make([]*database.L1ContractEvent, numLogs)
+		l1HeadersOfInterest := make(map[common.Hash]bool)
 		for i, log := range logs {
 			header, ok := l1HeaderMap[log.BlockHash]
 			if !ok {
@@ -128,6 +118,7 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 				return errors.New("parsed log with a block hash not in this batch")
 			}
 
+			l1HeadersOfInterest[log.BlockHash] = true
 			l1ContractEvents[i] = &database.L1ContractEvent{
 				ContractEvent: database.ContractEvent{
 					GUID:            uuid.New(),
@@ -140,19 +131,46 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 			}
 		}
 
-		/** Update Database **/
+		/** Index L1 Blocks that have an optimism event **/
 
-		err = db.Blocks.StoreL1BlockHeaders(l1Headers)
-		if err != nil {
-			return err
+		// we iterate on the original array to maintain ordering. probably can find a more efficient
+		// way to iterate over the `l1HeadersOfInterest` map while maintaining ordering
+		l1Headers := []*database.L1BlockHeader{}
+		for _, header := range headers {
+			blockHash := header.Hash()
+			_, ok := l1HeadersOfInterest[blockHash]
+			if !ok {
+				continue
+			}
+
+			l1Headers = append(l1Headers, &database.L1BlockHeader{
+				BlockHeader: database.BlockHeader{
+					Hash:       blockHash,
+					ParentHash: header.ParentHash,
+					Number:     database.U256{Int: header.Number},
+					Timestamp:  header.Time,
+				},
+			})
 		}
 
-		if numLogs > 0 {
-			processLog.Info("detected new contract logs", "size", numLogs)
+		/** Update Database **/
+
+		numL1Headers := len(l1Headers)
+		if numL1Headers > 0 {
+			processLog.Info("saved l1 blocks of interest within batch", "num", numL1Headers, "batchSize", numHeaders)
+			err = db.Blocks.StoreL1BlockHeaders(l1Headers)
+			if err != nil {
+				return err
+			}
+
+			// Since the headers to index are derived from logs, we know in this branch `numLogs > 0`
+			processLog.Info("saving contract logs", "size", numLogs)
 			err = db.ContractEvents.StoreL1ContractEvents(l1ContractEvents)
 			if err != nil {
 				return err
 			}
+		} else {
+			processLog.Info("no l1 blocks of interest within batch")
 		}
 
 		// a-ok!
