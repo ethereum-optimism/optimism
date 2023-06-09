@@ -27,6 +27,47 @@ func testSendState() *SendState {
 	return NewSendState(100, time.Hour)
 }
 
+// testMockHarness houses the necessary resources to test the MockTxManager.
+type testMockHarness struct {
+	cfg Config
+	mgr *MockTxManager
+}
+
+// createTxCandidate creates a mock [TxCandidate].
+func (h testMockHarness) createTxCandidate() TxCandidate {
+	inbox := common.HexToAddress("0x42000000000000000000000000000000000000ff")
+	return TxCandidate{
+		To:       &inbox,
+		TxData:   []byte{0x00, 0x01, 0x02},
+		GasLimit: uint64(1337),
+	}
+}
+
+// newTestMockHarnessWithConfig initializes a testHarness with a specific
+// configuration.
+func newTestMockHarnessWithConfig(t *testing.T, cfg Config) *testMockHarness {
+	nonce := uint64(0)
+	mgr := &MockTxManager{
+		chainID: cfg.ChainID,
+		name:    "TEST",
+		cfg:     cfg,
+		l:       testlog.Logger(t, log.LvlCrit),
+		metr:    &metrics.NoopTxMetrics{},
+		nonce:   &nonce,
+	}
+
+	return &testMockHarness{
+		cfg: cfg,
+		mgr: mgr,
+	}
+}
+
+// newTestMockHarness initializes a testHarness with a default configuration that is
+// suitable for most tests.
+func newTestMockHarness(t *testing.T) *testMockHarness {
+	return newTestMockHarnessWithConfig(t, configWithNumConfs(1))
+}
+
 // testHarness houses the necessary resources to test the SimpleTxManager.
 type testHarness struct {
 	cfg       Config
@@ -249,6 +290,37 @@ func (b *mockBackend) TransactionReceipt(ctx context.Context, txHash common.Hash
 		GasUsed:     txInfo.gasFeeCap.Uint64(),
 		BlockNumber: big.NewInt(int64(txInfo.blockNumber)),
 	}, nil
+}
+
+// TestMockTxMgrSend asserts that Send increments the nonce.
+func TestMockTxMgrSend(t *testing.T) {
+	t.Parallel()
+
+	h := newTestMockHarness(t)
+
+	txCandidate := h.createTxCandidate()
+
+	require.Equal(t, *h.mgr.nonce, uint64(0))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	receipt, err := h.mgr.Send(ctx, txCandidate)
+	require.Nil(t, err)
+	require.NotNil(t, receipt)
+	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
+	require.Equal(t, *h.mgr.nonce, uint64(1))
+}
+
+// TestMockTxMgrFrom checks that the From is returned from the config.
+func TestMockTxMgrFrom(t *testing.T) {
+	t.Parallel()
+
+	h := newTestMockHarness(t)
+
+	h.mgr.cfg.From = common.HexToAddress("0x1234")
+
+	from := h.mgr.From()
+	require.Equal(t, h.mgr.cfg.From, from)
 }
 
 // TestTxMgrConfirmAtMinGasPrice asserts that Send returns the min gas price tx

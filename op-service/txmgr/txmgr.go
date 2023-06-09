@@ -74,6 +74,64 @@ type ETHBackend interface {
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 }
 
+// MockTxManager is a mock implementation of TxManager.
+// It does not send transactions to L1 and instead logs them.
+type MockTxManager struct {
+	cfg     Config // embed the config directly
+	name    string
+	chainID *big.Int
+
+	l    log.Logger
+	metr metrics.TxMetricer
+
+	nonce *uint64
+}
+
+// NewMockTxManager initializes a new [MockTxManager] with the passed Config.
+func NewMockTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLIConfig) (*MockTxManager, error) {
+	conf, err := NewConfig(cfg, l)
+	if err != nil {
+		return nil, err
+	}
+
+	nonce := uint64(0)
+	return &MockTxManager{
+		chainID: conf.ChainID,
+		name:    name,
+		cfg:     conf,
+		l:       l.New("service", name),
+		metr:    m,
+		nonce:   &nonce,
+	}, nil
+}
+
+func (m *MockTxManager) From() common.Address {
+	return m.cfg.From
+}
+
+// Send does not publish and only records transactions for the [MockTxManager].
+func (m *MockTxManager) Send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error) {
+	m.l.Info("MockTxManager.Send called", "candidate", candidate)
+
+	// Increment the nonce
+	*m.nonce++
+	m.metr.RecordNonce(*m.nonce)
+
+	// Record tx published
+	m.metr.TxPublished("")
+	m.metr.RecordTxConfirmationLatency(time.Since(time.Now()).Milliseconds())
+
+	// Mock tx receipt
+	receipt := &types.Receipt{
+		Status: types.ReceiptStatusSuccessful,
+	}
+
+	// Record tx confirmed
+	m.metr.RecordGasBumpCount(0)
+	m.metr.TxConfirmed(receipt)
+	return receipt, nil
+}
+
 // SimpleTxManager is a implementation of TxManager that performs linear fee
 // bumping of a tx until it confirms.
 type SimpleTxManager struct {
