@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { Claim } from "../libraries/DisputeTypes.sol";
-import { GameType } from "../libraries/DisputeTypes.sol";
+import "../../libraries/DisputeTypes.sol";
 
 import { IDisputeGame } from "./IDisputeGame.sol";
 
@@ -75,4 +74,19 @@ interface IDisputeGameFactory {
      * @param impl The implementation contract for the given `GameType`.
      */
     function setImplementation(GameType gameType, IDisputeGame impl) external;
+
+    /**
+     * @notice Returns a unique identifier for the given dispute game parameters.
+     * @dev Hashes the concatenation of `gameType . rootClaim . extraData`
+     *      without expanding memory.
+     * @param gameType The type of the DisputeGame.
+     * @param rootClaim The root claim of the DisputeGame.
+     * @param extraData Any extra data that should be provided to the created dispute game.
+     * @return _uuid The unique identifier for the given dispute game parameters.
+     */
+    function getGameUUID(
+        GameType gameType,
+        Claim rootClaim,
+        bytes memory extraData
+    ) external pure returns (Hash _uuid);
 }
