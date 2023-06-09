@@ -30,11 +30,11 @@ func FuzzEncodeDecodeWithdrawal(f *testing.F) {
 		)
 
 		encoded, err := withdrawal.Encode()
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		var w crossdomain.Withdrawal
 		err = w.Decode(encoded)
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		require.Equal(t, withdrawal.Nonce.Uint64(), w.Nonce.Uint64())
 		require.Equal(t, withdrawal.Sender, w.Sender)
@@ -105,11 +105,11 @@ func TestWithdrawalHashing(t *testing.T) {
 	for i, test := range cases {
 		t.Run(fmt.Sprintf("case%d", i), func(t *testing.T) {
 			hash, err := test.Withdrawal.Hash()
-			require.Nil(t, err)
+			require.NoError(t, err)
 			require.Equal(t, hash, test.Expect.Hash)
 
 			slot, err := test.Withdrawal.StorageSlot()
-			require.Nil(t, err)
+			require.NoError(t, err)
 			require.Equal(t, slot, test.Expect.Slot)
 		})
 	}
