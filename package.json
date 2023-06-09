@@ -6,7 +6,6 @@
   "workspaces": {
     "packages": [
       "packages/*",
-      "bss-core",
       "gas-oracle",
       "l2geth",
       "ops/docker/rpc-proxy",
