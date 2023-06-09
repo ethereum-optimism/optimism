@@ -80,3 +80,15 @@ It performs the following integrity checks:
 ### Compilation
 
 Run `make boba-crawler`
+
+## boba-devnet
+
+This package generates a clean genesis file for devent. It only includes the predeployed contracts for L2. It takes the following input to generate the genesis file:
+
+1. The deployment configuration for the l2
+2. The hardhat deployment path
+3. The l1 PRC endpoint for quering the block information
+
+### Compilation
+
+Run `make boba-devnet`
