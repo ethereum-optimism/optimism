@@ -73,6 +73,11 @@ var (
 		Usage:  "Initialize the batcher in a stopped state. The batcher can be started using the admin_startBatcher RPC",
 		EnvVar: opservice.PrefixEnvVar(EnvVarPrefix, "STOPPED"),
 	}
+	DryRunFlag = cli.BoolFlag{
+		Name:   "dry-run",
+		Usage:  "Run the batcher in dry-run mode. No transactions will be submitted to L1.",
+		EnvVar: opservice.PrefixEnvVar(EnvVarPrefix, "DRY_RUN"),
+	}
 	// Legacy Flags
 	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
 )
@@ -91,6 +96,7 @@ var optionalFlags = []cli.Flag{
 	MaxL1TxSizeBytesFlag,
 	StoppedFlag,
 	SequencerHDPathFlag,
+	DryRunFlag,
 }
 
 func init() {

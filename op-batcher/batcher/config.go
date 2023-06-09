@@ -86,6 +86,7 @@ type CLIConfig struct {
 	MaxL1TxSize uint64
 
 	Stopped bool
+	DryRun  bool
 
 	TxMgrConfig      txmgr.CLIConfig
 	RPCConfig        rpc.CLIConfig
@@ -129,6 +130,7 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		MaxChannelDuration:     ctx.GlobalUint64(flags.MaxChannelDurationFlag.Name),
 		MaxL1TxSize:            ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
 		Stopped:                ctx.GlobalBool(flags.StoppedFlag.Name),
+		DryRun:                 ctx.GlobalBool(flags.DryRunFlag.Name),
 		TxMgrConfig:            txmgr.ReadCLIConfig(ctx),
 		RPCConfig:              rpc.ReadCLIConfig(ctx),
 		LogConfig:              oplog.ReadCLIConfig(ctx),

@@ -70,9 +70,19 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 		return nil, fmt.Errorf("querying rollup config: %w", err)
 	}
 
-	txManager, err := txmgr.NewSimpleTxManager("batcher", l, m, cfg.TxMgrConfig)
-	if err != nil {
-		return nil, err
+	// Create a mock tx manager if we are in dry run mode
+	var txManager txmgr.TxManager
+	if cfg.DryRun {
+		l.Warn("Running in dry run mode. No transactions will be submitted to L1.")
+		txManager, err = txmgr.NewMockTxManager("batcher", l, m, cfg.TxMgrConfig)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		txManager, err = txmgr.NewSimpleTxManager("batcher", l, m, cfg.TxMgrConfig)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	batcherCfg := Config{
