@@ -1267,11 +1267,6 @@ workflows:
           working_directory: indexer
           dependencies: op-bindings
       - go-lint-test-build:
-          name: bss-core-tests
-          binary_name: bss-core
-          working_directory: bss-core
-          build: false
-      - go-lint-test-build:
           name: op-heartbeat tests
           binary_name: op-heartbeat
           working_directory: op-heartbeat
