@@ -1,58 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { GameType } from "../libraries/DisputeTypes.sol";
-import { GameStatus } from "../libraries/DisputeTypes.sol";
+import "../libraries/DisputeTypes.sol";
+
 import { SafeCall } from "../libraries/SafeCall.sol";
 
-import { IDisputeGame } from "./IDisputeGame.sol";
-import { IDisputeGameFactory } from "./IDisputeGameFactory.sol";
+import { IDisputeGame } from "./interfaces/IDisputeGame.sol";
+import { IDisputeGameFactory } from "./interfaces/IDisputeGameFactory.sol";
+import { IBondManager } from "./interfaces/IBondManager.sol";
 
 /**
  * @title BondManager
  * @notice The Bond Manager serves as an escrow for permissionless output proposal bonds.
  */
-contract BondManager {
+contract BondManager is IBondManager {
     /**
      * @notice The Bond Type
      */
     struct Bond {
         address owner;
-        uint256 expiration;
         bytes32 id;
-        uint256 amount;
+        uint128 expiration;
+        uint128 amount;
     }
-
-    /**
-     * @notice Mapping from bondId to bond.
-     */
-    mapping(bytes32 => Bond) public bonds;
-
-    /**
-     * @notice BondPosted is emitted when a bond is posted.
-     * @param bondId is the id of the bond.
-     * @param owner is the address that owns the bond.
-     * @param expiration is the time at which the bond expires.
-     * @param amount is the amount of the bond.
-     */
-    event BondPosted(bytes32 bondId, address owner, uint256 expiration, uint256 amount);
-
-    /**
-     * @notice BondSeized is emitted when a bond is seized.
-     * @param bondId is the id of the bond.
-     * @param owner is the address that owns the bond.
-     * @param seizer is the address that seized the bond.
-     * @param amount is the amount of the bond.
-     */
-    event BondSeized(bytes32 bondId, address owner, address seizer, uint256 amount);
-
-    /**
-     * @notice BondReclaimed is emitted when a bond is reclaimed by the owner.
-     * @param bondId is the id of the bond.
-     * @param claiment is the address that reclaimed the bond.
-     * @param amount is the amount of the bond.
-     */
-    event BondReclaimed(bytes32 bondId, address claiment, uint256 amount);
 
     /**
      * @notice The permissioned dispute game factory.
@@ -68,6 +38,11 @@ contract BondManager {
     uint256 private constant TRANSFER_GAS = 30_000;
 
     /**
+     * @notice Mapping from bondId to bond.
+     */
+    mapping(bytes32 => Bond) public bonds;
+
+    /**
      * @notice Instantiates the bond maanger with the registered dispute game factory.
      * @param _disputeGameFactory is the dispute game factory.
      */
@@ -76,37 +51,30 @@ contract BondManager {
     }
 
     /**
-     * @notice Post a bond with a given id and owner.
-     * @dev This function will revert if the provided bondId is already in use.
-     * @param _bondId is the id of the bond.
-     * @param _bondOwner is the address that owns the bond.
-     * @param _minClaimHold is the minimum amount of time the owner
-     *        must wait before reclaiming their bond.
+     * @inheritdoc IBondManager
      */
     function post(
         bytes32 _bondId,
         address _bondOwner,
-        uint256 _minClaimHold
+        uint128 _minClaimHold
     ) external payable {
         require(bonds[_bondId].owner == address(0), "BondManager: BondId already posted.");
         require(_bondOwner != address(0), "BondManager: Owner cannot be the zero address.");
         require(msg.value > 0, "BondManager: Value must be non-zero.");
 
-        uint256 expiration = _minClaimHold + block.timestamp;
+        uint128 expiration = uint128(_minClaimHold + block.timestamp);
         bonds[_bondId] = Bond({
             owner: _bondOwner,
-            expiration: expiration,
             id: _bondId,
-            amount: msg.value
+            expiration: expiration,
+            amount: uint128(msg.value)
         });
 
         emit BondPosted(_bondId, _bondOwner, expiration, msg.value);
     }
 
     /**
-     * @notice Seizes the bond with the given id.
-     * @dev This function will revert if there is no bond at the given id.
-     * @param _bondId is the id of the bond.
+     * @inheritdoc IBondManager
      */
     function seize(bytes32 _bondId) external {
         Bond memory b = bonds[_bondId];
@@ -131,10 +99,7 @@ contract BondManager {
     }
 
     /**
-     * @notice Seizes the bond with the given id and distributes it to recipients.
-     * @dev This function will revert if there is no bond at the given id.
-     * @param _bondId is the id of the bond.
-     * @param _claimRecipients is a set of addresses to split the bond amongst.
+     * @inheritdoc IBondManager
      */
     function seizeAndSplit(bytes32 _bondId, address[] calldata _claimRecipients) external {
         Bond memory b = bonds[_bondId];
@@ -168,9 +133,7 @@ contract BondManager {
     }
 
     /**
-     * @notice Reclaims the bond of the bond owner.
-     * @dev This function will revert if there is no bond at the given id.
-     * @param _bondId is the id of the bond.
+     * @inheritdoc IBondManager
      */
     function reclaim(bytes32 _bondId) external {
         Bond memory b = bonds[_bondId];

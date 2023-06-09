@@ -51,6 +51,36 @@ Refer to the Directory Structure section below to understand which packages are 
 ~~ Production ~~
 ├── <a href="./packages">packages</a>
 │   ├── <a href="./packages/common-ts">common-ts</a>: Common tools for building apps in TypeScript
+│   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: Bedrock smart contracts.
+│   ├── <a href="./packages/contracts-periphery">contracts-periphery</a>: Peripheral contracts for Optimism
+│   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
+│   ├── <a href="./packages/data-transport-layer">data-transport-layer</a>: Service for indexing Optimism-related L1 data
+│   ├── <a href="./packages/chain-mon">chain-mon</a>: Chain monitoring services
+│   ├── <a href="./packages/fault-detector">fault-detector</a>: Service for detecting Sequencer faults
+│   ├── <a href="./packages/message-relayer">message-relayer</a>: Tool for automatically relaying L1<>L2 messages in development
+│   ├── <a href="./packages/replica-healthcheck">replica-healthcheck</a>: Service for monitoring the health of a replica node
+│   └── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
+├── <a href="./op-bindings">op-bindings</a>: Go bindings for Bedrock smart contracts.
+├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1
+├── <a href="./op-bootnode">op-bootnode</a>: Standalone op-node discovery bootnode
+├── <a href="./op-chain-ops">op-chain-ops</a>: State surgery utilities
+├── <a href="./op-challenger">op-challenger</a>: Dispute game challenge agent
+├── <a href="./op-e2e">op-e2e</a>: End-to-End testing of all bedrock components in Go
+├── <a href="./op-exporter">op-exporter</a>: Prometheus exporter client
+├── <a href="./op-heartbeat">op-heartbeat</a>: Heartbeat monitor service
+├── <a href="./op-node">op-node</a>: rollup consensus-layer client
+├── <a href="./op-program">op-program</a>: Fault proof program
+├── <a href="./op-proposer">op-proposer</a>: L2-Output Submitter, submits proposals to L1
+├── <a href="./op-service">op-service</a>: Common codebase utilities
+├── <a href="./op-signer">op-signer</a>: Client signer
+├── <a href="./op-wheel">op-wheel</a>: Database utilities
+├── <a href="./ops-bedrock">ops-bedrock</a>: Bedrock devnet work
+├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
+└── <a href="./specs">specs</a>: Specs of the rollup starting at the Bedrock upgrade
+
+~~ Pre-BEDROCK ~~
+├── <a href="./packages">packages</a>
+│   ├── <a href="./packages/common-ts">common-ts</a>: Common tools for building apps in TypeScript
 │   ├── <a href="./packages/contracts">contracts</a>: L1 and L2 smart contracts for Optimism
 │   ├── <a href="./packages/contracts-periphery">contracts-periphery</a>: Peripheral contracts for Optimism
 │   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
@@ -69,18 +99,7 @@ Refer to the Directory Structure section below to understand which packages are 
 ├── <a href="./l2geth-exporter">l2geth-exporter</a>: A prometheus exporter to collect/serve metrics from an L2 geth node
 ├── <a href="./op-exporter">op-exporter</a>: A prometheus exporter to collect/serve metrics from an Optimism node
 ├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
-├── <a href="./technical-documents">technical-documents</a>: audits and post-mortem documents
-
-~~ BEDROCK upgrade - Not production-ready yet, part of next major upgrade ~~
-├── <a href="./packages">packages</a>
-│   └── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: Bedrock smart contracts. To be merged with ./packages/contracts.
-├── <a href="./op-bindings">op-bindings</a>: Go bindings for Bedrock smart contracts.
-├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1
-├── <a href="./op-e2e">op-e2e</a>: End-to-End testing of all bedrock components in Go
-├── <a href="./op-node">op-node</a>: rollup consensus-layer client.
-├── <a href="./op-proposer">op-proposer</a>: L2-Output Submitter, submits proposals to L1
-├── <a href="./ops-bedrock">ops-bedrock</a>: Bedrock devnet work
-└── <a href="./specs">specs</a>: Specs of the rollup starting at the Bedrock upgrade
+└── <a href="./technical-documents">technical-documents</a>: audits and post-mortem documents
 </pre>
 
 ## Branching Model
