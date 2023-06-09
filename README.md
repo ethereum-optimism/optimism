@@ -54,7 +54,6 @@ Refer to the Directory Structure section below to understand which packages are 
 │   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: Bedrock smart contracts.
 │   ├── <a href="./packages/contracts-periphery">contracts-periphery</a>: Peripheral contracts for Optimism
 │   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
-│   ├── <a href="./packages/data-transport-layer">data-transport-layer</a>: Service for indexing Optimism-related L1 data
 │   ├── <a href="./packages/chain-mon">chain-mon</a>: Chain monitoring services
 │   ├── <a href="./packages/fault-detector">fault-detector</a>: Service for detecting Sequencer faults
 │   ├── <a href="./packages/message-relayer">message-relayer</a>: Tool for automatically relaying L1<>L2 messages in development
@@ -83,7 +82,6 @@ Refer to the Directory Structure section below to understand which packages are 
 │   ├── <a href="./packages/common-ts">common-ts</a>: Common tools for building apps in TypeScript
 │   ├── <a href="./packages/contracts-periphery">contracts-periphery</a>: Peripheral contracts for Optimism
 │   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
-│   ├── <a href="./packages/data-transport-layer">data-transport-layer</a>: Service for indexing Optimism-related L1 data
 │   ├── <a href="./packages/chain-mon">chain-mon</a>: Chain monitoring services
 │   ├── <a href="./packages/fault-detector">fault-detector</a>: Service for detecting Sequencer faults
 │   ├── <a href="./packages/message-relayer">message-relayer</a>: Tool for automatically relaying L1<>L2 messages in development

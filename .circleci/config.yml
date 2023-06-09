@@ -88,7 +88,6 @@ jobs:
             - "packages/contracts-governance/node_modules"
             - "packages/contracts-periphery/node_modules"
             - "packages/core-utils/node_modules"
-            - "packages/data-transport-layer/node_modules"
             - "packages/drippie-mon/node_modules"
             - "packages/fault-detector/node_modules"
             - "packages/hardhat-deploy-config/node_modules"
@@ -673,10 +672,6 @@ jobs:
           command: npx depcheck
           working_directory: packages/core-utils
       - run:
-          name: Check data-transport-layer
-          command: npx depcheck
-          working_directory: packages/data-transport-layer
-      - run:
           name: Check sdk
           command: npx depcheck
           working_directory: packages/sdk
@@ -1178,13 +1173,6 @@ workflows:
           coverage_flag: contracts-periphery-tests
           package_name: contracts-periphery
           dependencies: "(contracts|contracts-bedrock|core-utils|hardhat-deploy-config)"
-          requires:
-            - yarn-monorepo
-      - js-lint-test:
-          name: dtl-tests
-          coverage_flag: dtl-tests
-          package_name: data-transport-layer
-          dependencies: "(common-ts|contracts|core-utils)"
           requires:
             - yarn-monorepo
       - js-lint-test:

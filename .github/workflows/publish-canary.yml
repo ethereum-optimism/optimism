@@ -21,7 +21,6 @@ jobs:
       balance-mon: ${{ steps.packages.outputs.balance-mon }}
       drippie-mon: ${{ steps.packages.outputs.drippie-mon }}
       wd-mon: ${{ steps.packages.outputs.wd-mon }}
-      data-transport-layer: ${{ steps.packages.outputs.data-transport-layer }}
       contracts: ${{ steps.packages.outputs.contracts }}
       contracts-bedrock: ${{ steps.packages.outputs.contracts-bedrock }}
       replica-healthcheck: ${{ steps.packages.outputs.replica-healthcheck }}
@@ -283,33 +282,6 @@ jobs:
           target: wd-mon
           push: true
           tags: ethereumoptimism/wd-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
-
-  data-transport-layer:
-    name: Publish Data Transport Layer Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
-    needs: canary-publish
-    if: needs.canary-publish.outputs.data-transport-layer != ''
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./ops/docker/Dockerfile.packages
-          target: data-transport-layer
-          push: true
-          tags: ethereumoptimism/data-transport-layer:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   contracts:
     name: Publish Deployer Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
