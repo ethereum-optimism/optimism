@@ -15,5 +15,3 @@ tests/testdata
 l2geth/signer/fourbyte
 l2geth/cmd/puppeth
 l2geth/cmd/clef
-go/gas-oracle/gas-oracle
-go/batch-submitter/batch-submitter

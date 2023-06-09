@@ -28,7 +28,6 @@ jobs:
       replica-healthcheck: ${{ steps.packages.outputs.replica-healthcheck }}
       hardhat-node: ${{ steps.packages.outputs.hardhat-node }}
       op-exporter: ${{ steps.packages.outputs.op-exporter }}
-      batch-submitter-service: ${{ steps.packages.outputs.batch-submitter-service }}
       foundry: ${{ steps.packages.outputs.foundry }}
       endpoint-monitor: ${{ steps.packages.outputs.endpoint-monitor }}
 
@@ -495,32 +494,6 @@ jobs:
           target: replica-healthcheck
           push: true
           tags: ethereumoptimism/replica-healthcheck:${{ needs.release.outputs.replica-healthcheck }},ethereumoptimism/replica-healthcheck:latest
-
-  batch-submitter-service:
-    name: Publish batch-submitter-service Version ${{ needs.release.outputs.batch-submitter-service }}
-    needs: release
-    if: needs.release.outputs.batch-submitter-service != ''
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./batch-submitter/Dockerfile
-          push: true
-          tags: ethereumoptimism/batch-submitter-service:${{ needs.release.outputs.batch-submitter-service }},ethereumoptimism/batch-submitter-service:latest
 
   endpoint-monitor:
     name: Publish endpoint-monitor Version ${{ needs.release.outputs.endpoint-monitor}}

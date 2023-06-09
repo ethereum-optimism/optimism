@@ -1,5 +1,4 @@
 # Legacy codebases
-/batch-submitter                @ethereum-optimism/legacy-reviewers
 /bss-core                       @ethereum-optimism/legacy-reviewers
 /gas-oracle                     @ethereum-optimism/legacy-reviewers
 /l2geth                         @ethereum-optimism/legacy-reviewers
