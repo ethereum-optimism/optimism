@@ -50,10 +50,6 @@ contract BondManager is IBondManager {
         DISPUTE_GAME_FACTORY = _disputeGameFactory;
     }
 
-    ////////////////////////////////////////////////////////////////
-    //                     EXTERNAL FUNCTIONS                     //
-    ////////////////////////////////////////////////////////////////
-
     /**
      * @inheritdoc IBondManager
      */

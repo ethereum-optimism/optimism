@@ -40,10 +40,6 @@ contract DisputeGameFactory is Ownable, IDisputeGameFactory {
         transferOwnership(_owner);
     }
 
-    ////////////////////////////////////////////////////////////////
-    //                     EXTERNAL FUNCTIONS                     //
-    ////////////////////////////////////////////////////////////////
-
     /**
      * @inheritdoc IDisputeGameFactory
      */
@@ -126,10 +122,6 @@ contract DisputeGameFactory is Ownable, IDisputeGameFactory {
             mstore(pointerOffset, tempC)
         }
     }
-
-    ////////////////////////////////////////////////////////////////
-    //                      OWNER FUNCTIONS                       //
-    ////////////////////////////////////////////////////////////////
 
     /**
      * @inheritdoc IDisputeGameFactory
