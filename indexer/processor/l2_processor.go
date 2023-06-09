@@ -23,7 +23,7 @@ type L2Contracts struct {
 	L2ToL1MessagePasser    common.Address
 
 	// Some more contracts -- ProxyAdmin, SystemConfig, etcc
-	// Ignore the auxilliary contracts?
+	// Ignore the auxiliary contracts?
 
 	// Legacy Contracts? We'll add this in to index the legacy chain.
 	// Remove afterwards?

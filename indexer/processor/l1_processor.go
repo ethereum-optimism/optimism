@@ -24,7 +24,7 @@ type L1Contracts struct {
 	L1ERC721Bridge         common.Address
 
 	// Some more contracts -- ProxyAdmin, SystemConfig, etcc
-	// Ignore the auxilliary contracts?
+	// Ignore the auxiliary contracts?
 
 	// Legacy contracts? We'll add this in to index the legacy chain.
 	// Remove afterwards?
