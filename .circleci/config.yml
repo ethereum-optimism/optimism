@@ -84,7 +84,6 @@ jobs:
             - "packages/balance-monitor/node_modules"
             - "packages/chain-mon/node_modules"
             - "packages/common-ts/node_modules"
-            - "packages/contracts/node_modules"
             - "packages/contracts-bedrock/node_modules"
             - "packages/contracts-governance/node_modules"
             - "packages/contracts-periphery/node_modules"
@@ -108,13 +107,6 @@ jobs:
           paths:
             - "packages/*/dist"
             - "packages/*/artifacts"
-            - "packages/contracts/src/contract-artifacts.ts"
-            - "packages/contracts/src/contract-deployed-artifacts.ts"
-            - "packages/contracts/chugsplash"
-            - "packages/contracts/L1"
-            - "packages/contracts/L2"
-            - "packages/contracts/libraries"
-            - "packages/contracts/standards"
 
   docker-build:
     environment:
@@ -672,10 +664,6 @@ jobs:
           name: Check common-ts
           command: npx depcheck
           working_directory: packages/common-ts
-      - run:
-          name: Check contracts
-          command: npx depcheck
-          working_directory: packages/contracts
       - run:
           name: Check contracts-periphery
           command: npx depcheck
