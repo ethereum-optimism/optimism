@@ -78,7 +78,6 @@ func TestRegenerateBlock(t *testing.T) {
 	}
 	legacyClient.GetTransactionByHashReturns(fakeTransaction, nil)
 	err = b.RegenerateBlock()
-	require.Error(t, err)
 	require.ErrorContains(t, err, "not match")
 
 	legacyClient.GetTransactionByHashReturns(transaction, nil)
@@ -113,7 +112,6 @@ func TestRegenerateBlock(t *testing.T) {
 		LatestValidHash: &block.Hash,
 	}, nil)
 	err = b.RegenerateBlock()
-	require.Error(t, err)
 	require.ErrorContains(t, err, "payload is invalid")
 
 	privateClient.NewPayloadV1Returns(&node.PayloadStatusV1{
@@ -121,7 +119,6 @@ func TestRegenerateBlock(t *testing.T) {
 		LatestValidHash: &common.Hash{1},
 	}, nil)
 	err = b.RegenerateBlock()
-	require.Error(t, err)
 	require.ErrorContains(t, err, "latest valid hash is not correct")
 
 	privateClient.NewPayloadV1Returns(&node.PayloadStatusV1{

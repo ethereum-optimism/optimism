@@ -26,7 +26,6 @@ func TestConfigMarshalUnmarshal(t *testing.T) {
 	require.JSONEq(t, string(b), string(encoded))
 
 	err = decoded.Check()
-	require.Error(t, err)
 	require.ErrorContains(t, err, "L1BobaTokenAddress")
 }
 
