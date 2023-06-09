@@ -1,12 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { Clock } from "../libraries/DisputeTypes.sol";
-import { Claim } from "../libraries/DisputeTypes.sol";
-import { Position } from "../libraries/DisputeTypes.sol";
-import { Timestamp } from "../libraries/DisputeTypes.sol";
-import { ClaimHash } from "../libraries/DisputeTypes.sol";
-import { BondAmount } from "../libraries/DisputeTypes.sol";
+import "../../libraries/DisputeTypes.sol";
 
 import { IDisputeGame } from "./IDisputeGame.sol";
 
@@ -32,12 +27,6 @@ interface IFaultDisputeGame is IDisputeGame {
      * @param claimant The address of the claimant
      */
     event Defend(ClaimHash indexed claimHash, Claim indexed pivot, address indexed claimant);
-
-    /**
-     * @notice State variable of the starting timestamp of the game, set on deployment.
-     * @return The starting timestamp of the game
-     */
-    function gameStart() external view returns (Timestamp);
 
     /**
      * @notice Maps a unique ClaimHash to a Claim.
