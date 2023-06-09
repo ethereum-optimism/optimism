@@ -3,8 +3,11 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strconv"
 
+	"github.com/ethereum-optimism/optimism/indexer/api"
 	"github.com/ethereum-optimism/optimism/indexer/config"
+	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/urfave/cli/v2"
@@ -32,6 +35,11 @@ func runIndexer(ctx *cli.Context) error {
 	return nil
 }
 
+// Maybe make NewDB take a config.DBConfig instead of a string in future cleanup
+func getDsn(dbConf config.DBConfig) string {
+	return fmt.Sprintf("postgresql://%s:%s@%s:%s/%s", dbConf.User, dbConf.Password, dbConf.Host, dbConf.Port, dbConf.Name)
+}
+
 func runApi(ctx *cli.Context) error {
 	configPath := ctx.String(ConfigFlag.Name)
 	conf, err := config.LoadConfig(configPath)
@@ -41,8 +49,16 @@ func runApi(ctx *cli.Context) error {
 	if err != nil {
 		log.Crit("Failed to load config", "message", err)
 	}
-	// finish me
-	return nil
+
+	db, err := database.NewDB(getDsn(conf.DB))
+
+	if err != nil {
+		log.Crit("Failed to connect to database", "message", err)
+	}
+
+	server := api.NewApi(db.Bridge)
+
+	return server.Listen(strconv.Itoa(conf.API.Port))
 }
 
 var (
