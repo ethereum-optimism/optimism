@@ -2,7 +2,6 @@ package api
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
@@ -101,9 +100,6 @@ func NewApi(bv database.BridgeView) *Api {
 
 }
 
-func (a *Api) Listen(port string) {
-	err := http.ListenAndServe(port, a.Router)
-	if err != nil {
-		log.Fatal("Http server failed to start listening", err)
-	}
+func (a *Api) Listen(port string) error {
+	return http.ListenAndServe(port, a.Router)
 }

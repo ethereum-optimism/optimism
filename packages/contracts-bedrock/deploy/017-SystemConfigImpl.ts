@@ -2,16 +2,28 @@ import assert from 'assert'
 
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
-import { ethers } from 'ethers'
+import { BigNumber } from 'ethers'
 
+import { defaultResourceConfig } from '../src/constants'
 import { assertContractVariable, deploy } from '../src/deploy-utils'
-
-const uint128Max = ethers.BigNumber.from('0xffffffffffffffffffffffffffffffff')
 
 const deployFn: DeployFunction = async (hre) => {
   const batcherHash = hre.ethers.utils
     .hexZeroPad(hre.deployConfig.batchSenderAddress, 32)
     .toLowerCase()
+
+  const l2GenesisBlockGasLimit = BigNumber.from(
+    hre.deployConfig.l2GenesisBlockGasLimit
+  )
+  const l2GasLimitLowerBound = BigNumber.from(
+    defaultResourceConfig.systemTxMaxGas +
+      defaultResourceConfig.maxResourceLimit
+  )
+  if (l2GenesisBlockGasLimit.lt(l2GasLimitLowerBound)) {
+    throw new Error(
+      `L2 genesis block gas limit must be at least ${l2GasLimitLowerBound}`
+    )
+  }
 
   await deploy({
     hre,
@@ -21,16 +33,9 @@ const deployFn: DeployFunction = async (hre) => {
       hre.deployConfig.gasPriceOracleOverhead,
       hre.deployConfig.gasPriceOracleScalar,
       batcherHash,
-      hre.deployConfig.l2GenesisBlockGasLimit,
+      l2GenesisBlockGasLimit,
       hre.deployConfig.p2pSequencerAddress,
-      {
-        maxResourceLimit: 20_000_000,
-        elasticityMultiplier: 10,
-        baseFeeMaxChangeDenominator: 8,
-        systemTxMaxGas: 1_000_000,
-        minimumBaseFee: ethers.utils.parseUnits('1', 'gwei'),
-        maximumBaseFee: uint128Max,
-      },
+      defaultResourceConfig,
     ],
     postDeployAction: async (contract) => {
       await assertContractVariable(
@@ -56,12 +61,30 @@ const deployFn: DeployFunction = async (hre) => {
       )
 
       const config = await contract.resourceConfig()
-      assert(config.maxResourceLimit === 20_000_000)
-      assert(config.elasticityMultiplier === 10)
-      assert(config.baseFeeMaxChangeDenominator === 8)
-      assert(config.systemTxMaxGas === 1_000_000)
-      assert(ethers.utils.parseUnits('1', 'gwei').eq(config.minimumBaseFee))
-      assert(config.maximumBaseFee.eq(uint128Max))
+      assert(config.maxResourceLimit === defaultResourceConfig.maxResourceLimit)
+      assert(
+        config.elasticityMultiplier ===
+          defaultResourceConfig.elasticityMultiplier
+      )
+      assert(
+        config.baseFeeMaxChangeDenominator ===
+          defaultResourceConfig.baseFeeMaxChangeDenominator
+      )
+      assert(
+        BigNumber.from(config.systemTxMaxGas).eq(
+          defaultResourceConfig.systemTxMaxGas
+        )
+      )
+      assert(
+        BigNumber.from(config.minimumBaseFee).eq(
+          defaultResourceConfig.minimumBaseFee
+        )
+      )
+      assert(
+        BigNumber.from(config.maximumBaseFee).eq(
+          defaultResourceConfig.maximumBaseFee
+        )
+      )
     },
   })
 }

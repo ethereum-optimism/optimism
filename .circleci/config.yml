@@ -88,11 +88,9 @@ jobs:
             - "packages/contracts-governance/node_modules"
             - "packages/contracts-periphery/node_modules"
             - "packages/core-utils/node_modules"
-            - "packages/data-transport-layer/node_modules"
             - "packages/drippie-mon/node_modules"
             - "packages/fault-detector/node_modules"
             - "packages/hardhat-deploy-config/node_modules"
-            - "packages/message-relayer/node_modules"
             - "packages/migration-data/node_modules"
             - "packages/replica-healthcheck/node_modules"
             - "packages/sdk/node_modules"
@@ -673,10 +671,6 @@ jobs:
           command: npx depcheck
           working_directory: packages/core-utils
       - run:
-          name: Check data-transport-layer
-          command: npx depcheck
-          working_directory: packages/data-transport-layer
-      - run:
           name: Check sdk
           command: npx depcheck
           working_directory: packages/sdk
@@ -1181,13 +1175,6 @@ workflows:
           requires:
             - yarn-monorepo
       - js-lint-test:
-          name: dtl-tests
-          coverage_flag: dtl-tests
-          package_name: data-transport-layer
-          dependencies: "(common-ts|contracts|core-utils)"
-          requires:
-            - yarn-monorepo
-      - js-lint-test:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
           package_name: chain-mon
@@ -1199,13 +1186,6 @@ workflows:
           coverage_flag: fault-detector-tests
           package_name: fault-detector
           dependencies: "(common-ts|contracts|core-utils|sdk)"
-          requires:
-            - yarn-monorepo
-      - js-lint-test:
-          name: message-relayer-tests
-          coverage_flag: message-relayer-tests
-          package_name: message-relayer
-          dependencies: "(common-ts|core-utils|sdk)"
           requires:
             - yarn-monorepo
       - js-lint-test:
