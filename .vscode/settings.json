@@ -25,10 +25,6 @@
       "changeProcessCWD": true
     },
     {
-      "directory": "packages/message-relayer",
-      "changeProcessCWD": true
-    },
-    {
       "directory": "packages/fault-detector",
       "changeProcessCWD": true
     }

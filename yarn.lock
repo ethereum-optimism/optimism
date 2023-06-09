@@ -10237,7 +10237,7 @@ ethereum-waffle@^3.0.0, ethereum-waffle@^3.4.4:
     "@ethereum-waffle/provider" "^3.4.4"
     ethers "^5.0.1"
 
-ethereum-waffle@^3.3.0, ethereum-waffle@^3.4.0:
+ethereum-waffle@^3.4.0:
   version "3.4.0"
   resolved "https://registry.yarnpkg.com/ethereum-waffle/-/ethereum-waffle-3.4.0.tgz#990b3c6c26db9c2dd943bf26750a496f60c04720"
   integrity sha512-ADBqZCkoSA5Isk486ntKJVjFEawIiC+3HxNqpJqONvh3YXBTNiRfXvJtGuAFLXPG91QaqkGqILEHANAo7j/olQ==
