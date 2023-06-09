@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -56,6 +57,15 @@ func TestMain(m *testing.M) {
 			fmt.Printf("Failed to build erigon: %s\n", err)
 			os.Exit(2)
 		}
+
+		// As these are integration tests which launch many other processes, the
+		// default parallelism makes the tests flaky.  This change aims to
+		// reduce the flakiness of these tests.
+		maxProcs := runtime.NumCPU() / 4
+		if maxProcs == 0 {
+			maxProcs = 1
+		}
+		runtime.GOMAXPROCS(maxProcs)
 	}
 
 	os.Exit(m.Run())

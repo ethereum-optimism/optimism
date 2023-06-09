@@ -20,22 +20,18 @@ import (
 )
 
 func TestVerifyL2OutputRoot(t *testing.T) {
-	t.Skip("TMP")
 	testVerifyL2OutputRoot(t, false)
 }
 
 func TestVerifyL2OutputRootDetached(t *testing.T) {
-	t.Skip("TMP")
 	testVerifyL2OutputRoot(t, true)
 }
 
 func TestVerifyL2OutputRootEmptyBlock(t *testing.T) {
-	t.Skip("TMP")
 	testVerifyL2OutputRootEmptyBlock(t, false)
 }
 
 func TestVerifyL2OutputRootEmptyBlockDetached(t *testing.T) {
-	t.Skip("TMP")
 	testVerifyL2OutputRootEmptyBlock(t, true)
 }
 
@@ -50,6 +46,9 @@ func TestVerifyL2OutputRootEmptyBlockDetached(t *testing.T) {
 // - update the state root via a tx
 // - run program
 func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
+	if erigonL2Nodes {
+		t.Skip("Erigon does not support debug_dbGet which is required for this test")
+	}
 	InitParallel(t)
 	ctx := context.Background()
 
@@ -150,6 +149,9 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 }
 
 func testVerifyL2OutputRoot(t *testing.T, detached bool) {
+	if erigonL2Nodes {
+		t.Skip("Erigon does not support debug_dbGet which is required for this test")
+	}
 	InitParallel(t)
 	ctx := context.Background()
 
@@ -249,7 +251,7 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 
 	// Check the FPP confirms the expected output
 	t.Log("Running fault proof in fetching mode")
-	log := testlog.Logger(t, log.LvlInfo)
+	log := testlog.Logger(t, log.LvlDebug).New("role", "fpp")
 	err := opp.FaultProofProgram(ctx, log, fppConfig)
 	require.NoError(t, err)
 
