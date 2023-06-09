@@ -79,7 +79,6 @@ jobs:
           key: yarn-packages-v2-{{ checksum "yarn.lock" }}
           paths:
             - "node_modules"
-            - "packages/actor-tests/node_modules"
             - "packages/balance-monitor/node_modules"
             - "packages/chain-mon/node_modules"
             - "packages/common-ts/node_modules"
@@ -1114,13 +1113,6 @@ workflows:
           requires:
             - yarn-monorepo
       - op-bindings-build:
-          requires:
-            - yarn-monorepo
-      - js-lint-test:
-          name: actor-tests-tests
-          coverage_flag: actor-tests-tests
-          package_name: actor-tests
-          dependencies: "(core-utils|sdk)"
           requires:
             - yarn-monorepo
       - js-lint-test:

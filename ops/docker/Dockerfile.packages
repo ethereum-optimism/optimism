@@ -69,10 +69,6 @@ COPY ./packages ./packages
 
 RUN yarn build
 
-FROM base as actor-tests-bedrock
-WORKDIR /opt/optimism/packages/actor-tests
-ENTRYPOINT ["yarn", "run:bedrock"]
-
 FROM base as fault-detector
 WORKDIR /opt/optimism/packages/fault-detector
 COPY ./ops/scripts/detector.sh .
