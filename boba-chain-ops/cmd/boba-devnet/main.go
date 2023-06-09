@@ -11,6 +11,8 @@ import (
 
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/hardhat"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/genesis"
+	"github.com/ledgerwatch/erigon-lib/kv/memdb"
+	"github.com/ledgerwatch/erigon/core"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/rpc"
 
@@ -49,6 +51,11 @@ func main() {
 				Name:  "outfile-l2",
 				Usage: "Path to output file for L2 genesis.json",
 				Value: "genesis-l2.json",
+			},
+			&cli.StringFlag{
+				Name:  "outfile-rollup",
+				Usage: "Path to output file for rollup node",
+				Value: "rollup",
 			},
 			&cli.StringFlag{
 				Name:  "log-level",
@@ -110,7 +117,22 @@ func main() {
 				return err
 			}
 
+			db := memdb.New("")
+			defer db.Close()
+			_, block, err := core.CommitGenesisBlock(db, l2Genesis, "", logger)
+			if err != nil {
+				return err
+			}
+
+			rollupConfig, err := config.RollupConfig(l1StartHeader, block.Hash(), block.Number().Uint64())
+			if err != nil {
+				return err
+			}
+
 			if err := writeGenesisFile(ctx.String("outfile-l2"), l2Genesis); err != nil {
+				return err
+			}
+			if err := writeGenesisFile(ctx.String("outfile-rollup"), rollupConfig); err != nil {
 				return err
 			}
 

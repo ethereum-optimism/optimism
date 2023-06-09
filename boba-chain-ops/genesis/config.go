@@ -16,6 +16,9 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/common/hexutil"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/erigon/crypto"
+	"github.com/ledgerwatch/erigon/crypto/cryptopool"
+	"github.com/ledgerwatch/erigon/rlp"
 	"github.com/ledgerwatch/erigon/rpc"
 
 	"github.com/ledgerwatch/log/v3"
@@ -295,6 +298,46 @@ func (d *DeployConfig) InitDeveloperDeployedAddresses() error {
 	return nil
 }
 
+// RollupConfig converts a DeployConfig to a rollup.Config
+func (d *DeployConfig) RollupConfig(l1StartHeader *types.Header, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*Config, error) {
+	if d.OptimismPortalProxy == (common.Address{}) {
+		return nil, errors.New("OptimismPortalProxy cannot be address(0)")
+	}
+	if d.SystemConfigProxy == (common.Address{}) {
+		return nil, errors.New("SystemConfigProxy cannot be address(0)")
+	}
+
+	return &Config{
+		Genesis: Genesis{
+			L1: BlockID{
+				Hash:   rlpHash(l1StartHeader),
+				Number: l1StartHeader.Number.Uint64(),
+			},
+			L2: BlockID{
+				Hash:   l2GenesisBlockHash,
+				Number: l2GenesisBlockNumber,
+			},
+			L2Time: l1StartHeader.Time,
+			SystemConfig: SystemConfig{
+				BatcherAddr: d.BatchSenderAddress,
+				Overhead:    Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
+				Scalar:      Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleScalar))),
+				GasLimit:    uint64(d.L2GenesisBlockGasLimit),
+			},
+		},
+		BlockTime:              d.L2BlockTime,
+		MaxSequencerDrift:      d.MaxSequencerDrift,
+		SeqWindowSize:          d.SequencerWindowSize,
+		ChannelTimeout:         d.ChannelTimeout,
+		L1ChainID:              new(big.Int).SetUint64(d.L1ChainID),
+		L2ChainID:              new(big.Int).SetUint64(d.L2ChainID),
+		BatchInboxAddress:      d.BatchInboxAddress,
+		DepositContractAddress: d.OptimismPortalProxy,
+		L1SystemConfigAddress:  d.SystemConfigProxy,
+		RegolithTime:           d.RegolithTime(l1StartHeader.Time),
+	}, nil
+}
+
 // NewDeployConfig reads a config file given a path on the filesystem.
 func NewDeployConfig(path string) (*DeployConfig, error) {
 	file, err := os.ReadFile(path)
@@ -433,9 +476,18 @@ func NewL2StorageConfig(config *DeployConfig, blockHeader *types.Header) (state.
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
 	}
+	var l1TokenAddr common.Address
+	if config.L1BobaTokenAddress != nil {
+		l1TokenAddr = *config.L1BobaTokenAddress
+	} else {
+		l1TokenAddr = common.HexToAddress(chain.GetBobaTokenL1Address(big.NewInt(int64(config.L2ChainID))))
+	}
+	if l1TokenAddr == (common.Address{}) {
+		return storage, errors.New("l1BobaTokenAddress is not set")
+	}
 	storage["BobaL2"] = state.StorageValues{
 		"l2Bridge":  predeploys.L2StandardBridgeAddr,
-		"l1Token":   chain.GetBobaTokenL1Address(big.NewInt(int64(config.L2ChainID))),
+		"l1Token":   l1TokenAddr,
 		"_name":     "Boba Token",
 		"_symbol":   "BOBA",
 		"_decimals": uint8(18),
@@ -513,4 +565,12 @@ func (m *MarshalableRPCBlockNumberOrHash) String() string {
 	}
 	r := rpc.BlockNumberOrHash(*m)
 	return String(r)
+}
+
+func rlpHash(x interface{}) (h common.Hash) {
+	sha := crypto.NewKeccakState()
+	rlp.Encode(sha, x) //nolint:errcheck
+	sha.Read(h[:])     //nolint:errcheck
+	cryptopool.ReturnToPoolKeccak256(sha)
+	return h
 }
