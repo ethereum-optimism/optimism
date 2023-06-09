@@ -88,11 +88,6 @@ FROM base as deployer-bedrock
 WORKDIR /opt/optimism/packages/contracts-bedrock
 CMD ["yarn", "run", "deploy"]
 
-FROM base as data-transport-layer
-WORKDIR /opt/optimism/packages/data-transport-layer
-COPY ./ops/scripts/dtl.sh .
-CMD ["node", "dist/src/services/run.js"]
-
 
 FROM base as message-relayer
 WORKDIR /opt/optimism/packages/message-relayer
