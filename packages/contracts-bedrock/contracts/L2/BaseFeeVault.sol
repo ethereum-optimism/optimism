@@ -12,9 +12,15 @@ import { FeeVault } from "../universal/FeeVault.sol";
  */
 contract BaseFeeVault is FeeVault, Semver {
     /**
-     * @custom:semver 1.1.0
+     * @custom:semver 1.2.0
      *
-     * @param _recipient Address that will receive the accumulated fees.
+     * @param _recipient           Wallet that will receive the fees.
+     * @param _minWithdrawalAmount Minimum balance for withdrawals.
+     * @param _withdrawalNetwork   Network which the recipient will receive fees on.
      */
-    constructor(address _recipient) FeeVault(_recipient, 10 ether) Semver(1, 1, 0) {}
+    constructor(
+        address _recipient,
+        uint256 _minWithdrawalAmount,
+        WithdrawalNetwork _withdrawalNetwork
+    ) FeeVault(_recipient, _minWithdrawalAmount, _withdrawalNetwork) Semver(1, 2, 0) {}
 }
