@@ -6,10 +6,7 @@ l1-rpc = "${INDEXER_RPC_URL_L1}"
 l2-rpc = "${INDEXER_RPC_URL_L2}"
 
 [db]
-host = "127.0.0.1"
-port = 5432
-user = "postgres"
-password = "postgres"
+dsn = "postgresql://${INDEXER_DB_USER}:${INDEXER_DB_PASSWORD}@${INDEXER_DB_HOST}:${INDEXER_DB_PORT}/"
 
 [api]
 host = "127.0.0.1"

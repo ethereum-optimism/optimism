@@ -29,10 +29,7 @@ type RPCsConfig struct {
 
 // DBConfig configures the postgres database
 type DBConfig struct {
-	Host     string
-	Port     int
-	User     string
-	Password string
+	Dsn string
 }
 
 // APIConfig configures the API server

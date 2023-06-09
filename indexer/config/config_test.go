@@ -8,6 +8,17 @@ import (
 )
 
 func TestLoadConfig(t *testing.T) {
+	dbUser := "postgres"
+	dbPassword := "postgres"
+	dbHost := "127.0.0.1"
+	dbPort := "5432"
+
+	os.Setenv("DB_USER", dbUser)
+	os.Setenv("DB_PASSWORD", dbPassword)
+	os.Setenv("DB_HOST", dbHost)
+	os.Setenv("DB_PORT", dbPort)
+	defer os.Clearenv()
+
 	tmpfile, err := os.CreateTemp("", "test.toml")
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
@@ -22,10 +33,7 @@ func TestLoadConfig(t *testing.T) {
 		l2-rpc = "https://l2.example.com"
 
 		[db]
-		host = "127.0.0.1"
-		port = 5432
-		user = "postgres"
-		password = "postgres"
+		dsn = "postgresql://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/"
 
 		[api]
 		host = "127.0.0.1"
@@ -50,11 +58,7 @@ func TestLoadConfig(t *testing.T) {
 	require.Equal(t, conf.Chain.Preset, 1234)
 	require.Equal(t, conf.RPCs.L1RPC, "https://l1.example.com")
 	require.Equal(t, conf.RPCs.L2RPC, "https://l2.example.com")
-	require.Equal(t, conf.DB.Host, "127.0.0.1")
-	require.Equal(t, conf.DB.Port, 5432)
-	require.Equal(t, conf.DB.User, "postgres")
-	require.Equal(t, conf.DB.Password, "postgres")
-	require.Equal(t, conf.API.Host, "127.0.0.1")
+	require.Equal(t, conf.DB.Dsn, "postgresql://"+dbUser+":"+dbPassword+"@"+dbHost+":"+dbPort+"/")
 	require.Equal(t, conf.API.Port, 8080)
 	require.Equal(t, conf.Metrics.Host, "127.0.0.1")
 	require.Equal(t, conf.Metrics.Port, 7300)
