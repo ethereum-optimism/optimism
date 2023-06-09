@@ -4,6 +4,8 @@ import (
 	"os"
 
 	"github.com/BurntSushi/toml"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/joho/godotenv"
 )
 
 // Config represents the `indexer.toml` file used to configure the indexer
@@ -49,6 +51,13 @@ type MetricsConfig struct {
 
 // LoadConfig loads the `indexer.toml` config file from a given path
 func LoadConfig(path string) (Config, error) {
+	if err := godotenv.Load(); err != nil {
+		log.Warn("Unable to load .env file", err)
+		log.Info("Continuing without .env file")
+	} else {
+		log.Info("Loaded .env file")
+	}
+
 	var conf Config
 
 	// Read the config file.
@@ -62,8 +71,11 @@ func LoadConfig(path string) (Config, error) {
 
 	// Decode the TOML data.
 	if _, err := toml.Decode(string(data), &conf); err != nil {
+		log.Info("Failed to decode config file", "message", err)
 		return conf, err
 	}
+
+	log.Debug("Loaded config file", conf)
 
 	return conf, nil
 }
