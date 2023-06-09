@@ -72,6 +72,9 @@ type DeployConfig struct {
 	// Seconds after genesis block that Regolith hard fork activates. 0 to activate at genesis. Nil to disable regolith
 	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
 
+	// Configurable extradata. Will default to []byte("BEDROCK") if left unspecified.
+	L2GenesisBlockExtraData []byte `json:"l2GenesisBlockExtraData"`
+
 	// Owner of the ProxyAdmin predeploy
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
 	// Owner of the system on L1
