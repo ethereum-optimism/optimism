@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { Claim } from "../libraries/DisputeTypes.sol";
-import { GameType } from "../libraries/DisputeTypes.sol";
-import { GameStatus } from "../libraries/DisputeTypes.sol";
-import { Timestamp } from "../libraries/DisputeTypes.sol";
+import "../../libraries/DisputeTypes.sol";
 
 import { IVersioned } from "./IVersioned.sol";
 import { IBondManager } from "./IBondManager.sol";
@@ -20,8 +17,6 @@ interface IDisputeGame is IInitializable, IVersioned {
      * @param status The status of the game after resolution.
      */
     event Resolved(GameStatus indexed status);
-
-    /// @notice Returns the timestamp that the DisputeGame contract was created at.
 
     /**
      * @notice Returns the timestamp that the DisputeGame contract was created at.
@@ -42,21 +37,21 @@ interface IDisputeGame is IInitializable, IVersioned {
      *      i.e. The game type should indicate the security model.
      * @return _gameType The type of proof system being used.
      */
-    function gameType() external view returns (GameType _gameType);
+    function gameType() external pure returns (GameType _gameType);
 
     /**
      * @notice Getter for the root claim.
      * @dev `clones-with-immutable-args` argument #2
      * @return _rootClaim The root claim of the DisputeGame.
      */
-    function rootClaim() external view returns (Claim _rootClaim);
+    function rootClaim() external pure returns (Claim _rootClaim);
 
     /**
      * @notice Getter for the extra data.
      * @dev `clones-with-immutable-args` argument #3
      * @return _extraData Any extra data supplied to the dispute game contract by the creator.
      */
-    function extraData() external view returns (bytes memory _extraData);
+    function extraData() external pure returns (bytes memory _extraData);
 
     /**
      * @notice Returns the address of the `BondManager` used.
@@ -73,4 +68,19 @@ interface IDisputeGame is IInitializable, IVersioned {
      * @return _status The status of the game after resolution.
      */
     function resolve() external returns (GameStatus _status);
+
+    /**
+     * @notice A compliant implementation of this interface should return the components of the
+     *         game UUID's preimage provided in the cwia payload. The preimage of the UUID is
+     *         constructed as `keccak256(gameType . rootClaim . extraData)` where `.` denotes
+     *         concatenation.
+     */
+    function gameData()
+        external
+        pure
+        returns (
+            GameType _gameType,
+            Claim _rootClaim,
+            bytes memory _extraData
+        );
 }
