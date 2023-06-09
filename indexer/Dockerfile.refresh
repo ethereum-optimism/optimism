@@ -9,12 +9,11 @@ COPY ./indexer/go.sum /go/indexer/go.sum
 
 
 WORKDIR /go/indexer
-RUN make
+RUN make indexer-refresh
 
 FROM alpine:3.15
 
-COPY --from=builder /go/indexer/indexer /usr/local/bin
+COPY --from=builder /go/indexer/indexer-refresh /usr/local/bin
 
-RUN mkdir /configs
+CMD ["indexer-refresh"]
 
-CMD ["indexer"]
