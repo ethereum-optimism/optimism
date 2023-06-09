@@ -3,8 +3,11 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strconv"
 
+	"github.com/ethereum-optimism/optimism/indexer/api"
 	"github.com/ethereum-optimism/optimism/indexer/config"
+	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/urfave/cli/v2"
@@ -41,8 +44,14 @@ func runApi(ctx *cli.Context) error {
 	if err != nil {
 		log.Crit("Failed to load config", "message", err)
 	}
-	// finish me
-	return nil
+
+	db, err := database.NewDB(conf.DB.Dsn)
+	if err != nil {
+		log.Crit("Failed to connect to database", "message", err)
+	}
+
+	server := api.NewApi(db.Bridge)
+	return server.Listen(strconv.Itoa(conf.API.Port))
 }
 
 var (
