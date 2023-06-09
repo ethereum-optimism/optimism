@@ -6,10 +6,6 @@
   "workspaces": {
     "packages": [
       "packages/*",
-      "batch-submitter",
-      "bss-core",
-      "gas-oracle",
-      "l2geth-exporter",
       "l2geth",
       "ops/docker/rpc-proxy",
       "ops/docker/hardhat",

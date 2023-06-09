@@ -1,9 +1,5 @@
 # Legacy codebases
-/batch-submitter                @ethereum-optimism/legacy-reviewers
-/bss-core                       @ethereum-optimism/legacy-reviewers
-/gas-oracle                     @ethereum-optimism/legacy-reviewers
 /l2geth                         @ethereum-optimism/legacy-reviewers
-/l2geth-exporter                @ethereum-optimism/legacy-reviewers
 /packages/actor-tests           @ethereum-optimism/legacy-reviewers
 /packages/common-ts             @ethereum-optimism/typescript-reviewers
 /packages/contracts             @ethereum-optimism/contract-reviewers
