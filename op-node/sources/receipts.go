@@ -179,6 +179,7 @@ func (r ReceiptsFetchingMethod) String() string {
 	addMaybe(DebugGetRawReceipts, "debug_getRawReceipts")
 	addMaybe(ParityGetBlockReceipts, "parity_getBlockReceipts")
 	addMaybe(EthGetBlockReceipts, "eth_getBlockReceipts")
+	addMaybe(ErigonGetBlockReceiptsByBlockHash, "erigon_getBlockReceiptsByBlockHash")
 	addMaybe(^ReceiptsFetchingMethod(0), "unknown") // if anything is left, describe it as unknown
 	return out
 }
@@ -230,10 +231,9 @@ const (
 	//   - Nethermind: https://docs.nethermind.io/nethermind/ethereum-client/json-rpc/parity#parity_getblockreceipts
 	ParityGetBlockReceipts
 	// EthGetBlockReceipts is a non-standard receipt fetching method in the eth namespace,
-	// supported by some RPC platforms and Erigon.
+	// supported by some RPC platforms.
 	// Available in:
 	//   - Alchemy: 500 CU total  (and deprecated)
-	//   - Erigon: free
 	//   - QuickNode: 59 credits total       (does not seem to work with block hash arg, inaccurate docs)
 	// Method: eth_getBlockReceipts
 	// Params:
@@ -243,7 +243,21 @@ const (
 	// See:
 	//   - QuickNode: https://www.quicknode.com/docs/ethereum/eth_getBlockReceipts
 	//   - Alchemy: https://docs.alchemy.com/reference/eth-getblockreceipts
+	// Erigon has this available, but does not support block-hash argument to the method:
+	// https://github.com/ledgerwatch/erigon/blob/287a3d1d6c90fc6a7a088b5ae320f93600d5a167/cmd/rpcdaemon/commands/eth_receipts.go#L571
 	EthGetBlockReceipts
+	// ErigonGetBlockReceiptsByBlockHash is an Erigon-specific receipt fetching method,
+	// the same as EthGetBlockReceipts but supporting a block-hash argument.
+	// Available in:
+	//   - Erigon
+	// Method: erigon_getBlockReceiptsByBlockHash
+	// Params:
+	//  - Erigon: string, hex-encoded block hash
+	// Returns:
+	//  - Erigon: array of json-ified receipts
+	// See:
+	// https://github.com/ledgerwatch/erigon/blob/287a3d1d6c90fc6a7a088b5ae320f93600d5a167/cmd/rpcdaemon/commands/erigon_receipts.go#LL391C24-L391C51
+	ErigonGetBlockReceiptsByBlockHash
 
 	// Other:
 	//  - 250 credits, not supported, strictly worse than other options. In quicknode price-table.
@@ -269,13 +283,14 @@ func AvailableReceiptsFetchingMethods(kind RPCProviderKind) ReceiptsFetchingMeth
 	case RPCKindDebugGeth:
 		return DebugGetRawReceipts | EthGetTransactionReceiptBatch
 	case RPCKindErigon:
-		return EthGetBlockReceipts | EthGetTransactionReceiptBatch
+		return ErigonGetBlockReceiptsByBlockHash | EthGetTransactionReceiptBatch
 	case RPCKindBasic:
 		return EthGetTransactionReceiptBatch
 	case RPCKindAny:
 		// if it's any kind of RPC provider, then try all methods
 		return AlchemyGetTransactionReceipts | EthGetBlockReceipts |
-			DebugGetRawReceipts | ParityGetBlockReceipts | EthGetTransactionReceiptBatch
+			DebugGetRawReceipts | ErigonGetBlockReceiptsByBlockHash |
+			ParityGetBlockReceipts | EthGetTransactionReceiptBatch
 	default:
 		return EthGetTransactionReceiptBatch
 	}
@@ -309,6 +324,9 @@ func PickBestReceiptsFetchingMethod(kind RPCProviderKind, available ReceiptsFetc
 	}
 	if available&DebugGetRawReceipts != 0 {
 		return DebugGetRawReceipts
+	}
+	if available&ErigonGetBlockReceiptsByBlockHash != 0 {
+		return ErigonGetBlockReceiptsByBlockHash
 	}
 	if available&EthGetBlockReceipts != 0 {
 		return EthGetBlockReceipts
@@ -428,6 +446,8 @@ func (job *receiptsFetchingJob) runAltMethod(ctx context.Context, m ReceiptsFetc
 		err = job.client.CallContext(ctx, &result, "parity_getBlockReceipts", job.block.Hash)
 	case EthGetBlockReceipts:
 		err = job.client.CallContext(ctx, &result, "eth_getBlockReceipts", job.block.Hash)
+	case ErigonGetBlockReceiptsByBlockHash:
+		err = job.client.CallContext(ctx, &result, "erigon_getBlockReceiptsByBlockHash", job.block.Hash)
 	default:
 		err = fmt.Errorf("unknown receipt fetching method: %d", uint64(m))
 	}
