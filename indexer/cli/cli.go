@@ -8,6 +8,8 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/api"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
+	"github.com/ethereum-optimism/optimism/indexer/node"
+	"github.com/ethereum-optimism/optimism/indexer/processor"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/urfave/cli/v2"
@@ -21,7 +23,9 @@ type Cli struct {
 	Flags      []cli.Flag
 }
 
-func runIndexer(ctx *cli.Context) error {
+func runProcessor(ctx *cli.Context) error {
+	var l1Proc *processor.L1Processor
+	var l2Proc *processor.L2Processor
 	configPath := ctx.String(ConfigFlag.Name)
 	conf, err := config.LoadConfig(configPath)
 
@@ -31,7 +35,32 @@ func runIndexer(ctx *cli.Context) error {
 		log.Crit("Failed to load config", "message", err)
 	}
 
-	// finish me
+	db, err := database.NewDB(getDsn(conf.DB))
+
+	if err != nil {
+		log.Crit("Failed to connect to database", "message", err)
+	}
+
+	// L1 Processor
+	l1EthClient, err := node.NewEthClient(conf.RPCs.L1RPC)
+	if err != nil {
+		return err
+	}
+	l1Proc, err = processor.NewL1Processor(l1EthClient, db)
+	if err != nil {
+		return err
+	}
+
+	// L2Processor
+	l2EthClient, err := node.NewEthClient(conf.RPCs.L2RPC)
+	if err != nil {
+		return err
+	}
+	l2Proc, err = processor.NewL2Processor(l2EthClient, db)
+
+	go l1Proc.Start()
+	go l2Proc.Start()
+
 	return nil
 }
 
@@ -112,7 +141,7 @@ func NewCli(GitVersion string, GitCommit string, GitDate string) *Cli {
 				Name:        "indexer",
 				Flags:       flags,
 				Description: "Runs the indexing service",
-				Action:      runIndexer,
+				Action:      runProcessor,
 			},
 		},
 	}
