@@ -35,6 +35,7 @@ type DBConfig struct {
 	Port     int
 	User     string
 	Password string
+	Name     string
 }
 
 // APIConfig configures the API server
