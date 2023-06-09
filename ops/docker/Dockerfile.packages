@@ -73,27 +73,10 @@ FROM base as actor-tests-bedrock
 WORKDIR /opt/optimism/packages/actor-tests
 ENTRYPOINT ["yarn", "run:bedrock"]
 
-FROM base as deployer
-WORKDIR /opt/optimism/packages/contracts
-COPY ./ops/scripts/deployer.sh .
-CMD ["yarn", "run", "deploy"]
-
-FROM alpine:3.16.2 as contract-artifacts-bedrock
-RUN mkdir -p /artifacts
-WORKDIR /artifacts
-COPY --from=base /opt/optimism/packages/contracts-bedrock/artifacts  /artifacts/contracts-bedrock
-CMD ["echo", "0"]
-
-FROM base as deployer-bedrock
-WORKDIR /opt/optimism/packages/contracts-bedrock
-CMD ["yarn", "run", "deploy"]
-
-
 FROM base as fault-detector
 WORKDIR /opt/optimism/packages/fault-detector
 COPY ./ops/scripts/detector.sh .
 CMD ["npm", "run", "start"]
-
 
 FROM base as replica-healthcheck
 WORKDIR /opt/optimism/packages/replica-healthcheck
