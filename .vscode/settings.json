@@ -29,10 +29,6 @@
       "changeProcessCWD": true
     },
     {
-      "directory": "packages/batch-submitter",
-      "changeProcessCWD": true
-    },
-    {
       "directory": "packages/message-relayer",
       "changeProcessCWD": true
     },

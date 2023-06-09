@@ -1242,11 +1242,6 @@ workflows:
           name: devnet (with genesis contracts)
           deploy: false
       - go-lint-test-build:
-          name: batch-submitter-tests
-          binary_name: batch-submitter
-          working_directory: batch-submitter
-          dependencies: bss-core
-      - go-lint-test-build:
           name: proxyd-tests
           binary_name: proxyd
           working_directory: proxyd

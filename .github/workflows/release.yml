@@ -28,8 +28,6 @@ jobs:
       replica-healthcheck: ${{ steps.packages.outputs.replica-healthcheck }}
       hardhat-node: ${{ steps.packages.outputs.hardhat-node }}
       op-exporter: ${{ steps.packages.outputs.op-exporter }}
-      l2geth-exporter: ${{ steps.packages.outputs.l2geth-exporter }}
-      batch-submitter-service: ${{ steps.packages.outputs.batch-submitter-service }}
       foundry: ${{ steps.packages.outputs.foundry }}
       endpoint-monitor: ${{ steps.packages.outputs.endpoint-monitor }}
 
@@ -189,43 +187,6 @@ jobs:
           file: ./ops/docker/foundry/Dockerfile
           push: true
           tags: ethereumoptimism/foundry:${{ needs.release.outputs.foundry }},ethereumoptimism/foundry:latest
-
-  l2geth-exporter:
-    name: Publish l2geth-exporter Version ${{ needs.release.outputs.l2geth-exporter}}
-    needs: release
-    if: needs.release.outputs.l2geth-exporter != ''
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
-
-      - name: Set build args
-        id: build_args
-        run: |
-          echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
-          echo ::set-output name=GITVERSION::$(jq -r .version ./l2geth-exporter/package.json)
-          echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
-
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./l2geth-exporter/Dockerfile
-          push: true
-          tags: ethereumoptimism/l2geth-exporter:${{ needs.release.outputs.l2geth-exporter }},ethereumoptimism/l2geth-exporter:latest
-          build-args: |
-            GITDATE=${{ steps.build_args.outputs.GITDATE }}
-            GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
-            GITVERSION=${{ steps.build_args.outputs.GITVERSION }}
 
   op-exporter:
     name: Publish op-exporter Version ${{ needs.release.outputs.op-exporter}}
@@ -533,32 +494,6 @@ jobs:
           target: replica-healthcheck
           push: true
           tags: ethereumoptimism/replica-healthcheck:${{ needs.release.outputs.replica-healthcheck }},ethereumoptimism/replica-healthcheck:latest
-
-  batch-submitter-service:
-    name: Publish batch-submitter-service Version ${{ needs.release.outputs.batch-submitter-service }}
-    needs: release
-    if: needs.release.outputs.batch-submitter-service != ''
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./batch-submitter/Dockerfile
-          push: true
-          tags: ethereumoptimism/batch-submitter-service:${{ needs.release.outputs.batch-submitter-service }},ethereumoptimism/batch-submitter-service:latest
 
   endpoint-monitor:
     name: Publish endpoint-monitor Version ${{ needs.release.outputs.endpoint-monitor}}

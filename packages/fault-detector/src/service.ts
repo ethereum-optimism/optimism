@@ -7,6 +7,7 @@ import {
   waitForProvider,
 } from '@eth-optimism/common-ts'
 import { getChainId, sleep, toRpcHexString } from '@eth-optimism/core-utils'
+import { config } from 'dotenv'
 import {
   CONTRACT_ADDRESSES,
   CrossChainMessenger,
@@ -553,6 +554,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
 }
 
 if (require.main === module) {
+  config()
   const service = new FaultDetector()
   service.run()
 }
