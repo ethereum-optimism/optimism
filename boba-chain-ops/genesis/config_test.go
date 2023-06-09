@@ -24,6 +24,10 @@ func TestConfigMarshalUnmarshal(t *testing.T) {
 
 	require.NoError(t, err)
 	require.JSONEq(t, string(b), string(encoded))
+
+	err = decoded.Check()
+	require.Error(t, err)
+	require.ErrorContains(t, err, "L1BobaTokenAddress")
 }
 
 func TestUnmarshalL1StartingBlockTag(t *testing.T) {

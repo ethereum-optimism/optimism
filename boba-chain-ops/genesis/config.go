@@ -105,6 +105,8 @@ type DeployConfig struct {
 	EIP1559Denominator uint64 `json:"eip1559Denominator"`
 
 	FundDevAccounts bool `json:"fundDevAccounts"`
+
+	L1BobaTokenAddress *common.Address `json:"l1BobaTokenAddress,omitempty"`
 }
 
 // Check will ensure that the config is sane and return an error when it is not
@@ -209,6 +211,17 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.L2GenesisBlockBaseFeePerGas == nil {
 		return fmt.Errorf("%w: L2 genesis block base fee per gas cannot be nil", ErrInvalidDeployConfig)
+	}
+	// l1 Boba token address is optional, if not provided, use the default address for the chain ID
+	// but if provided, it must be a valid address
+	var l1BobaTokenAddress common.Address
+	if d.L1BobaTokenAddress != nil {
+		l1BobaTokenAddress = *d.L1BobaTokenAddress
+	} else {
+		l1BobaTokenAddress = common.HexToAddress(chain.GetBobaTokenL1Address(big.NewInt(int64(d.L2ChainID))))
+	}
+	if l1BobaTokenAddress == (common.Address{}) {
+		return fmt.Errorf("%w: L1BobaTokenAddress cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	return nil
 }
@@ -355,9 +368,18 @@ func NewL2ImmutableConfig(config *DeployConfig, blockHeader *types.Header) (immu
 	immutable["BaseFeeVault"] = immutables.ImmutableValues{
 		"recipient": config.BaseFeeVaultRecipient,
 	}
+	var l1TokenAddr common.Address
+	if config.L1BobaTokenAddress != nil {
+		l1TokenAddr = *config.L1BobaTokenAddress
+	} else {
+		l1TokenAddr = common.HexToAddress(chain.GetBobaTokenL1Address(big.NewInt(int64(config.L2ChainID))))
+	}
+	if l1TokenAddr == (common.Address{}) {
+		return immutable, fmt.Errorf("L1BobaTokenAddress cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
 	immutable["BobaL2"] = immutables.ImmutableValues{
 		"l2Bridge":  predeploys.L2StandardBridgeAddr,
-		"l1Token":   common.HexToAddress(chain.GetBobaTokenL1Address(big.NewInt(int64(config.L2ChainID)))),
+		"l1Token":   l1TokenAddr,
 		"_name":     "Boba Token",
 		"_symbol":   "BOBA",
 		"_decimals": uint8(18),

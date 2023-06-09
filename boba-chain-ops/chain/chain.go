@@ -119,5 +119,5 @@ func GetBobaTokenL1Address(chainId *big.Int) string {
 	if BobabeamChainId.Cmp(chainId) == 0 {
 		return ""
 	}
-	return ""
+	return "0x0000000000000000000000000000000000000000"
 }
