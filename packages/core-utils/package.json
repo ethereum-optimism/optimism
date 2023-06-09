@@ -50,6 +50,7 @@
     "chai": "^4.3.4"
   },
   "devDependencies": {
+    "@types/node": "^12.12.6",
     "mocha": "^10.0.0"
   }
 }
