@@ -21,10 +21,6 @@
       "changeProcessCWD": true
     },
     {
-      "directory": "packages/data-transport-layer",
-      "changeProcessCWD": true
-    },
-    {
       "directory": "packages/chain-mon",
       "changeProcessCWD": true
     },

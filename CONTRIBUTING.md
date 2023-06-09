@@ -124,7 +124,6 @@ This will build the following containers:
 
 * [`l1_chain`](https://hub.docker.com/r/ethereumoptimism/hardhat): simulated L1 chain using hardhat-evm as a backend
 * [`deployer`](https://hub.docker.com/r/ethereumoptimism/deployer): process that deploys L1 smart contracts to the L1 chain
-* [`dtl`](https://hub.docker.com/r/ethereumoptimism/data-transport-layer): service that indexes transaction data from the L1 chain
 * [`l2geth`](https://hub.docker.com/r/ethereumoptimism/l2geth): L2 geth node running in Sequencer mode
 * [`verifier`](https://hub.docker.com/r/ethereumoptimism/go-ethereum): L2 geth node running in Verifier mode
 * [`relayer`](https://hub.docker.com/r/ethereumoptimism/message-relayer): helper process that relays messages between L1 and L2
