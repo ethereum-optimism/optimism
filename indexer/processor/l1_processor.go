@@ -110,8 +110,7 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 		for i, log := range logs {
 			header, ok := l1HeaderMap[log.BlockHash]
 			if !ok {
-				// Log the individual headers in the batch?
-				processLog.Crit("contract event found with associated header not in the batch", "header", header, "log_index", log.Index)
+				processLog.Crit("contract event found with associated header not in the batch", "header", log.BlockHash, "log_index", log.Index)
 				return errors.New("parsed log with a block hash not in this batch")
 			}
 
@@ -132,15 +131,15 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 
 		// we iterate on the original array to maintain ordering. probably can find a more efficient
 		// way to iterate over the `l1HeadersOfInterest` map while maintaining ordering
-		l1Headers := []*database.L1BlockHeader{}
+		indexedL1Header := []*database.L1BlockHeader{}
 		for _, header := range headers {
 			blockHash := header.Hash()
-			_, ok := l1HeadersOfInterest[blockHash]
-			if !ok {
+			_, hasLogs := l1HeadersOfInterest[blockHash]
+			if !hasLogs {
 				continue
 			}
 
-			l1Headers = append(l1Headers, &database.L1BlockHeader{
+			indexedL1Header = append(indexedL1Header, &database.L1BlockHeader{
 				BlockHeader: database.BlockHeader{
 					Hash:       blockHash,
 					ParentHash: header.ParentHash,
@@ -152,15 +151,15 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 
 		/** Update Database **/
 
-		numL1Headers := len(l1Headers)
-		if numL1Headers > 0 {
-			processLog.Info("saved l1 blocks of interest within batch", "num", numL1Headers, "batchSize", numHeaders)
-			err = db.Blocks.StoreL1BlockHeaders(l1Headers)
+		numIndexedL1Headers := len(indexedL1Header)
+		if numIndexedL1Headers > 0 {
+			processLog.Info("saved l1 blocks of interest within batch", "num", numIndexedL1Headers, "batchSize", numHeaders)
+			err = db.Blocks.StoreL1BlockHeaders(indexedL1Header)
 			if err != nil {
 				return err
 			}
 
-			// Since the headers to index are derived from logs, we know in this branch `numLogs > 0`
+			// Since the headers to index are derived from the existence of logs, we know in this branch `numLogs > 0`
 			processLog.Info("saving contract logs", "size", numLogs)
 			err = db.ContractEvents.StoreL1ContractEvents(l1ContractEvents)
 			if err != nil {
