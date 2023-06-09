@@ -6,7 +6,6 @@
   "workspaces": {
     "packages": [
       "packages/*",
-      "gas-oracle",
       "l2geth",
       "ops/docker/rpc-proxy",
       "ops/docker/hardhat",

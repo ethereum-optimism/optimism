@@ -1258,10 +1258,6 @@ workflows:
           binary_name: proxyd
           working_directory: proxyd
       - go-lint-test-build:
-          name: gas-oracle-tests
-          binary_name: gas-oracle
-          working_directory: gas-oracle
-      - go-lint-test-build:
           name: indexer-tests
           binary_name: indexer
           working_directory: indexer
