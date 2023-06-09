@@ -70,6 +70,10 @@ func (a *Api) WithdrawalsHandler(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, response, http.StatusOK)
 }
 
+func (a *Api) HealthzHandler(w http.ResponseWriter, r *http.Request) {
+	jsonResponse(w, "ok", http.StatusOK)
+}
+
 func jsonResponse(w http.ResponseWriter, data interface{}, statusCode int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
@@ -95,6 +99,7 @@ func NewApi(bv database.BridgeView) *Api {
 	// with go-ethereum and throw a friendly error message
 	r.Get("/api/v0/deposits/{address:.+}", api.DepositsHandler)
 	r.Get("/api/v0/withdrawals/{address:.+}", api.WithdrawalsHandler)
+	r.Get("/healthz", api.HealthzHandler)
 
 	return api
 
