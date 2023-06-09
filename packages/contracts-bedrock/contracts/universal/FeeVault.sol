@@ -47,6 +47,17 @@ abstract contract FeeVault {
     uint256 public totalProcessed;
 
     /**
+     * @notice Emitted each time a withdrawal occurs. This event will be deprecated
+     * in favor of the Withdrawal event containing the WithdrawalNetwork parameter.
+     *
+     * @param value Amount that was withdrawn (in wei).
+     * @param to    Address that the funds were sent to.
+     * @param from  Address that triggered the withdrawal.
+     *
+     */
+    event Withdrawal(uint256 value, address to, address from);
+
+    /**
      * @notice Emitted each time a withdrawal occurs.
      *
      * @param value             Amount that was withdrawn (in wei).
@@ -88,10 +99,11 @@ abstract contract FeeVault {
         uint256 value = address(this).balance;
         totalProcessed += value;
 
+        emit Withdrawal(value, RECIPIENT, msg.sender);
         emit Withdrawal(value, RECIPIENT, msg.sender, WITHDRAWAL_NETWORK);
 
         if (WITHDRAWAL_NETWORK == WithdrawalNetwork.L2) {
-            SafeCall.call(RECIPIENT, gasleft(), value, bytes(""));
+            SafeCall.send(RECIPIENT, gasleft(), value);
         } else {
             L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).bridgeETHTo{ value: value }(
                 RECIPIENT,

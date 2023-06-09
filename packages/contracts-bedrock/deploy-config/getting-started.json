@@ -29,10 +29,10 @@
   "finalizationPeriodSeconds": 12,
 
   "proxyAdminOwner": "ADMIN",
-
   "baseFeeVaultRecipient": "ADMIN",
   "l1FeeVaultRecipient": "ADMIN",
   "sequencerFeeVaultRecipient": "ADMIN",
+
   "baseFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "l1FeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "sequencerFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",

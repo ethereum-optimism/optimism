@@ -136,17 +136,17 @@ interface RequiredDeployConfig {
   proxyAdminOwner: string
 
   /**
-   * L1 or L2 address which receives the base fee for the L2 network.
+   * L1 or higher (e.g. L2) address which receives the base fee for the L2 network.
    */
   baseFeeVaultRecipient: string
 
   /**
-   * L1 or L2 address which receives data fees for the L2 network.
+   * L1 or higher (e.g. L2) address which receives data fees for the L2 network.
    */
   l1FeeVaultRecipient: string
 
   /**
-   * L1 or L2 address which receives tip fees for the L2 network.
+   * L1 or higher (e.g. L2) address which receives tip fees for the L2 network.
    */
   sequencerFeeVaultRecipient: string
 
