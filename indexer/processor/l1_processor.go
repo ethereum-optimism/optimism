@@ -30,7 +30,7 @@ type L1Contracts struct {
 	// Remove afterwards?
 }
 
-func (c L1Contracts) toArray() []common.Address {
+func (c L1Contracts) toSlice() []common.Address {
 	fields := reflect.VisibleFields(reflect.TypeOf(c))
 	v := reflect.ValueOf(c)
 
@@ -86,14 +86,11 @@ func NewL1Processor(ethClient node.EthClient, db *database.DB, l1Contracts L1Con
 func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1Contracts) func(db *database.DB, headers []*types.Header) error {
 	rawEthClient := ethclient.NewClient(ethClient.RawRpcClient())
 
-	contractAddrs := l1Contracts.toArray()
+	contractAddrs := l1Contracts.toSlice()
 	processLog.Info("processor configured with contracts", "contracts", l1Contracts)
 
 	return func(db *database.DB, headers []*types.Header) error {
 		numHeaders := len(headers)
-
-		/** Index Blocks **/
-
 		l1HeaderMap := make(map[common.Hash]*types.Header)
 		for _, header := range headers {
 			l1HeaderMap[header.Hash()] = header

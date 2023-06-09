@@ -38,7 +38,7 @@ func L2ContractPredeploys() L2Contracts {
 	}
 }
 
-func (c L2Contracts) toArray() []common.Address {
+func (c L2Contracts) toSlice() []common.Address {
 	fields := reflect.VisibleFields(reflect.TypeOf(c))
 	v := reflect.ValueOf(c)
 
@@ -93,7 +93,7 @@ func NewL2Processor(ethClient node.EthClient, db *database.DB, l2Contracts L2Con
 func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2Contracts) func(db *database.DB, headers []*types.Header) error {
 	rawEthClient := ethclient.NewClient(ethClient.RawRpcClient())
 
-	contractAddrs := l2Contracts.toArray()
+	contractAddrs := l2Contracts.toSlice()
 	processLog.Info("processor configured with contracts", "contracts", l2Contracts)
 	return func(db *database.DB, headers []*types.Header) error {
 		numHeaders := len(headers)
