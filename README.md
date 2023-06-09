@@ -57,7 +57,6 @@ Refer to the Directory Structure section below to understand which packages are 
 │   ├── <a href="./packages/data-transport-layer">data-transport-layer</a>: Service for indexing Optimism-related L1 data
 │   ├── <a href="./packages/chain-mon">chain-mon</a>: Chain monitoring services
 │   ├── <a href="./packages/fault-detector">fault-detector</a>: Service for detecting Sequencer faults
-│   ├── <a href="./packages/message-relayer">message-relayer</a>: Tool for automatically relaying L1<>L2 messages in development
 │   ├── <a href="./packages/replica-healthcheck">replica-healthcheck</a>: Service for monitoring the health of a replica node
 │   └── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
 ├── <a href="./op-bindings">op-bindings</a>: Go bindings for Bedrock smart contracts.
@@ -86,7 +85,6 @@ Refer to the Directory Structure section below to understand which packages are 
 │   ├── <a href="./packages/data-transport-layer">data-transport-layer</a>: Service for indexing Optimism-related L1 data
 │   ├── <a href="./packages/chain-mon">chain-mon</a>: Chain monitoring services
 │   ├── <a href="./packages/fault-detector">fault-detector</a>: Service for detecting Sequencer faults
-│   ├── <a href="./packages/message-relayer">message-relayer</a>: Tool for automatically relaying L1<>L2 messages in development
 │   ├── <a href="./packages/replica-healthcheck">replica-healthcheck</a>: Service for monitoring the health of a replica node
 │   └── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
 ├── <a href="./indexer">indexer</a>: indexes and syncs transactions

@@ -92,7 +92,6 @@ jobs:
             - "packages/drippie-mon/node_modules"
             - "packages/fault-detector/node_modules"
             - "packages/hardhat-deploy-config/node_modules"
-            - "packages/message-relayer/node_modules"
             - "packages/migration-data/node_modules"
             - "packages/replica-healthcheck/node_modules"
             - "packages/sdk/node_modules"
@@ -1199,13 +1198,6 @@ workflows:
           coverage_flag: fault-detector-tests
           package_name: fault-detector
           dependencies: "(common-ts|contracts|core-utils|sdk)"
-          requires:
-            - yarn-monorepo
-      - js-lint-test:
-          name: message-relayer-tests
-          coverage_flag: message-relayer-tests
-          package_name: message-relayer
-          dependencies: "(common-ts|core-utils|sdk)"
           requires:
             - yarn-monorepo
       - js-lint-test:
