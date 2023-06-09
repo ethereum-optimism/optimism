@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/indexer/processor"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/urfave/cli"
@@ -72,22 +73,30 @@ func NewIndexer(ctx *cli.Context) (*Indexer, error) {
 		return nil, err
 	}
 
-	// L1 Processor
+	// L1 Processor (hardhat devnet contracts). Make this configurable
+	l1Contracts := processor.L1Contracts{
+		OptimismPortal:         common.HexToAddress("0x6900000000000000000000000000000000000000"),
+		L2OutputOracle:         common.HexToAddress("0x6900000000000000000000000000000000000001"),
+		L1CrossDomainMessenger: common.HexToAddress("0x6900000000000000000000000000000000000002"),
+		L1StandardBridge:       common.HexToAddress("0x6900000000000000000000000000000000000003"),
+		L1ERC721Bridge:         common.HexToAddress("0x6900000000000000000000000000000000000004"),
+	}
 	l1EthClient, err := node.NewEthClient(ctx.GlobalString(flags.L1EthRPCFlag.Name))
 	if err != nil {
 		return nil, err
 	}
-	l1Processor, err := processor.NewL1Processor(l1EthClient, db)
+	l1Processor, err := processor.NewL1Processor(l1EthClient, db, l1Contracts)
 	if err != nil {
 		return nil, err
 	}
 
 	// L2Processor
+	l2Contracts := processor.L2ContractPredeploys() // Make this configurable
 	l2EthClient, err := node.NewEthClient(ctx.GlobalString(flags.L2EthRPCFlag.Name))
 	if err != nil {
 		return nil, err
 	}
-	l2Processor, err := processor.NewL2Processor(l2EthClient, db)
+	l2Processor, err := processor.NewL2Processor(l2EthClient, db, l2Contracts)
 	if err != nil {
 		return nil, err
 	}

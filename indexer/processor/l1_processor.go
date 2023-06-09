@@ -1,18 +1,52 @@
 package processor
 
 import (
+	"context"
+	"errors"
+	"reflect"
+
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
+	"github.com/google/uuid"
 
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+type L1Contracts struct {
+	OptimismPortal         common.Address
+	L2OutputOracle         common.Address
+	L1CrossDomainMessenger common.Address
+	L1StandardBridge       common.Address
+	L1ERC721Bridge         common.Address
+
+	// Some more contracts -- ProxyAdmin, SystemConfig, etcc
+	// Ignore the auxilliary contracts?
+
+	// Legacy contracts? We'll add this in to index the legacy chain.
+	// Remove afterwards?
+}
+
+func (c L1Contracts) toArray() []common.Address {
+	fields := reflect.VisibleFields(reflect.TypeOf(c))
+	v := reflect.ValueOf(c)
+
+	contracts := make([]common.Address, len(fields))
+	for i, field := range fields {
+		contracts[i] = (v.FieldByName(field.Name).Interface()).(common.Address)
+	}
+
+	return contracts
+}
 
 type L1Processor struct {
 	processor
 }
 
-func NewL1Processor(ethClient node.EthClient, db *database.DB) (*L1Processor, error) {
+func NewL1Processor(ethClient node.EthClient, db *database.DB, l1Contracts L1Contracts) (*L1Processor, error) {
 	l1ProcessLog := log.New("processor", "l1")
 	l1ProcessLog.Info("initializing processor")
 
@@ -41,7 +75,7 @@ func NewL1Processor(ethClient node.EthClient, db *database.DB) (*L1Processor, er
 		processor: processor{
 			fetcher:    node.NewFetcher(ethClient, fromL1Header),
 			db:         db,
-			processFn:  l1ProcessFn(ethClient),
+			processFn:  l1ProcessFn(l1ProcessLog, ethClient, l1Contracts),
 			processLog: l1ProcessLog,
 		},
 	}
@@ -49,22 +83,79 @@ func NewL1Processor(ethClient node.EthClient, db *database.DB) (*L1Processor, er
 	return l1Processor, nil
 }
 
-func l1ProcessFn(ethClient node.EthClient) func(db *database.DB, headers []*types.Header) error {
-	return func(db *database.DB, headers []*types.Header) error {
+func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1Contracts) func(db *database.DB, headers []*types.Header) error {
+	rawEthClient := ethclient.NewClient(ethClient.RawRpcClient())
 
-		// index all l2 blocks for now
-		l1Headers := make([]*database.L1BlockHeader, len(headers))
+	contractAddrs := l1Contracts.toArray()
+	processLog.Info("processor configured with contracts", "contracts", l1Contracts)
+
+	return func(db *database.DB, headers []*types.Header) error {
+		numHeaders := len(headers)
+
+		/** Index Blocks **/
+
+		l1Headers := make([]*database.L1BlockHeader, numHeaders)
+		l1HeaderMap := make(map[common.Hash]*types.Header)
 		for i, header := range headers {
+			blockHash := header.Hash()
 			l1Headers[i] = &database.L1BlockHeader{
 				BlockHeader: database.BlockHeader{
-					Hash:       header.Hash(),
+					Hash:       blockHash,
 					ParentHash: header.ParentHash,
 					Number:     database.U256{Int: header.Number},
 					Timestamp:  header.Time,
 				},
 			}
+
+			l1HeaderMap[blockHash] = header
 		}
 
-		return db.Blocks.StoreL1BlockHeaders(l1Headers)
+		/** Index Contract Events **/
+
+		logFilter := ethereum.FilterQuery{FromBlock: headers[0].Number, ToBlock: headers[numHeaders-1].Number, Addresses: contractAddrs}
+		logs, err := rawEthClient.FilterLogs(context.Background(), logFilter)
+		if err != nil {
+			return err
+		}
+
+		numLogs := len(logs)
+		l1ContractEvents := make([]*database.L1ContractEvent, numLogs)
+		for i, log := range logs {
+			header, ok := l1HeaderMap[log.BlockHash]
+			if !ok {
+				// Log the individual headers in the batch?
+				processLog.Crit("contract event found with associated header not in the batch", "header", header, "log_index", log.Index)
+				return errors.New("parsed log with a block hash not in this batch")
+			}
+
+			l1ContractEvents[i] = &database.L1ContractEvent{
+				ContractEvent: database.ContractEvent{
+					GUID:            uuid.New(),
+					BlockHash:       log.BlockHash,
+					TransactionHash: log.TxHash,
+					EventSignature:  log.Topics[0],
+					LogIndex:        uint64(log.Index),
+					Timestamp:       header.Time,
+				},
+			}
+		}
+
+		/** Update Database **/
+
+		err = db.Blocks.StoreL1BlockHeaders(l1Headers)
+		if err != nil {
+			return err
+		}
+
+		if numLogs > 0 {
+			processLog.Info("detected new contract logs", "size", numLogs)
+			err = db.ContractEvents.StoreL1ContractEvents(l1ContractEvents)
+			if err != nil {
+				return err
+			}
+		}
+
+		// a-ok!
+		return nil
 	}
 }
