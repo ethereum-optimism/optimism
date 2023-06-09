@@ -7,7 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/go-chi/chi"
+	"github.com/go-chi/chi/v5"
 )
 
 type PaginationResponse struct {
