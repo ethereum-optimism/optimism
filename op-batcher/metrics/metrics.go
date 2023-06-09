@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -30,6 +31,8 @@ type Metricer interface {
 	RecordL2BlocksLoaded(l2ref eth.L2BlockRef)
 	RecordChannelOpened(id derive.ChannelID, numPendingBlocks int)
 	RecordL2BlocksAdded(l2ref eth.L2BlockRef, numBlocksAdded, numPendingBlocks, inputBytes, outputComprBytes int)
+	RecordL2BlockInPendingQueue(block *types.Block)
+	RecordL2BlockInChannel(block *types.Block)
 	RecordChannelClosed(id derive.ChannelID, numPendingBlocks int, numFrames int, inputBytes int, outputComprBytes int, reason error)
 	RecordChannelFullySubmitted(id derive.ChannelID)
 	RecordChannelTimedOut(id derive.ChannelID)
@@ -55,8 +58,10 @@ type Metrics struct {
 	// label by openend, closed, fully_submitted, timed_out
 	channelEvs opmetrics.EventVec
 
-	pendingBlocksCount prometheus.GaugeVec
-	blocksAddedCount   prometheus.Gauge
+	pendingBlocksCount        prometheus.GaugeVec
+	pendingBlocksBytesTotal   prometheus.Counter
+	pendingBlocksBytesCurrent prometheus.Gauge
+	blocksAddedCount          prometheus.Gauge
 
 	channelInputBytes       prometheus.GaugeVec
 	channelReadyBytes       prometheus.Gauge
@@ -109,6 +114,16 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "pending_blocks_count",
 			Help:      "Number of pending blocks, not added to a channel yet.",
 		}, []string{"stage"}),
+		pendingBlocksBytesTotal: factory.NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "pending_blocks_bytes_total",
+			Help:      "Total size of transactions in pending blocks as they are fetched from L2",
+		}),
+		pendingBlocksBytesCurrent: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "pending_blocks_bytes_current",
+			Help:      "Current size of transactions in the pending (fetched from L2 but not in a channel) stage.",
+		}),
 		blocksAddedCount: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "blocks_added_count",
@@ -243,6 +258,18 @@ func (m *Metrics) RecordChannelClosed(id derive.ChannelID, numPendingBlocks int,
 	m.channelClosedReason.Set(float64(ClosedReasonToNum(reason)))
 }
 
+func (m *Metrics) RecordL2BlockInPendingQueue(block *types.Block) {
+	size := float64(estimateBatchSize(block))
+	m.pendingBlocksBytesTotal.Add(size)
+	m.pendingBlocksBytesCurrent.Add(size)
+}
+
+func (m *Metrics) RecordL2BlockInChannel(block *types.Block) {
+	size := float64(estimateBatchSize(block))
+	m.pendingBlocksBytesCurrent.Add(-1 * size)
+	// Refer to RecordL2BlocksAdded to see the current + count of bytes added to a channel
+}
+
 func ClosedReasonToNum(reason error) int {
 	// CLI-3640
 	return 0
@@ -266,4 +293,18 @@ func (m *Metrics) RecordBatchTxSuccess() {
 
 func (m *Metrics) RecordBatchTxFailed() {
 	m.batcherTxEvs.Record(TxStageFailed)
+}
+
+// estimateBatchSize estimates the size of the batch
+func estimateBatchSize(block *types.Block) uint64 {
+	size := uint64(70) // estimated overhead of batch metadata
+	for _, tx := range block.Transactions() {
+		// Don't include deposit transactions in the batch.
+		if tx.IsDepositTx() {
+			continue
+		}
+		// Add 2 for the overhead of encoding the tx bytes in a RLP list
+		size += tx.Size() + 2
+	}
+	return size
 }
