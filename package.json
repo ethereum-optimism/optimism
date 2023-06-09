@@ -6,7 +6,6 @@
   "workspaces": {
     "packages": [
       "packages/*",
-      "batch-submitter",
       "bss-core",
       "gas-oracle",
       "l2geth",
