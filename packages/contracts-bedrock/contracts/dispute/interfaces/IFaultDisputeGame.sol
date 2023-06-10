@@ -62,7 +62,16 @@ interface IFaultDisputeGame is IDisputeGame {
      *      a step in the fault proof program on-chain. The interface of the fault proof
      *      processor contract should be generic enough such that we can use different
      *      fault proof VMs (MIPS, RiscV5, etc.)
-     * @param disagreement The ClaimHash of the disagreement
+     * @param parentIndex The index of the parent claim in `claimData`. Contains the state hash
+     *                    of the post-state.
+     * @param stateHash The initial merklized prestate.
+     * @param stateData The input for the state transition.
+     * @param proof The proof that the state transition is valid.
      */
-    function step(ClaimHash disagreement) external;
+    function step(
+        uint256 parentIndex,
+        bytes32 stateHash,
+        bytes calldata stateData,
+        bytes calldata proof
+    ) external;
 }

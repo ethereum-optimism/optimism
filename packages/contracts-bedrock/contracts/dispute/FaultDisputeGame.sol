@@ -98,8 +98,38 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
     /**
      * @inheritdoc IFaultDisputeGame
      */
-    function step(ClaimHash disagreement) public {
+    function step(
+        uint256 parentIndex,
+        bytes32 stateHash,
+        bytes calldata stateData,
+        bytes calldata
+    ) public {
         // TODO - Call the VM to perform the execution step.
+
+        // Mock a state transition
+        // NOTE: This mock lacks several necessary checks. For testing only.
+        uint256 inp = abi.decode(stateData, (uint256));
+        bytes32 nextStateHash = bytes32(uint256(stateHash) + inp);
+
+        ClaimData memory parent = claimData[parentIndex];
+
+        if (nextStateHash != Claim.unwrap(parent.claim)) {
+            revert("Invalid state transition");
+        }
+
+        // If the state transition was successful, append a new claim to the game at the
+        // `MAX_GAME_DEPTH`
+        Position nextPosition = LibPosition.attack(parent.position);
+        claimData.push(
+            ClaimData({
+                parentIndex: uint32(parentIndex),
+                claim: Claim.wrap(nextStateHash),
+                position: nextPosition,
+                clock: Clock.wrap(0),
+                rc: 0,
+                countered: false
+            })
+        );
     }
 
     ////////////////////////////////////////////////////////////////
@@ -149,6 +179,13 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             ? LibPosition.attack(parent.position)
             : LibPosition.defend(parent.position);
 
+        // At the leaf nodes of the game, the only option is to run a step to prove or disprove
+        // the above claim. At this depth, the parent claim commits to the state after a single
+        // instruction step.
+        if (LibPosition.depth(nextPosition) >= MAX_GAME_DEPTH) {
+            revert GameDepthExceeded();
+        }
+
         // Fetch the grandparent clock, if it exists.
         // The grandparent clock should always exist unless the parent is the root claim.
         Clock grandparentClock;
@@ -170,7 +207,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             )
         );
 
-        // Enforce the clock time. If the new clock duration is greater than half of the game
+        // Enforce the clock time rules. If the new clock duration is greater than half of the game
         // duration, then the move is invalid and cannot be made.
         if (Duration.unwrap(nextDuration) > Duration.unwrap(GAME_DURATION) >> 1) {
             revert ClockTimeExceeded();
@@ -241,7 +278,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
 
         // Run an exhaustive search (`O(n)`) over the DAG to find the left most, deepest
         // uncontested claim.
-        for (; i > 0; i--) {
+        for (; i > 0; --i) {
             ClaimData memory claim = claimData[i];
 
             // If the claim has no refereces, we can virtually prune it.
@@ -255,12 +292,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
                 //    we're concerned about.
                 // All claims that pass this check qualify for pruning.
                 if (depth != MAX_GAME_DEPTH && !claim.countered) {
+                    uint128 leftMostDepth = LibPosition.depth(leftMost);
+
                     // If the claim here is deeper than the current left most, deepest claim,
                     // update `leftMost`.
                     // If the claim here is at the same depth, but further left, update `leftMost`.
                     if (
-                        depth > LibPosition.depth(leftMost) ||
-                        (depth == LibPosition.depth(leftMost) &&
+                        depth > leftMostDepth ||
+                        (depth == leftMostDepth &&
                             LibPosition.indexAtDepth(position) <=
                             LibPosition.indexAtDepth(leftMost))
                     ) {
@@ -272,7 +311,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
                 // effectively "prunes" the claim from the DAG without spending extra gas on
                 // deleting it from storage.
                 if (claim.parentIndex != type(uint32).max) {
-                    claimData[claim.parentIndex].rc -= 1;
+                    --claimData[claim.parentIndex].rc;
                 }
             }
         }
