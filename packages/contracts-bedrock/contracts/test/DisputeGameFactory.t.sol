@@ -26,6 +26,23 @@ contract DisputeGameFactory_Test is Test {
     }
 
     /**
+     * @dev For any function that accepts an enum as an argument, solc generates bytecode
+     *      that causes a revert if the enum is out of bounds. Based on the current implementation,
+     *      this means that the contract must be behind a proxy and must be upgraded to support
+     *      new game types. Each time a new game type exists, a new enum value must be added to the
+     *      `GameType` enum.
+     */
+    function test_setImplementation_fails() public {
+        GameType gameType;
+        assembly {
+            gameType := 0x3
+        }
+
+        vm.expectRevert();
+        factory.gameImpls(gameType);
+    }
+
+    /**
      * @dev Tests that the `create` function succeeds when creating a new dispute game
      *      with a `GameType` that has an implementation set.
      */
