@@ -14,8 +14,11 @@ SCC_ABI_ARTIFACT = ../packages/contracts/artifacts/contracts/L1/rollup/StateComm
 indexer:
 	env GO111MODULE=on go build -v $(LDFLAGS) ./cmd/indexer
 
+indexer-refresh:
+	env GO111MODULE=on go build -v $(LDFLAGS) ./cmd/indexer-refresh
+
 clean:
-	rm indexer
+	rm indexer && rm indexer-refresh
 
 test:
 	go test -v ./...
@@ -43,6 +46,7 @@ bindings-scc:
 
 .PHONY: \
 	indexer \
+	indexer-refresh \
 	bindings \
 	bindings-scc \
 	clean \
