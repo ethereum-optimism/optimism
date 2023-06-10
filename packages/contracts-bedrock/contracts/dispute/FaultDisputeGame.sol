@@ -11,7 +11,7 @@ import { Clone } from "../libraries/Clone.sol";
 import { LibHashing } from "./lib/LibHashing.sol";
 import { LibPosition } from "./lib/LibPosition.sol";
 import { LibClock } from "./lib/LibClock.sol";
- 
+
 import "../libraries/DisputeTypes.sol";
 import "../libraries/DisputeErrors.sol";
 
@@ -33,13 +33,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
 
     /**
      * @notice The max depth of the game.
-     * @dev TODO: Update this to the value that we will use in prod.
+     * @dev TODO: Update this to the value that we will use in prod. Do we want to have the factory
+     *            set this value? Should it be a constant?
      */
     uint256 internal constant MAX_GAME_DEPTH = 4;
 
     /**
      * @notice The duration of the game.
-     * @dev TODO: Account for resolution buffer.
+     * @dev TODO: Account for resolution buffer. (?)
      */
     Duration internal constant GAME_DURATION = Duration.wrap(7 days);
 
@@ -67,55 +68,31 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
      * @notice The left most, deepest position found during the resolution phase.
      * @dev Defaults to the position of the root claim, but will be set during the resolution
      *      phase to the left most, deepest position found (if any qualify.)
+     * @dev TODO: Consider removing this if games can be resolved within a single block reliably.
      */
     Position public leftMostPosition;
 
     /**
-     * @notice Maps a unique ClaimHash to a Claim.
+     * @notice An append-only array of all claims made during the dispute game.
      */
-    mapping(ClaimHash => Claim) public claims;
-    /**
-     * @notice Maps a unique ClaimHash to its parent.
-     */
-    mapping(ClaimHash => ClaimHash) public parents;
-    /**
-     * @notice Maps a unique ClaimHash to its position in the game tree.
-     */
-    mapping(ClaimHash => Position) public positions;
-    /**
-     * @notice Maps a unique ClaimHash to a Bond.
-     */
-    mapping(ClaimHash => BondAmount) public bonds;
-    /**
-     * @notice Maps a unique ClaimHash its chess clock.
-     */
-    mapping(ClaimHash => Clock) public clocks;
-    /**
-     * @notice Maps a unique ClaimHash to its reference counter.
-     */
-    mapping(ClaimHash => uint64) public rc;
-    /**
-     * @notice Tracks whether or not a unique ClaimHash has been countered.
-     */
-    mapping(ClaimHash => bool) public countered;
+    ClaimData[] public claimData;
 
     ////////////////////////////////////////////////////////////////
     //                       External Logic                       //
     ////////////////////////////////////////////////////////////////
 
     /**
-     * Attack a disagreed upon ClaimHash.
-     * @param disagreement Disagreed upon ClaimHash
-     * @param pivot The supplied pivot to the disagreement.
+     * @inheritdoc IFaultDisputeGame
      */
-    function attack(ClaimHash disagreement, Claim pivot) external {
-        _move(disagreement, pivot, true);
+    function attack(uint256 parentIndex, Claim pivot) external payable {
+        _move(parentIndex, pivot, true);
     }
 
-    // TODO: Go right instead of left
-    // The pivot goes into the right subtree rather than the left subtree
-    function defend(ClaimHash agreement, Claim pivot) external {
-        _move(agreement, pivot, false);
+    /**
+     * @inheritdoc IFaultDisputeGame
+     */
+    function defend(uint256 parentIndex, Claim pivot) external payable {
+        _move(parentIndex, pivot, false);
     }
 
     /**
@@ -135,100 +112,82 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
 
     /**
      * @notice Internal move function, used by both `attack` and `defend`.
-     * @param claimHash The claim hash that the move is being made against.
-     * @param pivot The pivot point claim provided in response to `claimHash`.
+     * @param challengeIndex The index of the claim being moved against.
+     * @param pivot The claim at the next logical position in the game.
      * @param isAttack Whether or not the move is an attack or defense.
      */
-    function _move(ClaimHash claimHash, Claim pivot, bool isAttack) internal {
-        // TODO: Require & store bond for the pivot point claim
+    function _move(
+        uint256 challengeIndex,
+        Claim pivot,
+        bool isAttack
+    ) internal {
+        // Moves cannot be made unless the game is currently in progress.
+        if (status != GameStatus.IN_PROGRESS) {
+            revert GameNotInProgress();
+        }
 
-        // Get the position of the claimHash
-        Position claimHashPos = positions[claimHash];
-
-        // If the current depth of the claimHash is 0, revert. The root claim cannot be defended, only
-        // attacked.
-        if (LibPosition.depth(claimHashPos) == 0 && !isAttack) {
+        // The only move that can be made against a root claim is an attack. This is because the
+        // root claim commits to the entire state; Therefore, the only valid defense is to do
+        // nothing if it is agreed with.
+        if (challengeIndex == 0 && !isAttack) {
             revert CannotDefendRootClaim();
         }
 
-        // If the `claimHash` is at max depth - 1, we can perform a step.
-        if (LibPosition.depth(claimHashPos) == MAX_GAME_DEPTH - 1) {
-            // TODO: Step
-            revert("todo: unimplemented");
+        // Get the parent
+        ClaimData memory parent = claimData[challengeIndex];
+
+        // The parent must exist.
+        if (Claim.unwrap(parent.claim) == bytes32(0)) {
+            revert ParentDoesNotExist();
         }
 
-        // Get the position of the move.
-        Position pivotPos = isAttack ? LibPosition.attack(claimHashPos) : LibPosition.defend(claimHashPos);
+        // Bump the parent's reference counter.
+        claimData[challengeIndex].rc += 1;
+        // Set the parent claim as countered.
+        claimData[challengeIndex].countered = true;
 
-        // Compute the claim hash for the pivot point claim
-        ClaimHash pivotClaimHash = LibHashing.hashClaimPos(pivot, pivotPos);
+        // Compute the position that the claim commits to. Because the parent's position is already
+        // known, we can compute the next position by moving left or right depending on whether
+        // or not the move is an attack or defense.
+        Position nextPosition = isAttack
+            ? LibPosition.attack(parent.position)
+            : LibPosition.defend(parent.position);
 
-        // Revert if the same claim has already been made.
-        // Note: We assume no one will ever claim the zero hash here.
-        if (Claim.unwrap(claims[pivotClaimHash]) != bytes32(0)) {
-            revert ClaimAlreadyExists();
+        // Compute the clock for the next claim. The clock's duration is computed by taking the
+        // difference between the current block timestamp and the parent's clock timestamp.
+        Clock nextClock = LibClock.wrap(
+            Duration.wrap(
+                uint64(block.timestamp - Timestamp.unwrap(LibClock.timestamp(parent.clock)))
+            ),
+            Timestamp.wrap(uint64(block.timestamp))
+        );
+
+        // Enforce the clock time. If the new clock duration is greater than half of the game
+        // duration, then the move is invalid and cannot be made.
+        if (Duration.unwrap(LibClock.duration(nextClock)) > Duration.unwrap(GAME_DURATION) >> 1) {
+            revert ClockTimeExceeded();
         }
 
-        // Store information about the counterclaim
-        // TODO: Good lord, this is a lot of storage usage. Devs do something
+        // Do not allow for a duplicate claim to be made.
+        // TODO.
+        // Maybe map the claimHash? There's no efficient way to check for this with the flat DAG.
 
-        // Map `pivotClaimHash` to `pivot` in the `claims` mapping.
-        claims[pivotClaimHash] = pivot;
+        // Create the new claim.
+        claimData.push(
+            ClaimData({
+                parentIndex: uint32(challengeIndex),
+                claim: pivot,
+                position: nextPosition,
+                clock: nextClock,
+                rc: 0,
+                countered: false
+            })
+        );
 
-        // Map the `pivotClaimHash` to `pivotPos` in the `positions` mapping.
-        positions[pivotClaimHash] = pivotPos;
-
-        // Map the `pivotClaimHash` to `claimHash` in the `parents` mapping.
-        parents[pivotClaimHash] = claimHash;
-
-        // Increment the reference counter for the `claimHash` claim.
-        rc[claimHash] += 1;
-
-        // Mark `claimHash` as countered.
-        countered[claimHash] = true;
-
-        // Attempt to inherit grandparent's clock.
-        ClaimHash claimHashParent = parents[claimHash];
-
-        // If the grandparent claim doesn't exist, the disagreed upon claim is the root claim.
-        // In this case, the mover's clock starts at half the game duration minus the time elapsed since the game started.
-        if (ClaimHash.unwrap(claimHashParent) == bytes32(0)) {
-            // Calculate the time since the game started
-            Duration timeSinceGameStart = Duration.wrap(uint64(block.timestamp - Timestamp.unwrap(gameStart)));
-
-            // Set the clock for the pivot point claim.
-            clocks[pivotClaimHash] = LibClock.wrap(
-                Duration.wrap((Duration.unwrap(GAME_DURATION) >> 1) - Duration.unwrap(timeSinceGameStart)),
-                Timestamp.wrap(uint64(block.timestamp))
-            );
-        } else {
-            Clock grandparentClock = clocks[claimHashParent];
-            Clock parentClock = clocks[claimHash];
-
-            // Calculate the remaining clock time for the pivot point claim.
-            // Grandparent clock time - (block timestamp - parent clock timestamp)
-            // TODO: Correct this
-            Clock newClock = LibClock.wrap(
-                Duration.wrap(
-                    uint64(
-                        Duration.unwrap(LibClock.duration(grandparentClock))
-                            - (block.timestamp - Timestamp.unwrap(LibClock.timestamp(parentClock)))
-                    )
-                ),
-                Timestamp.wrap(uint64(block.timestamp))
-            );
-
-            // Store the remaining clock time for the pivot point claim.
-            clocks[pivotClaimHash] = newClock;
-        }
-
-        // Emit the proper event for other challenge agents to pick up on.
         if (isAttack) {
-            // Emit the `Attack` event for other challenge agents.
-            emit Attack(pivotClaimHash, pivot, msg.sender);
+            emit Attack(challengeIndex, pivot, msg.sender);
         } else {
-            // Emit the `Defend` event for other challenge agents.
-            emit Defend(pivotClaimHash, pivot, msg.sender);
+            emit Defend(challengeIndex, pivot, msg.sender);
         }
     }
 
@@ -237,65 +196,88 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
     ////////////////////////////////////////////////////////////////
 
     /**
-     * @notice Initializes the `DisputeGame_Fault` contract.
-     */
-    function initialize() external {
-        // Grab the root claim from the CWIA calldata.
-        Claim _rootClaim = rootClaim();
-
-        // The root claim is hashed with the root gindex to create the root ClaimHash.
-        ClaimHash rootClaimHash = LibHashing.hashClaimPos(_rootClaim, ROOT_POSITION);
-
-        // The root claim is the first claim in the game.
-        claims[rootClaimHash] = _rootClaim;
-
-        // We do not need to set the position slot for the root claim; It is already zero.
-
-        // The root claim's chess clock begins with half of the game duration.
-        clocks[rootClaimHash] =
-            LibClock.wrap(Duration.wrap(Duration.unwrap(GAME_DURATION) >> 1), Timestamp.wrap(uint64(block.timestamp)));
-
-        // The game starts when the `init()` function is called.
-        gameStart = Timestamp.wrap(uint64(block.timestamp));
-
-        // TODO: Init bond (possibly should be done in the factory.)
-    }
-
-    /**
-     * @inheritdoc IVersioned
-     */
-    function version() external pure override returns (string memory) {
-        // TODO: Alias to constant is unnecessary.
-        return VERSION;
-    }
-
-    /**
-     * @notice Fetches the game type for the implementation of `IDisputeGame`.
-     * @dev The reference impl should be entirely different depending on the type (fault, validity)
-     *      i.e. The game type should indicate the security model.
-     * @return _gameType The type of proof system being used.
+     * @inheritdoc IDisputeGame
      */
     function gameType() public pure override returns (GameType _gameType) {
         _gameType = GameType.FAULT;
     }
 
     /**
-     * @notice Returns the timestamp that the DisputeGame contract was created at.
+     * @inheritdoc IDisputeGame
      */
     function createdAt() external view returns (Timestamp _createdAt) {
         return gameStart;
     }
 
     /**
-     * @notice If all necessary information has been gathered, this function should mark the game
-     *         status as either `CHALLENGER_WINS` or `DEFENDER_WINS` and return the status of
-     *         the resolved game. It is at this stage that the bonds should be awarded to the
-     *         necessary parties.
-     * @dev May only be called if the `status` is `IN_PROGRESS`.
+     * @inheritdoc IDisputeGame
      */
-    function resolve() external view returns (GameStatus _status) {
-        // TODO
-        return status;
+    function resolve() external returns (GameStatus _status) {
+        // The game may only be resolved if it is currently in progress.
+        if (status != GameStatus.IN_PROGRESS) {
+            revert GameNotInProgress();
+        }
+
+        // TODO: Block the game from being resolved if the preconditions for resolution have not
+        //       been met.
+
+        // Fetch the final index of the claim data DAG.
+        uint256 i = claimData.length - 1;
+        // Store a variable on the stack to keep track of the left most, deepest claim found during
+        // the search.
+        Position leftMost;
+
+        // Run an exhaustive search (`O(n)`) over the DAG to find the left most, deepest
+        // uncontested claim.
+        for (; i > 0; i--) {
+            ClaimData memory claim = claimData[i];
+
+            // If the claim has no refereces, we can virtually prune it.
+            if (claim.rc == 0) {
+                Position position = claim.position;
+                uint128 depth = LibPosition.depth(position);
+
+                // 1. Do not count nodes at the max game depth. These can be truthy, but they do not
+                //    give us any intuition about the final outcome of the game.
+                // 2. Any node that has been countered is not a dangling claim, which is all that
+                //    we're concerned about.
+                // All claims that pass this check qualify for pruning.
+                if (depth != MAX_GAME_DEPTH && !claim.countered) {
+                    // If the claim here is deeper than the current left most, deepest claim,
+                    // update `leftMost`.
+                    // If the claim here is at the same depth, but further left, update `leftMost`.
+                    if (
+                        depth > LibPosition.depth(leftMost) ||
+                        (depth == LibPosition.depth(leftMost) &&
+                            LibPosition.indexAtDepth(position) <=
+                            LibPosition.indexAtDepth(leftMost))
+                    ) {
+                        leftMost = position;
+                    }
+                }
+
+                // If the claim has a parent, decrement the reference count of the parent. This
+                // effectively "prunes" the claim from the DAG without spending extra gas on
+                // deleting it from storage.
+                if (claim.parentIndex != type(uint32).max) {
+                    claimData[claim.parentIndex].rc -= 1;
+                }
+            }
+        }
+
+        // If the depth of the left most, deepest dangling claim is odd, the root was attacked
+        // successfully and the defender wins. Otherwise, the challenger wins.
+        if (LibPosition.depth(leftMost) % 2 == 0) {
+            _status = GameStatus.DEFENDER_WINS;
+        } else {
+            _status = GameStatus.CHALLENGER_WINS;
+        }
+
+        // Emit the `Resolved` event.
+        emit Resolved(_status);
+
+        // Store the resolved status of the game.
+        status = _status;
     }
 
     /**
@@ -310,16 +292,52 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
      */
     function extraData() public pure returns (bytes memory _extraData) {
         // The extra data starts at the second word within the cwia calldata.
-        // TODO: What data do we need to pass along to this contract from the factory? Block hash, preimage data, etc.?
+        // TODO: What data do we need to pass along to this contract from the factory?
+        //       Block hash, preimage data, etc.?
         _extraData = _getArgDynBytes(0x20, 0x20);
     }
 
     /**
      * @inheritdoc IDisputeGame
      */
-    function gameData() external pure returns (GameType _gameType, Claim _rootClaim, bytes memory _extraData) {
+    function gameData()
+        external
+        pure
+        returns (
+            GameType _gameType,
+            Claim _rootClaim,
+            bytes memory _extraData
+        )
+    {
         _gameType = gameType();
         _rootClaim = rootClaim();
         _extraData = extraData();
+    }
+
+    /**
+     * @inheritdoc IInitializable
+     */
+    function initialize() external {
+        // Set the game start
+        gameStart = Timestamp.wrap(uint64(block.timestamp));
+
+        // Set the root claim
+        claimData.push(
+            ClaimData({
+                parentIndex: type(uint32).max,
+                claim: rootClaim(),
+                position: ROOT_POSITION,
+                clock: LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))),
+                rc: 0,
+                countered: false
+            })
+        );
+    }
+
+    /**
+     * @inheritdoc IVersioned
+     */
+    function version() external pure override returns (string memory) {
+        return VERSION;
     }
 }
