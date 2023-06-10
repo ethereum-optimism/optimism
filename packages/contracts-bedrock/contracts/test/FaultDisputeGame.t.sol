@@ -97,8 +97,7 @@ contract FaultDisputeGame_Test is Test {
      * @dev Tests that the game's data is set correctly.
      */
     function test_gameData_succeeds() public {
-        (GameType gameType, Claim rootClaim, bytes memory extraData) =
-            gameProxy.gameData();
+        (GameType gameType, Claim rootClaim, bytes memory extraData) = gameProxy.gameData();
 
         assertEq(uint256(gameType), uint256(GAME_TYPE));
         assertEq(Claim.unwrap(rootClaim), Claim.unwrap(ROOT_CLAIM));
@@ -127,7 +126,10 @@ contract FaultDisputeGame_Test is Test {
         assertEq(countered, false);
         assertEq(Claim.unwrap(claim), Claim.unwrap(ROOT_CLAIM));
         assertEq(Position.unwrap(position), 0);
-        assertEq(Clock.unwrap(clock), Clock.unwrap(LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp)))));
+        assertEq(
+            Clock.unwrap(clock),
+            Clock.unwrap(LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))))
+        );
     }
 
     /**
@@ -138,7 +140,7 @@ contract FaultDisputeGame_Test is Test {
         vm.warp(block.timestamp + 5);
 
         // Perform the attack.
-        gameProxy.attack(0, Claim.wrap(bytes32(uint(5))));
+        gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
 
         // Grab the claim data of the attack.
         (
@@ -154,19 +156,15 @@ contract FaultDisputeGame_Test is Test {
         assertEq(parentIndex, 0);
         assertEq(rc, 0);
         assertEq(countered, false);
-        assertEq(Claim.unwrap(claim), Claim.unwrap(Claim.wrap(bytes32(uint(5)))));
+        assertEq(Claim.unwrap(claim), Claim.unwrap(Claim.wrap(bytes32(uint256(5)))));
         assertEq(Position.unwrap(position), Position.unwrap(LibPosition.attack(Position.wrap(0))));
-        assertEq(Clock.unwrap(clock), Clock.unwrap(LibClock.wrap(Duration.wrap(5), Timestamp.wrap(uint64(block.timestamp)))));
+        assertEq(
+            Clock.unwrap(clock),
+            Clock.unwrap(LibClock.wrap(Duration.wrap(5), Timestamp.wrap(uint64(block.timestamp))))
+        );
 
         // Grab the claim data of the parent.
-        (
-            parentIndex,
-            rc,
-            countered,
-            claim,
-            position,
-            clock
-        ) = gameProxy.claimData(0);
+        (parentIndex, rc, countered, claim, position, clock) = gameProxy.claimData(0);
 
         // Assert correctness of the parent claim's data.
         assertEq(parentIndex, type(uint32).max);
@@ -174,7 +172,12 @@ contract FaultDisputeGame_Test is Test {
         assertEq(countered, true);
         assertEq(Claim.unwrap(claim), Claim.unwrap(ROOT_CLAIM));
         assertEq(Position.unwrap(position), 0);
-        assertEq(Clock.unwrap(clock), Clock.unwrap(LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp - 5)))));
+        assertEq(
+            Clock.unwrap(clock),
+            Clock.unwrap(
+                LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp - 5)))
+            )
+        );
 
         // Resolve the game.
         assertEq(uint256(gameProxy.resolve()), uint256(GameStatus.CHALLENGER_WINS));

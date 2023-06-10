@@ -55,12 +55,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
     Timestamp public gameStart;
 
     /**
-     * @notice The current status of the game.
+     * @inheritdoc IDisputeGame
      */
     GameStatus public status;
 
     /**
-     * @notice The DisputeGame's bond manager.
+     * @inheritdoc IDisputeGame
      */
     IBondManager public bondManager;
 
@@ -96,11 +96,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
     }
 
     /**
-     * @notice Performs a VM step via an on-chain fault proof processor
-     * @dev This function should point to a fault proof processor in order to execute
-     * a step in the fault proof program on-chain. The interface of the fault proof processor
-     * contract should be generic enough such that we can use different fault proof VMs (MIPS, RiscV5, etc.)
-     * @param disagreement The GindexClaim of the disagreement
+     * @inheritdoc IFaultDisputeGame
      */
     function step(ClaimHash disagreement) public {
         // TODO - Call the VM to perform the execution step.
@@ -153,20 +149,35 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             ? LibPosition.attack(parent.position)
             : LibPosition.defend(parent.position);
 
-        // Compute the clock for the next claim. The clock's duration is computed by taking the
-        // difference between the current block timestamp and the parent's clock timestamp.
-        Clock nextClock = LibClock.wrap(
-            Duration.wrap(
-                uint64(block.timestamp - Timestamp.unwrap(LibClock.timestamp(parent.clock)))
-            ),
-            Timestamp.wrap(uint64(block.timestamp))
+        // Fetch the grandparent clock, if it exists.
+        // The grandparent clock should always exist unless the parent is the root claim.
+        Clock grandparentClock;
+        if (parent.parentIndex != type(uint32).max) {
+            grandparentClock = claimData[parent.parentIndex].clock;
+        }
+
+        // Compute the duration of the next clock. This is done by adding the duration of the
+        // grandparent claim to the difference between the current block timestamp and the
+        // parent's clock timestamp.
+        Duration nextDuration = Duration.wrap(
+            uint64(
+                // First, fetch the duration of the grandparent claim.
+                Duration.unwrap(LibClock.duration(grandparentClock)) +
+                    // Second, add the difference between the current block timestamp and the
+                    // parent's clock timestamp.
+                    block.timestamp -
+                    Timestamp.unwrap(LibClock.timestamp(parent.clock))
+            )
         );
 
         // Enforce the clock time. If the new clock duration is greater than half of the game
         // duration, then the move is invalid and cannot be made.
-        if (Duration.unwrap(LibClock.duration(nextClock)) > Duration.unwrap(GAME_DURATION) >> 1) {
+        if (Duration.unwrap(nextDuration) > Duration.unwrap(GAME_DURATION) >> 1) {
             revert ClockTimeExceeded();
         }
+
+        // Construct the next clock with the new duration and the current block timestamp.
+        Clock nextClock = LibClock.wrap(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
 
         // Do not allow for a duplicate claim to be made.
         // TODO.
@@ -184,6 +195,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             })
         );
 
+        // Emit the appropriate event for the attack or defense.
         if (isAttack) {
             emit Attack(challengeIndex, pivot, msg.sender);
         } else {

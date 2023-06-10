@@ -39,7 +39,7 @@ contract LibPosition_Test is Test {
         // Depth bound: [0, 127]
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         // Index at depth bound: [0, 2 ** _depth]
-        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2 ** _depth));
+        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2**_depth));
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
         Position left = LibPosition.left(position);
@@ -55,7 +55,7 @@ contract LibPosition_Test is Test {
         // Depth bound: [0, 127]
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         // Index at depth bound: [0, 2 ** _depth]
-        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2 ** _depth));
+        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2**_depth));
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
         Position right = LibPosition.right(position);
@@ -71,7 +71,7 @@ contract LibPosition_Test is Test {
         // Depth bound: [1, 127]
         _depth = uint8(bound(_depth, 1, MAX_DEPTH));
         // Index at depth bound: [0, 2 ** _depth]
-        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2 ** _depth));
+        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2**_depth));
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
         Position parent = LibPosition.parent(position);
@@ -84,14 +84,18 @@ contract LibPosition_Test is Test {
      * @notice Tests that the `rightIndex` function correctly computes the deepest, right most index relative
      * to a given position.
      */
-    function testFuzz_rightIndex_correctness(uint8 _maxDepth, uint8 _depth, uint128 _indexAtDepth) public {
+    function testFuzz_rightIndex_correctness(
+        uint8 _maxDepth,
+        uint8 _depth,
+        uint128 _indexAtDepth
+    ) public {
         // Max depth bound: [1, 127]
         // The max game depth MUST be at least 1.
         _maxDepth = uint8(bound(_maxDepth, 1, MAX_DEPTH));
         // Depth bound: [0, _maxDepth]
         _depth = uint8(bound(_depth, 0, _maxDepth));
         // Index at depth bound: [0, 2 ** _depth]
-        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2 ** _depth));
+        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2**_depth));
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
         uint128 rightIndex = LibPosition.rightIndex(position, _maxDepth);
@@ -114,7 +118,7 @@ contract LibPosition_Test is Test {
         // Depth bound: [0, 127]
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         // Index at depth bound: [0, 2 ** _depth]
-        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2 ** _depth));
+        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2**_depth));
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
         Position attack = LibPosition.attack(position);
@@ -133,7 +137,7 @@ contract LibPosition_Test is Test {
         // Depth bound: [1, 127]
         _depth = uint8(bound(_depth, 1, MAX_DEPTH));
         // Index at depth bound: [0, 2 ** _depth]
-        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2 ** _depth));
+        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2**_depth));
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
         Position defend = LibPosition.defend(position);
