@@ -208,7 +208,7 @@ contract BondManager_Test is Test {
         {
             rootClaim = Claim.wrap(bytes32(""));
             MockAttestationDisputeGame implementation = new MockAttestationDisputeGame();
-            GameType gt = GameType.ATTESTATION;
+            GameType gt = GameTypes.ATTESTATION;
             factory.setImplementation(gt, IDisputeGame(address(implementation)));
             vm.expectEmit(false, true, true, false);
             emit DisputeGameCreated(address(0), gt, rootClaim);
@@ -261,7 +261,7 @@ contract BondManager_Test is Test {
         {
             rootClaim = Claim.wrap(bytes32(""));
             MockAttestationDisputeGame implementation = new MockAttestationDisputeGame();
-            GameType gt = GameType.ATTESTATION;
+            GameType gt = GameTypes.ATTESTATION;
             factory.setImplementation(gt, IDisputeGame(address(implementation)));
             vm.expectEmit(false, true, true, false);
             emit DisputeGameCreated(address(0), gt, rootClaim);
@@ -418,7 +418,7 @@ contract MockAttestationDisputeGame {
     }
 
     function gameType() external pure returns (GameType _gameType) {
-        return GameType.ATTESTATION;
+        return GameTypes.ATTESTATION;
     }
 
     function rootClaim() external view returns (Claim _rootClaim) {
