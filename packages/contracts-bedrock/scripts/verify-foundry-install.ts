@@ -20,5 +20,4 @@ if (!version.includes('da239')) {
 Consider installing via \`curl -L https://foundry.paradigm.xyz | bash\` and then running \`foundryup -C da2392e58bb8a7fefeba46b40c4df1afad8ccd22\` on a new terminal.
 For more context, check the installation instructions in the book: https://book.getfoundry.sh/getting-started/installation.html.`
   )
-  process.exit(0)
 }
