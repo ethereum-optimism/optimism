@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 
 import { StdUtils } from "forge-std/StdUtils.sol";
-import {StdInvariant} from "forge-std/StdInvariant.sol";
+import { StdInvariant } from "forge-std/StdInvariant.sol";
 
 import { Arithmetic } from "../../libraries/Arithmetic.sol";
 import { ResourceMetering } from "../../L1/ResourceMetering.sol";
@@ -12,7 +12,6 @@ import { Proxy } from "../../universal/Proxy.sol";
 import { Constants } from "../../libraries/Constants.sol";
 
 contract ResourceMetering_User is StdUtils, ResourceMetering {
-
     bool public failedMaxGasPerBlock;
     bool public failedRaiseBaseFee;
     bool public failedLowerBaseFee;
@@ -45,11 +44,13 @@ contract ResourceMetering_User is StdUtils, ResourceMetering {
         ResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
         return rcfg;
     }
-        /**
+
+    /**
      * @notice Takes the necessary parameters to allow us to burn arbitrary amounts of gas to test
      *         the underlying resource metering/gas market logic
      */
-     function burn(uint256 _gasToBurn, bool _raiseBaseFee) public {        // Part 1: we cache the current param values and do some basic checks on them.
+    function burn(uint256 _gasToBurn, bool _raiseBaseFee) public {
+        // Part 1: we cache the current param values and do some basic checks on them.
         uint256 cachedPrevBaseFee = uint256(params.prevBaseFee);
         uint256 cachedPrevBoughtGas = uint256(params.prevBoughtGas);
         uint256 cachedPrevBlockNum = uint256(params.prevBlockNum);
@@ -151,7 +152,6 @@ contract ResourceMetering_User is StdUtils, ResourceMetering {
     }
 
     function _burnInternal(uint64 _gasToBurn) private metered(_gasToBurn) {}
-
 }
 
 contract ResourceMetering_Invariant is StdInvariant, Test {
@@ -177,18 +177,18 @@ contract ResourceMetering_Invariant is StdInvariant, Test {
      * empty blocks in between), ensure this block's baseFee increased, but not by
      * more than the max amount per block.
      */
-     function invariant_high_usage_raise_baseFee() external {
+    function invariant_high_usage_raise_baseFee() external {
         assertFalse(actor.failedRaiseBaseFee());
     }
 
-        /**
+    /**
      * @custom:invariant The base fee should decrease if the last block used less
      * than the target amount of gas
      *
      * If the previous block used less than the target amount of gas, the base fee should decrease,
      * but not more than the max amount.
      */
-     function invariant_low_usage_lower_baseFee() external {
+    function invariant_low_usage_lower_baseFee() external {
         assertFalse(actor.failedLowerBaseFee());
     }
 
@@ -245,4 +245,3 @@ contract ResourceMetering_Invariant is StdInvariant, Test {
         assertFalse(actor.underflow());
     }
 }
-
