@@ -416,11 +416,9 @@ export const deployConfigSpec: {
   },
   governanceTokenSymbol: {
     type: 'string',
-    default: 'OP',
   },
   governanceTokenName: {
     type: 'string',
-    default: 'Optimism',
   },
   governanceTokenOwner: {
     type: 'string',

@@ -240,14 +240,15 @@ func (d *DeployConfig) Check() error {
 	if d.L2GenesisBlockBaseFeePerGas == nil {
 		return fmt.Errorf("%w: L2 genesis block base fee per gas cannot be nil", ErrInvalidDeployConfig)
 	}
-	if d.GovernanceTokenName == "" {
-		return fmt.Errorf("%w: GovernanceToken.name cannot be empty", ErrInvalidDeployConfig)
-	}
-	if d.GovernanceTokenSymbol == "" {
-		return fmt.Errorf("%w: GovernanceToken.symbol cannot be empty", ErrInvalidDeployConfig)
-	}
-	if d.GovernanceTokenOwner == (common.Address{}) {
-		return fmt.Errorf("%w: GovernanceToken owner cannot be address(0)", ErrInvalidDeployConfig)
+	if d.GovernanceTokenName != "" {
+		if d.GovernanceTokenSymbol == "" {
+			return fmt.Errorf("%w: GovernanceToken.symbol cannot be empty", ErrInvalidDeployConfig)
+		}
+		if d.GovernanceTokenOwner == (common.Address{}) {
+			return fmt.Errorf("%w: GovernanceToken owner cannot be address(0)", ErrInvalidDeployConfig)
+		}
+	} else if d.GovernanceTokenSymbol != "" || d.GovernanceTokenOwner != (common.Address{}) {
+		return fmt.Errorf("%w: Governance token fields must be either all specified or all empty", ErrInvalidDeployConfig)
 	}
 	return nil
 }
@@ -492,10 +493,12 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"symbol":   "WETH",
 		"decimals": 18,
 	}
-	storage["GovernanceToken"] = state.StorageValues{
-		"_name":   config.GovernanceTokenName,
-		"_symbol": config.GovernanceTokenSymbol,
-		"_owner":  config.GovernanceTokenOwner,
+	if len(config.GovernanceTokenName) != 0 {
+		storage["GovernanceToken"] = state.StorageValues{
+			"_name":   config.GovernanceTokenName,
+			"_symbol": config.GovernanceTokenSymbol,
+			"_owner":  config.GovernanceTokenOwner,
+		}
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
