@@ -420,8 +420,8 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 		"recipient": config.BaseFeeVaultRecipient,
 	}
 	immutable["BobaL2"] = immutables.ImmutableValues{
-		"bridge":       predeploys.L2StandardBridgeAddr,
-		"remoteToken":  common.HexToAddress("0x154C5E3762FbB57427d6B03E7302BDA04C497226"),
+		"bridge":      predeploys.L2StandardBridgeAddr,
+		"remoteToken": common.HexToAddress("0x154C5E3762FbB57427d6B03E7302BDA04C497226"),
 	}
 	return immutable, nil
 }
@@ -478,8 +478,8 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"_owner": config.ProxyAdminOwner,
 	}
 	storage["BobaL2"] = state.StorageValues{
-		"_name":       "Boba L2",
-		"_symbol":     "BOBA",
+		"_name":   "Boba L2",
+		"_symbol": "BOBA",
 	}
 	storage["BobaTuringCredit"] = state.StorageValues{}
 

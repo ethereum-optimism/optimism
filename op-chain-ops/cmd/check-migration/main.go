@@ -181,6 +181,7 @@ func main() {
 				migrationData,
 				&config.L1CrossDomainMessengerProxy,
 				config.L1ChainID,
+				config.L2ChainID,
 				config.FinalSystemOwner,
 				config.ProxyAdminOwner,
 				&derive.L1BlockInfo{

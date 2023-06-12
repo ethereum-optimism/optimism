@@ -2,7 +2,6 @@ package derive
 
 import (
 	"bytes"
-	"compress/zlib"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -25,6 +24,30 @@ var ErrTooManyRLPBytes = errors.New("batch would cause RLP bytes to go over limi
 // [Frame Format]: https://github.com/ethereum-optimism/optimism/blob/develop/specs/derivation.md#frame-format
 const FrameV0OverHeadSize = 23
 
+var CompressorFullErr = errors.New("compressor is full")
+
+type Compressor interface {
+	// Writer is used to write uncompressed data which will be compressed. Should return
+	// CompressorFullErr if the compressor is full and no more data should be written.
+	io.Writer
+	// Closer Close function should be called before reading any data.
+	io.Closer
+	// Reader is used to Read compressed data; should only be called after Close.
+	io.Reader
+	// Reset will reset all written data
+	Reset()
+	// Len returns an estimate of the current length of the compressed data; calling Flush will
+	// increase the accuracy at the expense of a poorer compression ratio.
+	Len() int
+	// Flush flushes any uncompressed data to the compression buffer. This will result in a
+	// non-optimal compression ratio.
+	Flush() error
+	// FullErr returns CompressorFullErr if the compressor is known to be full. Note that
+	// calls to Write will fail if an error is returned from this method, but calls to Write
+	// can still return CompressorFullErr even if this does not.
+	FullErr() error
+}
+
 type ChannelOut struct {
 	id ChannelID
 	// Frame ID of the next frame to emit. Increment after emitting
@@ -33,9 +56,7 @@ type ChannelOut struct {
 	rlpLength int
 
 	// Compressor stage. Write input data to it
-	compress *zlib.Writer
-	// post compression buffer
-	buf bytes.Buffer
+	compress Compressor
 
 	closed bool
 }
@@ -44,22 +65,17 @@ func (co *ChannelOut) ID() ChannelID {
 	return co.id
 }
 
-func NewChannelOut() (*ChannelOut, error) {
+func NewChannelOut(compress Compressor) (*ChannelOut, error) {
 	c := &ChannelOut{
 		id:        ChannelID{}, // TODO: use GUID here instead of fully random data
 		frame:     0,
 		rlpLength: 0,
+		compress:  compress,
 	}
 	_, err := rand.Read(c.id[:])
 	if err != nil {
 		return nil, err
 	}
-
-	compress, err := zlib.NewWriterLevel(&c.buf, zlib.BestCompression)
-	if err != nil {
-		return nil, err
-	}
-	c.compress = compress
 
 	return c, nil
 }
@@ -68,8 +84,7 @@ func NewChannelOut() (*ChannelOut, error) {
 func (co *ChannelOut) Reset() error {
 	co.frame = 0
 	co.rlpLength = 0
-	co.buf.Reset()
-	co.compress.Reset(&co.buf)
+	co.compress.Reset()
 	co.closed = false
 	_, err := rand.Read(co.id[:])
 	return err
@@ -116,7 +131,8 @@ func (co *ChannelOut) AddBatch(batch *BatchData) (uint64, error) {
 	}
 	co.rlpLength += buf.Len()
 
-	written, err := io.Copy(co.compress, &buf)
+	// avoid using io.Copy here, because we need all or nothing
+	written, err := co.compress.Write(buf.Bytes())
 	return uint64(written), err
 }
 
@@ -129,13 +145,17 @@ func (co *ChannelOut) InputBytes() int {
 // Use `Flush` or `Close` to move data from the compression buffer into the ready buffer if more bytes
 // are needed. Add blocks may add to the ready buffer, but it is not guaranteed due to the compression stage.
 func (co *ChannelOut) ReadyBytes() int {
-	return co.buf.Len()
+	return co.compress.Len()
 }
 
 // Flush flushes the internal compression stage to the ready buffer. It enables pulling a larger & more
 // complete frame. It reduces the compression efficiency.
 func (co *ChannelOut) Flush() error {
 	return co.compress.Flush()
+}
+
+func (co *ChannelOut) FullErr() error {
+	return co.compress.FullErr()
 }
 
 func (co *ChannelOut) Close() error {
@@ -166,8 +186,8 @@ func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, erro
 
 	// Copy data from the local buffer into the frame data buffer
 	maxDataSize := maxSize - FrameV0OverHeadSize
-	if maxDataSize > uint64(co.buf.Len()) {
-		maxDataSize = uint64(co.buf.Len())
+	if maxDataSize > uint64(co.compress.Len()) {
+		maxDataSize = uint64(co.compress.Len())
 		// If we are closed & will not spill past the current frame
 		// mark it is the final frame of the channel.
 		if co.closed {
@@ -176,7 +196,7 @@ func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, erro
 	}
 	f.Data = make([]byte, maxDataSize)
 
-	if _, err := io.ReadFull(&co.buf, f.Data); err != nil {
+	if _, err := io.ReadFull(co.compress, f.Data); err != nil {
 		return 0, err
 	}
 

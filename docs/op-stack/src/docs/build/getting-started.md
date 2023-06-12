@@ -73,7 +73,7 @@ We’re going to be spinning up an EVM Rollup from the OP Stack source code.  Yo
 1. Build the various packages inside of the Optimism Monorepo.
 
     ```bash
-    make op-node op-batcher
+    make op-node op-batcher op-proposer
     yarn build
     ```
 
@@ -154,9 +154,9 @@ Save these accounts and their respective private keys somewhere, you’ll need t
 
 Recommended funding amounts are as follows:
 
-- `Admin` — 0.2 ETH
-- `Proposer` — 0.5 ETH
-- `Batcher` — 1.0 ETH
+- `Admin` — 2 ETH
+- `Proposer` — 5 ETH
+- `Batcher` — 10 ETH
 
 ::: danger Not for production deployments 
 
@@ -221,7 +221,7 @@ Once you’ve configured your network, it’s time to deploy the L1 smart contra
 1. Once you’re ready, deploy the L1 smart contracts:
 
     ```bash
-    npx hardhat deploy --network getting-started
+    npx hardhat deploy --network getting-started --tags l1
     ```
 
 Contract deployment can take up to 15 minutes. Please wait for all smart contracts to be fully deployed before continuing to the next step.
@@ -304,13 +304,32 @@ We’re almost ready to run our chain! Now we just need to run a few commands to
 
 Everything is now initialized and ready to go!
 
-## Run op-geth
 
-Whew! We made it. It’s time to run `op-geth` and get our system started.
+## Run the node software
 
-Run `op-geth` with the following command. Make sure to replace `<SEQUENCER>` with the address of the `Sequencer` account you generated earlier.
+There are four components that need to run for a rollup.
+The first two, `op-geth` and `op-node`, have to run on every node.
+The other two, `op-batcher` and `op-proposer`, run only in one place, the sequencer that accepts transactions.
+
+Set these environment variables for the configuration
+
+| Variable       | Value |
+| -------------- | - 
+| `SEQ_ADDR`     | Address of the `Sequencer` account
+| `SEQ_KEY`      | Private key of the `Sequencer` account
+| `BATCHER_KEY`  | Private key of the `Batcher` accounts, which should have at least 1 ETH
+| `PROPOSER_KEY` | Private key of the `Proposer` account
+| `L1_RPC`       | URL for the L1 (such as Goerli) you're using
+| `RPC_KIND`     | The type of L1 server to which you connect, which can optimize requests. Available options are `alchemy`, `quicknode`, `parity`, `nethermind`, `debug_geth`, `erigon`, `basic`, and `any`
+| `L2OO_ADDR`    | The address of the `L2OutputOracleProxy`, available at `~/optimism/packages/contracts-bedrock/deployments/getting-started/L2OutputOracleProxy.json
+
+### `op-geth`
+
+Run `op-geth` with the following commands.
 
 ```bash
+cd ~/op-geth
+
 ./build/bin/geth \
 	--datadir ./datadir \
 	--http \
@@ -324,7 +343,7 @@ Run `op-geth` with the following command. Make sure to replace `<SEQUENCER>` wit
 	--ws.origins="*" \
 	--ws.api=debug,eth,txpool,net,engine \
 	--syncmode=full \
-	--gcmode=full \
+	--gcmode=archive \
 	--nodiscover \
 	--maxpeers=0 \
 	--networkid=42069 \
@@ -336,13 +355,25 @@ Run `op-geth` with the following command. Make sure to replace `<SEQUENCER>` wit
 	--password=./datadir/password \
 	--allow-insecure-unlock \
 	--mine \
-	--miner.etherbase=<SEQUENCER> \
-	--unlock=<SEQUENCER>
+	--miner.etherbase=$SEQ_ADDR \
+	--unlock=$SEQ_ADDR
 ```
 
 And `op-geth` should be running! You should see some output, but you won’t see any blocks being created yet because `op-geth` is driven by the `op-node`. We’ll need to get that running next.
 
-### Reinitializing op-geth
+::: tip Why archive mode?
+
+Archive mode takes more disk storage than full mode.
+However, using it is important for two reasons:
+
+- The `op-proposer` requires access to the full state.
+  If at some point `op-proposer` needs to look beyond 256 blocks in the past (8.5 minutes in the default configuration), for example because it was down for that long, we need archive mode.
+
+- The [explorer](./explorer.md) requires archive mode.
+
+:::
+
+#### Reinitializing op-geth
 
 There are several situations are indicate database corruption and require you to reset the `op-geth` component:
 
@@ -374,13 +405,13 @@ This is the reinitialization procedure:
 1. Start `op-node`
 
 
-## Run op-node
+### `op-node`
 
 Once we’ve got `op-geth` running we’ll need to run `op-node`. Like Ethereum, the OP Stack has a consensus client (the `op-node`) and an execution client (`op-geth`). The consensus client drives the execution client over the Engine API.
 
-Head over to the `op-node` package and start the `op-node` using the following command. Replace `<SEQUENCERKEY>` with the private key for the `Sequencer` account, replace `<RPC>` with the URL for your L1 node, and replace `<RPCKIND>` with the kind of RPC you’re connected to. Although the `l1.rpckind` argument is optional, setting it will help the `op-node` optimize requests and reduce the overall load on your endpoint. Available options for the `l1.rpckind` argument are `"alchemy"`, `"quicknode"`, `"quicknode"`, `"parity"`, `"nethermind"`, `"debug_geth"`, `"erigon"`, `"basic"`, and `"any"`.
-
 ```bash
+cd ~/optimism/op-node
+
 ./bin/op-node \
 	--l2=http://localhost:8551 \
 	--l2.jwt-secret=./jwt.txt \
@@ -392,9 +423,9 @@ Head over to the `op-node` package and start the `op-node` using the following c
 	--rpc.port=8547 \
 	--p2p.disable \
 	--rpc.enable-admin \
-	--p2p.sequencer.key=<SEQUENCERKEY> \
-	--l1=<RPC> \
-	--l1.rpckind=<RPCKIND>
+	--p2p.sequencer.key=$SEQ_KEY \
+	--l1=$L1_RPC \
+	--l1.rpckind=$RPC_KIND
 ```
 
 Once you run this command, you should start seeing the `op-node` begin to process all of the L1 information after the starting block number that you picked earlier. Once the `op-node` has enough information, it’ll begin sending Engine API payloads to `op-geth`. At that point, you’ll start to see blocks being created inside of `op-geth`. We’re live!
@@ -420,50 +451,68 @@ Once you have multiple nodes, it makes sense to use these command line parameter
 
 
 
-## Run op-batcher
+### `op-batcher`
 
-The final component necessary to put all the pieces together is the `op-batcher`. The `op-batcher` takes transactions from the Sequencer and publishes those transactions to L1. Once transactions are on L1, they’re officially part of the Rollup. Without the `op-batcher`, transactions sent to the Sequencer would never make it to L1 and wouldn’t become part of the canonical chain. The `op-batcher` is critical!
+The `op-batcher` takes transactions from the Sequencer and publishes those transactions to L1. Once transactions are on L1, they’re officially part of the Rollup. Without the `op-batcher`, transactions sent to the Sequencer would never make it to L1 and wouldn’t become part of the canonical chain. The `op-batcher` is critical!
 
-1. Head over to the `op-batcher` package inside the Optimism Monorepo:
+It is best to give the `Batcher` at least 1 Goerli ETH to ensure that it can continue operating without running out of ETH for gas.
 
-    ```bash
-    cd ~/optimism/op-batcher
-    ```
 
-1. And run the `op-batcher` using the following command. 
-   Replace `<RPC>` with your L1 node URL and replace `<BATCHERKEY>` with the private key for the `Batcher` account that you created and funded earlier. 
-   It’s best to give the `Batcher` at least 1 Goerli ETH to ensure that it can continue operating without running out of ETH for gas.
+```bash
+cd ~/optimism/op-batcher
 
-    ```bash
-    ./bin/op-batcher \
-        --l2-eth-rpc=http://localhost:8545 \
-        --rollup-rpc=http://localhost:8547 \
-        --poll-interval=1s \
-        --sub-safety-margin=6 \
-        --num-confirmations=1 \
-        --safe-abort-nonce-too-low-count=3 \
-        --resubmission-timeout=30s \
-        --rpc.addr=0.0.0.0 \
-        --rpc.port=8548 \
-        --rpc.enable-admin \
-        --max-channel-duration=1 \
-        --target-l1-tx-size-bytes=2048 \
-        --l1-eth-rpc=<RPC> \
-        --private-key=<BATCHERKEY>
-    ```
+./bin/op-batcher \
+    --l2-eth-rpc=http://localhost:8545 \
+    --rollup-rpc=http://localhost:8547 \
+    --poll-interval=1s \
+    --sub-safety-margin=6 \
+    --num-confirmations=1 \
+    --safe-abort-nonce-too-low-count=3 \
+    --resubmission-timeout=30s \
+    --rpc.addr=0.0.0.0 \
+    --rpc.port=8548 \
+    --rpc.enable-admin \
+    --max-channel-duration=1 \
+    --l1-eth-rpc=$L1_RPC \
+    --private-key=$BATCHER_KEY
+```
 
-   ::: tip Controlling batcher costs
+::: tip Controlling batcher costs
 
-   The `--max-channel-duration=n` setting tells the batcher to write all the data to L1 every `n` L1 blocks. 
-   When it is low, transactions are written to L1 frequently, withdrawals are quick, and other nodes can synchronize from L1 fast.
-   When it is high, transactions are written to L1 less frequently, and the batcher spends less ETH.
+The `--max-channel-duration=n` setting tells the batcher to write all the data to L1 every `n` L1 blocks. 
+When it is low, transactions are written to L1 frequently, withdrawals are quick, and other nodes can synchronize from L1 fast.
+When it is high, transactions are written to L1 less frequently, and the batcher spends less ETH.
 
-   :::
+:::
 
+### `op-proposer`
+
+Now start `op-proposer`, which proposes new state roots.
+
+```bash
+cd ~/optimism/op-proposer
+
+./bin/op-proposer \
+    --poll-interval 12s \
+    --rpc.port 8560 \
+    --rollup-rpc http://localhost:8547 \
+    --l2oo-address $L2OO_ADDR \
+    --private-key $PROPOSER_KEY \
+    --l1-eth-rpc $L1_RPC
+```
+
+<!--
+::: warning Change before moving to production
+
+The `--allow-non-finalized` flag allows for faster tests on a test network. 
+However, in production you would probably want to only submit proposals on properly finalized blocks.
+
+:::
+-->
 
 ## Get some ETH on your Rollup
 
-Once you’ve connected your wallet, you’ll probably notice that you don’t have any ETH on your Rollup. You’ll need some ETH to pay for gas on your Rollup. The easiest way to deposit Goerli ETH into your chain is to send funds directly to the `OptimismPortalProxy` contract. You can find the address of the `OptimismPortalProxy` contract for your chain by looking inside the `deployments` folder in the `contracts-bedrock` package.
+Once you’ve connected your wallet, you’ll probably notice that you don’t have any ETH on your Rollup. You’ll need some ETH to pay for gas on your Rollup. The easiest way to deposit Goerli ETH into your chain is to send funds directly to the `L1StandardBridge` contract. You can find the address of the `L1StandardBridge` contract for your chain by looking inside the `deployments` folder in the `contracts-bedrock` package.
 
 1. First, head over to the `contracts-bedrock` package:
 
@@ -474,13 +523,7 @@ Once you’ve connected your wallet, you’ll probably notice that you don’t h
 1. Grab the address of the proxy to the L1 standard bridge contract:
 
     ```bash
-    cat deployments/getting-started/Proxy__OVM_L1StandardBridge.json | grep \"address\":
-    ```
-
-    You should see a result similar to the following (**your address will be different**):
-
-    ```
-    "address": "0x874f2E16D803c044F10314A978322da3c9b075c7",
+    cat deployments/getting-started/Proxy__OVM_L1StandardBridge.json |  jq -r .address
     ```
 
 1. Grab the L1 bridge proxy contract address and, using the wallet that you want to have ETH on your Rollup, send that address a small amount of ETH on Goerli (0.1 or less is fine). It may take up to 5 minutes for that ETH to appear in your wallet on L2.
@@ -529,7 +572,7 @@ To see your rollup in action, you can use the [Optimism Mainnet Getting Started 
 
     ```bash
     cast call $GREETER "greet()" | cast --to-ascii
-    cast send --mnemonic-path mnem.delme $GREETER "setGreeting(string)" "New greeting"
+    cast send --mnemonic-path ./mnem.delme $GREETER "setGreeting(string)" "New greeting"
     cast call $GREETER "greet()" | cast --to-ascii
     ```
 

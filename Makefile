@@ -41,6 +41,10 @@ op-proposer:
 	make -C ./op-proposer op-proposer
 .PHONY: op-proposer
 
+op-challenger:
+	make -C ./op-challenger op-challenger
+.PHONY: op-challenger
+
 op-program:
 	make -C ./op-program op-program
 .PHONY: op-program
@@ -55,7 +59,9 @@ mod-tidy:
 	# can take a while to index new versions.
 	#
 	# See https://proxy.golang.org/ for more info.
-	export GOPRIVATE="github.com/ethereum-optimism" && go mod tidy
+	export GOPRIVATE="github.com/ethereum-optimism,github.com/bobanetwork"
+	export GOPROXY="https://proxy.golang.org,direct"
+	go mod tidy
 .PHONY: mod-tidy
 
 clean:
@@ -122,3 +128,6 @@ tag-bedrock-go-modules:
 update-op-geth:
 	./ops/scripts/update-op-geth.py
 .PHONY: update-op-geth
+
+bedrock-markdown-links:
+	docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback --exclude twitter.com --exclude explorer.optimism.io --exclude-mail /input/README.md "/input/specs/**/*.md"

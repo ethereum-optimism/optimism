@@ -30,7 +30,7 @@ func TestFailover(t *testing.T) {
 
 	config := ReadConfig("failover")
 	client := NewProxydClient("http://127.0.0.1:8545")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 
@@ -128,7 +128,7 @@ func TestRetries(t *testing.T) {
 	require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", backend.URL()))
 	config := ReadConfig("retries")
 	client := NewProxydClient("http://127.0.0.1:8545")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 
@@ -171,7 +171,7 @@ func TestOutOfServiceInterval(t *testing.T) {
 
 	config := ReadConfig("out_of_service_interval")
 	client := NewProxydClient("http://127.0.0.1:8545")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 
@@ -190,7 +190,7 @@ func TestOutOfServiceInterval(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 200, statusCode)
 	RequireEqualJSON(t, []byte(goodResponse), res)
-	require.Equal(t, 2, len(badBackend.Requests()))
+	require.Equal(t, 4, len(badBackend.Requests()))
 	require.Equal(t, 2, len(goodBackend.Requests()))
 
 	_, statusCode, err = client.SendBatchRPC(
@@ -199,7 +199,7 @@ func TestOutOfServiceInterval(t *testing.T) {
 	)
 	require.NoError(t, err)
 	require.Equal(t, 200, statusCode)
-	require.Equal(t, 2, len(badBackend.Requests()))
+	require.Equal(t, 8, len(badBackend.Requests()))
 	require.Equal(t, 4, len(goodBackend.Requests()))
 
 	time.Sleep(time.Second)
@@ -209,7 +209,7 @@ func TestOutOfServiceInterval(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 200, statusCode)
 	RequireEqualJSON(t, []byte(goodResponse), res)
-	require.Equal(t, 3, len(badBackend.Requests()))
+	require.Equal(t, 9, len(badBackend.Requests()))
 	require.Equal(t, 4, len(goodBackend.Requests()))
 }
 
@@ -226,7 +226,7 @@ func TestBatchWithPartialFailover(t *testing.T) {
 	require.NoError(t, os.Setenv("BAD_BACKEND_RPC_URL", badBackend.URL()))
 
 	client := NewProxydClient("http://127.0.0.1:8545")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 
@@ -261,7 +261,6 @@ func TestInfuraFailoverOnUnexpectedResponse(t *testing.T) {
 	config.BackendOptions.MaxRetries = 2
 	// Setup redis to detect offline backends
 	config.Redis.URL = fmt.Sprintf("redis://127.0.0.1:%s", redis.Port())
-	redisClient, err := proxyd.NewRedisClient(config.Redis.URL)
 	require.NoError(t, err)
 
 	goodBackend := NewMockBackend(BatchedResponseHandler(200, goodResponse, goodResponse))
@@ -273,7 +272,7 @@ func TestInfuraFailoverOnUnexpectedResponse(t *testing.T) {
 	require.NoError(t, os.Setenv("BAD_BACKEND_RPC_URL", badBackend.URL()))
 
 	client := NewProxydClient("http://127.0.0.1:8545")
-	shutdown, err := proxyd.Start(config)
+	_, shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
 
@@ -286,10 +285,4 @@ func TestInfuraFailoverOnUnexpectedResponse(t *testing.T) {
 	RequireEqualJSON(t, []byte(asArray(goodResponse, goodResponse)), res)
 	require.Equal(t, 1, len(badBackend.Requests()))
 	require.Equal(t, 1, len(goodBackend.Requests()))
-
-	rr := proxyd.NewRedisRateLimiter(redisClient)
-	require.NoError(t, err)
-	online, err := rr.IsBackendOnline("bad")
-	require.NoError(t, err)
-	require.Equal(t, true, online)
 }

@@ -34,7 +34,8 @@ type batchTestCase struct {
 
 	batchSize int
 
-	batchCalls []batchCall
+	batchCalls  []batchCall
+	singleCalls []elemCall
 
 	mock.Mock
 }
@@ -53,7 +54,14 @@ func (tc *batchTestCase) GetBatch(ctx context.Context, b []rpc.BatchElem) error 
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	return tc.Mock.MethodCalled("get", b).Get(0).([]error)[0]
+	return tc.Mock.MethodCalled("getBatch", b).Get(0).([]error)[0]
+}
+
+func (tc *batchTestCase) GetSingle(ctx context.Context, result any, method string, args ...any) error {
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return tc.Mock.MethodCalled("getSingle", (*(result.(*interface{}))).(*string), method, args[0]).Get(0).([]error)[0]
 }
 
 var mockErr = errors.New("mockErr")
@@ -64,7 +72,7 @@ func (tc *batchTestCase) Run(t *testing.T) {
 		keys[i] = i
 	}
 
-	makeMock := func(bci int, bc batchCall) func(args mock.Arguments) {
+	makeBatchMock := func(bc batchCall) func(args mock.Arguments) {
 		return func(args mock.Arguments) {
 			batch := args[0].([]rpc.BatchElem)
 			for i, elem := range batch {
@@ -83,7 +91,7 @@ func (tc *batchTestCase) Run(t *testing.T) {
 		}
 	}
 	// mock all the results of the batch calls
-	for bci, bc := range tc.batchCalls {
+	for _, bc := range tc.batchCalls {
 		var batch []rpc.BatchElem
 		for _, elem := range bc.elems {
 			batch = append(batch, rpc.BatchElem{
@@ -94,10 +102,30 @@ func (tc *batchTestCase) Run(t *testing.T) {
 			})
 		}
 		if len(bc.elems) > 0 {
-			tc.On("get", batch).Once().Run(makeMock(bci, bc)).Return([]error{bc.rpcErr}) // wrap to preserve nil as type of error
+			tc.On("getBatch", batch).Once().Run(makeBatchMock(bc)).Return([]error{bc.rpcErr}) // wrap to preserve nil as type of error
 		}
 	}
-	iter := NewIterativeBatchCall[int, *string](keys, makeTestRequest, tc.GetBatch, tc.batchSize)
+	makeSingleMock := func(ec elemCall) func(args mock.Arguments) {
+		return func(args mock.Arguments) {
+			result := args[0].(*string)
+			id := args[2].(int)
+			require.Equal(t, ec.id, id, "element should match expected element")
+			if ec.err {
+				*result = ""
+			} else {
+				*result = fmt.Sprintf("mock result id %d", id)
+			}
+		}
+	}
+	// mock the results of unbatched calls
+	for _, ec := range tc.singleCalls {
+		var ret error
+		if ec.err {
+			ret = mockErr
+		}
+		tc.On("getSingle", new(string), "testing_foobar", ec.id).Once().Run(makeSingleMock(ec)).Return([]error{ret})
+	}
+	iter := NewIterativeBatchCall[int, *string](keys, makeTestRequest, tc.GetBatch, tc.GetSingle, tc.batchSize)
 	for i, bc := range tc.batchCalls {
 		ctx := context.Background()
 		if bc.makeCtx != nil {
@@ -113,6 +141,20 @@ func (tc *batchTestCase) Run(t *testing.T) {
 				require.NoError(t, err)
 			} else {
 				require.ErrorContains(t, err, bc.err)
+			}
+		}
+	}
+	for i, ec := range tc.singleCalls {
+		ctx := context.Background()
+		err := iter.Fetch(ctx)
+		if err == io.EOF {
+			require.Equal(t, i, len(tc.singleCalls)-1, "EOF only on last call")
+		} else {
+			require.False(t, iter.Complete())
+			if ec.err {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 		}
 	}
@@ -152,6 +194,37 @@ func TestFetchBatched(t *testing.T) {
 					},
 					err: "",
 				},
+			},
+		},
+		{
+			name:      "single element",
+			items:     1,
+			batchSize: 4,
+			singleCalls: []elemCall{
+				{id: 0, err: false},
+			},
+		},
+		{
+			name:      "unbatched",
+			items:     4,
+			batchSize: 1,
+			singleCalls: []elemCall{
+				{id: 0, err: false},
+				{id: 1, err: false},
+				{id: 2, err: false},
+				{id: 3, err: false},
+			},
+		},
+		{
+			name:      "unbatched with retry",
+			items:     4,
+			batchSize: 1,
+			singleCalls: []elemCall{
+				{id: 0, err: false},
+				{id: 1, err: true},
+				{id: 2, err: false},
+				{id: 3, err: false},
+				{id: 1, err: false},
 			},
 		},
 		{
@@ -240,7 +313,7 @@ func TestFetchBatched(t *testing.T) {
 		},
 		{
 			name:      "context timeout",
-			items:     1,
+			items:     2,
 			batchSize: 3,
 			batchCalls: []batchCall{
 				{
@@ -255,6 +328,7 @@ func TestFetchBatched(t *testing.T) {
 				{
 					elems: []elemCall{
 						{id: 0, err: false},
+						{id: 1, err: false},
 					},
 					err: "",
 				},

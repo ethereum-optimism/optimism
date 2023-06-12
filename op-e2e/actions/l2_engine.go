@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-program/l2/engineapi"
+	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"

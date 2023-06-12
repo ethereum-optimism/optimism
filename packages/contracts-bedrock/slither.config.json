@@ -1,9 +1,11 @@
 {
-  "detectors_to_exclude": "assembly-usage,block-timestamp,naming-convention,solc-version,low-level-calls,boolean-equality",
+  "detectors_to_exclude": "incorrect-shift-in-assembly",
+  "fail_high": true,
+  "fail_pedantic": false,
+  "exclude_optimization": true,
   "exclude_informational": true,
   "exclude_low": true,
   "exclude_medium": true,
-  "exclude_high": false,
   "solc_disable_warnings": false,
   "hardhat_ignore_compile": false,
   "disable_color": false,

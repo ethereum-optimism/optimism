@@ -26,7 +26,7 @@ import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Burnable.sol";
 
 contract BOBA is Context, ERC20, ERC20Burnable, ERC20Permit, ERC20Votes, ERC20VotesComp {
     /// @notice Maximum possible number of tokens
-    uint224 public constant maxSupply = 500000000e18; // 500 million BOBA
+    uint224 public constant maxSupply = 500_000_000e18; // 500 million BOBA
 
     /// @notice Maximum token supply. Needed to fit the COMP interface.
     //  The math: The classic Comp governance contracts are
