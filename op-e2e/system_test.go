@@ -1118,11 +1118,6 @@ func TestWithdrawals(t *testing.T) {
 	// Verify balance after withdrawal
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	header, err = l1Client.HeaderByNumber(ctx, finalizeReceipt.BlockNumber)
-	require.Nil(t, err)
-
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
 	endBalance, err = l1Client.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 
