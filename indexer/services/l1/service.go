@@ -11,10 +11,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/indexer/bindings/legacy/scc"
 	"github.com/ethereum-optimism/optimism/indexer/metrics"
 	"github.com/ethereum-optimism/optimism/indexer/services"
 	"github.com/ethereum-optimism/optimism/indexer/services/query"
+	legacy_bindings "github.com/ethereum-optimism/optimism/op-bindings/legacy-bindings"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum-optimism/optimism/indexer/server"
@@ -68,7 +68,7 @@ type Service struct {
 
 	bridges        map[string]bridge.Bridge
 	portal         *bridge.Portal
-	batchScanner   *scc.StateCommitmentChainFilterer
+	batchScanner   *legacy_bindings.StateCommitmentChainFilterer
 	latestHeader   uint64
 	headerSelector *ConfirmedHeaderSelector
 	l1Client       *ethclient.Client
@@ -108,7 +108,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	var portal *bridge.Portal
-	var batchScanner *scc.StateCommitmentChainFilterer
+	var batchScanner *legacy_bindings.StateCommitmentChainFilterer
 	if cfg.Bedrock {
 		portal = bridge.NewPortal(cfg.AddressManager)
 	} else {
