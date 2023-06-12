@@ -2,7 +2,7 @@ module github.com/ethereum-optimism/optimism/indexer
 
 go 1.19
 
-replace github.com/ethereum/go-ethereum v1.11.4 => github.com/ethereum-optimism/op-geth v1.11.2-de8c5df46.0.20230321002540-11f0554a4313
+replace github.com/ethereum/go-ethereum v1.11.6 => github.com/ethereum-optimism/op-geth v1.101106.0-rc.2
 
 require (
 	github.com/BurntSushi/toml v1.3.0
