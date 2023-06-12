@@ -8,14 +8,12 @@ import (
 	"math/big"
 	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	dtest "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/trie"
@@ -686,7 +684,7 @@ func TestFramePublished(t *testing.T) {
 
 func TestChannelBuilder_PendingFrames_TotalFrames(t *testing.T) {
 	const tnf = 8
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng := rand.New(rand.NewSource(94572314))
 	require := require.New(t)
 	cfg := defaultTestChannelConfig
 	cfg.CompressorConfig.TargetFrameSize = 1000
@@ -729,7 +727,7 @@ func TestChannelBuilder_PendingFrames_TotalFrames(t *testing.T) {
 
 func TestChannelBuilder_InputBytes(t *testing.T) {
 	require := require.New(t)
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng := rand.New(rand.NewSource(4982432))
 	cb, _ := defaultChannelBuilderSetup(t)
 
 	require.Zero(cb.InputBytes())
@@ -747,7 +745,7 @@ func TestChannelBuilder_InputBytes(t *testing.T) {
 
 func TestChannelBuilder_OutputBytes(t *testing.T) {
 	require := require.New(t)
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	rng := rand.New(rand.NewSource(9860372))
 	cfg := defaultTestChannelConfig
 	cfg.CompressorConfig.TargetFrameSize = 1000
 	cfg.MaxFrameSize = 1000
