@@ -13,16 +13,37 @@ const deployFn: DeployFunction = async (hre) => {
   if (sequencerFeeVaultRecipient === ethers.constants.AddressZero) {
     throw new Error(`SequencerFeeVault RECIPIENT undefined`)
   }
+  const sequencerFeeVaultMinimumWithdrawalAmount =
+    deployConfig.sequencerFeeVaultMinimumWithdrawalAmount
+  const sequencerFeeVaultWithdrawalNetwork =
+    deployConfig.sequencerFeeVaultWithdrawalNetwork
+  if (sequencerFeeVaultWithdrawalNetwork >= 2) {
+    throw new Error('SequencerFeeVault WITHDRAWAL_NETWORK must be 0 or 1')
+  }
 
   await deploy({
     hre,
     name: 'SequencerFeeVault',
-    args: [sequencerFeeVaultRecipient],
+    args: [
+      sequencerFeeVaultRecipient,
+      sequencerFeeVaultMinimumWithdrawalAmount,
+      sequencerFeeVaultWithdrawalNetwork,
+    ],
     postDeployAction: async (contract) => {
       await assertContractVariable(
         contract,
         'RECIPIENT',
         ethers.utils.getAddress(sequencerFeeVaultRecipient)
+      )
+      await assertContractVariable(
+        contract,
+        'MIN_WITHDRAWAL_AMOUNT',
+        sequencerFeeVaultMinimumWithdrawalAmount
+      )
+      await assertContractVariable(
+        contract,
+        'WITHDRAWAL_NETWORK',
+        sequencerFeeVaultWithdrawalNetwork
       )
     },
   })
