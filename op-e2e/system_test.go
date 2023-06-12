@@ -816,7 +816,7 @@ func TestSystemDenseTopology(t *testing.T) {
 		params, err := p2p.GetPeerScoreParams("light", 2)
 		require.NoError(t, err)
 		node.P2P = &p2p.Config{
-			PeerScoring:    params,
+			PeerScoring:    &params,
 			BanningEnabled: false,
 		}
 	}
