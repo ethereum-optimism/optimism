@@ -3,7 +3,6 @@ comment:
   behavior: default
   require_changes: true    # only post the comment if coverage changes
 ignore:
-  - "l2geth"
   - "op-e2e"
   - "**/*.t.sol"
   - "op-bindings/bindings/*.go"
