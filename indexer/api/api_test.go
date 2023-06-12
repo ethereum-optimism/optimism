@@ -5,6 +5,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/google/uuid"
+
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
@@ -18,7 +20,7 @@ func (mbv *MockBridgeView) DepositsByAddress(address common.Address) ([]*databas
 	return []*database.DepositWithTransactionHash{
 		{
 			Deposit: database.Deposit{
-				GUID:                 "mockGUID1",
+				GUID:                 uuid.New(),
 				InitiatedL1EventGUID: "mockEventGUID1",
 				Tx:                   database.Transaction{},
 				TokenPair:            database.TokenPair{},
@@ -33,7 +35,7 @@ func (mbv *MockBridgeView) WithdrawalsByAddress(address common.Address) ([]*data
 	return []*database.WithdrawalWithTransactionHashes{
 		{
 			Withdrawal: database.Withdrawal{
-				GUID:                 "mockGUID2",
+				GUID:                 uuid.New(),
 				InitiatedL2EventGUID: "mockEventGUID2",
 				WithdrawalHash:       common.HexToHash("0x456"),
 				Tx:                   database.Transaction{},
