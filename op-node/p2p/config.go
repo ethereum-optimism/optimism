@@ -51,6 +51,12 @@ type SetupP2P interface {
 	ReqRespSyncEnabled() bool
 }
 
+// ScoringParams defines the various types of peer scoring parameters.
+type ScoringParams struct {
+	PeerScoring  pubsub.PeerScoreParams
+	TopicScoring pubsub.TopicScoreParams
+}
+
 // Config sets up a p2p host and discv5 service from configuration.
 // This implements SetupP2P.
 type Config struct {
@@ -62,9 +68,7 @@ type Config struct {
 	// Enable P2P-based alt-syncing method (req-resp protocol, not gossip)
 	AltSync bool
 
-	// Pubsub Scoring Parameters
-	PeerScoring  *pubsub.PeerScoreParams
-	TopicScoring *pubsub.TopicScoreParams
+	ScoringParams *ScoringParams
 
 	// Whether to ban peers based on their [PeerScoring] score. Should be negative.
 	BanningEnabled bool
@@ -135,7 +139,10 @@ func (conf *Config) Disabled() bool {
 }
 
 func (conf *Config) PeerScoringParams() *pubsub.PeerScoreParams {
-	return conf.PeerScoring
+	if conf.ScoringParams == nil {
+		return nil
+	}
+	return &conf.ScoringParams.PeerScoring
 }
 
 func (conf *Config) BanPeers() bool {
@@ -151,7 +158,10 @@ func (conf *Config) BanDuration() time.Duration {
 }
 
 func (conf *Config) TopicScoringParams() *pubsub.TopicScoreParams {
-	return conf.TopicScoring
+	if conf.ScoringParams == nil {
+		return nil
+	}
+	return &conf.ScoringParams.TopicScoring
 }
 
 func (conf *Config) ReqRespSyncEnabled() bool {
