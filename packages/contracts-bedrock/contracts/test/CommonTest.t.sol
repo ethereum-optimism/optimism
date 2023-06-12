@@ -15,6 +15,8 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 import { L2CrossDomainMessenger } from "../L2/L2CrossDomainMessenger.sol";
+import { SequencerFeeVault } from "../L2/SequencerFeeVault.sol";
+import { FeeVault } from "../universal/FeeVault.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { LegacyERC20ETH } from "../legacy/LegacyERC20ETH.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
@@ -486,6 +488,20 @@ contract ERC721Bridge_Initializer is Messenger_Initializer {
         vm.label(address(L1Bridge), "L1ERC721Bridge");
         vm.label(address(L2Bridge), "L2ERC721Bridge");
     }
+}
+
+contract FeeVault_Initializer is Bridge_Initializer {
+    SequencerFeeVault vault = SequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
+    address constant recipient = address(1024);
+
+    event Withdrawal(uint256 value, address to, address from);
+
+    event Withdrawal(
+        uint256 value,
+        address to,
+        address from,
+        FeeVault.WithdrawalNetwork withdrawalNetwork
+    );
 }
 
 contract FFIInterface is Test {

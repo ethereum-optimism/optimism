@@ -102,9 +102,15 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		GasPriceOracleScalar:        1000_000,
 		DeploymentWaitConfirmations: 1,
 
-		SequencerFeeVaultRecipient: common.Address{19: 1},
-		BaseFeeVaultRecipient:      common.Address{19: 2},
-		L1FeeVaultRecipient:        common.Address{19: 3},
+		SequencerFeeVaultRecipient:               common.Address{19: 1},
+		BaseFeeVaultRecipient:                    common.Address{19: 2},
+		L1FeeVaultRecipient:                      common.Address{19: 3},
+		BaseFeeVaultMinimumWithdrawalAmount:      uint64ToBig(1000_000_000), // 1 gwei
+		L1FeeVaultMinimumWithdrawalAmount:        uint64ToBig(1000_000_000), // 1 gwei
+		SequencerFeeVaultMinimumWithdrawalAmount: uint64ToBig(1000_000_000), // 1 gwei
+		BaseFeeVaultWithdrawalNetwork:            uint8(1),                  // L2 withdrawal network
+		L1FeeVaultWithdrawalNetwork:              uint8(1),                  // L2 withdrawal network
+		SequencerFeeVaultWithdrawalNetwork:       uint8(1),                  // L2 withdrawal network
 
 		EIP1559Elasticity:  10,
 		EIP1559Denominator: 50,
