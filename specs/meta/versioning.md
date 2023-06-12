@@ -26,12 +26,9 @@ Go modules that are currently versioned:
 Go modules which are not yet versioned:
 
 ```text
-./batch-submitter  (changesets)
 ./indexer          (changesets)
-./l2geth           (changesets)
 ./op-exporter      (changesets)
 ./proxyd           (changesets)
-./state-surgery
 ```
 
 ### versioning process
