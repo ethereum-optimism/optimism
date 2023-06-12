@@ -66,6 +66,12 @@ func (c *customPeerstoreNetwork) Close() error {
 	return c.Network.Close()
 }
 
+type customAppScorer func(p peer.ID) float64
+
+func (c customAppScorer) ApplicationScore(id peer.ID) float64 {
+	return c(id)
+}
+
 // getNetHosts generates a slice of hosts using the [libp2p/go-libp2p] library.
 func getNetHosts(testSuite *PeerScoresTestSuite, ctx context.Context, n int) []host.Host {
 	var out []host.Host
@@ -100,16 +106,16 @@ func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []
 
 		scorer := NewScorer(
 			&rollup.Config{L2ChainID: big.NewInt(123)},
-			extPeerStore, testSuite.mockMetricer, logger)
+			extPeerStore, testSuite.mockMetricer, logger, customAppScorer(func(p peer.ID) float64 {
+				if p == hosts[0].ID() {
+					return -1000
+				} else {
+					return 0
+				}
+			}))
 		opts = append(opts, ConfigurePeerScoring(&Config{
 			PeerScoring: pubsub.PeerScoreParams{
-				AppSpecificScore: func(p peer.ID) float64 {
-					if p == hosts[0].ID() {
-						return -1000
-					} else {
-						return 0
-					}
-				},
+				AppSpecificScore:  func(p peer.ID) float64 { return 0 },
 				AppSpecificWeight: 1,
 				DecayInterval:     time.Second,
 				DecayToZero:       0.01,

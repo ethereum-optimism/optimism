@@ -38,26 +38,10 @@ func TestPeerScorer(t *testing.T) {
 	suite.Run(t, new(PeerScorerTestSuite))
 }
 
-// TestScorer_OnConnect ensures we can call the OnConnect method on the peer scorer.
-func (testSuite *PeerScorerTestSuite) TestScorer_OnConnect() {
-	scorer := p2p.NewScorer(
-		&rollup.Config{L2ChainID: big.NewInt(123)},
-		testSuite.mockStore,
-		testSuite.mockMetricer,
-		testSuite.logger,
-	)
-	scorer.OnConnect(peer.ID("alice"))
-}
+type customAppScorer struct{}
 
-// TestScorer_OnDisconnect ensures we can call the OnDisconnect method on the peer scorer.
-func (testSuite *PeerScorerTestSuite) TestScorer_OnDisconnect() {
-	scorer := p2p.NewScorer(
-		&rollup.Config{L2ChainID: big.NewInt(123)},
-		testSuite.mockStore,
-		testSuite.mockMetricer,
-		testSuite.logger,
-	)
-	scorer.OnDisconnect(peer.ID("alice"))
+func (c *customAppScorer) ApplicationScore(id peer.ID) float64 {
+	return 0
 }
 
 // TestScorer_SnapshotHook tests running the snapshot hook on the peer scorer.
@@ -67,6 +51,7 @@ func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHook() {
 		testSuite.mockStore,
 		testSuite.mockMetricer,
 		testSuite.logger,
+		&customAppScorer{},
 	)
 	inspectFn := scorer.SnapshotHook()
 

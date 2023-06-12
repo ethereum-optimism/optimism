@@ -57,6 +57,9 @@ func NewConfig(ctx *cli.Context, blockTime uint64) (*p2p.Config, error) {
 	if err := loadPeerScoringParams(conf, ctx, blockTime); err != nil {
 		return nil, fmt.Errorf("failed to load p2p peer scoring options: %w", err)
 	}
+	if err := loadApplicationScoringParams(conf, ctx, blockTime); err != nil {
+		return nil, fmt.Errorf("failed to load p2p application scoring options: %w", err)
+	}
 
 	if err := loadBanningOptions(conf, ctx); err != nil {
 		return nil, fmt.Errorf("failed to load banning option: %w", err)
@@ -117,6 +120,21 @@ func loadPeerScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64)
 		conf.PeerScoring = peerScoreParams
 	}
 
+	return nil
+}
+
+// loadApplicationScoringParams loads the scoring options from the CLI context.
+//
+// If the scoring level is not set, no scoring is enabled.
+func loadApplicationScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64) error {
+	scoringLevel := ctx.GlobalString(flags.ApplicationScoring.Name)
+	if scoringLevel != "" {
+		params, err := p2p.GetApplicationScoreParams(scoringLevel, blockTime)
+		if err != nil {
+			return err
+		}
+		conf.ApplicationScoring = params
+	}
 	return nil
 }
 

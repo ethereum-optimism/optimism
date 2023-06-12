@@ -73,6 +73,15 @@ var (
 		Value:    "none",
 		EnvVar:   p2pEnv("TOPIC_SCORING"),
 	}
+
+	ApplicationScoring = cli.StringFlag{
+		Name: "p2p.scoring.application",
+		Usage: "Sets the application scoring strategy. " +
+			"Can be one of: none or light.",
+		Required: false,
+		Value:    "none",
+		EnvVar:   p2pEnv("APPLICATION_SCORING"),
+	}
 	P2PPrivPath = cli.StringFlag{
 		Name: "p2p.priv.path",
 		Usage: "Read the hex-encoded 32-byte private key for the peer ID from this txt file. Created if not already exists." +
@@ -309,6 +318,7 @@ var p2pFlags = []cli.Flag{
 	BanningThreshold,
 	BanningDuration,
 	TopicScoring,
+	ApplicationScoring,
 	ListenIP,
 	ListenTCPPort,
 	ListenUDPPort,

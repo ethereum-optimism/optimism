@@ -97,6 +97,12 @@ func setupSyncTestData(length uint64) (*rollup.Config, *syncTestData) {
 	return cfg, &syncTestData{payloads: payloads}
 }
 
+type noopSyncPeerScorer struct{}
+
+func (n noopSyncPeerScorer) onValidResponse(id peer.ID)   {}
+func (n noopSyncPeerScorer) onResponseError(id peer.ID)   {}
+func (n noopSyncPeerScorer) onRejectedPayload(id peer.ID) {}
+
 func TestSinglePeerSync(t *testing.T) {
 	t.Parallel() // Takes a while, but can run in parallel
 
@@ -137,7 +143,7 @@ func TestSinglePeerSync(t *testing.T) {
 	hostA.SetStreamHandler(PayloadByNumberProtocolID(cfg.L2ChainID), payloadByNumber)
 
 	// Setup host B as the client
-	cl := NewSyncClient(log.New("role", "client"), cfg, hostB.NewStream, receivePayload, metrics.NoopMetrics)
+	cl := NewSyncClient(log.New("role", "client"), cfg, hostB.NewStream, receivePayload, metrics.NoopMetrics, noopSyncPeerScorer{})
 
 	// Setup host B (client) to sync from its peer Host A (server)
 	cl.AddPeer(hostA.ID())
@@ -186,7 +192,7 @@ func TestMultiPeerSync(t *testing.T) {
 		payloadByNumber := MakeStreamHandler(ctx, log.New("serve", "payloads_by_number"), srv.HandleSyncRequest)
 		h.SetStreamHandler(PayloadByNumberProtocolID(cfg.L2ChainID), payloadByNumber)
 
-		cl := NewSyncClient(log.New("role", "client"), cfg, h.NewStream, receivePayload, metrics.NoopMetrics)
+		cl := NewSyncClient(log.New("role", "client"), cfg, h.NewStream, receivePayload, metrics.NoopMetrics, noopSyncPeerScorer{})
 		return cl, received
 	}
 
