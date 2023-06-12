@@ -42,7 +42,7 @@ func TestBuildOptimism(t *testing.T) {
 			"_decimals": uint8(18),
 		},
 	})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.NotNil(t, results)
 
 	contracts := map[string]bool{
@@ -72,7 +72,7 @@ func TestBuildOptimism(t *testing.T) {
 
 	for name, bytecode := range results {
 		// There is bytecode there
-		require.Greater(t, len(bytecode), 0)
+		require.NotEmpty(t, len(bytecode), 0)
 		// It is in the set of contracts that we care about
 		require.True(t, contracts[name])
 	}

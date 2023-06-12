@@ -181,7 +181,6 @@ func TestLoadAddresses(t *testing.T) {
 		OutputPath:         "invalid.json",
 	}
 	_, _, err := crawler.LoadAddresses()
-	require.Error(t, err)
 	require.ErrorContains(t, err, "no such file or directory")
 	crawler.OutputPath = "./testdata/eth-addresses.json"
 	blockNumber, addresses, err := crawler.LoadAddresses()
@@ -522,7 +521,6 @@ func TestCheckEthSlots(t *testing.T) {
 
 	alloc[predeploys.LegacyERC20ETHAddr].Storage[CalcOVMETHStorageKey(common.Address{1})] = common.Hash{1}
 	err = CheckEthSlots(alloc, "./testdata/eth-addresses.json")
-	require.Error(t, err)
 	require.ErrorContains(t, err, "not valid")
 }
 
