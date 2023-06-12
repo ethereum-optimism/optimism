@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/util"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -939,22 +940,20 @@ type contracts struct {
 // newContracts will create a contracts struct with the contract bindings
 // preconfigured
 func newContracts(ctx *cli.Context, l1Backend, l2Backend bind.ContractBackend) (*contracts, error) {
-	optimismPortalAddress := ctx.String("optimism-portal-address")
-	if len(optimismPortalAddress) == 0 {
+	optimismPortalAddr, err := opservice.ParseAddress(ctx.String("optimism-portal-address"))
+	if err != nil {
 		return nil, errors.New("OptimismPortal address not configured")
 	}
-	optimismPortalAddr := common.HexToAddress(optimismPortalAddress)
 
 	portal, err := bindings.NewOptimismPortal(optimismPortalAddr, l1Backend)
 	if err != nil {
 		return nil, err
 	}
 
-	l1xdmAddress := ctx.String("l1-crossdomain-messenger-address")
-	if l1xdmAddress == "" {
+	l1xdmAddr, err := opservice.ParseAddress(ctx.String("l1-crossdomain-messenger-address"))
+	if err != nil {
 		return nil, errors.New("L1CrossDomainMessenger address not configured")
 	}
-	l1xdmAddr := common.HexToAddress(l1xdmAddress)
 
 	l1CrossDomainMessenger, err := bindings.NewL1CrossDomainMessenger(l1xdmAddr, l1Backend)
 	if err != nil {
