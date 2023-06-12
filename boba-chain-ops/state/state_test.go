@@ -61,7 +61,7 @@ func TestSetAndGetStorageSlots(t *testing.T) {
 	values["addresses"] = addresses
 
 	slots, err := state.ComputeStorageSlots(&layout, values)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	backend := backends.NewSimulatedBackend(
 		t,
@@ -71,10 +71,10 @@ func TestSetAndGetStorageSlots(t *testing.T) {
 		15000000,
 	)
 	opts, err := bind.NewKeyedTransactorWithChainID(testKey, chainID)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	_, _, contract, err := testdata.DeployTestdata(opts, backend)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	backend.Commit()
 
 	// Call each of the methods to make sure that they are set to their 0 values
@@ -83,7 +83,7 @@ func TestSetAndGetStorageSlots(t *testing.T) {
 	// Send transactions through the set storage API on the contract
 	for _, slot := range slots {
 		_, err := contract.SetStorage(opts, slot.Key, slot.Value)
-		require.Nil(t, err)
+		require.NoError(t, err)
 	}
 	backend.Commit()
 
@@ -93,7 +93,7 @@ func TestSetAndGetStorageSlots(t *testing.T) {
 	// that the storage slots have been set correctly
 	for _, slot := range slots {
 		value, err := contract.GetStorage(&bind.CallOpts{}, slot.Key)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		require.Equal(t, value[:], slot.Value.Bytes())
 	}
 }
@@ -128,7 +128,7 @@ OUTER:
 			res, err = contract.Bytes32(&bind.CallOpts{})
 			result, ok := res.([32]uint8)
 			require.Equal(t, ok, true)
-			require.Nil(t, err)
+			require.NoError(t, err)
 			require.Equal(t, common.BytesToHash(result[:]), value)
 			continue OUTER
 		case "_string":
@@ -138,57 +138,57 @@ OUTER:
 			require.Equal(t, ok, true)
 			for mapKey, mapVal := range addrs {
 				res, err = contract.Addresses(&bind.CallOpts{}, mapKey.(*big.Int))
-				require.Nil(t, err)
+				require.NoError(t, err)
 				require.Equal(t, mapVal, res)
 				continue OUTER
 			}
 		default:
 			require.Fail(t, fmt.Sprintf("Unknown variable label: %s", key))
 		}
-		require.Nil(t, err)
+		require.NoError(t, err)
 		require.Equal(t, res, value)
 	}
 }
 
 func testContractStateValuesAreEmpty(t *testing.T, contract *testdata.Testdata) {
 	addr, err := contract.Address(&bind.CallOpts{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, addr, common.Address{})
 
 	boolean, err := contract.Bool(&bind.CallOpts{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, boolean, false)
 
 	uint256, err := contract.Uint256(&bind.CallOpts{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, uint256.Uint64(), uint64(0))
 
 	offset0, err := contract.Offset0(&bind.CallOpts{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, offset0, uint8(0))
 
 	offset1, err := contract.Offset1(&bind.CallOpts{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, offset1, uint8(0))
 
 	offset2, err := contract.Offset2(&bind.CallOpts{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, offset2, uint16(0))
 
 	offset3, err := contract.Offset3(&bind.CallOpts{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, offset3, uint32(0))
 
 	offset4, err := contract.Offset4(&bind.CallOpts{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, offset4, uint64(0))
 
 	offset5, err := contract.Offset5(&bind.CallOpts{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, offset5.Uint64(), uint64(0))
 
 	bytes32, err := contract.Bytes32(&bind.CallOpts{})
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, common.BytesToHash(bytes32[:]), common.Hash{})
 }
 
@@ -336,7 +336,7 @@ func TestEncodeUintValue(t *testing.T) {
 
 	for _, test := range cases {
 		got, err := state.EncodeUintValue(test.number, test.offset)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		require.Equal(t, got, test.expect)
 	}
 }
@@ -381,7 +381,7 @@ func TestEncodeBoolValue(t *testing.T) {
 
 	for _, test := range cases {
 		got, err := state.EncodeBoolValue(test.boolean, test.offset)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		require.Equal(t, got, test.expect)
 	}
 }
@@ -421,7 +421,7 @@ func TestEncodeAddressValue(t *testing.T) {
 
 	for _, test := range cases {
 		got, err := state.EncodeAddressValue(test.addr, test.offset)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		require.Equal(t, got, test.expect)
 	}
 }
@@ -443,7 +443,7 @@ func TestEncodeBytes32Value(t *testing.T) {
 
 	for _, test := range cases {
 		got, err := state.EncodeBytes32Value(test.bytes32, 0)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		require.Equal(t, got, test.expect)
 	}
 }
@@ -470,7 +470,7 @@ func TestEncodeStringValue(t *testing.T) {
 
 	for _, test := range cases {
 		got, err := state.EncodeStringValue(test.str, 0)
-		require.Nil(t, err)
+		require.NoError(t, err)
 		require.Equal(t, got, test.expect)
 	}
 }

@@ -5,14 +5,15 @@ go 1.19
 require (
 	github.com/bobanetwork/v3-anchorage/boba-bindings v0.0.0-00010101000000-000000000000
 	github.com/c2h5oh/datasize v0.0.0-20220606134207-859f65c6625b
+	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/holiman/uint256 v1.2.2
 	github.com/ledgerwatch/erigon v1.10.16
-	github.com/ledgerwatch/erigon-lib v0.0.0-20230518195502-f2d93b959bb3
+	github.com/ledgerwatch/erigon-lib v0.0.0-20230529131121-c7c31ee01f09
 	github.com/ledgerwatch/log/v3 v3.8.0
-	github.com/stretchr/testify v1.8.2
+	github.com/stretchr/testify v1.8.3
 	github.com/urfave/cli/v2 v2.25.3
 	golang.org/x/crypto v0.9.0
-	golang.org/x/exp v0.0.0-20230510235704-dd950f8aeaea
+	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	golang.org/x/sync v0.2.0
 )
 
@@ -27,8 +28,8 @@ require (
 	github.com/anacrolix/dht/v2 v2.19.2-0.20221121215055-066ad8494444 // indirect
 	github.com/anacrolix/envpprof v1.2.1 // indirect
 	github.com/anacrolix/generics v0.0.0-20230428105757-683593396d68 // indirect
-	github.com/anacrolix/go-libutp v1.2.0 // indirect
-	github.com/anacrolix/log v0.13.2-0.20221123232138-02e2764801c3 // indirect
+	github.com/anacrolix/go-libutp v1.3.0 // indirect
+	github.com/anacrolix/log v0.14.0 // indirect
 	github.com/anacrolix/missinggo v1.3.0 // indirect
 	github.com/anacrolix/missinggo/perf v1.0.0 // indirect
 	github.com/anacrolix/missinggo/v2 v2.7.1 // indirect
@@ -36,7 +37,7 @@ require (
 	github.com/anacrolix/multiless v0.3.0 // indirect
 	github.com/anacrolix/stm v0.4.0 // indirect
 	github.com/anacrolix/sync v0.4.0 // indirect
-	github.com/anacrolix/torrent v1.48.1-0.20230219022425-e8971ea0f1bf // indirect
+	github.com/anacrolix/torrent v1.51.3 // indirect
 	github.com/anacrolix/upnp v0.1.3-0.20220123035249-922794e51c96 // indirect
 	github.com/anacrolix/utp v0.1.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
@@ -70,7 +71,6 @@ require (
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/goccy/go-json v0.9.11 // indirect
 	github.com/gofrs/flock v0.8.1 // indirect
-	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb // indirect
@@ -98,6 +98,7 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.18 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
+	github.com/maxbrunsfeld/counterfeiter/v6 v6.6.1
 	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
@@ -174,7 +175,7 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ledgerwatch/erigon => ../op-erigon
+replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon v1.9.7-0.20230601162022-2ff12130f6f2
 
 replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/v3-erigon-lib v0.0.0-20230523234422-1a0c1393d03a
 

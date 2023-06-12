@@ -112,17 +112,17 @@ func TestWithdrawalLegacyStorageSlot(t *testing.T) {
 			// Given a receipt, parse the cross domain message
 			// from its logs
 			msg, err := findCrossDomainMessage(t, receipt)
-			require.Nil(t, err)
+			require.NoError(t, err)
 			// Ensure that it is a version 0 cross domain message
 			require.Equal(t, uint64(0), msg.Version())
 
 			// Encode the cross domain message
 			encoded, err := msg.Encode()
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			// ABI encode the serialized cross domain message
 			packed, err := passMessage.Pack("passMessageToL1", encoded)
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			// Decode the calldata where the L2CrossDomainMessenger is calling
 			// L2ToL1MessagePasser.passMessageToL1 from the callTrace
@@ -138,7 +138,7 @@ func TestWithdrawalLegacyStorageSlot(t *testing.T) {
 
 			// Compute the legacy storage slot for the withdrawal
 			slot, err := withdrawal.StorageSlot()
-			require.Nil(t, err)
+			require.NoError(t, err)
 
 			// Get the state diff that corresponds to this transaction
 			diff, ok := stateDiffs[hash]
@@ -169,11 +169,11 @@ func FuzzEncodeDecodeLegacyWithdrawal(f *testing.F) {
 		withdrawal := crossdomain.NewLegacyWithdrawal(msgSender, target, sender, data, nonce)
 
 		encoded, err := withdrawal.Encode()
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		var w crossdomain.LegacyWithdrawal
 		err = w.Decode(encoded)
-		require.Nil(t, err)
+		require.NoError(t, err)
 
 		require.Equal(t, withdrawal.XDomainNonce.Uint64(), w.XDomainNonce.Uint64())
 		require.Equal(t, withdrawal.XDomainSender, w.XDomainSender)
