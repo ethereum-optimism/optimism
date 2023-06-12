@@ -86,7 +86,6 @@ Refer to the Directory Structure section below to understand which packages are 
 │   ├── <a href="./packages/replica-healthcheck">replica-healthcheck</a>: Service for monitoring the health of a replica node
 │   └── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
 ├── <a href="./indexer">indexer</a>: indexes and syncs transactions
-├── <a href="./infra/op-replica">infra/op-replica</a>: Deployment examples and resources for running an Optimism replica
 ├── <a href="./l2geth">l2geth</a>: Optimism client software, a fork of <a href="https://github.com/ethereum/go-ethereum/tree/v1.9.10">geth v1.9.10</a>
 ├── <a href="./op-exporter">op-exporter</a>: A prometheus exporter to collect/serve metrics from an Optimism node
 ├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
