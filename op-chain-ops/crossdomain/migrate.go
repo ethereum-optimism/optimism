@@ -11,10 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-var (
-	abiTrue = common.Hash{31: 0x01}
-)
-
 // Constants used by `CrossDomainMessenger.baseGas`
 var (
 	RelayConstantOverhead            uint64 = 200_000
