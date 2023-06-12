@@ -29,10 +29,25 @@ New OP Stack blockchains are currently configured with a JSON file inside the Op
 
 | Key | Type | Description | Default value |
 | --- | --- | --- | --- |
-| `baseFeeVaultRecipient` | L1 Address | L1 address that the base fees from all transactions on the L2 can be withdrawn to. | It is recommended to have a single admin account to retain a common security model. |
-| `l1FeeVaultRecipient` | L1 Address | L1 address that the L1 data fees from all transactions on the L2 can be withdrawn to. | It is recommended to have a single admin account to retain a common security model. |
-| `sequencerFeeVaultRecipient` | L1 Address | L1 address that the tip fees from all transactions on the L2 can be withdrawn to. | It is recommended to have a single admin account to retain a common security model. |
+| `baseFeeVaultRecipient` | L1 or L2 Address | Address that the base fees from all transactions on the L2 can be withdrawn to. | It is recommended to have a single admin account to retain a common security model. |
+| `l1FeeVaultRecipient` | L1 or L2 Address | Address that the L1 data fees from all transactions on the L2 can be withdrawn to. | It is recommended to have a single admin account to retain a common security model. |
+| `sequencerFeeVaultRecipient` | L1 or L2 Address | Address that the tip fees from all transactions on the L2 can be withdrawn to. | It is recommended to have a single admin account to retain a common security model. |
 
+### Minimum Fee Withdrawal Amounts
+
+| Key | Type | Description | Default value |
+| --- | --- | --- | --- |
+| `baseFeeVaultMinimumWithdrawalAmount` | Number in wei | The minimum amount of funds the `BaseFeeVault` contract must have for a fee withdrawal. | 10 ether |
+| `l1FeeVaultMinimumWithdrawalAmount` | Number in wei | The minimum amount of funds the `L1FeeVault` contract must have for a fee withdrawal. | 10 ether |
+| `sequencerFeeVaultWithdrawalAmount` | Number in wei | The minimum amount of funds the `SequencerFeeVault` contract must have for a fee withdrawal. | 10 ether |
+
+### Withdrawal Network
+
+| Key | Type | Description | Default value |
+| --- | --- | --- | --- |
+| `baseFeeVaultWithdrawalNetwork` | Number representing network enum | A value of `0` will withdraw funds to the recient address on L1 and a value of `1` will withdraw funds to the recient address on L2. |
+| `l1FeeVaultWithdrawalNetwork` | Number representing network enum | A value of `0` will withdraw funds to the recient address on L1 and a value of `1` will withdraw funds to the recient address on L2. |
+| `sequencerFeeVaultWithdrawalNetwork` | Number representing network enum | A value of `0` will withdraw funds to the recient address on L1 and a value of `1` will withdraw funds to the recient address on L2. |
 
 ### Misc.
 

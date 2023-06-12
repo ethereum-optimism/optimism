@@ -44,6 +44,17 @@ func (mbv *MockBridgeView) WithdrawalsByAddress(address common.Address) ([]*data
 	}, nil
 }
 
+func TestHealthz(t *testing.T) {
+	api := NewApi(&MockBridgeView{})
+	request, err := http.NewRequest("GET", "/healthz", nil)
+	assert.Nil(t, err)
+
+	responseRecorder := httptest.NewRecorder()
+	api.Router.ServeHTTP(responseRecorder, request)
+
+	assert.Equal(t, http.StatusOK, responseRecorder.Code)
+}
+
 func TestDepositsHandler(t *testing.T) {
 	api := NewApi(&MockBridgeView{})
 	request, err := http.NewRequest("GET", "/api/v0/deposits/0x123", nil)

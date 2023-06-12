@@ -1,9 +1,11 @@
 package database
 
 import (
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"gorm.io/gorm"
+
+	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/google/uuid"
 )
 
 /**
@@ -11,11 +13,11 @@ import (
  */
 
 type ContractEvent struct {
-	GUID            string      `gorm:"primaryKey"`
+	GUID            uuid.UUID   `gorm:"primaryKey"`
 	BlockHash       common.Hash `gorm:"serializer:json"`
 	TransactionHash common.Hash `gorm:"serializer:json"`
 
-	EventSignature hexutil.Bytes `gorm:"serializer:json"`
+	EventSignature common.Hash `gorm:"serializer:json"`
 	LogIndex       uint64
 	Timestamp      uint64
 }

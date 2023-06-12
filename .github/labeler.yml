@@ -1,5 +1,4 @@
 ---
 C-Protocol-Critical:
-  - 'packages/data-transport-layer/**/*.ts'
-  - 'packages/contracts/**/*.sol'
+  - 'packages/contracts-bedrock/**/*.sol'
   - 'l2geth/**/*.go'
