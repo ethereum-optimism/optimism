@@ -146,7 +146,15 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 	}
 
 	peerScoreParams := conf.PeerScoringParams()
-	ps, err := store.NewExtendedPeerstore(context.Background(), log, clock.SystemClock, basePs, conf.Store, peerScoreParams.RetainScore)
+	var scoreRetention time.Duration
+	if peerScoreParams != nil {
+		// Use the same retention period as gossip will if available
+		scoreRetention = peerScoreParams.RetainScore
+	} else {
+		// Otherwsie default to a long but not infinite retention period.
+		scoreRetention = 24 * time.Hour
+	}
+	ps, err := store.NewExtendedPeerstore(context.Background(), log, clock.SystemClock, basePs, conf.Store, scoreRetention)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open extended peerstore: %w", err)
 	}

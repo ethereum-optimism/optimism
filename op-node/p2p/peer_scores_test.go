@@ -114,8 +114,7 @@ func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []
 				}
 			}))
 		opts = append(opts, ConfigurePeerScoring(&Config{
-			PeerScoring: pubsub.PeerScoreParams{
-				AppSpecificScore:  func(p peer.ID) float64 { return 0 },
+			PeerScoring: &pubsub.PeerScoreParams{
 				AppSpecificWeight: 1,
 				DecayInterval:     time.Second,
 				DecayToZero:       0.01,

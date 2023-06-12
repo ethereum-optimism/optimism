@@ -63,9 +63,9 @@ type Config struct {
 	AltSync bool
 
 	// Pubsub Scoring Parameters
-	PeerScoring        pubsub.PeerScoreParams
-	TopicScoring       pubsub.TopicScoreParams
-	ApplicationScoring ApplicationScoreParams
+	PeerScoring        *pubsub.PeerScoreParams
+	TopicScoring       *pubsub.TopicScoreParams
+	ApplicationScoring *ApplicationScoreParams
 
 	// Whether to ban peers based on their [PeerScoring] score. Should be negative.
 	BanningEnabled bool
@@ -136,7 +136,7 @@ func (conf *Config) Disabled() bool {
 }
 
 func (conf *Config) PeerScoringParams() *pubsub.PeerScoreParams {
-	return &conf.PeerScoring
+	return conf.PeerScoring
 }
 
 func (conf *Config) BanPeers() bool {
@@ -152,11 +152,11 @@ func (conf *Config) BanDuration() time.Duration {
 }
 
 func (conf *Config) TopicScoringParams() *pubsub.TopicScoreParams {
-	return &conf.TopicScoring
+	return conf.TopicScoring
 }
 
 func (conf *Config) ApplicationScoringParams() *ApplicationScoreParams {
-	return &conf.ApplicationScoring
+	return conf.ApplicationScoring
 }
 
 func (conf *Config) ReqRespSyncEnabled() bool {

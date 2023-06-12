@@ -101,7 +101,7 @@ func loadTopicScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64
 		if err != nil {
 			return err
 		}
-		conf.TopicScoring = topicScoreParams
+		conf.TopicScoring = &topicScoreParams
 	}
 
 	return nil
@@ -117,7 +117,7 @@ func loadPeerScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64)
 		if err != nil {
 			return err
 		}
-		conf.PeerScoring = peerScoreParams
+		conf.PeerScoring = &peerScoreParams
 	}
 
 	return nil
@@ -133,7 +133,7 @@ func loadApplicationScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime 
 		if err != nil {
 			return err
 		}
-		conf.ApplicationScoring = params
+		conf.ApplicationScoring = &params
 	}
 	return nil
 }
