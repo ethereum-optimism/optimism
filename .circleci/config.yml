@@ -88,7 +88,6 @@ jobs:
             - "packages/drippie-mon/node_modules"
             - "packages/fault-detector/node_modules"
             - "packages/hardhat-deploy-config/node_modules"
-            - "packages/migration-data/node_modules"
             - "packages/replica-healthcheck/node_modules"
             - "packages/sdk/node_modules"
       - run:
