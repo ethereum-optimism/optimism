@@ -1,6 +1,8 @@
 package predeploys
 
-import "github.com/ledgerwatch/erigon-lib/common"
+import (
+	"github.com/ledgerwatch/erigon-lib/common"
+)
 
 const (
 	L2ToL1MessagePasser = "0x4200000000000000000000000000000000000016"
@@ -15,16 +17,20 @@ const (
 	L1BlockNumber                 = "0x4200000000000000000000000000000000000013"
 	GasPriceOracle                = "0x420000000000000000000000000000000000000F"
 	L1Block                       = "0x4200000000000000000000000000000000000015"
-	GovernanceToken               = "0x4200000000000000000000000000000000000042"
 	LegacyMessagePasser           = "0x4200000000000000000000000000000000000000"
 	L2ERC721Bridge                = "0x4200000000000000000000000000000000000014"
 	OptimismMintableERC721Factory = "0x4200000000000000000000000000000000000017"
 	ProxyAdmin                    = "0x4200000000000000000000000000000000000018"
 	BaseFeeVault                  = "0x4200000000000000000000000000000000000019"
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
-	// -----
-	BobaTuringCredit = "0x42000000000000000000000000000000000000ff"
-	BobaL2           = "0x42000000000000000000000000000000000000fe"
+	// BOBA Specific
+	BobaTuringCredit   = "0x4200000000000000000000000000000000000020"
+	BobaL2             = "0x4200000000000000000000000000000000000023"
+	BobaGasPriceOracle = "0x4200000000000000000000000000000000000024"
+	// These contracts need to be destroyed
+	BobaTuringCreditImplementation  = "0x4200000000000000000000000000000000000021"
+	BobaTuringHelperImplementation  = "0x4200000000000000000000000000000000000022"
+	BobaGasPriceOracleImplmentation = "0x4200000000000000000000000000000000000025"
 )
 
 var (
@@ -39,18 +45,23 @@ var (
 	L1BlockNumberAddr                 = common.HexToAddress(L1BlockNumber)
 	GasPriceOracleAddr                = common.HexToAddress(GasPriceOracle)
 	L1BlockAddr                       = common.HexToAddress(L1Block)
-	GovernanceTokenAddr               = common.HexToAddress(GovernanceToken)
 	LegacyMessagePasserAddr           = common.HexToAddress(LegacyMessagePasser)
 	L2ERC721BridgeAddr                = common.HexToAddress(L2ERC721Bridge)
 	OptimismMintableERC721FactoryAddr = common.HexToAddress(OptimismMintableERC721Factory)
 	ProxyAdminAddr                    = common.HexToAddress(ProxyAdmin)
 	BaseFeeVaultAddr                  = common.HexToAddress(BaseFeeVault)
 	L1FeeVaultAddr                    = common.HexToAddress(L1FeeVault)
-	// -----
-	BobaTuringCreditAddr = common.HexToAddress(BobaTuringCredit)
-	BobaL2Addr           = common.HexToAddress(BobaL2)
+	// BOBA Specific
+	BobaTuringCreditAddr   = common.HexToAddress(BobaTuringCredit)
+	BobaL2Addr             = common.HexToAddress(BobaL2)
+	BobaGasPriceOracleAddr = common.HexToAddress(BobaGasPriceOracle)
+	// Boba Legacy
+	BobaTuringCreditImplementationAddr  = common.HexToAddress(BobaTuringCreditImplementation)
+	BobaTuringHelperImplementationAddr  = common.HexToAddress(BobaTuringHelperImplementation)
+	BobaGasPriceOracleImplmentationAddr = common.HexToAddress(BobaGasPriceOracleImplmentation)
 
-	Predeploys = make(map[string]*common.Address)
+	Predeploys                    = make(map[string]*common.Address)
+	LegacyBobaProxyImplementation = make(map[string]*common.Address)
 )
 
 func init() {
@@ -65,14 +76,18 @@ func init() {
 	Predeploys["L1BlockNumber"] = &L1BlockNumberAddr
 	Predeploys["GasPriceOracle"] = &GasPriceOracleAddr
 	Predeploys["L1Block"] = &L1BlockAddr
-	Predeploys["GovernanceToken"] = &GovernanceTokenAddr
 	Predeploys["LegacyMessagePasser"] = &LegacyMessagePasserAddr
 	Predeploys["L2ERC721Bridge"] = &L2ERC721BridgeAddr
 	Predeploys["OptimismMintableERC721Factory"] = &OptimismMintableERC721FactoryAddr
 	Predeploys["ProxyAdmin"] = &ProxyAdminAddr
 	Predeploys["BaseFeeVault"] = &BaseFeeVaultAddr
 	Predeploys["L1FeeVault"] = &L1FeeVaultAddr
-	// -----
+	// BOBA Specific
 	Predeploys["BobaTuringCredit"] = &BobaTuringCreditAddr
 	Predeploys["BobaL2"] = &BobaL2Addr
+	Predeploys["BobaGasPriceOracle"] = &BobaGasPriceOracleAddr
+	// Legacy
+	LegacyBobaProxyImplementation["BobaTuringCreditImplementation"] = &BobaTuringCreditImplementationAddr
+	LegacyBobaProxyImplementation["BobaTuringHelperImplementation"] = &BobaTuringHelperImplementationAddr
+	LegacyBobaProxyImplementation["BobaGasPriceOracleImplmentation"] = &BobaGasPriceOracleImplmentationAddr
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -106,6 +107,7 @@ func main() {
 			},
 		},
 		Action: func(ctx *cli.Context) error {
+			logger := log.New()
 			logLevel, err := log.LvlFromString(ctx.String("log-level"))
 			if err != nil {
 				logLevel = log.LvlInfo
@@ -170,6 +172,21 @@ func main() {
 			}
 			genesisBlock.Alloc = *genesisAlloc
 
+			if genesisBlock.Difficulty == nil || genesisBlock.Difficulty.Cmp(common.Big0) == 0 {
+				log.Warn("difficulty is not set in genesis config, setting to 1")
+				genesisBlock.Difficulty = common.Big1
+			}
+
+			// deep copy genesis for later checking
+			var genesisBlockOrigin types.Genesis
+			genesisByte, err := json.Marshal(genesisBlock)
+			if err != nil {
+				return err
+			}
+			if err := json.Unmarshal(genesisByte, &genesisBlockOrigin); err != nil {
+				return err
+			}
+
 			// TODO: use hardhat to get the deployment addresses
 			// network := ctx.String("network")
 			// deployments := strings.Split(ctx.String("hardhat-deployments"), ",")
@@ -179,7 +196,7 @@ func main() {
 			// }
 
 			l1RpcURL := ctx.String("l1-rpc-url")
-			l1Client, err := rpc.Dial(l1RpcURL)
+			l1Client, err := rpc.Dial(l1RpcURL, logger)
 			if err != nil {
 				return err
 			}
@@ -221,10 +238,10 @@ func main() {
 			}
 			nodeConfig.Dirs = datadir.New(dbPath)
 
-			stack, err := node.New(&nodeConfig)
+			stack, err := node.New(&nodeConfig, logger)
 			defer stack.Close()
 
-			chaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB)
+			chaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB, logger)
 			if err != nil {
 				log.Error("failed to open chaindb", "err", err)
 				return err
@@ -258,7 +275,7 @@ func main() {
 			// close the database handle
 			chaindb.Close()
 
-			postChaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB)
+			postChaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB, logger)
 			if err != nil {
 				log.Error("failed to open post chaindb", "err", err)
 				return err
@@ -267,7 +284,7 @@ func main() {
 
 			if err := genesis.PostCheckMigratedDB(
 				postChaindb,
-				genesisBlock,
+				&genesisBlockOrigin,
 				migrationData,
 				&config.L1CrossDomainMessengerProxy,
 				config.L1ChainID,

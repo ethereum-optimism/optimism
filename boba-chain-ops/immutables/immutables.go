@@ -142,12 +142,18 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 		{
 			Name: "BobaL2",
 			Args: []interface{}{
-				immutable["BobaL2"]["bridge"],
-				immutable["BobaL2"]["remoteToken"],
+				immutable["BobaL2"]["l2Bridge"],
+				immutable["BobaL2"]["l1Token"],
+				immutable["BobaL2"]["_name"],
+				immutable["BobaL2"]["_symbol"],
+				immutable["BobaL2"]["_decimals"],
 			},
 		},
 		{
 			Name: "BobaTuringCredit",
+		},
+		{
+			Name: "BobaGasPriceOracle",
 		},
 	}
 	return BuildL2(deployments)
@@ -246,23 +252,39 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		addr, tx, _, err = bindings.DeployBobaTuringCredit(opts, backend, big.NewInt(10))
 		log.Info("MMDBG BobaTuringCredit", "addr", addr)
 	case "BobaL2":
-		bridge, ok := deployment.Args[0].(common.Address)
+		l2Bridge, ok := deployment.Args[0].(common.Address)
 		if !ok {
-			return nil, fmt.Errorf("invalid type for bridge")
+			return nil, fmt.Errorf("invalid type for l2Bridge")
 		}
-		remoteToken, ok := deployment.Args[1].(common.Address)
+		l1Token, ok := deployment.Args[1].(common.Address)
 		if !ok {
-			return nil, fmt.Errorf("invalid type for remoteToken")
+			return nil, fmt.Errorf("invalid type for l1Token")
 		}
-		addr, tx, _, err = bindings.DeployOptimismMintableERC20(
+		_name, ok := deployment.Args[2].(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for _name")
+		}
+		_symbol, ok := deployment.Args[3].(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for _symbol")
+		}
+		_decimals, ok := deployment.Args[4].(uint8)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for _decimals")
+		}
+		addr, tx, _, err = bindings.DeployL2GovernanceERC20(
 			opts,
 			backend,
-			bridge,
-			remoteToken,
-			"Boba L2", // Non-immutable slots are populated in genesis/config.go
-			"BOBA",
+			l2Bridge,
+			l1Token,
+			_name,
+			_symbol,
+			uint8(_decimals),
 		)
 		log.Info("MMDBG BobaL2 Deployment", "err", err, "addr", addr)
+	case "BobaGasPriceOracle":
+		addr, tx, _, err = bindings.DeployBobaGasPriceOracle(opts, backend)
+		log.Info("MMDBG BobaGasPriceOracle", "addr", addr)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

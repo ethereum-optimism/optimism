@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"math/big"
 	"math/rand"
+	"reflect"
+	"sync"
 
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/chain"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
@@ -20,6 +23,7 @@ import (
 	"github.com/ledgerwatch/erigon/common"
 	"github.com/ledgerwatch/erigon/core/rawdb"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/erigon/crypto"
 	"github.com/ledgerwatch/log/v3"
 )
 
@@ -53,6 +57,9 @@ var (
 	LegacyETHCheckSlots = map[libcommon.Hash]libcommon.Hash{
 		// Bridge
 		{31: 0x06}: libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000010"),
+		// L1 token address
+		// This is only applied to alt l2s (bobabeam, bobaopera)
+		{31: 0x05}: {},
 		// Symbol
 		{31: 0x04}: libcommon.HexToHash("0x4554480000000000000000000000000000000000000000000000000000000006"),
 		// Name
@@ -60,7 +67,7 @@ var (
 		// Total supply
 		{31: 0x02}: {},
 		// Admin slot
-		libcommon.HexToHash("0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103"): libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
+		AdminSlot: libcommon.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
 	}
 
 	// ExpectedStorageSlots is a map of predeploy addresses to the storage slots and values that are
@@ -96,6 +103,9 @@ var (
 		},
 		predeploys.BaseFeeVaultAddr: eip1967Slots(predeploys.BaseFeeVaultAddr),
 		predeploys.L1FeeVaultAddr:   eip1967Slots(predeploys.L1FeeVaultAddr),
+		// Boba contracts
+		predeploys.BobaTuringCreditAddr:   eip1967Slots(predeploys.BobaTuringCreditAddr),
+		predeploys.BobaGasPriceOracleAddr: eip1967Slots(predeploys.BobaGasPriceOracleAddr),
 	}
 )
 
@@ -141,6 +151,16 @@ func PostCheckMigratedDB(
 		return fmt.Errorf("expected extra data to be %x, but got %x", bobaGenesisExtraData, header.Extra)
 	}
 
+	if err := PostCheckBobaProxyContracts(g); err != nil {
+		return err
+	}
+	log.Info("appended boba old slots to expected slots")
+
+	if err := PostCheckBobaLegacyProxyImplementation(tx); err != nil {
+		return err
+	}
+	log.Info("checked boba legacy proxy implementation")
+
 	if err := PostCheckPredeployStorage(tx, finalSystemOwner, proxyAdminOwner); err != nil {
 		return err
 	}
@@ -171,6 +191,59 @@ func PostCheckMigratedDB(
 	}
 	log.Info("checked withdrawals")
 
+	return nil
+}
+
+// PostCheckBobaProxyContracts will append the old slots to the ExpectedStorageSlots and ignore the
+// legacy proxy slots. This is because the legacy slots are affected by the migration process.
+func PostCheckBobaProxyContracts(g *types.Genesis) error {
+	for addr := range BobaUntouchablePredeploys {
+		for key, val := range g.Alloc[addr].Storage {
+			if key == ether.BobaLegacyProxyOwnerSlot || key == ether.BobaLegacyProxyImplementationSlot {
+				continue
+			}
+			ExpectedStorageSlots[addr][key] = val
+		}
+	}
+	return nil
+}
+
+// PostCheckBobaLegacyProxyImplementation will check that the legacy proxy implementation
+// contracts are replaced by the proxy contract and storage are wiped out except the admin slot.
+func PostCheckBobaLegacyProxyImplementation(tx kv.Tx) error {
+	for name, addr := range predeploys.LegacyBobaProxyImplementation {
+		proxyByteCode, err := bindings.GetDeployedBytecode("Proxy")
+		if err != nil {
+			return fmt.Errorf("failed to get proxy bytecode: %w", err)
+		}
+		hash := crypto.Keccak256Hash(proxyByteCode)
+		codeHash, err := state.GetContractCodeHash(tx, *addr)
+		if err != nil {
+			return fmt.Errorf("failed to read code hash from database: %w", err)
+		}
+		if *codeHash != hash {
+			return fmt.Errorf("expected code hash for %s to be %x, but got %x", name, hash, codeHash)
+		}
+		code, err := state.GetContractCode(tx, *addr)
+		if err != nil {
+			return fmt.Errorf("failed to read code from database: %w", err)
+		}
+		if *code != libcommon.BytesToHash(proxyByteCode) {
+			return fmt.Errorf("expected code for %s to be %x, but got %x", name, proxyByteCode, code)
+		}
+		expectedStorage := map[libcommon.Hash]libcommon.Hash{
+			AdminSlot: predeploys.Predeploys["ProxyAdmin"].Hash(),
+		}
+		actualStorage := make(map[libcommon.Hash]libcommon.Hash)
+		state.ForEachStorage(tx, *addr, func(key, val libcommon.Hash) bool {
+			actualStorage[key] = val
+			return true
+		})
+		if !reflect.DeepEqual(expectedStorage, actualStorage) {
+			return fmt.Errorf("expected storage for %s to be %v, but got %v", name, expectedStorage, actualStorage)
+		}
+		log.Info("boba legacy proxy implementation", "name", name, "address", addr)
+	}
 	return nil
 }
 
@@ -242,13 +315,13 @@ func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 		// There must be an admin
 		hash, err := state.GetStorage(tx, addr, AdminSlot)
 		adminAddr := libcommon.BytesToAddress(hash[:])
-		if addr != predeploys.ProxyAdminAddr && addr != predeploys.GovernanceTokenAddr && adminAddr != predeploys.ProxyAdminAddr {
+		if addr != predeploys.ProxyAdminAddr && adminAddr != predeploys.ProxyAdminAddr {
 			return fmt.Errorf("expected admin for %s to be %s but got %s", addr, predeploys.ProxyAdminAddr, adminAddr)
 		}
 
 		// Balances and nonces should match legacy
 		oldNonce := g.Alloc[addr].Nonce
-		oldBalance := g.Alloc[addr].Balance
+		oldBalance := g.Alloc[predeploys.LegacyERC20ETHAddr].Storage[ether.CalcOVMETHStorageKey(addr)].Big()
 		if oldBalance == nil {
 			oldBalance = new(big.Int)
 		}
@@ -321,18 +394,6 @@ func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 // wiped correctly.
 func PostCheckPredeployStorage(tx kv.Tx, finalSystemOwner libcommon.Address, proxyAdminOwner libcommon.Address) error {
 	for name, addr := range predeploys.Predeploys {
-		// TODO Fix boba contracts
-		/****************************************/
-		/** Temporary fix for Boba contracts.  **/
-		/****************************************/
-		if name == "BobaTuringCredit" {
-			continue
-		}
-		if name == "BobaL2" {
-			continue
-		}
-		/****************************************/
-
 		if addr == nil {
 			return fmt.Errorf("nil address in predeploys mapping for %s", name)
 		}
@@ -411,21 +472,57 @@ func PostCheckLegacyETH(tx kv.Tx, g *types.Genesis, migrationData crossdomain.Mi
 		addresses[ether.CalcOVMETHStorageKey(addr)] = addr
 	}
 
-	log.Info("checking legacy eth fixed storage slots")
-	for slot, expValue := range LegacyETHCheckSlots {
-		actValue, err := state.GetStorage(tx, predeploys.LegacyERC20ETHAddr, slot)
-		if err != nil {
-			return fmt.Errorf("failed to get storage for %s: %w", slot, err)
+	// This is for bobabeam and bobaopera
+	// We don't touch any of the old slots except the balance slots
+	if crossdomain.CustomLegacyETHSlotCheck[int(g.Config.ChainID.Int64())] == true {
+		log.Info("checking legacy eth fixed storage slots for custom chain", "chainID", g.Config.ChainID)
+		defaultSlots := []libcommon.Hash{
+			libcommon.BytesToHash([]byte{2}),
+			libcommon.BytesToHash([]byte{3}),
+			libcommon.BytesToHash([]byte{4}),
+			libcommon.BytesToHash([]byte{5}),
+			libcommon.BytesToHash([]byte{6}),
 		}
-		if *actValue != expValue {
-			return fmt.Errorf("expected slot %s on %s to be %s, but got %s", slot, predeploys.LegacyERC20ETHAddr, expValue, actValue)
+		for _, slot := range defaultSlots {
+			if g.Alloc[predeploys.LegacyERC20ETHAddr].Storage[slot] != (libcommon.Hash{}) {
+				actValue, err := state.GetStorage(tx, predeploys.LegacyERC20ETHAddr, slot)
+				if err != nil {
+					return fmt.Errorf("failed to get storage for %s: %w", slot, err)
+				}
+				// The total supply should be 0
+				if slot == libcommon.BytesToHash([]byte{2}) {
+					if *actValue != (libcommon.Hash{}) {
+						return fmt.Errorf("expected slot %s on %s to be %s, but got %s", slot, predeploys.LegacyERC20ETHAddr, (libcommon.Hash{}), actValue)
+					}
+					continue
+				}
+				if *actValue != g.Alloc[predeploys.LegacyERC20ETHAddr].Storage[slot] {
+					return fmt.Errorf("expected slot %s on %s to be %s, but got %s", slot, predeploys.LegacyERC20ETHAddr, g.Alloc[predeploys.LegacyERC20ETHAddr].Storage[slot], actValue)
+				}
+			}
+		}
+	} else {
+		log.Info("checking legacy eth fixed storage slots", "chainID", g.Config.ChainID)
+		for slot, expValue := range LegacyETHCheckSlots {
+			actValue, err := state.GetStorage(tx, predeploys.LegacyERC20ETHAddr, slot)
+			if err != nil {
+				return fmt.Errorf("failed to get storage for %s: %w", slot, err)
+			}
+			if *actValue != expValue {
+				return fmt.Errorf("expected slot %s on %s to be %s, but got %s", slot, predeploys.LegacyERC20ETHAddr, expValue, actValue)
+			}
 		}
 	}
 
-	var count int
+	var (
+		count    int
+		innerErr error
+		m        sync.Mutex
+	)
+
 	threshold := 100 - int(100*OVMETHSampleLikelihood)
 	progress := util.ProgressLogger(100, "checking legacy eth balance slots")
-	var innerErr error
+
 	err := ether.IterateState(g, func(key, value libcommon.Hash) error {
 		// Stop iterating if we've checked enough slots.
 		if count >= MaxOVMETHSlotChecks {
@@ -458,15 +555,20 @@ func PostCheckLegacyETH(tx kv.Tx, g *types.Genesis, migrationData crossdomain.Mi
 
 		// Pull out the pre-migration OVM ETH balance, and the state balance.
 		ovmETHBalance := value.Big()
-		slot := ether.CalcOVMETHStorageKey(addr)
-		ovmETHStateBalance := g.Alloc[predeploys.LegacyERC20ETHAddr].Storage[slot].Big()
+		ovmETHStateBalance := g.Alloc[addr].Balance
+		if ovmETHStateBalance == nil {
+			ovmETHStateBalance = libcommon.Big0
+		}
 		// Pre-migration state balance should be zero.
 		if ovmETHStateBalance.Cmp(libcommon.Big0) != 0 {
+			log.Info("Found mismatched OVM_ETH pre-migration state balance", "key", ether.CalcOVMETHStorageKey(addr))
 			innerErr = fmt.Errorf("expected OVM_ETH pre-migration state balance for %s to be 0, but got %s", addr, ovmETHStateBalance)
 			return innerErr
 		}
 
 		// Migrated state balance should equal the OVM ETH balance.
+		m.Lock()
+		defer m.Unlock()
 		account, err := state.GetAccount(tx, addr)
 		if err != nil {
 			innerErr = fmt.Errorf("failed to get account for %s: %w", addr, err)

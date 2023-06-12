@@ -2,25 +2,30 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/c2h5oh/datasize"
-	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ledgerwatch/log/v3"
 
+	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/datadir"
 	"github.com/ledgerwatch/erigon-lib/kv"
+	"github.com/ledgerwatch/erigon/core/rawdb"
+	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/node"
 	"github.com/ledgerwatch/erigon/node/nodecfg"
 
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/chain"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/genesis"
 )
 
 func main() {
-	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd()))))
+	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat()))
 
 	app := &cli.App{
 		Name:  "boba-rollover",
@@ -46,16 +51,6 @@ func main() {
 				Usage:    "Path to ovm-addresses.json",
 				Required: true,
 			},
-			&cli.StringFlag{
-				Name:     "ovm-allowances",
-				Usage:    "Path to ovm-allowances.json",
-				Required: true,
-			},
-			&cli.StringFlag{
-				Name:     "witness-file",
-				Usage:    "Path to witness file",
-				Required: true,
-			},
 			&cli.BoolFlag{
 				Name:  "dry-run",
 				Usage: "Dry run the upgrade by not committing the database",
@@ -76,6 +71,7 @@ func main() {
 			},
 		},
 		Action: func(ctx *cli.Context) error {
+			logger := log.New()
 			logLevel, err := log.LvlFromString(ctx.String("log-level"))
 			if err != nil {
 				logLevel = log.LvlInfo
@@ -86,7 +82,7 @@ func main() {
 			log.Root().SetHandler(
 				log.LvlFilterHandler(
 					logLevel,
-					log.StreamHandler(os.Stdout, log.TerminalFormat(isatty.IsTerminal(os.Stdout.Fd()))),
+					log.StreamHandler(os.Stdout, log.TerminalFormat()),
 				),
 			)
 
@@ -94,29 +90,18 @@ func main() {
 			if err != nil {
 				return err
 			}
-			ovmAllowances, err := crossdomain.NewAllowances(ctx.String("ovm-allowances"))
-			if err != nil {
-				return err
-			}
-			evmMessages, evmAddresses, err := crossdomain.ReadWitnessData(ctx.String("witness-file"))
-			if err != nil {
-				return err
-			}
 
 			log.Info(
-				"Loaded witness data",
+				"Loaded data",
 				"ovmAddresses", len(ovmAddresses),
-				"evmAddresses", len(evmAddresses),
-				"ovmAllowances", len(ovmAllowances),
-				"evmMessages", len(evmMessages),
 			)
 
 			migrationData := crossdomain.MigrationData{
 				OvmAddresses:  ovmAddresses,
-				EvmAddresses:  evmAddresses,
-				OvmAllowances: ovmAllowances,
+				EvmAddresses:  crossdomain.OVMETHAddresses{},
+				OvmAllowances: []*crossdomain.Allowance{},
 				OvmMessages:   []*crossdomain.SentMessage{},
-				EvmMessages:   evmMessages,
+				EvmMessages:   []*crossdomain.SentMessage{},
 			}
 
 			genesisAlloc, err := genesis.NewAlloc(ctx.String("alloc-path"))
@@ -128,6 +113,21 @@ func main() {
 				return err
 			}
 			genesisBlock.Alloc = *genesisAlloc
+
+			if genesisBlock.Difficulty == nil || genesisBlock.Difficulty.Cmp(common.Big0) == 0 {
+				log.Warn("difficulty is not set in genesis config, setting to 1")
+				genesisBlock.Difficulty = common.Big1
+			}
+
+			// deep copy genesis for later checking
+			var genesisBlockOrigin types.Genesis
+			genesisByte, err := json.Marshal(genesisBlock)
+			if err != nil {
+				return err
+			}
+			if err := json.Unmarshal(genesisByte, &genesisBlockOrigin); err != nil {
+				return err
+			}
 
 			dbPath := ctx.String("db-path")
 			mdbxDBSize := ctx.String("db-size-limit")
@@ -145,10 +145,10 @@ func main() {
 			}
 			nodeConfig.Dirs = datadir.New(dbPath)
 
-			stack, err := node.New(&nodeConfig)
+			stack, err := node.New(&nodeConfig, logger)
 			defer stack.Close()
 
-			chaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB)
+			chaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB, logger)
 			if err != nil {
 				log.Error("failed to open chaindb", "err", err)
 				return err
@@ -170,21 +170,42 @@ func main() {
 			chaindb.Close()
 
 			// post check
-			postChaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB)
+			postChaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB, logger)
 			if err != nil {
 				log.Error("failed to open post chaindb", "err", err)
 				return err
 			}
 			defer postChaindb.Close()
 
-			tx, err := postChaindb.BeginRw(context.Background())
+			tx, err := postChaindb.BeginRo(context.Background())
 			if err != nil {
 				log.Error("failed to begin write genesis block", "err", err)
 				return err
 			}
 			defer tx.Rollback()
 
-			if err := genesis.PostCheckLegacyETH(tx, genesisBlock, migrationData); err != nil {
+			hash := rawdb.ReadHeadHeaderHash(tx)
+			log.Info("Reading chain tip from database", "hash", hash)
+			num := rawdb.ReadHeaderNumber(tx, hash)
+			if num == nil {
+				log.Error("failed to read chain tip from database", "hash", hash)
+				return fmt.Errorf("cannot find header number for %s", hash)
+			}
+			if *num != 0 {
+				log.Error("chain tip is not genesis block", "hash", hash)
+				return fmt.Errorf("expected chain tip to be block 0, but got %d", *num)
+			}
+
+			header := rawdb.ReadHeader(tx, hash, *num)
+			log.Info("Read header from database", "number", *num)
+
+			bobaGenesisHash := common.HexToHash(chain.GetBobaGenesisHash(genesisBlockOrigin.Config.ChainID))
+			if header.Hash() != bobaGenesisHash {
+				log.Error("genesis block hash mismatch", "expected", bobaGenesisHash, "got", header.Hash())
+				return fmt.Errorf("genesis block hash mismatch, expected %s, got %s", bobaGenesisHash, header.Hash())
+			}
+
+			if err := genesis.PostCheckLegacyETH(tx, &genesisBlockOrigin, migrationData); err != nil {
 				log.Error("failed to post check legacy eth", "err", err)
 				return err
 			}

@@ -212,7 +212,6 @@ func TestMigrateBalances(t *testing.T) {
 			},
 			noCheck: false,
 			check: func(t *testing.T, g *types.Genesis, err error) {
-				require.Error(t, err)
 				require.ErrorContains(t, err, "unknown storage slot")
 			},
 		},
@@ -246,7 +245,6 @@ func TestMigrateBalances(t *testing.T) {
 			},
 			noCheck: false,
 			check: func(t *testing.T, g *types.Genesis, err error) {
-				require.Error(t, err)
 				require.ErrorContains(t, err, "unknown storage slot")
 			},
 		},
@@ -274,7 +272,6 @@ func TestMigrateBalances(t *testing.T) {
 			},
 			noCheck: false,
 			check: func(t *testing.T, g *types.Genesis, err error) {
-				require.Error(t, err)
 				require.ErrorContains(t, err, "supply mismatch")
 			},
 		},

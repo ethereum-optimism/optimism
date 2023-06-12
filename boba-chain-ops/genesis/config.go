@@ -10,11 +10,15 @@ import (
 
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/hardhat"
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/chain"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/immutables"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/state"
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon/common/hexutil"
 	"github.com/ledgerwatch/erigon/core/types"
+	"github.com/ledgerwatch/erigon/crypto"
+	"github.com/ledgerwatch/erigon/crypto/cryptopool"
+	"github.com/ledgerwatch/erigon/rlp"
 	"github.com/ledgerwatch/erigon/rpc"
 
 	"github.com/ledgerwatch/log/v3"
@@ -97,12 +101,6 @@ type DeployConfig struct {
 	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
 	// The initial value of the gas scalar
 	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
-	// The ERC20 symbol of the GovernanceToken
-	GovernanceTokenSymbol string `json:"governanceTokenSymbol"`
-	// The ERC20 name of the GovernanceToken
-	GovernanceTokenName string `json:"governanceTokenName"`
-	// The owner of the GovernanceToken
-	GovernanceTokenOwner common.Address `json:"governanceTokenOwner"`
 
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
 
@@ -110,6 +108,8 @@ type DeployConfig struct {
 	EIP1559Denominator uint64 `json:"eip1559Denominator"`
 
 	FundDevAccounts bool `json:"fundDevAccounts"`
+
+	L1BobaTokenAddress *common.Address `json:"l1BobaTokenAddress,omitempty"`
 }
 
 // Check will ensure that the config is sane and return an error when it is not
@@ -215,14 +215,11 @@ func (d *DeployConfig) Check() error {
 	if d.L2GenesisBlockBaseFeePerGas == nil {
 		return fmt.Errorf("%w: L2 genesis block base fee per gas cannot be nil", ErrInvalidDeployConfig)
 	}
-	if d.GovernanceTokenName == "" {
-		return fmt.Errorf("%w: GovernanceToken.name cannot be empty", ErrInvalidDeployConfig)
-	}
-	if d.GovernanceTokenSymbol == "" {
-		return fmt.Errorf("%w: GovernanceToken.symbol cannot be empty", ErrInvalidDeployConfig)
-	}
-	if d.GovernanceTokenOwner == (common.Address{}) {
-		return fmt.Errorf("%w: GovernanceToken owner cannot be address(0)", ErrInvalidDeployConfig)
+	// l1 Boba token address is optional, if not provided, use the default address for the chain ID
+	// but if provided, it must be a valid address
+	_, err := d.GetL1BobaTokenAddress()
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -294,6 +291,59 @@ func (d *DeployConfig) InitDeveloperDeployedAddresses() error {
 	d.OptimismPortalProxy = predeploys.DevOptimismPortalAddr
 	d.SystemConfigProxy = predeploys.DevSystemConfigAddr
 	return nil
+}
+
+// RollupConfig converts a DeployConfig to a rollup.Config
+func (d *DeployConfig) RollupConfig(l1StartHeader *types.Header, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*Config, error) {
+	if d.OptimismPortalProxy == (common.Address{}) {
+		return nil, errors.New("OptimismPortalProxy cannot be address(0)")
+	}
+	if d.SystemConfigProxy == (common.Address{}) {
+		return nil, errors.New("SystemConfigProxy cannot be address(0)")
+	}
+
+	return &Config{
+		Genesis: Genesis{
+			L1: BlockID{
+				Hash:   rlpHash(l1StartHeader),
+				Number: l1StartHeader.Number.Uint64(),
+			},
+			L2: BlockID{
+				Hash:   l2GenesisBlockHash,
+				Number: l2GenesisBlockNumber,
+			},
+			L2Time: l1StartHeader.Time,
+			SystemConfig: SystemConfig{
+				BatcherAddr: d.BatchSenderAddress,
+				Overhead:    Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
+				Scalar:      Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleScalar))),
+				GasLimit:    uint64(d.L2GenesisBlockGasLimit),
+			},
+		},
+		BlockTime:              d.L2BlockTime,
+		MaxSequencerDrift:      d.MaxSequencerDrift,
+		SeqWindowSize:          d.SequencerWindowSize,
+		ChannelTimeout:         d.ChannelTimeout,
+		L1ChainID:              new(big.Int).SetUint64(d.L1ChainID),
+		L2ChainID:              new(big.Int).SetUint64(d.L2ChainID),
+		BatchInboxAddress:      d.BatchInboxAddress,
+		DepositContractAddress: d.OptimismPortalProxy,
+		L1SystemConfigAddress:  d.SystemConfigProxy,
+		RegolithTime:           d.RegolithTime(l1StartHeader.Time),
+	}, nil
+}
+
+func (d *DeployConfig) GetL1BobaTokenAddress() (common.Address, error) {
+	var l1TokenAddr common.Address
+	if d.L1BobaTokenAddress != nil {
+		l1TokenAddr = *d.L1BobaTokenAddress
+	} else {
+		l1TokenAddr = common.HexToAddress(chain.GetBobaTokenL1Address(big.NewInt(int64(d.L2ChainID))))
+	}
+	if l1TokenAddr == (common.Address{}) {
+		return l1TokenAddr, fmt.Errorf("L1BobaTokenAddress cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	return l1TokenAddr, nil
 }
 
 // NewDeployConfig reads a config file given a path on the filesystem.
@@ -369,9 +419,16 @@ func NewL2ImmutableConfig(config *DeployConfig, blockHeader *types.Header) (immu
 	immutable["BaseFeeVault"] = immutables.ImmutableValues{
 		"recipient": config.BaseFeeVaultRecipient,
 	}
+	l1TokenAddr, err := config.GetL1BobaTokenAddress()
+	if err != nil {
+		return immutable, err
+	}
 	immutable["BobaL2"] = immutables.ImmutableValues{
-		"bridge":      predeploys.L2StandardBridgeAddr,
-		"remoteToken": common.HexToAddress("0x154C5E3762FbB57427d6B03E7302BDA04C497226"),
+		"l2Bridge":  predeploys.L2StandardBridgeAddr,
+		"l1Token":   l1TokenAddr,
+		"_name":     "Boba Token",
+		"_symbol":   "BOBA",
+		"_decimals": uint8(18),
 	}
 	return immutable, nil
 }
@@ -416,20 +473,22 @@ func NewL2StorageConfig(config *DeployConfig, blockHeader *types.Header) (state.
 		"symbol":   "WETH",
 		"decimals": 18,
 	}
-	storage["GovernanceToken"] = state.StorageValues{
-		"_name":   config.GovernanceTokenName,
-		"_symbol": config.GovernanceTokenSymbol,
-		"_owner":  config.GovernanceTokenOwner,
-	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
+	}
+	l1TokenAddr, err := config.GetL1BobaTokenAddress()
+	if err != nil {
+		return storage, err
 	}
 	storage["BobaL2"] = state.StorageValues{
-		"_name":   "Boba L2",
-		"_symbol": "BOBA",
+		"l2Bridge":  predeploys.L2StandardBridgeAddr,
+		"l1Token":   l1TokenAddr,
+		"_name":     "Boba Token",
+		"_symbol":   "BOBA",
+		"_decimals": uint8(18),
 	}
 	storage["BobaTuringCredit"] = state.StorageValues{}
 
@@ -504,4 +563,12 @@ func (m *MarshalableRPCBlockNumberOrHash) String() string {
 	}
 	r := rpc.BlockNumberOrHash(*m)
 	return String(r)
+}
+
+func rlpHash(x interface{}) (h common.Hash) {
+	sha := crypto.NewKeccakState()
+	rlp.Encode(sha, x) //nolint:errcheck
+	sha.Read(h[:])     //nolint:errcheck
+	cryptopool.ReturnToPoolKeccak256(sha)
+	return h
 }

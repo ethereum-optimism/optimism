@@ -6,6 +6,7 @@ import (
 
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/bindings"
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
+	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/ether"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/immutables"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/state"
 	"github.com/ledgerwatch/erigon-lib/common"
@@ -18,29 +19,32 @@ import (
 // that should not be touched by the migration process.
 type ChainHashMap map[uint64]common.Hash
 
-// TODO: ADD BOBA Token and other ones
 var (
 	// UntouchablePredeploys are addresses in the predeploy namespace
 	// that should not be touched by the migration process.
 	UntouchablePredeploys = map[common.Address]bool{
-		// TODO FIX this
-		// BOBA doesn't have this!!!
-		// predeploys.GovernanceTokenAddr: true,
-		predeploys.WETH9Addr: true,
+		predeploys.BobaL2Addr: true,
+		predeploys.WETH9Addr:  true,
 	}
 
 	// UntouchableCodeHashes represent the bytecode hashes of contracts
 	// that should not be touched by the migration process.
 	UntouchableCodeHashes = map[common.Address]ChainHashMap{
-		// This needs to be replaced by BOBA token
-		// predeploys.GovernanceTokenAddr: {
-		// 	1: common.HexToHash("0x8551d935f4e67ad3c98609f0d9f0f234740c4c4599f82674633b55204393e07f"),
-		// 	5: common.HexToHash("0xc4a213cf5f06418533e5168d8d82f7ccbcc97f27ab90197c2c051af6a4941cf9"),
-		// },
+		predeploys.BobaL2Addr: {
+			// 1: common.HexToHash("0x8551d935f4e67ad3c98609f0d9f0f234740c4c4599f82674633b55204393e07f"),
+			2888: common.HexToHash("0xbaf64deb0d9e918626165a29068dfe0e69262b7b5bf17ded21cf0810fa425e6a"),
+		},
 		predeploys.WETH9Addr: {
 			288:  common.HexToHash("0x5b4b51d84d1f4b5bff7e20e96ed0771857d01c15aee81ff1eb34cf75c25e725e"),
 			2888: common.HexToHash("0x5b4b51d84d1f4b5bff7e20e96ed0771857d01c15aee81ff1eb34cf75c25e725e"),
 		},
+	}
+
+	// BobaUntouchablePredeploys are addresses in the predeploy namespace
+	// that should be removed the old proxy slot and append to the new proxy slot
+	BobaUntouchablePredeploys = map[common.Address]bool{
+		predeploys.BobaGasPriceOracleAddr: true,
+		predeploys.BobaTuringCreditAddr:   true,
 	}
 
 	// FrozenStoragePredeploys represents the set of predeploys that
@@ -50,11 +54,12 @@ var (
 	// that do not have their storage wiped. It is safe for all other
 	// predeploys to have their storage wiped.
 	FrozenStoragePredeploys = map[common.Address]bool{
-		predeploys.GovernanceTokenAddr:     true,
 		predeploys.WETH9Addr:               true,
 		predeploys.LegacyMessagePasserAddr: true,
 		predeploys.LegacyERC20ETHAddr:      true,
 		predeploys.DeployerWhitelistAddr:   true,
+		// Boba
+		predeploys.BobaL2Addr: true,
 	}
 )
 
@@ -79,6 +84,17 @@ func WipePredeployStorage(g *types.Genesis) error {
 			continue
 		}
 
+		if BobaUntouchablePredeploys[*addr] {
+			log.Info("Wiping of storage for Boba legacy proxy slots", "name", name, "address", *addr)
+			if _, ok := g.Alloc[*addr].Storage[ether.BobaLegacyProxyOwnerSlot]; ok {
+				delete(g.Alloc[*addr].Storage, ether.BobaLegacyProxyOwnerSlot)
+			}
+			if _, ok := g.Alloc[*addr].Storage[ether.BobaLegacyProxyImplementationSlot]; ok {
+				delete(g.Alloc[*addr].Storage, ether.BobaLegacyProxyImplementationSlot)
+			}
+			continue
+		}
+
 		log.Info("wiping storage", "name", name, "address", *addr)
 
 		genesisAccount := types.GenesisAccount{
@@ -91,6 +107,20 @@ func WipePredeployStorage(g *types.Genesis) error {
 		g.Alloc[*addr] = genesisAccount
 	}
 
+	return nil
+}
+
+// WipeBobaLegacyPredeploy will wipe all information of the legacy L2 predeploy contracts
+// that are no longer needed as the implementation contracts
+func WipeBobaLegacyProxyImplementation(g *types.Genesis) error {
+	for name, addr := range predeploys.LegacyBobaProxyImplementation {
+		if addr == nil {
+			return fmt.Errorf("nil address in predeploys mapping for %s", name)
+		}
+
+		log.Info("wiping boba legacy contract", "name", name, "address", *addr)
+		g.Alloc[*addr] = types.GenesisAccount{}
+	}
 	return nil
 }
 
@@ -192,6 +222,67 @@ func SetImplementations(g *types.Genesis, storage state.StorageConfig, immutable
 	return nil
 }
 
+func SetDevOnlyL2Implementations(g *types.Genesis, storage state.StorageConfig, immutable immutables.ImmutableConfig) error {
+	deployResults, err := immutables.BuildOptimism(immutable)
+	if err != nil {
+		return err
+	}
+
+	for name, address := range predeploys.Predeploys {
+		if !UntouchablePredeploys[*address] {
+			continue
+		}
+
+		if *address == predeploys.BobaL2Addr {
+			continue
+		}
+
+		g.Alloc[*address] = types.GenesisAccount{
+			Balance: big.NewInt(0),
+			Storage: map[common.Hash]common.Hash{},
+		}
+
+		if err := setupPredeploy(g, deployResults, storage, name, *address, *address); err != nil {
+			return err
+		}
+
+		code := g.Alloc[*address].Code
+		if len(code) == 0 {
+			return fmt.Errorf("code not set for %s", name)
+		}
+	}
+
+	g.Alloc[predeploys.LegacyERC20ETHAddr] = types.GenesisAccount{
+		Balance: big.NewInt(0),
+		Storage: map[common.Hash]common.Hash{},
+	}
+	if err := setupPredeploy(g, deployResults, storage, "LegacyERC20ETH", predeploys.LegacyERC20ETHAddr, predeploys.LegacyERC20ETHAddr); err != nil {
+		return fmt.Errorf("error setting up legacy eth: %w", err)
+	}
+
+	// This is to handle a very special case in L2GovernaceContract
+	// Although we put _decimals as an input when we deploy the contract,
+	// _decimals is not in the storage. It's set as the constant value, so we have to remove
+	// this key from storage when we build the genesis state.
+	g.Alloc[predeploys.BobaL2Addr] = types.GenesisAccount{
+		Balance: big.NewInt(0),
+		Storage: map[common.Hash]common.Hash{},
+	}
+	var _decimals interface{}
+	if storageConfig, ok := storage["BobaL2"]; ok {
+		_decimals = storageConfig["_decimals"]
+		delete(storageConfig, "_decimals")
+	} else {
+		return fmt.Errorf("storage config not found for BobaL2")
+	}
+	if err := setupPredeploy(g, deployResults, storage, "BobaL2", predeploys.BobaL2Addr, predeploys.BobaL2Addr); err != nil {
+		return fmt.Errorf("error setting up boba l2: %w", err)
+	}
+	storage["BobaL2"]["_decimals"] = _decimals
+
+	return nil
+}
+
 func setupPredeploy(g *types.Genesis, deployResults immutables.DeploymentResults, storage state.StorageConfig, name string, proxyAddr common.Address, implAddr common.Address) error {
 	// Use the generated bytecode when there are immutables
 	// otherwise use the artifact deployed bytecode
@@ -230,4 +321,12 @@ func setupPredeploy(g *types.Genesis, deployResults immutables.DeploymentResults
 	}
 
 	return nil
+}
+
+// Set balance field in genesis to zero for addresses
+func SetBalanceToZero(g *types.Genesis) {
+	for addr, account := range g.Alloc {
+		account.Balance = big.NewInt(0)
+		g.Alloc[addr] = account
+	}
 }

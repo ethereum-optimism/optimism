@@ -14,7 +14,7 @@ import (
 	"github.com/ledgerwatch/erigon-lib/kv"
 	"github.com/ledgerwatch/erigon-lib/kv/rawdbv3"
 	"github.com/ledgerwatch/erigon/consensus/ethash"
-	"github.com/ledgerwatch/erigon/consensus/serenity"
+	"github.com/ledgerwatch/erigon/consensus/merge"
 	"github.com/ledgerwatch/erigon/core/rawdb"
 	"github.com/ledgerwatch/erigon/core/state"
 	"github.com/ledgerwatch/erigon/core/types"
@@ -68,6 +68,13 @@ func MigrateDB(chaindb kv.RwDB, genesis *types.Genesis, config *DeployConfig, bl
 
 	// At this point we've fully verified the witness data for the migration, so we can begin the
 	// actual migration process.
+
+	// We need to wipe the legacy contracts from the genesis, because the legacy contracts are the
+	// legacy implementation of the predeployed contracts. We want to replace the legacy contracts
+	// with the new predeployed contracts, so we need to wipe the legacy contracts first.
+	if err := WipeBobaLegacyProxyImplementation(genesis); err != nil {
+		return fmt.Errorf("cannot wipe legacy predeploy: %w", err)
+	}
 
 	// We need to wipe the storage of every predeployed contract EXCEPT for the GovernanceToken,
 	// WETH9, the DeployerWhitelist, the LegacyMessagePasser, and LegacyERC20ETH. We have verified
@@ -258,10 +265,7 @@ func CommitGenesisBlock(tx kv.RwTx, g *types.Genesis, tmpDir string, block *type
 	}
 
 	// BlockReward can be present at genesis
-	if block.Header().Difficulty.Cmp(serenity.SerenityDifficulty) == 0 {
-		// Proof-of-stake is 0.3 ether per block (TODO: revisit)
-		genesisIssuance.Add(genesisIssuance, serenity.RewardSerenity)
-	} else {
+	if block.Header().Difficulty.Cmp(merge.ProofOfStakeDifficulty) != 0 {
 		blockReward, _ := ethash.AccumulateRewards(g.Config, block.Header(), nil)
 		// Set BlockReward
 		genesisIssuance.Add(genesisIssuance, blockReward.ToBig())
