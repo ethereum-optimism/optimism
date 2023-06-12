@@ -79,22 +79,14 @@ jobs:
           key: yarn-packages-v2-{{ checksum "yarn.lock" }}
           paths:
             - "node_modules"
-            - "packages/actor-tests/node_modules"
-            - "packages/atst/node_modules"
-            - "packages/balance-monitor/node_modules"
             - "packages/chain-mon/node_modules"
             - "packages/common-ts/node_modules"
-            - "packages/contracts/node_modules"
             - "packages/contracts-bedrock/node_modules"
-            - "packages/contracts-governance/node_modules"
             - "packages/contracts-periphery/node_modules"
             - "packages/core-utils/node_modules"
-            - "packages/data-transport-layer/node_modules"
             - "packages/drippie-mon/node_modules"
             - "packages/fault-detector/node_modules"
             - "packages/hardhat-deploy-config/node_modules"
-            - "packages/message-relayer/node_modules"
-            - "packages/migration-data/node_modules"
             - "packages/replica-healthcheck/node_modules"
             - "packages/sdk/node_modules"
       - run:
@@ -108,13 +100,6 @@ jobs:
           paths:
             - "packages/*/dist"
             - "packages/*/artifacts"
-            - "packages/contracts/src/contract-artifacts.ts"
-            - "packages/contracts/src/contract-deployed-artifacts.ts"
-            - "packages/contracts/chugsplash"
-            - "packages/contracts/L1"
-            - "packages/contracts/L2"
-            - "packages/contracts/libraries"
-            - "packages/contracts/standards"
 
   docker-build:
     environment:
@@ -598,7 +583,6 @@ jobs:
             VITE_E2E_RPC_URL_L1: http://localhost:8545
             VITE_E2E_RPC_URL_L2: http://localhost:9545
 
-
   bedrock-markdown:
     machine:
       image: ubuntu-2204:2022.07.1
@@ -673,10 +657,6 @@ jobs:
           command: npx depcheck
           working_directory: packages/common-ts
       - run:
-          name: Check contracts
-          command: npx depcheck
-          working_directory: packages/contracts
-      - run:
           name: Check contracts-periphery
           command: npx depcheck
           working_directory: packages/contracts-periphery
@@ -685,53 +665,9 @@ jobs:
           command: npx depcheck
           working_directory: packages/core-utils
       - run:
-          name: Check data-transport-layer
-          command: npx depcheck
-          working_directory: packages/data-transport-layer
-      - run:
           name: Check sdk
           command: npx depcheck
           working_directory: packages/sdk
-
-  atst-tests:
-    docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
-    steps:
-      - checkout
-      - attach_workspace: { at: '.' }
-      - check-changed:
-          patterns: atst,contracts-periphery
-      - restore_cache:
-          name: Restore Yarn Package Cache
-          keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
-      - run:
-          name: anvil
-          background: true
-          command: anvil --fork-url $ANVIL_L2_FORK_URL_MAINNET --fork-block-number 92093723
-      - run:
-          name: build
-          command: yarn build
-          working_directory: packages/atst
-      - run:
-          name: typecheck
-          command: yarn typecheck
-          working_directory: packages/atst
-      - run:
-          name: lint
-          command: yarn lint:check
-          working_directory: packages/atst
-      - run:
-          name: make sure anvil is up
-          command: npx wait-on tcp:8545 && cast block-number --rpc-url http://localhost:8545
-      - run:
-          name: test
-          command: yarn test
-          no_output_timeout: 5m
-          working_directory: packages/atst
-          environment:
-            CI: true
 
   go-lint:
     parameters:
@@ -847,18 +783,6 @@ jobs:
                 name: Build
                 command: make <<parameters.binary_name>>
                 working_directory: <<parameters.working_directory>>
-
-  geth-tests:
-    docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    steps:
-      - checkout
-      - check-changed:
-          patterns: l2geth
-      - run:
-          name: Test
-          command: make test
-          working_directory: l2geth
 
   devnet:
     machine:
@@ -1145,13 +1069,6 @@ workflows:
           requires:
             - yarn-monorepo
       - js-lint-test:
-          name: contracts-tests
-          coverage_flag: contracts-tests
-          package_name: contracts
-          dependencies: hardhat-deploy-config
-          requires:
-            - yarn-monorepo
-      - js-lint-test:
           name: core-utils-tests
           coverage_flag: core-utils-tests
           package_name: core-utils
@@ -1175,28 +1092,11 @@ workflows:
       - op-bindings-build:
           requires:
             - yarn-monorepo
-      - atst-tests:
-          requires:
-            - yarn-monorepo
-      - js-lint-test:
-          name: actor-tests-tests
-          coverage_flag: actor-tests-tests
-          package_name: actor-tests
-          dependencies: "(core-utils|sdk)"
-          requires:
-            - yarn-monorepo
       - js-lint-test:
           name: contracts-periphery-tests
           coverage_flag: contracts-periphery-tests
           package_name: contracts-periphery
           dependencies: "(contracts|contracts-bedrock|core-utils|hardhat-deploy-config)"
-          requires:
-            - yarn-monorepo
-      - js-lint-test:
-          name: dtl-tests
-          coverage_flag: dtl-tests
-          package_name: data-transport-layer
-          dependencies: "(common-ts|contracts|core-utils)"
           requires:
             - yarn-monorepo
       - js-lint-test:
@@ -1211,13 +1111,6 @@ workflows:
           coverage_flag: fault-detector-tests
           package_name: fault-detector
           dependencies: "(common-ts|contracts|core-utils|sdk)"
-          requires:
-            - yarn-monorepo
-      - js-lint-test:
-          name: message-relayer-tests
-          coverage_flag: message-relayer-tests
-          package_name: message-relayer
-          dependencies: "(common-ts|core-utils|sdk)"
           requires:
             - yarn-monorepo
       - js-lint-test:
@@ -1238,12 +1131,6 @@ workflows:
           dependencies: "(contracts|core-utils)"
           requires:
             - yarn-monorepo
-      - js-lint-test:
-          name: balance-monitor-tests
-          coverage_flag: balance-monitor-tests
-          package_name: balance-monitor
-          requires:
-            - yarn-monorepo
       - depcheck:
           requires:
             - yarn-monorepo
@@ -1254,33 +1141,18 @@ workflows:
           name: devnet (with genesis contracts)
           deploy: false
       - go-lint-test-build:
-          name: batch-submitter-tests
-          binary_name: batch-submitter
-          working_directory: batch-submitter
-          dependencies: bss-core
-      - go-lint-test-build:
           name: proxyd-tests
           binary_name: proxyd
           working_directory: proxyd
-      - go-lint-test-build:
-          name: gas-oracle-tests
-          binary_name: gas-oracle
-          working_directory: gas-oracle
       - go-lint-test-build:
           name: indexer-tests
           binary_name: indexer
           working_directory: indexer
           dependencies: op-bindings
       - go-lint-test-build:
-          name: bss-core-tests
-          binary_name: bss-core
-          working_directory: bss-core
-          build: false
-      - go-lint-test-build:
           name: op-heartbeat tests
           binary_name: op-heartbeat
           working_directory: op-heartbeat
-      - geth-tests
       - semgrep-scan
       - go-mod-tidy
       - fuzz-op-node

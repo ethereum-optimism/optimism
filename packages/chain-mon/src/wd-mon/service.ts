@@ -191,16 +191,14 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
         await this.state.messenger.contracts.l2.BedrockMessagePasser.sentMessages(
           proofEvent.args.withdrawalHash
         )
-      const provenAt = `${
-        (dateformat(
-          new Date(
-            (await this.options.l1RpcProvider.getBlock(proofEvent.blockHash))
-              .timestamp * 1000
-          )
-        ),
+      const block = await proofEvent.getBlock()
+      const now = new Date(block.timestamp * 1000)
+      const dateString = dateformat(
+        now,
         'mmmm dS, yyyy, h:MM:ss TT',
-        true)
-      } UTC`
+        true // use UTC time
+      )
+      const provenAt = `${dateString} UTC`
       if (exists) {
         this.metrics.withdrawalsValidated.inc()
         this.logger.info(`valid withdrawal`, {

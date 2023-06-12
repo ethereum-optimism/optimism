@@ -6,7 +6,7 @@ import "../libraries/DisputeErrors.sol";
 
 import { Test } from "forge-std/Test.sol";
 import { DisputeGameFactory } from "../dispute/DisputeGameFactory.sol";
-import { IDisputeGame } from "../dispute/IDisputeGame.sol";
+import { IDisputeGame } from "../dispute/interfaces/IDisputeGame.sol";
 
 contract DisputeGameFactory_Test is Test {
     DisputeGameFactory factory;

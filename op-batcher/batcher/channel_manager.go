@@ -228,6 +228,7 @@ func (s *channelManager) processBlocks() error {
 		}
 		blocksAdded += 1
 		latestL2ref = l2BlockRefFromBlockAndL1Info(block, l1info)
+		s.metr.RecordL2BlockInChannel(block)
 		// current block got added but channel is now full
 		if s.currentChannel.IsFull() {
 			break
@@ -298,6 +299,8 @@ func (s *channelManager) AddL2Block(block *types.Block) error {
 	if s.tip != (common.Hash{}) && s.tip != block.ParentHash() {
 		return ErrReorg
 	}
+
+	s.metr.RecordL2BlockInPendingQueue(block)
 	s.blocks = append(s.blocks, block)
 	s.tip = block.Hash()
 
