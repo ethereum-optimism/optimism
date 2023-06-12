@@ -7,19 +7,25 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
 // MockBridgeView mocks the BridgeView interface
 type MockBridgeView struct{}
 
+const (
+	guid1 = "8408b6d2-7c90-4cfc-8604-b2204116cb6a"
+	guid2 = "8408b6d2-7c90-4cfc-8604-b2204116cb6b"
+)
+
 // DepositsByAddress mocks returning deposits by an address
 func (mbv *MockBridgeView) DepositsByAddress(address common.Address) ([]*database.DepositWithTransactionHash, error) {
 	return []*database.DepositWithTransactionHash{
 		{
 			Deposit: database.Deposit{
-				GUID:                 "mockGUID1",
-				InitiatedL1EventGUID: "mockEventGUID1",
+				GUID:                 uuid.MustParse(guid1),
+				InitiatedL1EventGUID: guid2,
 				Tx:                   database.Transaction{},
 				TokenPair:            database.TokenPair{},
 			},
@@ -33,8 +39,8 @@ func (mbv *MockBridgeView) WithdrawalsByAddress(address common.Address) ([]*data
 	return []*database.WithdrawalWithTransactionHashes{
 		{
 			Withdrawal: database.Withdrawal{
-				GUID:                 "mockGUID2",
-				InitiatedL2EventGUID: "mockEventGUID2",
+				GUID:                 uuid.MustParse(guid2),
+				InitiatedL2EventGUID: guid1,
 				WithdrawalHash:       common.HexToHash("0x456"),
 				Tx:                   database.Transaction{},
 				TokenPair:            database.TokenPair{},

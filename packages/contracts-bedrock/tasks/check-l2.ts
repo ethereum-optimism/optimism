@@ -392,7 +392,7 @@ const check = {
       signer
     )
 
-    await assertSemver(SequencerFeeVault, 'SequencerFeeVault', '1.1.0')
+    await assertSemver(SequencerFeeVault, 'SequencerFeeVault', '1.2.0')
 
     const RECIPIENT = await SequencerFeeVault.RECIPIENT()
     assert(RECIPIENT !== hre.ethers.constants.AddressZero)
@@ -405,6 +405,10 @@ const check = {
     const MIN_WITHDRAWAL_AMOUNT =
       await SequencerFeeVault.MIN_WITHDRAWAL_AMOUNT()
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
+
+    const WITHDRAWAL_NETWORK = await SequencerFeeVault.WITHDRAWAL_NETWORK()
+    assert(WITHDRAWAL_NETWORK < 2)
+    console.log(`  - WITHDRAWAL_NETWORK: ${WITHDRAWAL_NETWORK}`)
 
     await checkProxy(hre, 'SequencerFeeVault', signer.provider)
     await assertProxy(hre, 'SequencerFeeVault', signer.provider)
@@ -635,7 +639,7 @@ const check = {
       signer
     )
 
-    await assertSemver(BaseFeeVault, 'BaseFeeVault', '1.1.0')
+    await assertSemver(BaseFeeVault, 'BaseFeeVault', '1.2.0')
 
     const MIN_WITHDRAWAL_AMOUNT = await BaseFeeVault.MIN_WITHDRAWAL_AMOUNT()
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
@@ -643,6 +647,10 @@ const check = {
     const RECIPIENT = await BaseFeeVault.RECIPIENT()
     assert(RECIPIENT !== hre.ethers.constants.AddressZero)
     yell(`  - RECIPIENT: ${RECIPIENT}`)
+
+    const WITHDRAWAL_NETWORK = await BaseFeeVault.WITHDRAWAL_NETWORK()
+    assert(WITHDRAWAL_NETWORK < 2)
+    console.log(`  - WITHDRAWAL_NETWORK: ${WITHDRAWAL_NETWORK}`)
 
     await checkProxy(hre, 'BaseFeeVault', signer.provider)
     await assertProxy(hre, 'BaseFeeVault', signer.provider)
@@ -658,7 +666,7 @@ const check = {
       signer
     )
 
-    await assertSemver(L1FeeVault, 'L1FeeVault', '1.1.0')
+    await assertSemver(L1FeeVault, 'L1FeeVault', '1.2.0')
 
     const MIN_WITHDRAWAL_AMOUNT = await L1FeeVault.MIN_WITHDRAWAL_AMOUNT()
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
@@ -666,6 +674,10 @@ const check = {
     const RECIPIENT = await L1FeeVault.RECIPIENT()
     assert(RECIPIENT !== hre.ethers.constants.AddressZero)
     yell(`  - RECIPIENT: ${RECIPIENT}`)
+
+    const WITHDRAWAL_NETWORK = await L1FeeVault.WITHDRAWAL_NETWORK()
+    assert(WITHDRAWAL_NETWORK < 2)
+    console.log(`  - WITHDRAWAL_NETWORK: ${WITHDRAWAL_NETWORK}`)
 
     await checkProxy(hre, 'L1FeeVault', signer.provider)
     await assertProxy(hre, 'L1FeeVault', signer.provider)

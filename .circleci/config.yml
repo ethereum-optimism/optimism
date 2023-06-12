@@ -79,7 +79,6 @@ jobs:
           key: yarn-packages-v2-{{ checksum "yarn.lock" }}
           paths:
             - "node_modules"
-            - "packages/balance-monitor/node_modules"
             - "packages/chain-mon/node_modules"
             - "packages/common-ts/node_modules"
             - "packages/contracts-bedrock/node_modules"
@@ -89,7 +88,6 @@ jobs:
             - "packages/drippie-mon/node_modules"
             - "packages/fault-detector/node_modules"
             - "packages/hardhat-deploy-config/node_modules"
-            - "packages/migration-data/node_modules"
             - "packages/replica-healthcheck/node_modules"
             - "packages/sdk/node_modules"
       - run:
@@ -788,18 +786,6 @@ jobs:
                 command: make <<parameters.binary_name>>
                 working_directory: <<parameters.working_directory>>
 
-  geth-tests:
-    docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    steps:
-      - checkout
-      - check-changed:
-          patterns: l2geth
-      - run:
-          name: Test
-          command: make test
-          working_directory: l2geth
-
   devnet:
     machine:
       image: ubuntu-2204:2022.10.2
@@ -1154,12 +1140,6 @@ workflows:
           dependencies: "(contracts|core-utils)"
           requires:
             - yarn-monorepo
-      - js-lint-test:
-          name: balance-monitor-tests
-          coverage_flag: balance-monitor-tests
-          package_name: balance-monitor
-          requires:
-            - yarn-monorepo
       - depcheck:
           requires:
             - yarn-monorepo
@@ -1182,7 +1162,6 @@ workflows:
           name: op-heartbeat tests
           binary_name: op-heartbeat
           working_directory: op-heartbeat
-      - geth-tests
       - semgrep-scan
       - go-mod-tidy
       - fuzz-op-node
