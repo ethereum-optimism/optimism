@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -20,7 +21,7 @@ import (
 
 // TestMissingGasLimit tests that op-geth cannot build a block without gas limit while optimism is active in the chain config.
 func TestMissingGasLimit(t *testing.T) {
-	parallel(t)
+	InitParallel(t)
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.FundDevAccounts = false
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -40,10 +41,32 @@ func TestMissingGasLimit(t *testing.T) {
 	require.Nil(t, res)
 }
 
+// TestTxGasSameAsBlockGasLimit tests that op-geth rejects transactions that attempt to use the full block gas limit.
+// The L1 Info deposit always takes gas so the effective gas limit is lower than the full block gas limit.
+func TestTxGasSameAsBlockGasLimit(t *testing.T) {
+	InitParallel(t)
+	cfg := DefaultSystemConfig(t)
+	sys, err := cfg.Start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	ethPrivKey := sys.cfg.Secrets.Alice
+	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
+		ChainID: cfg.L2ChainIDBig(),
+		Gas:     29_999_999,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	l2Seq := sys.Clients["sequencer"]
+	err = l2Seq.SendTransaction(ctx, tx)
+	require.ErrorContains(t, err, txpool.ErrGasLimit.Error())
+
+}
+
 // TestInvalidDepositInFCU runs an invalid deposit through a FCU/GetPayload/NewPayload/FCU set of calls.
 // This tests that deposits must always allow the block to be built even if they are invalid.
 func TestInvalidDepositInFCU(t *testing.T) {
-	parallel(t)
+	InitParallel(t)
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.FundDevAccounts = false
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -77,8 +100,128 @@ func TestInvalidDepositInFCU(t *testing.T) {
 	require.Equal(t, 0, balance.Cmp(common.Big0))
 }
 
+// TestGethOnlyPendingBlockIsLatest walks through an engine-API block building job,
+// and asserts that the pending block is set to match the latest block at every stage,
+// for stability and tx-privacy.
+func TestGethOnlyPendingBlockIsLatest(t *testing.T) {
+	InitParallel(t)
+	cfg := DefaultSystemConfig(t)
+	cfg.DeployConfig.FundDevAccounts = true
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	opGeth, err := NewOpGeth(t, ctx, &cfg)
+	require.NoError(t, err)
+	defer opGeth.Close()
+
+	checkPending := func(stage string, number uint64) {
+		// TODO(CLI-4044): pending-block ID change
+		pendingBlock, err := opGeth.L2Client.BlockByNumber(ctx, big.NewInt(-1))
+		require.NoError(t, err, "failed to fetch pending block at stage "+stage)
+		require.Equal(t, number, pendingBlock.NumberU64(), "pending block must have expected number")
+		latestBlock, err := opGeth.L2Client.BlockByNumber(ctx, nil)
+		require.NoError(t, err, "failed to fetch latest block at stage "+stage)
+		require.Equal(t, pendingBlock.Hash(), latestBlock.Hash(), "pending and latest do not match at stage "+stage)
+	}
+
+	checkPending("genesis", 0)
+
+	amount := big.NewInt(42) // send 42 wei
+
+	aliceStartBalance, err := opGeth.L2Client.PendingBalanceAt(ctx, cfg.Secrets.Addresses().Alice)
+	require.NoError(t, err)
+	require.True(t, aliceStartBalance.Cmp(big.NewInt(0)) > 0, "alice must be funded")
+
+	checkPendingBalance := func() {
+		pendingBalance, err := opGeth.L2Client.PendingBalanceAt(ctx, cfg.Secrets.Addresses().Alice)
+		require.NoError(t, err)
+		require.Equal(t, pendingBalance, aliceStartBalance, "pending balance must still be the same")
+	}
+
+	startBlock, err := opGeth.L2Client.BlockByNumber(ctx, nil)
+	require.NoError(t, err)
+
+	signer := types.LatestSigner(opGeth.L2ChainConfig)
+	tip := big.NewInt(7_000_000_000) // 7 gwei tip
+	tx := types.MustSignNewTx(cfg.Secrets.Alice, signer, &types.DynamicFeeTx{
+		ChainID:   big.NewInt(int64(cfg.DeployConfig.L2ChainID)),
+		Nonce:     0,
+		GasTipCap: tip,
+		GasFeeCap: new(big.Int).Add(startBlock.BaseFee(), tip),
+		Gas:       1_000_000,
+		To:        &cfg.Secrets.Addresses().Bob,
+		Value:     amount,
+		Data:      nil,
+	})
+	require.NoError(t, opGeth.L2Client.SendTransaction(ctx, tx), "send tx to make pending work different")
+	checkPending("prepared", 0)
+
+	rpcClient, err := opGeth.node.Attach()
+	require.NoError(t, err)
+	defer rpcClient.Close()
+
+	// Wait for tx to be in tx-pool, for it to be picked up in block building
+	var txPoolStatus struct {
+		Pending hexutil.Uint64 `json:"pending"`
+	}
+	for i := 0; i < 5; i++ {
+		require.NoError(t, rpcClient.CallContext(ctx, &txPoolStatus, "txpool_status"))
+		if txPoolStatus.Pending == 0 {
+			time.Sleep(time.Second)
+		} else {
+			break
+		}
+	}
+	require.NotZero(t, txPoolStatus.Pending, "must have pending tx in pool")
+
+	checkPending("in-pool", 0)
+	checkPendingBalance()
+
+	// start building a block
+	attrs, err := opGeth.CreatePayloadAttributes()
+	require.NoError(t, err)
+	attrs.NoTxPool = false // we want to include a tx
+	fc := eth.ForkchoiceState{
+		HeadBlockHash: opGeth.L2Head.BlockHash,
+		SafeBlockHash: opGeth.L2Head.BlockHash,
+	}
+	res, err := opGeth.l2Engine.ForkchoiceUpdate(ctx, &fc, attrs)
+	require.NoError(t, err)
+
+	checkPending("building", 0)
+	checkPendingBalance()
+
+	// Now we have to wait until the block-building job picks up the tx from the tx-pool.
+	// See go routine that spins up in buildPayload() func in payload_building.go in miner package.
+	// We can't check it, we don't want to finish block-building prematurely, and so we have to wait.
+	time.Sleep(time.Second * 4) // conservatively wait 4 seconds, CI might lag during block building.
+
+	// retrieve the block
+	payload, err := opGeth.l2Engine.GetPayload(ctx, *res.PayloadID)
+	require.NoError(t, err)
+	checkPending("retrieved", 0)
+	require.Len(t, payload.Transactions, 2, "must include L1 info tx and tx from alice")
+	checkPendingBalance()
+
+	// process the block
+	status, err := opGeth.l2Engine.NewPayload(ctx, payload)
+	require.NoError(t, err)
+	require.Equal(t, eth.ExecutionValid, status.Status)
+	checkPending("processed", 0)
+	checkPendingBalance()
+
+	// make the block canonical
+	fc = eth.ForkchoiceState{
+		HeadBlockHash: payload.BlockHash,
+		SafeBlockHash: payload.BlockHash,
+	}
+	res, err = opGeth.l2Engine.ForkchoiceUpdate(ctx, &fc, nil)
+	require.NoError(t, err)
+	require.Equal(t, eth.ExecutionValid, res.PayloadStatus.Status)
+	checkPending("canonical", 1)
+}
+
 func TestPreregolith(t *testing.T) {
-	parallel(t)
+	InitParallel(t)
 	futureTimestamp := hexutil.Uint64(4)
 	tests := []struct {
 		name         string
@@ -90,6 +233,7 @@ func TestPreregolith(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run("GasUsed_"+test.name, func(t *testing.T) {
+			InitParallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
 			cfg := DefaultSystemConfig(t)
@@ -138,6 +282,7 @@ func TestPreregolith(t *testing.T) {
 		})
 
 		t.Run("DepositNonce_"+test.name, func(t *testing.T) {
+			InitParallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
 			cfg := DefaultSystemConfig(t)
@@ -196,6 +341,7 @@ func TestPreregolith(t *testing.T) {
 		})
 
 		t.Run("UnusedGasConsumed_"+test.name, func(t *testing.T) {
+			InitParallel(t)
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.L2GenesisRegolithTimeOffset = test.regolithTime
 
@@ -237,6 +383,7 @@ func TestPreregolith(t *testing.T) {
 		})
 
 		t.Run("AllowSystemTx_"+test.name, func(t *testing.T) {
+			InitParallel(t)
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.L2GenesisRegolithTimeOffset = test.regolithTime
 
@@ -258,7 +405,7 @@ func TestPreregolith(t *testing.T) {
 }
 
 func TestRegolith(t *testing.T) {
-	parallel(t)
+	InitParallel(t)
 	tests := []struct {
 		name             string
 		regolithTime     hexutil.Uint64
@@ -273,6 +420,7 @@ func TestRegolith(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run("GasUsedIsAccurate_"+test.name, func(t *testing.T) {
+			InitParallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
 			cfg := DefaultSystemConfig(t)
@@ -324,6 +472,7 @@ func TestRegolith(t *testing.T) {
 		})
 
 		t.Run("DepositNonceCorrect_"+test.name, func(t *testing.T) {
+			InitParallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
 			cfg := DefaultSystemConfig(t)
@@ -385,6 +534,7 @@ func TestRegolith(t *testing.T) {
 		})
 
 		t.Run("ReturnUnusedGasToPool_"+test.name, func(t *testing.T) {
+			InitParallel(t)
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.L2GenesisRegolithTimeOffset = &test.regolithTime
 
@@ -427,6 +577,7 @@ func TestRegolith(t *testing.T) {
 		})
 
 		t.Run("RejectSystemTx_"+test.name, func(t *testing.T) {
+			InitParallel(t)
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.L2GenesisRegolithTimeOffset = &test.regolithTime
 
@@ -448,6 +599,7 @@ func TestRegolith(t *testing.T) {
 		})
 
 		t.Run("IncludeGasRefunds_"+test.name, func(t *testing.T) {
+			InitParallel(t)
 			// Simple constructor that is prefixed to the actual contract code
 			// Results in the contract code being returned as the code for the new contract
 			deployPrefixSize := byte(16)

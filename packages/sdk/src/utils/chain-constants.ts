@@ -3,6 +3,20 @@ import {
   getDeployedContractDefinition,
 } from '@eth-optimism/contracts'
 import { predeploys as bedrockPredeploys } from '@eth-optimism/contracts-bedrock'
+import portalArtifactsMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/OptimismPortalProxy.json'
+import portalArtifactsGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/OptimismPortalProxy.json'
+import l2OutputOracleArtifactsMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/L2OutputOracleProxy.json'
+import l2OutputOracleArtifactsGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/L2OutputOracleProxy.json'
+
+const portalAddresses = {
+  mainnet: portalArtifactsMainnet,
+  goerli: portalArtifactsGoerli,
+}
+
+const l2OutputOracleAddresses = {
+  mainnet: l2OutputOracleArtifactsMainnet,
+  goerli: l2OutputOracleArtifactsGoerli,
+}
 
 import {
   L1ChainID,
@@ -12,7 +26,11 @@ import {
   OEL2ContractsLike,
   BridgeAdapterData,
 } from '../interfaces'
-import { StandardBridgeAdapter, DAIBridgeAdapter } from '../adapters'
+import {
+  StandardBridgeAdapter,
+  DAIBridgeAdapter,
+  ECOBridgeAdapter,
+} from '../adapters'
 
 export const DEPOSIT_CONFIRMATION_BLOCKS: {
   [ChainID in L2ChainID]: number
@@ -23,6 +41,7 @@ export const DEPOSIT_CONFIRMATION_BLOCKS: {
   [L2ChainID.OPTIMISM_HARDHAT_DEVNET]: 2 as const,
   [L2ChainID.OPTIMISM_BEDROCK_LOCAL_DEVNET]: 2 as const,
   [L2ChainID.OPTIMISM_BEDROCK_ALPHA_TESTNET]: 12 as const,
+  [L2ChainID.BASE_GOERLI]: 12 as const,
 }
 
 export const CHAIN_BLOCK_TIMES: {
@@ -59,6 +78,7 @@ export const DEFAULT_L2_CONTRACT_ADDRESSES: OEL2ContractsLike = {
  * @returns The L1 contracts for the given network.
  */
 const getL1ContractsByNetworkName = (network: string): OEL1ContractsLike => {
+  // TODO this doesn't code split and makes the sdk artifacts way too big
   const getDeployedAddress = (name: string) => {
     return getDeployedContractDefinition(name, network).address
   }
@@ -72,8 +92,8 @@ const getL1ContractsByNetworkName = (network: string): OEL1ContractsLike => {
     StateCommitmentChain: getDeployedAddress('StateCommitmentChain'),
     CanonicalTransactionChain: getDeployedAddress('CanonicalTransactionChain'),
     BondManager: getDeployedAddress('BondManager'),
-    OptimismPortal: '0x5b47E1A08Ea6d985D6649300584e6722Ec4B1383' as const,
-    L2OutputOracle: '0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0' as const,
+    OptimismPortal: portalAddresses[network].address,
+    L2OutputOracle: l2OutputOracleAddresses[network].address,
   }
 }
 
@@ -104,6 +124,7 @@ export const CONTRACT_ADDRESSES: {
       CanonicalTransactionChain:
         '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as const,
       BondManager: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707' as const,
+      // FIXME
       OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
       L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
     },
@@ -157,6 +178,22 @@ export const CONTRACT_ADDRESSES: {
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
+  [L2ChainID.BASE_GOERLI]: {
+    l1: {
+      AddressManager: '0x4Cf6b56b14c6CFcB72A75611080514F94624c54e' as const,
+      L1CrossDomainMessenger:
+        '0x8e5693140eA606bcEB98761d9beB1BC87383706D' as const,
+      L1StandardBridge: '0xfA6D8Ee5BE770F84FC001D098C4bD604Fe01284a' as const,
+      StateCommitmentChain:
+        '0x0000000000000000000000000000000000000000' as const,
+      CanonicalTransactionChain:
+        '0x0000000000000000000000000000000000000000' as const,
+      BondManager: '0x0000000000000000000000000000000000000000' as const,
+      OptimismPortal: '0xe93c8cD0D409341205A592f8c4Ac1A5fe5585cfA' as const,
+      L2OutputOracle: '0x2A35891ff30313CcFa6CE88dcf3858bb075A2298' as const,
+    },
+    l2: DEFAULT_L2_CONTRACT_ADDRESSES,
+  },
 }
 
 /**
@@ -187,6 +224,11 @@ export const BRIDGE_ADAPTER_DATA: {
       Adapter: DAIBridgeAdapter,
       l1Bridge: '0x05a388Db09C2D44ec0b00Ee188cD42365c42Df23' as const,
       l2Bridge: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65' as const,
+    },
+    ECO: {
+      Adapter: ECOBridgeAdapter,
+      l1Bridge: '0x7a01E277B8fDb8CDB2A2258508514716359f44A0' as const,
+      l2Bridge: '0x7a01E277B8fDb8CDB2A2258508514716359f44A0' as const,
     },
   },
 }

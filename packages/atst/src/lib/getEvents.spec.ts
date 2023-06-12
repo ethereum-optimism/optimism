@@ -4,7 +4,9 @@ import { describe, it, expect } from 'vitest'
 import { getEvents } from './getEvents'
 
 describe(getEvents.name, () => {
-  it('should get events on goerli', async () => {
+  // sinc this test is using https://goerli.optimism.io it is currently skipped
+  // we should start anvil for goerli too and then we can remove this skip
+  it.skipIf(process.env.CI)('should get events on goerli', async () => {
     const key = 'animalfarm.school.attended'
     const creator = '0xBCf86Fd70a0183433763ab0c14E7a760194f3a9F'
     expect(

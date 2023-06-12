@@ -33,14 +33,42 @@ const checkPredeploys = async (
   provider: providers.Provider
 ) => {
   console.log('Checking predeploys are configured correctly')
-  for (let i = 0; i < 2048; i++) {
+  const admin = hre.ethers.utils.hexConcat([
+    '0x000000000000000000000000',
+    predeploys.ProxyAdmin,
+  ])
+
+  // We only check predeploys 0x420..00 through 0x420..FF on the mainnet network to
+  // reduce the probability of an RPC timeout. After the migration, all predeploys
+  // from 0x420..00 through 0x420..07FF should be checked.
+  const maxCheck = hre.network.name === 'mainnet' ? 256 : 2048
+
+  const codeReq = []
+  const slotReq = []
+  // First loop for requests
+  for (let i = 0; i < maxCheck; i++) {
     const num = hre.ethers.utils.hexZeroPad('0x' + i.toString(16), 2)
     const addr = hre.ethers.utils.getAddress(
       hre.ethers.utils.hexConcat([prefix, num])
     )
 
-    const code = await provider.getCode(addr)
-    if (code === '0x') {
+    codeReq.push(provider.getCode(addr))
+    slotReq.push(provider.getStorageAt(addr, adminSlot))
+  }
+
+  // Wait for all requests to finish
+  // The `JsonRpcBatchProvider` will batch requests in the background.
+  const codeRes = await Promise.all(codeReq)
+  const slotRes = await Promise.all(slotReq)
+
+  // Second loop for response checks
+  for (let i = 0; i < maxCheck; i++) {
+    const num = hre.ethers.utils.hexZeroPad('0x' + i.toString(16), 2)
+    const addr = hre.ethers.utils.getAddress(
+      hre.ethers.utils.hexConcat([prefix, num])
+    )
+
+    if (codeRes[i] === '0x') {
       throw new Error(`no code found at ${addr}`)
     }
 
@@ -52,17 +80,11 @@ const checkPredeploys = async (
       continue
     }
 
-    const slot = await provider.getStorageAt(addr, adminSlot)
-    const admin = hre.ethers.utils.hexConcat([
-      '0x000000000000000000000000',
-      predeploys.ProxyAdmin,
-    ])
-
-    if (admin !== slot) {
+    if (slotRes[i] !== admin) {
       throw new Error(`incorrect admin slot in ${addr}`)
     }
 
-    if (i % 200 === 0) {
+    if (i % (maxCheck / 4) === 0) {
       console.log(`Checked through ${addr}`)
     }
   }
@@ -169,7 +191,16 @@ const checkGenesisMagic = async (
 
     const L2OutputOracle = new hre.ethers.Contract(address, [abi], l1Provider)
 
-    startingBlockNumber = await L2OutputOracle.startingBlockNumber()
+    // In the migration, the L2OutputOracle proxy is not yet initialized when we
+    // want to run this script. Fall back on the local config if we get an error
+    // fetching the starting block number.
+    try {
+      startingBlockNumber = await L2OutputOracle.startingBlockNumber()
+    } catch (e) {
+      console.log(`Error fetching startingBlockNumber:\n${e.message}`)
+      console.log('Falling back to local config.')
+      startingBlockNumber = hre.deployConfig.l2OutputOracleStartingBlockNumber
+    }
   } else {
     // We do not have a connection to the L1 chain, use the local config
     // The `--network` flag must be set to the L1 network
@@ -183,7 +214,9 @@ const checkGenesisMagic = async (
   const extradata = block.extraData
 
   if (extradata !== magic) {
-    throw new Error('magic value in extradata does not match')
+    throw new Error(
+      `magic value in extradata does not match: got ${extradata}, expected ${magic}`
+    )
   }
 }
 
@@ -245,7 +278,7 @@ const check = {
     await assertSemver(
       L2CrossDomainMessenger,
       'L2CrossDomainMessenger',
-      '1.1.0'
+      '1.4.0'
     )
 
     const xDomainMessageSenderSlot = await signer.provider.getStorageAt(
@@ -274,9 +307,9 @@ const check = {
     const MIN_GAS_CALLDATA_OVERHEAD =
       await L2CrossDomainMessenger.MIN_GAS_CALLDATA_OVERHEAD()
     console.log(`  - MIN_GAS_CALLDATA_OVERHEAD: ${MIN_GAS_CALLDATA_OVERHEAD}`)
-    const MIN_GAS_CONSTANT_OVERHEAD =
-      await L2CrossDomainMessenger.MIN_GAS_CONSTANT_OVERHEAD()
-    console.log(`  - MIN_GAS_CONSTANT_OVERHEAD: ${MIN_GAS_CONSTANT_OVERHEAD}`)
+    const RELAY_CONSTANT_OVERHEAD =
+      await L2CrossDomainMessenger.RELAY_CONSTANT_OVERHEAD()
+    console.log(`  - RELAY_CONSTANT_OVERHEAD: ${RELAY_CONSTANT_OVERHEAD}`)
     const MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR =
       await L2CrossDomainMessenger.MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR()
     console.log(
@@ -287,6 +320,14 @@ const check = {
     console.log(
       `  - MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR: ${MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR}`
     )
+    const RELAY_CALL_OVERHEAD =
+      await L2CrossDomainMessenger.RELAY_CALL_OVERHEAD()
+    console.log(`  - RELAY_CALL_OVERHEAD: ${RELAY_CALL_OVERHEAD}`)
+    const RELAY_RESERVED_GAS = await L2CrossDomainMessenger.RELAY_RESERVED_GAS()
+    console.log(`  - RELAY_RESERVED_GAS: ${RELAY_RESERVED_GAS}`)
+    const RELAY_GAS_CHECK_BUFFER =
+      await L2CrossDomainMessenger.RELAY_GAS_CHECK_BUFFER()
+    console.log(`  - RELAY_GAS_CHECK_BUFFER: ${RELAY_GAS_CHECK_BUFFER}`)
 
     const slot = await signer.provider.getStorageAt(
       predeploys.L2CrossDomainMessenger,
@@ -549,7 +590,7 @@ const check = {
     await assertSemver(
       OptimismMintableERC721Factory,
       'OptimismMintableERC721Factory',
-      '1.1.0'
+      '1.2.0'
     )
 
     const BRIDGE = await OptimismMintableERC721Factory.BRIDGE()
@@ -678,7 +719,9 @@ task('check-l2', 'Checks a freshly migrated L2 system for correct migration')
 
     if (args.l2RpcUrl !== '') {
       console.log('Using CLI URL for provider instead of hardhat network')
-      const provider = new hre.ethers.providers.JsonRpcProvider(args.l2RpcUrl)
+      const provider = new hre.ethers.providers.JsonRpcBatchProvider(
+        args.l2RpcUrl
+      )
       signer = Wallet.createRandom().connect(provider)
     }
 

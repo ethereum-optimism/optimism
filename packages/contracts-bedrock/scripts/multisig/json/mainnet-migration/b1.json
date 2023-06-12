@@ -1,0 +1,98 @@
+{
+  "version": "1.0",
+  "chainId": "1",
+  "meta": {
+    "name": "batch1",
+    "description": "ProxyAdmin.transferOwnership, AddressManager.transferOwnership, L1StandardBridgeProxy.setOwner, L1ERC721BridgeProxy.changeAdmin, and SystemDictatorProxy.phase1.",
+    "txBuilderVersion": "1.13.3"
+  },
+  "transactions": [
+    {
+      "to": "0x543bA4AADBAb8f9025686Bd03993043599c6fB04",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+        ],
+        "name": "transferOwnership",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "newOwner": "0xB4453CEb33d2e67FA244A24acf2E50CEF31F53cB"
+      }
+    },
+    {
+      "to": "0xdE1FCfB0851916CA5101820A69b13a4E276bd81F",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "newOwner",
+            "type": "address"
+          }
+        ],
+        "name": "transferOwnership",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "newOwner": "0xB4453CEb33d2e67FA244A24acf2E50CEF31F53cB"
+      }
+    },
+    {
+      "to": "0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "_owner",
+            "type": "address"
+          }
+        ],
+        "name": "setOwner",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "_owner": "0xB4453CEb33d2e67FA244A24acf2E50CEF31F53cB"
+      }
+    },
+    {
+      "to": "0x5a7749f83b81B301cAb5f48EB8516B986DAef23D",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [
+          {
+            "internalType": "address",
+            "name": "_admin",
+            "type": "address"
+          }
+        ],
+        "name": "changeAdmin",
+        "payable": false
+      },
+      "contractInputsValues": {
+        "_admin": "0xB4453CEb33d2e67FA244A24acf2E50CEF31F53cB"
+      }
+    },
+    {
+      "to": "0xB4453CEb33d2e67FA244A24acf2E50CEF31F53cB",
+      "value": "0",
+      "data": null,
+      "contractMethod": {
+        "inputs": [],
+        "name": "phase1",
+        "payable": false
+      },
+      "contractInputsValues": {}
+    }
+  ]
+}

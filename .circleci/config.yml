@@ -3,6 +3,7 @@ version: 2.1
 orbs:
   go: circleci/go@1.5.0
   gcp-cli: circleci/gcp-cli@3.0.1
+  slack: circleci/slack@4.10.1
 commands:
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
@@ -60,8 +61,8 @@ commands:
 jobs:
   yarn-monorepo:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
-    resource_class: xlarge
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
     steps:
       - checkout
       - check-changed:
@@ -142,7 +143,7 @@ jobs:
         default: "oplabs-tools-artifacts/images"
     machine:
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: medium
     steps:
       - checkout
       - run:
@@ -207,7 +208,7 @@ jobs:
         default: "linux/amd64"
     machine:
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: medium
     steps:
       - gcp-oidc-authenticate
       # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
@@ -247,6 +248,10 @@ jobs:
       docker_context:
         description: Docker build context
         type: string
+      docker_target:
+        description: "target build stage"
+        type: string
+        default: ""
       registry:
         description: Docker registry
         type: string
@@ -261,7 +266,7 @@ jobs:
         default: "linux/amd64"
     machine:
       image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      resource_class: medium
     steps:
       - gcp-cli/install
       - gcp-oidc-authenticate
@@ -277,7 +282,7 @@ jobs:
             DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
             docker context create buildx-build
             docker buildx create --use buildx-build
-            docker buildx build --platform=<<parameters.platforms>> --push \
+            docker buildx build --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
               $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
               -f <<parameters.docker_file>> \
               <<parameters.docker_context>>
@@ -286,9 +291,9 @@ jobs:
           command: |
             ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
-  contracts-bedrock-tests:
+  contracts-bedrock-coverage:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: large
     steps:
       - checkout
@@ -304,9 +309,8 @@ jobs:
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
-          name: test and generate coverage
+          name: generate coverage report
           command: yarn coverage:lcov
-          no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -316,9 +320,33 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
 
+  contracts-bedrock-tests:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: print forge version
+          command: forge --version
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: run tests
+          command: yarn test
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+
   contracts-bedrock-checks:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -338,6 +366,13 @@ jobs:
           command: |
             forge --version
             yarn gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: validate deploy configs
+          command: |
+            yarn validate-deploy-configs || echo "export DEPLOY_CONFIG_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -364,6 +399,10 @@ jobs:
               FAILED=1
               echo "Gas snapshot failed, see job output for details."
             fi
+            if [[ "$DEPLOY_CONFIG_STATUS" -ne 0 ]]; then
+              FAILED=1
+              echo "Deploy configs invalid, see job output for details."
+            fi
             if [[ "$STORAGE_SNAPSHOT_STATUS" -ne 0 ]]; then
               echo "Storage snapshot failed, see job output for details."
               FAILED=1
@@ -378,8 +417,8 @@ jobs:
 
   contracts-bedrock-slither:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
-    resource_class: xlarge
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -398,7 +437,7 @@ jobs:
 
   contracts-bedrock-validate-spaces:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -415,7 +454,7 @@ jobs:
 
   bedrock-echidna-build:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -433,7 +472,7 @@ jobs:
 
   bedrock-echidna-run:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     parameters:
       echidna_target:
         description: Which echidna fuzz contract to run
@@ -460,7 +499,7 @@ jobs:
 
   op-bindings-build:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: medium
     steps:
       - checkout
@@ -489,7 +528,7 @@ jobs:
         description: Coverage flag name
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: large
     steps:
       - checkout
@@ -512,6 +551,55 @@ jobs:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
 
+  sdk-next-tests:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - check-changed:
+          patterns: sdk,contracts-bedrock,contracts
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - run:
+          name: anvil-l1
+          background: true
+          # atm this is goerli but we should use mainnet after bedrock is live
+          command: anvil --fork-url $ANVIL_L1_FORK_URL --fork-block-number 9023108
+      - run:
+          name: anvil-l2
+          background: true
+          # atm this is goerli but we should use mainnet after bedrock is live
+          command: anvil --fork-url $ANVIL_L2_FORK_URL --port 9545 --fork-block-number 9504811
+      - run:
+          name: build
+          command: yarn build
+          working_directory: packages/sdk
+      - run:
+          name: lint
+          command: yarn lint:check
+          working_directory: packages/sdk
+      - run:
+          name: make sure anvil l1 is up
+          command: npx wait-on tcp:8545 && cast block-number --rpc-url http://localhost:8545
+      - run:
+          name: make sure anvil l2 is up
+          command: npx wait-on tcp:9545 && cast block-number --rpc-url http://localhost:9545
+      - run:
+          name: test:next
+          command: yarn test:next:run
+          no_output_timeout: 5m
+          working_directory: packages/sdk
+          environment:
+            # anvil[0] test private key
+            VITE_E2E_PRIVATE_KEY: "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+            VITE_E2E_RPC_URL_L1: http://localhost:8545
+            VITE_E2E_RPC_URL_L2: http://localhost:9545
+
+
   bedrock-markdown:
     machine:
       image: ubuntu-2204:2022.07.1
@@ -528,14 +616,24 @@ jobs:
       - run:
           name: markdown lint
           command: yarn lint:specs:check
+
+  bedrock-markdown-links:
+    machine:
+      image: ubuntu-2204:2022.07.1
+    steps:
+      - checkout
       - run:
           name: link lint
           command: |
-            docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback --exclude twitter.com --exclude-mail /input/README.md "/input/specs/**/*.md"
+            make bedrock-markdown-links
+      - slack/notify:
+          channel: C055R639XT9 #notify-link-check
+          event: fail
+          template: basic_fail_1
 
   fuzz-op-node:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - check-changed:
@@ -545,9 +643,21 @@ jobs:
           command: make fuzz
           working_directory: op-node
 
+  fuzz-op-chain-ops:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - check-changed:
+          patterns: op-chain-ops,op-bindings
+      - run:
+          name: Fuzz
+          command: make fuzz
+          working_directory: op-chain-ops
+
   depcheck:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -588,6 +698,47 @@ jobs:
           command: npx depcheck
           working_directory: integration-tests
 
+  atst-tests:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: '.' }
+      - check-changed:
+          patterns: atst,contracts-periphery
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - run:
+          name: anvil
+          background: true
+          command: anvil --fork-url $ANVIL_L2_FORK_URL_MAINNET --fork-block-number 92093723
+      - run:
+          name: build
+          command: yarn build
+          working_directory: packages/atst
+      - run:
+          name: typecheck
+          command: yarn typecheck
+          working_directory: packages/atst
+      - run:
+          name: lint
+          command: yarn lint:check
+          working_directory: packages/atst
+      - run:
+          name: make sure anvil is up
+          command: npx wait-on tcp:8545 && cast block-number --rpc-url http://localhost:8545
+      - run:
+          name: test
+          command: yarn test
+          no_output_timeout: 5m
+          working_directory: packages/atst
+          environment:
+            CI: true
+
+
   go-lint:
     parameters:
       module:
@@ -600,7 +751,7 @@ jobs:
       - run:
           name: run lint
           command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 2m -e "errors.As" -e "errors.Is" ./...
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
           working_directory: <<parameters.module>>
 
   go-test:
@@ -609,7 +760,7 @@ jobs:
         description: Go Module Name
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest # only used to enable codecov.
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest # only used to enable codecov.
     resource_class: xlarge
     steps:
       - checkout
@@ -637,7 +788,7 @@ jobs:
         description: If the op-e2e package should use HTTP clients
         type: string
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: xlarge
     steps:
       - checkout
@@ -676,7 +827,7 @@ jobs:
         type: string
         default: this-package-does-not-exist
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
       - image: cimg/postgres:14.1
     steps:
       - checkout
@@ -705,7 +856,7 @@ jobs:
 
   geth-tests:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - check-changed:
@@ -900,7 +1051,7 @@ jobs:
 
     docker:
       - image: returntocorp/semgrep
-    resource_class: xlarge
+    resource_class: medium
     steps:
       - checkout
       - unless:
@@ -925,7 +1076,7 @@ jobs:
 
   go-mod-tidy:
     docker:
-      - image: ethereumoptimism/ci-builder:latest
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
       - run:
@@ -942,7 +1093,7 @@ jobs:
     machine:
       image: ubuntu-2204:2022.07.1
       docker_layer_caching: true
-      resource_class: xlarge
+      resource_class: large
     steps:
       - attach_workspace:
           at: /tmp/docker_images
@@ -963,7 +1114,7 @@ jobs:
             ./hive \
             -sim=<<parameters.sim>> \
             -sim.loglevel=5 \
-            -client=go-ethereum,op-geth_optimism,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log || echo "failed."
+            -client=go-ethereum_v1.11.6,op-geth_optimism,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log || echo "failed."
       - run:
           command: |
             tar -cvf /tmp/workspace.tgz -C /home/circleci/project /home/circleci/project/workspace
@@ -980,6 +1131,21 @@ jobs:
     resource_class: medium
     steps:
       - run: echo Done
+
+  fpp-verify:
+    docker:
+      - image: cimg/go:1.19
+    steps:
+      - checkout
+      - run:
+          name: verify-goerli
+          command: |
+            make verify-goerli
+          working_directory: op-program
+      - slack/notify:
+          channel: C03N11M0BBN
+          event: fail
+          template: basic_fail_1
 
 workflows:
   main:
@@ -1007,6 +1173,9 @@ workflows:
       - contracts-bedrock-tests:
           requires:
             - yarn-monorepo
+      - contracts-bedrock-coverage:
+          requires:
+            - yarn-monorepo
       - contracts-bedrock-checks:
           requires:
             - yarn-monorepo
@@ -1017,6 +1186,9 @@ workflows:
           requires:
             - yarn-monorepo
       - op-bindings-build:
+          requires:
+            - yarn-monorepo
+      - atst-tests:
           requires:
             - yarn-monorepo
       - js-lint-test:
@@ -1066,6 +1238,10 @@ workflows:
           coverage_flag: replica-healthcheck-tests
           package_name: replica-healthcheck
           dependencies: "(common-ts|core-utils)"
+          requires:
+            - yarn-monorepo
+      - sdk-next-tests:
+          name: sdk-next-tests
           requires:
             - yarn-monorepo
       - js-lint-test:
@@ -1122,6 +1298,7 @@ workflows:
       - semgrep-scan
       - go-mod-tidy
       - fuzz-op-node
+      - fuzz-op-chain-ops
       - bedrock-markdown
       - go-lint:
           name: op-batcher-lint
@@ -1141,6 +1318,9 @@ workflows:
       - go-lint:
           name: op-proposer-lint
           module: op-proposer
+      - go-lint:
+          name: op-challenger-lint
+          module: op-challenger
       - go-lint:
           name: op-program-lint
           module: op-program
@@ -1167,6 +1347,9 @@ workflows:
           name: op-proposer-tests
           module: op-proposer
       - go-test:
+          name: op-challenger-tests
+          module: op-challenger
+      - go-test:
           name: op-program-tests
           module: op-program
       - go-test:
@@ -1188,6 +1371,7 @@ workflows:
             - op-e2e-lint
             - op-node-lint
             - op-proposer-lint
+            - op-challenger-lint
             - op-program-lint
             - op-service-lint
             - op-batcher-tests
@@ -1195,6 +1379,7 @@ workflows:
             - op-chain-ops-tests
             - op-node-tests
             - op-proposer-tests
+            - op-challenger-tests
             - op-program-tests
             - op-service-tests
             - op-e2e-WS-tests
@@ -1228,6 +1413,20 @@ workflows:
             - oplabs-gcr
           platforms: "linux/amd64,linux/arm64"
       - docker-build:
+          name: op-program-docker-build
+          docker_file: op-program/Dockerfile
+          docker_name: op-program
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: op-program-docker-publish
+          docker_file: op-program/Dockerfile
+          docker_name: op-program
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - oplabs-gcr
+          platforms: "linux/amd64,linux/arm64"
+      - docker-build:
           name: op-proposer-docker-build
           docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
@@ -1237,6 +1436,20 @@ workflows:
           name: op-proposer-docker-publish
           docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - oplabs-gcr
+          platforms: "linux/amd64,linux/arm64"
+      - docker-build:
+          name: op-challenger-docker-build
+          docker_file: op-challenger/Dockerfile
+          docker_name: op-challenger
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: op-challenger-docker-publish
+          docker_file: op-challenger/Dockerfile
+          docker_name: op-challenger
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
@@ -1275,6 +1488,14 @@ workflows:
           docker_target: wd-mon
           context:
             - oplabs-gcr
+      - docker-publish:
+          name: fault-detector-docker-publish
+          docker_file: ./ops/docker/Dockerfile.packages
+          docker_name: fault-detector
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_target: fault-detector
+          context:
+            - oplabs-gcr
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
@@ -1283,6 +1504,7 @@ workflows:
             - op-node-docker-build
             - op-batcher-docker-build
             - op-proposer-docker-build
+            - op-challenger-docker-build
       - hive-test:
           name: hive-test-p2p
           version: <<pipeline.git.revision>>
@@ -1291,6 +1513,7 @@ workflows:
             - op-node-docker-build
             - op-batcher-docker-build
             - op-proposer-docker-build
+            - op-challenger-docker-build
       - hive-test:
           name: hive-test-l1ops
           version: <<pipeline.git.revision>>
@@ -1299,13 +1522,14 @@ workflows:
             - op-node-docker-build
             - op-batcher-docker-build
             - op-proposer-docker-build
+            - op-challenger-docker-build
   release:
     jobs:
       - hold:
           type: approval
           filters:
             tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
+              only: /^(fault-detector|proxyd|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-release:
@@ -1356,6 +1580,39 @@ workflows:
             - oplabs-gcr-release
           requires:
             - hold
+      - docker-release:
+          name: op-challenger-docker-release
+          filters:
+            tags:
+              only: /^op-challenger\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: op-challenger/Dockerfile
+          docker_name: op-challenger
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+          platforms: "linux/amd64,linux/arm64"
+          context:
+            - oplabs-gcr-release
+          requires:
+            - hold
+      - docker-release:
+          name: fault-detector-docker-release
+          filters:
+            tags:
+              only: /^fault-detector\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: ./ops/docker/Dockerfile.packages
+          docker_name: fault-detector
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_target: fault-detector
+          docker_context: .
+          platforms: "linux/amd64,linux/arm64"
+          context:
+            - oplabs-gcr-release
+          requires:
+            - hold
       - docker-build:
           name: op-migrate-docker-release
           filters:
@@ -1371,3 +1628,58 @@ workflows:
             - oplabs-gcr-release
           requires:
             - hold
+      - docker-release:
+          name: proxyd-docker-release
+          filters:
+            tags:
+              only: /^proxyd\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: proxyd/Dockerfile
+          docker_name: proxyd
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+          context:
+            - oplabs-gcr-release
+          requires:
+            - hold
+  release-ci-builder:
+    jobs:
+      - docker-publish:
+          name: ci-builder-docker-publish
+          filters:
+            tags:
+              only: /^ci-builder\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: ./ops/docker/ci-builder/Dockerfile
+          docker_name: ci-builder
+          docker_tags: <<pipeline.git.revision>>,latest
+          docker_context: ./ops/docker/ci-builder
+          context:
+            - oplabs-gcr
+  scheduled-fpp:
+    triggers:
+      - schedule:
+          # run every 4 hours
+          cron: "0 0,6,12,18 * * *"
+          filters:
+            branches:
+              only: [ "develop" ]
+    jobs:
+      - fpp-verify:
+          context:
+            - slack
+            - oplabs-fpp-nodes
+
+  scheduled-link-check:
+    triggers:
+      - schedule:
+          # Run once a day, only on the develop branch
+          cron: "0 0 * * *"
+          filters:
+            branches:
+              only: [ "develop" ]
+    jobs:
+      - bedrock-markdown-links:
+          context: slack

@@ -27,12 +27,6 @@ task('deposit-eth', 'Deposits ether to L2.')
     'http://localhost:9545',
     types.string
   )
-  .addParam(
-    'opNodeProviderUrl',
-    'op-node provider URL',
-    'http://localhost:7545',
-    types.string
-  )
   .addOptionalParam('to', 'Recipient of the ether', '', types.string)
   .addOptionalParam(
     'amount',
@@ -136,8 +130,8 @@ task('deposit-eth', 'Deposits ether to L2.')
       contractAddrs = {
         l1: {
           AddressManager: Deployment__AddressManager.address,
-          L1CrossDomainMessenger: Deployment__L1CrossDomainMessenger,
-          L1StandardBridge: Deployment__L1StandardBridge,
+          L1CrossDomainMessenger: Deployment__L1CrossDomainMessenger.address,
+          L1StandardBridge: Deployment__L1StandardBridge.address,
           StateCommitmentChain: ethers.constants.AddressZero,
           CanonicalTransactionChain: ethers.constants.AddressZero,
           BondManager: ethers.constants.AddressZero,

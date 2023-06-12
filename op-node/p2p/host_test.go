@@ -12,12 +12,10 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
 	"github.com/libp2p/go-libp2p"
-	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
-	tswarm "github.com/libp2p/go-libp2p/p2p/net/swarm/testing"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
@@ -54,10 +52,6 @@ func TestingConfig(t *testing.T) *Config {
 		TimeoutAccept:       time.Second * 2,
 		TimeoutDial:         time.Second * 2,
 		Store:               sync.MutexWrap(ds.NewMapDatastore()),
-		ConnGater: func(conf *Config) (connmgr.ConnectionGater, error) {
-			return tswarm.DefaultMockConnectionGater(), nil
-		},
-		ConnMngr: DefaultConnManager,
 	}
 }
 
@@ -65,10 +59,10 @@ func TestingConfig(t *testing.T) *Config {
 func TestP2PSimple(t *testing.T) {
 	confA := TestingConfig(t)
 	confB := TestingConfig(t)
-	hostA, err := confA.Host(testlog.Logger(t, log.LvlError).New("host", "A"), nil)
+	hostA, err := confA.Host(testlog.Logger(t, log.LvlError).New("host", "A"), nil, metrics.NoopMetrics)
 	require.NoError(t, err, "failed to launch host A")
 	defer hostA.Close()
-	hostB, err := confB.Host(testlog.Logger(t, log.LvlError).New("host", "B"), nil)
+	hostB, err := confB.Host(testlog.Logger(t, log.LvlError).New("host", "B"), nil, metrics.NoopMetrics)
 	require.NoError(t, err, "failed to launch host B")
 	defer hostB.Close()
 	err = hostA.Connect(context.Background(), peer.AddrInfo{ID: hostB.ID(), Addrs: hostB.Addrs()})
@@ -113,8 +107,6 @@ func TestP2PFull(t *testing.T) {
 		TimeoutAccept:       time.Second * 2,
 		TimeoutDial:         time.Second * 2,
 		Store:               sync.MutexWrap(ds.NewMapDatastore()),
-		ConnGater:           DefaultConnGater,
-		ConnMngr:            DefaultConnManager,
 	}
 	// copy config A, and change the settings for B
 	confB := confA
@@ -262,8 +254,6 @@ func TestDiscovery(t *testing.T) {
 		TimeoutDial:         time.Second * 2,
 		Store:               sync.MutexWrap(ds.NewMapDatastore()),
 		DiscoveryDB:         discDBA,
-		ConnGater:           DefaultConnGater,
-		ConnMngr:            DefaultConnManager,
 	}
 	// copy config A, and change the settings for B
 	confB := confA

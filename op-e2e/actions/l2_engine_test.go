@@ -191,7 +191,7 @@ func TestL2EngineAPIFail(gt *testing.T) {
 }
 
 func TestEngineAPITests(t *testing.T) {
-	test.RunEngineAPITests(t, func() engineapi.EngineBackend {
+	test.RunEngineAPITests(t, func(t *testing.T) engineapi.EngineBackend {
 		jwtPath := e2eutils.WriteDefaultJWT(t)
 		dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 		sd := e2eutils.Setup(t, dp, defaultAlloc)

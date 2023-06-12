@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/urfave/cli"
@@ -14,10 +15,10 @@ import (
 
 // Flags
 
-const envVarPrefix = "OP_NODE"
+const EnvVarPrefix = "OP_NODE"
 
 func prefixEnvVar(name string) string {
-	return envVarPrefix + "_" + name
+	return EnvVarPrefix + "_" + name
 }
 
 var (
@@ -68,7 +69,7 @@ var (
 	L1RPCProviderKind = cli.GenericFlag{
 		Name: "l1.rpckind",
 		Usage: "The kind of RPC provider, used to inform optimal transactions receipts fetching, and thus reduce costs. Valid options: " +
-			EnumString[sources.RPCProviderKind](sources.RPCProviderKinds),
+			openum.EnumString(sources.RPCProviderKinds),
 		EnvVar: prefixEnvVar("L1_RPC_KIND"),
 		Value: func() *sources.RPCProviderKind {
 			out := sources.RPCKindBasic
@@ -251,33 +252,15 @@ var Flags []cli.Flag
 
 func init() {
 	optionalFlags = append(optionalFlags, p2pFlags...)
-	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, oplog.CLIFlags(EnvVarPrefix)...)
 	Flags = append(requiredFlags, optionalFlags...)
 }
 
 func CheckRequired(ctx *cli.Context) error {
-	l1NodeAddr := ctx.GlobalString(L1NodeAddr.Name)
-	if l1NodeAddr == "" {
-		return fmt.Errorf("flag %s is required", L1NodeAddr.Name)
-	}
-	l2EngineAddr := ctx.GlobalString(L2EngineAddr.Name)
-	if l2EngineAddr == "" {
-		return fmt.Errorf("flag %s is required", L2EngineAddr.Name)
-	}
-	rollupConfig := ctx.GlobalString(RollupConfig.Name)
-	network := ctx.GlobalString(Network.Name)
-	if rollupConfig == "" && network == "" {
-		return fmt.Errorf("flag %s or %s is required", RollupConfig.Name, Network.Name)
-	}
-	if rollupConfig != "" && network != "" {
-		return fmt.Errorf("cannot specify both %s and %s", RollupConfig.Name, Network.Name)
-	}
-	rpcListenAddr := ctx.GlobalString(RPCListenAddr.Name)
-	if rpcListenAddr == "" {
-		return fmt.Errorf("flag %s is required", RPCListenAddr.Name)
-	}
-	if !ctx.GlobalIsSet(RPCListenPort.Name) {
-		return fmt.Errorf("flag %s is required", RPCListenPort.Name)
+	for _, f := range requiredFlags {
+		if !ctx.GlobalIsSet(f.GetName()) {
+			return fmt.Errorf("flag %s is required", f.GetName())
+		}
 	}
 	return nil
 }

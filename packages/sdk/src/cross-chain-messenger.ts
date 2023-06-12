@@ -26,6 +26,7 @@ import {
   BedrockCrossChainMessageProof,
   decodeVersionedNonce,
   encodeVersionedNonce,
+  getChainId,
 } from '@eth-optimism/core-utils'
 import { getContractInterface, predeploys } from '@eth-optimism/contracts'
 import * as rlp from 'rlp'
@@ -68,6 +69,7 @@ import {
   migratedWithdrawalGasLimit,
   DEPOSIT_CONFIRMATION_BLOCKS,
   CHAIN_BLOCK_TIMES,
+  hashMessageHash,
 } from './utils'
 
 export class CrossChainMessenger {
@@ -142,6 +144,12 @@ export class CrossChainMessenger {
     bedrock?: boolean
   }) {
     this.bedrock = opts.bedrock ?? false
+
+    if (!this.bedrock) {
+      console.warn(
+        'Bedrock compatibility is disabled in CrossChainMessenger.  Please enable it if you are using Bedrock.'
+      )
+    }
     this.l1SignerOrProvider = toSignerOrProvider(opts.l1SignerOrProvider)
     this.l2SignerOrProvider = toSignerOrProvider(opts.l2SignerOrProvider)
 
@@ -351,14 +359,12 @@ export class CrossChainMessenger {
       }
     }
 
-    const minGasLimit = migratedWithdrawalGasLimit(resolved.message)
-
     return {
       ...resolved,
       value,
-      minGasLimit,
+      minGasLimit: BigNumber.from(0),
       messageNonce: encodeVersionedNonce(
-        BigNumber.from(1),
+        BigNumber.from(0),
         resolved.messageNonce
       ),
     }
@@ -388,13 +394,24 @@ export class CrossChainMessenger {
       updated = resolved
     }
 
+    // Encode the updated message, we need this for legacy messages.
+    const encoded = encodeCrossDomainMessageV1(
+      updated.messageNonce,
+      updated.sender,
+      updated.target,
+      updated.value,
+      updated.minGasLimit,
+      updated.message
+    )
+
     // We need to figure out the final withdrawal data that was used to compute the withdrawal hash
     // inside the L2ToL1Message passer contract. Exact mechanism here depends on whether or not
     // this is a legacy message or a new Bedrock message.
     let gasLimit: BigNumber
     let messageNonce: BigNumber
     if (version.eq(0)) {
-      gasLimit = BigNumber.from(0)
+      const chainID = await getChainId(this.l2Provider)
+      gasLimit = migratedWithdrawalGasLimit(encoded, chainID)
       messageNonce = resolved.messageNonce
     } else {
       const receipt = await this.l2Provider.getTransactionReceipt(
@@ -433,14 +450,7 @@ export class CrossChainMessenger {
       target: this.contracts.l1.L1CrossDomainMessenger.address,
       value: updated.value,
       minGasLimit: gasLimit,
-      message: encodeCrossDomainMessageV1(
-        updated.messageNonce,
-        updated.sender,
-        updated.target,
-        updated.value,
-        updated.minGasLimit,
-        updated.message
-      ),
+      message: encoded,
     }
   }
 
@@ -572,6 +582,9 @@ export class CrossChainMessenger {
   public async toCrossChainMessage(
     message: MessageLike
   ): Promise<CrossChainMessage> {
+    if (!message) {
+      throw new Error('message is undefined')
+    }
     // TODO: Convert these checks into proper type checks.
     if ((message as CrossChainMessage).message) {
       return message as CrossChainMessage
@@ -1357,12 +1370,8 @@ export class CrossChainMessenger {
     }
 
     const withdrawal = await this.toLowLevelMessage(resolved)
-    const messageSlot = ethers.utils.keccak256(
-      ethers.utils.defaultAbiCoder.encode(
-        ['bytes32', 'uint256'],
-        [hashLowLevelMessage(withdrawal), ethers.constants.HashZero]
-      )
-    )
+    const hash = hashLowLevelMessage(withdrawal)
+    const messageSlot = hashMessageHash(hash)
 
     const stateTrieProof = await makeStateTrieProof(
       this.l2Provider as ethers.providers.JsonRpcProvider,
@@ -1462,9 +1471,8 @@ export class CrossChainMessenger {
       overrides?: Overrides
     }
   ): Promise<TransactionResponse> {
-    return (opts?.signer || this.l1Signer).sendTransaction(
-      await this.populateTransaction.proveMessage(message, opts)
-    )
+    const tx = await this.populateTransaction.proveMessage(message, opts)
+    return (opts?.signer || this.l1Signer).sendTransaction(tx)
   }
 
   /**
@@ -1768,7 +1776,8 @@ export class CrossChainMessenger {
 
       const withdrawal = await this.toLowLevelMessage(resolved)
       const proof = await this.getBedrockMessageProof(resolved)
-      return this.contracts.l1.OptimismPortal.populateTransaction.proveWithdrawalTransaction(
+
+      const args = [
         [
           withdrawal.messageNonce,
           withdrawal.sender,
@@ -1785,7 +1794,11 @@ export class CrossChainMessenger {
           proof.outputRootProof.latestBlockhash,
         ],
         proof.withdrawalProof,
-        opts?.overrides || {}
+        opts?.overrides || {},
+      ] as const
+
+      return this.contracts.l1.OptimismPortal.populateTransaction.proveWithdrawalTransaction(
+        ...args
       )
     },
 

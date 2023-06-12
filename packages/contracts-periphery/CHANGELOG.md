@@ -1,5 +1,12 @@
 # @eth-optimism/contracts-periphery
 
+## 1.0.8
+
+### Patch Changes
+
+- 2129dafa3: Add faucet contract
+- 188d1e930: Change type for auth id on Faucet contracts from bytes to bytes32
+
 ## 1.0.7
 
 ### Patch Changes
