@@ -184,3 +184,30 @@
         "number": "0xd1"
       }
     }
+- method: debug_getRawReceipts
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "_": "debug_getRawReceipts"
+      }
+    }
+- method: eth_getTransactionReceipt
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "_": "eth_getTransactionReceipt"
+      }
+    }
+- method: alchemy_getTransactionReceipts
+  response: >
+    {
+      "jsonrpc": "2.0",
+      "id": 67,
+      "result": {
+        "_": "alchemy_getTransactionReceipts"
+      }
+    }

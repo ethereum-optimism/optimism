@@ -74,7 +74,9 @@ client_cert_file = ""
 client_key_file = ""
 # Allows backends to skip peer count checking, default false
 # consensus_skip_peer_count = true
-
+# Specified the target method to get receipts, default "debug_getRawReceipts"
+# See https://github.com/ethereum-optimism/optimism/blob/186e46a47647a51a658e699e9ff047d39444c2de/op-node/sources/receipts.go#L186-L253
+consensus_receipts_target = "eth_getBlockReceipts"
 
 [backends.alchemy]
 rpc_url = ""
@@ -83,6 +85,7 @@ username = ""
 password = ""
 max_rps = 3
 max_ws_conns = 1
+consensus_receipts_target = "alchemy_getTransactionReceipts"
 
 [backend_groups]
 [backend_groups.main]
