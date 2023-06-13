@@ -115,7 +115,9 @@ func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []
 					DecayInterval:     time.Second,
 					DecayToZero:       0.01,
 				},
-				TopicScoring: DisabledTopicScoreParams(1),
+				TopicScoring: pubsub.TopicScoreParams{
+					TimeInMeshQuantum: time.Second,
+				},
 			},
 		}, scorer, logger)...)
 		ps, err := pubsub.NewGossipSubWithRouter(ctx, h, rt, opts...)

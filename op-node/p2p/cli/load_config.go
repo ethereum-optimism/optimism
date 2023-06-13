@@ -91,18 +91,11 @@ func loadScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64) err
 		scoringLevel = ctx.GlobalString(flags.TopicScoring.Name)
 	}
 	if scoringLevel != "" {
-		peerScoreParams, err := p2p.GetPeerScoreParams(scoringLevel, blockTime)
+		params, err := p2p.GetScoringParams(scoringLevel, blockTime)
 		if err != nil {
 			return err
 		}
-		topicScoreParams, err := p2p.GetTopicScoreParams(scoringLevel, blockTime)
-		if err != nil {
-			return err
-		}
-		conf.ScoringParams = &p2p.ScoringParams{
-			PeerScoring:  peerScoreParams,
-			TopicScoring: topicScoreParams,
-		}
+		conf.ScoringParams = params
 	}
 
 	return nil
