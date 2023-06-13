@@ -30,6 +30,12 @@ interface IDisputeGameFactory {
     event ImplementationSet(address indexed impl, GameType indexed gameType);
 
     /**
+     * @notice retrieves a list of all dispute games created by this factory.
+     * @return _disputeGameList The list of all dispute games created by this factory.
+     */
+    function allGames() external view returns (IDisputeGame[] memory _disputeGameList);
+
+    /**
      * @notice `games` queries an internal a mapping that maps the hash of
      *         `gameType ++ rootClaim ++ extraData` to the deployed `DisputeGame` clone.
      * @dev `++` equates to concatenation.

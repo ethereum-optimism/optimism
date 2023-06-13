@@ -48,6 +48,9 @@ contract DisputeGameFactory_Test is Test {
 
         // Ensure that the dispute game was assigned to the `disputeGames` mapping.
         assertEq(address(factory.games(gt, rootClaim, extraData)), address(proxy));
+        IDisputeGame[] memory disputeGameList = factory.allGames();
+        assertEq(disputeGameList.length, 1);
+        assertEq(address(disputeGameList[0]), address(proxy));
     }
 
     /**
