@@ -64,6 +64,7 @@ const crossChainMessenger = new CrossChainMessenger({
   bedrock: true,
 })
 
+// testing ci
 describe('prove message', () => {
   it(`should prove a legacy tx
   `, async () => {
