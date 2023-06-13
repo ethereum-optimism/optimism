@@ -67,16 +67,13 @@ export const updateOracleCache = async <TSubmissionEventArgs>(
   })
 
   let failures = 0
+  let success = 0
   let currentBlock = cache.highestBlock + 1
   let step = endBlock - currentBlock
   while (currentBlock < endBlock) {
+    const rangeInfo = { node: 'l1', startBlock: currentBlock, rangeSize: step }
     try {
-      logger?.info('polling events for range', {
-        node: 'l1',
-        startBlock: currentBlock,
-        blockRangeSize: step,
-      })
-
+      logger?.info('polling output oracle events', rangeInfo)
       const events = await oracle.contract.queryFilter(
         oracle.filter,
         currentBlock,
@@ -94,18 +91,25 @@ export const updateOracleCache = async <TSubmissionEventArgs>(
         }
       }
 
-      // Update the current block and increase the step size for the next iteration.
+      logger?.info(`cached ${events.length} output oracle events`, rangeInfo)
       currentBlock += step
-      step = Math.ceil(step * 2)
-    } catch (err) {
-      logger?.error('error fetching events', {
-        err,
-        node: 'l1',
-        section: 'getLogs',
-      })
 
-      // Might happen if we're querying too large an event range.
-      step = Math.floor(step / 2)
+      // If we've been at this range for at least 5 iterations, lets try increase it
+      success++
+      if (success >= 5) {
+        logger?.info('increasing range size', rangeInfo)
+        success = 0
+
+        // start from some reasonable range when step == 0
+        step = step === 0 ? 500 : step * 2
+      }
+    } catch (err) {
+      success = 0
+
+      // Might happen if we're querying too large an event range. Decrease twice as fast as
+      // we'd increase the step size for a faster recovery.
+      logger?.error('query err. decreasing block range', { err, ...rangeInfo })
+      step = Math.floor(step / 4)
 
       // When the step gets down to zero, we're pretty much guaranteed that range size isn't the
       // problem. If we get three failures like this in a row then we should just give up.
@@ -117,7 +121,12 @@ export const updateOracleCache = async <TSubmissionEventArgs>(
 
       // We've failed 3 times in a row, we're probably stuck.
       if (failures >= 3) {
-        logger?.fatal('unable to fetch oracle events', { err })
+        logger?.fatal('unable to fetch oracle events', {
+          err,
+          node: 'l1',
+          section: 'getLogs',
+        })
+
         throw new Error('failed to update event cache')
       }
     }
