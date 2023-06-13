@@ -1,5 +1,17 @@
 # @eth-optimism/fault-detector
 
+## 0.6.4
+
+### Patch Changes
+
+- Updated dependencies [a1b7ff9e3]
+- Updated dependencies [8133872ed]
+- Updated dependencies [afc2ab8c9]
+- Updated dependencies [5063a69fb]
+- Updated dependencies [aa854bdd8]
+  - @eth-optimism/sdk@2.1.0
+  - @eth-optimism/contracts@0.6.0
+
 ## 0.6.3
 
 ### Patch Changes

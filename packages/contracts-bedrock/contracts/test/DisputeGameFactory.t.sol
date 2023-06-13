@@ -6,7 +6,7 @@ import "../libraries/DisputeErrors.sol";
 
 import { Test } from "forge-std/Test.sol";
 import { DisputeGameFactory } from "../dispute/DisputeGameFactory.sol";
-import { IDisputeGame } from "../dispute/IDisputeGame.sol";
+import { IDisputeGame } from "../dispute/interfaces/IDisputeGame.sol";
 
 contract DisputeGameFactory_Test is Test {
     DisputeGameFactory factory;
@@ -48,6 +48,8 @@ contract DisputeGameFactory_Test is Test {
 
         // Ensure that the dispute game was assigned to the `disputeGames` mapping.
         assertEq(address(factory.games(gt, rootClaim, extraData)), address(proxy));
+        assertEq(factory.gameCount(), 1);
+        assertEq(address(factory.disputeGameList(0)), address(proxy));
     }
 
     /**

@@ -40,6 +40,15 @@ func (b *ethBackend) GetBlockReceipts(id string) ([]*types.Receipt, error) {
 	return out[0].([]*types.Receipt), *out[1].(*error)
 }
 
+type erigonBackend struct {
+	*mock.Mock
+}
+
+func (b *erigonBackend) GetBlockReceiptsByBlockHash(id string) ([]*types.Receipt, error) {
+	out := b.Mock.MethodCalled("erigon_getBlockReceiptsByBlockHash", id)
+	return out[0].([]*types.Receipt), *out[1].(*error)
+}
+
 type alchemyBackend struct {
 	*mock.Mock
 }
@@ -99,6 +108,7 @@ func (tc *ReceiptsTestCase) Run(t *testing.T) {
 	require.NoError(t, srv.RegisterName("alchemy", &alchemyBackend{Mock: m}))
 	require.NoError(t, srv.RegisterName("debug", &debugBackend{Mock: m}))
 	require.NoError(t, srv.RegisterName("parity", &parityBackend{Mock: m}))
+	require.NoError(t, srv.RegisterName("erigon", &erigonBackend{Mock: m}))
 
 	block, requests := tc.setup(t)
 
@@ -127,6 +137,8 @@ func (tc *ReceiptsTestCase) Run(t *testing.T) {
 			m.On("parity_getBlockReceipts", block.Hash.String()).Once().Return(req.result, &req.err)
 		case EthGetBlockReceipts:
 			m.On("eth_getBlockReceipts", block.Hash.String()).Once().Return(req.result, &req.err)
+		case ErigonGetBlockReceiptsByBlockHash:
+			m.On("erigon_getBlockReceiptsByBlockHash", block.Hash.String()).Once().Return(req.result, &req.err)
 		default:
 			t.Fatalf("unrecognized request method: %d", uint64(req.method))
 		}
@@ -286,7 +298,7 @@ func TestEthClient_FetchReceipts(t *testing.T) {
 		{
 			name:         "erigon",
 			providerKind: RPCKindErigon,
-			setup:        fallbackCase(4, EthGetBlockReceipts),
+			setup:        fallbackCase(4, ErigonGetBlockReceiptsByBlockHash),
 		},
 		{
 			name:         "basic",
@@ -305,6 +317,7 @@ func TestEthClient_FetchReceipts(t *testing.T) {
 			setup: fallbackCase(4,
 				AlchemyGetTransactionReceipts,
 				DebugGetRawReceipts,
+				ErigonGetBlockReceiptsByBlockHash,
 				EthGetBlockReceipts,
 				ParityGetBlockReceipts,
 			),

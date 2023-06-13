@@ -124,27 +124,27 @@ func (d *recordsBook[K, V]) getRecord(key K) (v V, err error) {
 	return v, nil
 }
 
-func (d *recordsBook[K, V]) SetRecord(key K, diff recordDiff[V]) error {
+func (d *recordsBook[K, V]) SetRecord(key K, diff recordDiff[V]) (V, error) {
 	d.Lock()
 	defer d.Unlock()
 	rec, err := d.getRecord(key)
 	if err == UnknownRecordErr { // instantiate new record if it does not exist yet
 		rec = d.newRecord()
 	} else if err != nil {
-		return err
+		return d.newRecord(), err
 	}
 	rec.SetLastUpdated(d.clock.Now())
 	diff.Apply(rec)
 	data, err := rec.MarshalBinary()
 	if err != nil {
-		return fmt.Errorf("failed to encode record for key %v: %w", key, err)
+		return d.newRecord(), fmt.Errorf("failed to encode record for key %v: %w", key, err)
 	}
 	err = d.store.Put(d.ctx, d.dsKey(key), data)
 	if err != nil {
-		return fmt.Errorf("storing updated record for key %v: %w", key, err)
+		return d.newRecord(), fmt.Errorf("storing updated record for key %v: %w", key, err)
 	}
 	d.cache.Add(key, rec)
-	return nil
+	return rec, nil
 }
 
 // prune deletes entries from the store that are older than the configured prune expiration.

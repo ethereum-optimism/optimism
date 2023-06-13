@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/indexer/bindings/legacy/scc"
+	legacy_bindings "github.com/ethereum-optimism/optimism/op-bindings/legacy-bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 )
 
@@ -14,7 +14,7 @@ var clientRetryInterval = 5 * time.Second
 
 // FilterStateBatchAppendedWithRetry retries the given func until it succeeds,
 // waiting for clientRetryInterval duration after every call.
-func FilterStateBatchAppendedWithRetry(ctx context.Context, filterer *scc.StateCommitmentChainFilterer, opts *bind.FilterOpts) (*scc.StateCommitmentChainStateBatchAppendedIterator, error) {
+func FilterStateBatchAppendedWithRetry(ctx context.Context, filterer *legacy_bindings.StateCommitmentChainFilterer, opts *bind.FilterOpts) (*legacy_bindings.StateCommitmentChainStateBatchAppendedIterator, error) {
 	for {
 		ctxt, cancel := context.WithTimeout(ctx, DefaultConnectionTimeout)
 		opts.Context = ctxt

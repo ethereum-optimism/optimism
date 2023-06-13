@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/fault-detector",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "[Optimism] Service for detecting faulty L2 output proposals",
   "main": "dist/index",
   "types": "dist/index",
@@ -9,10 +9,12 @@
     "dist/*"
   ],
   "scripts": {
-    "start": "ts-node ./src/service.ts",
+    "start": "node --enable-source-maps dist/src/service.js",
+    "dev": "tsx watch ./src/service.ts",
     "test": "hardhat test",
     "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json",
     "build": "tsc -p tsconfig.json",
+    "preview": "yarn build && yarn start",
     "clean": "rimraf dist/ ./tsconfig.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
     "pre-commit": "lint-staged",
@@ -40,17 +42,18 @@
     "@types/dateformat": "^5.0.0",
     "chai-as-promised": "^7.1.1",
     "dateformat": "^4.5.1",
+    "dotenv": "^16.1.4",
     "ethereum-waffle": "^3.4.4",
     "ethers": "^5.7.0",
     "hardhat": "^2.9.6",
     "lodash": "^4.17.21",
-    "ts-node": "^10.9.1"
+    "tsx": "^3.12.7"
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.8.1",
-    "@eth-optimism/contracts": "^0.5.40",
+    "@eth-optimism/contracts": "^0.6.0",
     "@eth-optimism/core-utils": "^0.12.0",
-    "@eth-optimism/sdk": "^2.0.2",
+    "@eth-optimism/sdk": "^2.1.0",
     "@ethersproject/abstract-provider": "^5.7.0"
   }
 }

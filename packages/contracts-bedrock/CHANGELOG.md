@@ -1,5 +1,17 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.14.0
+
+### Minor Changes
+
+- 197884eae: Bump XDM semver after #5444
+- 6eb05430d: Increase precision in `SafeCall.hasMinGas`
+- 5063a69fb: Update sdk contract addresses for bedrock
+
+### Patch Changes
+
+- f1e867177: contracts-bedrock was exporting hardhat when it didn't need to be
+
 ## 0.13.2
 
 ### Patch Changes

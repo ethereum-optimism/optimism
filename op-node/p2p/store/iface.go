@@ -41,7 +41,7 @@ type ScoreDatastore interface {
 	GetPeerScore(id peer.ID) (float64, error)
 
 	// SetScore applies the given store diff to the specified peer
-	SetScore(id peer.ID, diff ScoreDiff) error
+	SetScore(id peer.ID, diff ScoreDiff) (PeerScores, error)
 }
 
 // ScoreDiff defines a type-safe batch of changes to apply to the peer-scoring record of the peer.

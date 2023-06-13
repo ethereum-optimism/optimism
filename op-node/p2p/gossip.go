@@ -443,10 +443,7 @@ func JoinGossip(p2pCtx context.Context, self peer.ID, topicScoreParams *pubsub.T
 	}
 	go LogTopicEvents(p2pCtx, log.New("topic", "blocks"), blocksTopicEvents)
 
-	// A [TimeInMeshQuantum] value of 0 means the topic score is disabled.
-	// If we passed a topicScoreParams with [TimeInMeshQuantum] set to 0,
-	// libp2p errors since the params will be rejected.
-	if topicScoreParams != nil && topicScoreParams.TimeInMeshQuantum != 0 {
+	if topicScoreParams != nil {
 		if err = blocksTopic.SetScoreParams(topicScoreParams); err != nil {
 			return nil, fmt.Errorf("failed to set topic score params: %w", err)
 		}

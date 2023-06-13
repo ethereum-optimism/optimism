@@ -125,9 +125,15 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		GasPriceOracleOverhead: 2100,
 		GasPriceOracleScalar:   1_000_000,
 
-		SequencerFeeVaultRecipient: common.Address{19: 1},
-		BaseFeeVaultRecipient:      common.Address{19: 2},
-		L1FeeVaultRecipient:        common.Address{19: 3},
+		SequencerFeeVaultRecipient:               common.Address{19: 1},
+		BaseFeeVaultRecipient:                    common.Address{19: 2},
+		L1FeeVaultRecipient:                      common.Address{19: 3},
+		BaseFeeVaultMinimumWithdrawalAmount:      uint642big(1000_000_000), // 1 gwei
+		L1FeeVaultMinimumWithdrawalAmount:        uint642big(1000_000_000), // 1 gwei
+		SequencerFeeVaultMinimumWithdrawalAmount: uint642big(1000_000_000), // 1 gwei
+		BaseFeeVaultWithdrawalNetwork:            uint8(1),                 // L2 withdrawal network
+		L1FeeVaultWithdrawalNetwork:              uint8(1),                 // L2 withdrawal network
+		SequencerFeeVaultWithdrawalNetwork:       uint8(1),                 // L2 withdrawal network
 
 		DeploymentWaitConfirmations: 1,
 
@@ -180,9 +186,10 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			"batcher":   testlog.Logger(t, log.LvlInfo).New("role", "batcher"),
 			"proposer":  testlog.Logger(t, log.LvlCrit).New("role", "proposer"),
 		},
-		GethOptions:           map[string][]GethOption{},
-		P2PTopology:           nil, // no P2P connectivity by default
-		NonFinalizedProposals: false,
+		GethOptions:                map[string][]GethOption{},
+		P2PTopology:                nil, // no P2P connectivity by default
+		NonFinalizedProposals:      false,
+		BatcherTargetL1TxSizeBytes: 100_000,
 	}
 }
 
@@ -229,6 +236,9 @@ type SystemConfig struct {
 
 	// Explicitly disable batcher, for tests that rely on unsafe L2 payloads
 	DisableBatcher bool
+
+	// Target L1 tx size for the batcher transactions
+	BatcherTargetL1TxSizeBytes uint64
 }
 
 type System struct {
@@ -611,11 +621,11 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		L1EthRpc:               sys.Nodes["l1"].WSEndpoint(),
 		L2EthRpc:               sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:              sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		MaxPendingTransactions: 1,
+		MaxPendingTransactions: 0,
 		MaxChannelDuration:     1,
 		MaxL1TxSize:            120_000,
 		CompressorConfig: compressor.CLIConfig{
-			TargetL1TxSizeBytes: 100_000,
+			TargetL1TxSizeBytes: cfg.BatcherTargetL1TxSizeBytes,
 			TargetNumFrames:     1,
 			ApproxComprRatio:    0.4,
 		},

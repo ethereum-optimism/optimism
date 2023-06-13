@@ -30,6 +30,13 @@ const config: DeployConfig = {
   l1FeeVaultRecipient: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
   sequencerFeeVaultRecipient: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
 
+  baseFeeVaultMinimumWithdrawalAmount: '0x8ac7230489e80000',
+  l1FeeVaultMinimumWithdrawalAmount: '0x8ac7230489e80000',
+  sequencerFeeVaultMinimumWithdrawalAmount: '0x8ac7230489e80000',
+  baseFeeVaultWithdrawalNetwork: 0,
+  l1FeeVaultWithdrawalNetwork: 0,
+  sequencerFeeVaultWithdrawalNetwork: 0,
+
   governanceTokenName: 'Optimism',
   governanceTokenSymbol: 'OP',
   governanceTokenOwner: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',

@@ -1,6 +1,0 @@
-{
-  "name": "@eth-optimism/l2geth-exporter",
-  "version": "0.0.8",
-  "private": true,
-  "devDependencies": {}
-}
