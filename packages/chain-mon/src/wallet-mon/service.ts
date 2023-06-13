@@ -16,62 +16,65 @@ import l2OutputOracleArtifactsGoerli from '@eth-optimism/contracts-bedrock/deplo
 import { version } from '../../package.json'
 
 const networks = {
-  1: 'mainnet',
-  10: 'goerli',
+  1: {
+    name: 'mainnet',
+    l1StartingBlockTag: mainnetConfig.l1StartingBlockTag,
+    accounts: [
+      {
+        label: 'Proposer',
+        wallet: mainnetConfig.l2OutputOracleProposer,
+        target: l2OutputOracleArtifactsMainnet.address,
+      },
+      {
+        label: 'Batcher',
+        wallet: mainnetConfig.batchSenderAddress,
+        target: mainnetConfig.batchInboxAddress,
+      },
+    ],
+  },
+  10: {
+    name: 'goerli',
+    l1StartingBlockTag: goerliConfig.l1StartingBlockTag,
+    accounts: [
+      {
+        label: 'Proposer',
+        wallet: goerliConfig.l2OutputOracleProposer,
+        target: l2OutputOracleArtifactsGoerli.address,
+      },
+      {
+        label: 'Batcher',
+        wallet: goerliConfig.batchSenderAddress,
+        target: goerliConfig.batchInboxAddress,
+      },
+    ],
+  },
 }
 
-const bedrockAccounts = {
-  mainnet: [
-    {
-      label: 'Proposer',
-      wallet: mainnetConfig.l2OutputOracleProposer,
-      target: l2OutputOracleArtifactsMainnet.address,
-    },
-    {
-      label: 'Batcher',
-      wallet: mainnetConfig.batchSenderAddress,
-      target: mainnetConfig.batchInboxAddress,
-    },
-  ],
-  goerli: [
-    {
-      label: 'Proposer',
-      wallet: goerliConfig.l2OutputOracleProposer,
-      target: l2OutputOracleArtifactsGoerli.address,
-    },
-    {
-      label: 'Batcher',
-      wallet: goerliConfig.batchSenderAddress,
-      target: goerliConfig.batchInboxAddress,
-    },
-  ],
-}
-
-type TransferMonOptions = {
+type WalletMonOptions = {
   rpc: Provider
   startBlockNumber: number
 }
 
-type TransferMonMetrics = {
+type WalletMonMetrics = {
   validatedCalls: Counter
   unexpectedCalls: Counter
   unexpectedRpcErrors: Counter
 }
 
-type TransferMonState = {
+type WalletMonState = {
   chainId: number
   highestUncheckedBlockNumber: number
 }
 
-export class TransferMonService extends BaseServiceV2<
-  TransferMonOptions,
-  TransferMonMetrics,
-  TransferMonState
+export class WalletMonService extends BaseServiceV2<
+  WalletMonOptions,
+  WalletMonMetrics,
+  WalletMonState
 > {
-  constructor(options?: Partial<TransferMonOptions & StandardOptions>) {
+  constructor(options?: Partial<WalletMonOptions & StandardOptions>) {
     super({
       version,
-      name: 'transfer-mon',
+      name: 'wallet-mon',
       loop: true,
       options: {
         loopIntervalMs: 60_000,
@@ -97,7 +100,7 @@ export class TransferMonService extends BaseServiceV2<
         },
         unexpectedCalls: {
           type: Counter,
-          desc: 'Number of unexpected transfers',
+          desc: 'Number of unexpected wallets',
           labels: ['wallet', 'target', 'nickname'],
         },
         unexpectedRpcErrors: {
@@ -117,10 +120,11 @@ export class TransferMonService extends BaseServiceV2<
     })
 
     this.state.chainId = await getChainId(this.options.rpc)
+    const l1StartingBlockTag = networks[this.state.chainId].l1StartingBlockTag
 
     if (this.options.startBlockNumber === -1) {
-      this.state.highestUncheckedBlockNumber =
-        await this.options.rpc.getBlockNumber()
+      const block = await this.options.rpc.getBlock(l1StartingBlockTag)
+      this.state.highestUncheckedBlockNumber = block.number
     } else {
       this.state.highestUncheckedBlockNumber = this.options.startBlockNumber
     }
@@ -129,14 +133,19 @@ export class TransferMonService extends BaseServiceV2<
   protected async main(): Promise<void> {
     // get the next unchecked block
     const network = networks[this.state.chainId]
-    const accounts = bedrockAccounts[network]
+    const accounts = network.accounts
 
     const block = await this.options.rpc.getBlock(
       this.state.highestUncheckedBlockNumber
     )
+    this.logger.info('Checking block', {
+      number: block.number,
+    })
 
     for (const txHash of block.transactions) {
+      console.log('txHash:', txHash)
       for (const account of accounts) {
+        console.log('account:', account)
         const tx = await this.options.rpc.getTransaction(txHash)
 
         if (compareAddrs(account.wallet, tx.from)) {
@@ -166,10 +175,11 @@ export class TransferMonService extends BaseServiceV2<
         }
       }
     }
+    this.state.highestUncheckedBlockNumber++
   }
 }
 
 if (require.main === module) {
-  const service = new TransferMonService()
+  const service = new WalletMonService()
   service.run()
 }
