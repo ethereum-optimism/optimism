@@ -77,7 +77,7 @@ export class WalletMonService extends BaseServiceV2<
       name: 'wallet-mon',
       loop: true,
       options: {
-        loopIntervalMs: 60_000,
+        loopIntervalMs: 1000,
         ...options,
       },
       optionsSpec: {
@@ -120,6 +120,7 @@ export class WalletMonService extends BaseServiceV2<
     })
 
     this.state.chainId = await getChainId(this.options.rpc)
+
     const l1StartingBlockTag = networks[this.state.chainId].l1StartingBlockTag
 
     if (this.options.startBlockNumber === -1) {
@@ -131,7 +132,14 @@ export class WalletMonService extends BaseServiceV2<
   }
 
   protected async main(): Promise<void> {
-    // get the next unchecked block
+    if (
+      (await this.options.rpc.getBlockNumber()) <
+      this.state.highestUncheckedBlockNumber
+    ) {
+      this.logger.info('Waiting for new blocks')
+      return
+    }
+
     const network = networks[this.state.chainId]
     const accounts = network.accounts
 
@@ -142,39 +150,44 @@ export class WalletMonService extends BaseServiceV2<
       number: block.number,
     })
 
+    const transactions = []
     for (const txHash of block.transactions) {
-      console.log('txHash:', txHash)
-      for (const account of accounts) {
-        console.log('account:', account)
-        const tx = await this.options.rpc.getTransaction(txHash)
+      const t = await this.options.rpc.getTransaction(txHash)
+      transactions.push(t)
+    }
 
-        if (compareAddrs(account.wallet, tx.from)) {
-          if (compareAddrs(account.target, tx.to)) {
+    for (const transaction of transactions) {
+      for (const account of accounts) {
+        if (compareAddrs(account.wallet, transaction.from)) {
+          if (compareAddrs(account.target, transaction.to)) {
             this.metrics.validatedCalls.inc({
-              label: account.label,
+              nickname: account.label,
               wallet: account.address,
               target: account.target,
             })
             this.logger.info('validated call', {
-              label: account.label,
+              nickname: account.label,
               wallet: account.address,
               target: account.target,
             })
           } else {
             this.metrics.unexpectedCalls.inc({
-              label: account.label,
+              nickname: account.label,
               wallet: account.address,
-              target: tx.to,
+              target: transaction.to,
             })
             this.logger.error('Unexpected call detected', {
-              label: account.label,
+              nickname: account.label,
               address: account.address,
-              target: tx.to,
+              target: transaction.to,
             })
           }
         }
       }
     }
+    this.logger.info('Checked block', {
+      number: this.state.highestUncheckedBlockNumber,
+    })
     this.state.highestUncheckedBlockNumber++
   }
 }
