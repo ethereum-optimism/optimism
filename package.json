@@ -6,12 +6,6 @@
   "workspaces": {
     "packages": [
       "packages/*",
-      "l2geth",
-      "ops/docker/rpc-proxy",
-      "ops/docker/hardhat",
-      "ops/docker/go-builder",
-      "ops/docker/js-builder",
-      "ops/docker/foundry",
       "endpoint-monitor"
     ],
     "nohoist": [

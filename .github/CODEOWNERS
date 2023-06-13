@@ -1,5 +1,4 @@
 # Legacy codebases
-/l2geth                         @ethereum-optimism/legacy-reviewers
 /packages/common-ts             @ethereum-optimism/typescript-reviewers
 /packages/contracts             @ethereum-optimism/contract-reviewers
 /packages/contracts-bedrock     @ethereum-optimism/contract-reviewers
@@ -8,7 +7,6 @@
 /packages/chain-mon             @smartcontracts
 /packages/fault-detector        @ethereum-optimism/devxpod
 /packages/hardhat-deploy-config @ethereum-optimism/legacy-reviewers
-/packages/migration-data        @ethereum-optimism/legacy-reviewers
 /packages/replica-healthcheck   @ethereum-optimism/legacy-reviewers
 /packages/sdk                   @ethereum-optimism/devxpod
 /packages/atst                  @ethereum-optimism/devxpod

@@ -136,19 +136,49 @@ interface RequiredDeployConfig {
   proxyAdminOwner: string
 
   /**
-   * L1 address which receives the base fee for the L2 network.
+   * L1 or higher (e.g. L2) address which receives the base fee for the L2 network.
    */
   baseFeeVaultRecipient: string
 
   /**
-   * L1 address which receives data fees for the L2 network.
+   * L1 or higher (e.g. L2) address which receives data fees for the L2 network.
    */
   l1FeeVaultRecipient: string
 
   /**
-   * L1 address which receives tip fees for the L2 network.
+   * L1 or higher (e.g. L2) address which receives tip fees for the L2 network.
    */
   sequencerFeeVaultRecipient: string
+
+  /**
+   * Minimum withdrawal amount for the BaseFeeVault contract.
+   */
+  baseFeeVaultMinimumWithdrawalAmount: string
+
+  /**
+   * Minimum withdrawal amount for the L1FeeVault contract.
+   */
+  l1FeeVaultMinimumWithdrawalAmount: string
+
+  /**
+   * Minimum withdrawal amount for the SequencerFeeVault contract.
+   */
+  sequencerFeeVaultMinimumWithdrawalAmount: string
+
+  /**
+   * The network that BaseFeeVault contract withdrawals are sent to.
+   */
+  baseFeeVaultWithdrawalNetwork: number
+
+  /**
+   * The network that L1FeeVault contract withdrawals are sent to.
+   */
+  l1FeeVaultWithdrawalNetwork: number
+
+  /**
+   * The network that SequencerFeeVault contract withdrawals are sent to.
+   */
+  sequencerFeeVaultWithdrawalNetwork: number
 }
 
 /**
@@ -278,6 +308,27 @@ export const deployConfigSpec: {
   },
   sequencerFeeVaultRecipient: {
     type: 'address',
+  },
+  baseFeeVaultMinimumWithdrawalAmount: {
+    type: 'string',
+    default: '0x8ac7230489e80000', // 10 ether
+  },
+  l1FeeVaultMinimumWithdrawalAmount: {
+    type: 'string',
+    default: '0x8ac7230489e80000', // 10 ether
+  },
+  sequencerFeeVaultMinimumWithdrawalAmount: {
+    type: 'string',
+    default: '0x8ac7230489e80000', // 10 ether
+  },
+  baseFeeVaultWithdrawalNetwork: {
+    type: 'number',
+  },
+  l1FeeVaultWithdrawalNetwork: {
+    type: 'number',
+  },
+  sequencerFeeVaultWithdrawalNetwork: {
+    type: 'number',
   },
   cliqueSignerAddress: {
     type: 'address',

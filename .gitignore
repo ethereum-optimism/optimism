@@ -17,7 +17,6 @@ dist
 artifacts
 cache
 
-l2geth/build/bin
 packages/contracts-periphery/coverage*
 packages/contracts-periphery/@openzeppelin*
 packages/contracts-periphery/hardhat*

@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/hashicorp/go-multierror"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-service/backoff"
@@ -53,12 +54,62 @@ func (b *retryingClient) CallContext(ctx context.Context, result any, method str
 	})
 }
 
-func (b *retryingClient) BatchCallContext(ctx context.Context, batch []rpc.BatchElem) error {
+// pendingReq combines BatchElem information with the index of this request in the original []rpc.BatchElem
+type pendingReq struct {
+	// req is a copy of the BatchElem individual request to make.
+	// It never has Result or Error set as it gets copied again as part of being passed to the underlying client.
+	req rpc.BatchElem
+
+	// idx tracks the index of the original BatchElem in the supplied input array
+	// This can then be used to set the result on the original input
+	idx int
+}
+
+func (b *retryingClient) BatchCallContext(ctx context.Context, input []rpc.BatchElem) error {
+	// Add all BatchElem to the initial pending set
+	// Each time we retry, we'll remove successful BatchElem for this list so we only retry ones that fail.
+	pending := make([]*pendingReq, len(input))
+	for i, req := range input {
+		pending[i] = &pendingReq{
+			req: req,
+			idx: i,
+		}
+	}
 	return backoff.DoCtx(ctx, b.retryAttempts, b.strategy, func() error {
 		cCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 		defer cancel()
+
+		batch := make([]rpc.BatchElem, len(pending))
+		for i, req := range pending {
+			batch[i] = req.req
+		}
 		err := b.c.BatchCallContext(cCtx, batch)
-		return err
+		if err != nil {
+			// Whole call failed, retry all pending elems again
+			return err
+		}
+		var failed []*pendingReq
+		var combinedErr error
+		for i, elem := range batch {
+			req := pending[i]
+			idx := req.idx // Index into input of the original BatchElem
+
+			// Set the result on the original batch to pass back to the caller in case we stop retrying
+			input[idx].Error = elem.Error
+			input[idx].Result = elem.Result
+
+			// If the individual request failed, add it to the list to retry
+			if elem.Error != nil {
+				// Need to retry this request
+				failed = append(failed, req)
+				combinedErr = multierror.Append(elem.Error, combinedErr)
+			}
+		}
+		if len(failed) > 0 {
+			pending = failed
+			return combinedErr
+		}
+		return nil
 	})
 }
 

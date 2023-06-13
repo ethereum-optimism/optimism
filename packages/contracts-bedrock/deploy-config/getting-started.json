@@ -33,6 +33,13 @@
   "l1FeeVaultRecipient": "ADMIN",
   "sequencerFeeVaultRecipient": "ADMIN",
 
+  "baseFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "l1FeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "sequencerFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "baseFeeVaultWithdrawalNetwork": 0,
+  "l1FeeVaultWithdrawalNetwork": 0,
+  "sequencerFeeVaultWithdrawalNetwork": 0,
+
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
 

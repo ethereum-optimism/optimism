@@ -32,7 +32,11 @@ func (m *MockRPC) CallContext(ctx context.Context, result any, method string, ar
 
 func (m *MockRPC) BatchCallContext(ctx context.Context, b []rpc.BatchElem) error {
 	out := m.Mock.MethodCalled("BatchCallContext", ctx, b)
-	return *out[0].(*error)
+	err, ok := out[0].(*error)
+	if ok {
+		return *err
+	}
+	return nil
 }
 
 func (m *MockRPC) EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error) {
@@ -46,6 +50,12 @@ func (m *MockRPC) ExpectCallContext(err error, result any, method string, arg st
 
 func (m *MockRPC) ExpectBatchCallContext(err error, b []rpc.BatchElem) {
 	m.On("BatchCallContext", mock.Anything, b).Return(&err)
+}
+
+func (m *MockRPC) OnBatchCallContext(err error, b []rpc.BatchElem, action func(callBatches []rpc.BatchElem)) {
+	m.On("BatchCallContext", mock.Anything, b).Return(err).Run(func(args mock.Arguments) {
+		action(args[1].([]rpc.BatchElem))
+	})
 }
 
 func (m *MockRPC) ExpectEthSubscribe(sub ethereum.Subscription, err error, channel any, args ...any) {
@@ -84,7 +94,7 @@ func TestClient_BackoffClient_CallContext(t *testing.T) {
 func TestClient_BackoffClient_CallContext_WithRetries(t *testing.T) {
 	mockRpc := &MockRPC{}
 	mockRpc.ExpectCallContext(errors.New("foo"), nil, "foo", "bar")
-	backoffClient := client.NewRetryingClient(mockRpc, 2)
+	backoffClient := client.NewRetryingClient(mockRpc, 2, backoff.Fixed(0))
 	err := backoffClient.CallContext(context.Background(), nil, "foo", "bar")
 	require.Error(t, err)
 	require.True(t, mockRpc.AssertNumberOfCalls(t, "CallContext", 2))
@@ -92,20 +102,77 @@ func TestClient_BackoffClient_CallContext_WithRetries(t *testing.T) {
 
 func TestClient_BackoffClient_BatchCallContext(t *testing.T) {
 	mockRpc := &MockRPC{}
-	mockRpc.ExpectBatchCallContext(nil, []rpc.BatchElem(nil))
+	mockRpc.ExpectBatchCallContext(nil, []rpc.BatchElem{})
 	backoffClient := client.NewRetryingClient(mockRpc, 1)
 	err := backoffClient.BatchCallContext(context.Background(), nil)
 	require.NoError(t, err)
-	require.True(t, mockRpc.AssertCalled(t, "BatchCallContext", mock.Anything, []rpc.BatchElem(nil)))
+	require.True(t, mockRpc.AssertCalled(t, "BatchCallContext", mock.Anything, []rpc.BatchElem{}))
 }
 
 func TestClient_BackoffClient_BatchCallContext_WithRetries(t *testing.T) {
 	mockRpc := &MockRPC{}
-	mockRpc.ExpectBatchCallContext(errors.New("foo"), []rpc.BatchElem(nil))
-	backoffClient := client.NewRetryingClient(mockRpc, 2)
+	mockRpc.ExpectBatchCallContext(errors.New("foo"), []rpc.BatchElem{})
+	backoffClient := client.NewRetryingClient(mockRpc, 2, backoff.Fixed(0))
 	err := backoffClient.BatchCallContext(context.Background(), nil)
 	require.Error(t, err)
 	require.True(t, mockRpc.AssertNumberOfCalls(t, "BatchCallContext", 2))
+}
+
+func TestClient_BackoffClient_BatchCallContext_WithPartialRetries(t *testing.T) {
+	batches := []rpc.BatchElem{
+		{Method: "0"},
+		{Method: "1"},
+		{Method: "2"},
+	}
+	mockRpc := &MockRPC{}
+	mockRpc.OnBatchCallContext(nil, batches, func(batch []rpc.BatchElem) {
+		batch[0].Result = batch[0].Method
+		batch[1].Error = errors.New("boom")
+		batch[2].Error = errors.New("boom")
+	})
+	mockRpc.OnBatchCallContext(nil, []rpc.BatchElem{batches[1], batches[2]}, func(batch []rpc.BatchElem) {
+		batch[0].Error = errors.New("boom again")
+		batch[1].Result = batch[1].Method
+	})
+	backoffClient := client.NewRetryingClient(mockRpc, 2, backoff.Fixed(0))
+	err := backoffClient.BatchCallContext(context.Background(), batches)
+	require.Error(t, err)
+	require.True(t, mockRpc.AssertNumberOfCalls(t, "BatchCallContext", 2))
+
+	// Check our original batches got updated correctly
+	require.Equal(t, rpc.BatchElem{Method: "0", Result: "0"}, batches[0])
+	require.Equal(t, rpc.BatchElem{Method: "1", Result: nil, Error: errors.New("boom again")}, batches[1])
+	require.Equal(t, rpc.BatchElem{Method: "2", Result: "2"}, batches[2])
+}
+
+func TestClient_BackoffClient_BatchCallContext_WithPartialRetriesUntilSuccess(t *testing.T) {
+	batches := []rpc.BatchElem{
+		{Method: "0"},
+		{Method: "1"},
+		{Method: "2"},
+	}
+	mockRpc := &MockRPC{}
+	mockRpc.OnBatchCallContext(nil, batches, func(batch []rpc.BatchElem) {
+		batch[0].Result = batch[0].Method
+		batch[1].Error = errors.New("boom")
+		batch[2].Error = errors.New("boom")
+	})
+	mockRpc.OnBatchCallContext(nil, []rpc.BatchElem{batches[1], batches[2]}, func(batch []rpc.BatchElem) {
+		batch[0].Error = errors.New("boom again")
+		batch[1].Result = batch[1].Method
+	})
+	mockRpc.OnBatchCallContext(nil, []rpc.BatchElem{batches[1]}, func(batch []rpc.BatchElem) {
+		batch[0].Result = batch[0].Method
+	})
+	backoffClient := client.NewRetryingClient(mockRpc, 4, backoff.Fixed(0))
+	err := backoffClient.BatchCallContext(context.Background(), batches)
+	require.NoError(t, err)
+	require.True(t, mockRpc.AssertNumberOfCalls(t, "BatchCallContext", 3))
+
+	// Check our original batches got updated correctly
+	require.Equal(t, rpc.BatchElem{Method: "0", Result: "0"}, batches[0])
+	require.Equal(t, rpc.BatchElem{Method: "1", Result: "1"}, batches[1])
+	require.Equal(t, rpc.BatchElem{Method: "2", Result: "2"}, batches[2])
 }
 
 func TestClient_BackoffClient_EthSubscribe(t *testing.T) {
@@ -120,7 +187,7 @@ func TestClient_BackoffClient_EthSubscribe(t *testing.T) {
 func TestClient_BackoffClient_EthSubscribe_WithRetries(t *testing.T) {
 	mockRpc := &MockRPC{}
 	mockRpc.ExpectEthSubscribe(ethereum.Subscription(nil), errors.New("foo"), nil, "foo", "bar")
-	backoffClient := client.NewRetryingClient(mockRpc, 2)
+	backoffClient := client.NewRetryingClient(mockRpc, 2, backoff.Fixed(0))
 	_, err := backoffClient.EthSubscribe(context.Background(), nil, "foo", "bar")
 	require.Error(t, err)
 	require.True(t, mockRpc.AssertNumberOfCalls(t, "EthSubscribe", 2))
