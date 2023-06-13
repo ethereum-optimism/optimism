@@ -50,8 +50,8 @@ contract DisputeGameFactory is Ownable, IDisputeGameFactory {
     /**
      * @inheritdoc IDisputeGameFactory
      */
-    function allGames() external view returns (IDisputeGame[] memory _disputeGameList) {
-        _disputeGameList = disputeGameList;
+    function gameCount() external view returns (uint256 _gameCount) {
+        _gameCount = disputeGameList.length;
     }
 
     /**

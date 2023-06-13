@@ -30,10 +30,10 @@ interface IDisputeGameFactory {
     event ImplementationSet(address indexed impl, GameType indexed gameType);
 
     /**
-     * @notice retrieves a list of all dispute games created by this factory.
-     * @return _disputeGameList The list of all dispute games created by this factory.
+     * @notice the total number of dispute games created by this factory.
+     * @return _gameCount The total number of dispute games created by this factory.
      */
-    function allGames() external view returns (IDisputeGame[] memory _disputeGameList);
+    function gameCount() external view returns (uint256 _gameCount);
 
     /**
      * @notice `games` queries an internal a mapping that maps the hash of
