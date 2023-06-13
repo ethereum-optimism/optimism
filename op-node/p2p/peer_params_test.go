@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/stretchr/testify/suite"
 )
@@ -42,15 +43,16 @@ func (testSuite *PeerParamsTestSuite) TestNewPeerScoreThresholds() {
 
 // TestGetPeerScoreParams validates the peer score parameters.
 func (testSuite *PeerParamsTestSuite) TestGetPeerScoreParams_None() {
-	params, err := GetScoringParams("none", 1)
+	params, err := GetScoringParams("none", &chaincfg.Goerli)
 	testSuite.NoError(err)
 	testSuite.Nil(params)
 }
 
 // TestLightPeerScoreParams validates the light peer score params.
 func (testSuite *PeerParamsTestSuite) TestGetPeerScoreParams_Light() {
-	blockTime := uint64(1)
-	slot := time.Duration(blockTime) * time.Second
+	cfg := chaincfg.Goerli
+	cfg.BlockTime = 1
+	slot := time.Duration(cfg.BlockTime) * time.Second
 	epoch := 6 * slot
 	oneHundredEpochs := 100 * epoch
 
@@ -60,10 +62,14 @@ func (testSuite *PeerParamsTestSuite) TestGetPeerScoreParams_Light() {
 	testSuite.Equal(0.9261187281287935, decay)
 
 	// Test the params
-	scoringParams, err := GetScoringParams("light", blockTime)
+	scoringParams, err := GetScoringParams("light", &cfg)
 	peerParams := scoringParams.PeerScoring
 	testSuite.NoError(err)
-	testSuite.Equal(peerParams.Topics, make(map[string]*pubsub.TopicScoreParams))
+	// Topics should contain options for block topic
+	testSuite.Len(peerParams.Topics, 1)
+	topicParams, ok := peerParams.Topics[blocksTopicV1(&cfg)]
+	testSuite.True(ok, "should have block topic params")
+	testSuite.NotZero(topicParams.TimeInMeshQuantum)
 	testSuite.Equal(peerParams.TopicScoreCap, float64(34))
 	testSuite.Equal(peerParams.AppSpecificWeight, float64(1))
 	testSuite.Equal(peerParams.IPColocationFactorWeight, float64(-35))
@@ -79,8 +85,10 @@ func (testSuite *PeerParamsTestSuite) TestGetPeerScoreParams_Light() {
 
 // TestParamsZeroBlockTime validates peer score params use default slot for 0 block time.
 func (testSuite *PeerParamsTestSuite) TestParamsZeroBlockTime() {
+	cfg := chaincfg.Goerli
+	cfg.BlockTime = 0
 	slot := 2 * time.Second
-	params, err := GetScoringParams("light", uint64(0))
+	params, err := GetScoringParams("light", &cfg)
 	testSuite.NoError(err)
 	testSuite.Equal(params.PeerScoring.DecayInterval, slot)
 }

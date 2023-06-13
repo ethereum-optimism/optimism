@@ -85,10 +85,6 @@ func (p *Prepared) BanDuration() time.Duration {
 	return 1 * time.Hour
 }
 
-func (p *Prepared) TopicScoringParams() *pubsub.TopicScoreParams {
-	return nil
-}
-
 func (p *Prepared) Disabled() bool {
 	return false
 }

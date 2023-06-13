@@ -133,7 +133,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		if err != nil {
 			return fmt.Errorf("failed to start gossipsub router: %w", err)
 		}
-		n.gsOut, err = JoinGossip(resourcesCtx, n.host.ID(), setup.TopicScoringParams(), n.gs, log, rollupCfg, runCfg, gossipIn)
+		n.gsOut, err = JoinGossip(resourcesCtx, n.host.ID(), n.gs, log, rollupCfg, runCfg, gossipIn)
 		if err != nil {
 			return fmt.Errorf("failed to join blocks gossip topic: %w", err)
 		}

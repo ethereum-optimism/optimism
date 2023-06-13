@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
 	leveldb "github.com/ipfs/go-ds-leveldb"
@@ -24,7 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
-func NewConfig(ctx *cli.Context, blockTime uint64) (*p2p.Config, error) {
+func NewConfig(ctx *cli.Context, rollupCfg *rollup.Config) (*p2p.Config, error) {
 	conf := &p2p.Config{}
 
 	if ctx.GlobalBool(flags.DisableP2P.Name) {
@@ -54,7 +55,7 @@ func NewConfig(ctx *cli.Context, blockTime uint64) (*p2p.Config, error) {
 		return nil, fmt.Errorf("failed to load p2p gossip options: %w", err)
 	}
 
-	if err := loadScoringParams(conf, ctx, blockTime); err != nil {
+	if err := loadScoringParams(conf, ctx, rollupCfg); err != nil {
 		return nil, fmt.Errorf("failed to load p2p peer scoring options: %w", err)
 	}
 
@@ -81,7 +82,7 @@ func validatePort(p uint) (uint16, error) {
 }
 
 // loadScoringParams loads the peer scoring options from the CLI context.
-func loadScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64) error {
+func loadScoringParams(conf *p2p.Config, ctx *cli.Context, rollupCfg *rollup.Config) error {
 	scoringLevel := ctx.GlobalString(flags.Scoring.Name)
 	// Check old names for backwards compatibility
 	if scoringLevel == "" {
@@ -91,7 +92,7 @@ func loadScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64) err
 		scoringLevel = ctx.GlobalString(flags.TopicScoring.Name)
 	}
 	if scoringLevel != "" {
-		params, err := p2p.GetScoringParams(scoringLevel, blockTime)
+		params, err := p2p.GetScoringParams(scoringLevel, rollupCfg)
 		if err != nil {
 			return err
 		}

@@ -30,7 +30,6 @@ var (
 		Name:     "p2p.scoring",
 		Usage:    "Sets the peer scoring strategy for the P2P stack. Can be one of: none or light.",
 		Required: false,
-		Value:    "none",
 		EnvVar:   p2pEnv("PEER_SCORING"),
 	}
 	PeerScoring = cli.StringFlag{

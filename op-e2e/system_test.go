@@ -813,7 +813,7 @@ func TestSystemDenseTopology(t *testing.T) {
 
 	// Set peer scoring for each node, but without banning
 	for _, node := range cfg.Nodes {
-		params, err := p2p.GetScoringParams("light", 2)
+		params, err := p2p.GetScoringParams("light", &node.Rollup)
 		require.NoError(t, err)
 		node.P2P = &p2p.Config{
 			ScoringParams:  params,
