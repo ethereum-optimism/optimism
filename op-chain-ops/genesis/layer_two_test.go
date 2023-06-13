@@ -45,7 +45,7 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 	require.Nil(t, err)
 	require.NotNil(t, gen)
 
-	depB, err := bindings.GetDeployedBytecode("Proxy")
+	proxyBytecode, err := bindings.GetDeployedBytecode("Proxy")
 	require.NoError(t, err)
 
 	for name, address := range predeploys.Predeploys {
@@ -60,9 +60,9 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 		}
 
 		adminSlot, ok := account.Storage[genesis.AdminSlot]
-		require.Equal(t, true, ok)
+		require.Equal(t, true, ok, name)
 		require.Equal(t, predeploys.ProxyAdminAddr.Hash(), adminSlot)
-		require.Equal(t, depB, account.Code)
+		require.Equal(t, proxyBytecode, account.Code)
 	}
 	require.Equal(t, 2343, len(gen.Alloc))
 
@@ -94,9 +94,13 @@ func TestBuildL2DeveloperGenesisDevAccountsFunding(t *testing.T) {
 	require.Equal(t, 2321, len(gen.Alloc))
 }
 
-func TestBuildL2MainnetGenesis(t *testing.T) {
+// Tests the BuildL2MainnetGenesis factory. enableGovernance is used to override enableGovernance
+// config option. When false, the test confirms the governance token predeploy address instead
+// holds a proxy contract.
+func testBuildL2Genesis(t *testing.T, enableGovernance bool) {
 	config, err := genesis.NewDeployConfig("./testdata/test-deploy-config-devnet-l1.json")
 	require.Nil(t, err)
+	config.EnableGovernance = enableGovernance
 
 	backend := backends.NewSimulatedBackend(
 		core.GenesisAlloc{
@@ -111,34 +115,34 @@ func TestBuildL2MainnetGenesis(t *testing.T) {
 	require.Nil(t, err)
 	require.NotNil(t, gen)
 
-	depB, err := bindings.GetDeployedBytecode("Proxy")
+	proxyBytecode, err := bindings.GetDeployedBytecode("Proxy")
 	require.NoError(t, err)
 
 	for name, predeploy := range predeploys.Predeploys {
 		addr := *predeploy
-		if predeploys.IsDeprecated(addr) {
-			continue
-		}
 
 		account, ok := gen.Alloc[addr]
-
 		if predeploys.IsDeprecated(addr) && !predeploys.IsProxied(addr) {
+			// deprecated, non-proxied predeploys should have no account
 			require.Equal(t, false, ok, name)
 			continue
 		}
 		require.Equal(t, true, ok, name)
 		require.Greater(t, len(account.Code), 0)
 
-		if !predeploys.IsProxied(addr) {
-			continue
-		}
-
 		adminSlot, ok := account.Storage[genesis.AdminSlot]
-		require.Equal(t, true, ok)
-		require.Equal(t, predeploys.ProxyAdminAddr.Hash(), adminSlot)
-		require.Equal(t, depB, account.Code)
+		isProxy := predeploys.IsProxied(addr) ||
+			(!enableGovernance && addr == predeploys.GovernanceTokenAddr)
+		if isProxy {
+			require.Equal(t, true, ok, name)
+			require.Equal(t, predeploys.ProxyAdminAddr.Hash(), adminSlot)
+			require.Equal(t, proxyBytecode, account.Code)
+		} else {
+			require.Equal(t, false, ok, name)
+			require.NotEqual(t, proxyBytecode, account.Code, name)
+		}
 	}
-	require.Equal(t, 2063, len(gen.Alloc)) // TODO: confirm 2063 is correct!
+	require.Equal(t, 2063, len(gen.Alloc))
 
 	if writeFile {
 		file, _ := json.MarshalIndent(gen, "", " ")
@@ -146,57 +150,10 @@ func TestBuildL2MainnetGenesis(t *testing.T) {
 	}
 }
 
-// Same test as TestBuildL2MainnetGenesis, only we blow away the governance token config and
-// confirm the governance predeploy doesn't exist (or more precisely, there's an unused proxy
-// contract at its address instead).
+func TestBuildL2MainnetGenesis(t *testing.T) {
+	testBuildL2Genesis(t, true)
+}
+
 func TestBuildL2MainnetNoGovernanceGenesis(t *testing.T) {
-	config, err := genesis.NewDeployConfig("./testdata/test-deploy-config-devnet-l1.json")
-	require.Nil(t, err)
-
-	config.GovernanceTokenSymbol = ""
-	config.GovernanceTokenName = ""
-	config.GovernanceTokenOwner = common.Address{}
-
-	backend := backends.NewSimulatedBackend(
-		core.GenesisAlloc{
-			crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000000000)},
-		},
-		15000000,
-	)
-	block, err := backend.BlockByNumber(context.Background(), common.Big0)
-	require.NoError(t, err)
-
-	gen, err := genesis.BuildL2MainnetGenesis(config, block)
-	require.Nil(t, err)
-	require.NotNil(t, gen)
-
-	depB, err := bindings.GetDeployedBytecode("Proxy")
-	require.NoError(t, err)
-
-	for name, predeploy := range predeploys.Predeploys {
-		addr := *predeploy
-
-		account, ok := gen.Alloc[addr]
-		if predeploys.IsDeprecated(addr) && !predeploys.IsProxied(addr) {
-			require.Equal(t, false, ok, name)
-			continue
-		}
-		require.Equal(t, true, ok, name)
-		require.Greater(t, len(account.Code), 0)
-
-		if !predeploys.IsProxied(addr) && addr != predeploys.GovernanceTokenAddr {
-			continue
-		}
-
-		adminSlot, ok := account.Storage[genesis.AdminSlot]
-		require.Equal(t, true, ok)
-		require.Equal(t, predeploys.ProxyAdminAddr.Hash(), adminSlot)
-		require.Equal(t, depB, account.Code)
-	}
-	require.Equal(t, 2063, len(gen.Alloc)) // TODO: confirm 2063 is correct!
-
-	if writeFile {
-		file, _ := json.MarshalIndent(gen, "", " ")
-		_ = os.WriteFile("genesis.json", file, 0644)
-	}
+	testBuildL2Genesis(t, false)
 }

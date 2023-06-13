@@ -43,6 +43,7 @@
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
 
+  "enableGovernance": true,
   "governanceTokenSymbol": "OP",
   "governanceTokenName": "Optimism",
   "governanceTokenOwner": "0x038a8825A3C3B0c08d52Cc76E5E361953Cf6Dc76",

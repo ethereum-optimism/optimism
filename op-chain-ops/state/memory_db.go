@@ -226,6 +226,15 @@ func (db *MemoryStateDB) SetState(addr common.Address, key, value common.Hash) {
 	db.genesis.Alloc[addr] = account
 }
 
+func (db *MemoryStateDB) DeleteState(addr common.Address, key common.Hash) {
+	account, ok := db.genesis.Alloc[addr]
+	if !ok {
+		panic(fmt.Sprintf("%s not in state", addr))
+	}
+	delete(account.Storage, key)
+	db.genesis.Alloc[addr] = account
+}
+
 func (db *MemoryStateDB) Suicide(common.Address) bool {
 	panic("Suicide unimplemented")
 }

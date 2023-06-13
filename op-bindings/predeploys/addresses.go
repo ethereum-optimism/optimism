@@ -50,16 +50,13 @@ var (
 func IsProxied(predeployAddr common.Address) bool {
 	switch predeployAddr {
 	case LegacyERC20ETHAddr:
-		return false
 	case WETH9Addr:
-		return false
 	case GovernanceTokenAddr:
-		return false
 	case ProxyAdminAddr:
-		return false
 	default:
 		return true
 	}
+	return false
 }
 
 // IsDeprecated returns true for predeploys we should skip in post-bedrock genesis generation
