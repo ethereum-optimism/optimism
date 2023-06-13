@@ -1,22 +1,22 @@
 package services
 
 import (
-	"github.com/ethereum-optimism/optimism/indexer/bindings/legacy/scc"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	legacy_bindings "github.com/ethereum-optimism/optimism/op-bindings/legacy-bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 type AddressManager interface {
 	L1StandardBridge() (common.Address, *bindings.L1StandardBridge)
-	StateCommitmentChain() (common.Address, *scc.StateCommitmentChain)
+	StateCommitmentChain() (common.Address, *legacy_bindings.StateCommitmentChain)
 	OptimismPortal() (common.Address, *bindings.OptimismPortal)
 }
 
 type LegacyAddresses struct {
 	l1SB     *bindings.L1StandardBridge
 	l1SBAddr common.Address
-	scc      *scc.StateCommitmentChain
+	scc      *legacy_bindings.StateCommitmentChain
 	sccAddr  common.Address
 }
 
@@ -40,7 +40,7 @@ func NewLegacyAddresses(client bind.ContractBackend, addrMgrAddr common.Address)
 	if err != nil {
 		return nil, err
 	}
-	sccContract, err := scc.NewStateCommitmentChain(sccAddr, client)
+	sccContract, err := legacy_bindings.NewStateCommitmentChain(sccAddr, client)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func (a *LegacyAddresses) L1StandardBridge() (common.Address, *bindings.L1Standa
 	return a.l1SBAddr, a.l1SB
 }
 
-func (a *LegacyAddresses) StateCommitmentChain() (common.Address, *scc.StateCommitmentChain) {
+func (a *LegacyAddresses) StateCommitmentChain() (common.Address, *legacy_bindings.StateCommitmentChain) {
 	return a.sccAddr, a.scc
 }
 
@@ -96,7 +96,7 @@ func (b *BedrockAddresses) L1StandardBridge() (common.Address, *bindings.L1Stand
 	return b.l1SBAddr, b.l1SB
 }
 
-func (b *BedrockAddresses) StateCommitmentChain() (common.Address, *scc.StateCommitmentChain) {
+func (b *BedrockAddresses) StateCommitmentChain() (common.Address, *legacy_bindings.StateCommitmentChain) {
 	panic("SCC not configured on legacy networks - this is a programmer error")
 }
 

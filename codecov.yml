@@ -3,7 +3,6 @@ comment:
   behavior: default
   require_changes: true    # only post the comment if coverage changes
 ignore:
-  - "l2geth"
   - "op-e2e"
   - "**/*.t.sol"
   - "op-bindings/bindings/*.go"
@@ -34,11 +33,9 @@ flag_management:
     - name: common-ts-tests
     - name: contracts-tests
     - name: core-utils-tests
-    - name: actor-tests-tests
     - name: contracts-periphery-tests
     - name: dtl-tests
     - name: chain-mon-tests
     - name: fault-detector-tests
-    - name: message-relayer-tests
     - name: replica-healthcheck-tests
     - name: sdk-tests

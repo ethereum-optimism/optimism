@@ -248,3 +248,21 @@
 
 | Name | Type | Slot | Offset | Bytes | Contract |
 |------|------|------|--------|-------|----------|
+
+=======================
+➡ contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory
+=======================
+
+| Name         | Type                                            | Slot | Offset | Bytes | Contract                                                    |
+|--------------|-------------------------------------------------|------|--------|-------|-------------------------------------------------------------|
+| _owner       | address                                         | 0    | 0      | 20    | contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory |
+| gameImpls    | mapping(enum GameType => contract IDisputeGame) | 1    | 0      | 32    | contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory |
+| disputeGames | mapping(Hash => contract IDisputeGame)          | 2    | 0      | 32    | contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory |
+
+=======================
+➡ contracts/dispute/BondManager.sol:BondManager
+=======================
+
+| Name  | Type                                        | Slot | Offset | Bytes | Contract                                      |
+|-------|---------------------------------------------|------|--------|-------|-----------------------------------------------|
+| bonds | mapping(bytes32 => struct BondManager.Bond) | 0    | 0      | 32    | contracts/dispute/BondManager.sol:BondManager |

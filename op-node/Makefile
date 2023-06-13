@@ -37,10 +37,13 @@ fuzz:
 	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzRejectCreateBlockBadTimestamp ./rollup/driver
 	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzDecodeDepositTxDataToL1Info ./rollup/driver
 
+generate-mocks:
+	go generate ./...
 
 .PHONY: \
 	op-node \
 	clean \
 	test \
 	lint \
-	fuzz
+	fuzz \
+	generate-mocks

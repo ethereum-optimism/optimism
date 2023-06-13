@@ -11,6 +11,7 @@ import (
 	"time"
 
 	ophttp "github.com/ethereum-optimism/optimism/op-node/http"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
@@ -66,7 +67,7 @@ type Metricer interface {
 	Document() []metrics.DocumentedMetric
 	RecordChannelInputBytes(num int)
 	// P2P Metrics
-	SetPeerScores(scores map[string]float64)
+	SetPeerScores(allScores []store.PeerScores)
 	ClientPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration)
 	ServerPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration)
 	PayloadsQuarantineSize(n int)
@@ -134,13 +135,13 @@ type Metrics struct {
 	// P2P Metrics
 	PeerCount         prometheus.Gauge
 	StreamCount       prometheus.Gauge
-	PeerScores        *prometheus.GaugeVec
 	GossipEventsTotal *prometheus.CounterVec
 	BandwidthTotal    *prometheus.GaugeVec
 	PeerUnbans        prometheus.Counter
 	IPUnbans          prometheus.Counter
 	Dials             *prometheus.CounterVec
 	Accepts           *prometheus.CounterVec
+	PeerScores        *prometheus.HistogramVec
 
 	ChannelInputBytes prometheus.Counter
 
@@ -161,6 +162,7 @@ func NewMetrics(procName string) *Metrics {
 	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	registry.MustRegister(collectors.NewGoCollector())
 	factory := metrics.With(registry)
+
 	return &Metrics{
 		Info: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -308,19 +310,12 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "peer_count",
 			Help:      "Count of currently connected p2p peers",
 		}),
-		// Notice: We cannot use peer ids as [Labels] in the GaugeVec
-		// since peer ids would open a service attack vector.
-		// Each peer id would be a separate metric, flooding prometheus.
-		//
-		// [Labels]: https://prometheus.io/docs/practices/naming/#labels
-		PeerScores: factory.NewGaugeVec(prometheus.GaugeOpts{
+		PeerScores: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: ns,
-			Subsystem: "p2p",
 			Name:      "peer_scores",
-			Help:      "Count of peer scores grouped by score",
-		}, []string{
-			"band",
-		}),
+			Help:      "Histogram of currrently connected peer scores",
+			Buckets:   []float64{-100, -40, -20, -10, -5, -2, -1, -0.5, -0.05, 0, 0.05, 0.5, 1, 2, 5, 10, 20, 40},
+		}, []string{"type"}),
 		StreamCount: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Subsystem: "p2p",
@@ -450,11 +445,17 @@ func NewMetrics(procName string) *Metrics {
 	}
 }
 
-// SetPeerScores updates the peer score [prometheus.GaugeVec].
-// This takes a map of labels to scores.
-func (m *Metrics) SetPeerScores(scores map[string]float64) {
-	for label, score := range scores {
-		m.PeerScores.WithLabelValues(label).Set(score)
+// SetPeerScores updates the peer score metrics.
+// Accepts a slice of peer scores in any order.
+func (m *Metrics) SetPeerScores(allScores []store.PeerScores) {
+	for _, scores := range allScores {
+		m.PeerScores.WithLabelValues("total").Observe(scores.Gossip.Total)
+		m.PeerScores.WithLabelValues("ipColocation").Observe(scores.Gossip.IPColocationFactor)
+		m.PeerScores.WithLabelValues("behavioralPenalty").Observe(scores.Gossip.BehavioralPenalty)
+		m.PeerScores.WithLabelValues("blocksFirstMessage").Observe(scores.Gossip.Blocks.FirstMessageDeliveries)
+		m.PeerScores.WithLabelValues("blocksTimeInMesh").Observe(scores.Gossip.Blocks.TimeInMesh)
+		m.PeerScores.WithLabelValues("blocksMessageDeliveries").Observe(scores.Gossip.Blocks.MeshMessageDeliveries)
+		m.PeerScores.WithLabelValues("blocksInvalidMessageDeliveries").Observe(scores.Gossip.Blocks.InvalidMessageDeliveries)
 	}
 }
 
@@ -785,7 +786,7 @@ func (n *noopMetricer) RecordSequencerReset() {
 func (n *noopMetricer) RecordGossipEvent(evType int32) {
 }
 
-func (n *noopMetricer) SetPeerScores(scores map[string]float64) {
+func (n *noopMetricer) SetPeerScores(allScores []store.PeerScores) {
 }
 
 func (n *noopMetricer) IncPeerCount() {

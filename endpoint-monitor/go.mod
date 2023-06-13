@@ -11,6 +11,8 @@ require (
 	github.com/urfave/cli v1.22.9
 )
 
+replace github.com/ethereum-optimism/optimism/l2geth v0.0.0-20220923210602-7121648c1f26 => github.com/ethereum-optimism/optimism-legacy/l2geth v0.0.0-20220923210602-7121648c1f26
+
 require (
 	github.com/VictoriaMetrics/fastcache v1.9.0 // indirect
 	github.com/aristanetworks/goarista v0.0.0-20170210015632-ea17b1a17847 // indirect

@@ -22,6 +22,14 @@
   "baseFeeVaultRecipient": "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
   "l1FeeVaultRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
   "sequencerFeeVaultRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
+
+  "baseFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "l1FeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "sequencerFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "baseFeeVaultWithdrawalNetwork": 0,
+  "l1FeeVaultWithdrawalNetwork": 0,
+  "sequencerFeeVaultWithdrawalNetwork": 0,
+
   "l1ERC721BridgeProxy": "0xff000000000000000000000000000000000000ff",
   "l1StandardBridgeProxy": "0xff000000000000000000000000000000000000fd",
   "l1CrossDomainMessengerProxy": "0xff000000000000000000000000000000000000dd",

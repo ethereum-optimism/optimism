@@ -15,6 +15,12 @@ const config: HardhatUserConfig = {
     sources: './test/contracts',
   },
   networks: {
+    mainnet: {
+      url: process.env.L1_RPC || 'https://mainnet-l1-rehearsal.optimism.io',
+      accounts: [
+        'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+      ],
+    },
     devnetL1: {
       url: 'http://localhost:8545',
       accounts: [
@@ -43,6 +49,10 @@ const config: HardhatUserConfig = {
       },
     ],
     deployments: {
+      mainnet: [
+        '../contracts/deployments/mainnet',
+        '../contracts-bedrock/deployments/mainnet',
+      ],
       hivenet: ['../contracts-bedrock/deployments/hivenet'],
       devnetL1: ['../contracts-bedrock/deployments/devnetL1'],
       goerli: [

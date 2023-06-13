@@ -27,6 +27,13 @@
   "l1FeeVaultRecipient": "0x858F0751ef8B4067f0d2668C076BDB50a8549fbF",
   "sequencerFeeVaultRecipient": "0x858F0751ef8B4067f0d2668C076BDB50a8549fbF",
 
+  "baseFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "l1FeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "sequencerFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "baseFeeVaultWithdrawalNetwork": 0,
+  "l1FeeVaultWithdrawalNetwork": 0,
+  "sequencerFeeVaultWithdrawalNetwork": 0,
+
   "governanceTokenName": "Optimism",
   "governanceTokenSymbol": "OP",
   "governanceTokenOwner": "0x858F0751ef8B4067f0d2668C076BDB50a8549fbF",

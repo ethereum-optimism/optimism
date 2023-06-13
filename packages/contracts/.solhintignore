@@ -1,5 +1,0 @@
-node_modules
-
-# WETH9 is a standard we should not modify it.
-contracts/L2/predeploys/WETH9.sol
-contracts/L2/predeploys/IWETH9.sol
