@@ -141,7 +141,17 @@ func Start(config *Config) (*Server, func(), error) {
 			opts = append(opts, WithStrippedTrailingXFF())
 		}
 		opts = append(opts, WithProxydIP(os.Getenv("PROXYD_IP")))
-		opts = append(opts, WithSkipPeerCountCheck(cfg.SkipPeerCountCheck))
+		opts = append(opts, WithConsensusSkipPeerCountCheck(cfg.ConsensusSkipPeerCountCheck))
+
+		receiptsTarget, err := ReadFromEnvOrConfig(cfg.ConsensusReceiptsTarget)
+		if err != nil {
+			return nil, nil, err
+		}
+		receiptsTarget, err = validateReceiptsTarget(receiptsTarget)
+		if err != nil {
+			return nil, nil, err
+		}
+		opts = append(opts, WithConsensusReceiptTarget(receiptsTarget))
 
 		back := NewBackend(name, rpcURL, wsURL, rpcRequestSemaphore, opts...)
 		backendNames = append(backendNames, name)
@@ -314,6 +324,21 @@ func Start(config *Config) (*Server, func(), error) {
 	}
 
 	return srv, shutdownFunc, nil
+}
+
+func validateReceiptsTarget(val string) (string, error) {
+	if val == "" {
+		val = ReceiptsTargetDebugGetRawReceipts
+	}
+	switch val {
+	case ReceiptsTargetDebugGetRawReceipts,
+		ReceiptsTargetAlchemyGetTransactionReceipts,
+		ReceiptsTargetEthGetTransactionReceipts,
+		ReceiptsTargetParityGetTransactionReceipts:
+		return val, nil
+	default:
+		return "", fmt.Errorf("invalid receipts target: %s", val)
+	}
 }
 
 func secondsToDuration(seconds int) time.Duration {
