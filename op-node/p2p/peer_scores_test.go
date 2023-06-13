@@ -102,7 +102,7 @@ func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []
 			&rollup.Config{L2ChainID: big.NewInt(123)},
 			extPeerStore, testSuite.mockMetricer, logger)
 		opts = append(opts, ConfigurePeerScoring(&Config{
-			PeerScoring: pubsub.PeerScoreParams{
+			PeerScoring: &pubsub.PeerScoreParams{
 				AppSpecificScore: func(p peer.ID) float64 {
 					if p == hosts[0].ID() {
 						return -1000
