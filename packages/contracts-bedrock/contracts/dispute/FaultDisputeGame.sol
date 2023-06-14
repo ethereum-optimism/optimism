@@ -77,6 +77,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
      */
     ClaimData[] public claimData;
 
+    /**
+     * @notice An internal mapping to allow for constant-time lookups of existing claims.
+     */
+    mapping(ClaimHash => bool) internal claims;
+
     ////////////////////////////////////////////////////////////////
     //                       External Logic                       //
     ////////////////////////////////////////////////////////////////
@@ -99,37 +104,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
      * @inheritdoc IFaultDisputeGame
      */
     function step(
+        uint256 prestateIndex,
         uint256 parentIndex,
-        bytes32 stateHash,
         bytes calldata stateData,
         bytes calldata
-    ) public {
+    ) external {
         // TODO - Call the VM to perform the execution step.
-
-        // Mock a state transition
-        // NOTE: This mock lacks several necessary checks. For testing only.
-        uint256 inp = abi.decode(stateData, (uint256));
-        bytes32 nextStateHash = bytes32(uint256(stateHash) + inp);
-
-        ClaimData memory parent = claimData[parentIndex];
-
-        if (nextStateHash != Claim.unwrap(parent.claim)) {
-            revert("Invalid state transition");
-        }
-
-        // If the state transition was successful, append a new claim to the game at the
-        // `MAX_GAME_DEPTH`
-        Position nextPosition = LibPosition.attack(parent.position);
-        claimData.push(
-            ClaimData({
-                parentIndex: uint32(parentIndex),
-                claim: Claim.wrap(nextStateHash),
-                position: nextPosition,
-                clock: Clock.wrap(0),
-                rc: 0,
-                countered: false
-            })
-        );
     }
 
     ////////////////////////////////////////////////////////////////
@@ -167,8 +147,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             revert ParentDoesNotExist();
         }
 
-        // Bump the parent's reference counter.
-        claimData[challengeIndex].rc += 1;
         // Set the parent claim as countered.
         claimData[challengeIndex].countered = true;
 
@@ -217,8 +195,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         Clock nextClock = LibClock.wrap(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
 
         // Do not allow for a duplicate claim to be made.
-        // TODO.
-        // Maybe map the claimHash? There's no efficient way to check for this with the flat DAG.
+        ClaimHash claimHash = LibHashing.hashClaimPos(pivot, nextPosition);
+        if (claims[claimHash]) {
+            revert ClaimAlreadyExists();
+        }
+        claims[claimHash] = true;
 
         // Create the new claim.
         claimData.push(
@@ -227,7 +208,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
                 claim: pivot,
                 position: nextPosition,
                 clock: nextClock,
-                rc: 0,
                 countered: false
             })
         );
@@ -276,45 +256,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         // the search.
         Position leftMost;
 
-        // Run an exhaustive search (`O(n)`) over the DAG to find the left most, deepest
-        // uncontested claim.
-        for (; i > 0; --i) {
-            ClaimData memory claim = claimData[i];
-
-            // If the claim has no refereces, we can virtually prune it.
-            if (claim.rc == 0) {
-                Position position = claim.position;
-                uint128 depth = LibPosition.depth(position);
-
-                // 1. Do not count nodes at the max game depth. These can be truthy, but they do not
-                //    give us any intuition about the final outcome of the game.
-                // 2. Any node that has been countered is not a dangling claim, which is all that
-                //    we're concerned about.
-                // All claims that pass this check qualify for pruning.
-                if (depth != MAX_GAME_DEPTH && !claim.countered) {
-                    uint128 leftMostDepth = LibPosition.depth(leftMost);
-
-                    // If the claim here is deeper than the current left most, deepest claim,
-                    // update `leftMost`.
-                    // If the claim here is at the same depth, but further left, update `leftMost`.
-                    if (
-                        depth > leftMostDepth ||
-                        (depth == leftMostDepth &&
-                            LibPosition.indexAtDepth(position) <=
-                            LibPosition.indexAtDepth(leftMost))
-                    ) {
-                        leftMost = position;
-                    }
-                }
-
-                // If the claim has a parent, decrement the reference count of the parent. This
-                // effectively "prunes" the claim from the DAG without spending extra gas on
-                // deleting it from storage.
-                if (claim.parentIndex != type(uint32).max) {
-                    --claimData[claim.parentIndex].rc;
-                }
-            }
-        }
+        // TODO - Resolution
 
         // If the depth of the left most, deepest dangling claim is odd, the root was attacked
         // successfully and the defender wins. Otherwise, the challenger wins.
@@ -379,7 +321,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
                 claim: rootClaim(),
                 position: ROOT_POSITION,
                 clock: LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))),
-                rc: 0,
                 countered: false
             })
         );

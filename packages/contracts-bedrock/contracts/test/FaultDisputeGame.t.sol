@@ -114,7 +114,6 @@ contract FaultDisputeGame_Test is Test {
     function test_initialRootClaimData_succeeds() public {
         (
             uint32 parentIndex,
-            uint32 rc,
             bool countered,
             Claim claim,
             Position position,
@@ -122,7 +121,6 @@ contract FaultDisputeGame_Test is Test {
         ) = gameProxy.claimData(0);
 
         assertEq(parentIndex, type(uint32).max);
-        assertEq(rc, 0);
         assertEq(countered, false);
         assertEq(Claim.unwrap(claim), Claim.unwrap(ROOT_CLAIM));
         assertEq(Position.unwrap(position), 0);
@@ -145,7 +143,6 @@ contract FaultDisputeGame_Test is Test {
         // Grab the claim data of the attack.
         (
             uint32 parentIndex,
-            uint32 rc,
             bool countered,
             Claim claim,
             Position position,
@@ -154,7 +151,6 @@ contract FaultDisputeGame_Test is Test {
 
         // Assert correctness of the attack claim's data.
         assertEq(parentIndex, 0);
-        assertEq(rc, 0);
         assertEq(countered, false);
         assertEq(Claim.unwrap(claim), Claim.unwrap(Claim.wrap(bytes32(uint256(5)))));
         assertEq(Position.unwrap(position), Position.unwrap(LibPosition.attack(Position.wrap(0))));
@@ -164,11 +160,10 @@ contract FaultDisputeGame_Test is Test {
         );
 
         // Grab the claim data of the parent.
-        (parentIndex, rc, countered, claim, position, clock) = gameProxy.claimData(0);
+        (parentIndex, countered, claim, position, clock) = gameProxy.claimData(0);
 
         // Assert correctness of the parent claim's data.
         assertEq(parentIndex, type(uint32).max);
-        assertEq(rc, 1);
         assertEq(countered, true);
         assertEq(Claim.unwrap(claim), Claim.unwrap(ROOT_CLAIM));
         assertEq(Position.unwrap(position), 0);
@@ -178,9 +173,6 @@ contract FaultDisputeGame_Test is Test {
                 LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp - 5)))
             )
         );
-
-        // Resolve the game.
-        assertEq(uint256(gameProxy.resolve()), uint256(GameStatus.CHALLENGER_WINS));
     }
 }
 
