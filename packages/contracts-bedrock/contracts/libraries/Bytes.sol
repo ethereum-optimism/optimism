@@ -139,7 +139,11 @@ library Bytes {
             let nibblesStart := add(_nibbles, 0x20)
 
             // Loop through each byte in the input array
-            for { let i := 0x00 } lt(i, bytesLength) { i := add(i, 0x01) } {
+            for {
+                let i := 0x00
+            } lt(i, bytesLength) {
+                i := add(i, 0x01)
+            } {
                 // Get the starting offset of the next 2 bytes in the nibbles array
                 let offset := add(nibblesStart, shl(0x01, i))
                 // Load the byte at the current index within the `_bytes` array
