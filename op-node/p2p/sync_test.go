@@ -271,12 +271,11 @@ func TestMultiPeerSync(t *testing.T) {
 	// Wait till the failed request is recognized as marked as done, so the re-request actually runs.
 	ctx, cancelFunc = context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancelFunc()
-	for clB.inFlight[25] != nil && !clB.inFlight[25].Load() {
-		select {
-		case <-ctx.Done():
-			t.Fatal("Did not complete request for block 25 in timely manner")
-		default:
-			// Carry on, timeout not yet reached
+	for {
+		isInFlight, err := clB.isInFlight(ctx, 25)
+		require.NoError(t, err)
+		if !isInFlight {
+			break
 		}
 		time.Sleep(time.Second)
 	}
