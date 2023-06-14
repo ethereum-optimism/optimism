@@ -228,7 +228,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
      * @inheritdoc IDisputeGame
      */
     function gameType() public pure override returns (GameType _gameType) {
-        _gameType = GameType.FAULT;
+        _gameType = GameTypes.FAULT;
     }
 
     /**

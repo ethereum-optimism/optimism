@@ -21,7 +21,7 @@ contract FaultDisputeGame_Test is Test {
     /**
      * @dev The type of the game being tested.
      */
-    GameType internal constant GAME_TYPE = GameType.FAULT;
+    GameType internal constant GAME_TYPE = GameType.wrap(0);
     /**
      * @dev The current version of the `FaultDisputeGame` contract.
      */
@@ -90,7 +90,7 @@ contract FaultDisputeGame_Test is Test {
      * @dev Tests that the game's type is set correctly.
      */
     function test_gameType_succeeds() public {
-        assertEq(uint256(gameProxy.gameType()), uint256(GAME_TYPE));
+        assertEq(GameType.unwrap(gameProxy.gameType()), GameType.unwrap(GAME_TYPE));
     }
 
     /**
@@ -99,7 +99,7 @@ contract FaultDisputeGame_Test is Test {
     function test_gameData_succeeds() public {
         (GameType gameType, Claim rootClaim, bytes memory extraData) = gameProxy.gameData();
 
-        assertEq(uint256(gameType), uint256(GAME_TYPE));
+        assertEq(GameType.unwrap(gameType), GameType.unwrap(GAME_TYPE));
         assertEq(Claim.unwrap(rootClaim), Claim.unwrap(ROOT_CLAIM));
         assertEq(extraData, EXTRA_DATA);
     }
