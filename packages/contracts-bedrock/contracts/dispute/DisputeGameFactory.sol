@@ -9,12 +9,13 @@ import { ClonesWithImmutableArgs } from "@cwia/ClonesWithImmutableArgs.sol";
 
 import { IDisputeGame } from "./interfaces/IDisputeGame.sol";
 import { IDisputeGameFactory } from "./interfaces/IDisputeGameFactory.sol";
+import { IVersioned } from "./interfaces/IVersioned.sol";
 
 /**
  * @title DisputeGameFactory
  * @notice A factory contract for creating `IDisputeGame` contracts.
  */
-contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory {
+contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, IVersioned {
     /**
      * @dev Allows for the creation of clone proxies with immutable arguments.
      */
@@ -54,6 +55,13 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory {
     function initialize(address _owner) external initializer {
         __Ownable_init();
         _transferOwnership(_owner);
+    }
+
+    /**
+     * @inheritdoc IVersioned
+     */
+    function version() external pure returns (string memory) {
+        return "0.0.1";
     }
 
     /**
