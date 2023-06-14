@@ -4,17 +4,20 @@ pragma solidity ^0.8.15;
 import "../libraries/DisputeTypes.sol";
 import "../libraries/DisputeErrors.sol";
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { ClonesWithImmutableArgs } from "@cwia/ClonesWithImmutableArgs.sol";
+import {
+    OwnableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import { IDisputeGame } from "./interfaces/IDisputeGame.sol";
 import { IDisputeGameFactory } from "./interfaces/IDisputeGameFactory.sol";
+import { IVersioned } from "./interfaces/IVersioned.sol";
 
 /**
  * @title DisputeGameFactory
  * @notice A factory contract for creating `IDisputeGame` contracts.
  */
-contract DisputeGameFactory is Ownable, IDisputeGameFactory {
+contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, IVersioned {
     /**
      * @dev Allows for the creation of clone proxies with immutable arguments.
      */
@@ -40,11 +43,27 @@ contract DisputeGameFactory is Ownable, IDisputeGameFactory {
     IDisputeGame[] public disputeGameList;
 
     /**
-     * @notice Constructs a new DisputeGameFactory contract.
+     * @notice Constructs a new DisputeGameFactory contract. Set the owner
+     *         to `address(0)` to prevent accidental usage of the implementation.
+     */
+    constructor() OwnableUpgradeable() {
+        _transferOwnership(address(0));
+    }
+
+    /**
+     * @notice Initializes the contract.
      * @param _owner The owner of the contract.
      */
-    constructor(address _owner) Ownable() {
-        transferOwnership(_owner);
+    function initialize(address _owner) external initializer {
+        __Ownable_init();
+        _transferOwnership(_owner);
+    }
+
+    /**
+     * @inheritdoc IVersioned
+     */
+    function version() external pure returns (string memory) {
+        return "0.0.1";
     }
 
     /**
