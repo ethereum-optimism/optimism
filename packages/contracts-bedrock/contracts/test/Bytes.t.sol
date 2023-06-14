@@ -183,49 +183,6 @@ contract Bytes_slice_Test is Test {
 
 contract Bytes_toNibbles_Test is Test {
     /**
-     * @notice Diffs the test Solidity version of `toNibbles` against the Yul version.
-     *
-     * @param _bytes The `bytes` array to convert to nibbles.
-     *
-     * @return Yul version of `toNibbles` applied to `_bytes`.
-     */
-    function _toNibblesYul(bytes memory _bytes) internal pure returns (bytes memory) {
-        // Allocate memory for the `nibbles` array.
-        bytes memory nibbles = new bytes(_bytes.length << 1);
-
-        assembly {
-            // Load the length of the passed bytes array from memory
-            let bytesLength := mload(_bytes)
-
-            // Store the memory offset of the _bytes array's contents on the stack
-            let bytesStart := add(_bytes, 0x20)
-
-            // Store the memory offset of the nibbles array's contents on the stack
-            let nibblesStart := add(nibbles, 0x20)
-
-            // Loop through each byte in the input array
-            for {
-                let i := 0x00
-            } lt(i, bytesLength) {
-                i := add(i, 0x01)
-            } {
-                // Get the starting offset of the next 2 bytes in the nibbles array
-                let offset := add(nibblesStart, shl(0x01, i))
-
-                // Load the byte at the current index within the `_bytes` array
-                let b := byte(0x00, mload(add(bytesStart, i)))
-
-                // Pull out the first nibble and store it in the new array
-                mstore8(offset, shr(0x04, b))
-                // Pull out the second nibble and store it in the new array
-                mstore8(add(offset, 0x01), and(b, 0x0F))
-            }
-        }
-
-        return nibbles;
-    }
-
-    /**
      * @notice Tests that, given an input of 5 bytes, the `toNibbles` function returns an array of
      *         10 nibbles corresponding to the input data.
      */
@@ -272,11 +229,49 @@ contract Bytes_toNibbles_Test is Test {
     }
 
     /**
-     * @notice Test that the `toNibbles` function in the `Bytes` library is equivalent to the Yul
-     *         implementation.
+     * @notice Tests that the `toNibbles` function correctly updates the free memory pointer depending
+     *         on the length of the resulting array.
      */
-    function testDiff_toNibbles_succeeds(bytes memory _input) public {
-        assertEq(Bytes.toNibbles(_input), _toNibblesYul(_input));
+    function testFuzz_toNibbles_memorySafety_succeeds(bytes memory _input) public {
+        // Grab the free memory pointer before the `toNibbles` operation
+        uint64 initPtr;
+        assembly {
+            initPtr := mload(0x40)
+        }
+        uint64 expectedPtr = uint64(initPtr + 0x20 + ((_input.length * 2 + 0x1F) & ~uint256(0x1F)));
+
+        // Ensure that all memory outside of the expected range is safe.
+        vm.expectSafeMemory(initPtr, expectedPtr);
+
+        // Pull out each individual nibble from the input bytes array
+        bytes memory nibbles = Bytes.toNibbles(_input);
+
+        // Grab the free memory pointer after the `toNibbles` operation
+        uint64 finalPtr;
+        assembly {
+            finalPtr := mload(0x40)
+        }
+
+        // The free memory pointer should have been updated properly
+        if (_input.length == 0) {
+            // If the input length is zero, only 32 bytes of memory should have been allocated.
+            assertEq(finalPtr, initPtr + 0x20);
+        } else {
+            // If the input length is greater than zero, the memory allocated should be the
+            // length of the input * 2 + 32 bytes for the length field.
+            //
+            // Note that we use a slightly less efficient, but equivalent method of rounding
+            // up `_length` to the next multiple of 32 than is used in the `toNibbles` function.
+            // This is to diff test the method used in `toNibbles`.
+            uint64 _expectedPtr = uint64(initPtr + 0x20 + (((_input.length * 2 + 0x1F) >> 5) << 5));
+            assertEq(finalPtr, _expectedPtr);
+
+            // Sanity check for equivalence of the rounding methods.
+            assertEq(_expectedPtr, expectedPtr);
+        }
+
+        // The nibbles length should be equal to `_length * 2`
+        assertEq(nibbles.length, _input.length << 1);
     }
 }
 
