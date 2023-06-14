@@ -38,10 +38,15 @@ const checkPredeploys = async (
     predeploys.ProxyAdmin,
   ])
 
+  // We only check predeploys 0x420..00 through 0x420..FF on the mainnet network to
+  // reduce the probability of an RPC timeout. After the migration, all predeploys
+  // from 0x420..00 through 0x420..07FF should be checked.
+  const maxCheck = hre.network.name === 'mainnet' ? 256 : 2048
+
   const codeReq = []
   const slotReq = []
   // First loop for requests
-  for (let i = 0; i < 2048; i++) {
+  for (let i = 0; i < maxCheck; i++) {
     const num = hre.ethers.utils.hexZeroPad('0x' + i.toString(16), 2)
     const addr = hre.ethers.utils.getAddress(
       hre.ethers.utils.hexConcat([prefix, num])
@@ -57,7 +62,7 @@ const checkPredeploys = async (
   const slotRes = await Promise.all(slotReq)
 
   // Second loop for response checks
-  for (let i = 0; i < 2048; i++) {
+  for (let i = 0; i < maxCheck; i++) {
     const num = hre.ethers.utils.hexZeroPad('0x' + i.toString(16), 2)
     const addr = hre.ethers.utils.getAddress(
       hre.ethers.utils.hexConcat([prefix, num])
@@ -79,7 +84,7 @@ const checkPredeploys = async (
       throw new Error(`incorrect admin slot in ${addr}`)
     }
 
-    if (i % 200 === 0) {
+    if (i % (maxCheck / 4) === 0) {
       console.log(`Checked through ${addr}`)
     }
   }
@@ -186,7 +191,16 @@ const checkGenesisMagic = async (
 
     const L2OutputOracle = new hre.ethers.Contract(address, [abi], l1Provider)
 
-    startingBlockNumber = await L2OutputOracle.startingBlockNumber()
+    // In the migration, the L2OutputOracle proxy is not yet initialized when we
+    // want to run this script. Fall back on the local config if we get an error
+    // fetching the starting block number.
+    try {
+      startingBlockNumber = await L2OutputOracle.startingBlockNumber()
+    } catch (e) {
+      console.log(`Error fetching startingBlockNumber:\n${e.message}`)
+      console.log('Falling back to local config.')
+      startingBlockNumber = hre.deployConfig.l2OutputOracleStartingBlockNumber
+    }
   } else {
     // We do not have a connection to the L1 chain, use the local config
     // The `--network` flag must be set to the L1 network
@@ -200,7 +214,9 @@ const checkGenesisMagic = async (
   const extradata = block.extraData
 
   if (extradata !== magic) {
-    throw new Error('magic value in extradata does not match')
+    throw new Error(
+      `magic value in extradata does not match: got ${extradata}, expected ${magic}`
+    )
   }
 }
 
@@ -376,7 +392,7 @@ const check = {
       signer
     )
 
-    await assertSemver(SequencerFeeVault, 'SequencerFeeVault', '1.1.0')
+    await assertSemver(SequencerFeeVault, 'SequencerFeeVault', '1.2.0')
 
     const RECIPIENT = await SequencerFeeVault.RECIPIENT()
     assert(RECIPIENT !== hre.ethers.constants.AddressZero)
@@ -389,6 +405,10 @@ const check = {
     const MIN_WITHDRAWAL_AMOUNT =
       await SequencerFeeVault.MIN_WITHDRAWAL_AMOUNT()
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
+
+    const WITHDRAWAL_NETWORK = await SequencerFeeVault.WITHDRAWAL_NETWORK()
+    assert(WITHDRAWAL_NETWORK < 2)
+    console.log(`  - WITHDRAWAL_NETWORK: ${WITHDRAWAL_NETWORK}`)
 
     await checkProxy(hre, 'SequencerFeeVault', signer.provider)
     await assertProxy(hre, 'SequencerFeeVault', signer.provider)
@@ -619,7 +639,7 @@ const check = {
       signer
     )
 
-    await assertSemver(BaseFeeVault, 'BaseFeeVault', '1.1.0')
+    await assertSemver(BaseFeeVault, 'BaseFeeVault', '1.2.0')
 
     const MIN_WITHDRAWAL_AMOUNT = await BaseFeeVault.MIN_WITHDRAWAL_AMOUNT()
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
@@ -627,6 +647,10 @@ const check = {
     const RECIPIENT = await BaseFeeVault.RECIPIENT()
     assert(RECIPIENT !== hre.ethers.constants.AddressZero)
     yell(`  - RECIPIENT: ${RECIPIENT}`)
+
+    const WITHDRAWAL_NETWORK = await BaseFeeVault.WITHDRAWAL_NETWORK()
+    assert(WITHDRAWAL_NETWORK < 2)
+    console.log(`  - WITHDRAWAL_NETWORK: ${WITHDRAWAL_NETWORK}`)
 
     await checkProxy(hre, 'BaseFeeVault', signer.provider)
     await assertProxy(hre, 'BaseFeeVault', signer.provider)
@@ -642,7 +666,7 @@ const check = {
       signer
     )
 
-    await assertSemver(L1FeeVault, 'L1FeeVault', '1.1.0')
+    await assertSemver(L1FeeVault, 'L1FeeVault', '1.2.0')
 
     const MIN_WITHDRAWAL_AMOUNT = await L1FeeVault.MIN_WITHDRAWAL_AMOUNT()
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
@@ -650,6 +674,10 @@ const check = {
     const RECIPIENT = await L1FeeVault.RECIPIENT()
     assert(RECIPIENT !== hre.ethers.constants.AddressZero)
     yell(`  - RECIPIENT: ${RECIPIENT}`)
+
+    const WITHDRAWAL_NETWORK = await L1FeeVault.WITHDRAWAL_NETWORK()
+    assert(WITHDRAWAL_NETWORK < 2)
+    console.log(`  - WITHDRAWAL_NETWORK: ${WITHDRAWAL_NETWORK}`)
 
     await checkProxy(hre, 'L1FeeVault', signer.provider)
     await assertProxy(hre, 'L1FeeVault', signer.provider)

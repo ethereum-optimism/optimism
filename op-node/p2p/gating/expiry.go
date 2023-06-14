@@ -2,15 +2,17 @@ package gating
 
 import (
 	"errors"
-	"net"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/clock"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 	manet "github.com/multiformats/go-multiaddr/net"
+
+	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 )
 
 type UnbanMetrics interface {
@@ -18,12 +20,10 @@ type UnbanMetrics interface {
 	RecordIPUnban()
 }
 
-var UnknownExpiry = errors.New("unknown ban expiry")
-
 //go:generate mockery --name ExpiryStore --output mocks/ --with-expecter=true
 type ExpiryStore interface {
-	PeerBanExpiry(id peer.ID) (time.Time, error)
-	IPBanExpiry(ip net.IP) (time.Time, error)
+	store.IPBanStore
+	store.PeerBanStore
 }
 
 // ExpiryConnectionGater enhances a BlockingConnectionGater by implementing ban-expiration
@@ -47,11 +47,11 @@ func AddBanExpiry(gater BlockingConnectionGater, store ExpiryStore, log log.Logg
 
 func (g *ExpiryConnectionGater) peerBanExpiryCheck(p peer.ID) (allow bool) {
 	// if the peer is blocked, check if it's time to unblock
-	expiry, err := g.store.PeerBanExpiry(p)
+	expiry, err := g.store.GetPeerBanExpiration(p)
+	if errors.Is(err, store.UnknownBanErr) {
+		return true // peer is allowed if it has not been banned
+	}
 	if err != nil {
-		if errors.Is(err, UnknownExpiry) {
-			return false // peer is permanently banned if no expiry time is set.
-		}
 		g.log.Warn("failed to load peer-ban expiry time", "peer_id", p, "err", err)
 		return false
 	}
@@ -59,7 +59,7 @@ func (g *ExpiryConnectionGater) peerBanExpiryCheck(p peer.ID) (allow bool) {
 		return false
 	}
 	g.log.Info("peer-ban expired, unbanning peer", "peer_id", p, "expiry", expiry)
-	if err := g.BlockingConnectionGater.UnblockPeer(p); err != nil {
+	if err := g.store.SetPeerBanExpiration(p, time.Time{}); err != nil {
 		g.log.Warn("failed to unban peer", "peer_id", p, "err", err)
 		return false // if we ignored the error, then the inner connection-gater would drop them
 	}
@@ -73,18 +73,12 @@ func (g *ExpiryConnectionGater) addrBanExpiryCheck(ma multiaddr.Multiaddr) (allo
 		g.log.Error("tried to check multi-addr with bad IP", "addr", ma)
 		return false
 	}
-	// Check if it's a subnet-wide ban first. Subnet-bans do not expire.
-	for _, ipnet := range g.BlockingConnectionGater.ListBlockedSubnets() {
-		if ipnet.Contains(ip) {
-			return false // peer is still in banned subnet
-		}
-	}
 	// if just the IP is blocked, check if it's time to unblock
-	expiry, err := g.store.IPBanExpiry(ip)
+	expiry, err := g.store.GetIPBanExpiration(ip)
+	if errors.Is(err, store.UnknownBanErr) {
+		return true // IP is allowed if it has not been banned
+	}
 	if err != nil {
-		if errors.Is(err, UnknownExpiry) {
-			return false // IP is permanently banned if no expiry time is set.
-		}
 		g.log.Warn("failed to load IP-ban expiry time", "ip", ip, "err", err)
 		return false
 	}
@@ -92,7 +86,7 @@ func (g *ExpiryConnectionGater) addrBanExpiryCheck(ma multiaddr.Multiaddr) (allo
 		return false
 	}
 	g.log.Info("IP-ban expired, unbanning IP", "ip", ip, "expiry", expiry)
-	if err := g.BlockingConnectionGater.UnblockAddr(ip); err != nil {
+	if err := g.store.SetIPBanExpiration(ip, time.Time{}); err != nil {
 		g.log.Warn("failed to unban IP", "ip", ip, "err", err)
 		return false // if we ignored the error, then the inner connection-gater would drop them
 	}
@@ -101,31 +95,24 @@ func (g *ExpiryConnectionGater) addrBanExpiryCheck(ma multiaddr.Multiaddr) (allo
 }
 
 func (g *ExpiryConnectionGater) InterceptPeerDial(p peer.ID) (allow bool) {
-	// if not allowed, and not expired, then do not allow the dial
-	return g.BlockingConnectionGater.InterceptPeerDial(p) || g.peerBanExpiryCheck(p)
+	if !g.BlockingConnectionGater.InterceptPeerDial(p) {
+		return false
+	}
+	return g.peerBanExpiryCheck(p)
 }
 
 func (g *ExpiryConnectionGater) InterceptAddrDial(id peer.ID, ma multiaddr.Multiaddr) (allow bool) {
 	if !g.BlockingConnectionGater.InterceptAddrDial(id, ma) {
-		// Check if it was intercepted because of a peer ban
-		if !g.BlockingConnectionGater.InterceptPeerDial(id) {
-			if !g.peerBanExpiryCheck(id) {
-				return false // peer is still peer-banned
-			}
-			if g.BlockingConnectionGater.InterceptAddrDial(id, ma) { // allow dial if peer-ban was everything
-				return true
-			}
-		}
-		// intercepted because of addr ban still, check if it is expired
-		if !g.addrBanExpiryCheck(ma) {
-			return false // peer is still addr-banned
-		}
+		return false
 	}
-	return true
+	return g.peerBanExpiryCheck(id) && g.addrBanExpiryCheck(ma)
 }
 
 func (g *ExpiryConnectionGater) InterceptAccept(mas network.ConnMultiaddrs) (allow bool) {
-	return g.BlockingConnectionGater.InterceptAccept(mas) || g.addrBanExpiryCheck(mas.RemoteMultiaddr())
+	if !g.BlockingConnectionGater.InterceptAccept(mas) {
+		return false
+	}
+	return g.addrBanExpiryCheck(mas.RemoteMultiaddr())
 }
 
 func (g *ExpiryConnectionGater) InterceptSecured(direction network.Direction, id peer.ID, mas network.ConnMultiaddrs) (allow bool) {
@@ -133,7 +120,10 @@ func (g *ExpiryConnectionGater) InterceptSecured(direction network.Direction, id
 	if direction == network.DirOutbound {
 		return true
 	}
+	if !g.BlockingConnectionGater.InterceptSecured(direction, id, mas) {
+		return false
+	}
 	// InterceptSecured is called after InterceptAccept, we already checked the addrs.
 	// This leaves just the peer-ID expiry to check on inbound connections.
-	return g.BlockingConnectionGater.InterceptSecured(direction, id, mas) || g.peerBanExpiryCheck(id)
+	return g.peerBanExpiryCheck(id)
 }

@@ -1,31 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import "../libraries/DisputeTypes.sol";
+import "../libraries/DisputeErrors.sol";
+
 import { ClonesWithImmutableArgs } from "@cwia/ClonesWithImmutableArgs.sol";
+import {
+    OwnableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-import { Claim } from "../libraries/DisputeTypes.sol";
-import { Hash } from "../libraries/DisputeTypes.sol";
-import { GameType } from "../libraries/DisputeTypes.sol";
-
-import { NoImplementation } from "../libraries/DisputeErrors.sol";
-import { GameAlreadyExists } from "../libraries/DisputeErrors.sol";
-
-import { IDisputeGame } from "./IDisputeGame.sol";
-import { IDisputeGameFactory } from "./IDisputeGameFactory.sol";
+import { IDisputeGame } from "./interfaces/IDisputeGame.sol";
+import { IDisputeGameFactory } from "./interfaces/IDisputeGameFactory.sol";
+import { IVersioned } from "./interfaces/IVersioned.sol";
 
 /**
  * @title DisputeGameFactory
  * @notice A factory contract for creating `IDisputeGame` contracts.
  */
-contract DisputeGameFactory is Ownable, IDisputeGameFactory {
+contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, IVersioned {
     /**
      * @dev Allows for the creation of clone proxies with immutable arguments.
      */
     using ClonesWithImmutableArgs for address;
 
     /**
-     * @notice Mapping of `GameType`s to their respective `IDisputeGame` implementations.
+     * @inheritdoc IDisputeGameFactory
      */
     mapping(GameType => IDisputeGame) public gameImpls;
 
@@ -37,24 +36,45 @@ contract DisputeGameFactory is Ownable, IDisputeGameFactory {
     mapping(Hash => IDisputeGame) internal disputeGames;
 
     /**
-     * @notice Constructs a new DisputeGameFactory contract.
-     * @param _owner The owner of the contract.
+     * @notice An append-only array of disputeGames that have been created.
+     * @dev This accessor is used by offchain game solvers to efficiently
+     *      track dispute games
      */
-    constructor(address _owner) Ownable() {
-        transferOwnership(_owner);
+    IDisputeGame[] public disputeGameList;
+
+    /**
+     * @notice Constructs a new DisputeGameFactory contract. Set the owner
+     *         to `address(0)` to prevent accidental usage of the implementation.
+     */
+    constructor() OwnableUpgradeable() {
+        _transferOwnership(address(0));
     }
 
     /**
-     * @notice Retrieves the hash of `gameType . rootClaim . extraData`
-     *         to the deployed `DisputeGame` clone.
-     * @dev Note: `.` denotes concatenation.
-     * @param gameType The type of the DisputeGame.
-     *        Used to decide the implementation to clone.
-     * @param rootClaim The root claim of the DisputeGame.
-     * @param extraData Any extra data that should be provided to the
-     *        created dispute game.
-     * @return _proxy The clone of the `DisputeGame` created with the
-     *         given parameters. `address(0)` if nonexistent.
+     * @notice Initializes the contract.
+     * @param _owner The owner of the contract.
+     */
+    function initialize(address _owner) external initializer {
+        __Ownable_init();
+        _transferOwnership(_owner);
+    }
+
+    /**
+     * @inheritdoc IVersioned
+     */
+    function version() external pure returns (string memory) {
+        return "0.0.1";
+    }
+
+    /**
+     * @inheritdoc IDisputeGameFactory
+     */
+    function gameCount() external view returns (uint256 _gameCount) {
+        _gameCount = disputeGameList.length;
+    }
+
+    /**
+     * @inheritdoc IDisputeGameFactory
      */
     function games(
         GameType gameType,
@@ -65,15 +85,7 @@ contract DisputeGameFactory is Ownable, IDisputeGameFactory {
     }
 
     /**
-     * @notice Creates a new DisputeGame proxy contract.
-     * @notice If a dispute game with the given parameters already exists,
-     *         it will be returned.
-     * @param gameType The type of the DisputeGame.
-     *        Used to decide the proxy implementation.
-     * @param rootClaim The root claim of the DisputeGame.
-     * @param extraData Any extra data that should be provided
-     *        to the created dispute game.
-     * @return proxy The clone of the `DisputeGame`.
+     * @inheritdoc IDisputeGameFactory
      */
     function create(
         GameType gameType,
@@ -89,8 +101,7 @@ contract DisputeGameFactory is Ownable, IDisputeGameFactory {
         }
 
         // Clone the implementation contract and initialize it with the given parameters.
-        bytes memory data = abi.encodePacked(rootClaim, extraData);
-        proxy = IDisputeGame(address(impl).clone(data));
+        proxy = IDisputeGame(address(impl).clone(abi.encodePacked(rootClaim, extraData)));
         proxy.initialize();
 
         // Compute the unique identifier for the dispute game.
@@ -103,27 +114,12 @@ contract DisputeGameFactory is Ownable, IDisputeGameFactory {
 
         // Store the dispute game in the mapping & emit the `DisputeGameCreated` event.
         disputeGames[uuid] = proxy;
+        disputeGameList.push(proxy);
         emit DisputeGameCreated(address(proxy), gameType, rootClaim);
     }
 
     /**
-     * @notice Sets the implementation contract for a specific `GameType`.
-     * @param gameType The type of the DisputeGame.
-     * @param impl The implementation contract for the given `GameType`.
-     */
-    function setImplementation(GameType gameType, IDisputeGame impl) external onlyOwner {
-        gameImpls[gameType] = impl;
-        emit ImplementationSet(address(impl), gameType);
-    }
-
-    /**
-     * @notice Returns a unique identifier for the given dispute game parameters.
-     * @dev Hashes the concatenation of `gameType . rootClaim . extraData`
-     *      without expanding memory.
-     * @param gameType The type of the DisputeGame.
-     * @param rootClaim The root claim of the DisputeGame.
-     * @param extraData Any extra data that should be provided to the created dispute game.
-     * @return _uuid The unique identifier for the given dispute game parameters.
+     * @inheritdoc IDisputeGameFactory
      */
     function getGameUUID(
         GameType gameType,
@@ -159,5 +155,13 @@ contract DisputeGameFactory is Ownable, IDisputeGameFactory {
             mstore(rootClaimOffset, tempB)
             mstore(pointerOffset, tempC)
         }
+    }
+
+    /**
+     * @inheritdoc IDisputeGameFactory
+     */
+    function setImplementation(GameType gameType, IDisputeGame impl) external onlyOwner {
+        gameImpls[gameType] = impl;
+        emit ImplementationSet(address(impl), gameType);
     }
 }

@@ -33,10 +33,10 @@
             </a>
           </li>
           <li>
-            <a href="https://wkf.ms/3XTdpLl" target="_blank" rel="noopener noreferrer">
+            <a href="https://forms.monday.com/forms/c867f3f357707ff1fb4af0d3d5080710?r=use1" target="_blank" rel="noopener noreferrer">
               <i class="far fa-comment-dots"></i> Get support for going live
             </a>
-          </li>          
+          </li>
         </ul>
       </div>
     </div>

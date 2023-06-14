@@ -129,6 +129,70 @@ func TestChannelBankSimple(t *testing.T) {
 	require.Equal(t, io.EOF, err)
 }
 
+// TestChannelBankInterleaved ensure that the channel bank can handle frames from multiple channels
+// that arrive out of order. Per the specs, the first channel to arrive (not the first to be completed)
+// is returned first.
+func TestChannelBankInterleaved(t *testing.T) {
+	rng := rand.New(rand.NewSource(1234))
+	a := testutils.RandomBlockRef(rng)
+
+	input := &fakeChannelBankInput{origin: a}
+	input.AddFrames("a:0:first", "b:2:trois!")
+	input.AddFrames("b:1:deux", "a:2:third!")
+	input.AddFrames("b:0:premiere")
+	input.AddFrames("a:1:second")
+	input.AddFrame(Frame{}, io.EOF)
+
+	cfg := &rollup.Config{ChannelTimeout: 10}
+
+	cb := NewChannelBank(testlog.Logger(t, log.LvlCrit), cfg, input, nil)
+
+	// Load a:0
+	out, err := cb.NextData(context.Background())
+	require.ErrorIs(t, err, NotEnoughData)
+	require.Equal(t, []byte(nil), out)
+
+	// Load b:2
+	out, err = cb.NextData(context.Background())
+	require.ErrorIs(t, err, NotEnoughData)
+	require.Equal(t, []byte(nil), out)
+
+	// Load b:1
+	out, err = cb.NextData(context.Background())
+	require.ErrorIs(t, err, NotEnoughData)
+	require.Equal(t, []byte(nil), out)
+
+	// Load a:2
+	out, err = cb.NextData(context.Background())
+	require.ErrorIs(t, err, NotEnoughData)
+	require.Equal(t, []byte(nil), out)
+
+	// Load b:0 & Channel b is complete, but channel a was opened first
+	out, err = cb.NextData(context.Background())
+	require.ErrorIs(t, err, NotEnoughData)
+	require.Equal(t, []byte(nil), out)
+
+	// Load a:1
+	out, err = cb.NextData(context.Background())
+	require.ErrorIs(t, err, NotEnoughData)
+	require.Equal(t, []byte(nil), out)
+
+	// Pull out the channel a
+	out, err = cb.NextData(context.Background())
+	require.Nil(t, err)
+	require.Equal(t, "firstsecondthird", string(out))
+
+	// Pull out the channel b
+	out, err = cb.NextData(context.Background())
+	require.Nil(t, err)
+	require.Equal(t, "premieredeuxtrois", string(out))
+
+	// No more data
+	out, err = cb.NextData(context.Background())
+	require.Nil(t, out)
+	require.Equal(t, io.EOF, err)
+}
+
 func TestChannelBankDuplicates(t *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	a := testutils.RandomBlockRef(rng)

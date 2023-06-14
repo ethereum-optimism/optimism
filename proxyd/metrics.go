@@ -246,10 +246,50 @@ var (
 		"backend_group_name",
 	})
 
+	consensusSafeBlock = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_safe_block",
+		Help:      "Consensus safe block",
+	}, []string{
+		"backend_group_name",
+	})
+
+	consensusFinalizedBlock = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_finalized_block",
+		Help:      "Consensus finalized block",
+	}, []string{
+		"backend_group_name",
+	})
+
 	backendLatestBlockBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: MetricsNamespace,
 		Name:      "backend_latest_block",
 		Help:      "Current latest block observed per backend",
+	}, []string{
+		"backend_name",
+	})
+
+	backendSafeBlockBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_safe_block",
+		Help:      "Current safe block observed per backend",
+	}, []string{
+		"backend_name",
+	})
+
+	backendFinalizedBlockBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_finalized_block",
+		Help:      "Current finalized block observed per backend",
+	}, []string{
+		"backend_name",
+	})
+
+	backendUnexpectedBlockTagsBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_unexpected_block_tags",
+		Help:      "Bool gauge for unexpected block tags",
 	}, []string{
 		"backend_name",
 	})
@@ -306,6 +346,30 @@ var (
 		Namespace: MetricsNamespace,
 		Name:      "consensus_backend_update_delay",
 		Help:      "Delay (ms) for backend update",
+	}, []string{
+		"backend_name",
+	})
+
+	avgLatencyBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_avg_latency",
+		Help:      "Average latency per backend",
+	}, []string{
+		"backend_name",
+	})
+
+	degradedBackends = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_degraded",
+		Help:      "Bool gauge for degraded backends",
+	}, []string{
+		"backend_name",
+	})
+
+	networkErrorRateBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_error_rate",
+		Help:      "Request error rate per backend",
 	}, []string{
 		"backend_name",
 	})
@@ -378,6 +442,14 @@ func RecordGroupConsensusLatestBlock(group *BackendGroup, blockNumber hexutil.Ui
 	consensusLatestBlock.WithLabelValues(group.Name).Set(float64(blockNumber))
 }
 
+func RecordGroupConsensusSafeBlock(group *BackendGroup, blockNumber hexutil.Uint64) {
+	consensusSafeBlock.WithLabelValues(group.Name).Set(float64(blockNumber))
+}
+
+func RecordGroupConsensusFinalizedBlock(group *BackendGroup, blockNumber hexutil.Uint64) {
+	consensusFinalizedBlock.WithLabelValues(group.Name).Set(float64(blockNumber))
+}
+
 func RecordGroupConsensusCount(group *BackendGroup, count int) {
 	consensusGroupCount.WithLabelValues(group.Name).Set(float64(count))
 }
@@ -390,30 +462,55 @@ func RecordGroupTotalCount(group *BackendGroup, count int) {
 	consensusGroupTotalCount.WithLabelValues(group.Name).Set(float64(count))
 }
 
-func RecordBackendLatestBlock(be *Backend, blockNumber hexutil.Uint64) {
-	backendLatestBlockBackend.WithLabelValues(be.Name).Set(float64(blockNumber))
+func RecordBackendLatestBlock(b *Backend, blockNumber hexutil.Uint64) {
+	backendLatestBlockBackend.WithLabelValues(b.Name).Set(float64(blockNumber))
 }
 
-func RecordConsensusBackendBanned(be *Backend, banned bool) {
-	v := float64(0)
-	if banned {
-		v = float64(1)
+func RecordBackendSafeBlock(b *Backend, blockNumber hexutil.Uint64) {
+	backendSafeBlockBackend.WithLabelValues(b.Name).Set(float64(blockNumber))
+}
+
+func RecordBackendFinalizedBlock(b *Backend, blockNumber hexutil.Uint64) {
+	backendFinalizedBlockBackend.WithLabelValues(b.Name).Set(float64(blockNumber))
+}
+
+func RecordBackendUnexpectedBlockTags(b *Backend, unexpected bool) {
+	backendUnexpectedBlockTagsBackend.WithLabelValues(b.Name).Set(boolToFloat64(unexpected))
+}
+
+func RecordConsensusBackendBanned(b *Backend, banned bool) {
+	consensusBannedBackends.WithLabelValues(b.Name).Set(boolToFloat64(banned))
+}
+
+func RecordConsensusBackendPeerCount(b *Backend, peerCount uint64) {
+	consensusPeerCountBackend.WithLabelValues(b.Name).Set(float64(peerCount))
+}
+
+func RecordConsensusBackendInSync(b *Backend, inSync bool) {
+	consensusInSyncBackend.WithLabelValues(b.Name).Set(boolToFloat64(inSync))
+}
+
+func RecordConsensusBackendUpdateDelay(b *Backend, lastUpdate time.Time) {
+	// avoid recording the delay for the first update
+	if lastUpdate.IsZero() {
+		return
 	}
-	consensusBannedBackends.WithLabelValues(be.Name).Set(v)
+	delay := time.Since(lastUpdate)
+	consensusUpdateDelayBackend.WithLabelValues(b.Name).Set(float64(delay.Milliseconds()))
 }
 
-func RecordConsensusBackendPeerCount(be *Backend, peerCount uint64) {
-	consensusPeerCountBackend.WithLabelValues(be.Name).Set(float64(peerCount))
+func RecordBackendNetworkLatencyAverageSlidingWindow(b *Backend, avgLatency time.Duration) {
+	avgLatencyBackend.WithLabelValues(b.Name).Set(float64(avgLatency.Milliseconds()))
+	degradedBackends.WithLabelValues(b.Name).Set(boolToFloat64(b.IsDegraded()))
 }
 
-func RecordConsensusBackendInSync(be *Backend, inSync bool) {
-	v := float64(0)
-	if inSync {
-		v = float64(1)
+func RecordBackendNetworkErrorRateSlidingWindow(b *Backend, rate float64) {
+	networkErrorRateBackend.WithLabelValues(b.Name).Set(rate)
+}
+
+func boolToFloat64(b bool) float64 {
+	if b {
+		return 1
 	}
-	consensusInSyncBackend.WithLabelValues(be.Name).Set(v)
-}
-
-func RecordConsensusBackendUpdateDelay(be *Backend, delay time.Duration) {
-	consensusUpdateDelayBackend.WithLabelValues(be.Name).Set(float64(delay.Milliseconds()))
+	return 0
 }

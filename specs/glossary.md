@@ -160,7 +160,7 @@ Different transaction types can contain different payloads, and be handled diffe
 
 [fork-choice-rule]: glossary.md#fork-choice-rule
 
-The fork choice rule is the rule used to determined which block is to be considered as the head of a blockchain. On L1,
+The fork choice rule is the rule used to determine which block is to be considered as the head of a blockchain. On L1,
 this is determined by the proof of stake rules.
 
 L2 also has a fork choice rule, although the rules vary depending on whether we want the [safe L2 head][safe-l2-head],
@@ -591,8 +591,8 @@ In the current implementation, this is the L1 block number at which the output o
 
 [safe-l2-block]: glossary.md#safe-l2-block
 
-A safe L2 block is an L2 block can be derived entirely from L1 by a [rollup node][rollup-node]. This can vary between
-different nodes, based on their view of the L1 chain.
+A safe L2 block is an L2 block that can be derived entirely from L1 by a [rollup node][rollup-node]. This can vary
+between different nodes, based on their view of the L1 chain.
 
 ## Safe L2 Head
 

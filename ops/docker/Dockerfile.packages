@@ -60,58 +60,19 @@ WORKDIR /opt/optimism
 
 # Copy manifest files into the image in
 # preparation for `yarn install`.
-COPY integration-tests/package.json ./integration-tests/package.json
 COPY --from=manifests /tmp/manifests  ./
 COPY *.json ./
 
 RUN yarn install --frozen-lockfile && yarn cache clean
 
 COPY ./packages ./packages
-COPY ./integration-tests ./integration-tests
 
 RUN yarn build
-
-FROM base as actor-tests-bedrock
-WORKDIR /opt/optimism/packages/actor-tests
-ENTRYPOINT ["yarn", "run:bedrock"]
-
-FROM base as deployer
-WORKDIR /opt/optimism/packages/contracts
-COPY ./ops/scripts/deployer.sh .
-CMD ["yarn", "run", "deploy"]
-
-FROM alpine:3.16.2 as contract-artifacts-bedrock
-RUN mkdir -p /artifacts
-WORKDIR /artifacts
-COPY --from=base /opt/optimism/packages/contracts-bedrock/artifacts  /artifacts/contracts-bedrock
-CMD ["echo", "0"]
-
-FROM base as deployer-bedrock
-WORKDIR /opt/optimism/packages/contracts-bedrock
-CMD ["yarn", "run", "deploy"]
-
-FROM base as data-transport-layer
-WORKDIR /opt/optimism/packages/data-transport-layer
-COPY ./ops/scripts/dtl.sh .
-CMD ["node", "dist/src/services/run.js"]
-
-FROM base as integration-tests
-WORKDIR /opt/optimism/integration-tests
-COPY ./ops/scripts/integration-tests.sh ./
-CMD ["yarn", "test:integration"]
-
-
-FROM base as message-relayer
-WORKDIR /opt/optimism/packages/message-relayer
-COPY ./ops/scripts/relayer.sh .
-CMD ["npm", "run", "start"]
-
 
 FROM base as fault-detector
 WORKDIR /opt/optimism/packages/fault-detector
 COPY ./ops/scripts/detector.sh .
 CMD ["npm", "run", "start"]
-
 
 FROM base as replica-healthcheck
 WORKDIR /opt/optimism/packages/replica-healthcheck
@@ -124,10 +85,6 @@ ENTRYPOINT ["npm", "run", "start:balance-mon"]
 FROM base as drippie-mon
 WORKDIR /opt/optimism/packages/chain-mon
 ENTRYPOINT ["npm", "run", "start:drippie-mon"]
-
-FROM base as balance-monitor
-WORKDIR /opt/optimism/packages/balance-monitor
-ENTRYPOINT ["yarn", "run", "start:prod"]
 
 FROM base as wd-mon
 WORKDIR /opt/optimism/packages/chain-mon

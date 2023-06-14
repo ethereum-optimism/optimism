@@ -6,20 +6,24 @@ import (
 	"sync"
 	"time"
 
-	abi "github.com/ethereum/go-ethereum/accounts/abi"
-	bind "github.com/ethereum/go-ethereum/accounts/abi/bind"
-	common "github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	ethclient "github.com/ethereum/go-ethereum/ethclient"
-	log "github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/log"
 
-	config "github.com/ethereum-optimism/optimism/op-challenger/config"
-	metrics "github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 
-	bindings "github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	sources "github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
-	txmgr "github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
+
+type OutputAPI interface {
+	OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error)
+}
 
 // Challenger contests invalid L2OutputOracle outputs
 type Challenger struct {
@@ -35,7 +39,7 @@ type Challenger struct {
 
 	l1Client *ethclient.Client
 
-	rollupClient *sources.RollupClient
+	rollupClient OutputAPI
 
 	// l2 Output Oracle contract
 	l2ooContract     *bindings.L2OutputOracleCaller
@@ -43,11 +47,38 @@ type Challenger struct {
 	l2ooABI          *abi.ABI
 
 	// dispute game factory contract
-	// dgfContract     *bindings.DisputeGameFactoryCaller
+	dgfContract     *bindings.DisputeGameFactoryCaller
 	dgfContractAddr common.Address
-	// dgfABI          *abi.ABI
+	dgfABI          *abi.ABI
 
 	networkTimeout time.Duration
+}
+
+// From returns the address of the account used to send transactions.
+func (c *Challenger) From() common.Address {
+	return c.txMgr.From()
+}
+
+// Client returns the client for the settlement layer.
+func (c *Challenger) Client() *ethclient.Client {
+	return c.l1Client
+}
+
+func (c *Challenger) NewOracleSubscription() (*Subscription, error) {
+	query, err := BuildOutputLogFilter(c.l2ooABI)
+	if err != nil {
+		return nil, err
+	}
+	return NewSubscription(query, c.Client(), c.log), nil
+}
+
+// NewFactorySubscription creates a new [Subscription] listening to the DisputeGameFactory contract.
+func (c *Challenger) NewFactorySubscription() (*Subscription, error) {
+	query, err := BuildDisputeGameLogFilter(c.dgfABI)
+	if err != nil {
+		return nil, err
+	}
+	return NewSubscription(query, c.Client(), c.log), nil
 }
 
 // NewChallenger creates a new Challenger
@@ -79,6 +110,12 @@ func NewChallenger(cfg config.Config, l log.Logger, m metrics.Metricer) (*Challe
 		return nil, err
 	}
 
+	dgfContract, err := bindings.NewDisputeGameFactoryCaller(cfg.DGFAddress, l1Client)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
 	cCtx, cCancel := context.WithTimeout(ctx, cfg.NetworkTimeout)
 	defer cCancel()
 	version, err := l2ooContract.Version(&bind.CallOpts{Context: cCtx})
@@ -88,7 +125,13 @@ func NewChallenger(cfg config.Config, l log.Logger, m metrics.Metricer) (*Challe
 	}
 	l.Info("Connected to L2OutputOracle", "address", cfg.L2OOAddress, "version", version)
 
-	parsed, err := bindings.L2OutputOracleMetaData.GetAbi()
+	parsedL2oo, err := bindings.L2OutputOracleMetaData.GetAbi()
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
+	parsedDgf, err := bindings.DisputeGameFactoryMetaData.GetAbi()
 	if err != nil {
 		cancel()
 		return nil, err
@@ -110,9 +153,11 @@ func NewChallenger(cfg config.Config, l log.Logger, m metrics.Metricer) (*Challe
 
 		l2ooContract:     l2ooContract,
 		l2ooContractAddr: cfg.L2OOAddress,
-		l2ooABI:          parsed,
+		l2ooABI:          parsedL2oo,
 
+		dgfContract:     dgfContract,
 		dgfContractAddr: cfg.DGFAddress,
+		dgfABI:          parsedDgf,
 
 		networkTimeout: cfg.NetworkTimeout,
 	}, nil
