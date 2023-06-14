@@ -32,7 +32,6 @@ contracts=(
   contracts/universal/OptimismMintableERC20.sol:OptimismMintableERC20
   contracts/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory
   contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory
-  contracts/dispute/BondManager.sol:BondManager
 )
 
 dir=$(dirname "$0")
