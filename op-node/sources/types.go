@@ -266,15 +266,14 @@ type blockHashParameter struct {
 func unusableMethod(err error) bool {
 	if rpcErr, ok := err.(rpc.Error); ok {
 		code := rpcErr.ErrorCode()
-		// method not found, or invalid params
-		if code == -32601 || code == -32602 {
-			return true
-		}
-	} else {
-		errText := strings.ToLower(err.Error())
-		if strings.Contains(errText, "unknown method") || strings.Contains(errText, "invalid param") || strings.Contains(errText, "is not available") {
+		// invalid request, method not found, or invalid params
+		if code == -32600 || code == -32601 || code == -32602 {
 			return true
 		}
 	}
-	return false
+	errText := strings.ToLower(err.Error())
+	return strings.Contains(errText, "unsupported method") || // alchemy -32600 message
+		strings.Contains(errText, "unknown method") ||
+		strings.Contains(errText, "invalid param") ||
+		strings.Contains(errText, "is not available")
 }
