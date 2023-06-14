@@ -37,6 +37,7 @@ const config: DeployConfig = {
   l1FeeVaultWithdrawalNetwork: 0,
   sequencerFeeVaultWithdrawalNetwork: 0,
 
+  enableGovernance: true,
   governanceTokenName: 'Optimism',
   governanceTokenSymbol: 'OP',
   governanceTokenOwner: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
