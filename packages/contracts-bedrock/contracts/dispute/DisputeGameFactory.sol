@@ -4,8 +4,10 @@ pragma solidity ^0.8.15;
 import "../libraries/DisputeTypes.sol";
 import "../libraries/DisputeErrors.sol";
 
-import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ClonesWithImmutableArgs } from "@cwia/ClonesWithImmutableArgs.sol";
+import {
+    OwnableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 import { IDisputeGame } from "./interfaces/IDisputeGame.sol";
 import { IDisputeGameFactory } from "./interfaces/IDisputeGameFactory.sol";

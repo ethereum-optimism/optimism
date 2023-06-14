@@ -26,10 +26,7 @@ contract DisputeGameFactory_Initializer is Test {
 
         proxy.upgradeToAndCall({
             _implementation: address(impl),
-            _data: abi.encodeCall(
-                impl.initialize,
-                (address(this))
-            )
+            _data: abi.encodeCall(impl.initialize, (address(this)))
         });
         factory = DisputeGameFactory(address(proxy));
     }
