@@ -35,5 +35,10 @@
   "l1CrossDomainMessengerProxy": "0xff000000000000000000000000000000000000dd",
 
   "deploymentWaitConfirmations": 1,
-  "fundDevAccounts": true
+  "fundDevAccounts": true,
+
+  "enableGovernance": true,
+  "governanceTokenSymbol": "OP",
+  "governanceTokenName": "Optimism",
+  "governanceTokenOwner": "0x0000000000000000000000000000000000000333"
 }

@@ -46,6 +46,26 @@ var (
 	Predeploys = make(map[string]*common.Address)
 )
 
+// IsProxied returns true for predeploys that will sit behind a proxy contract
+func IsProxied(predeployAddr common.Address) bool {
+	switch predeployAddr {
+	case LegacyERC20ETHAddr:
+	case WETH9Addr:
+	case GovernanceTokenAddr:
+	case ProxyAdminAddr:
+	default:
+		return true
+	}
+	return false
+}
+
+// IsDeprecated returns true for predeploys we should skip in post-bedrock genesis generation
+func IsDeprecated(predeployAddr common.Address) bool {
+	// TODO: confirm if we can safely add the remaining deprecated predeploys here
+	// (see https://github.com/ethereum-optimism/optimism/blob/develop/specs/predeploys.md#overview)
+	return predeployAddr == LegacyERC20ETHAddr
+}
+
 func init() {
 	Predeploys["L2ToL1MessagePasser"] = &L2ToL1MessagePasserAddr
 	Predeploys["DeployerWhitelist"] = &DeployerWhitelistAddr

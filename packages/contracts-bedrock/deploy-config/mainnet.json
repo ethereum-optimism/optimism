@@ -28,6 +28,7 @@
   "baseFeeVaultWithdrawalNetwork": 0,
   "l1FeeVaultWithdrawalNetwork": 0,
   "sequencerFeeVaultWithdrawalNetwork": 0,
+  "enableGovernance": true,
   "governanceTokenName": "Optimism",
   "governanceTokenSymbol": "OP",
   "governanceTokenOwner": "0x5C4e7Ba1E219E47948e6e3F55019A647bA501005",
