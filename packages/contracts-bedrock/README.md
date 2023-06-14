@@ -251,3 +251,58 @@ Test contracts should be named one of the following according to their use:
 
 See the file `scripts/FeeVaultWithdrawal.s.sol` to withdraw from the L2 fee vaults. It includes
 instructions on how to run it. `foundry` is required.
+
+## Verify Contracts
+
+The `@foundry-rs/hardhat-forge` package constructs the contracts, but the most recent version of `@nomiclabs/hardhat-etherscan` is not compatible with it. In order to address this problem, we can make modifications to `@nomiclabs/hardhat-etherscan` so that it becomes compatible with `@foundry-rs/hardhat-forge`.
+
+> It's important to note that upgrading the hardhat version will result in breaking changes to the `hardhat.config.ts` file. Therefore, any modifications made to accommodate the changes should not be committed to the git repository.
+
+We should upgrade our package versions first.
+
+```js
+"@nomiclabs/hardhat-etherscan": "3.1.7",
+"hardhat": "2.12.5",
+"hardhat-deploy": "^0.11.12"
+```
+
+> After running `yarn install` in the root directory, `yarn build` will break. The current `hardhat` is not compatible with the settings of `hardhat.config.ts`.
+
+Then the etherscan settings must be added to `hardhat.config.ts`.
+
+```js
+etherscan: {
+    apiKey: {
+      sepolia: process.env.ETHERSCAN_KEY,
+    },
+}
+```
+
+We must modify the `runs` for the optimizer version of `0.8.15` to `999999`. The `@foundry-rs/hardhat-forge` ignores the setting in ``hardhat.config.ts` and uses `999999` for the optimizer. 
+
+The import of `@foundry-rs/hardhat-forge` should be commented out in `hardhat.config.ts`, because the `@nomiclabs/hardhat-etherscan` looks at the `artifacts` folder instead of the `forge-artifacts` folder for the contract information.
+
+Once the above changes are made, we can fix the `@nomiclabs/hardhat-etherscan` :
+
+1. The noCompile must be set to true.
+
+   Now we must set the `noCompile` to `true` so that hardhat doesn't recompile our smart contracts. Go to `packages/contracts-bedrock/node_modules/@nomiclabs/hardhat-etherscan/dist/src/index.js#L51` and add 
+
+   ```js
+   noCompile=true
+   ```
+
+2. The bytecodeHash must be overridden.
+
+   Go to `packages/contracts-bedrock/node_modules/@nomiclabs/hardhat-etherscan/dist/src/index.js#L238` and add
+
+   ```
+   compilerInput.settings.metadata={"bytecodeHash: "none"}
+   ```
+
+Now you should be able to verify your smart contracts via
+
+```bash
+$ npx hardhat verify --network NETWORK CONTRACT_ADDRESS ARGUMENTS
+```
+
