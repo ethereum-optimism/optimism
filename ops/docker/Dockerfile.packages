@@ -89,3 +89,7 @@ ENTRYPOINT ["npm", "run", "start:drippie-mon"]
 FROM base as wd-mon
 WORKDIR /opt/optimism/packages/chain-mon
 ENTRYPOINT ["yarn", "run", "start:wd-mon"]
+
+FROM base as wallet-mon
+WORKDIR /opt/optimism/packages/chain-mon
+ENTRYPOINT ["yarn", "run", "start:wallet-mon"]

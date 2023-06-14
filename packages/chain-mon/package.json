@@ -10,6 +10,7 @@
   ],
   "scripts": {
     "start:balance-mon": "ts-node ./src/balance-mon/service.ts",
+    "start:wallet-mon": "ts-node ./src/wallet-mon/service.ts",
     "start:drippie-mon": "ts-node ./src/drippie-mon/service.ts",
     "start:wd-mon": "ts-node ./src/wd-mon/service.ts",
     "test:coverage": "echo 'No tests defined.'",
@@ -35,6 +36,7 @@
   "dependencies": {
     "@eth-optimism/common-ts": "0.8.1",
     "@eth-optimism/contracts-periphery": "1.0.8",
+    "@eth-optimism/contracts-bedrock": "0.14.0",
     "@eth-optimism/core-utils": "0.12.0",
     "@eth-optimism/sdk": "2.1.0",
     "ethers": "^5.7.0",
