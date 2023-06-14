@@ -5,7 +5,6 @@ import "../../libraries/DisputeTypes.sol";
 
 /**
  * @title LibPosition
- * @author clabby <https://github.com/clabby>
  * @notice This library contains helper functions for working with the `Position` type.
  */
 library LibPosition {

@@ -5,7 +5,6 @@ import "../../libraries/DisputeTypes.sol";
 
 /**
  * @title Hashing
- * @author clabby <https://github.com/clabby>
  * @notice This library contains all of the hashing utilities used in the Cannon contracts.
  */
 library LibHashing {

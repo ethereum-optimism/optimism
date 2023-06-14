@@ -17,8 +17,6 @@ import "../libraries/DisputeErrors.sol";
 
 /**
  * @title FaultDisputeGame
- * @author clabby <https://github.com/clabby>
- * @author protolambda <https://github.com/protolambda>
  * @notice An implementation of the `IFaultDisputeGame` interface.
  */
 contract FaultDisputeGame is IFaultDisputeGame, Clone {
