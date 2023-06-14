@@ -40,6 +40,11 @@ error CannotDefendRootClaim();
 error ClaimAlreadyExists();
 
 /**
+ * @notice Thrown when a given claim is invalid (0).
+ */
+error InvalidClaim();
+
+/**
  * @notice Thrown when an action that requires the game to be `IN_PROGRESS` is invoked when
  *         the game is not in progress.
  */
