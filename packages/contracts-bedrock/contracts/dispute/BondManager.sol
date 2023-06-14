@@ -83,7 +83,7 @@ contract BondManager is IBondManager {
 
         IDisputeGame caller = IDisputeGame(msg.sender);
         IDisputeGame game = DISPUTE_GAME_FACTORY.games(
-            GameType.ATTESTATION,
+            GameTypes.ATTESTATION,
             caller.rootClaim(),
             caller.extraData()
         );
@@ -108,7 +108,7 @@ contract BondManager is IBondManager {
 
         IDisputeGame caller = IDisputeGame(msg.sender);
         IDisputeGame game = DISPUTE_GAME_FACTORY.games(
-            GameType.ATTESTATION,
+            GameTypes.ATTESTATION,
             caller.rootClaim(),
             caller.extraData()
         );
