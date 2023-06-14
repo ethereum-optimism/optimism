@@ -33,6 +33,9 @@ type Driver struct {
 	// The derivation pipeline determines the new l2Safe.
 	derivation DerivationPipeline
 
+	// Requests to block the event loop for synchronous execution to avoid reading an inconsistent state
+	stateReq chan chan struct{}
+
 	// Upon receiving a channel in this channel, the derivation pipeline is forced to be reset.
 	// It tells the caller that the reset occurred by closing the passed in channel.
 	forceReset chan chan struct{}
@@ -438,11 +441,20 @@ func (s *Driver) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return s.syncStatusCache.Load(), nil
 }
 
-// BlockRefWithStatus returns the syncing status along with an L2 block reference by number consistent with that same status.
+// BlockRefWithStatus blocks the driver event loop and captures the syncing status,
+// along with an L2 block reference by number consistent with that same status.
+// If the event loop is too busy and the context expires, a context error is returned.
 func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error) {
-	resp := s.syncStatusCache.Load()
-	ref, err := s.l2.L2BlockRefByNumber(ctx, num)
-	return ref, resp, err
+	wait := make(chan struct{})
+	select {
+	case s.stateReq <- wait:
+		resp := s.syncStatus()
+		ref, err := s.l2.L2BlockRefByNumber(ctx, num)
+		<-wait
+		return ref, resp, err
+	case <-ctx.Done():
+		return eth.L2BlockRef{}, nil, ctx.Err()
+	}
 }
 
 // deferJSONString helps avoid a JSON-encoding performance hit if the snapshot logger does not run
