@@ -61,7 +61,7 @@ error ParentDoesNotExist();
 error ClockTimeExceeded();
 
 /**
- * @notice Thrown when a move is attempted to be made at the max depth of the game.
+ * @notice Thrown when a move is attempted to be made at or greater than the max depth of the game.
  */
 error GameDepthExceeded();
 
