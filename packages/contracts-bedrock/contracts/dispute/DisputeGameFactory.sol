@@ -33,11 +33,25 @@ contract DisputeGameFactory is Ownable, IDisputeGameFactory {
     mapping(Hash => IDisputeGame) internal disputeGames;
 
     /**
+     * @notice An append-only array of disputeGames that have been created.
+     * @dev This accessor is used by offchain game solvers to efficiently
+     *      track dispute games
+     */
+    IDisputeGame[] public disputeGameList;
+
+    /**
      * @notice Constructs a new DisputeGameFactory contract.
      * @param _owner The owner of the contract.
      */
     constructor(address _owner) Ownable() {
         transferOwnership(_owner);
+    }
+
+    /**
+     * @inheritdoc IDisputeGameFactory
+     */
+    function gameCount() external view returns (uint256 _gameCount) {
+        _gameCount = disputeGameList.length;
     }
 
     /**
@@ -81,6 +95,7 @@ contract DisputeGameFactory is Ownable, IDisputeGameFactory {
 
         // Store the dispute game in the mapping & emit the `DisputeGameCreated` event.
         disputeGames[uuid] = proxy;
+        disputeGameList.push(proxy);
         emit DisputeGameCreated(address(proxy), gameType, rootClaim);
     }
 

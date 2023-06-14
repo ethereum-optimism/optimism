@@ -34,6 +34,7 @@
   "l1FeeVaultWithdrawalNetwork": 0,
   "sequencerFeeVaultWithdrawalNetwork": 0,
 
+  "enableGovernance": true,
   "governanceTokenName": "Optimism",
   "governanceTokenSymbol": "OP",
   "governanceTokenOwner": "0x858F0751ef8B4067f0d2668C076BDB50a8549fbF",

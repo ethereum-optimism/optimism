@@ -82,7 +82,6 @@ jobs:
             - "packages/chain-mon/node_modules"
             - "packages/common-ts/node_modules"
             - "packages/contracts-bedrock/node_modules"
-            - "packages/contracts-governance/node_modules"
             - "packages/contracts-periphery/node_modules"
             - "packages/core-utils/node_modules"
             - "packages/drippie-mon/node_modules"
@@ -584,7 +583,6 @@ jobs:
             VITE_E2E_RPC_URL_L1: http://localhost:8545
             VITE_E2E_RPC_URL_L2: http://localhost:9545
 
-
   bedrock-markdown:
     machine:
       image: ubuntu-2204:2022.07.1
@@ -1068,13 +1066,6 @@ workflows:
           name: common-ts-tests
           coverage_flag: common-ts-tests
           package_name: common-ts
-          requires:
-            - yarn-monorepo
-      - js-lint-test:
-          name: contracts-tests
-          coverage_flag: contracts-tests
-          package_name: contracts
-          dependencies: hardhat-deploy-config
           requires:
             - yarn-monorepo
       - js-lint-test:
