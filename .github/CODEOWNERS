@@ -1,22 +1,12 @@
 # Legacy codebases
-/batch-submitter                @ethereum-optimism/legacy-reviewers
-/bss-core                       @ethereum-optimism/legacy-reviewers
-/gas-oracle                     @ethereum-optimism/legacy-reviewers
-/integration-tests              @ethereum-optimism/legacy-reviewers
-/l2geth                         @ethereum-optimism/legacy-reviewers
-/l2geth-exporter                @ethereum-optimism/legacy-reviewers
-/packages/actor-tests           @ethereum-optimism/legacy-reviewers
 /packages/common-ts             @ethereum-optimism/typescript-reviewers
 /packages/contracts             @ethereum-optimism/contract-reviewers
 /packages/contracts-bedrock     @ethereum-optimism/contract-reviewers
 /packages/contracts-periphery   @ethereum-optimism/contract-reviewers
 /packages/core-utils            @ethereum-optimism/legacy-reviewers
-/packages/data-transport-layer  @ethereum-optimism/legacy-reviewers
 /packages/chain-mon             @smartcontracts
 /packages/fault-detector        @ethereum-optimism/devxpod
 /packages/hardhat-deploy-config @ethereum-optimism/legacy-reviewers
-/packages/message-relayer       @ethereum-optimism/legacy-reviewers
-/packages/migration-data        @ethereum-optimism/legacy-reviewers
 /packages/replica-healthcheck   @ethereum-optimism/legacy-reviewers
 /packages/sdk                   @ethereum-optimism/devxpod
 /packages/atst                  @ethereum-optimism/devxpod
@@ -29,6 +19,7 @@
 /op-node        @ethereum-optimism/go-reviewers
 /op-node/rollup @protolambda @trianglesphere
 /op-proposer    @ethereum-optimism/go-reviewers
+/op-bootnode    @ethereum-optimism/go-reviewers
 /op-program     @ethereum-optimism/go-reviewers
 /op-service     @ethereum-optimism/go-reviewers
 /ops-bedrock    @ethereum-optimism/go-reviewers

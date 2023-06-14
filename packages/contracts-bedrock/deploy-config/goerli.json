@@ -33,9 +33,17 @@
   "l1FeeVaultRecipient": "0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f",
   "sequencerFeeVaultRecipient": "0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f",
 
+  "baseFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "l1FeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "sequencerFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
+  "baseFeeVaultWithdrawalNetwork": 0,
+  "l1FeeVaultWithdrawalNetwork": 0,
+  "sequencerFeeVaultWithdrawalNetwork": 0,
+
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
 
+  "enableGovernance": true,
   "governanceTokenSymbol": "OP",
   "governanceTokenName": "Optimism",
   "governanceTokenOwner": "0x038a8825A3C3B0c08d52Cc76E5E361953Cf6Dc76",

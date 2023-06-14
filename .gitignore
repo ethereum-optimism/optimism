@@ -17,21 +17,10 @@ dist
 artifacts
 cache
 
-l2geth/build/bin
-packages/contracts/deployments/custom
-packages/contracts/coverage*
-packages/contracts/@ens*
-packages/contracts/@openzeppelin*
-packages/contracts/hardhat*
 packages/contracts-periphery/coverage*
 packages/contracts-periphery/@openzeppelin*
 packages/contracts-periphery/hardhat*
 packages/contracts-periphery/forge-artifacts*
-
-packages/data-transport-layer/db
-
-packages/integration-tests-bedrock/cache
-packages/integration-tests-bedrock/artifacts
 
 packages/contracts-bedrock/deployments/devnetL1
 packages/contracts-bedrock/deployments/anvil

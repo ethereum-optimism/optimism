@@ -1,0 +1,33 @@
+{
+  "version": "1.0",
+  "chainId": "1",
+  "meta": {
+    "name": "EscapeHatch",
+    "description": "SystemDictatorProxy.exit1 and finalize.",
+    "txBuilderVersion": "1.14.1"
+  },
+  "transactions": [
+    {
+    "to": "0xB4453CEb33d2e67FA244A24acf2E50CEF31F53cB",
+    "value": "0",
+    "data": null,
+    "contractMethod": {
+      "inputs": [],
+      "name": "exit1",
+      "payable": false
+    },
+    "contractInputsValues": null
+  },
+    {
+    "to": "0xB4453CEb33d2e67FA244A24acf2E50CEF31F53cB",
+    "value": "0",
+    "data": null,
+    "contractMethod": {
+      "inputs": [],
+      "name": "finalize",
+      "payable": false
+    },
+    "contractInputsValues": null
+  }
+  ]
+}

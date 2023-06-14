@@ -1,5 +1,10 @@
 <template>
   <aside class="sidebar">
+    <template v-if="sidebarDisplay !== 'none'">
+      <BloggerInfo :class="{ mobile: sidebarDisplay === 'mobile' }" />
+      <hr />
+    </template>
+
     <slot name="top" />
 
     <SidebarNavLinks />
@@ -9,6 +14,8 @@
     <SidebarLinks :depth="0" :items="items" />
 
     <slot name="bottom" />
+
+    <BlogInfo v-if="$frontmatter.blog && $themeConfig.blog !== false" />
   </aside>
 </template>
 

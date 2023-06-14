@@ -1,3 +1,5 @@
 docker-compose.dev.yml
 .env
+indexer
+indexer-refresh
 

@@ -12,14 +12,13 @@ func ConfigurePeerScoring(gossipConf GossipSetupConfigurables, scorer Scorer, lo
 	peerScoreParams := gossipConf.PeerScoringParams()
 	peerScoreThresholds := NewPeerScoreThresholds()
 	opts := []pubsub.Option{}
-	// Check the app specific score since libp2p doesn't export it's [validate] function :/
-	if peerScoreParams != nil && peerScoreParams.AppSpecificScore != nil {
+	if peerScoreParams != nil {
 		opts = []pubsub.Option{
 			pubsub.WithPeerScore(peerScoreParams, &peerScoreThresholds),
 			pubsub.WithPeerScoreInspect(scorer.SnapshotHook(), peerScoreInspectFrequency),
 		}
 	} else {
-		log.Warn("Proceeding with no peer scoring...\nMissing AppSpecificScore in peer scoring params")
+		log.Info("Peer scoring disabled")
 	}
 	return opts
 }
