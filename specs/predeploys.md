@@ -62,7 +62,7 @@ or `Bedrock`. Deprecated contracts should not be used.
 | L2ToL1MessagePasser           | 0x4200000000000000000000000000000000000016 | Bedrock    | No         | Yes     |
 | L2ERC721Bridge                | 0x4200000000000000000000000000000000000014 | Legacy     | No         | Yes     |
 | OptimismMintableERC721Factory | 0x4200000000000000000000000000000000000017 | Bedrock    | No         | Yes     |
-| ProxyAdmin                    | 0x4200000000000000000000000000000000000018 | Bedrock    | No         | No      |
+| ProxyAdmin                    | 0x4200000000000000000000000000000000000018 | Bedrock    | No         | Yes     |
 | BaseFeeVault                  | 0x4200000000000000000000000000000000000019 | Bedrock    | No         | Yes     |
 | L1FeeVault                    | 0x420000000000000000000000000000000000001a | Bedrock    | No         | Yes     |
 

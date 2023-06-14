@@ -7,10 +7,10 @@ import "../libraries/DisputeErrors.sol";
 import { Test } from "forge-std/Test.sol";
 import { DisputeGameFactory } from "../dispute/DisputeGameFactory.sol";
 import { IDisputeGame } from "../dispute/interfaces/IDisputeGame.sol";
+import { Proxy } from "../universal/Proxy.sol";
 
-contract DisputeGameFactory_Test is Test {
+contract DisputeGameFactory_Initializer is Test {
     DisputeGameFactory factory;
-    FakeClone fakeClone;
 
     event DisputeGameCreated(
         address indexed disputeProxy,
@@ -20,8 +20,23 @@ contract DisputeGameFactory_Test is Test {
 
     event ImplementationSet(address indexed impl, GameType indexed gameType);
 
-    function setUp() public {
-        factory = new DisputeGameFactory(address(this));
+    function setUp() public virtual {
+        Proxy proxy = new Proxy(address(this));
+        DisputeGameFactory impl = new DisputeGameFactory();
+
+        proxy.upgradeToAndCall({
+            _implementation: address(impl),
+            _data: abi.encodeCall(impl.initialize, (address(this)))
+        });
+        factory = DisputeGameFactory(address(proxy));
+    }
+}
+
+contract DisputeGameFactory_Test is DisputeGameFactory_Initializer {
+    FakeClone fakeClone;
+
+    function setUp() public override {
+        super.setUp();
         fakeClone = new FakeClone();
     }
 

@@ -61,7 +61,7 @@ var Subcommands = cli.Commands{
 			}
 
 			l1StartBlock := l1Genesis.ToBlock()
-			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock)
+			l2Genesis, err := genesis.BuildL2Genesis(config, l1StartBlock)
 			if err != nil {
 				return err
 			}
@@ -144,7 +144,7 @@ var Subcommands = cli.Commands{
 			}
 
 			// Build the developer L2 genesis block
-			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock)
+			l2Genesis, err := genesis.BuildL2Genesis(config, l1StartBlock)
 			if err != nil {
 				return fmt.Errorf("error creating l2 developer genesis: %w", err)
 			}
