@@ -5,7 +5,6 @@ import "github.com/ethereum/go-ethereum/common"
 const (
 	L2ToL1MessagePasser           = "0x4200000000000000000000000000000000000016"
 	DeployerWhitelist             = "0x4200000000000000000000000000000000000002"
-	LegacyERC20ETH                = "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000"
 	WETH9                         = "0x4200000000000000000000000000000000000006"
 	L2CrossDomainMessenger        = "0x4200000000000000000000000000000000000007"
 	L2StandardBridge              = "0x4200000000000000000000000000000000000010"
@@ -26,7 +25,6 @@ const (
 var (
 	L2ToL1MessagePasserAddr           = common.HexToAddress(L2ToL1MessagePasser)
 	DeployerWhitelistAddr             = common.HexToAddress(DeployerWhitelist)
-	LegacyERC20ETHAddr                = common.HexToAddress(LegacyERC20ETH)
 	WETH9Addr                         = common.HexToAddress(WETH9)
 	L2CrossDomainMessengerAddr        = common.HexToAddress(L2CrossDomainMessenger)
 	L2StandardBridgeAddr              = common.HexToAddress(L2StandardBridge)
@@ -49,27 +47,17 @@ var (
 // IsProxied returns true for predeploys that will sit behind a proxy contract
 func IsProxied(predeployAddr common.Address) bool {
 	switch predeployAddr {
-	case LegacyERC20ETHAddr:
 	case WETH9Addr:
 	case GovernanceTokenAddr:
-	case ProxyAdminAddr:
 	default:
 		return true
 	}
 	return false
 }
 
-// IsDeprecated returns true for predeploys we should skip in post-bedrock genesis generation
-func IsDeprecated(predeployAddr common.Address) bool {
-	// TODO: confirm if we can safely add the remaining deprecated predeploys here
-	// (see https://github.com/ethereum-optimism/optimism/blob/develop/specs/predeploys.md#overview)
-	return predeployAddr == LegacyERC20ETHAddr
-}
-
 func init() {
 	Predeploys["L2ToL1MessagePasser"] = &L2ToL1MessagePasserAddr
 	Predeploys["DeployerWhitelist"] = &DeployerWhitelistAddr
-	Predeploys["LegacyERC20ETH"] = &LegacyERC20ETHAddr
 	Predeploys["WETH9"] = &WETH9Addr
 	Predeploys["L2CrossDomainMessenger"] = &L2CrossDomainMessengerAddr
 	Predeploys["L2StandardBridge"] = &L2StandardBridgeAddr

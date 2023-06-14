@@ -465,46 +465,6 @@ const check = {
     await checkProxy(hre, 'L1Block', signer.provider)
     await assertProxy(hre, 'L1Block', signer.provider)
   },
-  // LegacyERC20ETH
-  // - not behind a proxy
-  // - check name
-  // - check symbol
-  // - check decimals
-  // - check BRIDGE
-  // - check REMOTE_TOKEN
-  // - totalSupply should be set to 0
-  LegacyERC20ETH: async (hre: HardhatRuntimeEnvironment, signer: Signer) => {
-    const LegacyERC20ETH = await hre.ethers.getContractAt(
-      'LegacyERC20ETH',
-      predeploys.LegacyERC20ETH,
-      signer
-    )
-
-    const name = await LegacyERC20ETH.name()
-    assert(name === 'Ether')
-    console.log(`  - name: ${name}`)
-
-    const symbol = await LegacyERC20ETH.symbol()
-    assert(symbol === 'ETH')
-    console.log(`  - symbol: ${symbol}`)
-
-    const decimals = await LegacyERC20ETH.decimals()
-    assert(decimals === 18)
-    console.log(`  - decimals: ${decimals}`)
-
-    const BRIDGE = await LegacyERC20ETH.BRIDGE()
-    assert(BRIDGE === predeploys.L2StandardBridge)
-
-    const REMOTE_TOKEN = await LegacyERC20ETH.REMOTE_TOKEN()
-    assert(REMOTE_TOKEN === hre.ethers.constants.AddressZero)
-
-    const totalSupply = await LegacyERC20ETH.totalSupply()
-    assert(totalSupply.eq(0))
-    console.log(`  - totalSupply: ${totalSupply}`)
-
-    await checkProxy(hre, 'LegacyERC20ETH', signer.provider)
-    // No proxy at this address, don't call assertProxy
-  },
   // WETH9
   // - check name
   // - check symbol
