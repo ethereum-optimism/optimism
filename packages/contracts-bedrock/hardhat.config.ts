@@ -105,6 +105,12 @@ const config: HardhatUserConfig = {
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
       live: true,
     },
+    'boba-devnet': {
+      chainId: 11155111,
+      url: process.env.L1_RPC || '',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+      live: true,
+    },
   },
   foundry: {
     buildInfo: true,
@@ -142,6 +148,10 @@ const config: HardhatUserConfig = {
       'goerli-forked': [
         '../contracts/deployments/goerli',
         '../contracts-periphery/deployments/goerli',
+      ],
+      'boba-devnet': [
+        '../contracts/deployments/boba-devnet',
+        '../contracts-periphery/deployments/boba-devnet',
       ],
     },
   },
