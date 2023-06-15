@@ -32,18 +32,18 @@ interface IFaultDisputeGame is IDisputeGame {
     event Move(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
 
     /**
-     * Attack a disagreed upon `Claim`.
-     * @param parentIndex Index of the `Claim` to attack in `claimData`.
-     * @param pivot The `Claim` at the relative attack position.
+     * @notice Attack a disagreed upon `Claim`.
+     * @param _parentIndex Index of the `Claim` to attack in `claimData`.
+     * @param _pivot The `Claim` at the relative attack position.
      */
-    function attack(uint256 parentIndex, Claim pivot) external payable;
+    function attack(uint256 _parentIndex, Claim _pivot) external payable;
 
     /**
-     * Defend an agreed upon `Claim`.
-     * @param parentIndex Index of the claim to defend in `claimData`.
-     * @param pivot The `Claim` at the relative defense position.
+     * @notice Defend an agreed upon `Claim`.
+     * @param _parentIndex Index of the claim to defend in `claimData`.
+     * @param _pivot The `Claim` at the relative defense position.
      */
-    function defend(uint256 parentIndex, Claim pivot) external payable;
+    function defend(uint256 _parentIndex, Claim _pivot) external payable;
 
     /**
      * @notice Perform the final step via an on-chain fault proof processor
@@ -51,15 +51,15 @@ interface IFaultDisputeGame is IDisputeGame {
      *      a step in the fault proof program on-chain. The interface of the fault proof
      *      processor contract should be generic enough such that we can use different
      *      fault proof VMs (MIPS, RiscV5, etc.)
-     * @param prestateIndex The index of the prestate of the step within `claimData`.
-     * @param parentIndex The index of the parent claim within `claimData`.
-     * @param stateData The stateData of the step is the preimage of the claim @ `prestateIndex`
-     * @param proof Proof to access memory leaf nodes in the VM.
+     * @param _prestateIndex The index of the prestate of the step within `claimData`.
+     * @param _parentIndex The index of the parent claim within `claimData`.
+     * @param _stateData The stateData of the step is the preimage of the claim @ `prestateIndex`
+     * @param _proof Proof to access memory leaf nodes in the VM.
      */
     function step(
-        uint256 prestateIndex,
-        uint256 parentIndex,
-        bytes calldata stateData,
-        bytes calldata proof
+        uint256 _prestateIndex,
+        uint256 _parentIndex,
+        bytes calldata _stateData,
+        bytes calldata _proof
     ) external;
 }

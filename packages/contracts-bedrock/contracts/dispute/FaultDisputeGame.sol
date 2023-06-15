@@ -77,25 +77,25 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
     /**
      * @inheritdoc IFaultDisputeGame
      */
-    function attack(uint256 parentIndex, Claim pivot) external payable {
-        _move(parentIndex, pivot, true);
+    function attack(uint256 _parentIndex, Claim _pivot) external payable {
+        _move(_parentIndex, _pivot, true);
     }
 
     /**
      * @inheritdoc IFaultDisputeGame
      */
-    function defend(uint256 parentIndex, Claim pivot) external payable {
-        _move(parentIndex, pivot, false);
+    function defend(uint256 _parentIndex, Claim _pivot) external payable {
+        _move(_parentIndex, _pivot, false);
     }
 
     /**
      * @inheritdoc IFaultDisputeGame
      */
     function step(
-        uint256 prestateIndex,
-        uint256 parentIndex,
-        bytes calldata stateData,
-        bytes calldata
+        uint256 _prestateIndex,
+        uint256 _parentIndex,
+        bytes calldata _stateData,
+        bytes calldata _proof
     ) external {
         // TODO - Call the VM to perform the execution step.
     }
@@ -106,14 +106,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
 
     /**
      * @notice Internal move function, used by both `attack` and `defend`.
-     * @param challengeIndex The index of the claim being moved against.
-     * @param pivot The claim at the next logical position in the game.
-     * @param isAttack Whether or not the move is an attack or defense.
+     * @param _challengeIndex The index of the claim being moved against.
+     * @param _pivot The claim at the next logical position in the game.
+     * @param _isAttack Whether or not the move is an attack or defense.
      */
     function _move(
-        uint256 challengeIndex,
-        Claim pivot,
-        bool isAttack
+        uint256 _challengeIndex,
+        Claim _pivot,
+        bool _isAttack
     ) internal {
         // Moves cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) {
@@ -121,19 +121,19 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         }
 
         // The zero hash is not a valid claim.
-        if (Claim.unwrap(pivot) == bytes32(0)) {
+        if (Claim.unwrap(_pivot) == bytes32(0)) {
             revert InvalidClaim();
         }
 
         // The only move that can be made against a root claim is an attack. This is because the
         // root claim commits to the entire state; Therefore, the only valid defense is to do
         // nothing if it is agreed with.
-        if (challengeIndex == 0 && !isAttack) {
+        if (_challengeIndex == 0 && !_isAttack) {
             revert CannotDefendRootClaim();
         }
 
         // Get the parent
-        ClaimData memory parent = claimData[challengeIndex];
+        ClaimData memory parent = claimData[_challengeIndex];
 
         // The parent must exist.
         if (Claim.unwrap(parent.claim) == bytes32(0)) {
@@ -141,12 +141,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         }
 
         // Set the parent claim as countered.
-        claimData[challengeIndex].countered = true;
+        claimData[_challengeIndex].countered = true;
 
         // Compute the position that the claim commits to. Because the parent's position is already
         // known, we can compute the next position by moving left or right depending on whether
         // or not the move is an attack or defense.
-        Position nextPosition = isAttack
+        Position nextPosition = _isAttack
             ? LibPosition.attack(parent.position)
             : LibPosition.defend(parent.position);
 
@@ -188,7 +188,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         Clock nextClock = LibClock.wrap(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
 
         // Do not allow for a duplicate claim to be made.
-        ClaimHash claimHash = LibHashing.hashClaimPos(pivot, nextPosition);
+        ClaimHash claimHash = LibHashing.hashClaimPos(_pivot, nextPosition);
         if (claims[claimHash]) {
             revert ClaimAlreadyExists();
         }
@@ -197,8 +197,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         // Create the new claim.
         claimData.push(
             ClaimData({
-                parentIndex: uint32(challengeIndex),
-                claim: pivot,
+                parentIndex: uint32(_challengeIndex),
+                claim: _pivot,
                 position: nextPosition,
                 clock: nextClock,
                 countered: false
@@ -206,7 +206,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         );
 
         // Emit the appropriate event for the attack or defense.
-        emit Move(challengeIndex, pivot, msg.sender);
+        emit Move(_challengeIndex, _pivot, msg.sender);
     }
 
     ////////////////////////////////////////////////////////////////
@@ -216,39 +216,41 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
     /**
      * @inheritdoc IDisputeGame
      */
-    function gameType() public pure override returns (GameType _gameType) {
-        _gameType = GameTypes.FAULT;
+    function gameType() public pure override returns (GameType gameType_) {
+        gameType_ = GameTypes.FAULT;
     }
 
     /**
      * @inheritdoc IDisputeGame
      */
-    function createdAt() external view returns (Timestamp _createdAt) {
-        _createdAt = gameStart;
+    function createdAt() external view returns (Timestamp createdAt_) {
+        createdAt_ = gameStart;
     }
 
     /**
      * @inheritdoc IDisputeGame
      */
-    function resolve() external returns (GameStatus _status) {
+    function resolve() external returns (GameStatus status_) {
         // TODO - Resolve the game
+        status = GameStatus.IN_PROGRESS;
+        status_ = status;
     }
 
     /**
      * @inheritdoc IDisputeGame
      */
-    function rootClaim() public pure returns (Claim _rootClaim) {
-        _rootClaim = Claim.wrap(_getArgFixedBytes(0x00));
+    function rootClaim() public pure returns (Claim rootClaim_) {
+        rootClaim_ = Claim.wrap(_getArgFixedBytes(0x00));
     }
 
     /**
      * @inheritdoc IDisputeGame
      */
-    function extraData() public pure returns (bytes memory _extraData) {
+    function extraData() public pure returns (bytes memory extraData_) {
         // The extra data starts at the second word within the cwia calldata.
         // TODO: What data do we need to pass along to this contract from the factory?
         //       Block hash, preimage data, etc.?
-        _extraData = _getArgDynBytes(0x20, 0x20);
+        extraData_ = _getArgDynBytes(0x20, 0x20);
     }
 
     /**
@@ -258,14 +260,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         external
         pure
         returns (
-            GameType _gameType,
-            Claim _rootClaim,
-            bytes memory _extraData
+            GameType gameType_,
+            Claim rootClaim_,
+            bytes memory extraData_
         )
     {
-        _gameType = gameType();
-        _rootClaim = rootClaim();
-        _extraData = extraData();
+        gameType_ = gameType();
+        rootClaim_ = rootClaim();
+        extraData_ = extraData();
     }
 
     /**
@@ -292,7 +294,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
     /**
      * @inheritdoc IVersioned
      */
-    function version() external pure override returns (string memory _version) {
-        _version = VERSION;
+    function version() external pure override returns (string memory version_) {
+        version_ = VERSION;
     }
 }

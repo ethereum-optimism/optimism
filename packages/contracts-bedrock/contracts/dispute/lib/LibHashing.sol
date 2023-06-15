@@ -10,15 +10,15 @@ import "../../libraries/DisputeTypes.sol";
 library LibHashing {
    /**
     * @notice Hashes a claim and a position together.
-    * @param claim A Claim type.
-    * @param position The position of `claim`.
-    * @return claimHash A hash of abi.encodePacked(claim, position);
+    * @param _claim A Claim type.
+    * @param _position The position of `claim`.
+    * @return claimHash_ A hash of abi.encodePacked(claim, position);
     */
-    function hashClaimPos(Claim claim, Position position) internal pure returns (ClaimHash claimHash) {
+    function hashClaimPos(Claim _claim, Position _position) internal pure returns (ClaimHash claimHash_) {
         assembly {
-            mstore(0x00, claim)
-            mstore(0x20, position)
-            claimHash := keccak256(0x00, 0x40)
+            mstore(0x00, _claim)
+            mstore(0x20, _position)
+            claimHash_ := keccak256(0x00, 0x40)
         }
     }
 }
