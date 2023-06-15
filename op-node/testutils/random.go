@@ -2,16 +2,16 @@ package testutils
 
 import (
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
 	"math/rand"
 
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/trie"
-
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 func RandomBool(rng *rand.Rand) bool {
@@ -102,10 +102,14 @@ func NextRandomL2Ref(rng *rand.Rand, l2BlockTime uint64, parent eth.L2BlockRef, 
 	}
 }
 
+// InsecureRandomKey returns a random private key from a limited set of keys.
+// Output is deterministic when the supplied rng generates the same random sequence.
 func InsecureRandomKey(rng *rand.Rand) *ecdsa.PrivateKey {
-	key, err := ecdsa.GenerateKey(crypto.S256(), rng)
+	idx := rng.Intn(len(randomEcdsaKeys))
+	key, err := crypto.ToECDSA(common.Hex2Bytes(randomEcdsaKeys[idx]))
 	if err != nil {
-		panic(err)
+		// Should never happen because the list of keys is hard coded and known to be valid.
+		panic(fmt.Errorf("invalid pre-generated ecdsa key at index %v: %w", idx, err))
 	}
 	return key
 }

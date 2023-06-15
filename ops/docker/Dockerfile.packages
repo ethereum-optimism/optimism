@@ -86,10 +86,10 @@ FROM base as drippie-mon
 WORKDIR /opt/optimism/packages/chain-mon
 ENTRYPOINT ["npm", "run", "start:drippie-mon"]
 
-FROM base as balance-monitor
-WORKDIR /opt/optimism/packages/balance-monitor
-ENTRYPOINT ["yarn", "run", "start:prod"]
-
 FROM base as wd-mon
 WORKDIR /opt/optimism/packages/chain-mon
 ENTRYPOINT ["yarn", "run", "start:wd-mon"]
+
+FROM base as wallet-mon
+WORKDIR /opt/optimism/packages/chain-mon
+ENTRYPOINT ["yarn", "run", "start:wallet-mon"]

@@ -1,4 +1,3 @@
 ---
 C-Protocol-Critical:
   - 'packages/contracts-bedrock/**/*.sol'
-  - 'l2geth/**/*.go'

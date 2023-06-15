@@ -3,9 +3,12 @@ package database
 import (
 	"errors"
 
+	"gorm.io/gorm"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"gorm.io/gorm"
+
+	"github.com/google/uuid"
 )
 
 /**
@@ -26,7 +29,7 @@ type TokenPair struct {
 }
 
 type Deposit struct {
-	GUID                 string `gorm:"primaryKey"`
+	GUID                 uuid.UUID `gorm:"primaryKey"`
 	InitiatedL1EventGUID string
 
 	Tx        Transaction `gorm:"embedded"`
@@ -39,7 +42,7 @@ type DepositWithTransactionHash struct {
 }
 
 type Withdrawal struct {
-	GUID                 string `gorm:"primaryKey"`
+	GUID                 uuid.UUID `gorm:"primaryKey"`
 	InitiatedL2EventGUID string
 
 	WithdrawalHash       common.Hash `gorm:"serializer:json"`

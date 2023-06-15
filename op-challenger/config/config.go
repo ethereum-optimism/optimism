@@ -9,6 +9,7 @@ import (
 
 	flags "github.com/ethereum-optimism/optimism/op-challenger/flags"
 
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -148,12 +149,12 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 	if rollupRpc == "" {
 		return nil, ErrMissingRollupRpc
 	}
-	l2ooAddress := common.HexToAddress(ctx.GlobalString(flags.L2OOAddressFlag.Name))
-	if l2ooAddress == (common.Address{}) {
+	l2ooAddress, err := opservice.ParseAddress(ctx.GlobalString(flags.L2OOAddressFlag.Name))
+	if err != nil {
 		return nil, ErrMissingL2OOAddress
 	}
-	dgfAddress := common.HexToAddress(ctx.GlobalString(flags.DGFAddressFlag.Name))
-	if dgfAddress == (common.Address{}) {
+	dgfAddress, err := opservice.ParseAddress(ctx.GlobalString(flags.DGFAddressFlag.Name))
+	if err != nil {
 		return nil, ErrMissingDGFAddress
 	}
 

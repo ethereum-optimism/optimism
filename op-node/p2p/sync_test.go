@@ -164,9 +164,13 @@ func TestMultiPeerSync(t *testing.T) {
 
 	cfg, payloads := setupSyncTestData(100)
 
+	// Buffered channel of all blocks requested from any client.
+	requested := make(chan uint64, 100)
+
 	setupPeer := func(ctx context.Context, h host.Host) (*SyncClient, chan *eth.ExecutionPayload) {
 		// Serving payloads: just load them from the map, if they exist
 		servePayload := mockPayloadFn(func(n uint64) (*eth.ExecutionPayload, error) {
+			requested <- n
 			p, ok := payloads.getPayload(n)
 			if !ok {
 				return nil, ethereum.NotFound
@@ -241,6 +245,20 @@ func TestMultiPeerSync(t *testing.T) {
 		require.True(t, ok, "expecting known payload")
 		require.Equal(t, exp.BlockHash, p.BlockHash, "expecting the correct payload")
 	}
+	// Wait for the request for block 25 to be made
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelFunc()
+	requestMade := false
+	for requestMade != true {
+		select {
+		case blockNum := <-requested:
+			if blockNum == 25 {
+				requestMade = true
+			}
+		case <-ctx.Done():
+			t.Fatal("Did not request block 25 in a reasonable time")
+		}
+	}
 	// the request for 25 should fail. See:
 	// server: WARN  peer requested unknown block by number   num=25
 	// client: WARN  failed p2p sync request    num=25 err="peer failed to serve request with code 1"
@@ -251,7 +269,14 @@ func TestMultiPeerSync(t *testing.T) {
 	// But the re-request checks the status in the main loop, and it may thus look like it's still in-flight,
 	// and thus not run the new request.
 	// Wait till the failed request is recognized as marked as done, so the re-request actually runs.
-	for !clB.inFlight[25].Load() {
+	ctx, cancelFunc = context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancelFunc()
+	for {
+		isInFlight, err := clB.isInFlight(ctx, 25)
+		require.NoError(t, err)
+		if !isInFlight {
+			break
+		}
 		time.Sleep(time.Second)
 	}
 	// And request a range again, 25 is there now, and 21-24 should follow quickly (some may already have been fetched and wait in quarantine)

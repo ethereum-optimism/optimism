@@ -72,6 +72,9 @@ type DeployConfig struct {
 	// Seconds after genesis block that Regolith hard fork activates. 0 to activate at genesis. Nil to disable regolith
 	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
 
+	// Configurable extradata. Will default to []byte("BEDROCK") if left unspecified.
+	L2GenesisBlockExtraData []byte `json:"l2GenesisBlockExtraData"`
+
 	// Owner of the ProxyAdmin predeploy
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
 	// Owner of the system on L1
@@ -84,6 +87,18 @@ type DeployConfig struct {
 	L1FeeVaultRecipient common.Address `json:"l1FeeVaultRecipient"`
 	// L1 recipient of fees accumulated in the SequencerFeeVault
 	SequencerFeeVaultRecipient common.Address `json:"sequencerFeeVaultRecipient"`
+	// Minimum withdrawal amount for the BaseFeeVault
+	BaseFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"baseFeeVaultMinimumWithdrawalAmount"`
+	// Minimum withdrawal amount for the L1FeeVault
+	L1FeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"l1FeeVaultMinimumWithdrawalAmount"`
+	// Minimum withdrawal amount for the SequencerFeeVault
+	SequencerFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"sequencerFeeVaultMinimumWithdrawalAmount"`
+	// Withdrawal network for the BaseFeeVault
+	BaseFeeVaultWithdrawalNetwork uint8 `json:"baseFeeVaultWithdrawalNetwork"`
+	// Withdrawal network for the L1FeeVault
+	L1FeeVaultWithdrawalNetwork uint8 `json:"l1FeeVaultWithdrawalNetwork"`
+	// Withdrawal network for the SequencerFeeVault
+	SequencerFeeVaultWithdrawalNetwork uint8 `json:"sequencerFeeVaultWithdrawalNetwork"`
 	// L1StandardBridge proxy address on L1
 	L1StandardBridgeProxy common.Address `json:"l1StandardBridgeProxy"`
 	// L1CrossDomainMessenger proxy address on L1
@@ -98,6 +113,8 @@ type DeployConfig struct {
 	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
 	// The initial value of the gas scalar
 	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
+	// Whether or not include governance token predeploy
+	EnableGovernance bool `json:"enableGovernance"`
 	// The ERC20 symbol of the GovernanceToken
 	GovernanceTokenSymbol string `json:"governanceTokenSymbol"`
 	// The ERC20 name of the GovernanceToken
@@ -178,6 +195,15 @@ func (d *DeployConfig) Check() error {
 	if d.SequencerFeeVaultRecipient == (common.Address{}) {
 		return fmt.Errorf("%w: SequencerFeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
 	}
+	if d.BaseFeeVaultWithdrawalNetwork >= 2 {
+		return fmt.Errorf("%w: BaseFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
+	}
+	if d.L1FeeVaultWithdrawalNetwork >= 2 {
+		return fmt.Errorf("%w: L1FeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
+	}
+	if d.SequencerFeeVaultWithdrawalNetwork >= 2 {
+		return fmt.Errorf("%w: SequencerFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
+	}
 	if d.GasPriceOracleOverhead == 0 {
 		log.Warn("GasPriceOracleOverhead is 0")
 	}
@@ -216,14 +242,16 @@ func (d *DeployConfig) Check() error {
 	if d.L2GenesisBlockBaseFeePerGas == nil {
 		return fmt.Errorf("%w: L2 genesis block base fee per gas cannot be nil", ErrInvalidDeployConfig)
 	}
-	if d.GovernanceTokenName == "" {
-		return fmt.Errorf("%w: GovernanceToken.name cannot be empty", ErrInvalidDeployConfig)
-	}
-	if d.GovernanceTokenSymbol == "" {
-		return fmt.Errorf("%w: GovernanceToken.symbol cannot be empty", ErrInvalidDeployConfig)
-	}
-	if d.GovernanceTokenOwner == (common.Address{}) {
-		return fmt.Errorf("%w: GovernanceToken owner cannot be address(0)", ErrInvalidDeployConfig)
+	if d.EnableGovernance {
+		if d.GovernanceTokenName == "" {
+			return fmt.Errorf("%w: GovernanceToken.name cannot be empty", ErrInvalidDeployConfig)
+		}
+		if d.GovernanceTokenSymbol == "" {
+			return fmt.Errorf("%w: GovernanceToken.symbol cannot be empty", ErrInvalidDeployConfig)
+		}
+		if d.GovernanceTokenOwner == (common.Address{}) {
+			return fmt.Errorf("%w: GovernanceToken owner cannot be address(0)", ErrInvalidDeployConfig)
+		}
 	}
 	return nil
 }
@@ -410,13 +438,19 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 		"remoteChainId": new(big.Int).SetUint64(config.L1ChainID),
 	}
 	immutable["SequencerFeeVault"] = immutables.ImmutableValues{
-		"recipient": config.SequencerFeeVaultRecipient,
+		"recipient":               config.SequencerFeeVaultRecipient,
+		"minimumWithdrawalAmount": config.SequencerFeeVaultMinimumWithdrawalAmount,
+		"withdrawalNetwork":       config.SequencerFeeVaultWithdrawalNetwork,
 	}
 	immutable["L1FeeVault"] = immutables.ImmutableValues{
-		"recipient": config.L1FeeVaultRecipient,
+		"recipient":               config.L1FeeVaultRecipient,
+		"minimumWithdrawalAmount": config.L1FeeVaultMinimumWithdrawalAmount,
+		"withdrawalNetwork":       config.L1FeeVaultWithdrawalNetwork,
 	}
 	immutable["BaseFeeVault"] = immutables.ImmutableValues{
-		"recipient": config.BaseFeeVaultRecipient,
+		"recipient":               config.BaseFeeVaultRecipient,
+		"minimumWithdrawalAmount": config.BaseFeeVaultMinimumWithdrawalAmount,
+		"withdrawalNetwork":       config.BaseFeeVaultWithdrawalNetwork,
 	}
 
 	return immutable, nil
@@ -462,10 +496,12 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"symbol":   "WETH",
 		"decimals": 18,
 	}
-	storage["GovernanceToken"] = state.StorageValues{
-		"_name":   config.GovernanceTokenName,
-		"_symbol": config.GovernanceTokenSymbol,
-		"_owner":  config.GovernanceTokenOwner,
+	if config.EnableGovernance {
+		storage["GovernanceToken"] = state.StorageValues{
+			"_name":   config.GovernanceTokenName,
+			"_symbol": config.GovernanceTokenSymbol,
+			"_owner":  config.GovernanceTokenOwner,
+		}
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
