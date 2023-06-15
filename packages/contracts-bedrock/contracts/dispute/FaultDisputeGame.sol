@@ -31,10 +31,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
 
     /**
      * @notice The max depth of the game.
-     * @dev TODO: Update this to the value that we will use in prod. Do we want to have the factory
-     *            set this value? Should it be a constant?
      */
-    uint256 internal constant MAX_GAME_DEPTH = 4;
+    uint256 internal constant MAX_GAME_DEPTH = 63;
 
     /**
      * @notice The duration of the game.
@@ -61,14 +59,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
      * @inheritdoc IDisputeGame
      */
     IBondManager public bondManager;
-
-    /**
-     * @notice The left most, deepest position found during the resolution phase.
-     * @dev Defaults to the position of the root claim, but will be set during the resolution
-     *      phase to the left most, deepest position found (if any qualify.)
-     * @dev TODO: Consider removing this if games can be resolved within a single block reliably.
-     */
-    Position public leftMostPosition;
 
     /**
      * @notice An append-only array of all claims made during the dispute game.
@@ -216,11 +206,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         );
 
         // Emit the appropriate event for the attack or defense.
-        if (isAttack) {
-            emit Attack(challengeIndex, pivot, msg.sender);
-        } else {
-            emit Defend(challengeIndex, pivot, msg.sender);
-        }
+        emit Move(challengeIndex, pivot, msg.sender);
     }
 
     ////////////////////////////////////////////////////////////////
@@ -238,42 +224,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
      * @inheritdoc IDisputeGame
      */
     function createdAt() external view returns (Timestamp _createdAt) {
-        return gameStart;
+        _createdAt = gameStart;
     }
 
     /**
      * @inheritdoc IDisputeGame
      */
     function resolve() external returns (GameStatus _status) {
-        // The game may only be resolved if it is currently in progress.
-        if (status != GameStatus.IN_PROGRESS) {
-            revert GameNotInProgress();
-        }
-
-        // TODO: Block the game from being resolved if the preconditions for resolution have not
-        //       been met.
-
-        // Fetch the final index of the claim data DAG.
-        uint256 i = claimData.length - 1;
-        // Store a variable on the stack to keep track of the left most, deepest claim found during
-        // the search.
-        Position leftMost;
-
-        // TODO - Resolution
-
-        // If the depth of the left most, deepest dangling claim is odd, the root was attacked
-        // successfully and the defender wins. Otherwise, the challenger wins.
-        if (LibPosition.depth(leftMost) % 2 == 0) {
-            _status = GameStatus.DEFENDER_WINS;
-        } else {
-            _status = GameStatus.CHALLENGER_WINS;
-        }
-
-        // Emit the `Resolved` event.
-        emit Resolved(_status);
-
-        // Store the resolved status of the game.
-        status = _status;
+        // TODO - Resolve the game
     }
 
     /**
@@ -316,6 +274,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
     function initialize() external {
         // Set the game start
         gameStart = Timestamp.wrap(uint64(block.timestamp));
+        // Set the game status
+        status = GameStatus.IN_PROGRESS;
 
         // Set the root claim
         claimData.push(
@@ -332,7 +292,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
     /**
      * @inheritdoc IVersioned
      */
-    function version() external pure override returns (string memory) {
-        return VERSION;
+    function version() external pure override returns (string memory _version) {
+        _version = VERSION;
     }
 }

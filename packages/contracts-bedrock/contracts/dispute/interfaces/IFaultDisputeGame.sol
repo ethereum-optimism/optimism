@@ -24,22 +24,12 @@ interface IFaultDisputeGame is IDisputeGame {
     }
 
     /**
-     * @notice Emitted when a subclaim is disagreed upon by `claimant`
-     * @dev Disagreeing with a subclaim is akin to attacking it.
+     * @notice Emitted when a new claim is added to the DAG by `claimant`
      * @param parentIndex The index within the `claimData` array of the parent claim
-     * @param pivot The claim for the following pivot (disagreement = go left)
+     * @param pivot The claim being added
      * @param claimant The address of the claimant
      */
-    event Attack(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
-
-    /**
-     * @notice Emitted when a subclaim is agreed upon by `claimant`
-     * @dev Agreeing with a subclaim is akin to defending it.
-     * @param parentIndex The index within the `claimData` array of the parent claim
-     * @param pivot The claim for the following pivot (agreement = go right)
-     * @param claimant The address of the claimant
-     */
-    event Defend(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
+    event Move(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
 
     /**
      * Attack a disagreed upon `Claim`.

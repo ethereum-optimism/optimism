@@ -42,7 +42,8 @@ contract FaultDisputeGame_Test is Test {
 
     function setUp() public {
         // Deploy a new dispute game factory.
-        factory = new DisputeGameFactory(address(this));
+        factory = new DisputeGameFactory();
+        factory.initialize(address(this));
         // Deploy an implementation of the fault game
         gameImpl = new FaultDisputeGame();
         // Register the game implementation with the factory.
