@@ -10,16 +10,16 @@ import "../libraries/DisputeTypes.sol";
  */
 contract LibPosition_Test is Test {
     /**
-     * @dev Assumes a MAX depth of 127 for the Position type. Any greater depth can cause overflows.
-     * @dev At the lowest level of the tree, this allows for 2 ** 127 leaves. In reality, the max game depth
+     * @dev Assumes a MAX depth of 63 for the Position type. Any greater depth can cause overflows.
+     * @dev At the lowest level of the tree, this allows for 2 ** 63 leaves. In reality, the max game depth
      *      will likely be much lower.
      */
-    uint8 internal constant MAX_DEPTH = 127;
+    uint8 internal constant MAX_DEPTH = 63;
 
     /**
      * @notice Tests that the `depth` function correctly shifts out the `depth` from a packed `Position` type.
      */
-    function testFuzz_depth_correctness(uint128 _depth, uint128 _indexAtDepth) public {
+    function testFuzz_depth_correctness(uint64 _depth, uint64 _indexAtDepth) public {
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
         assertEq(LibPosition.depth(position), _depth);
     }
@@ -27,7 +27,7 @@ contract LibPosition_Test is Test {
     /**
      * @notice Tests that the `indexAtDepth` function correctly shifts out the `indexAtDepth` from a packed `Position` type.
      */
-    function testFuzz_indexAtDepth_correctness(uint128 _depth, uint128 _indexAtDepth) public {
+    function testFuzz_indexAtDepth_correctness(uint64 _depth, uint64 _indexAtDepth) public {
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
         assertEq(LibPosition.indexAtDepth(position), _indexAtDepth);
     }
@@ -35,27 +35,27 @@ contract LibPosition_Test is Test {
     /**
      * @notice Tests that the `left` function correctly computes the position of the left child.
      */
-    function testFuzz_left_correctness(uint8 _depth, uint128 _indexAtDepth) public {
-        // Depth bound: [0, 127]
+    function testFuzz_left_correctness(uint8 _depth, uint64 _indexAtDepth) public {
+        // Depth bound: [0, 63]
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         // Index at depth bound: [0, 2 ** _depth]
-        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2**_depth));
+        _indexAtDepth = uint64(bound(_indexAtDepth, 0, 2**_depth));
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
         Position left = LibPosition.left(position);
 
-        assertEq(LibPosition.depth(left), uint128(_depth) + 1);
+        assertEq(LibPosition.depth(left), uint64(_depth) + 1);
         assertEq(LibPosition.indexAtDepth(left), _indexAtDepth * 2);
     }
 
     /**
      * @notice Tests that the `right` function correctly computes the position of the right child.
      */
-    function testFuzz_right_correctness(uint8 _depth, uint128 _indexAtDepth) public {
-        // Depth bound: [0, 127]
+    function testFuzz_right_correctness(uint8 _depth, uint64 _indexAtDepth) public {
+        // Depth bound: [0, 63]
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         // Index at depth bound: [0, 2 ** _depth]
-        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2**_depth));
+        _indexAtDepth = uint64(bound(_indexAtDepth, 0, 2**_depth));
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
         Position right = LibPosition.right(position);
@@ -67,11 +67,11 @@ contract LibPosition_Test is Test {
     /**
      * @notice Tests that the `parent` function correctly computes the position of the parent.
      */
-    function testFuzz_parent_correctness(uint8 _depth, uint128 _indexAtDepth) public {
-        // Depth bound: [1, 127]
+    function testFuzz_parent_correctness(uint8 _depth, uint64 _indexAtDepth) public {
+        // Depth bound: [1, 63]
         _depth = uint8(bound(_depth, 1, MAX_DEPTH));
         // Index at depth bound: [0, 2 ** _depth]
-        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2**_depth));
+        _indexAtDepth = uint64(bound(_indexAtDepth, 0, 2**_depth));
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
         Position parent = LibPosition.parent(position);
@@ -87,24 +87,24 @@ contract LibPosition_Test is Test {
     function testFuzz_rightIndex_correctness(
         uint8 _maxDepth,
         uint8 _depth,
-        uint128 _indexAtDepth
+        uint64 _indexAtDepth
     ) public {
-        // Max depth bound: [1, 127]
+        // Max depth bound: [1, 63]
         // The max game depth MUST be at least 1.
         _maxDepth = uint8(bound(_maxDepth, 1, MAX_DEPTH));
         // Depth bound: [0, _maxDepth]
         _depth = uint8(bound(_depth, 0, _maxDepth));
         // Index at depth bound: [0, 2 ** _depth]
-        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2**_depth));
+        _indexAtDepth = uint64(bound(_indexAtDepth, 0, 2**_depth));
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
-        uint128 rightIndex = LibPosition.rightIndex(position, _maxDepth);
+        uint64 rightIndex = LibPosition.rightIndex(position, _maxDepth);
 
         // Find the deepest, rightmost index in Solidity rather than Yul
         for (uint256 i = _depth; i < _maxDepth - 1; ++i) {
             position = LibPosition.right(position);
         }
-        uint128 _rightIndex = LibPosition.indexAtDepth(position);
+        uint64 _rightIndex = LibPosition.indexAtDepth(position);
 
         assertEq(rightIndex, _rightIndex);
     }
@@ -114,11 +114,11 @@ contract LibPosition_Test is Test {
      * a given position.
      * @dev `attack` is an alias for `left`, but we test it separately for completeness.
      */
-    function testFuzz_attack_correctness(uint8 _depth, uint128 _indexAtDepth) public {
-        // Depth bound: [0, 127]
+    function testFuzz_attack_correctness(uint8 _depth, uint64 _indexAtDepth) public {
+        // Depth bound: [0, 63]
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         // Index at depth bound: [0, 2 ** _depth]
-        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2**_depth));
+        _indexAtDepth = uint64(bound(_indexAtDepth, 0, 2**_depth));
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
         Position attack = LibPosition.attack(position);
@@ -133,11 +133,11 @@ contract LibPosition_Test is Test {
      * @dev A defense can only be given if the position does not belong to the root claim, hence the bound of [1, 127]
      * on the depth.
      */
-    function testFuzz_defend_correctness(uint8 _depth, uint128 _indexAtDepth) public {
-        // Depth bound: [1, 127]
+    function testFuzz_defend_correctness(uint8 _depth, uint64 _indexAtDepth) public {
+        // Depth bound: [1, 63]
         _depth = uint8(bound(_depth, 1, MAX_DEPTH));
         // Index at depth bound: [0, 2 ** _depth]
-        _indexAtDepth = uint128(bound(_indexAtDepth, 0, 2**_depth));
+        _indexAtDepth = uint64(bound(_indexAtDepth, 0, 2**_depth));
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
         Position defend = LibPosition.defend(position);

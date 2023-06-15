@@ -16,7 +16,7 @@ library LibClock {
      */
     function wrap(Duration _duration, Timestamp _timestamp) internal pure returns (Clock _clock) {
         assembly {
-            _clock := or(shl(0x80, _duration), _timestamp)
+            _clock := or(shl(0x40, _duration), _timestamp)
         }
     }
 
@@ -26,9 +26,9 @@ library LibClock {
      * @return _duration The `Duration` pulled out of `_clock`.
      */
     function duration(Clock _clock) internal pure returns (Duration _duration) {
-        // Shift the high-order 128 bits into the low-order 128 bits, leaving only the `duration`.
+        // Shift the high-order 64 bits into the low-order 64 bits, leaving only the `duration`.
         assembly {
-            _duration := shr(0x80, _clock)
+            _duration := shr(0x40, _clock)
         }
     }
 
@@ -38,10 +38,10 @@ library LibClock {
      * @return _timestamp The `Timestamp` pulled out of `_clock`.
      */
     function timestamp(Clock _clock) internal pure returns (Timestamp _timestamp) {
-        // Clean the high-order 128 bits by shifting the clock left and then right again, leaving
+        // Clean the high-order 192 bits by shifting the clock left and then right again, leaving
         // only the `timestamp`.
         assembly {
-            _timestamp := shr(0x80, shl(0x80, _clock))
+            _timestamp := shr(0xC0, shl(0xC0, _clock))
         }
     }
 }

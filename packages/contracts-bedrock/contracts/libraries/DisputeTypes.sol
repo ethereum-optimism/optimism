@@ -39,11 +39,11 @@ type Duration is uint64;
  * ┌────────────┬────────────────┐
  * │    Bits    │     Value      │
  * ├────────────┼────────────────┤
- * │ [0, 128)   │ Duration       │
- * │ [128, 256) │ Timestamp      │
+ * │ [0, 64)    │ Duration       │
+ * │ [64, 128)  │ Timestamp      │
  * └────────────┴────────────────┘
  */
-type Clock is uint256;
+type Clock is uint128;
 
 /**
  * @notice A `Position` represents a position of a claim within the game tree.
@@ -51,11 +51,11 @@ type Clock is uint256;
  * ┌────────────┬────────────────┐
  * │    Bits    │     Value      │
  * ├────────────┼────────────────┤
- * │ [0, 128)   │ Depth          │
- * │ [128, 256) │ Index at depth │
+ * │ [0, 64)    │ Depth          │
+ * │ [64, 128)  │ Index at depth │
  * └────────────┴────────────────┘
  */
-type Position is uint256;
+type Position is uint128;
 
 /**
  * @notice A `GameType` represents the type of game being played.
