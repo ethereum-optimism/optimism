@@ -17,6 +17,7 @@ contract BedrockMigrationChecker is Script, StdAssertions {
 
     struct ContractSet {
         // Please keep these sorted by name.
+        address AddressManager;
         address L1CrossDomainMessengerImpl;
         address L1CrossDomainMessengerProxy;
         address L1ERC721BridgeImpl;
@@ -40,9 +41,10 @@ contract BedrockMigrationChecker is Script, StdAssertions {
      * @notice The entrypoint function.
      */
     function run() external {
-        string memory bedrockJsonDir = vm.envString("BEDROCK_JSON_DIR") // deployments/zora;
+        string memory bedrockJsonDir = vm.envString("BEDROCK_JSON_DIR"); // deployments/zora;
         console2.log("BEDROCK_JSON_DIR = %s", bedrockJsonDir);
         ContractSet memory contracts = getContracts(bedrockJsonDir);
+        checkAddressManager(contracts);
         checkL1CrossDomainMessengerImpl(contracts);
         checkL1CrossDomainMessengerProxy(contracts);
         checkL1ERC721BridgeImpl(contracts);
@@ -57,8 +59,12 @@ contract BedrockMigrationChecker is Script, StdAssertions {
         checkOptimismMintableERC20FactoryProxy(contracts);
         checkOptimismPortalImpl(contracts);
         checkOptimismPortalProxy(contracts);
-        checkPortalSender(contracts);
         checkSystemConfigProxy(contracts);
+    }
+
+    function checkAddressManager(ContractSet memory contracts) internal {
+        console2.log("Checking AddressManager %s", contracts.AddressManager);
+        checkAddressIsExpected(contracts.L1ProxyAdmin, contracts.AddressManager, "owner()");
     }
 
     function checkL1CrossDomainMessengerImpl(ContractSet memory contracts) internal {
@@ -68,7 +74,10 @@ contract BedrockMigrationChecker is Script, StdAssertions {
 
     function checkL1CrossDomainMessengerProxy(ContractSet memory contracts) internal {
         console2.log("Checking L1CrossDomainMessengerProxy %s", contracts.L1CrossDomainMessengerProxy);
-        checkAddressIsExpected(contracts.L1UpgradeKey, contracts.L1CrossDomainMessengerProxy, "owner()");
+        console2.log("Please manually check L1CrossDomainMessengerProxy's storage slots to make sure it uses the right address manager:");
+        console2.log("PROXY_ADDRESS=%s", contracts.L1CrossDomainMessengerProxy);
+        console2.log("cast index address $PROXY_ADDRESS 1 | xargs -I{} cast storage --flashbots $PROXY_ADDRESS {}");
+        console2.log("cast index address $PROXY_ADDRESS 0 | xargs -I{} cast storage --flashbots $PROXY_ADDRESS {} | cast --parse-bytes32-string");
     }
 
     function checkL1ERC721BridgeImpl(ContractSet memory contracts) internal {
@@ -78,7 +87,7 @@ contract BedrockMigrationChecker is Script, StdAssertions {
 
     function checkL1ERC721BridgeProxy(ContractSet memory contracts) internal {
         console2.log("Checking L1ERC721BridgeProxy %s", contracts.L1ERC721BridgeProxy);
-        checkAddressIsExpected(contracts.L1UpgradeKey, contracts.L1ERC721BridgeProxy, "admin()");
+        checkAddressIsExpected(contracts.L1ProxyAdmin, contracts.L1ERC721BridgeProxy, "admin()");
         checkAddressIsExpected(contracts.L1CrossDomainMessengerProxy, contracts.L1ERC721BridgeProxy, "messenger()");
     }
 
@@ -94,7 +103,7 @@ contract BedrockMigrationChecker is Script, StdAssertions {
 
     function checkL1StandardBridgeProxy(ContractSet memory contracts) internal {
         console2.log("Checking L1StandardBridgeProxy %s", contracts.L1StandardBridgeProxy);
-        checkAddressIsExpected(contracts.L1UpgradeKey, contracts.L1StandardBridgeProxy, "getOwner()");
+        checkAddressIsExpected(contracts.L1ProxyAdmin, contracts.L1StandardBridgeProxy, "getOwner()");
         checkAddressIsExpected(contracts.L1CrossDomainMessengerProxy, contracts.L1StandardBridgeProxy, "messenger()");
     }
 
@@ -168,15 +177,16 @@ contract BedrockMigrationChecker is Script, StdAssertions {
 
     function getContracts(string memory bedrockJsonDir) internal returns (ContractSet memory) {
         return ContractSet({
-                    L1CrossDomainMessengerImpl: getAddressFromJson(string.concat(bedrockJsonDir, "/L1CrossDomainMessenger.json")),
-                    L1CrossDomainMessengerProxy: getAddressFromJson(string.concat(bedrockJsonDir, "/Proxy__OVM_L1CrossDomainMessenger.json")),
+                AddressManager: getAddressFromJson(string.concat(bedrockJsonDir, "/Lib_AddressManager.json")),
+                L1CrossDomainMessengerImpl: getAddressFromJson(string.concat(bedrockJsonDir, "/L1CrossDomainMessenger.json")),
+                L1CrossDomainMessengerProxy: getAddressFromJson(string.concat(bedrockJsonDir, "/Proxy__OVM_L1CrossDomainMessenger.json")),
                 L1ERC721BridgeImpl: getAddressFromJson(string.concat(bedrockJsonDir, "/L1ERC721Bridge.json")),
                 L1ERC721BridgeProxy: getAddressFromJson(string.concat(bedrockJsonDir, "/L1ERC721BridgeProxy.json")),
                 L1ProxyAdmin: getAddressFromJson(string.concat(bedrockJsonDir, "/ProxyAdmin.json")),
                 L1StandardBridgeImpl: getAddressFromJson(string.concat(bedrockJsonDir, "/L1StandardBridge.json")),
                 L1StandardBridgeProxy: getAddressFromJson(string.concat(bedrockJsonDir, "/Proxy__OVM_L1StandardBridge.json")),
-                L1ChallengerKey: vm.envAddress("L1_CHALLENGER_KEY") //0xcA4571b1ecBeC86Ea2E660d242c1c29FcB55Dc72,
-                L1UpgradeKey: vm.envAddress("L1_UPGRADE_KEY") //0xC72aE5c7cc9a332699305E29F68Be66c73b60542,
+                L1ChallengerKey: vm.envAddress("L1_CHALLENGER_KEY"), //0xcA4571b1ecBeC86Ea2E660d242c1c29FcB55Dc72,
+                L1UpgradeKey: vm.envAddress("L1_UPGRADE_KEY"), //0xC72aE5c7cc9a332699305E29F68Be66c73b60542,
                 L2OutputOracleImpl: getAddressFromJson(string.concat(bedrockJsonDir, "/L2OutputOracle.json")),
                 L2OutputOracleProxy: getAddressFromJson(string.concat(bedrockJsonDir, "/L2OutputOracleProxy.json")),
                 OptimismMintableERC20FactoryImpl: getAddressFromJson(string.concat(bedrockJsonDir, "/OptimismMintableERC20Factory.json")),
