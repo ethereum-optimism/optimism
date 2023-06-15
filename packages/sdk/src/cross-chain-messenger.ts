@@ -334,7 +334,7 @@ export class CrossChainMessenger {
      */
     multiWithdrawalIndex = 0
   ): Promise<CrossChainMessage> {
-    const resolved = await this.toCrossChainMessage(message)
+    const resolved = await this.toCrossChainMessage(message, multiWithdrawalIndex)
 
     // Bedrock messages are already in the correct format.
     const { version } = decodeVersionedNonce(resolved.messageNonce)
@@ -384,7 +384,7 @@ export class CrossChainMessenger {
      */
     multiWithdrawalIndex = 0
   ): Promise<LowLevelMessage> {
-    const resolved = await this.toCrossChainMessage(message)
+    const resolved = await this.toCrossChainMessage(message, multiWithdrawalIndex)
     if (resolved.direction === MessageDirection.L1_TO_L2) {
       throw new Error(`can only convert L2 to L1 messages to low level`)
     }
@@ -393,7 +393,7 @@ export class CrossChainMessenger {
     const { version } = decodeVersionedNonce(resolved.messageNonce)
     let updated: CrossChainMessage
     if (version.eq(0)) {
-      updated = await this.toBedrockCrossChainMessage(resolved)
+      updated = await this.toBedrockCrossChainMessage(resolved, multiWithdrawalIndex)
     } else {
       updated = resolved
     }
@@ -584,7 +584,7 @@ export class CrossChainMessenger {
    * @returns Message coerced into a CrossChainMessage.
    */
   public async toCrossChainMessage(
-    message: MessageLike
+    message: MessageLike,
     /**
      * The index of the withdrawal if multiple are made with multicall
      */
@@ -649,15 +649,16 @@ export class CrossChainMessenger {
    * @param message Cross chain message to check the status of.
    * @returns Status of the message.
    */
-  public async getMessageStatus(message: MessageLike,
+  public async getMessageStatus(
+    message: MessageLike,
 
     /**
      * The index of the withdrawal if multiple are made with multicall
      */
     multiWithdrawalIndex = 0
   ): Promise<MessageStatus> {
-    const resolved = await this.toCrossChainMessage(message)
-    const receipt = await this.getMessageReceipt(resolved)
+    const resolved = await this.toCrossChainMessage(message, multiWithdrawalIndex)
+    const receipt = await this.getMessageReceipt(resolved, multiWithdrawalIndex)
 
     if (resolved.direction === MessageDirection.L1_TO_L2) {
       if (receipt === null) {
@@ -673,13 +674,13 @@ export class CrossChainMessenger {
       if (receipt === null) {
         let timestamp: number
         if (this.bedrock) {
-          const output = await this.getMessageBedrockOutput(resolved)
+          const output = await this.getMessageBedrockOutput(resolved, multiWithdrawalIndex)
           if (output === null) {
             return MessageStatus.STATE_ROOT_NOT_PUBLISHED
           }
 
           // Convert the message to the low level message that was proven.
-          const withdrawal = await this.toLowLevelMessage(resolved)
+          const withdrawal = await this.toLowLevelMessage(resolved, multiWithdrawalIndex)
 
           // Attempt to fetch the proven withdrawal.
           const provenWithdrawal =
@@ -696,7 +697,7 @@ export class CrossChainMessenger {
           // Set the timestamp to the provenWithdrawal's timestamp
           timestamp = provenWithdrawal.timestamp.toNumber()
         } else {
-          const stateRoot = await this.getMessageStateRoot(resolved)
+          const stateRoot = await this.getMessageStateRoot(resolved, multiWithdrawalIndex)
           if (stateRoot === null) {
             return MessageStatus.STATE_ROOT_NOT_PUBLISHED
           }
@@ -739,7 +740,7 @@ export class CrossChainMessenger {
      */
     multiWithdrawalIndex = 0
   ): Promise<MessageReceipt> {
-    const resolved = await this.toCrossChainMessage(message)
+    const resolved = await this.toCrossChainMessage(message, multiWithdrawalIndex)
     const messageHash = hashCrossDomainMessage(
       resolved.messageNonce,
       resolved.sender,
@@ -827,12 +828,12 @@ export class CrossChainMessenger {
     multiWithdrawalIndex = 0
   ): Promise<MessageReceipt> {
     // Resolving once up-front is slightly more efficient.
-    const resolved = await this.toCrossChainMessage(message)
+    const resolved = await this.toCrossChainMessage(message, multiWithdrawalIndex)
 
     let totalTimeMs = 0
     while (totalTimeMs < (opts.timeoutMs || Infinity)) {
       const tick = Date.now()
-      const receipt = await this.getMessageReceipt(resolved)
+      const receipt = await this.getMessageReceipt(resolved, multiWithdrawalIndex)
       if (receipt !== null) {
         return receipt
       } else {
@@ -870,12 +871,12 @@ export class CrossChainMessenger {
     multiWithdrawalIndex = 0
   ): Promise<void> {
     // Resolving once up-front is slightly more efficient.
-    const resolved = await this.toCrossChainMessage(message)
+    const resolved = await this.toCrossChainMessage(message, multiWithdrawalIndex)
 
     let totalTimeMs = 0
     while (totalTimeMs < (opts.timeoutMs || Infinity)) {
       const tick = Date.now()
-      const currentStatus = await this.getMessageStatus(resolved)
+      const currentStatus = await this.getMessageStatus(resolved, multiWithdrawalIndex)
 
       // Handle special cases for L1 to L2 messages.
       if (resolved.direction === MessageDirection.L1_TO_L2) {
@@ -943,7 +944,8 @@ export class CrossChainMessenger {
     opts?: {
       bufferPercent?: number
       from?: string
-    }
+    },
+    multiWithdrawalIndex = 0
   ): Promise<BigNumber> {
     let resolved: CrossChainMessage | CrossChainMessageRequest
     let from: string
@@ -951,7 +953,7 @@ export class CrossChainMessenger {
       resolved = message as CrossChainMessageRequest
       from = opts?.from
     } else {
-      resolved = await this.toCrossChainMessage(message as MessageLike)
+      resolved = await this.toCrossChainMessage(message as MessageLike, multiWithdrawalIndex)
       from = opts?.from || (resolved as CrossChainMessage).sender
     }
 
@@ -988,8 +990,8 @@ export class CrossChainMessenger {
      */
     multiWithdrawalIndex = 0
   ): Promise<number> {
-    const resolved = await this.toCrossChainMessage(message)
-    const status = await this.getMessageStatus(resolved)
+    const resolved = await this.toCrossChainMessage(message, multiWithdrawalIndex)
+    const status = await this.getMessageStatus(resolved, multiWithdrawalIndex)
     if (resolved.direction === MessageDirection.L1_TO_L2) {
       if (
         status === MessageStatus.RELAYED ||
@@ -1027,7 +1029,7 @@ export class CrossChainMessenger {
         // If the message is still within the challenge period, then we need to estimate exactly
         // the amount of time left until the challenge period expires. The challenge period starts
         // when the state root is published.
-        const stateRoot = await this.getMessageStateRoot(resolved)
+        const stateRoot = await this.getMessageStateRoot(resolved, multiWithdrawalIndex)
         const challengePeriod = await this.getChallengePeriodSeconds()
         const targetBlock = await this.l1Provider.getBlock(
           stateRoot.batch.blockNumber
@@ -1104,7 +1106,7 @@ export class CrossChainMessenger {
      */
     multiWithdrawalIndex = 0
   ): Promise<BedrockOutputData | null> {
-    const resolved = await this.toCrossChainMessage(message)
+    const resolved = await this.toCrossChainMessage(message, multiWithdrawalIndex)
 
     // Outputs are only a thing for L2 to L1 messages.
     if (resolved.direction === MessageDirection.L1_TO_L2) {
@@ -1119,7 +1121,7 @@ export class CrossChainMessenger {
     try {
       l2OutputIndex =
         await this.contracts.l1.L2OutputOracle.getL2OutputIndexAfter(
-          resolved.blockNumber
+          resolved.blockNumber, multiWithdrawalIndex
         )
     } catch (err) {
       if (err.message.includes('L2OutputOracle: cannot get output')) {
@@ -1132,7 +1134,8 @@ export class CrossChainMessenger {
     // Now pull the proposal out given the output index. Should always work as long as the above
     // codepath completed successfully.
     const proposal = await this.contracts.l1.L2OutputOracle.getL2Output(
-      l2OutputIndex
+      l2OutputIndex,
+      multiWithdrawalIndex
     )
 
     // Format everything and return it nicely.
@@ -1160,7 +1163,7 @@ export class CrossChainMessenger {
      */
     multiWithdrawalIndex = 0
   ): Promise<StateRoot | null> {
-    const resolved = await this.toCrossChainMessage(message)
+    const resolved = await this.toCrossChainMessage(message, multiWithdrawalIndex)
 
     // State roots are only a thing for L2 to L1 messages.
     if (resolved.direction === MessageDirection.L1_TO_L2) {
@@ -1350,12 +1353,12 @@ export class CrossChainMessenger {
      */
     multiWithdrawalIndex = 0
   ): Promise<CrossChainMessageProof> {
-    const resolved = await this.toCrossChainMessage(message)
+    const resolved = await this.toCrossChainMessage(message, multiWithdrawalIndex)
     if (resolved.direction === MessageDirection.L1_TO_L2) {
       throw new Error(`can only generate proofs for L2 to L1 messages`)
     }
 
-    const stateRoot = await this.getMessageStateRoot(resolved)
+    const stateRoot = await this.getMessageStateRoot(resolved, multiWithdrawalIndex)
     if (stateRoot === null) {
       throw new Error(`state root for message not yet published`)
     }
@@ -1413,17 +1416,17 @@ export class CrossChainMessenger {
      */
     multiWithdrawalIndex = 0
   ): Promise<BedrockCrossChainMessageProof> {
-    const resolved = await this.toCrossChainMessage(message)
+    const resolved = await this.toCrossChainMessage(message, multiWithdrawalIndex)
     if (resolved.direction === MessageDirection.L1_TO_L2) {
       throw new Error(`can only generate proofs for L2 to L1 messages`)
     }
 
-    const output = await this.getMessageBedrockOutput(resolved)
+    const output = await this.getMessageBedrockOutput(resolved, multiWithdrawalIndex)
     if (output === null) {
       throw new Error(`state root for message not yet published`)
     }
 
-    const withdrawal = await this.toLowLevelMessage(resolved)
+    const withdrawal = await this.toLowLevelMessage(resolved, multiWithdrawalIndex)
     const hash = hashLowLevelMessage(withdrawal)
     const messageSlot = hashMessageHash(hash)
 
@@ -1791,7 +1794,7 @@ export class CrossChainMessenger {
        */
       multiWithdrawalIndex = 0
     ): Promise<TransactionRequest> => {
-      const resolved = await this.toCrossChainMessage(message)
+      const resolved = await this.toCrossChainMessage(message, multiWithdrawalIndex)
       if (resolved.direction === MessageDirection.L2_TO_L1) {
         throw new Error(`cannot resend L2 to L1 message`)
       }
@@ -1842,7 +1845,7 @@ export class CrossChainMessenger {
        */
       multiWithdrawalIndex = 0
     ): Promise<TransactionRequest> => {
-      const resolved = await this.toCrossChainMessage(message)
+      const resolved = await this.toCrossChainMessage(message, multiWithdrawalIndex)
       if (resolved.direction === MessageDirection.L1_TO_L2) {
         throw new Error('cannot finalize L1 to L2 message')
       }
@@ -1853,8 +1856,8 @@ export class CrossChainMessenger {
         )
       }
 
-      const withdrawal = await this.toLowLevelMessage(resolved)
-      const proof = await this.getBedrockMessageProof(resolved)
+      const withdrawal = await this.toLowLevelMessage(resolved, multiWithdrawalIndex)
+      const proof = await this.getBedrockMessageProof(resolved, multiWithdrawalIndex)
 
       const args = [
         [
@@ -1902,13 +1905,13 @@ export class CrossChainMessenger {
        */
       multiWithdrawalIndex = 0
     ): Promise<TransactionRequest> => {
-      const resolved = await this.toCrossChainMessage(message)
+      const resolved = await this.toCrossChainMessage(message, multiWithdrawalIndex)
       if (resolved.direction === MessageDirection.L1_TO_L2) {
         throw new Error(`cannot finalize L1 to L2 message`)
       }
 
       if (this.bedrock) {
-        const withdrawal = await this.toLowLevelMessage(resolved)
+        const withdrawal = await this.toLowLevelMessage(resolved, multiWithdrawalIndex)
         return this.contracts.l1.OptimismPortal.populateTransaction.finalizeWithdrawalTransaction(
           [
             withdrawal.messageNonce,
@@ -1924,7 +1927,7 @@ export class CrossChainMessenger {
         // L1CrossDomainMessenger relayMessage is the only method that isn't fully backwards
         // compatible, so we need to use the legacy interface. When we fully upgrade to Bedrock we
         // should be able to remove this code.
-        const proof = await this.getMessageProof(resolved)
+        const proof = await this.getMessageProof(resolved, multiWithdrawalIndex)
         const legacyL1XDM = new ethers.Contract(
           this.contracts.l1.L1CrossDomainMessenger.address,
           getContractInterface('L1CrossDomainMessenger'),
@@ -2118,7 +2121,8 @@ export class CrossChainMessenger {
         await this.populateTransaction.resendMessage(
           message,
           messageGasLimit,
-          opts
+          opts,
+          multiWithdrawalIndex
         )
       )
     },
@@ -2143,7 +2147,7 @@ export class CrossChainMessenger {
       multiWithdrawalIndex = 0
     ): Promise<BigNumber> => {
       return this.l1Provider.estimateGas(
-        await this.populateTransaction.proveMessage(message, opts)
+        await this.populateTransaction.proveMessage(message, opts, multiWithdrawalIndex)
       )
     },
 
@@ -2167,7 +2171,7 @@ export class CrossChainMessenger {
       multiWithdrawalIndex = 0
     ): Promise<BigNumber> => {
       return this.l1Provider.estimateGas(
-        await this.populateTransaction.finalizeMessage(message, opts)
+        await this.populateTransaction.finalizeMessage(message, opts, multiWithdrawalIndex)
       )
     },
 
