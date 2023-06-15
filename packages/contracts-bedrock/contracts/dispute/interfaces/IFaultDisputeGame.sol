@@ -54,7 +54,7 @@ interface IFaultDisputeGame is IDisputeGame {
      * @param prestateIndex The index of the prestate of the step within `claimData`.
      * @param parentIndex The index of the parent claim within `claimData`.
      * @param stateData The stateData of the step is the preimage of the claim @ `prestateIndex`
-     * @param proof ...
+     * @param proof Proof to access memory leaf nodes in the VM.
      */
     function step(
         uint256 prestateIndex,
