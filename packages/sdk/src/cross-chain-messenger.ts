@@ -327,7 +327,12 @@ export class CrossChainMessenger {
    * @returns Bedrock representation of the message.
    */
   public async toBedrockCrossChainMessage(
-    message: MessageLike
+    message: MessageLike,
+
+    /**
+     * The index of the withdrawal if multiple are made with multicall
+     */
+    multiWithdrawalIndex = 0
   ): Promise<CrossChainMessage> {
     const resolved = await this.toCrossChainMessage(message)
 
@@ -373,7 +378,11 @@ export class CrossChainMessenger {
    * @return Transformed message.
    */
   public async toLowLevelMessage(
-    message: MessageLike
+    message: MessageLike,
+    /**
+     * The index of the withdrawal if multiple are made with multicall
+     */
+    multiWithdrawalIndex = 0
   ): Promise<LowLevelMessage> {
     const resolved = await this.toCrossChainMessage(message)
     if (resolved.direction === MessageDirection.L1_TO_L2) {
@@ -434,7 +443,7 @@ export class CrossChainMessenger {
         throw new Error(`multiple withdrawals found in receipt`)
       }
 
-      const withdrawal = withdrawals[0]
+      const withdrawal = withdrawals[multiWithdrawalIndex]
       messageNonce = withdrawal.nonce
       gasLimit = withdrawal.gasLimit
     }
@@ -576,6 +585,10 @@ export class CrossChainMessenger {
    */
   public async toCrossChainMessage(
     message: MessageLike
+    /**
+     * The index of the withdrawal if multiple are made with multicall
+     */
+    multiWithdrawalIndex = 0
   ): Promise<CrossChainMessage> {
     if (!message) {
       throw new Error('message is undefined')
@@ -636,7 +649,13 @@ export class CrossChainMessenger {
    * @param message Cross chain message to check the status of.
    * @returns Status of the message.
    */
-  public async getMessageStatus(message: MessageLike): Promise<MessageStatus> {
+  public async getMessageStatus(message: MessageLike,
+
+    /**
+     * The index of the withdrawal if multiple are made with multicall
+     */
+    multiWithdrawalIndex = 0
+  ): Promise<MessageStatus> {
     const resolved = await this.toCrossChainMessage(message)
     const receipt = await this.getMessageReceipt(resolved)
 
@@ -713,7 +732,12 @@ export class CrossChainMessenger {
    * given message.
    */
   public async getMessageReceipt(
-    message: MessageLike
+    message: MessageLike,
+
+    /**
+     * The index of the withdrawal if multiple are made with multicall
+     */
+    multiWithdrawalIndex = 0
   ): Promise<MessageReceipt> {
     const resolved = await this.toCrossChainMessage(message)
     const messageHash = hashCrossDomainMessage(
@@ -795,7 +819,12 @@ export class CrossChainMessenger {
       confirmations?: number
       pollIntervalMs?: number
       timeoutMs?: number
-    } = {}
+    } = {},
+
+    /**
+     * The index of the withdrawal if multiple are made with multicall
+     */
+    multiWithdrawalIndex = 0
   ): Promise<MessageReceipt> {
     // Resolving once up-front is slightly more efficient.
     const resolved = await this.toCrossChainMessage(message)
@@ -833,7 +862,12 @@ export class CrossChainMessenger {
     opts: {
       pollIntervalMs?: number
       timeoutMs?: number
-    } = {}
+    } = {},
+
+    /**
+     * The index of the withdrawal if multiple are made with multicall
+     */
+    multiWithdrawalIndex = 0
   ): Promise<void> {
     // Resolving once up-front is slightly more efficient.
     const resolved = await this.toCrossChainMessage(message)
@@ -947,7 +981,12 @@ export class CrossChainMessenger {
    * @returns Estimated amount of time remaining (in seconds) before the message can be executed.
    */
   public async estimateMessageWaitTimeSeconds(
-    message: MessageLike
+    message: MessageLike,
+
+    /**
+     * The index of the withdrawal if multiple are made with multicall
+     */
+    multiWithdrawalIndex = 0
   ): Promise<number> {
     const resolved = await this.toCrossChainMessage(message)
     const status = await this.getMessageStatus(resolved)
@@ -1021,13 +1060,13 @@ export class CrossChainMessenger {
     const challengePeriod =
       oracleVersion === '1.0.0'
         ? // The ABI in the SDK does not contain FINALIZATION_PERIOD_SECONDS
-          // in OptimismPortal, so making an explicit call instead.
-          BigNumber.from(
-            await this.contracts.l1.OptimismPortal.provider.call({
-              to: this.contracts.l1.OptimismPortal.address,
-              data: '0xf4daa291', // FINALIZATION_PERIOD_SECONDS
-            })
-          )
+        // in OptimismPortal, so making an explicit call instead.
+        BigNumber.from(
+          await this.contracts.l1.OptimismPortal.provider.call({
+            to: this.contracts.l1.OptimismPortal.address,
+            data: '0xf4daa291', // FINALIZATION_PERIOD_SECONDS
+          })
+        )
         : await this.contracts.l1.L2OutputOracle.FINALIZATION_PERIOD_SECONDS()
     return challengePeriod.toNumber()
   }
@@ -1058,7 +1097,12 @@ export class CrossChainMessenger {
    * @returns Bedrock output root.
    */
   public async getMessageBedrockOutput(
-    message: MessageLike
+    message: MessageLike,
+
+    /**
+     * The index of the withdrawal if multiple are made with multicall
+     */
+    multiWithdrawalIndex = 0
   ): Promise<BedrockOutputData | null> {
     const resolved = await this.toCrossChainMessage(message)
 
@@ -1109,7 +1153,12 @@ export class CrossChainMessenger {
    * @returns State root for the block in which the message was created.
    */
   public async getMessageStateRoot(
-    message: MessageLike
+    message: MessageLike,
+
+    /**
+     * The index of the withdrawal if multiple are made with multicall
+     */
+    multiWithdrawalIndex = 0
   ): Promise<StateRoot | null> {
     const resolved = await this.toCrossChainMessage(message)
 
@@ -1294,7 +1343,12 @@ export class CrossChainMessenger {
    * @returns Proof that can be used to finalize the message.
    */
   public async getMessageProof(
-    message: MessageLike
+    message: MessageLike,
+
+    /**
+     * The index of the withdrawal if multiple are made with multicall
+     */
+    multiWithdrawalIndex = 0
   ): Promise<CrossChainMessageProof> {
     const resolved = await this.toCrossChainMessage(message)
     if (resolved.direction === MessageDirection.L1_TO_L2) {
@@ -1352,7 +1406,12 @@ export class CrossChainMessenger {
    * @returns Proof that can be used to finalize the message.
    */
   public async getBedrockMessageProof(
-    message: MessageLike
+    message: MessageLike,
+
+    /**
+     * The index of the withdrawal if multiple are made with multicall
+     */
+    multiWithdrawalIndex = 0
   ): Promise<BedrockCrossChainMessageProof> {
     const resolved = await this.toCrossChainMessage(message)
     if (resolved.direction === MessageDirection.L1_TO_L2) {
@@ -1438,7 +1497,12 @@ export class CrossChainMessenger {
     opts?: {
       signer?: Signer
       overrides?: Overrides
-    }
+    },
+
+    /**
+     * The index of the withdrawal if multiple are made with multicall
+     */
+    multiWithdrawalIndex = 0
   ): Promise<TransactionResponse> {
     return (opts?.signer || this.l1Signer).sendTransaction(
       await this.populateTransaction.resendMessage(
@@ -1464,7 +1528,12 @@ export class CrossChainMessenger {
     opts?: {
       signer?: Signer
       overrides?: Overrides
-    }
+    },
+
+    /**
+     * The index of the withdrawal if multiple are made with multicall
+     */
+    multiWithdrawalIndex = 0
   ): Promise<TransactionResponse> {
     const tx = await this.populateTransaction.proveMessage(message, opts)
     return (opts?.signer || this.l1Signer).sendTransaction(tx)
@@ -1485,7 +1554,12 @@ export class CrossChainMessenger {
     opts?: {
       signer?: Signer
       overrides?: PayableOverrides
-    }
+    },
+
+    /**
+     * The index of the withdrawal if multiple are made with multicall
+     */
+    multiWithdrawalIndex = 0
   ): Promise<TransactionResponse> {
     return (opts?.signer || this.l1Signer).sendTransaction(
       await this.populateTransaction.finalizeMessage(message, opts)
@@ -1710,7 +1784,12 @@ export class CrossChainMessenger {
       messageGasLimit: NumberLike,
       opts?: {
         overrides?: Overrides
-      }
+      },
+
+      /**
+       * The index of the withdrawal if multiple are made with multicall
+       */
+      multiWithdrawalIndex = 0
     ): Promise<TransactionRequest> => {
       const resolved = await this.toCrossChainMessage(message)
       if (resolved.direction === MessageDirection.L2_TO_L1) {
@@ -1756,7 +1835,12 @@ export class CrossChainMessenger {
       message: MessageLike,
       opts?: {
         overrides?: PayableOverrides
-      }
+      },
+
+      /**
+       * The index of the withdrawal if multiple are made with multicall
+       */
+      multiWithdrawalIndex = 0
     ): Promise<TransactionRequest> => {
       const resolved = await this.toCrossChainMessage(message)
       if (resolved.direction === MessageDirection.L1_TO_L2) {
@@ -1811,7 +1895,12 @@ export class CrossChainMessenger {
       message: MessageLike,
       opts?: {
         overrides?: PayableOverrides
-      }
+      },
+
+      /**
+       * The index of the withdrawal if multiple are made with multicall
+       */
+      multiWithdrawalIndex = 0
     ): Promise<TransactionRequest> => {
       const resolved = await this.toCrossChainMessage(message)
       if (resolved.direction === MessageDirection.L1_TO_L2) {
@@ -2018,7 +2107,12 @@ export class CrossChainMessenger {
       messageGasLimit: NumberLike,
       opts?: {
         overrides?: CallOverrides
-      }
+      },
+
+      /**
+       * The index of the withdrawal if multiple are made with multicall
+       */
+      multiWithdrawalIndex = 0
     ): Promise<BigNumber> => {
       return this.l1Provider.estimateGas(
         await this.populateTransaction.resendMessage(
@@ -2041,7 +2135,12 @@ export class CrossChainMessenger {
       message: MessageLike,
       opts?: {
         overrides?: CallOverrides
-      }
+      },
+
+      /**
+       * The index of the withdrawal if multiple are made with multicall
+       */
+      multiWithdrawalIndex = 0
     ): Promise<BigNumber> => {
       return this.l1Provider.estimateGas(
         await this.populateTransaction.proveMessage(message, opts)
@@ -2060,7 +2159,12 @@ export class CrossChainMessenger {
       message: MessageLike,
       opts?: {
         overrides?: CallOverrides
-      }
+      },
+
+      /**
+       * The index of the withdrawal if multiple are made with multicall
+       */
+      multiWithdrawalIndex = 0
     ): Promise<BigNumber> => {
       return this.l1Provider.estimateGas(
         await this.populateTransaction.finalizeMessage(message, opts)
