@@ -326,6 +326,8 @@ func (s *Driver) eventLoop() {
 				stepAttempts = 0
 				reqStep() // continue with the next step if we can
 			}
+		case respCh := <-s.stateReq:
+			respCh <- struct{}{}
 		case respCh := <-s.forceReset:
 			s.log.Warn("Derivation pipeline is manually reset")
 			s.derivation.Reset()
