@@ -60,17 +60,15 @@ import { deploy } from '../src/deploy-utils'
 const deployFn: DeployFunction = async (hre) => {
   // We only want to deploy the dgf on devnet for now
   if (hre.deployConfig.l1ChainID === 900) {
+    const finalOwner = hre.deployConfig.finalSystemOwner
     const disputeGameFactory = await deploy({
       hre,
       name: 'DisputeGameFactory',
-      args: [],
+      args: [finalOwner],
     })
-    console.log('DisputeGameFactory deployed at ' + disputeGameFactory.address)
-    const finalOwner = hre.deployConfig.finalSystemOwner
-    await disputeGameFactory.initialize(finalOwner)
     const fetchedOwner = await disputeGameFactory.owner()
     assert(fetchedOwner === finalOwner)
-    console.log('DisputeGameFactory implementation initialized')
+    console.log('DisputeGameFactory deployed at ' + disputeGameFactory.address)
   }
 }
 
