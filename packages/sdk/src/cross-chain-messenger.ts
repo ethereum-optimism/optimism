@@ -328,7 +328,6 @@ export class CrossChainMessenger {
    */
   public async toBedrockCrossChainMessage(
     message: MessageLike,
-
     /**
      * The index of the withdrawal if multiple are made with multicall
      */
@@ -447,7 +446,7 @@ export class CrossChainMessenger {
       messageNonce = resolved.messageNonce
     } else {
       const withdrawals =
-        await this.contracts.l2.L2ToL1MessagePasser.getWithdrawalsFromMessage(
+        await this.getWithdrawalsFromMessage(
           message
         )
 
@@ -645,14 +644,7 @@ export class CrossChainMessenger {
         message as TransactionLike
       )
 
-      // We only want to treat TransactionLike objects as MessageLike if they only emit a single
-      // message (very common). It's unintuitive to treat a TransactionLike as a MessageLike if
-      // they emit more than one message (which message do you pick?), so we throw an error.
-      if (messages.length !== 1) {
-        throw new Error(`expected 1 message, got ${messages.length}`)
-      }
-
-      return messages[0]
+      return messages[multiWithdrawalIndex]
     }
   }
 
@@ -1111,13 +1103,13 @@ export class CrossChainMessenger {
     const challengePeriod =
       oracleVersion === '1.0.0'
         ? // The ABI in the SDK does not contain FINALIZATION_PERIOD_SECONDS
-          // in OptimismPortal, so making an explicit call instead.
-          BigNumber.from(
-            await this.contracts.l1.OptimismPortal.provider.call({
-              to: this.contracts.l1.OptimismPortal.address,
-              data: '0xf4daa291', // FINALIZATION_PERIOD_SECONDS
-            })
-          )
+        // in OptimismPortal, so making an explicit call instead.
+        BigNumber.from(
+          await this.contracts.l1.OptimismPortal.provider.call({
+            to: this.contracts.l1.OptimismPortal.address,
+            data: '0xf4daa291', // FINALIZATION_PERIOD_SECONDS
+          })
+        )
         : await this.contracts.l1.L2OutputOracle.FINALIZATION_PERIOD_SECONDS()
     return challengePeriod.toNumber()
   }
@@ -1174,7 +1166,6 @@ export class CrossChainMessenger {
       l2OutputIndex =
         await this.contracts.l1.L2OutputOracle.getL2OutputIndexAfter(
           resolved.blockNumber,
-          multiWithdrawalIndex
         )
     } catch (err) {
       if (err.message.includes('L2OutputOracle: cannot get output')) {
@@ -1188,7 +1179,6 @@ export class CrossChainMessenger {
     // codepath completed successfully.
     const proposal = await this.contracts.l1.L2OutputOracle.getL2Output(
       l2OutputIndex,
-      multiWithdrawalIndex
     )
 
     // Format everything and return it nicely.
@@ -1572,11 +1562,6 @@ export class CrossChainMessenger {
       signer?: Signer
       overrides?: Overrides
     },
-
-    /**
-     * The index of the withdrawal if multiple are made with multicall
-     */
-    multiWithdrawalIndex = 0
   ): Promise<TransactionResponse> {
     return (opts?.signer || this.l1Signer).sendTransaction(
       await this.populateTransaction.resendMessage(
@@ -1603,11 +1588,6 @@ export class CrossChainMessenger {
       signer?: Signer
       overrides?: Overrides
     },
-
-    /**
-     * The index of the withdrawal if multiple are made with multicall
-     */
-    multiWithdrawalIndex = 0
   ): Promise<TransactionResponse> {
     const tx = await this.populateTransaction.proveMessage(message, opts)
     return (opts?.signer || this.l1Signer).sendTransaction(tx)
@@ -1629,11 +1609,6 @@ export class CrossChainMessenger {
       signer?: Signer
       overrides?: PayableOverrides
     },
-
-    /**
-     * The index of the withdrawal if multiple are made with multicall
-     */
-    multiWithdrawalIndex = 0
   ): Promise<TransactionResponse> {
     return (opts?.signer || this.l1Signer).sendTransaction(
       await this.populateTransaction.finalizeMessage(message, opts)
@@ -2200,18 +2175,12 @@ export class CrossChainMessenger {
       opts?: {
         overrides?: CallOverrides
       },
-
-      /**
-       * The index of the withdrawal if multiple are made with multicall
-       */
-      multiWithdrawalIndex = 0
     ): Promise<BigNumber> => {
       return this.l1Provider.estimateGas(
         await this.populateTransaction.resendMessage(
           message,
           messageGasLimit,
           opts,
-          multiWithdrawalIndex
         )
       )
     },
@@ -2229,7 +2198,6 @@ export class CrossChainMessenger {
       opts?: {
         overrides?: CallOverrides
       },
-
       /**
        * The index of the withdrawal if multiple are made with multicall
        */
@@ -2257,17 +2225,11 @@ export class CrossChainMessenger {
       opts?: {
         overrides?: CallOverrides
       },
-
-      /**
-       * The index of the withdrawal if multiple are made with multicall
-       */
-      multiWithdrawalIndex = 0
     ): Promise<BigNumber> => {
       return this.l1Provider.estimateGas(
         await this.populateTransaction.finalizeMessage(
           message,
           opts,
-          multiWithdrawalIndex
         )
       )
     },

@@ -21,17 +21,16 @@ describe('Multiple withdrawals in one tx', () => {
   let testUtil: AnvilTestUtil
   beforeAll(async () => {
     type TODO = any
-    testUtil =
-      await anvilTestUtilFactory({
-        l1: {
-          forkUrl: VITE_E2E_RPC_URL_L1_MAINNET,
-          // forkBlockNumber: TODO,
-        },
-        l2: {
-          forkUrl: VITE_E2E_RPC_URL_L2_MAINNET,
-          // forkBlockNumber: TODO,
-        },
-      } as TODO)
+    testUtil = await anvilTestUtilFactory({
+      l1: {
+        forkUrl: VITE_E2E_RPC_URL_L1_MAINNET,
+        // forkBlockNumber: TODO,
+      },
+      l2: {
+        forkUrl: VITE_E2E_RPC_URL_L2_MAINNET,
+        // forkBlockNumber: TODO,
+      },
+    } as TODO)
     console.log('Starting anvill1...')
     await testUtil.anvilL1.start()
     console.log('Starting anvill2...')
@@ -48,8 +47,14 @@ describe('Multiple withdrawals in one tx', () => {
     const messenger = new CrossChainMessenger({
       l1ChainId: 1,
       l2ChainId: 10,
-      l1SignerOrProvider: new ethers.Wallet(testUtil.anvilAccounts[0], new ethers.providers.JsonRpcProvider(VITE_E2E_RPC_URL_L1_MAINNET)),
-      l2SignerOrProvider: new ethers.Wallet(testUtil.anvilAccounts[0], new ethers.providers.JsonRpcProvider(VITE_E2E_RPC_URL_L2_MAINNET)),
+      l1SignerOrProvider: new ethers.Wallet(
+        testUtil.anvilAccounts[0],
+        new ethers.providers.JsonRpcProvider(VITE_E2E_RPC_URL_L1_MAINNET)
+      ),
+      l2SignerOrProvider: new ethers.Wallet(
+        testUtil.anvilAccounts[0],
+        new ethers.providers.JsonRpcProvider(VITE_E2E_RPC_URL_L2_MAINNET)
+      ),
     })
 
     const txHash =
@@ -60,14 +65,23 @@ describe('Multiple withdrawals in one tx', () => {
 
     expect(txReceipt).toBeDefined()
 
-    const tx = await messenger.proveMessage(txHash)
-    const receipt = await tx.wait()
+    const withdrawalCount = (await messenger.getWithdrawalsFromMessage(txHash))
+      .length
 
-    // A 1 means the transaction was successful
-    expect(receipt.status).toBe(1)
-    await expect(
-      messenger.getProvenWithdrawal(txHash)
-    ).resolves.toMatchInlineSnapshot()
+    const txs: Awaited<ReturnType<typeof messenger.proveMessage>>[] = []
+
+    // We should add a multicall version once we get typesafe viem support
+    for (let i = 0; i < withdrawalCount; i++) {
+      console.log('proving message 1')
+      txs.push(await messenger.proveMessage(txHash))
+    }
+    const receipts = await Promise.all(txs.map((tx) => tx.wait()))
+
+    await Promise.all(
+      receipts.map(async (receipt) => {
+        expect(receipt.status).toBe(1)
+        expect(await messenger.getProvenWithdrawal(txHash)).toBeDefined()
+      })
+    )
   })
 })
-
