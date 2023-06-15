@@ -36,7 +36,6 @@ func runProcessor(ctx *cli.Context) error {
 	}
 
 	db, err := database.NewDB(getDsn(conf.DB))
-
 	if err != nil {
 		log.Crit("Failed to connect to database", "message", err)
 	}
