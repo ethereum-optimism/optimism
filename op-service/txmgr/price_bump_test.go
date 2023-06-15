@@ -34,7 +34,7 @@ func TestUpdateFees(t *testing.T) {
 		{
 			prevGasTip: 100, prevBasefee: 1000,
 			newGasTip: 90, newBasefee: 900,
-			expectedTip: 100, expectedFC: 2100,
+			expectedTip: 115, expectedFC: 2415,
 		},
 		{
 			prevGasTip: 100, prevBasefee: 1000,

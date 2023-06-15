@@ -792,13 +792,6 @@ func TestIncreaseGasPrice(t *testing.T) {
 				require.True(t, newTx.GasFeeCap().Cmp(big.NewInt(4115)) == 0, "new tx fee cap must be equal L1")
 			},
 		},
-		{
-			name: "reuses tx when no bump",
-			run: func(t *testing.T) {
-				tx, newTx := doGasPriceIncrease(t, 10, 100, 10, 45)
-				require.Equal(t, tx.Hash(), newTx.Hash(), "tx hash must be the same")
-			},
-		},
 	}
 	for _, test := range tests {
 		test := test
@@ -815,7 +808,6 @@ func TestIncreaseGasPriceNotExponential(t *testing.T) {
 		gasTip:  big.NewInt(10),
 		baseFee: big.NewInt(45),
 	}
-	feeCap := calcGasFeeCap(borkedBackend.baseFee, borkedBackend.gasTip)
 
 	mgr := &SimpleTxManager{
 		cfg: Config{
@@ -841,12 +833,18 @@ func TestIncreaseGasPriceNotExponential(t *testing.T) {
 	// Run IncreaseGasPrice a bunch of times in a row to simulate a very fast resubmit loop.
 	for i := 0; i < 20; i++ {
 		ctx := context.Background()
-		newTx := mgr.increaseGasPrice(ctx, tx)
-		require.True(t, newTx.GasFeeCap().Cmp(feeCap) == 0, "new tx fee cap must be equal L1")
-		require.True(t, newTx.GasTipCap().Cmp(borkedBackend.gasTip) == 0, "new tx tip must be equal L1")
-		tx = newTx
+		tx = mgr.increaseGasPrice(ctx, tx)
 	}
-
+	lastTip, lastFee := tx.GasTipCap(), tx.GasFeeCap()
+	require.Equal(t, lastTip.Int64(), int64(50))  // 5x borked tip
+	require.Equal(t, lastFee.Int64(), int64(500)) // 5x borked tip + 2*(5x borked base fee)
+	// Confirm that fees stop rising
+	for i := 0; i < 5; i++ {
+		ctx := context.Background()
+		tx = mgr.increaseGasPrice(ctx, tx)
+		require.True(t, tx.GasTipCap().Cmp(lastTip) == 0, "suggested tx tip must stop increasing")
+		require.True(t, tx.GasFeeCap().Cmp(lastFee) == 0, "suggested tx fee must stop increasing")
+	}
 }
 
 func TestErrStringMatch(t *testing.T) {

@@ -20,9 +20,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
-// Geth defaults the priceBump to 10
-// Set it to 15% to be more aggressive about including transactions
-const priceBump int64 = 15
+const (
+	// Geth defaults the priceBump to 10
+	// Set it to 15% to be more aggressive about including transactions
+	priceBump int64 = 15
+
+	// The multiplier applied to fee suggestions to put a hard limit on fee increases
+	feeLimitMultiplier = 5
+)
 
 // new = old * (100 + priceBump) / 100
 var priceBumpPercent = big.NewInt(100 + priceBump)
@@ -418,32 +423,42 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 	return nil
 }
 
-// increaseGasPrice takes the previous transaction & potentially clones then signs it with a higher tip.
-// If the tip + basefee suggested by the network are not greater than the previous values, the same transaction
-// will be returned. If they are greater, this function will ensure that they are at least greater by 15% than
-// the previous transaction's value to ensure that the price bump is large enough.
+// increaseGasPrice takes the previous transaction, clones it, and returns it with fee values that
+// are at least 15% higher than the previous ones to satisfy Geth's replacement rules, and no lower
+// than the values returned by the fee suggestion algorithm to ensure it doesn't linger in the
+// mempool. Finally to avoid runaway price increases, fees are capped at 5x suggested values.
 //
-// We do not re-estimate the amount of gas used because for some stateful transactions (like output proposals) the
-// act of including the transaction renders the repeat of the transaction invalid.
-//
-// If it encounters an error with creating the new transaction, it will return the old transaction.
+// We do not re-estimate the amount of gas used because for some stateful transactions (like output
+// proposals) the act of including the transaction renders the repeat of the transaction invalid.
 func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transaction) *types.Transaction {
+	m.l.Info("bumping gas price for tx", "hash", tx.Hash(), "tip", tx.GasTipCap(), "fee", tx.GasFeeCap(), "gaslimit", tx.Gas())
+	var tip, basefee *big.Int
 	tip, basefee, err := m.suggestGasPriceCaps(ctx)
 	if err != nil {
 		m.l.Warn("failed to get suggested gas tip and basefee", "err", err)
-		return tx
+		// In this case we'll use the old tx's tip as the tip suggestion and 0 for base fee so that
+		// we at least get the min geth fee bump.
+		tip = new(big.Int).Set(tx.GasTipCap())
+		basefee = new(big.Int)
 	}
-	gasTipCap, gasFeeCap := updateFees(tx.GasTipCap(), tx.GasFeeCap(), tip, basefee, m.l)
+	bumpedTip, bumpedFee := updateFees(tx.GasTipCap(), tx.GasFeeCap(), tip, basefee, m.l)
 
-	if tx.GasTipCapIntCmp(gasTipCap) == 0 && tx.GasFeeCapIntCmp(gasFeeCap) == 0 {
-		return tx
+	// Make sure increase is at most 5x the suggested values
+	maxTip := new(big.Int).Mul(tip, big.NewInt(feeLimitMultiplier))
+	if bumpedTip.Cmp(maxTip) > 0 {
+		m.l.Warn("bumped tip getting capped at 5x the suggested value", "bumped", bumpedTip, "suggestion", tip)
+		bumpedTip.Set(maxTip)
 	}
-
+	maxFee := calcGasFeeCap(new(big.Int).Mul(basefee, big.NewInt(feeLimitMultiplier)), maxTip)
+	if bumpedFee.Cmp(maxFee) > 0 {
+		m.l.Warn("bumped fee getting capped at 5x the implied suggested value", "bumped", bumpedFee, "suggestion", maxFee)
+		bumpedFee.Set(maxFee)
+	}
 	rawTx := &types.DynamicFeeTx{
 		ChainID:    tx.ChainId(),
 		Nonce:      tx.Nonce(),
-		GasTipCap:  gasTipCap,
-		GasFeeCap:  gasFeeCap,
+		GasTipCap:  bumpedTip,
+		GasFeeCap:  bumpedFee,
 		Gas:        tx.Gas(),
 		To:         tx.To(),
 		Value:      tx.Value(),
@@ -490,18 +505,15 @@ func calcThresholdValue(x *big.Int) *big.Int {
 	return threshold
 }
 
-// updateFees takes the old tip/basefee & the new tip/basefee and then suggests
-// a gasTipCap and gasFeeCap that satisfies geth's required fee bumps
-// Geth: FC and Tip must be bumped if any increase
+// updateFees takes an old transaction's tip & fee cap plus a new tip & basefee, and returns
+// a suggested tip and fee cap such that:
+//
+//	(a) each satisfies geth's required tx-replacement fee bumps (we use a 15% increase), and
+//	(b) gasTipCap is no less than new tip, and
+//	(c) gasFeeCap is no less than calcGasFee(newBaseFee, newTip)
 func updateFees(oldTip, oldFeeCap, newTip, newBaseFee *big.Int, lgr log.Logger) (*big.Int, *big.Int) {
 	newFeeCap := calcGasFeeCap(newBaseFee, newTip)
 	lgr = lgr.New("old_tip", oldTip, "old_feecap", oldFeeCap, "new_tip", newTip, "new_feecap", newFeeCap)
-	// If the new prices are less than the old price, reuse the old prices
-	if oldTip.Cmp(newTip) >= 0 && oldFeeCap.Cmp(newFeeCap) >= 0 {
-		lgr.Debug("Reusing old tip and feecap")
-		return oldTip, oldFeeCap
-	}
-	// Determine if we need to increase the suggested values
 	thresholdTip := calcThresholdValue(oldTip)
 	thresholdFeeCap := calcThresholdValue(oldFeeCap)
 	if newTip.Cmp(thresholdTip) >= 0 && newFeeCap.Cmp(thresholdFeeCap) >= 0 {
