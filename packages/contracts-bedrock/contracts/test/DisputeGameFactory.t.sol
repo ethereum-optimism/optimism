@@ -22,7 +22,7 @@ contract DisputeGameFactory_Initializer is Test {
 
     function setUp() public virtual {
         Proxy proxy = new Proxy(address(this));
-        DisputeGameFactory impl = new DisputeGameFactory(address(this));
+        DisputeGameFactory impl = new DisputeGameFactory();
 
         proxy.upgradeToAndCall({
             _implementation: address(impl),

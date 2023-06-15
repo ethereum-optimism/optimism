@@ -44,10 +44,9 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, IVersion
 
     /**
      * @notice Constructs a new DisputeGameFactory contract.
-     * @param _owner The owner of the contract.
      */
-    constructor(address _owner) OwnableUpgradeable() {
-        initialize(_owner);
+    constructor() OwnableUpgradeable() {
+        initialize(address(0));
     }
 
     /**
