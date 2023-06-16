@@ -39,6 +39,32 @@ error CannotDefendRootClaim();
  */
 error ClaimAlreadyExists();
 
+/**
+ * @notice Thrown when a given claim is invalid (0).
+ */
+error InvalidClaim();
+
+/**
+ * @notice Thrown when an action that requires the game to be `IN_PROGRESS` is invoked when
+ *         the game is not in progress.
+ */
+error GameNotInProgress();
+
+/**
+ * @notice Thrown when a move is attempted to be made against a claim that does not exist.
+ */
+error ParentDoesNotExist();
+
+/**
+ * @notice Thrown when a move is attempted to be made after the clock has timed out.
+ */
+error ClockTimeExceeded();
+
+/**
+ * @notice Thrown when a move is attempted to be made at or greater than the max depth of the game.
+ */
+error GameDepthExceeded();
+
 ////////////////////////////////////////////////////////////////
 //              `AttestationDisputeGame` Errors               //
 ////////////////////////////////////////////////////////////////
