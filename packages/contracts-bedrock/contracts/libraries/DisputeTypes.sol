@@ -34,6 +34,18 @@ type Timestamp is uint64;
 type Duration is uint64;
 
 /**
+ * @notice A `GameId` represents a packed 12 byte timestamp and a 20 byte address.
+ * @dev The packed layout of this type is as follows:
+ * ┌────────────┬────────────────┐
+ * │    Bits    │     Value      │
+ * ├────────────┼────────────────┤
+ * │ [0, 96)    │ Timestamp      │
+ * │ [96, 256)  │ Address        │
+ * └────────────┴────────────────┘
+ */
+type GameId is bytes32;
+
+/**
  * @notice A `Clock` represents a packed `Duration` and `Timestamp`
  * @dev The packed layout of this type is as follows:
  * ┌────────────┬────────────────┐
