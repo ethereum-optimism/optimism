@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.7.6;
+pragma solidity 0.7.6;
 
 interface IOracle {
   function readPreimage(bytes32 key, uint256 offset) external view returns (bytes32 dat, uint256 datLen);
