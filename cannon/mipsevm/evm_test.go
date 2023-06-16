@@ -14,18 +14,14 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
 )
 
-func testContractsSetup(t *testing.T) (*Contracts, *Addresses, vm.EVMLogger) {
+func testContractsSetup(t *testing.T) (*Contracts, *Addresses) {
 	contracts, err := LoadContracts()
-	require.NoError(t, err)
-
-	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{"../../packages/contracts-bedrock/contracts/cannon/MIPS.sol"})
-	require.NoError(t, err)
-	oracleSrcMap, err := contracts.Oracle.SourceMap([]string{"../../packages/contracts-bedrock/contracts/cannon/Oracle.sol"})
 	require.NoError(t, err)
 
 	addrs := &Addresses{
@@ -34,19 +30,30 @@ func testContractsSetup(t *testing.T) (*Contracts, *Addresses, vm.EVMLogger) {
 		Sender:       common.Address{0x13, 0x37},
 		FeeRecipient: common.Address{0xaa},
 	}
-	var tracer vm.EVMLogger
-	tracer = srcmap.NewSourceMapTracer(map[common.Address]*srcmap.SourceMap{addrs.MIPS: mipsSrcMap, addrs.Oracle: oracleSrcMap}, os.Stdout)
-	//tracer = logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
 
-	tracer = nil // disable tracer
-	return contracts, addrs, tracer
+	return contracts, addrs
+}
+
+func SourceMapTracer(t *testing.T, contracts *Contracts, addrs *Addresses) vm.EVMLogger {
+	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{"../../packages/contracts-bedrock/contracts/cannon/MIPS.sol"})
+	require.NoError(t, err)
+	oracleSrcMap, err := contracts.Oracle.SourceMap([]string{"../../packages/contracts-bedrock/contracts/cannon/Oracle.sol"})
+	require.NoError(t, err)
+
+	return srcmap.NewSourceMapTracer(map[common.Address]*srcmap.SourceMap{addrs.MIPS: mipsSrcMap, addrs.Oracle: oracleSrcMap}, os.Stdout)
+}
+
+func MarkdownTracer() vm.EVMLogger {
+	return logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
 }
 
 func TestEVM(t *testing.T) {
 	testFiles, err := os.ReadDir("open_mips_tests/test/bin")
 	require.NoError(t, err)
 
-	contracts, addrs, tracer := testContractsSetup(t)
+	contracts, addrs := testContractsSetup(t)
+	var tracer vm.EVMLogger // no-tracer by default, but see SourceMapTracer and MarkdownTracer
+	//tracer = SourceMapTracer(t, contracts, addrs)
 	sender := common.Address{0x13, 0x37}
 
 	for _, f := range testFiles {
@@ -113,7 +120,9 @@ func TestEVM(t *testing.T) {
 }
 
 func TestHelloEVM(t *testing.T) {
-	contracts, addrs, tracer := testContractsSetup(t)
+	contracts, addrs := testContractsSetup(t)
+	var tracer vm.EVMLogger // no-tracer by default, but see SourceMapTracer and MarkdownTracer
+	//tracer = SourceMapTracer(t, contracts, addrs)
 	sender := common.Address{0x13, 0x37}
 
 	elfProgram, err := elf.Open("../example/bin/hello.elf")
@@ -180,7 +189,9 @@ func TestHelloEVM(t *testing.T) {
 }
 
 func TestClaimEVM(t *testing.T) {
-	contracts, addrs, tracer := testContractsSetup(t)
+	contracts, addrs := testContractsSetup(t)
+	var tracer vm.EVMLogger // no-tracer by default, but see SourceMapTracer and MarkdownTracer
+	//tracer = SourceMapTracer(t, contracts, addrs)
 
 	elfProgram, err := elf.Open("../example/bin/claim.elf")
 	require.NoError(t, err, "open ELF file")

@@ -15,7 +15,7 @@ import (
 	"github.com/pkg/profile"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/op-preimage"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 )
 
 var (
@@ -184,7 +184,7 @@ func Guard(proc *os.ProcessState, fn StepFn) StepFn {
 		wit, err := fn(proof)
 		if err != nil {
 			if proc.Exited() {
-				return nil, fmt.Errorf("pre-image server exited with code %d, resulting in err %v", proc.ExitCode(), err)
+				return nil, fmt.Errorf("pre-image server exited with code %d, resulting in err %w", proc.ExitCode(), err)
 			} else {
 				return nil, err
 			}
