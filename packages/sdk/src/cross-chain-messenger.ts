@@ -1876,7 +1876,6 @@ export class CrossChainMessenger {
           return opts
         }
         const gasEstimation = await this.estimateGas.depositETH(amount, opts)
-        gasEstimation.mul(1.5)
         return {
           ...opts,
           overrides: {
@@ -1974,7 +1973,6 @@ export class CrossChainMessenger {
           amount,
           opts
         )
-        gasEstimation.mul(1.5)
         return {
           ...opts,
           overrides: {
