@@ -2,7 +2,7 @@
 pragma solidity ^0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { DisputeGameFactory_Initializer } from "./DisputeGameFactory.t.sol";
+import { DisputeGameFactory_Init } from "./DisputeGameFactory.t.sol";
 import { DisputeGameFactory } from "../dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "../dispute/FaultDisputeGame.sol";
 
@@ -11,7 +11,7 @@ import "../libraries/DisputeErrors.sol";
 import { LibClock } from "../dispute/lib/LibClock.sol";
 import { LibPosition } from "../dispute/lib/LibPosition.sol";
 
-contract FaultDisputeGame_Test is DisputeGameFactory_Initializer {
+contract FaultDisputeGame_Test is DisputeGameFactory_Init {
     /**
      * @dev The root claim of the game.
      */
