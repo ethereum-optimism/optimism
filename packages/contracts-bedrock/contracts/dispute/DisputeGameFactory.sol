@@ -43,18 +43,17 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, IVersion
     IDisputeGame[] public disputeGameList;
 
     /**
-     * @notice Constructs a new DisputeGameFactory contract. Set the owner
-     *         to `address(0)` to prevent accidental usage of the implementation.
+     * @notice Constructs a new DisputeGameFactory contract.
      */
     constructor() OwnableUpgradeable() {
-        _transferOwnership(address(0));
+        initialize(address(0));
     }
 
     /**
      * @notice Initializes the contract.
      * @param _owner The owner of the contract.
      */
-    function initialize(address _owner) external initializer {
+    function initialize(address _owner) public initializer {
         __Ownable_init();
         _transferOwnership(_owner);
     }
