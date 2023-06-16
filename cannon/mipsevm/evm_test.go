@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func testContractsSetup(t *testing.T) (*Contracts, *Addresses, *SourceMapTracer) {
+func testContractsSetup(t *testing.T) (*Contracts, *Addresses, vm.EVMLogger) {
 	contracts, err := LoadContracts()
 	require.NoError(t, err)
 
@@ -32,7 +32,11 @@ func testContractsSetup(t *testing.T) (*Contracts, *Addresses, *SourceMapTracer)
 		Sender:       common.Address{0x13, 0x37},
 		FeeRecipient: common.Address{0xaa},
 	}
-	tracer := NewSourceMapTracer(map[common.Address]*SourceMap{addrs.MIPS: mipsSrcMap, addrs.Oracle: oracleSrcMap}, os.Stdout)
+	var tracer vm.EVMLogger
+	tracer = NewSourceMapTracer(map[common.Address]*SourceMap{addrs.MIPS: mipsSrcMap, addrs.Oracle: oracleSrcMap}, os.Stdout)
+	//tracer = logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
+
+	tracer = nil // disable tracer
 	return contracts, addrs, tracer
 }
 
@@ -42,7 +46,6 @@ func TestEVM(t *testing.T) {
 
 	contracts, addrs, tracer := testContractsSetup(t)
 	sender := common.Address{0x13, 0x37}
-	//tracer = logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
 
 	for _, f := range testFiles {
 		t.Run(f.Name(), func(t *testing.T) {
@@ -51,7 +54,6 @@ func TestEVM(t *testing.T) {
 			}
 
 			env, evmState := NewEVMEnv(contracts, addrs)
-			env.Config.Debug = false
 			env.Config.Tracer = tracer
 
 			fn := path.Join("open_mips_tests/test/bin", f.Name())
@@ -126,7 +128,6 @@ func TestHelloEVM(t *testing.T) {
 	us := NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 
 	env, evmState := NewEVMEnv(contracts, addrs)
-	env.Config.Debug = false
 	env.Config.Tracer = tracer
 
 	start := time.Now()
@@ -195,7 +196,6 @@ func TestClaimEVM(t *testing.T) {
 	us := NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 
 	env, evmState := NewEVMEnv(contracts, addrs)
-	env.Config.Debug = false
 	env.Config.Tracer = tracer
 
 	for i := 0; i < 2000_000; i++ {

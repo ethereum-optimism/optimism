@@ -1,6 +1,6 @@
 # op-preimage
 
-`op-preimage` offers 0-dependency Go bindings to interact as client or sever over the Pre-image Oracle ABI.
+`op-preimage` offers simple Go bindings to interact as client or sever over the Pre-image Oracle ABI.
 
 Read more about the Preimage Oracle in the [specs](../specs/fault-proof.md).
 
