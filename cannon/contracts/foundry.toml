@@ -1,0 +1,11 @@
+# Config Reference: https://github.com/foundry-rs/foundry/tree/master/config
+
+[profile.default]
+src = 'src'
+out = 'out'
+libs = []
+ffi = false
+fs_permissions = []
+
+[fmt]
+bracket_spacing = true
