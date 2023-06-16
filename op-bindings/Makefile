@@ -31,7 +31,9 @@ bindings: l1block-bindings \
 	l1-fee-vault-bindings \
 	basefee-vault-bindings \
 	legacy-erc20-eth-bindings \
-	dispute-game-factory-bindings
+	dispute-game-factory-bindings \
+	cannon-mips \
+	cannon-oracle
 
 version:
 	forge --version
@@ -126,11 +128,18 @@ l1-blocknumber-bindings: compile
 dispute-game-factory-bindings: compile
 	./gen_bindings.sh contracts/dispute/DisputeGameFactory.sol:DisputeGameFactory $(pkg)
 
+cannon-mips: compile
+	./gen_bindings.sh contracts/cannon/MIPS.sol:MIPS $(pkg)
+
+cannon-oracle: compile
+	./gen_bindings.sh contracts/cannon/Oracle.sol:Oracle $(pkg)
+
 more:
 	go run ./gen/main.go \
 		-artifacts ../packages/contracts-bedrock/artifacts \
+		-forge-artifacts ../packages/contracts-bedrock/forge-artifacts \
 		-out ./bindings \
-		-contracts SystemConfig,OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,LegacyMessagePasser,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken,L1CrossDomainMessenger,L2ERC721Bridge,OptimismMintableERC721Factory,ProxyAdmin \
+		-contracts SystemConfig,OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,LegacyMessagePasser,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken,L1CrossDomainMessenger,L2ERC721Bridge,OptimismMintableERC721Factory,ProxyAdmin,MIPS,Oracle \
 		-package bindings
 
 mkdir:
