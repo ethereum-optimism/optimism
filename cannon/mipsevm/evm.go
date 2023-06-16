@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
 )
 
 var (
@@ -78,8 +79,8 @@ type Contract struct {
 	// ignore abi,bytecode,etc.
 }
 
-func (c *Contract) SourceMap(sourcePaths []string) (*SourceMap, error) {
-	return ParseSourceMap(sourcePaths, c.DeployedBytecode.Object, c.DeployedBytecode.SourceMap)
+func (c *Contract) SourceMap(sourcePaths []string) (*srcmap.SourceMap, error) {
+	return srcmap.ParseSourceMap(sourcePaths, c.DeployedBytecode.Object, c.DeployedBytecode.SourceMap)
 }
 
 type Contracts struct {

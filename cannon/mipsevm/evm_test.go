@@ -15,6 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
 )
 
 func testContractsSetup(t *testing.T) (*Contracts, *Addresses, vm.EVMLogger) {
@@ -33,7 +35,7 @@ func testContractsSetup(t *testing.T) (*Contracts, *Addresses, vm.EVMLogger) {
 		FeeRecipient: common.Address{0xaa},
 	}
 	var tracer vm.EVMLogger
-	tracer = NewSourceMapTracer(map[common.Address]*SourceMap{addrs.MIPS: mipsSrcMap, addrs.Oracle: oracleSrcMap}, os.Stdout)
+	tracer = srcmap.NewSourceMapTracer(map[common.Address]*srcmap.SourceMap{addrs.MIPS: mipsSrcMap, addrs.Oracle: oracleSrcMap}, os.Stdout)
 	//tracer = logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
 
 	tracer = nil // disable tracer

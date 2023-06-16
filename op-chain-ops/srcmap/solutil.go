@@ -1,4 +1,4 @@
-package mipsevm
+package srcmap
 
 import (
 	"fmt"
@@ -108,6 +108,11 @@ func (s *SourceMap) FormattedInfo(pc uint64) string {
 
 // ParseSourceMap parses a solidity sourcemap: mapping bytecode indices to source references.
 // See https://docs.soliditylang.org/en/latest/internals/source_mappings.html
+//
+// Sources is the list of source files, which will be read from the filesystem
+// to transform token numbers into line/column numbers.
+// The sources are as referenced in the source-map by index.
+// Not all sources are necessary, some indices may be unknown.
 func ParseSourceMap(sources []string, bytecode []byte, sourceMap string) (*SourceMap, error) {
 	instructions := strings.Split(sourceMap, ";")
 
