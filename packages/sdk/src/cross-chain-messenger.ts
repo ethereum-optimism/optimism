@@ -1868,13 +1868,28 @@ export class CrossChainMessenger {
         recipient?: AddressLike
         l2GasLimit?: NumberLike
         overrides?: PayableOverrides
-      }
+      },
+      isEstimatingGas: boolean = false
     ): Promise<TransactionRequest> => {
+      const getOpts = async () => {
+        if (isEstimatingGas) {
+          return opts
+        }
+        const gasEstimation = await this.estimateGas.depositETH(amount, opts)
+        gasEstimation.mul(1.5)
+        return {
+          ...opts,
+          overrides: {
+            ...opts?.overrides,
+            gasLimit: gasEstimation.mul(1.5),
+          },
+        }
+      }
       return this.bridges.ETH.populateTransaction.deposit(
         ethers.constants.AddressZero,
         predeploys.OVM_ETH,
         amount,
-        opts
+        await getOpts()
       )
     },
 
@@ -1944,10 +1959,36 @@ export class CrossChainMessenger {
         recipient?: AddressLike
         l2GasLimit?: NumberLike
         overrides?: Overrides
-      }
+      },
+      isEstimatingGas: boolean = false
     ): Promise<TransactionRequest> => {
       const bridge = await this.getBridgeForTokenPair(l1Token, l2Token)
-      return bridge.populateTransaction.deposit(l1Token, l2Token, amount, opts)
+      // we need extra buffer for gas limit
+      const getOpts = async () => {
+        if (isEstimatingGas) {
+          return opts
+        }
+        const gasEstimation = await this.estimateGas.depositERC20(
+          l1Token,
+          l2Token,
+          amount,
+          opts
+        )
+        gasEstimation.mul(1.5)
+        return {
+          ...opts,
+          overrides: {
+            ...opts?.overrides,
+            gasLimit: gasEstimation.mul(1.5),
+          },
+        }
+      }
+      return bridge.populateTransaction.deposit(
+        l1Token,
+        l2Token,
+        amount,
+        await getOpts()
+      )
     },
 
     /**
@@ -2086,7 +2127,7 @@ export class CrossChainMessenger {
       }
     ): Promise<BigNumber> => {
       return this.l1Provider.estimateGas(
-        await this.populateTransaction.depositETH(amount, opts)
+        await this.populateTransaction.depositETH(amount, opts, true)
       )
     },
 
@@ -2166,7 +2207,8 @@ export class CrossChainMessenger {
           l1Token,
           l2Token,
           amount,
-          opts
+          opts,
+          true
         )
       )
     },
