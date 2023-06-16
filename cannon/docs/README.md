@@ -40,7 +40,7 @@ to emulate the delayed `PC` changes after delay-slot execution.
 
 There are 3 types of witness data involved in onchain execution:
 - [Packed State](#packed-state)
-- [Memory proofs](#memory-proofs) 
+- [Memory proofs](#memory-proofs)
 - [Pre-image data](#pre-image-data)
 
 ### Packed State
@@ -131,7 +131,7 @@ since all sibling data that is combined with the new leaf value was already auth
 ### Pre-image data
 
 Pre-image data is accessed through syscalls exclusively.
-The OP-stack fault-proof [Pre-image Oracle specs](https://github.com/ethereum-optimism/optimism/blob/develop/specs/fault-proof.md#pre-image-oracle)
+The OP-stack fault-proof [Pre-image Oracle specs](../../specs/fault-proof.md#pre-image-oracle)
 define the ABI for communicating pre-images.
 
 This ABI is implemented by the VM by intercepting the `read`/`write` syscalls to specific file descriptors:

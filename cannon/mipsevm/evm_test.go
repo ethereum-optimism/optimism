@@ -21,9 +21,9 @@ func testContractsSetup(t *testing.T) (*Contracts, *Addresses, *SourceMapTracer)
 	contracts, err := LoadContracts()
 	require.NoError(t, err)
 
-	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{"../contracts/src/MIPS.sol"})
+	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{"../../packages/contracts-bedrock/contracts/cannon/MIPS.sol"})
 	require.NoError(t, err)
-	oracleSrcMap, err := contracts.Oracle.SourceMap([]string{"../contracts/src/Oracle.sol"})
+	oracleSrcMap, err := contracts.Oracle.SourceMap([]string{"../../packages/contracts-bedrock/contracts/cannon/Oracle.sol"})
 	require.NoError(t, err)
 
 	addrs := &Addresses{

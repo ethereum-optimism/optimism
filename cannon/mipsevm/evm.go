@@ -42,8 +42,7 @@ func LoadContracts() (*Contracts, error) {
 }
 
 func LoadContract(name string) (*Contract, error) {
-	// TODO change to forge build output
-	dat, err := os.ReadFile(fmt.Sprintf("../contracts/out/%s.sol/%s.json", name, name))
+	dat, err := os.ReadFile(fmt.Sprintf("../../packages/contracts-bedrock/forge-artifacts/%s.sol/%s.json", name, name))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read contract JSON definition of %q: %w", name, err)
 	}

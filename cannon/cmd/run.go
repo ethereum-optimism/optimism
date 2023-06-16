@@ -14,8 +14,8 @@ import (
 
 	"github.com/pkg/profile"
 
-	"github.com/ethereum-optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/cannon/preimage"
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/op-preimage"
 )
 
 var (

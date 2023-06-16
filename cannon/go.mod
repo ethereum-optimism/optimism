@@ -1,9 +1,9 @@
-module github.com/ethereum-optimism/cannon
+module github.com/ethereum-optimism/optimism/cannon
 
 go 1.20
 
 require (
-	github.com/ethereum-optimism/cannon/preimage v0.0.0
+	github.com/ethereum-optimism/optimism/op-preimage v0.0.0
 	github.com/ethereum/go-ethereum v1.11.5
 	github.com/pkg/profile v1.7.0
 	github.com/stretchr/testify v1.8.2
@@ -66,4 +66,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/ethereum-optimism/cannon/preimage v0.0.0 => ./preimage
+replace github.com/ethereum-optimism/optimism/op-preimage v0.0.0 => ../op-preimage

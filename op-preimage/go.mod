@@ -1,4 +1,4 @@
-module github.com/ethereum-optimism/cannon/preimage
+module github.com/ethereum-optimism/optimism/op-preimage
 
 go 1.20
 
