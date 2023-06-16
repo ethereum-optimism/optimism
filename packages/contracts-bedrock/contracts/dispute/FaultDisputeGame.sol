@@ -120,11 +120,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             revert GameNotInProgress();
         }
 
-        // The zero hash is not a valid claim.
-        if (Claim.unwrap(_pivot) == bytes32(0)) {
-            revert InvalidClaim();
-        }
-
         // The only move that can be made against a root claim is an attack. This is because the
         // root claim commits to the entire state; Therefore, the only valid defense is to do
         // nothing if it is agreed with.
@@ -132,13 +127,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             revert CannotDefendRootClaim();
         }
 
-        // Get the parent
+        // Get the parent. If it does not exist, the call will revert with OOB.
         ClaimData memory parent = claimData[_challengeIndex];
-
-        // The parent must exist.
-        if (Claim.unwrap(parent.claim) == bytes32(0)) {
-            revert ParentDoesNotExist();
-        }
 
         // Set the parent claim as countered.
         claimData[_challengeIndex].countered = true;
