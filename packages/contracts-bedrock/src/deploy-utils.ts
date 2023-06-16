@@ -37,7 +37,7 @@ export const deploy = async ({
   contract?: string
   iface?: string
   postDeployAction?: (contract: Contract) => Promise<void>
-}) => {
+}): Promise<Contract> => {
   const { deployer } = await hre.getNamedAccounts()
 
   // Hardhat deploy will usually do this check for us, but currently doesn't also consider
