@@ -51,11 +51,6 @@ error InvalidClaim();
 error GameNotInProgress();
 
 /**
- * @notice Thrown when a move is attempted to be made against a claim that does not exist.
- */
-error ParentDoesNotExist();
-
-/**
  * @notice Thrown when a move is attempted to be made after the clock has timed out.
  */
 error ClockTimeExceeded();
