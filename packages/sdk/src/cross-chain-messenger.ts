@@ -1021,13 +1021,13 @@ export class CrossChainMessenger {
     const challengePeriod =
       oracleVersion === '1.0.0'
         ? // The ABI in the SDK does not contain FINALIZATION_PERIOD_SECONDS
-          // in OptimismPortal, so making an explicit call instead.
-          BigNumber.from(
-            await this.contracts.l1.OptimismPortal.provider.call({
-              to: this.contracts.l1.OptimismPortal.address,
-              data: '0xf4daa291', // FINALIZATION_PERIOD_SECONDS
-            })
-          )
+        // in OptimismPortal, so making an explicit call instead.
+        BigNumber.from(
+          await this.contracts.l1.OptimismPortal.provider.call({
+            to: this.contracts.l1.OptimismPortal.address,
+            data: '0xf4daa291', // FINALIZATION_PERIOD_SECONDS
+          })
+        )
         : await this.contracts.l1.L2OutputOracle.FINALIZATION_PERIOD_SECONDS()
     return challengePeriod.toNumber()
   }
@@ -1968,10 +1968,10 @@ export class CrossChainMessenger {
           return opts
         }
         // if we don't include the users address the estimation will fail from lack of allowance
-        if (!('address' in this.l1SignerOrProvider)) {
+        if (!ethers.Signer.isSigner(this.l1SignerOrProvider)) {
           throw new Error('unable to deposit without an l1 signer')
         }
-        const { address } = this.l1SignerOrProvider
+        const from = (this.l1SignerOrProvider as Signer).getAddress()
         const gasEstimation = await this.estimateGas.depositERC20(
           l1Token,
           l2Token,
@@ -1983,7 +1983,7 @@ export class CrossChainMessenger {
           overrides: {
             ...opts?.overrides,
             gasLimit: gasEstimation.add(gasEstimation.div(2)),
-            from: address,
+            from,
           },
         }
       }
