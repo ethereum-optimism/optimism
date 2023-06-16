@@ -1191,6 +1191,9 @@ workflows:
       - go-lint:
           name: op-wheel-lint
           module: op-wheel
+      - go-lint:
+          name: cannon-go-lint
+          module: cannon
       - go-test:
           name: op-batcher-tests
           module: op-batcher
@@ -1216,6 +1219,9 @@ workflows:
       - go-test:
           name: op-service-tests
           module: op-service
+      - go-test:
+          name: cannon-go-tests
+          module: cannon
       - go-e2e-test:
           name: op-e2e-WS-tests
           module: op-e2e
@@ -1236,6 +1242,7 @@ workflows:
             - op-challenger-lint
             - op-program-lint
             - op-service-lint
+            - cannon-go-lint
             - op-batcher-tests
             - op-bindings-tests
             - op-chain-ops-tests
@@ -1246,6 +1253,7 @@ workflows:
             - op-service-tests
             - op-e2e-WS-tests
             - op-e2e-HTTP-tests
+            - cannon-go-tests
       - docker-build:
           name: op-node-docker-build
           docker_file: op-node/Dockerfile
