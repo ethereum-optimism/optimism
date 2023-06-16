@@ -27,6 +27,8 @@ import {
   decodeVersionedNonce,
   encodeVersionedNonce,
   getChainId,
+  hashCrossDomainMessagev0,
+  hashCrossDomainMessagev1,
 } from '@eth-optimism/core-utils'
 import { getContractInterface, predeploys } from '@eth-optimism/contracts'
 import * as rlp from 'rlp'
@@ -716,7 +718,18 @@ export class CrossChainMessenger {
     message: MessageLike
   ): Promise<MessageReceipt> {
     const resolved = await this.toCrossChainMessage(message)
-    const messageHash = hashCrossDomainMessage(
+    // legacy withdrawals relayed prebedrock are v1
+    const messageHashV0 = hashCrossDomainMessagev0(
+      resolved.target,
+      resolved.sender,
+      resolved.message,
+      resolved.messageNonce
+    )
+    // bedrock withdrawals are v1
+    // legacy withdrawals relayed postbedrock are v1
+    // there is no good way to differentiate between the two types of legacy
+    // so what we will check for both
+    const messageHashV1 = hashCrossDomainMessagev1(
       resolved.messageNonce,
       resolved.sender,
       resolved.target,
@@ -731,9 +744,15 @@ export class CrossChainMessenger {
         ? this.contracts.l2.L2CrossDomainMessenger
         : this.contracts.l1.L1CrossDomainMessenger
 
-    const relayedMessageEvents = await messenger.queryFilter(
-      messenger.filters.RelayedMessage(messageHash)
-    )
+    // this is safe because we can guarantee only one of these filters max will return something
+    const relayedMessageEvents = [
+      ...(await messenger.queryFilter(
+        messenger.filters.RelayedMessage(messageHashV0)
+      )),
+      ...(await messenger.queryFilter(
+        messenger.filters.RelayedMessage(messageHashV1)
+      )),
+    ]
 
     // Great, we found the message. Convert it into a transaction receipt.
     if (relayedMessageEvents.length === 1) {
@@ -749,9 +768,14 @@ export class CrossChainMessenger {
 
     // We didn't find a transaction that relayed the message. We now attempt to find
     // FailedRelayedMessage events instead.
-    const failedRelayedMessageEvents = await messenger.queryFilter(
-      messenger.filters.FailedRelayedMessage(messageHash)
-    )
+    const failedRelayedMessageEvents = [
+      ...(await messenger.queryFilter(
+        messenger.filters.FailedRelayedMessage(messageHashV0)
+      )),
+      ...(await messenger.queryFilter(
+        messenger.filters.FailedRelayedMessage(messageHashV1)
+      )),
+    ]
 
     // A transaction can fail to be relayed multiple times. We'll always return the last
     // transaction that attempted to relay the message.
