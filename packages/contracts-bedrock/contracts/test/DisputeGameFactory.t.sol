@@ -29,6 +29,7 @@ contract DisputeGameFactory_Initializer is Test {
             _data: abi.encodeCall(impl.initialize, (address(this)))
         });
         factory = DisputeGameFactory(address(proxy));
+        vm.label(address(factory), "DisputeGameFactoryProxy");
     }
 }
 
