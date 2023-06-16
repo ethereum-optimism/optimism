@@ -49,17 +49,17 @@ jobs:
       - name: main golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.52
+          version: v1.53.3
           working-directory: ./
           skip-cache: true  # we already have go caching
-          args: --timeout=1m
+          args: --timeout=3m
       - name: unicorntest golangci-lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.52
+          version: v1.53.3
           working-directory: ./diffmips/unicorntest
           skip-cache: true  # we already have go caching
-          args: --timeout=1m
+          args: --timeout=3m
       - name: Build examples
         working-directory: ./example
         run: make elf
