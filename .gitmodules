@@ -1,3 +1,0 @@
-[submodule "unicorn"]
-	path = diffmips/unicorn
-	url = https://github.com/unicorn-engine/unicorn.git
