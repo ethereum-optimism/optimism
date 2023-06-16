@@ -18,6 +18,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 )
 
 var (
@@ -26,7 +28,21 @@ var (
 	LoadKeccak256PreimagePartBytes4 = crypto.Keccak256([]byte("loadKeccak256PreimagePart(uint256,bytes)"))[:4]
 )
 
+// LoadContracts loads the Cannon contracts, from op-bindings package
 func LoadContracts() (*Contracts, error) {
+	var mips, oracle Contract
+	mips.DeployedBytecode.Object = hexutil.MustDecode(bindings.MIPSDeployedBin)
+	mips.DeployedBytecode.SourceMap = bindings.MIPSDeployedSourceMap
+	oracle.DeployedBytecode.Object = hexutil.MustDecode(bindings.OracleDeployedBin)
+	oracle.DeployedBytecode.SourceMap = bindings.OracleDeployedSourceMap
+	return &Contracts{
+		MIPS: &mips,
+		Oracle: &oracle,
+	}, nil
+}
+
+// LoadContractsFromFiles loads the Cannon contracts, from local filesystem
+func LoadContractsFromFiles() (*Contracts, error) {
 	mips, err := LoadContract("MIPS")
 	if err != nil {
 		return nil, err
