@@ -11,85 +11,39 @@ import { IDisputeGame } from "./IDisputeGame.sol";
  */
 interface IFaultDisputeGame is IDisputeGame {
     /**
-     * @notice Emitted when a subclaim is disagreed upon by `claimant`
-     * @dev Disagreeing with a subclaim is akin to attacking it.
-     * @param claimHash The unique ClaimHash that is being disagreed upon
-     * @param pivot The claim for the following pivot (disagreement = go left)
+     * @notice The `ClaimData` struct represents the data associated with a Claim.
+     * @dev TODO: Pack `Clock` and `Position` into the same slot. Should require 4 64 bit arms.
+     * @dev TODO: Add bond ID information.
+     */
+    struct ClaimData {
+        uint32 parentIndex;
+        bool countered;
+        Claim claim;
+        Position position;
+        Clock clock;
+    }
+
+    /**
+     * @notice Emitted when a new claim is added to the DAG by `claimant`
+     * @param parentIndex The index within the `claimData` array of the parent claim
+     * @param pivot The claim being added
      * @param claimant The address of the claimant
      */
-    event Attack(ClaimHash indexed claimHash, Claim indexed pivot, address indexed claimant);
+    event Move(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
 
     /**
-     * @notice Emitted when a subclaim is agreed upon by `claimant`
-     * @dev Agreeing with a subclaim is akin to defending it.
-     * @param claimHash The unique ClaimHash that is being agreed upon
-     * @param pivot The claim for the following pivot (agreement = go right)
-     * @param claimant The address of the claimant
+     * @notice Attack a disagreed upon `Claim`.
+     * @param _parentIndex Index of the `Claim` to attack in `claimData`.
+     * @param _pivot The `Claim` at the relative attack position.
      */
-    event Defend(ClaimHash indexed claimHash, Claim indexed pivot, address indexed claimant);
+    function attack(uint256 _parentIndex, Claim _pivot) external payable;
 
     /**
-     * @notice Maps a unique ClaimHash to a Claim.
-     * @param claimHash The unique ClaimHash
-     * @return claim The Claim associated with the ClaimHash
+     * @notice Defend an agreed upon `Claim`.
+     * @param _parentIndex Index of the claim to defend in `claimData`.
+     * @param _pivot The `Claim` at the relative defense position.
      */
-    function claims(ClaimHash claimHash) external view returns (Claim claim);
-
-    /**
-     * @notice Maps a unique ClaimHash to its parent.
-     * @param claimHash The unique ClaimHash
-     * @return parent The parent ClaimHash of the passed ClaimHash
-     */
-    function parents(ClaimHash claimHash) external view returns (ClaimHash parent);
-
-    /**
-     * @notice Maps a unique ClaimHash to its Position.
-     * @param claimHash The unique ClaimHash
-     * @return position The Position associated with the ClaimHash
-     */
-    function positions(ClaimHash claimHash) external view returns (Position position);
-
-    /**
-     * @notice Maps a unique ClaimHash to a Bond.
-     * @param claimHash The unique ClaimHash
-     * @return bond The Bond associated with the ClaimHash
-     */
-    function bonds(ClaimHash claimHash) external view returns (BondAmount bond);
-
-    /**
-     * @notice Maps a unique ClaimHash its chess clock.
-     * @param claimHash The unique ClaimHash
-     * @return clock The chess clock associated with the ClaimHash
-     */
-    function clocks(ClaimHash claimHash) external view returns (Clock clock);
-
-    /**
-     * @notice Maps a unique ClaimHash to its reference counter.
-     * @param claimHash The unique ClaimHash
-     * @return _rc The reference counter associated with the ClaimHash
-     */
-    function rc(ClaimHash claimHash) external view returns (uint64 _rc);
-
-    /**
-     * @notice Maps a unique ClaimHash to a boolean indicating whether or not it has been countered.
-     * @param claimHash The unique claimHash
-     * @return _countered Whether or not `claimHash` has been countered
-     */
-    function countered(ClaimHash claimHash) external view returns (bool _countered);
-
-    /**
-     * @notice Disagree with a subclaim
-     * @param disagreement The ClaimHash of the disagreement
-     * @param pivot The claimed pivot
-     */
-    function attack(ClaimHash disagreement, Claim pivot) external;
-
-    /**
-     * @notice Agree with a subclaim
-     * @param agreement The ClaimHash of the agreement
-     * @param pivot The claimed pivot
-     */
-    function defend(ClaimHash agreement, Claim pivot) external;
+    function defend(uint256 _parentIndex, Claim _pivot) external payable;
 
     /**
      * @notice Perform the final step via an on-chain fault proof processor
@@ -97,7 +51,15 @@ interface IFaultDisputeGame is IDisputeGame {
      *      a step in the fault proof program on-chain. The interface of the fault proof
      *      processor contract should be generic enough such that we can use different
      *      fault proof VMs (MIPS, RiscV5, etc.)
-     * @param disagreement The ClaimHash of the disagreement
+     * @param _prestateIndex The index of the prestate of the step within `claimData`.
+     * @param _parentIndex The index of the parent claim within `claimData`.
+     * @param _stateData The stateData of the step is the preimage of the claim @ `prestateIndex`
+     * @param _proof Proof to access memory leaf nodes in the VM.
      */
-    function step(ClaimHash disagreement) external;
+    function step(
+        uint256 _prestateIndex,
+        uint256 _parentIndex,
+        bytes calldata _stateData,
+        bytes calldata _proof
+    ) external;
 }

@@ -52,7 +52,7 @@ func Main(cliCtx *cli.Context) error {
 		return err
 	}
 
-	p2pConfig, err := p2pcli.NewConfig(cliCtx, config.BlockTime)
+	p2pConfig, err := p2pcli.NewConfig(cliCtx, config)
 	if err != nil {
 		return fmt.Errorf("failed to load p2p config: %w", err)
 	}

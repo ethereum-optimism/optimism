@@ -8,17 +8,16 @@ import (
 	"os"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/stretchr/testify/require"
 )
 
 var writeFile bool
@@ -29,10 +28,8 @@ func init() {
 
 var testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 
-func TestBuildL2DeveloperGenesis(t *testing.T) {
-	config, err := genesis.NewDeployConfig("./testdata/test-deploy-config-devnet-l1.json")
-	require.Nil(t, err)
-
+// Tests the BuildL2MainnetGenesis factory with the provided config.
+func testBuildL2Genesis(t *testing.T, config *genesis.DeployConfig) *core.Genesis {
 	backend := backends.NewSimulatedBackend(
 		core.GenesisAlloc{
 			crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000000000)},
@@ -42,55 +39,65 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 	block, err := backend.BlockByNumber(context.Background(), common.Big0)
 	require.NoError(t, err)
 
-	gen, err := genesis.BuildL2DeveloperGenesis(config, block)
+	gen, err := genesis.BuildL2Genesis(config, block)
 	require.Nil(t, err)
 	require.NotNil(t, gen)
 
-	depB, err := bindings.GetDeployedBytecode("Proxy")
+	proxyBytecode, err := bindings.GetDeployedBytecode("Proxy")
 	require.NoError(t, err)
 
-	for name, address := range predeploys.Predeploys {
-		addr := *address
+	for name, predeploy := range predeploys.Predeploys {
+		addr := *predeploy
 
 		account, ok := gen.Alloc[addr]
-		require.Equal(t, ok, true)
+		require.Equal(t, true, ok, name)
 		require.Greater(t, len(account.Code), 0)
 
-		if name == "GovernanceToken" || name == "LegacyERC20ETH" || name == "ProxyAdmin" || name == "WETH9" {
-			continue
-		}
-
 		adminSlot, ok := account.Storage[genesis.AdminSlot]
-		require.Equal(t, ok, true)
-		require.Equal(t, adminSlot, predeploys.ProxyAdminAddr.Hash())
-		require.Equal(t, account.Code, depB)
+		isProxy := predeploys.IsProxied(addr) ||
+			(!config.EnableGovernance && addr == predeploys.GovernanceTokenAddr)
+		if isProxy {
+			require.Equal(t, true, ok, name)
+			require.Equal(t, predeploys.ProxyAdminAddr.Hash(), adminSlot)
+			require.Equal(t, proxyBytecode, account.Code)
+		} else {
+			require.Equal(t, false, ok, name)
+			require.NotEqual(t, proxyBytecode, account.Code, name)
+		}
 	}
-	require.Equal(t, 2343, len(gen.Alloc))
 
 	if writeFile {
 		file, _ := json.MarshalIndent(gen, "", " ")
 		_ = os.WriteFile("genesis.json", file, 0644)
 	}
+	return gen
 }
 
-func TestBuildL2DeveloperGenesisDevAccountsFunding(t *testing.T) {
+func TestBuildL2DeveloperGenesis(t *testing.T) {
 	config, err := genesis.NewDeployConfig("./testdata/test-deploy-config-devnet-l1.json")
 	require.Nil(t, err)
-	config.FundDevAccounts = false
-
+	config.EnableGovernance = false
+	config.FundDevAccounts = true
 	err = config.InitDeveloperDeployedAddresses()
 	require.NoError(t, err)
+	gen := testBuildL2Genesis(t, config)
+	require.Equal(t, 2342, len(gen.Alloc))
+}
 
-	backend := backends.NewSimulatedBackend(
-		core.GenesisAlloc{
-			crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000000000)},
-		},
-		15000000,
-	)
-	block, err := backend.BlockByNumber(context.Background(), common.Big0)
-	require.NoError(t, err)
+func TestBuildL2MainnetGenesis(t *testing.T) {
+	config, err := genesis.NewDeployConfig("./testdata/test-deploy-config-devnet-l1.json")
+	require.Nil(t, err)
+	config.EnableGovernance = true
+	config.FundDevAccounts = false
+	gen := testBuildL2Genesis(t, config)
+	require.Equal(t, 2064, len(gen.Alloc))
+}
 
-	gen, err := genesis.BuildL2DeveloperGenesis(config, block)
-	require.NoError(t, err)
-	require.Equal(t, 2321, len(gen.Alloc))
+func TestBuildL2MainnetNoGovernanceGenesis(t *testing.T) {
+	config, err := genesis.NewDeployConfig("./testdata/test-deploy-config-devnet-l1.json")
+	require.Nil(t, err)
+	config.EnableGovernance = false
+	config.FundDevAccounts = false
+	gen := testBuildL2Genesis(t, config)
+	require.Equal(t, 2064, len(gen.Alloc))
 }

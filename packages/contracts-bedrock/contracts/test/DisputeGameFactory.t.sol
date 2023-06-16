@@ -7,10 +7,10 @@ import "../libraries/DisputeErrors.sol";
 import { Test } from "forge-std/Test.sol";
 import { DisputeGameFactory } from "../dispute/DisputeGameFactory.sol";
 import { IDisputeGame } from "../dispute/interfaces/IDisputeGame.sol";
+import { Proxy } from "../universal/Proxy.sol";
 
-contract DisputeGameFactory_Test is Test {
+contract DisputeGameFactory_Initializer is Test {
     DisputeGameFactory factory;
-    FakeClone fakeClone;
 
     event DisputeGameCreated(
         address indexed disputeProxy,
@@ -20,8 +20,24 @@ contract DisputeGameFactory_Test is Test {
 
     event ImplementationSet(address indexed impl, GameType indexed gameType);
 
-    function setUp() public {
-        factory = new DisputeGameFactory(address(this));
+    function setUp() public virtual {
+        Proxy proxy = new Proxy(address(this));
+        DisputeGameFactory impl = new DisputeGameFactory();
+
+        proxy.upgradeToAndCall({
+            _implementation: address(impl),
+            _data: abi.encodeCall(impl.initialize, (address(this)))
+        });
+        factory = DisputeGameFactory(address(proxy));
+        vm.label(address(factory), "DisputeGameFactoryProxy");
+    }
+}
+
+contract DisputeGameFactory_Test is DisputeGameFactory_Initializer {
+    FakeClone fakeClone;
+
+    function setUp() public override {
+        super.setUp();
         fakeClone = new FakeClone();
     }
 
@@ -35,11 +51,11 @@ contract DisputeGameFactory_Test is Test {
         bytes calldata extraData
     ) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
-        GameType gt = GameType(uint8(bound(gameType, 0, 2)));
+        GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
 
         // Set all three implementations to the same `FakeClone` contract.
         for (uint8 i; i < 3; i++) {
-            factory.setImplementation(GameType(i), IDisputeGame(address(fakeClone)));
+            factory.setImplementation(GameType.wrap(i), IDisputeGame(address(fakeClone)));
         }
 
         vm.expectEmit(false, true, true, false);
@@ -48,6 +64,8 @@ contract DisputeGameFactory_Test is Test {
 
         // Ensure that the dispute game was assigned to the `disputeGames` mapping.
         assertEq(address(factory.games(gt, rootClaim, extraData)), address(proxy));
+        assertEq(factory.gameCount(), 1);
+        assertEq(address(factory.disputeGameList(0)), address(proxy));
     }
 
     /**
@@ -60,7 +78,7 @@ contract DisputeGameFactory_Test is Test {
         bytes calldata extraData
     ) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
-        GameType gt = GameType(uint8(bound(gameType, 0, 2)));
+        GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
 
         vm.expectRevert(abi.encodeWithSelector(NoImplementation.selector, gt));
         factory.create(gt, rootClaim, extraData);
@@ -75,11 +93,11 @@ contract DisputeGameFactory_Test is Test {
         bytes calldata extraData
     ) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
-        GameType gt = GameType(uint8(bound(gameType, 0, 2)));
+        GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
 
         // Set all three implementations to the same `FakeClone` contract.
         for (uint8 i; i < 3; i++) {
-            factory.setImplementation(GameType(i), IDisputeGame(address(fakeClone)));
+            factory.setImplementation(GameType.wrap(i), IDisputeGame(address(fakeClone)));
         }
 
         // Create our first dispute game - this should succeed.
@@ -104,17 +122,17 @@ contract DisputeGameFactory_Test is Test {
      * @dev Tests that the `setImplementation` function properly sets the implementation for a given `GameType`.
      */
     function test_setImplementation_succeeds() public {
-        // There should be no implementation for the `GameType.FAULT` enum value, it has not been set.
-        assertEq(address(factory.gameImpls(GameType.FAULT)), address(0));
+        // There should be no implementation for the `GameTypes.FAULT` enum value, it has not been set.
+        assertEq(address(factory.gameImpls(GameTypes.FAULT)), address(0));
 
         vm.expectEmit(true, true, true, true, address(factory));
-        emit ImplementationSet(address(1), GameType.FAULT);
+        emit ImplementationSet(address(1), GameTypes.FAULT);
 
-        // Set the implementation for the `GameType.FAULT` enum value.
-        factory.setImplementation(GameType.FAULT, IDisputeGame(address(1)));
+        // Set the implementation for the `GameTypes.FAULT` enum value.
+        factory.setImplementation(GameTypes.FAULT, IDisputeGame(address(1)));
 
-        // Ensure that the implementation for the `GameType.FAULT` enum value is set.
-        assertEq(address(factory.gameImpls(GameType.FAULT)), address(1));
+        // Ensure that the implementation for the `GameTypes.FAULT` enum value is set.
+        assertEq(address(factory.gameImpls(GameTypes.FAULT)), address(1));
     }
 
     /**
@@ -124,7 +142,7 @@ contract DisputeGameFactory_Test is Test {
         // Ensure that the `setImplementation` function reverts when called by a non-owner.
         vm.prank(address(0));
         vm.expectRevert("Ownable: caller is not the owner");
-        factory.setImplementation(GameType.FAULT, IDisputeGame(address(1)));
+        factory.setImplementation(GameTypes.FAULT, IDisputeGame(address(1)));
     }
 
     /**
@@ -137,7 +155,7 @@ contract DisputeGameFactory_Test is Test {
         bytes calldata extraData
     ) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
-        GameType gt = GameType(uint8(bound(gameType, 0, 2)));
+        GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
 
         assertEq(
             Hash.unwrap(factory.getGameUUID(gt, rootClaim, extraData)),

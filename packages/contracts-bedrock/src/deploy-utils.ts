@@ -4,7 +4,7 @@ import { URLSearchParams } from 'url'
 import { ethers, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
-import { awaitCondition, sleep } from '@eth-optimism/core-utils'
+import { sleep } from '@eth-optimism/core-utils'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { Deployment, DeployResult } from 'hardhat-deploy/dist/types'
 import 'hardhat-deploy'
@@ -37,7 +37,7 @@ export const deploy = async ({
   contract?: string
   iface?: string
   postDeployAction?: (contract: Contract) => Promise<void>
-}) => {
+}): Promise<Contract> => {
   const { deployer } = await hre.getNamedAccounts()
 
   // Hardhat deploy will usually do this check for us, but currently doesn't also consider
@@ -323,35 +323,35 @@ export const printJsonTransaction = (tx: ethers.PopulatedTransaction): void => {
 }
 
 /**
- * Mini helper for transferring a Proxy to the MSD
+ * Helper for transferring a Proxy to a target contract.
  *
  * @param opts Options for executing the step.
  * @param opts.isLiveDeployer True if the deployer is live.
  * @param opts.proxy proxy contract.
- * @param opts.dictator dictator contract.
+ * @param opts.target target contract.
  */
 export const doOwnershipTransfer = async (opts: {
   isLiveDeployer?: boolean
   proxy: ethers.Contract
   name: string
   transferFunc: string
-  dictator: ethers.Contract
+  target: ethers.Contract
 }): Promise<void> => {
   if (opts.isLiveDeployer) {
-    console.log(`Setting ${opts.name} owner to MSD`)
-    await opts.proxy[opts.transferFunc](opts.dictator.address)
+    console.log(`Setting ${opts.name} owner to target ${opts.target.address}`)
+    await opts.proxy[opts.transferFunc](opts.target.address)
   } else {
     const tx = await opts.proxy.populateTransaction[opts.transferFunc](
-      opts.dictator.address
+      opts.target.address
     )
     console.log(`
     Please transfer ${opts.name} (proxy) owner to MSD
       - ${opts.name} address: ${opts.proxy.address}
-      - MSD address: ${opts.dictator.address}
+      - target address: ${opts.target.address}
     `)
     printJsonTransaction(tx)
     printCastCommand(tx)
-    await printTenderlySimulationLink(opts.dictator.provider, tx)
+    await printTenderlySimulationLink(opts.target.provider, tx)
   }
 }
 
@@ -375,146 +375,6 @@ export const liveDeployer = async (opts: {
     deployer.toLowerCase() === opts.hre.deployConfig.controller.toLowerCase()
   console.log('Setting live deployer to', ret)
   return ret
-}
-
-/**
- * Mini helper for checking if the current step is a target step.
- *
- * @param dictator SystemDictator contract.
- * @param step Target step.
- * @returns True if the current step is the target step.
- */
-export const isStep = async (
-  dictator: ethers.Contract,
-  step: number
-): Promise<boolean> => {
-  return (await dictator.currentStep()) === step
-}
-
-/**
- * Mini helper for checking if the current step is the first step in target phase.
- *
- * @param dictator SystemDictator contract.
- * @param phase Target phase.
- * @returns True if the current step is the first step in target phase.
- */
-export const isStartOfPhase = async (
-  dictator: ethers.Contract,
-  phase: number
-): Promise<boolean> => {
-  const phaseToStep = {
-    1: 1,
-    2: 3,
-    3: 6,
-  }
-  return (await dictator.currentStep()) === phaseToStep[phase]
-}
-
-/**
- * Mini helper for executing a given step.
- *
- * @param opts Options for executing the step.
- * @param opts.isLiveDeployer True if the deployer is live.
- * @param opts.SystemDictator SystemDictator contract.
- * @param opts.step Step to execute.
- * @param opts.message Message to print before executing the step.
- * @param opts.checks Checks to perform after executing the step.
- */
-export const doStep = async (opts: {
-  isLiveDeployer?: boolean
-  SystemDictator: ethers.Contract
-  step: number
-  message: string
-  checks: () => Promise<void>
-}): Promise<void> => {
-  const isStepVal = await isStep(opts.SystemDictator, opts.step)
-  if (!isStepVal) {
-    console.log(`Step already completed: ${opts.step}`)
-    return
-  }
-
-  // Extra message to help the user understand what's going on.
-  console.log(opts.message)
-
-  // Either automatically or manually execute the step.
-  if (opts.isLiveDeployer) {
-    console.log(`Executing step ${opts.step}...`)
-    await opts.SystemDictator[`step${opts.step}`]()
-  } else {
-    const tx = await opts.SystemDictator.populateTransaction[
-      `step${opts.step}`
-    ]()
-    console.log(`Please execute step ${opts.step}...`)
-    console.log(`MSD address: ${opts.SystemDictator.address}`)
-    printJsonTransaction(tx)
-    printCastCommand(tx)
-    await printTenderlySimulationLink(opts.SystemDictator.provider, tx)
-  }
-
-  // Wait for the step to complete.
-  await awaitCondition(
-    async () => {
-      return isStep(opts.SystemDictator, opts.step + 1)
-    },
-    30000,
-    1000
-  )
-
-  // Perform post-step checks.
-  await opts.checks()
-}
-
-/**
- * Mini helper for executing a given phase.
- *
- * @param opts Options for executing the step.
- * @param opts.isLiveDeployer True if the deployer is live.
- * @param opts.SystemDictator SystemDictator contract.
- * @param opts.step Step to execute.
- * @param opts.message Message to print before executing the step.
- * @param opts.checks Checks to perform after executing the step.
- */
-export const doPhase = async (opts: {
-  isLiveDeployer?: boolean
-  SystemDictator: ethers.Contract
-  phase: number
-  message: string
-  checks: () => Promise<void>
-}): Promise<void> => {
-  const isStart = await isStartOfPhase(opts.SystemDictator, opts.phase)
-  if (!isStart) {
-    console.log(`Start of phase ${opts.phase} already completed`)
-    return
-  }
-
-  // Extra message to help the user understand what's going on.
-  console.log(opts.message)
-
-  // Either automatically or manually execute the step.
-  if (opts.isLiveDeployer) {
-    console.log(`Executing phase ${opts.phase}...`)
-    await opts.SystemDictator[`phase${opts.phase}`]()
-  } else {
-    const tx = await opts.SystemDictator.populateTransaction[
-      `phase${opts.phase}`
-    ]()
-    console.log(`Please execute phase ${opts.phase}...`)
-    console.log(`MSD address: ${opts.SystemDictator.address}`)
-    printJsonTransaction(tx)
-    await printTenderlySimulationLink(opts.SystemDictator.provider, tx)
-  }
-
-  // Wait for the step to complete.
-  await awaitCondition(
-    async () => {
-      return isStartOfPhase(opts.SystemDictator, opts.phase + 1)
-    },
-    30000,
-    1000
-  )
-
-  // Perform post-step checks.
-  await opts.checks()
 }
 
 /**

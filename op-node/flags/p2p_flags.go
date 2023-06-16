@@ -1,6 +1,7 @@
 package flags
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/urfave/cli"
@@ -25,14 +26,17 @@ var (
 		Required: false,
 		EnvVar:   p2pEnv("NO_DISCOVERY"),
 	}
-	PeerScoring = cli.StringFlag{
-		Name: "p2p.scoring.peers",
-		Usage: "Sets the peer scoring strategy for the P2P stack. " +
-			"Can be one of: none or light." +
-			"Custom scoring strategies can be defined in the config file.",
+	Scoring = cli.StringFlag{
+		Name:     "p2p.scoring",
+		Usage:    "Sets the peer scoring strategy for the P2P stack. Can be one of: none or light.",
 		Required: false,
-		Value:    "none",
 		EnvVar:   p2pEnv("PEER_SCORING"),
+	}
+	PeerScoring = cli.StringFlag{
+		Name:     "p2p.scoring.peers",
+		Usage:    fmt.Sprintf("Deprecated: Use %v instead", Scoring.Name),
+		Required: false,
+		Hidden:   true,
 	}
 	PeerScoreBands = cli.StringFlag{
 		Name:     "p2p.score.bands",
@@ -65,13 +69,10 @@ var (
 	}
 
 	TopicScoring = cli.StringFlag{
-		Name: "p2p.scoring.topics",
-		Usage: "Sets the topic scoring strategy. " +
-			"Can be one of: none or light." +
-			"Custom scoring strategies can be defined in the config file.",
+		Name:     "p2p.scoring.topics",
+		Usage:    fmt.Sprintf("Deprecated: Use %v instead", Scoring.Name),
 		Required: false,
-		Value:    "none",
-		EnvVar:   p2pEnv("TOPIC_SCORING"),
+		Hidden:   true,
 	}
 	P2PPrivPath = cli.StringFlag{
 		Name: "p2p.priv.path",
@@ -303,6 +304,7 @@ var p2pFlags = []cli.Flag{
 	NoDiscovery,
 	P2PPrivPath,
 	P2PPrivRaw,
+	Scoring,
 	PeerScoring,
 	PeerScoreBands,
 	Banning,
