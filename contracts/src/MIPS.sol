@@ -308,7 +308,7 @@ contract MIPS {
     return outputState();
   }
 
-  function proofOffset(uint8 proofIndex) internal returns (uint256 offset) {
+  function proofOffset(uint8 proofIndex) internal pure returns (uint256 offset) {
     // A proof of 32 bit memory, with 32-byte leaf values, is (32-5)=27 bytes32 entries.
     // And the leaf value itself needs to be encoded as well. And proof.offset == 390
     offset = 390 + (uint256(proofIndex) * (28*32));
@@ -318,7 +318,7 @@ contract MIPS {
     return offset;
   }
 
-  function readMem(uint32 addr, uint8 proofIndex) internal returns (uint32 out) {
+  function readMem(uint32 addr, uint8 proofIndex) internal pure returns (uint32 out) {
     uint256 offset = proofOffset(proofIndex);
     assembly {
       if and(addr, 3) { revert(0, 0) } // quick addr alignment check
@@ -351,7 +351,7 @@ contract MIPS {
   }
 
   // writeMem writes the value by first overwriting the part of the leaf, and then recomputing the memory merkle root.
-  function writeMem(uint32 addr, uint8 proofIndex, uint32 value) internal {
+  function writeMem(uint32 addr, uint8 proofIndex, uint32 value) internal pure {
     uint256 offset = proofOffset(proofIndex);
     assembly {
       if and(addr, 3) { revert(0, 0) } // quick addr alignment check
