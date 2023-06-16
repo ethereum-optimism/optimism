@@ -167,7 +167,8 @@ func (p *ProcessPreimageOracle) Close() error {
 		return nil
 	}
 	_ = p.cmd.Process.Signal(os.Interrupt)
-	p.cmd.WaitDelay = time.Second * 10
+	// Go 1.20 feature, to introduce later
+	//p.cmd.WaitDelay = time.Second * 10
 	err := p.cmd.Wait()
 	if err, ok := err.(*exec.ExitError); ok {
 		if err.Success() {
