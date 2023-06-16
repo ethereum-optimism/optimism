@@ -310,8 +310,8 @@ contract MIPS {
 
   function proofOffset(uint8 proofIndex) internal pure returns (uint256 offset) {
     // A proof of 32 bit memory, with 32-byte leaf values, is (32-5)=27 bytes32 entries.
-    // And the leaf value itself needs to be encoded as well. And proof.offset == 390
-    offset = 390 + (uint256(proofIndex) * (28*32));
+    // And the leaf value itself needs to be encoded as well. And proof.offset == 358
+    offset = 358 + (uint256(proofIndex) * (28*32));
     uint256 s = 0;
     assembly { s := calldatasize() }
     require(s >= (offset + 28*32), "check that there is enough calldata");
@@ -379,7 +379,7 @@ contract MIPS {
   }
 
   // will revert if any required input state is missing
-  function Step(bytes32 stateHash, bytes calldata stateData, bytes calldata proof) public returns (bytes32) {
+  function Step(bytes calldata stateData, bytes calldata proof) public returns (bytes32) {
     State memory state;
     // packed data is ~6 times smaller
     assembly {
@@ -389,10 +389,10 @@ contract MIPS {
       if iszero(eq(mload(0x40), mul(32, 48))) { // expected memory check
         revert(0,0)
       }
-      if iszero(eq(stateData.offset, 132)) { // 32*4+4=132 expected state data offset
+      if iszero(eq(stateData.offset, 100)) { // 32*3+4=100 expected state data offset
         revert(0,0)
       }
-      if iszero(eq(proof.offset, 390)) { // 132+32+226=390 expected proof offset
+      if iszero(eq(proof.offset, 358)) { // 100+32+226=358 expected proof offset
         revert(0,0)
       }
       function putField(callOffset, memOffset, size) -> callOffsetOut, memOffsetOut {
@@ -420,7 +420,7 @@ contract MIPS {
       for { let i := 0 } lt(i, 32) { i := add(i, 1) } { c, m := putField(c, m, 4) } // registers
     }
     if(state.exited) { // don't change state once exited
-      return stateHash;
+      return outputState();
     }
     state.step += 1;
 

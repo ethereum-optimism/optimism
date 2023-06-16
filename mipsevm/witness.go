@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/crypto"
-
 	"github.com/ethereum-optimism/cannon/preimage"
 )
 
@@ -28,12 +26,10 @@ func uint32ToBytes32(v uint32) []byte {
 }
 
 func (wit *StepWitness) EncodeStepInput() []byte {
-	stateHash := crypto.Keccak256Hash(wit.State)
 	var input []byte
 	input = append(input, StepBytes4...)
-	input = append(input, stateHash[:]...)
-	input = append(input, uint32ToBytes32(32*3)...)                           // state data offset in bytes
-	input = append(input, uint32ToBytes32(32*3+32+uint32(len(wit.State)))...) // proof data offset in bytes
+	input = append(input, uint32ToBytes32(32*2)...)                           // state data offset in bytes
+	input = append(input, uint32ToBytes32(32*2+32+uint32(len(wit.State)))...) // proof data offset in bytes
 
 	input = append(input, uint32ToBytes32(uint32(len(wit.State)))...) // state data length in bytes
 	input = append(input, wit.State[:]...)
