@@ -26,7 +26,7 @@ by simply inserting jumps to the return-address, before the functions spin up an
 
 This is an instrumented emulator, also running big-endian 32-bit MIPS, that executes one step at a time,
 and maintains the same state as used for onchain execution.
-The difference is that has access to the full memory, and pre-image oracle.
+The difference is that it has access to the full memory, and pre-image oracle.
 And as it executes each step, it can optionally produce the witness data for the step, to repeat it onchain.
 
 The Cannon CLI is used to load a program into an initial state,
