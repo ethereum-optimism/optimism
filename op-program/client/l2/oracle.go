@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-program/client/mpt"
-	"github.com/ethereum-optimism/optimism/op-program/preimage"
+	"github.com/ethereum-optimism/optimism/op-preimage"
 )
 
 // StateOracle defines the high-level API used to retrieve L2 state data pre-images

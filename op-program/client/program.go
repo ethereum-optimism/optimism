@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	oppio "github.com/ethereum-optimism/optimism/op-program/io"
-	"github.com/ethereum-optimism/optimism/op-program/preimage"
+	"github.com/ethereum-optimism/optimism/op-preimage"
 )
 
 // Main executes the client program in a detached context and exits the current process.

@@ -44,8 +44,9 @@ type OracleServer struct {
 func NewOracleServer(rw io.ReadWriter) *OracleServer {
 	return &OracleServer{rw: rw}
 }
+type PreimageGetter func(key [32]byte) ([]byte, error)
 
-func (o *OracleServer) NextPreimageRequest(getPreimage func(key [32]byte) ([]byte, error)) error {
+func (o *OracleServer) NextPreimageRequest(getPreimage PreimageGetter) error {
 	var key [32]byte
 	if _, err := io.ReadFull(o.rw, key[:]); err != nil {
 		if err == io.EOF {

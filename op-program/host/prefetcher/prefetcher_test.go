@@ -19,7 +19,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-program/client/mpt"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
-	"github.com/ethereum-optimism/optimism/op-program/preimage"
+	"github.com/ethereum-optimism/optimism/op-preimage"
 )
 
 func TestNoHint(t *testing.T) {

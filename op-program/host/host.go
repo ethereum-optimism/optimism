@@ -20,7 +20,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
 	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
 	oppio "github.com/ethereum-optimism/optimism/op-program/io"
-	"github.com/ethereum-optimism/optimism/op-program/preimage"
+	"github.com/ethereum-optimism/optimism/op-preimage"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum/go-ethereum/common"
