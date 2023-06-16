@@ -6,7 +6,10 @@ const deployFn: DeployFunction = async (hre) => {
   const proxyAdmin = await getDeploymentAddress(hre, 'ProxyAdmin')
 
   // We only want to deploy the dgf on devnet for now
-  if (hre.deployConfig.l1ChainID === 900) {
+  const network = await hre.ethers.provider.getNetwork()
+  const chainId = network.chainId
+
+  if (chainId === 900) {
     console.log('Devnet detected, deploying DisputeGameFactoryProxy')
     const disputeGameFactoryProxy = await deploy({
       hre,
@@ -15,8 +18,10 @@ const deployFn: DeployFunction = async (hre) => {
       args: [proxyAdmin],
     })
     console.log(
-      'DisputeGameFactoryProxy deployed at ' + disputeGameFactoryProxy.address
+      `DisputeGameFactoryProxy deployed at ${disputeGameFactoryProxy.address}`
     )
+  } else {
+    console.log('Skipping deployment of DisputeGameFactoryProxy')
   }
 }
 
