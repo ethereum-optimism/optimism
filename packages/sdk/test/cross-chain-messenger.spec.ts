@@ -565,24 +565,24 @@ describe('CrossChainMessenger', () => {
       })
 
       describe('when the transaction sent more than one message', () => {
-        it('should throw an error', async () => {
+        it('should not throw an error', async () => {
           const messages = [...Array(2)].map(() => {
             return DUMMY_MESSAGE
           })
 
           const tx = await l1Messenger.triggerSentMessageEvents(messages)
-          await expect(messenger.toCrossChainMessage(tx)).to.be.rejectedWith(
-            'expected 1 message, got 2'
-          )
+          await expect(
+            messenger.toCrossChainMessage(tx)
+          ).not.to.be.rejectedWith('expected 1 message, got 2')
         })
       })
 
       describe('when the transaction sent no messages', () => {
-        it('should throw an error', async () => {
+        it('should not throw an error', async () => {
           const tx = await l1Messenger.triggerSentMessageEvents([])
-          await expect(messenger.toCrossChainMessage(tx)).to.be.rejectedWith(
-            'expected 1 message, got 0'
-          )
+          await expect(
+            messenger.toCrossChainMessage(tx)
+          ).not.to.be.rejectedWith('expected 1 message, got 0')
         })
       })
     })
