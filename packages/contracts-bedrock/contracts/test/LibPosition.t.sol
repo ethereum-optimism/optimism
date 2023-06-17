@@ -19,7 +19,7 @@ contract LibPosition_Test is Test {
     function boundIndexAtDepth(uint8 _depth, uint64 _indexAtDepth) internal view returns (uint64) {
         // Index at depth bound: [0, 2 ** _depth-1]
         if (_depth > 0) {
-            return uint64(bound(_indexAtDepth, 0, 2**(_depth-1)));
+            return uint64(bound(_indexAtDepth, 0, 2**(_depth - 1)));
         } else {
             return 0;
         }
