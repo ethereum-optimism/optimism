@@ -32,7 +32,12 @@ contract OptimismPortal_Depositor is StdUtils, ResourceMetering {
         return _resourceConfig();
     }
 
-    function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory) {
+    function _resourceConfig()
+        internal
+        pure
+        override
+        returns (ResourceMetering.ResourceConfig memory)
+    {
         ResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
         return rcfg;
     }
@@ -55,10 +60,16 @@ contract OptimismPortal_Depositor is StdUtils, ResourceMetering {
         uint256 preDepositBalance = address(this).balance;
         uint256 value = bound(preDepositvalue, 0, preDepositBalance);
 
-       (,uint64 cachedPrevBoughtGas,) =  ResourceMetering(address(portal)).params();
+        (, uint64 cachedPrevBoughtGas, ) = ResourceMetering(address(portal)).params();
         ResourceMetering.ResourceConfig memory rcfg = resourceConfig();
         uint256 maxResourceLimit = uint64(rcfg.maxResourceLimit);
-        uint64 gasLimit = uint64(bound(_gasLimit, portal.minimumGasLimit(uint64(_data.length)), maxResourceLimit - cachedPrevBoughtGas));
+        uint64 gasLimit = uint64(
+            bound(
+                _gasLimit,
+                portal.minimumGasLimit(uint64(_data.length)),
+                maxResourceLimit - cachedPrevBoughtGas
+            )
+        );
 
         vm.assume(_data.length <= 120_000);
 
@@ -131,7 +142,7 @@ contract OptimismPortal_Deposit_Invariant is Portal_Initializer {
     function setUp() public override {
         super.setUp();
         // Create a deposit actor.
-        actor = new OptimismPortal_Depositor(vm,op);
+        actor = new OptimismPortal_Depositor(vm, op);
 
         targetContract(address(actor));
 
