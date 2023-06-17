@@ -1,5 +1,8 @@
 pragma solidity 0.8.15;
 
+import { StdUtils } from "forge-std/Test.sol";
+import { Vm } from "forge-std/Vm.sol";
+
 import { OptimismPortal } from "../../L1/OptimismPortal.sol";
 import { L2OutputOracle } from "../../L1/L2OutputOracle.sol";
 import { AddressAliasHelper } from "../../vendor/AddressAliasHelper.sol";
@@ -10,26 +13,58 @@ import { Constants } from "../../libraries/Constants.sol";
 import { Portal_Initializer } from "../CommonTest.t.sol";
 import { Types } from "../../libraries/Types.sol";
 
-contract OptimismPortal_Depositor {
+contract OptimismPortal_Depositor is StdUtils, ResourceMetering {
+    Vm internal vm;
     OptimismPortal internal portal;
     bool public failedToComplete;
 
-    constructor(OptimismPortal _portal) {
+    constructor(Vm _vm, OptimismPortal _portal) {
+        vm = _vm;
         portal = _portal;
+        initialize();
+    }
+
+    function initialize() internal initializer {
+        __ResourceMetering_init();
+    }
+
+    function resourceConfig() public pure returns (ResourceMetering.ResourceConfig memory) {
+        return _resourceConfig();
+    }
+
+    function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory) {
+        ResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
+        return rcfg;
     }
 
     // A test intended to identify any unexpected halting conditions
     function depositTransactionCompletes(
         address _to,
-        uint256 _mint,
         uint256 _value,
         uint64 _gasLimit,
         bool _isCreation,
         bytes memory _data
     ) public payable {
+        vm.assume(_isCreation == false || _to == address(0));
         require(!_isCreation || _to == address(0), "OptimismPortal_Depositor: invalid test case.");
-        try portal.depositTransaction{ value: _mint }(_to, _value, _gasLimit, _isCreation, _data) {
+
+        uint256 preDepositvalue = bound(_value, 0, type(uint128).max);
+        // Give the depositor some ether
+        vm.deal(address(this), preDepositvalue);
+        // cache the contract's eth balance
+        uint256 preDepositBalance = address(this).balance;
+        uint256 value = bound(preDepositvalue, 0, preDepositBalance);
+
+       (,uint64 cachedPrevBoughtGas,) =  ResourceMetering(address(portal)).params();
+        ResourceMetering.ResourceConfig memory rcfg = resourceConfig();
+        uint256 maxResourceLimit = uint64(rcfg.maxResourceLimit);
+        uint64 gasLimit = uint64(bound(_gasLimit, portal.minimumGasLimit(uint64(_data.length)), maxResourceLimit - cachedPrevBoughtGas));
+
+        vm.assume(_data.length <= 120_000);
+
+        try portal.depositTransaction{ value: value }(_to, value, gasLimit, _isCreation, _data) {
             // Do nothing; Call succeeded
+            // failedToComplete = false;
         } catch {
             failedToComplete = true;
         }
@@ -96,7 +131,7 @@ contract OptimismPortal_Deposit_Invariant is Portal_Initializer {
     function setUp() public override {
         super.setUp();
         // Create a deposit actor.
-        actor = new OptimismPortal_Depositor(op);
+        actor = new OptimismPortal_Depositor(vm,op);
 
         targetContract(address(actor));
 
