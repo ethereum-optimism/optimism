@@ -75,7 +75,6 @@ contract OptimismPortal_Depositor is StdUtils, ResourceMetering {
 
         try portal.depositTransaction{ value: value }(_to, value, gasLimit, _isCreation, _data) {
             // Do nothing; Call succeeded
-            // failedToComplete = false;
         } catch {
             failedToComplete = true;
         }
