@@ -27,10 +27,12 @@ contract OptimismPortal_Depositor {
         bool _isCreation,
         bytes memory _data
     ) public payable {
-        failedToComplete = true;
         require(!_isCreation || _to == address(0), "OptimismPortal_Depositor: invalid test case.");
-        portal.depositTransaction{ value: _mint }(_to, _value, _gasLimit, _isCreation, _data);
-        failedToComplete = false;
+        try portal.depositTransaction{ value: _mint }(_to, _value, _gasLimit, _isCreation, _data) {
+            // Do nothing; Call succeeded
+        } catch {
+            failedToComplete = true;
+        }
     }
 }
 
