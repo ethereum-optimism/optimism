@@ -21,9 +21,8 @@ import (
 )
 
 const (
-	// Geth defaults the priceBump to 10
-	// Set it to 15% to be more aggressive about including transactions
-	priceBump int64 = 15
+	// Geth requires a minimum fee bump of 10% for tx resubmission
+	priceBump int64 = 10
 
 	// The multiplier applied to fee suggestions to put a hard limit on fee increases
 	feeLimitMultiplier = 5
@@ -285,7 +284,15 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 				return nil, errors.New("aborted transaction sending")
 			}
 			// Increase the gas price & submit the new transaction
-			tx = m.increaseGasPrice(ctx, tx)
+			newTx, err := m.increaseGasPrice(ctx, tx)
+			if err != nil || sendState.IsWaitingForConfirmation() {
+				// there is a chance the previous tx goes into "waiting for confirmation" state
+				// during the increaseGasPrice call. In some (but not all) cases increaseGasPrice
+				// will error out during gas estimation. In either case we should continue waiting
+				// rather than resubmit the tx.
+				continue
+			}
+			tx = newTx
 			wg.Add(1)
 			bumpCounter += 1
 			go sendTxAsync(tx)
@@ -424,34 +431,28 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 }
 
 // increaseGasPrice takes the previous transaction, clones it, and returns it with fee values that
-// are at least 15% higher than the previous ones to satisfy Geth's replacement rules, and no lower
-// than the values returned by the fee suggestion algorithm to ensure it doesn't linger in the
-// mempool. Finally to avoid runaway price increases, fees are capped at 5x suggested values.
-//
-// We do not re-estimate the amount of gas used because for some stateful transactions (like output
-// proposals) the act of including the transaction renders the repeat of the transaction invalid.
-func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transaction) *types.Transaction {
+// are at least `priceBump` percent higher than the previous ones to satisfy Geth's replacement
+// rules, and no lower than the values returned by the fee suggestion algorithm to ensure it
+// doesn't linger in the mempool. Finally to avoid runaway price increases, fees are capped at a
+// `feeLimitMultiplier` multiple of the suggested values.
+func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
 	m.l.Info("bumping gas price for tx", "hash", tx.Hash(), "tip", tx.GasTipCap(), "fee", tx.GasFeeCap(), "gaslimit", tx.Gas())
-	var tip, basefee *big.Int
 	tip, basefee, err := m.suggestGasPriceCaps(ctx)
 	if err != nil {
 		m.l.Warn("failed to get suggested gas tip and basefee", "err", err)
-		// In this case we'll use the old tx's tip as the tip suggestion and 0 for base fee so that
-		// we at least get the min geth fee bump.
-		tip = new(big.Int).Set(tx.GasTipCap())
-		basefee = new(big.Int)
+		return nil, err
 	}
 	bumpedTip, bumpedFee := updateFees(tx.GasTipCap(), tx.GasFeeCap(), tip, basefee, m.l)
 
 	// Make sure increase is at most 5x the suggested values
 	maxTip := new(big.Int).Mul(tip, big.NewInt(feeLimitMultiplier))
 	if bumpedTip.Cmp(maxTip) > 0 {
-		m.l.Warn("bumped tip getting capped at 5x the suggested value", "bumped", bumpedTip, "suggestion", tip)
+		m.l.Warn(fmt.Sprintf("bumped tip getting capped at %dx multiple of the suggested value", feeLimitMultiplier), "bumped", bumpedTip, "suggestion", tip)
 		bumpedTip.Set(maxTip)
 	}
 	maxFee := calcGasFeeCap(new(big.Int).Mul(basefee, big.NewInt(feeLimitMultiplier)), maxTip)
 	if bumpedFee.Cmp(maxFee) > 0 {
-		m.l.Warn("bumped fee getting capped at 5x the implied suggested value", "bumped", bumpedFee, "suggestion", maxFee)
+		m.l.Warn("bumped fee getting capped at multiple of the implied suggested value", "bumped", bumpedFee, "suggestion", maxFee)
 		bumpedFee.Set(maxFee)
 	}
 	rawTx := &types.DynamicFeeTx{
@@ -459,20 +460,37 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 		Nonce:      tx.Nonce(),
 		GasTipCap:  bumpedTip,
 		GasFeeCap:  bumpedFee,
-		Gas:        tx.Gas(),
 		To:         tx.To(),
 		Value:      tx.Value(),
 		Data:       tx.Data(),
 		AccessList: tx.AccessList(),
 	}
+
+	// Re-estimate gaslimit in case things have changed or a previous gaslimit estimate was wrong
+	gas, err := m.backend.EstimateGas(ctx, ethereum.CallMsg{
+		From:      m.cfg.From,
+		To:        rawTx.To,
+		GasFeeCap: bumpedTip,
+		GasTipCap: bumpedFee,
+		Data:      rawTx.Data,
+	})
+	if err != nil {
+		m.l.Warn("failed to re-estimate gas", "err", err, "gaslimit", tx.Gas())
+		return nil, err
+	}
+	if tx.Gas() != gas {
+		m.l.Info("re-estimated gas differs", "oldgas", tx.Gas(), "newgas", gas)
+	}
+	rawTx.Gas = gas
+
 	ctx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
 	newTx, err := m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
 	if err != nil {
 		m.l.Warn("failed to sign new transaction", "err", err)
-		return tx
+		return tx, nil
 	}
-	return newTx
+	return newTx, nil
 }
 
 // suggestGasPriceCaps suggests what the new tip & new basefee should be based on the current L1 conditions
@@ -508,7 +526,7 @@ func calcThresholdValue(x *big.Int) *big.Int {
 // updateFees takes an old transaction's tip & fee cap plus a new tip & basefee, and returns
 // a suggested tip and fee cap such that:
 //
-//	(a) each satisfies geth's required tx-replacement fee bumps (we use a 15% increase), and
+//	(a) each satisfies geth's required tx-replacement fee bumps (we use a 10% increase), and
 //	(b) gasTipCap is no less than new tip, and
 //	(c) gasFeeCap is no less than calcGasFee(newBaseFee, newTip)
 func updateFees(oldTip, oldFeeCap, newTip, newBaseFee *big.Int, lgr log.Logger) (*big.Int, *big.Int) {
