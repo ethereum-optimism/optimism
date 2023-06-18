@@ -18,18 +18,29 @@ library LibPosition {
      * @notice Pulls the `depth` out of a packed `Position` type.
      * @param _position The position to get the `depth` of.
      * @return depth_ The `depth` of the `position`.
+     * @custom:attribution Solady <https://github.com/Vectorized/Solady>
      */
     function depth(Position _position) internal pure returns (uint64 depth_) {
         // Return the most significant bit position
         assembly {
-            for {
+            depth_ := or(depth_, shl(6, lt(0xffffffffffffffff, shr(depth_, _position))))
+            depth_ := or(depth_, shl(5, lt(0xffffffff, shr(depth_, _position))))
 
-            } gt(_position, 1) {
+            // For the remaining 32 bits, use a De Bruijn lookup.
+            _position := shr(depth_, _position)
+            _position := or(_position, shr(1, _position))
+            _position := or(_position, shr(2, _position))
+            _position := or(_position, shr(4, _position))
+            _position := or(_position, shr(8, _position))
+            _position := or(_position, shr(16, _position))
 
-            } {
-                depth_ := add(depth_, 1)
-                _position := shr(1, _position)
-            }
+            depth_ := or(
+                depth_,
+                byte(
+                    shr(251, mul(_position, shl(224, 0x07c4acdd))),
+                    0x0009010a0d15021d0b0e10121619031e080c141c0f111807131b17061a05041f
+                )
+            )
         }
     }
 
