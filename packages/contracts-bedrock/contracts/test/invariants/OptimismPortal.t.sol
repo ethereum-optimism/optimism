@@ -50,8 +50,7 @@ contract OptimismPortal_Depositor is StdUtils, ResourceMetering {
         bool _isCreation,
         bytes memory _data
     ) public payable {
-        vm.assume(_isCreation == false || _to == address(0));
-        require(!_isCreation || _to == address(0), "OptimismPortal_Depositor: invalid test case.");
+        vm.assume((!_isCreation || _to == address(0)) && _data.length <= 120_000);
 
         uint256 preDepositvalue = bound(_value, 0, type(uint128).max);
         // Give the depositor some ether
@@ -70,8 +69,6 @@ contract OptimismPortal_Depositor is StdUtils, ResourceMetering {
                 maxResourceLimit - cachedPrevBoughtGas
             )
         );
-
-        vm.assume(_data.length <= 120_000);
 
         try portal.depositTransaction{ value: value }(_to, value, gasLimit, _isCreation, _data) {
             // Do nothing; Call succeeded
