@@ -39,7 +39,7 @@ library LibPosition {
      * @return indexAtDepth_ The `indexAtDepth` of the `position`.
      */
     function indexAtDepth(Position _position) internal pure returns (uint64 indexAtDepth_) {
-        // Return bits p_{msb}...p_{0}
+        // Return bits p_{msb-1}...p_{0}
         uint256 msb = depth(_position);
         assembly {
             indexAtDepth_ := sub(_position, shl(msb, 1))
@@ -91,15 +91,15 @@ library LibPosition {
     ) internal pure returns (uint64 rightIndex_) {
         uint256 msb = depth(_position);
         assembly {
-            let descent := sub(_maxDepth, msb)
-            for {
-                let i := 0
-            } lt(i, descent) {
-                i := add(i, 1)
-            } {
-                _position := add(1, shl(1, _position))
+            switch eq(msb, _maxDepth)
+            case true {
+                rightIndex_ := _position
             }
-            rightIndex_ := sub(_position, shl(msb, 1))
+            default {
+                let remaining := sub(_maxDepth, msb)
+                rightIndex_ := or(shl(remaining, _position), sub(shl(remaining, 1), 1))
+            }
+            rightIndex_ := sub(rightIndex_, shl(_maxDepth, 1))
         }
     }
 
