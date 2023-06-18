@@ -38,8 +38,7 @@ library LibPosition {
         // Return bits p_{msb}...p_{0}
         uint256 msb = depth(_position);
         assembly {
-            let mask := sub(shl(msb, 1), 1)
-            indexAtDepth_ := and(_position, mask)
+            indexAtDepth_ := sub(_position, shl(msb, 1))
         }
     }
 
