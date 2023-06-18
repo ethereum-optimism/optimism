@@ -22,7 +22,11 @@ library LibPosition {
     function depth(Position _position) internal pure returns (uint64 depth_) {
         // Return the most significant bit position
         assembly {
-            for { } gt(_position, 1) { } {
+            for {
+
+            } gt(_position, 1) {
+
+            } {
                 depth_ := add(depth_, 1)
                 _position := shr(1, _position)
             }
@@ -81,15 +85,21 @@ library LibPosition {
      * @param _maxDepth The maximum depth of the game.
      * @return rightIndex_ The deepest, right most index relative to the `position`.
      */
-    function rightIndex(Position _position, uint256 _maxDepth) internal pure returns (uint64 rightIndex_) {
+    function rightIndex(
+        Position _position,
+        uint256 _maxDepth
+    ) internal pure returns (uint64 rightIndex_) {
         uint256 msb = depth(_position);
         assembly {
             let descent := sub(_maxDepth, msb)
-            for { let i := 0 } lt(i, descent) { i := add(i, 1) } {
+            for {
+                let i := 0
+            } lt(i, descent) {
+                i := add(i, 1)
+            } {
                 _position := add(1, shl(1, _position))
             }
-            let mask := sub(shl(_maxDepth, 1), 1)
-            rightIndex_ := and(_position, mask)
+            rightIndex_ := sub(_position, shl(msb, 1))
         }
     }
 
