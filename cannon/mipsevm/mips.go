@@ -388,7 +388,7 @@ func (m *InstrumentedState) mipsStep() error {
 func execute(insn uint32, rs uint32, rt uint32, mem uint32) uint32 {
 	opcode := insn >> 26 // 6-bits
 	fun := insn & 0x3f   // 6-bits
-	// TODO: deref the immed into a register
+	// TODO(CLI-4136): deref the immed into a register
 
 	if opcode < 0x20 {
 		// transform ArithLogI
