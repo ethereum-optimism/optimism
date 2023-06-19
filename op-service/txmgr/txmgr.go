@@ -192,17 +192,30 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		rawTx.Gas = candidate.GasLimit
 	} else {
 		// Calculate the intrinsic gas for the transaction
-		gas, err := m.backend.EstimateGas(ctx, ethereum.CallMsg{
+		call := ethereum.CallMsg{
 			From:      m.cfg.From,
 			To:        candidate.To,
 			GasFeeCap: gasFeeCap,
 			GasTipCap: gasTipCap,
 			Data:      rawTx.Data,
-		})
+		}
+		// Some implementations of EstimateGas have a race condition that can cause extremely high
+		// estimates for contract interactions. This can cause stuck transactions, because the
+		// returned estimated gas is close to the block limit, and nodes will ignore the tx. Here
+		// we call EstimateGas twice, and use the minimum of the two values.
+		gas, err := m.backend.EstimateGas(ctx, call)
 		if err != nil {
 			return nil, fmt.Errorf("failed to estimate gas: %w", err)
 		}
-		rawTx.Gas = gas
+		gas2, err := m.backend.EstimateGas(ctx, call)
+		if err != nil {
+			return nil, fmt.Errorf("failed to estimate gas: %w", err)
+		}
+		if gas < gas2 {
+			rawTx.Gas = gas
+		} else {
+			rawTx.Gas = gas2
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
