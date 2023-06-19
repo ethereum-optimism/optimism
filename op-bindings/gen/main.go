@@ -19,6 +19,7 @@ type flags struct {
 	ArtifactsDir   string
 	ForgeArtifacts string
 	Contracts      string
+	SourceMaps     string
 	OutDir         string
 	Package        string
 }
@@ -43,11 +44,17 @@ func main() {
 	flag.StringVar(&f.ForgeArtifacts, "forge-artifacts", "", "Forge artifacts directory, to load sourcemaps from, if available")
 	flag.StringVar(&f.OutDir, "out", "", "Output directory to put code in")
 	flag.StringVar(&f.Contracts, "contracts", "", "Comma-separated list of contracts to generate code for")
+	flag.StringVar(&f.SourceMaps, "source-maps", "", "Comma-separated list of contracts to generate source-maps for")
 	flag.StringVar(&f.Package, "package", "artifacts", "Go package name")
 	flag.Parse()
 
 	artifacts := strings.Split(f.ArtifactsDir, ",")
 	contracts := strings.Split(f.Contracts, ",")
+	sourceMaps := strings.Split(f.SourceMaps, ",")
+	sourceMapsSet := make(map[string]struct{})
+	for _, k := range sourceMaps {
+		sourceMapsSet[k] = struct{}{}
+	}
 
 	if len(artifacts) == 0 {
 		log.Fatalf("must define a list of artifacts")
@@ -82,18 +89,20 @@ func main() {
 		}
 		serStr := strings.Replace(string(ser), "\"", "\\\"", -1)
 
-		// directory has .sol extension
-		forgeArtifactData, err := os.ReadFile(path.Join(f.ForgeArtifacts, name+".sol", name+".json"))
-		if errors.Is(err, os.ErrNotExist) {
-			log.Printf("cannot find forge-artifact with source-map data of %q\n", name)
-		}
 		deployedSourceMap := ""
-		if err == nil {
-			var artifact forgeArtifact
-			if err := json.Unmarshal(forgeArtifactData, &artifact); err != nil {
-				log.Fatalf("failed to parse forge artifact of %q: %v\n", name, err)
+		if _, ok := sourceMapsSet[name]; ok {
+			// directory has .sol extension
+			forgeArtifactData, err := os.ReadFile(path.Join(f.ForgeArtifacts, name+".sol", name+".json"))
+			if errors.Is(err, os.ErrNotExist) {
+				log.Printf("cannot find forge-artifact with source-map data of %q\n", name)
 			}
-			deployedSourceMap = artifact.DeployedBytecode.SourceMap
+			if err == nil {
+				var artifact forgeArtifact
+				if err := json.Unmarshal(forgeArtifactData, &artifact); err != nil {
+					log.Fatalf("failed to parse forge artifact of %q: %v\n", name, err)
+				}
+				deployedSourceMap = artifact.DeployedBytecode.SourceMap
+			}
 		}
 
 		d := data{
@@ -138,9 +147,9 @@ const {{.Name}}StorageLayoutJSON = "{{.StorageLayout}}"
 var {{.Name}}StorageLayout = new(solc.StorageLayout)
 
 var {{.Name}}DeployedBin = "{{.DeployedBin}}"
-
+{{if .DeployedSourceMap}}
 var {{.Name}}DeployedSourceMap = "{{.DeployedSourceMap}}"
-
+{{end}}
 func init() {
 	if err := json.Unmarshal([]byte({{.Name}}StorageLayoutJSON), {{.Name}}StorageLayout); err != nil {
 		panic(err)

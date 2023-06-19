@@ -149,6 +149,7 @@ more:
 		-forge-artifacts ../packages/contracts-bedrock/forge-artifacts \
 		-out ./bindings \
 		-contracts SystemConfig,OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,LegacyMessagePasser,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken,L1CrossDomainMessenger,L2ERC721Bridge,OptimismMintableERC721Factory,ProxyAdmin,MIPS,Oracle \
+		-source-maps MIPS,Oracle \
 		-package bindings
 
 mkdir:
