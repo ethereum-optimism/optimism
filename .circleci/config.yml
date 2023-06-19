@@ -1425,7 +1425,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(fault-detector|proxyd|indexer|op-[a-z0-9\-]*)\/v.*/
+              only: /^(fault-detector|proxyd|indexer|ci-builder|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-release:
@@ -1554,10 +1554,8 @@ workflows:
             - oplabs-gcr-release
           requires:
             - hold
-  release-ci-builder:
-    jobs:
-      - docker-publish:
-          name: ci-builder-docker-publish
+      - docker-release:
+          name: ci-builder-docker-release
           filters:
             tags:
               only: /^ci-builder\/v.*/
@@ -1569,6 +1567,8 @@ workflows:
           docker_context: ./ops/docker/ci-builder
           context:
             - oplabs-gcr
+          requires:
+            - hold
   scheduled-fpp:
     triggers:
       - schedule:
