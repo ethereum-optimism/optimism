@@ -53,7 +53,8 @@ type SetupP2P interface {
 
 // ScoringParams defines the various types of peer scoring parameters.
 type ScoringParams struct {
-	PeerScoring pubsub.PeerScoreParams
+	PeerScoring        pubsub.PeerScoreParams
+	ApplicationScoring ApplicationScoreParams
 }
 
 // Config sets up a p2p host and discv5 service from configuration.
