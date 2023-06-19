@@ -219,8 +219,38 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
      * @inheritdoc IDisputeGame
      */
     function resolve() external returns (GameStatus status_) {
-        // TODO - Resolve the game
-        status = GameStatus.IN_PROGRESS;
+        if (status != GameStatus.IN_PROGRESS) {
+            revert GameNotInProgress();
+        }
+
+        // Search for the left-most dangling non-bottom node
+        // The most recent claim is always a dangling, non-bottom node so we start with that
+        uint256 leftMostIndex = claimData.length - 1;
+        uint256 leftMostTraceIndex = LibPosition.rightIndex(
+            claimData[leftMostIndex].position,
+            MAX_GAME_DEPTH
+        );
+        int256 length = int256(claimData.length);
+        for (int256 i = length - 1; i >= 0; i--) {
+            ClaimData memory claim = claimData[uint256(i)];
+            if (LibPosition.depth(claim.position) >= MAX_GAME_DEPTH) {
+                continue;
+            }
+            if (claim.countered) {
+                continue;
+            }
+            uint256 traceIndex = LibPosition.rightIndex(claim.position, MAX_GAME_DEPTH);
+            if (traceIndex < leftMostTraceIndex) {
+                leftMostTraceIndex = traceIndex;
+            }
+        }
+
+        ClaimData memory winner = claimData[leftMostIndex];
+        if (LibPosition.depth(winner.position) % 2 == 0) {
+            status = GameStatus.DEFENDER_WINS;
+        } else {
+            status = GameStatus.CHALLENGER_WINS;
+        }
         status_ = status;
     }
 

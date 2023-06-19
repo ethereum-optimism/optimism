@@ -268,6 +268,61 @@ contract FaultDisputeGame_Test is DisputeGameFactory_Init {
             )
         );
     }
+
+    /**
+     * @dev Static unit test for the correctness of resolution.
+     */
+    function test_resolve_root_uncontested() public {
+        GameStatus status = gameProxy.resolve();
+        assertEq(uint(status), uint(GameStatus.DEFENDER_WINS));
+        assertEq(uint(gameProxy.status()), uint(GameStatus.DEFENDER_WINS));
+    }
+
+    /**
+     * @dev Static unit test for the correctness of resolution.
+     */
+    function test_resolve_reverts() public {
+        gameProxy.resolve();
+        vm.expectRevert(GameNotInProgress.selector);
+        gameProxy.resolve();
+    }
+
+    /**
+     * @dev Static unit test for the correctness of resolution.
+     */
+    function test_resolve_root_contested() public {
+        gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
+
+        GameStatus status = gameProxy.resolve();
+        assertEq(uint(status), uint(GameStatus.CHALLENGER_WINS));
+        assertEq(uint(gameProxy.status()), uint(GameStatus.CHALLENGER_WINS));
+    }
+
+    /**
+     * @dev Static unit test for the correctness of resolution.
+     */
+    function test_resolve_challenge_contested() public {
+        gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
+        gameProxy.defend(1, Claim.wrap(bytes32(uint256(6))));
+
+        GameStatus status = gameProxy.resolve();
+        assertEq(uint(status), uint(GameStatus.DEFENDER_WINS));
+        assertEq(uint(gameProxy.status()), uint(GameStatus.DEFENDER_WINS));
+    }
+
+    /**
+     * @dev Static unit test for the correctness of resolution.
+     */
+    function test_resolve_team_deathmatch() public {
+        gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
+        gameProxy.attack(0, Claim.wrap(bytes32(uint256(4))));
+        gameProxy.defend(1, Claim.wrap(bytes32(uint256(6))));
+        gameProxy.defend(1, Claim.wrap(bytes32(uint256(7))));
+
+        GameStatus status = gameProxy.resolve();
+        assertEq(uint(status), uint(GameStatus.DEFENDER_WINS));
+        assertEq(uint(gameProxy.status()), uint(GameStatus.DEFENDER_WINS));
+    }
 }
 
 /**
