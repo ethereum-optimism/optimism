@@ -108,7 +108,7 @@ contract LibPosition_Test is Test {
         uint64 rightIndex = position.rightIndex(_maxDepth);
 
         // Find the deepest, rightmost index in Solidity rather than Yul
-        for (uint256 i = _depth; i < _maxDepth - 1; ++i) {
+        for (uint256 i = _depth; i < _maxDepth; ++i) {
             position = position.right();
         }
         uint64 _rightIndex = position.indexAtDepth();
