@@ -32,7 +32,7 @@ contract LibPosition_Test is Test {
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
-        assertEq(LibPosition.depth(position), _depth);
+        assertEq(position.depth(), _depth);
     }
 
     /**
@@ -42,7 +42,7 @@ contract LibPosition_Test is Test {
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
-        assertEq(LibPosition.indexAtDepth(position), _indexAtDepth);
+        assertEq(position.indexAtDepth(), _indexAtDepth);
     }
 
     /**
@@ -53,10 +53,10 @@ contract LibPosition_Test is Test {
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
-        Position left = LibPosition.left(position);
+        Position left = position.left();
 
-        assertEq(LibPosition.depth(left), uint64(_depth) + 1);
-        assertEq(LibPosition.indexAtDepth(left), _indexAtDepth * 2);
+        assertEq(left.depth(), uint64(_depth) + 1);
+        assertEq(left.indexAtDepth(), _indexAtDepth * 2);
     }
 
     /**
@@ -68,10 +68,10 @@ contract LibPosition_Test is Test {
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
-        Position right = LibPosition.right(position);
+        Position right = position.right();
 
-        assertEq(LibPosition.depth(right), _depth + 1);
-        assertEq(LibPosition.indexAtDepth(right), _indexAtDepth * 2 + 1);
+        assertEq(right.depth(), _depth + 1);
+        assertEq(right.indexAtDepth(), _indexAtDepth * 2 + 1);
     }
 
     /**
@@ -82,10 +82,10 @@ contract LibPosition_Test is Test {
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
-        Position parent = LibPosition.parent(position);
+        Position parent = position.parent();
 
-        assertEq(LibPosition.depth(parent), _depth - 1);
-        assertEq(LibPosition.indexAtDepth(parent), _indexAtDepth / 2);
+        assertEq(parent.depth(), _depth - 1);
+        assertEq(parent.indexAtDepth(), _indexAtDepth / 2);
     }
 
     /**
@@ -105,13 +105,13 @@ contract LibPosition_Test is Test {
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
-        uint64 rightIndex = LibPosition.rightIndex(position, _maxDepth);
+        uint64 rightIndex = position.rightIndex(_maxDepth);
 
         // Find the deepest, rightmost index in Solidity rather than Yul
         for (uint256 i = _depth; i < _maxDepth; ++i) {
-            position = LibPosition.right(position);
+            position = position.right();
         }
-        uint64 _rightIndex = LibPosition.indexAtDepth(position);
+        uint64 _rightIndex = position.indexAtDepth();
 
         assertEq(rightIndex, _rightIndex);
     }
@@ -127,10 +127,10 @@ contract LibPosition_Test is Test {
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
-        Position attack = LibPosition.attack(position);
+        Position attack = position.attack();
 
-        assertEq(LibPosition.depth(attack), _depth + 1);
-        assertEq(LibPosition.indexAtDepth(attack), _indexAtDepth * 2);
+        assertEq(attack.depth(), _depth + 1);
+        assertEq(attack.indexAtDepth(), _indexAtDepth * 2);
     }
 
     /**
@@ -145,9 +145,9 @@ contract LibPosition_Test is Test {
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
-        Position defend = LibPosition.defend(position);
+        Position defend = position.defend();
 
-        assertEq(LibPosition.depth(defend), _depth + 1);
-        assertEq(LibPosition.indexAtDepth(defend), ((_indexAtDepth / 2) * 2 + 1) * 2);
+        assertEq(defend.depth(), _depth + 1);
+        assertEq(defend.indexAtDepth(), ((_indexAtDepth / 2) * 2 + 1) * 2);
     }
 }

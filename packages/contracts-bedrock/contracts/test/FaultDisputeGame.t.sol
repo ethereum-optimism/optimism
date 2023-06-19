@@ -247,7 +247,7 @@ contract FaultDisputeGame_Test is DisputeGameFactory_Init {
         assertEq(parentIndex, 0);
         assertEq(countered, false);
         assertEq(Claim.unwrap(claim), Claim.unwrap(counter));
-        assertEq(Position.unwrap(position), Position.unwrap(LibPosition.attack(Position.wrap(1))));
+        assertEq(Position.unwrap(position), Position.unwrap(Position.wrap(1).attack()));
         assertEq(
             Clock.unwrap(clock),
             Clock.unwrap(LibClock.wrap(Duration.wrap(5), Timestamp.wrap(uint64(block.timestamp))))

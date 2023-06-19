@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
+import { LibHashing } from "../dispute/lib/LibHashing.sol";
+import { LibPosition } from "../dispute/lib/LibPosition.sol";
+import { LibClock } from "../dispute/lib/LibClock.sol";
+
+using LibHashing for Claim global;
+using LibPosition for Position global;
+using LibClock for Clock global;
+
 /**
  * @notice A custom type for a generic hash.
  */

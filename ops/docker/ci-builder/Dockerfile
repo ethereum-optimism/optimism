@@ -54,8 +54,7 @@ RUN apt-get update && \
   pip install slither-analyzer==0.9.3 && \
   go install gotest.tools/gotestsum@latest && \
   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.48.0 && \
-  curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash && \
-  chmod +x /usr/local/bin/check-changed
+  curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash
 
 RUN echo "downloading solidity compilers" && \
   curl -o solc-linux-amd64-v0.5.17+commit.d19bba13 -sL https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.5.17+commit.d19bba13 && \
