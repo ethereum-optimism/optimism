@@ -122,7 +122,7 @@ contract FaultDisputeGame_Test is DisputeGameFactory_Init {
         assertEq(parentIndex, type(uint32).max);
         assertEq(countered, false);
         assertEq(Claim.unwrap(claim), Claim.unwrap(ROOT_CLAIM));
-        assertEq(Position.unwrap(position), 0);
+        assertEq(Position.unwrap(position), 1);
         assertEq(
             Clock.unwrap(clock),
             Clock.unwrap(LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))))
@@ -247,7 +247,7 @@ contract FaultDisputeGame_Test is DisputeGameFactory_Init {
         assertEq(parentIndex, 0);
         assertEq(countered, false);
         assertEq(Claim.unwrap(claim), Claim.unwrap(counter));
-        assertEq(Position.unwrap(position), Position.unwrap(LibPosition.attack(Position.wrap(0))));
+        assertEq(Position.unwrap(position), Position.unwrap(LibPosition.attack(Position.wrap(1))));
         assertEq(
             Clock.unwrap(clock),
             Clock.unwrap(LibClock.wrap(Duration.wrap(5), Timestamp.wrap(uint64(block.timestamp))))
@@ -260,7 +260,7 @@ contract FaultDisputeGame_Test is DisputeGameFactory_Init {
         assertEq(parentIndex, type(uint32).max);
         assertEq(countered, true);
         assertEq(Claim.unwrap(claim), Claim.unwrap(ROOT_CLAIM));
-        assertEq(Position.unwrap(position), 0);
+        assertEq(Position.unwrap(position), 1);
         assertEq(
             Clock.unwrap(clock),
             Clock.unwrap(

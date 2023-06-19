@@ -41,9 +41,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
     Duration internal constant GAME_DURATION = Duration.wrap(7 days);
 
     /**
-     * @notice The root claim's position is always at depth 0; index 0.
+     * @notice The root claim's position is always at gindex 1.
      */
-    Position internal constant ROOT_POSITION = Position.wrap(0);
+    Position internal constant ROOT_POSITION = Position.wrap(1);
 
     /**
      * @notice The starting timestamp of the game

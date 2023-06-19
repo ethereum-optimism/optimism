@@ -59,13 +59,10 @@ type Clock is uint128;
 
 /**
  * @notice A `Position` represents a position of a claim within the game tree.
- * @dev The packed layout of this type is as follows:
- * ┌────────────┬────────────────┐
- * │    Bits    │     Value      │
- * ├────────────┼────────────────┤
- * │ [0, 64)    │ Depth          │
- * │ [64, 128)  │ Index at depth │
- * └────────────┴────────────────┘
+ * @dev This is represented as a "generalized index" where the high-order bit
+ * is the level in the tree and the remaining bits is a unique bit pattern, allowing
+ * a unique identifier for each node in the tree. Mathematically, it is calculated
+ * as 2^{depth} + indexAtDepth.
  */
 type Position is uint128;
 
