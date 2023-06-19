@@ -392,7 +392,7 @@ func execute(insn uint32, rs uint32, rt uint32, mem uint32) uint32 {
 
 	if opcode < 0x20 {
 		// transform ArithLogI
-		// TODO: replace with table
+		// TODO(CLI-4136): replace with table
 		if opcode >= 8 && opcode < 0xF {
 			switch opcode {
 			case 8:

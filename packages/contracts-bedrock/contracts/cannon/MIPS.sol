@@ -431,7 +431,7 @@ contract MIPS {
 
     // j-type j/jal
     if (opcode == 2 || opcode == 3) {
-      // TODO likely bug in original code: MIPS spec says this should be in the "current" region;
+      // TODO(CLI-4136): likely bug in original code: MIPS spec says this should be in the "current" region;
       // a 256 MB aligned region (i.e. use top 4 bits of branch delay slot (pc+4))
       return handleJump(opcode == 2 ? 0 : 31, SE(insn&0x03FFFFFF, 26) << 2);
     }
@@ -532,11 +532,11 @@ contract MIPS {
   function execute(uint32 insn, uint32 rs, uint32 rt, uint32 mem) internal pure returns (uint32) {
     uint32 opcode = insn >> 26;    // 6-bits
     uint32 func = insn & 0x3f; // 6-bits
-    // TODO: deref the immed into a register
+    // TODO(CLI-4136): deref the immed into a register
 
     if (opcode < 0x20) {
       // transform ArithLogI
-      // TODO: replace with table
+      // TODO(CLI-4136): replace with table
       if (opcode >= 8 && opcode < 0xF) {
         if (opcode == 8) { func = 0x20; }        // addi
         else if (opcode == 9) { func = 0x21; }   // addiu

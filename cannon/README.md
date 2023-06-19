@@ -46,8 +46,8 @@ go build -o cannon .
 --input ./state.json
 --
 ../optimism/op-program/bin/op-program
---l2 ws://127.0.0.1:8746
---l1 ws://127.0.0.1:8646
+--l2 http://127.0.0.1:8745
+--l1 http://127.0.0.1:8645
 --l1.trustrpc
 --l1.rpckind debug_geth
 --log.format terminal

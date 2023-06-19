@@ -236,7 +236,7 @@ type pageEntry struct {
 	Data  *Page  `json:"data"`
 }
 
-func (m *Memory) MarshalJSON() ([]byte, error) {
+func (m *Memory) MarshalJSON() ([]byte, error) { // nosemgrep
 	pages := make([]pageEntry, 0, len(m.pages))
 	for k, p := range m.pages {
 		pages = append(pages, pageEntry{

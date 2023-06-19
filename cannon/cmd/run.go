@@ -124,7 +124,7 @@ func NewProcessPreimageOracle(name string, args []string) (*ProcessPreimageOracl
 		return nil, err
 	}
 
-	cmd := exec.Command(name, args...)
+	cmd := exec.Command(name, args...) // nosemgrep
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.ExtraFiles = []*os.File{
@@ -317,10 +317,11 @@ func Run(ctx *cli.Context) error {
 				StepInput: witness.EncodeStepInput(),
 			}
 			if witness.HasPreimage() {
-				proof.OracleInput, err = witness.EncodePreimageOracleInput()
+				inp, err := witness.EncodePreimageOracleInput()
 				if err != nil {
 					return fmt.Errorf("failed to encode pre-image oracle input: %w", err)
 				}
+				proof.OracleInput = inp
 			}
 			if err := writeJSON[*Proof](fmt.Sprintf(proofFmt, step), proof, true); err != nil {
 				return fmt.Errorf("failed to write proof data: %w", err)
