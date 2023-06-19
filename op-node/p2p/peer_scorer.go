@@ -35,8 +35,6 @@ type Peerstore interface {
 
 // Scorer is a peer scorer that scores peers based on application-specific metrics.
 type Scorer interface {
-	OnConnect(id peer.ID)
-	OnDisconnect(id peer.ID)
 	SnapshotHook() pubsub.ExtendedPeerScoreInspectFn
 }
 
@@ -85,14 +83,4 @@ func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
 		}
 		s.metricer.SetPeerScores(allScores)
 	}
-}
-
-// OnConnect is called when a peer connects.
-func (s *scorer) OnConnect(id peer.ID) {
-	// TODO(CLI-4003): apply decay to scores, based on last connection time
-}
-
-// OnDisconnect is called when a peer disconnects.
-func (s *scorer) OnDisconnect(id peer.ID) {
-	// TODO(CLI-4003): persist disconnect-time
 }
