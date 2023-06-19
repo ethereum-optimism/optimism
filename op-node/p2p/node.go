@@ -118,14 +118,6 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		}
 		n.store = eps
 		n.scorer = NewScorer(rollupCfg, eps, metrics, log)
-		n.host.Network().Notify(&network.NotifyBundle{
-			ConnectedF: func(_ network.Network, conn network.Conn) {
-				n.scorer.OnConnect(conn.RemotePeer())
-			},
-			DisconnectedF: func(_ network.Network, conn network.Conn) {
-				n.scorer.OnDisconnect(conn.RemotePeer())
-			},
-		})
 		// notify of any new connections/streams/etc.
 		n.host.Network().Notify(NewNetworkNotifier(log, metrics))
 		// note: the IDDelta functionality was removed from libP2P, and no longer needs to be explicitly disabled.
