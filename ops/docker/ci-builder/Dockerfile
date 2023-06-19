@@ -39,7 +39,6 @@ COPY --from=foundry-build /opt/foundry/target/release/cast /usr/local/bin/cast
 COPY --from=foundry-build /opt/foundry/target/release/anvil /usr/local/bin/anvil
 COPY --from=geth /usr/local/bin/abigen /usr/local/bin/abigen
 COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
-COPY check-changed.sh /usr/local/bin/check-changed
 
 RUN apt-get update && \
   apt-get install -y bash curl openssh-client git build-essential ca-certificates jq musl gnupg coreutils && \
