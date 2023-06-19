@@ -37,7 +37,7 @@ func testContractsSetup(t *testing.T) (*Contracts, *Addresses) {
 func SourceMapTracer(t *testing.T, contracts *Contracts, addrs *Addresses) vm.EVMLogger {
 	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{"../../packages/contracts-bedrock/contracts/cannon/MIPS.sol"})
 	require.NoError(t, err)
-	oracleSrcMap, err := contracts.Oracle.SourceMap([]string{"../../packages/contracts-bedrock/contracts/cannon/Oracle.sol"})
+	oracleSrcMap, err := contracts.Oracle.SourceMap([]string{"../../packages/contracts-bedrock/contracts/cannon/PreimageOracle.sol"})
 	require.NoError(t, err)
 
 	return srcmap.NewSourceMapTracer(map[common.Address]*srcmap.SourceMap{addrs.MIPS: mipsSrcMap, addrs.Oracle: oracleSrcMap}, os.Stdout)

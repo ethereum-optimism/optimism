@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.7.6;
 
-interface IOracle {
+interface IPreimageOracle {
   function readPreimage(bytes32 key, uint256 offset) external view returns (bytes32 dat, uint256 datLen);
 }
 
@@ -54,7 +54,7 @@ contract MIPS {
   uint32 constant EBADF = 0x9;
   uint32 constant EINVAL = 0x16;
 
-  IOracle public oracle;
+  IPreimageOracle public oracle;
 
   function SE(uint32 dat, uint32 idx) internal pure returns (uint32) {
     bool isSigned = (dat >> (idx-1)) != 0;

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-contract Oracle {
+contract PreimageOracle {
     mapping(bytes32 => uint256) public preimageLengths;
     mapping(bytes32 => mapping(uint256 => bytes32)) public preimageParts;
     mapping(bytes32 => mapping(uint256 => bool)) public preimagePartOk;

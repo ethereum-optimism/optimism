@@ -69,7 +69,7 @@ go build -o cannon .
 
 The Cannon contracts:
 - `MIPS.sol`: A MIPS emulator implementation, to run a single instruction onchain, with merkleized VM memory.
-- `Oracle.sol`: implements the pre-image oracle ABI, to support the instruction execution pre-image requests.
+- `PreimageOracle.sol`: implements the pre-image oracle ABI, to support the instruction execution pre-image requests.
 
 The smart-contracts are integrated into the Optimism monorepo contracts:
 [`../packages/contracts-bedrock/contracts/cannon`](../packages/contracts-bedrock/contracts/cannon)

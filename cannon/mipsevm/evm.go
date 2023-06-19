@@ -34,8 +34,8 @@ func LoadContracts() (*Contracts, error) {
 	var mips, oracle Contract
 	mips.DeployedBytecode.Object = hexutil.MustDecode(bindings.MIPSDeployedBin)
 	mips.DeployedBytecode.SourceMap = bindings.MIPSDeployedSourceMap
-	oracle.DeployedBytecode.Object = hexutil.MustDecode(bindings.OracleDeployedBin)
-	oracle.DeployedBytecode.SourceMap = bindings.OracleDeployedSourceMap
+	oracle.DeployedBytecode.Object = hexutil.MustDecode(bindings.PreimageOracleDeployedBin)
+	oracle.DeployedBytecode.SourceMap = bindings.PreimageOracleDeployedSourceMap
 	return &Contracts{
 		MIPS:   &mips,
 		Oracle: &oracle,

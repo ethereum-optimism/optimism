@@ -20,4 +20,4 @@ To run:
 5. Instrument the emulator with the state, and pre-image oracle, using `NewInstrumentedState`
 6. Step through the instrumented state with `Step(proof)`,
    where `proof==true` if witness data should be generated. Steps are faster with `proof==false`.
-7. Optionally repeat the step on-chain by calling `MIPS.sol` and `Oracle.sol`, using the above witness data.
+7. Optionally repeat the step on-chain by calling `MIPS.sol` and `PreimageOracle.sol`, using the above witness data.

@@ -35,7 +35,7 @@ bindings: l1block-bindings \
 	standard-bridge-bindings \
 	cross-domain-messenger-bindings \
 	cannon-mips \
-	cannon-oracle
+	cannon-preimage-oracle
 
 version:
 	forge --version
@@ -139,8 +139,8 @@ cross-domain-messenger-bindings: compile
 cannon-mips: compile
 	./gen_bindings.sh contracts/cannon/MIPS.sol:MIPS $(pkg)
 
-cannon-oracle: compile
-	./gen_bindings.sh contracts/cannon/Oracle.sol:Oracle $(pkg)
+cannon-preimage-oracle: compile
+	./gen_bindings.sh contracts/cannon/PreimageOracle.sol:PreimageOracle $(pkg)
 
 
 more:
@@ -148,8 +148,8 @@ more:
 		-artifacts ../packages/contracts-bedrock/artifacts \
 		-forge-artifacts ../packages/contracts-bedrock/forge-artifacts \
 		-out ./bindings \
-		-contracts SystemConfig,OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,LegacyMessagePasser,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken,L1CrossDomainMessenger,L2ERC721Bridge,OptimismMintableERC721Factory,ProxyAdmin,MIPS,Oracle \
-		-source-maps MIPS,Oracle \
+		-contracts SystemConfig,OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,LegacyMessagePasser,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken,L1CrossDomainMessenger,L2ERC721Bridge,OptimismMintableERC721Factory,ProxyAdmin,MIPS,PreimageOracle \
+		-source-maps MIPS,PreimageOracle \
 		-package bindings
 
 mkdir:

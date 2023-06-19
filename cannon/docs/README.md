@@ -140,7 +140,7 @@ This ABI is implemented by the VM by intercepting the `read`/`write` syscalls to
 - `preimage client read = 5`: used by the client to read pre-image data, starting from the latest pre-image reading offset.
 - `preimage client write = 6`: used by the client to change the pre-image key. The key may change a little bit at a time. The last 32 written bytes count as key for retrieval when reading the pre-image. Changing the key also resets the read offset to 0.
 
-The data is loaded into `Oracle.sol` using the respective loading function based on the pre-image type.
+The data is loaded into `PreimageOracle.sol` using the respective loading function based on the pre-image type.
 And then retrieved during execution of the `read` syscall.
 
 Note that although the oracle provides up to 32 bytes of the pre-image,
