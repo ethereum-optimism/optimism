@@ -136,14 +136,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         // Compute the position that the claim commits to. Because the parent's position is already
         // known, we can compute the next position by moving left or right depending on whether
         // or not the move is an attack or defense.
-        Position nextPosition = _isAttack
-            ? LibPosition.attack(parent.position)
-            : LibPosition.defend(parent.position);
+        Position nextPosition = _isAttack ? parent.position.attack() : parent.position.defend();
 
         // At the leaf nodes of the game, the only option is to run a step to prove or disprove
         // the above claim. At this depth, the parent claim commits to the state after a single
         // instruction step.
-        if (LibPosition.depth(nextPosition) >= MAX_GAME_DEPTH) {
+        if (nextPosition.depth() >= MAX_GAME_DEPTH) {
             revert GameDepthExceeded();
         }
 
@@ -160,11 +158,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         Duration nextDuration = Duration.wrap(
             uint64(
                 // First, fetch the duration of the grandparent claim.
-                Duration.unwrap(LibClock.duration(grandparentClock)) +
+                Duration.unwrap(grandparentClock.duration()) +
                     // Second, add the difference between the current block timestamp and the
                     // parent's clock timestamp.
                     block.timestamp -
-                    Timestamp.unwrap(LibClock.timestamp(parent.clock))
+                    Timestamp.unwrap(parent.clock.timestamp())
             )
         );
 
@@ -178,7 +176,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         Clock nextClock = LibClock.wrap(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
 
         // Do not allow for a duplicate claim to be made.
-        ClaimHash claimHash = LibHashing.hashClaimPos(_pivot, nextPosition);
+        ClaimHash claimHash = _pivot.hashClaimPos(nextPosition);
         if (claims[claimHash]) {
             revert ClaimAlreadyExists();
         }

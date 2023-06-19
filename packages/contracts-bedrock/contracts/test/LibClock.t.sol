@@ -14,7 +14,7 @@ contract LibClock_Test is Test {
      */
     function testFuzz_duration_succeeds(Duration _duration, Timestamp _timestamp) public {
         Clock clock = LibClock.wrap(_duration, _timestamp);
-        assertEq(Duration.unwrap(LibClock.duration(clock)), Duration.unwrap(_duration));
+        assertEq(Duration.unwrap(clock.duration()), Duration.unwrap(_duration));
     }
 
     /**
@@ -22,6 +22,6 @@ contract LibClock_Test is Test {
      */
     function testFuzz_timestamp_succeeds(Duration _duration, Timestamp _timestamp) public {
         Clock clock = LibClock.wrap(_duration, _timestamp);
-        assertEq(Timestamp.unwrap(LibClock.timestamp(clock)), Timestamp.unwrap(_timestamp));
+        assertEq(Timestamp.unwrap(clock.timestamp()), Timestamp.unwrap(_timestamp));
     }
 }
