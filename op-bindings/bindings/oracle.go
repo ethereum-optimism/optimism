@@ -30,8 +30,8 @@ var (
 
 // OracleMetaData contains all meta data concerning the Oracle contract.
 var OracleMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"partOffset\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"key\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"part\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"size\",\"type\":\"uint256\"}],\"name\":\"cheat\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"partOffset\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"preimage\",\"type\":\"bytes\"}],\"name\":\"loadKeccak256PreimagePart\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"name\":\"preimageLengths\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"key\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"offset\",\"type\":\"uint256\"}],\"name\":\"readPreimage\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"dat\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"datLen\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
-	Bin: "0x608060405234801561001057600080fd5b5061047a806100206000396000f3fe608060405234801561001057600080fd5b506004361061004c5760003560e01c8063e03110e114610051578063e15926111461007e578063fe4ac08e14610093578063fef2b4ed14610108575b600080fd5b61006461005f366004610326565b610136565b604080519283526020830191909152015b60405180910390f35b61009161008c366004610348565b610227565b005b6100916100a13660046103c4565b6000838152600260209081526040808320878452825280832080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff001660019081179091558684528252808320968352958152858220939093559283529082905291902055565b6101286101163660046103f6565b60006020819052908152604090205481565b604051908152602001610075565b6000828152600260209081526040808320848452909152812054819060ff166101bf576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601360248201527f707265696d616765206d75737420657869737400000000000000000000000000604482015260640160405180910390fd5b50600083815260208181526040909120546101db81600861043e565b6101e685602061043e565b1061020457836101f782600861043e565b6102019190610456565b91505b506000938452600160209081526040808620948652939052919092205492909150565b60443560008060088301861061023c57600080fd5b60c083901b6080526088838682378087017ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80151908490207effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff167f02000000000000000000000000000000000000000000000000000000000000001760008181526002602090815260408083208b8452825280832080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600190811790915584845282528083209a83529981528982209390935590815290819052959095209190915550505050565b6000806040838503121561033957600080fd5b50508035926020909101359150565b60008060006040848603121561035d57600080fd5b83359250602084013567ffffffffffffffff8082111561037c57600080fd5b818601915086601f83011261039057600080fd5b81358181111561039f57600080fd5b8760208285010111156103b157600080fd5b6020830194508093505050509250925092565b600080600080608085870312156103da57600080fd5b5050823594602084013594506040840135936060013592509050565b60006020828403121561040857600080fd5b5035919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600082198211156104515761045161040f565b500190565b6000828210156104685761046861040f565b50039056fea164736f6c634300080f000a",
+	ABI: "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"partOffset\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"key\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"part\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"size\",\"type\":\"uint256\"}],\"name\":\"cheat\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"partOffset\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"preimage\",\"type\":\"bytes\"}],\"name\":\"loadKeccak256PreimagePart\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"name\":\"preimageLengths\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"preimagePartOk\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"preimageParts\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"key\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"offset\",\"type\":\"uint256\"}],\"name\":\"readPreimage\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"dat\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"datLen\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	Bin: "0x608060405234801561001057600080fd5b50610509806100206000396000f3fe608060405234801561001057600080fd5b50600436106100725760003560e01c8063e159261111610050578063e15926111461011b578063fe4ac08e14610130578063fef2b4ed146101a557600080fd5b806361238bde146100775780638542cf50146100b5578063e03110e1146100f3575b600080fd5b6100a26100853660046103b5565b600160209081526000928352604080842090915290825290205481565b6040519081526020015b60405180910390f35b6100e36100c33660046103b5565b600260209081526000928352604080842090915290825290205460ff1681565b60405190151581526020016100ac565b6101066101013660046103b5565b6101c5565b604080519283526020830191909152016100ac565b61012e6101293660046103d7565b6102b6565b005b61012e61013e366004610453565b6000838152600260209081526040808320878452825280832080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff001660019081179091558684528252808320968352958152858220939093559283529082905291902055565b6100a26101b3366004610485565b60006020819052908152604090205481565b6000828152600260209081526040808320848452909152812054819060ff1661024e576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601360248201527f707265696d616765206d75737420657869737400000000000000000000000000604482015260640160405180910390fd5b506000838152602081815260409091205461026a8160086104cd565b6102758560206104cd565b1061029357836102868260086104cd565b61029091906104e5565b91505b506000938452600160209081526040808620948652939052919092205492909150565b6044356000806008830186106102cb57600080fd5b60c083901b6080526088838682378087017ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80151908490207effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff167f02000000000000000000000000000000000000000000000000000000000000001760008181526002602090815260408083208b8452825280832080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600190811790915584845282528083209a83529981528982209390935590815290819052959095209190915550505050565b600080604083850312156103c857600080fd5b50508035926020909101359150565b6000806000604084860312156103ec57600080fd5b83359250602084013567ffffffffffffffff8082111561040b57600080fd5b818601915086601f83011261041f57600080fd5b81358181111561042e57600080fd5b87602082850101111561044057600080fd5b6020830194508093505050509250925092565b6000806000806080858703121561046957600080fd5b5050823594602084013594506040840135936060013592509050565b60006020828403121561049757600080fd5b5035919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600082198211156104e0576104e061049e565b500190565b6000828210156104f7576104f761049e565b50039056fea164736f6c634300080f000a",
 }
 
 // OracleABI is the input ABI used to generate the binding from.
@@ -230,6 +230,68 @@ func (_Oracle *OracleSession) PreimageLengths(arg0 [32]byte) (*big.Int, error) {
 // Solidity: function preimageLengths(bytes32 ) view returns(uint256)
 func (_Oracle *OracleCallerSession) PreimageLengths(arg0 [32]byte) (*big.Int, error) {
 	return _Oracle.Contract.PreimageLengths(&_Oracle.CallOpts, arg0)
+}
+
+// PreimagePartOk is a free data retrieval call binding the contract method 0x8542cf50.
+//
+// Solidity: function preimagePartOk(bytes32 , uint256 ) view returns(bool)
+func (_Oracle *OracleCaller) PreimagePartOk(opts *bind.CallOpts, arg0 [32]byte, arg1 *big.Int) (bool, error) {
+	var out []interface{}
+	err := _Oracle.contract.Call(opts, &out, "preimagePartOk", arg0, arg1)
+
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return out0, err
+
+}
+
+// PreimagePartOk is a free data retrieval call binding the contract method 0x8542cf50.
+//
+// Solidity: function preimagePartOk(bytes32 , uint256 ) view returns(bool)
+func (_Oracle *OracleSession) PreimagePartOk(arg0 [32]byte, arg1 *big.Int) (bool, error) {
+	return _Oracle.Contract.PreimagePartOk(&_Oracle.CallOpts, arg0, arg1)
+}
+
+// PreimagePartOk is a free data retrieval call binding the contract method 0x8542cf50.
+//
+// Solidity: function preimagePartOk(bytes32 , uint256 ) view returns(bool)
+func (_Oracle *OracleCallerSession) PreimagePartOk(arg0 [32]byte, arg1 *big.Int) (bool, error) {
+	return _Oracle.Contract.PreimagePartOk(&_Oracle.CallOpts, arg0, arg1)
+}
+
+// PreimageParts is a free data retrieval call binding the contract method 0x61238bde.
+//
+// Solidity: function preimageParts(bytes32 , uint256 ) view returns(bytes32)
+func (_Oracle *OracleCaller) PreimageParts(opts *bind.CallOpts, arg0 [32]byte, arg1 *big.Int) ([32]byte, error) {
+	var out []interface{}
+	err := _Oracle.contract.Call(opts, &out, "preimageParts", arg0, arg1)
+
+	if err != nil {
+		return *new([32]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return out0, err
+
+}
+
+// PreimageParts is a free data retrieval call binding the contract method 0x61238bde.
+//
+// Solidity: function preimageParts(bytes32 , uint256 ) view returns(bytes32)
+func (_Oracle *OracleSession) PreimageParts(arg0 [32]byte, arg1 *big.Int) ([32]byte, error) {
+	return _Oracle.Contract.PreimageParts(&_Oracle.CallOpts, arg0, arg1)
+}
+
+// PreimageParts is a free data retrieval call binding the contract method 0x61238bde.
+//
+// Solidity: function preimageParts(bytes32 , uint256 ) view returns(bytes32)
+func (_Oracle *OracleCallerSession) PreimageParts(arg0 [32]byte, arg1 *big.Int) ([32]byte, error) {
+	return _Oracle.Contract.PreimageParts(&_Oracle.CallOpts, arg0, arg1)
 }
 
 // ReadPreimage is a free data retrieval call binding the contract method 0xe03110e1.
