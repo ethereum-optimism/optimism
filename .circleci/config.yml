@@ -1393,7 +1393,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(fault-detector|proxyd|indexer|op-[a-z0-9\-]*)\/v.*/
+              only: /^(fault-detector|proxyd|indexer|ci-builder|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-release:
