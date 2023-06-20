@@ -8,8 +8,6 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,13 +28,13 @@ func TestOracle(t *testing.T) {
 		cl := NewOracleClient(a)
 		srv := NewOracleServer(b)
 
-		preimageByHash := make(map[common.Hash][]byte)
+		preimageByHash := make(map[[32]byte][]byte)
 		for _, p := range preimages {
-			k := Keccak256Key(crypto.Keccak256Hash(p))
+			k := Keccak256Key(Keccak256(p))
 			preimageByHash[k.PreimageKey()] = p
 		}
 		for _, p := range preimages {
-			k := Keccak256Key(crypto.Keccak256Hash(p))
+			k := Keccak256Key(Keccak256(p))
 
 			var wg sync.WaitGroup
 			wg.Add(2)
@@ -49,7 +47,7 @@ func TestOracle(t *testing.T) {
 			}(k, p)
 
 			go func() {
-				err := srv.NextPreimageRequest(func(key common.Hash) ([]byte, error) {
+				err := srv.NextPreimageRequest(func(key [32]byte) ([]byte, error) {
 					dat, ok := preimageByHash[key]
 					if !ok {
 						return nil, fmt.Errorf("cannot find %s", key)

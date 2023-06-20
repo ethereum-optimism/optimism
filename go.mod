@@ -26,10 +26,12 @@ require (
 	github.com/multiformats/go-multiaddr v0.8.0
 	github.com/multiformats/go-multiaddr-dns v0.3.1
 	github.com/olekukonko/tablewriter v0.0.5
+	github.com/pkg/profile v1.7.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/stretchr/testify v1.8.1
 	github.com/urfave/cli v1.22.9
 	github.com/urfave/cli/v2 v2.17.2-0.20221006022127-8f469abc00aa
+	golang.org/x/crypto v0.6.0
 	golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb
 	golang.org/x/sync v0.1.0
 	golang.org/x/term v0.6.0
@@ -62,6 +64,7 @@ require (
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/elastic/gosigar v0.14.2 // indirect
+	github.com/felixge/fgprof v0.9.3 // indirect
 	github.com/fjl/memsize v0.0.1 // indirect
 	github.com/flynn/noise v1.0.0 // indirect
 	github.com/francoispqt/gojay v1.2.13 // indirect
@@ -162,7 +165,6 @@ require (
 	go.uber.org/fx v1.19.1 // indirect
 	go.uber.org/multierr v1.9.0 // indirect
 	go.uber.org/zap v1.24.0 // indirect
-	golang.org/x/crypto v0.6.0 // indirect
 	golang.org/x/mod v0.9.0 // indirect
 	golang.org/x/net v0.8.0 // indirect
 	golang.org/x/sys v0.6.0 // indirect

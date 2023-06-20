@@ -8,6 +8,7 @@ ignore:
   - "op-bindings/bindings/*.go"
   - "packages/contracts-bedrock/contracts/vendor/WETH9.sol"
   - "packages/contracts-bedrock/contracts/echidna"
+  - "packages/contracts-bedrock/contracts/cannon"  # tested through Go tests
 coverage:
   status:
     patch:

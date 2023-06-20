@@ -2,14 +2,13 @@ package preimage
 
 import (
 	"encoding/binary"
-
-	"github.com/ethereum/go-ethereum/common"
+	"encoding/hex"
 )
 
 type Key interface {
 	// PreimageKey changes the Key commitment into a
 	// 32-byte type-prefixed preimage key.
-	PreimageKey() common.Hash
+	PreimageKey() [32]byte
 }
 
 type Oracle interface {
@@ -40,27 +39,27 @@ const (
 // LocalIndexKey is a key local to the program, indexing a special program input.
 type LocalIndexKey uint64
 
-func (k LocalIndexKey) PreimageKey() (out common.Hash) {
+func (k LocalIndexKey) PreimageKey() (out [32]byte) {
 	out[0] = byte(LocalKeyType)
 	binary.BigEndian.PutUint64(out[24:], uint64(k))
 	return
 }
 
 // Keccak256Key wraps a keccak256 hash to use it as a typed pre-image key.
-type Keccak256Key common.Hash
+type Keccak256Key [32]byte
 
-func (k Keccak256Key) PreimageKey() (out common.Hash) {
-	out = common.Hash(k)            // copy the keccak hash
+func (k Keccak256Key) PreimageKey() (out [32]byte) {
+	out = k                         // copy the keccak hash
 	out[0] = byte(Keccak256KeyType) // apply prefix
 	return
 }
 
 func (k Keccak256Key) String() string {
-	return common.Hash(k).String()
+	return "0x" + hex.EncodeToString(k[:])
 }
 
 func (k Keccak256Key) TerminalString() string {
-	return common.Hash(k).String()
+	return "0x" + hex.EncodeToString(k[:])
 }
 
 // Hint is an interface to enable any program type to function as a hint,

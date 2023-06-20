@@ -4,8 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-
-	"github.com/ethereum/go-ethereum/common"
 )
 
 // OracleClient implements the Oracle by writing the pre-image key to the given stream,
@@ -47,10 +45,10 @@ func NewOracleServer(rw io.ReadWriter) *OracleServer {
 	return &OracleServer{rw: rw}
 }
 
-type PreimageGetter func(key common.Hash) ([]byte, error)
+type PreimageGetter func(key [32]byte) ([]byte, error)
 
 func (o *OracleServer) NextPreimageRequest(getPreimage PreimageGetter) error {
-	var key common.Hash
+	var key [32]byte
 	if _, err := io.ReadFull(o.rw, key[:]); err != nil {
 		if err == io.EOF {
 			return io.EOF
