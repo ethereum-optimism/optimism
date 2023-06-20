@@ -92,12 +92,66 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
      * @inheritdoc IFaultDisputeGame
      */
     function step(
-        uint256 _prestateIndex,
+        uint256 _stateIndex,
         uint256 _parentIndex,
-        bytes calldata _stateData,
-        bytes calldata _proof
+        bool _isAttack,
+        bytes calldata,
+        bytes calldata
     ) external {
-        // TODO - Call the VM to perform the execution step.
+        // TODO: Determine where the prestate for the full trace comes from (i.e. instruction 0 -> 1)
+        //       This will likely be in the preimage oracle, but this function currently does not
+        //       support an attack step against the first trace instruction.
+
+        // Steps cannot be made unless the game is currently in progress.
+        if (status != GameStatus.IN_PROGRESS) {
+            revert GameNotInProgress();
+        }
+
+        // Get the parent. If it does not exist, the call will revert with OOB.
+        ClaimData storage parent = claimData[_parentIndex];
+        // Get the pre/post state. If it does not exist, the call will revert with OOB.
+        ClaimData storage state = claimData[_stateIndex];
+
+        // Pull the parent position out of storage.
+        Position parentPos = parent.position;
+        // Determine the position of the step.
+        Position stepPos = _isAttack ? parentPos.attack() : parentPos.defend();
+
+        // Ensure that the step position is at the maximum game depth.
+        if (stepPos.depth() != MAX_GAME_DEPTH) {
+            revert InvalidParent();
+        }
+
+        // Determine the expected pre & post states of the step.
+        ClaimData storage preState;
+        Claim postStateClaim;
+        if (_isAttack) {
+            // If the step is an attack, the prestate exists elsewhere in the game state,
+            // and the parent claim is the expected post-state.
+            preState = state;
+            postStateClaim = parent.claim;
+        } else {
+            // If the step is a defense, the poststate exists elsewhere in the game state,
+            // and the parent claim is the expected pre-state.
+            preState = parent;
+            postStateClaim = state.claim;
+        }
+
+        // Assert that the prestate commits to the instruction at `gindex - 1`
+        if (preState.position.rightIndex(MAX_GAME_DEPTH) != Position.unwrap(stepPos) - 1) {
+            revert InvalidStep();
+        }
+
+        // TODO: Call `MIPS.sol#step` to verify the step.
+        // For now, we just use a simple state transition function that increments the prestate,
+        // `s_p`, by 1.
+        if (uint256(Claim.unwrap(preState.claim)) + 1 != uint256(Claim.unwrap(postStateClaim))) {
+            revert InvalidStep();
+        }
+
+        // Set the parent claim as countered. We do not need to append a new claim to the game;
+        // instead, we can just set the existing parent as countered.
+        parent.countered = true;
     }
 
     ////////////////////////////////////////////////////////////////
