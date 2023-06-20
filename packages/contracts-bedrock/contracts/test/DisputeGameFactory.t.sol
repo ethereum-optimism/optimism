@@ -69,7 +69,9 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         assertEq(address(game2), address(proxy));
         assertEq(timestamp2, block.timestamp);
     }
+}
 
+contract DisputeGameFactory_Create_TestFail is DisputeGameFactory_Init {
     /**
      * @dev Tests that the `create` function reverts when there is no implementation
      *      set for the given `GameType`.
@@ -140,7 +142,9 @@ contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_Init {
         // Ensure that the implementation for the `GameTypes.FAULT` enum value is set.
         assertEq(address(factory.gameImpls(GameTypes.FAULT)), address(1));
     }
+}
 
+contract DisputeGameFactory_SetImplementation_TestFail is DisputeGameFactory_Init {
     /**
      * @dev Tests that the `setImplementation` function reverts when called by a non-owner.
      */
@@ -189,7 +193,9 @@ contract DisputeGameFactory_TransferOwnership_Test is DisputeGameFactory_Init {
         factory.transferOwnership(address(1));
         assertEq(factory.owner(), address(1));
     }
+}
 
+contract DisputeGameFactory_TransferOwnership_TestFail is DisputeGameFactory_Init {
     /**
      * @dev Tests that the `transferOwnership` function reverts when called by a non-owner.
      */
@@ -199,6 +205,7 @@ contract DisputeGameFactory_TransferOwnership_Test is DisputeGameFactory_Init {
         factory.transferOwnership(address(1));
     }
 }
+
 
 /**
  * @title PackingTester
