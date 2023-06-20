@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-bedrock",
-  "version": "0.14.0",
+  "version": "0.15.0",
   "description": "Contracts for Optimism Specs",
   "main": "dist/index",
   "types": "dist/index",
@@ -37,10 +37,10 @@
     "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./tsconfig.build.tsbuildinfo ./src/contract-artifacts.ts ./test-case-generator/fuzz",
     "lint:ts:check": "eslint . --max-warnings=0",
     "lint:forge-tests:check": "ts-node scripts/forge-test-names.ts",
-    "lint:contracts:check": "yarn solhint -f table 'contracts/**/*.sol' && yarn prettier --check 'contracts/**/*.sol' && yarn lint:forge-tests:check",
+    "lint:contracts:check": "yarn solhint -f table 'contracts/**/!(DisputeTypes).sol' && yarn prettier --check 'contracts/**/!(DisputeTypes).sol' && yarn lint:forge-tests:check",
     "lint:check": "yarn lint:contracts:check && yarn lint:ts:check",
     "lint:ts:fix": "eslint --fix .",
-    "lint:contracts:fix": "yarn solhint --fix 'contracts/**/*.sol' && yarn prettier --write 'contracts/**/*.sol'",
+    "lint:contracts:fix": "yarn solhint --fix 'contracts/**/!(DisputeTypes).sol' && yarn prettier --write 'contracts/**/!(DisputeTypes).sol'",
     "lint:fix": "yarn lint:contracts:fix && yarn lint:ts:fix",
     "lint": "yarn lint:fix && yarn lint:check",
     "typechain": "typechain --target ethers-v5 --out-dir dist/types --glob 'artifacts/!(build-info)/**/+([a-zA-Z0-9_]).json'",
@@ -53,7 +53,7 @@
     "echidna:metering": "echidna-test --contract EchidnaFuzzResourceMetering --config ./echidna.yaml ."
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.12.0",
+    "@eth-optimism/core-utils": "^0.12.1",
     "@openzeppelin/contracts": "4.7.3",
     "@openzeppelin/contracts-upgradeable": "4.7.3",
     "ethers": "^5.7.0"
