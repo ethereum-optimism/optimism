@@ -274,8 +274,8 @@ contract FaultDisputeGame_Test is DisputeGameFactory_Init {
      */
     function test_resolve_root_uncontested() public {
         GameStatus status = gameProxy.resolve();
-        assertEq(uint(status), uint(GameStatus.DEFENDER_WINS));
-        assertEq(uint(gameProxy.status()), uint(GameStatus.DEFENDER_WINS));
+        assertEq(uint8(status), uint8(GameStatus.DEFENDER_WINS));
+        assertEq(uint8(gameProxy.status()), uint8(GameStatus.DEFENDER_WINS));
     }
 
     /**
@@ -294,8 +294,8 @@ contract FaultDisputeGame_Test is DisputeGameFactory_Init {
         gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
 
         GameStatus status = gameProxy.resolve();
-        assertEq(uint(status), uint(GameStatus.CHALLENGER_WINS));
-        assertEq(uint(gameProxy.status()), uint(GameStatus.CHALLENGER_WINS));
+        assertEq(uint8(status), uint8(GameStatus.CHALLENGER_WINS));
+        assertEq(uint8(gameProxy.status()), uint8(GameStatus.CHALLENGER_WINS));
     }
 
     /**
@@ -306,8 +306,8 @@ contract FaultDisputeGame_Test is DisputeGameFactory_Init {
         gameProxy.defend(1, Claim.wrap(bytes32(uint256(6))));
 
         GameStatus status = gameProxy.resolve();
-        assertEq(uint(status), uint(GameStatus.DEFENDER_WINS));
-        assertEq(uint(gameProxy.status()), uint(GameStatus.DEFENDER_WINS));
+        assertEq(uint8(status), uint8(GameStatus.DEFENDER_WINS));
+        assertEq(uint8(gameProxy.status()), uint8(GameStatus.DEFENDER_WINS));
     }
 
     /**
@@ -320,8 +320,8 @@ contract FaultDisputeGame_Test is DisputeGameFactory_Init {
         gameProxy.defend(1, Claim.wrap(bytes32(uint256(7))));
 
         GameStatus status = gameProxy.resolve();
-        assertEq(uint(status), uint(GameStatus.DEFENDER_WINS));
-        assertEq(uint(gameProxy.status()), uint(GameStatus.DEFENDER_WINS));
+        assertEq(uint8(status), uint8(GameStatus.CHALLENGER_WINS));
+        assertEq(uint8(gameProxy.status()), uint8(GameStatus.CHALLENGER_WINS));
     }
 }
 
