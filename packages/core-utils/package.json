@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/core-utils",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "description": "[Optimism] Core typescript utilities",
   "main": "dist/index",
   "types": "dist/index",
