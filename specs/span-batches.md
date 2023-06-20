@@ -72,7 +72,7 @@ Where:
   - `rel_timestamp`: relative time since genesis, i.e. `anchor.timestamp - config.genesis.timestamp`.
   - `parent_check`: first 20 bytes of parent hash, i.e. `anchor.parent_hash[:20]`.
   - `l1_origin_check`: to ensure the intended L1 origins of this span of
-        L2 blocks are consistent with the L1 chain, the blockhash of the last L1 origi is referenced.
+        L2 blocks are consistent with the L1 chain, the blockhash of the last L1 origin is referenced.
         The hash is truncated to 20 bytes for efficiency, i.e. `anchor.l1_origin.hash[:20]`.
 - `payload = block_count ++ block_tx_counts ++ tx_data_headers ++ tx_data + tx_sigs`:
   - `block_count`: `uvarint` number of L2 blocks.
@@ -186,7 +186,7 @@ although not strictly a "v0 batch" anymore.
 
 ### Batcher
 
-Instead of transforming L2 blocks into batches a channel,
+Instead of transforming L2 blocks into batches,
 the blocks should be buffered to form a span-batch.
 
 Ideally the L2 blocks are buffered as block-inputs, to maximize the span of blocks covered by the span-batch:
