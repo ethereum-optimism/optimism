@@ -43,7 +43,7 @@ contract FaultDisputeGame_Test is DisputeGameFactory_Init {
     function setUp() public override {
         super.setUp();
         // Deploy an implementation of the fault game
-        gameImpl = new FaultDisputeGame();
+        gameImpl = new FaultDisputeGame(Claim.wrap(bytes32(uint256(5))));
         // Register the game implementation with the factory.
         factory.setImplementation(GAME_TYPE, gameImpl);
         // Create a new game.

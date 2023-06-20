@@ -46,6 +46,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
     /**
+     * @notice The absolute prestate of the instruction trace. This is a constant that is defined
+     *         by the program that is being used to execute the trace, in this case, Cannon.
+     */
+    Claim public immutable ABSOLUTE_PRESTATE;
+
+    /**
      * @notice The starting timestamp of the game
      */
     Timestamp public gameStart;
@@ -69,6 +75,13 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
      * @notice An internal mapping to allow for constant-time lookups of existing claims.
      */
     mapping(ClaimHash => bool) internal claims;
+
+    /**
+     * @param _absolutePrestate The absolute prestate of the instruction trace.
+     */
+    constructor(Claim _absolutePrestate) {
+        ABSOLUTE_PRESTATE = _absolutePrestate;
+    }
 
     ////////////////////////////////////////////////////////////////
     //                       External Logic                       //
