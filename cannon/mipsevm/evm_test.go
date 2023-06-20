@@ -184,7 +184,7 @@ func TestHelloEVM(t *testing.T) {
 	require.True(t, state.Exited, "must complete program")
 	require.Equal(t, uint8(0), state.ExitCode, "exit with 0")
 
-	require.Equal(t, "hello world!", stdOutBuf.String(), "stdout says hello")
+	require.Equal(t, "hello world!\n", stdOutBuf.String(), "stdout says hello")
 	require.Equal(t, "", stdErrBuf.String(), "stderr silent")
 }
 
