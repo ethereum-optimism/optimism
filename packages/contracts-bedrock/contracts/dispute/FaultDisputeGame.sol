@@ -98,9 +98,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         bytes calldata,
         bytes calldata
     ) external {
-        // TODO: Determine where the prestate for the full trace comes from (i.e. instruction 0 -> 1)
-        //       This will likely be in the preimage oracle, but this function currently does not
-        //       support an attack step against the first trace instruction.
+        // TODO: Determine where the prestate for the full trace comes from
+        //       (i.e. instruction 0 -> 1) This will likely be in the preimage oracle, but this
+        //       function currently does not support an attack step against the first trace
+        //       instruction.
 
         // Steps cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) {
