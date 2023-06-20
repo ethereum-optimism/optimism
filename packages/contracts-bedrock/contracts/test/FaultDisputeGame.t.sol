@@ -323,6 +323,26 @@ contract FaultDisputeGame_Test is DisputeGameFactory_Init {
         assertEq(uint8(status), uint8(GameStatus.CHALLENGER_WINS));
         assertEq(uint8(gameProxy.status()), uint8(GameStatus.CHALLENGER_WINS));
     }
+
+    /**
+     * @notice Tests that the `step` function works from the absolute prestate -> instruction 1.
+     */
+    function test_step_absolute_succeeds() public {
+        Claim claim = Claim.wrap(bytes32(uint256(5)));
+
+        for (uint256 i = 0; i < 62; i++) {
+            gameProxy.attack(i, claim);
+        }
+        // This step should succeed, since it proves the above claim as invalid relative
+        // to the absolute prestate.
+        gameProxy.step(0, 62, true, hex"", hex"");
+
+        (,bool countered,,,) = gameProxy.claimData(62);
+        assertTrue(countered);
+
+        GameStatus status = gameProxy.resolve();
+        assertEq(uint8(status), uint8(GameStatus.DEFENDER_WINS));
+    }
 }
 
 /**

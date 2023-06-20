@@ -110,7 +110,6 @@ library LibPosition {
                 let remaining := sub(_maxDepth, msb)
                 rightIndex_ := or(shl(remaining, _position), sub(shl(remaining, 1), 1))
             }
-            rightIndex_ := sub(rightIndex_, shl(_maxDepth, 1))
         }
     }
 

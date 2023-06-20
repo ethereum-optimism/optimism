@@ -111,11 +111,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         bytes calldata,
         bytes calldata
     ) external {
-        // TODO: Determine where the prestate for the full trace comes from
-        //       (i.e. instruction 0 -> 1) This will likely be in the preimage oracle, but this
-        //       function currently does not support an attack step against the first trace
-        //       instruction.
-
         // Steps cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) {
             revert GameNotInProgress();
@@ -123,8 +118,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
 
         // Get the parent. If it does not exist, the call will revert with OOB.
         ClaimData storage parent = claimData[_parentIndex];
-        // Get the pre/post state. If it does not exist, the call will revert with OOB.
-        ClaimData storage state = claimData[_stateIndex];
 
         // Pull the parent position out of storage.
         Position parentPos = parent.position;
@@ -137,30 +130,40 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         }
 
         // Determine the expected pre & post states of the step.
-        ClaimData storage preState;
+        Claim preStateClaim;
         Claim postStateClaim;
-        if (_isAttack) {
-            // If the step is an attack, the prestate exists elsewhere in the game state,
-            // and the parent claim is the expected post-state.
-            preState = state;
-            postStateClaim = parent.claim;
+        if (stepPos.indexAtDepth() == 0) {
+            // If the step position's index at depth is 0, the prestate is the absolute prestate
+            // and the post state is the parent claim.
+            preStateClaim = ABSOLUTE_PRESTATE;
+            postStateClaim = claimData[_stateIndex].claim;
         } else {
-            // If the step is a defense, the poststate exists elsewhere in the game state,
-            // and the parent claim is the expected pre-state.
-            preState = parent;
-            postStateClaim = state.claim;
-        }
+            Position preStatePos;
+            if (_isAttack) {
+                // If the step is an attack, the prestate exists elsewhere in the game state,
+                // and the parent claim is the expected post-state.
+                preStatePos = claimData[_stateIndex].position;
+                preStateClaim = claimData[_parentIndex].claim;
+                postStateClaim = parent.claim;
+            } else {
+                // If the step is a defense, the poststate exists elsewhere in the game state,
+                // and the parent claim is the expected pre-state.
+                preStatePos = parent.position;
+                preStateClaim = parent.claim;
+                postStateClaim = claimData[_stateIndex].claim;
+            }
 
-        // Assert that the prestate commits to the instruction at `gindex - 1`
-        if (preState.position.rightIndex(MAX_GAME_DEPTH) != Position.unwrap(stepPos) - 1) {
-            revert InvalidStep();
+            // Assert that the given prestate commits to the instruction at `gindex - 1`.
+            if (preStatePos.rightIndex(MAX_GAME_DEPTH) != Position.unwrap(stepPos) - 1) {
+                revert InvalidPrestate();
+            }
         }
 
         // TODO: Call `MIPS.sol#step` to verify the step.
         // For now, we just use a simple state transition function that increments the prestate,
         // `s_p`, by 1.
-        if (uint256(Claim.unwrap(preState.claim)) + 1 != uint256(Claim.unwrap(postStateClaim))) {
-            revert InvalidStep();
+        if (uint256(Claim.unwrap(preStateClaim)) + 1 == uint256(Claim.unwrap(postStateClaim))) {
+            revert ValidStep();
         }
 
         // Set the parent claim as countered. We do not need to append a new claim to the game;
@@ -315,7 +318,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             // If the claim is not a dangling node above the bottom of the tree,
             // we can skip over it. These nodes are not relevant to the game resolution.
             Position claimPos = claim.position;
-            if (claimPos.depth() == MAX_GAME_DEPTH || claim.countered) {
+            if (claim.countered) {
                 continue;
             }
 

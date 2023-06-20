@@ -71,10 +71,9 @@ error InvalidParent();
 error InvalidPrestate();
 
 /**
- * @notice Thrown when a step is attempted to be made where the post state does not match
- *         what was expected.
+ * @notice Thrown when a step is made that computes the expected post state correctly.
  */
-error InvalidStep();
+error ValidStep();
 
 ////////////////////////////////////////////////////////////////
 //              `AttestationDisputeGame` Errors               //
