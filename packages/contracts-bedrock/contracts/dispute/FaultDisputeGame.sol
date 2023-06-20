@@ -219,9 +219,56 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
      * @inheritdoc IDisputeGame
      */
     function resolve() external returns (GameStatus status_) {
-        // TODO - Resolve the game
-        status = GameStatus.IN_PROGRESS;
-        status_ = status;
+        if (status != GameStatus.IN_PROGRESS) {
+            revert GameNotInProgress();
+        }
+
+        // Search for the left-most dangling non-bottom node
+        // The most recent claim is always a dangling, non-bottom node so we start with that
+        uint256 leftMostIndex = claimData.length - 1;
+        uint256 leftMostTraceIndex = LibPosition.rightIndex(
+            claimData[leftMostIndex].position,
+            MAX_GAME_DEPTH
+        );
+        for (uint256 i = leftMostIndex; i < type(uint64).max; ) {
+            // Fetch the claim at the current index.
+            ClaimData storage claim = claimData[i];
+
+            // Decrement the loop counter; If it underflows, we've reached the root
+            // claim and can stop searching.
+            unchecked {
+                --i;
+            }
+
+            // If the claim is not a dangling node above the bottom of the tree,
+            // we can skip over it. These nodes are not relevant to the game resolution.
+            Position claimPos = claim.position;
+            if (LibPosition.depth(claimPos) == MAX_GAME_DEPTH || claim.countered) {
+                continue;
+            }
+
+            // If the claim is a dangling node, we can check if it is the left-most
+            // dangling node we've come across so far. If it is, we can update the
+            // left-most trace index.
+            uint256 traceIndex = LibPosition.rightIndex(claimPos, MAX_GAME_DEPTH);
+            if (traceIndex < leftMostTraceIndex) {
+                leftMostTraceIndex = traceIndex;
+                leftMostIndex = i + 1;
+            }
+        }
+
+        // If the left-most dangling node is at an even depth, the defender wins.
+        // Otherwise, the challenger wins and the root claim is deemed invalid.
+        // slither-disable-next-line weak-prng
+        if (LibPosition.depth(claimData[leftMostIndex].position) % 2 == 0) {
+            status_ = GameStatus.DEFENDER_WINS;
+        } else {
+            status_ = GameStatus.CHALLENGER_WINS;
+        }
+
+        // Update the game status
+        status = status_;
+        emit Resolved(status_);
     }
 
     /**
