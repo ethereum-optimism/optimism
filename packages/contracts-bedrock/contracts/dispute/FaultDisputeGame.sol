@@ -154,7 +154,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             }
 
             // Assert that the given prestate commits to the instruction at `gindex - 1`.
-            if (Position.unwrap(preStatePos.rightIndex(MAX_GAME_DEPTH)) != Position.unwrap(stepPos) - 1) {
+            if (
+                Position.unwrap(preStatePos.rightIndex(MAX_GAME_DEPTH)) !=
+                Position.unwrap(stepPos) - 1
+            ) {
                 revert InvalidPrestate();
             }
         }

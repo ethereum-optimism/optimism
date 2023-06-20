@@ -337,7 +337,7 @@ contract FaultDisputeGame_Test is DisputeGameFactory_Init {
         // to the absolute prestate.
         gameProxy.step(0, 62, true, hex"", hex"");
 
-        (,bool countered,,,) = gameProxy.claimData(62);
+        (, bool countered, , , ) = gameProxy.claimData(62);
         assertTrue(countered);
 
         GameStatus status = gameProxy.resolve();
