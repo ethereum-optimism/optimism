@@ -1,27 +1,24 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.7.6;
+pragma solidity ^0.8.15;
 
-interface IPreimageOracle {
-  function readPreimage(bytes32 key, uint256 offset) external view returns (bytes32 dat, uint256 datLen);
-}
+import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
+import { PreimageKey, PreimageOffset, PreimagePart, PreimageLength } from "./lib/CannonTypes.sol";
 
-// https://inst.eecs.berkeley.edu/~cs61c/resources/MIPS_Green_Sheet.pdf
-// https://uweb.engr.arizona.edu/~ece369/Resources/spim/MIPSReference.pdf
-// https://en.wikibooks.org/wiki/MIPS_Assembly/Instruction_Formats
-
-// https://www.cs.cmu.edu/afs/cs/academic/class/15740-f97/public/doc/mips-isa.pdf
-// page A-177
-
-// MIPS linux kernel errors used by Go runtime:
-// https://github.com/golang/go/blob/master/src/syscall/zerrors_linux_mips.go
-
-// This MIPS contract emulates a single MIPS instruction.
-//
-// Note that delay slots are isolated instructions:
-// the nextPC in the state pre-schedules where the VM jumps next.
-//
-// The Step input is a packed VM state, with binary-merkle-tree witness data for memory reads/writes.
-// The Step outputs a keccak256 hash of the packed VM State, and logs the resulting state for offchain usage.
+/// @title MIPS
+/// @notice The MIPS contract emulates a single MIPS instruction.
+///         Note that delay slots are isolated instructions:
+///         the nextPC in the state pre-schedules where the VM jumps next.
+///         The Step input is a packed VM state, with binary-merkle-tree
+///         witness data for memory reads/writes.
+///         The Step outputs a keccak256 hash of the packed VM State,
+///         and logs the resulting state for offchain usage.
+/// @custom:attribution https://inst.eecs.berkeley.edu/~cs61c/resources/MIPS_Green_Sheet.pdf
+/// @custom:attribution https://www.cs.cmu.edu/afs/cs/academic/class/15740-f97/public/doc/mips-isa.pdf
+///                     (page A-177)
+/// @custom:attribution https://uweb.engr.arizona.edu/~ece369/Resources/spim/MIPSReference.pdf
+/// @custom:attribution https://en.wikibooks.org/wiki/MIPS_Assembly/Instruction_Formats
+/// @custom:attribution https://github.com/golang/go/blob/master/src/syscall/zerrors_linux_mips.go
+///                     MIPS linux kernel errors used by Go runtime
 contract MIPS {
 
   struct State {
@@ -54,6 +51,7 @@ contract MIPS {
   uint32 constant EBADF = 0x9;
   uint32 constant EINVAL = 0x16;
 
+  /// @notice The pre-image oracle.
   IPreimageOracle public oracle;
 
   function SE(uint32 dat, uint32 idx) internal pure returns (uint32) {
@@ -138,7 +136,7 @@ contract MIPS {
       } else if (a0 == FD_PREIMAGE_READ) { // pre-image oracle
         // verify proof 1 is correct, and get the existing memory.
         uint32 mem = readMem(a1 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
-        (bytes32 dat, uint256 datLen) = oracle.readPreimage(state.preimageKey, state.preimageOffset);
+        (PreimagePart dat, PreimageLength datLen) = oracle.readPreimage(PreimageKey.wrap(state.preimageKey), PreimageOffset.wrap(state.preimageOffset));
         assembly { // assembly for more precise ops, and no var count limit
           let alignment := and(a1, 3) // the read might not start at an aligned address
           let space := sub(4, alignment) // remaining space in memory word
@@ -152,8 +150,8 @@ contract MIPS {
           mem := or(and(mem, not(mask)), dat) // clear masked part of original memory, and insert data
         }
         writeMem(a1 & 0xFFffFFfc, 1, mem);
-        state.preimageOffset += uint32(datLen);
-        v0 = uint32(datLen);
+        state.preimageOffset += uint32(PreimageLength.unwrap(datLen));
+        v0 = uint32(PreimageLength.unwrap(datLen));
       } else if (a0 == FD_HINT_READ) { // hint response
         // don't actually read into memory, just say we read it all, we ignore the result anyway
         v0 = a2;

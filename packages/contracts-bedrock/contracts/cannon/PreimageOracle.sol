@@ -1,24 +1,36 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-contract PreimageOracle {
-    mapping(bytes32 => uint256) public preimageLengths;
-    mapping(bytes32 => mapping(uint256 => bytes32)) public preimageParts;
-    mapping(bytes32 => mapping(uint256 => bool)) public preimagePartOk;
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
-    function readPreimage(bytes32 key, uint256 offset)
-        external
-        view
-        returns (bytes32 dat, uint256 datLen)
-    {
-        require(preimagePartOk[key][offset], "preimage must exist");
-        datLen = 32;
-        uint256 length = preimageLengths[key];
-        // add 8 for the length-prefix part
-        if (offset + 32 >= length + 8) {
-            datLen = length + 8 - offset;
-        }
-        dat = preimageParts[key][offset];
+import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
+import { MissingPreimage, UnauthorizedCaller } from "./lib/CannonErrors.sol";
+import { PreimageKey, PreimageOffset, PreimagePart, PreimageLength } from "./lib/CannonTypes.sol";
+
+/// @title PreimageOracle
+/// @notice A contract for storing permissioned pre-images.
+contract PreimageOracle is Initializable, IPreimageOracle {
+    /// @notice The authorized oracle writer.
+    address public oracleWriter;
+
+    /// @notice Stores the lengths of pre-images.
+    mapping(PreimageKey => PreimageLength) public preimageLengths;
+
+    /// @notice Stores pre-image parts by key and offset.
+    mapping(PreimageKey => mapping(PreimageOffset => PreimagePart)) public preimageParts;
+
+    /// @notice Stores whether a pre-image part has been set.
+    mapping(PreimageKey => mapping(PreimageOffset => bool)) public preimagePartOk;
+
+    /// @notice Creates a new pre-image oracle.
+    /// @param _oracleWriter The authorized oracle writer.
+    constructor(address _oracleWriter) {
+        initialize(_oracleWriter);
+    }
+
+    /// @notice Initializer.
+    function initialize(address _oracleWriter) public initializer {
+        oracleWriter = _oracleWriter;
     }
 
     // TODO(CLI-4104):
@@ -27,44 +39,107 @@ contract PreimageOracle {
     // For now we permit anyone to write any pre-image unchecked, to make testing easy.
     // This method is DANGEROUS. And NOT FOR PRODUCTION.
     function cheat(
-        uint256 partOffset,
-        bytes32 key,
-        bytes32 part,
-        uint256 size
+        PreimageOffset partOffset,
+        PreimageKey key,
+        PreimagePart part,
+        PreimageLength size
     ) external {
         preimagePartOk[key][partOffset] = true;
         preimageParts[key][partOffset] = part;
         preimageLengths[key] = size;
     }
 
-    // loadKeccak256PreimagePart prepares the pre-image to be read by keccak256 key,
-    // starting at the given offset, up to 32 bytes (clipped at preimage length, if out of data).
-    function loadKeccak256PreimagePart(uint256 partOffset, bytes calldata preimage) external {
-        uint256 size;
-        bytes32 key;
-        bytes32 part;
+    /// @inheritdoc IPreimageOracle
+    function readPreimage(PreimageKey key, PreimageOffset offset)
+        external
+        view
+        returns (PreimagePart dat, PreimageLength datLen)
+    {
+        // Validate that the pre-image part exists
+        if (!preimagePartOk[key][offset]) {
+            revert MissingPreimage(key, offset);
+        }
+
+        // Calculate the length of the pre-image data
+        datLen = PreimageLength.wrap(32);
+        uint256 length = PreimageLength.unwrap(preimageLengths[key]);
+
+        // add 8 for the length-prefix part
+        if (PreimageOffset.unwrap(offset) + 32 >= length + 8) {
+            datLen = PreimageLength.wrap(length + 8 - PreimageOffset.unwrap(offset));
+        }
+
+        // Retrieve the pre-image data
+        dat = preimageParts[key][offset];
+    }
+
+    /// @inheritdoc IPreimageOracle
+    function computePreimageKey(bytes calldata preimage) external pure returns (PreimageKey key) {
+        PreimageLength size;
         assembly {
+            size := calldataload(0x24)
+
+            // Leave slots 0x40 and 0x60 untouched,
+            // and everything after as scratch-memory.
+            let ptr := 0x80
+
+            // Store size as a big-endian uint64 at the start of pre-image
+            mstore(ptr, shl(192, size))
+            ptr := add(ptr, 8)
+
+            // Copy preimage payload into memory so we can hash and read it.
+            calldatacopy(ptr, preimage.offset, size)
+
+            // Compute the pre-image keccak256 hash (aka the pre-image key)
+            let h := keccak256(ptr, size)
+
+            // Mask out prefix byte, replace with type 2 byte
+            key := or(and(h, not(shl(248, 0xFF))), shl(248, 2))
+        }
+    }
+
+    /// @inheritdoc IPreimageOracle
+    function loadKeccak256PreimagePart(PreimageOffset partOffset, bytes calldata preimage)
+        external
+    {
+        // Construct the pre-image key
+        PreimageLength size;
+        PreimageKey key;
+        PreimagePart part;
+
+        assembly {
+            // Load the size of the pre-image
             // len(sig) + len(partOffset) + len(preimage offset) = 4 + 32 + 32 = 0x44
             size := calldataload(0x44)
-            // revert if part offset >= size+8 (i.e. parts must be within bounds)
+
+            // Revert if part offset >= size + 8 (i.e. parts must be within bounds)
             if iszero(lt(partOffset, add(size, 8))) {
                 revert(0, 0)
             }
-            // we leave solidity slots 0x40 and 0x60 untouched,
+
+            // Leave slots 0x40 and 0x60 untouched,
             // and everything after as scratch-memory.
             let ptr := 0x80
-            // put size as big-endian uint64 at start of pre-image
+
+            // Store size as a big-endian uint64 at the start of pre-image
             mstore(ptr, shl(192, size))
             ptr := add(ptr, 8)
-            // copy preimage payload into memory so we can hash and read it.
+
+            // Copy preimage payload into memory so we can hash and read it.
             calldatacopy(ptr, preimage.offset, size)
+
             // Note that it includes the 8-byte big-endian uint64 length prefix.
-            // this will be zero-padded at the end, since memory at end is clean.
+            // This will be zero-padded at the end, since memory at end is clean.
             part := mload(add(sub(ptr, 8), partOffset))
-            let h := keccak256(ptr, size) // compute preimage keccak256 hash
-            // mask out prefix byte, replace with type 2 byte
+
+            // Compute the pre-image keccak256 hash (aka the pre-image key)
+            let h := keccak256(ptr, size)
+
+            // Mask out prefix byte, replace with type 2 byte
             key := or(and(h, not(shl(248, 0xFF))), shl(248, 2))
         }
+
+        // Add the pre-image to storage
         preimagePartOk[key][partOffset] = true;
         preimageParts[key][partOffset] = part;
         preimageLengths[key] = size;
