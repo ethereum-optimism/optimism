@@ -230,28 +230,44 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             claimData[leftMostIndex].position,
             MAX_GAME_DEPTH
         );
-        int256 length = int256(claimData.length);
-        for (int256 i = length - 1; i >= 0; i--) {
-            ClaimData memory claim = claimData[uint256(i)];
-            if (LibPosition.depth(claim.position) >= MAX_GAME_DEPTH) {
+        for (uint256 i = leftMostIndex; i < type(uint64).max; ) {
+            // Fetch the claim at the current index.
+            ClaimData storage claim = claimData[i];
+
+            // Decrement the loop counter; If it underflows, we've reached the root
+            // claim and can stop searching.
+            unchecked {
+                --i;
+            }
+
+            // If the claim is not a dangling node above the bottom of the tree,
+            // we can skip over it. These nodes are not relevant to the game resolution.
+            Position claimPos = claim.position;
+            if (LibPosition.depth(claimPos) == MAX_GAME_DEPTH || claim.countered) {
                 continue;
             }
-            if (claim.countered) {
-                continue;
-            }
-            uint256 traceIndex = LibPosition.rightIndex(claim.position, MAX_GAME_DEPTH);
+
+            // If the claim is a dangling node, we can check if it is the left-most
+            // dangling node we've come across so far. If it is, we can update the
+            // left-most trace index.
+            uint256 traceIndex = LibPosition.rightIndex(claimPos, MAX_GAME_DEPTH);
             if (traceIndex < leftMostTraceIndex) {
                 leftMostTraceIndex = traceIndex;
+                leftMostIndex = i + 1;
             }
         }
 
-        ClaimData memory winner = claimData[leftMostIndex];
-        if (LibPosition.depth(winner.position) % 2 == 0) {
-            status = GameStatus.DEFENDER_WINS;
+        // If the left-most dangling node is at an even depth, the defender wins.
+        // Otherwise, the challenger wins and the root claim is deemed invalid.
+        if (LibPosition.depth(claimData[leftMostIndex].position) % 2 == 0) {
+            status_ = GameStatus.DEFENDER_WINS;
         } else {
-            status = GameStatus.CHALLENGER_WINS;
+            status_ = GameStatus.CHALLENGER_WINS;
         }
-        status_ = status;
+
+        // Update the game status
+        status = status_;
+        emit Resolved(status_);
     }
 
     /**
