@@ -73,10 +73,6 @@ func (p *Prepared) PeerScoringParams() *pubsub.PeerScoreParams {
 	return nil
 }
 
-func (p *Prepared) PeerBandScorer() *BandScoreThresholds {
-	return nil
-}
-
 func (p *Prepared) BanPeers() bool {
 	return false
 }
@@ -87,10 +83,6 @@ func (p *Prepared) BanThreshold() float64 {
 
 func (p *Prepared) BanDuration() time.Duration {
 	return 1 * time.Hour
-}
-
-func (p *Prepared) TopicScoringParams() *pubsub.TopicScoreParams {
-	return nil
 }
 
 func (p *Prepared) Disabled() bool {

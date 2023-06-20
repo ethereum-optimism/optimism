@@ -13,16 +13,37 @@ const deployFn: DeployFunction = async (hre) => {
   if (baseFeeVaultRecipient === ethers.constants.AddressZero) {
     throw new Error('BaseFeeVault RECIPIENT undefined')
   }
+  const baseFeeVaultMinimumWithdrawalAmount =
+    deployConfig.baseFeeVaultMinimumWithdrawalAmount
+  const baseFeeVaultWithdrawalNetwork =
+    deployConfig.baseFeeVaultWithdrawalNetwork
+  if (baseFeeVaultWithdrawalNetwork >= 2) {
+    throw new Error('BaseFeeVault WITHDRAWAL_NETWORK must be 0 or 1')
+  }
 
   await deploy({
     hre,
     name: 'BaseFeeVault',
-    args: [baseFeeVaultRecipient],
+    args: [
+      baseFeeVaultRecipient,
+      baseFeeVaultMinimumWithdrawalAmount,
+      baseFeeVaultWithdrawalNetwork,
+    ],
     postDeployAction: async (contract) => {
       await assertContractVariable(
         contract,
         'RECIPIENT',
         ethers.utils.getAddress(baseFeeVaultRecipient)
+      )
+      await assertContractVariable(
+        contract,
+        'MIN_WITHDRAWAL_AMOUNT',
+        baseFeeVaultMinimumWithdrawalAmount
+      )
+      await assertContractVariable(
+        contract,
+        'WITHDRAWAL_NETWORK',
+        baseFeeVaultWithdrawalNetwork
       )
     },
   })

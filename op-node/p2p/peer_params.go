@@ -5,12 +5,22 @@ import (
 	"math"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // DecayToZero is the decay factor for a peer's score to zero.
 const DecayToZero = 0.01
+
+// MeshWeight is the weight of the mesh delivery topic.
+const MeshWeight = -0.7
+
+// MaxInMeshScore is the maximum score for being in the mesh.
+const MaxInMeshScore = 10
+
+// DecayEpoch is the number of epochs to decay the score over.
+const DecayEpoch = time.Duration(5)
 
 // ScoreDecay returns the decay factor for a given duration.
 func ScoreDecay(duration time.Duration, slot time.Duration) float64 {
@@ -22,8 +32,8 @@ func ScoreDecay(duration time.Duration, slot time.Duration) float64 {
 // See [PeerScoreParams] for detailed documentation.
 //
 // [PeerScoreParams]: https://pkg.go.dev/github.com/libp2p/go-libp2p-pubsub@v0.8.1#PeerScoreParams
-var LightPeerScoreParams = func(blockTime uint64) pubsub.PeerScoreParams {
-	slot := time.Duration(blockTime) * time.Second
+var LightPeerScoreParams = func(cfg *rollup.Config) pubsub.PeerScoreParams {
+	slot := time.Duration(cfg.BlockTime) * time.Second
 	if slot == 0 {
 		slot = 2 * time.Second
 	}
@@ -32,8 +42,29 @@ var LightPeerScoreParams = func(blockTime uint64) pubsub.PeerScoreParams {
 	epoch := 6 * slot
 	tenEpochs := 10 * epoch
 	oneHundredEpochs := 100 * epoch
+	invalidDecayPeriod := 50 * epoch
 	return pubsub.PeerScoreParams{
-		Topics:        make(map[string]*pubsub.TopicScoreParams),
+		Topics: map[string]*pubsub.TopicScoreParams{
+			blocksTopicV1(cfg): {
+				TopicWeight:                     0.8,
+				TimeInMeshWeight:                MaxInMeshScore / inMeshCap(slot),
+				TimeInMeshQuantum:               slot,
+				TimeInMeshCap:                   inMeshCap(slot),
+				FirstMessageDeliveriesWeight:    1,
+				FirstMessageDeliveriesDecay:     ScoreDecay(20*epoch, slot),
+				FirstMessageDeliveriesCap:       23,
+				MeshMessageDeliveriesWeight:     MeshWeight,
+				MeshMessageDeliveriesDecay:      ScoreDecay(DecayEpoch*epoch, slot),
+				MeshMessageDeliveriesCap:        float64(uint64(epoch/slot) * uint64(DecayEpoch)),
+				MeshMessageDeliveriesThreshold:  float64(uint64(epoch/slot) * uint64(DecayEpoch) / 10),
+				MeshMessageDeliveriesWindow:     2 * time.Second,
+				MeshMessageDeliveriesActivation: 4 * epoch,
+				MeshFailurePenaltyWeight:        MeshWeight,
+				MeshFailurePenaltyDecay:         ScoreDecay(DecayEpoch*epoch, slot),
+				InvalidMessageDeliveriesWeight:  -140.4475,
+				InvalidMessageDeliveriesDecay:   ScoreDecay(invalidDecayPeriod, slot),
+			},
+		},
 		TopicScoreCap: 34,
 		AppSpecificScore: func(p peer.ID) float64 {
 			return 0
@@ -51,65 +82,22 @@ var LightPeerScoreParams = func(blockTime uint64) pubsub.PeerScoreParams {
 	}
 }
 
-// DisabledPeerScoreParams is an instantiation of [pubsub.PeerScoreParams] where all scoring is disabled.
-// See [PeerScoreParams] for detailed documentation.
-//
-// [PeerScoreParams]: https://pkg.go.dev/github.com/libp2p/go-libp2p-pubsub@v0.8.1#PeerScoreParams
-var DisabledPeerScoreParams = func(blockTime uint64) pubsub.PeerScoreParams {
-	slot := time.Duration(blockTime) * time.Second
-	if slot == 0 {
-		slot = 2 * time.Second
-	}
-	// We initialize an "epoch" as 6 blocks suggesting 6 blocks,
-	// each taking ~ 2 seconds, is 12 seconds
-	epoch := 6 * slot
-	tenEpochs := 10 * epoch
-	oneHundredEpochs := 100 * epoch
-	return pubsub.PeerScoreParams{
-		Topics: make(map[string]*pubsub.TopicScoreParams),
-		// 0 represent no cap
-		TopicScoreCap: 0,
-		AppSpecificScore: func(p peer.ID) float64 {
-			return 0
-		},
-		AppSpecificWeight: 1,
-		// ignore colocation scoring
-		IPColocationFactorWeight:    0,
-		IPColocationFactorWhitelist: nil,
-		// 0 disables the behaviour penalty
-		BehaviourPenaltyWeight: 0,
-		BehaviourPenaltyDecay:  ScoreDecay(tenEpochs, slot),
-		DecayInterval:          slot,
-		DecayToZero:            DecayToZero,
-		RetainScore:            oneHundredEpochs,
-	}
+// the cap for `inMesh` time scoring.
+func inMeshCap(slot time.Duration) float64 {
+	return float64((3600 * time.Second) / slot)
 }
 
-// PeerScoreParamsByName is a map of name to function that returns a [pubsub.PeerScoreParams] based on the provided [rollup.Config].
-var PeerScoreParamsByName = map[string](func(blockTime uint64) pubsub.PeerScoreParams){
-	"light": LightPeerScoreParams,
-	"none":  DisabledPeerScoreParams,
-}
-
-// AvailablePeerScoreParams returns a list of available peer score params.
-// These can be used as an input to [GetPeerScoreParams] which returns the
-// corresponding [pubsub.PeerScoreParams].
-func AvailablePeerScoreParams() []string {
-	var params []string
-	for name := range PeerScoreParamsByName {
-		params = append(params, name)
+func GetScoringParams(name string, cfg *rollup.Config) (*ScoringParams, error) {
+	switch name {
+	case "light":
+		return &ScoringParams{
+			PeerScoring: LightPeerScoreParams(cfg),
+		}, nil
+	case "none":
+		return nil, nil
+	default:
+		return nil, fmt.Errorf("unknown p2p scoring level: %v", name)
 	}
-	return params
-}
-
-// GetPeerScoreParams returns the [pubsub.PeerScoreParams] for the given name.
-func GetPeerScoreParams(name string, blockTime uint64) (pubsub.PeerScoreParams, error) {
-	params, ok := PeerScoreParamsByName[name]
-	if !ok {
-		return pubsub.PeerScoreParams{}, fmt.Errorf("invalid params %s", name)
-	}
-
-	return params(blockTime), nil
 }
 
 // NewPeerScoreThresholds returns a default [pubsub.PeerScoreThresholds].

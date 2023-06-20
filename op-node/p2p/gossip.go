@@ -52,7 +52,6 @@ var MessageDomainValidSnappy = [4]byte{1, 0, 0, 0}
 
 type GossipSetupConfigurables interface {
 	PeerScoringParams() *pubsub.PeerScoreParams
-	TopicScoringParams() *pubsub.TopicScoreParams
 	// ConfigureGossip creates configuration options to apply to the GossipSub setup
 	ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option
 }
@@ -423,7 +422,7 @@ func (p *publisher) Close() error {
 	return p.blocksTopic.Close()
 }
 
-func JoinGossip(p2pCtx context.Context, self peer.ID, topicScoreParams *pubsub.TopicScoreParams, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn) (GossipOut, error) {
+func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn) (GossipOut, error) {
 	val := guardGossipValidator(log, logValidationResult(self, "validated block", log, BuildBlocksValidator(log, cfg, runCfg)))
 	blocksTopicName := blocksTopicV1(cfg)
 	err := ps.RegisterTopicValidator(blocksTopicName,
@@ -442,15 +441,6 @@ func JoinGossip(p2pCtx context.Context, self peer.ID, topicScoreParams *pubsub.T
 		return nil, fmt.Errorf("failed to create blocks gossip topic handler: %w", err)
 	}
 	go LogTopicEvents(p2pCtx, log.New("topic", "blocks"), blocksTopicEvents)
-
-	// A [TimeInMeshQuantum] value of 0 means the topic score is disabled.
-	// If we passed a topicScoreParams with [TimeInMeshQuantum] set to 0,
-	// libp2p errors since the params will be rejected.
-	if topicScoreParams != nil && topicScoreParams.TimeInMeshQuantum != 0 {
-		if err = blocksTopic.SetScoreParams(topicScoreParams); err != nil {
-			return nil, fmt.Errorf("failed to set topic score params: %w", err)
-		}
-	}
 
 	subscription, err := blocksTopic.Subscribe()
 	if err != nil {

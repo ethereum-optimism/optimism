@@ -26,18 +26,21 @@ func TestRoundTripGossipScore(t *testing.T) {
 	id := peer.ID("aaaa")
 	store := createMemoryStore(t)
 	score := 123.45
-	err := store.SetScore(id, &GossipScores{Total: score})
+	res, err := store.SetScore(id, &GossipScores{Total: score})
 	require.NoError(t, err)
 
-	assertPeerScores(t, store, id, PeerScores{Gossip: GossipScores{Total: score}})
+	expected := PeerScores{Gossip: GossipScores{Total: score}}
+	require.Equal(t, expected, res)
+
+	assertPeerScores(t, store, id, expected)
 }
 
 func TestUpdateGossipScore(t *testing.T) {
 	id := peer.ID("aaaa")
 	store := createMemoryStore(t)
 	score := 123.45
-	require.NoError(t, store.SetScore(id, &GossipScores{Total: 444.223}))
-	require.NoError(t, store.SetScore(id, &GossipScores{Total: score}))
+	setScoreRequired(t, store, id, &GossipScores{Total: 444.223})
+	setScoreRequired(t, store, id, &GossipScores{Total: score})
 
 	assertPeerScores(t, store, id, PeerScores{Gossip: GossipScores{Total: score}})
 }
@@ -48,8 +51,8 @@ func TestStoreScoresForMultiplePeers(t *testing.T) {
 	store := createMemoryStore(t)
 	score1 := 123.45
 	score2 := 453.22
-	require.NoError(t, store.SetScore(id1, &GossipScores{Total: score1}))
-	require.NoError(t, store.SetScore(id2, &GossipScores{Total: score2}))
+	setScoreRequired(t, store, id1, &GossipScores{Total: score1})
+	setScoreRequired(t, store, id2, &GossipScores{Total: score2})
 
 	assertPeerScores(t, store, id1, PeerScores{Gossip: GossipScores{Total: score1}})
 	assertPeerScores(t, store, id2, PeerScores{Gossip: GossipScores{Total: score2}})
@@ -61,7 +64,7 @@ func TestPersistData(t *testing.T) {
 	backingStore := sync.MutexWrap(ds.NewMapDatastore())
 	store := createPeerstoreWithBacking(t, backingStore)
 
-	require.NoError(t, store.SetScore(id, &GossipScores{Total: score}))
+	setScoreRequired(t, store, id, &GossipScores{Total: score})
 
 	// Close and recreate a new store from the same backing
 	require.NoError(t, store.Close())
@@ -92,17 +95,17 @@ func TestPrune(t *testing.T) {
 
 	firstStore := clock.Now()
 	// Set some scores all 30 minutes apart so they have different expiry times
-	require.NoError(t, book.SetScore("aaaa", &GossipScores{Total: 123.45}))
+	setScoreRequired(t, book, "aaaa", &GossipScores{Total: 123.45})
 	clock.AdvanceTime(30 * time.Minute)
-	require.NoError(t, book.SetScore("bbbb", &GossipScores{Total: 123.45}))
+	setScoreRequired(t, book, "bbbb", &GossipScores{Total: 123.45})
 	clock.AdvanceTime(30 * time.Minute)
-	require.NoError(t, book.SetScore("cccc", &GossipScores{Total: 123.45}))
+	setScoreRequired(t, book, "cccc", &GossipScores{Total: 123.45})
 	clock.AdvanceTime(30 * time.Minute)
-	require.NoError(t, book.SetScore("dddd", &GossipScores{Total: 123.45}))
+	setScoreRequired(t, book, "dddd", &GossipScores{Total: 123.45})
 	clock.AdvanceTime(30 * time.Minute)
 
 	// Update bbbb again which should extend its expiry
-	require.NoError(t, book.SetScore("bbbb", &GossipScores{Total: 123.45}))
+	setScoreRequired(t, book, "bbbb", &GossipScores{Total: 123.45})
 
 	require.True(t, hasScoreRecorded("aaaa"))
 	require.True(t, hasScoreRecorded("bbbb"))
@@ -147,7 +150,7 @@ func TestPruneMultipleBatches(t *testing.T) {
 	// Set scores for more peers than the max batch size
 	peerCount := maxPruneBatchSize*3 + 5
 	for i := 0; i < peerCount; i++ {
-		require.NoError(t, book.SetScore(peer.ID(strconv.Itoa(i)), &GossipScores{Total: 123.45}))
+		setScoreRequired(t, book, peer.ID(strconv.Itoa(i)), &GossipScores{Total: 123.45})
 	}
 	clock.AdvanceTime(book.book.recordExpiry + 1)
 	require.NoError(t, book.book.prune())
@@ -169,7 +172,7 @@ func TestIgnoreOutdatedScores(t *testing.T) {
 	book, err := newScoreBook(ctx, logger, clock, sync.MutexWrap(ds.NewMapDatastore()), retentionPeriod)
 	require.NoError(t, err)
 
-	require.NoError(t, book.SetScore("a", &GossipScores{Total: 123.45}))
+	setScoreRequired(t, book, "a", &GossipScores{Total: 123.45})
 	clock.AdvanceTime(retentionPeriod + 1)
 
 	// Not available from cache
@@ -210,4 +213,9 @@ func createPeerstoreWithBacking(t *testing.T, store *sync.MutexDatastore) Extend
 		_ = eps.Close()
 	})
 	return eps
+}
+
+func setScoreRequired(t *testing.T, store ScoreDatastore, id peer.ID, diff *GossipScores) {
+	_, err := store.SetScore(id, diff)
+	require.NoError(t, err)
 }

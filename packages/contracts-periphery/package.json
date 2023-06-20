@@ -73,7 +73,7 @@
     "ds-test": "https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5",
     "ethereum-waffle": "^3.4.4",
     "ethers": "^5.7.0",
-    "forge-std": "https://github.com/foundry-rs/forge-std.git#53331f4cb2e313466f72440f3e73af048c454d02",
+    "forge-std": "https://github.com/foundry-rs/forge-std.git#e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
     "hardhat": "^2.9.6",
     "hardhat-deploy": "^0.11.10",
     "hardhat-gas-reporter": "^1.0.8",

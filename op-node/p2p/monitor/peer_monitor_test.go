@@ -96,7 +96,7 @@ func TestCheckNextPeer(t *testing.T) {
 		id := peerIDs[0]
 		manager.EXPECT().Peers().Return(peerIDs).Once()
 		manager.EXPECT().GetPeerScore(id).Return(-101, nil).Once()
-		manager.EXPECT().IsProtected(id).Return(false).Once()
+		manager.EXPECT().IsStatic(id).Return(false).Once()
 		manager.EXPECT().BanPeer(id, clock.Now().Add(testBanDuration)).Return(nil).Once()
 
 		require.NoError(t, monitor.checkNextPeer())
@@ -107,7 +107,7 @@ func TestCheckNextPeer(t *testing.T) {
 		id := peerIDs[0]
 		manager.EXPECT().Peers().Return(peerIDs).Once()
 		manager.EXPECT().GetPeerScore(id).Return(-101, nil).Once()
-		manager.EXPECT().IsProtected(id).Return(true)
+		manager.EXPECT().IsStatic(id).Return(true)
 
 		require.NoError(t, monitor.checkNextPeer())
 	})

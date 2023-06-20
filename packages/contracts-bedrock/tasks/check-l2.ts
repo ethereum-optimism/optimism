@@ -392,7 +392,7 @@ const check = {
       signer
     )
 
-    await assertSemver(SequencerFeeVault, 'SequencerFeeVault', '1.1.0')
+    await assertSemver(SequencerFeeVault, 'SequencerFeeVault', '1.2.0')
 
     const RECIPIENT = await SequencerFeeVault.RECIPIENT()
     assert(RECIPIENT !== hre.ethers.constants.AddressZero)
@@ -405,6 +405,10 @@ const check = {
     const MIN_WITHDRAWAL_AMOUNT =
       await SequencerFeeVault.MIN_WITHDRAWAL_AMOUNT()
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
+
+    const WITHDRAWAL_NETWORK = await SequencerFeeVault.WITHDRAWAL_NETWORK()
+    assert(WITHDRAWAL_NETWORK < 2)
+    console.log(`  - WITHDRAWAL_NETWORK: ${WITHDRAWAL_NETWORK}`)
 
     await checkProxy(hre, 'SequencerFeeVault', signer.provider)
     await assertProxy(hre, 'SequencerFeeVault', signer.provider)
@@ -460,46 +464,6 @@ const check = {
 
     await checkProxy(hre, 'L1Block', signer.provider)
     await assertProxy(hre, 'L1Block', signer.provider)
-  },
-  // LegacyERC20ETH
-  // - not behind a proxy
-  // - check name
-  // - check symbol
-  // - check decimals
-  // - check BRIDGE
-  // - check REMOTE_TOKEN
-  // - totalSupply should be set to 0
-  LegacyERC20ETH: async (hre: HardhatRuntimeEnvironment, signer: Signer) => {
-    const LegacyERC20ETH = await hre.ethers.getContractAt(
-      'LegacyERC20ETH',
-      predeploys.LegacyERC20ETH,
-      signer
-    )
-
-    const name = await LegacyERC20ETH.name()
-    assert(name === 'Ether')
-    console.log(`  - name: ${name}`)
-
-    const symbol = await LegacyERC20ETH.symbol()
-    assert(symbol === 'ETH')
-    console.log(`  - symbol: ${symbol}`)
-
-    const decimals = await LegacyERC20ETH.decimals()
-    assert(decimals === 18)
-    console.log(`  - decimals: ${decimals}`)
-
-    const BRIDGE = await LegacyERC20ETH.BRIDGE()
-    assert(BRIDGE === predeploys.L2StandardBridge)
-
-    const REMOTE_TOKEN = await LegacyERC20ETH.REMOTE_TOKEN()
-    assert(REMOTE_TOKEN === hre.ethers.constants.AddressZero)
-
-    const totalSupply = await LegacyERC20ETH.totalSupply()
-    assert(totalSupply.eq(0))
-    console.log(`  - totalSupply: ${totalSupply}`)
-
-    await checkProxy(hre, 'LegacyERC20ETH', signer.provider)
-    // No proxy at this address, don't call assertProxy
   },
   // WETH9
   // - check name
@@ -635,7 +599,7 @@ const check = {
       signer
     )
 
-    await assertSemver(BaseFeeVault, 'BaseFeeVault', '1.1.0')
+    await assertSemver(BaseFeeVault, 'BaseFeeVault', '1.2.0')
 
     const MIN_WITHDRAWAL_AMOUNT = await BaseFeeVault.MIN_WITHDRAWAL_AMOUNT()
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
@@ -643,6 +607,10 @@ const check = {
     const RECIPIENT = await BaseFeeVault.RECIPIENT()
     assert(RECIPIENT !== hre.ethers.constants.AddressZero)
     yell(`  - RECIPIENT: ${RECIPIENT}`)
+
+    const WITHDRAWAL_NETWORK = await BaseFeeVault.WITHDRAWAL_NETWORK()
+    assert(WITHDRAWAL_NETWORK < 2)
+    console.log(`  - WITHDRAWAL_NETWORK: ${WITHDRAWAL_NETWORK}`)
 
     await checkProxy(hre, 'BaseFeeVault', signer.provider)
     await assertProxy(hre, 'BaseFeeVault', signer.provider)
@@ -658,7 +626,7 @@ const check = {
       signer
     )
 
-    await assertSemver(L1FeeVault, 'L1FeeVault', '1.1.0')
+    await assertSemver(L1FeeVault, 'L1FeeVault', '1.2.0')
 
     const MIN_WITHDRAWAL_AMOUNT = await L1FeeVault.MIN_WITHDRAWAL_AMOUNT()
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
@@ -666,6 +634,10 @@ const check = {
     const RECIPIENT = await L1FeeVault.RECIPIENT()
     assert(RECIPIENT !== hre.ethers.constants.AddressZero)
     yell(`  - RECIPIENT: ${RECIPIENT}`)
+
+    const WITHDRAWAL_NETWORK = await L1FeeVault.WITHDRAWAL_NETWORK()
+    assert(WITHDRAWAL_NETWORK < 2)
+    console.log(`  - WITHDRAWAL_NETWORK: ${WITHDRAWAL_NETWORK}`)
 
     await checkProxy(hre, 'L1FeeVault', signer.provider)
     await assertProxy(hre, 'L1FeeVault', signer.provider)
