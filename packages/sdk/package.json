@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/sdk",
-  "version": "2.1.0",
+  "version": "3.0.0",
   "description": "[Optimism] Tools for working with Optimism",
   "main": "dist/index",
   "types": "dist/index",
@@ -55,8 +55,8 @@
   },
   "dependencies": {
     "@eth-optimism/contracts": "0.6.0",
-    "@eth-optimism/core-utils": "0.12.0",
-    "@eth-optimism/contracts-bedrock": "0.14.0",
+    "@eth-optimism/core-utils": "0.12.1",
+    "@eth-optimism/contracts-bedrock": "0.15.0",
     "lodash": "^4.17.21",
     "merkletreejs": "^0.2.27",
     "rlp": "^2.2.7"
