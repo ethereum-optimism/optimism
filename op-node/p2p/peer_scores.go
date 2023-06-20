@@ -9,12 +9,12 @@ import (
 func ConfigurePeerScoring(gossipConf GossipSetupConfigurables, scorer Scorer, log log.Logger) []pubsub.Option {
 	// If we want to completely disable scoring config here, we can use the [peerScoringParams]
 	// to return early without returning any [pubsub.Option].
-	peerScoreParams := gossipConf.PeerScoringParams()
-	peerScoreThresholds := NewPeerScoreThresholds()
+	scoreParams := gossipConf.PeerScoringParams()
 	opts := []pubsub.Option{}
-	if peerScoreParams != nil {
+	if scoreParams != nil {
+		peerScoreThresholds := NewPeerScoreThresholds()
 		opts = []pubsub.Option{
-			pubsub.WithPeerScore(peerScoreParams, &peerScoreThresholds),
+			pubsub.WithPeerScore(&scoreParams.PeerScoring, &peerScoreThresholds),
 			pubsub.WithPeerScoreInspect(scorer.SnapshotHook(), peerScoreInspectFrequency),
 		}
 	} else {

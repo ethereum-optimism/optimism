@@ -138,11 +138,11 @@ func (conf *Config) Disabled() bool {
 	return conf.DisableP2P
 }
 
-func (conf *Config) PeerScoringParams() *pubsub.PeerScoreParams {
+func (conf *Config) PeerScoringParams() *ScoringParams {
 	if conf.ScoringParams == nil {
 		return nil
 	}
-	return &conf.ScoringParams.PeerScoring
+	return conf.ScoringParams
 }
 
 func (conf *Config) BanPeers() bool {

@@ -15,6 +15,15 @@ type ScoreBook interface {
 	SetScore(id peer.ID, diff store.ScoreDiff) (store.PeerScores, error)
 }
 
+type ApplicationScorer interface {
+	ApplicationScore(id peer.ID) float64
+	onValidResponse(id peer.ID)
+	onResponseError(id peer.ID)
+	onRejectedPayload(id peer.ID)
+	start()
+	stop()
+}
+
 type peerApplicationScorer struct {
 	ctx            context.Context
 	cancelFunc     context.CancelFunc
@@ -26,6 +35,8 @@ type peerApplicationScorer struct {
 
 	done sync.WaitGroup
 }
+
+var _ ApplicationScorer = (*peerApplicationScorer)(nil)
 
 func newPeerApplicationScorer(ctx context.Context, logger log.Logger, clock clock.Clock, params *ApplicationScoreParams, scorebook ScoreBook, connectedPeers func() []peer.ID) *peerApplicationScorer {
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -115,3 +126,26 @@ func (s *peerApplicationScorer) stop() {
 	s.cancelFunc()
 	s.done.Wait()
 }
+
+type noopApplicationScorer struct{}
+
+func (n *noopApplicationScorer) ApplicationScore(_ peer.ID) float64 {
+	return 0
+}
+
+func (n *noopApplicationScorer) onValidResponse(_ peer.ID) {
+}
+
+func (n *noopApplicationScorer) onResponseError(_ peer.ID) {
+}
+
+func (n *noopApplicationScorer) onRejectedPayload(_ peer.ID) {
+}
+
+func (n *noopApplicationScorer) start() {
+}
+
+func (n *noopApplicationScorer) stop() {
+}
+
+var _ ApplicationScorer = (*noopApplicationScorer)(nil)
