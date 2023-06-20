@@ -252,6 +252,13 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         emit Move(_challengeIndex, _pivot, msg.sender);
     }
 
+    /**
+     * @inheritdoc IFaultDisputeGame
+     */
+    function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
+        l2BlockNumber_ = _getArgUint256(0x20);
+    }
+
     ////////////////////////////////////////////////////////////////
     //                    `IDisputeGame` impl                     //
     ////////////////////////////////////////////////////////////////
