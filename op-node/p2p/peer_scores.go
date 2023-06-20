@@ -13,8 +13,11 @@ func ConfigurePeerScoring(gossipConf GossipSetupConfigurables, scorer Scorer, lo
 	opts := []pubsub.Option{}
 	if scoreParams != nil {
 		peerScoreThresholds := NewPeerScoreThresholds()
+		// Create copy of params before modifying the AppSpecificScore
+		params := scoreParams.PeerScoring
+		params.AppSpecificScore = scorer.ApplicationScore
 		opts = []pubsub.Option{
-			pubsub.WithPeerScore(&scoreParams.PeerScoring, &peerScoreThresholds),
+			pubsub.WithPeerScore(&params, &peerScoreThresholds),
 			pubsub.WithPeerScoreInspect(scorer.SnapshotHook(), peerScoreInspectFrequency),
 		}
 	} else {

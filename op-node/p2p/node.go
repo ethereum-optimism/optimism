@@ -100,7 +100,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		if scoreParams != nil {
 			n.appScorer = newPeerApplicationScorer(resourcesCtx, log, clock.SystemClock, &scoreParams.ApplicationScoring, eps, n.host.Network().Peers)
 		} else {
-			n.appScorer = &noopApplicationScorer{}
+			n.appScorer = &NoopApplicationScorer{}
 		}
 		// Activate the P2P req-resp sync if enabled by feature-flag.
 		if setup.ReqRespSyncEnabled() {
@@ -125,7 +125,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 				n.host.SetStreamHandler(PayloadByNumberProtocolID(rollupCfg.L2ChainID), payloadByNumber)
 			}
 		}
-		n.scorer = NewScorer(rollupCfg, eps, metrics, log)
+		n.scorer = NewScorer(rollupCfg, eps, metrics, n.appScorer, log)
 		// notify of any new connections/streams/etc.
 		n.host.Network().Notify(NewNetworkNotifier(log, metrics))
 		// note: the IDDelta functionality was removed from libP2P, and no longer needs to be explicitly disabled.

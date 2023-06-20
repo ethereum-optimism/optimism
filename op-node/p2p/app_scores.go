@@ -127,25 +127,25 @@ func (s *peerApplicationScorer) stop() {
 	s.done.Wait()
 }
 
-type noopApplicationScorer struct{}
+type NoopApplicationScorer struct{}
 
-func (n *noopApplicationScorer) ApplicationScore(_ peer.ID) float64 {
+func (n *NoopApplicationScorer) ApplicationScore(_ peer.ID) float64 {
 	return 0
 }
 
-func (n *noopApplicationScorer) onValidResponse(_ peer.ID) {
+func (n *NoopApplicationScorer) onValidResponse(_ peer.ID) {
 }
 
-func (n *noopApplicationScorer) onResponseError(_ peer.ID) {
+func (n *NoopApplicationScorer) onResponseError(_ peer.ID) {
 }
 
-func (n *noopApplicationScorer) onRejectedPayload(_ peer.ID) {
+func (n *NoopApplicationScorer) onRejectedPayload(_ peer.ID) {
 }
 
-func (n *noopApplicationScorer) start() {
+func (n *NoopApplicationScorer) start() {
 }
 
-func (n *noopApplicationScorer) stop() {
+func (n *NoopApplicationScorer) stop() {
 }
 
-var _ ApplicationScorer = (*noopApplicationScorer)(nil)
+var _ ApplicationScorer = (*NoopApplicationScorer)(nil)
