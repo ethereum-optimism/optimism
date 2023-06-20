@@ -99,7 +99,7 @@ library LibPosition {
     function rightIndex(
         Position _position,
         uint256 _maxDepth
-    ) internal pure returns (uint64 rightIndex_) {
+    ) internal pure returns (Position rightIndex_) {
         uint256 msb = depth(_position);
         assembly {
             switch eq(msb, _maxDepth)

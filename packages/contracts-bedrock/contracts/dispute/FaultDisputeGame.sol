@@ -154,7 +154,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             }
 
             // Assert that the given prestate commits to the instruction at `gindex - 1`.
-            if (preStatePos.rightIndex(MAX_GAME_DEPTH) != Position.unwrap(stepPos) - 1) {
+            if (Position.unwrap(preStatePos.rightIndex(MAX_GAME_DEPTH)) != Position.unwrap(stepPos) - 1) {
                 revert InvalidPrestate();
             }
         }
@@ -304,7 +304,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         // Search for the left-most dangling non-bottom node
         // The most recent claim is always a dangling, non-bottom node so we start with that
         uint256 leftMostIndex = claimData.length - 1;
-        uint256 leftMostTraceIndex = claimData[leftMostIndex].position.rightIndex(MAX_GAME_DEPTH);
+        Position leftMostTraceIndex = claimData[leftMostIndex].position.rightIndex(MAX_GAME_DEPTH);
         for (uint256 i = leftMostIndex; i < type(uint64).max; ) {
             // Fetch the claim at the current index.
             ClaimData storage claim = claimData[i];
@@ -325,8 +325,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             // If the claim is a dangling node, we can check if it is the left-most
             // dangling node we've come across so far. If it is, we can update the
             // left-most trace index.
-            uint256 traceIndex = claimPos.rightIndex(MAX_GAME_DEPTH);
-            if (traceIndex < leftMostTraceIndex) {
+            Position traceIndex = claimPos.rightIndex(MAX_GAME_DEPTH);
+            if (Position.unwrap(traceIndex) < Position.unwrap(leftMostTraceIndex)) {
                 leftMostTraceIndex = traceIndex;
                 leftMostIndex = i + 1;
             }
