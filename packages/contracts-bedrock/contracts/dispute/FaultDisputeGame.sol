@@ -259,6 +259,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
 
         // If the left-most dangling node is at an even depth, the defender wins.
         // Otherwise, the challenger wins and the root claim is deemed invalid.
+        // slither-disable-next-line weak-prng
         if (LibPosition.depth(claimData[leftMostIndex].position) % 2 == 0) {
             status_ = GameStatus.DEFENDER_WINS;
         } else {
