@@ -30,7 +30,7 @@ go build -o cannon .
 
 # Transform MIPS op-program client binary into first VM state.
 # This outputs state.json (VM state) and meta.json (for debug symbols).
-./cannon load-elf --path=../optimism/op-program/bin/op-program-client.elf
+./cannon load-elf --path=../op-program/bin/op-program-client.elf
 
 # Run cannon emulator (with example inputs)
 # Note that the server-mode op-program command is passed into cannon (after the --),
@@ -45,7 +45,7 @@ go build -o cannon .
 --proof-at never
 --input ./state.json
 --
-../optimism/op-program/bin/op-program
+../op-program/bin/op-program
 --l2 http://127.0.0.1:8745
 --l1 http://127.0.0.1:8645
 --l1.trustrpc
