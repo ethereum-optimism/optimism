@@ -13,8 +13,9 @@ var (
 
 // TraceProvider is a generic way to get a claim value at a specific
 // step in the trace.
+// The [AlphabetProvider] is a minimal implementation of this interface.
 type TraceProvider interface {
-	Get(i int) (common.Hash, error)
+	Get(i uint64) (common.Hash, error)
 }
 
 type Claim struct {
