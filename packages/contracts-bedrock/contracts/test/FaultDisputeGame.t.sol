@@ -11,19 +11,22 @@ import "../libraries/DisputeErrors.sol";
 import { LibClock } from "../dispute/lib/LibClock.sol";
 import { LibPosition } from "../dispute/lib/LibPosition.sol";
 
-contract FaultDisputeGame_Test is DisputeGameFactory_Init {
+contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     /**
      * @dev The root claim of the game.
      */
     Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32(uint256(10)));
+
     /**
      * @dev The extra data passed to the game for initialization.
      */
     bytes internal constant EXTRA_DATA = abi.encode(1);
+
     /**
      * @dev The type of the game being tested.
      */
     GameType internal constant GAME_TYPE = GameType.wrap(0);
+
     /**
      * @dev The current version of the `FaultDisputeGame` contract.
      */
@@ -33,6 +36,7 @@ contract FaultDisputeGame_Test is DisputeGameFactory_Init {
      * @dev The implementation of the game.
      */
     FaultDisputeGame internal gameImpl;
+
     /**
      * @dev The `Clone` proxy of the game.
      */
@@ -52,60 +56,15 @@ contract FaultDisputeGame_Test is DisputeGameFactory_Init {
         // Label the proxy
         vm.label(address(gameProxy), "FaultDisputeGame_Clone");
     }
+}
 
-    ////////////////////////////////////////////////////////////////
-    //            `IDisputeGame` Implementation Tests             //
-    ////////////////////////////////////////////////////////////////
-
+contract FaultDisputeGame_RootClaim_Test is FaultDisputeGame_Init {
     /**
      * @dev Tests that the game's root claim is set correctly.
      */
     function test_rootClaim_succeeds() public {
         assertEq(Claim.unwrap(gameProxy.rootClaim()), Claim.unwrap(ROOT_CLAIM));
     }
-
-    /**
-     * @dev Tests that the game's extra data is set correctly.
-     */
-    function test_extraData_succeeds() public {
-        assertEq(gameProxy.extraData(), EXTRA_DATA);
-    }
-
-    /**
-     * @dev Tests that the game's version is set correctly.
-     */
-    function test_version_succeeds() public {
-        assertEq(gameProxy.version(), VERSION);
-    }
-
-    /**
-     * @dev Tests that the game's status is set correctly.
-     */
-    function test_gameStart_succeeds() public {
-        assertEq(Timestamp.unwrap(gameProxy.gameStart()), block.timestamp);
-    }
-
-    /**
-     * @dev Tests that the game's type is set correctly.
-     */
-    function test_gameType_succeeds() public {
-        assertEq(GameType.unwrap(gameProxy.gameType()), GameType.unwrap(GAME_TYPE));
-    }
-
-    /**
-     * @dev Tests that the game's data is set correctly.
-     */
-    function test_gameData_succeeds() public {
-        (GameType gameType, Claim rootClaim, bytes memory extraData) = gameProxy.gameData();
-
-        assertEq(GameType.unwrap(gameType), GameType.unwrap(GAME_TYPE));
-        assertEq(Claim.unwrap(rootClaim), Claim.unwrap(ROOT_CLAIM));
-        assertEq(extraData, EXTRA_DATA);
-    }
-
-    ////////////////////////////////////////////////////////////////
-    //          `IFaultDisputeGame` Implementation Tests          //
-    ////////////////////////////////////////////////////////////////
 
     /**
      * @dev Tests that the root claim's data is set correctly when the game is initialized.
@@ -128,7 +87,58 @@ contract FaultDisputeGame_Test is DisputeGameFactory_Init {
             Clock.unwrap(LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))))
         );
     }
+}
 
+contract FaultDisputeGame_ExtraData_Test is FaultDisputeGame_Init {
+    /**
+     * @dev Tests that the game's extra data is set correctly.
+     */
+    function test_extraData_succeeds() public {
+        assertEq(gameProxy.extraData(), EXTRA_DATA);
+    }
+}
+
+contract FaultDisputeGame_Version_Test is FaultDisputeGame_Init {
+    /**
+     * @dev Tests that the game's version is set correctly.
+     */
+    function test_version_succeeds() public {
+        assertEq(gameProxy.version(), VERSION);
+    }
+}
+
+contract FaultDisputeGame_GameStart_Test is FaultDisputeGame_Init {
+    /**
+     * @dev Tests that the game's status is set correctly.
+     */
+    function test_gameStart_succeeds() public {
+        assertEq(Timestamp.unwrap(gameProxy.gameStart()), block.timestamp);
+    }
+}
+
+contract FaultDisputeGame_GameType_Test is FaultDisputeGame_Init {
+    /**
+     * @dev Tests that the game's type is set correctly.
+     */
+    function test_gameType_succeeds() public {
+        assertEq(GameType.unwrap(gameProxy.gameType()), GameType.unwrap(GAME_TYPE));
+    }
+}
+
+contract FaultDisputeGame_GameData_Test is FaultDisputeGame_Init {
+    /**
+     * @dev Tests that the game's data is set correctly.
+     */
+    function test_gameData_succeeds() public {
+        (GameType gameType, Claim rootClaim, bytes memory extraData) = gameProxy.gameData();
+
+        assertEq(GameType.unwrap(gameType), GameType.unwrap(GAME_TYPE));
+        assertEq(Claim.unwrap(rootClaim), Claim.unwrap(ROOT_CLAIM));
+        assertEq(extraData, EXTRA_DATA);
+    }
+}
+
+contract FaultDisputeGame_Attack_TestFail is FaultDisputeGame_Init {
     /**
      * @dev Tests that a move while the game status is not `IN_PROGRESS` causes the call to revert
      *      with the `GameNotInProgress` error
@@ -151,14 +161,6 @@ contract FaultDisputeGame_Test is DisputeGameFactory_Init {
         // Attempt to make a move. Should revert.
         vm.expectRevert(GameNotInProgress.selector);
         gameProxy.attack(0, Claim.wrap(0));
-    }
-
-    /**
-     * @dev Tests that an attempt to defend the root claim reverts with the `CannotDefendRootClaim` error.
-     */
-    function test_defendRoot_reverts() public {
-        vm.expectRevert(CannotDefendRootClaim.selector);
-        gameProxy.defend(0, Claim.wrap(bytes32(uint256(5))));
     }
 
     /**
@@ -219,7 +221,19 @@ contract FaultDisputeGame_Test is DisputeGameFactory_Init {
         vm.expectRevert(ClaimAlreadyExists.selector);
         gameProxy.attack(0, claim);
     }
+}
 
+contract FaultDisputeGame_Defend_TestFail is FaultDisputeGame_Init {
+    /**
+     * @dev Tests that an attempt to defend the root claim reverts with the `CannotDefendRootClaim` error.
+     */
+    function test_defendRoot_reverts() public {
+        vm.expectRevert(CannotDefendRootClaim.selector);
+        gameProxy.defend(0, Claim.wrap(bytes32(uint256(5))));
+    }
+}
+
+contract FaultDisputeGame_Attack_Test is FaultDisputeGame_Init {
     /**
      * @dev Static unit test for the correctness of an opening attack.
      */
