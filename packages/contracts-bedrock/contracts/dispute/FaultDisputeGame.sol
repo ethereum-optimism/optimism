@@ -280,10 +280,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         // Search for the left-most dangling non-bottom node
         // The most recent claim is always a dangling, non-bottom node so we start with that
         uint256 leftMostIndex = claimData.length - 1;
-        uint256 leftMostTraceIndex = LibPosition.rightIndex(
-            claimData[leftMostIndex].position,
-            MAX_GAME_DEPTH
-        );
+        uint256 leftMostTraceIndex = claimData[leftMostIndex].position.rightIndex(MAX_GAME_DEPTH);
         for (uint256 i = leftMostIndex; i < type(uint64).max; ) {
             // Fetch the claim at the current index.
             ClaimData storage claim = claimData[i];
@@ -297,14 +294,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             // If the claim is not a dangling node above the bottom of the tree,
             // we can skip over it. These nodes are not relevant to the game resolution.
             Position claimPos = claim.position;
-            if (LibPosition.depth(claimPos) == MAX_GAME_DEPTH || claim.countered) {
+            if (claimPos.depth() == MAX_GAME_DEPTH || claim.countered) {
                 continue;
             }
 
             // If the claim is a dangling node, we can check if it is the left-most
             // dangling node we've come across so far. If it is, we can update the
             // left-most trace index.
-            uint256 traceIndex = LibPosition.rightIndex(claimPos, MAX_GAME_DEPTH);
+            uint256 traceIndex = claimPos.rightIndex(MAX_GAME_DEPTH);
             if (traceIndex < leftMostTraceIndex) {
                 leftMostTraceIndex = traceIndex;
                 leftMostIndex = i + 1;
@@ -314,7 +311,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         // If the left-most dangling node is at an even depth, the defender wins.
         // Otherwise, the challenger wins and the root claim is deemed invalid.
         // slither-disable-next-line weak-prng
-        if (LibPosition.depth(claimData[leftMostIndex].position) % 2 == 0) {
+        if (claimData[leftMostIndex].position.depth() % 2 == 0) {
             status_ = GameStatus.DEFENDER_WINS;
         } else {
             status_ = GameStatus.CHALLENGER_WINS;
