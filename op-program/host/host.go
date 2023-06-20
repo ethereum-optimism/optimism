@@ -224,7 +224,7 @@ func createRetryingRPC(ctx context.Context, logger log.Logger, url string) (clie
 	if err != nil {
 		return nil, err
 	}
-	return opclient.NewRetryingClient(rpc, maxRPCRetries), nil
+	return opclient.NewRetryingClient(logger, rpc, maxRPCRetries), nil
 }
 
 func routeHints(logger log.Logger, hHostRW io.ReadWriter, hinter preimage.HintHandler) chan error {
