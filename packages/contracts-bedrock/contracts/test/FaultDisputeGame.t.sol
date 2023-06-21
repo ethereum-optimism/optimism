@@ -384,7 +384,7 @@ contract GamePlayer {
 
         if (grandparentIndex == type(uint32).max) {
             // If the parent claim is the root claim, begin by attacking.
-            movePos = parentPos.attack();
+            movePos = parentPos.move(true);
             // Flag the move as an attack.
             isAttack = true;
         } else {
@@ -402,10 +402,10 @@ contract GamePlayer {
 
             if (Claim.unwrap(ourParentClaim) != Claim.unwrap(parentClaim)) {
                 // Attack parent.
-                movePos = parentPos.attack();
+                movePos = parentPos.move(true);
                 // If we also disagree with the grandparent, attack it as well.
                 if (Claim.unwrap(ourGrandparentClaim) != Claim.unwrap(grandparentClaim)) {
-                    movePos2 = grandparentPos.attack();
+                    movePos2 = grandparentPos.move(true);
                 }
 
                 // Flag the move as an attack.
@@ -414,7 +414,7 @@ contract GamePlayer {
                 Claim.unwrap(ourParentClaim) == Claim.unwrap(parentClaim) &&
                 Claim.unwrap(ourGrandparentClaim) == Claim.unwrap(grandparentClaim)
             ) {
-                movePos = parentPos.defend();
+                movePos = parentPos.move(false);
             }
         }
 
@@ -474,7 +474,7 @@ contract GamePlayer {
                 // If we have a second move position, attack the grandparent.
                 if (Position.unwrap(movePos2) != 0) {
                     (, , , Position grandparentPos, ) = gameProxy.claimData(grandparentIndex);
-                    Claim ourGrandparentClaim = claimAt(grandparentPos.attack());
+                    Claim ourGrandparentClaim = claimAt(grandparentPos.move(true));
 
                     gameProxy.attack(grandparentIndex, ourGrandparentClaim);
                     counterParty.play(claimDataLen() - 1);
