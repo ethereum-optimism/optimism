@@ -10,8 +10,8 @@ with priority on the `L2OutputOracle` and `OptimismPortal`.
 
 #### Comments
 
-We use [Seaport](https://github.com/ProjectOpenSea/seaport/blob/main/contracts/Seaport.sol)-style comments with some minor modifications.
-Some basic rules:
+Optimism smart contracts follow the triple-slash [solidity natspec comment style](https://docs.soliditylang.org/en/develop/natspec-format.html#documentation-example)
+with additional rules. These are:
 
 - Always use `@notice` since it has the same general effect as `@dev` but avoids confusion about when to use one over the other.
 - Include a newline between `@notice` and the first `@param`.
@@ -28,12 +28,18 @@ We also have the following custom tags:
 #### Errors
 
 - Use `require` statements when making simple assertions.
-- Use `revert` if throwing an error where an assertion is not being made (no custom errors). See [here](https://github.com/ethereum-optimism/optimism/blob/861ae315a6db698a8c0adb1f8eab8311fd96be4c/packages/contracts-bedrock/contracts/L2/OVM_ETH.sol#L31) for an example of this in practice.
+- Use `revert(string)` if throwing an error where an assertion is not being made (no custom errors).
+  See [here](https://github.com/ethereum-optimism/optimism/blob/861ae315a6db698a8c0adb1f8eab8311fd96be4c/packages/contracts-bedrock/contracts/L2/OVM_ETH.sol#L31)
+  for an example of this in practice.
 - Error strings MUST have the format `"{ContractName}: {message}"` where `message` is a lower case string.
 
 #### Function Parameters
 
 - Function parameters should be prefixed with an underscore.
+
+#### Function Return Arguments
+
+- Arguments returned by functions should be suffixed with an underscore.
 
 #### Event Parameters
 
@@ -42,16 +48,21 @@ We also have the following custom tags:
 #### Spacers
 
 We use spacer variables to account for old storage slots that are no longer being used.
-The name of a spacer variable MUST be in the format `spacer_<slot>_<offset>_<length>` where `<slot>` is the original storage slot number, `<offset>` is the original offset position within the storage slot, and `<length>` is the original size of the variable.
+The name of a spacer variable MUST be in the format `spacer_<slot>_<offset>_<length>` where
+`<slot>` is the original storage slot number, `<offset>` is the original offset position
+within the storage slot, and `<length>` is the original size of the variable.
 Spacers MUST be `private`.
 
 ### Proxy by Default
 
 All contracts should be assumed to live behind proxies (except in certain special circumstances).
 This means that new contracts MUST be built under the assumption of upgradeability.
-We use a minimal [`Proxy`](./contracts/universal/Proxy.sol) contract designed to be owned by a corresponding [`ProxyAdmin`](./contracts/universal/ProxyAdmin.sol) which follow the interfaces of OpenZeppelin's `Proxy` and `ProxyAdmin` contracts, respectively.
+We use a minimal [`Proxy`](./contracts/universal/Proxy.sol) contract designed to be owned by a
+corresponding [`ProxyAdmin`](./contracts/universal/ProxyAdmin.sol) which follow the interfaces
+of OpenZeppelin's `Proxy` and `ProxyAdmin` contracts, respectively.
 
-Unless explicitly discussed otherwise, you MUST include the following basic upgradeability pattern for each new implementation contract:
+Unless explicitly discussed otherwise, you MUST include the following basic upgradeability
+pattern for each new implementation contract:
 
 1. Extend OpenZeppelin's `Initializable` base contract.
 2. Include a `uint8 public constant VERSION = X` at the TOP of your contract.
@@ -60,11 +71,13 @@ Unless explicitly discussed otherwise, you MUST include the following basic upgr
 
 ### Versioning
 
-All (non-library and non-abstract) contracts MUST extend the `Semver` base contract which exposes a `version()` function that returns a semver-compliant version string.
-During the Bedrock development process the `Semver` value for all contracts SHOULD return `0.0.1` (this is not particularly important, but it's an easy standard to follow).
-When the initial Bedrock upgrade is released, the `Semver` value MUST be updated to `1.0.0`.
+All (non-library and non-abstract) contracts MUST extend the `Semver` base contract which
+exposes a `version()` function that returns a semver-compliant version string.
 
-After the initial Bedrock upgrade, contracts MUST use the following versioning scheme:
+Contracts must have a `Semver` of `1.0.0` or greater to be production ready. Contracts
+with `Semver` values less than `1.0.0` should only be used locally or on devnets.
+
+Additionally, contracts MUST use the following versioning scheme:
 
 - `patch` releases are to be used only for changes that do NOT modify contract bytecode (such as updating comments).
 - `minor` releases are to be used for changes that modify bytecode OR changes that expand the contract ABI provided that these changes do NOT break the existing interface.
@@ -72,7 +85,8 @@ After the initial Bedrock upgrade, contracts MUST use the following versioning s
 
 #### Exceptions
 
-We have made an exception to the `Semver` rule for the `WETH` contract to avoid making changes to a well-known, simple, and recognizable contract.
+We have made an exception to the `Semver` rule for the `WETH` contract to avoid
+making changes to a well-known, simple, and recognizable contract.
 
 ### Dependencies
 
