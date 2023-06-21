@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 type gossipNoop struct{}

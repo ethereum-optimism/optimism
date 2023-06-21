@@ -13,7 +13,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 func PrefixEnvVar(prefix, suffix string) string {
@@ -33,8 +33,9 @@ func ValidateEnvVars(prefix string, flags []cli.Flag, log log.Logger) {
 func cliFlagsToEnvVars(flags []cli.Flag) map[string]struct{} {
 	definedEnvVars := make(map[string]struct{})
 	for _, flag := range flags {
-		envVarField := reflect.ValueOf(flag).FieldByName("EnvVar")
-		if envVarField.IsValid() {
+		envVars := reflect.ValueOf(flag).Elem().FieldByName("EnvVars")
+		for i := 0; i < envVars.Len(); i++ {
+			envVarField := envVars.Index(i)
 			definedEnvVars[envVarField.String()] = struct{}{}
 		}
 	}
