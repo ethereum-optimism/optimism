@@ -6,7 +6,7 @@ import (
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 const (
@@ -17,22 +17,22 @@ const (
 
 func CLIFlags(envPrefix string) []cli.Flag {
 	return []cli.Flag{
-		cli.BoolFlag{
-			Name:   EnabledFlagName,
-			Usage:  "Enable the metrics server",
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "METRICS_ENABLED"),
+		&cli.BoolFlag{
+			Name:    EnabledFlagName,
+			Usage:   "Enable the metrics server",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "METRICS_ENABLED"),
 		},
-		cli.StringFlag{
-			Name:   ListenAddrFlagName,
-			Usage:  "Metrics listening address",
-			Value:  "0.0.0.0",
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "METRICS_ADDR"),
+		&cli.StringFlag{
+			Name:    ListenAddrFlagName,
+			Usage:   "Metrics listening address",
+			Value:   "0.0.0.0",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "METRICS_ADDR"),
 		},
-		cli.IntFlag{
-			Name:   PortFlagName,
-			Usage:  "Metrics listening port",
-			Value:  7300,
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "METRICS_PORT"),
+		&cli.IntFlag{
+			Name:    PortFlagName,
+			Usage:   "Metrics listening port",
+			Value:   7300,
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "METRICS_PORT"),
 		},
 	}
 }
@@ -56,14 +56,6 @@ func (m CLIConfig) Check() error {
 }
 
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
-	return CLIConfig{
-		Enabled:    ctx.GlobalBool(EnabledFlagName),
-		ListenAddr: ctx.GlobalString(ListenAddrFlagName),
-		ListenPort: ctx.GlobalInt(PortFlagName),
-	}
-}
-
-func ReadLocalCLIConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
 		Enabled:    ctx.Bool(EnabledFlagName),
 		ListenAddr: ctx.String(ListenAddrFlagName),

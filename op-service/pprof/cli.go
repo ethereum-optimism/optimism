@@ -5,7 +5,7 @@ import (
 	"math"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 const (
@@ -16,22 +16,22 @@ const (
 
 func CLIFlags(envPrefix string) []cli.Flag {
 	return []cli.Flag{
-		cli.BoolFlag{
-			Name:   EnabledFlagName,
-			Usage:  "Enable the pprof server",
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "PPROF_ENABLED"),
+		&cli.BoolFlag{
+			Name:    EnabledFlagName,
+			Usage:   "Enable the pprof server",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "PPROF_ENABLED"),
 		},
-		cli.StringFlag{
-			Name:   ListenAddrFlagName,
-			Usage:  "pprof listening address",
-			Value:  "0.0.0.0",
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "PPROF_ADDR"),
+		&cli.StringFlag{
+			Name:    ListenAddrFlagName,
+			Usage:   "pprof listening address",
+			Value:   "0.0.0.0",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "PPROF_ADDR"),
 		},
-		cli.IntFlag{
-			Name:   PortFlagName,
-			Usage:  "pprof listening port",
-			Value:  6060,
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "PPROF_PORT"),
+		&cli.IntFlag{
+			Name:    PortFlagName,
+			Usage:   "pprof listening port",
+			Value:   6060,
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "PPROF_PORT"),
 		},
 	}
 }
@@ -56,8 +56,8 @@ func (m CLIConfig) Check() error {
 
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
-		Enabled:    ctx.GlobalBool(EnabledFlagName),
-		ListenAddr: ctx.GlobalString(ListenAddrFlagName),
-		ListenPort: ctx.GlobalInt(PortFlagName),
+		Enabled:    ctx.Bool(EnabledFlagName),
+		ListenAddr: ctx.String(ListenAddrFlagName),
+		ListenPort: ctx.Int(PortFlagName),
 	}
 }

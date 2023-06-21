@@ -37,6 +37,7 @@ type NodeP2P struct {
 	connMgr     connmgr.ConnManager            // p2p conn manager, to keep a reliable number of peers, may be nil even with p2p enabled
 	peerMonitor *monitor.PeerMonitor           // peer monitor to disconnect bad peers, may be nil even with p2p enabled
 	store       store.ExtendedPeerstore        // peerstore of host, with extra bindings for scoring and banning
+	appScorer   ApplicationScorer
 	log         log.Logger
 	// the below components are all optional, and may be nil. They require the host to not be nil.
 	dv5Local *enode.LocalNode // p2p discovery identity
@@ -89,9 +90,21 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 			n.gater = extra.ConnectionGater()
 			n.connMgr = extra.ConnectionManager()
 		}
+		eps, ok := n.host.Peerstore().(store.ExtendedPeerstore)
+		if !ok {
+			return fmt.Errorf("cannot init without extended peerstore: %w", err)
+		}
+		n.store = eps
+		scoreParams := setup.PeerScoringParams()
+
+		if scoreParams != nil {
+			n.appScorer = newPeerApplicationScorer(resourcesCtx, log, clock.SystemClock, &scoreParams.ApplicationScoring, eps, n.host.Network().Peers)
+		} else {
+			n.appScorer = &NoopApplicationScorer{}
+		}
 		// Activate the P2P req-resp sync if enabled by feature-flag.
 		if setup.ReqRespSyncEnabled() {
-			n.syncCl = NewSyncClient(log, rollupCfg, n.host.NewStream, gossipIn.OnUnsafeL2Payload, metrics)
+			n.syncCl = NewSyncClient(log, rollupCfg, n.host.NewStream, gossipIn.OnUnsafeL2Payload, metrics, n.appScorer)
 			n.host.Network().Notify(&network.NotifyBundle{
 				ConnectedF: func(nw network.Network, conn network.Conn) {
 					n.syncCl.AddPeer(conn.RemotePeer())
@@ -112,12 +125,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 				n.host.SetStreamHandler(PayloadByNumberProtocolID(rollupCfg.L2ChainID), payloadByNumber)
 			}
 		}
-		eps, ok := n.host.Peerstore().(store.ExtendedPeerstore)
-		if !ok {
-			return fmt.Errorf("cannot init without extended peerstore: %w", err)
-		}
-		n.store = eps
-		n.scorer = NewScorer(rollupCfg, eps, metrics, log)
+		n.scorer = NewScorer(rollupCfg, eps, metrics, n.appScorer, log)
 		// notify of any new connections/streams/etc.
 		n.host.Network().Notify(NewNetworkNotifier(log, metrics))
 		// note: the IDDelta functionality was removed from libP2P, and no longer needs to be explicitly disabled.
@@ -150,6 +158,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 			n.peerMonitor = monitor.NewPeerMonitor(resourcesCtx, log, clock.SystemClock, n, setup.BanThreshold(), setup.BanDuration())
 			n.peerMonitor.Start()
 		}
+		n.appScorer.start()
 	}
 	return nil
 }
@@ -257,6 +266,9 @@ func (n *NodeP2P) Close() error {
 				result = multierror.Append(result, fmt.Errorf("failed to close p2p sync client cleanly: %w", err))
 			}
 		}
+	}
+	if n.appScorer != nil {
+		n.appScorer.stop()
 	}
 	return result.ErrorOrNil()
 }

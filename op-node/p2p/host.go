@@ -149,7 +149,7 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 	var scoreRetention time.Duration
 	if peerScoreParams != nil {
 		// Use the same retention period as gossip will if available
-		scoreRetention = peerScoreParams.RetainScore
+		scoreRetention = peerScoreParams.PeerScoring.RetainScore
 	} else {
 		// Disable score GC if peer scoring is disabled
 		scoreRetention = 0

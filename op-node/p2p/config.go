@@ -53,7 +53,8 @@ type SetupP2P interface {
 
 // ScoringParams defines the various types of peer scoring parameters.
 type ScoringParams struct {
-	PeerScoring pubsub.PeerScoreParams
+	PeerScoring        pubsub.PeerScoreParams
+	ApplicationScoring ApplicationScoreParams
 }
 
 // Config sets up a p2p host and discv5 service from configuration.
@@ -137,11 +138,11 @@ func (conf *Config) Disabled() bool {
 	return conf.DisableP2P
 }
 
-func (conf *Config) PeerScoringParams() *pubsub.PeerScoreParams {
+func (conf *Config) PeerScoringParams() *ScoringParams {
 	if conf.ScoringParams == nil {
 		return nil
 	}
-	return &conf.ScoringParams.PeerScoring
+	return conf.ScoringParams
 }
 
 func (conf *Config) BanPeers() bool {
