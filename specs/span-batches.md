@@ -89,9 +89,8 @@ Where:
       - `legacy`: starting at `v` RLP field
       - `1` ([EIP-2930]): starting at `signatureYParity` RLP field
       - `2` ([EIP-1559]): starting at `signature_y_parity` RLP field
-  - `tx_sigs`: concatenated list of fixed-length transactions:
-    - `legacy` txs `v` value is reduced to `y_parity` (chain ID is already known)
-    - `v` is encoded as `uint8`
+  - `tx_sigs`: concatenated list of transaction signatures:
+    - `v`, or `y_parity`, is encoded as `uvarint` (some legacy transactions combine the chain ID)
     - `r` is encoded as big-endian `uint256`
     - `s` is encoded as big-endian `uint256`
 
