@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.8.2",
-    "@eth-optimism/contracts": "^0.6.0",
+    "@eth-optimism/contracts-bedrock": "^0.14.0",
     "@eth-optimism/core-utils": "^0.12.1",
     "@eth-optimism/sdk": "^3.0.0",
     "@ethersproject/abstract-provider": "^5.7.0"
