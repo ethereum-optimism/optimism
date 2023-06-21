@@ -71,7 +71,7 @@ Notation:
 
 Where:
 
-- `prefix = rel_timestamp ++ parent_check + l1_origin_check`
+- `prefix = rel_timestamp ++ parent_check ++ l1_origin_check`
   - `rel_timestamp`: relative time since genesis, i.e. `anchor.timestamp - config.genesis.timestamp`.
   - `parent_check`: first 20 bytes of parent hash, i.e. `anchor.parent_hash[:20]`.
   - `l1_origin_check`: to ensure the intended L1 origins of this span of
