@@ -33,7 +33,6 @@ type Options = {
   l2RpcProvider: Provider
   startBatchIndex: number
   optimismPortalAddress?: string
-  // Deprecated. Bedrock is the only version we support.
   bedrock: boolean
   stateCommitmentChainAddress?: string
 }
@@ -74,27 +73,27 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         startBatchIndex: {
           validator: validators.num,
           default: -1,
-          desc: 'Batch index to start checking from. For bedrock chains, this is the L2 height to start from',
+          desc: 'The L2 height to start from',
           public: true,
         },
         optimismPortalAddress: {
           validator: validators.str,
           default: ethers.constants.AddressZero,
-          desc: 'Deployed OptimismPortal contract address. Used to retrieve necessary info for ouput verification ',
+          desc: '[Custom OP Chains] Deployed OptimismPortal contract address. Used to retrieve necessary info for ouput verification ',
           public: true,
         },
-        // Deprecated flags.
+        // Deprecated options.
         bedrock: {
           validator: validators.bool,
           default: true,
           desc: '[Deprecated, must be set to true] Whether or not the service is running against a Bedrock chain',
-          public: true,
+          public: false,
         },
         stateCommitmentChainAddress: {
           validator: validators.str,
           default: ethers.constants.AddressZero,
           desc: '[Deprecated, must be set to 0x0] Deployed StateCommitmentChain contract address. Used to fetch necessary info for output verification.',
-          public: true,
+          public: false,
         },
       },
       metricsSpec: {
@@ -155,7 +154,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     if (!knownChainId && portalAddress === ethers.constants.AddressZero) {
       this.logger.error('OptimismPortal contract unspecified')
       throw new Error(
-        '--optimismportalcontractaddress needs to set for custom bedrock op chains'
+        '--optimismportalcontractaddress needs to set for custom op chains'
       )
     }
 
@@ -411,7 +410,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
           new Date(
             (ethers.BigNumber.from(outputBlock.timestamp).toNumber() +
               this.state.faultProofWindow) *
-              1000
+            1000
           ),
           'mmmm dS, yyyy, h:MM:ss TT'
         ),
