@@ -18,7 +18,7 @@
 
 > The span-batches spec is experimental :shipit:
 >
-> *this feature is in active R&D and not part of Bedrock*
+> *this feature is in active R&D and not yet part of any hard fork
 
 ## Introduction
 
@@ -65,7 +65,7 @@ Introduce version `1` to the [batch-format](./derivation.md#batch-format) table:
 Notation:
 `++`: concatenation of byte-strings.
 `anchor`: first L2 block in the span
-`uvarint`: unsigned Base128 varint, as defined in [protobuf varint spec]
+`uvarint`: unsigned Base128 varint, as defined in [protobuf spec]
 
 [protobuf spec]: https://protobuf.dev/programming-guides/encoding/#varints
 
@@ -77,7 +77,7 @@ Where:
   - `l1_origin_check`: to ensure the intended L1 origins of this span of
         L2 blocks are consistent with the L1 chain, the blockhash of the last L1 origin is referenced.
         The hash is truncated to 20 bytes for efficiency, i.e. `anchor.l1_origin.hash[:20]`.
-- `payload = block_count ++ block_tx_counts ++ tx_data_headers ++ tx_data + tx_sigs`:
+- `payload = block_count ++ block_tx_counts ++ tx_data_headers ++ tx_data ++ tx_sigs`:
   - `block_count`: `uvarint` number of L2 blocks.
   - `origin_bits`: bitlist of `block_count` bits, right-padded to a multiple of 8 bits:
     1 bit per L2 block, indicating if the L1 origin changed this L2 block.
