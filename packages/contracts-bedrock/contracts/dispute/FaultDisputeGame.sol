@@ -27,12 +27,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
     /**
      * @notice The current Semver of the FaultDisputeGame implementation.
      */
-    string internal constant VERSION = "0.0.1";
+    string internal constant VERSION = "0.0.2";
 
     /**
      * @notice The max depth of the game.
      */
-    uint256 internal constant MAX_GAME_DEPTH = 63;
+    uint256 internal constant MAX_GAME_DEPTH = 4;
 
     /**
      * @notice The duration of the game.
@@ -124,8 +124,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         // Determine the position of the step.
         Position stepPos = _isAttack ? parentPos.attack() : parentPos.defend();
 
-        // Ensure that the step position is at the maximum game depth.
-        if (stepPos.depth() != MAX_GAME_DEPTH) {
+        // Ensure that the step position is 1 deeper than the maximum game depth.
+        if (stepPos.depth() != MAX_GAME_DEPTH + 1) {
             revert InvalidParent();
         }
 
@@ -136,14 +136,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             // If the step position's index at depth is 0, the prestate is the absolute prestate
             // and the post state is the parent claim.
             preStateClaim = ABSOLUTE_PRESTATE;
-            postStateClaim = claimData[_stateIndex].claim;
+            postStateClaim = claimData[_parentIndex].claim;
         } else {
             Position preStatePos;
             if (_isAttack) {
                 // If the step is an attack, the prestate exists elsewhere in the game state,
                 // and the parent claim is the expected post-state.
                 preStatePos = claimData[_stateIndex].position;
-                preStateClaim = claimData[_parentIndex].claim;
+                preStateClaim = claimData[_stateIndex].claim;
                 postStateClaim = parent.claim;
             } else {
                 // If the step is a defense, the poststate exists elsewhere in the game state,
@@ -156,7 +156,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             // Assert that the given prestate commits to the instruction at `gindex - 1`.
             if (
                 Position.unwrap(preStatePos.rightIndex(MAX_GAME_DEPTH)) !=
-                Position.unwrap(stepPos) - 1
+                Position.unwrap(parentPos) - 1
             ) {
                 revert InvalidPrestate();
             }
@@ -215,7 +215,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         // At the leaf nodes of the game, the only option is to run a step to prove or disprove
         // the above claim. At this depth, the parent claim commits to the state after a single
         // instruction step.
-        if (nextPosition.depth() >= MAX_GAME_DEPTH) {
+        if (nextPosition.depth() > MAX_GAME_DEPTH) {
             revert GameDepthExceeded();
         }
 
@@ -300,14 +300,23 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
      * @inheritdoc IDisputeGame
      */
     function resolve() external returns (GameStatus status_) {
+        // TODO: Do not allow resolution before clocks run out.
+
         if (status != GameStatus.IN_PROGRESS) {
+            // If the game is not in progress, it cannot be resolved.
             revert GameNotInProgress();
+        } else if (!claimData[0].countered) {
+            // If the root claim has never been countered, it implicitly wins.
+            status_ = GameStatus.DEFENDER_WINS;
+            status = status_;
+            emit Resolved(status_);
+            return status_;
         }
 
         // Search for the left-most dangling non-bottom node
         // The most recent claim is always a dangling, non-bottom node so we start with that
         uint256 leftMostIndex = claimData.length - 1;
-        Position leftMostTraceIndex = claimData[leftMostIndex].position.rightIndex(MAX_GAME_DEPTH);
+        Position leftMostTraceIndex = Position.wrap(type(uint128).max);
         for (uint256 i = leftMostIndex; i < type(uint64).max; ) {
             // Fetch the claim at the current index.
             ClaimData storage claim = claimData[i];
@@ -338,7 +347,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         // If the left-most dangling node is at an even depth, the defender wins.
         // Otherwise, the challenger wins and the root claim is deemed invalid.
         // slither-disable-next-line weak-prng
-        if (claimData[leftMostIndex].position.depth() % 2 == 0) {
+        if (
+            claimData[leftMostIndex].position.depth() % 2 == 0 &&
+            Position.unwrap(leftMostTraceIndex) != type(uint128).max
+        ) {
             status_ = GameStatus.DEFENDER_WINS;
         } else {
             status_ = GameStatus.CHALLENGER_WINS;
