@@ -14,6 +14,7 @@ import (
 type scorer struct {
 	peerStore Peerstore
 	metricer  ScoreMetrics
+	appScorer ApplicationScorer
 	log       log.Logger
 	cfg       *rollup.Config
 }
@@ -36,6 +37,7 @@ type Peerstore interface {
 // Scorer is a peer scorer that scores peers based on application-specific metrics.
 type Scorer interface {
 	SnapshotHook() pubsub.ExtendedPeerScoreInspectFn
+	ApplicationScore(peer.ID) float64
 }
 
 //go:generate mockery --name ScoreMetrics --output mocks/
@@ -44,10 +46,11 @@ type ScoreMetrics interface {
 }
 
 // NewScorer returns a new peer scorer.
-func NewScorer(cfg *rollup.Config, peerStore Peerstore, metricer ScoreMetrics, log log.Logger) Scorer {
+func NewScorer(cfg *rollup.Config, peerStore Peerstore, metricer ScoreMetrics, appScorer ApplicationScorer, log log.Logger) Scorer {
 	return &scorer{
 		peerStore: peerStore,
 		metricer:  metricer,
+		appScorer: appScorer,
 		log:       log,
 		cfg:       cfg,
 	}
@@ -83,4 +86,8 @@ func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
 		}
 		s.metricer.SetPeerScores(allScores)
 	}
+}
+
+func (s *scorer) ApplicationScore(id peer.ID) float64 {
+	return s.appScorer.ApplicationScore(id)
 }
