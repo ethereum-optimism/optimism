@@ -244,6 +244,11 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		return nil, err
 	}
 
+	if config.FundDevAccounts {
+		FundDevAccounts(stateDB)
+		SetPrecompileBalances(stateDB)
+	}
+
 	for _, dep := range deployments {
 		st, err := stateDB.StorageTrie(dep.Address)
 		if err != nil {
