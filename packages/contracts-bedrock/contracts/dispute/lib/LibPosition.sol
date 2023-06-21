@@ -114,14 +114,8 @@ library LibPosition {
     ) internal pure returns (Position rightIndex_) {
         uint256 msb = depth(_position);
         assembly {
-            switch eq(msb, _maxDepth)
-            case true {
-                rightIndex_ := _position
-            }
-            default {
-                let remaining := sub(_maxDepth, msb)
-                rightIndex_ := or(shl(remaining, _position), sub(shl(remaining, 1), 1))
-            }
+            let remaining := sub(_maxDepth, msb)
+            rightIndex_ := or(shl(remaining, _position), sub(shl(remaining, 1), 1))
         }
     }
 
