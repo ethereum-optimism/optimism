@@ -126,7 +126,7 @@ contract LibPosition_Test is Test {
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
-        Position attack = position.attack();
+        Position attack = position.move(true);
 
         assertEq(attack.depth(), _depth + 1);
         assertEq(attack.indexAtDepth(), _indexAtDepth * 2);
@@ -144,7 +144,7 @@ contract LibPosition_Test is Test {
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
-        Position defend = position.defend();
+        Position defend = position.move(false);
 
         assertEq(defend.depth(), _depth + 1);
         assertEq(defend.indexAtDepth(), ((_indexAtDepth / 2) * 2 + 1) * 2);

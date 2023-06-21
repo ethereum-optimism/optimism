@@ -126,29 +126,16 @@ library LibPosition {
     }
 
     /**
-     * @notice Get the attack position relative to `position`. The attack position is the next
-     *         logical point of bisection if the parent claim is disagreed with, which is the
-     *         midway point of the trace that the attacked node commits to.
-     * @param _position The position to get the relative attack position of.
-     * @return attack_ The attack position relative to `position`.
+     * @notice Get the move position of `_position`, which is the left child of:
+     *         1. `_position + 1` if `_isAttack` is true.
+     *         1. `_position` if `_isAttack` is false.
+     * @param _position The position to get the relative attack/defense position of.
+     * @param _isAttack Whether or not the move is a defense move.
+     * @return move_ The move position relative to `position`.
      */
-    function attack(Position _position) internal pure returns (Position attack_) {
-        // Move: Left
-        return left(_position);
-    }
-
-    /**
-     * @notice Get the defense position relative to `position`. The defense position is the next
-     *         logical point of bisection if the parent claim and the grandparent claim are agreed
-     *         with, which is at the midway point of the trace that the defended node's right
-     *         sibling commits to.
-     * @param _position The position to get the relative defense position of.
-     * @return defense_ The defense position relative to `position`.
-     */
-    function defend(Position _position) internal pure returns (Position defense_) {
+    function move(Position _position, bool _isAttack) internal pure returns (Position move_) {
         assembly {
-            // Move: Parent -> Right -> Left
-            defense_ := shl(1, or(1, _position))
+            move_ := shl(1, or(iszero(_isAttack), _position))
         }
     }
 }

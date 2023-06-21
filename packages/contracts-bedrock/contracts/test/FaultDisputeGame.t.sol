@@ -250,7 +250,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(parentIndex, 0);
         assertEq(countered, false);
         assertEq(Claim.unwrap(claim), Claim.unwrap(counter));
-        assertEq(Position.unwrap(position), Position.unwrap(Position.wrap(1).attack()));
+        assertEq(Position.unwrap(position), Position.unwrap(Position.wrap(1).move(true)));
         assertEq(
             Clock.unwrap(clock),
             Clock.unwrap(LibClock.wrap(Duration.wrap(5), Timestamp.wrap(uint64(block.timestamp))))
