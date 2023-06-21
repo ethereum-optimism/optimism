@@ -1,12 +1,8 @@
 import hre from 'hardhat'
 import { Contract, utils } from 'ethers'
 import { toRpcHexString } from '@eth-optimism/core-utils'
-import {
-  getContractFactory,
-  getContractInterface,
-} from '@eth-optimism/contracts-bedrock'
+import { getContractFactory } from '@eth-optimism/contracts-bedrock'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
-import { smock, FakeContract } from '@defi-wonderland/smock'
 
 import { expect } from './setup'
 import {
@@ -21,8 +17,8 @@ describe('helpers', () => {
     l2BlockTime: 2,
     l2OutputOracleStartingBlockNumber: 0,
     l2OutputOracleStartingTimestamp: 0,
-    l2OutputOracleProposer: "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
-    l2OutputOracleChallenger: "0x6925B8704Ff96DEe942623d6FB5e946EF5884b63",
+    l2OutputOracleProposer: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+    l2OutputOracleChallenger: '0x6925B8704Ff96DEe942623d6FB5e946EF5884b63',
     // Can be any non-zero value, 1000 is fine.
     finalizationPeriodSeconds: 1000,
   }
@@ -35,10 +31,8 @@ describe('helpers', () => {
   let L2OutputOracle: Contract
   let oracle: OutputOracle
   beforeEach(async () => {
-    L2OutputOracle = await getContractFactory(
-      'L2OutputOracle',
-      signer
-    ).deploy(deployConfig.l2OutputOracleSubmissionInterval,
+    L2OutputOracle = await getContractFactory('L2OutputOracle', signer).deploy(
+      deployConfig.l2OutputOracleSubmissionInterval,
       deployConfig.l2BlockTime,
       deployConfig.l2OutputOracleStartingBlockNumber,
       deployConfig.l2OutputOracleStartingTimestamp,
@@ -61,9 +55,11 @@ describe('helpers', () => {
         const latestBlock = await hre.ethers.provider.getBlock('latest')
         const params = {
           _outputRoot: utils.formatBytes32String('testhash'),
-          _l2BlockNumber: deployConfig.l2OutputOracleStartingBlockNumber + deployConfig.l2OutputOracleSubmissionInterval,
+          _l2BlockNumber:
+            deployConfig.l2OutputOracleStartingBlockNumber +
+            deployConfig.l2OutputOracleSubmissionInterval,
           _l1BlockHash: latestBlock.hash,
-          _l1BlockNumber: latestBlock.number
+          _l1BlockNumber: latestBlock.number,
         }
         await L2OutputOracle.proposeL2Output(
           params._outputRoot,
@@ -95,9 +91,11 @@ describe('helpers', () => {
         const latestBlock = await hre.ethers.provider.getBlock('latest')
         const params = {
           _outputRoot: utils.formatBytes32String('testhash'),
-          _l2BlockNumber: deployConfig.l2OutputOracleStartingBlockNumber + deployConfig.l2OutputOracleSubmissionInterval,
+          _l2BlockNumber:
+            deployConfig.l2OutputOracleStartingBlockNumber +
+            deployConfig.l2OutputOracleSubmissionInterval,
           _l1BlockHash: latestBlock.hash,
-          _l1BlockNumber: latestBlock.number
+          _l1BlockNumber: latestBlock.number,
         }
         await L2OutputOracle.proposeL2Output(
           params._outputRoot,
@@ -119,7 +117,8 @@ describe('helpers', () => {
         )
         await L2OutputOracle.proposeL2Output(
           params._outputRoot,
-          params._l2BlockNumber + deployConfig.l2OutputOracleSubmissionInterval * 2,
+          params._l2BlockNumber +
+            deployConfig.l2OutputOracleSubmissionInterval * 2,
           params._l1BlockHash,
           params._l1BlockNumber
         )
@@ -140,9 +139,11 @@ describe('helpers', () => {
         const latestBlock = await hre.ethers.provider.getBlock('latest')
         const params = {
           _outputRoot: utils.formatBytes32String('testhash'),
-          _l2BlockNumber: deployConfig.l2OutputOracleStartingBlockNumber + deployConfig.l2OutputOracleSubmissionInterval,
+          _l2BlockNumber:
+            deployConfig.l2OutputOracleStartingBlockNumber +
+            deployConfig.l2OutputOracleSubmissionInterval,
           _l1BlockHash: latestBlock.hash,
-          _l1BlockNumber: latestBlock.number
+          _l1BlockNumber: latestBlock.number,
         }
         await L2OutputOracle.proposeL2Output(
           params._outputRoot,
@@ -158,7 +159,8 @@ describe('helpers', () => {
         )
         await L2OutputOracle.proposeL2Output(
           params._outputRoot,
-          params._l2BlockNumber + deployConfig.l2OutputOracleSubmissionInterval * 2,
+          params._l2BlockNumber +
+            deployConfig.l2OutputOracleSubmissionInterval * 2,
           params._l1BlockHash,
           params._l1BlockNumber
         )
@@ -179,9 +181,11 @@ describe('helpers', () => {
         const latestBlock = await hre.ethers.provider.getBlock('latest')
         const params = {
           _outputRoot: utils.formatBytes32String('testhash'),
-          _l2BlockNumber: deployConfig.l2OutputOracleStartingBlockNumber + deployConfig.l2OutputOracleSubmissionInterval,
+          _l2BlockNumber:
+            deployConfig.l2OutputOracleStartingBlockNumber +
+            deployConfig.l2OutputOracleSubmissionInterval,
           _l1BlockHash: latestBlock.hash,
-          _l1BlockNumber: latestBlock.number
+          _l1BlockNumber: latestBlock.number,
         }
         await L2OutputOracle.proposeL2Output(
           params._outputRoot,
@@ -197,7 +201,8 @@ describe('helpers', () => {
         )
         await L2OutputOracle.proposeL2Output(
           params._outputRoot,
-          params._l2BlockNumber + deployConfig.l2OutputOracleSubmissionInterval * 2,
+          params._l2BlockNumber +
+            deployConfig.l2OutputOracleSubmissionInterval * 2,
           params._l1BlockHash,
           params._l1BlockNumber
         )

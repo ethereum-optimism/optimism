@@ -85,9 +85,7 @@ export const updateOracleCache = async (
 
       // Throw the events into the cache.
       for (const event of events) {
-        cache.eventCache[
-          oracle.getEventIndex(event.args).toNumber()
-        ] = {
+        cache.eventCache[oracle.getEventIndex(event.args).toNumber()] = {
           blockNumber: event.blockNumber,
           transactionHash: event.transactionHash,
           args: event.args,

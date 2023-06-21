@@ -16,7 +16,7 @@ import {
   OEL1ContractsLike,
 } from '@eth-optimism/sdk'
 import { Provider } from '@ethersproject/abstract-provider'
-import { ethers, Transaction } from 'ethers'
+import { ethers } from 'ethers'
 import dateformat from 'dateformat'
 
 import { version } from '../package.json'
@@ -164,7 +164,10 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       contracts.OptimismPortal = portalAddress
 
       this.logger.info('fetching L2OutputOracle contract from OptimismPortal')
-      const opts = { portalAddress, signerOrProvider: this.options.l1RpcProvider }
+      const opts = {
+        portalAddress,
+        signerOrProvider: this.options.l1RpcProvider,
+      }
       const portalContract = getOEContract('OptimismPortal', l2ChainId, opts)
       contracts.L2OutputOracle = await portalContract.L2_ORACLE()
     }
@@ -202,8 +205,11 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     this.state.diverged = false
 
     // We use this a lot, a bit cleaner to pull out to the top level of the state object.
-    this.state.faultProofWindow = await this.state.messenger.getChallengePeriodSeconds()
-    this.logger.info(`fault proof window is ${this.state.faultProofWindow} seconds`)
+    this.state.faultProofWindow =
+      await this.state.messenger.getChallengePeriodSeconds()
+    this.logger.info(
+      `fault proof window is ${this.state.faultProofWindow} seconds`
+    )
 
     const outputOracle = this.state.messenger.contracts.l1.L2OutputOracle
     this.state.outputOracle = {
@@ -344,10 +350,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     try {
       outputBlock = await (
         this.options.l2RpcProvider as ethers.providers.JsonRpcProvider
-      ).send('eth_getBlockByNumber', [
-        toRpcHexString(outputBlockNumber),
-        false,
-      ])
+      ).send('eth_getBlockByNumber', [toRpcHexString(outputBlockNumber), false])
     } catch (err) {
       this.logger.error('failed to fetch output block', {
         error: err,
@@ -408,7 +411,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
           new Date(
             (ethers.BigNumber.from(outputBlock.timestamp).toNumber() +
               this.state.faultProofWindow) *
-            1000
+              1000
           ),
           'mmmm dS, yyyy, h:MM:ss TT'
         ),
