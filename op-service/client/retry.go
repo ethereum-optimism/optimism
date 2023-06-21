@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/hashicorp/go-multierror"
 
@@ -20,7 +19,6 @@ var (
 
 // retryingClient wraps a [client.RPC] with a backoff strategy.
 type retryingClient struct {
-	log           log.Logger
 	c             client.RPC
 	retryAttempts int
 	strategy      backoff.Strategy
@@ -28,12 +26,11 @@ type retryingClient struct {
 
 // NewRetryingClient creates a new retrying client.
 // The backoff strategy is optional, if not provided, the default exponential backoff strategy is used.
-func NewRetryingClient(logger log.Logger, c client.RPC, retries int, strategy ...backoff.Strategy) *retryingClient {
+func NewRetryingClient(c client.RPC, retries int, strategy ...backoff.Strategy) *retryingClient {
 	if len(strategy) == 0 {
 		strategy = []backoff.Strategy{ExponentialBackoff}
 	}
 	return &retryingClient{
-		log:           logger,
 		c:             c,
 		retryAttempts: retries,
 		strategy:      strategy[0],
@@ -53,11 +50,7 @@ func (b *retryingClient) CallContext(ctx context.Context, result any, method str
 	return backoff.DoCtx(ctx, b.retryAttempts, b.strategy, func() error {
 		cCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
-		err := b.c.CallContext(cCtx, result, method, args...)
-		if err != nil {
-			b.log.Warn("RPC request failed", "method", method, "err", err)
-		}
-		return err
+		return b.c.CallContext(cCtx, result, method, args...)
 	})
 }
 
@@ -92,7 +85,6 @@ func (b *retryingClient) BatchCallContext(ctx context.Context, input []rpc.Batch
 		}
 		err := b.c.BatchCallContext(cCtx, batch)
 		if err != nil {
-			b.log.Warn("Batch request failed", "err", err)
 			// Whole call failed, retry all pending elems again
 			return err
 		}
@@ -115,7 +107,6 @@ func (b *retryingClient) BatchCallContext(ctx context.Context, input []rpc.Batch
 		}
 		if len(failed) > 0 {
 			pending = failed
-			b.log.Warn("Batch request returned errors", "err", combinedErr)
 			return combinedErr
 		}
 		return nil
@@ -127,9 +118,6 @@ func (b *retryingClient) EthSubscribe(ctx context.Context, channel any, args ...
 	err := backoff.DoCtx(ctx, b.retryAttempts, b.strategy, func() error {
 		var err error
 		sub, err = b.c.EthSubscribe(ctx, channel, args...)
-		if err != nil {
-			b.log.Warn("Subscription request failed", "err", err)
-		}
 		return err
 	})
 	return sub, err
