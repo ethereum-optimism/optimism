@@ -107,6 +107,26 @@ export const updateOracleCache = async <TSubmissionEventArgs>(
       // Might happen if we're querying too large an event range.
       step = Math.floor(step / 2)
 
+      if ('body' in err) {
+        // Alchemy RPC will return a useful hint about the proper step
+        // size like "Log response size exceeded. You can make
+        // eth_getLogs requests with up to a 2K block range and no
+        // limit on the response size, or you can request any block
+        // range with a cap of 10K logs in the response. Based on your
+        // parameters and the response size limit, this block range
+        // should work: [0x0, 0x7fcd5b]"
+        const matched = err['body'].match(/this block range should work: \[(.*), (.*)\]/)
+        if (matched && matched.length == 3 && Number(matched[1]) == currentBlock &&
+          currentBlock + step > Number(matched[2])) {
+          step = Number(matched[2]) - currentBlock
+          logger?.info('adjusting step based on hint in err', {
+            step: step,
+            currentBlock: currentBlock,
+            endBlock: Number(matched[2])
+          })
+        }
+      }
+
       // When the step gets down to zero, we're pretty much guaranteed that range size isn't the
       // problem. If we get three failures like this in a row then we should just give up.
       if (step === 0) {
