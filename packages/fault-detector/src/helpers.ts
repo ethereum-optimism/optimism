@@ -115,14 +115,20 @@ export const updateOracleCache = async <TSubmissionEventArgs>(
         // range with a cap of 10K logs in the response. Based on your
         // parameters and the response size limit, this block range
         // should work: [0x0, 0x7fcd5b]"
-        const matched = err['body'].match(/this block range should work: \[(.*), (.*)\]/)
-        if (matched && matched.length == 3 && Number(matched[1]) == currentBlock &&
-          currentBlock + step > Number(matched[2])) {
+        const matched = err['body'].match(
+          /this block range should work: \[(.*), (.*)\]/
+        )
+        if (
+          matched &&
+          matched.length === 3 &&
+          Number(matched[1]) === currentBlock &&
+          currentBlock + step > Number(matched[2])
+        ) {
           step = Number(matched[2]) - currentBlock
           logger?.info('adjusting step based on hint in err', {
-            step: step,
-            currentBlock: currentBlock,
-            endBlock: Number(matched[2])
+            step,
+            currentBlock,
+            endBlock: Number(matched[2]),
           })
         }
       }
