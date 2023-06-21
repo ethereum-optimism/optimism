@@ -51,9 +51,9 @@ func TestCorrectEnvVarPrefix(t *testing.T) {
 
 func envVarForFlag(flag cli.Flag) string {
 	values := reflect.ValueOf(flag)
-	envVarValue := values.FieldByName("EnvVar")
-	if envVarValue == (reflect.Value{}) {
+	envVarValue := values.Elem().FieldByName("EnvVars")
+	if envVarValue == (reflect.Value{}) || envVarValue.Len() == 0 {
 		return ""
 	}
-	return envVarValue.String()
+	return envVarValue.Index(0).String()
 }
