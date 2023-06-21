@@ -4,10 +4,14 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 const envPrefix = "OP_HEARTBEAT"
+
+func prefixEnvVars(name string) []string {
+	return opservice.PrefixEnvVar(envPrefix, name)
+}
 
 const (
 	HTTPAddrFlagName = "http.addr"
@@ -15,17 +19,17 @@ const (
 )
 
 var (
-	HTTPAddrFlag = cli.StringFlag{
-		Name:   HTTPAddrFlagName,
-		Usage:  "Address the server should listen on",
-		Value:  "0.0.0.0",
-		EnvVar: opservice.PrefixEnvVar(envPrefix, "HTTP_ADDR"),
+	HTTPAddrFlag = &cli.StringFlag{
+		Name:    HTTPAddrFlagName,
+		Usage:   "Address the server should listen on",
+		Value:   "0.0.0.0",
+		EnvVars: prefixEnvVars("HTTP_ADDR"),
 	}
-	HTTPPortFlag = cli.IntFlag{
-		Name:   HTTPPortFlagName,
-		Usage:  "Port the server should listen on",
-		Value:  8080,
-		EnvVar: opservice.PrefixEnvVar(envPrefix, "HTTP_PORT"),
+	HTTPPortFlag = &cli.IntFlag{
+		Name:    HTTPPortFlagName,
+		Usage:   "Port the server should listen on",
+		Value:   8080,
+		EnvVars: prefixEnvVars("HTTP_PORT"),
 	}
 )
 

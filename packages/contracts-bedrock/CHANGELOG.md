@@ -1,5 +1,17 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.15.0
+
+### Minor Changes
+
+- af292562f: Fix issue with deposits running out of gas
+
+### Patch Changes
+
+- Updated dependencies [8d7dcc70c]
+- Updated dependencies [d6388be4a]
+  - @eth-optimism/core-utils@0.12.1
+
 ## 0.14.0
 
 ### Minor Changes

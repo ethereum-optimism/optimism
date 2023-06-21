@@ -1,5 +1,22 @@
 # @eth-optimism/fault-detector
 
+## 1.0.0
+
+### Major Changes
+
+- 119754c2f: Make optimism/sdk default to bedrock mode
+
+### Patch Changes
+
+- 16ccbee24: Fix false error to warning
+- 685addec2: Add better source maps and developer support
+- Updated dependencies [8d7dcc70c]
+- Updated dependencies [119754c2f]
+- Updated dependencies [d6388be4a]
+  - @eth-optimism/core-utils@0.12.1
+  - @eth-optimism/sdk@3.0.0
+  - @eth-optimism/common-ts@0.8.2
+
 ## 0.6.4
 
 ### Patch Changes

@@ -59,6 +59,38 @@ commands:
             pip3 install -r requirements.txt
             python3 main.py "<<parameters.patterns>>"
 jobs:
+  cannon-go-lint-and-test:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: medium
+    steps:
+      - checkout
+      - check-changed:
+          patterns: cannon,packages/contracts-bedrock/contracts/cannon
+      - run:
+          name: prep Cannon results dir
+          command: mkdir -p /tmp/test-results
+      - run:
+          name: build Cannon example binaries
+          command: make elf  # only compile ELF binaries with Go, we do not have MIPS GCC for creating the debug-dumps.
+          working_directory: cannon/example
+      - run:
+          name: Cannon Go lint
+          command: |
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
+          working_directory: cannon
+      - run:
+          name: Cannon Go tests
+          command: |
+            gotestsum --format=standard-verbose --junitfile=/tmp/test-results/cannon.xml \
+            -- -parallel=2 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./...
+          working_directory: cannon
+      - run:
+          name: upload Cannon coverage
+          command: codecov --verbose --clean --flags cannon-go-tests
+      - store_test_results:
+          path: /tmp/test-results
+
   yarn-monorepo:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
@@ -1387,6 +1419,7 @@ workflows:
             - op-challenger-docker-build
       - check-generated-mocks-op-node
       - check-generated-mocks-op-service
+      - cannon-go-lint-and-test
   release:
     jobs:
       - hold:

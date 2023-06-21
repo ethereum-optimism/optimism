@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -29,7 +29,7 @@ func main() {
 	app.Before = func(c *cli.Context) error {
 		log.Root().SetHandler(
 			log.LvlFilterHandler(
-				oplog.Level(c.GlobalString(wheel.GlobalGethLogLvlFlag.Name)),
+				oplog.Level(c.String(wheel.GlobalGethLogLvlFlag.Name)),
 				log.StreamHandler(os.Stdout, log.TerminalFormat(true)),
 			),
 		)
@@ -40,7 +40,7 @@ func main() {
 	})
 	app.Writer = os.Stdout
 	app.ErrWriter = os.Stderr
-	app.Commands = []cli.Command{
+	app.Commands = []*cli.Command{
 		wheel.CheatCmd,
 		wheel.EngineCmd,
 	}

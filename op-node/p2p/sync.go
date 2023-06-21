@@ -276,11 +276,11 @@ func (s *SyncClient) Start() {
 func (s *SyncClient) AddPeer(id peer.ID) {
 	s.peersLock.Lock()
 	defer s.peersLock.Unlock()
-	if _, ok := s.peers[id]; ok {
-		s.log.Warn("cannot register peer for sync duties, peer was already registered", "peer", id)
+	if s.closingPeers {
 		return
 	}
-	if s.closingPeers {
+	if _, ok := s.peers[id]; ok {
+		s.log.Warn("cannot register peer for sync duties, peer was already registered", "peer", id)
 		return
 	}
 	s.wg.Add(1)
@@ -501,9 +501,9 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 	defer func() {
 		s.peersLock.Lock()
 		delete(s.peers, id) // clean up
+		s.log.Debug("stopped syncing loop of peer", "id", id)
 		s.wg.Done()
 		s.peersLock.Unlock()
-		s.log.Debug("stopped syncing loop of peer", "id", id)
 	}()
 
 	log := s.log.New("peer", id)

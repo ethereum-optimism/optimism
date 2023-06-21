@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/chain-mon",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "[Optimism] Chain monitoring services",
   "main": "dist/index",
   "types": "dist/index",
@@ -34,11 +34,11 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
-    "@eth-optimism/common-ts": "0.8.1",
+    "@eth-optimism/common-ts": "0.8.2",
     "@eth-optimism/contracts-periphery": "1.0.8",
-    "@eth-optimism/contracts-bedrock": "0.14.0",
-    "@eth-optimism/core-utils": "0.12.0",
-    "@eth-optimism/sdk": "2.1.0",
+    "@eth-optimism/contracts-bedrock": "0.15.0",
+    "@eth-optimism/core-utils": "0.12.1",
+    "@eth-optimism/sdk": "3.0.0",
     "ethers": "^5.7.0",
     "@types/dateformat": "^5.0.0",
     "chai-as-promised": "^7.1.1",
