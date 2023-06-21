@@ -30,11 +30,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
     string internal constant VERSION = "0.0.2";
 
     /**
-     * @notice The max depth of the game.
-     */
-    uint256 internal constant MAX_GAME_DEPTH = 4;
-
-    /**
      * @notice The duration of the game.
      * @dev TODO: Account for resolution buffer. (?)
      */
@@ -47,9 +42,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
 
     /**
      * @notice The absolute prestate of the instruction trace. This is a constant that is defined
-     *         by the program that is being used to execute the trace, in this case, Cannon.
+     *         by the program that is being used to execute the trace.
      */
     Claim public immutable ABSOLUTE_PRESTATE;
+
+    /**
+     * @notice The max depth of the game.
+     */
+    uint256 public immutable MAX_GAME_DEPTH;
 
     /**
      * @notice The starting timestamp of the game
@@ -79,8 +79,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
     /**
      * @param _absolutePrestate The absolute prestate of the instruction trace.
      */
-    constructor(Claim _absolutePrestate) {
+    constructor(Claim _absolutePrestate, uint256 _maxGameDepth) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
+        MAX_GAME_DEPTH = _maxGameDepth;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -106,7 +107,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
      */
     function step(
         uint256 _stateIndex,
-        uint256 _parentIndex,
+        uint256 _claimIndex,
         bool _isAttack,
         bytes calldata,
         bytes calldata
@@ -117,7 +118,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         }
 
         // Get the parent. If it does not exist, the call will revert with OOB.
-        ClaimData storage parent = claimData[_parentIndex];
+        ClaimData storage parent = claimData[_claimIndex];
 
         // Pull the parent position out of storage.
         Position parentPos = parent.position;
@@ -136,7 +137,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             // If the step position's index at depth is 0, the prestate is the absolute prestate
             // and the post state is the parent claim.
             preStateClaim = ABSOLUTE_PRESTATE;
-            postStateClaim = claimData[_parentIndex].claim;
+            postStateClaim = claimData[_claimIndex].claim;
         } else {
             Position preStatePos;
             if (_isAttack) {

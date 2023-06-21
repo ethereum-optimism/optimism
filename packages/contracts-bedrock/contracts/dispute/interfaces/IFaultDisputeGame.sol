@@ -52,14 +52,14 @@ interface IFaultDisputeGame is IDisputeGame {
      *      processor contract should be generic enough such that we can use different
      *      fault proof VMs (MIPS, RiscV5, etc.)
      * @param _stateIndex The index of the pre/post state of the step within `claimData`.
-     * @param _parentIndex The index of the parent claim within `claimData`.
+     * @param _claimIndex The index of the challenged claim within `claimData`.
      * @param _isAttack Whether or not the step is an attack or a defense.
      * @param _stateData The stateData of the step is the preimage of the claim @ `prestateIndex`
      * @param _proof Proof to access memory leaf nodes in the VM.
      */
     function step(
         uint256 _stateIndex,
-        uint256 _parentIndex,
+        uint256 _claimIndex,
         bool _isAttack,
         bytes calldata _stateData,
         bytes calldata _proof

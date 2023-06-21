@@ -40,7 +40,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     function init(Claim rootClaim, Claim absolutePrestate) public {
         super.setUp();
         // Deploy an implementation of the fault game
-        gameImpl = new FaultDisputeGame(absolutePrestate);
+        gameImpl = new FaultDisputeGame(absolutePrestate, 4);
         // Register the game implementation with the factory.
         factory.setImplementation(GAME_TYPE, gameImpl);
         // Create a new game.
@@ -353,14 +353,13 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
  *      `play` function can be overridden to change this behavior.
  */
 contract GamePlayer {
-    uint256 internal constant MAX_DEPTH = 4;
-
     bool public failedToStep;
-
     FaultDisputeGame public gameProxy;
+
     GamePlayer internal counterParty;
     Vm internal vm;
     bytes internal trace;
+    uint256 internal maxDepth;
 
     /**
      * @notice Initializes the player
@@ -373,11 +372,11 @@ contract GamePlayer {
         gameProxy = _gameProxy;
         counterParty = _counterParty;
         vm = _vm;
+        maxDepth = _gameProxy.MAX_GAME_DEPTH();
     }
 
     /**
      * @notice Perform the next move in the game.
-     * @dev This is very janky atm.
      */
     function play(uint256 _parentIndex) public virtual {
         // Grab the claim data at the parent index.
@@ -429,7 +428,7 @@ contract GamePlayer {
         }
 
         // If we are past the maximum depth, break the recursion and step.
-        if (movePos.depth() > MAX_DEPTH) {
+        if (movePos.depth() > maxDepth) {
             // Perform a step.
             uint256 stateIndex;
             // First, we need to find the pre/post state index depending on whether we
@@ -444,7 +443,7 @@ contract GamePlayer {
                     // Walk up until the valid position that commits to the prestate's
                     // trace index is found.
                     while (
-                        Position.unwrap(statePos.parent().rightIndex(MAX_DEPTH)) ==
+                        Position.unwrap(statePos.parent().rightIndex(maxDepth)) ==
                         Position.unwrap(statePos)
                     ) {
                         statePos = statePos.parent().parent().parent();
@@ -473,7 +472,7 @@ contract GamePlayer {
             }
         } else {
             // Find the trace index that our next claim must commit to.
-            uint256 traceIndex = movePos.rightIndex(MAX_DEPTH).indexAtDepth();
+            uint256 traceIndex = movePos.rightIndex(maxDepth).indexAtDepth();
             // Grab the claim that we need to make from the helper.
             Claim ourClaim = claimAt(traceIndex);
 
@@ -511,7 +510,7 @@ contract GamePlayer {
      * @notice Returns the player's claim that commits to a given gindex.
      */
     function claimAt(Position _position) internal view returns (Claim claim_) {
-        return claimAt(_position.rightIndex(MAX_DEPTH).indexAtDepth());
+        return claimAt(_position.rightIndex(maxDepth).indexAtDepth());
     }
 
     /**
