@@ -81,16 +81,6 @@ func DefaultCLIConfig() CLIConfig {
 	}
 }
 
-func ReadLocalCLIConfig(ctx *cli.Context) CLIConfig {
-	cfg := DefaultCLIConfig()
-	cfg.Level = ctx.String(LevelFlagName)
-	cfg.Format = ctx.String(FormatFlagName)
-	if ctx.IsSet(ColorFlagName) {
-		cfg.Color = ctx.Bool(ColorFlagName)
-	}
-	return cfg
-}
-
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	cfg := DefaultCLIConfig()
 	cfg.Level = ctx.String(LevelFlagName)
