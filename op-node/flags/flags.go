@@ -258,7 +258,7 @@ func init() {
 
 func CheckRequired(ctx *cli.Context) error {
 	for _, f := range requiredFlags {
-		if ctx.IsSet(f.Names()[0]) {
+		if !ctx.IsSet(f.Names()[0]) {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
 		}
 	}
