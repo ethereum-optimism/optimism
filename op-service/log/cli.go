@@ -24,18 +24,18 @@ func CLIFlags(envPrefix string) []cli.Flag {
 			Name:    LevelFlagName,
 			Usage:   "The lowest log level that will be output",
 			Value:   "info",
-			EnvVars: []string{opservice.PrefixEnvVar(envPrefix, "LOG_LEVEL")},
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "LOG_LEVEL"),
 		},
 		&cli.StringFlag{
 			Name:    FormatFlagName,
 			Usage:   "Format the log output. Supported formats: 'text', 'terminal', 'logfmt', 'json', 'json-pretty',",
 			Value:   "text",
-			EnvVars: []string{opservice.PrefixEnvVar(envPrefix, "LOG_FORMAT")},
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "LOG_FORMAT"),
 		},
 		&cli.BoolFlag{
 			Name:    ColorFlagName,
 			Usage:   "Color the log output if in terminal mode",
-			EnvVars: []string{opservice.PrefixEnvVar(envPrefix, "LOG_COLOR")},
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "LOG_COLOR"),
 		},
 	}
 }

@@ -15,32 +15,29 @@ const (
 )
 
 func CLIFlags(envPrefix string) []cli.Flag {
-	prefixEnvVars := func(name string) []string {
-		return []string{opservice.PrefixEnvVar(envPrefix, name)}
-	}
 	return []cli.Flag{
 		&cli.Uint64Flag{
 			Name:    TargetL1TxSizeBytesFlagName,
 			Usage:   "The target size of a batch tx submitted to L1.",
 			Value:   100_000,
-			EnvVars: prefixEnvVars("TARGET_L1_TX_SIZE_BYTES"),
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "TARGET_L1_TX_SIZE_BYTES"),
 		},
 		&cli.IntFlag{
 			Name:    TargetNumFramesFlagName,
 			Usage:   "The target number of frames to create per channel",
 			Value:   1,
-			EnvVars: prefixEnvVars("TARGET_NUM_FRAMES"),
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "TARGET_NUM_FRAMES"),
 		},
 		&cli.Float64Flag{
 			Name:    ApproxComprRatioFlagName,
 			Usage:   "The approximate compression ratio (<= 1.0)",
 			Value:   0.4,
-			EnvVars: prefixEnvVars("APPROX_COMPR_RATIO"),
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "APPROX_COMPR_RATIO"),
 		},
 		&cli.StringFlag{
 			Name:    KindFlagName,
 			Usage:   "The type of compressor. Valid options: " + strings.Join(KindKeys, ", "),
-			EnvVars: prefixEnvVars("COMPRESSOR"),
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "COMPRESSOR"),
 			Value:   RatioKind,
 		},
 	}

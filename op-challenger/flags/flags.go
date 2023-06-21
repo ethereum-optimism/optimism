@@ -16,7 +16,7 @@ import (
 const envVarPrefix = "OP_CHALLENGER"
 
 func prefixEnvVars(name string) []string {
-	return []string{opservice.PrefixEnvVar(envVarPrefix, name)}
+	return opservice.PrefixEnvVar(envVarPrefix, name)
 }
 
 var (

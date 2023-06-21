@@ -19,19 +19,19 @@ func CLIFlags(envPrefix string) []cli.Flag {
 		&cli.BoolFlag{
 			Name:    EnabledFlagName,
 			Usage:   "Enable the pprof server",
-			EnvVars: []string{opservice.PrefixEnvVar(envPrefix, "PPROF_ENABLED")},
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "PPROF_ENABLED"),
 		},
 		&cli.StringFlag{
 			Name:    ListenAddrFlagName,
 			Usage:   "pprof listening address",
 			Value:   "0.0.0.0",
-			EnvVars: []string{opservice.PrefixEnvVar(envPrefix, "PPROF_ADDR")},
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "PPROF_ADDR"),
 		},
 		&cli.IntFlag{
 			Name:    PortFlagName,
 			Usage:   "pprof listening port",
 			Value:   6060,
-			EnvVars: []string{opservice.PrefixEnvVar(envPrefix, "PPROF_PORT")},
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "PPROF_PORT"),
 		},
 	}
 }

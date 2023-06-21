@@ -20,19 +20,19 @@ func CLIFlags(envPrefix string) []cli.Flag {
 		&cli.BoolFlag{
 			Name:    EnabledFlagName,
 			Usage:   "Enable the metrics server",
-			EnvVars: []string{opservice.PrefixEnvVar(envPrefix, "METRICS_ENABLED")},
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "METRICS_ENABLED"),
 		},
 		&cli.StringFlag{
 			Name:    ListenAddrFlagName,
 			Usage:   "Metrics listening address",
 			Value:   "0.0.0.0",
-			EnvVars: []string{opservice.PrefixEnvVar(envPrefix, "METRICS_ADDR")},
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "METRICS_ADDR"),
 		},
 		&cli.IntFlag{
 			Name:    PortFlagName,
 			Usage:   "Metrics listening port",
 			Value:   7300,
-			EnvVars: []string{opservice.PrefixEnvVar(envPrefix, "METRICS_PORT")},
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "METRICS_PORT"),
 		},
 	}
 }

@@ -30,7 +30,7 @@ func CLIFlagsWithFlagPrefix(envPrefix string, flagPrefix string) []cli.Flag {
 		return strings.Trim(fmt.Sprintf("%s.%s", flagPrefix, flagName), ".")
 	}
 	prefixEnvVars := func(name string) []string {
-		return []string{opservice.PrefixEnvVar(envPrefix, name)}
+		return opservice.PrefixEnvVar(envPrefix, name)
 	}
 	return []cli.Flag{
 		&cli.StringFlag{

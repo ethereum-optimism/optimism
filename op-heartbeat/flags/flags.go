@@ -10,7 +10,7 @@ import (
 const envPrefix = "OP_HEARTBEAT"
 
 func prefixEnvVars(name string) []string {
-	return []string{opservice.PrefixEnvVar(envPrefix, name)}
+	return opservice.PrefixEnvVar(envPrefix, name)
 }
 
 const (

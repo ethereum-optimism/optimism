@@ -19,13 +19,13 @@ func CLIFlags(envPrefix string) []cli.Flag {
 			Name:    ListenAddrFlagName,
 			Usage:   "rpc listening address",
 			Value:   "0.0.0.0",
-			EnvVars: []string{opservice.PrefixEnvVar(envPrefix, "RPC_ADDR")},
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "RPC_ADDR"),
 		},
 		&cli.IntFlag{
 			Name:    PortFlagName,
 			Usage:   "rpc listening port",
 			Value:   8545,
-			EnvVars: []string{opservice.PrefixEnvVar(envPrefix, "RPC_PORT")},
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "RPC_PORT"),
 		},
 	}
 }

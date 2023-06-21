@@ -16,8 +16,10 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-func PrefixEnvVar(prefix, suffix string) string {
-	return prefix + "_" + suffix
+// PrefixEnvVar adds a prefix to the environment variable,
+// and returns the env-var wrapped in a slice for usage with urfave CLI v2.
+func PrefixEnvVar(prefix, suffix string) []string {
+	return []string{prefix + "_" + suffix}
 }
 
 // ValidateEnvVars logs all env vars that are found where the env var is

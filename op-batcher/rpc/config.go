@@ -16,7 +16,7 @@ func CLIFlags(envPrefix string) []cli.Flag {
 		&cli.BoolFlag{
 			Name:    EnableAdminFlagName,
 			Usage:   "Enable the admin API (experimental)",
-			EnvVars: []string{opservice.PrefixEnvVar(envPrefix, "RPC_ENABLE_ADMIN")},
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "RPC_ENABLE_ADMIN"),
 		},
 	}
 }

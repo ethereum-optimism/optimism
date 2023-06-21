@@ -20,12 +20,12 @@ func CLIFlags(envPrefix string) []cli.Flag {
 		&cli.StringFlag{
 			Name:    EndpointFlagName,
 			Usage:   "Signer endpoint the client will connect to",
-			EnvVars: []string{opservice.PrefixEnvVar(envPrefix, "ENDPOINT")},
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "ENDPOINT"),
 		},
 		&cli.StringFlag{
 			Name:    AddressFlagName,
 			Usage:   "Address the signer is signing transactions for",
-			EnvVars: []string{opservice.PrefixEnvVar(envPrefix, "ADDRESS")},
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "ADDRESS"),
 		},
 	}
 	flags = append(flags, optls.CLIFlagsWithFlagPrefix(envPrefix, "signer")...)

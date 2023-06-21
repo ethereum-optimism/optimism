@@ -25,7 +25,7 @@ const (
 
 func CLIFlags(envPrefix string) []cli.Flag {
 	prefixEnvVars := func(name string) []string {
-		return []string{opservice.PrefixEnvVar(envPrefix, name)}
+		return opservice.PrefixEnvVar(envPrefix, name)
 	}
 	flags := []cli.Flag{
 		&cli.StringSliceFlag{
