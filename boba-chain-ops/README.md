@@ -92,3 +92,14 @@ This package generates a clean genesis file for devent. It only includes the pre
 ### Compilation
 
 Run `make boba-devnet`
+
+## boba-connect
+
+This package generates a transition block between the legacy and new systems. It does this by performing the following steps:
+
+1. A configuration file to get the timestamp of the transition block.
+2. Use the engine api to create an empty block with the right block timestamp
+
+### Compilation
+
+Run `make boba-connect`

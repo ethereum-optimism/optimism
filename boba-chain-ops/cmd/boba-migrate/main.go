@@ -74,7 +74,7 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:     "deploy-config",
-				Usage:    "Path to hardhat deploy config file",
+				Usage:    "Path to contracts config file",
 				Required: true,
 			},
 			&cli.StringFlag{

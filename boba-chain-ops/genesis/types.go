@@ -5,8 +5,8 @@ import (
 	"math/big"
 	"reflect"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ledgerwatch/erigon-lib/common"
+	"github.com/ledgerwatch/erigon-lib/common/hexutility"
 )
 
 type Genesis struct {
@@ -166,19 +166,19 @@ type SystemConfig struct {
 type Bytes32 [32]byte
 
 func (b *Bytes32) UnmarshalJSON(text []byte) error {
-	return hexutil.UnmarshalFixedJSON(reflect.TypeOf(b), text, b[:])
+	return hexutility.UnmarshalFixedJSON(reflect.TypeOf(b), text, b[:])
 }
 
 func (b *Bytes32) UnmarshalText(text []byte) error {
-	return hexutil.UnmarshalFixedText("Bytes32", text, b[:])
+	return hexutility.UnmarshalFixedText("Bytes32", text, b[:])
 }
 
 func (b Bytes32) MarshalText() ([]byte, error) {
-	return hexutil.Bytes(b[:]).MarshalText()
+	return hexutility.Bytes(b[:]).MarshalText()
 }
 
 func (b Bytes32) String() string {
-	return hexutil.Encode(b[:])
+	return hexutility.Encode(b[:])
 }
 
 // TerminalString implements log.TerminalStringer, formatting a string for console
