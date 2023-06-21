@@ -12,10 +12,10 @@ func TestMSBIndex(t *testing.T) {
 		expected int
 	}{
 		{0, 0},
-		{1 << 0, 0},
-		{1 << 1, 1},
-		{1 << 2, 2},
-		{1 << 3, 3},
+		{1, 0},
+		{2, 1},
+		{4, 2},
+		{8, 3},
 		{16, 4},
 		{255, 7},
 		{1024, 10},
@@ -45,12 +45,24 @@ func TestGINConvessions(t *testing.T) {
 			position: Position{Depth: 1, IndexAtDepth: 0},
 		},
 		{
+			index:    0b11,
+			position: Position{Depth: 1, IndexAtDepth: 1},
+		},
+		{
 			index:    0b100,
 			position: Position{Depth: 2, IndexAtDepth: 0},
 		},
 		{
+			index:    0b101,
+			position: Position{Depth: 2, IndexAtDepth: 1},
+		},
+		{
 			index:    0b110,
 			position: Position{Depth: 2, IndexAtDepth: 2},
+		},
+		{
+			index:    0b111,
+			position: Position{Depth: 2, IndexAtDepth: 3},
 		},
 		{
 			index:    0b1010,
@@ -70,49 +82,42 @@ func TestGINConvessions(t *testing.T) {
 }
 
 func TestTraceIndex(t *testing.T) {
-	// Note: for whatever reason there appears to be an extra bit in the system & there are two valid options for every trace index.
-	// I think it is because we always go left at the start, though it is the lowest bit that we a re free to change without issue...
-	// Maybe it is fine to change that low bit because we always go left or do a loop that ends up going left so the lowest bit
-	// is always zero
+	// Note: Only left children are are valid positions after a move.
 	tests := []struct {
 		pos Position
 		idx int
 	}{
 		{
 			pos: Position{Depth: 0, IndexAtDepth: 0},
-			idx: 8,
+			idx: 7,
 		},
 		{
 			pos: Position{Depth: 1, IndexAtDepth: 0},
-			idx: 4,
-		},
-		{
-			pos: Position{Depth: 2, IndexAtDepth: 0}, // 0 or 1?
-			idx: 2,
-		},
-		{
-			pos: Position{Depth: 2, IndexAtDepth: 1}, // 0 or 1?
-			idx: 2,
-		},
-		{
-			pos: Position{Depth: 2, IndexAtDepth: 2}, // 2 or 3?
-			idx: 6,
-		},
-		{
-			pos: Position{Depth: 3, IndexAtDepth: 1}, // 0 or 1?
-			idx: 1,
-		},
-		{
-			pos: Position{Depth: 3, IndexAtDepth: 2}, // 2 or 3?
 			idx: 3,
 		},
 		{
-			pos: Position{Depth: 3, IndexAtDepth: 4}, // 4 or 5?
+			pos: Position{Depth: 2, IndexAtDepth: 0},
+			idx: 1,
+		},
+		{
+			pos: Position{Depth: 2, IndexAtDepth: 2},
 			idx: 5,
 		},
 		{
-			pos: Position{Depth: 3, IndexAtDepth: 6}, // 6 or 7?
-			idx: 7,
+			pos: Position{Depth: 3, IndexAtDepth: 0},
+			idx: 0,
+		},
+		{
+			pos: Position{Depth: 3, IndexAtDepth: 2},
+			idx: 2,
+		},
+		{
+			pos: Position{Depth: 3, IndexAtDepth: 4},
+			idx: 4,
+		},
+		{
+			pos: Position{Depth: 3, IndexAtDepth: 6},
+			idx: 6,
 		},
 	}
 	for _, test := range tests {

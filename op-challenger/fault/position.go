@@ -14,7 +14,7 @@ type Position struct {
 // TraceIndex calculates the what the index of the claim value would be inside the trace.
 func (p *Position) TraceIndex(maxDepth int) int {
 	lo := 0
-	hi := 1 << maxDepth
+	hi := (1 << maxDepth) - 1
 	mid := hi
 	path := p.IndexAtDepth
 	for i := p.Depth - 1; i >= 0; i-- {
