@@ -1,11 +1,11 @@
 import { Contract, BigNumber } from 'ethers'
 import { Logger } from '@eth-optimism/common-ts'
 
-export interface OutputOracle<TSubmissionEventArgs> {
+export interface OutputOracle {
   contract: Contract
   filter: any
   getTotalElements: () => Promise<BigNumber>
-  getEventIndex: (args: TSubmissionEventArgs) => BigNumber
+  getEventIndex: (args: any) => BigNumber
 }
 
 /**
@@ -54,8 +54,8 @@ const getCache = (
  * @param contract Contract to update cache for.
  * @param filter Event filter to use.
  */
-export const updateOracleCache = async <TSubmissionEventArgs>(
-  oracle: OutputOracle<TSubmissionEventArgs>,
+export const updateOracleCache = async (
+  oracle: OutputOracle,
   logger?: Logger
 ): Promise<void> => {
   const cache = getCache(oracle.contract.address)
@@ -86,7 +86,7 @@ export const updateOracleCache = async <TSubmissionEventArgs>(
       // Throw the events into the cache.
       for (const event of events) {
         cache.eventCache[
-          oracle.getEventIndex(event.args as TSubmissionEventArgs).toNumber()
+          oracle.getEventIndex(event.args).toNumber()
         ] = {
           blockNumber: event.blockNumber,
           transactionHash: event.transactionHash,
@@ -135,8 +135,8 @@ export const updateOracleCache = async <TSubmissionEventArgs>(
  * @param index State batch index to search for.
  * @returns Event corresponding to the batch.
  */
-export const findEventForStateBatch = async <TSubmissionEventArgs>(
-  oracle: OutputOracle<TSubmissionEventArgs>,
+export const findEventForStateBatch = async (
+  oracle: OutputOracle,
   index: number,
   logger?: Logger
 ): Promise<PartialEvent> => {
@@ -166,8 +166,8 @@ export const findEventForStateBatch = async <TSubmissionEventArgs>(
  * @param oracle Output oracle contract.
  * @returns Starting state root batch index.
  */
-export const findFirstUnfinalizedStateBatchIndex = async <TSubmissionEventArgs>(
-  oracle: OutputOracle<TSubmissionEventArgs>,
+export const findFirstUnfinalizedStateBatchIndex = async (
+  oracle: OutputOracle,
   fpw: number,
   logger?: Logger
 ): Promise<number> => {

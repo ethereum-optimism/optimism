@@ -29,7 +29,7 @@ describe('helpers', () => {
   let AddressManager: Contract
   let ChainStorageContainer: Contract
   let StateCommitmentChain: Contract
-  let oracle: OutputOracle<any>
+  let oracle: OutputOracle
   beforeEach(async () => {
     // Set up fakes
     FakeBondManager = await smock.fake(getContractInterface('BondManager'))
