@@ -130,20 +130,21 @@ def devnet_deploy(paths):
     deploy_config['l1StartingBlockTag'] = 'earliest'
     write_json(devnet_cfg_orig, deploy_config)
 
+    fqn = 'scripts/Deploy.s.sol:Deploy'
+    private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+
     if os.path.exists(paths.addresses_json_path):
         log.info('Contracts already deployed.')
         addresses = read_json(paths.addresses_json_path)
     else:
         log.info('Deploying contracts.')
         run_command([
-            'forge', 'script', 'scripts/DeployConfig.s.sol',
-            '--tc', 'Deploy', '--private-key', '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
-            '--broadcast', '--rpc-url', 'http://127.0.0.1:8545'
+            'forge', 'script', fqn, '--private-key', private_key,
+            '--rpc-url', 'http://127.0.0.1:8545', '--broadcast'
         ], env={}, cwd=paths.contracts_bedrock_dir)
 
         run_command([
-            'forge', 'script', 'scripts/DeployConfig.s.sol',
-            '--tc', 'Deploy', '--private-key', '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+            'forge', 'script', fqn, '--private-key', private_key,
             '--sig', 'sync()', '--rpc-url', 'http://127.0.0.1:8545', '--broadcast'
         ], env={}, cwd=paths.contracts_bedrock_dir)
 
