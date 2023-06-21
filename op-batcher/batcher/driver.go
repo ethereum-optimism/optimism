@@ -10,14 +10,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
@@ -27,6 +28,9 @@ type BatchSubmitter struct {
 
 	txMgr txmgr.TxManager
 	wg    sync.WaitGroup
+
+	// publishReceiveMu solve race condition: publishTxToL1 and handleReceipt access state concurrently
+	publishReceiveMu sync.Mutex
 
 	shutdownCtx       context.Context
 	cancelShutdownCtx context.CancelFunc
@@ -363,7 +367,9 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 	l.recordL1Tip(l1tip)
 
 	// Collect next transaction data
+	l.publishReceiveMu.Lock()
 	txdata, err := l.state.TxData(l1tip.ID())
+	l.publishReceiveMu.Unlock()
 	if err == io.EOF {
 		l.log.Trace("no transaction data available")
 		return err
@@ -397,6 +403,9 @@ func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txDat
 }
 
 func (l *BatchSubmitter) handleReceipt(r txmgr.TxReceipt[txData]) {
+	l.publishReceiveMu.Lock()
+	defer l.publishReceiveMu.Unlock()
+
 	// Record TX Status
 	if r.Err != nil {
 		l.log.Warn("unable to publish tx", "err", r.Err, "data_size", r.ID.Len())
