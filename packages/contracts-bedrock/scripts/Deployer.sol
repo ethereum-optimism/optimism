@@ -34,7 +34,7 @@ struct Artifact {
 ///         When a contract is deployed, call the `save` function to write its name and
 ///         contract address to disk. Then the `sync` function can be called to generate
 ///         hardhat deploy style artifacts. Forked from `forge-deploy`.
-contract Deployer is Script {
+abstract contract Deployer is Script {
     /// @notice The set of deployments that have been done during execution.
     mapping(string => Deployment) internal _namedDeployments;
     /// @notice The same as `_namedDeployments` but as an array.
@@ -66,7 +66,7 @@ contract Deployer is Script {
     /// @notice Create the global variables and set up the filesystem
     function setUp() public virtual {
         string memory root = vm.projectRoot();
-        deployScript = vm.envOr("DEPLOY_SCRIPT", string("DeployConfig"));
+        deployScript = vm.envOr("DEPLOY_SCRIPT", name());
 
         deploymentContext = _getDeploymentContext();
         string memory deployFile = vm.envOr("DEPLOY_FILE", string("run-latest.json"));
@@ -146,6 +146,10 @@ contract Deployer is Script {
         console.log("Synced temp deploy files, deleting %s", tempDeploymentsPath);
         vm.removeFile(tempDeploymentsPath);
     }
+
+    /// @notice Returns the name of the deployment script. Children contracts
+    ///         must implement this to ensure that the deploy artifacts can be found.
+    function name() public virtual pure returns (string memory);
 
     /// @notice Returns all of the deployments done in the current context.
     function newDeployments() external view returns (Deployment[] memory) {
@@ -236,10 +240,10 @@ contract Deployer is Script {
 
         Deployment[] memory deployments = new Deployment[](names.length);
         for (uint256 i; i < names.length; i++) {
-            string memory name = names[i];
-            address addr = stdJson.readAddress(json, string.concat("$.", name));
+            string memory contractName = names[i];
+            address addr = stdJson.readAddress(json, string.concat("$.", contractName));
             deployments[i] = Deployment({
-                name: name,
+                name: contractName,
                 addr: payable(addr)
             });
         }
@@ -358,9 +362,9 @@ contract Deployer is Script {
     }
 
     /// @notice Adds a deployment to the temp deployments file
-    function _writeTemp(string memory name, address deployed) internal {
+    function _writeTemp(string memory _name, address _deployed) internal {
         vm.writeJson({
-            json: stdJson.serialize("", name, deployed),
+            json: stdJson.serialize("", _name, _deployed),
             path: tempDeploymentsPath
         });
     }

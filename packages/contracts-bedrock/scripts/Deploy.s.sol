@@ -34,6 +34,12 @@ import { Predeploys } from "../contracts/libraries/Predeploys.sol";
 contract Deploy is Deployer {
     DeployConfig cfg;
 
+    /// @notice The name of the script, used to ensure the right deploy artifacts
+    ///         are used.
+    function name() public pure override returns (string memory) {
+        return "Deploy";
+    }
+
     function setUp() public override {
         super.setUp();
 
@@ -44,6 +50,7 @@ contract Deploy is Deployer {
         console.log("Deployment context: %s", deploymentContext);
     }
 
+    /// @notice Deploy all of the L1 contracts
     function run() public {
         console.log("Deploying L1 system");
 
@@ -149,18 +156,18 @@ contract Deploy is Deployer {
     /// @notice Deploy the L1CrossDomainMessengerProxy
     function deployL1CrossDomainMessengerProxy() broadcast() public returns (address) {
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
-        string memory name = "OVM_L1CrossDomainMessenger";
-        ResolvedDelegateProxy proxy = new ResolvedDelegateProxy(addressManager, name);
+        string memory contractName = "OVM_L1CrossDomainMessenger";
+        ResolvedDelegateProxy proxy = new ResolvedDelegateProxy(addressManager, contractName);
 
         save("L1CrossDomainMessengerProxy", address(proxy));
         console.log("L1CrossDomainMessengerProxy deployed at %s", address(proxy));
 
-        address addr = addressManager.getAddress(name);
+        address addr = addressManager.getAddress(contractName);
         if (addr != address(proxy)) {
-            addressManager.setAddress(name, address(proxy));
+            addressManager.setAddress(contractName, address(proxy));
         }
 
-        require(addressManager.getAddress(name) == address(proxy));
+        require(addressManager.getAddress(contractName) == address(proxy));
 
         return address(proxy);
     }
@@ -569,13 +576,13 @@ contract Deploy is Deployer {
         }
         require(uint256(proxyAdmin.proxyType(l1CrossDomainMessengerProxy)) == uint256(ProxyAdmin.ProxyType.RESOLVED));
 
-        string memory name = "OVM_L1CrossDomainMessenger";
+        string memory contractName = "OVM_L1CrossDomainMessenger";
         string memory implName = proxyAdmin.implementationName(l1CrossDomainMessenger);
-        if (keccak256(bytes(name)) != keccak256(bytes(implName))) {
-            proxyAdmin.setImplementationName(l1CrossDomainMessengerProxy, name);
+        if (keccak256(bytes(contractName)) != keccak256(bytes(implName))) {
+            proxyAdmin.setImplementationName(l1CrossDomainMessengerProxy, contractName);
         }
         require(
-            keccak256(bytes(proxyAdmin.implementationName(l1CrossDomainMessengerProxy))) == keccak256(bytes(name))
+            keccak256(bytes(proxyAdmin.implementationName(l1CrossDomainMessengerProxy))) == keccak256(bytes(contractName))
         );
 
         proxyAdmin.upgradeAndCall({
