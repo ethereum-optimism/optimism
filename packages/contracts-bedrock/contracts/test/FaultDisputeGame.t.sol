@@ -21,10 +21,6 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
      * @dev The type of the game being tested.
      */
     GameType internal constant GAME_TYPE = GameType.wrap(0);
-    /**
-     * @dev The current version of the `FaultDisputeGame` contract.
-     */
-    string internal constant VERSION = "0.0.2";
 
     /**
      * @dev The implementation of the game.
@@ -81,13 +77,6 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
      */
     function test_extraData_succeeds() public {
         assertEq(gameProxy.extraData(), EXTRA_DATA);
-    }
-
-    /**
-     * @dev Tests that the game's version is set correctly.
-     */
-    function test_version_succeeds() public {
-        assertEq(gameProxy.version(), VERSION);
     }
 
     /**
@@ -196,10 +185,12 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     function test_gameDepthExceeded_reverts() public {
         Claim claim = Claim.wrap(bytes32(uint256(5)));
 
-        for (uint256 i = 0; i < 5; i++) {
+        uint256 maxDepth = gameProxy.MAX_GAME_DEPTH();
+
+        for (uint256 i = 0; i <= maxDepth; i++) {
             // At the max game depth, the `_move` function should revert with
             // the `GameDepthExceeded` error.
-            if (i == 4) {
+            if (i == maxDepth) {
                 vm.expectRevert(GameDepthExceeded.selector);
             }
             gameProxy.attack(i, claim);

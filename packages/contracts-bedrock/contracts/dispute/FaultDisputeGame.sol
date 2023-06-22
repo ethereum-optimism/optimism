@@ -306,12 +306,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         if (status != GameStatus.IN_PROGRESS) {
             // If the game is not in progress, it cannot be resolved.
             revert GameNotInProgress();
-        } else if (!claimData[0].countered) {
-            // If the root claim has never been countered, it implicitly wins.
-            status_ = GameStatus.DEFENDER_WINS;
-            status = status_;
-            emit Resolved(status_);
-            return status_;
         }
 
         // Search for the left-most dangling non-bottom node
@@ -341,7 +335,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             Position traceIndex = claimPos.rightIndex(MAX_GAME_DEPTH);
             if (Position.unwrap(traceIndex) < Position.unwrap(leftMostTraceIndex)) {
                 leftMostTraceIndex = traceIndex;
-                leftMostIndex = i + 1;
+                unchecked {
+                    leftMostIndex = i + 1;
+                }
             }
         }
 
