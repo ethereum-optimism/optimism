@@ -5,15 +5,11 @@ import { Test } from "forge-std/Test.sol";
 import { LibPosition } from "../dispute/lib/LibPosition.sol";
 import "../libraries/DisputeTypes.sol";
 
-/**
- * @notice Tests for `LibPosition`
- */
+/// @notice Tests for `LibPosition`
 contract LibPosition_Test is Test {
-    /**
-     * @dev Assumes a MAX depth of 63 for the Position type. Any greater depth can cause overflows.
-     * @dev At the lowest level of the tree, this allows for 2 ** 63 leaves. In reality, the max game depth
-     *      will likely be much lower.
-     */
+    /// @dev Assumes a MAX depth of 63 for the Position type. Any greater depth can cause overflows.
+    /// @dev At the lowest level of the tree, this allows for 2 ** 63 leaves. In reality, the max game depth
+    ///      will likely be much lower.
     uint8 internal constant MAX_DEPTH = 63;
 
     function boundIndexAtDepth(uint8 _depth, uint64 _indexAtDepth) internal view returns (uint64) {
@@ -25,9 +21,7 @@ contract LibPosition_Test is Test {
         }
     }
 
-    /**
-     * @notice Tests that the `depth` function correctly shifts out the `depth` from a packed `Position` type.
-     */
+    /// @notice Tests that the `depth` function correctly shifts out the `depth` from a packed `Position` type.
     function testFuzz_depth_correctness_suceeds(uint8 _depth, uint64 _indexAtDepth) public {
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
@@ -35,9 +29,7 @@ contract LibPosition_Test is Test {
         assertEq(position.depth(), _depth);
     }
 
-    /**
-     * @notice Tests that the `indexAtDepth` function correctly shifts out the `indexAtDepth` from a packed `Position` type.
-     */
+    /// @notice Tests that the `indexAtDepth` function correctly shifts out the `indexAtDepth` from a packed `Position` type.
     function testFuzz_indexAtDepth_correctness_suceeds(uint8 _depth, uint64 _indexAtDepth) public {
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
@@ -45,9 +37,7 @@ contract LibPosition_Test is Test {
         assertEq(position.indexAtDepth(), _indexAtDepth);
     }
 
-    /**
-     * @notice Tests that the `left` function correctly computes the position of the left child.
-     */
+    /// @notice Tests that the `left` function correctly computes the position of the left child.
     function testFuzz_left_correctness_suceeds(uint8 _depth, uint64 _indexAtDepth) public {
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
@@ -59,9 +49,7 @@ contract LibPosition_Test is Test {
         assertEq(left.indexAtDepth(), _indexAtDepth * 2);
     }
 
-    /**
-     * @notice Tests that the `right` function correctly computes the position of the right child.
-     */
+    /// @notice Tests that the `right` function correctly computes the position of the right child.
     function testFuzz_right_correctness_suceeds(uint8 _depth, uint64 _indexAtDepth) public {
         // Depth bound: [0, 63]
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
@@ -74,9 +62,7 @@ contract LibPosition_Test is Test {
         assertEq(right.indexAtDepth(), _indexAtDepth * 2 + 1);
     }
 
-    /**
-     * @notice Tests that the `parent` function correctly computes the position of the parent.
-     */
+    /// @notice Tests that the `parent` function correctly computes the position of the parent.
     function testFuzz_parent_correctness_suceeds(uint8 _depth, uint64 _indexAtDepth) public {
         _depth = uint8(bound(_depth, 1, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
@@ -88,10 +74,8 @@ contract LibPosition_Test is Test {
         assertEq(parent.indexAtDepth(), _indexAtDepth / 2);
     }
 
-    /**
-     * @notice Tests that the `rightIndex` function correctly computes the deepest, right most index relative
-     * to a given position.
-     */
+    /// @notice Tests that the `rightIndex` function correctly computes the deepest, right most index relative
+    ///         to a given position.
     function testFuzz_rightIndex_correctness_suceeds(
         uint64 _maxDepth,
         uint8 _depth,
@@ -115,11 +99,9 @@ contract LibPosition_Test is Test {
         assertEq(Position.unwrap(rightIndex), Position.unwrap(position));
     }
 
-    /**
-     * @notice Tests that the `attack` function correctly computes the position of the attack relative to
-     * a given position.
-     * @dev `attack` is an alias for `left`, but we test it separately for completeness.
-     */
+    /// @notice Tests that the `attack` function correctly computes the position of the attack relative to
+    ///         a given position.
+    /// @dev `attack` is an alias for `left`, but we test it separately for completeness.
     function testFuzz_attack_correctness_suceeds(uint8 _depth, uint64 _indexAtDepth) public {
         // Depth bound: [0, 63]
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
@@ -132,12 +114,10 @@ contract LibPosition_Test is Test {
         assertEq(attack.indexAtDepth(), _indexAtDepth * 2);
     }
 
-    /**
-     * @notice Tests that the `defend` function correctly computes the position of the defense relative to
-     * a given position.
-     * @dev A defense can only be given if the position does not belong to the root claim, hence the bound of [1, 127]
-     * on the depth.
-     */
+    /// @notice Tests that the `defend` function correctly computes the position of the defense relative to
+    ///         a given position.
+    /// @dev A defense can only be given if the position does not belong to the root claim, hence the bound of [1, 127]
+    ///      on the depth.
     function testFuzz_defend_correctness_suceeds(uint8 _depth, uint64 _indexAtDepth) public {
         // Depth bound: [1, 63]
         _depth = uint8(bound(_depth, 1, MAX_DEPTH));
@@ -150,10 +130,8 @@ contract LibPosition_Test is Test {
         assertEq(defend.indexAtDepth(), ((_indexAtDepth / 2) * 2 + 1) * 2);
     }
 
-    /**
-     * @notice A static unit test for the correctness of all gindicies, (depth, index) combos,
-     *         and the trace index in a tree of max depth = 4.
-     */
+    /// @notice A static unit test for the correctness of all gindicies, (depth, index) combos,
+    ///         and the trace index in a tree of max depth = 4.
     function test_pos_correctness_succeeds() public {
         uint256 maxDepth = 4;
 

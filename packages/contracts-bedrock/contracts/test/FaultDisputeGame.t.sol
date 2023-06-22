@@ -13,22 +13,14 @@ import { LibClock } from "../dispute/lib/LibClock.sol";
 import { LibPosition } from "../dispute/lib/LibPosition.sol";
 
 contract FaultDisputeGame_Init is DisputeGameFactory_Init {
-    /**
-     * @dev The extra data passed to the game for initialization.
-     */
+    /// @dev The extra data passed to the game for initialization.
     bytes internal constant EXTRA_DATA = abi.encode(1);
-    /**
-     * @dev The type of the game being tested.
-     */
+    /// @dev The type of the game being tested.
     GameType internal constant GAME_TYPE = GameType.wrap(0);
 
-    /**
-     * @dev The implementation of the game.
-     */
+    /// @dev The implementation of the game.
     FaultDisputeGame internal gameImpl;
-    /**
-     * @dev The `Clone` proxy of the game.
-     */
+    /// @dev The `Clone` proxy of the game.
     FaultDisputeGame internal gameProxy;
 
     event Move(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
@@ -48,13 +40,9 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
 }
 
 contract FaultDisputeGame_Test is FaultDisputeGame_Init {
-    /**
-     * @dev The root claim of the game.
-     */
+    /// @dev The root claim of the game.
     Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32(uint256(10)));
-    /**
-     * @dev The absolute prestate of the trace.
-     */
+    /// @dev The absolute prestate of the trace.
     Claim internal constant ABSOLUTE_PRESTATE = Claim.wrap(bytes32(uint256(0)));
 
     function setUp() public override {
@@ -65,37 +53,27 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     //            `IDisputeGame` Implementation Tests             //
     ////////////////////////////////////////////////////////////////
 
-    /**
-     * @dev Tests that the game's root claim is set correctly.
-     */
+    /// @dev Tests that the game's root claim is set correctly.
     function test_rootClaim_succeeds() public {
         assertEq(Claim.unwrap(gameProxy.rootClaim()), Claim.unwrap(ROOT_CLAIM));
     }
 
-    /**
-     * @dev Tests that the game's extra data is set correctly.
-     */
+    /// @dev Tests that the game's extra data is set correctly.
     function test_extraData_succeeds() public {
         assertEq(gameProxy.extraData(), EXTRA_DATA);
     }
 
-    /**
-     * @dev Tests that the game's status is set correctly.
-     */
+    /// @dev Tests that the game's status is set correctly.
     function test_gameStart_succeeds() public {
         assertEq(Timestamp.unwrap(gameProxy.gameStart()), block.timestamp);
     }
 
-    /**
-     * @dev Tests that the game's type is set correctly.
-     */
+    /// @dev Tests that the game's type is set correctly.
     function test_gameType_succeeds() public {
         assertEq(GameType.unwrap(gameProxy.gameType()), GameType.unwrap(GAME_TYPE));
     }
 
-    /**
-     * @dev Tests that the game's data is set correctly.
-     */
+    /// @dev Tests that the game's data is set correctly.
     function test_gameData_succeeds() public {
         (GameType gameType, Claim rootClaim, bytes memory extraData) = gameProxy.gameData();
 
@@ -108,9 +86,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     //          `IFaultDisputeGame` Implementation Tests          //
     ////////////////////////////////////////////////////////////////
 
-    /**
-     * @dev Tests that the root claim's data is set correctly when the game is initialized.
-     */
+    /// @dev Tests that the root claim's data is set correctly when the game is initialized.
     function test_initialRootClaimData_succeeds() public {
         (
             uint32 parentIndex,
@@ -130,10 +106,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         );
     }
 
-    /**
-     * @dev Tests that a move while the game status is not `IN_PROGRESS` causes the call to revert
-     *      with the `GameNotInProgress` error
-     */
+    /// @dev Tests that a move while the game status is not `IN_PROGRESS` causes the call to revert
+    ///      with the `GameNotInProgress` error
     function test_move_gameNotInProgress_reverts() public {
         uint256 chalWins = uint256(GameStatus.CHALLENGER_WINS);
 
@@ -154,18 +128,14 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack(0, Claim.wrap(0));
     }
 
-    /**
-     * @dev Tests that an attempt to defend the root claim reverts with the `CannotDefendRootClaim` error.
-     */
+    /// @dev Tests that an attempt to defend the root claim reverts with the `CannotDefendRootClaim` error.
     function test_defendRoot_invalidMove_reverts() public {
         vm.expectRevert(CannotDefendRootClaim.selector);
         gameProxy.defend(0, Claim.wrap(bytes32(uint256(5))));
     }
 
-    /**
-     * @dev Tests that an attempt to move against a claim that does not exist reverts with the
-     *      `ParentDoesNotExist` error.
-     */
+    /// @dev Tests that an attempt to move against a claim that does not exist reverts with the
+    ///      `ParentDoesNotExist` error.
     function test_move_nonExistentParent_reverts() public {
         Claim claim = Claim.wrap(bytes32(uint256(5)));
 
@@ -178,10 +148,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.defend(1, claim);
     }
 
-    /**
-     * @dev Tests that an attempt to move at the maximum game depth reverts with the
-     *      `GameDepthExceeded` error.
-     */
+    /// @dev Tests that an attempt to move at the maximum game depth reverts with the
+    ///      `GameDepthExceeded` error.
     function test_move_gameDepthExceeded_reverts() public {
         Claim claim = Claim.wrap(bytes32(uint256(5)));
 
@@ -197,10 +165,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         }
     }
 
-    /**
-     * @dev Tests that a move made after the clock time has exceeded reverts with the
-     *      `ClockTimeExceeded` error.
-     */
+    /// @dev Tests that a move made after the clock time has exceeded reverts with the
+    ///      `ClockTimeExceeded` error.
     function test_move_clockTimeExceeded_reverts() public {
         // Warp ahead past the clock time for the first move (3 1/2 days)
         vm.warp(block.timestamp + 3 days + 12 hours + 1);
@@ -208,10 +174,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
     }
 
-    /**
-     * @dev Tests that an identical claim cannot be made twice. The duplicate claim attempt should
-     *      revert with the `ClaimAlreadyExists` error.
-     */
+    /// @dev Tests that an identical claim cannot be made twice. The duplicate claim attempt should
+    ///      revert with the `ClaimAlreadyExists` error.
     function test_move_duplicateClaim_reverts() public {
         Claim claim = Claim.wrap(bytes32(uint256(5)));
 
@@ -223,9 +187,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack(0, claim);
     }
 
-    /**
-     * @dev Static unit test for the correctness of an opening attack.
-     */
+    /// @dev Static unit test for the correctness of an opening attack.
     function test_simpleAttack_succeeds() public {
         // Warp ahead 5 seconds.
         vm.warp(block.timestamp + 5);
@@ -272,19 +234,15 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         );
     }
 
-    /**
-     * @dev Static unit test for the correctness an uncontested root resolution.
-     */
+    /// @dev Static unit test for the correctness an uncontested root resolution.
     function test_resolve_rootUncontested() public {
         GameStatus status = gameProxy.resolve();
         assertEq(uint8(status), uint8(GameStatus.DEFENDER_WINS));
         assertEq(uint8(gameProxy.status()), uint8(GameStatus.DEFENDER_WINS));
     }
 
-    /**
-     * @dev Static unit test asserting that resolve reverts when the game state is
-     *      not in progress.
-     */
+    /// @dev Static unit test asserting that resolve reverts when the game state is
+    ///      not in progress.
     function test_resolve_notInProgress_reverts() public {
         uint256 chalWins = uint256(GameStatus.CHALLENGER_WINS);
 
@@ -300,9 +258,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.resolve();
     }
 
-    /**
-     * @dev Static unit test for the correctness of resolving a single attack game state.
-     */
+    /// @dev Static unit test for the correctness of resolving a single attack game state.
     function test_resolve_rootContested() public {
         gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
 
@@ -311,9 +267,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(uint8(gameProxy.status()), uint8(GameStatus.CHALLENGER_WINS));
     }
 
-    /**
-     * @dev Static unit test for the correctness of resolving a game with a contested challenge claim.
-     */
+    /// @dev Static unit test for the correctness of resolving a game with a contested challenge claim.
     function test_resolve_challengeContested() public {
         gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
         gameProxy.defend(1, Claim.wrap(bytes32(uint256(6))));
@@ -323,9 +277,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(uint8(gameProxy.status()), uint8(GameStatus.DEFENDER_WINS));
     }
 
-    /**
-     * @dev Static unit test for the correctness of resolving a game with multiplayer moves.
-     */
+    /// @dev Static unit test for the correctness of resolving a game with multiplayer moves.
     function test_resolve_teamDeathmatch() public {
         gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
         gameProxy.attack(0, Claim.wrap(bytes32(uint256(4))));
@@ -338,11 +290,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 }
 
-/**
- * @notice A generic game player actor with a configurable trace.
- * @dev This actor always responds rationally with respect to their trace. The
- *      `play` function can be overridden to change this behavior.
- */
+/// @notice A generic game player actor with a configurable trace.
+/// @dev This actor always responds rationally with respect to their trace. The
+///      `play` function can be overridden to change this behavior.
 contract GamePlayer {
     bool public failedToStep;
     FaultDisputeGame public gameProxy;
@@ -352,9 +302,7 @@ contract GamePlayer {
     bytes internal trace;
     uint256 internal maxDepth;
 
-    /**
-     * @notice Initializes the player
-     */
+    /// @notice Initializes the player
     function init(
         FaultDisputeGame _gameProxy,
         GamePlayer _counterParty,
@@ -366,9 +314,7 @@ contract GamePlayer {
         maxDepth = _gameProxy.MAX_GAME_DEPTH();
     }
 
-    /**
-     * @notice Perform the next move in the game.
-     */
+    /// @notice Perform the next move in the game.
     function play(uint256 _parentIndex) public virtual {
         // Grab the claim data at the parent index.
         (uint32 grandparentIndex, , Claim parentClaim, Position parentPos, ) = gameProxy.claimData(
@@ -488,40 +434,28 @@ contract GamePlayer {
         }
     }
 
-    /**
-     * @notice Returns the length of the claim data array.
-     */
+    /// @notice Returns the length of the claim data array.
     function claimDataLen() internal view returns (uint256 len_) {
         return uint256(vm.load(address(gameProxy), bytes32(uint256(1))));
     }
 
-    /**
-     * @notice Returns the player's claim that commits to a given gindex.
-     */
+    /// @notice Returns the player's claim that commits to a given gindex.
     function claimAt(Position _position) internal view returns (Claim claim_) {
         return claimAt(_position.rightIndex(maxDepth).indexAtDepth());
     }
 
-    /**
-     * @notice Returns the player's claim that commits to a given trace index.
-     */
+    /// @notice Returns the player's claim that commits to a given trace index.
     function claimAt(uint256 _traceIndex) public view returns (Claim claim_) {
         return Claim.wrap(bytes32(uint256(bytes32(trace[_traceIndex]) >> 248)));
     }
 }
 
 contract OneVsOne_Arena is FaultDisputeGame_Init {
-    /**
-     * @dev The absolute prestate of the trace.
-     */
+    /// @dev The absolute prestate of the trace.
     Claim internal constant ABSOLUTE_PRESTATE = Claim.wrap(bytes32(uint256(15)));
-    /**
-     * @dev The honest participant.
-     */
+    /// @dev The honest participant.
     GamePlayer internal honest;
-    /**
-     * @dev The dishonest participant.
-     */
+    /// @dev The dishonest participant.
     GamePlayer internal dishonest;
 
     function init(
