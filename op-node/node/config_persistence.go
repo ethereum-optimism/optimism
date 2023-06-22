@@ -1,6 +1,7 @@
 package node
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -113,8 +114,13 @@ func (p *ActiveConfigPersistence) read() (persistedState, error) {
 		return persistedState{}, fmt.Errorf("read config file (%v): %w", p.file, err)
 	}
 	var config persistedState
-	if err = json.Unmarshal(data, &config); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err = dec.Decode(&config); err != nil {
 		return persistedState{}, fmt.Errorf("invalid config file (%v): %w", p.file, err)
+	}
+	if config.SequencerStarted == nil {
+		return persistedState{}, fmt.Errorf("missing sequencerStarted value in config file (%v)", p.file)
 	}
 	return config, nil
 }
