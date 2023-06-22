@@ -675,6 +675,8 @@ jobs:
       image: ubuntu-2204:2022.07.1
     steps:
       - checkout
+      - run:
+          name: Lint check
           command: |
             pnpm lint:specs:check
       - run:
