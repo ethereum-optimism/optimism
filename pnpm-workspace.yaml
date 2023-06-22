@@ -1,16 +1,3 @@
 prefer-workspace-packages: true
 packages:
   - "packages/*"
-  - "batch-submitter"
-  - "bss-core"
-  - "gas-oracle"
-  - "integration-tests"
-  - "l2geth-exporter"
-  - "l2geth"
-  - "ops/docker/rpc-proxy"
-  - "ops/docker/hardhat"
-  - "ops/docker/go-builder"
-  - "ops/docker/js-builder"
-  - "ops/docker/ci-builder"
-  - "ops/docker/foundry"
-  - "endpoint-monitor"
