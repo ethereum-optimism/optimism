@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
-
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -36,7 +35,12 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 
-	driverConfig := NewDriverConfig(ctx)
+	configPersistence := NewConfigPersistence(ctx)
+
+	driverConfig, err := NewDriverConfig(ctx, configPersistence)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load driver config: %w", err)
+	}
 
 	p2pSignerSetup, err := p2pcli.LoadSignerSetup(ctx)
 	if err != nil {
@@ -86,6 +90,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 			Moniker: ctx.String(flags.HeartbeatMonikerFlag.Name),
 			URL:     ctx.String(flags.HeartbeatURLFlag.Name),
 		},
+		ConfigPersistence: configPersistence,
 	}
 	if err := cfg.Check(); err != nil {
 		return nil, err
@@ -143,14 +148,29 @@ func NewL2SyncEndpointConfig(ctx *cli.Context) *node.L2SyncEndpointConfig {
 	}
 }
 
-func NewDriverConfig(ctx *cli.Context) *driver.Config {
+func NewConfigPersistence(ctx *cli.Context) node.ConfigPersistence {
+	stateFile := ctx.String(flags.RPCAdminPersistence.Name)
+	if stateFile == "" {
+		return node.DisabledConfigPersistence{}
+	}
+	return node.NewConfigPersistence(stateFile)
+}
+
+func NewDriverConfig(ctx *cli.Context, config node.ConfigPersistence) (*driver.Config, error) {
+	sequencerStopped := ctx.Bool(flags.SequencerStoppedFlag.Name)
+	if state, err := config.SequencerState(); err != nil {
+		return nil, err
+	} else if state != node.StateUnset {
+		sequencerStopped = state == node.StateStopped
+	}
+
 	return &driver.Config{
 		VerifierConfDepth:   ctx.Uint64(flags.VerifierL1Confs.Name),
 		SequencerConfDepth:  ctx.Uint64(flags.SequencerL1Confs.Name),
 		SequencerEnabled:    ctx.Bool(flags.SequencerEnabledFlag.Name),
-		SequencerStopped:    ctx.Bool(flags.SequencerStoppedFlag.Name),
+		SequencerStopped:    sequencerStopped,
 		SequencerMaxSafeLag: ctx.Uint64(flags.SequencerMaxSafeLagFlag.Name),
-	}
+	}, nil
 }
 
 func NewRollupConfig(ctx *cli.Context) (*rollup.Config, error) {

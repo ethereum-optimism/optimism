@@ -91,6 +91,8 @@ type Driver struct {
 func (s *Driver) Start() error {
 	s.derivation.Reset()
 
+	log.Info("Starting driver", "sequencerEnabled", s.driverConfig.SequencerEnabled, "sequencerStopped", s.driverConfig.SequencerStopped)
+
 	s.wg.Add(1)
 	go s.eventLoop()
 

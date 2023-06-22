@@ -59,6 +59,11 @@ var (
 		Usage:   "Enable the admin API (experimental)",
 		EnvVars: prefixEnvVars("RPC_ENABLE_ADMIN"),
 	}
+	RPCAdminPersistence = &cli.StringFlag{
+		Name:    "rpc.admin-state",
+		Usage:   "File path used to persist state changes made via the admin API so they persist across restarts",
+		EnvVars: prefixEnvVars("RPC_ADMIN_STATE"),
+	}
 
 	/* Optional Flags */
 	L1TrustRPC = &cli.BoolFlag{
@@ -233,6 +238,7 @@ var optionalFlags = []cli.Flag{
 	SequencerL1Confs,
 	L1EpochPollIntervalFlag,
 	RPCEnableAdmin,
+	RPCAdminPersistence,
 	MetricsEnabledFlag,
 	MetricsAddrFlag,
 	MetricsPortFlag,

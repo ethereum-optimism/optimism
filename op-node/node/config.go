@@ -36,6 +36,8 @@ type Config struct {
 	// Used to poll the L1 for new finalized or safe blocks
 	L1EpochPollInterval time.Duration
 
+	ConfigPersistence ConfigPersistence
+
 	// Optional
 	Tracer    Tracer
 	Heartbeat HeartbeatConfig

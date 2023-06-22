@@ -12,9 +12,9 @@ import (
 type RunningState int
 
 const (
-	Unset RunningState = iota
-	Started
-	Stopped
+	StateUnset RunningState = iota
+	StateStarted
+	StateStopped
 )
 
 type persistedState struct {
@@ -35,8 +35,8 @@ type ActiveConfigPersistence struct {
 	file string
 }
 
-func NewConfigPersistence(file string) (*ActiveConfigPersistence, error) {
-	return &ActiveConfigPersistence{file: file}, nil
+func NewConfigPersistence(file string) *ActiveConfigPersistence {
+	return &ActiveConfigPersistence{file: file}
 }
 
 func (p *ActiveConfigPersistence) SequencerStarted() error {
@@ -88,15 +88,15 @@ func (p *ActiveConfigPersistence) persist(sequencerStarted bool) error {
 func (p *ActiveConfigPersistence) SequencerState() (RunningState, error) {
 	config, err := p.read()
 	if err != nil {
-		return Unset, err
+		return StateUnset, err
 	}
 
 	if config.SequencerStarted == nil {
-		return Unset, nil
+		return StateUnset, nil
 	} else if *config.SequencerStarted {
-		return Started, nil
+		return StateStarted, nil
 	} else {
-		return Stopped, nil
+		return StateStopped, nil
 	}
 }
 
@@ -122,7 +122,7 @@ type DisabledConfigPersistence struct {
 }
 
 func (d DisabledConfigPersistence) SequencerState() (RunningState, error) {
-	return Unset, nil
+	return StateUnset, nil
 }
 
 func (d DisabledConfigPersistence) SequencerStarted() error {
