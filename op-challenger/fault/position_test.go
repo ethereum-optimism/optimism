@@ -1,6 +1,7 @@
 package fault
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -93,5 +94,16 @@ func TestTraceIndex(t *testing.T) {
 		pos := NewPosition(test.Depth, test.IndexAtDepth)
 		result := pos.TraceIndex(4)
 		require.Equal(t, test.TraceIndex, result)
+	}
+}
+
+// TestPosition_GetParentGIndex_Tabled tests the GetParentGIndex function on the treeNodesMaxDepth4 data.
+// The parent index of a node is the floor of the node's index divided by 2 (since the first index is 1).
+func TestPosition_GetParentGIndex_Tabled(t *testing.T) {
+	for _, test := range treeNodesMaxDepth4 {
+		pos := NewPosition(test.Depth, test.IndexAtDepth)
+		parent := pos.GetParentGIndex()
+		calculated := uint64(math.Floor(float64(test.GIndex) / 2))
+		require.Equal(t, calculated, parent)
 	}
 }

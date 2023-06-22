@@ -49,6 +49,14 @@ func boolToInt(b bool) int {
 	}
 }
 
+// GetParentGIndex returns the gindex of the parent.
+func (p *Position) GetParentGIndex() uint64 {
+	if p.depth == 0 {
+		return 0
+	}
+	return uint64(1<<(p.depth-1) | (p.indexAtDepth >> 1))
+}
+
 // parent moves up to the parent.
 func (p *Position) parent() {
 	p.depth--
