@@ -71,59 +71,6 @@ contract Bytes_slice_Test is Test {
     }
 
     /**
-     * @notice Tests that, when given an input bytes array of length `n`, the `slice` function will
-     *         always revert if `_start + _length > n`.
-     */
-    function testFuzz_slice_outOfBounds_reverts(
-        bytes memory _input,
-        uint256 _start,
-        uint256 _length
-    ) public {
-        // We want a valid start index and a length that will not overflow.
-        vm.assume(_start < _input.length && _length < type(uint256).max - 31);
-        // But, we want an invalid slice length.
-        vm.assume(_start + _length > _input.length);
-
-        vm.expectRevert("slice_outOfBounds");
-        Bytes.slice(_input, _start, _length);
-    }
-
-    /**
-     * @notice Tests that, when given a length `n` that is greater than `type(uint256).max - 31`,
-     *         the `slice` function reverts.
-     */
-    function testFuzz_slice_lengthOverflows_reverts(
-        bytes memory _input,
-        uint256 _start,
-        uint256 _length
-    ) public {
-        // Ensure that the `_length` will overflow if a number >= 31 is added to it.
-        vm.assume(_length > type(uint256).max - 31);
-
-        vm.expectRevert("slice_overflow");
-        Bytes.slice(_input, _start, _length);
-    }
-
-    /**
-     * @notice Tests that, when given a start index `n` that is greater than
-     *         `type(uint256).max - n`, the `slice` function reverts.
-     */
-    function testFuzz_slice_rangeOverflows_reverts(
-        bytes memory _input,
-        uint256 _start,
-        uint256 _length
-    ) public {
-        // Ensure that `_length` is a realistic length of a slice. This is to make sure
-        // we revert on the correct require statement.
-        vm.assume(_length < _input.length);
-        // Ensure that `_start` will overflow if `_length` is added to it.
-        vm.assume(_start > type(uint256).max - _length);
-
-        vm.expectRevert("slice_overflow");
-        Bytes.slice(_input, _start, _length);
-    }
-
-    /**
      * @notice Tests that the `slice` function correctly updates the free memory pointer depending
      *         on the length of the slice.
      */
@@ -178,6 +125,61 @@ contract Bytes_slice_Test is Test {
 
         // The slice length should be equal to `_length`
         assertEq(slice.length, _length);
+    }
+}
+
+contract Bytes_slice_TestFail is Test {
+    /**
+     * @notice Tests that, when given an input bytes array of length `n`, the `slice` function will
+     *         always revert if `_start + _length > n`.
+     */
+    function testFuzz_slice_outOfBounds_reverts(
+        bytes memory _input,
+        uint256 _start,
+        uint256 _length
+    ) public {
+        // We want a valid start index and a length that will not overflow.
+        vm.assume(_start < _input.length && _length < type(uint256).max - 31);
+        // But, we want an invalid slice length.
+        vm.assume(_start + _length > _input.length);
+
+        vm.expectRevert("slice_outOfBounds");
+        Bytes.slice(_input, _start, _length);
+    }
+
+    /**
+     * @notice Tests that, when given a length `n` that is greater than `type(uint256).max - 31`,
+     *         the `slice` function reverts.
+     */
+    function testFuzz_slice_lengthOverflows_reverts(
+        bytes memory _input,
+        uint256 _start,
+        uint256 _length
+    ) public {
+        // Ensure that the `_length` will overflow if a number >= 31 is added to it.
+        vm.assume(_length > type(uint256).max - 31);
+
+        vm.expectRevert("slice_overflow");
+        Bytes.slice(_input, _start, _length);
+    }
+
+    /**
+     * @notice Tests that, when given a start index `n` that is greater than
+     *         `type(uint256).max - n`, the `slice` function reverts.
+     */
+    function testFuzz_slice_rangeOverflows_reverts(
+        bytes memory _input,
+        uint256 _start,
+        uint256 _length
+    ) public {
+        // Ensure that `_length` is a realistic length of a slice. This is to make sure
+        // we revert on the correct require statement.
+        vm.assume(_length < _input.length);
+        // Ensure that `_start` will overflow if `_length` is added to it.
+        vm.assume(_start > type(uint256).max - _length);
+
+        vm.expectRevert("slice_overflow");
+        Bytes.slice(_input, _start, _length);
     }
 }
 
