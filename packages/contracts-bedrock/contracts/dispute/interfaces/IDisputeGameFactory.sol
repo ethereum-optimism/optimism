@@ -27,7 +27,7 @@ interface IDisputeGameFactory {
     /// @return _gameCount The total number of dispute games created by this factory.
     function gameCount() external view returns (uint256 _gameCount);
 
-    /// @notice `games` queries an internal a mapping that maps the hash of
+    /// @notice `games` queries an internal mapping that maps the hash of
     ///         `gameType ++ rootClaim ++ extraData` to the deployed `DisputeGame` clone.
     /// @dev `++` equates to concatenation.
     /// @param gameType The type of the DisputeGame - used to decide the proxy implementation
