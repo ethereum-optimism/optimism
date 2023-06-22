@@ -28,11 +28,11 @@ func (p *Position) IndexAtDepth() int {
 
 // TraceIndex calculates the what the index of the claim value would be inside the trace.
 // It is equivalent to going right until the final depth has been reached.
-func (p *Position) TraceIndex(maxDepth int) int {
+func (p *Position) TraceIndex(maxDepth int) uint64 {
 	// When we go right, we do a shift left and set the bottom bit to be 1.
 	// To do this in a single step, do all the shifts at once & or in all 1s for the bottom bits.
 	rd := maxDepth - p.depth
-	return p.indexAtDepth<<rd | ((1 << rd) - 1)
+	return uint64(p.indexAtDepth<<rd | ((1 << rd) - 1))
 }
 
 // move goes to the left or right child.
