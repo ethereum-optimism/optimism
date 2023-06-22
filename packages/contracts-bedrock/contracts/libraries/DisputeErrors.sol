@@ -60,6 +60,21 @@ error ClockTimeExceeded();
  */
 error GameDepthExceeded();
 
+/**
+ * @notice Thrown when a step is attempted above the maximum game depth.
+ */
+error InvalidParent();
+
+/**
+ * @notice Thrown when an invalid prestate is supplied to `step`.
+ */
+error InvalidPrestate();
+
+/**
+ * @notice Thrown when a step is made that computes the expected post state correctly.
+ */
+error ValidStep();
+
 ////////////////////////////////////////////////////////////////
 //              `AttestationDisputeGame` Errors               //
 ////////////////////////////////////////////////////////////////

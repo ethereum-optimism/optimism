@@ -105,15 +105,14 @@ contract LibPosition_Test is Test {
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
 
         Position position = LibPosition.wrap(_depth, _indexAtDepth);
-        uint64 rightIndex = position.rightIndex(_maxDepth);
+        Position rightIndex = position.rightIndex(_maxDepth);
 
         // Find the deepest, rightmost index in Solidity rather than Yul
         for (uint256 i = _depth; i < _maxDepth; ++i) {
             position = position.right();
         }
-        uint64 _rightIndex = position.indexAtDepth();
 
-        assertEq(rightIndex, _rightIndex);
+        assertEq(Position.unwrap(rightIndex), Position.unwrap(position));
     }
 
     /**
