@@ -11,11 +11,11 @@ func PositionExampleOne() {
 	// go left to d, then right to f, then left to e
 	p := fault.Position{}
 	p.Print(3)
-	p.Attack()
+	p = p.Attack()
 	p.Print(3)
-	p.Defend()
+	p = p.Defend()
 	p.Print(3)
-	p.Attack()
+	p = p.Attack()
 	p.Print(3)
 }
 
@@ -26,10 +26,10 @@ func PositionExampleTwo() {
 	// go left r, then left to b, then right to q
 	p := fault.Position{}
 	p.Print(3)
-	p.Attack()
+	p = p.Attack()
 	p.Print(3)
-	p.Attack()
+	p = p.Attack()
 	p.Print(3)
-	p.Defend()
+	p = p.Defend()
 	p.Print(3)
 }

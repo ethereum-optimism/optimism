@@ -28,11 +28,11 @@ func (p *Position) IndexAtDepth() int {
 
 // TraceIndex calculates the what the index of the claim value would be inside the trace.
 // It is equivalent to going right until the final depth has been reached.
-func (p *Position) TraceIndex(maxDepth int) int {
+func (p *Position) TraceIndex(maxDepth int) uint64 {
 	// When we go right, we do a shift left and set the bottom bit to be 1.
 	// To do this in a single step, do all the shifts at once & or in all 1s for the bottom bits.
 	rd := maxDepth - p.depth
-	return p.indexAtDepth<<rd | ((1 << rd) - 1)
+	return uint64(p.indexAtDepth<<rd | ((1 << rd) - 1))
 }
 
 // move goes to the left or right child.
@@ -55,16 +55,20 @@ func (p *Position) parent() {
 	p.indexAtDepth = p.indexAtDepth >> 1
 }
 
-// Attack moves this position to a position to the left which disagrees with this position.
-func (p *Position) Attack() {
-	p.move(false)
+// Attack creates a new position which is the attack position of this one.
+func (p *Position) Attack() Position {
+	p2 := NewPosition(p.depth, p.indexAtDepth)
+	p2.move(false)
+	return p2
 }
 
-// Defend moves this position to the right which agrees with this position. Note:
-func (p *Position) Defend() {
-	p.parent()
-	p.move(true)
-	p.move(false)
+// Defend creates a new position which is the defend position of this one.
+func (p *Position) Defend() Position {
+	p2 := NewPosition(p.depth, p.indexAtDepth)
+	p2.parent()
+	p2.move(true)
+	p2.move(false)
+	return p2
 }
 
 func (p *Position) Print(maxDepth int) {
