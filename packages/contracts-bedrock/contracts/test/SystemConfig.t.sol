@@ -41,7 +41,6 @@ contract SystemConfig_Init is CommonTest {
 }
 
 contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
-
     /// @dev Tests that initialization reverts if the gas limit is too low.
     function test_initialize_lowGasLimit_reverts() external {
         uint64 minimumGasLimit = sysConf.minimumGasLimit();
@@ -69,7 +68,6 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
 }
 
 contract SystemConfig_Setters_TestFail is SystemConfig_Init {
-
     /// @dev Tests that `setBatcherHash` reverts if the caller is not the owner.
     function test_setBatcherHash_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");

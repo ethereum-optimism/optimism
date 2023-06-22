@@ -1155,7 +1155,6 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
 /// @dev Test various values of the resource metering config to ensure that deposits cannot be
 ///      broken by changing the config.
 contract OptimismPortalResourceFuzz_Test is Portal_Initializer {
-
     /// @dev The max gas limit observed throughout this test. Setting this too high can cause
     ///      the test to take too long to run.
     uint256 constant MAX_GAS_LIMIT = 30_000_000;

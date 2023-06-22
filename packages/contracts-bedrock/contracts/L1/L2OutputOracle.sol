@@ -11,7 +11,6 @@ import { Types } from "../libraries/Types.sol";
 ///         commitment to the state of the L2 chain. Other contracts like the OptimismPortal use
 ///         these outputs to verify information about the state of L2.
 contract L2OutputOracle is Initializable, Semver {
-
     /// @notice The interval in L2 blocks at which checkpoints must be submitted.
     ///         Although this is immutable, it can safely be modified by upgrading the
     ///         implementation contract.

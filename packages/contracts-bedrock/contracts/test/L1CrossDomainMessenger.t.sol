@@ -19,7 +19,6 @@ import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 
 contract L1CrossDomainMessenger_Test is Messenger_Initializer {
-
     /// @dev The receiver address
     address recipient = address(0xabbaacdc);
 

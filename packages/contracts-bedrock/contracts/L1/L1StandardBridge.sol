@@ -16,7 +16,6 @@ import { Semver } from "../universal/Semver.sol";
 ///         of some token types that may not be properly supported by this contract include, but are
 ///         not limited to: tokens with transfer fees, rebasing tokens, and tokens with blocklists.
 contract L1StandardBridge is StandardBridge, Semver {
-
     /// @custom:legacy
     /// @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
     /// @param from      Address of the depositor.

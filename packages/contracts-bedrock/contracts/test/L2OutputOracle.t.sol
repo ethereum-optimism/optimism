@@ -207,26 +207,10 @@ contract L2OutputOracle_getter_Test is L2OutputOracle_Initializer {
 }
 
 contract L2OutputOracle_proposeL2Output_Test is L2OutputOracle_Initializer {
-
     /// @dev Test that `proposeL2Output` succeeds for a valid input
     ///      and when a block hash and number are not specified.
     function test_proposeL2Output_proposeAnotherOutput_succeeds() public {
-        bytes32 proposedOutput2 = keccak256(abi.encode());
-        uint256 nextBlockNumber = oracle.nextBlockNumber();
-        uint256 nextOutputIndex = oracle.nextOutputIndex();
-        warpToProposeTime(nextBlockNumber);
-        uint256 proposedNumber = oracle.latestBlockNumber();
-
-        // Ensure the submissionInterval is enforced
-        assertEq(nextBlockNumber, proposedNumber + submissionInterval);
-
-        vm.roll(nextBlockNumber + 1);
-
-        vm.expectEmit(true, true, true, true);
-        emit OutputProposed(proposedOutput2, nextOutputIndex, nextBlockNumber, block.timestamp);
-
-        vm.prank(proposer);
-        oracle.proposeL2Output(proposedOutput2, nextBlockNumber, 0, 0);
+        proposeAnotherOutput();
     }
 
     /// @dev Tests that `proposeL2Output` succeeds when given valid input and
@@ -324,11 +308,10 @@ contract L2OutputOracle_proposeL2Output_Test is L2OutputOracle_Initializer {
 }
 
 contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
-
     /// @dev Tests that `deleteL2Outputs` succeeds for a single output.
     function test_deleteOutputs_singleOutput_succeeds() external {
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
+        proposeAnotherOutput();
+        proposeAnotherOutput();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
         uint256 latestOutputIndex = oracle.latestOutputIndex();
@@ -352,10 +335,10 @@ contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
 
     /// @dev Tests that `deleteL2Outputs` succeeds for multiple outputs.
     function test_deleteOutputs_multipleOutputs_succeeds() external {
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
+        proposeAnotherOutput();
+        proposeAnotherOutput();
+        proposeAnotherOutput();
+        proposeAnotherOutput();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
         uint256 latestOutputIndex = oracle.latestOutputIndex();
@@ -387,7 +370,7 @@ contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
 
     /// @dev Tests that `deleteL2Outputs` reverts for a non-existant output index.
     function test_deleteL2Outputs_nonExistent_reverts() external {
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
+        proposeAnotherOutput();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
 
@@ -399,10 +382,9 @@ contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
     /// @dev Tests that `deleteL2Outputs` reverts when trying to delete outputs
     ///      after the latest output index.
     function test_deleteL2Outputs_afterLatest_reverts() external {
-        // Start by proposing three outputs
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
+        proposeAnotherOutput();
+        proposeAnotherOutput();
+        proposeAnotherOutput();
 
         // Delete the latest two outputs
         uint256 latestOutputIndex = oracle.latestOutputIndex();
@@ -417,7 +399,7 @@ contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
 
     /// @dev Tests that `deleteL2Outputs` reverts for finalized outputs.
     function test_deleteL2Outputs_finalized_reverts() external {
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
+        proposeAnotherOutput();
 
         // Warp past the finalization period + 1 second
         vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
