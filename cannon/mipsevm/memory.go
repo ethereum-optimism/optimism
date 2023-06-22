@@ -11,8 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-// Note: 2**12 = 4 KiB, the minimum page-size in Unicorn for mmap
-// as well as the Go runtime min phys page size.
+// Note: 2**12 = 4 KiB, the min phys page size in the Go runtime.
 const (
 	PageAddrSize = 12
 	PageKeySize  = 32 - PageAddrSize

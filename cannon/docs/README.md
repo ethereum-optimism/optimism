@@ -32,9 +32,8 @@ And as it executes each step, it can optionally produce the witness data for the
 The Cannon CLI is used to load a program into an initial state,
 transition it N steps quickly without witness generation, and 1 step while producing a witness.
 
-`mipsevm` is backed by the Unicorn emulator, but instrumented for proof generation,
-and handles delay-slots by isolating each individual instruction and tracking `nextPC`
-to emulate the delayed `PC` changes after delay-slot execution.
+`mipsevm` is instrumented for proof generation and handles delay-slots by isolating each individual instruction
+and tracking `nextPC` to emulate the delayed `PC` changes after delay-slot execution.
 
 ## Witness Data
 
