@@ -157,7 +157,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /**
      * @dev Tests that an attempt to defend the root claim reverts with the `CannotDefendRootClaim` error.
      */
-    function test_defendRoot_reverts() public {
+    function test_defendRoot_invalidMove_reverts() public {
         vm.expectRevert(CannotDefendRootClaim.selector);
         gameProxy.defend(0, Claim.wrap(bytes32(uint256(5))));
     }
@@ -166,7 +166,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
      * @dev Tests that an attempt to move against a claim that does not exist reverts with the
      *      `ParentDoesNotExist` error.
      */
-    function test_moveAgainstNonexistentParent_reverts() public {
+    function test_move_nonExistentParent_reverts() public {
         Claim claim = Claim.wrap(bytes32(uint256(5)));
 
         // Expect an out of bounds revert for an attack
@@ -182,7 +182,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
      * @dev Tests that an attempt to move at the maximum game depth reverts with the
      *      `GameDepthExceeded` error.
      */
-    function test_gameDepthExceeded_reverts() public {
+    function test_move_gameDepthExceeded_reverts() public {
         Claim claim = Claim.wrap(bytes32(uint256(5)));
 
         uint256 maxDepth = gameProxy.MAX_GAME_DEPTH();
@@ -201,7 +201,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
      * @dev Tests that a move made after the clock time has exceeded reverts with the
      *      `ClockTimeExceeded` error.
      */
-    function test_clockTimeExceeded_reverts() public {
+    function test_move_clockTimeExceeded_reverts() public {
         // Warp ahead past the clock time for the first move (3 1/2 days)
         vm.warp(block.timestamp + 3 days + 12 hours + 1);
         vm.expectRevert(ClockTimeExceeded.selector);
@@ -212,7 +212,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
      * @dev Tests that an identical claim cannot be made twice. The duplicate claim attempt should
      *      revert with the `ClaimAlreadyExists` error.
      */
-    function test_duplicateClaim_reverts() public {
+    function test_move_duplicateClaim_reverts() public {
         Claim claim = Claim.wrap(bytes32(uint256(5)));
 
         // Make the first move. This should succeed.
@@ -250,7 +250,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(parentIndex, 0);
         assertEq(countered, false);
         assertEq(Claim.unwrap(claim), Claim.unwrap(counter));
-        assertEq(Position.unwrap(position), Position.unwrap(Position.wrap(1).attack()));
+        assertEq(Position.unwrap(position), Position.unwrap(Position.wrap(1).move(true)));
         assertEq(
             Clock.unwrap(clock),
             Clock.unwrap(LibClock.wrap(Duration.wrap(5), Timestamp.wrap(uint64(block.timestamp))))
@@ -384,7 +384,7 @@ contract GamePlayer {
 
         if (grandparentIndex == type(uint32).max) {
             // If the parent claim is the root claim, begin by attacking.
-            movePos = parentPos.attack();
+            movePos = parentPos.move(true);
             // Flag the move as an attack.
             isAttack = true;
         } else {
@@ -402,10 +402,10 @@ contract GamePlayer {
 
             if (Claim.unwrap(ourParentClaim) != Claim.unwrap(parentClaim)) {
                 // Attack parent.
-                movePos = parentPos.attack();
+                movePos = parentPos.move(true);
                 // If we also disagree with the grandparent, attack it as well.
                 if (Claim.unwrap(ourGrandparentClaim) != Claim.unwrap(grandparentClaim)) {
-                    movePos2 = grandparentPos.attack();
+                    movePos2 = grandparentPos.move(true);
                 }
 
                 // Flag the move as an attack.
@@ -414,7 +414,7 @@ contract GamePlayer {
                 Claim.unwrap(ourParentClaim) == Claim.unwrap(parentClaim) &&
                 Claim.unwrap(ourGrandparentClaim) == Claim.unwrap(grandparentClaim)
             ) {
-                movePos = parentPos.defend();
+                movePos = parentPos.move(false);
             }
         }
 
@@ -474,7 +474,7 @@ contract GamePlayer {
                 // If we have a second move position, attack the grandparent.
                 if (Position.unwrap(movePos2) != 0) {
                     (, , , Position grandparentPos, ) = gameProxy.claimData(grandparentIndex);
-                    Claim ourGrandparentClaim = claimAt(grandparentPos.attack());
+                    Claim ourGrandparentClaim = claimAt(grandparentPos.move(true));
 
                     gameProxy.attack(grandparentIndex, ourGrandparentClaim);
                     counterParty.play(claimDataLen() - 1);

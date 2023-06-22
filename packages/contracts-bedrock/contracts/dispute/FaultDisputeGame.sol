@@ -123,7 +123,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         // Pull the parent position out of storage.
         Position parentPos = parent.position;
         // Determine the position of the step.
-        Position stepPos = _isAttack ? parentPos.attack() : parentPos.defend();
+        Position stepPos = parentPos.move(_isAttack);
 
         // Ensure that the step position is 1 deeper than the maximum game depth.
         if (stepPos.depth() != MAX_GAME_DEPTH + 1) {
@@ -214,7 +214,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         // Compute the position that the claim commits to. Because the parent's position is already
         // known, we can compute the next position by moving left or right depending on whether
         // or not the move is an attack or defense.
-        Position nextPosition = _isAttack ? parent.position.attack() : parent.position.defend();
+        Position nextPosition = parent.position.move(_isAttack);
 
         // At the leaf nodes of the game, the only option is to run a step to prove or disprove
         // the above claim. At this depth, the parent claim commits to the state after a single
