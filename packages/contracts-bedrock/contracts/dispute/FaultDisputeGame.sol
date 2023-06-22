@@ -18,7 +18,6 @@ import "../libraries/DisputeErrors.sol";
 /// @title FaultDisputeGame
 /// @notice An implementation of the `IFaultDisputeGame` interface.
 contract FaultDisputeGame is IFaultDisputeGame, Clone {
-
     ////////////////////////////////////////////////////////////////
     //                         State Vars                         //
     ////////////////////////////////////////////////////////////////
