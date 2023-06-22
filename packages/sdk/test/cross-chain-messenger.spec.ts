@@ -565,24 +565,26 @@ describe('CrossChainMessenger', () => {
       })
 
       describe('when the transaction sent more than one message', () => {
-        it('should not throw an error', async () => {
+        it('should be able to get second message by passing in an idex', async () => {
           const messages = [...Array(2)].map(() => {
             return DUMMY_MESSAGE
           })
 
           const tx = await l1Messenger.triggerSentMessageEvents(messages)
-          await expect(
-            messenger.toCrossChainMessage(tx)
-          ).not.to.be.rejectedWith('expected 1 message, got 2')
+          const foundCrossChainMessages =
+            await messenger.getMessagesByTransaction(tx)
+          expect(await messenger.toCrossChainMessage(tx, 1)).to.deep.eq(
+            foundCrossChainMessages[1]
+          )
         })
       })
 
       describe('when the transaction sent no messages', () => {
-        it('should not throw an error', async () => {
+        it('should throw an out of bounds error', async () => {
           const tx = await l1Messenger.triggerSentMessageEvents([])
-          await expect(
-            messenger.toCrossChainMessage(tx)
-          ).not.to.be.rejectedWith('expected 1 message, got 0')
+          await expect(messenger.toCrossChainMessage(tx)).to.be.rejectedWith(
+            `withdrawal index 0 out of bounds. There are 0 withdrawals`
+          )
         })
       })
     })
