@@ -108,7 +108,7 @@ func TestEVM(t *testing.T) {
 				// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
 				uniPost := us.state.EncodeWitness()
 				require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
-					"unicorn produced different state than EVM")
+					"mipsevm produced different state than EVM")
 			}
 			require.Equal(t, uint32(endAddr), state.PC, "must reach end")
 			// inspect test result
@@ -175,7 +175,7 @@ func TestHelloEVM(t *testing.T) {
 		// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
 		uniPost := us.state.EncodeWitness()
 		require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
-			"unicorn produced different state than EVM")
+			"mipsevm produced different state than EVM")
 	}
 	end := time.Now()
 	delta := end.Sub(start)
