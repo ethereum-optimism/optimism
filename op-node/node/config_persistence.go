@@ -69,7 +69,7 @@ func (p *ActiveConfigPersistence) persist(sequencerStarted bool) error {
 	if err != nil {
 		return fmt.Errorf("open file (%v) for writing: %w", tmpFile, err)
 	}
-	defer file.Close()
+	defer file.Close() // Ensure file is closed even if write or sync fails
 	_, err = file.Write(data)
 	if err != nil {
 		return fmt.Errorf("write new config to temp file (%v): %w", tmpFile, err)
@@ -77,7 +77,9 @@ func (p *ActiveConfigPersistence) persist(sequencerStarted bool) error {
 	if err := file.Sync(); err != nil {
 		return fmt.Errorf("sync new config temp file (%v): %w", tmpFile, err)
 	}
-
+	if err := file.Close(); err != nil {
+		return fmt.Errorf("close new config temp file (%v): %w", tmpFile, err)
+	}
 	// Rename to replace the previous file
 	if err := os.Rename(tmpFile, p.file); err != nil {
 		return fmt.Errorf("rename temp config file to final destination: %w", err)
@@ -105,6 +107,7 @@ func (p *ActiveConfigPersistence) read() (persistedState, error) {
 	defer p.lock.Unlock()
 	data, err := os.ReadFile(p.file)
 	if errors.Is(err, os.ErrNotExist) {
+		// persistedState.SequencerStarted == nil: SequencerState() will return StateUnset if no state is found
 		return persistedState{}, nil
 	} else if err != nil {
 		return persistedState{}, fmt.Errorf("read config file (%v): %w", p.file, err)
