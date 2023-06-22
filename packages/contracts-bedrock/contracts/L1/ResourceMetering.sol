@@ -11,6 +11,7 @@ import { Arithmetic } from "../libraries/Arithmetic.sol";
 /// @notice ResourceMetering implements an EIP-1559 style resource metering system where pricing
 ///         updates automatically based on current demand.
 abstract contract ResourceMetering is Initializable {
+
     /// @notice Represents the various parameters that control the way in which resources are
     ///         metered. Corresponds to the EIP-1559 resource metering system.
     /// @custom:field prevBaseFee   Base fee from the previous block(s).

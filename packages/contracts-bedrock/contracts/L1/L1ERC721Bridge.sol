@@ -11,6 +11,7 @@ import { Semver } from "../universal/Semver.sol";
 ///         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
 ///         acts as an escrow for ERC721 tokens deposited into L2.
 contract L1ERC721Bridge is ERC721Bridge, Semver {
+
     /// @notice Mapping of L1 token to L2 token to ID to boolean, indicating if the given L1 token
     ///         by ID was deposited for a given L2 token.
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
@@ -26,7 +27,6 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
     ///         recipient on this domain.
-    ///
     /// @param _localToken  Address of the ERC721 token on this domain.
     /// @param _remoteToken Address of the ERC721 token on the other domain.
     /// @param _from        Address that triggered the bridge on the other domain.
