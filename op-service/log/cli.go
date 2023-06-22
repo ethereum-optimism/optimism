@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 	"golang.org/x/term"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
@@ -20,22 +20,22 @@ const (
 
 func CLIFlags(envPrefix string) []cli.Flag {
 	return []cli.Flag{
-		cli.StringFlag{
-			Name:   LevelFlagName,
-			Usage:  "The lowest log level that will be output",
-			Value:  "info",
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "LOG_LEVEL"),
+		&cli.StringFlag{
+			Name:    LevelFlagName,
+			Usage:   "The lowest log level that will be output",
+			Value:   "info",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "LOG_LEVEL"),
 		},
-		cli.StringFlag{
-			Name:   FormatFlagName,
-			Usage:  "Format the log output. Supported formats: 'text', 'terminal', 'logfmt', 'json', 'json-pretty',",
-			Value:  "text",
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "LOG_FORMAT"),
+		&cli.StringFlag{
+			Name:    FormatFlagName,
+			Usage:   "Format the log output. Supported formats: 'text', 'terminal', 'logfmt', 'json', 'json-pretty',",
+			Value:   "text",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "LOG_FORMAT"),
 		},
-		cli.BoolFlag{
-			Name:   ColorFlagName,
-			Usage:  "Color the log output if in terminal mode",
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "LOG_COLOR"),
+		&cli.BoolFlag{
+			Name:    ColorFlagName,
+			Usage:   "Color the log output if in terminal mode",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "LOG_COLOR"),
 		},
 	}
 }
@@ -81,22 +81,12 @@ func DefaultCLIConfig() CLIConfig {
 	}
 }
 
-func ReadLocalCLIConfig(ctx *cli.Context) CLIConfig {
+func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	cfg := DefaultCLIConfig()
 	cfg.Level = ctx.String(LevelFlagName)
 	cfg.Format = ctx.String(FormatFlagName)
 	if ctx.IsSet(ColorFlagName) {
 		cfg.Color = ctx.Bool(ColorFlagName)
-	}
-	return cfg
-}
-
-func ReadCLIConfig(ctx *cli.Context) CLIConfig {
-	cfg := DefaultCLIConfig()
-	cfg.Level = ctx.GlobalString(LevelFlagName)
-	cfg.Format = ctx.GlobalString(FormatFlagName)
-	if ctx.IsSet(ColorFlagName) {
-		cfg.Color = ctx.GlobalBool(ColorFlagName)
 	}
 	return cfg
 }

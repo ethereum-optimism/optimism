@@ -44,6 +44,7 @@ func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHook() {
 		&rollup.Config{L2ChainID: big.NewInt(123)},
 		testSuite.mockStore,
 		testSuite.mockMetricer,
+		&p2p.NoopApplicationScorer{},
 		testSuite.logger,
 	)
 	inspectFn := scorer.SnapshotHook()
