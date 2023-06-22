@@ -61,7 +61,7 @@ interface IDisputeGameFactory {
     function gameImpls(GameType gameType) external view returns (IDisputeGame _impl);
 
     /// @notice Creates a new DisputeGame proxy contract.
-    /// @param gameType The type of the DisputeGame - used to decide the proxy implementation
+    /// @param gameType The type of the DisputeGame - used to decide the proxy implementation.
     /// @param rootClaim The root claim of the DisputeGame.
     /// @param extraData Any extra data that should be provided to the created dispute game.
     /// @return proxy The address of the created DisputeGame proxy.
