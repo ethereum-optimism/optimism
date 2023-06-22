@@ -47,6 +47,9 @@ type Driver struct {
 	// It tells the caller that the sequencer stopped by returning the latest sequenced L2 block hash.
 	stopSequencer chan chan hashAndError
 
+	// sequencerNotifs is notified when the sequencer is started or stopped
+	sequencerNotifs SequencerStateListener
+
 	// Rollup config: rollup chain configuration
 	config *rollup.Config
 
@@ -334,6 +337,10 @@ func (s *Driver) eventLoop() {
 			} else if !bytes.Equal(unsafeHead[:], resp.hash[:]) {
 				resp.err <- fmt.Errorf("block hash does not match: head %s, received %s", unsafeHead.String(), resp.hash.String())
 			} else {
+				if err := s.sequencerNotifs.SequencerStarted(); err != nil {
+					resp.err <- fmt.Errorf("sequencer start notification: %w", err)
+					continue
+				}
 				s.log.Info("Sequencer has been started")
 				s.driverConfig.SequencerStopped = false
 				close(resp.err)
@@ -343,6 +350,10 @@ func (s *Driver) eventLoop() {
 			if s.driverConfig.SequencerStopped {
 				respCh <- hashAndError{err: errors.New("sequencer not running")}
 			} else {
+				if err := s.sequencerNotifs.SequencerStopped(); err != nil {
+					respCh <- hashAndError{err: fmt.Errorf("sequencer start notification: %w", err)}
+					continue
+				}
 				s.log.Warn("Sequencer has been stopped")
 				s.driverConfig.SequencerStopped = true
 				respCh <- hashAndError{hash: s.derivation.UnsafeL2Head().Hash}
