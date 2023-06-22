@@ -462,6 +462,8 @@ jobs:
           command: |
             slither --version
             pnpm slither
+      - run:
+          name: invariant docs
           command: pnpm autogen:invariant-docs && git diff --exit-code ./invariant-docs/*.md
           working_directory: packages/contracts-bedrock
 
