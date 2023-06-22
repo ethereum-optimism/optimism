@@ -37,7 +37,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 
 	configPersistence := NewConfigPersistence(ctx)
 
-	driverConfig, err := NewDriverConfig(ctx, configPersistence)
+	driverConfig, err := NewDriverConfig(ctx, log, configPersistence)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load driver config: %w", err)
 	}
@@ -156,18 +156,25 @@ func NewConfigPersistence(ctx *cli.Context) node.ConfigPersistence {
 	return node.NewConfigPersistence(stateFile)
 }
 
-func NewDriverConfig(ctx *cli.Context, config node.ConfigPersistence) (*driver.Config, error) {
+func NewDriverConfig(ctx *cli.Context, log log.Logger, config node.ConfigPersistence) (*driver.Config, error) {
+	sequencerEnabled := ctx.Bool(flags.SequencerEnabledFlag.Name)
 	sequencerStopped := ctx.Bool(flags.SequencerStoppedFlag.Name)
 	if state, err := config.SequencerState(); err != nil {
 		return nil, err
 	} else if state != node.StateUnset {
-		sequencerStopped = state == node.StateStopped
+		stopped := state == node.StateStopped
+		if stopped != sequencerStopped && sequencerEnabled {
+			log.Warn(fmt.Sprintf("Overriding %v with persisted state", flags.SequencerStoppedFlag.Name), "stopped", stopped)
+		}
+		sequencerStopped = stopped
+	} else {
+		log.Info("No persisted sequencer state loaded")
 	}
 
 	return &driver.Config{
 		VerifierConfDepth:   ctx.Uint64(flags.VerifierL1Confs.Name),
 		SequencerConfDepth:  ctx.Uint64(flags.SequencerL1Confs.Name),
-		SequencerEnabled:    ctx.Bool(flags.SequencerEnabledFlag.Name),
+		SequencerEnabled:    sequencerEnabled,
 		SequencerStopped:    sequencerStopped,
 		SequencerMaxSafeLag: ctx.Uint64(flags.SequencerMaxSafeLagFlag.Name),
 	}, nil

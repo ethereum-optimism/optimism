@@ -92,6 +92,19 @@ func (s *Driver) Start() error {
 	s.derivation.Reset()
 
 	log.Info("Starting driver", "sequencerEnabled", s.driverConfig.SequencerEnabled, "sequencerStopped", s.driverConfig.SequencerStopped)
+	if s.driverConfig.SequencerEnabled {
+		// Notify the initial sequencer state
+		// This ensures persistence can write the state correctly and that the state file exists
+		var err error
+		if s.driverConfig.SequencerStopped {
+			err = s.sequencerNotifs.SequencerStopped()
+		} else {
+			err = s.sequencerNotifs.SequencerStarted()
+		}
+		if err != nil {
+			return fmt.Errorf("persist initial sequencer state: %w", err)
+		}
+	}
 
 	s.wg.Add(1)
 	go s.eventLoop()
