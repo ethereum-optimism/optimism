@@ -214,6 +214,13 @@ var (
 		EnvVars:  prefixEnvVars("L2_BACKUP_UNSAFE_SYNC_RPC_TRUST_RPC"),
 		Required: false,
 	}
+	L2EngineP2PEnabled = &cli.BoolFlag{
+		Name:     "l2.engine-p2p.enabled",
+		Usage:    "Enables or disables execution engine P2P sync",
+		EnvVars:  prefixEnvVars("L2_ENGINE_P2P_ENABLED"),
+		Required: false,
+		Value:    false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -252,6 +259,7 @@ var optionalFlags = []cli.Flag{
 	HeartbeatURLFlag,
 	BackupL2UnsafeSyncRPC,
 	BackupL2UnsafeSyncRPCTrustRPC,
+	L2EngineP2PEnabled,
 }
 
 // Flags contains the list of configuration options available to the binary.

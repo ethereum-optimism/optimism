@@ -313,8 +313,8 @@ func (s *Driver) eventLoop() {
 			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Origin(), "attempts", stepAttempts)
 			err := s.derivation.Step(context.Background())
 			stepAttempts += 1 // count as attempt by default. We reset to 0 if we are making healthy progress.
-			if err == io.EOF {
-				s.log.Debug("Derivation process went idle", "progress", s.derivation.Origin())
+			if err == io.EOF || (err != nil && errors.Is(err, derive.EngineP2PSyncing)) {
+				s.log.Debug("Derivation process went idle", "progress", s.derivation.Origin(), "err", err)
 				stepAttempts = 0
 				s.metrics.SetDerivationIdle(true)
 				continue
@@ -474,6 +474,7 @@ func (s *Driver) syncStatus() *eth.SyncStatus {
 		SafeL2:             s.derivation.SafeL2Head(),
 		FinalizedL2:        s.derivation.Finalized(),
 		UnsafeL2SyncTarget: s.derivation.UnsafeL2SyncTarget(),
+		EngineSyncTarget:   s.derivation.EngineSyncTarget(),
 	}
 }
 
