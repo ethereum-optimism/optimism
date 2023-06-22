@@ -455,6 +455,11 @@ export class CrossChainMessenger {
       }
 
       const withdrawal = withdrawals[multiWithdrawalIndex]
+      if (!withdrawal) {
+        throw new Error(
+          `withdrawal index ${multiWithdrawalIndex} out of bounds there are ${withdrawals.length} withdrawals`
+        )
+      }
       messageNonce = withdrawal.nonce
       gasLimit = withdrawal.gasLimit
     }
@@ -643,7 +648,13 @@ export class CrossChainMessenger {
         message as TransactionLike
       )
 
-      return messages[multiWithdrawalIndex]
+      const out = messages[multiWithdrawalIndex]
+      if (!out) {
+        throw new Error(
+          `withdrawal index ${multiWithdrawalIndex} out of bounds. There are ${messages.length} withdrawals`
+        )
+      }
+      return out
     }
   }
 
