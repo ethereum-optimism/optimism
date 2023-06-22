@@ -75,7 +75,7 @@ contract LibPosition_Test is Test {
     }
 
     /// @notice Tests that the `rightIndex` function correctly computes the deepest, right most index relative
-    /// to a given position.
+    ///         to a given position.
     function testFuzz_rightIndex_correctness_suceeds(
         uint64 _maxDepth,
         uint8 _depth,
