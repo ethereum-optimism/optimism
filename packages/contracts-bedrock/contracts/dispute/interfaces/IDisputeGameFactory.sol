@@ -23,7 +23,7 @@ interface IDisputeGameFactory {
     /// @param gameType The type of the DisputeGame.
     event ImplementationSet(address indexed impl, GameType indexed gameType);
 
-    /// @notice the total number of dispute games created by this factory.
+    /// @notice The total number of dispute games created by this factory.
     /// @return _gameCount The total number of dispute games created by this factory.
     function gameCount() external view returns (uint256 _gameCount);
 
