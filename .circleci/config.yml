@@ -694,10 +694,6 @@ jobs:
       - check-changed:
           patterns: op-node
       - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      - run:
           name: Fuzz
           command: make fuzz
           working_directory: op-node
