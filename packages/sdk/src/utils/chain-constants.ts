@@ -226,7 +226,7 @@ export const CONTRACT_ADDRESSES: {
       OptimismPortal: '0x1a0ad011913A150f69f6A19DF447A0CfD9551054' as const,
       L2OutputOracle: '0x9E6204F750cD866b299594e2aC9eA824E2e5f95c' as const,
     },
-    l2: DEFAULT_L2_CONTRACT_ADDRESSES
+    l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
 }
 
