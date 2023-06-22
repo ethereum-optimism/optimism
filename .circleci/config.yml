@@ -1199,6 +1199,7 @@ workflows:
             - pnpm-monorepo
       - js-lint-test:
           name: sdk-next-tests
+          coverage_flag: sdk-next-tests
           package_name: sdk
           dependencies: '(common-ts|contracts-bedrock|core-utils)'
           requires:
