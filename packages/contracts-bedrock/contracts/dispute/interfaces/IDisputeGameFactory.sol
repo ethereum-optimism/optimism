@@ -71,12 +71,10 @@ interface IDisputeGameFactory {
         bytes calldata extraData
     ) external returns (IDisputeGame proxy);
 
-    ///
     /// @notice Sets the implementation contract for a specific `GameType`.
     /// @dev May only be called by the `owner`.
     /// @param gameType The type of the DisputeGame.
     /// @param impl The implementation contract for the given `GameType`.
-    ///
     function setImplementation(GameType gameType, IDisputeGame impl) external;
 
     /// @notice Returns a unique identifier for the given dispute game parameters.
