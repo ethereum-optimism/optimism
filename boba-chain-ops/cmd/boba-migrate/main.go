@@ -196,11 +196,14 @@ func main() {
 				return err
 			}
 
+			var hh *hardhat.Hardhat
 			network := ctx.String("network")
 			deployments := strings.Split(ctx.String("hardhat-deployments"), ",")
-			hh, err := hardhat.New(network, []string{}, deployments)
-			if err != nil {
-				return err
+			if network != "" && len(deployments) != 0 {
+				hh, err = hardhat.New(network, []string{}, deployments)
+				if err != nil {
+					return err
+				}
 			}
 
 			l1RpcURL := ctx.String("l1-rpc-url")
@@ -256,12 +259,17 @@ func main() {
 			}
 
 			// Read the required deployment addresses from disk if required
-			if err := config.GetDeployedAddresses(hh); err != nil {
-				return err
+			if hh != nil {
+				log.Info("reading deployed addresses from hardhat")
+				if err := config.GetDeployedAddresses(hh); err != nil {
+					return err
+				}
+			} else {
+				log.Info("reading deployed addresses from config")
+				if err := config.InitDeveloperDeployedAddresses(); err != nil {
+					return err
+				}
 			}
-			// if err := config.InitDeveloperDeployedAddresses(); err != nil {
-			// 	return err
-			// }
 
 			if err := config.Check(); err != nil {
 				return err
