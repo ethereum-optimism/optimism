@@ -100,7 +100,7 @@ contract LibPosition_Test is Test {
     }
 
     /// @notice Tests that the `attack` function correctly computes the position of the attack relative to
-    /// a given position.
+    ///         a given position.
     /// @dev `attack` is an alias for `left`, but we test it separately for completeness.
     function testFuzz_attack_correctness_suceeds(uint8 _depth, uint64 _indexAtDepth) public {
         // Depth bound: [0, 63]
@@ -115,9 +115,9 @@ contract LibPosition_Test is Test {
     }
 
     /// @notice Tests that the `defend` function correctly computes the position of the defense relative to
-    /// a given position.
+    ///         a given position.
     /// @dev A defense can only be given if the position does not belong to the root claim, hence the bound of [1, 127]
-    /// on the depth.
+    ///      on the depth.
     function testFuzz_defend_correctness_suceeds(uint8 _depth, uint64 _indexAtDepth) public {
         // Depth bound: [1, 63]
         _depth = uint8(bound(_depth, 1, MAX_DEPTH));
