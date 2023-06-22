@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"strings"
 
 	"github.com/c2h5oh/datasize"
 	"github.com/urfave/cli/v2"
@@ -15,11 +16,14 @@ import (
 	"github.com/ledgerwatch/erigon-lib/common"
 	"github.com/ledgerwatch/erigon-lib/common/datadir"
 	"github.com/ledgerwatch/erigon-lib/kv"
+	"github.com/ledgerwatch/erigon-lib/kv/memdb"
+	"github.com/ledgerwatch/erigon/core"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/ledgerwatch/erigon/node"
 	"github.com/ledgerwatch/erigon/node/nodecfg"
 	"github.com/ledgerwatch/erigon/rpc"
 
+	"github.com/bobanetwork/v3-anchorage/boba-bindings/hardhat"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/crossdomain"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/genesis"
 )
@@ -86,6 +90,11 @@ func main() {
 				Name:     "hardhat-deployments",
 				Usage:    "Comma separated list of hardhat deployment directories",
 				Required: true,
+			},
+			&cli.StringFlag{
+				Name:  "outfile-rollup",
+				Usage: "Path to output file for rollup node",
+				Value: "rollup",
 			},
 			&cli.BoolFlag{
 				Name:  "dry-run",
@@ -187,13 +196,12 @@ func main() {
 				return err
 			}
 
-			// TODO: use hardhat to get the deployment addresses
-			// network := ctx.String("network")
-			// deployments := strings.Split(ctx.String("hardhat-deployments"), ",")
-			// hh, err := hardhat.New(network, []string{}, deployments)
-			// if err != nil {
-			// 	return err
-			// }
+			network := ctx.String("network")
+			deployments := strings.Split(ctx.String("hardhat-deployments"), ",")
+			hh, err := hardhat.New(network, []string{}, deployments)
+			if err != nil {
+				return err
+			}
 
 			l1RpcURL := ctx.String("l1-rpc-url")
 			l1Client, err := rpc.Dial(l1RpcURL, logger)
@@ -247,14 +255,13 @@ func main() {
 				return err
 			}
 
-			// TODO: use hardhat to get the deployment addresses
 			// Read the required deployment addresses from disk if required
-			// if err := config.GetDeployedAddresses(hh); err != nil {
-			// 	return err
-			// }
-			if err := config.InitDeveloperDeployedAddresses(); err != nil {
+			if err := config.GetDeployedAddresses(hh); err != nil {
 				return err
 			}
+			// if err := config.InitDeveloperDeployedAddresses(); err != nil {
+			// 	return err
+			// }
 
 			if err := config.Check(); err != nil {
 				return err
@@ -303,6 +310,23 @@ func main() {
 				return err
 			}
 
+			db := memdb.New("")
+			defer db.Close()
+			genesis.SetBalanceToZero(genesisBlock)
+			_, block, err := core.CommitGenesisBlock(db, genesisBlock, "", logger)
+			if err != nil {
+				return err
+			}
+
+			rollupConfig, err := config.RollupConfig(header, block.Hash(), block.Number().Uint64())
+			if err != nil {
+				return err
+			}
+
+			if err := writeGenesisFile(ctx.String("outfile-rollup"), rollupConfig); err != nil {
+				return err
+			}
+
 			return nil
 		},
 	}
@@ -310,4 +334,16 @@ func main() {
 	if err := app.Run(os.Args); err != nil {
 		log.Crit("critical error exits", "err", err)
 	}
+}
+
+func writeGenesisFile(outfile string, input any) error {
+	f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	return enc.Encode(input)
 }

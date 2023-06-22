@@ -69,7 +69,7 @@ func NewEngineConfig(l2PrivateEndpoint, l2PublicEndpoint, l2LegacyEndpoint, jwtS
 
 func (b *BuilderEngine) Start() error {
 	go b.BlockGenerationLoop()
-	// b.Loop()
+	// b.BlockGenerationLoop()
 	return nil
 }
 
