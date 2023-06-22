@@ -58,8 +58,7 @@ func (s *Solver) doNothing() (*Response, error) {
 
 // attack returns a response that attacks the claim.
 func (s *Solver) attack(claim Claim) (*Response, error) {
-	claim.Position.Attack()
-	value, err := s.traceAtPosition(&claim.Position)
+	value, err := s.traceAtPosition(claim.Position.Attack())
 	if err != nil {
 		return nil, err
 	}
@@ -68,8 +67,7 @@ func (s *Solver) attack(claim Claim) (*Response, error) {
 
 // defend returns a response that defends the claim.
 func (s *Solver) defend(claim Claim) (*Response, error) {
-	claim.Position.Defend()
-	value, err := s.traceAtPosition(&claim.Position)
+	value, err := s.traceAtPosition(claim.Position.Defend())
 	if err != nil {
 		return nil, err
 	}
@@ -78,14 +76,13 @@ func (s *Solver) defend(claim Claim) (*Response, error) {
 
 // agreeWithClaim returns true if the [Claim] is correct according to the internal [TraceProvider].
 func (s *Solver) agreeWithClaim(claim Claim) (bool, error) {
-	ourValue, err := s.traceAtPosition(&claim.Position)
+	ourValue, err := s.traceAtPosition(claim.Position)
 	return ourValue == claim.Value, err
 }
 
 // traceAtPosition returns the [common.Hash] from internal [TraceProvider] at the given [Position].
-func (s *Solver) traceAtPosition(p *Position) (common.Hash, error) {
-	// todo: update TraceIndex to return a uint64 to keep types consistent
+func (s *Solver) traceAtPosition(p Position) (common.Hash, error) {
 	index := p.TraceIndex(s.gameDepth)
-	hash, err := s.Get(uint64(index))
+	hash, err := s.Get(index)
 	return hash, err
 }
