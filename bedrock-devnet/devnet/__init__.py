@@ -93,12 +93,14 @@ def devnet_prestate(paths):
         'PWD': paths.ops_bedrock_dir
     })
     wait_up(8545)
+    wait_for_rpc_server('127.0.0.1:8545')
 
     log.info('Bringing up L2.')
     run_command(['docker-compose', 'up', '-d', 'l2'], cwd=paths.ops_bedrock_dir, env={
         'PWD': paths.ops_bedrock_dir
     })
     wait_up(9545)
+    wait_for_rpc_server('127.0.0.1:9545')
 
     log.info('Bringing up the services.')
     run_command(['docker-compose', 'up', '-d', 'op-proposer', 'op-batcher'], cwd=paths.ops_bedrock_dir, env={

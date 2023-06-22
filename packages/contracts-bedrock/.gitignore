@@ -15,3 +15,4 @@ test-case-generator/fuzz
 scripts/differential-testing/differential-testing
 deployments/900
 deployments/901
+deployments/hardhat
