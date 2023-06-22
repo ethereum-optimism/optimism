@@ -140,24 +140,27 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             postStateClaim = claimData[_claimIndex].claim;
         } else {
             Position preStatePos;
+            Position postStatePos;
             if (_isAttack) {
                 // If the step is an attack, the prestate exists elsewhere in the game state,
                 // and the parent claim is the expected post-state.
                 preStatePos = claimData[_stateIndex].position;
                 preStateClaim = claimData[_stateIndex].claim;
+                postStatePos = parentPos;
                 postStateClaim = parent.claim;
             } else {
                 // If the step is a defense, the poststate exists elsewhere in the game state,
                 // and the parent claim is the expected pre-state.
                 preStatePos = parent.position;
                 preStateClaim = parent.claim;
+                postStatePos = claimData[_stateIndex].position;
                 postStateClaim = claimData[_stateIndex].claim;
             }
 
             // Assert that the given prestate commits to the instruction at `gindex - 1`.
             if (
                 Position.unwrap(preStatePos.rightIndex(MAX_GAME_DEPTH)) !=
-                Position.unwrap(parentPos) - 1
+                Position.unwrap(postStatePos.rightIndex(MAX_GAME_DEPTH)) - 1
             ) {
                 revert InvalidPrestate();
             }
