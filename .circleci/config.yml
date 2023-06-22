@@ -1197,7 +1197,7 @@ workflows:
           dependencies: '(common-ts|core-utils|sdk)'
           requires:
             - pnpm-monorepo
-      - sdk-next-tests:
+      - js-lint-test:
           name: sdk-next-tests
           package_name: sdk
           dependencies: '(common-ts|contracts-bedrock|core-utils)'
