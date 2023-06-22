@@ -1,7 +1,7 @@
 Bytes_slice_Test:test_slice_acrossMultipleWords_works() (gas: 9413)
 Bytes_slice_Test:test_slice_acrossWords_works() (gas: 1430)
 Bytes_slice_Test:test_slice_fromNonZeroIdx_works() (gas: 17240)
-Bytes_slice_Test:test_slice_fromZeroIdx_works() (gas: 20826)
+Bytes_slice_Test:test_slice_fromZeroIdx_works() (gas: 20804)
 Bytes_toNibbles_Test:test_toNibbles_expectedResult128Bytes_works() (gas: 78882)
 Bytes_toNibbles_Test:test_toNibbles_expectedResult5Bytes_works() (gas: 3992)
 Bytes_toNibbles_Test:test_toNibbles_zeroLengthInput_works() (gas: 823)
