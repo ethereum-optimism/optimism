@@ -16,11 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/core"
-
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
@@ -580,16 +578,7 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 	}
 	ctx := context.WithValue(r.Context(), ContextKeyXForwardedFor, xff) // nolint:staticcheck
 
-	if len(s.authenticatedPaths) == 0 {
-		// handle the edge case where auth is disabled
-		// but someone sends in an auth key anyway
-		if authorization != "" {
-			log.Info("blocked authenticated request against unauthenticated proxy")
-			httpResponseCodesTotal.WithLabelValues("404").Inc()
-			w.WriteHeader(404)
-			return nil
-		}
-	} else {
+	if len(s.authenticatedPaths) > 0 {
 		if authorization == "" || s.authenticatedPaths[authorization] == "" {
 			log.Info("blocked unauthorized request", "authorization", authorization)
 			httpResponseCodesTotal.WithLabelValues("401").Inc()
