@@ -288,7 +288,7 @@ abstract contract Deployer is Script {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
-        cmd[2] = string.concat(Executables.forge, " config --json | ", Executables.jq, "-r .out");
+        cmd[2] = string.concat(Executables.forge, " config --json | ", Executables.jq, " -r .out");
         bytes memory res = vm.ffi(cmd);
         string memory forgeArtifactPath = string.concat(vm.projectRoot(), "/", string(res), "/", _name, ".sol/", _name, ".json");
         return forgeArtifactPath;
