@@ -41,7 +41,7 @@ describe('helpers', () => {
   })
 
   describe('findOutputForIndex', () => {
-    describe('when the event exists once', () => {
+    describe('when the output exists once', () => {
       beforeEach(async () => {
         const latestBlock = await hre.ethers.provider.getBlock('latest')
         const params = {
@@ -60,14 +60,14 @@ describe('helpers', () => {
         )
       })
 
-      it('should return the event', async () => {
-        const event = await findOutputForIndex(L2OutputOracle, 0)
+      it('should return the output', async () => {
+        const output = await findOutputForIndex(L2OutputOracle, 0)
 
-        expect(event.l2OutputIndex).to.equal(0)
+        expect(output.l2OutputIndex).to.equal(0)
       })
     })
 
-    describe('when the event does not exist', () => {
+    describe('when the output does not exist', () => {
       it('should throw an error', async () => {
         await expect(
           findOutputForIndex(L2OutputOracle, 0)

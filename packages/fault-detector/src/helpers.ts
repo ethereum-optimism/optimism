@@ -48,9 +48,8 @@ export const findFirstUnfinalizedStateBatchIndex = async (
   while (lo !== hi) {
     const mid = Math.floor((lo + hi) / 2)
     const outputData = await findOutputForIndex(oracle, mid, logger)
-    const eventTimestamp = outputData.l1Timestamp
 
-    if (eventTimestamp + fpw < latestBlock.timestamp) {
+    if (outputData.l1Timestamp + fpw < latestBlock.timestamp) {
       lo = mid + 1
     } else {
       hi = mid
