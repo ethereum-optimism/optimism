@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 var (
@@ -118,23 +118,23 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	l2Head := common.HexToHash(ctx.GlobalString(flags.L2Head.Name))
+	l2Head := common.HexToHash(ctx.String(flags.L2Head.Name))
 	if l2Head == (common.Hash{}) {
 		return nil, ErrInvalidL2Head
 	}
-	l2Claim := common.HexToHash(ctx.GlobalString(flags.L2Claim.Name))
+	l2Claim := common.HexToHash(ctx.String(flags.L2Claim.Name))
 	if l2Claim == (common.Hash{}) {
 		return nil, ErrInvalidL2Claim
 	}
-	l2ClaimBlockNum := ctx.GlobalUint64(flags.L2BlockNumber.Name)
-	l1Head := common.HexToHash(ctx.GlobalString(flags.L1Head.Name))
+	l2ClaimBlockNum := ctx.Uint64(flags.L2BlockNumber.Name)
+	l1Head := common.HexToHash(ctx.String(flags.L1Head.Name))
 	if l1Head == (common.Hash{}) {
 		return nil, ErrInvalidL1Head
 	}
-	l2GenesisPath := ctx.GlobalString(flags.L2GenesisPath.Name)
+	l2GenesisPath := ctx.String(flags.L2GenesisPath.Name)
 	var l2ChainConfig *params.ChainConfig
 	if l2GenesisPath == "" {
-		networkName := ctx.GlobalString(flags.Network.Name)
+		networkName := ctx.String(flags.Network.Name)
 		l2ChainConfig = L2ChainConfigsByName[networkName]
 		if l2ChainConfig == nil {
 			return nil, fmt.Errorf("flag %s is required for network %s", flags.L2GenesisPath.Name, networkName)
@@ -147,18 +147,18 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 	}
 	return &Config{
 		Rollup:             rollupCfg,
-		DataDir:            ctx.GlobalString(flags.DataDir.Name),
-		L2URL:              ctx.GlobalString(flags.L2NodeAddr.Name),
+		DataDir:            ctx.String(flags.DataDir.Name),
+		L2URL:              ctx.String(flags.L2NodeAddr.Name),
 		L2ChainConfig:      l2ChainConfig,
 		L2Head:             l2Head,
 		L2Claim:            l2Claim,
 		L2ClaimBlockNumber: l2ClaimBlockNum,
 		L1Head:             l1Head,
-		L1URL:              ctx.GlobalString(flags.L1NodeAddr.Name),
-		L1TrustRPC:         ctx.GlobalBool(flags.L1TrustRPC.Name),
-		L1RPCKind:          sources.RPCProviderKind(ctx.GlobalString(flags.L1RPCProviderKind.Name)),
-		ExecCmd:            ctx.GlobalString(flags.Exec.Name),
-		ServerMode:         ctx.GlobalBool(flags.Server.Name),
+		L1URL:              ctx.String(flags.L1NodeAddr.Name),
+		L1TrustRPC:         ctx.Bool(flags.L1TrustRPC.Name),
+		L1RPCKind:          sources.RPCProviderKind(ctx.String(flags.L1RPCProviderKind.Name)),
+		ExecCmd:            ctx.String(flags.Exec.Name),
+		ServerMode:         ctx.Bool(flags.Server.Name),
 	}, nil
 }
 
