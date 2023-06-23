@@ -4,7 +4,7 @@ import (
 	"os"
 
 	log "github.com/ethereum/go-ethereum/log"
-	cli "github.com/urfave/cli"
+	cli "github.com/urfave/cli/v2"
 
 	watch "github.com/ethereum-optimism/optimism/op-challenger/cmd/watch"
 	config "github.com/ethereum-optimism/optimism/op-challenger/config"
@@ -70,7 +70,7 @@ func run(args []string, action ConfigAction) error {
 		}
 		return action(logger, VersionWithMeta, cfg)
 	}
-	app.Commands = []cli.Command{
+	app.Commands = []*cli.Command{
 		{
 			Name:        "watch",
 			Subcommands: watch.Subcommands,

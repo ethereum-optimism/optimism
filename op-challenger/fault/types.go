@@ -1,6 +1,7 @@
 package fault
 
 import (
+	"context"
 	"errors"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -26,4 +27,11 @@ type Claim struct {
 type Response struct {
 	Attack bool // note: can we flip this to true == going right / defending??
 	Value  common.Hash
+	Parent Claim
+}
+
+// Responder takes a response action & executes.
+// For full op-challenger this means executing the transaction on chain.
+type Responder interface {
+	Respond(ctx context.Context, response Response) error
 }

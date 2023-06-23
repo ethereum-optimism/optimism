@@ -82,6 +82,18 @@ func getNetHosts(testSuite *PeerScoresTestSuite, ctx context.Context, n int) []h
 	return out
 }
 
+type discriminatingAppScorer struct {
+	badPeer peer.ID
+	NoopApplicationScorer
+}
+
+func (d *discriminatingAppScorer) ApplicationScore(id peer.ID) float64 {
+	if id == d.badPeer {
+		return -1000
+	}
+	return 0
+}
+
 func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []host.Host) []*pubsub.PubSub {
 	var psubs []*pubsub.PubSub
 
@@ -100,17 +112,10 @@ func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []
 
 		scorer := NewScorer(
 			&rollup.Config{L2ChainID: big.NewInt(123)},
-			extPeerStore, testSuite.mockMetricer, logger)
+			extPeerStore, testSuite.mockMetricer, &discriminatingAppScorer{badPeer: hosts[0].ID()}, logger)
 		opts = append(opts, ConfigurePeerScoring(&Config{
 			ScoringParams: &ScoringParams{
 				PeerScoring: pubsub.PeerScoreParams{
-					AppSpecificScore: func(p peer.ID) float64 {
-						if p == hosts[0].ID() {
-							return -1000
-						} else {
-							return 0
-						}
-					},
 					AppSpecificWeight: 1,
 					DecayInterval:     time.Second,
 					DecayToZero:       0.01,

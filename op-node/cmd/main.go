@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/doc"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -59,7 +59,7 @@ func main() {
 	app.Usage = "Optimism Rollup Node"
 	app.Description = "The Optimism Rollup Node derives L2 block inputs from L1 data and drives an external L2 Execution Engine to build a L2 chain."
 	app.Action = RollupNodeMain
-	app.Commands = []cli.Command{
+	app.Commands = []*cli.Command{
 		{
 			Name:        "p2p",
 			Subcommands: p2p.Subcommands,

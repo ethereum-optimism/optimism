@@ -8,6 +8,38 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestAlphabetProvider_Get_ClaimsByTraceIndex tests the [fault.AlphabetProvider] Get function.
+func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
+	// Create a new alphabet provider.
+	canonicalProvider := NewAlphabetProvider("abcdefgh", uint64(3))
+
+	// Build a list of traces.
+	traces := []struct {
+		traceIndex   uint64
+		expectedHash common.Hash
+	}{
+		{
+			7,
+			common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000768"),
+		},
+		{
+			3,
+			common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000364"),
+		},
+		{
+			5,
+			common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000566"),
+		},
+	}
+
+	// Execute each trace and check the alphabet provider returns the expected hash.
+	for _, trace := range traces {
+		expectedHash, err := canonicalProvider.Get(trace.traceIndex)
+		require.NoError(t, err)
+		require.Equal(t, trace.expectedHash, expectedHash)
+	}
+}
+
 // FuzzIndexToBytes tests the IndexToBytes function.
 func FuzzIndexToBytes(f *testing.F) {
 	f.Fuzz(func(t *testing.T, index uint64) {

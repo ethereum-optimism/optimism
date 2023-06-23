@@ -26,11 +26,11 @@ require (
 	github.com/multiformats/go-multiaddr v0.8.0
 	github.com/multiformats/go-multiaddr-dns v0.3.1
 	github.com/olekukonko/tablewriter v0.0.5
+	github.com/pkg/errors v0.9.1
 	github.com/pkg/profile v1.7.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/stretchr/testify v1.8.1
-	github.com/urfave/cli v1.22.9
-	github.com/urfave/cli/v2 v2.17.2-0.20221006022127-8f469abc00aa
+	github.com/urfave/cli/v2 v2.25.7
 	golang.org/x/crypto v0.6.0
 	golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb
 	golang.org/x/sync v0.1.0
@@ -134,7 +134,6 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/peterh/liner v1.1.1-0.20190123174540-a2c9a5303de7 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.39.0 // indirect

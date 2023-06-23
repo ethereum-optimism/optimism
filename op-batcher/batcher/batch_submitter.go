@@ -6,7 +6,7 @@ import (
 	_ "net/http/pprof"
 
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"

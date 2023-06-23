@@ -1,7 +1,7 @@
 package watch
 
 import (
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 )
