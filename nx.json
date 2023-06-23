@@ -1,0 +1,87 @@
+{
+  "defaultBase": "develop",
+  "affected": {
+    "defaultBase": "develop"
+  },
+  "implicitDependencies": {
+    "nx.json": "*"
+  },
+  "tasksRunnerOptions": {
+    "default": {
+      "runner": "@nrwl/nx-cloud",
+      "options": {
+        "cacheableOperations": [
+          "lint",
+          "build",
+          "test",
+          "build:contracts",
+          "autogen:artifacts"
+        ]
+      }
+    }
+  },
+  "namedInputs": {
+    "configsWorkspace": [
+      "{workspaceRoot}/package.json",
+      "{workspaceRoot}/tsconfig.json"
+    ],
+    "configsProject": [
+      "{projectRoot}/foundry.toml",
+      "{projectRoot}/tsconfig.json",
+      "{projectRoot}/hardhat.config.ts",
+      "{projectRoot}/package.json"
+    ],
+    "default": ["{projectRoot}/**/*", "configsWorkspace"],
+    "srcGenerated": [
+      "{projectRoot}/src/contract-artifacts.ts",
+      "{projectRoot}/src/contract-deployed-artifacts.ts"
+    ],
+    "productionSrc": [
+      "{projectRoot}/src/**/*",
+      "!{projectRoot}/src/contract-artifacts.ts",
+      "!{projectRoot}/src/contract-deployed-artifacts.ts",
+      "!{projectRoot}/src/**/*.spec.ts"
+    ],
+    "productionContracts": ["{projectRoot}/contracts/**/*"],
+    "production": ["productionSrc", "productionContracts"],
+    "testing": ["configsWorkspace", "default"]
+  },
+  "targetDefaults": {
+    "lint": {
+      "inputs": ["{workspaceRoot}/.markdownlint.json", "default"]
+    },
+    "test": {
+      "inputs": ["default", "testing", "^production"],
+      "dependsOn": ["^build"]
+    },
+    "build:contracts": {
+      "inputs": [
+        "configsProject",
+        "productionContracts",
+        "^productionContracts"
+      ],
+      "dependsOn": ["^build"],
+      "outputs": ["{projectRoot}/artifacts", "{projectRoot}/forge-artifacts"]
+    },
+    "autogen:artifacts": {
+      "inputs": [
+        "configsWorkspace",
+        "configsProject",
+        "productionContracts",
+        "^productionContracts"
+      ],
+      "dependsOn": ["^build", "build:contracts"],
+      "outputs": ["srcGenerated"]
+    },
+    "build": {
+      "inputs": [
+        "configsWorkspace",
+        "configsProject",
+        "production",
+        "^production"
+      ],
+      "dependsOn": ["^build", "autogen:artifacts", "build:contracts"],
+      "outputs": ["{projectRoot}/dist"]
+    }
+  }
+}

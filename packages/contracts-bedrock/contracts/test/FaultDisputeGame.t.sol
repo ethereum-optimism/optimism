@@ -11,6 +11,7 @@ import "../libraries/DisputeTypes.sol";
 import "../libraries/DisputeErrors.sol";
 import { LibClock } from "../dispute/lib/LibClock.sol";
 import { LibPosition } from "../dispute/lib/LibPosition.sol";
+import { IBigStepper } from "../dispute/interfaces/IBigStepper.sol";
 
 contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     /// @dev The extra data passed to the game for initialization.
@@ -28,7 +29,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     function init(Claim rootClaim, Claim absolutePrestate) public {
         super.setUp();
         // Deploy an implementation of the fault game
-        gameImpl = new FaultDisputeGame(absolutePrestate, 4);
+        gameImpl = new FaultDisputeGame(absolutePrestate, 4, new AlphabetVM(absolutePrestate));
         // Register the game implementation with the factory.
         factory.setImplementation(GAME_TYPE, gameImpl);
         // Create a new game.
@@ -296,10 +297,10 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 contract GamePlayer {
     bool public failedToStep;
     FaultDisputeGame public gameProxy;
+    bytes public trace;
 
     GamePlayer internal counterParty;
     Vm internal vm;
-    bytes internal trace;
     uint256 internal maxDepth;
 
     /// @notice Initializes the player
@@ -307,7 +308,7 @@ contract GamePlayer {
         FaultDisputeGame _gameProxy,
         GamePlayer _counterParty,
         Vm _vm
-    ) public virtual {
+    ) public {
         gameProxy = _gameProxy;
         counterParty = _counterParty;
         vm = _vm;
@@ -366,8 +367,9 @@ contract GamePlayer {
 
         // If we are past the maximum depth, break the recursion and step.
         if (movePos.depth() > maxDepth) {
-            // Perform a step.
             uint256 stateIndex;
+            bytes memory preStateTrace;
+
             // First, we need to find the pre/post state index depending on whether we
             // are making an attack step or a defense step. If the index at depth of the
             // move position is 0, the prestate is the absolute prestate and we need to
@@ -397,17 +399,24 @@ contract GamePlayer {
                         break;
                     }
                 }
+
+                // Grab the trace up to the prestate's trace index.
+                if (isAttack) {
+                    preStateTrace = abi.encode(statePos.traceIndex(maxDepth), traceAt(statePos));
+                } else {
+                    preStateTrace = abi.encode(parentPos.traceIndex(maxDepth), traceAt(parentPos));
+                }
             }
 
             // Perform the step and halt recursion.
-            try gameProxy.step(stateIndex, _parentIndex, isAttack, hex"", hex"") {
+            try gameProxy.step(stateIndex, _parentIndex, isAttack, preStateTrace, hex"") {
                 // Do nothing, step succeeded.
             } catch {
                 failedToStep = true;
             }
         } else {
             // Find the trace index that our next claim must commit to.
-            uint256 traceIndex = movePos.rightIndex(maxDepth).indexAtDepth();
+            uint256 traceIndex = movePos.traceIndex(maxDepth);
             // Grab the claim that we need to make from the helper.
             Claim ourClaim = claimAt(traceIndex);
 
@@ -439,151 +448,156 @@ contract GamePlayer {
         return uint256(vm.load(address(gameProxy), bytes32(uint256(1))));
     }
 
-    /// @notice Returns the player's claim that commits to a given gindex.
-    function claimAt(Position _position) internal view returns (Claim claim_) {
-        return claimAt(_position.rightIndex(maxDepth).indexAtDepth());
+    /// @notice Returns the state at the trace index within the player's trace.
+    function traceAt(Position _position) public view returns (uint256 state_) {
+        return traceAt(_position.traceIndex(maxDepth));
+    }
+
+    /// @notice Returns the state at the trace index within the player's trace.
+    function traceAt(uint256 _traceIndex) public view returns (uint256 state_) {
+        return uint256(uint8(trace[_traceIndex]));
     }
 
     /// @notice Returns the player's claim that commits to a given trace index.
     function claimAt(uint256 _traceIndex) public view returns (Claim claim_) {
-        return Claim.wrap(bytes32(uint256(bytes32(trace[_traceIndex]) >> 248)));
+        return Claim.wrap(keccak256(abi.encode(_traceIndex, traceAt(_traceIndex))));
+    }
+
+    /// @notice Returns the player's claim that commits to a given trace index.
+    function claimAt(Position _position) public view returns (Claim claim_) {
+        return claimAt(_position.traceIndex(maxDepth));
     }
 }
 
 contract OneVsOne_Arena is FaultDisputeGame_Init {
     /// @dev The absolute prestate of the trace.
     Claim internal constant ABSOLUTE_PRESTATE = Claim.wrap(bytes32(uint256(15)));
-    /// @dev The honest participant.
-    GamePlayer internal honest;
-    /// @dev The dishonest participant.
-    GamePlayer internal dishonest;
+    /// @dev The defender.
+    GamePlayer internal defender;
+    /// @dev The challenger.
+    GamePlayer internal challenger;
 
-    function init(
-        GamePlayer _honest,
-        GamePlayer _dishonest,
-        Claim _rootClaim
-    ) public {
-        super.init(_rootClaim, ABSOLUTE_PRESTATE);
-        // Deploy a new honest player.
-        honest = _honest;
-        // Deploy a new dishonest player.
-        dishonest = _dishonest;
+    function init(GamePlayer _defender, GamePlayer _challenger) public {
+        Claim rootClaim = Claim.wrap(keccak256(abi.encode(15, _defender.traceAt(15))));
+        super.init(rootClaim, ABSOLUTE_PRESTATE);
+        defender = _defender;
+        challenger = _challenger;
 
         // Set the counterparties.
-        honest.init(gameProxy, dishonest, vm);
-        dishonest.init(gameProxy, honest, vm);
+        defender.init(gameProxy, challenger, vm);
+        challenger.init(gameProxy, defender, vm);
 
         // Label actors for trace.
-        vm.label(address(honest), "HonestPlayer");
-        vm.label(address(dishonest), "DishonestPlayer");
+        vm.label(address(challenger), "Challenger");
+        vm.label(address(defender), "Defender");
     }
 }
 
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot is OneVsOne_Arena {
     function setUp() public override {
-        GamePlayer honest = new HonestPlayer();
-        GamePlayer dishonest = new FullyDivergentPlayer();
-        super.init(honest, dishonest, Claim.wrap(bytes32(uint256(30))));
+        GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new FullyDivergentPlayer(ABSOLUTE_PRESTATE);
+        super.init(dishonest, honest);
     }
 
     function test_resolvesCorrectly_succeeds() public {
         // Play the game until a step is forced.
-        honest.play(0);
+        challenger.play(0);
 
         // Resolve the game and assert that the honest player challenged the root
         // claim successfully.
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
-        assertFalse(honest.failedToStep());
+        assertFalse(defender.failedToStep());
     }
 }
 
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot is OneVsOne_Arena {
     function setUp() public override {
-        GamePlayer honest = new HonestPlayer();
-        GamePlayer dishonest = new FullyDivergentPlayer();
-        super.init(honest, dishonest, Claim.wrap(bytes32(uint256(31))));
+        GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new FullyDivergentPlayer(ABSOLUTE_PRESTATE);
+        super.init(honest, dishonest);
     }
 
     function test_resolvesCorrectly_succeeds() public {
         // Play the game until a step is forced.
-        dishonest.play(0);
+        challenger.play(0);
 
         // Resolve the game and assert that the dishonest player challenged the root
         // claim unsuccessfully.
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
-        assertTrue(dishonest.failedToStep());
+        assertTrue(challenger.failedToStep());
     }
 }
 
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot2 is OneVsOne_Arena {
     function setUp() public override {
-        GamePlayer honest = new HonestPlayer();
-        GamePlayer dishonest = new HalfDivergentPlayer();
-        super.init(honest, dishonest, Claim.wrap(bytes32(uint256(15))));
+        GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new HalfDivergentPlayer(ABSOLUTE_PRESTATE);
+        super.init(dishonest, honest);
     }
 
     function test_resolvesCorrectly_succeeds() public {
         // Play the game until a step is forced.
-        honest.play(0);
+        challenger.play(0);
 
         // Resolve the game and assert that the honest player challenged the root
         // claim successfully.
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
-        assertFalse(honest.failedToStep());
+        assertFalse(defender.failedToStep());
     }
 }
 
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot2 is OneVsOne_Arena {
     function setUp() public override {
-        GamePlayer honest = new HonestPlayer();
-        GamePlayer dishonest = new HalfDivergentPlayer();
-        super.init(honest, dishonest, Claim.wrap(bytes32(uint256(31))));
+        GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new HalfDivergentPlayer(ABSOLUTE_PRESTATE);
+        super.init(honest, dishonest);
     }
 
     function test_resolvesCorrectly_succeeds() public {
         // Play the game until a step is forced.
-        dishonest.play(0);
+        challenger.play(0);
 
         // Resolve the game and assert that the dishonest player challenged the root
         // claim unsuccessfully.
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
-        assertTrue(dishonest.failedToStep());
+        assertTrue(challenger.failedToStep());
     }
 }
 
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot3 is OneVsOne_Arena {
     function setUp() public override {
-        GamePlayer honest = new HonestPlayer();
-        GamePlayer dishonest = new EarlyDivergentPlayer();
-        super.init(honest, dishonest, Claim.wrap(bytes32(uint256(15))));
+        GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new EarlyDivergentPlayer(ABSOLUTE_PRESTATE);
+        super.init(dishonest, honest);
     }
 
     function test_resolvesCorrectly_succeeds() public {
         // Play the game until a step is forced.
-        honest.play(0);
+        challenger.play(0);
 
         // Resolve the game and assert that the honest player challenged the root
         // claim successfully.
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
-        assertFalse(honest.failedToStep());
+        assertFalse(defender.failedToStep());
     }
 }
 
-contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot4 is OneVsOne_Arena {
+contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot3 is OneVsOne_Arena {
     function setUp() public override {
-        GamePlayer honest = new HonestPlayer();
-        GamePlayer dishonest = new EarlyDivergentPlayer();
-        super.init(honest, dishonest, Claim.wrap(bytes32(uint256(31))));
+        GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new EarlyDivergentPlayer(ABSOLUTE_PRESTATE);
+        super.init(honest, dishonest);
     }
 
     function test_resolvesCorrectly_succeeds() public {
         // Play the game until a step is forced.
-        dishonest.play(0);
+        challenger.play(0);
 
         // Resolve the game and assert that the dishonest player challenged the root
         // claim unsuccessfully.
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
-        assertTrue(dishonest.failedToStep());
+        assertTrue(challenger.failedToStep());
     }
 }
 
@@ -592,13 +606,8 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot4 is OneVsOne_Arena {
 ////////////////////////////////////////////////////////////////
 
 contract HonestPlayer is GamePlayer {
-    function init(
-        FaultDisputeGame _gameProxy,
-        GamePlayer _counterParty,
-        Vm _vm
-    ) public virtual override {
-        super.init(_gameProxy, _counterParty, _vm);
-        uint8 absolutePrestate = uint8(uint256(Claim.unwrap(_gameProxy.ABSOLUTE_PRESTATE())));
+    constructor(Claim _absolutePrestate) {
+        uint8 absolutePrestate = uint8(uint256(Claim.unwrap(_absolutePrestate)));
         bytes memory honestTrace = new bytes(16);
         for (uint8 i = 0; i < honestTrace.length; i++) {
             honestTrace[i] = bytes1(absolutePrestate + i + 1);
@@ -608,13 +617,8 @@ contract HonestPlayer is GamePlayer {
 }
 
 contract FullyDivergentPlayer is GamePlayer {
-    function init(
-        FaultDisputeGame _gameProxy,
-        GamePlayer _counterParty,
-        Vm _vm
-    ) public virtual override {
-        super.init(_gameProxy, _counterParty, _vm);
-        uint8 absolutePrestate = uint8(uint256(Claim.unwrap(_gameProxy.ABSOLUTE_PRESTATE())));
+    constructor(Claim _absolutePrestate) {
+        uint8 absolutePrestate = uint8(uint256(Claim.unwrap(_absolutePrestate)));
         bytes memory dishonestTrace = new bytes(16);
         for (uint8 i = 0; i < dishonestTrace.length; i++) {
             // Offset the honest trace by 1.
@@ -625,13 +629,8 @@ contract FullyDivergentPlayer is GamePlayer {
 }
 
 contract HalfDivergentPlayer is GamePlayer {
-    function init(
-        FaultDisputeGame _gameProxy,
-        GamePlayer _counterParty,
-        Vm _vm
-    ) public virtual override {
-        super.init(_gameProxy, _counterParty, _vm);
-        uint8 absolutePrestate = uint8(uint256(Claim.unwrap(_gameProxy.ABSOLUTE_PRESTATE())));
+    constructor(Claim _absolutePrestate) {
+        uint8 absolutePrestate = uint8(uint256(Claim.unwrap(_absolutePrestate)));
         bytes memory dishonestTrace = new bytes(16);
         for (uint8 i = 0; i < dishonestTrace.length; i++) {
             // Offset the trace after the first half.
@@ -642,18 +641,46 @@ contract HalfDivergentPlayer is GamePlayer {
 }
 
 contract EarlyDivergentPlayer is GamePlayer {
-    function init(
-        FaultDisputeGame _gameProxy,
-        GamePlayer _counterParty,
-        Vm _vm
-    ) public virtual override {
-        super.init(_gameProxy, _counterParty, _vm);
-        uint8 absolutePrestate = uint8(uint256(Claim.unwrap(_gameProxy.ABSOLUTE_PRESTATE())));
+    constructor(Claim _absolutePrestate) {
+        uint8 absolutePrestate = uint8(uint256(Claim.unwrap(_absolutePrestate)));
         bytes memory dishonestTrace = new bytes(16);
         for (uint8 i = 0; i < dishonestTrace.length; i++) {
             // Offset the trace after the first half.
             dishonestTrace[i] = i > 2 ? bytes1(i) : bytes1(absolutePrestate + i + 1);
         }
         trace = dishonestTrace;
+    }
+}
+
+////////////////////////////////////////////////////////////////
+//                          MOCK VMS                          //
+////////////////////////////////////////////////////////////////
+
+contract AlphabetVM is IBigStepper {
+    Claim internal immutable ABSOLUTE_PRESTATE;
+
+    constructor(Claim _absolutePrestate) {
+        ABSOLUTE_PRESTATE = _absolutePrestate;
+    }
+
+    /// @inheritdoc IBigStepper
+    function step(bytes calldata _stateData, bytes calldata)
+        external
+        view
+        returns (bytes32 postState_)
+    {
+        uint256 traceIndex;
+        uint256 claim;
+        if (_stateData.length == 0) {
+            // If the state data is empty, then the absolute prestate is the claim.
+            traceIndex = 0;
+            claim = uint256(Claim.unwrap(ABSOLUTE_PRESTATE));
+        } else {
+            // Otherwise, decode the state data.
+            (traceIndex, claim) = abi.decode(_stateData, (uint256, uint256));
+            traceIndex++;
+        }
+        // STF: n -> n + 1
+        postState_ = keccak256(abi.encode(traceIndex, claim + 1));
     }
 }

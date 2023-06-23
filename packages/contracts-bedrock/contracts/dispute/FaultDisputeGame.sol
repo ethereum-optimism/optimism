@@ -6,6 +6,7 @@ import { IVersioned } from "./interfaces/IVersioned.sol";
 import { IFaultDisputeGame } from "./interfaces/IFaultDisputeGame.sol";
 import { IInitializable } from "./interfaces/IInitializable.sol";
 import { IBondManager } from "./interfaces/IBondManager.sol";
+import { IBigStepper } from "./interfaces/IBigStepper.sol";
 
 import { Clone } from "../libraries/Clone.sol";
 import { LibHashing } from "./lib/LibHashing.sol";
@@ -28,6 +29,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
 
     /// @notice The max depth of the game.
     uint256 public immutable MAX_GAME_DEPTH;
+
+    /// @notice A hypervisor that performs single instruction steps on a fault proof program trace.
+    IBigStepper public immutable VM;
 
     /// @notice The duration of the game.
     /// @dev TODO: Account for resolution buffer. (?)
@@ -55,9 +59,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
     mapping(ClaimHash => bool) internal claims;
 
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
-    constructor(Claim _absolutePrestate, uint256 _maxGameDepth) {
+    constructor(
+        Claim _absolutePrestate,
+        uint256 _maxGameDepth,
+        IBigStepper _vm
+    ) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
+        VM = _vm;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -79,8 +88,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         uint256 _stateIndex,
         uint256 _claimIndex,
         bool _isAttack,
-        bytes calldata,
-        bytes calldata
+        bytes calldata _stateData,
+        bytes calldata _proof
     ) external {
         // Steps cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) {
@@ -127,19 +136,19 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
                 postStateClaim = claimData[_stateIndex].claim;
             }
 
-            // Assert that the given prestate commits to the instruction at `gindex - 1`.
+            // Assert that the given prestate commits to the instruction at `gindex - 1` and
+            // that the `_stateData` is the preimage for the prestate claim digest.
             if (
                 Position.unwrap(preStatePos.rightIndex(MAX_GAME_DEPTH)) !=
-                Position.unwrap(postStatePos.rightIndex(MAX_GAME_DEPTH)) - 1
+                Position.unwrap(postStatePos.rightIndex(MAX_GAME_DEPTH)) - 1 ||
+                keccak256(_stateData) != Claim.unwrap(preStateClaim)
             ) {
                 revert InvalidPrestate();
             }
         }
 
-        // TODO: Call `MIPS.sol#step` to verify the step.
-        // For now, we just use a simple state transition function that increments the prestate,
-        // `s_p`, by 1.
-        if (uint256(Claim.unwrap(preStateClaim)) + 1 == uint256(Claim.unwrap(postStateClaim))) {
+        // Perform the VM step and check to see if it is valid.
+        if (VM.step(_stateData, _proof) == Claim.unwrap(postStateClaim)) {
             revert ValidStep();
         }
 
@@ -274,7 +283,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         // Search for the left-most dangling non-bottom node
         // The most recent claim is always a dangling, non-bottom node so we start with that
         uint256 leftMostIndex = claimData.length - 1;
-        Position leftMostTraceIndex = Position.wrap(type(uint128).max);
+        uint256 leftMostTraceIndex = type(uint128).max;
         for (uint256 i = leftMostIndex; i < type(uint64).max; ) {
             // Fetch the claim at the current index.
             ClaimData storage claim = claimData[i];
@@ -295,8 +304,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             // If the claim is a dangling node, we can check if it is the left-most
             // dangling node we've come across so far. If it is, we can update the
             // left-most trace index.
-            Position traceIndex = claimPos.rightIndex(MAX_GAME_DEPTH);
-            if (Position.unwrap(traceIndex) < Position.unwrap(leftMostTraceIndex)) {
+            uint256 traceIndex = claimPos.traceIndex(MAX_GAME_DEPTH);
+            if (traceIndex < leftMostTraceIndex) {
                 leftMostTraceIndex = traceIndex;
                 unchecked {
                     leftMostIndex = i + 1;
@@ -309,7 +318,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         if (
             // slither-disable-next-line weak-prng
             claimData[leftMostIndex].position.depth() % 2 == 0 &&
-            Position.unwrap(leftMostTraceIndex) != type(uint128).max
+            leftMostTraceIndex != type(uint128).max
         ) {
             status_ = GameStatus.DEFENDER_WINS;
         } else {

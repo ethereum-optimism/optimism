@@ -16,7 +16,7 @@ import {
   OEL1ContractsLike,
 } from '@eth-optimism/sdk'
 import { Provider } from '@ethersproject/abstract-provider'
-import { ethers, Transaction } from 'ethers'
+import { Contract, ethers } from 'ethers'
 import dateformat from 'dateformat'
 
 import { version } from '../package.json'
@@ -24,7 +24,6 @@ import {
   findFirstUnfinalizedStateBatchIndex,
   findEventForStateBatch,
   PartialEvent,
-  OutputOracle,
   updateOracleCache,
 } from './helpers'
 
@@ -32,9 +31,7 @@ type Options = {
   l1RpcProvider: Provider
   l2RpcProvider: Provider
   startBatchIndex: number
-  bedrock: boolean
   optimismPortalAddress?: string
-  stateCommitmentChainAddress?: string
 }
 
 type Metrics = {
@@ -44,8 +41,8 @@ type Metrics = {
 }
 
 type State = {
-  fpw: number
-  oo: OutputOracle<any>
+  faultProofWindow: number
+  outputOracle: Contract
   messenger: CrossChainMessenger
   currentBatchIndex: number
   diverged: boolean
@@ -73,25 +70,13 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         startBatchIndex: {
           validator: validators.num,
           default: -1,
-          desc: 'Batch index to start checking from. For bedrock chains, this is the L2 height to start from',
-          public: true,
-        },
-        bedrock: {
-          validator: validators.bool,
-          default: true,
-          desc: 'Whether or not the service is running against a Bedrock chain',
+          desc: 'The L2 height to start from',
           public: true,
         },
         optimismPortalAddress: {
           validator: validators.str,
           default: ethers.constants.AddressZero,
-          desc: '[Custom Bedrock Chains] Deployed OptimismPortal contract address. Used to retrieve necessary info for ouput verification ',
-          public: true,
-        },
-        stateCommitmentChainAddress: {
-          validator: validators.str,
-          default: ethers.constants.AddressZero,
-          desc: '[Custom Legacy Chains] Deployed StateCommitmentChain contract address. Used to fetch necessary info for output verification.',
+          desc: '[Custom OP Chains] Deployed OptimismPortal contract address. Used to retrieve necessary info for ouput verification ',
           public: true,
         },
       },
@@ -119,10 +104,9 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
    * will fallback to the pre-defined set of addresses from options, otherwise aborting if unset.
    *
    * Required Contracts
-   * - Bedrock: OptimismPortal (used to also fetch L2OutputOracle address variable). This is the preferred address
+   * - OptimismPortal (used to also fetch L2OutputOracle address variable). This is the preferred address
    * since in early versions of bedrock, OptimismPortal holds the FINALIZATION_WINDOW variable instead of L2OutputOracle.
    * The retrieved L2OutputOracle address from OptimismPortal is used to query for output roots.
-   * - Legacy: StateCommitmentChain to query for output roots.
    *
    * @param l2ChainId op chain id
    * @returns OEL1ContractsLike set of L1 contracts with only the required addresses set
@@ -130,18 +114,16 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
   async getOEL1Contracts(l2ChainId: number): Promise<OEL1ContractsLike> {
     // CrossChainMessenger requires all address to be defined. Default to `AddressZero` to ignore unused contracts
     let contracts: OEL1ContractsLike = {
+      OptimismPortal: ethers.constants.AddressZero,
+      L2OutputOracle: ethers.constants.AddressZero,
+      // Unused contracts
       AddressManager: ethers.constants.AddressZero,
+      BondManager: ethers.constants.AddressZero,
+      CanonicalTransactionChain: ethers.constants.AddressZero,
       L1CrossDomainMessenger: ethers.constants.AddressZero,
       L1StandardBridge: ethers.constants.AddressZero,
       StateCommitmentChain: ethers.constants.AddressZero,
-      CanonicalTransactionChain: ethers.constants.AddressZero,
-      BondManager: ethers.constants.AddressZero,
-      OptimismPortal: ethers.constants.AddressZero,
-      L2OutputOracle: ethers.constants.AddressZero,
     }
-
-    const chainType = this.options.bedrock ? 'bedrock' : 'legacy'
-    this.logger.info(`Setting contracts for OP chain type: ${chainType}`)
 
     const knownChainId = L2ChainID[l2ChainId] !== undefined
     if (knownChainId) {
@@ -152,42 +134,29 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     }
 
     this.logger.info('checking contract address options...')
-    if (this.options.bedrock) {
-      const address = this.options.optimismPortalAddress
-      if (!knownChainId && address === ethers.constants.AddressZero) {
-        this.logger.error('OptimismPortal contract unspecified')
-        throw new Error(
-          '--optimismportalcontractaddress needs to set for custom bedrock op chains'
-        )
-      }
-
-      if (address !== ethers.constants.AddressZero) {
-        this.logger.info('set OptimismPortal contract override')
-        contracts.OptimismPortal = address
-
-        this.logger.info('fetching L2OutputOracle contract from OptimismPortal')
-        const opts = { address, signerOrProvider: this.options.l1RpcProvider }
-        const portalContract = getOEContract('OptimismPortal', l2ChainId, opts)
-        contracts.L2OutputOracle = await portalContract.L2_ORACLE()
-      }
-
-      // ... for a known chain ids without an override, the L2OutputOracle will already
-      // be set via the hardcoded default
-    } else {
-      const address = this.options.stateCommitmentChainAddress
-      if (!knownChainId && address === ethers.constants.AddressZero) {
-        this.logger.error('StateCommitmentChain contract unspecified')
-        throw new Error(
-          '--statecommitmentchainaddress needs to set for custom legacy op chains'
-        )
-      }
-
-      if (address !== ethers.constants.AddressZero) {
-        this.logger.info('set StateCommitmentChain contract override')
-        contracts.StateCommitmentChain = address
-      }
+    const portalAddress = this.options.optimismPortalAddress
+    if (!knownChainId && portalAddress === ethers.constants.AddressZero) {
+      this.logger.error('OptimismPortal contract unspecified')
+      throw new Error(
+        '--optimismportalcontractaddress needs to set for custom op chains'
+      )
     }
 
+    if (portalAddress !== ethers.constants.AddressZero) {
+      this.logger.info('set OptimismPortal contract override')
+      contracts.OptimismPortal = portalAddress
+
+      this.logger.info('fetching L2OutputOracle contract from OptimismPortal')
+      const opts = {
+        portalAddress,
+        signerOrProvider: this.options.l1RpcProvider,
+      }
+      const portalContract = getOEContract('OptimismPortal', l2ChainId, opts)
+      contracts.L2OutputOracle = await portalContract.L2_ORACLE()
+    }
+
+    // ... for a known chain ids without an override, the L2OutputOracle will already
+    // be set via the hardcoded default
     return contracts
   }
 
@@ -211,7 +180,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       l2SignerOrProvider: this.options.l2RpcProvider,
       l1ChainId,
       l2ChainId,
-      bedrock: this.options.bedrock,
+      bedrock: true,
       contracts: { l1: await this.getOEL1Contracts(l2ChainId) },
     })
 
@@ -219,46 +188,33 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     this.state.diverged = false
 
     // We use this a lot, a bit cleaner to pull out to the top level of the state object.
-    this.state.fpw = await this.state.messenger.getChallengePeriodSeconds()
-    this.logger.info(`fault proof window is ${this.state.fpw} seconds`)
+    this.state.faultProofWindow =
+      await this.state.messenger.getChallengePeriodSeconds()
+    this.logger.info(
+      `fault proof window is ${this.state.faultProofWindow} seconds`
+    )
 
-    if (this.options.bedrock) {
-      const oo = this.state.messenger.contracts.l1.L2OutputOracle
-      this.state.oo = {
-        contract: oo,
-        filter: oo.filters.OutputProposed(),
-        getTotalElements: async () => oo.nextOutputIndex(),
-        getEventIndex: (args) => args.l2OutputIndex,
-      }
-    } else {
-      const oo = this.state.messenger.contracts.l1.StateCommitmentChain
-      this.state.oo = {
-        contract: oo,
-        filter: oo.filters.StateBatchAppended(),
-        getTotalElements: async () => oo.getTotalBatches(),
-        getEventIndex: (args) => args._batchIndex,
-      }
-    }
+    this.state.outputOracle = this.state.messenger.contracts.l1.L2OutputOracle
 
     // Populate the event cache.
     this.logger.info('warming event cache, this might take a while...')
-    await updateOracleCache(this.state.oo, this.logger)
+    await updateOracleCache(this.state.outputOracle, this.logger)
 
     // Figure out where to start syncing from.
     if (this.options.startBatchIndex === -1) {
       this.logger.info('finding appropriate starting unfinalized batch')
       const firstUnfinalized = await findFirstUnfinalizedStateBatchIndex(
-        this.state.oo,
-        this.state.fpw,
+        this.state.outputOracle,
+        this.state.faultProofWindow,
         this.logger
       )
 
       // We may not have an unfinalized batches in the case where no batches have been submitted
-      // for the entire duration of the FPW. We generally do not expect this to happen on mainnet,
-      // but it happens often on testnets because the FPW is very short.
+      // for the entire duration of the FAULTPROOFWINDOW. We generally do not expect this to happen on mainnet,
+      // but it happens often on testnets because the FAULTPROOFWINDOW is very short.
       if (firstUnfinalized === undefined) {
         this.logger.info('no unfinalized batches found. skipping all batches.')
-        const totalBatches = await this.state.oo.getTotalElements()
+        const totalBatches = await this.state.outputOracle.nextOutputIndex()
         this.state.currentBatchIndex = totalBatches.toNumber() - 1
       } else {
         this.state.currentBatchIndex = firstUnfinalized
@@ -288,17 +244,17 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
 
     let latestBatchIndex: number
     try {
-      const totalBatches = await this.state.oo.getTotalElements()
+      const totalBatches = await this.state.outputOracle.nextOutputIndex()
       latestBatchIndex = totalBatches.toNumber() - 1
     } catch (err) {
       this.logger.error('failed to query total # of batches', {
         error: err,
         node: 'l1',
-        section: 'getTotalElements',
+        section: 'nextOutputIndex',
       })
       this.metrics.nodeConnectionFailures.inc({
         layer: 'l1',
-        section: 'getTotalElements',
+        section: 'nextOutputIndex',
       })
       await sleep(15000)
       return
@@ -322,7 +278,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     let event: PartialEvent
     try {
       event = await findEventForStateBatch(
-        this.state.oo,
+        this.state.outputOracle,
         this.state.currentBatchIndex,
         this.logger
       )
@@ -358,179 +314,86 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       return
     }
 
-    if (this.options.bedrock) {
-      const outputBlockNumber = event.args.l2BlockNumber.toNumber()
-      if (latestBlock < outputBlockNumber) {
-        this.logger.info('L2 node is behind, waiting for sync...', {
-          l2BlockHeight: latestBlock,
-          outputBlock: outputBlockNumber,
-        })
-        return
-      }
+    const outputBlockNumber = event.args.l2BlockNumber.toNumber()
+    if (latestBlock < outputBlockNumber) {
+      this.logger.info('L2 node is behind, waiting for sync...', {
+        l2BlockHeight: latestBlock,
+        outputBlock: outputBlockNumber,
+      })
+      return
+    }
 
-      let outputBlock: any
-      try {
-        outputBlock = await (
-          this.options.l2RpcProvider as ethers.providers.JsonRpcProvider
-        ).send('eth_getBlockByNumber', [
-          toRpcHexString(outputBlockNumber),
-          false,
-        ])
-      } catch (err) {
-        this.logger.error('failed to fetch output block', {
-          error: err,
-          node: 'l2',
-          section: 'getBlock',
-          block: outputBlockNumber,
-        })
-        this.metrics.nodeConnectionFailures.inc({
-          layer: 'l2',
-          section: 'getBlock',
-        })
-        await sleep(15000)
-        return
-      }
+    let outputBlock: any
+    try {
+      outputBlock = await (
+        this.options.l2RpcProvider as ethers.providers.JsonRpcProvider
+      ).send('eth_getBlockByNumber', [toRpcHexString(outputBlockNumber), false])
+    } catch (err) {
+      this.logger.error('failed to fetch output block', {
+        error: err,
+        node: 'l2',
+        section: 'getBlock',
+        block: outputBlockNumber,
+      })
+      this.metrics.nodeConnectionFailures.inc({
+        layer: 'l2',
+        section: 'getBlock',
+      })
+      await sleep(15000)
+      return
+    }
 
-      let messagePasserProofResponse: any
-      try {
-        messagePasserProofResponse = await (
-          this.options.l2RpcProvider as ethers.providers.JsonRpcProvider
-        ).send('eth_getProof', [
-          this.state.messenger.contracts.l2.BedrockMessagePasser.address,
-          [],
-          toRpcHexString(outputBlockNumber),
-        ])
-      } catch (err) {
-        this.logger.error('failed to fetch message passer proof', {
-          error: err,
-          node: 'l2',
-          section: 'getProof',
-          block: outputBlockNumber,
-        })
-        this.metrics.nodeConnectionFailures.inc({
-          layer: 'l2',
-          section: 'getProof',
-        })
-        await sleep(15000)
-        return
-      }
+    let messagePasserProofResponse: any
+    try {
+      messagePasserProofResponse = await (
+        this.options.l2RpcProvider as ethers.providers.JsonRpcProvider
+      ).send('eth_getProof', [
+        this.state.messenger.contracts.l2.BedrockMessagePasser.address,
+        [],
+        toRpcHexString(outputBlockNumber),
+      ])
+    } catch (err) {
+      this.logger.error('failed to fetch message passer proof', {
+        error: err,
+        node: 'l2',
+        section: 'getProof',
+        block: outputBlockNumber,
+      })
+      this.metrics.nodeConnectionFailures.inc({
+        layer: 'l2',
+        section: 'getProof',
+      })
+      await sleep(15000)
+      return
+    }
 
-      const outputRoot = ethers.utils.solidityKeccak256(
-        ['uint256', 'bytes32', 'bytes32', 'bytes32'],
-        [
-          0,
-          outputBlock.stateRoot,
-          messagePasserProofResponse.storageHash,
-          outputBlock.hash,
-        ]
-      )
+    const outputRoot = ethers.utils.solidityKeccak256(
+      ['uint256', 'bytes32', 'bytes32', 'bytes32'],
+      [
+        0,
+        outputBlock.stateRoot,
+        messagePasserProofResponse.storageHash,
+        outputBlock.hash,
+      ]
+    )
 
-      if (outputRoot !== event.args.outputRoot) {
-        this.state.diverged = true
-        this.metrics.isCurrentlyMismatched.set(1)
-        this.logger.error('state root mismatch', {
-          blockNumber: outputBlock.number,
-          expectedStateRoot: event.args.outputRoot,
-          actualStateRoot: outputRoot,
-          finalizationTime: dateformat(
-            new Date(
-              (ethers.BigNumber.from(outputBlock.timestamp).toNumber() +
-                this.state.fpw) *
-                1000
-            ),
-            'mmmm dS, yyyy, h:MM:ss TT'
+    if (outputRoot !== event.args.outputRoot) {
+      this.state.diverged = true
+      this.metrics.isCurrentlyMismatched.set(1)
+      this.logger.error('state root mismatch', {
+        blockNumber: outputBlock.number,
+        expectedStateRoot: event.args.outputRoot,
+        actualStateRoot: outputRoot,
+        finalizationTime: dateformat(
+          new Date(
+            (ethers.BigNumber.from(outputBlock.timestamp).toNumber() +
+              this.state.faultProofWindow) *
+              1000
           ),
-        })
-        return
-      }
-    } else {
-      let batchTransaction: Transaction
-      try {
-        batchTransaction = await this.options.l1RpcProvider.getTransaction(
-          event.transactionHash
-        )
-      } catch (err) {
-        this.logger.error('failed to acquire batch transaction', {
-          error: err,
-          node: 'l1',
-          section: 'getTransaction',
-        })
-        this.metrics.nodeConnectionFailures.inc({
-          layer: 'l1',
-          section: 'getTransaction',
-        })
-        await sleep(15000)
-        return
-      }
-
-      const [stateRoots] = this.state.oo.contract.interface.decodeFunctionData(
-        'appendStateBatch',
-        batchTransaction.data
-      )
-
-      const batchStart = event.args._prevTotalElements.toNumber() + 1
-      const batchSize = event.args._batchSize.toNumber()
-      const batchEnd = batchStart + batchSize
-
-      if (latestBlock < batchEnd) {
-        this.logger.info('L2 node is behind. waiting for sync...', {
-          batchBlockStart: batchStart,
-          batchBlockEnd: batchEnd,
-          l2BlockHeight: latestBlock,
-        })
-        return
-      }
-
-      // `getBlockRange` has a limit of 1000 blocks, so we have to break this request out into
-      // multiple requests of maximum 1000 blocks in the case that batchSize > 1000.
-      let blocks: any[] = []
-      for (let i = 0; i < batchSize; i += 1000) {
-        let newBlocks: any[]
-        try {
-          newBlocks = await (
-            this.options.l2RpcProvider as ethers.providers.JsonRpcProvider
-          ).send('eth_getBlockRange', [
-            toRpcHexString(batchStart + i),
-            toRpcHexString(batchStart + i + Math.min(batchSize - i, 1000) - 1),
-            false,
-          ])
-        } catch (err) {
-          this.logger.error('failed to query for blocks in batch', {
-            error: err,
-            node: 'l2',
-            section: 'getBlockRange',
-          })
-          this.metrics.nodeConnectionFailures.inc({
-            layer: 'l2',
-            section: 'getBlockRange',
-          })
-          await sleep(15000)
-          return
-        }
-
-        blocks = blocks.concat(newBlocks)
-      }
-
-      for (const [i, stateRoot] of stateRoots.entries()) {
-        if (blocks[i].stateRoot !== stateRoot) {
-          this.state.diverged = true
-          this.metrics.isCurrentlyMismatched.set(1)
-          this.logger.error('state root mismatch', {
-            blockNumber: blocks[i].number,
-            expectedStateRoot: blocks[i].stateRoot,
-            actualStateRoot: stateRoot,
-            finalizationTime: dateformat(
-              new Date(
-                (ethers.BigNumber.from(blocks[i].timestamp).toNumber() +
-                  this.state.fpw) *
-                  1000
-              ),
-              'mmmm dS, yyyy, h:MM:ss TT'
-            ),
-          })
-          return
-        }
-      }
+          'mmmm dS, yyyy, h:MM:ss TT'
+        ),
+      })
+      return
     }
 
     const elapsedMs = Date.now() - startMs
