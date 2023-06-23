@@ -239,14 +239,14 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		}
 	}
 
+	if config.FundDevAccounts {
+		FundDevAccounts(memDB)
+		SetPrecompileBalances(memDB)
+	}
+
 	stateDB, err := backend.Blockchain().State()
 	if err != nil {
 		return nil, err
-	}
-
-	if config.FundDevAccounts {
-		FundDevAccounts(stateDB)
-		SetPrecompileBalances(stateDB)
 	}
 
 	for _, dep := range deployments {

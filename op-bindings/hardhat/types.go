@@ -19,7 +19,7 @@ type Deployment struct {
 	DeployedBytecode hexutil.Bytes      `json:"deployedBytecode"`
 	Devdoc           json.RawMessage    `json:"devdoc"`
 	Metadata         string             `json:"metadata"`
-	Receipt          Receipt            `json:"receipt"`
+	Receipt          json.RawMessage    `json:"receipt"`
 	SolcInputHash    string             `json:"solcInputHash"`
 	StorageLayout    solc.StorageLayout `json:"storageLayout"`
 	TransactionHash  common.Hash        `json:"transactionHash"`
