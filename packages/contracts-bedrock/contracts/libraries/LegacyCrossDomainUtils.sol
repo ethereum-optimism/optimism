@@ -5,18 +5,15 @@ pragma solidity ^0.8.9;
 // so we just copy the library here from
 // /packages/contracts/contracts/libraries/bridge/Lib_CrossDomainUtils.sol at commit
 // 7866168c
-/**
- * @title LegacyCrossDomainUtils
- */
+
+/// @title LegacyCrossDomainUtils
 library LegacyCrossDomainUtils {
-    /**
-     * Generates the correct cross domain calldata for a message.
-     * @param _target Target contract address.
-     * @param _sender Message sender address.
-     * @param _message Message to send to the target.
-     * @param _messageNonce Nonce for the provided message.
-     * @return ABI encoded cross domain calldata.
-     */
+    /// @notice Generates the correct cross domain calldata for a message.
+    /// @param _target Target contract address.
+    /// @param _sender Message sender address.
+    /// @param _message Message to send to the target.
+    /// @param _messageNonce Nonce for the provided message.
+    /// @return ABI encoded cross domain calldata.
     function encodeXDomainCalldata(
         address _target,
         address _sender,
