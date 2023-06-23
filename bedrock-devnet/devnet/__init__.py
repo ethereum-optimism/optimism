@@ -129,7 +129,7 @@ def devnet_deploy(paths):
         addresses = read_json(paths.addresses_json_path)
     else:
         log.info('Deploying contracts.')
-        run_command(['yarn', 'hardhat', '--network', 'devnetL1', 'deploy', '--tags', 'l1'], env={
+        run_command(['pnpm', 'hardhat', '--network', 'devnetL1', 'deploy', '--tags', 'l1'], env={
             'CHAIN_ID': '900',
             'L1_RPC': 'http://localhost:8545',
             'PRIVATE_KEY_DEPLOYER': 'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'

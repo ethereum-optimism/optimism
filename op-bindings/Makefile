@@ -43,7 +43,7 @@ version:
 
 compile:
 	cd ../packages/contracts-bedrock/ && \
-		yarn clean && \
+		pnpm clean && \
 		npx hardhat compile
 
 system-config-bindings: compile

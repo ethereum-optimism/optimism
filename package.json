@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "author": "Optimism PBC",
   "license": "MIT",
+  "private": true,
   "workspaces": {
     "packages": [
       "packages/*",
@@ -22,7 +23,6 @@
       "forta-agent"
     ]
   },
-  "private": true,
   "scripts": {
     "clean": "npx nx run-many --target=clean",
     "build": "npx nx run-many --target=build",
@@ -36,10 +36,10 @@
     "lint:specs:check": "yarn run markdownlint-cli2  \"./specs/**/*.md\"",
     "lint:specs:toc": "yarn run doctoc '--title=**Table of Contents**' ./specs",
     "postinstall": "patch-package",
-    "ready": "yarn lint && yarn test",
+    "ready": "pnpm lint && pnpm test",
     "prepare": "husky install",
-    "release": "yarn build && yarn changeset publish",
-    "update:yarn": "yarn set version 1.x"
+    "release": "pnpm build && pnpm changeset publish",
+    "update:pnpm": "pnpm set version 1.x"
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.18.2",

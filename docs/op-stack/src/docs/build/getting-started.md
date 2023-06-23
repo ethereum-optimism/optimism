@@ -5,7 +5,7 @@ lang: en-US
 
 ## Overview
 
-Hello! This Getting Started guide is meant to help you kick off your OP Stack journey by taking you through the process of spinning up your very own OP Stack chain on the Ethereum Goerli testnet. You can use this chain to perform tests and prepare for the superchain, or you can modify it to adapt it to your own needs (which may make it incompatible with the superchain in the future). 
+Hello! This Getting Started guide is meant to help you kick off your OP Stack journey by taking you through the process of spinning up your very own OP Stack chain on the Ethereum Goerli testnet. You can use this chain to perform tests and prepare for the superchain, or you can modify it to adapt it to your own needs (which may make it incompatible with the superchain in the future).
 
 ## Know before you go
 
@@ -30,7 +30,6 @@ You’ll need the following software installed to follow this tutorial:
 - [Git](https://git-scm.com/)
 - [Go](https://go.dev/)
 - [Node](https://nodejs.org/en/)
-- [Yarn](https://classic.yarnpkg.com/lang/en/docs/install/)
 - [Foundry](https://github.com/foundry-rs/foundry#installation)
 - [Make](https://linux.die.net/man/1/make)
 
@@ -42,7 +41,7 @@ This tutorial was checked on:
 | git, curl, jq, and make | OS default | `sudo apt install -y git curl make jq` |
 | Go       | 1.20       | `sudo apt update` <br> `wget https://go.dev/dl/go1.20.linux-amd64.tar.gz` <br> `tar xvzf go1.20.linux-amd64.tar.gz` <br> `sudo cp go/bin/go /usr/bin/go` <br> `sudo mv go /usr/lib` <br> `echo export GOROOT=/usr/lib/go >> ~/.bashrc`
 | Node     | 16.19.0    | `curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -` <br> `sudo apt-get install -y nodejs npm`
-| yarn     | 1.22.19    | `sudo npm install -g yarn`
+| pnpm     | 1.22.19    | `curl -fsSL https://get.pnpm.io/install.sh | sh -`
 | Foundry  | 0.2.0      | `curl -L https://foundry.paradigm.xyz | bash` <br> `. ~/.bashrc` <br> `foundryup`
 
 ## Build the Source Code
@@ -67,14 +66,14 @@ We’re going to be spinning up an EVM Rollup from the OP Stack source code.  Yo
 1. Install required modules. This is a slow process, while it is running you can already start building `op-geth`, as shown below.
 
     ```bash
-    yarn install
+    pnpm install
     ```
 
 1. Build the various packages inside of the Optimism Monorepo.
 
     ```bash
     make op-node op-batcher op-proposer
-    yarn build
+    pnpm build
     ```
 
 ### Build op-geth
@@ -158,7 +157,7 @@ Recommended funding amounts are as follows:
 - `Proposer` — 5 ETH
 - `Batcher` — 10 ETH
 
-::: danger Not for production deployments 
+::: danger Not for production deployments
 
 The `rekey` tool is *not* designed for production deployments. If you are deploying an OP Stack based chain into production, you should likely be using a combination of hardware security modules and hardware wallets.
 
@@ -205,7 +204,7 @@ Once you’ve built both repositories, you’ll need head back to the Optimism M
 
 ## Deploy the L1 contracts
 
-Once you’ve configured your network, it’s time to deploy the L1 smart contracts necessary for the functionality of the chain. 
+Once you’ve configured your network, it’s time to deploy the L1 smart contracts necessary for the functionality of the chain.
 
 1. Inside of `contracts-bedrock`, copy `.env.example` to `.env`.
 
@@ -228,7 +227,7 @@ Contract deployment can take up to 15 minutes. Please wait for all smart contrac
 
 ## Generate the L2 config files
 
-We’ve set up the L1 side of things, but now we need to set up the L2 side of things. We do this by generating three important files, a `genesis.json` file, a `rollup.json` configuration file, and a `jwt.txt` [JSON Web Token](https://jwt.io/introduction) that allows the `op-node` and `op-geth` to communicate securely. 
+We’ve set up the L1 side of things, but now we need to set up the L2 side of things. We do this by generating three important files, a `genesis.json` file, a `rollup.json` configuration file, and a `jwt.txt` [JSON Web Token](https://jwt.io/introduction) that allows the `op-node` and `op-geth` to communicate securely.
 
 1. Head over to the `op-node` package:
 
@@ -314,7 +313,7 @@ The other two, `op-batcher` and `op-proposer`, run only in one place, the sequen
 Set these environment variables for the configuration
 
 | Variable       | Value |
-| -------------- | - 
+| -------------- | -
 | `SEQ_ADDR`     | Address of the `Sequencer` account
 | `SEQ_KEY`      | Private key of the `Sequencer` account
 | `BATCHER_KEY`  | Private key of the `Batcher` accounts, which should have at least 1 ETH
@@ -479,7 +478,7 @@ cd ~/optimism/op-batcher
 
 ::: tip Controlling batcher costs
 
-The `--max-channel-duration=n` setting tells the batcher to write all the data to L1 every `n` L1 blocks. 
+The `--max-channel-duration=n` setting tells the batcher to write all the data to L1 every `n` L1 blocks.
 When it is low, transactions are written to L1 frequently, withdrawals are quick, and other nodes can synchronize from L1 fast.
 When it is high, transactions are written to L1 less frequently, and the batcher spends less ETH.
 
@@ -522,7 +521,7 @@ Once you’ve connected your wallet, you’ll probably notice that you don’t h
 
 ## Use your Rollup
 
-Congratulations, you made it! You now have a complete OP Stack based EVM Rollup. 
+Congratulations, you made it! You now have a complete OP Stack based EVM Rollup.
 
 To see your rollup in action, you can use the [Optimism Mainnet Getting Started tutorial](https://github.com/ethereum-optimism/optimism-tutorial/blob/main/getting-started). Follow these steps:
 
@@ -575,7 +574,7 @@ To use any other development stack, see the getting started tutorial, just repla
 
 #### Corrupt data directory
 
-If `op-geth` aborts (for example, because the computer it is running on crashes), you might get these errors on `op-node`: 
+If `op-geth` aborts (for example, because the computer it is running on crashes), you might get these errors on `op-node`:
 
 ```
 WARN [02-16|21:22:02.868] Derivation process temporary error       attempts=14 err="stage 0 failed resetting: temp: failed to find the L2 Heads to start from: failed to fetch L2 block by hash 0x0000000000000000000000000000000000000000000000000000000000000000: failed to determine block-hash of hash 0x0000000000000000000000000000000000000000000000000000000000000000, could not get payload: not found"
