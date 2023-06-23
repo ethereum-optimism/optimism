@@ -8,10 +8,10 @@ import { ClonesWithImmutableArgs } from "@cwia/ClonesWithImmutableArgs.sol";
 import {
     OwnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { Semver } from "../universal/Semver.sol";
 
 import { IDisputeGame } from "./interfaces/IDisputeGame.sol";
 import { IDisputeGameFactory } from "./interfaces/IDisputeGameFactory.sol";
-import { IVersioned } from "./interfaces/IVersioned.sol";
 
 /// @title DisputeGameFactory
 /// @notice A factory contract for creating `IDisputeGame` contracts. All created dispute games
@@ -19,7 +19,7 @@ import { IVersioned } from "./interfaces/IVersioned.sol";
 ///         time of the dispute game is packed tightly into the storage slot with the address of
 ///         the dispute game. This is to make offchain discoverability of playable dispute games
 ///         easier.
-contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, IVersioned {
+contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
     /// @dev Allows for the creation of clone proxies with immutable arguments.
     using ClonesWithImmutableArgs for address;
 
@@ -37,7 +37,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, IVersion
     GameId[] internal _disputeGameList;
 
     /// @notice constructs a new DisputeGameFactory contract.
-    constructor() OwnableUpgradeable() {
+    constructor() OwnableUpgradeable() Semver(0, 0, 2) {
         initialize(address(0));
     }
 
@@ -46,12 +46,6 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, IVersion
     function initialize(address _owner) public initializer {
         __Ownable_init();
         _transferOwnership(_owner);
-    }
-
-    /// @inheritdoc IVersioned
-    /// @custom:semver 0.0.2
-    function version() external pure returns (string memory) {
-        return "0.0.2";
     }
 
     /// @inheritdoc IDisputeGameFactory
