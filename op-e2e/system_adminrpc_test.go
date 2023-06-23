@@ -3,6 +3,7 @@ package op_e2e
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/node"
@@ -13,6 +14,47 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
+
+func TestStopStartSequencer(t *testing.T) {
+	InitParallel(t)
+
+	cfg := DefaultSystemConfig(t)
+	sys, err := cfg.Start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	l2Seq := sys.Clients["sequencer"]
+	rollupNode := sys.RollupNodes["sequencer"]
+
+	nodeRPC, err := rpc.DialContext(context.Background(), rollupNode.HTTPEndpoint())
+	require.Nil(t, err, "Error dialing node")
+
+	blockBefore := latestBlock(t, l2Seq)
+	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
+	blockAfter := latestBlock(t, l2Seq)
+	require.Greaterf(t, blockAfter, blockBefore, "Chain did not advance")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	blockHash := common.Hash{}
+	err = nodeRPC.CallContext(ctx, &blockHash, "admin_stopSequencer")
+	require.Nil(t, err, "Error stopping sequencer")
+
+	blockBefore = latestBlock(t, l2Seq)
+	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
+	blockAfter = latestBlock(t, l2Seq)
+	require.Equal(t, blockAfter, blockBefore, "Chain advanced after stopping sequencer")
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = nodeRPC.CallContext(ctx, nil, "admin_startSequencer", blockHash)
+	require.Nil(t, err, "Error starting sequencer")
+
+	blockBefore = latestBlock(t, l2Seq)
+	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
+	blockAfter = latestBlock(t, l2Seq)
+	require.Greater(t, blockAfter, blockBefore, "Chain did not advance after starting sequencer")
+}
 
 func TestPersistSequencerStateWhenChanged(t *testing.T) {
 	InitParallel(t)
