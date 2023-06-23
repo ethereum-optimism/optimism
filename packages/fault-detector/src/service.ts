@@ -16,7 +16,7 @@ import {
   OEL1ContractsLike,
 } from '@eth-optimism/sdk'
 import { Provider } from '@ethersproject/abstract-provider'
-import { ethers } from 'ethers'
+import { Contract, ethers } from 'ethers'
 import dateformat from 'dateformat'
 
 import { version } from '../package.json'
@@ -24,7 +24,6 @@ import {
   findFirstUnfinalizedStateBatchIndex,
   findEventForStateBatch,
   PartialEvent,
-  OutputOracle,
   updateOracleCache,
 } from './helpers'
 
@@ -33,8 +32,6 @@ type Options = {
   l2RpcProvider: Provider
   startBatchIndex: number
   optimismPortalAddress?: string
-  bedrock: boolean
-  stateCommitmentChainAddress?: string
 }
 
 type Metrics = {
@@ -45,7 +42,7 @@ type Metrics = {
 
 type State = {
   faultProofWindow: number
-  outputOracle: OutputOracle
+  outputOracle: Contract
   messenger: CrossChainMessenger
   currentBatchIndex: number
   diverged: boolean
@@ -81,19 +78,6 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
           default: ethers.constants.AddressZero,
           desc: '[Custom OP Chains] Deployed OptimismPortal contract address. Used to retrieve necessary info for ouput verification ',
           public: true,
-        },
-        // Deprecated options.
-        bedrock: {
-          validator: validators.bool,
-          default: true,
-          desc: '[Deprecated, must be set to true] Whether or not the service is running against a Bedrock chain',
-          public: false,
-        },
-        stateCommitmentChainAddress: {
-          validator: validators.str,
-          default: ethers.constants.AddressZero,
-          desc: '[Deprecated, must be set to 0x0] Deployed StateCommitmentChain contract address. Used to fetch necessary info for output verification.',
-          public: false,
         },
       },
       metricsSpec: {
@@ -210,13 +194,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       `fault proof window is ${this.state.faultProofWindow} seconds`
     )
 
-    const outputOracle = this.state.messenger.contracts.l1.L2OutputOracle
-    this.state.outputOracle = {
-      contract: outputOracle,
-      filter: outputOracle.filters.OutputProposed(),
-      getTotalElements: async () => outputOracle.nextOutputIndex(),
-      getEventIndex: (args) => args.l2OutputIndex,
-    }
+    this.state.outputOracle = this.state.messenger.contracts.l1.L2OutputOracle
 
     // Populate the event cache.
     this.logger.info('warming event cache, this might take a while...')
@@ -236,7 +214,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       // but it happens often on testnets because the FAULTPROOFWINDOW is very short.
       if (firstUnfinalized === undefined) {
         this.logger.info('no unfinalized batches found. skipping all batches.')
-        const totalBatches = await this.state.outputOracle.getTotalElements()
+        const totalBatches = await this.state.outputOracle.nextOutputIndex()
         this.state.currentBatchIndex = totalBatches.toNumber() - 1
       } else {
         this.state.currentBatchIndex = firstUnfinalized
@@ -266,17 +244,17 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
 
     let latestBatchIndex: number
     try {
-      const totalBatches = await this.state.outputOracle.getTotalElements()
+      const totalBatches = await this.state.outputOracle.nextOutputIndex()
       latestBatchIndex = totalBatches.toNumber() - 1
     } catch (err) {
       this.logger.error('failed to query total # of batches', {
         error: err,
         node: 'l1',
-        section: 'getTotalElements',
+        section: 'nextOutputIndex',
       })
       this.metrics.nodeConnectionFailures.inc({
         layer: 'l1',
-        section: 'getTotalElements',
+        section: 'nextOutputIndex',
       })
       await sleep(15000)
       return
@@ -410,7 +388,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
           new Date(
             (ethers.BigNumber.from(outputBlock.timestamp).toNumber() +
               this.state.faultProofWindow) *
-            1000
+              1000
           ),
           'mmmm dS, yyyy, h:MM:ss TT'
         ),

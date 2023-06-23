@@ -1,12 +1,5 @@
-import { Contract, BigNumber } from 'ethers'
+import { Contract } from 'ethers'
 import { Logger } from '@eth-optimism/common-ts'
-
-export interface OutputOracle {
-  contract: Contract
-  filter: any
-  getTotalElements: () => Promise<BigNumber>
-  getEventIndex: (args: any) => BigNumber
-}
 
 /**
  * Partial event interface, meant to reduce the size of the event cache to avoid
@@ -55,11 +48,11 @@ const getCache = (
  * @param filter Event filter to use.
  */
 export const updateOracleCache = async (
-  oracle: OutputOracle,
+  oracle: Contract,
   logger?: Logger
 ): Promise<void> => {
-  const cache = getCache(oracle.contract.address)
-  const endBlock = await oracle.contract.provider.getBlockNumber()
+  const cache = getCache(oracle.address)
+  const endBlock = await oracle.provider.getBlockNumber()
   logger?.info('visiting uncached oracle events for range', {
     node: 'l1',
     cachedUntilBlock: cache.highestBlock,
@@ -77,15 +70,15 @@ export const updateOracleCache = async (
         blockRangeSize: step,
       })
 
-      const events = await oracle.contract.queryFilter(
-        oracle.filter,
+      const events = await oracle.queryFilter(
+        oracle.filters.OutputProposed(),
         currentBlock,
         currentBlock + step
       )
 
       // Throw the events into the cache.
       for (const event of events) {
-        cache.eventCache[oracle.getEventIndex(event.args).toNumber()] = {
+        cache.eventCache[event.args.l2OutputIndex.toNumber()] = {
           blockNumber: event.blockNumber,
           transactionHash: event.transactionHash,
           args: event.args,
@@ -134,11 +127,11 @@ export const updateOracleCache = async (
  * @returns Event corresponding to the batch.
  */
 export const findEventForStateBatch = async (
-  oracle: OutputOracle,
+  oracle: Contract,
   index: number,
   logger?: Logger
 ): Promise<PartialEvent> => {
-  const cache = getCache(oracle.contract.address)
+  const cache = getCache(oracle.address)
 
   // Try to find the event in cache first.
   if (cache.eventCache[index]) {
@@ -165,12 +158,12 @@ export const findEventForStateBatch = async (
  * @returns Starting state root batch index.
  */
 export const findFirstUnfinalizedStateBatchIndex = async (
-  oracle: OutputOracle,
+  oracle: Contract,
   fpw: number,
   logger?: Logger
 ): Promise<number> => {
-  const latestBlock = await oracle.contract.provider.getBlock('latest')
-  const totalBatches = (await oracle.getTotalElements()).toNumber()
+  const latestBlock = await oracle.provider.getBlock('latest')
+  const totalBatches = (await oracle.nextOutputIndex()).toNumber()
 
   // Perform a binary search to find the next batch that will pass the challenge period.
   let lo = 0
@@ -178,7 +171,7 @@ export const findFirstUnfinalizedStateBatchIndex = async (
   while (lo !== hi) {
     const mid = Math.floor((lo + hi) / 2)
     const event = await findEventForStateBatch(oracle, mid, logger)
-    const block = await oracle.contract.provider.getBlock(event.blockNumber)
+    const block = await oracle.provider.getBlock(event.blockNumber)
 
     if (block.timestamp + fpw < latestBlock.timestamp) {
       lo = mid + 1

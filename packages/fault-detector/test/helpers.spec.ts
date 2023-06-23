@@ -8,7 +8,6 @@ import { expect } from './setup'
 import {
   findEventForStateBatch,
   findFirstUnfinalizedStateBatchIndex,
-  OutputOracle,
 } from '../src'
 
 describe('helpers', () => {
@@ -29,7 +28,6 @@ describe('helpers', () => {
   })
 
   let L2OutputOracle: Contract
-  let oracle: OutputOracle
   beforeEach(async () => {
     L2OutputOracle = await getContractFactory('L2OutputOracle', signer).deploy(
       deployConfig.l2OutputOracleSubmissionInterval,
@@ -40,13 +38,6 @@ describe('helpers', () => {
       deployConfig.l2OutputOracleChallenger,
       deployConfig.finalizationPeriodSeconds
     )
-
-    oracle = {
-      contract: L2OutputOracle,
-      filter: L2OutputOracle.filters.OutputProposed(),
-      getTotalElements: async () => L2OutputOracle.nextOutputIndex(),
-      getEventIndex: (args: any) => args.l2OutputIndex,
-    }
   })
 
   describe('findEventForStateBatch', () => {
@@ -70,7 +61,7 @@ describe('helpers', () => {
       })
 
       it('should return the event', async () => {
-        const event = await findEventForStateBatch(oracle, 0)
+        const event = await findEventForStateBatch(L2OutputOracle, 0)
 
         expect(event.args.l2OutputIndex).to.equal(0)
       })
@@ -79,7 +70,7 @@ describe('helpers', () => {
     describe('when the event does not exist', () => {
       it('should throw an error', async () => {
         await expect(
-          findEventForStateBatch(oracle, 0)
+          findEventForStateBatch(L2OutputOracle, 0)
         ).to.eventually.be.rejectedWith('unable to find event for batch')
       })
     })
@@ -126,7 +117,7 @@ describe('helpers', () => {
 
       it('should find the first batch older than the FPW', async () => {
         const first = await findFirstUnfinalizedStateBatchIndex(
-          oracle,
+          L2OutputOracle,
           deployConfig.finalizationPeriodSeconds
         )
 
@@ -168,7 +159,7 @@ describe('helpers', () => {
 
       it('should return zero', async () => {
         const first = await findFirstUnfinalizedStateBatchIndex(
-          oracle,
+          L2OutputOracle,
           deployConfig.finalizationPeriodSeconds
         )
 
@@ -218,7 +209,7 @@ describe('helpers', () => {
 
       it('should return undefined', async () => {
         const first = await findFirstUnfinalizedStateBatchIndex(
-          oracle,
+          L2OutputOracle,
           deployConfig.finalizationPeriodSeconds
         )
 
