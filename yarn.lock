@@ -769,7 +769,17 @@
     minimatch "^3.1.2"
     strip-json-comments "^3.1.1"
 
-"@eth-optimism/contracts@0.6.0", "@eth-optimism/contracts@^0.6.0":
+"@eth-optimism/contracts-bedrock@^0.14.0":
+  version "0.14.0"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts-bedrock/-/contracts-bedrock-0.14.0.tgz#f93006416c8b114fb78d2e477dccd525aa651458"
+  integrity sha512-mvbSE2q2cyHUwg1jtHwR4JOQJcwdCVRAkmBdXCKUP0XsP48NT1J92bYileRdiUM5nLIESgNNmPA8L2J87mr62g==
+  dependencies:
+    "@eth-optimism/core-utils" "^0.12.0"
+    "@openzeppelin/contracts" "4.7.3"
+    "@openzeppelin/contracts-upgradeable" "4.7.3"
+    ethers "^5.7.0"
+
+"@eth-optimism/contracts@0.6.0":
   version "0.6.0"
   resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.6.0.tgz#15ae76222a9b4d958a550cafb1960923af613a31"
   integrity sha512-vQ04wfG9kMf1Fwy3FEMqH2QZbgS0gldKhcBeBUPfO8zu68L61VI97UDXmsMQXzTsEAxK8HnokW3/gosl4/NW3w==
