@@ -10,6 +10,7 @@
   "batchSenderAddress": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
   "l2OutputOracleSubmissionInterval": 20,
   "l2OutputOracleStartingTimestamp": -1,
+  "l2OutputOracleStartingBlockNumber": 0,
   "l2OutputOracleProposer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
   "l2OutputOracleChallenger": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
   "l2GenesisBlockGasLimit": "0x1c9c380",
@@ -40,7 +41,7 @@
   "governanceTokenOwner": "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
   "eip1559Denominator": 8,
   "eip1559Elasticity": 2,
-  "l1GenesisBlockTimestamp": "0x648a0943",
+  "l1GenesisBlockTimestamp": "0x64935846",
   "l1StartingBlockTag": "earliest",
   "l2GenesisRegolithTimeOffset": "0x0"
 }

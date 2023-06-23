@@ -2,13 +2,13 @@
 pragma solidity ^0.8.15;
 
 import { IDisputeGame } from "./interfaces/IDisputeGame.sol";
-import { IVersioned } from "./interfaces/IVersioned.sol";
 import { IFaultDisputeGame } from "./interfaces/IFaultDisputeGame.sol";
 import { IInitializable } from "./interfaces/IInitializable.sol";
 import { IBondManager } from "./interfaces/IBondManager.sol";
 import { IBigStepper } from "./interfaces/IBigStepper.sol";
 
 import { Clone } from "../libraries/Clone.sol";
+import { Semver } from "../universal/Semver.sol";
 import { LibHashing } from "./lib/LibHashing.sol";
 import { LibPosition } from "./lib/LibPosition.sol";
 import { LibClock } from "./lib/LibClock.sol";
@@ -18,7 +18,7 @@ import "../libraries/DisputeErrors.sol";
 
 /// @title FaultDisputeGame
 /// @notice An implementation of the `IFaultDisputeGame` interface.
-contract FaultDisputeGame is IFaultDisputeGame, Clone {
+contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     ////////////////////////////////////////////////////////////////
     //                         State Vars                         //
     ////////////////////////////////////////////////////////////////
@@ -40,9 +40,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
     /// @notice The root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
-    /// @notice The current Semver of the FaultDisputeGame implementation.
-    string internal constant VERSION = "0.0.2";
-
     /// @notice The starting timestamp of the game
     Timestamp public gameStart;
 
@@ -63,7 +60,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         Claim _absolutePrestate,
         uint256 _maxGameDepth,
         IBigStepper _vm
-    ) {
+    ) Semver(0, 0, 2) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
         VM = _vm;
@@ -375,10 +372,5 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
                 countered: false
             })
         );
-    }
-
-    /// @inheritdoc IVersioned
-    function version() external pure override returns (string memory version_) {
-        version_ = VERSION;
     }
 }

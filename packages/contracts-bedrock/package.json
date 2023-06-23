@@ -26,7 +26,6 @@
     "build:fuzz": "(cd test-case-generator && go build ./cmd/fuzz.go)",
     "autogen:artifacts": "ts-node scripts/generate-artifacts.ts",
     "autogen:invariant-docs": "ts-node scripts/invariant-doc-gen.ts",
-    "deploy": "hardhat deploy",
     "test": "yarn build:differential && yarn build:fuzz && forge test",
     "coverage": "yarn build:differential && yarn build:fuzz && forge coverage",
     "coverage:lcov": "yarn build:differential && yarn build:fuzz && forge coverage --report lcov",
