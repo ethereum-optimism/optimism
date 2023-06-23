@@ -359,7 +359,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: run tests
-          command: yarn test
+          command: pnpm test
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -401,7 +401,7 @@ jobs:
       - run:
           name: validate deploy configs
           command: |
-            yarn validate-deploy-configs || echo "export DEPLOY_CONFIG_STATUS=1" >> "$BASH_ENV"
+            pnpm validate-deploy-configs || echo "export DEPLOY_CONFIG_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -628,11 +628,11 @@ jobs:
           command: anvil --fork-url $ANVIL_L2_FORK_URL --port 9545 --fork-block-number 9504811
       - run:
           name: build
-          command: yarn build
+          command: pnpm build
           working_directory: packages/sdk
       - run:
           name: lint
-          command: yarn lint:check
+          command: pnpm lint:check
           working_directory: packages/sdk
       - run:
           name: make sure anvil l1 is up
@@ -642,7 +642,7 @@ jobs:
           command: npx wait-on tcp:9545 && cast block-number --rpc-url http://localhost:9545
       - run:
           name: test:next
-          command: yarn test:next:run
+          command: pnpm test:next:run
           no_output_timeout: 5m
           working_directory: packages/sdk
           environment:
