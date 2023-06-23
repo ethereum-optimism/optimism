@@ -3,13 +3,12 @@ pragma solidity ^0.8.15;
 
 import "../../libraries/DisputeTypes.sol";
 
-import { IVersioned } from "./IVersioned.sol";
 import { IBondManager } from "./IBondManager.sol";
 import { IInitializable } from "./IInitializable.sol";
 
 /// @title IDisputeGame
 /// @notice The generic interface for a DisputeGame contract.
-interface IDisputeGame is IInitializable, IVersioned {
+interface IDisputeGame is IInitializable {
     /// @notice Emitted when the game is resolved.
     /// @param status The status of the game after resolution.
     event Resolved(GameStatus indexed status);
