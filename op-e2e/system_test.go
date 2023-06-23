@@ -24,6 +24,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/geth"
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -238,14 +239,14 @@ func TestPendingGasLimit(t *testing.T) {
 
 	// configure the L2 gas limit to be high, and the pending gas limits to be lower for resource saving.
 	cfg.DeployConfig.L2GenesisBlockGasLimit = 30_000_000
-	cfg.GethOptions["sequencer"] = []GethOption{
+	cfg.GethOptions["sequencer"] = []geth.GethOption{
 		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
 			ethCfg.Miner.GasCeil = 10_000_000
 			ethCfg.Miner.RollupComputePendingBlock = true
 			return nil
 		},
 	}
-	cfg.GethOptions["verifier"] = []GethOption{
+	cfg.GethOptions["verifier"] = []geth.GethOption{
 		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
 			ethCfg.Miner.GasCeil = 9_000_000
 			ethCfg.Miner.RollupComputePendingBlock = true
@@ -738,7 +739,7 @@ func TestSystemP2PAltSync(t *testing.T) {
 		},
 	}
 	configureL1(syncNodeCfg, sys.Nodes["l1"])
-	syncerL2Engine, _, err := initL2Geth("syncer", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), sys.L2GenesisCfg, cfg.JWTFilePath)
+	syncerL2Engine, _, err := geth.InitL2Geth("syncer", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), sys.L2GenesisCfg, cfg.JWTFilePath)
 	require.NoError(t, err)
 	require.NoError(t, syncerL2Engine.Start())
 

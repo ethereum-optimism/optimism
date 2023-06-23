@@ -42,6 +42,7 @@ import (
 	batchermetrics "github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/geth"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -188,7 +189,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			"batcher":   testlog.Logger(t, log.LvlInfo).New("role", "batcher"),
 			"proposer":  testlog.Logger(t, log.LvlCrit).New("role", "proposer"),
 		},
-		GethOptions:                map[string][]GethOption{},
+		GethOptions:                map[string][]geth.GethOption{},
 		P2PTopology:                nil, // no P2P connectivity by default
 		NonFinalizedProposals:      false,
 		BatcherTargetL1TxSizeBytes: 100_000,
@@ -221,7 +222,7 @@ type SystemConfig struct {
 	Premine        map[common.Address]*big.Int
 	Nodes          map[string]*rollupNode.Config // Per node config. Don't use populate rollup.Config
 	Loggers        map[string]log.Logger
-	GethOptions    map[string][]GethOption
+	GethOptions    map[string][]geth.GethOption
 	ProposerLogger log.Logger
 	BatcherLogger  log.Logger
 
@@ -428,7 +429,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	sys.RollupConfig = &defaultConfig
 
 	// Initialize nodes
-	l1Node, l1Backend, err := initL1Geth(&cfg, l1Genesis, c, cfg.GethOptions["l1"]...)
+	l1Node, l1Backend, err := geth.InitL1Geth(cfg.DeployConfig, l1Genesis, []*ecdsa.PrivateKey{cfg.Secrets.CliqueSigner}, cfg.GethOptions["l1"]...)
 	if err != nil {
 		return nil, err
 	}
@@ -436,7 +437,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	sys.Backends["l1"] = l1Backend
 
 	for name := range cfg.Nodes {
-		node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
+		node, backend, err := geth.InitL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
 		if err != nil {
 			return nil, err
 		}
