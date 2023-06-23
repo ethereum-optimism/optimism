@@ -22,6 +22,8 @@ type TraceProvider interface {
 type Claim struct {
 	Value common.Hash
 	Position
+	Parent        *Claim
+	DefendsParent bool
 }
 
 type Response struct {
