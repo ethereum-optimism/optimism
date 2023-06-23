@@ -88,21 +88,13 @@ contract DeployConfig is Script {
             return tag;
         } catch {
             try vm.parseJsonString(_json, "$.l1StartingBlockTag") returns (string memory tag) {
-                string[] memory cmd = new string[](3);
-                cmd[0] = "/usr/bin/bash";
-                cmd[1] = "-c";
-                cmd[2] = string.concat("cast block ", tag, " --json | jq -r .hash");
-                bytes memory res = vm.ffi(cmd);
-                return abi.decode(res, (bytes32));
+                return _getBlockByTag(tag);
             } catch {
                 try vm.parseJsonUint(_json, "$.l1StartingBlockTag") returns (uint256 tag) {
-                    string[] memory cmd = new string[](3);
-                    cmd[0] = "/usr/bin/bash";
-                    cmd[1] = "-c";
-                    cmd[2] = string.concat("cast block ", vm.toString(tag), " --json | jq -r .hash");
-                    bytes memory res = vm.ffi(cmd);
-                    return abi.decode(res, (bytes32));
-                } catch {}
+                    return _getBlockByTag(vm.toString(tag));
+                } catch {
+                    revert("cannot fetch l1StartingBlockTag");
+                }
             }
         }
         revert("l1StartingBlockTag must be a bytes32, string or uint256");
@@ -119,5 +111,14 @@ contract DeployConfig is Script {
             return stdJson.readUint(string(res), "");
         }
         return uint256(_l2OutputOracleStartingTimestamp);
+    }
+
+    function _getBlockByTag(string memory _tag) internal returns (bytes32) {
+        string[] memory cmd = new string[](3);
+        cmd[0] = "/usr/bin/bash";
+        cmd[1] = "-c";
+        cmd[2] = string.concat("cast block ", _tag, " --json | jq -r .hash");
+        bytes memory res = vm.ffi(cmd);
+        return abi.decode(res, (bytes32));
     }
 }

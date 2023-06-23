@@ -191,7 +191,9 @@ contract Deploy is Deployer {
     /// @notice Deploy the OptimismMintableERC20FactoryProxy
     function deployOptimismMintableERC20FactoryProxy() broadcast() public returns (address) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy(proxyAdmin);
+        Proxy proxy = new Proxy({
+            _admin: proxyAdmin
+        });
 
         address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
         require(admin == proxyAdmin);
