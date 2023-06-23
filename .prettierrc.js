@@ -1,5 +1,6 @@
 module.exports = {
   $schema: 'http://json.schemastore.org/prettierrc',
+  plugins: ['prettier-plugin-solidity'],
   trailingComma: 'es5',
   tabWidth: 2,
   semi: false,

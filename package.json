@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "author": "Optimism PBC",
   "license": "MIT",
+  "private": true,
   "workspaces": {
     "packages": [
       "packages/*",
@@ -22,7 +23,9 @@
       "forta-agent"
     ]
   },
-  "private": true,
+  "engines": {
+    "pnpm": ">=8"
+  },
   "scripts": {
     "clean": "npx nx run-many --target=clean",
     "build": "npx nx run-many --target=build",
@@ -32,15 +35,14 @@
     "lint:ts:check": "npx nx run-many --target=lint:ts:check",
     "lint:check": "npx nx run-many --target=lint:check",
     "lint:fix": "npx nx run-many --target=lint:fix",
-    "lint:specs:fix": "yarn run markdownlint-cli2-fix \"./specs/**/*.md\"",
-    "lint:specs:check": "yarn run markdownlint-cli2  \"./specs/**/*.md\"",
-    "lint:specs:toc": "yarn run doctoc '--title=**Table of Contents**' ./specs",
+    "lint:specs:fix": "npx markdownlint-cli2-fix \"./specs/**/*.md\"",
+    "lint:specs:check": "npx markdownlint-cli2  \"./specs/**/*.md\"",
+    "lint:specs:toc": "npx doctoc '--title=**Table of Contents**' ./specs",
     "postinstall": "patch-package",
-    "ready": "yarn lint && yarn test",
+    "ready": "pnpm lint && pnpm test",
     "prepare": "husky install",
-    "release": "yarn build && yarn changeset publish",
-    "update:yarn": "yarn set version 1.x",
-    "install:foundry": "curl -L https://foundry.paradigm.xyz | bash && yarn update:foundry",
+    "release": "pnpm build && pnpm changeset publish",
+    "install:foundry": "curl -L https://foundry.paradigm.xyz | bash && pnpm update:foundry",
     "update:foundry": "foundryup -C $(cat .foundryrc)"
   },
   "devDependencies": {
@@ -68,6 +70,7 @@
     "eslint-plugin-react": "^7.24.0",
     "eslint-plugin-unicorn": "^42.0.0",
     "husky": "^6.0.0",
+    "lerna": "^6.0.0",
     "lint-staged": "11.0.0",
     "markdownlint": "^0.24.0",
     "markdownlint-cli2": "0.4.0",

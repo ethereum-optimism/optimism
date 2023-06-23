@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vuepress dev src",
     "build": "vuepress build src",
-    "preview": "yarn build && serve -s src/.vuepress/dist -p 8080"
+    "preview": "pnpm build && serve -s src/.vuepress/dist -p 8080"
   },
   "license": "MIT",
   "devDependencies": {

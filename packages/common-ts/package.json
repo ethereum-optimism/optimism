@@ -9,12 +9,12 @@
     "src/*"
   ],
   "scripts": {
-    "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
+    "all": "pnpm clean && pnpm build && pnpm test && pnpm lint:fix && pnpm lint",
     "build": "tsc -p tsconfig.json",
     "clean": "rimraf dist/ ./tsconfig.tsbuildinfo",
     "lint:check": "eslint . --max-warnings=0",
-    "lint:fix": "yarn lint:check --fix",
-    "lint": "yarn lint:fix && yarn lint:check",
+    "lint:fix": "pnpm lint:check --fix",
+    "lint": "pnpm lint:fix && pnpm lint:check",
     "pre-commit": "lint-staged",
     "test": "ts-mocha test/*.spec.ts",
     "test:coverage": "nyc ts-mocha test/*.spec.ts && nyc merge .nyc_output coverage.json"
