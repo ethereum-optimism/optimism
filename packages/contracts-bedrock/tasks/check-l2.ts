@@ -234,7 +234,7 @@ const check = {
       signer
     )
 
-    await assertSemver(LegacyMessagePasser, 'LegacyMessagePasser')
+    await assertSemver(LegacyMessagePasser, 'LegacyMessagePasser', '1.0.1')
     await checkProxy(hre, 'LegacyMessagePasser', signer.provider)
     await assertProxy(hre, 'LegacyMessagePasser', signer.provider)
   },
@@ -249,7 +249,7 @@ const check = {
       signer
     )
 
-    await assertSemver(DeployerWhitelist, 'DeployerWhitelist')
+    await assertSemver(DeployerWhitelist, 'DeployerWhitelist', '1.0.1')
 
     const owner = await DeployerWhitelist.owner()
     assert(owner === hre.ethers.constants.AddressZero)
@@ -446,7 +446,7 @@ const check = {
       signer
     )
 
-    await assertSemver(L1BlockNumber, 'L1BlockNumber')
+    await assertSemver(L1BlockNumber, 'L1BlockNumber', '1.0.1')
 
     await checkProxy(hre, 'L1BlockNumber', signer.provider)
     await assertProxy(hre, 'L1BlockNumber', signer.provider)
