@@ -22,7 +22,10 @@ no_match_contract = 'EchidnaFuzz'
 
 fs_permissions = [
   { 'access'='read-write', 'path'='./.resource-metering.csv' },
-  { 'access'='read', 'path'='./deployments/' },
+  { 'access'='read-write', 'path'='./deployments/' },
+  { 'access'='read', 'path'='./deploy-config/' },
+  { 'access'='read', 'path'='./broadcast/' },
+  { access = 'read', path = './forge-artifacts/' },
 ]
 
 [profile.ci]

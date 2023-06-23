@@ -8,6 +8,7 @@ import calendar
 import datetime
 import time
 import shutil
+import http.client
 
 import devnet.log_setup
 from devnet.genesis import GENESIS_TMPL
@@ -51,6 +52,10 @@ def main():
 
     os.makedirs(devnet_dir, exist_ok=True)
 
+    run_command(['docker-compose', 'build', '--progress', 'plain'], cwd=paths.ops_bedrock_dir, env={
+        'PWD': paths.ops_bedrock_dir
+    })
+
     if args.deploy:
       log.info('Devnet with upcoming smart contract deployments')
       devnet_deploy(paths)
@@ -88,12 +93,14 @@ def devnet_prestate(paths):
         'PWD': paths.ops_bedrock_dir
     })
     wait_up(8545)
+    wait_for_rpc_server('127.0.0.1:8545')
 
     log.info('Bringing up L2.')
     run_command(['docker-compose', 'up', '-d', 'l2'], cwd=paths.ops_bedrock_dir, env={
         'PWD': paths.ops_bedrock_dir
     })
     wait_up(9545)
+    wait_for_rpc_server('127.0.0.1:9545')
 
     log.info('Bringing up the services.')
     run_command(['docker-compose', 'up', '-d', 'op-proposer', 'op-batcher'], cwd=paths.ops_bedrock_dir, env={
@@ -114,6 +121,7 @@ def devnet_deploy(paths):
         'PWD': paths.ops_bedrock_dir
     })
     wait_up(8545)
+    wait_for_rpc_server('127.0.0.1:8545')
 
     log.info('Generating network config.')
     devnet_cfg_orig = pjoin(paths.contracts_bedrock_dir, 'deploy-config', 'devnetL1.json')
@@ -124,16 +132,24 @@ def devnet_deploy(paths):
     deploy_config['l1StartingBlockTag'] = 'earliest'
     write_json(devnet_cfg_orig, deploy_config)
 
+    fqn = 'scripts/Deploy.s.sol:Deploy'
+    private_key = '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
+
     if os.path.exists(paths.addresses_json_path):
         log.info('Contracts already deployed.')
         addresses = read_json(paths.addresses_json_path)
     else:
         log.info('Deploying contracts.')
-        run_command(['yarn', 'hardhat', '--network', 'devnetL1', 'deploy', '--tags', 'l1'], env={
-            'CHAIN_ID': '900',
-            'L1_RPC': 'http://localhost:8545',
-            'PRIVATE_KEY_DEPLOYER': 'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
-        }, cwd=paths.contracts_bedrock_dir)
+        run_command([
+            'forge', 'script', fqn, '--private-key', private_key,
+            '--rpc-url', 'http://127.0.0.1:8545', '--broadcast'
+        ], env={}, cwd=paths.contracts_bedrock_dir)
+
+        run_command([
+            'forge', 'script', fqn, '--private-key', private_key,
+            '--sig', 'sync()', '--rpc-url', 'http://127.0.0.1:8545', '--broadcast'
+        ], env={}, cwd=paths.contracts_bedrock_dir)
+
         contracts = os.listdir(paths.deployment_dir)
         addresses = {}
         for c in contracts:
@@ -148,12 +164,14 @@ def devnet_deploy(paths):
             'CanonicalTransactionChain': '0x0000000000000000000000000000000000000000',
             'BondManager': '0x0000000000000000000000000000000000000000',
         })
-        sdk_addresses['L1CrossDomainMessenger'] = addresses['Proxy__OVM_L1CrossDomainMessenger']
-        sdk_addresses['L1StandardBridge'] = addresses['Proxy__OVM_L1StandardBridge']
+
+        sdk_addresses['L1CrossDomainMessenger'] = addresses['L1CrossDomainMessengerProxy']
+        sdk_addresses['L1StandardBridge'] = addresses['L1StandardBridgeProxy']
         sdk_addresses['OptimismPortal'] = addresses['OptimismPortalProxy']
         sdk_addresses['L2OutputOracle'] = addresses['L2OutputOracleProxy']
         write_json(paths.addresses_json_path, addresses)
         write_json(paths.sdk_addresses_json_path, sdk_addresses)
+        log.info(f'Wrote sdk addresses to {paths.sdk_addresses_json_path}')
 
     if os.path.exists(paths.genesis_l2_path):
         log.info('L2 genesis and rollup configs already generated.')
@@ -178,6 +196,7 @@ def devnet_deploy(paths):
         'PWD': paths.ops_bedrock_dir
     })
     wait_up(9545)
+    wait_for_rpc_server('127.0.0.1:9545')
 
     log.info('Bringing up everything else.')
     run_command(['docker-compose', 'up', '-d', 'op-node', 'op-proposer', 'op-batcher'], cwd=paths.ops_bedrock_dir, env={
@@ -187,6 +206,26 @@ def devnet_deploy(paths):
     })
 
     log.info('Devnet ready.')
+
+
+def wait_for_rpc_server(url):
+    log.info(f'Waiting for RPC server at {url}')
+
+    conn = http.client.HTTPConnection(url)
+    headers = {'Content-type': 'application/json'}
+    body = '{"id":1, "jsonrpc":"2.0", "method": "eth_chainId", "params":[]}'
+
+    while True:
+        try:
+            conn.request('POST', '/', body, headers)
+            response = conn.getresponse()
+            conn.close()
+            if response.status < 300:
+                log.info(f'RPC server at {url} ready')
+                return
+        except Exception as e:
+            log.info(f'Waiting for RPC server at {url}')
+            time.sleep(1)
 
 
 def run_command(args, check=True, shell=False, cwd=None, env=None):
