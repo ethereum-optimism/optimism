@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { stdJson } from "forge-std/StdJson.sol";
+import { Executables } from "./Executables.sol";
 
 /// @title DeployConfig
 /// @notice Represents the configuration required to deploy the system. It is expected
@@ -92,21 +93,19 @@ contract DeployConfig is Script {
             } catch {
                 try vm.parseJsonUint(_json, "$.l1StartingBlockTag") returns (uint256 tag) {
                     return _getBlockByTag(vm.toString(tag));
-                } catch {
-                    revert("cannot fetch l1StartingBlockTag");
-                }
+                } catch {}
             }
         }
-        revert("l1StartingBlockTag must be a bytes32, string or uint256");
+        revert("l1StartingBlockTag must be a bytes32, string or uint256 or cannot fetch l1StartingBlockTag");
     }
 
     function l2OutputOracleStartingTimestamp() public returns (uint256) {
         if (_l2OutputOracleStartingTimestamp < 0) {
             bytes32 tag = l1StartingBlockTag();
             string[] memory cmd = new string[](3);
-            cmd[0] = "/usr/bin/bash";
+            cmd[0] = Executables.bash;
             cmd[1] = "-c";
-            cmd[2] = string.concat("cast block ", vm.toString(tag), " --json | jq .timestamp");
+            cmd[2] = string.concat("cast block ", vm.toString(tag), " --json | ", Executables.jq, " .timestamp");
             bytes memory res = vm.ffi(cmd);
             return stdJson.readUint(string(res), "");
         }
@@ -115,9 +114,9 @@ contract DeployConfig is Script {
 
     function _getBlockByTag(string memory _tag) internal returns (bytes32) {
         string[] memory cmd = new string[](3);
-        cmd[0] = "/usr/bin/bash";
+        cmd[0] = Executables.bash;
         cmd[1] = "-c";
-        cmd[2] = string.concat("cast block ", _tag, " --json | jq -r .hash");
+        cmd[2] = string.concat("cast block ", _tag, " --json | ", Executables.jq, " -r .hash");
         bytes memory res = vm.ffi(cmd);
         return abi.decode(res, (bytes32));
     }
