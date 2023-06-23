@@ -6,7 +6,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
 import { expect } from './setup'
 import {
-  findEventForStateBatch,
+  findOutputForIndex,
   findFirstUnfinalizedStateBatchIndex,
 } from '../src'
 
@@ -40,7 +40,7 @@ describe('helpers', () => {
     )
   })
 
-  describe('findEventForStateBatch', () => {
+  describe('findOutputForIndex', () => {
     describe('when the event exists once', () => {
       beforeEach(async () => {
         const latestBlock = await hre.ethers.provider.getBlock('latest')
@@ -61,17 +61,17 @@ describe('helpers', () => {
       })
 
       it('should return the event', async () => {
-        const event = await findEventForStateBatch(L2OutputOracle, 0)
+        const event = await findOutputForIndex(L2OutputOracle, 0)
 
-        expect(event.args.l2OutputIndex).to.equal(0)
+        expect(event.l2OutputIndex).to.equal(0)
       })
     })
 
     describe('when the event does not exist', () => {
       it('should throw an error', async () => {
         await expect(
-          findEventForStateBatch(L2OutputOracle, 0)
-        ).to.eventually.be.rejectedWith('unable to find event for batch')
+          findOutputForIndex(L2OutputOracle, 0)
+        ).to.eventually.be.rejectedWith('unable to find output for index')
       })
     })
   })
@@ -81,7 +81,6 @@ describe('helpers', () => {
       beforeEach(async () => {
         const latestBlock = await hre.ethers.provider.getBlock('latest')
         const params = {
-          _outputRoot: utils.formatBytes32String('testhash'),
           _l2BlockNumber:
             deployConfig.l2OutputOracleStartingBlockNumber +
             deployConfig.l2OutputOracleSubmissionInterval,
@@ -89,7 +88,7 @@ describe('helpers', () => {
           _l1BlockNumber: latestBlock.number,
         }
         await L2OutputOracle.proposeL2Output(
-          params._outputRoot,
+          utils.formatBytes32String('outputRoot1'),
           params._l2BlockNumber,
           params._l1BlockHash,
           params._l1BlockNumber
@@ -101,15 +100,15 @@ describe('helpers', () => {
         ])
 
         await L2OutputOracle.proposeL2Output(
-          params._outputRoot,
+          utils.formatBytes32String('outputRoot2'),
           params._l2BlockNumber + deployConfig.l2OutputOracleSubmissionInterval,
           params._l1BlockHash,
           params._l1BlockNumber
         )
         await L2OutputOracle.proposeL2Output(
-          params._outputRoot,
+          utils.formatBytes32String('outputRoot3'),
           params._l2BlockNumber +
-            deployConfig.l2OutputOracleSubmissionInterval * 2,
+          deployConfig.l2OutputOracleSubmissionInterval * 2,
           params._l1BlockHash,
           params._l1BlockNumber
         )
@@ -151,7 +150,7 @@ describe('helpers', () => {
         await L2OutputOracle.proposeL2Output(
           params._outputRoot,
           params._l2BlockNumber +
-            deployConfig.l2OutputOracleSubmissionInterval * 2,
+          deployConfig.l2OutputOracleSubmissionInterval * 2,
           params._l1BlockHash,
           params._l1BlockNumber
         )
@@ -193,7 +192,7 @@ describe('helpers', () => {
         await L2OutputOracle.proposeL2Output(
           params._outputRoot,
           params._l2BlockNumber +
-            deployConfig.l2OutputOracleSubmissionInterval * 2,
+          deployConfig.l2OutputOracleSubmissionInterval * 2,
           params._l1BlockHash,
           params._l1BlockNumber
         )
