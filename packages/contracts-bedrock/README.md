@@ -98,9 +98,8 @@ they will write a temp file to disk that can then be formatted into a `hardhat-d
 #### Configuration
 
 Create or modify a file `<network-name>.json` inside of the [`deploy-config`](./deploy-config/) folder.
-The network name will be selected automatically based on the chainid or the `DEPLOYMENT_CONTEXT` env
-var can be used to override needing to use the chainid as the network name.
-The spec for the deploy config can is defined by the `deployConfigSpec` located inside of the [`hardhat.config.ts`](./hardhat.config.ts).
+By default, the network name will be selected automatically based on the chainid. Alternatively, the `DEPLOYMENT_CONTEXT` env var can be used to override the network name.
+The spec for the deploy config is defined by the `deployConfigSpec` located inside of the [`hardhat.config.ts`](./hardhat.config.ts).
 
 #### Execution
 
