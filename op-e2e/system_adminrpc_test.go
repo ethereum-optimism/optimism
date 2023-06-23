@@ -8,9 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
@@ -99,10 +97,8 @@ func TestLoadSequencerStateOnStarted_Stopped(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	// We don't need a verifier - just the sequencer is enough
 	delete(cfg.Nodes, "verifier")
-	logger := testlog.Logger(t, log.LvlInfo)
 	seqCfg := cfg.Nodes["sequencer"]
 	seqCfg.ConfigPersistence = node.NewConfigPersistence(stateFile)
-	require.NoError(t, seqCfg.LoadPersisted(logger))
 
 	sys, err := cfg.Start()
 	require.NoError(t, err)
@@ -134,11 +130,9 @@ func TestLoadSequencerStateOnStarted_Started(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	// We don't need a verifier - just the sequencer is enough
 	delete(cfg.Nodes, "verifier")
-	logger := testlog.Logger(t, log.LvlInfo)
 	seqCfg := cfg.Nodes["sequencer"]
 	seqCfg.Driver.SequencerStopped = true
 	seqCfg.ConfigPersistence = node.NewConfigPersistence(stateFile)
-	require.NoError(t, seqCfg.LoadPersisted(logger))
 
 	sys, err := cfg.Start()
 	require.NoError(t, err)
