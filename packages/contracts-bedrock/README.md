@@ -110,7 +110,7 @@ The spec for the deploy config is defined by the `deployConfigSpec` located insi
 
 #### Deploying a single contract
 
-All of functions for deploying a single contract are `public` meaning that the `--sig` argument to `forge script` can be used to
+All of the functions for deploying a single contract are `public` meaning that the `--sig` argument to `forge script` can be used to
 target the deployment of a single contract.
 
 ## Tools
