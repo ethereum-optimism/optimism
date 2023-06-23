@@ -91,24 +91,28 @@ jobs:
       - store_test_results:
           path: /tmp/test-results
 
-  yarn-monorepo:
+  pnpm-monorepo:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - check-changed:
           patterns: op-bindings,op-chain-ops,packages/
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
       - run:
           name: Install dependencies
-          command: yarn install && git diff --exit-code
+          command: pnpm install --frozen-lockfile
       - save_cache:
-          name: Save Yarn Package Cache
-          key: yarn-packages-v2-{{ checksum "yarn.lock" }}
+          name: Save PNPM Package Cache
+          key: pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
           paths:
             - "node_modules"
             - "packages/chain-mon/node_modules"
@@ -116,7 +120,6 @@ jobs:
             - "packages/contracts-bedrock/node_modules"
             - "packages/contracts-periphery/node_modules"
             - "packages/core-utils/node_modules"
-            - "packages/drippie-mon/node_modules"
             - "packages/fault-detector/node_modules"
             - "packages/hardhat-deploy-config/node_modules"
             - "packages/replica-healthcheck/node_modules"
@@ -126,7 +129,7 @@ jobs:
           command: forge --version
       - run:
           name: Build monorepo
-          command: yarn build
+          command: pnpm build
       - persist_to_workspace:
           root: "."
           paths:
@@ -315,18 +318,23 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
       - run:
           name: print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
-          name: generate coverage report
-          command: yarn coverage:lcov
+          name: test and generate coverage
+          command: pnpm coverage:lcov
+          no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -344,18 +352,22 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
       - run:
           name: print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
           name: run tests
-          command: yarn test
+          command: pnpm test
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -367,41 +379,45 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock,hardhat-deploy-config
       - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      - run:
           name: lint
           command: |
-            yarn lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
+            pnpm lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
           command: |
             forge --version
-            yarn gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
+            pnpm gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
       - run:
           name: validate deploy configs
           command: |
-            yarn validate-deploy-configs || echo "export DEPLOY_CONFIG_STATUS=1" >> "$BASH_ENV"
+            pnpm validate-deploy-configs || echo "export DEPLOY_CONFIG_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
       - run:
           name: storage snapshot
           command: |
-            yarn storage-snapshot
+            pnpm storage-snapshot
             git diff --exit-code .storage-layout || echo "export STORAGE_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: invariant docs
           command: |
-            yarn autogen:invariant-docs
+            pnpm autogen:invariant-docs
             git diff --exit-code ./invariant-docs/*.md || echo "export INVARIANT_DOCS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
@@ -439,16 +455,22 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock,hardhat-deploy-config
       - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      - run:
           name: slither
           command: |
-            slither --version
-            yarn slither
+            slither --version && pnpm slither || echo "export LINT_STATUS=1" >> "$BASH_ENV"
+      - run:
+          name: invariant docs
+          command: pnpm autogen:invariant-docs && git diff --exit-code ./invariant-docs/*.md
           working_directory: packages/contracts-bedrock
 
   contracts-bedrock-validate-spaces:
@@ -458,14 +480,18 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock,hardhat-deploy-config
       - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      - run:
           name: validate spacers
-          command: yarn validate-spacers
+          command: pnpm validate-spacers
           working_directory: packages/contracts-bedrock
 
   bedrock-echidna-build:
@@ -477,8 +503,12 @@ jobs:
       - check-changed:
           patterns: contracts-bedrock,contracts
       - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      - run:
           name: Compile with metadata hash
-          command: yarn clean && yarn build:with-metadata
+          command: pnpm clean && pnpm build:with-metadata
           working_directory: packages/contracts-bedrock
       - persist_to_workspace:
           root: .
@@ -502,14 +532,18 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock,contracts
       - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      - run:
           name: Echidna Fuzz <<parameters.echidna_target>>
-          command: yarn echidna:<<parameters.echidna_target>>
+          command: pnpm echidna:<<parameters.echidna_target>>
           working_directory: packages/contracts-bedrock
           no_output_timeout: 15m
 
@@ -521,11 +555,15 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock,op-bindings
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
       - run:
           name: check go bindings
           command: make && git diff --exit-code
@@ -550,18 +588,22 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: <<parameters.package_name>>,<<parameters.dependencies>>
       - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      - run:
           name: Lint
-          command: yarn lint && git diff --exit-code
+          command: pnpm lint && git diff --exit-code
           working_directory: packages/<<parameters.package_name>>
       - run:
           name: Test
-          command: yarn test:coverage
+          command: pnpm test:coverage
           working_directory: packages/<<parameters.package_name>>
       - run:
           name: Upload coverage
@@ -575,9 +617,9 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore pnpm Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
       - check-changed:
           patterns: sdk,contracts-bedrock,contracts
       - run:
@@ -592,11 +634,11 @@ jobs:
           command: anvil --fork-url $ANVIL_L2_FORK_URL --port 9545 --fork-block-number 9504811
       - run:
           name: build
-          command: yarn build
+          command: pnpm build
           working_directory: packages/sdk
       - run:
           name: lint
-          command: yarn lint:check
+          command: pnpm lint:check
           working_directory: packages/sdk
       - run:
           name: make sure anvil l1 is up
@@ -606,7 +648,7 @@ jobs:
           command: npx wait-on tcp:9545 && cast block-number --rpc-url http://localhost:9545
       - run:
           name: test:next
-          command: yarn test:next:run
+          command: pnpm test:next:run
           no_output_timeout: 5m
           working_directory: packages/sdk
           environment:
@@ -623,20 +665,28 @@ jobs:
       - check-changed:
           patterns: specs/(.*)\.md$
       - run:
-          name: yarn dev deps  # todo: what's the best way to pull in the dependencies for linting? yarn install above is using production env without dev dependencies
-          command: yarn install --production=false
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      - run:
+          name: pnpm dev deps
+          command: pnpm install
       - run:
           name: specs toc
-          command: yarn lint:specs:toc && git diff --exit-code ./specs
+          command: pnpm lint:specs:toc && git diff --exit-code ./specs
       - run:
           name: markdown lint
-          command: yarn lint:specs:check
+          command: pnpm lint:specs:check
 
   bedrock-markdown-links:
     machine:
       image: ubuntu-2204:2022.07.1
     steps:
       - checkout
+      - run:
+          name: Lint check
+          command: |
+            pnpm lint:specs:check
       - run:
           name: link lint
           command: |
@@ -677,11 +727,15 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: packages
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
       # Note: The below needs to be manually configured whenever we
       # add a new package to CI.
       - run:
@@ -809,7 +863,7 @@ jobs:
           working_directory: <<parameters.working_directory>>
       - when:
           condition:
-            equal: [ true, <<parameters.build>> ]
+            equal: [true, <<parameters.build>>]
           steps:
             - run:
                 name: Build
@@ -846,14 +900,18 @@ jobs:
             foundryup
             echo 'export PATH=$HOME/.foundry/bin:$PATH' >> $BASH_ENV
       - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      - run:
           name: Install and build
           command: |
-            yarn install
-            yarn build
+            pnpm install
+            pnpm build
       - when:
           condition:
             and:
-              - equal: [ true, <<parameters.deploy>> ]
+              - equal: [true, <<parameters.deploy>>]
           steps:
             - run:
                 name: Bring up the stack
@@ -899,7 +957,7 @@ jobs:
       - when:
           condition:
             and:
-              - equal: [ false, <<parameters.deploy>> ]
+              - equal: [false, <<parameters.deploy>>]
           steps:
             - run:
                 name: Bring up the stack
@@ -964,7 +1022,7 @@ jobs:
       - checkout
       - unless:
           condition:
-            equal: [ "develop", << pipeline.git.branch >> ]
+            equal: ["develop", << pipeline.git.branch >>]
           steps:
             - run:
                 # Scan changed files in PRs, block on new issues only (existing issues ignored)
@@ -1080,79 +1138,82 @@ jobs:
 workflows:
   main:
     jobs:
-      - yarn-monorepo
+      - pnpm-monorepo
       - js-lint-test:
           name: common-ts-tests
           coverage_flag: common-ts-tests
           package_name: common-ts
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - js-lint-test:
           name: core-utils-tests
           coverage_flag: core-utils-tests
           package_name: core-utils
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - contracts-bedrock-tests:
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - contracts-bedrock-coverage:
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - contracts-bedrock-checks:
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - contracts-bedrock-slither:
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - contracts-bedrock-validate-spaces:
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - op-bindings-build:
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - js-lint-test:
           name: contracts-periphery-tests
           coverage_flag: contracts-periphery-tests
           package_name: contracts-periphery
           dependencies: "(contracts|contracts-bedrock|core-utils|hardhat-deploy-config)"
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - js-lint-test:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
           package_name: chain-mon
           dependencies: "(common-ts|contracts-periphery|core-utils|sdk)"
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - js-lint-test:
           name: fault-detector-tests
           coverage_flag: fault-detector-tests
           package_name: fault-detector
-          dependencies: "(common-ts|contracts|core-utils|sdk)"
+          dependencies: '(common-ts|core-utils|sdk)'
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
+      - js-lint-test:
+          name: sdk-next-tests
+          coverage_flag: sdk-next-tests
+          package_name: sdk
+          dependencies: '(common-ts|contracts-bedrock|core-utils)'
+          requires:
+            - pnpm-monorepo
       - js-lint-test:
           name: replica-healthcheck-tests
           coverage_flag: replica-healthcheck-tests
           package_name: replica-healthcheck
           dependencies: "(common-ts|core-utils)"
           requires:
-            - yarn-monorepo
-      - sdk-next-tests:
-          name: sdk-next-tests
-          requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - js-lint-test:
           name: sdk-tests
           coverage_flag: sdk-tests
           package_name: sdk
-          dependencies: "(contracts|core-utils)"
+          dependencies: '(contracts-bedrock|core-utils)'
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - depcheck:
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - devnet:
           name: devnet (with deployed contracts)
           deploy: true

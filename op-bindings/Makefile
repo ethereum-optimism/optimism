@@ -11,7 +11,7 @@ version:
 
 compile:
 	cd $(contracts-dir) && \
-		yarn build
+		pnpm build
 
 bindings: compile bindings-build
 
@@ -28,7 +28,7 @@ mkdir:
 
 clean-contracts:
 	cd $(contracts-dir) && \
-		yarn clean
+		pnpm clean
 
 clean:
 	rm -rf $(pkg)

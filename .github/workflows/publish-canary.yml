@@ -35,21 +35,10 @@ jobs:
         uses: actions/setup-node@master
         with:
           node-version: 16.x
-
-      - name: Get yarn cache directory path
-        id: yarn-cache-dir-path
-        run: echo "::set-output name=dir::$(yarn cache dir)"
-
-      - uses: actions/cache@v2
-        id: yarn-cache
-        with:
-          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-
+          cache: pnpm
 
       - name: Install Dependencies
-        run: yarn --frozen-lockfile
+        run: pnpm --frozen-lockfile
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
@@ -57,17 +46,17 @@ jobs:
           version: nightly
 
       - name: Build
-        run: yarn build
+        run: pnpm build
 
       - name: Setup Canary Snapshot
-        run: yarn changeset version --snapshot
+        run: pnpm changeset version --snapshot
 
       - name: Publish To NPM
         uses: changesets/action@v1
         id: changesets
         with:
           createGithubReleases: false
-          publish: yarn changeset publish --tag canary
+          publish: pnpm changeset publish --tag canary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
