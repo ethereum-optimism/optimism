@@ -58,7 +58,7 @@ func (s *Solver) doNothing() (*Response, error) {
 
 // attack returns a response that attacks the claim.
 func (s *Solver) attack(claim Claim) (*Response, error) {
-	value, err := s.traceAtPosition(claim.Position.Attack())
+	value, err := s.traceAtPosition(claim.Attack())
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +67,7 @@ func (s *Solver) attack(claim Claim) (*Response, error) {
 
 // defend returns a response that defends the claim.
 func (s *Solver) defend(claim Claim) (*Response, error) {
-	value, err := s.traceAtPosition(claim.Position.Defend())
+	value, err := s.traceAtPosition(claim.Defend())
 	if err != nil {
 		return nil, err
 	}
