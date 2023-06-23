@@ -3,11 +3,9 @@ pragma solidity ^0.8.15;
 
 import { LibHashing } from "../dispute/lib/LibHashing.sol";
 import { LibPosition } from "../dispute/lib/LibPosition.sol";
-import { LibClock } from "../dispute/lib/LibClock.sol";
 
 using LibHashing for Claim global;
 using LibPosition for Position global;
-using LibClock for Clock global;
 
 /// @notice A custom type for a generic hash.
 type Hash is bytes32;
@@ -41,13 +39,10 @@ type GameId is bytes32;
 
 /// @notice A `Clock` represents a packed `Duration` and `Timestamp`
 /// @dev The packed layout of this type is as follows:
-/// ┌────────────┬────────────────┐
-/// │    Bits    │     Value      │
-/// ├────────────┼────────────────┤
-/// │ [0, 64)    │ Duration       │
-/// │ [64, 128)  │ Timestamp      │
-/// └────────────┴────────────────┘
-type Clock is uint128;
+struct Clock {
+    Duration duration;
+    Timestamp timestamp;
+}
 
 /// @notice A `Position` represents a position of a claim within the game tree.
 /// @dev This is represented as a "generalized index" where the high-order bit

@@ -11,7 +11,6 @@ import { IBigStepper } from "./interfaces/IBigStepper.sol";
 import { Clone } from "../libraries/Clone.sol";
 import { LibHashing } from "./lib/LibHashing.sol";
 import { LibPosition } from "./lib/LibPosition.sol";
-import { LibClock } from "./lib/LibClock.sol";
 
 import "../libraries/DisputeTypes.sol";
 import "../libraries/DisputeErrors.sol";
@@ -202,7 +201,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
 
         // Fetch the grandparent clock, if it exists.
         // The grandparent clock should always exist unless the parent is the root claim.
-        Clock grandparentClock;
+        Clock memory grandparentClock;
         if (parent.parentIndex != type(uint32).max) {
             grandparentClock = claimData[parent.parentIndex].clock;
         }
@@ -213,11 +212,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         Duration nextDuration = Duration.wrap(
             uint64(
                 // First, fetch the duration of the grandparent claim.
-                Duration.unwrap(grandparentClock.duration()) +
+                Duration.unwrap(grandparentClock.duration) +
                     // Second, add the difference between the current block timestamp and the
                     // parent's clock timestamp.
                     block.timestamp -
-                    Timestamp.unwrap(parent.clock.timestamp())
+                    Timestamp.unwrap(parent.clock.timestamp)
             )
         );
 
@@ -228,7 +227,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         }
 
         // Construct the next clock with the new duration and the current block timestamp.
-        Clock nextClock = LibClock.wrap(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
+        Clock memory nextClock = Clock(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
 
         // Do not allow for a duplicate claim to be made.
         ClaimHash claimHash = _pivot.hashClaimPos(nextPosition);
@@ -371,7 +370,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
                 parentIndex: type(uint32).max,
                 claim: rootClaim(),
                 position: ROOT_POSITION,
-                clock: LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))),
+                clock: Clock(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))),
                 countered: false
             })
         );

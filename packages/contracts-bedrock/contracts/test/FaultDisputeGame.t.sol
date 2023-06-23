@@ -9,7 +9,6 @@ import { FaultDisputeGame } from "../dispute/FaultDisputeGame.sol";
 
 import "../libraries/DisputeTypes.sol";
 import "../libraries/DisputeErrors.sol";
-import { LibClock } from "../dispute/lib/LibClock.sol";
 import { LibPosition } from "../dispute/lib/LibPosition.sol";
 import { IBigStepper } from "../dispute/interfaces/IBigStepper.sol";
 
@@ -94,17 +93,14 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             bool countered,
             Claim claim,
             Position position,
-            Clock clock
+            Clock memory clock
         ) = gameProxy.claimData(0);
 
         assertEq(parentIndex, type(uint32).max);
         assertEq(countered, false);
         assertEq(Claim.unwrap(claim), Claim.unwrap(ROOT_CLAIM));
         assertEq(Position.unwrap(position), 1);
-        assertEq(
-            Clock.unwrap(clock),
-            Clock.unwrap(LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))))
-        );
+        assertEq(Timestamp.unwrap(clock.timestamp), block.timestamp);
     }
 
     /// @dev Tests that a move while the game status is not `IN_PROGRESS` causes the call to revert
@@ -206,7 +202,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             bool countered,
             Claim claim,
             Position position,
-            Clock clock
+            Clock memory clock
         ) = gameProxy.claimData(1);
 
         // Assert correctness of the attack claim's data.
@@ -214,10 +210,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(countered, false);
         assertEq(Claim.unwrap(claim), Claim.unwrap(counter));
         assertEq(Position.unwrap(position), Position.unwrap(Position.wrap(1).move(true)));
-        assertEq(
-            Clock.unwrap(clock),
-            Clock.unwrap(LibClock.wrap(Duration.wrap(5), Timestamp.wrap(uint64(block.timestamp))))
-        );
+        assertEq(Duration.unwrap(clock.duration), 5);
+        assertEq(Timestamp.unwrap(clock.timestamp), block.timestamp);
 
         // Grab the claim data of the parent.
         (parentIndex, countered, claim, position, clock) = gameProxy.claimData(0);
@@ -227,12 +221,8 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(countered, true);
         assertEq(Claim.unwrap(claim), Claim.unwrap(ROOT_CLAIM));
         assertEq(Position.unwrap(position), 1);
-        assertEq(
-            Clock.unwrap(clock),
-            Clock.unwrap(
-                LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp - 5)))
-            )
-        );
+        assertEq(Duration.unwrap(clock.duration), 0);
+        assertEq(Timestamp.unwrap(clock.timestamp), block.timestamp - 5);
     }
 
     /// @dev Static unit test for the correctness an uncontested root resolution.
