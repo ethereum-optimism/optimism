@@ -414,7 +414,7 @@ contract GamePlayer {
             }
         } else {
             // Find the trace index that our next claim must commit to.
-            uint256 traceIndex = movePos.rightIndex(maxDepth).indexAtDepth();
+            uint256 traceIndex = movePos.traceIndex(maxDepth);
             // Grab the claim that we need to make from the helper.
             Claim ourClaim = claimAt(traceIndex);
 
@@ -448,7 +448,7 @@ contract GamePlayer {
 
     /// @notice Returns the preimage of a player's claim that commits to a given trace index.
     function traceAt(Position _position) public view returns (bytes memory trace_) {
-        return traceAt(_position.rightIndex(maxDepth).indexAtDepth());
+        return traceAt(_position.traceIndex(maxDepth));
     }
 
     /// @notice Returns the preimage of a player's claim that commits to a given trace index.
@@ -463,7 +463,7 @@ contract GamePlayer {
 
     /// @notice Returns the player's claim that commits to a given trace index.
     function claimAt(Position _position) public view returns (Claim claim_) {
-        return claimAt(_position.rightIndex(maxDepth).indexAtDepth());
+        return claimAt(_position.traceIndex(maxDepth));
     }
 }
 

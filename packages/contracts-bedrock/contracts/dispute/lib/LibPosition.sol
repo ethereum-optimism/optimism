@@ -104,6 +104,26 @@ library LibPosition {
         }
     }
 
+    /// @notice Get the deepest, right most trace index relative to the `position`. This is
+    ///         equivalent to calling `right` on a position until the maximum depth is reached and
+    ///         then finding its index at depth.
+    /// @param _position The position to get the relative trace index of.
+    /// @param _maxDepth The maximum depth of the game.
+    /// @return traceIndex_ The trace index relative to the `position`.
+    function traceIndex(
+        Position _position,
+        uint256 _maxDepth
+    ) internal pure returns (uint256 traceIndex_) {
+        uint256 msb = depth(_position);
+        assembly {
+            let remaining := sub(_maxDepth, msb)
+            traceIndex_ := sub(
+                or(shl(remaining, _position), sub(shl(remaining, 1), 1)),
+                shl(_maxDepth, 1)
+            )
+        }
+    }
+
     /// @notice Get the move position of `_position`, which is the left child of:
     ///         1. `_position + 1` if `_isAttack` is true.
     ///         1. `_position` if `_isAttack` is false.

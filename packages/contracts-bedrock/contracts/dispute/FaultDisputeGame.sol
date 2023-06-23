@@ -31,7 +31,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
     uint256 public immutable MAX_GAME_DEPTH;
 
     /// @notice A hypervisor that performs single instruction steps on a fault proof program trace.
-    /// @return vm_ The address of the hypervisor contract.
     IBigStepper public immutable VM;
 
     /// @notice The duration of the game.
@@ -284,7 +283,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         // Search for the left-most dangling non-bottom node
         // The most recent claim is always a dangling, non-bottom node so we start with that
         uint256 leftMostIndex = claimData.length - 1;
-        Position leftMostTraceIndex = Position.wrap(type(uint128).max);
+        uint256 leftMostTraceIndex = type(uint128).max;
         for (uint256 i = leftMostIndex; i < type(uint64).max; ) {
             // Fetch the claim at the current index.
             ClaimData storage claim = claimData[i];
@@ -305,8 +304,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
             // If the claim is a dangling node, we can check if it is the left-most
             // dangling node we've come across so far. If it is, we can update the
             // left-most trace index.
-            Position traceIndex = claimPos.rightIndex(MAX_GAME_DEPTH);
-            if (Position.unwrap(traceIndex) < Position.unwrap(leftMostTraceIndex)) {
+            uint256 traceIndex = claimPos.traceIndex(MAX_GAME_DEPTH);
+            if (traceIndex < leftMostTraceIndex) {
                 leftMostTraceIndex = traceIndex;
                 unchecked {
                     leftMostIndex = i + 1;
@@ -319,7 +318,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone {
         if (
             // slither-disable-next-line weak-prng
             claimData[leftMostIndex].position.depth() % 2 == 0 &&
-            Position.unwrap(leftMostTraceIndex) != type(uint128).max
+            leftMostTraceIndex != type(uint128).max
         ) {
             status_ = GameStatus.DEFENDER_WINS;
         } else {
