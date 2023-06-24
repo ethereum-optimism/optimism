@@ -8,7 +8,8 @@ import layoutLock from '../layout-lock.json'
  * Can be configured as the first argument to the script or
  * defaults to the forge-artifacts directory.
  */
-const directoryPath = process.argv[2] || path.join(__dirname, '..', 'forge-artifacts');
+const directoryPath =
+  process.argv[2] || path.join(__dirname, '..', 'forge-artifacts')
 
 /**
  * Returns true if the contract should be skipped when inspecting its storage layout.
@@ -29,7 +30,6 @@ const parseFqn = (name: string): string => {
   const parts = name.split(':')
   return parts[parts.length - 1]
 }
-
 
 /**
  * Parses out variable info from the variable structure in standard compiler json output.
@@ -95,7 +95,7 @@ const main = async () => {
   const paths = []
 
   const readFilesRecursively = (dir: string) => {
-    const files = fs.readdirSync(dir);
+    const files = fs.readdirSync(dir)
 
     for (const file of files) {
       const filePath = path.join(dir, file)
@@ -109,13 +109,14 @@ const main = async () => {
     }
   }
 
-  readFilesRecursively(directoryPath);
+  readFilesRecursively(directoryPath)
 
   for (const filePath of paths) {
     if (filePath.includes('t.sol')) {
       continue
     }
-    const artifact = require(filePath)
+    const raw = fs.readFileSync(filePath, 'utf8').toString()
+    const artifact = JSON.parse(raw)
 
     // Handle contracts without storage
     const storageLayout = artifact.storageLayout || {}
