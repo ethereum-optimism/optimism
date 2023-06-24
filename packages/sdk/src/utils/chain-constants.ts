@@ -196,6 +196,7 @@ export const CONTRACT_ADDRESSES: {
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
+  // Zora Goerli
   [L2ChainID.ZORA_GOERLI]: {
     l1: {
       AddressManager: '0x54f4676203dEDA6C08E0D40557A119c602bFA246' as const,
