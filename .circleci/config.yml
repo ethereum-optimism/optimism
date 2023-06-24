@@ -872,10 +872,6 @@ jobs:
                 command: timeout 8m npx hardhat deposit-eth --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
                 working_directory: packages/sdk
             - run:
-                name: Check the status
-                command: npx hardhat check-op-node
-                working_directory: packages/contracts-bedrock
-            - run:
                 name: Dump op-node logs
                 command: |
                   docker logs ops-bedrock-op-node-1 || echo "No logs."
@@ -926,10 +922,6 @@ jobs:
                 name: Deposit ETH through the bridge
                 command: timeout 10m npx hardhat deposit-eth --network devnetL1
                 working_directory: packages/sdk
-            - run:
-                name: Check the status
-                command: npx hardhat check-op-node
-                working_directory: packages/contracts-bedrock
             - run:
                 name: Dump op-node logs
                 command: |

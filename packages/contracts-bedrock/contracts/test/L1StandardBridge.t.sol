@@ -20,7 +20,7 @@ import { OptimismPortal } from "../L1/OptimismPortal.sol";
 
 contract L1StandardBridge_Getter_Test is Bridge_Initializer {
     /// @dev Test that the accessors return the correct initialized values.
-    function test_getters_succeeds() external {
+    function test_getters_succeeds() external view {
         assert(L1Bridge.l2TokenBridge() == address(L2Bridge));
         assert(L1Bridge.OTHER_BRIDGE() == L2Bridge);
         assert(L1Bridge.messenger() == L1Messenger);
