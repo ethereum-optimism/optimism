@@ -23,7 +23,9 @@ export const findOutputForIndex = async (
       l2OutputIndex: index,
     }
   } catch (err) {
-    logger?.fatal('error when calling L2OuputOracle.getL2Output', { errors: err })
+    logger?.fatal('error when calling L2OuputOracle.getL2Output', {
+      errors: err,
+    })
     throw new Error(`unable to find output for index ${index}`)
   }
 }

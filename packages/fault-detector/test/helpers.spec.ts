@@ -5,10 +5,7 @@ import { getContractFactory } from '@eth-optimism/contracts-bedrock'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
 import { expect } from './setup'
-import {
-  findOutputForIndex,
-  findFirstUnfinalizedStateBatchIndex,
-} from '../src'
+import { findOutputForIndex, findFirstUnfinalizedStateBatchIndex } from '../src'
 
 describe('helpers', () => {
   const deployConfig = {
@@ -108,7 +105,7 @@ describe('helpers', () => {
         await L2OutputOracle.proposeL2Output(
           utils.formatBytes32String('outputRoot3'),
           params._l2BlockNumber +
-          deployConfig.l2OutputOracleSubmissionInterval * 2,
+            deployConfig.l2OutputOracleSubmissionInterval * 2,
           params._l1BlockHash,
           params._l1BlockNumber
         )
@@ -150,7 +147,7 @@ describe('helpers', () => {
         await L2OutputOracle.proposeL2Output(
           params._outputRoot,
           params._l2BlockNumber +
-          deployConfig.l2OutputOracleSubmissionInterval * 2,
+            deployConfig.l2OutputOracleSubmissionInterval * 2,
           params._l1BlockHash,
           params._l1BlockNumber
         )
@@ -192,7 +189,7 @@ describe('helpers', () => {
         await L2OutputOracle.proposeL2Output(
           params._outputRoot,
           params._l2BlockNumber +
-          deployConfig.l2OutputOracleSubmissionInterval * 2,
+            deployConfig.l2OutputOracleSubmissionInterval * 2,
           params._l1BlockHash,
           params._l1BlockNumber
         )

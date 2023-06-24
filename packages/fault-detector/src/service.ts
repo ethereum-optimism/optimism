@@ -6,7 +6,12 @@ import {
   validators,
   waitForProvider,
 } from '@eth-optimism/common-ts'
-import { BedrockOutputData, getChainId, sleep, toRpcHexString } from '@eth-optimism/core-utils'
+import {
+  BedrockOutputData,
+  getChainId,
+  sleep,
+  toRpcHexString,
+} from '@eth-optimism/core-utils'
 import { config } from 'dotenv'
 import {
   CONTRACT_ADDRESSES,
@@ -382,7 +387,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
           new Date(
             (ethers.BigNumber.from(outputBlock.timestamp).toNumber() +
               this.state.faultProofWindow) *
-            1000
+              1000
           ),
           'mmmm dS, yyyy, h:MM:ss TT'
         ),
