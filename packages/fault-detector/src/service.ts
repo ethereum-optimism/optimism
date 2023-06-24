@@ -6,7 +6,12 @@ import {
   validators,
   waitForProvider,
 } from '@eth-optimism/common-ts'
-import { getChainId, sleep, toRpcHexString } from '@eth-optimism/core-utils'
+import {
+  BedrockOutputData,
+  getChainId,
+  sleep,
+  toRpcHexString,
+} from '@eth-optimism/core-utils'
 import { config } from 'dotenv'
 import {
   CONTRACT_ADDRESSES,
@@ -22,9 +27,7 @@ import dateformat from 'dateformat'
 import { version } from '../package.json'
 import {
   findFirstUnfinalizedStateBatchIndex,
-  findEventForStateBatch,
-  PartialEvent,
-  updateOracleCache,
+  findOutputForIndex,
 } from './helpers'
 
 type Options = {
@@ -196,10 +199,6 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
 
     this.state.outputOracle = this.state.messenger.contracts.l1.L2OutputOracle
 
-    // Populate the event cache.
-    this.logger.info('warming event cache, this might take a while...')
-    await updateOracleCache(this.state.outputOracle, this.logger)
-
     // Figure out where to start syncing from.
     if (this.options.startBatchIndex === -1) {
       this.logger.info('finding appropriate starting unfinalized batch')
@@ -275,23 +274,23 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       latestBatchIndex,
     })
 
-    let event: PartialEvent
+    let outputData: BedrockOutputData
     try {
-      event = await findEventForStateBatch(
+      outputData = await findOutputForIndex(
         this.state.outputOracle,
         this.state.currentBatchIndex,
         this.logger
       )
     } catch (err) {
-      this.logger.error('failed to fetch event associated with batch', {
+      this.logger.error('failed to fetch output associated with batch', {
         error: err,
         node: 'l1',
-        section: 'findEventForStateBatch',
+        section: 'findOutputForIndex',
         batchIndex: this.state.currentBatchIndex,
       })
       this.metrics.nodeConnectionFailures.inc({
         layer: 'l1',
-        section: 'findEventForStateBatch',
+        section: 'findOutputForIndex',
       })
       await sleep(15000)
       return
@@ -314,7 +313,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       return
     }
 
-    const outputBlockNumber = event.args.l2BlockNumber.toNumber()
+    const outputBlockNumber = outputData.l2BlockNumber
     if (latestBlock < outputBlockNumber) {
       this.logger.info('L2 node is behind, waiting for sync...', {
         l2BlockHeight: latestBlock,
@@ -377,12 +376,12 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       ]
     )
 
-    if (outputRoot !== event.args.outputRoot) {
+    if (outputRoot !== outputData.outputRoot) {
       this.state.diverged = true
       this.metrics.isCurrentlyMismatched.set(1)
       this.logger.error('state root mismatch', {
         blockNumber: outputBlock.number,
-        expectedStateRoot: event.args.outputRoot,
+        expectedStateRoot: outputData.outputRoot,
         actualStateRoot: outputRoot,
         finalizationTime: dateformat(
           new Date(

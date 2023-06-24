@@ -234,7 +234,7 @@ const check = {
       signer
     )
 
-    await assertSemver(LegacyMessagePasser, 'LegacyMessagePasser')
+    await assertSemver(LegacyMessagePasser, 'LegacyMessagePasser', '1.0.1')
     await checkProxy(hre, 'LegacyMessagePasser', signer.provider)
     await assertProxy(hre, 'LegacyMessagePasser', signer.provider)
   },
@@ -249,7 +249,7 @@ const check = {
       signer
     )
 
-    await assertSemver(DeployerWhitelist, 'DeployerWhitelist')
+    await assertSemver(DeployerWhitelist, 'DeployerWhitelist', '1.0.1')
 
     const owner = await DeployerWhitelist.owner()
     assert(owner === hre.ethers.constants.AddressZero)
@@ -278,7 +278,7 @@ const check = {
     await assertSemver(
       L2CrossDomainMessenger,
       'L2CrossDomainMessenger',
-      '1.4.0'
+      '1.4.1'
     )
 
     const xDomainMessageSenderSlot = await signer.provider.getStorageAt(
@@ -351,7 +351,7 @@ const check = {
       signer
     )
 
-    await assertSemver(GasPriceOracle, 'GasPriceOracle')
+    await assertSemver(GasPriceOracle, 'GasPriceOracle', '1.0.1')
 
     const decimals = await GasPriceOracle.decimals()
     assert(decimals.eq(6))
@@ -369,7 +369,7 @@ const check = {
       signer
     )
 
-    await assertSemver(L2StandardBridge, 'L2StandardBridge', '1.1.0')
+    await assertSemver(L2StandardBridge, 'L2StandardBridge', '1.1.1')
 
     const OTHER_BRIDGE = await L2StandardBridge.OTHER_BRIDGE()
     assert(OTHER_BRIDGE !== hre.ethers.constants.AddressZero)
@@ -392,7 +392,7 @@ const check = {
       signer
     )
 
-    await assertSemver(SequencerFeeVault, 'SequencerFeeVault', '1.2.0')
+    await assertSemver(SequencerFeeVault, 'SequencerFeeVault', '1.2.1')
 
     const RECIPIENT = await SequencerFeeVault.RECIPIENT()
     assert(RECIPIENT !== hre.ethers.constants.AddressZero)
@@ -446,7 +446,7 @@ const check = {
       signer
     )
 
-    await assertSemver(L1BlockNumber, 'L1BlockNumber')
+    await assertSemver(L1BlockNumber, 'L1BlockNumber', '1.0.1')
 
     await checkProxy(hre, 'L1BlockNumber', signer.provider)
     await assertProxy(hre, 'L1BlockNumber', signer.provider)
@@ -460,7 +460,7 @@ const check = {
       signer
     )
 
-    await assertSemver(L1Block, 'L1Block')
+    await assertSemver(L1Block, 'L1Block', '1.0.1')
 
     await checkProxy(hre, 'L1Block', signer.provider)
     await assertProxy(hre, 'L1Block', signer.provider)
@@ -526,7 +526,7 @@ const check = {
       signer
     )
 
-    await assertSemver(L2ERC721Bridge, 'L2ERC721Bridge', '1.1.0')
+    await assertSemver(L2ERC721Bridge, 'L2ERC721Bridge', '1.1.1')
 
     const MESSENGER = await L2ERC721Bridge.MESSENGER()
     assert(MESSENGER !== hre.ethers.constants.AddressZero)
@@ -599,7 +599,7 @@ const check = {
       signer
     )
 
-    await assertSemver(BaseFeeVault, 'BaseFeeVault', '1.2.0')
+    await assertSemver(BaseFeeVault, 'BaseFeeVault', '1.2.1')
 
     const MIN_WITHDRAWAL_AMOUNT = await BaseFeeVault.MIN_WITHDRAWAL_AMOUNT()
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
@@ -626,7 +626,7 @@ const check = {
       signer
     )
 
-    await assertSemver(L1FeeVault, 'L1FeeVault', '1.2.0')
+    await assertSemver(L1FeeVault, 'L1FeeVault', '1.2.1')
 
     const MIN_WITHDRAWAL_AMOUNT = await L1FeeVault.MIN_WITHDRAWAL_AMOUNT()
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
@@ -654,7 +654,7 @@ const check = {
       signer
     )
 
-    await assertSemver(L2ToL1MessagePasser, 'L2ToL1MessagePasser')
+    await assertSemver(L2ToL1MessagePasser, 'L2ToL1MessagePasser', '1.0.1')
 
     const MESSAGE_VERSION = await L2ToL1MessagePasser.MESSAGE_VERSION()
     console.log(`  - MESSAGE_VERSION: ${MESSAGE_VERSION}`)
