@@ -61,6 +61,7 @@ contract TransferOnion is ReentrancyGuard {
             tempShell = layer.shell;
 
             // Transfer the tokens.
+            // slither-disable-next-line arbitrary-send-erc20
             TOKEN.safeTransferFrom(SENDER, layer.recipient, layer.amount);
 
             // Unchecked increment to save some gas.
