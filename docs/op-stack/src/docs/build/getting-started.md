@@ -192,7 +192,7 @@ Once you’ve built both repositories, you’ll need head back to the Optimism M
     cd packages/contracts-bedrock
     ```
 
-1. Inside of `contracts-bedrock`, copy `.env.example` to `.env`.
+1. Inside of `contracts-bedrock`, copy the environment file
 
   ```sh
     cp .envrc.example .envrc
