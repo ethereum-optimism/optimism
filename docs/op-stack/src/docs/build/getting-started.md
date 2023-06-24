@@ -5,7 +5,7 @@ lang: en-US
 
 ## Overview
 
-Hello! This Getting Started guide is meant to help you kick off your OP Stack journey by taking you through the process of spinning up your very own OP Stack chain on the Ethereum Goerli testnet. You can use this chain to perform tests and prepare for the superchain, or you can modify it to adapt it to your own needs (which may make it incompatible with the superchain in the future). 
+Hello! This Getting Started guide is meant to help you kick off your OP Stack journey by taking you through the process of spinning up your very own OP Stack chain on the Ethereum Goerli testnet. You can use this chain to perform tests and prepare for the superchain, or you can modify it to adapt it to your own needs (which may make it incompatible with the superchain in the future).
 
 ## Know before you go
 
@@ -33,6 +33,8 @@ You’ll need the following software installed to follow this tutorial:
 - [Yarn](https://classic.yarnpkg.com/lang/en/docs/install/)
 - [Foundry](https://github.com/foundry-rs/foundry#installation)
 - [Make](https://linux.die.net/man/1/make)
+- [jq](https://github.com/jqlang/jq)
+- [direnv](https://direnv.net)
 
 This tutorial was checked on:
 
@@ -126,28 +128,38 @@ You can generate all of these keys with the `rekey` tool in the `contracts-bedro
     cd packages/contracts-bedrock
     ```
 
-1. Run the `rekey` command:
+1. Use `cast wallet` to generate new accounts
 
     ```bash
-    npx hardhat rekey
+    echo "Admin:"
+    cast wallet new
+    echo "Proposer:"
+    cast wallet new
+    echo "Batcher:"
+    cast wallet new
+    echo "Sequencer:"
+    cast wallet new
     ```
 
 You should get an output like the following:
 
 ```
-Mnemonic: barely tongue excite actor edge huge lion employ gauge despair this learn
-
-Admin: 0x301c314ca0eedf88a5f7a44680d9dccceb8fcbea
-Private Key: ef06ba0291b6e2fa336fd9c06de9c2f18f72ed17cd4fcbda7b376f10592b43d8
-
-Proposer: 0x54355b7d195fcdea96696a522c444c185afaf1a8
-Private Key: 8bf67a8cd20087472db00fd869a0ffd7574a4481fb2a07a5f5c6bfb46dcb09ca
-
-Batcher: 0x9a686086e3c74ddd5b59b710b26a73407d9c7e97
-Private Key: 1533b607f668cce9553cafbfdfe9529eb31d67f1958d4b16fbdf857a8c50dd56
-
-Sequencer: 0x0324a4c8c1955cb8364e8f07558238b3d2aa5f55
-Private Key: fba31658f320bb8ce1ce39fab3c7c2acea6b4dd69cc8483fd85388a461d8426b
+Admin:
+Successfully created new keypair.
+Address:     0x9f92bdF0db69264462FC305913960Edfcc7a7c7F
+Private key: 0x30e66956e1a12b81f0f2cfb982286b2f566eb73649833831d9f80b12f8fa183c
+Proposer:
+Successfully created new keypair.
+Address:     0x31dE9B6473fc47af36ec23878bA34824B9F4AB30
+Private key: 0x8bd1c8dfffef880f8f9ab8162f97ccd119c1aac28fe00dacf919459f88e0f37d
+Batcher:
+Successfully created new keypair.
+Address:     0x6A3DC843843139f17Fcf04C057bb536A421DC9c6
+Private key: 0x3ce44144b7fde797a28f4e47b210a4d42c3a3b642e538b54458cba2740db5ac2
+Sequencer:
+Successfully created new keypair.
+Address:     0x98C6cadB1fe77aBB7bD968fC3E9b206111e72848
+Private key: 0x3f4241229bb6f155140d98e0f5dd2aad7ae983f5af5d61555d05eb8e5d9514db
 ```
 
 Save these accounts and their respective private keys somewhere, you’ll need them later. Fund the `Admin` address with a small amount of Goerli ETH as we’ll use that account to deploy our smart contracts. You’ll also need to fund the `Proposer` and `Batcher` address — note that the `Batcher` burns through the most ETH because it publishes transaction data to L1.
@@ -158,9 +170,9 @@ Recommended funding amounts are as follows:
 - `Proposer` — 5 ETH
 - `Batcher` — 10 ETH
 
-::: danger Not for production deployments 
+::: danger Not for production deployments
 
-The `rekey` tool is *not* designed for production deployments. If you are deploying an OP Stack based chain into production, you should likely be using a combination of hardware security modules and hardware wallets.
+The `cast wallet` tool is *not* designed for production deployments. If you are deploying an OP Stack based chain into production, you should likely be using a combination of hardware security modules and hardware wallets.
 
 :::
 
@@ -180,10 +192,28 @@ Once you’ve built both repositories, you’ll need head back to the Optimism M
     cd packages/contracts-bedrock
     ```
 
+1. Inside of `contracts-bedrock`, copy the environment file
+
+  ```sh
+    cp .envrc.example .envrc
+  ```
+
+1. Fill out the environment variables inside of that file:
+
+    - `ETH_RPC_URL` — URL for your L1 node.
+    - `PRIVATE_KEY` — Private key of the `Admin` account.
+    - `DEPLOYMENT_CONTEXT` - Name of the network, should be "getting-started"
+
+1. Pull the environment variables into context using `direnv`
+
+    ```bash
+    direnv allow .
+    ```
+
 1. Before we can create our configuration file, we’ll need to pick an L1 block to serve as the starting point for our Rollup. It’s best to use a finalized L1 block as our starting block. You can use the `cast` command provided by Foundry to grab all of the necessary information (replace `<RPC>` with the URL for your L1 Goerli node):
 
     ```bash
-    cast block finalized --rpc-url <RPC> | grep -E "(timestamp|hash|number)"
+    cast block finalized --rpc-url $ETH_RPC_URL | grep -E "(timestamp|hash|number)"
     ```
 
     You’ll get back something that looks like the following:
@@ -205,30 +235,20 @@ Once you’ve built both repositories, you’ll need head back to the Optimism M
 
 ## Deploy the L1 contracts
 
-Once you’ve configured your network, it’s time to deploy the L1 smart contracts necessary for the functionality of the chain. 
-
-1. Inside of `contracts-bedrock`, copy `.env.example` to `.env`.
-
-    ```sh
-    cp .env.example .env
-    ```
-
-1. Fill out the two environment variables inside of that file:
-
-    - `L1_RPC` — URL for your L1 node.
-    - `PRIVATE_KEY_DEPLOYER` — Private key of the `Admin` account.
+Once you’ve configured your network, it’s time to deploy the L1 smart contracts necessary for the functionality of the chain.
 
 1. Once you’re ready, deploy the L1 smart contracts:
 
     ```bash
-    npx hardhat deploy --network getting-started --tags l1
+    forge script scripts/Deploy.s.sol:Deploy --private-key $PRIVATE_KEY --broadcast --rpc-url $ETH_RPC_URL
+    forge script scripts/Deploy.s.sol:Deploy --sig 'sync()' --private-key $PRIVATE_KEY --broadcast --rpc-url $ETH_RPC_URL
     ```
 
 Contract deployment can take up to 15 minutes. Please wait for all smart contracts to be fully deployed before continuing to the next step.
 
 ## Generate the L2 config files
 
-We’ve set up the L1 side of things, but now we need to set up the L2 side of things. We do this by generating three important files, a `genesis.json` file, a `rollup.json` configuration file, and a `jwt.txt` [JSON Web Token](https://jwt.io/introduction) that allows the `op-node` and `op-geth` to communicate securely. 
+We’ve set up the L1 side of things, but now we need to set up the L2 side of things. We do this by generating three important files, a `genesis.json` file, a `rollup.json` configuration file, and a `jwt.txt` [JSON Web Token](https://jwt.io/introduction) that allows the `op-node` and `op-geth` to communicate securely.
 
 1. Head over to the `op-node` package:
 
@@ -314,7 +334,7 @@ The other two, `op-batcher` and `op-proposer`, run only in one place, the sequen
 Set these environment variables for the configuration
 
 | Variable       | Value |
-| -------------- | - 
+| -------------- | -
 | `SEQ_ADDR`     | Address of the `Sequencer` account
 | `SEQ_KEY`      | Private key of the `Sequencer` account
 | `BATCHER_KEY`  | Private key of the `Batcher` accounts, which should have at least 1 ETH
@@ -479,7 +499,7 @@ cd ~/optimism/op-batcher
 
 ::: tip Controlling batcher costs
 
-The `--max-channel-duration=n` setting tells the batcher to write all the data to L1 every `n` L1 blocks. 
+The `--max-channel-duration=n` setting tells the batcher to write all the data to L1 every `n` L1 blocks.
 When it is low, transactions are written to L1 frequently, withdrawals are quick, and other nodes can synchronize from L1 fast.
 When it is high, transactions are written to L1 less frequently, and the batcher spends less ETH.
 
@@ -522,7 +542,7 @@ Once you’ve connected your wallet, you’ll probably notice that you don’t h
 
 ## Use your Rollup
 
-Congratulations, you made it! You now have a complete OP Stack based EVM Rollup. 
+Congratulations, you made it! You now have a complete OP Stack based EVM Rollup.
 
 To see your rollup in action, you can use the [Optimism Mainnet Getting Started tutorial](https://github.com/ethereum-optimism/optimism-tutorial/blob/main/getting-started). Follow these steps:
 
@@ -575,7 +595,7 @@ To use any other development stack, see the getting started tutorial, just repla
 
 #### Corrupt data directory
 
-If `op-geth` aborts (for example, because the computer it is running on crashes), you might get these errors on `op-node`: 
+If `op-geth` aborts (for example, because the computer it is running on crashes), you might get these errors on `op-node`:
 
 ```
 WARN [02-16|21:22:02.868] Derivation process temporary error       attempts=14 err="stage 0 failed resetting: temp: failed to find the L2 Heads to start from: failed to fetch L2 block by hash 0x0000000000000000000000000000000000000000000000000000000000000000: failed to determine block-hash of hash 0x0000000000000000000000000000000000000000000000000000000000000000, could not get payload: not found"
