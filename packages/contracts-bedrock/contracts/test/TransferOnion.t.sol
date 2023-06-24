@@ -1,56 +1,43 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing utilities
 import { Test } from "forge-std/Test.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+// Target contract
 import { TransferOnion } from "../periphery/TransferOnion.sol";
 
-/**
- * @title  TransferOnionTest
- * @notice Test coverage of TransferOnion
- */
+/// @title  TransferOnionTest
+/// @notice Test coverage of TransferOnion
 contract TransferOnionTest is Test {
-    /**
-     * @notice TransferOnion
-     */
+    /// @notice TransferOnion
     TransferOnion internal onion;
 
-    /**
-     * @notice token constructor arg
-     */
+    /// @notice Token constructor argument
     address internal _token;
 
-    /**
-     * @notice sender constructor arg
-     */
+    /// @notice Sender constructor argument
     address internal _sender;
 
-    /**
-     * @notice Sets up addresses, deploys contracts and funds the owner.
-     */
+    /// @notice Sets up addresses, deploys contracts and funds the owner.
     function setUp() public {
         ERC20 token = new ERC20("Token", "TKN");
         _token = address(token);
         _sender = makeAddr("sender");
     }
 
-    /**
-     * @notice Deploy the TransferOnion with a dummy shell
-     */
+    /// @notice Deploy the TransferOnion with a dummy shell.
     function _deploy() public {
         _deploy(bytes32(0));
     }
 
-    /**
-     * @notice Deploy the TransferOnion with a specific shell
-     */
+    /// @notice Deploy the TransferOnion with a specific shell.
     function _deploy(bytes32 _shell) public {
         onion = new TransferOnion({ _token: ERC20(_token), _sender: _sender, _shell: _shell });
     }
 
-    /**
-     * @notice Build the onion data
-     */
+    /// @notice Build the onion data.
     function _onionize(TransferOnion.Layer[] memory _layers)
         public
         pure
@@ -66,9 +53,7 @@ contract TransferOnionTest is Test {
         return (hash, _layers);
     }
 
-    /**
-     * @notice The constructor sets the variables as expected
-     */
+    /// @notice The constructor sets the variables as expected.
     function test_constructor_succeeds() external {
         _deploy();
 
@@ -77,9 +62,7 @@ contract TransferOnionTest is Test {
         assertEq(onion.shell(), bytes32(0));
     }
 
-    /**
-     * @notice unwrap
-     */
+    /// @notice Tests unwrapping the onion.
     function test_unwrap_succeeds() external {
         // Commit to transferring tiny amounts of tokens
         TransferOnion.Layer[] memory _layers = new TransferOnion.Layer[](2);
