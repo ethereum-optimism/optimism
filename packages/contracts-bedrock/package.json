@@ -32,7 +32,7 @@
     "gas-snapshot": "yarn build:differential && yarn build:fuzz && forge snapshot --no-match-test 'testDiff|testFuzz|invariant|generateArtifact'",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
     "validate-deploy-configs": "hardhat compile && hardhat generate-deploy-config && ./scripts/validate-deploy-configs.sh",
-    "validate-spacers": "hardhat compile && hardhat validate-spacers",
+    "validate-spacers": "forge build && npx ts-node scripts/validate-spacers.ts",
     "slither": "./scripts/slither.sh",
     "slither:triage": "TRIAGE_MODE=1 ./scripts/slither.sh",
     "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./tsconfig.build.tsbuildinfo ./src/contract-artifacts.ts ./test-case-generator/fuzz",
