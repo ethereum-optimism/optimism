@@ -44,6 +44,9 @@ type fakeTxMgr struct {
 func (f fakeTxMgr) From() common.Address {
 	return f.from
 }
+func (f fakeTxMgr) BlockNumber(_ context.Context) (uint64, error) {
+	panic("unimplemented")
+}
 func (f fakeTxMgr) Send(_ context.Context, _ txmgr.TxCandidate) (*types.Receipt, error) {
 	panic("unimplemented")
 }
