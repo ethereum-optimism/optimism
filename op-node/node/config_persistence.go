@@ -71,8 +71,7 @@ func (p *ActiveConfigPersistence) persist(sequencerStarted bool) error {
 		return fmt.Errorf("open file (%v) for writing: %w", tmpFile, err)
 	}
 	defer file.Close() // Ensure file is closed even if write or sync fails
-	_, err = file.Write(data)
-	if err != nil {
+	if _, err = file.Write(data); err != nil {
 		return fmt.Errorf("write new config to temp file (%v): %w", tmpFile, err)
 	}
 	if err := file.Sync(); err != nil {
