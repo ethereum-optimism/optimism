@@ -23,8 +23,13 @@ import { SystemConfig } from "../contracts/L1/SystemConfig.sol";
 import { ResourceMetering } from "../contracts/L1/ResourceMetering.sol";
 import { Constants } from "../contracts/libraries/Constants.sol";
 import { DisputeGameFactory } from "../contracts/dispute/DisputeGameFactory.sol";
+import { FaultDisputeGame } from "../contracts/dispute/FaultDisputeGame.sol";
 import { L1ERC721Bridge } from "../contracts/L1/L1ERC721Bridge.sol";
 import { Predeploys } from "../contracts/libraries/Predeploys.sol";
+
+import { IBigStepper } from "../contracts/dispute/interfaces/IBigStepper.sol";
+import { AlphabetVM } from "../contracts/test/FaultDisputeGame.t.sol";
+import "../contracts/libraries/DisputeTypes.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
@@ -86,7 +91,10 @@ contract Deploy is Deployer {
         initializeL2OutputOracle();
         initializeOptimismPortal();
 
+        setFaultGameImplementation();
+
         transferProxyAdminOwnership();
+        transferDisputeGameFactoryOwnership();
     }
 
     /// @notice Modifier that wraps a function in broadcasting.
@@ -444,7 +452,7 @@ contract Deploy is Deployer {
                 _implementation: disputeGameFactory,
                 _data: abi.encodeCall(
                     DisputeGameFactory.initialize,
-                    (cfg.finalSystemOwner())
+                    (msg.sender)
                 )
             });
 
@@ -663,6 +671,34 @@ contract Deploy is Deployer {
         if (owner != finalSystemOwner) {
             proxyAdmin.transferOwnership(finalSystemOwner);
             console.log("ProxyAdmin ownership transferred to: %s", finalSystemOwner);
+        }
+    }
+
+    /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
+    function transferDisputeGameFactoryOwnership() broadcast() public {
+        if (block.chainid == 900) {
+            DisputeGameFactory disputeGameFactory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+            address owner = disputeGameFactory.owner();
+            address finalSystemOwner = cfg.finalSystemOwner();
+            if (owner != finalSystemOwner) {
+                disputeGameFactory.transferOwnership(finalSystemOwner);
+                console.log("DisputeGameFactory ownership transferred to: %s", finalSystemOwner);
+            }
+        }
+    }
+
+    /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
+    function setFaultGameImplementation() broadcast() public {
+        if (block.chainid == 900) {
+            DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+            Claim absolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+            IBigStepper faultVm = IBigStepper(new AlphabetVM(absolutePrestate));
+            factory.setImplementation(GameTypes.FAULT, new FaultDisputeGame({
+                _absolutePrestate: absolutePrestate,
+                _maxGameDepth: cfg.faultGameMaxDepth(),
+                _vm: faultVm
+            }));
+            console.log("DisputeGameFactory: set `FaultDisputeGame` implementation");
         }
     }
 }
