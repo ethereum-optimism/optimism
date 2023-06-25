@@ -384,7 +384,7 @@ abstract contract CrossDomainMessenger is
             RELAY_GAS_CHECK_BUFFER;
     }
 
-    /// @notice Intializer.
+    /// @notice Initializer.
     // solhint-disable-next-line func-name-mixedcase
     function __CrossDomainMessenger_init() internal onlyInitializing {
         xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
