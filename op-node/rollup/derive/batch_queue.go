@@ -194,7 +194,9 @@ batchLoop:
 			remaining = append(remaining, candidates[i+1:]...)
 			break batchLoop
 		case BatchUndecided:
-			remaining = append(remaining, batch)
+			// L1 information is insufficient to decide whether these batches are valid, retain the remaining batches
+			// and wait for more L1 information.
+			remaining = append(remaining, candidates[i:]...)
 			bq.batches[nextTimestamp] = remaining
 			return nil, io.EOF
 		default:
