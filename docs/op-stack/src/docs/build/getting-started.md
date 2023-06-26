@@ -172,7 +172,7 @@ Recommended funding amounts are as follows:
 
 ::: danger Not for production deployments
 
-The `cast wallet` tool is *not* designed for production deployments. If you are deploying an OP Stack based chain into production, you should likely be using a combination of hardware security modules and hardware wallets.
+The `cast wallet new` tool is *not* designed for production deployments. If you are deploying an OP Stack based chain into production, you should likely be using a combination of hardware security modules and hardware wallets.
 
 :::
 
@@ -182,21 +182,21 @@ Once you’ve built both repositories, you’ll need head back to the Optimism M
 
 1. Enter the Optimism Monorepo:
 
-    ```bash
-    cd ~/optimism
-    ```
+   ```bash
+   cd ~/optimism
+   ```
 
 1. Move into the `contracts-bedrock` package:
 
-    ```bash
-    cd packages/contracts-bedrock
-    ```
+   ```bash
+   cd packages/contracts-bedrock
+   ```
 
 1. Inside of `contracts-bedrock`, copy the environment file
 
-  ```sh
-    cp .envrc.example .envrc
-  ```
+   ```sh
+   cp .envrc.example .envrc
+   ```
 
 1. Fill out the environment variables inside of that file:
 
@@ -210,7 +210,9 @@ Once you’ve built both repositories, you’ll need head back to the Optimism M
     direnv allow .
     ```
 
-1. Before we can create our configuration file, we’ll need to pick an L1 block to serve as the starting point for our Rollup. It’s best to use a finalized L1 block as our starting block. You can use the `cast` command provided by Foundry to grab all of the necessary information (replace `<RPC>` with the URL for your L1 Goerli node):
+    If you need to install `direnv`, [make sure you also modify the shell configuration](https://direnv.net/docs/hook.html).
+
+1. Before we can create our configuration file, we’ll need to pick an L1 block to serve as the starting point for our Rollup. It’s best to use a finalized L1 block as our starting block. You can use the `cast` command provided by Foundry to grab all of the necessary information:
 
     ```bash
     cast block finalized --rpc-url $ETH_RPC_URL | grep -E "(timestamp|hash|number)"
@@ -237,7 +239,14 @@ Once you’ve built both repositories, you’ll need head back to the Optimism M
 
 Once you’ve configured your network, it’s time to deploy the L1 smart contracts necessary for the functionality of the chain.
 
-1. Once you’re ready, deploy the L1 smart contracts:
+1. Create a `getting-started` deployment directory.
+
+   ```bash
+   mkdir deployments/getting-started
+   ```
+
+
+1. Once you’re ready, deploy the L1 smart contracts.
 
     ```bash
     forge script scripts/Deploy.s.sol:Deploy --private-key $PRIVATE_KEY --broadcast --rpc-url $ETH_RPC_URL
@@ -250,7 +259,7 @@ Contract deployment can take up to 15 minutes. Please wait for all smart contrac
 
 We’ve set up the L1 side of things, but now we need to set up the L2 side of things. We do this by generating three important files, a `genesis.json` file, a `rollup.json` configuration file, and a `jwt.txt` [JSON Web Token](https://jwt.io/introduction) that allows the `op-node` and `op-geth` to communicate securely.
 
-1. Head over to the `op-node` package:
+1. Head over to the `op-node` package.
 
     ```bash
     cd ~/optimism/op-node
@@ -341,7 +350,7 @@ Set these environment variables for the configuration
 | `PROPOSER_KEY` | Private key of the `Proposer` account
 | `L1_RPC`       | URL for the L1 (such as Goerli) you're using
 | `RPC_KIND`     | The type of L1 server to which you connect, which can optimize requests. Available options are `alchemy`, `quicknode`, `parity`, `nethermind`, `debug_geth`, `erigon`, `basic`, and `any`
-| `L2OO_ADDR`    | The address of the `L2OutputOracleProxy`, available at `~/optimism/packages/contracts-bedrock/deployments/getting-started/L2OutputOracleProxy.json
+| `L2OO_ADDR`    | The address of the `L2OutputOracleProxy`, available at `~/optimism/packages/contracts-bedrock/deployments/getting-started/L2OutputOracleProxy.json`
 
 ### `op-geth`
 
@@ -535,7 +544,7 @@ Once you’ve connected your wallet, you’ll probably notice that you don’t h
 1. Grab the address of the proxy to the L1 standard bridge contract:
 
     ```bash
-    cat deployments/getting-started/Proxy__OVM_L1StandardBridge.json |  jq -r .address
+    cat deployments/getting-started/L1StandardBridgeProxy.json | jq -r .address
     ```
 
 1. Grab the L1 bridge proxy contract address and, using the wallet that you want to have ETH on your Rollup, send that address a small amount of ETH on Goerli (0.1 or less is fine). It may take up to 5 minutes for that ETH to appear in your wallet on L2.
