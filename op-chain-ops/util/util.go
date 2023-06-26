@@ -45,7 +45,7 @@ func NewClients(ctx *cli.Context) (*Clients, error) {
 
 	l2RpcURL := ctx.String("l2-rpc-url")
 	if l2RpcURL != "" {
-		l2Client, l2RpcClient, l2GethClient, err := ethclient.Dial(l2RpcURL)
+		l2Client, l2RpcClient, l2GethClient, err := newClients(l2RpcURL)
 		if err != nil {
 			return nil, err
 		}
@@ -65,7 +65,7 @@ func newClients(url string) (*ethclient.Client, *rpc.Client, *gethclient.Client,
 	}
 	rpcClient, err := rpc.DialContext(context.Background(), url)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("cannot dial rpc client", err)
+		return nil, nil, nil, fmt.Errorf("cannot dial rpc client: %w", err)
 	}
 	return ethClient, rpcClient, gethclient.New(rpcClient), nil
 }
