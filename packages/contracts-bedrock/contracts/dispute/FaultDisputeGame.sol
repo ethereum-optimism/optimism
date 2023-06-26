@@ -166,7 +166,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         uint256 _challengeIndex,
         Claim _pivot,
         bool _isAttack
-    ) public {
+    ) public payable {
         // Moves cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) {
             revert GameNotInProgress();
