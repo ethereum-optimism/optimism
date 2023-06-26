@@ -12,7 +12,8 @@ import (
 	"text/template"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/ast"
-	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
+	"github.com/ethereum-optimism/optimism/op-bindings/solc"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 type flags struct {
@@ -33,14 +34,16 @@ type data struct {
 }
 
 type forgeArtifact struct {
+	StorageLayout    *solc.StorageLayout `json:"storageLayout"`
 	DeployedBytecode struct {
-		SourceMap string `json:"sourceMap"`
+		SourceMap string        `json:"sourceMap"`
+		Object    hexutil.Bytes `json:"object"`
 	} `json:"deployedBytecode"`
 }
 
 func main() {
 	var f flags
-	flag.StringVar(&f.ArtifactsDir, "artifacts", "", "Comma-separated list of directories containing artifacts and build info")
+	flag.StringVar(&f.ArtifactsDir, "artifacts", "", "Comma-separated list of directories build info")
 	flag.StringVar(&f.ForgeArtifacts, "forge-artifacts", "", "Forge artifacts directory, to load sourcemaps from, if available")
 	flag.StringVar(&f.OutDir, "out", "", "Output directory to put code in")
 	flag.StringVar(&f.Contracts, "contracts", "", "Comma-separated list of contracts to generate code for")
@@ -64,25 +67,28 @@ func main() {
 		log.Fatalf("must define a list of contracts")
 	}
 
-	hh, err := hardhat.New("dummy", artifacts, nil)
-	if err != nil {
-		log.Fatalln("error reading artifacts:", err)
-	}
-
 	t := template.Must(template.New("artifact").Parse(tmpl))
 
 	for _, name := range contracts {
-		art, err := hh.GetArtifact(name)
-		if err != nil {
-			log.Fatalf("error reading artifact %s: %v\n", name, err)
+		forgeArtifactData, err := os.ReadFile(path.Join(f.ForgeArtifacts, name+".sol", name+".json"))
+		if errors.Is(err, os.ErrNotExist) {
+			log.Printf("cannot find forge-artifact with source-map data of %q\n", name)
 		}
 
-		storage, err := hh.GetStorageLayout(name)
+		var artifact forgeArtifact
+		if err := json.Unmarshal(forgeArtifactData, &artifact); err != nil {
+			log.Fatalf("failed to parse forge artifact of %q: %v\n", name, err)
+		}
 		if err != nil {
 			log.Fatalf("error reading storage layout %s: %v\n", name, err)
 		}
-		canonicalStorage := ast.CanonicalizeASTIDs(storage)
 
+		storage := artifact.StorageLayout
+		if storage == nil {
+			log.Fatalf("no storage layout for %s\n", name)
+		}
+
+		canonicalStorage := ast.CanonicalizeASTIDs(storage)
 		ser, err := json.Marshal(canonicalStorage)
 		if err != nil {
 			log.Fatalf("error marshaling storage: %v\n", err)
@@ -108,7 +114,7 @@ func main() {
 		d := data{
 			Name:              name,
 			StorageLayout:     serStr,
-			DeployedBin:       art.DeployedBytecode.String(),
+			DeployedBin:       artifact.DeployedBytecode.Object.String(),
 			Package:           f.Package,
 			DeployedSourceMap: deployedSourceMap,
 		}

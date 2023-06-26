@@ -45,7 +45,7 @@ version:
 compile:
 	cd ../packages/contracts-bedrock/ && \
 		yarn clean && \
-		npx hardhat compile
+		yarn build
 
 system-config-bindings: compile
 	./gen_bindings.sh contracts/L1/SystemConfig.sol:SystemConfig $(pkg)
