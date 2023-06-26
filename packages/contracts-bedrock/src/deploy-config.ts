@@ -201,6 +201,8 @@ interface OptionalL1DeployConfig {
   l1GenesisBlockGasUsed: string
   l1GenesisBlockParentHash: string
   l1GenesisBlockBaseFeePerGas: string
+  faultGameAbsolutePrestate: number
+  faultGameMaxDepth: number
 }
 
 /**

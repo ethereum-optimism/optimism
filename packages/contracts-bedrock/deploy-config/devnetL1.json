@@ -43,5 +43,7 @@
   "eip1559Elasticity": 2,
   "l1GenesisBlockTimestamp": "0x64935846",
   "l1StartingBlockTag": "earliest",
-  "l2GenesisRegolithTimeOffset": "0x0"
+  "l2GenesisRegolithTimeOffset": "0x0",
+  "faultGameAbsolutePrestate": 15,
+  "faultGameMaxDepth": 4
 }
