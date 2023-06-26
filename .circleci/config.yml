@@ -130,8 +130,8 @@ jobs:
       - persist_to_workspace:
           root: "."
           paths:
-            - "packages/*/dist"
-            - "packages/*/artifacts"
+            - "packages/**/dist"
+            - "packages/contracts-bedrock/forge-artifacts"
 
   docker-build:
     environment:
@@ -574,12 +574,12 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
-      - check-changed:
-          patterns: sdk,contracts-bedrock,contracts
       - restore_cache:
           name: Restore Yarn Package Cache
           keys:
             - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: sdk,contracts-bedrock,contracts
       - run:
           name: anvil-l1
           background: true
