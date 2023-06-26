@@ -59,7 +59,7 @@ We work on this repository with a combination of [Hardhat](https://hardhat.org) 
 1. Install Foundry by following [the instructions located here](https://getfoundry.sh/).
    A specific version must be used.
    ```shell
-   foundryup -C da2392e58bb8a7fefeba46b40c4df1afad8ccd22
+   foundryup -C 3b1129b5bc43ba22a9bcf4e4323c5a9df0023140
    ```
 2. Install node modules with yarn (v1) and Node.js (16+):
 
