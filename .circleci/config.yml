@@ -114,6 +114,7 @@ jobs:
             - "packages/chain-mon/node_modules"
             - "packages/common-ts/node_modules"
             - "packages/contracts-bedrock/node_modules"
+            - "packages/contracts-bedrock/forge-artifacts"
             - "packages/contracts-periphery/node_modules"
             - "packages/core-utils/node_modules"
             - "packages/drippie-mon/node_modules"
@@ -131,7 +132,6 @@ jobs:
           root: "."
           paths:
             - "packages/*/dist"
-            - "packages/*/artifacts"
 
   docker-build:
     environment:
@@ -574,12 +574,12 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
-      - check-changed:
-          patterns: sdk,contracts-bedrock,contracts
       - restore_cache:
           name: Restore Yarn Package Cache
           keys:
             - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: sdk,contracts-bedrock,contracts
       - run:
           name: anvil-l1
           background: true
