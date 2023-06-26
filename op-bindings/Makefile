@@ -1,6 +1,7 @@
 SHELL := /bin/bash
 
 pkg := bindings
+contracts-dir := ../packages/contracts-bedrock
 
 all: version mkdir bindings
 
@@ -9,8 +10,7 @@ version:
 	abigen --version
 
 compile:
-	cd ../packages/contracts-bedrock/ && \
-		yarn clean && \
+	cd $(contracts-dir) && \
 		yarn build
 
 bindings: compile
@@ -23,6 +23,10 @@ bindings: compile
 
 mkdir:
 	mkdir -p $(pkg)
+
+clean-contracts:
+	cd $(contracts-dir) && \
+		yarn clean
 
 clean:
 	rm -rf $(pkg)
