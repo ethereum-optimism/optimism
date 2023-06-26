@@ -36,7 +36,7 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 	}
 
 	// Set up the proxies
-	err = setProxies(db, predeploys.ProxyAdminAddr, bigL2PredeployNamespace, 2048)
+	err = setProxies(db, predeploys.ProxyAdminAddr, BigL2PredeployNamespace, 2048)
 	if err != nil {
 		return nil, err
 	}
