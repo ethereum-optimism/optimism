@@ -17,8 +17,6 @@
   - [Configuration](#configuration)
 - [Security Considerations](#security-considerations)
   - [L1 Reorgs](#l1-reorgs)
-- [Summary of Definitions](#summary-of-definitions)
-  - [Constants](#constants)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -225,12 +223,3 @@ If the L1 has a reorg after an output has been generated and submitted, the L2 s
 leading to a faulty proposal. This is mitigated against by allowing the proposer to submit an
 L1 block number and hash to the Output Oracle when appending a new output; in the event of a reorg, the block hash
 will not match that of the block with that number and the call will revert.
-
-## Summary of Definitions
-
-### Constants
-
-| Name                  | Value   | Unit    |
-| --------------------- | ------- | ------- |
-| `SUBMISSION_INTERVAL` | `120`   | blocks  |
-| `L2_BLOCK_TIME`       | `2`     | seconds |
