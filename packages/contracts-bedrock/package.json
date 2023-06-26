@@ -41,7 +41,6 @@
     "lint:contracts:fix": "yarn solhint --fix 'contracts/**/!(DisputeTypes).sol' && yarn prettier --write 'contracts/**/!(DisputeTypes).sol'",
     "lint:fix": "yarn lint:contracts:fix && yarn lint:ts:fix",
     "lint": "yarn lint:fix && yarn lint:check",
-    "typechain": "typechain --target ethers-v5 --out-dir dist/types --glob 'artifacts/!(build-info)/**/+([a-zA-Z0-9_]).json'",
     "echidna:aliasing": "echidna-test --contract EchidnaFuzzAddressAliasing --config ./echidna.yaml .",
     "echidna:burn:gas": "echidna-test --contract EchidnaFuzzBurnGas --config ./echidna.yaml .",
     "echidna:burn:eth": "echidna-test --contract EchidnaFuzzBurnEth --config ./echidna.yaml .",
@@ -59,53 +58,14 @@
     "ethers": "^5.7.0"
   },
   "devDependencies": {
-    "@eth-optimism/hardhat-deploy-config": "^0.2.6",
-<<<<<<< HEAD
-    "@ethersproject/abstract-provider": "^5.7.0",
-    "@ethersproject/abstract-signer": "^5.7.0",
-    "ethereumjs-wallet": "^1.0.2",
-    "@defi-wonderland/smock": "^2.0.2",
-    "@foundry-rs/hardhat-forge": "^0.1.17",
-    "@nomiclabs/hardhat-ethers": "^2.0.0",
-    "@nomiclabs/hardhat-waffle": "^2.0.0",
-    "@rari-capital/solmate": "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
-    "clones-with-immutable-args": "https://github.com/Saw-mon-and-Natalie/clones-with-immutable-args.git#105efee1b9127ed7f6fedf139e1fc796ce8791f2",
-||||||| parent of c49e9c477 (contracts-bedrock: delete dead typescript)
-    "@ethersproject/abstract-provider": "^5.7.0",
-    "@ethersproject/abstract-signer": "^5.7.0",
-    "ethereumjs-wallet": "^1.0.2",
-    "@defi-wonderland/smock": "^2.0.2",
-    "@foundry-rs/hardhat-forge": "^0.1.17",
-    "@foundry-rs/easy-foundryup": "^0.1.3",
-    "@nomiclabs/hardhat-ethers": "^2.0.0",
-    "@nomiclabs/hardhat-waffle": "^2.0.0",
-    "@rari-capital/solmate": "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
-    "clones-with-immutable-args": "https://github.com/Saw-mon-and-Natalie/clones-with-immutable-args.git#105efee1b9127ed7f6fedf139e1fc796ce8791f2",
-=======
-    "@foundry-rs/easy-foundryup": "^0.1.3",
->>>>>>> c49e9c477 (contracts-bedrock: delete dead typescript)
-    "@typechain/ethers-v5": "^10.1.0",
     "@typescript-eslint/eslint-plugin": "^5.45.1",
     "@typescript-eslint/parser": "^5.45.1",
-<<<<<<< HEAD
-    "bip39": "^3.0.4",
-    "chai": "^4.2.0",
-    "dotenv": "^16.0.0",
-||||||| parent of c49e9c477 (contracts-bedrock: delete dead typescript)
-    "bip39": "^3.0.4",
-    "chai": "^4.2.0",
-    "command-exists": "1.2.9",
-    "dotenv": "^16.0.0",
-=======
-    "command-exists": "1.2.9",
->>>>>>> c49e9c477 (contracts-bedrock: delete dead typescript)
     "ds-test": "https://github.com/dapphub/ds-test.git#9310e879db8ba3ea6d5c6489a579118fd264a3f5",
     "forge-std": "https://github.com/foundry-rs/forge-std.git#e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
     "glob": "^7.1.6",
     "solhint": "^3.3.7",
     "solhint-plugin-prettier": "^0.0.5",
     "ts-node": "^10.9.1",
-    "typechain": "^8.1.0",
     "typescript": "^4.9.3"
   }
 }
