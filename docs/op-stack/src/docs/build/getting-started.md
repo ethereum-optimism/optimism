@@ -259,7 +259,7 @@ Contract deployment can take up to 15 minutes. Please wait for all smart contrac
 
 We’ve set up the L1 side of things, but now we need to set up the L2 side of things. We do this by generating three important files, a `genesis.json` file, a `rollup.json` configuration file, and a `jwt.txt` [JSON Web Token](https://jwt.io/introduction) that allows the `op-node` and `op-geth` to communicate securely.
 
-1. Head over to the `op-node` package:
+1. Head over to the `op-node` package.
 
     ```bash
     cd ~/optimism/op-node
@@ -350,7 +350,7 @@ Set these environment variables for the configuration
 | `PROPOSER_KEY` | Private key of the `Proposer` account
 | `L1_RPC`       | URL for the L1 (such as Goerli) you're using
 | `RPC_KIND`     | The type of L1 server to which you connect, which can optimize requests. Available options are `alchemy`, `quicknode`, `parity`, `nethermind`, `debug_geth`, `erigon`, `basic`, and `any`
-| `L2OO_ADDR`    | The address of the `L2OutputOracleProxy`, available at `~/optimism/packages/contracts-bedrock/deployments/getting-started/L2OutputOracleProxy.json
+| `L2OO_ADDR`    | The address of the `L2OutputOracleProxy`, available at `~/optimism/packages/contracts-bedrock/deployments/getting-started/L2OutputOracleProxy.json`
 
 ### `op-geth`
 
