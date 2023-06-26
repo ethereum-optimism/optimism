@@ -195,7 +195,7 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 			}
 
 		case predeploys.OptimismMintableERC721FactoryAddr:
-			if err := checkOptimismMintableERC20Factory(p, client); err != nil {
+			if err := checkOptimismMintableERC721Factory(p, client); err != nil {
 				return err
 			}
 
