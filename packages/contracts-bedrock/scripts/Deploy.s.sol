@@ -693,12 +693,14 @@ contract Deploy is Deployer {
             DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
             Claim absolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
             IBigStepper faultVm = IBigStepper(new AlphabetVM(absolutePrestate));
-            factory.setImplementation(GameTypes.FAULT, new FaultDisputeGame({
-                _absolutePrestate: absolutePrestate,
-                _maxGameDepth: cfg.faultGameMaxDepth(),
-                _vm: faultVm
-            }));
-            console.log("DisputeGameFactory: set `FaultDisputeGame` implementation");
+            if (address(factory.gameImpls(GameTypes.FAULT)) == address(0)) {
+                factory.setImplementation(GameTypes.FAULT, new FaultDisputeGame({
+                    _absolutePrestate: absolutePrestate,
+                    _maxGameDepth: cfg.faultGameMaxDepth(),
+                    _vm: faultVm
+                }));
+                console.log("DisputeGameFactory: set `FaultDisputeGame` implementation");
+            }
         }
     }
 }
