@@ -262,6 +262,9 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 			}
 
 			version, err := contract.Version(&bind.CallOpts{})
+			if err != nil {
+				return err
+			}
 			log.Info("GasPriceOracle version", "version", version)
 
 		case predeploys.L2StandardBridgeAddr:
