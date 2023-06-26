@@ -6,6 +6,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"path/filepath"
 	"strings"
@@ -35,12 +36,20 @@ func main() {
 	var f flags
 	flag.StringVar(&f.ForgeArtifacts, "forge-artifacts", "", "Forge artifacts directory, to load sourcemaps from, if available")
 	flag.StringVar(&f.OutDir, "out", "", "Output directory to put code in")
-	flag.StringVar(&f.Contracts, "contracts", "", "Comma-separated list of contracts to generate code for")
+	flag.StringVar(&f.Contracts, "contracts", "artifacts.json", "Path to file containing list of contracts to generate bindings for")
 	flag.StringVar(&f.SourceMaps, "source-maps", "", "Comma-separated list of contracts to generate source-maps for")
 	flag.StringVar(&f.Package, "package", "artifacts", "Go package name")
 	flag.Parse()
 
-	contracts := strings.Split(f.Contracts, ",")
+	contractData, err := os.ReadFile(f.Contracts)
+	if err != nil {
+		log.Fatal("error reading contract list: %w\n", err)
+	}
+	contracts := []string{}
+	if err := json.Unmarshal(contractData, &contracts); err != nil {
+		log.Fatal("error parsing contract list: %w\n", err)
+	}
+
 	sourceMaps := strings.Split(f.SourceMaps, ",")
 	sourceMapsSet := make(map[string]struct{})
 	for _, k := range sourceMaps {
@@ -53,10 +62,22 @@ func main() {
 
 	t := template.Must(template.New("artifact").Parse(tmpl))
 
+	// Make a temp dir to hold all the inputs for abigen
+	dir, err := os.MkdirTemp("", "op-bindings")
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("Using package %s\n", f.Package)
+
+	defer os.RemoveAll(dir)
+	log.Printf("created temp dir %s\n", dir)
+
 	for _, name := range contracts {
+		log.Printf("generating code for %s\n", name)
+
 		forgeArtifactData, err := os.ReadFile(path.Join(f.ForgeArtifacts, name+".sol", name+".json"))
 		if errors.Is(err, os.ErrNotExist) {
-			log.Printf("cannot find forge-artifact with source-map data of %q\n", name)
+			log.Fatalf("cannot find forge-artifact of %q\n", name)
 		}
 
 		var artifact foundry.Artifact
@@ -65,6 +86,38 @@ func main() {
 		}
 		if err != nil {
 			log.Fatalf("error reading storage layout %s: %v\n", name, err)
+		}
+
+		rawAbi := artifact.Abi
+		if err != nil {
+			log.Fatalf("error marshaling abi: %v\n", err)
+		}
+		abiFile := path.Join(dir, name+".abi")
+		if err := os.WriteFile(abiFile, rawAbi, 0o600); err != nil {
+			log.Fatalf("error writing file: %v\n", err)
+		}
+		rawBytecode := artifact.Bytecode.Object.String()
+		if err != nil {
+			log.Fatalf("error marshaling bytecode: %v\n", err)
+		}
+		bytecodeFile := path.Join(dir, name+".bin")
+		if err := os.WriteFile(bytecodeFile, []byte(rawBytecode), 0o600); err != nil {
+			log.Fatalf("error writing file: %v\n", err)
+		}
+
+		cwd, err := os.Getwd()
+		if err != nil {
+			log.Fatalf("error getting cwd: %v\n", err)
+		}
+
+		lowerName := strings.ToLower(name)
+		outFile := path.Join(cwd, f.Package, lowerName+".go")
+
+		cmd := exec.Command("abigen", "--abi", abiFile, "--bin", bytecodeFile, "--pkg", f.Package, "--type", name, "--out", outFile)
+		cmd.Stdout = os.Stdout
+
+		if err := cmd.Run(); err != nil {
+			log.Fatalf("error running abigen: %v\n", err)
 		}
 
 		storage := artifact.StorageLayout

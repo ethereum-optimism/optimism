@@ -4,13 +4,15 @@ import (
 	"encoding/json"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
-
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
+// Artifact represents a foundry compilation artifact.
+// The Abi is specifically left as a json.RawMessage because
+// round trip marshaling/unmarshaling of the abi.ABI type
+// causes issues.
 type Artifact struct {
-	Abi              abi.ABI            `json:"abi"`
+	Abi              json.RawMessage    `json:"abi"`
 	StorageLayout    solc.StorageLayout `json:"storageLayout"`
 	DeployedBytecode DeployedBytecode   `json:"deployedBytecode"`
 	Bytecode         Bytecode           `json:"bytecode"`
