@@ -182,21 +182,21 @@ Once you’ve built both repositories, you’ll need head back to the Optimism M
 
 1. Enter the Optimism Monorepo:
 
-    ```bash
-    cd ~/optimism
-    ```
+   ```bash
+   cd ~/optimism
+   ```
 
 1. Move into the `contracts-bedrock` package:
 
-    ```bash
-    cd packages/contracts-bedrock
-    ```
+   ```bash
+   cd packages/contracts-bedrock
+   ```
 
 1. Inside of `contracts-bedrock`, copy the environment file
 
-  ```sh
-    cp .envrc.example .envrc
-  ```
+   ```sh
+   cp .envrc.example .envrc
+   ```
 
 1. Fill out the environment variables inside of that file:
 
