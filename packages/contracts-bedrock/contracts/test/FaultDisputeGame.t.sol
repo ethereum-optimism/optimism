@@ -236,7 +236,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 
     /// @dev Static unit test for the correctness an uncontested root resolution.
-    function test_resolve_rootUncontested() public {
+    function test_resolve_rootUncontested_succeeds() public {
         GameStatus status = gameProxy.resolve();
         assertEq(uint8(status), uint8(GameStatus.DEFENDER_WINS));
         assertEq(uint8(gameProxy.status()), uint8(GameStatus.DEFENDER_WINS));
@@ -260,7 +260,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 
     /// @dev Static unit test for the correctness of resolving a single attack game state.
-    function test_resolve_rootContested() public {
+    function test_resolve_rootContested_succeeds() public {
         gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
 
         GameStatus status = gameProxy.resolve();
@@ -269,7 +269,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 
     /// @dev Static unit test for the correctness of resolving a game with a contested challenge claim.
-    function test_resolve_challengeContested() public {
+    function test_resolve_challengeContested_succeeds() public {
         gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
         gameProxy.defend(1, Claim.wrap(bytes32(uint256(6))));
 
@@ -279,7 +279,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     }
 
     /// @dev Static unit test for the correctness of resolving a game with multiplayer moves.
-    function test_resolve_teamDeathmatch() public {
+    function test_resolve_teamDeathmatch_succeeds() public {
         gameProxy.attack(0, Claim.wrap(bytes32(uint256(5))));
         gameProxy.attack(0, Claim.wrap(bytes32(uint256(4))));
         gameProxy.defend(1, Claim.wrap(bytes32(uint256(6))));
@@ -391,7 +391,7 @@ contract GamePlayer {
 
                 // Now, search for the index of the claim that commits to the prestate's trace
                 // index.
-                uint256 len = claimDataLen();
+                uint256 len = gameProxy.claimDataLen();
                 for (uint256 i = 0; i < len; i++) {
                     (, , , Position pos, ) = gameProxy.claimData(i);
                     if (Position.unwrap(pos) == Position.unwrap(statePos)) {
@@ -424,7 +424,7 @@ contract GamePlayer {
                 // Attack the parent claim.
                 gameProxy.attack(_parentIndex, ourClaim);
                 // Call out to our counter party to respond.
-                counterParty.play(claimDataLen() - 1);
+                counterParty.play(gameProxy.claimDataLen() - 1);
 
                 // If we have a second move position, attack the grandparent.
                 if (Position.unwrap(movePos2) != 0) {
@@ -432,20 +432,15 @@ contract GamePlayer {
                     Claim ourGrandparentClaim = claimAt(grandparentPos.move(true));
 
                     gameProxy.attack(grandparentIndex, ourGrandparentClaim);
-                    counterParty.play(claimDataLen() - 1);
+                    counterParty.play(gameProxy.claimDataLen() - 1);
                 }
             } else {
                 // Defend the parent claim.
                 gameProxy.defend(_parentIndex, ourClaim);
                 // Call out to our counter party to respond.
-                counterParty.play(claimDataLen() - 1);
+                counterParty.play(gameProxy.claimDataLen() - 1);
             }
         }
-    }
-
-    /// @notice Returns the length of the claim data array.
-    function claimDataLen() internal view returns (uint256 len_) {
-        return uint256(vm.load(address(gameProxy), bytes32(uint256(1))));
     }
 
     /// @notice Returns the state at the trace index within the player's trace.
