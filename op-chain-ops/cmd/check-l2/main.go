@@ -489,6 +489,9 @@ func checkOptimismMintableERC20Factory(addr common.Address, client *ethclient.Cl
 		return err
 	}
 	log.Info("OptimismMintableERC20Factory", "BRIDGE", bridge.Hex())
+	if bridge == (common.Address{}) {
+		return errors.New("OptimismMintableERC20Factory.BRIDGE is zero address")
+	}
 
 	version, err := contract.Version(&bind.CallOpts{})
 	if err != nil {
