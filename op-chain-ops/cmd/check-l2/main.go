@@ -48,7 +48,9 @@ func main() {
 			log.Info("Checking predeploy proxy config")
 			g := new(errgroup.Group)
 
-			// All admin slots should be set
+			// Check that all proxies are configured correctly
+			// Do this in parallel but not too quickly to allow for
+			// querying against rate limiting RPC backends
 			count := uint64(2048)
 			for i := uint64(0); i < count; i++ {
 				i := i
@@ -68,9 +70,9 @@ func main() {
 			}
 			log.Info("All predeploy proxies are set correctly")
 
-			// Check that all of the predeploy proxies are set
-			for name := range predeploys.Predeploys {
-				log.Info("Checking predeploy", "name", name)
+			// Check that all of the defined predeploys are set up correctly
+			for name, addr := range predeploys.Predeploys {
+				log.Info("Checking predeploy", "name", name, "address", addr.Hex())
 				if err := checkPredeployConfig(clients.L2Client, name); err != nil {
 					return err
 				}
@@ -84,6 +86,7 @@ func main() {
 	}
 }
 
+// checkPredeployConfig checks that the defined predeploys are configured correctly
 func checkPredeployConfig(client *ethclient.Client, name string) error {
 	predeploy := predeploys.Predeploys[name]
 	if predeploy == nil {
@@ -93,11 +96,14 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 
 	g := new(errgroup.Group)
 	if predeploys.IsProxied(p) {
+		// Check that an implementation is set. If the implementation has been upgraded,
+		// it will be considered non-standard. Ensure that there is code set at the implementation.
 		g.Go(func() error {
 			impl, err := getEIP1967ImplementationAddress(client, p)
 			if err != nil {
 				return err
 			}
+			log.Info(name, "implementation", impl.Hex())
 			standardImpl, err := genesis.AddressToCodeNamespace(p)
 			if err != nil {
 				return err
@@ -115,6 +121,7 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 			return nil
 		})
 
+		// Ensure that the code is set to the proxy bytecode as expected
 		g.Go(func() error {
 			proxyCode, err := client.CodeAt(context.Background(), p, nil)
 			if err != nil {
@@ -129,9 +136,9 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 			}
 			return nil
 		})
-
 	}
 
+	// Check the predeploy specific config is correct
 	g.Go(func() error {
 		switch p {
 		case predeploys.LegacyMessagePasserAddr:
@@ -723,6 +730,7 @@ func getEIP1967ImplementationAddress(client *ethclient.Client, addr common.Addre
 	return impl, nil
 }
 
+// checkPredeploy ensures that the predeploy at index i has the correct proxy admin set
 func checkPredeploy(client *ethclient.Client, i uint64) error {
 	bigAddr := new(big.Int).Or(genesis.BigL2PredeployNamespace, new(big.Int).SetUint64(i))
 	addr := common.BigToAddress(bigAddr)
