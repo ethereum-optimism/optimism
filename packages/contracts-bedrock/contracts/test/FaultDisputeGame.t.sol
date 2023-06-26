@@ -391,7 +391,7 @@ contract GamePlayer {
 
                 // Now, search for the index of the claim that commits to the prestate's trace
                 // index.
-                uint256 len = claimDataLen();
+                uint256 len = gameProxy.claimDataLen();
                 for (uint256 i = 0; i < len; i++) {
                     (, , , Position pos, ) = gameProxy.claimData(i);
                     if (Position.unwrap(pos) == Position.unwrap(statePos)) {
@@ -424,7 +424,7 @@ contract GamePlayer {
                 // Attack the parent claim.
                 gameProxy.attack(_parentIndex, ourClaim);
                 // Call out to our counter party to respond.
-                counterParty.play(claimDataLen() - 1);
+                counterParty.play(gameProxy.claimDataLen() - 1);
 
                 // If we have a second move position, attack the grandparent.
                 if (Position.unwrap(movePos2) != 0) {
@@ -432,20 +432,15 @@ contract GamePlayer {
                     Claim ourGrandparentClaim = claimAt(grandparentPos.move(true));
 
                     gameProxy.attack(grandparentIndex, ourGrandparentClaim);
-                    counterParty.play(claimDataLen() - 1);
+                    counterParty.play(gameProxy.claimDataLen() - 1);
                 }
             } else {
                 // Defend the parent claim.
                 gameProxy.defend(_parentIndex, ourClaim);
                 // Call out to our counter party to respond.
-                counterParty.play(claimDataLen() - 1);
+                counterParty.play(gameProxy.claimDataLen() - 1);
             }
         }
-    }
-
-    /// @notice Returns the length of the claim data array.
-    function claimDataLen() internal view returns (uint256 len_) {
-        return uint256(vm.load(address(gameProxy), bytes32(uint256(1))));
     }
 
     /// @notice Returns the state at the trace index within the player's trace.

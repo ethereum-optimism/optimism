@@ -72,12 +72,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
 
     /// @inheritdoc IFaultDisputeGame
     function attack(uint256 _parentIndex, Claim _pivot) external payable {
-        _move(_parentIndex, _pivot, true);
+        move(_parentIndex, _pivot, true);
     }
 
     /// @inheritdoc IFaultDisputeGame
     function defend(uint256 _parentIndex, Claim _pivot) external payable {
-        _move(_parentIndex, _pivot, false);
+        move(_parentIndex, _pivot, false);
     }
 
     /// @inheritdoc IFaultDisputeGame
@@ -162,11 +162,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @param _challengeIndex The index of the claim being moved against.
     /// @param _pivot The claim at the next logical position in the game.
     /// @param _isAttack Whether or not the move is an attack or defense.
-    function _move(
+    function move(
         uint256 _challengeIndex,
         Claim _pivot,
         bool _isAttack
-    ) internal {
+    ) public payable {
         // Moves cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) {
             revert GameNotInProgress();
@@ -252,6 +252,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @inheritdoc IFaultDisputeGame
     function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
         l2BlockNumber_ = _getArgUint256(0x20);
+    }
+
+    /// @notice Returns the length of the `claimData` array.
+    function claimDataLen() external view returns (uint256 len_) {
+        len_ = claimData.length;
     }
 
     ////////////////////////////////////////////////////////////////
