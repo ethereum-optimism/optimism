@@ -23,7 +23,7 @@ const l2OutputOracleAddresses = {
 
 const addressManagerAddresses = {
   mainnet: addressManagerArtifactMainnet.address,
-  goerli: addressManagerArtifactGoerli.address
+  goerli: addressManagerArtifactGoerli.address,
 }
 
 const l1StandardBridgeAddresses = {
@@ -39,13 +39,13 @@ const l1CrossDomainMessengerAddresses = {
 // legacy
 const stateCommitmentChainAddresses = {
   mainnet: '0xBe5dAb4A2e9cd0F27300dB4aB94BeE3A233AEB19',
-  goerli: '0x9c945aC97Baf48cB784AbBB61399beB71aF7A378'
+  goerli: '0x9c945aC97Baf48cB784AbBB61399beB71aF7A378',
 }
 
 // legacy
 const canonicalTransactionChainAddresses = {
   mainnet: '0x5E4e65926BA27467555EB562121fac00D24E9dD2',
-  goerli: '0x607F755149cFEB3a14E1Dc3A4E2450Cde7dfb04D'
+  goerli: '0x607F755149cFEB3a14E1Dc3A4E2450Cde7dfb04D',
 }
 
 import {
