@@ -103,10 +103,10 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         _;
     }
 
-    /// @custom:semver 1.7.1
+    /// @custom:semver 1.7.2
     /// @notice Constructs the OptimismPortal contract.
     /// @param _l2Oracle Address of the L2OutputOracle contract.
-    /// @param _guardian Address that can pause deposits and withdrawals.
+    /// @param _guardian Address that can pause withdrawals.
     /// @param _paused Sets the contract's pausability state.
     /// @param _config Address of the SystemConfig contract.
     constructor(
@@ -114,7 +114,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         address _guardian,
         bool _paused,
         SystemConfig _config
-    ) Semver(1, 7, 1) {
+    ) Semver(1, 7, 2) {
         L2_ORACLE = _l2Oracle;
         GUARDIAN = _guardian;
         SYSTEM_CONFIG = _config;
@@ -128,14 +128,14 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         __ResourceMetering_init();
     }
 
-    /// @notice Pauses deposits and withdrawals.
+    /// @notice Pauses withdrawals.
     function pause() external {
         require(msg.sender == GUARDIAN, "OptimismPortal: only guardian can pause");
         paused = true;
         emit Paused(msg.sender);
     }
 
-    /// @notice Unpauses deposits and withdrawals.
+    /// @notice Unpauses withdrawals.
     function unpause() external {
         require(msg.sender == GUARDIAN, "OptimismPortal: only guardian can unpause");
         paused = false;
@@ -370,7 +370,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     ///         using the CrossDomainMessenger contracts for a simpler developer experience.
     /// @param _to         Target address on L2.
     /// @param _value      ETH value to send to the recipient.
-    /// @param _gasLimit   Minimum L2 gas limit (can be greater than or equal to this value).
+    /// @param _gasLimit   Amount of L2 gas to purchase by burning gas on L1.
     /// @param _isCreation Whether or not the transaction is a contract creation.
     /// @param _data       Data to trigger the recipient with.
     function depositTransaction(
