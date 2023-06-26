@@ -28,7 +28,6 @@
     "configsProject": [
       "{projectRoot}/foundry.toml",
       "{projectRoot}/tsconfig.json",
-      "{projectRoot}/hardhat.config.ts",
       "{projectRoot}/package.json"
     ],
     "default": ["{projectRoot}/**/*", "configsWorkspace"],
@@ -38,8 +37,6 @@
     ],
     "productionSrc": [
       "{projectRoot}/src/**/*",
-      "!{projectRoot}/src/contract-artifacts.ts",
-      "!{projectRoot}/src/contract-deployed-artifacts.ts",
       "!{projectRoot}/src/**/*.spec.ts"
     ],
     "productionContracts": ["{projectRoot}/contracts/**/*"],
@@ -63,16 +60,6 @@
       "dependsOn": ["^build"],
       "outputs": ["{projectRoot}/artifacts", "{projectRoot}/forge-artifacts"]
     },
-    "autogen:artifacts": {
-      "inputs": [
-        "configsWorkspace",
-        "configsProject",
-        "productionContracts",
-        "^productionContracts"
-      ],
-      "dependsOn": ["^build", "build:contracts"],
-      "outputs": ["srcGenerated"]
-    },
     "build": {
       "inputs": [
         "configsWorkspace",
@@ -80,7 +67,7 @@
         "production",
         "^production"
       ],
-      "dependsOn": ["^build", "autogen:artifacts", "build:contracts"],
+      "dependsOn": ["^build", "build:contracts"],
       "outputs": ["{projectRoot}/dist"]
     }
   }
