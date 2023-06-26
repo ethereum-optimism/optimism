@@ -4,11 +4,14 @@ import { task, types } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 import { Deployment } from 'hardhat-deploy/types'
-import {
-  predeploys,
-  getContractDefinition,
-} from '@eth-optimism/contracts-bedrock'
+import { predeploys } from '@eth-optimism/core-utils'
 import { providers, utils, ethers } from 'ethers'
+import Artifact__L2ToL1MessagePasser from '@eth-optimism/contracts-bedrock/forge-artifacts/L2ToL1MessagePasser.sol/L2ToL1MessagePasser.json'
+import Artifact__L2CrossDomainMessenger from '@eth-optimism/contracts-bedrock/forge-artifacts/L2CrossDomainMessenger.sol/L2CrossDomainMessenger.json'
+import Artifact__L2StandardBridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L2StandardBridge.sol/L2StandardBridge.json'
+import Artifact__OptimismPortal from '@eth-optimism/contracts-bedrock/forge-artifacts/OptimismPortal.sol/OptimismPortal.json'
+import Artifact__L1CrossDomainMessenger from '@eth-optimism/contracts-bedrock/forge-artifacts/L1CrossDomainMessenger.sol/L1CrossDomainMessenger.json'
+import Artifact__L1StandardBridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L1StandardBridge.sol/L1StandardBridge.json'
 
 import {
   CrossChainMessenger,
@@ -141,30 +144,6 @@ task('deposit-eth', 'Deposits ether to L2.')
         l2: DEFAULT_L2_CONTRACT_ADDRESSES,
       }
     }
-
-    const Artifact__L2ToL1MessagePasser = await getContractDefinition(
-      'L2ToL1MessagePasser'
-    )
-
-    const Artifact__L2CrossDomainMessenger = await getContractDefinition(
-      'L2CrossDomainMessenger'
-    )
-
-    const Artifact__L2StandardBridge = await getContractDefinition(
-      'L2StandardBridge'
-    )
-
-    const Artifact__OptimismPortal = await getContractDefinition(
-      'OptimismPortal'
-    )
-
-    const Artifact__L1CrossDomainMessenger = await getContractDefinition(
-      'L1CrossDomainMessenger'
-    )
-
-    const Artifact__L1StandardBridge = await getContractDefinition(
-      'L1StandardBridge'
-    )
 
     const OptimismPortal = new hre.ethers.Contract(
       contractAddrs.l1.OptimismPortal,
