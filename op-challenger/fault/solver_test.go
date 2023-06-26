@@ -20,44 +20,47 @@ func TestSolver_NextMove_Opponent(t *testing.T) {
 	indices := []struct {
 		traceIndex int
 		claim      Claim
-		parent     Claim
-		response   *Response
+		response   ClaimData
 	}{
 		{
 			3,
 			Claim{
-				Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000364"),
-				Position: NewPosition(1, 0),
+				ClaimData: ClaimData{
+					Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000364"),
+					Position: NewPosition(1, 0),
+				},
+				Parent: ClaimData{
+					Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000768"),
+					Position: NewPosition(0, 0),
+				},
 			},
-			Claim{
-				Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000768"),
-				Position: NewPosition(0, 0),
-			},
-			&Response{
-				Attack: false,
-				Value:  common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000566"),
+			ClaimData{
+				Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000566"),
+				Position: NewPosition(2, 2),
 			},
 		},
 		{
 			5,
 			Claim{
-				Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000578"),
-				Position: NewPosition(2, 2),
+				ClaimData: ClaimData{
+					Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000578"),
+					Position: NewPosition(2, 2),
+				},
+				Parent: ClaimData{
+					Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000768"),
+					Position: NewPosition(1, 1),
+				},
 			},
-			Claim{
-				Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000768"),
-				Position: NewPosition(1, 1),
-			},
-			&Response{
-				Attack: true,
-				Value:  common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000465"),
+			ClaimData{
+				Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000465"),
+				Position: NewPosition(3, 4),
 			},
 		},
 	}
 
 	for _, test := range indices {
-		res, err := solver.NextMove(test.claim, test.parent)
+		res, err := solver.NextMove(test.claim)
 		require.NoError(t, err)
-		require.Equal(t, test.response, res)
+		require.Equal(t, test.response, res.ClaimData)
 	}
 }

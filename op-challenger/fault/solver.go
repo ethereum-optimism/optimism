@@ -22,12 +22,12 @@ func NewSolver(gameDepth int, traceProvider TraceProvider) *Solver {
 }
 
 // NextMove returns the next move to make given the current state of the game.
-func (s *Solver) NextMove(claim Claim, parent Claim) (*Response, error) {
-	parentCorrect, err := s.agreeWithClaim(parent)
+func (s *Solver) NextMove(claim Claim) (*Claim, error) {
+	parentCorrect, err := s.agreeWithClaim(claim.Parent)
 	if err != nil {
 		return nil, err
 	}
-	claimCorrect, err := s.agreeWithClaim(claim)
+	claimCorrect, err := s.agreeWithClaim(claim.ClaimData)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +41,7 @@ func (s *Solver) NextMove(claim Claim, parent Claim) (*Response, error) {
 		return s.attack(claim)
 	} else if !parentCorrect && claimCorrect {
 		// Do nothing, we disagree with the parent, but this claim has correctly countered it
-		return s.doNothing()
+		return nil, nil
 	} else if !parentCorrect && !claimCorrect {
 		// We disagree with the parent so want to counter it (which the claim is doing)
 		// but we also disagree with the claim so there must be a difference to the left of claim
@@ -52,30 +52,34 @@ func (s *Solver) NextMove(claim Claim, parent Claim) (*Response, error) {
 	return nil, errors.New("no next move")
 }
 
-func (s *Solver) doNothing() (*Response, error) {
-	return nil, nil
-}
-
 // attack returns a response that attacks the claim.
-func (s *Solver) attack(claim Claim) (*Response, error) {
-	value, err := s.traceAtPosition(claim.Attack())
+func (s *Solver) attack(claim Claim) (*Claim, error) {
+	position := claim.Attack()
+	value, err := s.traceAtPosition(position)
 	if err != nil {
 		return nil, err
 	}
-	return &Response{Attack: true, Value: value}, nil
+	return &Claim{
+		ClaimData: ClaimData{Value: value, Position: position},
+		Parent:    claim.ClaimData,
+	}, nil
 }
 
 // defend returns a response that defends the claim.
-func (s *Solver) defend(claim Claim) (*Response, error) {
-	value, err := s.traceAtPosition(claim.Defend())
+func (s *Solver) defend(claim Claim) (*Claim, error) {
+	position := claim.Defend()
+	value, err := s.traceAtPosition(position)
 	if err != nil {
 		return nil, err
 	}
-	return &Response{Attack: false, Value: value}, nil
+	return &Claim{
+		ClaimData: ClaimData{Value: value, Position: position},
+		Parent:    claim.ClaimData,
+	}, nil
 }
 
-// agreeWithClaim returns true if the [Claim] is correct according to the internal [TraceProvider].
-func (s *Solver) agreeWithClaim(claim Claim) (bool, error) {
+// agreeWithClaim returns true if the claim is correct according to the internal [TraceProvider].
+func (s *Solver) agreeWithClaim(claim ClaimData) (bool, error) {
 	ourValue, err := s.traceAtPosition(claim.Position)
 	return ourValue == claim.Value, err
 }
