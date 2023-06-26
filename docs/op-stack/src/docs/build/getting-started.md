@@ -172,7 +172,7 @@ Recommended funding amounts are as follows:
 
 ::: danger Not for production deployments
 
-The `cast wallet` tool is *not* designed for production deployments. If you are deploying an OP Stack based chain into production, you should likely be using a combination of hardware security modules and hardware wallets.
+The `cast wallet new` tool is *not* designed for production deployments. If you are deploying an OP Stack based chain into production, you should likely be using a combination of hardware security modules and hardware wallets.
 
 :::
 
