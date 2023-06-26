@@ -544,7 +544,7 @@ Once you’ve connected your wallet, you’ll probably notice that you don’t h
 1. Grab the address of the proxy to the L1 standard bridge contract:
 
     ```bash
-    cat deployments/getting-started/Proxy__OVM_L1StandardBridge.json |  jq -r .address
+    cat deployments/getting-started/L1StandardBridgeProxy.json | jq -r .address
     ```
 
 1. Grab the L1 bridge proxy contract address and, using the wallet that you want to have ETH on your Rollup, send that address a small amount of ETH on Goerli (0.1 or less is fine). It may take up to 5 minutes for that ETH to appear in your wallet on L2.
