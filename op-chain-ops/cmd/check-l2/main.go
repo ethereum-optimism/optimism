@@ -6,9 +6,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"golang.org/x/sync/errgroup"
 	"math/big"
 	"os"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
