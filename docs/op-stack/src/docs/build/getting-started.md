@@ -239,7 +239,14 @@ Once you’ve built both repositories, you’ll need head back to the Optimism M
 
 Once you’ve configured your network, it’s time to deploy the L1 smart contracts necessary for the functionality of the chain.
 
-1. Once you’re ready, deploy the L1 smart contracts:
+1. Create a `getting-started` deployment directory.
+
+   ```bash
+   mkdir deployments/getting-started
+   ```
+
+
+1. Once you’re ready, deploy the L1 smart contracts.
 
     ```bash
     forge script scripts/Deploy.s.sol:Deploy --private-key $PRIVATE_KEY --broadcast --rpc-url $ETH_RPC_URL
