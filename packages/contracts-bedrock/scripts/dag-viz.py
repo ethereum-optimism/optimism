@@ -16,11 +16,11 @@ t = decode(['(uint32,bool,bytes32,uint128,uint128)[]'], bytes.fromhex(b))[0]
 G = nx.DiGraph()
 for c in t:
     claim = c[2].hex()
-    key = f"Position: {c[3]} | Claim: 0x{claim[:4]}..{claim[60:64]}"
+    key = f"Position: {bin(c[3])[2:]} | Claim: 0x{claim[:4]}..{claim[60:64]}"
     G.add_node(key)
     if int(c[0]) != ROOT_PARENT:
         pclaim = t[c[0]][2].hex()
-        G.add_edge(f"Position: {t[c[0]][3]} | Claim: 0x{pclaim[:4]}..{pclaim[60:64]}", key)
+        G.add_edge(f"Position: {bin(t[c[0]][3])[2:]} | Claim: 0x{pclaim[:4]}..{pclaim[60:64]}", key)
 r = dagviz.render_svg(G)
 
 f = open('dispute_game.svg', 'w')

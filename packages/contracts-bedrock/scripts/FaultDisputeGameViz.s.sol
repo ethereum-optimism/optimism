@@ -3,7 +3,7 @@ pragma solidity ^0.8.15;
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
-import { DisputeGameFactory_Init } from "../contracts/test/DisputeGameFactory.t.sol";
+import { FaultDisputeGame_Init } from "../contracts/test/FaultDisputeGame.t.sol";
 import { DisputeGameFactory } from "../contracts/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "../contracts/dispute/FaultDisputeGame.sol";
 import { IFaultDisputeGame } from "../contracts/dispute/interfaces/IFaultDisputeGame.sol";
@@ -17,48 +17,32 @@ import { LibPosition } from "../contracts/dispute/lib/LibPosition.sol";
  * @title FaultDisputeGameViz
  * @dev To run this script, make sure to install the `dagviz` & `eth_abi` python packages.
  */
-contract FaultDisputeGameViz is Script, DisputeGameFactory_Init {
-    /**
-     * @dev The root claim of the game.
-     */
+contract FaultDisputeGameViz is Script, FaultDisputeGame_Init {
+    /// @dev The root claim of the game.
     Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32(uint256(10)));
-    /**
-     * @dev The extra data passed to the game for initialization.
-     */
-    bytes internal constant EXTRA_DATA = abi.encode(1);
-    /**
-     * @dev The type of the game being tested.
-     */
-    GameType internal constant GAME_TYPE = GameType.wrap(0);
-    /**
-     * @dev The implementation of the game.
-     */
-    FaultDisputeGame internal gameImpl;
-    /**
-     * @dev The `Clone` proxy of the game.
-     */
-    FaultDisputeGame internal gameProxy;
+    /// @dev The absolute prestate of the trace.
+    Claim internal constant ABSOLUTE_PRESTATE = Claim.wrap(bytes32(uint256(0)));
 
     function setUp() public override {
-        super.setUp();
-        // Deploy an implementation of the fault game
-        gameImpl = new FaultDisputeGame();
-        // Register the game implementation with the factory.
-        factory.setImplementation(GAME_TYPE, gameImpl);
-        // Create a new game.
-        gameProxy = FaultDisputeGame(address(factory.create(GAME_TYPE, ROOT_CLAIM, EXTRA_DATA)));
-
-        // Label the proxy
-        vm.label(address(gameProxy), "FaultDisputeGame_Clone");
+        super.init(ROOT_CLAIM, ABSOLUTE_PRESTATE);
     }
 
     /**
      * @dev Entry point
      */
-    function run() public {
+    function local() public {
         // Construct the game by performing attacks, defenses, and steps.
         // ...
 
+        buildGraph();
+        console.log("Saved graph to `./dispute_game.svg");
+    }
+
+    /**
+     * @dev Entry point
+     */
+    function remote(address _addr) public {
+        gameProxy = FaultDisputeGame(_addr);
         buildGraph();
         console.log("Saved graph to `./dispute_game.svg");
     }
