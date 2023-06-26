@@ -5,15 +5,13 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 import { Event, Contract, Wallet, providers, utils } from 'ethers'
-import {
-  predeploys,
-  getContractDefinition,
-} from '@eth-optimism/contracts-bedrock'
+import { predeploys } from '@eth-optimism/contracts-bedrock'
 import { sleep } from '@eth-optimism/core-utils'
 
 import {
   CrossChainMessenger,
   MessageStatus,
+  getContractDefinition,
   CONTRACT_ADDRESSES,
   OEContractsLike,
   DEFAULT_L2_CONTRACT_ADDRESSES,
