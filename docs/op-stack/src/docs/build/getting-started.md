@@ -212,7 +212,7 @@ Once you’ve built both repositories, you’ll need head back to the Optimism M
 
     If you need to install `direnv`, [make sure you also modify the shell configuration](https://direnv.net/docs/hook.html).
 
-1. Before we can create our configuration file, we’ll need to pick an L1 block to serve as the starting point for our Rollup. It’s best to use a finalized L1 block as our starting block. You can use the `cast` command provided by Foundry to grab all of the necessary information (replace `<RPC>` with the URL for your L1 Goerli node):
+1. Before we can create our configuration file, we’ll need to pick an L1 block to serve as the starting point for our Rollup. It’s best to use a finalized L1 block as our starting block. You can use the `cast` command provided by Foundry to grab all of the necessary information:
 
     ```bash
     cast block finalized --rpc-url $ETH_RPC_URL | grep -E "(timestamp|hash|number)"
