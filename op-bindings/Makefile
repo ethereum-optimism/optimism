@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 pkg := bindings
 
-all: version mkdir bindings more
+all: version mkdir bindings
 
 version:
 	forge --version
@@ -19,13 +19,13 @@ bindings: compile
 		-out ./bindings \
 		-contracts ./artifacts.json \
 		-source-maps MIPS,PreimageOracle \
-		-package bindings
+		-package $(pkg)
 
 mkdir:
-	mkdir -p bin $(pkg)
+	mkdir -p $(pkg)
 
 clean:
-	rm -rf bin $(pkg)
+	rm -rf $(pkg)
 
 test:
 	go test ./...
