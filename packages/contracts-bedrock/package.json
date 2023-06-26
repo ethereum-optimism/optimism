@@ -2,8 +2,6 @@
   "name": "@eth-optimism/contracts-bedrock",
   "version": "0.15.0",
   "description": "Contracts for Optimism Specs",
-  "main": "dist/index",
-  "types": "dist/index",
   "license": "MIT",
   "files": [
     "forge-artifacts/**/*.json",
