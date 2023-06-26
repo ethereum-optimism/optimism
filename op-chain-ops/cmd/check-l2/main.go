@@ -133,449 +133,92 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 
 	}
 
-	//
 	g.Go(func() error {
 		switch p {
 		case predeploys.LegacyMessagePasserAddr:
-			contract, err := bindings.NewLegacyMessagePasser(p, client)
-			if err != nil {
+			if err := checkLegacyMessagePasser(p, client); err != nil {
 				return err
 			}
-			version, err := contract.Version(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("LegacyMessagePasser version", "version", version)
 
 		case predeploys.DeployerWhitelistAddr:
-			contract, err := bindings.NewDeployerWhitelist(p, client)
-			if err != nil {
+			if err := checkDeployerWhitelist(p, client); err != nil {
 				return err
 			}
-			owner, err := contract.Owner(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			if owner != (common.Address{}) {
-				return fmt.Errorf("DeployerWhitelist owner should be set to address(0)")
-			}
-			version, err := contract.Version(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("DeployerWhitelist version", "version", version)
 
 		case predeploys.L2CrossDomainMessengerAddr:
-			slot, err := client.StorageAt(context.Background(), p, common.Hash{31: 0xcc}, nil)
-			if err != nil {
+			if err := checkL2CrossDomainMessenger(p, client); err != nil {
 				return err
 			}
-			addr := common.BytesToAddress(slot)
-			if addr != defaultCrossDomainMessageSender {
-				return fmt.Errorf("Expected xDomainMsgSender to be %s, got %s", defaultCrossDomainMessageSender, addr)
-			}
-
-			contract, err := bindings.NewL2CrossDomainMessenger(p, client)
-			if err != nil {
-				return err
-			}
-
-			otherMessenger, err := contract.OTHERMESSENGER(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			if otherMessenger == (common.Address{}) {
-				return errors.New("OTHERMESSENGER should not be address(0)")
-			}
-			log.Info("L2CrossDomainMessenger", "OTHERMESSENGER", otherMessenger.Hex())
-
-			l1CrossDomainMessenger, err := contract.L1CrossDomainMessenger(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L2CrossDomainMessenger", "l1CrossDomainMessenger", l1CrossDomainMessenger.Hex())
-
-			messageVersion, err := contract.MESSAGEVERSION(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L2CrossDomainMessenger", "MESSAGE_VERSION", messageVersion)
-			minGasCallDataOverhead, err := contract.MINGASCALLDATAOVERHEAD(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L2CrossDomainMessenger", "MIN_GAS_CALLDATA_OVERHEAD", minGasCallDataOverhead)
-
-			relayConstantOverhead, err := contract.RELAYCONSTANTOVERHEAD(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L2CrossDomainMessenger", "RELAY_CONSTANT_OVERHEAD", relayConstantOverhead)
-
-			minGasDynamicsOverheadDenominator, err := contract.MINGASDYNAMICOVERHEADDENOMINATOR(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L2CrossDomainMessenger", "MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR", minGasDynamicsOverheadDenominator)
-
-			minGasDynamicsOverheadNumerator, err := contract.MINGASDYNAMICOVERHEADNUMERATOR(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L2CrossDomainMessenger", "MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR", minGasDynamicsOverheadNumerator)
-
-			relayCallOverhead, err := contract.RELAYCALLOVERHEAD(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L2CrossDomainMessenger", "RELAY_CALL_OVERHEAD", relayCallOverhead)
-
-			relayReservedGas, err := contract.RELAYRESERVEDGAS(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L2CrossDomainMessenger", "RELAY_RESERVED_GAS", relayReservedGas)
-
-			relayGasCheckBuffer, err := contract.RELAYGASCHECKBUFFER(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L2CrossDomainMessenger", "RELAY_GAS_CHECK_BUFFER", relayGasCheckBuffer)
-
-			version, err := contract.Version(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L2CrossDomainMessenger version", "version", version)
 
 		case predeploys.GasPriceOracleAddr:
-			contract, err := bindings.NewGasPriceOracle(p, client)
-			if err != nil {
+			if err := checkGasPriceOracle(p, client); err != nil {
 				return err
 			}
-			decimals, err := contract.DECIMALS(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("GasPriceOracle", "DECIMALS", decimals)
-			if decimals.Cmp(big.NewInt(6)) != 0 {
-				return fmt.Errorf("GasPriceOracle decimals should be 6, got %v", decimals)
-			}
-
-			version, err := contract.Version(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("GasPriceOracle version", "version", version)
 
 		case predeploys.L2StandardBridgeAddr:
-			contract, err := bindings.NewL2StandardBridge(p, client)
-			if err != nil {
+			if err := checkL2StandardBridge(p, client); err != nil {
 				return err
 			}
-			otherBridge, err := contract.OTHERBRIDGE(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			if otherBridge == (common.Address{}) {
-				return errors.New("OTHERBRIDGE should not be address(0)")
-			}
-			log.Info("L2StandardBridge", "OTHERBRIDGE", otherBridge.Hex())
-
-			messenger, err := contract.MESSENGER(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L2StandardBridge", "MESSENGER", messenger.Hex())
-			if messenger != predeploys.L2CrossDomainMessengerAddr {
-				return fmt.Errorf("L2StandardBridge MESSENGER should be %s, got %s", predeploys.L2CrossDomainMessengerAddr, messenger)
-			}
-
-			version, err := contract.Version(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L2StandardBridge version", "version", version)
 
 		case predeploys.SequencerFeeVaultAddr:
-			contract, err := bindings.NewSequencerFeeVault(p, client)
-			if err != nil {
+			if err := checkSequencerFeeVault(p, client); err != nil {
 				return err
 			}
-			recipient, err := contract.RECIPIENT(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("SequencerFeeVault", "RECIPIENT", recipient.Hex())
-			if recipient == (common.Address{}) {
-				return errors.New("RECIPIENT should not be address(0)")
-			}
-
-			l1FeeWallet, err := contract.L1FeeWallet(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("SequencerFeeVault", "l1FeeWallet", l1FeeWallet.Hex())
-
-			minWithdrawalAmount, err := contract.MINWITHDRAWALAMOUNT(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("SequencerFeeVault", "MIN_WITHDRAWAL_AMOUNT", minWithdrawalAmount)
-
-			version, err := contract.Version(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("SequencerFeeVault version", "version", version)
 
 		case predeploys.OptimismMintableERC20FactoryAddr:
-			contract, err := bindings.NewOptimismMintableERC20Factory(p, client)
-			if err != nil {
+			if err := checkOptimismMintableERC20Factory(p, client); err != nil {
 				return err
 			}
-
-			bridge, err := contract.BRIDGE(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("OptimismMintableERC20Factory", "BRIDGE", bridge.Hex())
-
-			version, err := contract.Version(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("OptimismMintableERC20Factory version", "version", version)
 
 		case predeploys.L1BlockNumberAddr:
-			contract, err := bindings.NewL1BlockNumber(p, client)
-			if err != nil {
+			if err := checkL1BlockNumber(p, client); err != nil {
 				return err
 			}
-			version, err := contract.Version(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L1BlockNumber version", "version", version)
 
 		case predeploys.L1BlockAddr:
-			contract, err := bindings.NewL1Block(p, client)
-			if err != nil {
+			if err := checkL1Block(p, client); err != nil {
 				return err
 			}
-			version, err := contract.Version(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L1Block version", "version", version)
 
 		case predeploys.WETH9Addr:
-			contract, err := bindings.NewWETH9(p, client)
-			if err != nil {
+			if err := checkWETH9(p, client); err != nil {
 				return err
-			}
-			name, err := contract.Name(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("WETH9", "name", name)
-			if name != "Wrapped Ether" {
-				return fmt.Errorf("WETH9 name should be 'Wrapped Ether', got %s", name)
-			}
-
-			symbol, err := contract.Symbol(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("WETH9", "symbol", symbol)
-			if symbol != "WETH" {
-				return fmt.Errorf("WETH9 symbol should be 'WETH', got %s", symbol)
-			}
-
-			decimals, err := contract.Decimals(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("WETH9", "decimals", decimals)
-			if decimals != 18 {
-				return fmt.Errorf("WETH9 decimals should be 18, got %d", decimals)
 			}
 
 		case predeploys.GovernanceTokenAddr:
-			code, err := client.CodeAt(context.Background(), predeploys.GovernanceTokenAddr, nil)
-			if err != nil {
+			if err := checkGovernanceToken(p, client); err != nil {
 				return err
-			}
-
-			if len(code) > 0 {
-				// This should also check the owner
-				contract, err := bindings.NewERC20(p, client)
-				if err != nil {
-					return err
-				}
-				name, err := contract.Name(&bind.CallOpts{})
-				if err != nil {
-					return err
-				}
-				log.Info("GovernanceToken", "name", name)
-				symbol, err := contract.Symbol(&bind.CallOpts{})
-				if err != nil {
-					return err
-				}
-				log.Info("GovernanceToken", "symbol", symbol)
-				totalSupply, err := contract.TotalSupply(&bind.CallOpts{})
-				if err != nil {
-					return err
-				}
-				log.Info("GovernanceToken", "totalSupply", totalSupply)
-			} else {
-				log.Info("No code at GovernanceToken")
 			}
 
 		case predeploys.L2ERC721BridgeAddr:
-			contract, err := bindings.NewL2ERC721Bridge(p, client)
-			if err != nil {
+			if err := checkL2ERC721Bridge(p, client); err != nil {
 				return err
 			}
-			messenger, err := contract.MESSENGER(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L2ERC721Bridge", "MESSENGER", messenger.Hex())
-			if messenger == (common.Address{}) {
-				return errors.New("L2ERC721Bridge.MESSENGER is zero address")
-			}
-
-			otherBridge, err := contract.OTHERBRIDGE(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L2ERC721Bridge", "OTHERBRIDGE", otherBridge.Hex())
-			if otherBridge == (common.Address{}) {
-				return errors.New("L2ERC721Bridge.OTHERBRIDGE is zero address")
-			}
-			version, err := contract.Version(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L2ERC721Bridge version", "version", version)
 
 		case predeploys.OptimismMintableERC721FactoryAddr:
-			contract, err := bindings.NewOptimismMintableERC721Factory(p, client)
-			if err != nil {
+			if err := checkOptimismMintableERC20Factory(p, client); err != nil {
 				return err
 			}
-			bridge, err := contract.BRIDGE(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("OptimismMintableERC721Factory", "BRIDGE", bridge.Hex())
-			if bridge == (common.Address{}) {
-				return errors.New("OptimismMintableERC721Factory.BRIDGE is zero address")
-			}
-
-			remoteChainID, err := contract.REMOTECHAINID(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("OptimismMintableERC721Factory", "REMOTE_CHAIN_ID", remoteChainID)
-
-			version, err := contract.Version(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("OptimismMintableERC721Factory version", "version", version)
 
 		case predeploys.ProxyAdminAddr:
-			contract, err := bindings.NewProxyAdmin(p, client)
-			if err != nil {
+			if err := checkProxyAdmin(p, client); err != nil {
 				return err
 			}
-
-			owner, err := contract.Owner(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("ProxyAdmin", "owner", owner.Hex())
-			if owner == (common.Address{}) {
-				return errors.New("ProxyAdmin.owner is zero address")
-			}
-
-			addressManager, err := contract.AddressManager(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("ProxyAdmin", "addressManager", addressManager.Hex())
 
 		case predeploys.BaseFeeVaultAddr:
-			contract, err := bindings.NewBaseFeeVault(p, client)
-			if err != nil {
+			if err := checkBaseFeeVault(p, client); err != nil {
 				return err
 			}
-			recipient, err := contract.RECIPIENT(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("BaseFeeVault", "RECIPIENT", recipient.Hex())
-			if recipient == (common.Address{}) {
-				return errors.New("RECIPIENT should not be address(0)")
-			}
-
-			minWithdrawalAmount, err := contract.MINWITHDRAWALAMOUNT(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("BaseFeeVault", "MIN_WITHDRAWAL_AMOUNT", minWithdrawalAmount)
-
-			version, err := contract.Version(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("BaseFeeVault version", "version", version)
 
 		case predeploys.L1FeeVaultAddr:
-			contract, err := bindings.NewL1FeeVault(p, client)
-			if err != nil {
+			if err := checkL1FeeVault(p, client); err != nil {
 				return err
 			}
-			recipient, err := contract.RECIPIENT(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L1FeeVault", "RECIPIENT", recipient.Hex())
-			if recipient == (common.Address{}) {
-				return errors.New("RECIPIENT should not be address(0)")
-			}
-
-			minWithdrawalAmount, err := contract.MINWITHDRAWALAMOUNT(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L1FeeVault", "MIN_WITHDRAWAL_AMOUNT", minWithdrawalAmount)
-
-			version, err := contract.Version(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L1FeeVault version", "version", version)
 
 		case predeploys.L2ToL1MessagePasserAddr:
-			contract, err := bindings.NewL2ToL1MessagePasser(p, client)
-			if err != nil {
+			if err := checkL2ToL1MessagePasser(p, client); err != nil {
 				return err
 			}
-			messageVersion, err := contract.MESSAGEVERSION(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L2ToL1MessagePasser", "MESSAGE_VERSION", messageVersion)
-
-			messageNonce, err := contract.MessageNonce(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			log.Info("L2ToL1MessagePasser", "MESSAGE_NONCE", messageNonce)
-
 		}
 		return nil
 	})
@@ -584,8 +227,479 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 		return err
 	}
 
-	// foo
+	return nil
+}
 
+func checkL2ToL1MessagePasser(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewL2ToL1MessagePasser(addr, client)
+	if err != nil {
+		return err
+	}
+	messageVersion, err := contract.MESSAGEVERSION(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L2ToL1MessagePasser", "MESSAGE_VERSION", messageVersion)
+
+	messageNonce, err := contract.MessageNonce(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L2ToL1MessagePasser", "MESSAGE_NONCE", messageNonce)
+	return nil
+}
+
+func checkL1FeeVault(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewL1FeeVault(addr, client)
+	if err != nil {
+		return err
+	}
+	recipient, err := contract.RECIPIENT(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L1FeeVault", "RECIPIENT", recipient.Hex())
+	if recipient == (common.Address{}) {
+		return errors.New("RECIPIENT should not be address(0)")
+	}
+
+	minWithdrawalAmount, err := contract.MINWITHDRAWALAMOUNT(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L1FeeVault", "MIN_WITHDRAWAL_AMOUNT", minWithdrawalAmount)
+
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L1FeeVault version", "version", version)
+	return nil
+}
+
+func checkBaseFeeVault(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewBaseFeeVault(addr, client)
+	if err != nil {
+		return err
+	}
+	recipient, err := contract.RECIPIENT(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("BaseFeeVault", "RECIPIENT", recipient.Hex())
+	if recipient == (common.Address{}) {
+		return errors.New("RECIPIENT should not be address(0)")
+	}
+
+	minWithdrawalAmount, err := contract.MINWITHDRAWALAMOUNT(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("BaseFeeVault", "MIN_WITHDRAWAL_AMOUNT", minWithdrawalAmount)
+
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("BaseFeeVault version", "version", version)
+	return nil
+}
+
+func checkProxyAdmin(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewProxyAdmin(addr, client)
+	if err != nil {
+		return err
+	}
+
+	owner, err := contract.Owner(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("ProxyAdmin", "owner", owner.Hex())
+	if owner == (common.Address{}) {
+		return errors.New("ProxyAdmin.owner is zero address")
+	}
+
+	addressManager, err := contract.AddressManager(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("ProxyAdmin", "addressManager", addressManager.Hex())
+	return nil
+}
+
+func checkOptimismMintableERC721Factory(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewOptimismMintableERC721Factory(addr, client)
+	if err != nil {
+		return err
+	}
+	bridge, err := contract.BRIDGE(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("OptimismMintableERC721Factory", "BRIDGE", bridge.Hex())
+	if bridge == (common.Address{}) {
+		return errors.New("OptimismMintableERC721Factory.BRIDGE is zero address")
+	}
+
+	remoteChainID, err := contract.REMOTECHAINID(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("OptimismMintableERC721Factory", "REMOTE_CHAIN_ID", remoteChainID)
+
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("OptimismMintableERC721Factory version", "version", version)
+	return nil
+}
+
+func checkL2ERC721Bridge(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewL2ERC721Bridge(addr, client)
+	if err != nil {
+		return err
+	}
+	messenger, err := contract.MESSENGER(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L2ERC721Bridge", "MESSENGER", messenger.Hex())
+	if messenger == (common.Address{}) {
+		return errors.New("L2ERC721Bridge.MESSENGER is zero address")
+	}
+
+	otherBridge, err := contract.OTHERBRIDGE(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L2ERC721Bridge", "OTHERBRIDGE", otherBridge.Hex())
+	if otherBridge == (common.Address{}) {
+		return errors.New("L2ERC721Bridge.OTHERBRIDGE is zero address")
+	}
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L2ERC721Bridge version", "version", version)
+	return nil
+}
+
+func checkGovernanceToken(addr common.Address, client *ethclient.Client) error {
+	code, err := client.CodeAt(context.Background(), addr, nil)
+	if err != nil {
+		return err
+	}
+
+	if len(code) > 0 {
+		// This should also check the owner
+		contract, err := bindings.NewERC20(addr, client)
+		if err != nil {
+			return err
+		}
+		name, err := contract.Name(&bind.CallOpts{})
+		if err != nil {
+			return err
+		}
+		log.Info("GovernanceToken", "name", name)
+		symbol, err := contract.Symbol(&bind.CallOpts{})
+		if err != nil {
+			return err
+		}
+		log.Info("GovernanceToken", "symbol", symbol)
+		totalSupply, err := contract.TotalSupply(&bind.CallOpts{})
+		if err != nil {
+			return err
+		}
+		log.Info("GovernanceToken", "totalSupply", totalSupply)
+	} else {
+		log.Info("No code at GovernanceToken")
+	}
+	return nil
+}
+
+func checkWETH9(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewWETH9(addr, client)
+	if err != nil {
+		return err
+	}
+	name, err := contract.Name(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("WETH9", "name", name)
+	if name != "Wrapped Ether" {
+		return fmt.Errorf("WETH9 name should be 'Wrapped Ether', got %s", name)
+	}
+
+	symbol, err := contract.Symbol(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("WETH9", "symbol", symbol)
+	if symbol != "WETH" {
+		return fmt.Errorf("WETH9 symbol should be 'WETH', got %s", symbol)
+	}
+
+	decimals, err := contract.Decimals(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("WETH9", "decimals", decimals)
+	if decimals != 18 {
+		return fmt.Errorf("WETH9 decimals should be 18, got %d", decimals)
+	}
+	return nil
+}
+
+func checkL1Block(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewL1Block(addr, client)
+	if err != nil {
+		return err
+	}
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L1Block version", "version", version)
+	return nil
+}
+
+func checkL1BlockNumber(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewL1BlockNumber(addr, client)
+	if err != nil {
+		return err
+	}
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L1BlockNumber version", "version", version)
+	return nil
+}
+
+func checkOptimismMintableERC20Factory(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewOptimismMintableERC20Factory(addr, client)
+	if err != nil {
+		return err
+	}
+
+	bridge, err := contract.BRIDGE(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("OptimismMintableERC20Factory", "BRIDGE", bridge.Hex())
+
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("OptimismMintableERC20Factory version", "version", version)
+	return nil
+}
+
+func checkSequencerFeeVault(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewSequencerFeeVault(addr, client)
+	if err != nil {
+		return err
+	}
+	recipient, err := contract.RECIPIENT(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("SequencerFeeVault", "RECIPIENT", recipient.Hex())
+	if recipient == (common.Address{}) {
+		return errors.New("RECIPIENT should not be address(0)")
+	}
+
+	l1FeeWallet, err := contract.L1FeeWallet(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("SequencerFeeVault", "l1FeeWallet", l1FeeWallet.Hex())
+
+	minWithdrawalAmount, err := contract.MINWITHDRAWALAMOUNT(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("SequencerFeeVault", "MIN_WITHDRAWAL_AMOUNT", minWithdrawalAmount)
+
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("SequencerFeeVault version", "version", version)
+	return nil
+}
+
+func checkL2StandardBridge(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewL2StandardBridge(addr, client)
+	if err != nil {
+		return err
+	}
+	otherBridge, err := contract.OTHERBRIDGE(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if otherBridge == (common.Address{}) {
+		return errors.New("OTHERBRIDGE should not be address(0)")
+	}
+	log.Info("L2StandardBridge", "OTHERBRIDGE", otherBridge.Hex())
+
+	messenger, err := contract.MESSENGER(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L2StandardBridge", "MESSENGER", messenger.Hex())
+	if messenger != predeploys.L2CrossDomainMessengerAddr {
+		return fmt.Errorf("L2StandardBridge MESSENGER should be %s, got %s", predeploys.L2CrossDomainMessengerAddr, messenger)
+	}
+
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L2StandardBridge version", "version", version)
+	return nil
+}
+
+func checkGasPriceOracle(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewGasPriceOracle(addr, client)
+	if err != nil {
+		return err
+	}
+	decimals, err := contract.DECIMALS(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("GasPriceOracle", "DECIMALS", decimals)
+	if decimals.Cmp(big.NewInt(6)) != 0 {
+		return fmt.Errorf("GasPriceOracle decimals should be 6, got %v", decimals)
+	}
+
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("GasPriceOracle version", "version", version)
+	return nil
+}
+
+func checkL2CrossDomainMessenger(addr common.Address, client *ethclient.Client) error {
+	slot, err := client.StorageAt(context.Background(), addr, common.Hash{31: 0xcc}, nil)
+	if err != nil {
+		return err
+	}
+	if common.BytesToAddress(slot) != defaultCrossDomainMessageSender {
+		return fmt.Errorf("Expected xDomainMsgSender to be %s, got %s", defaultCrossDomainMessageSender, addr)
+	}
+
+	contract, err := bindings.NewL2CrossDomainMessenger(addr, client)
+	if err != nil {
+		return err
+	}
+
+	otherMessenger, err := contract.OTHERMESSENGER(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if otherMessenger == (common.Address{}) {
+		return errors.New("OTHERMESSENGER should not be address(0)")
+	}
+	log.Info("L2CrossDomainMessenger", "OTHERMESSENGER", otherMessenger.Hex())
+
+	l1CrossDomainMessenger, err := contract.L1CrossDomainMessenger(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L2CrossDomainMessenger", "l1CrossDomainMessenger", l1CrossDomainMessenger.Hex())
+
+	messageVersion, err := contract.MESSAGEVERSION(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L2CrossDomainMessenger", "MESSAGE_VERSION", messageVersion)
+	minGasCallDataOverhead, err := contract.MINGASCALLDATAOVERHEAD(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L2CrossDomainMessenger", "MIN_GAS_CALLDATA_OVERHEAD", minGasCallDataOverhead)
+
+	relayConstantOverhead, err := contract.RELAYCONSTANTOVERHEAD(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L2CrossDomainMessenger", "RELAY_CONSTANT_OVERHEAD", relayConstantOverhead)
+
+	minGasDynamicsOverheadDenominator, err := contract.MINGASDYNAMICOVERHEADDENOMINATOR(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L2CrossDomainMessenger", "MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR", minGasDynamicsOverheadDenominator)
+
+	minGasDynamicsOverheadNumerator, err := contract.MINGASDYNAMICOVERHEADNUMERATOR(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L2CrossDomainMessenger", "MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR", minGasDynamicsOverheadNumerator)
+
+	relayCallOverhead, err := contract.RELAYCALLOVERHEAD(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L2CrossDomainMessenger", "RELAY_CALL_OVERHEAD", relayCallOverhead)
+
+	relayReservedGas, err := contract.RELAYRESERVEDGAS(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L2CrossDomainMessenger", "RELAY_RESERVED_GAS", relayReservedGas)
+
+	relayGasCheckBuffer, err := contract.RELAYGASCHECKBUFFER(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L2CrossDomainMessenger", "RELAY_GAS_CHECK_BUFFER", relayGasCheckBuffer)
+
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("L2CrossDomainMessenger version", "version", version)
+	return nil
+}
+
+func checkLegacyMessagePasser(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewLegacyMessagePasser(addr, client)
+	if err != nil {
+		return err
+	}
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("LegacyMessagePasser version", "version", version)
+	return nil
+}
+
+func checkDeployerWhitelist(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewDeployerWhitelist(addr, client)
+	if err != nil {
+		return err
+	}
+	owner, err := contract.Owner(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if owner != (common.Address{}) {
+		return fmt.Errorf("DeployerWhitelist owner should be set to address(0)")
+	}
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("DeployerWhitelist version", "version", version)
 	return nil
 }
 

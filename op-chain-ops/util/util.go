@@ -34,37 +34,40 @@ func NewClients(ctx *cli.Context) (*Clients, error) {
 
 	l1RpcURL := ctx.String("l1-rpc-url")
 	if l1RpcURL != "" {
-		l1Client, err := ethclient.Dial(l1RpcURL)
-		if err != nil {
-			return nil, fmt.Errorf("cannot dial L1: %w", err)
-		}
-		clients.L1Client = l1Client
-
-		l1RpcClient, err := rpc.DialContext(context.Background(), l1RpcURL)
+		l1Client, l1RpcClient, l1GethClient, err := newClients(l1RpcURL)
 		if err != nil {
 			return nil, err
 		}
+		clients.L1Client = l1Client
 		clients.L1RpcClient = l1RpcClient
-		clients.L1GethClient = gethclient.New(l1RpcClient)
+		clients.L1GethClient = l1GethClient
 	}
 
 	l2RpcURL := ctx.String("l2-rpc-url")
 	if l2RpcURL != "" {
-		l2Client, err := ethclient.Dial(l2RpcURL)
-		if err != nil {
-			return nil, fmt.Errorf("cannot dial L2: %w", err)
-		}
-		clients.L2Client = l2Client
-
-		l2RpcClient, err := rpc.DialContext(context.Background(), l2RpcURL)
+		l2Client, l2RpcClient, l2GethClient, err := ethclient.Dial(l2RpcURL)
 		if err != nil {
 			return nil, err
 		}
+		clients.L2Client = l2Client
 		clients.L2RpcClient = l2RpcClient
-		clients.L2GethClient = gethclient.New(l2RpcClient)
+		clients.L2GethClient = l2GethClient
 	}
 
 	return &clients, nil
+}
+
+// newClients will create new clients from a given URL
+func newClients(url string) (*ethclient.Client, *rpc.Client, *gethclient.Client, error) {
+	ethClient, err := ethclient.Dial(url)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot dial ethclient: %w", err)
+	}
+	rpcClient, err := rpc.DialContext(context.Background(), url)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot dial rpc client", err)
+	}
+	return ethClient, rpcClient, gethclient.New(rpcClient), nil
 }
 
 // ClientsFlags represent the flags associated with creating RPC clients.
