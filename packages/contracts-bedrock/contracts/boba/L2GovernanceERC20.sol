@@ -14,6 +14,7 @@ contract L2GovernanceERC20 is ILegacyMintableERC20, ERC20, ERC20Permit, ERC20Vot
     address public l1Token;
     address public l2Bridge;
     // slither-disable-end immutable-states
+    // slither-disable-next-line too-many-digits
     uint224 public constant maxSupply = 500000000e18; // 500 million BOBA
     uint8 private immutable _decimals;
 

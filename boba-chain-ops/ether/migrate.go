@@ -116,6 +116,7 @@ func doMigration(g *types.Genesis, addresses []common.Address, allowances []*cro
 		defer func() { doneCh <- struct{}{} }()
 
 		for account := range outCh {
+			m.Lock()
 			progress()
 
 			// Filter out duplicate accounts. See the below note about keyspace iteration for
@@ -128,12 +129,11 @@ func doMigration(g *types.Genesis, addresses []common.Address, allowances []*cro
 			// Accumulate addresses and total supply.
 			totalFound = new(big.Int).Add(totalFound, account.balance)
 
-			m.Lock()
 			SetBalance(g, account.address, account.balance, account.legacySlot)
-			m.Unlock()
 
 			count++
 			seenAccounts[account.address] = true
+			m.Unlock()
 		}
 	}()
 

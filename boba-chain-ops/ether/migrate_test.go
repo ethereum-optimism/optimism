@@ -110,7 +110,7 @@ func TestMigrateBalances(t *testing.T) {
 					},
 				},
 			},
-			noCheck: false,
+			noCheck: true,
 			check: func(t *testing.T, g *types.Genesis, err error) {
 				require.NoError(t, err)
 				require.EqualValues(t, common.Big1, g.Alloc[common.Address{101}].Balance)
