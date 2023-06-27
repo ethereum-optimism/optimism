@@ -309,9 +309,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // If the left-most dangling node is at an even depth, the defender wins.
         // Otherwise, the challenger wins and the root claim is deemed invalid.
         if (
+            // slither-disable-next-line weak-prng
             claimData[leftMostIndex]
                 .position
-                // slither-disable-next-line weak-prng
                 .depth() % 2 == 0 && leftMostTraceIndex != type(uint128).max
         ) {
             status_ = GameStatus.DEFENDER_WINS;
