@@ -35,7 +35,7 @@ type testNodeInfo struct {
 	GIndex       uint64
 	Depth        int
 	IndexAtDepth int
-	TraceIndex   int
+	TraceIndex   uint64
 }
 
 var treeNodesMaxDepth4 = []testNodeInfo{

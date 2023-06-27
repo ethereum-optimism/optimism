@@ -16,6 +16,8 @@
   "l2OutputOracleSubmissionInterval": 6,
   "l2OutputOracleStartingTimestamp": 0,
   "l2OutputOracleStartingBlockNumber": 0,
+  "gasPriceOracleOverhead": 2100,
+  "gasPriceOracleScalar": 1000000,
   "l2OutputOracleProposer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
   "l2OutputOracleChallenger": "0x6925B8704Ff96DEe942623d6FB5e946EF5884b63",
   "l2GenesisBlockBaseFeePerGas": "0x3B9ACA00",
@@ -34,5 +36,8 @@
   "governanceTokenSymbol": "OP",
   "governanceTokenOwner": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
   "finalizationPeriodSeconds": 2,
-  "numDeployConfirmations": 1
+  "numDeployConfirmations": 1,
+  "eip1559Denominator": 50,
+  "eip1559Elasticity": 10,
+  "l2GenesisRegolithTimeOffset": "0x0"
 }

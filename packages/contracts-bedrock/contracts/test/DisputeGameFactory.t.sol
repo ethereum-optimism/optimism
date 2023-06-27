@@ -37,10 +37,8 @@ contract DisputeGameFactory_Init is Test {
 }
 
 contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
-    /**
-     * @dev Tests that the `create` function succeeds when creating a new dispute game
-     *      with a `GameType` that has an implementation set.
-     */
+    /// @dev Tests that the `create` function succeeds when creating a new dispute game
+    ///      with a `GameType` that has an implementation set.
     function testFuzz_create_succeeds(
         uint8 gameType,
         Claim rootClaim,
@@ -70,10 +68,8 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         assertEq(timestamp2, block.timestamp);
     }
 
-    /**
-     * @dev Tests that the `create` function reverts when there is no implementation
-     *      set for the given `GameType`.
-     */
+    /// @dev Tests that the `create` function reverts when there is no implementation
+    ///      set for the given `GameType`.
     function testFuzz_create_noImpl_reverts(
         uint8 gameType,
         Claim rootClaim,
@@ -86,9 +82,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         factory.create(gt, rootClaim, extraData);
     }
 
-    /**
-     * @dev Tests that the `create` function reverts when there exists a dispute game with the same UUID.
-     */
+    /// @dev Tests that the `create` function reverts when there exists a dispute game with the same UUID.
     function testFuzz_create_sameUUID_reverts(
         uint8 gameType,
         Claim rootClaim,
@@ -124,9 +118,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
 }
 
 contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_Init {
-    /**
-     * @dev Tests that the `setImplementation` function properly sets the implementation for a given `GameType`.
-     */
+    /// @dev Tests that the `setImplementation` function properly sets the implementation for a given `GameType`.
     function test_setImplementation_succeeds() public {
         // There should be no implementation for the `GameTypes.FAULT` enum value, it has not been set.
         assertEq(address(factory.gameImpls(GameTypes.FAULT)), address(0));
@@ -141,9 +133,7 @@ contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_Init {
         assertEq(address(factory.gameImpls(GameTypes.FAULT)), address(1));
     }
 
-    /**
-     * @dev Tests that the `setImplementation` function reverts when called by a non-owner.
-     */
+    /// @dev Tests that the `setImplementation` function reverts when called by a non-owner.
     function test_setImplementation_notOwner_reverts() public {
         // Ensure that the `setImplementation` function reverts when called by a non-owner.
         vm.prank(address(0));
@@ -153,10 +143,8 @@ contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_Init {
 }
 
 contract DisputeGameFactory_GetGameUUID_Test is DisputeGameFactory_Init {
-    /**
-     * @dev Tests that the `getGameUUID` function returns the correct hash when comparing
-     *      against the keccak256 hash of the abi-encoded parameters.
-     */
+    /// @dev Tests that the `getGameUUID` function returns the correct hash when comparing
+    ///      against the keccak256 hash of the abi-encoded parameters.
     function testDiff_getGameUUID_succeeds(
         uint8 gameType,
         Claim rootClaim,
@@ -173,26 +161,20 @@ contract DisputeGameFactory_GetGameUUID_Test is DisputeGameFactory_Init {
 }
 
 contract DisputeGameFactory_Owner_Test is DisputeGameFactory_Init {
-    /**
-     * @dev Tests that the `owner` function returns the correct address after deployment.
-     */
+    /// @dev Tests that the `owner` function returns the correct address after deployment.
     function test_owner_succeeds() public {
         assertEq(factory.owner(), address(this));
     }
 }
 
 contract DisputeGameFactory_TransferOwnership_Test is DisputeGameFactory_Init {
-    /**
-     * @dev Tests that the `transferOwnership` function succeeds when called by the owner.
-     */
+    /// @dev Tests that the `transferOwnership` function succeeds when called by the owner.
     function test_transferOwnership_succeeds() public {
         factory.transferOwnership(address(1));
         assertEq(factory.owner(), address(1));
     }
 
-    /**
-     * @dev Tests that the `transferOwnership` function reverts when called by a non-owner.
-     */
+    /// @dev Tests that the `transferOwnership` function reverts when called by a non-owner.
     function test_transferOwnership_notOwner_reverts() public {
         vm.prank(address(0));
         vm.expectRevert("Ownable: caller is not the owner");
@@ -200,11 +182,9 @@ contract DisputeGameFactory_TransferOwnership_Test is DisputeGameFactory_Init {
     }
 }
 
-/**
- * @title PackingTester
- * @notice Exposes the internal packing functions so that they can be fuzzed
- *         in a roundtrip manner.
- */
+/// @title PackingTester
+/// @notice Exposes the internal packing functions so that they can be fuzzed
+///         in a roundtrip manner.
 contract PackingTester is DisputeGameFactory {
     function packSlot(address _addr, uint256 _num) external pure returns (GameId) {
         return _packSlot(_addr, _num);
@@ -215,10 +195,8 @@ contract PackingTester is DisputeGameFactory {
     }
 }
 
-/**
- * @title DisputeGameFactory_PackSlot_Test
- * @notice Fuzzes the PackingTester contract
- */
+/// @title DisputeGameFactory_PackSlot_Test
+/// @notice Fuzzes the PackingTester contract
 contract DisputeGameFactory_PackSlot_Test is Test {
     PackingTester tester;
 
@@ -226,9 +204,7 @@ contract DisputeGameFactory_PackSlot_Test is Test {
         tester = new PackingTester();
     }
 
-    /**
-     * @dev Tests that the `packSlot` and `unpackSlot` functions roundtrip correctly.
-     */
+    /// @dev Tests that the `packSlot` and `unpackSlot` functions roundtrip correctly.
     function testFuzz_packSlot_succeeds(address _addr, uint96 _num) public {
         GameId slot = tester.packSlot(_addr, uint256(_num));
         (address addr, uint256 num) = tester.unpackSlot(slot);
@@ -237,9 +213,7 @@ contract DisputeGameFactory_PackSlot_Test is Test {
     }
 }
 
-/**
- * @dev A fake clone used for testing the `DisputeGameFactory` contract's `create` function.
- */
+/// @dev A fake clone used for testing the `DisputeGameFactory` contract's `create` function.
 contract FakeClone {
     function initialize() external {
         // noop

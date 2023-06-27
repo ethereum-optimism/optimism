@@ -1,23 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-/**
- * @title Bytes
- * @notice Bytes is a library for manipulating byte arrays.
- */
+/// @title Bytes
+/// @notice Bytes is a library for manipulating byte arrays.
 library Bytes {
-    /**
-     * @custom:attribution https://github.com/GNSPS/solidity-bytes-utils
-     * @notice Slices a byte array with a given starting index and length. Returns a new byte array
-     *         as opposed to a pointer to the original array. Will throw if trying to slice more
-     *         bytes than exist in the array.
-     *
-     * @param _bytes Byte array to slice.
-     * @param _start Starting index of the slice.
-     * @param _length Length of the slice.
-     *
-     * @return Slice of the input byte array.
-     */
+    /// @custom:attribution https://github.com/GNSPS/solidity-bytes-utils
+    /// @notice Slices a byte array with a given starting index and length. Returns a new byte array
+    ///         as opposed to a pointer to the original array. Will throw if trying to slice more
+    ///         bytes than exist in the array.
+    /// @param _bytes Byte array to slice.
+    /// @param _start Starting index of the slice.
+    /// @param _length Length of the slice.
+    /// @return Slice of the input byte array.
     function slice(
         bytes memory _bytes,
         uint256 _start,
@@ -87,15 +81,11 @@ library Bytes {
         return tempBytes;
     }
 
-    /**
-     * @notice Slices a byte array with a given starting index up to the end of the original byte
-     *         array. Returns a new array rathern than a pointer to the original.
-     *
-     * @param _bytes Byte array to slice.
-     * @param _start Starting index of the slice.
-     *
-     * @return Slice of the input byte array.
-     */
+    /// @notice Slices a byte array with a given starting index up to the end of the original byte
+    ///         array. Returns a new array rathern than a pointer to the original.
+    /// @param _bytes Byte array to slice.
+    /// @param _start Starting index of the slice.
+    /// @return Slice of the input byte array.
     function slice(bytes memory _bytes, uint256 _start) internal pure returns (bytes memory) {
         if (_start >= _bytes.length) {
             return bytes("");
@@ -103,14 +93,10 @@ library Bytes {
         return slice(_bytes, _start, _bytes.length - _start);
     }
 
-    /**
-     * @notice Converts a byte array into a nibble array by splitting each byte into two nibbles.
-     *         Resulting nibble array will be exactly twice as long as the input byte array.
-     *
-     * @param _bytes Input byte array to convert.
-     *
-     * @return Resulting nibble array.
-     */
+    /// @notice Converts a byte array into a nibble array by splitting each byte into two nibbles.
+    ///         Resulting nibble array will be exactly twice as long as the input byte array.
+    /// @param _bytes Input byte array to convert.
+    /// @return Resulting nibble array.
     function toNibbles(bytes memory _bytes) internal pure returns (bytes memory) {
         bytes memory _nibbles;
         assembly {
@@ -158,14 +144,10 @@ library Bytes {
         return _nibbles;
     }
 
-    /**
-     * @notice Compares two byte arrays by comparing their keccak256 hashes.
-     *
-     * @param _bytes First byte array to compare.
-     * @param _other Second byte array to compare.
-     *
-     * @return True if the two byte arrays are equal, false otherwise.
-     */
+    /// @notice Compares two byte arrays by comparing their keccak256 hashes.
+    /// @param _bytes First byte array to compare.
+    /// @param _other Second byte array to compare.
+    /// @return True if the two byte arrays are equal, false otherwise.
     function equal(bytes memory _bytes, bytes memory _other) internal pure returns (bool) {
         return keccak256(_bytes) == keccak256(_other);
     }

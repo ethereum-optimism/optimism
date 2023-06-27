@@ -114,6 +114,7 @@ func Run(l1RpcUrl string, l2RpcUrl string, l2OracleAddr common.Address) error {
 	}()
 	fmt.Printf("Using temp dir: %s\n", temp)
 	args := []string{
+		"--log.level", "DEBUG",
 		"--network", "goerli",
 		"--exec", "./bin/op-program-client",
 		"--datadir", temp,

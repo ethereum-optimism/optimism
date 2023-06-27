@@ -130,8 +130,8 @@ jobs:
       - persist_to_workspace:
           root: "."
           paths:
-            - "packages/*/dist"
-            - "packages/*/artifacts"
+            - "packages/**/dist"
+            - "packages/contracts-bedrock/forge-artifacts"
 
   docker-build:
     environment:
@@ -574,12 +574,12 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
-      - check-changed:
-          patterns: sdk,contracts-bedrock,contracts
       - restore_cache:
           name: Restore Yarn Package Cache
           keys:
             - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: sdk,contracts-bedrock,contracts
       - run:
           name: anvil-l1
           background: true
@@ -861,8 +861,8 @@ jobs:
                   make devnet-up-deploy
             - run:
                 name: Check L2 config
-                command: npx hardhat check-l2 --network devnetL1 --l2-rpc-url http://localhost:9545 --l1-rpc-url http://localhost:8545
-                working_directory: packages/contracts-bedrock
+                command: go run cmd/check-l2/main.go --l2-rpc-url http://localhost:9545 --l1-rpc-url http://localhost:8545
+                working_directory: op-chain-ops
             - run:
                 name: Deposit ERC20 through the bridge
                 command: timeout 8m npx hardhat deposit-erc20 --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
@@ -871,10 +871,6 @@ jobs:
                 name: Deposit ETH through the bridge
                 command: timeout 8m npx hardhat deposit-eth --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
                 working_directory: packages/sdk
-            - run:
-                name: Check the status
-                command: npx hardhat check-op-node
-                working_directory: packages/contracts-bedrock
             - run:
                 name: Dump op-node logs
                 command: |
@@ -911,13 +907,8 @@ jobs:
                   make devnet-up
             - run:
                 name: Check L2 config
-                command: |
-                  npx hardhat check-l2 \
-                    --network devnetL1 \
-                    --l2-rpc-url http://localhost:9545 \
-                    --l1-rpc-url http://localhost:8545 \
-                    --l2-output-oracle-address 0x6900000000000000000000000000000000000000
-                working_directory: packages/contracts-bedrock
+                command: go run cmd/check-l2/main.go --l2-rpc-url http://localhost:9545 --l1-rpc-url http://localhost:8545
+                working_directory: op-chain-ops
             - run:
                 name: Deposit ERC20 through the bridge
                 command: timeout 10m npx hardhat deposit-erc20 --network devnetL1
@@ -926,10 +917,6 @@ jobs:
                 name: Deposit ETH through the bridge
                 command: timeout 10m npx hardhat deposit-eth --network devnetL1
                 working_directory: packages/sdk
-            - run:
-                name: Check the status
-                command: npx hardhat check-op-node
-                working_directory: packages/contracts-bedrock
             - run:
                 name: Dump op-node logs
                 command: |

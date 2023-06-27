@@ -3,17 +3,14 @@ pragma solidity ^0.8.15;
 
 import "../../libraries/DisputeTypes.sol";
 
-/**
- * @title LibPosition
- * @notice This library contains helper functions for working with the `Position` type.
- */
+/// @title LibPosition
+/// @notice This library contains helper functions for working with the `Position` type.
 library LibPosition {
-    /**
-     * @notice Computes a generalized index (2^{depth} + indexAtDepth).
-     * @param _depth The depth of the position.
-     * @param _indexAtDepth The index at the depth of the position.
-     * @return position_ The computed generalized index.
-     */
+
+    /// @notice Computes a generalized index (2^{depth} + indexAtDepth).
+    /// @param _depth The depth of the position.
+    /// @param _indexAtDepth The index at the depth of the position.
+    /// @return position_ The computed generalized index.
     function wrap(uint64 _depth, uint64 _indexAtDepth) internal pure returns (Position position_) {
         assembly {
             // gindex = 2^{_depth} + _indexAtDepth
@@ -21,12 +18,10 @@ library LibPosition {
         }
     }
 
-    /**
-     * @notice Pulls the `depth` out of a `Position` type.
-     * @param _position The generalized index to get the `depth` of.
-     * @return depth_ The `depth` of the `position` gindex.
-     * @custom:attribution Solady <https://github.com/Vectorized/Solady>
-     */
+    /// @notice Pulls the `depth` out of a `Position` type.
+    /// @param _position The generalized index to get the `depth` of.
+    /// @return depth_ The `depth` of the `position` gindex.
+    /// @custom:attribution Solady <https://github.com/Vectorized/Solady>
     function depth(Position _position) internal pure returns (uint64 depth_) {
         // Return the most significant bit offset, which signifies the depth of the gindex.
         assembly {
@@ -51,14 +46,12 @@ library LibPosition {
         }
     }
 
-    /**
-     * @notice Pulls the `indexAtDepth` out of a `Position` type.
-     *         The `indexAtDepth` is the left/right index of a position at a specific depth within
-     *         the binary tree, starting from index 0. For example, at gindex 2, the `depth` = 1
-     *         and the `indexAtDepth` = 0.
-     * @param _position The generalized index to get the `indexAtDepth` of.
-     * @return indexAtDepth_ The `indexAtDepth` of the `position` gindex.
-     */
+    /// @notice Pulls the `indexAtDepth` out of a `Position` type.
+    ///         The `indexAtDepth` is the left/right index of a position at a specific depth within
+    ///         the binary tree, starting from index 0. For example, at gindex 2, the `depth` = 1
+    ///         and the `indexAtDepth` = 0.
+    /// @param _position The generalized index to get the `indexAtDepth` of.
+    /// @return indexAtDepth_ The `indexAtDepth` of the `position` gindex.
     function indexAtDepth(Position _position) internal pure returns (uint64 indexAtDepth_) {
         // Return bits p_{msb-1}...p_{0}. This effectively pulls the 2^{depth} out of the gindex,
         // leaving only the `indexAtDepth`.
@@ -68,46 +61,38 @@ library LibPosition {
         }
     }
 
-    /**
-     * @notice Get the left child of `_position`.
-     * @param _position The position to get the left position of.
-     * @return left_ The position to the left of `position`.
-     */
+    /// @notice Get the left child of `_position`.
+    /// @param _position The position to get the left position of.
+    /// @return left_ The position to the left of `position`.
     function left(Position _position) internal pure returns (Position left_) {
         assembly {
             left_ := shl(1, _position)
         }
     }
 
-    /**
-     * @notice Get the right child of `_position`
-     * @param _position The position to get the right position of.
-     * @return right_ The position to the right of `position`.
-     */
+    /// @notice Get the right child of `_position`
+    /// @param _position The position to get the right position of.
+    /// @return right_ The position to the right of `position`.
     function right(Position _position) internal pure returns (Position right_) {
         assembly {
             right_ := or(1, shl(1, _position))
         }
     }
 
-    /**
-     * @notice Get the parent position of `_position`.
-     * @param _position The position to get the parent position of.
-     * @return parent_ The parent position of `position`.
-     */
+    /// @notice Get the parent position of `_position`.
+    /// @param _position The position to get the parent position of.
+    /// @return parent_ The parent position of `position`.
     function parent(Position _position) internal pure returns (Position parent_) {
         assembly {
             parent_ := shr(1, _position)
         }
     }
 
-    /**
-     * @notice Get the deepest, right most gindex relative to the `position`. This is equivalent to
-     *         calling `right` on a position until the maximum depth is reached.
-     * @param _position The position to get the relative deepest, right most gindex of.
-     * @param _maxDepth The maximum depth of the game.
-     * @return rightIndex_ The deepest, right most gindex relative to the `position`.
-     */
+    /// @notice Get the deepest, right most gindex relative to the `position`. This is equivalent to
+    ///         calling `right` on a position until the maximum depth is reached.
+    /// @param _position The position to get the relative deepest, right most gindex of.
+    /// @param _maxDepth The maximum depth of the game.
+    /// @return rightIndex_ The deepest, right most gindex relative to the `position`.
     function rightIndex(
         Position _position,
         uint256 _maxDepth
@@ -119,14 +104,32 @@ library LibPosition {
         }
     }
 
-    /**
-     * @notice Get the move position of `_position`, which is the left child of:
-     *         1. `_position + 1` if `_isAttack` is true.
-     *         1. `_position` if `_isAttack` is false.
-     * @param _position The position to get the relative attack/defense position of.
-     * @param _isAttack Whether or not the move is an attack move.
-     * @return move_ The move position relative to `position`.
-     */
+    /// @notice Get the deepest, right most trace index relative to the `position`. This is
+    ///         equivalent to calling `right` on a position until the maximum depth is reached and
+    ///         then finding its index at depth.
+    /// @param _position The position to get the relative trace index of.
+    /// @param _maxDepth The maximum depth of the game.
+    /// @return traceIndex_ The trace index relative to the `position`.
+    function traceIndex(
+        Position _position,
+        uint256 _maxDepth
+    ) internal pure returns (uint256 traceIndex_) {
+        uint256 msb = depth(_position);
+        assembly {
+            let remaining := sub(_maxDepth, msb)
+            traceIndex_ := sub(
+                or(shl(remaining, _position), sub(shl(remaining, 1), 1)),
+                shl(_maxDepth, 1)
+            )
+        }
+    }
+
+    /// @notice Get the move position of `_position`, which is the left child of:
+    ///         1. `_position + 1` if `_isAttack` is true.
+    ///         1. `_position` if `_isAttack` is false.
+    /// @param _position The position to get the relative attack/defense position of.
+    /// @param _isAttack Whether or not the move is an attack move.
+    /// @return move_ The move position relative to `position`.
     function move(Position _position, bool _isAttack) internal pure returns (Position move_) {
         assembly {
             move_ := shl(1, or(iszero(_isAttack), _position))
