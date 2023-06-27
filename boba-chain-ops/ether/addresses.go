@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"math/big"
 	"os"
 	"time"
@@ -64,7 +64,7 @@ func (e *Crawler) Wait() {
 	<-e.stop
 }
 
-func (e *Crawler) Loop(currentBlock int64, addresses []*common.Address) error {
+func (e *Crawler) Loop(currentBlock int64, addresses []*common.Address) {
 	var err error
 	timer := time.NewTicker(e.RpcPollingInterval)
 	defer timer.Stop()
@@ -113,7 +113,9 @@ func (e *Crawler) StartCrawler(currentBlock int64, mapAddresses map[common.Addre
 		log.Info("Crawled block", "block", currentBlock, "addresses", len(addresses), "mintAddress", len(mintAddress))
 		addresses = append(addresses, mintAddress...)
 		AddAddressesToMap(addresses, mapAddresses)
-		e.SaveAddresses(currentBlock, MapToAddresses(mapAddresses))
+		if err := e.SaveAddresses(currentBlock, MapToAddresses(mapAddresses)); err != nil {
+			return currentBlock, mapAddresses, err
+		}
 		log.Info("Wrote addresses to file", "block", currentBlock, "addresses", len(mapAddresses))
 		currentBlock++
 	}
@@ -123,11 +125,11 @@ func (e *Crawler) StartCrawler(currentBlock int64, mapAddresses map[common.Addre
 
 func (e *Crawler) LoadAddresses() (int64, []*common.Address, error) {
 	file, err := os.Open(e.OutputPath)
-	defer file.Close()
 	if err != nil {
 		return 1, nil, err
 	}
-	byteValue, err := ioutil.ReadAll(file)
+	defer file.Close()
+	byteValue, err := io.ReadAll(file)
 	if err != nil {
 		return 1, nil, err
 	}
@@ -147,7 +149,12 @@ func (e *Crawler) SaveAddresses(blockNumber int64, addresses []*common.Address) 
 	if err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(e.OutputPath, byteValue, 0644); err != nil {
+	f, err := os.OpenFile(e.OutputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if _, err := f.Write(byteValue); err != nil {
 		return err
 	}
 	return nil
@@ -267,7 +274,7 @@ func CheckEthSlots(alloc types.GenesisAlloc, outputPath string) error {
 		return err
 	}
 	defer file.Close()
-	bytes, _ := ioutil.ReadAll(file)
+	bytes, _ := io.ReadAll(file)
 	if len(bytes) == 0 {
 		return errors.New("Invalid eth addresses directory. The directory is empty.")
 	}

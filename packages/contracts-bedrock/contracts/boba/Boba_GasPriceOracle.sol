@@ -168,6 +168,7 @@ contract Boba_GasPriceOracle {
      * using the Meta Transaction
      * NOTE: Only works for the mainnet and local testnet
      */
+    // slither-disable-start arbitrary-send-erc20-permit
     function swapBOBAForETHMetaTransaction(
         address tokenOwner,
         address spender,
@@ -184,10 +185,12 @@ contract Boba_GasPriceOracle {
         L2GovernanceERC20 bobaToken = L2GovernanceERC20(l2BobaAddress);
         bobaToken.permit(tokenOwner, spender, value, deadline, v, r, s);
         IERC20(l2BobaAddress).safeTransferFrom(tokenOwner, address(this), totalCost);
+        // slither-disable-next-line arbitrary-send-eth
         (bool sent, ) = address(tokenOwner).call{ value: receivedETHAmount }("");
         require(sent, "Failed to send ETH");
         emit SwapBOBAForETHMetaTransaction(tokenOwner);
     }
+    // slither-disable-end arbitrary-send-erc20-permit
 
     /**
      * Add the users that want to use ETH as the fee token

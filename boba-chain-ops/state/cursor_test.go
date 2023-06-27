@@ -103,8 +103,12 @@ func TestGetContractCode(t *testing.T) {
 	defer db.Close()
 
 	if err = db.Update(context.Background(), func(tx kv.RwTx) error {
-		tx.Put(kv.PlainContractCode, contractKey, contractHash)
-		tx.Put(kv.Code, contractHash, contractCode)
+		if err := tx.Put(kv.PlainContractCode, contractKey, contractHash); err != nil {
+			return err
+		}
+		if err := tx.Put(kv.Code, contractHash, contractCode); err != nil {
+			return err
+		}
 		return nil
 	}); err != nil {
 		t.Fatal(err)

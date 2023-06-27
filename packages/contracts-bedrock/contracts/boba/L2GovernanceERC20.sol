@@ -10,8 +10,10 @@ import {ERC20VotesComp} from "@openzeppelin/contracts/token/ERC20/extensions/reg
 import { ILegacyMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 
 contract L2GovernanceERC20 is ILegacyMintableERC20, ERC20, ERC20Permit, ERC20Votes, ERC20VotesComp {
+    // slither-disable-start immutable-states
     address public l1Token;
     address public l2Bridge;
+    // slither-disable-end immutable-states
     uint224 public constant maxSupply = 500000000e18; // 500 million BOBA
     uint8 private immutable _decimals;
 

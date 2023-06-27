@@ -249,7 +249,7 @@ func TestGetTraceTransaction(t *testing.T) {
 
 	fakeErr := errors.New("error")
 	fakeRPC.TraceTransactionReturns(nil, fakeErr)
-	traceResult, err = crawler.GetTraceTransaction(common.Big1)
+	_, err = crawler.GetTraceTransaction(common.Big1)
 	require.ErrorIs(t, err, fakeErr)
 }
 

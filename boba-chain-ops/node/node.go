@@ -144,7 +144,7 @@ func (r *BackendRPC) GetPayloadV1(payloadID *PayloadID) (*commands.ExecutionPayl
 	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
 	defer cancel()
 	if err := r.client.CallContext(ctx, &result, "engine_getPayloadV1", payloadID); err != nil {
-		return nil, fmt.Errorf("Failed to obtain new payloadId: %v", err)
+		return nil, fmt.Errorf("Failed to obtain new payloadId: %w", err)
 	}
 	return result, nil
 }
@@ -157,7 +157,7 @@ func (r *BackendRPC) NewPayloadV1(executionPayload *commands.ExecutionPayload) (
 	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
 	defer cancel()
 	if err := r.client.CallContext(ctx, &result, "engine_newPayloadV1", executionPayload); err != nil {
-		return nil, fmt.Errorf("Failed to execute new payloadId: %v", err)
+		return nil, fmt.Errorf("Failed to execute new payloadId: %w", err)
 	}
 	return result, nil
 }

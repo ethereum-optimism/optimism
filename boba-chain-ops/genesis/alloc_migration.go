@@ -3,7 +3,7 @@ package genesis
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"os"
 	"sync"
 
@@ -54,7 +54,7 @@ func NewAlloc(path string) (*types.GenesisAlloc, error) {
 	}
 	defer file.Close()
 
-	bytes, _ := ioutil.ReadAll(file)
+	bytes, _ := io.ReadAll(file)
 	genesisAlloc, err := MigrateAlloc(bytes)
 	if err != nil {
 		log.Error("failed to migrate alloc", "err", err)

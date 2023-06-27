@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/db"
@@ -56,7 +55,7 @@ func main() {
 
 			db, err := db.Open(dbPath, dbCache, dbHandles)
 			if err != nil {
-				return fmt.Errorf("error opening db: %s", err)
+				return fmt.Errorf("error opening db: %w", err)
 			}
 			defer db.Close()
 
@@ -87,7 +86,15 @@ func main() {
 			if err != nil {
 				return err
 			}
-			if err := ioutil.WriteFile(outputPath, alloc, 0644); err != nil {
+
+			f, err := os.OpenFile(outputPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+			if err != nil {
+				log.Warn("Failed to open genesis alloc file", "err", err)
+				return err
+			}
+			defer f.Close()
+			_, err = f.Write(alloc)
+			if err != nil {
 				log.Warn("Failed to write genesis alloc", "err", err)
 				return err
 			}

@@ -67,10 +67,9 @@ func NewEngineConfig(l2PrivateEndpoint, l2PublicEndpoint, l2LegacyEndpoint, jwtS
 	}, nil
 }
 
-func (b *BuilderEngine) Start() error {
+func (b *BuilderEngine) Start() {
 	go b.BlockGenerationLoop()
 	// b.BlockGenerationLoop()
-	return nil
 }
 
 func (b *BuilderEngine) Stop() {

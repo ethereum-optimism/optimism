@@ -277,9 +277,7 @@ func SetBalance(g *types.Genesis, addr common.Address, balance *big.Int, slot co
 	g.Alloc[addr] = accountState
 	// Remove the balance from OVM_ETH storage
 	OVM_ETHStorage := g.Alloc[predeploys.LegacyERC20ETHAddr].Storage
-	if _, ok := OVM_ETHStorage[slot]; ok {
-		delete(OVM_ETHStorage, slot)
-	}
+	delete(OVM_ETHStorage, slot)
 }
 
 func SetTotalSupply(g *types.Genesis) {

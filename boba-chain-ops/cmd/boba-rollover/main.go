@@ -146,6 +146,10 @@ func main() {
 			nodeConfig.Dirs = datadir.New(dbPath)
 
 			stack, err := node.New(&nodeConfig, logger)
+			if err != nil {
+				log.Error("failed to create node", "err", err)
+				return err
+			}
 			defer stack.Close()
 
 			chaindb, err := node.OpenDatabase(stack.Config(), kv.ChainDB, logger)

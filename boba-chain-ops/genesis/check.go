@@ -235,10 +235,12 @@ func PostCheckBobaLegacyProxyImplementation(tx kv.Tx) error {
 			AdminSlot: predeploys.Predeploys["ProxyAdmin"].Hash(),
 		}
 		actualStorage := make(map[libcommon.Hash]libcommon.Hash)
-		state.ForEachStorage(tx, *addr, func(key, val libcommon.Hash) bool {
+		if err := state.ForEachStorage(tx, *addr, func(key, val libcommon.Hash) bool {
 			actualStorage[key] = val
 			return true
-		})
+		}); err != nil {
+			return fmt.Errorf("failed to read storage from database: %w", err)
+		}
 		if !reflect.DeepEqual(expectedStorage, actualStorage) {
 			return fmt.Errorf("expected storage for %s to be %v, but got %v", name, expectedStorage, actualStorage)
 		}
@@ -303,7 +305,7 @@ func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 		}
 
 		// There must be code for the predeploy
-		if len(code) == 0 {
+		if code == nil || len(code) == 0 {
 			return fmt.Errorf("no code found at predeploy %s", addr)
 		}
 
@@ -314,6 +316,9 @@ func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 
 		// There must be an admin
 		hash, err := state.GetStorage(tx, addr, AdminSlot)
+		if err != nil {
+			return fmt.Errorf("failed to read admin from database: %w", err)
+		}
 		adminAddr := libcommon.BytesToAddress(hash[:])
 		if addr != predeploys.ProxyAdminAddr && adminAddr != predeploys.ProxyAdminAddr {
 			return fmt.Errorf("expected admin for %s to be %s but got %s", addr, predeploys.ProxyAdminAddr, adminAddr)
@@ -325,14 +330,19 @@ func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 		if oldBalance == nil {
 			oldBalance = new(big.Int)
 		}
-		newNonce := []byte{}
-		newBalance := []byte{}
 
+		var (
+			newNonce   []byte
+			newBalance []byte
+		)
 		storageByte, err := state.GetAccount(tx, addr)
 		if err != nil {
 			return fmt.Errorf("failed to read account from database: %w", err)
 		}
 		newNonce, newBalance, err = decodeNonceBalanceFromStorage(storageByte)
+		if err != nil {
+			return fmt.Errorf("failed to decode nonce and balance from storage: %w", err)
+		}
 		if oldNonce != bytesToUint64(newNonce) {
 			return fmt.Errorf("expected nonce for %s to be %d but got %d", addr, oldNonce, newNonce)
 		}
@@ -358,7 +368,7 @@ func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 				if err != nil {
 					return fmt.Errorf("failed to read contract code from database: %w", err)
 				}
-				if len(implCode) == 0 {
+				if implCode == nil || len(implCode) == 0 {
 					return errors.New("no code found at proxy admin")
 				}
 				continue
@@ -373,7 +383,7 @@ func PostCheckPredeploys(tx kv.Tx, g *types.Genesis) error {
 			if err != nil {
 				return fmt.Errorf("failed to read contract code from database: %w", err)
 			}
-			if len(implCode) == 0 {
+			if implCode == nil || len(implCode) == 0 {
 				return fmt.Errorf("no code found at predeploy impl %s", *proxyAddr)
 			}
 
@@ -474,7 +484,7 @@ func PostCheckLegacyETH(tx kv.Tx, g *types.Genesis, migrationData crossdomain.Mi
 
 	// This is for bobabeam and bobaopera
 	// We don't touch any of the old slots except the balance slots
-	if crossdomain.CustomLegacyETHSlotCheck[int(g.Config.ChainID.Int64())] == true {
+	if crossdomain.CustomLegacyETHSlotCheck[int(g.Config.ChainID.Int64())] {
 		log.Info("checking legacy eth fixed storage slots for custom chain", "chainID", g.Config.ChainID)
 		defaultSlots := []libcommon.Hash{
 			libcommon.BytesToHash([]byte{2}),
@@ -586,6 +596,10 @@ func PostCheckLegacyETH(tx kv.Tx, g *types.Genesis, migrationData crossdomain.Mi
 		}
 		// Migrated OVM ETH balance should be zero, since we wipe the slots.
 		migratedBalance, err := state.GetStorage(tx, predeploys.LegacyERC20ETHAddr, key)
+		if err != nil {
+			innerErr = fmt.Errorf("failed to get OVM_ETH post-migration ERC20 balance for %s: %w", addr, err)
+			return innerErr
+		}
 		if migratedBalance.Big().Cmp(libcommon.Big0) != 0 {
 			innerErr = fmt.Errorf("expected OVM_ETH post-migration ERC20 balance for %s to be 0, but got %s", addr, migratedBalance)
 			return innerErr
@@ -895,7 +909,6 @@ func decodeNonceBalanceFromStorage(enc []byte) ([]byte, []byte, error) {
 				enc[pos+1:], decodeLength)
 		}
 		balance = enc[pos+1 : pos+decodeLength+1]
-		pos += decodeLength + 1
 	}
 
 	return nonce, balance, nil

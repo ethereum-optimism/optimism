@@ -86,12 +86,8 @@ func WipePredeployStorage(g *types.Genesis) error {
 
 		if BobaUntouchablePredeploys[*addr] {
 			log.Info("Wiping of storage for Boba legacy proxy slots", "name", name, "address", *addr)
-			if _, ok := g.Alloc[*addr].Storage[ether.BobaLegacyProxyOwnerSlot]; ok {
-				delete(g.Alloc[*addr].Storage, ether.BobaLegacyProxyOwnerSlot)
-			}
-			if _, ok := g.Alloc[*addr].Storage[ether.BobaLegacyProxyImplementationSlot]; ok {
-				delete(g.Alloc[*addr].Storage, ether.BobaLegacyProxyImplementationSlot)
-			}
+			delete(g.Alloc[*addr].Storage, ether.BobaLegacyProxyOwnerSlot)
+			delete(g.Alloc[*addr].Storage, ether.BobaLegacyProxyImplementationSlot)
 			continue
 		}
 

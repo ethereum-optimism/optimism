@@ -1124,6 +1124,18 @@ workflows:
       - fuzz-op-node
       - bedrock-markdown
       - go-lint:
+          name: boba-bindings-lint
+          module: boba-bindings
+      - go-lint:
+          name: boba-chain-ops-lint
+          module: boba-chain-ops
+      - go-test:
+          name: boba-bindings-tests
+          module: boba-bindings
+      - go-test:
+          name: boba-chain-ops-tests
+          module: boba-chain-ops
+      - go-lint:
           name: op-batcher-lint
           module: op-batcher
       - go-lint:
@@ -1182,6 +1194,10 @@ workflows:
           use_http: "true"
       - bedrock-go-tests:
           requires:
+            - boba-bindings-lint
+            - boba-chain-ops-lint
+            - boba-bindings-tests
+            - boba-chain-ops-tests
             - op-batcher-lint
             - op-bindings-lint
             - op-chain-ops-lint

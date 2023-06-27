@@ -39,7 +39,8 @@ func TestWipePredeployStorage(t *testing.T) {
 		}
 	}
 
-	WipePredeployStorage(g)
+	err := WipePredeployStorage(g)
+	require.NoError(t, err)
 
 	for _, addr := range predeploys.Predeploys {
 		if FrozenStoragePredeploys[*addr] {
@@ -98,7 +99,8 @@ func TestWipeBobaLegacyImplementation(t *testing.T) {
 		expectedG.Alloc[*addr] = types.GenesisAccount{}
 	}
 
-	WipeBobaLegacyProxyImplementation(g)
+	err := WipeBobaLegacyProxyImplementation(g)
+	require.NoError(t, err)
 	require.Equal(t, expectedG, g)
 }
 
@@ -186,7 +188,8 @@ func TestSetImplementations(t *testing.T) {
 	}
 	storage["BobaTuringCredit"] = state.StorageValues{}
 
-	SetImplementations(g, storage, immutables)
+	err := SetImplementations(g, storage, immutables)
+	require.NoError(t, err)
 
 	for name, address := range predeploys.Predeploys {
 		if FrozenStoragePredeploys[*address] {

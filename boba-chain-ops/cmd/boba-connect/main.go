@@ -84,7 +84,9 @@ func main() {
 				return fmt.Errorf("failed to create engine config: %w", err)
 			}
 
-			builderEngine.Start()
+			if err := builderEngine.Start(); err != nil {
+				return fmt.Errorf("failed to create a connection block: %w", err)
+			}
 
 			return nil
 		},
