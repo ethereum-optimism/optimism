@@ -28,6 +28,11 @@ fs_permissions = [
   { access = 'read', path = './forge-artifacts/' },
 ]
 
+[fmt]
+max_line_length = 100
+wrap_comments = true
+bracket_spacing = true
+
 [profile.ci]
 fuzz_runs = 512
 
