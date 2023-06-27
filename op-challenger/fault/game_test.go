@@ -35,6 +35,21 @@ func createTestClaims() (Claim, Claim, Claim) {
 	return top, middle, bottom
 }
 
+func TestIsDuplicate(t *testing.T) {
+	// Setup the game state.
+	top, middle, bottom := createTestClaims()
+	g := NewGameState(top)
+	err := g.Put(middle)
+	require.NoError(t, err)
+
+	// Top + Middle should be duplicates
+	require.True(t, g.IsDuplicate(top))
+	require.True(t, g.IsDuplicate(middle))
+
+	// Bottom should not be a duplicate
+	require.False(t, g.IsDuplicate(bottom))
+}
+
 // TestGame_Put_RootAlreadyExists tests the [Game.Put] method using a [gameState]
 // instance errors when the root claim already exists in state.
 func TestGame_Put_RootAlreadyExists(t *testing.T) {

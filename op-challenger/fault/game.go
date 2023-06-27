@@ -22,6 +22,8 @@ type Game interface {
 		claim  Claim
 		parent Claim
 	}
+
+	IsDuplicate(claim Claim) bool
 }
 
 // Node is a node in the game state tree.
@@ -33,17 +35,21 @@ type Node struct {
 // gameState is a struct that represents the state of a dispute game.
 // The game state implements the [Game] interface.
 type gameState struct {
-	root Node
+	root   Node
+	claims map[ClaimData]Claim
 }
 
 // NewGameState returns a new game state.
 // The provided [Claim] is used as the root node.
 func NewGameState(root Claim) *gameState {
+	claims := make(map[ClaimData]Claim)
+	claims[root.ClaimData] = root
 	return &gameState{
 		root: Node{
 			self:     root,
 			children: make([]*Node, 0),
 		},
+		claims: claims,
 	}
 }
 
@@ -116,8 +122,14 @@ func (g *gameState) Put(claim Claim) error {
 
 	// Add the node to the tree.
 	found.children = append(found.children, &node)
+	g.claims[claim.ClaimData] = claim
 
 	return nil
+}
+
+func (g *gameState) IsDuplicate(claim Claim) bool {
+	_, ok := g.claims[claim.ClaimData]
+	return ok
 }
 
 // recurseTreePairs recursively walks down the tree from the root node

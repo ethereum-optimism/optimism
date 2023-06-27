@@ -49,9 +49,8 @@ func (a *Agent) move(claim, parent Claim) error {
 	if err != nil || move == nil {
 		return err
 	}
-	// TODO(CLI-4123): Don't send duplicate responses
-	// if a.game.IsDuplicate(move) {
-	// 	return nil
-	// }
+	if a.game.IsDuplicate(*move) {
+		return nil
+	}
 	return a.responder.Respond(context.TODO(), *move)
 }
