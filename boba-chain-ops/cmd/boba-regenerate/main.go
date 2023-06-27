@@ -44,7 +44,7 @@ func main() {
 			&cli.StringFlag{
 				Name:    "rpc-time-out",
 				Usage:   "Timeout for the RPC requests",
-				Value:   "10s",
+				Value:   "50s",
 				EnvVars: []string{"RPC_TIME_OUT"},
 			},
 			&cli.StringFlag{
