@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
-
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -35,6 +34,8 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	configPersistence := NewConfigPersistence(ctx)
 
 	driverConfig := NewDriverConfig(ctx)
 
@@ -86,7 +87,13 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 			Moniker: ctx.String(flags.HeartbeatMonikerFlag.Name),
 			URL:     ctx.String(flags.HeartbeatURLFlag.Name),
 		},
+		ConfigPersistence: configPersistence,
 	}
+
+	if err := cfg.LoadPersisted(log); err != nil {
+		return nil, fmt.Errorf("failed to load driver config: %w", err)
+	}
+
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
@@ -141,6 +148,14 @@ func NewL2SyncEndpointConfig(ctx *cli.Context) *node.L2SyncEndpointConfig {
 		L2NodeAddr: ctx.String(flags.BackupL2UnsafeSyncRPC.Name),
 		TrustRPC:   ctx.Bool(flags.BackupL2UnsafeSyncRPCTrustRPC.Name),
 	}
+}
+
+func NewConfigPersistence(ctx *cli.Context) node.ConfigPersistence {
+	stateFile := ctx.String(flags.RPCAdminPersistence.Name)
+	if stateFile == "" {
+		return node.DisabledConfigPersistence{}
+	}
+	return node.NewConfigPersistence(stateFile)
 }
 
 func NewDriverConfig(ctx *cli.Context) *driver.Config {

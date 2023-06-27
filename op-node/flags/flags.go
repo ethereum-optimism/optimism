@@ -54,13 +54,18 @@ var (
 		Usage:   "RPC listening port",
 		EnvVars: prefixEnvVars("RPC_PORT"),
 	}
+
+	/* Optional Flags */
 	RPCEnableAdmin = &cli.BoolFlag{
 		Name:    "rpc.enable-admin",
 		Usage:   "Enable the admin API (experimental)",
 		EnvVars: prefixEnvVars("RPC_ENABLE_ADMIN"),
 	}
-
-	/* Optional Flags */
+	RPCAdminPersistence = &cli.StringFlag{
+		Name:    "rpc.admin-state",
+		Usage:   "File path used to persist state changes made via the admin API so they persist across restarts. Disabled if not set.",
+		EnvVars: prefixEnvVars("RPC_ADMIN_STATE"),
+	}
 	L1TrustRPC = &cli.BoolFlag{
 		Name:    "l1.trustrpc",
 		Usage:   "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data",
@@ -233,6 +238,7 @@ var optionalFlags = []cli.Flag{
 	SequencerL1Confs,
 	L1EpochPollIntervalFlag,
 	RPCEnableAdmin,
+	RPCAdminPersistence,
 	MetricsEnabledFlag,
 	MetricsAddrFlag,
 	MetricsPortFlag,
