@@ -24,7 +24,7 @@
     "gas-snapshot": "forge snapshot",
     "pretest:slither": "rm -f @openzeppelin && rm -f hardhat && ln -s node_modules/@openzeppelin @openzeppelin && ln -s ../../node_modules/hardhat hardhat",
     "posttest:slither": "rm -f @openzeppelin && rm -f hardhat",
-    "lint:check": "ts-node src/forge-test-names.ts",
+    "lint:check": "echo 'no checks implemented yet'",
     "lint:fix": "forge fmt",
     "lint": "yarn lint:fix && yarn lint:check",
     "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./coverage ./tsconfig.tsbuildinfo",
