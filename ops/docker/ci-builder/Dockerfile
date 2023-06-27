@@ -12,9 +12,8 @@ RUN apt-get update && \
     ./rustup.sh -y
 
 # move the foundryrc file to the foundry dir
-COPY .foundryrc /opt/foundry
-
 WORKDIR /opt/foundry
+COPY ../../.foundryrc ./.foundryrc
 
 # Only diff from upstream docker image is this clone instead
 # of COPY. We select a specific commit to use.
