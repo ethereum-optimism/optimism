@@ -72,6 +72,8 @@ export const DEPOSIT_CONFIRMATION_BLOCKS: {
   [L2ChainID.OPTIMISM_BEDROCK_LOCAL_DEVNET]: 2 as const,
   [L2ChainID.OPTIMISM_BEDROCK_ALPHA_TESTNET]: 12 as const,
   [L2ChainID.BASE_GOERLI]: 12 as const,
+  [L2ChainID.ZORA_GOERLI]: 12 as const,
+  [L2ChainID.ZORA_MAINNET]: 50 as const,
 }
 
 export const CHAIN_BLOCK_TIMES: {
@@ -213,6 +215,39 @@ export const CONTRACT_ADDRESSES: {
       BondManager: '0x0000000000000000000000000000000000000000' as const,
       OptimismPortal: '0xe93c8cD0D409341205A592f8c4Ac1A5fe5585cfA' as const,
       L2OutputOracle: '0x2A35891ff30313CcFa6CE88dcf3858bb075A2298' as const,
+    },
+    l2: DEFAULT_L2_CONTRACT_ADDRESSES,
+  },
+  // Zora Goerli
+  [L2ChainID.ZORA_GOERLI]: {
+    l1: {
+      AddressManager: '0x54f4676203dEDA6C08E0D40557A119c602bFA246' as const,
+      L1CrossDomainMessenger:
+        '0xD87342e16352D33170557A7dA1e5fB966a60FafC' as const,
+      L1StandardBridge: '0x7CC09AC2452D6555d5e0C213Ab9E2d44eFbFc956' as const,
+      StateCommitmentChain:
+        '0x0000000000000000000000000000000000000000' as const,
+      CanonicalTransactionChain:
+        '0x0000000000000000000000000000000000000000' as const,
+      BondManager: '0x0000000000000000000000000000000000000000' as const,
+      OptimismPortal: '0xDb9F51790365e7dc196e7D072728df39Be958ACe' as const,
+      L2OutputOracle: '0xdD292C9eEd00f6A32Ff5245d0BCd7f2a15f24e00' as const,
+    },
+    l2: DEFAULT_L2_CONTRACT_ADDRESSES,
+  },
+  [L2ChainID.ZORA_MAINNET]: {
+    l1: {
+      AddressManager: '0xEF8115F2733fb2033a7c756402Fc1deaa56550Ef' as const,
+      L1CrossDomainMessenger:
+        '0xdC40a14d9abd6F410226f1E6de71aE03441ca506' as const,
+      L1StandardBridge: '0x3e2Ea9B92B7E48A52296fD261dc26fd995284631' as const,
+      StateCommitmentChain:
+        '0x0000000000000000000000000000000000000000' as const,
+      CanonicalTransactionChain:
+        '0x0000000000000000000000000000000000000000' as const,
+      BondManager: '0x0000000000000000000000000000000000000000' as const,
+      OptimismPortal: '0x1a0ad011913A150f69f6A19DF447A0CfD9551054' as const,
+      L2OutputOracle: '0x9E6204F750cD866b299594e2aC9eA824E2e5f95c' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
