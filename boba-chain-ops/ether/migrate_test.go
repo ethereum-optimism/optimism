@@ -86,13 +86,13 @@ func TestMigrateBalances(t *testing.T) {
 			totalSupply: big.NewInt(3),
 			expDiff:     big.NewInt(0),
 			addresses: []common.Address{
-				{1},
-				{2},
+				{101},
+				{102},
 			},
 			allowances: []*crossdomain.Allowance{
 				{
-					From: common.Address{2},
-					To:   common.Address{1},
+					From: common.Address{102},
+					To:   common.Address{101},
 				},
 			},
 			genesis: &types.Genesis{
@@ -102,10 +102,10 @@ func TestMigrateBalances(t *testing.T) {
 				Alloc: types.GenesisAlloc{
 					predeploys.LegacyERC20ETHAddr: types.GenesisAccount{
 						Storage: map[common.Hash]common.Hash{
-							CalcOVMETHTotalSupplyKey():                                    common.BigToHash(common.Big3),
-							CalcOVMETHStorageKey(common.Address{1}):                       common.BigToHash(common.Big1),
-							CalcOVMETHStorageKey(common.Address{2}):                       common.BigToHash(common.Big2),
-							CalcAllowanceStorageKey(common.Address{2}, common.Address{1}): common.BigToHash(common.Big1),
+							CalcOVMETHTotalSupplyKey():                                        common.BigToHash(common.Big3),
+							CalcOVMETHStorageKey(common.Address{101}):                         common.BigToHash(common.Big1),
+							CalcOVMETHStorageKey(common.Address{102}):                         common.BigToHash(common.Big2),
+							CalcAllowanceStorageKey(common.Address{102}, common.Address{101}): common.BigToHash(common.Big1),
 						},
 					},
 				},
@@ -113,11 +113,11 @@ func TestMigrateBalances(t *testing.T) {
 			noCheck: false,
 			check: func(t *testing.T, g *types.Genesis, err error) {
 				require.NoError(t, err)
-				require.EqualValues(t, common.Big1, g.Alloc[common.Address{1}].Balance)
-				require.EqualValues(t, common.Big2, g.Alloc[common.Address{2}].Balance)
+				require.EqualValues(t, common.Big1, g.Alloc[common.Address{101}].Balance)
+				require.EqualValues(t, common.Big2, g.Alloc[common.Address{102}].Balance)
 				require.EqualValues(t, common.Hash{}, g.Alloc[predeploys.LegacyERC20ETHAddr].Storage[CalcOVMETHTotalSupplyKey()])
-				require.EqualValues(t, common.Hash{}, g.Alloc[predeploys.LegacyERC20ETHAddr].Storage[CalcOVMETHStorageKey(common.Address{1})])
-				require.EqualValues(t, common.Hash{}, g.Alloc[predeploys.LegacyERC20ETHAddr].Storage[CalcOVMETHStorageKey(common.Address{2})])
+				require.EqualValues(t, common.Hash{}, g.Alloc[predeploys.LegacyERC20ETHAddr].Storage[CalcOVMETHStorageKey(common.Address{101})])
+				require.EqualValues(t, common.Hash{}, g.Alloc[predeploys.LegacyERC20ETHAddr].Storage[CalcOVMETHStorageKey(common.Address{102})])
 			},
 		},
 		{
