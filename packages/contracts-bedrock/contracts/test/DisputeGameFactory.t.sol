@@ -13,11 +13,7 @@ contract DisputeGameFactory_Init is Test {
     DisputeGameFactory factory;
     FakeClone fakeClone;
 
-    event DisputeGameCreated(
-        address indexed disputeProxy,
-        GameType indexed gameType,
-        Claim indexed rootClaim
-    );
+    event DisputeGameCreated(address indexed disputeProxy, GameType indexed gameType, Claim indexed rootClaim);
 
     event ImplementationSet(address indexed impl, GameType indexed gameType);
 
@@ -39,11 +35,7 @@ contract DisputeGameFactory_Init is Test {
 contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
     /// @dev Tests that the `create` function succeeds when creating a new dispute game
     ///      with a `GameType` that has an implementation set.
-    function testFuzz_create_succeeds(
-        uint8 gameType,
-        Claim rootClaim,
-        bytes calldata extraData
-    ) public {
+    function testFuzz_create_succeeds(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
 
@@ -70,11 +62,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
 
     /// @dev Tests that the `create` function reverts when there is no implementation
     ///      set for the given `GameType`.
-    function testFuzz_create_noImpl_reverts(
-        uint8 gameType,
-        Claim rootClaim,
-        bytes calldata extraData
-    ) public {
+    function testFuzz_create_noImpl_reverts(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
 
@@ -83,11 +71,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
     }
 
     /// @dev Tests that the `create` function reverts when there exists a dispute game with the same UUID.
-    function testFuzz_create_sameUUID_reverts(
-        uint8 gameType,
-        Claim rootClaim,
-        bytes calldata extraData
-    ) public {
+    function testFuzz_create_sameUUID_reverts(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
 
@@ -108,10 +92,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
 
         // Ensure that the `create` function reverts when called with parameters that would result in the same UUID.
         vm.expectRevert(
-            abi.encodeWithSelector(
-                GameAlreadyExists.selector,
-                factory.getGameUUID(gt, rootClaim, extraData)
-            )
+            abi.encodeWithSelector(GameAlreadyExists.selector, factory.getGameUUID(gt, rootClaim, extraData))
         );
         factory.create(gt, rootClaim, extraData);
     }
@@ -145,17 +126,12 @@ contract DisputeGameFactory_SetImplementation_Test is DisputeGameFactory_Init {
 contract DisputeGameFactory_GetGameUUID_Test is DisputeGameFactory_Init {
     /// @dev Tests that the `getGameUUID` function returns the correct hash when comparing
     ///      against the keccak256 hash of the abi-encoded parameters.
-    function testDiff_getGameUUID_succeeds(
-        uint8 gameType,
-        Claim rootClaim,
-        bytes calldata extraData
-    ) public {
+    function testDiff_getGameUUID_succeeds(uint8 gameType, Claim rootClaim, bytes calldata extraData) public {
         // Ensure that the `gameType` is within the bounds of the `GameType` enum's possible values.
         GameType gt = GameType.wrap(uint8(bound(gameType, 0, 2)));
 
         assertEq(
-            Hash.unwrap(factory.getGameUUID(gt, rootClaim, extraData)),
-            keccak256(abi.encode(gt, rootClaim, extraData))
+            Hash.unwrap(factory.getGameUUID(gt, rootClaim, extraData)), keccak256(abi.encode(gt, rootClaim, extraData))
         );
     }
 }

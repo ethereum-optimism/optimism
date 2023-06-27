@@ -112,15 +112,7 @@ abstract contract ERC721Bridge {
         // care of the user error we want to avoid.
         require(!Address.isContract(msg.sender), "ERC721Bridge: account is not externally owned");
 
-        _initiateBridgeERC721(
-            _localToken,
-            _remoteToken,
-            msg.sender,
-            msg.sender,
-            _tokenId,
-            _minGasLimit,
-            _extraData
-        );
+        _initiateBridgeERC721(_localToken, _remoteToken, msg.sender, msg.sender, _tokenId, _minGasLimit, _extraData);
     }
 
     /// @notice Initiates a bridge of an NFT to some recipient's account on the other chain. Note
@@ -148,15 +140,7 @@ abstract contract ERC721Bridge {
     ) external {
         require(_to != address(0), "ERC721Bridge: nft recipient cannot be address(0)");
 
-        _initiateBridgeERC721(
-            _localToken,
-            _remoteToken,
-            msg.sender,
-            _to,
-            _tokenId,
-            _minGasLimit,
-            _extraData
-        );
+        _initiateBridgeERC721(_localToken, _remoteToken, msg.sender, _to, _tokenId, _minGasLimit, _extraData);
     }
 
     /// @notice Internal function for initiating a token bridge to the other domain.

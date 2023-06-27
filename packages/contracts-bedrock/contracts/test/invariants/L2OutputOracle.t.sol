@@ -16,12 +16,9 @@ contract L2OutputOracle_Proposer {
     /**
      * @dev Allows the actor to propose an L2 output to the `L2OutputOracle`
      */
-    function proposeL2Output(
-        bytes32 _outputRoot,
-        uint256 _l2BlockNumber,
-        bytes32 _l1BlockHash,
-        uint256 _l1BlockNumber
-    ) external {
+    function proposeL2Output(bytes32 _outputRoot, uint256 _l2BlockNumber, bytes32 _l1BlockHash, uint256 _l1BlockNumber)
+        external
+    {
         // Act as the proposer and propose a new output.
         vm.prank(oracle.PROPOSER());
         oracle.proposeL2Output(_outputRoot, _l2BlockNumber, _l1BlockHash, _l1BlockNumber);

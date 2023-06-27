@@ -13,11 +13,7 @@ library Encoding {
     ///         transaction is prefixed with 0x7e to identify its EIP-2718 type.
     /// @param _tx User deposit transaction to encode.
     /// @return RLP encoded L2 deposit transaction.
-    function encodeDepositTransaction(Types.UserDepositTransaction memory _tx)
-        internal
-        pure
-        returns (bytes memory)
-    {
+    function encodeDepositTransaction(Types.UserDepositTransaction memory _tx) internal pure returns (bytes memory) {
         bytes32 source = Hashing.hashDepositSource(_tx.l1BlockHash, _tx.logIndex);
         bytes[] memory raw = new bytes[](8);
         raw[0] = RLPWriter.writeBytes(abi.encodePacked(source));
@@ -64,20 +60,12 @@ library Encoding {
     /// @param _data   Data to send with the message.
     /// @param _nonce  Message nonce.
     /// @return Encoded cross domain message.
-    function encodeCrossDomainMessageV0(
-        address _target,
-        address _sender,
-        bytes memory _data,
-        uint256 _nonce
-    ) internal pure returns (bytes memory) {
-        return
-            abi.encodeWithSignature(
-                "relayMessage(address,address,bytes,uint256)",
-                _target,
-                _sender,
-                _data,
-                _nonce
-            );
+    function encodeCrossDomainMessageV0(address _target, address _sender, bytes memory _data, uint256 _nonce)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encodeWithSignature("relayMessage(address,address,bytes,uint256)", _target, _sender, _data, _nonce);
     }
 
     /// @notice Encodes a cross domain message based on the V1 (current) encoding.
@@ -96,16 +84,15 @@ library Encoding {
         uint256 _gasLimit,
         bytes memory _data
     ) internal pure returns (bytes memory) {
-        return
-            abi.encodeWithSignature(
-                "relayMessage(uint256,address,address,uint256,uint256,bytes)",
-                _nonce,
-                _sender,
-                _target,
-                _value,
-                _gasLimit,
-                _data
-            );
+        return abi.encodeWithSignature(
+            "relayMessage(uint256,address,address,uint256,uint256,bytes)",
+            _nonce,
+            _sender,
+            _target,
+            _value,
+            _gasLimit,
+            _data
+        );
     }
 
     /// @notice Adds a version number into the first two bytes of a message nonce.

@@ -51,20 +51,8 @@ contract EchidnaFuzzHashing {
 
         // hash the cross domain message using the unversioned and versioned functions for
         // comparison
-        bytes32 sampleHash1 = Hashing.hashCrossDomainMessage(
-            encodedNonce,
-            _sender,
-            _target,
-            _value,
-            _gasLimit,
-            _data
-        );
-        bytes32 sampleHash2 = Hashing.hashCrossDomainMessageV0(
-            _target,
-            _sender,
-            _data,
-            encodedNonce
-        );
+        bytes32 sampleHash1 = Hashing.hashCrossDomainMessage(encodedNonce, _sender, _target, _value, _gasLimit, _data);
+        bytes32 sampleHash2 = Hashing.hashCrossDomainMessageV0(_target, _sender, _data, encodedNonce);
 
         // check that the output of both functions matches
         if (sampleHash1 != sampleHash2) {
@@ -89,22 +77,8 @@ contract EchidnaFuzzHashing {
 
         // hash the cross domain message using the unversioned and versioned functions for
         // comparison
-        bytes32 sampleHash1 = Hashing.hashCrossDomainMessage(
-            encodedNonce,
-            _sender,
-            _target,
-            _value,
-            _gasLimit,
-            _data
-        );
-        bytes32 sampleHash2 = Hashing.hashCrossDomainMessageV1(
-            encodedNonce,
-            _sender,
-            _target,
-            _value,
-            _gasLimit,
-            _data
-        );
+        bytes32 sampleHash1 = Hashing.hashCrossDomainMessage(encodedNonce, _sender, _target, _value, _gasLimit, _data);
+        bytes32 sampleHash2 = Hashing.hashCrossDomainMessageV1(encodedNonce, _sender, _target, _value, _gasLimit, _data);
 
         // check that the output of both functions matches
         if (sampleHash1 != sampleHash2) {

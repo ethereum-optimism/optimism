@@ -29,22 +29,13 @@ contract MeterUser is ResourceMetering {
         return _resourceConfig();
     }
 
-    function _resourceConfig()
-        internal
-        view
-        override
-        returns (ResourceMetering.ResourceConfig memory)
-    {
+    function _resourceConfig() internal view override returns (ResourceMetering.ResourceConfig memory) {
         return innerConfig;
     }
 
-    function use(uint64 _amount) public metered(_amount) {}
+    function use(uint64 _amount) public metered(_amount) { }
 
-    function set(
-        uint128 _prevBaseFee,
-        uint64 _prevBoughtGas,
-        uint64 _prevBlockNum
-    ) public {
+    function set(uint128 _prevBaseFee, uint64 _prevBoughtGas, uint64 _prevBlockNum) public {
         params = ResourceMetering.ResourceParams({
             prevBaseFee: _prevBaseFee,
             prevBoughtGas: _prevBoughtGas,
@@ -145,12 +136,12 @@ contract ResourceMetering_Test is Test {
 
         meter.use(target * elasticityMultiplier);
 
-        (, uint64 prevBoughtGas, ) = meter.params();
+        (, uint64 prevBoughtGas,) = meter.params();
         assertEq(prevBoughtGas, target * elasticityMultiplier);
 
         vm.roll(initialBlockNum + 1);
         meter.use(0);
-        (uint128 postBaseFee, , ) = meter.params();
+        (uint128 postBaseFee,,) = meter.params();
         assertEq(postBaseFee, 2125000000);
     }
 
@@ -165,7 +156,7 @@ contract ResourceMetering_Test is Test {
         meter.setParams(rcfg);
         meter.use(target * elasticityMultiplier);
 
-        (, uint64 prevBoughtGas, ) = meter.params();
+        (, uint64 prevBoughtGas,) = meter.params();
         assertEq(prevBoughtGas, target * elasticityMultiplier);
 
         vm.roll(initialBlockNum + 2);
@@ -207,11 +198,7 @@ contract CustomMeterUser is ResourceMetering {
     uint256 public startGas;
     uint256 public endGas;
 
-    constructor(
-        uint128 _prevBaseFee,
-        uint64 _prevBoughtGas,
-        uint64 _prevBlockNum
-    ) {
+    constructor(uint128 _prevBaseFee, uint64 _prevBoughtGas, uint64 _prevBlockNum) {
         params = ResourceMetering.ResourceParams({
             prevBaseFee: _prevBaseFee,
             prevBoughtGas: _prevBoughtGas,
@@ -219,12 +206,7 @@ contract CustomMeterUser is ResourceMetering {
         });
     }
 
-    function _resourceConfig()
-        internal
-        pure
-        override
-        returns (ResourceMetering.ResourceConfig memory)
-    {
+    function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory) {
         return Constants.DEFAULT_RESOURCE_CONFIG();
     }
 
@@ -250,15 +232,13 @@ contract ArtifactResourceMetering_Test is Test {
 
     string internal outfile;
 
-    // keccak256(abi.encodeWithSignature("Error(string)", "ResourceMetering: cannot buy more gas than available gas limit"))
-    bytes32 internal cannotBuyMoreGas =
-        0x84edc668cfd5e050b8999f43ff87a1faaa93e5f935b20bc1dd4d3ff157ccf429;
+    // keccak256(abi.encodeWithSignature("Error(string)", "ResourceMetering: cannot buy more gas than available gas
+    // limit"))
+    bytes32 internal cannotBuyMoreGas = 0x84edc668cfd5e050b8999f43ff87a1faaa93e5f935b20bc1dd4d3ff157ccf429;
     // keccak256(abi.encodeWithSignature("Panic(uint256)", 0x11))
-    bytes32 internal overflowErr =
-        0x1ca389f2c8264faa4377de9ce8e14d6263ef29c68044a9272d405761bab2db27;
+    bytes32 internal overflowErr = 0x1ca389f2c8264faa4377de9ce8e14d6263ef29c68044a9272d405761bab2db27;
     // keccak256(hex"")
-    bytes32 internal emptyReturnData =
-        0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
+    bytes32 internal emptyReturnData = 0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
 
     /// @dev Sets up the tests with constants from the ResourceMetering contract.
     function setUp() public {
@@ -272,7 +252,7 @@ contract ArtifactResourceMetering_Test is Test {
         targetResourceLimit = uint64(rcfg.maxResourceLimit) / uint64(rcfg.elasticityMultiplier);
 
         outfile = string.concat(vm.projectRoot(), "/.resource-metering.csv");
-        try vm.removeFile(outfile) {} catch {}
+        try vm.removeFile(outfile) { } catch { }
     }
 
     /// @dev Generates a CSV file. No more than the L1 block gas limit should
@@ -348,9 +328,7 @@ contract ArtifactResourceMetering_Test is Test {
                                 // Call the metering code and catch the various
                                 // types of errors.
                                 uint256 gasConsumed = 0;
-                                try meter.use{ gas: 30_000_000 }(requestedGas) returns (
-                                    uint256 _gasConsumed
-                                ) {
+                                try meter.use{ gas: 30_000_000 }(requestedGas) returns (uint256 _gasConsumed) {
                                     gasConsumed = _gasConsumed;
                                 } catch (bytes memory err) {
                                     bytes32 hash = keccak256(err);

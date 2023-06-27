@@ -56,11 +56,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     mapping(ClaimHash => bool) internal claims;
 
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
-    constructor(
-        Claim _absolutePrestate,
-        uint256 _maxGameDepth,
-        IBigStepper _vm
-    ) Semver(0, 0, 2) {
+    constructor(Claim _absolutePrestate, uint256 _maxGameDepth, IBigStepper _vm) Semver(0, 0, 2) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
         VM = _vm;
@@ -136,9 +132,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
             // Assert that the given prestate commits to the instruction at `gindex - 1` and
             // that the `_stateData` is the preimage for the prestate claim digest.
             if (
-                Position.unwrap(preStatePos.rightIndex(MAX_GAME_DEPTH)) !=
-                Position.unwrap(postStatePos.rightIndex(MAX_GAME_DEPTH)) - 1 ||
-                keccak256(_stateData) != Claim.unwrap(preStateClaim)
+                Position.unwrap(preStatePos.rightIndex(MAX_GAME_DEPTH))
+                    != Position.unwrap(postStatePos.rightIndex(MAX_GAME_DEPTH)) - 1
+                    || keccak256(_stateData) != Claim.unwrap(preStateClaim)
             ) {
                 revert InvalidPrestate();
             }
@@ -162,11 +158,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @param _challengeIndex The index of the claim being moved against.
     /// @param _pivot The claim at the next logical position in the game.
     /// @param _isAttack Whether or not the move is an attack or defense.
-    function move(
-        uint256 _challengeIndex,
-        Claim _pivot,
-        bool _isAttack
-    ) public payable {
+    function move(uint256 _challengeIndex, Claim _pivot, bool _isAttack) public payable {
         // Moves cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) {
             revert GameNotInProgress();
@@ -210,11 +202,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         Duration nextDuration = Duration.wrap(
             uint64(
                 // First, fetch the duration of the grandparent claim.
-                Duration.unwrap(grandparentClock.duration()) +
-                    // Second, add the difference between the current block timestamp and the
-                    // parent's clock timestamp.
-                    block.timestamp -
-                    Timestamp.unwrap(parent.clock.timestamp())
+                Duration.unwrap(grandparentClock.duration())
+                // Second, add the difference between the current block timestamp and the
+                // parent's clock timestamp.
+                + block.timestamp - Timestamp.unwrap(parent.clock.timestamp())
             )
         );
 
@@ -286,7 +277,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // The most recent claim is always a dangling, non-bottom node so we start with that
         uint256 leftMostIndex = claimData.length - 1;
         uint256 leftMostTraceIndex = type(uint128).max;
-        for (uint256 i = leftMostIndex; i < type(uint64).max; ) {
+        for (uint256 i = leftMostIndex; i < type(uint64).max;) {
             // Fetch the claim at the current index.
             ClaimData storage claim = claimData[i];
 
@@ -318,9 +309,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // If the left-most dangling node is at an even depth, the defender wins.
         // Otherwise, the challenger wins and the root claim is deemed invalid.
         if (
-            // slither-disable-next-line weak-prng
-            claimData[leftMostIndex].position.depth() % 2 == 0 &&
-            leftMostTraceIndex != type(uint128).max
+            claimData[leftMostIndex]
+                .position
+                // slither-disable-next-line weak-prng
+                .depth() % 2 == 0 && leftMostTraceIndex != type(uint128).max
         ) {
             status_ = GameStatus.DEFENDER_WINS;
         } else {
@@ -346,15 +338,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     }
 
     /// @inheritdoc IDisputeGame
-    function gameData()
-        external
-        pure
-        returns (
-            GameType gameType_,
-            Claim rootClaim_,
-            bytes memory extraData_
-        )
-    {
+    function gameData() external pure returns (GameType gameType_, Claim rootClaim_, bytes memory extraData_) {
         gameType_ = gameType();
         rootClaim_ = rootClaim();
         extraData_ = extraData();

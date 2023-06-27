@@ -22,12 +22,10 @@ contract L1ChugSplashProxy {
     bytes13 internal constant DEPLOY_CODE_PREFIX = 0x600D380380600D6000396000f3;
 
     /// @notice bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1)
-    bytes32 internal constant IMPLEMENTATION_KEY =
-        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+    bytes32 internal constant IMPLEMENTATION_KEY = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
     /// @notice bytes32(uint256(keccak256('eip1967.proxy.admin')) - 1)
-    bytes32 internal constant OWNER_KEY =
-        0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+    bytes32 internal constant OWNER_KEY = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
     /// @notice Blocks a function from being called when the parent signals that the system should
     ///         be paused via an isUpgrading function.
@@ -37,9 +35,8 @@ contract L1ChugSplashProxy {
         // We do a low-level call because there's no guarantee that the owner actually *is* an
         // L1ChugSplashDeployer contract and Solidity will throw errors if we do a normal call and
         // it turns out that it isn't the right type of contract.
-        (bool success, bytes memory returndata) = owner.staticcall(
-            abi.encodeWithSelector(IL1ChugSplashDeployer.isUpgrading.selector)
-        );
+        (bool success, bytes memory returndata) =
+            owner.staticcall(abi.encodeWithSelector(IL1ChugSplashDeployer.isUpgrading.selector));
 
         // If the call was unsuccessful then we assume that there's no "isUpgrading" method and we
         // can just continue as normal. We also expect that the return value is exactly 32 bytes
@@ -195,9 +192,7 @@ contract L1ChugSplashProxy {
             returndatacopy(0x0, 0x0, returndatasize())
 
             // Success == 0 means a revert. We'll revert too and pass the data up.
-            if iszero(success) {
-                revert(0x0, returndatasize())
-            }
+            if iszero(success) { revert(0x0, returndatasize()) }
 
             // Otherwise we'll just return and pass the data up.
             return(0x0, returndatasize())

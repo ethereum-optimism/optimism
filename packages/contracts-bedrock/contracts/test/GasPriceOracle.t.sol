@@ -94,9 +94,8 @@ contract GasPriceOracle_Test is CommonTest {
 
     /// @dev Tests that `setGasPrice` reverts since it was removed in bedrock.
     function test_setGasPrice_doesNotExist_reverts() external {
-        (bool success, bytes memory returndata) = address(gasOracle).call(
-            abi.encodeWithSignature("setGasPrice(uint256)", 1)
-        );
+        (bool success, bytes memory returndata) =
+            address(gasOracle).call(abi.encodeWithSignature("setGasPrice(uint256)", 1));
 
         assertEq(success, false);
         assertEq(returndata, hex"");
@@ -104,9 +103,8 @@ contract GasPriceOracle_Test is CommonTest {
 
     /// @dev Tests that `setL1BaseFee` reverts since it was removed in bedrock.
     function test_setL1BaseFee_doesNotExist_reverts() external {
-        (bool success, bytes memory returndata) = address(gasOracle).call(
-            abi.encodeWithSignature("setL1BaseFee(uint256)", 1)
-        );
+        (bool success, bytes memory returndata) =
+            address(gasOracle).call(abi.encodeWithSignature("setL1BaseFee(uint256)", 1));
 
         assertEq(success, false);
         assertEq(returndata, hex"");

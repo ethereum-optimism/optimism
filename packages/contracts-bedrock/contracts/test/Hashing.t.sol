@@ -16,10 +16,7 @@ contract Hashing_hashDepositSource_Test is CommonTest {
     /// @notice Tests that hashDepositSource returns the correct hash in a simple case.
     function test_hashDepositSource_succeeds() external {
         assertEq(
-            Hashing.hashDepositSource(
-                0xd25df7858efc1778118fb133ac561b138845361626dfb976699c5287ed0f4959,
-                0x1
-            ),
+            Hashing.hashDepositSource(0xd25df7858efc1778118fb133ac561b138845361626dfb976699c5287ed0f4959, 0x1),
             0xf923fb07134d7d287cb52c770cc619e17e82606c21a875c92f4c63b65280a5cc
         );
     }
@@ -54,14 +51,7 @@ contract Hashing_hashCrossDomainMessage_Test is CommonTest {
         uint256 _messageNonce
     ) external {
         assertEq(
-            keccak256(
-                LegacyCrossDomainUtils.encodeXDomainCalldata(
-                    _target,
-                    _sender,
-                    _message,
-                    _messageNonce
-                )
-            ),
+            keccak256(LegacyCrossDomainUtils.encodeXDomainCalldata(_target, _sender, _message, _messageNonce)),
             Hashing.hashCrossDomainMessageV0(_target, _sender, _message, _messageNonce)
         );
     }
@@ -78,9 +68,7 @@ contract Hashing_hashWithdrawal_Test is CommonTest {
         bytes memory _data
     ) external {
         assertEq(
-            Hashing.hashWithdrawal(
-                Types.WithdrawalTransaction(_nonce, _sender, _target, _value, _gasLimit, _data)
-            ),
+            Hashing.hashWithdrawal(Types.WithdrawalTransaction(_nonce, _sender, _target, _value, _gasLimit, _data)),
             ffi.hashWithdrawal(_nonce, _sender, _target, _value, _gasLimit, _data)
         );
     }
@@ -103,12 +91,7 @@ contract Hashing_hashOutputRootProof_Test is CommonTest {
                     latestBlockhash: _latestBlockhash
                 })
             ),
-            ffi.hashOutputRootProof(
-                _version,
-                _stateRoot,
-                _messagePasserStorageRoot,
-                _latestBlockhash
-            )
+            ffi.hashOutputRootProof(_version, _stateRoot, _messagePasserStorageRoot, _latestBlockhash)
         );
     }
 }

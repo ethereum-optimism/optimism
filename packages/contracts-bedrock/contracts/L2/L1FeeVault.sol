@@ -14,9 +14,8 @@ contract L1FeeVault is FeeVault, Semver {
     /// @param _recipient           Wallet that will receive the fees.
     /// @param _minWithdrawalAmount Minimum balance for withdrawals.
     /// @param _withdrawalNetwork   Network which the recipient will receive fees on.
-    constructor(
-        address _recipient,
-        uint256 _minWithdrawalAmount,
-        WithdrawalNetwork _withdrawalNetwork
-    ) FeeVault(_recipient, _minWithdrawalAmount, _withdrawalNetwork) Semver(1, 2, 1) {}
+    constructor(address _recipient, uint256 _minWithdrawalAmount, WithdrawalNetwork _withdrawalNetwork)
+        FeeVault(_recipient, _minWithdrawalAmount, _withdrawalNetwork)
+        Semver(1, 2, 1)
+    { }
 }

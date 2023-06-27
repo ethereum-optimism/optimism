@@ -5,9 +5,7 @@ import "../libraries/DisputeTypes.sol";
 import "../libraries/DisputeErrors.sol";
 
 import { ClonesWithImmutableArgs } from "@cwia/ClonesWithImmutableArgs.sol";
-import {
-    OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { Semver } from "../universal/Semver.sol";
 
 import { IDisputeGame } from "./interfaces/IDisputeGame.sol";
@@ -54,11 +52,11 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
     }
 
     /// @inheritdoc IDisputeGameFactory
-    function games(
-        GameType _gameType,
-        Claim _rootClaim,
-        bytes calldata _extraData
-    ) external view returns (IDisputeGame proxy_, uint256 timestamp_) {
+    function games(GameType _gameType, Claim _rootClaim, bytes calldata _extraData)
+        external
+        view
+        returns (IDisputeGame proxy_, uint256 timestamp_)
+    {
         Hash uuid = getGameUUID(_gameType, _rootClaim, _extraData);
         GameId slot = _disputeGames[uuid];
         (address addr, uint256 timestamp) = _unpackSlot(slot);
@@ -67,11 +65,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
     }
 
     /// @inheritdoc IDisputeGameFactory
-    function gameAtIndex(uint256 _index)
-        external
-        view
-        returns (IDisputeGame proxy_, uint256 timestamp_)
-    {
+    function gameAtIndex(uint256 _index) external view returns (IDisputeGame proxy_, uint256 timestamp_) {
         GameId slot = _disputeGameList[_index];
         (address addr, uint256 timestamp) = _unpackSlot(slot);
         proxy_ = IDisputeGame(addr);
@@ -79,11 +73,10 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
     }
 
     /// @inheritdoc IDisputeGameFactory
-    function create(
-        GameType gameType,
-        Claim rootClaim,
-        bytes calldata extraData
-    ) external returns (IDisputeGame proxy) {
+    function create(GameType gameType, Claim rootClaim, bytes calldata extraData)
+        external
+        returns (IDisputeGame proxy)
+    {
         // Grab the implementation contract for the given `GameType`.
         IDisputeGame impl = gameImpls[gameType];
 
@@ -113,11 +106,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
     }
 
     /// @inheritdoc IDisputeGameFactory
-    function getGameUUID(
-        GameType gameType,
-        Claim rootClaim,
-        bytes memory extraData
-    ) public pure returns (Hash _uuid) {
+    function getGameUUID(GameType gameType, Claim rootClaim, bytes memory extraData) public pure returns (Hash _uuid) {
         assembly {
             // Grab the offsets of the other memory locations we will need to temporarily overwrite.
             let gameTypeOffset := sub(extraData, 0x60)

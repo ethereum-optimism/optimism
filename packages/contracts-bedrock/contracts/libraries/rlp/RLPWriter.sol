@@ -111,7 +111,7 @@ library RLPWriter {
             encoded = new bytes(lenLen + 1);
             encoded[0] = bytes1(uint8(lenLen) + uint8(_offset) + 55);
             for (i = 1; i <= lenLen; i++) {
-                encoded[i] = bytes1(uint8((_len / (256**(lenLen - i))) % 256));
+                encoded[i] = bytes1(uint8((_len / (256 ** (lenLen - i))) % 256));
             }
         }
 
@@ -151,11 +151,7 @@ library RLPWriter {
      * @param _src  Source location.
      * @param _len  Length of memory to copy.
      */
-    function _memcpy(
-        uint256 _dest,
-        uint256 _src,
-        uint256 _len
-    ) private pure {
+    function _memcpy(uint256 _dest, uint256 _src, uint256 _len) private pure {
         uint256 dest = _dest;
         uint256 src = _src;
         uint256 len = _len;
@@ -170,7 +166,7 @@ library RLPWriter {
 
         uint256 mask;
         unchecked {
-            mask = 256**(32 - len) - 1;
+            mask = 256 ** (32 - len) - 1;
         }
         assembly {
             let srcpart := and(mload(src), not(mask))

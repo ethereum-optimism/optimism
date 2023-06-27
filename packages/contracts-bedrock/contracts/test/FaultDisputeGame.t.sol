@@ -89,21 +89,14 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
     /// @dev Tests that the root claim's data is set correctly when the game is initialized.
     function test_initialRootClaimData_succeeds() public {
-        (
-            uint32 parentIndex,
-            bool countered,
-            Claim claim,
-            Position position,
-            Clock clock
-        ) = gameProxy.claimData(0);
+        (uint32 parentIndex, bool countered, Claim claim, Position position, Clock clock) = gameProxy.claimData(0);
 
         assertEq(parentIndex, type(uint32).max);
         assertEq(countered, false);
         assertEq(Claim.unwrap(claim), Claim.unwrap(ROOT_CLAIM));
         assertEq(Position.unwrap(position), 1);
         assertEq(
-            Clock.unwrap(clock),
-            Clock.unwrap(LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))))
+            Clock.unwrap(clock), Clock.unwrap(LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp))))
         );
     }
 
@@ -201,13 +194,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         gameProxy.attack(0, counter);
 
         // Grab the claim data of the attack.
-        (
-            uint32 parentIndex,
-            bool countered,
-            Claim claim,
-            Position position,
-            Clock clock
-        ) = gameProxy.claimData(1);
+        (uint32 parentIndex, bool countered, Claim claim, Position position, Clock clock) = gameProxy.claimData(1);
 
         // Assert correctness of the attack claim's data.
         assertEq(parentIndex, 0);
@@ -215,8 +202,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(Claim.unwrap(claim), Claim.unwrap(counter));
         assertEq(Position.unwrap(position), Position.unwrap(Position.wrap(1).move(true)));
         assertEq(
-            Clock.unwrap(clock),
-            Clock.unwrap(LibClock.wrap(Duration.wrap(5), Timestamp.wrap(uint64(block.timestamp))))
+            Clock.unwrap(clock), Clock.unwrap(LibClock.wrap(Duration.wrap(5), Timestamp.wrap(uint64(block.timestamp))))
         );
 
         // Grab the claim data of the parent.
@@ -229,9 +215,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(Position.unwrap(position), 1);
         assertEq(
             Clock.unwrap(clock),
-            Clock.unwrap(
-                LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp - 5)))
-            )
+            Clock.unwrap(LibClock.wrap(Duration.wrap(0), Timestamp.wrap(uint64(block.timestamp - 5))))
         );
     }
 
@@ -304,11 +288,7 @@ contract GamePlayer {
     uint256 internal maxDepth;
 
     /// @notice Initializes the player
-    function init(
-        FaultDisputeGame _gameProxy,
-        GamePlayer _counterParty,
-        Vm _vm
-    ) public {
+    function init(FaultDisputeGame _gameProxy, GamePlayer _counterParty, Vm _vm) public {
         gameProxy = _gameProxy;
         counterParty = _counterParty;
         vm = _vm;
@@ -318,9 +298,7 @@ contract GamePlayer {
     /// @notice Perform the next move in the game.
     function play(uint256 _parentIndex) public virtual {
         // Grab the claim data at the parent index.
-        (uint32 grandparentIndex, , Claim parentClaim, Position parentPos, ) = gameProxy.claimData(
-            _parentIndex
-        );
+        (uint32 grandparentIndex,, Claim parentClaim, Position parentPos,) = gameProxy.claimData(_parentIndex);
 
         // The position to move to.
         Position movePos;
@@ -342,9 +320,7 @@ contract GamePlayer {
             Claim ourParentClaim = claimAt(parentPos);
 
             // Fetch our claim at the grandparent's position.
-            (, , Claim grandparentClaim, Position grandparentPos, ) = gameProxy.claimData(
-                grandparentIndex
-            );
+            (,, Claim grandparentClaim, Position grandparentPos,) = gameProxy.claimData(grandparentIndex);
             Claim ourGrandparentClaim = claimAt(grandparentPos);
 
             if (Claim.unwrap(ourParentClaim) != Claim.unwrap(parentClaim)) {
@@ -358,8 +334,8 @@ contract GamePlayer {
                 // Flag the move as an attack.
                 isAttack = true;
             } else if (
-                Claim.unwrap(ourParentClaim) == Claim.unwrap(parentClaim) &&
-                Claim.unwrap(ourGrandparentClaim) == Claim.unwrap(grandparentClaim)
+                Claim.unwrap(ourParentClaim) == Claim.unwrap(parentClaim)
+                    && Claim.unwrap(ourGrandparentClaim) == Claim.unwrap(grandparentClaim)
             ) {
                 movePos = parentPos.move(false);
             }
@@ -382,10 +358,7 @@ contract GamePlayer {
 
                 // Walk up until the valid position that commits to the prestate's
                 // trace index is found.
-                while (
-                    Position.unwrap(statePos.parent().rightIndex(maxDepth)) ==
-                    Position.unwrap(leafPos)
-                ) {
+                while (Position.unwrap(statePos.parent().rightIndex(maxDepth)) == Position.unwrap(leafPos)) {
                     statePos = statePos.parent();
                 }
 
@@ -393,7 +366,7 @@ contract GamePlayer {
                 // index.
                 uint256 len = gameProxy.claimDataLen();
                 for (uint256 i = 0; i < len; i++) {
-                    (, , , Position pos, ) = gameProxy.claimData(i);
+                    (,,, Position pos,) = gameProxy.claimData(i);
                     if (Position.unwrap(pos) == Position.unwrap(statePos)) {
                         stateIndex = i;
                         break;
@@ -428,7 +401,7 @@ contract GamePlayer {
 
                 // If we have a second move position, attack the grandparent.
                 if (Position.unwrap(movePos2) != 0) {
-                    (, , , Position grandparentPos, ) = gameProxy.claimData(grandparentIndex);
+                    (,,, Position grandparentPos,) = gameProxy.claimData(grandparentIndex);
                     Claim ourGrandparentClaim = claimAt(grandparentPos.move(true));
 
                     gameProxy.attack(grandparentIndex, ourGrandparentClaim);
@@ -659,11 +632,7 @@ contract AlphabetVM is IBigStepper {
     }
 
     /// @inheritdoc IBigStepper
-    function step(bytes calldata _stateData, bytes calldata)
-        external
-        view
-        returns (bytes32 postState_)
-    {
+    function step(bytes calldata _stateData, bytes calldata) external view returns (bytes32 postState_) {
         uint256 traceIndex;
         uint256 claim;
         if (_stateData.length == 0) {

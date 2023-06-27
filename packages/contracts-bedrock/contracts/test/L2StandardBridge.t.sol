@@ -33,13 +33,8 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         assertEq(address(messagePasser).balance, 0);
         uint256 nonce = L2Messenger.messageNonce();
 
-        bytes memory message = abi.encodeWithSelector(
-            StandardBridge.finalizeBridgeETH.selector,
-            alice,
-            alice,
-            100,
-            hex""
-        );
+        bytes memory message =
+            abi.encodeWithSelector(StandardBridge.finalizeBridgeETH.selector, alice, alice, 100, hex"");
         uint64 baseGas = L2Messenger.baseGas(message, 200_000);
         bytes memory withdrawalData = abi.encodeWithSelector(
             CrossDomainMessenger.relayMessage.selector,
@@ -70,13 +65,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         // L2ToL1MessagePasser will emit a MessagePassed event
         vm.expectEmit(true, true, true, true, address(messagePasser));
         emit MessagePassed(
-            nonce,
-            address(L2Messenger),
-            address(L1Messenger),
-            100,
-            baseGas,
-            withdrawalData,
-            withdrawalHash
+            nonce, address(L2Messenger), address(L1Messenger), 100, baseGas, withdrawalData, withdrawalHash
         );
 
         // SentMessage event emitted by the CrossDomainMessenger
@@ -100,15 +89,12 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         vm.expectCall(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             abi.encodeWithSelector(
-                L2ToL1MessagePasser.initiateWithdrawal.selector,
-                address(L1Messenger),
-                baseGas,
-                withdrawalData
+                L2ToL1MessagePasser.initiateWithdrawal.selector, address(L1Messenger), baseGas, withdrawalData
             )
         );
 
         vm.prank(alice, alice);
-        (bool success, ) = address(L2Bridge).call{ value: 100 }(hex"");
+        (bool success,) = address(L2Bridge).call{ value: 100 }(hex"");
         assertEq(success, true);
         assertEq(address(messagePasser).balance, 100);
     }
@@ -161,23 +147,11 @@ contract PreBridgeERC20 is Bridge_Initializer {
         assertEq(ERC20(_l2Token).balanceOf(alice), 100);
         uint256 nonce = L2Messenger.messageNonce();
         bytes memory message = abi.encodeWithSelector(
-            StandardBridge.finalizeBridgeERC20.selector,
-            address(L1Token),
-            _l2Token,
-            alice,
-            alice,
-            100,
-            hex""
+            StandardBridge.finalizeBridgeERC20.selector, address(L1Token), _l2Token, alice, alice, 100, hex""
         );
         uint64 baseGas = L2Messenger.baseGas(message, 1000);
         bytes memory withdrawalData = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector,
-            nonce,
-            address(L2Bridge),
-            address(L1Bridge),
-            0,
-            1000,
-            message
+            CrossDomainMessenger.relayMessage.selector, nonce, address(L2Bridge), address(L1Bridge), 0, 1000, message
         );
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction({
@@ -192,48 +166,29 @@ contract PreBridgeERC20 is Bridge_Initializer {
 
         if (_isLegacy) {
             vm.expectCall(
-                address(L2Bridge),
-                abi.encodeWithSelector(L2Bridge.withdraw.selector, _l2Token, 100, 1000, hex"")
+                address(L2Bridge), abi.encodeWithSelector(L2Bridge.withdraw.selector, _l2Token, 100, 1000, hex"")
             );
         } else {
             vm.expectCall(
                 address(L2Bridge),
-                abi.encodeWithSelector(
-                    L2Bridge.bridgeERC20.selector,
-                    _l2Token,
-                    address(L1Token),
-                    100,
-                    1000,
-                    hex""
-                )
+                abi.encodeWithSelector(L2Bridge.bridgeERC20.selector, _l2Token, address(L1Token), 100, 1000, hex"")
             );
         }
 
         vm.expectCall(
             address(L2Messenger),
-            abi.encodeWithSelector(
-                CrossDomainMessenger.sendMessage.selector,
-                address(L1Bridge),
-                message,
-                1000
-            )
+            abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(L1Bridge), message, 1000)
         );
 
         vm.expectCall(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             abi.encodeWithSelector(
-                L2ToL1MessagePasser.initiateWithdrawal.selector,
-                address(L1Messenger),
-                baseGas,
-                withdrawalData
+                L2ToL1MessagePasser.initiateWithdrawal.selector, address(L1Messenger), baseGas, withdrawalData
             )
         );
 
         // The L2Bridge should burn the tokens
-        vm.expectCall(
-            _l2Token,
-            abi.encodeWithSelector(OptimismMintableERC20.burn.selector, alice, 100)
-        );
+        vm.expectCall(_l2Token, abi.encodeWithSelector(OptimismMintableERC20.burn.selector, alice, 100));
 
         vm.expectEmit(true, true, true, true);
         emit WithdrawalInitiated(address(L1Token), _l2Token, alice, alice, 100, hex"");
@@ -243,13 +198,7 @@ contract PreBridgeERC20 is Bridge_Initializer {
 
         vm.expectEmit(true, true, true, true);
         emit MessagePassed(
-            nonce,
-            address(L2Messenger),
-            address(L1Messenger),
-            0,
-            baseGas,
-            withdrawalData,
-            withdrawalHash
+            nonce, address(L2Messenger), address(L1Messenger), 0, baseGas, withdrawalData, withdrawalHash
         );
 
         // SentMessage event emitted by the CrossDomainMessenger
@@ -318,23 +267,11 @@ contract PreBridgeERC20To is Bridge_Initializer {
         assertEq(ERC20(L2Token).balanceOf(alice), 100);
         uint256 nonce = L2Messenger.messageNonce();
         bytes memory message = abi.encodeWithSelector(
-            StandardBridge.finalizeBridgeERC20.selector,
-            address(L1Token),
-            _l2Token,
-            alice,
-            bob,
-            100,
-            hex""
+            StandardBridge.finalizeBridgeERC20.selector, address(L1Token), _l2Token, alice, bob, 100, hex""
         );
         uint64 baseGas = L2Messenger.baseGas(message, 1000);
         bytes memory withdrawalData = abi.encodeWithSelector(
-            CrossDomainMessenger.relayMessage.selector,
-            nonce,
-            address(L2Bridge),
-            address(L1Bridge),
-            0,
-            1000,
-            message
+            CrossDomainMessenger.relayMessage.selector, nonce, address(L2Bridge), address(L1Bridge), 0, 1000, message
         );
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction({
@@ -355,13 +292,7 @@ contract PreBridgeERC20To is Bridge_Initializer {
 
         vm.expectEmit(true, true, true, true, address(messagePasser));
         emit MessagePassed(
-            nonce,
-            address(L2Messenger),
-            address(L1Messenger),
-            0,
-            baseGas,
-            withdrawalData,
-            withdrawalHash
+            nonce, address(L2Messenger), address(L1Messenger), 0, baseGas, withdrawalData, withdrawalHash
         );
 
         // SentMessage event emitted by the CrossDomainMessenger
@@ -374,56 +305,31 @@ contract PreBridgeERC20To is Bridge_Initializer {
 
         if (_isLegacy) {
             vm.expectCall(
-                address(L2Bridge),
-                abi.encodeWithSelector(
-                    L2Bridge.withdrawTo.selector,
-                    _l2Token,
-                    bob,
-                    100,
-                    1000,
-                    hex""
-                )
+                address(L2Bridge), abi.encodeWithSelector(L2Bridge.withdrawTo.selector, _l2Token, bob, 100, 1000, hex"")
             );
         } else {
             vm.expectCall(
                 address(L2Bridge),
                 abi.encodeWithSelector(
-                    L2Bridge.bridgeERC20To.selector,
-                    _l2Token,
-                    address(L1Token),
-                    bob,
-                    100,
-                    1000,
-                    hex""
+                    L2Bridge.bridgeERC20To.selector, _l2Token, address(L1Token), bob, 100, 1000, hex""
                 )
             );
         }
 
         vm.expectCall(
             address(L2Messenger),
-            abi.encodeWithSelector(
-                CrossDomainMessenger.sendMessage.selector,
-                address(L1Bridge),
-                message,
-                1000
-            )
+            abi.encodeWithSelector(CrossDomainMessenger.sendMessage.selector, address(L1Bridge), message, 1000)
         );
 
         vm.expectCall(
             Predeploys.L2_TO_L1_MESSAGE_PASSER,
             abi.encodeWithSelector(
-                L2ToL1MessagePasser.initiateWithdrawal.selector,
-                address(L1Messenger),
-                baseGas,
-                withdrawalData
+                L2ToL1MessagePasser.initiateWithdrawal.selector, address(L1Messenger), baseGas, withdrawalData
             )
         );
 
         // The L2Bridge should burn the tokens
-        vm.expectCall(
-            address(L2Token),
-            abi.encodeWithSelector(OptimismMintableERC20.burn.selector, alice, 100)
-        );
+        vm.expectCall(address(L2Token), abi.encodeWithSelector(OptimismMintableERC20.burn.selector, alice, 100));
 
         vm.prank(alice, alice);
     }
@@ -460,10 +366,7 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
             abi.encode(address(L2Bridge.OTHER_BRIDGE()))
         );
 
-        vm.expectCall(
-            address(L2Token),
-            abi.encodeWithSelector(OptimismMintableERC20.mint.selector, alice, 100)
-        );
+        vm.expectCall(address(L2Token), abi.encodeWithSelector(OptimismMintableERC20.mint.selector, alice, 100));
 
         // Should emit both the bedrock and legacy events
         vm.expectEmit(true, true, true, true, address(L2Bridge));

@@ -19,10 +19,7 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
     /// @notice Constructs the L1ERC721Bridge contract.
     /// @param _messenger   Address of the CrossDomainMessenger on this network.
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    constructor(address _messenger, address _otherBridge)
-        Semver(1, 1, 2)
-        ERC721Bridge(_messenger, _otherBridge)
-    {}
+    constructor(address _messenger, address _otherBridge) Semver(1, 1, 2) ERC721Bridge(_messenger, _otherBridge) { }
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
     ///         recipient on this domain.
@@ -76,13 +73,7 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
 
         // Construct calldata for _l2Token.finalizeBridgeERC721(_to, _tokenId)
         bytes memory message = abi.encodeWithSelector(
-            L2ERC721Bridge.finalizeBridgeERC721.selector,
-            _remoteToken,
-            _localToken,
-            _from,
-            _to,
-            _tokenId,
-            _extraData
+            L2ERC721Bridge.finalizeBridgeERC721.selector, _remoteToken, _localToken, _from, _to, _tokenId, _extraData
         );
 
         // Lock token into bridge

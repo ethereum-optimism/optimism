@@ -166,11 +166,7 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
 }
 
 contract SystemConfig_Setters_Test is SystemConfig_Init {
-    event ConfigUpdate(
-        uint256 indexed version,
-        SystemConfig.UpdateType indexed updateType,
-        bytes data
-    );
+    event ConfigUpdate(uint256 indexed version, SystemConfig.UpdateType indexed updateType, bytes data);
 
     /// @dev Tests that `setBatcherHash` updates the batcher hash successfully.
     function testFuzz_setBatcherHash_succeeds(bytes32 newBatcherHash) external {
@@ -185,11 +181,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
     /// @dev Tests that `setGasConfig` updates the overhead and scalar successfully.
     function testFuzz_setGasConfig_succeeds(uint256 newOverhead, uint256 newScalar) external {
         vm.expectEmit(true, true, true, true);
-        emit ConfigUpdate(
-            0,
-            SystemConfig.UpdateType.GAS_CONFIG,
-            abi.encode(newOverhead, newScalar)
-        );
+        emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_CONFIG, abi.encode(newOverhead, newScalar));
 
         vm.prank(sysConf.owner());
         sysConf.setGasConfig(newOverhead, newScalar);
@@ -200,9 +192,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
     /// @dev Tests that `setGasLimit` updates the gas limit successfully.
     function testFuzz_setGasLimit_succeeds(uint64 newGasLimit) external {
         uint64 minimumGasLimit = sysConf.minimumGasLimit();
-        newGasLimit = uint64(
-            bound(uint256(newGasLimit), uint256(minimumGasLimit), uint256(type(uint64).max))
-        );
+        newGasLimit = uint64(bound(uint256(newGasLimit), uint256(minimumGasLimit), uint256(type(uint64).max)));
 
         vm.expectEmit(true, true, true, true);
         emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_LIMIT, abi.encode(newGasLimit));
@@ -215,11 +205,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
     /// @dev Tests that `setUnsafeBlockSigner` updates the block signer successfully.
     function testFuzz_setUnsafeBlockSigner_succeeds(address newUnsafeSigner) external {
         vm.expectEmit(true, true, true, true);
-        emit ConfigUpdate(
-            0,
-            SystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER,
-            abi.encode(newUnsafeSigner)
-        );
+        emit ConfigUpdate(0, SystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, abi.encode(newUnsafeSigner));
 
         vm.prank(sysConf.owner());
         sysConf.setUnsafeBlockSigner(newUnsafeSigner);
