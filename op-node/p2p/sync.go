@@ -48,16 +48,17 @@ const (
 	maxThrottleDelay = time.Second * 20
 	// Do not serve more than 20 requests per second
 	globalServerBlocksRateLimit rate.Limit = 20
-	// Allow up to 5 concurrent requests to be served, eating into our rate-limit
-	globalServerBlocksBurst = 5
-	// Do not serve more than 5 requests per second to the same peer, so we can serve other peers at the same time
-	peerServerBlocksRateLimit rate.Limit = 5
-	// Allow a peer to burst 3 requests, so it does not have to wait
-	peerServerBlocksBurst = 3
+	// Allows a burst of 2x our rate limit
+	globalServerBlocksBurst = 40
+	// Do not serve more than 4 requests per second to the same peer, so we can serve other peers at the same time
+	peerServerBlocksRateLimit rate.Limit = 4
+	// Allow a peer to request 30s of blocks at once
+	peerServerBlocksBurst = 15
 	// If the client hits a request error, it counts as a lot of rate-limit tokens for syncing from that peer:
 	// we rather sync from other servers. We'll try again later,
 	// and eventually kick the peer based on degraded scoring if it's really not serving us well.
-	clientErrRateCost = 100
+	// TODO(CLI-4009): Use a backoff rather than this mechanism.
+	clientErrRateCost = peerServerBlocksBurst
 )
 
 func PayloadByNumberProtocolID(l2ChainID *big.Int) protocol.ID {
@@ -204,6 +205,9 @@ type SyncClient struct {
 
 	receivePayload receivePayloadFn
 
+	// Global rate limiter for all peers.
+	globalRL *rate.Limiter
+
 	// resource context: all peers and mainLoop tasks inherit this, and start shutting down once resCancel() is called.
 	resCtx    context.Context
 	resCancel context.CancelFunc
@@ -231,6 +235,7 @@ func NewSyncClient(log log.Logger, cfg *rollup.Config, newStream newStreamFn, rc
 		requests:        make(chan rangeRequest), // blocking
 		peerRequests:    make(chan peerRequest, 128),
 		results:         make(chan syncResult, 128),
+		globalRL:        rate.NewLimiter(globalServerBlocksRateLimit, globalServerBlocksBurst),
 		resCtx:          ctx,
 		resCancel:       cancel,
 		receivePayload:  rcv,
@@ -463,16 +468,17 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 	log := s.log.New("peer", id)
 	log.Info("Starting P2P sync client event loop")
 
-	var rl rate.Limiter
-
 	// Implement the same rate limits as the server does per-peer,
 	// so we don't be too aggressive to the server.
-	rl.SetLimit(peerServerBlocksRateLimit)
-	rl.SetBurst(peerServerBlocksBurst)
+	rl := rate.NewLimiter(peerServerBlocksRateLimit, peerServerBlocksBurst)
 
 	for {
+		// wait for a global allocation to be available
+		if err := s.globalRL.Wait(ctx); err != nil {
+			return
+		}
 		// wait for peer to be available for more work
-		if err := rl.WaitN(ctx, 1); err != nil {
+		if err := rl.Wait(ctx); err != nil {
 			return
 		}
 
@@ -636,7 +642,6 @@ func NewReqRespServer(cfg *rollup.Config, l2 L2Chain, metrics ReqRespServerMetri
 	// so it's fine to prune rate-limit details past this.
 
 	peerRateLimits, _ := simplelru.NewLRU[peer.ID, *peerStat](1000, nil)
-	// 3 sync requests per second, with 2 burst
 	globalRequestsRL := rate.NewLimiter(globalServerBlocksRateLimit, globalServerBlocksBurst)
 
 	return &ReqRespServer{

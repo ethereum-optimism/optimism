@@ -10,10 +10,16 @@ import (
 )
 
 func TestErigonBuildPath(t *testing.T) {
+	if !erigonL2Nodes {
+		t.Skip()
+	}
 	require.FileExists(t, erigonBinPath)
 }
 
 func TestErigonRunner(t *testing.T) {
+	if !erigonL2Nodes {
+		t.Skip()
+	}
 	er := &ErigonRunner{
 		BinPath: erigonBinPath,
 	}

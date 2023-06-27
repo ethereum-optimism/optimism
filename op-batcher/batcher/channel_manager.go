@@ -82,7 +82,7 @@ func (s *channelManager) TxFailed(id txID) {
 	}
 
 	s.metr.RecordBatchTxFailed()
-	if s.closed && len(s.confirmedTransactions) == 0 && len(s.pendingTransactions) == 0 {
+	if s.closed && len(s.confirmedTransactions) == 0 && len(s.pendingTransactions) == 0 && s.pendingChannel != nil {
 		s.log.Info("Channel has no submitted transactions, clearing for shutdown", "chID", s.pendingChannel.ID())
 		s.clearPendingChannel()
 	}
@@ -196,6 +196,11 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 
 	// If we have no saved blocks, we will not be able to create valid frames
 	if len(s.blocks) == 0 {
+		return txData{}, io.EOF
+	}
+
+	// we have blocks, but we cannot add them to the channel right now
+	if s.pendingChannel != nil && s.pendingChannel.IsFull() {
 		return txData{}, io.EOF
 	}
 

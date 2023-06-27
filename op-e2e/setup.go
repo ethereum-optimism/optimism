@@ -3,14 +3,28 @@ package op_e2e
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/rand"
 	"fmt"
 	"math/big"
+	"net"
 	"os"
 	"path"
 	"sort"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
+	ds "github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/sync"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peerstore"
+	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
+
+	ic "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -24,6 +38,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	batchermetrics "github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -46,7 +61,6 @@ import (
 var testingJWTSecret = [32]byte{123}
 
 var (
-	erigonL2Nodes bool
 	erigonBinPath string
 )
 
@@ -287,6 +301,10 @@ type System struct {
 	Mocknet           mocknet.Mocknet
 }
 
+func (sys *System) NodeEndpoint(name string) string {
+	return selectEndpoint(sys.EthInstances[name])
+}
+
 func (sys *System) Close() {
 	if sys.L2OutputSubmitter != nil {
 		sys.L2OutputSubmitter.Stop()
@@ -460,12 +478,13 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			}
 		} else {
 			ei := (&ErigonRunner{
-				Name:    name,
-				BinPath: erigonBinPath,
-				ChainID: cfg.DeployConfig.L2ChainID,
-				Genesis: l2Genesis,
-				JWTPath: cfg.JWTFilePath,
-				GasCeil: cfg.GasCeilOverride[name],
+				Name:     name,
+				BinPath:  erigonBinPath,
+				ChainID:  cfg.DeployConfig.L2ChainID,
+				Genesis:  l2Genesis,
+				JWTPath:  cfg.JWTFilePath,
+				GasCeil:  cfg.GasCeilOverride[name],
+				GasPrice: 1_000_000_000,
 			}).Run(t)
 			erigonInstance = &ei
 		}
@@ -498,7 +517,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	// TODO: refactor testing to use in-process rpc connections instead of websockets.
 
 	for name, rollupCfg := range cfg.Nodes {
-		configureL1(rollupCfg, l1Node)
+		configureL1(rollupCfg, sys.EthInstances["l1"])
 		configureL2(rollupCfg, sys.EthInstances[name], cfg.JWTSecret)
 
 		rollupCfg.L2Sync = &rollupNode.PreparedL2SyncEndpoint{
@@ -544,7 +563,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			if p, ok := p2pNodes[name]; ok {
 				return p, nil
 			}
-			h, err := sys.Mocknet.GenPeer()
+			h, err := sys.newMockNetPeer()
 			if err != nil {
 				return nil, fmt.Errorf("failed to init p2p host for node %s", name)
 			}
@@ -673,17 +692,20 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 	// Batch Submitter
 	sys.BatchSubmitter, err = bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
-		L1EthRpc:           sys.EthInstances["l1"].WSEndpoint(),
-		L2EthRpc:           sys.EthInstances["sequencer"].WSEndpoint(),
-		RollupRpc:          sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		MaxChannelDuration: 1,
-		MaxL1TxSize:        120_000,
-		TargetL1TxSize:     100_000,
-		TargetNumFrames:    1,
-		ApproxComprRatio:   0.4,
-		SubSafetyMargin:    4,
-		PollInterval:       50 * time.Millisecond,
-		TxMgrConfig:        newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Batcher),
+		L1EthRpc:               sys.EthInstances["l1"].WSEndpoint(),
+		L2EthRpc:               sys.EthInstances["sequencer"].WSEndpoint(),
+		RollupRpc:              sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		MaxPendingTransactions: 1,
+		MaxChannelDuration:     1,
+		MaxL1TxSize:            120_000,
+		CompressorConfig: compressor.CLIConfig{
+			TargetL1TxSizeBytes: 100_000,
+			TargetNumFrames:     1,
+			ApproxComprRatio:    0.4,
+		},
+		SubSafetyMargin: 4,
+		PollInterval:    50 * time.Millisecond,
+		TxMgrConfig:     newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",
@@ -703,13 +725,62 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	return sys, nil
 }
 
-func configureL1(rollupNodeCfg *rollupNode.Config, l1Node *node.Node) {
-	l1EndpointConfig := l1Node.WSEndpoint()
+// IP6 range that gets blackholed (in case our traffic ever makes it out onto
+// the internet).
+var blackholeIP6 = net.ParseIP("100::")
+
+// mocknet doesn't allow us to add a peerstore without fully creating the peer ourselves
+func (sys *System) newMockNetPeer() (host.Host, error) {
+	sk, _, err := ic.GenerateECDSAKeyPair(rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+	id, err := peer.IDFromPrivateKey(sk)
+	if err != nil {
+		return nil, err
+	}
+	suffix := id
+	if len(id) > 8 {
+		suffix = id[len(id)-8:]
+	}
+	ip := append(net.IP{}, blackholeIP6...)
+	copy(ip[net.IPv6len-len(suffix):], suffix)
+	a, err := ma.NewMultiaddr(fmt.Sprintf("/ip6/%s/tcp/4242", ip))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create test multiaddr: %w", err)
+	}
+	p, err := peer.IDFromPublicKey(sk.GetPublic())
+	if err != nil {
+		return nil, err
+	}
+
+	ps, err := pstoremem.NewPeerstore()
+	if err != nil {
+		return nil, err
+	}
+	ps.AddAddr(p, a, peerstore.PermanentAddrTTL)
+	_ = ps.AddPrivKey(p, sk)
+	_ = ps.AddPubKey(p, sk.GetPublic())
+
+	ds := sync.MutexWrap(ds.NewMapDatastore())
+	eps, err := store.NewExtendedPeerstore(context.Background(), log.Root(), clock.SystemClock, ps, ds)
+	if err != nil {
+		return nil, err
+	}
+	return sys.Mocknet.AddPeerWithPeerstore(p, eps)
+}
+
+func selectEndpoint(node *EthInstance) string {
 	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
 	if useHTTP {
 		log.Info("using HTTP client")
-		l1EndpointConfig = l1Node.HTTPEndpoint()
+		return node.HTTPEndpoint()
 	}
+	return node.WSEndpoint()
+}
+
+func configureL1(rollupNodeCfg *rollupNode.Config, l1Node *EthInstance) {
+	l1EndpointConfig := selectEndpoint(l1Node)
 	rollupNodeCfg.L1 = &rollupNode.L1EndpointConfig{
 		L1NodeAddr:       l1EndpointConfig,
 		L1TrustRPC:       false,

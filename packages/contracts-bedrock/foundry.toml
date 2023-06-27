@@ -8,6 +8,7 @@ remappings = [
   '@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/',
   '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/',
   '@rari-capital/solmate/=node_modules/@rari-capital/solmate',
+  "@cwia/=node_modules/clones-with-immutable-args/src",
   'forge-std/=node_modules/forge-std/src',
   'ds-test/=node_modules/ds-test/src'
 ]

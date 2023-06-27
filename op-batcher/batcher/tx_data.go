@@ -26,6 +26,10 @@ func (td *txData) Bytes() []byte {
 	return append([]byte{derive.DerivationVersion0}, td.frame.data...)
 }
 
+func (td *txData) Len() int {
+	return 1 + len(td.frame.data)
+}
+
 // Frame returns the single frame of this tx data.
 //
 // Note: when the batcher is changed to possibly send multiple frames per tx,

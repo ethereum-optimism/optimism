@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/version"
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 )
@@ -88,6 +89,7 @@ func RollupNodeMain(ctx *cli.Context) error {
 		return err
 	}
 	log := oplog.NewLogger(logCfg)
+	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, log)
 	m := metrics.NewMetrics("default")
 
 	cfg, err := opnode.NewConfig(ctx, log)

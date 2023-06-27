@@ -18,9 +18,13 @@ Vitest snapshots for the vitest tests
 
 CLI implementations of atst read and write
 
-## contants
+## constants
 
 Internal and external constants
+
+## contracts
+
+The attestation station contract
 
 ## lib
 

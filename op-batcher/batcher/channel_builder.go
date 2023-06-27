@@ -7,13 +7,13 @@ import (
 	"io"
 	"math"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/compressor"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
 var (
 	ErrInvalidChannelTimeout = errors.New("channel timeout is less than the safety margin")
-	ErrInputTargetReached    = errors.New("target amount of input data reached")
 	ErrMaxFrameIndex         = errors.New("max frame index reached (uint16)")
 	ErrMaxDurationReached    = errors.New("max channel duration reached")
 	ErrChannelTimeoutClose   = errors.New("close to channel timeout")
@@ -55,19 +55,9 @@ type ChannelConfig struct {
 	SubSafetyMargin uint64
 	// The maximum byte-size a frame can have.
 	MaxFrameSize uint64
-	// The target number of frames to create per channel. Note that if the
-	// realized compression ratio is worse than the approximate, more frames may
-	// actually be created. This also depends on how close TargetFrameSize is to
-	// MaxFrameSize.
-	TargetFrameSize uint64
-	// The target number of frames to create in this channel. If the realized
-	// compression ratio is worse than approxComprRatio, additional leftover
-	// frame(s) might get created.
-	TargetNumFrames int
-	// Approximated compression ratio to assume. Should be slightly smaller than
-	// average from experiments to avoid the chances of creating a small
-	// additional leftover frame.
-	ApproxComprRatio float64
+
+	// CompressorConfig contains the configuration for creating new compressors.
+	CompressorConfig compressor.Config
 }
 
 // Check validates the [ChannelConfig] parameters.
@@ -94,12 +84,6 @@ func (cc *ChannelConfig) Check() error {
 	}
 
 	return nil
-}
-
-// InputThreshold calculates the input data threshold in bytes from the given
-// parameters.
-func (c ChannelConfig) InputThreshold() uint64 {
-	return uint64(float64(c.TargetNumFrames) * float64(c.TargetFrameSize) / c.ApproxComprRatio)
 }
 
 type frameID struct {
@@ -142,7 +126,11 @@ type channelBuilder struct {
 // newChannelBuilder creates a new channel builder or returns an error if the
 // channel out could not be created.
 func newChannelBuilder(cfg ChannelConfig) (*channelBuilder, error) {
-	co, err := derive.NewChannelOut()
+	c, err := cfg.CompressorConfig.NewCompressor()
+	if err != nil {
+		return nil, err
+	}
+	co, err := derive.NewChannelOut(c)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +197,7 @@ func (c *channelBuilder) AddBlock(block *types.Block) (derive.L1BlockInfo, error
 		return l1info, fmt.Errorf("converting block to batch: %w", err)
 	}
 
-	if _, err = c.co.AddBatch(batch); errors.Is(err, derive.ErrTooManyRLPBytes) {
+	if _, err = c.co.AddBatch(batch); errors.Is(err, derive.ErrTooManyRLPBytes) || errors.Is(err, derive.CompressorFullErr) {
 		c.setFullErr(err)
 		return l1info, c.FullErr()
 	} else if err != nil {
@@ -218,8 +206,8 @@ func (c *channelBuilder) AddBlock(block *types.Block) (derive.L1BlockInfo, error
 	c.blocks = append(c.blocks, block)
 	c.updateSwTimeout(batch)
 
-	if c.inputTargetReached() {
-		c.setFullErr(ErrInputTargetReached)
+	if err = c.co.FullErr(); err != nil {
+		c.setFullErr(err)
 		// Adding this block still worked, so don't return error, just mark as full
 	}
 
@@ -293,12 +281,6 @@ func (c *channelBuilder) TimedOut(blockNum uint64) bool {
 	return c.timeout != 0 && blockNum >= c.timeout
 }
 
-// inputTargetReached says whether the target amount of input data has been
-// reached in this channel builder. No more blocks can be added afterwards.
-func (c *channelBuilder) inputTargetReached() bool {
-	return uint64(c.co.InputBytes()) >= c.cfg.InputThreshold()
-}
-
 // IsFull returns whether the channel is full.
 // FullErr returns the reason for the channel being full.
 func (c *channelBuilder) IsFull() bool {
@@ -310,7 +292,7 @@ func (c *channelBuilder) IsFull() bool {
 //
 // It returns a ChannelFullError wrapping one of the following possible reasons
 // for the channel being full:
-//   - ErrInputTargetReached if the target amount of input data has been reached,
+//   - derive.CompressorFullErr if the compressor target has been reached,
 //   - derive.MaxRLPBytesPerChannel if the general maximum amount of input data
 //     would have been exceeded by the latest AddBlock call,
 //   - ErrMaxFrameIndex if the maximum number of frames has been generated

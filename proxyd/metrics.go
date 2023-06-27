@@ -4,6 +4,9 @@ import (
 	"context"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -179,20 +182,12 @@ var (
 		"method",
 	})
 
-	lvcErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	cacheErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: MetricsNamespace,
-		Name:      "lvc_errors_total",
-		Help:      "Count of lvc errors.",
+		Name:      "cache_errors_total",
+		Help:      "Number of cache errors.",
 	}, []string{
-		"key",
-	})
-
-	lvcPollTimeGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: MetricsNamespace,
-		Name:      "lvc_poll_time_gauge",
-		Help:      "Gauge of lvc poll time.",
-	}, []string{
-		"key",
+		"method",
 	})
 
 	batchRPCShortCircuitsTotal = promauto.NewCounter(prometheus.CounterOpts{
@@ -241,6 +236,102 @@ var (
 		Namespace: MetricsNamespace,
 		Name:      "rate_limit_take_errors",
 		Help:      "Count of errors taking frontend rate limits",
+	})
+
+	consensusLatestBlock = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_latest_block",
+		Help:      "Consensus latest block",
+	}, []string{
+		"backend_group_name",
+	})
+
+	backendLatestBlockBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_latest_block",
+		Help:      "Current latest block observed per backend",
+	}, []string{
+		"backend_name",
+	})
+
+	consensusGroupCount = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_count",
+		Help:      "Consensus group serving traffic count",
+	}, []string{
+		"backend_group_name",
+	})
+
+	consensusGroupFilteredCount = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_filtered_count",
+		Help:      "Consensus group filtered out from serving traffic count",
+	}, []string{
+		"backend_group_name",
+	})
+
+	consensusGroupTotalCount = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "group_consensus_total_count",
+		Help:      "Total count of candidates to be part of consensus group",
+	}, []string{
+		"backend_group_name",
+	})
+
+	consensusBannedBackends = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "consensus_backend_banned",
+		Help:      "Bool gauge for banned backends",
+	}, []string{
+		"backend_name",
+	})
+
+	consensusPeerCountBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "consensus_backend_peer_count",
+		Help:      "Peer count",
+	}, []string{
+		"backend_name",
+	})
+
+	consensusInSyncBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "consensus_backend_in_sync",
+		Help:      "Bool gauge for backends in sync",
+	}, []string{
+		"backend_name",
+	})
+
+	consensusUpdateDelayBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "consensus_backend_update_delay",
+		Help:      "Delay (ms) for backend update",
+	}, []string{
+		"backend_name",
+	})
+
+	avgLatencyBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_avg_latency",
+		Help:      "Average latency per backend",
+	}, []string{
+		"backend_name",
+	})
+
+	networkErrorCountBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_net_error_count",
+		Help:      "Network error count per backend",
+	}, []string{
+		"backend_name",
+	})
+
+	requestCountBackend = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: MetricsNamespace,
+		Name:      "backend_request_count",
+		Help:      "Request count per backend",
+	}, []string{
+		"backend_name",
 	})
 )
 
@@ -299,6 +390,66 @@ func RecordCacheMiss(method string) {
 	cacheMissesTotal.WithLabelValues(method).Inc()
 }
 
+func RecordCacheError(method string) {
+	cacheErrorsTotal.WithLabelValues(method).Inc()
+}
+
 func RecordBatchSize(size int) {
 	batchSizeHistogram.Observe(float64(size))
+}
+
+func RecordGroupConsensusLatestBlock(group *BackendGroup, blockNumber hexutil.Uint64) {
+	consensusLatestBlock.WithLabelValues(group.Name).Set(float64(blockNumber))
+}
+
+func RecordGroupConsensusCount(group *BackendGroup, count int) {
+	consensusGroupCount.WithLabelValues(group.Name).Set(float64(count))
+}
+
+func RecordGroupConsensusFilteredCount(group *BackendGroup, count int) {
+	consensusGroupFilteredCount.WithLabelValues(group.Name).Set(float64(count))
+}
+
+func RecordGroupTotalCount(group *BackendGroup, count int) {
+	consensusGroupTotalCount.WithLabelValues(group.Name).Set(float64(count))
+}
+
+func RecordBackendLatestBlock(b *Backend, blockNumber hexutil.Uint64) {
+	backendLatestBlockBackend.WithLabelValues(b.Name).Set(float64(blockNumber))
+}
+
+func RecordConsensusBackendBanned(b *Backend, banned bool) {
+	v := float64(0)
+	if banned {
+		v = float64(1)
+	}
+	consensusBannedBackends.WithLabelValues(b.Name).Set(v)
+}
+
+func RecordConsensusBackendPeerCount(b *Backend, peerCount uint64) {
+	consensusPeerCountBackend.WithLabelValues(b.Name).Set(float64(peerCount))
+}
+
+func RecordConsensusBackendInSync(b *Backend, inSync bool) {
+	v := float64(0)
+	if inSync {
+		v = float64(1)
+	}
+	consensusInSyncBackend.WithLabelValues(b.Name).Set(v)
+}
+
+func RecordConsensusBackendUpdateDelay(b *Backend, delay time.Duration) {
+	consensusUpdateDelayBackend.WithLabelValues(b.Name).Set(float64(delay.Milliseconds()))
+}
+
+func RecordBackendNetworkLatencyAverageSlidingWindow(b *Backend, avgLatency time.Duration) {
+	avgLatencyBackend.WithLabelValues(b.Name).Set(float64(avgLatency.Milliseconds()))
+}
+
+func RecordBackendNetworkRequestCountSlidingWindow(b *Backend, count uint) {
+	requestCountBackend.WithLabelValues(b.Name).Set(float64(count))
+}
+
+func RecordBackendNetworkErrorCountSlidingWindow(b *Backend, count uint) {
+	networkErrorCountBackend.WithLabelValues(b.Name).Set(float64(count))
 }
