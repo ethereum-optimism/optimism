@@ -24,7 +24,7 @@ type ChannelInReader struct {
 	metrics Metrics
 }
 
-var _ ResetableStage = (*ChannelInReader)(nil)
+var _ ResettableStage = (*ChannelInReader)(nil)
 
 // NewChannelInReader creates a ChannelInReader, which should be Reset(origin) before use.
 func NewChannelInReader(log log.Logger, prev *ChannelBank, metrics Metrics) *ChannelInReader {
