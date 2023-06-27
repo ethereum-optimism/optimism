@@ -26,3 +26,8 @@ bytecode_hash = "none"
 libs = ["node_modules", "lib"]
 # Required to use `deployCode` to deploy the multicall contract which has incompatible version
 fs_permissions = [{ access = "read", path = "./forge-artifacts/Multicall3.sol/Multicall3.json"}]
+
+[fmt]
+max_line_length = 100
+wrap_comments = true
+bracket_spacing = true
