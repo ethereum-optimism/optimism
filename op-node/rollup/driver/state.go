@@ -47,6 +47,9 @@ type Driver struct {
 	// It tells the caller that the sequencer stopped by returning the latest sequenced L2 block hash.
 	stopSequencer chan chan hashAndError
 
+	// sequencerNotifs is notified when the sequencer is started or stopped
+	sequencerNotifs SequencerStateListener
+
 	// Rollup config: rollup chain configuration
 	config *rollup.Config
 
@@ -87,6 +90,21 @@ type Driver struct {
 // The loop will have been started iff err is not nil.
 func (s *Driver) Start() error {
 	s.derivation.Reset()
+
+	log.Info("Starting driver", "sequencerEnabled", s.driverConfig.SequencerEnabled, "sequencerStopped", s.driverConfig.SequencerStopped)
+	if s.driverConfig.SequencerEnabled {
+		// Notify the initial sequencer state
+		// This ensures persistence can write the state correctly and that the state file exists
+		var err error
+		if s.driverConfig.SequencerStopped {
+			err = s.sequencerNotifs.SequencerStopped()
+		} else {
+			err = s.sequencerNotifs.SequencerStarted()
+		}
+		if err != nil {
+			return fmt.Errorf("persist initial sequencer state: %w", err)
+		}
+	}
 
 	s.wg.Add(1)
 	go s.eventLoop()
@@ -334,6 +352,10 @@ func (s *Driver) eventLoop() {
 			} else if !bytes.Equal(unsafeHead[:], resp.hash[:]) {
 				resp.err <- fmt.Errorf("block hash does not match: head %s, received %s", unsafeHead.String(), resp.hash.String())
 			} else {
+				if err := s.sequencerNotifs.SequencerStarted(); err != nil {
+					resp.err <- fmt.Errorf("sequencer start notification: %w", err)
+					continue
+				}
 				s.log.Info("Sequencer has been started")
 				s.driverConfig.SequencerStopped = false
 				close(resp.err)
@@ -343,6 +365,10 @@ func (s *Driver) eventLoop() {
 			if s.driverConfig.SequencerStopped {
 				respCh <- hashAndError{err: errors.New("sequencer not running")}
 			} else {
+				if err := s.sequencerNotifs.SequencerStopped(); err != nil {
+					respCh <- hashAndError{err: fmt.Errorf("sequencer start notification: %w", err)}
+					continue
+				}
 				s.log.Warn("Sequencer has been stopped")
 				s.driverConfig.SequencerStopped = true
 				respCh <- hashAndError{hash: s.derivation.UnsafeL2Head().Hash}

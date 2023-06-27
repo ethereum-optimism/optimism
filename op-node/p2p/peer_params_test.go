@@ -81,6 +81,19 @@ func (testSuite *PeerParamsTestSuite) TestGetPeerScoreParams_Light() {
 	testSuite.Equal(peerParams.DecayInterval, slot)
 	testSuite.Equal(peerParams.DecayToZero, DecayToZero)
 	testSuite.Equal(peerParams.RetainScore, oneHundredEpochs)
+
+	appParams := scoringParams.ApplicationScoring
+	testSuite.Positive(appParams.ValidResponseCap)
+	testSuite.Positive(appParams.ValidResponseWeight)
+	testSuite.Positive(appParams.ValidResponseDecay)
+	testSuite.Positive(appParams.ErrorResponseCap)
+	testSuite.Negative(appParams.ErrorResponseWeight)
+	testSuite.Positive(appParams.ErrorResponseDecay)
+	testSuite.Positive(appParams.RejectedPayloadCap)
+	testSuite.Negative(appParams.RejectedPayloadWeight)
+	testSuite.Positive(appParams.RejectedPayloadDecay)
+	testSuite.Equal(DecayToZero, appParams.DecayToZero)
+	testSuite.Equal(slot, appParams.DecayInterval)
 }
 
 // TestParamsZeroBlockTime validates peer score params use default slot for 0 block time.
@@ -91,4 +104,5 @@ func (testSuite *PeerParamsTestSuite) TestParamsZeroBlockTime() {
 	params, err := GetScoringParams("light", &cfg)
 	testSuite.NoError(err)
 	testSuite.Equal(params.PeerScoring.DecayInterval, slot)
+	testSuite.Equal(params.ApplicationScoring.DecayInterval, slot)
 }

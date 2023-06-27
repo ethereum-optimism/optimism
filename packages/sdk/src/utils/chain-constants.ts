@@ -1,21 +1,51 @@
-import {
-  predeploys,
-  getDeployedContractDefinition,
-} from '@eth-optimism/contracts'
-import { predeploys as bedrockPredeploys } from '@eth-optimism/contracts-bedrock'
+import { predeploys } from '@eth-optimism/core-utils'
+import { ethers } from 'ethers'
 import portalArtifactsMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/OptimismPortalProxy.json'
 import portalArtifactsGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/OptimismPortalProxy.json'
 import l2OutputOracleArtifactsMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/L2OutputOracleProxy.json'
 import l2OutputOracleArtifactsGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/L2OutputOracleProxy.json'
+import addressManagerArtifactMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/AddressManager.json'
+import addressManagerArtifactGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/AddressManager.json'
+import l1StandardBridgeArtifactMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/L1StandardBridgeProxy.json'
+import l1StandardBridgeArtifactGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/L1StandardBridgeProxy.json'
+import l1CrossDomainMessengerArtifactMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/L1CrossDomainMessengerProxy.json'
+import l1CrossDomainMessengerArtifactGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/L1CrossDomainMessengerProxy.json'
 
 const portalAddresses = {
-  mainnet: portalArtifactsMainnet,
-  goerli: portalArtifactsGoerli,
+  mainnet: portalArtifactsMainnet.address,
+  goerli: portalArtifactsGoerli.address,
 }
 
 const l2OutputOracleAddresses = {
-  mainnet: l2OutputOracleArtifactsMainnet,
-  goerli: l2OutputOracleArtifactsGoerli,
+  mainnet: l2OutputOracleArtifactsMainnet.address,
+  goerli: l2OutputOracleArtifactsGoerli.address,
+}
+
+const addressManagerAddresses = {
+  mainnet: addressManagerArtifactMainnet.address,
+  goerli: addressManagerArtifactGoerli.address,
+}
+
+const l1StandardBridgeAddresses = {
+  mainnet: l1StandardBridgeArtifactMainnet.address,
+  goerli: l1StandardBridgeArtifactGoerli.address,
+}
+
+const l1CrossDomainMessengerAddresses = {
+  mainnet: l1CrossDomainMessengerArtifactMainnet.address,
+  goerli: l1CrossDomainMessengerArtifactGoerli.address,
+}
+
+// legacy
+const stateCommitmentChainAddresses = {
+  mainnet: '0xBe5dAb4A2e9cd0F27300dB4aB94BeE3A233AEB19',
+  goerli: '0x9c945aC97Baf48cB784AbBB61399beB71aF7A378',
+}
+
+// legacy
+const canonicalTransactionChainAddresses = {
+  mainnet: '0x5E4e65926BA27467555EB562121fac00D24E9dD2',
+  goerli: '0x607F755149cFEB3a14E1Dc3A4E2450Cde7dfb04D',
 }
 
 import {
@@ -57,20 +87,19 @@ export const CHAIN_BLOCK_TIMES: {
 
 /**
  * Full list of default L2 contract addresses.
- * TODO(tynes): migrate to predeploys from contracts-bedrock
  */
 export const DEFAULT_L2_CONTRACT_ADDRESSES: OEL2ContractsLike = {
   L2CrossDomainMessenger: predeploys.L2CrossDomainMessenger,
-  L2ToL1MessagePasser: predeploys.OVM_L2ToL1MessagePasser,
+  L2ToL1MessagePasser: predeploys.L2ToL1MessagePasser,
   L2StandardBridge: predeploys.L2StandardBridge,
-  OVM_L1BlockNumber: predeploys.OVM_L1BlockNumber,
-  OVM_L2ToL1MessagePasser: predeploys.OVM_L2ToL1MessagePasser,
-  OVM_DeployerWhitelist: predeploys.OVM_DeployerWhitelist,
-  OVM_ETH: predeploys.OVM_ETH,
-  OVM_GasPriceOracle: predeploys.OVM_GasPriceOracle,
-  OVM_SequencerFeeVault: predeploys.OVM_SequencerFeeVault,
+  OVM_L1BlockNumber: predeploys.L1BlockNumber,
+  OVM_L2ToL1MessagePasser: predeploys.L2ToL1MessagePasser,
+  OVM_DeployerWhitelist: predeploys.DeployerWhitelist,
+  OVM_ETH: predeploys.LegacyERC20ETH,
+  OVM_GasPriceOracle: predeploys.GasPriceOracle,
+  OVM_SequencerFeeVault: predeploys.SequencerFeeVault,
   WETH: predeploys.WETH9,
-  BedrockMessagePasser: bedrockPredeploys.L2ToL1MessagePasser,
+  BedrockMessagePasser: predeploys.L2ToL1MessagePasser,
 }
 
 /**
@@ -80,22 +109,15 @@ export const DEFAULT_L2_CONTRACT_ADDRESSES: OEL2ContractsLike = {
  * @returns The L1 contracts for the given network.
  */
 const getL1ContractsByNetworkName = (network: string): OEL1ContractsLike => {
-  // TODO this doesn't code split and makes the sdk artifacts way too big
-  const getDeployedAddress = (name: string) => {
-    return getDeployedContractDefinition(name, network).address
-  }
-
   return {
-    AddressManager: getDeployedAddress('Lib_AddressManager'),
-    L1CrossDomainMessenger: getDeployedAddress(
-      'Proxy__OVM_L1CrossDomainMessenger'
-    ),
-    L1StandardBridge: getDeployedAddress('Proxy__OVM_L1StandardBridge'),
-    StateCommitmentChain: getDeployedAddress('StateCommitmentChain'),
-    CanonicalTransactionChain: getDeployedAddress('CanonicalTransactionChain'),
-    BondManager: getDeployedAddress('BondManager'),
-    OptimismPortal: portalAddresses[network].address,
-    L2OutputOracle: l2OutputOracleAddresses[network].address,
+    AddressManager: addressManagerAddresses[network],
+    L1CrossDomainMessenger: l1CrossDomainMessengerAddresses[network],
+    L1StandardBridge: l1StandardBridgeAddresses[network],
+    StateCommitmentChain: stateCommitmentChainAddresses[network],
+    CanonicalTransactionChain: canonicalTransactionChainAddresses[network],
+    BondManager: ethers.constants.AddressZero,
+    OptimismPortal: portalAddresses[network],
+    L2OutputOracle: l2OutputOracleAddresses[network],
   }
 }
 

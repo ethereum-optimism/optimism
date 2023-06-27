@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"math"
 	"os"
 	"os/exec"
 
@@ -22,12 +21,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/host/prefetcher"
 	oppio "github.com/ethereum-optimism/optimism/op-program/io"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
-
-const maxRPCRetries = math.MaxInt
 
 type L2Source struct {
 	*sources.L2Client
@@ -192,39 +188,29 @@ func PreimageServer(ctx context.Context, logger log.Logger, cfg *config.Config, 
 
 func makePrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *config.Config) (*prefetcher.Prefetcher, error) {
 	logger.Info("Connecting to L1 node", "l1", cfg.L1URL)
-	l1RPC, err := createRetryingRPC(ctx, logger, cfg.L1URL)
+	l1RPC, err := client.NewRPC(ctx, logger, cfg.L1URL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup L1 RPC: %w", err)
 	}
 
 	logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
-	l2RPC, err := createRetryingRPC(ctx, logger, cfg.L2URL)
+	l2RPC, err := client.NewRPC(ctx, logger, cfg.L2URL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup L2 RPC: %w", err)
 	}
 
 	l1ClCfg := sources.L1ClientDefaultConfig(cfg.Rollup, cfg.L1TrustRPC, cfg.L1RPCKind)
+	l2ClCfg := sources.L2ClientDefaultConfig(cfg.Rollup, true)
 	l1Cl, err := sources.NewL1Client(l1RPC, logger, nil, l1ClCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L1 client: %w", err)
 	}
-
-	l2ClCfg := sources.L2ClientDefaultConfig(cfg.Rollup, true)
 	l2Cl, err := sources.NewL2Client(l2RPC, logger, nil, l2ClCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L2 client: %w", err)
 	}
-
 	l2DebugCl := &L2Source{L2Client: l2Cl, DebugClient: sources.NewDebugClient(l2RPC.CallContext)}
 	return prefetcher.NewPrefetcher(logger, l1Cl, l2DebugCl, kv), nil
-}
-
-func createRetryingRPC(ctx context.Context, logger log.Logger, url string) (client.RPC, error) {
-	rpc, err := client.NewRPC(ctx, logger, url)
-	if err != nil {
-		return nil, err
-	}
-	return opclient.NewRetryingClient(logger, rpc, maxRPCRetries), nil
 }
 
 func routeHints(logger log.Logger, hHostRW io.ReadWriter, hinter preimage.HintHandler) chan error {

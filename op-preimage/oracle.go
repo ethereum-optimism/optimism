@@ -2,6 +2,7 @@ package preimage
 
 import (
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"io"
 )
@@ -57,7 +58,7 @@ func (o *OracleServer) NextPreimageRequest(getPreimage PreimageGetter) error {
 	}
 	value, err := getPreimage(key)
 	if err != nil {
-		return fmt.Errorf("failed to serve pre-image %s request: %w", key, err)
+		return fmt.Errorf("failed to serve pre-image %s request: %w", hex.EncodeToString(key[:]), err)
 	}
 
 	if err := binary.Write(o.rw, binary.BigEndian, uint64(len(value))); err != nil {

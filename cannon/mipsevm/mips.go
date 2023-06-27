@@ -56,15 +56,6 @@ func (m *InstrumentedState) handleSyscall() error {
 			v0 = a0
 			//fmt.Printf("mmap hint 0x%x size 0x%x\n", v0, sz)
 		}
-		// Go does this thing where it first gets memory with PROT_NONE,
-		// and then mmaps with a hint with prot=3 (PROT_READ|WRITE).
-		// We can ignore the NONE case, to avoid duplicate/overlapping mmap calls to unicorn.
-		//prot := a2
-		//if prot != 0 {
-		//	if err := mu.MemMap(uint64(v0), uint64(sz)); err != nil {
-		//		log.Fatalf("mmap fail: %v", err)
-		//	}
-		//}
 	case 4045: // brk
 		v0 = 0x40000000
 	case 4120: // clone (not supported)

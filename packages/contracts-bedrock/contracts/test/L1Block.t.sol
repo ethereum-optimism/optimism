@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing utilities
 import { CommonTest } from "./CommonTest.t.sol";
+
+// Target contract
 import { L1Block } from "../L2/L1Block.sol";
 
 contract L1BlockTest is CommonTest {
@@ -9,6 +12,7 @@ contract L1BlockTest is CommonTest {
     address depositor;
     bytes32 immutable NON_ZERO_HASH = keccak256(abi.encode(1));
 
+    /// @dev Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
         lb = new L1Block();
@@ -26,6 +30,7 @@ contract L1BlockTest is CommonTest {
         });
     }
 
+    /// @dev Tests that `setL1BlockValues` updates the values correctly.
     function testFuzz_updatesValues_succeeds(
         uint64 n,
         uint64 t,
@@ -48,26 +53,32 @@ contract L1BlockTest is CommonTest {
         assertEq(lb.l1FeeScalar(), fs);
     }
 
+    /// @dev Tests that `number` returns the correct value.
     function test_number_succeeds() external {
         assertEq(lb.number(), uint64(1));
     }
 
+    /// @dev Tests that `timestamp` returns the correct value.
     function test_timestamp_succeeds() external {
         assertEq(lb.timestamp(), uint64(2));
     }
 
+    /// @dev Tests that `basefee` returns the correct value.
     function test_basefee_succeeds() external {
         assertEq(lb.basefee(), 3);
     }
 
+    /// @dev Tests that `hash` returns the correct value.
     function test_hash_succeeds() external {
         assertEq(lb.hash(), NON_ZERO_HASH);
     }
 
+    /// @dev Tests that `sequenceNumber` returns the correct value.
     function test_sequenceNumber_succeeds() external {
         assertEq(lb.sequenceNumber(), uint64(4));
     }
 
+    /// @dev Tests that `setL1BlockValues` can set max values.
     function test_updateValues_succeeds() external {
         vm.prank(depositor);
         lb.setL1BlockValues({
