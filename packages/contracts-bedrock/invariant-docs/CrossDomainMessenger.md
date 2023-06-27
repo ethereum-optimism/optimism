@@ -1,7 +1,7 @@
 # `CrossDomainMessenger` Invariants
 
 ## A call to `relayMessage` should succeed if at least the minimum gas limit can be supplied to the target context, there is enough gas to complete execution of `relayMessage` after the target context's execution is finished, and the target context did not revert.
-**Test:** [`CrossDomainMessenger.t.sol#L161`](../contracts/test/invariants/CrossDomainMessenger.t.sol#L161)
+**Test:** [`CrossDomainMessenger.t.sol#L138`](../contracts/test/invariants/CrossDomainMessenger.t.sol#L138)
 
 There are two minimum gas limits here: 
 - The outer min gas limit is for the call from the `OptimismPortal` to the `L1CrossDomainMessenger`,  and it can be retrieved by calling the xdm's `baseGas` function with the `message` and inner limit. 
@@ -9,7 +9,7 @@ There are two minimum gas limits here:
 
 
 ## A call to `relayMessage` should assign the message hash to the `failedMessages` mapping if not enough gas is supplied to forward `minGasLimit` to the target context or if there is not enough gas to complete execution of `relayMessage` after the target context's execution is finished.
-**Test:** [`CrossDomainMessenger.t.sol#L196`](../contracts/test/invariants/CrossDomainMessenger.t.sol#L196)
+**Test:** [`CrossDomainMessenger.t.sol#L173`](../contracts/test/invariants/CrossDomainMessenger.t.sol#L173)
 
 There are two minimum gas limits here: 
 - The outer min gas limit is for the call from the `OptimismPortal` to the `L1CrossDomainMessenger`,  and it can be retrieved by calling the xdm's `baseGas` function with the `message` and inner limit. 
