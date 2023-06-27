@@ -23,7 +23,7 @@ module.exports = {
     hostname: 'https://stack.optimism.io',
     logo: '/assets/logos/logo.png',
     docsDir: 'src',
-    docsRepo: 'https://github.com/ethereum-optimism/optimism/blob/develop/docs/op-stack/src/.vuepress/config.js',
+    docsRepo: 'https://github.com/ethereum-optimism/optimism/blob/develop/docs/op-stack/src/docs/build/getting-started.md',
     docsBranch: 'main',
     lastUpdated: false,
     darkmode: 'disable',
