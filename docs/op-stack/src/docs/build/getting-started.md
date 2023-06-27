@@ -45,7 +45,7 @@ This tutorial was checked on:
 | Go       | 1.20       | `sudo apt update` <br> `wget https://go.dev/dl/go1.20.linux-amd64.tar.gz` <br> `tar xvzf go1.20.linux-amd64.tar.gz` <br> `sudo cp go/bin/go /usr/bin/go` <br> `sudo mv go /usr/lib` <br> `echo export GOROOT=/usr/lib/go >> ~/.bashrc`
 | Node     | 16.19.0    | `curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -` <br> `sudo apt-get install -y nodejs npm`
 | yarn     | 1.22.19    | `sudo npm install -g yarn`
-| Foundry  | 0.2.0      | `curl -L https://foundry.paradigm.xyz | bash` <br> `. ~/.bashrc` <br> `foundryup`
+| Foundry  | 0.2.0      | `yarn install:foundry`
 
 ## Build the Source Code
 

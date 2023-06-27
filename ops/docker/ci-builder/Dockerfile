@@ -11,12 +11,14 @@ RUN apt-get update && \
     chmod +x ./rustup.sh && \
     ./rustup.sh -y
 
+# move the foundryrc file to the foundry dir
 WORKDIR /opt/foundry
+COPY ../../.foundryrc ./.foundryrc
 
 # Only diff from upstream docker image is this clone instead
 # of COPY. We select a specific commit to use.
 RUN git clone https://github.com/foundry-rs/foundry.git . \
-  && git checkout 3b1129b5bc43ba22a9bcf4e4323c5a9df0023140
+  && git checkout $(cat .foundryrc)
 
 RUN source $HOME/.profile && \
     cargo build --release && \

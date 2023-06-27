@@ -84,8 +84,11 @@ contract DeployConfig is Script {
         eip1559Denominator = stdJson.readUint(_json, "$.eip1559Denominator");
         eip1559Elasticity = stdJson.readUint(_json, "$.eip1559Elasticity");
         l2GenesisRegolithTimeOffset = stdJson.readUint(_json, "$.l2GenesisRegolithTimeOffset");
-        faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
-        faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
+
+        if (block.chainid == 900) {
+            faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
+            faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
+        }
     }
 
     function l1StartingBlockTag() public returns (bytes32) {
