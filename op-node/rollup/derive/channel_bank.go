@@ -74,7 +74,7 @@ func (cb *ChannelBank) prune() {
 	}
 }
 
-// IngestData adds new L1 data to the channel bank.
+// IngestFrame adds new L1 data to the channel bank.
 // Read() should be called repeatedly first, until everything has been read, before adding new data.
 func (cb *ChannelBank) IngestFrame(f Frame) {
 	origin := cb.Origin()

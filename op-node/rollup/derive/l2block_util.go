@@ -23,7 +23,7 @@ type L2BlockRefSource interface {
 	Transactions() types.Transactions
 }
 
-// PayloadToBlockRef extracts the essential L2BlockRef information from an L2
+// L2BlockToBlockRef extracts the essential L2BlockRef information from an L2
 // block ref source, falling back to genesis information if necessary.
 func L2BlockToBlockRef(block L2BlockRefSource, genesis *rollup.Genesis) (eth.L2BlockRef, error) {
 	hash, number := block.Hash(), block.NumberU64()
