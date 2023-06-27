@@ -61,6 +61,9 @@ func CanonicalizeASTIDs(in *solc.StorageLayout) *solc.StorageLayout {
 			continue
 		}
 
+		// The storage types include the size when its a fixed size.
+		// This is subject to breaking in the future if a type with
+		// an ast id is added in a fixed storage type
 		if strings.Contains(oldType, "storage") {
 			continue
 		}
@@ -106,8 +109,8 @@ func CanonicalizeASTIDs(in *solc.StorageLayout) *solc.StorageLayout {
 }
 
 func replaceType(typeRemappings map[string]string, in string) string {
-	if typeRemappings[in] != "" {
-		return typeRemappings[in]
+	if remap := typeRemappings[in]; remap != "" {
+		return remap
 	}
 
 	// Track the number of matches
@@ -118,20 +121,8 @@ func replaceType(typeRemappings map[string]string, in string) string {
 		}
 	}
 
-	// Sometimes types are nested, so handle the recursive case iteratively
-	if len(matches) > 1 {
-		for _, match := range matches {
-			in = strings.Replace(in, match.oldType, match.newType, 1)
-		}
-		return in
-	}
-
-	// Its safe to return on the first match here as the case with multiple
-	// is handled above
-	for oldType, newType := range typeRemappings {
-		if strings.Contains(in, oldType) {
-			return strings.Replace(in, oldType, newType, 1)
-		}
+	for _, match := range matches {
+		in = strings.Replace(in, match.oldType, match.newType, 1)
 	}
 
 	return in
