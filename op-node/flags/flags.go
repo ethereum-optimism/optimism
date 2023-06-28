@@ -221,6 +221,13 @@ var (
 		Required: false,
 		Value:    false,
 	}
+	SkipSanityCheck = &cli.BoolFlag{
+		Name:     "skip-sanity-check",
+		Usage:    "Skip chain sanity check on pipeline reset",
+		EnvVars:  prefixEnvVars("SKIP_SANITY_CHECK"),
+		Required: false,
+		Value:    false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -260,6 +267,7 @@ var optionalFlags = []cli.Flag{
 	BackupL2UnsafeSyncRPC,
 	BackupL2UnsafeSyncRPCTrustRPC,
 	L2EngineP2PEnabled,
+	SkipSanityCheck,
 }
 
 // Flags contains the list of configuration options available to the binary.
