@@ -26,6 +26,10 @@ func (p *Position) IndexAtDepth() int {
 	return p.indexAtDepth
 }
 
+func (p *Position) IsRootPosition() bool {
+	return p.depth == 0 && p.indexAtDepth == 0
+}
+
 // TraceIndex calculates the what the index of the claim value would be inside the trace.
 // It is equivalent to going right until the final depth has been reached.
 func (p *Position) TraceIndex(maxDepth int) uint64 {

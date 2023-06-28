@@ -45,6 +45,8 @@ contract DeployConfig is Script {
     uint256 public eip1559Denominator;
     uint256 public eip1559Elasticity;
     uint256 public l2GenesisRegolithTimeOffset;
+    uint256 public faultGameAbsolutePrestate;
+    uint256 public faultGameMaxDepth;
 
     constructor(string memory _path) {
         console.log("DeployConfig: reading file %s", _path);
@@ -82,6 +84,11 @@ contract DeployConfig is Script {
         eip1559Denominator = stdJson.readUint(_json, "$.eip1559Denominator");
         eip1559Elasticity = stdJson.readUint(_json, "$.eip1559Elasticity");
         l2GenesisRegolithTimeOffset = stdJson.readUint(_json, "$.l2GenesisRegolithTimeOffset");
+
+        if (block.chainid == 900) {
+            faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
+            faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
+        }
     }
 
     function l1StartingBlockTag() public returns (bytes32) {

@@ -474,17 +474,6 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
             hex""
         );
 
-        // the L1 bridge should call L1CrossDomainMessenger.sendMessage
-        vm.expectCall(
-            address(L1Messenger),
-            abi.encodeWithSelector(
-                CrossDomainMessenger.sendMessage.selector,
-                address(L2Bridge),
-                message,
-                10000
-            )
-        );
-
         bytes memory innerMessage = abi.encodeWithSelector(
             CrossDomainMessenger.relayMessage.selector,
             nonce,
@@ -496,18 +485,6 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
         );
 
         uint64 baseGas = L1Messenger.baseGas(message, 10000);
-        vm.expectCall(
-            address(op),
-            abi.encodeWithSelector(
-                OptimismPortal.depositTransaction.selector,
-                address(L2Messenger),
-                0,
-                baseGas,
-                false,
-                innerMessage
-            )
-        );
-
         bytes memory opaqueData = abi.encodePacked(
             uint256(0),
             uint256(0),
@@ -515,6 +492,11 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
             false,
             innerMessage
         );
+
+        deal(address(L1Token), alice, 100000, true);
+
+        vm.prank(alice);
+        L1Token.approve(address(L1Bridge), type(uint256).max);
 
         // Should emit both the bedrock and legacy events
         vm.expectEmit(true, true, true, true, address(L1Bridge));
@@ -535,11 +517,28 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
         vm.expectEmit(true, true, true, true, address(L1Messenger));
         emit SentMessageExtension1(address(L1Bridge), 0);
 
-        deal(address(L1Token), alice, 100000, true);
-
-        vm.prank(alice);
-        L1Token.approve(address(L1Bridge), type(uint256).max);
-
+        // the L1 bridge should call L1CrossDomainMessenger.sendMessage
+        vm.expectCall(
+            address(L1Messenger),
+            abi.encodeWithSelector(
+                CrossDomainMessenger.sendMessage.selector,
+                address(L2Bridge),
+                message,
+                10000
+            )
+        );
+        // The L1 XDM should call OptimismPortal.depositTransaction
+        vm.expectCall(
+            address(op),
+            abi.encodeWithSelector(
+                OptimismPortal.depositTransaction.selector,
+                address(L2Messenger),
+                0,
+                baseGas,
+                false,
+                innerMessage
+            )
+        );
         vm.expectCall(
             address(L1Token),
             abi.encodeWithSelector(ERC20.transferFrom.selector, alice, address(L1Bridge), 1000)
