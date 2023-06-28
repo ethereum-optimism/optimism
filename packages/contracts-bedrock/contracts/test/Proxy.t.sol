@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { Proxy } from "../universal/Proxy.sol";
-import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
+import { Bytes32AddressLib } from "solmate/src/utils/Bytes32AddressLib.sol";
 
 contract SimpleStorage {
     mapping(uint256 => uint256) internal store;

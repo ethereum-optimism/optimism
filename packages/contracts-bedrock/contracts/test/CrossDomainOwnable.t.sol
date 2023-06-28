@@ -6,7 +6,7 @@ import { Vm, VmSafe } from "forge-std/Vm.sol";
 import { CommonTest, Portal_Initializer } from "./CommonTest.t.sol";
 
 // Libraries
-import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
+import { Bytes32AddressLib } from "solmate/src/utils/Bytes32AddressLib.sol";
 
 // Target contract dependencies
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";

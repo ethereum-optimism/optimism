@@ -4,7 +4,7 @@ ignores: [
   "@openzeppelin/contracts-upgradeable",
   "@ethersproject/providers",
   "@ethersproject/abi",
-  "@rari-capital/solmate",
+  "solmate",
   "@types/node",
   "hardhat-deploy",
   "ts-node",

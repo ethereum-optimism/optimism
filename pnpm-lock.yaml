@@ -258,15 +258,15 @@ importers:
       '@openzeppelin/contracts-upgradeable':
         specifier: 4.7.3
         version: 4.7.3
-      '@rari-capital/solmate':
-        specifier: github:transmissions11/solmate#8f9b23f8838670afda0fd8983f2c41e8037ae6bc
-        version: github.com/transmissions11/solmate/8f9b23f8838670afda0fd8983f2c41e8037ae6bc
       clones-with-immutable-args:
         specifier: github:Saw-mon-and-Natalie/clones-with-immutable-args#105efee1b9127ed7f6fedf139e1fc796ce8791f2
         version: github.com/Saw-mon-and-Natalie/clones-with-immutable-args/105efee1b9127ed7f6fedf139e1fc796ce8791f2
       ethers:
         specifier: ^5.7.0
         version: 5.7.1
+      solmate:
+        specifier: ^6.1.0
+        version: 6.1.0
     devDependencies:
       '@typescript-eslint/eslint-plugin':
         specifier: ^5.60.1
@@ -304,6 +304,9 @@ importers:
       forge-std:
         specifier: github:foundry-rs/forge-std#e8a047e3f40f13fa37af6fe14e6e06283d9a060e
         version: github.com/foundry-rs/forge-std/e8a047e3f40f13fa37af6fe14e6e06283d9a060e
+      solmate:
+        specifier: ^6.1.0
+        version: 6.1.0
     devDependencies:
       '@eth-optimism/contracts-bedrock':
         specifier: 0.15.0
@@ -332,9 +335,6 @@ importers:
       '@openzeppelin/contracts-upgradeable':
         specifier: 4.7.3
         version: 4.7.3
-      '@rari-capital/solmate':
-        specifier: 7.0.0-alpha.3
-        version: 7.0.0-alpha.3
       '@typechain/ethers-v5':
         specifier: ^10.1.0
         version: 10.1.0(@ethersproject/abi@5.7.0)(@ethersproject/bytes@5.7.0)(@ethersproject/providers@5.7.2)(ethers@5.7.1)(typechain@8.1.0)(typescript@4.9.5)
@@ -3043,11 +3043,6 @@ packages:
     requiresBuild: true
     dev: true
     optional: true
-
-  /@rari-capital/solmate@7.0.0-alpha.3:
-    resolution: {integrity: sha512-cW0PouqpoiEDhhkOxkqQKcjG4oMJ1Qb+kY6aiwBlgOjpfnhmXK7lkU5ZkHKC22ypQj6lvSc6CaHmXXaPywPsYg==}
-    deprecated: Package no longer supported. Contact Support at https://www.npmjs.com/support for more info.
-    dev: true
 
   /@resolver-engine/core@0.3.3:
     resolution: {integrity: sha512-eB8nEbKDJJBi5p5SrvrvILn4a0h42bKtbCTri3ZxCGt6UvoQyp7HnGOfki944bUjBSHKK3RvgfViHn+kqdXtnQ==}
@@ -16561,6 +16556,10 @@ packages:
       - utf-8-validate
     dev: true
 
+  /solmate@6.1.0:
+    resolution: {integrity: sha512-gxG4YU5nnAQ+Ac23R44GS3Xo3+X0+8XCe4/P1KvVobL5ERBzQBG/xMv7NSvVo/pkHSYGufgUAPjiueYxujKJAA==}
+    dev: false
+
   /sonic-boom@1.4.1:
     resolution: {integrity: sha512-LRHh/A8tpW7ru89lrlkU4AszXt1dbwSjVWguGrmlxE7tawVmDBlI1PILMkXAxJTwqhgsEeTHzj36D5CmHgQmNg==}
     dependencies:
@@ -19657,9 +19656,3 @@ packages:
     resolution: {tarball: https://codeload.github.com/foundry-rs/forge-std/tar.gz/e8a047e3f40f13fa37af6fe14e6e06283d9a060e}
     name: forge-std
     version: 1.5.6
-
-  github.com/transmissions11/solmate/8f9b23f8838670afda0fd8983f2c41e8037ae6bc:
-    resolution: {tarball: https://codeload.github.com/transmissions11/solmate/tar.gz/8f9b23f8838670afda0fd8983f2c41e8037ae6bc}
-    name: '@rari-capital/solmate'
-    version: 7.0.0-alpha.3
-    dev: false
