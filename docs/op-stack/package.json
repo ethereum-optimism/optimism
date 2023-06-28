@@ -13,11 +13,16 @@
     "@vuepress/plugin-medium-zoom": "^1.8.2",
     "@vuepress/plugin-pwa": "^1.9.7",
     "serve": "^14.2.0",
-    "vuepress": "^1.8.2",
+    "vuepress": "^1.9.9",
     "vuepress-plugin-plausible-analytics": "^0.2.1",
     "vuepress-theme-hope": "^1.22.0"
   },
   "dependencies": {
+    "@mr-hope/vuepress-plugin-comment": "^1.30.0",
+    "@vuepress/core": "^1.9.9",
+    "bcrypt": "^5.1.0",
+    "bcryptjs": "^2.4.3",
+    "chalk": "^5.2.0",
     "check-md": "^1.0.2",
     "dayjs": "^1.11.7"
   }
