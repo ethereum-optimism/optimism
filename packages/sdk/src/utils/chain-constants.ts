@@ -275,6 +275,11 @@ export const BRIDGE_ADAPTER_DATA: {
       l1Bridge: '0x10E6593CDda8c58a1d0f14C5164B376352a55f2F' as const,
       l2Bridge: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65' as const,
     },
+    ECO: {
+      Adapter: ECOBridgeAdapter,
+      l1Bridge: '0xAa029BbdC947F5205fBa0F3C11b592420B58f824' as const,
+      l2Bridge: '0xAa029BbdC947F5205fBa0F3C11b592420B58f824' as const,
+    },
   },
   [L2ChainID.OPTIMISM_GOERLI]: {
     DAI: {
@@ -284,8 +289,8 @@ export const BRIDGE_ADAPTER_DATA: {
     },
     ECO: {
       Adapter: ECOBridgeAdapter,
-      l1Bridge: '0x7a01E277B8fDb8CDB2A2258508514716359f44A0' as const,
-      l2Bridge: '0x7a01E277B8fDb8CDB2A2258508514716359f44A0' as const,
+      l1Bridge: '0x9A4464D6bFE006715382D39D183AAf66c952a3e0' as const,
+      l2Bridge: '0x6aA809bAeA2e4C057b3994127cB165119c6fc3B2' as const,
     },
   },
 }
