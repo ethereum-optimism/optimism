@@ -1,5 +1,5 @@
 packages:
   - 'packages/*'
   - 'endpoint-monitor'
-  - 'docs'
+  - 'docs/op-stack'
   - 'op-exporter'
