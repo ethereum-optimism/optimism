@@ -16,7 +16,9 @@ type Params struct {
 var ParamsByChainID = map[int]*Params{
 	// Ethereum Mainnet L2
 	288: {
-		new(big.Int),
+		// Calculated at checkpoint block=1,000,000 - there is a
+		// small overcommittment of the OVM_ETH TotalSupply
+		new(big.Int).SetInt64(-94819327096614),
 	},
 	// Goerli L2
 	2888: {
