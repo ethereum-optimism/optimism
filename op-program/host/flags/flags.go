@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
@@ -15,81 +15,85 @@ import (
 
 const EnvVarPrefix = "OP_PROGRAM"
 
+func prefixEnvVars(name string) []string {
+	return service.PrefixEnvVar(EnvVarPrefix, name)
+}
+
 var (
-	RollupConfig = cli.StringFlag{
-		Name:   "rollup.config",
-		Usage:  "Rollup chain parameters",
-		EnvVar: service.PrefixEnvVar(EnvVarPrefix, "ROLLUP_CONFIG"),
+	RollupConfig = &cli.StringFlag{
+		Name:    "rollup.config",
+		Usage:   "Rollup chain parameters",
+		EnvVars: prefixEnvVars("ROLLUP_CONFIG"),
 	}
-	Network = cli.StringFlag{
-		Name:   "network",
-		Usage:  fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
-		EnvVar: service.PrefixEnvVar(EnvVarPrefix, "NETWORK"),
+	Network = &cli.StringFlag{
+		Name:    "network",
+		Usage:   fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
+		EnvVars: prefixEnvVars("NETWORK"),
 	}
-	DataDir = cli.StringFlag{
-		Name:   "datadir",
-		Usage:  "Directory to use for preimage data storage. Default uses in-memory storage",
-		EnvVar: service.PrefixEnvVar(EnvVarPrefix, "DATADIR"),
+	DataDir = &cli.StringFlag{
+		Name:    "datadir",
+		Usage:   "Directory to use for preimage data storage. Default uses in-memory storage",
+		EnvVars: prefixEnvVars("DATADIR"),
 	}
-	L2NodeAddr = cli.StringFlag{
-		Name:   "l2",
-		Usage:  "Address of L2 JSON-RPC endpoint to use (eth and debug namespace required)",
-		EnvVar: service.PrefixEnvVar(EnvVarPrefix, "L2_RPC"),
+	L2NodeAddr = &cli.StringFlag{
+		Name:    "l2",
+		Usage:   "Address of L2 JSON-RPC endpoint to use (eth and debug namespace required)",
+		EnvVars: prefixEnvVars("L2_RPC"),
 	}
-	L1Head = cli.StringFlag{
-		Name:   "l1.head",
-		Usage:  "Hash of the L1 head block. Derivation stops after this block is processed.",
-		EnvVar: service.PrefixEnvVar(EnvVarPrefix, "L1_HEAD"),
+	L1Head = &cli.StringFlag{
+		Name:    "l1.head",
+		Usage:   "Hash of the L1 head block. Derivation stops after this block is processed.",
+		EnvVars: prefixEnvVars("L1_HEAD"),
 	}
-	L2Head = cli.StringFlag{
-		Name:   "l2.head",
-		Usage:  "Hash of the agreed L2 block to start derivation from",
-		EnvVar: service.PrefixEnvVar(EnvVarPrefix, "L2_HEAD"),
+	L2Head = &cli.StringFlag{
+		Name:    "l2.head",
+		Usage:   "Hash of the agreed L2 block to start derivation from",
+		EnvVars: prefixEnvVars("L2_HEAD"),
 	}
-	L2Claim = cli.StringFlag{
-		Name:   "l2.claim",
-		Usage:  "Claimed L2 output root to validate",
-		EnvVar: service.PrefixEnvVar(EnvVarPrefix, "L2_CLAIM"),
+	L2Claim = &cli.StringFlag{
+		Name:    "l2.claim",
+		Usage:   "Claimed L2 output root to validate",
+		EnvVars: prefixEnvVars("L2_CLAIM"),
 	}
-	L2BlockNumber = cli.Uint64Flag{
-		Name:   "l2.blocknumber",
-		Usage:  "Number of the L2 block that the claim is from",
-		EnvVar: service.PrefixEnvVar(EnvVarPrefix, "L2_BLOCK_NUM"),
+	L2BlockNumber = &cli.Uint64Flag{
+		Name:    "l2.blocknumber",
+		Usage:   "Number of the L2 block that the claim is from",
+		EnvVars: prefixEnvVars("L2_BLOCK_NUM"),
 	}
-	L2GenesisPath = cli.StringFlag{
-		Name:   "l2.genesis",
-		Usage:  "Path to the op-geth genesis file",
-		EnvVar: service.PrefixEnvVar(EnvVarPrefix, "L2_GENESIS"),
+	L2GenesisPath = &cli.StringFlag{
+		Name:    "l2.genesis",
+		Usage:   "Path to the op-geth genesis file",
+		EnvVars: prefixEnvVars("L2_GENESIS"),
 	}
-	L1NodeAddr = cli.StringFlag{
-		Name:   "l1",
-		Usage:  "Address of L1 JSON-RPC endpoint to use (eth namespace required)",
-		EnvVar: service.PrefixEnvVar(EnvVarPrefix, "L1_RPC"),
+	L1NodeAddr = &cli.StringFlag{
+		Name:    "l1",
+		Usage:   "Address of L1 JSON-RPC endpoint to use (eth namespace required)",
+		EnvVars: prefixEnvVars("L1_RPC"),
 	}
-	L1TrustRPC = cli.BoolFlag{
-		Name:   "l1.trustrpc",
-		Usage:  "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data",
-		EnvVar: service.PrefixEnvVar(EnvVarPrefix, "L1_TRUST_RPC"),
+	L1TrustRPC = &cli.BoolFlag{
+		Name:    "l1.trustrpc",
+		Usage:   "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data",
+		EnvVars: prefixEnvVars("L1_TRUST_RPC"),
 	}
-	L1RPCProviderKind = cli.GenericFlag{
+	L1RPCProviderKind = &cli.GenericFlag{
 		Name: "l1.rpckind",
 		Usage: "The kind of RPC provider, used to inform optimal transactions receipts fetching, and thus reduce costs. Valid options: " +
 			openum.EnumString(sources.RPCProviderKinds),
-		EnvVar: service.PrefixEnvVar(EnvVarPrefix, "L1_RPC_KIND"),
+		EnvVars: prefixEnvVars("L1_RPC_KIND"),
 		Value: func() *sources.RPCProviderKind {
 			out := sources.RPCKindBasic
 			return &out
 		}(),
 	}
-	Exec = cli.StringFlag{
-		Name:   "exec",
-		Usage:  "Run the specified client program as a separate process detached from the host. Default is to run the client program in the host process.",
-		EnvVar: service.PrefixEnvVar(EnvVarPrefix, "EXEC"),
+	Exec = &cli.StringFlag{
+		Name:    "exec",
+		Usage:   "Run the specified client program as a separate process detached from the host. Default is to run the client program in the host process.",
+		EnvVars: prefixEnvVars("EXEC"),
 	}
-	Server = cli.BoolFlag{
-		Name:   "server",
-		Usage:  "Run in pre-image server mode without executing any client program.",
-		EnvVar: service.PrefixEnvVar(EnvVarPrefix, "SERVER"),
+	Server = &cli.BoolFlag{
+		Name:    "server",
+		Usage:   "Run in pre-image server mode without executing any client program.",
+		EnvVars: prefixEnvVars("SERVER"),
 	}
 )
 
@@ -122,20 +126,20 @@ func init() {
 }
 
 func CheckRequired(ctx *cli.Context) error {
-	rollupConfig := ctx.GlobalString(RollupConfig.Name)
-	network := ctx.GlobalString(Network.Name)
+	rollupConfig := ctx.String(RollupConfig.Name)
+	network := ctx.String(Network.Name)
 	if rollupConfig == "" && network == "" {
 		return fmt.Errorf("flag %s or %s is required", RollupConfig.Name, Network.Name)
 	}
 	if rollupConfig != "" && network != "" {
 		return fmt.Errorf("cannot specify both %s and %s", RollupConfig.Name, Network.Name)
 	}
-	if network == "" && ctx.GlobalString(L2GenesisPath.Name) == "" {
+	if network == "" && ctx.String(L2GenesisPath.Name) == "" {
 		return fmt.Errorf("flag %s is required for custom networks", L2GenesisPath.Name)
 	}
 	for _, flag := range requiredFlags {
-		if !ctx.IsSet(flag.GetName()) {
-			return fmt.Errorf("flag %s is required", flag.GetName())
+		if !ctx.IsSet(flag.Names()[0]) {
+			return fmt.Errorf("flag %s is required", flag.Names()[0])
 		}
 	}
 	return nil

@@ -1,7 +1,7 @@
 package rpc
 
 import (
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -13,10 +13,10 @@ const (
 
 func CLIFlags(envPrefix string) []cli.Flag {
 	return []cli.Flag{
-		cli.BoolFlag{
-			Name:   EnableAdminFlagName,
-			Usage:  "Enable the admin API (experimental)",
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "RPC_ENABLE_ADMIN"),
+		&cli.BoolFlag{
+			Name:    EnableAdminFlagName,
+			Usage:   "Enable the admin API (experimental)",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "RPC_ENABLE_ADMIN"),
 		},
 	}
 }
@@ -29,6 +29,6 @@ type CLIConfig struct {
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
 		CLIConfig:   oprpc.ReadCLIConfig(ctx),
-		EnableAdmin: ctx.GlobalBool(EnableAdminFlagName),
+		EnableAdmin: ctx.Bool(EnableAdminFlagName),
 	}
 }

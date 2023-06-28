@@ -1,39 +1,39 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-/* Testing utilities */
+// Testing utilities
 import { Messenger_Initializer, Reverter, ConfigurableCaller } from "./CommonTest.t.sol";
 import { L2OutputOracle_Initializer } from "./L2OutputOracle.t.sol";
 
-/* Libraries */
+// Libraries
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
 
-/* Target contract dependencies */
+// Target contract dependencies
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 
-/* Target contract */
+// Target contract
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 
 contract L1CrossDomainMessenger_Test is Messenger_Initializer {
-    // Receiver address for testing
+    /// @dev The receiver address
     address recipient = address(0xabbaacdc);
 
-    // Storage slot of the l2Sender
+    /// @dev The storage slot of the l2Sender
     uint256 constant senderSlotIndex = 50;
 
-    // the version is encoded in the nonce
+    /// @dev Tests that the version can be decoded from the message nonce.
     function test_messageVersion_succeeds() external {
         (, uint16 version) = Encoding.decodeVersionedNonce(L1Messenger.messageNonce());
         assertEq(version, L1Messenger.MESSAGE_VERSION());
     }
 
-    // sendMessage: should be able to send a single message
-    // TODO: this same test needs to be done with the legacy message type
-    // by setting the message version to 0
+    /// @dev Tests that the sendMessage function is able to send a single message.
+    /// TODO: this same test needs to be done with the legacy message type
+    ///       by setting the message version to 0
     function test_sendMessage_succeeds() external {
         // deposit transaction on the optimism portal should be called
         vm.expectCall(
@@ -86,7 +86,8 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         L1Messenger.sendMessage(recipient, hex"ff", uint32(100));
     }
 
-    // sendMessage: should be able to send the same message twice
+    /// @dev Tests that the sendMessage function is able to send
+    ///      the same message twice.
     function test_sendMessage_twice_succeeds() external {
         uint256 nonce = L1Messenger.messageNonce();
         L1Messenger.sendMessage(recipient, hex"aa", uint32(500_000));
@@ -95,11 +96,14 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(nonce + 2, L1Messenger.messageNonce());
     }
 
+    /// @dev Tests that the xDomainMessageSender reverts when not set.
     function test_xDomainSender_notSet_reverts() external {
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L1Messenger.xDomainMessageSender();
     }
 
+    /// @dev Tests that the relayMessage function reverts when
+    ///      the message version is not 0 or 1.
     function test_relayMessage_v2_reverts() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -124,7 +128,8 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         );
     }
 
-    // relayMessage: should send a successful call to the target contract
+    /// @dev Tests that the relayMessage function is able to relay a message
+    ///      successfully by calling the target contract.
     function test_relayMessage_succeeds() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -163,7 +168,8 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(L1Messenger.failedMessages(hash), false);
     }
 
-    // relayMessage: should revert if attempting to relay a message sent to an L1 system contract
+    /// @dev Tests that relayMessage reverts if attempting to relay a message
+    ///      sent to an L1 system contract.
     function test_relayMessage_toSystemContract_reverts() external {
         // set the target to be the OptimismPortal
         address target = address(op);
@@ -193,7 +199,8 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         );
     }
 
-    // relayMessage: should revert if eth is sent from a contract other than the standard bridge
+    /// @dev Tests that the relayMessage function reverts if eth is
+    ///      sent from a contract other than the standard bridge.
     function test_replayMessage_withValue_reverts() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -212,7 +219,8 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         );
     }
 
-    // relayMessage: the xDomainMessageSender is reset to the original value
+    /// @dev Tests that the xDomainMessageSender is reset to the original value
+    ///      after a message is relayed.
     function test_xDomainMessageSender_reset_succeeds() external {
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L1Messenger.xDomainMessageSender();
@@ -234,8 +242,9 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         L1Messenger.xDomainMessageSender();
     }
 
-    // relayMessage: should send a successful call to the target contract after the first message
-    // fails and ETH gets stuck, but the second message succeeds
+    /// @dev Tests that relayMessage should successfully call the target contract after
+    ///      the first message fails and ETH is stuck, but the second message succeeds
+    ///      with a version 1 message.
     function test_relayMessage_retryAfterFailure_succeeds() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -291,6 +300,9 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(L1Messenger.failedMessages(hash), true);
     }
 
+    /// @dev Tests that relayMessage should successfully call the target contract after
+    ///      the first message fails and ETH is stuck, but the second message succeeds
+    ///      with a legacy message.
     function test_relayMessage_legacy_succeeds() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -332,6 +344,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(L1Messenger.failedMessages(hash), false);
     }
 
+    /// @dev Tests that relayMessage should revert if the message is already replayed.
     function test_relayMessage_legacyOldReplay_reverts() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -375,6 +388,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(L1Messenger.failedMessages(hash), false);
     }
 
+    /// @dev Tests that relayMessage can be retried after a failure with a legacy message.
     function test_relayMessage_legacyRetryAfterFailure_succeeds() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -450,6 +464,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(L1Messenger.failedMessages(hash), true);
     }
 
+    /// @dev Tests that relayMessage cannot be retried after success with a legacy message.
     function test_relayMessage_legacyRetryAfterSuccess_reverts() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -509,6 +524,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         );
     }
 
+    /// @dev Tests that relayMessage cannot be called after a failure and a successful replay.
     function test_relayMessage_legacyRetryAfterFailureThenSuccess_reverts() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;

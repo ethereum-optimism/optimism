@@ -21,7 +21,7 @@ var (
 	// l1PredeployNamespace represents the namespace of L1 predeploys
 	l1PredeployNamespace = common.HexToAddress("0x6900000000000000000000000000000000000000")
 	// bigL2PredeployNamespace represents the predeploy namespace as a big.Int
-	bigL2PredeployNamespace = new(big.Int).SetBytes(l2PredeployNamespace.Bytes())
+	BigL2PredeployNamespace = new(big.Int).SetBytes(l2PredeployNamespace.Bytes())
 	// bigL1PredeployNamespace represents the predeploy namespace as a big.Int
 	bigL1PredeployNamespace = new(big.Int).SetBytes(l1PredeployNamespace.Bytes())
 	// bigCodeNamespace represents the predeploy namespace as a big.Int

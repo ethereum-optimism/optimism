@@ -32,7 +32,7 @@ func ScoreDecay(duration time.Duration, slot time.Duration) float64 {
 // See [PeerScoreParams] for detailed documentation.
 //
 // [PeerScoreParams]: https://pkg.go.dev/github.com/libp2p/go-libp2p-pubsub@v0.8.1#PeerScoreParams
-var LightPeerScoreParams = func(cfg *rollup.Config) pubsub.PeerScoreParams {
+func LightPeerScoreParams(cfg *rollup.Config) pubsub.PeerScoreParams {
 	slot := time.Duration(cfg.BlockTime) * time.Second
 	if slot == 0 {
 		slot = 2 * time.Second
@@ -91,7 +91,8 @@ func GetScoringParams(name string, cfg *rollup.Config) (*ScoringParams, error) {
 	switch name {
 	case "light":
 		return &ScoringParams{
-			PeerScoring: LightPeerScoreParams(cfg),
+			PeerScoring:        LightPeerScoreParams(cfg),
+			ApplicationScoring: LightApplicationScoreParams(cfg),
 		}, nil
 	case "none":
 		return nil, nil

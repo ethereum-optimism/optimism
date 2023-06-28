@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -22,19 +22,19 @@ var Subcommands = cli.Commands{
 		Name:  "devnet",
 		Usage: "Initialize new L1 and L2 genesis files and rollup config suitable for a local devnet",
 		Flags: []cli.Flag{
-			cli.StringFlag{
+			&cli.StringFlag{
 				Name:  "deploy-config",
 				Usage: "Path to hardhat deploy config file",
 			},
-			cli.StringFlag{
+			&cli.StringFlag{
 				Name:  "outfile.l1",
 				Usage: "Path to L1 genesis output file",
 			},
-			cli.StringFlag{
+			&cli.StringFlag{
 				Name:  "outfile.l2",
 				Usage: "Path to L2 genesis output file",
 			},
-			cli.StringFlag{
+			&cli.StringFlag{
 				Name:  "outfile.rollup",
 				Usage: "Path to rollup output file",
 			},
@@ -85,23 +85,23 @@ var Subcommands = cli.Commands{
 		Name:  "l2",
 		Usage: "Generates an L2 genesis file and rollup config suitable for a deployed network",
 		Flags: []cli.Flag{
-			cli.StringFlag{
+			&cli.StringFlag{
 				Name:  "l1-rpc",
 				Usage: "L1 RPC URL",
 			},
-			cli.StringFlag{
+			&cli.StringFlag{
 				Name:  "deploy-config",
 				Usage: "Path to hardhat deploy config file",
 			},
-			cli.StringFlag{
+			&cli.StringFlag{
 				Name:  "deployment-dir",
 				Usage: "Path to deployment directory",
 			},
-			cli.StringFlag{
+			&cli.StringFlag{
 				Name:  "outfile.l2",
 				Usage: "Path to L2 genesis output file",
 			},
-			cli.StringFlag{
+			&cli.StringFlag{
 				Name:  "outfile.rollup",
 				Usage: "Path to rollup output file",
 			},

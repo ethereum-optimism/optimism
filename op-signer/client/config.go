@@ -3,7 +3,7 @@ package client
 import (
 	"errors"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	optls "github.com/ethereum-optimism/optimism/op-service/tls"
@@ -17,15 +17,15 @@ const (
 func CLIFlags(envPrefix string) []cli.Flag {
 	envPrefix += "_SIGNER"
 	flags := []cli.Flag{
-		cli.StringFlag{
-			Name:   EndpointFlagName,
-			Usage:  "Signer endpoint the client will connect to",
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "ENDPOINT"),
+		&cli.StringFlag{
+			Name:    EndpointFlagName,
+			Usage:   "Signer endpoint the client will connect to",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "ENDPOINT"),
 		},
-		cli.StringFlag{
-			Name:   AddressFlagName,
-			Usage:  "Address the signer is signing transactions for",
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "ADDRESS"),
+		&cli.StringFlag{
+			Name:    AddressFlagName,
+			Usage:   "Address the signer is signing transactions for",
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "ADDRESS"),
 		},
 	}
 	flags = append(flags, optls.CLIFlagsWithFlagPrefix(envPrefix, "signer")...)

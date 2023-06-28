@@ -170,6 +170,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 					EnableAdmin: true,
 				},
 				L1EpochPollInterval: time.Second * 4,
+				ConfigPersistence:   &rollupNode.DisabledConfigPersistence{},
 			},
 			"verifier": {
 				Driver: driver.Config{
@@ -178,6 +179,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 					SequencerEnabled:   false,
 				},
 				L1EpochPollInterval: time.Second * 4,
+				ConfigPersistence:   &rollupNode.DisabledConfigPersistence{},
 			},
 		},
 		Loggers: map[string]log.Logger{
@@ -546,6 +548,9 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		nodeConfig := cfg.Nodes[name]
 		c := *nodeConfig // copy
 		c.Rollup = makeRollupConfig()
+		if err := c.LoadPersisted(cfg.Loggers[name]); err != nil {
+			return nil, err
+		}
 
 		if p, ok := p2pNodes[name]; ok {
 			c.P2P = p
