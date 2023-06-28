@@ -42,13 +42,13 @@ func (a *Agent) AddClaim(claim Claim) error {
 func (a *Agent) PerformActions() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	for _, pair := range a.game.ClaimPairs() {
-		_ = a.move(pair.claim, pair.parent)
+	for _, claim := range a.game.Claims() {
+		_ = a.move(claim)
 	}
 }
 
 // move determines & executes the next move given a claim pair
-func (a *Agent) move(claim, parent Claim) error {
+func (a *Agent) move(claim Claim) error {
 	nextMove, err := a.solver.NextMove(claim)
 	if err != nil {
 		a.log.Warn("Failed to execute the next move", "err", err)

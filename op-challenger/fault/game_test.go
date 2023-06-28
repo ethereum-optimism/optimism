@@ -121,10 +121,7 @@ func TestGame_ClaimPairs(t *testing.T) {
 	require.NoError(t, err)
 
 	// Validate claim pairs.
-	expected := []struct{ claim, parent Claim }{
-		{middle, top},
-		{bottom, middle},
-	}
-	pairs := g.ClaimPairs()
-	require.ElementsMatch(t, expected, pairs)
+	expected := []Claim{top, middle, bottom}
+	claims := g.Claims()
+	require.ElementsMatch(t, expected, claims)
 }

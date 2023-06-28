@@ -25,14 +25,7 @@ func FullGame() {
 			Position: fault.NewPosition(0, 0),
 		},
 	}
-	counter := fault.Claim{
-		ClaimData: fault.ClaimData{
-			Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000364"),
-			Position: fault.NewPosition(1, 0),
-		},
-		Parent: root.ClaimData,
-	}
 
-	o := fault.NewOrchestrator(maxDepth, []fault.TraceProvider{canonicalProvider, disputedProvider}, []string{"charlie", "mallory"}, root, counter)
+	o := fault.NewOrchestrator(maxDepth, []fault.TraceProvider{canonicalProvider, disputedProvider}, []string{"charlie", "mallory"}, root)
 	o.Start()
 }

@@ -23,6 +23,21 @@ func NewSolver(gameDepth int, traceProvider TraceProvider) *Solver {
 
 // NextMove returns the next move to make given the current state of the game.
 func (s *Solver) NextMove(claim Claim) (*Claim, error) {
+	// Special case of the root claim
+	if claim.IsRoot() {
+		agree, err := s.agreeWithClaim(claim.ClaimData)
+		if err != nil {
+			return nil, err
+		}
+		// Attack the root claim if we do not agree with it
+		if !agree {
+			return s.attack(claim)
+		} else {
+			return nil, nil
+		}
+
+	}
+
 	parentCorrect, err := s.agreeWithClaim(claim.Parent)
 	if err != nil {
 		return nil, err

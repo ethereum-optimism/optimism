@@ -37,17 +37,6 @@ func SolverExampleOne() {
 		},
 	}
 
-	// Note: We have to create the first counter claim seperately because next move does not know how to counter
-	// the root claim at this time.
-	// Counter claim is d at trace index 3 from the canonical provider
-	counter := fault.Claim{
-		ClaimData: fault.ClaimData{
-			Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000364"),
-			Position: fault.NewPosition(1, 0),
-		},
-		Parent: root.ClaimData,
-	}
-
 	canonicalProvider := fault.NewAlphabetProvider(canonical, uint64(maxDepth))
 	disputedProvider := fault.NewAlphabetProvider(disputed, uint64(maxDepth))
 
@@ -63,17 +52,22 @@ func SolverExampleOne() {
 	fmt.Println("go left to d, then right to x (cannonical is f), then left to e")
 	fmt.Println()
 	PrettyPrintAlphabetClaim("Root claim", root)
-	PrettyPrintAlphabetClaim("Counter claim", counter)
 
-	claim1, err := disputedSolver.NextMove(counter)
+	claim1, err := cannonicalSolver.NextMove(root)
 	if err != nil {
-		fmt.Printf("error getting claim from disputed provider: %v", err)
+		fmt.Printf("error getting claim from provider: %v", err)
 	}
-	PrettyPrintAlphabetClaim("Disputed moved", *claim1)
+	PrettyPrintAlphabetClaim("Cannonical move", *claim1)
 
-	claim2, err := cannonicalSolver.NextMove(*claim1)
+	claim2, err := disputedSolver.NextMove(*claim1)
 	if err != nil {
-		fmt.Printf("error getting claim from disputed provider: %v", err)
+		fmt.Printf("error getting claim from provider: %v", err)
 	}
-	PrettyPrintAlphabetClaim("Cannonical move", *claim2)
+	PrettyPrintAlphabetClaim("Disputed moved", *claim2)
+
+	claim3, err := cannonicalSolver.NextMove(*claim2)
+	if err != nil {
+		fmt.Printf("error getting claim from provider: %v", err)
+	}
+	PrettyPrintAlphabetClaim("Cannonical move", *claim3)
 }
