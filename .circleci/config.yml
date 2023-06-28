@@ -390,10 +390,6 @@ jobs:
             npm i pnpm --global
       - run:
           name: lint
-          command: pnpm lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: slither
           command: |
             pnpm lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
