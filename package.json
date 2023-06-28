@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "author": "Optimism PBC",
   "license": "MIT",
+  "packageManager": "pnpm@8.6.5",
   "private": true,
   "workspaces": {
     "packages": [
