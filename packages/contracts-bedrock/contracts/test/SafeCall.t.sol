@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing utilities
 import { CommonTest } from "./CommonTest.t.sol";
+
+// Target contract
 import { SafeCall } from "../libraries/SafeCall.sol";
 
 contract SafeCall_Test is CommonTest {
+    /// @dev Tests that the `send` function succeeds.
     function testFuzz_send_succeeds(
         address from,
         address to,
@@ -44,6 +48,7 @@ contract SafeCall_Test is CommonTest {
         }
     }
 
+    /// @dev Tests that `call` succeeds.
     function testFuzz_call_succeeds(
         address from,
         address to,
@@ -84,6 +89,7 @@ contract SafeCall_Test is CommonTest {
         }
     }
 
+    /// @dev Tests that `callWithMinGas` succeeds with enough gas.
     function testFuzz_callWithMinGas_hasEnough_succeeds(
         address from,
         address to,
@@ -127,6 +133,7 @@ contract SafeCall_Test is CommonTest {
         }
     }
 
+    /// @dev Tests that `callWithMinGas` succeeds for the lower gas bounds.
     function test_callWithMinGas_noLeakageLow_succeeds() external {
         SimpleSafeCaller caller = new SimpleSafeCaller();
 
@@ -151,6 +158,7 @@ contract SafeCall_Test is CommonTest {
         }
     }
 
+    /// @dev Tests that `callWithMinGas` succeeds on the upper gas bounds.
     function test_callWithMinGas_noLeakageHigh_succeeds() external {
         SimpleSafeCaller caller = new SimpleSafeCaller();
 

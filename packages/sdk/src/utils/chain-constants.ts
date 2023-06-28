@@ -1,8 +1,52 @@
-import {
-  predeploys,
-  getDeployedContractDefinition,
-} from '@eth-optimism/contracts'
-import { predeploys as bedrockPredeploys } from '@eth-optimism/contracts-bedrock'
+import { predeploys } from '@eth-optimism/core-utils'
+import { ethers } from 'ethers'
+import portalArtifactsMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/OptimismPortalProxy.json'
+import portalArtifactsGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/OptimismPortalProxy.json'
+import l2OutputOracleArtifactsMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/L2OutputOracleProxy.json'
+import l2OutputOracleArtifactsGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/L2OutputOracleProxy.json'
+import addressManagerArtifactMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/AddressManager.json'
+import addressManagerArtifactGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/AddressManager.json'
+import l1StandardBridgeArtifactMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/L1StandardBridgeProxy.json'
+import l1StandardBridgeArtifactGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/L1StandardBridgeProxy.json'
+import l1CrossDomainMessengerArtifactMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/L1CrossDomainMessengerProxy.json'
+import l1CrossDomainMessengerArtifactGoerli from '@eth-optimism/contracts-bedrock/deployments/goerli/L1CrossDomainMessengerProxy.json'
+
+const portalAddresses = {
+  mainnet: portalArtifactsMainnet.address,
+  goerli: portalArtifactsGoerli.address,
+}
+
+const l2OutputOracleAddresses = {
+  mainnet: l2OutputOracleArtifactsMainnet.address,
+  goerli: l2OutputOracleArtifactsGoerli.address,
+}
+
+const addressManagerAddresses = {
+  mainnet: addressManagerArtifactMainnet.address,
+  goerli: addressManagerArtifactGoerli.address,
+}
+
+const l1StandardBridgeAddresses = {
+  mainnet: l1StandardBridgeArtifactMainnet.address,
+  goerli: l1StandardBridgeArtifactGoerli.address,
+}
+
+const l1CrossDomainMessengerAddresses = {
+  mainnet: l1CrossDomainMessengerArtifactMainnet.address,
+  goerli: l1CrossDomainMessengerArtifactGoerli.address,
+}
+
+// legacy
+const stateCommitmentChainAddresses = {
+  mainnet: '0xBe5dAb4A2e9cd0F27300dB4aB94BeE3A233AEB19',
+  goerli: '0x9c945aC97Baf48cB784AbBB61399beB71aF7A378',
+}
+
+// legacy
+const canonicalTransactionChainAddresses = {
+  mainnet: '0x5E4e65926BA27467555EB562121fac00D24E9dD2',
+  goerli: '0x607F755149cFEB3a14E1Dc3A4E2450Cde7dfb04D',
+}
 
 import {
   L1ChainID,
@@ -12,7 +56,11 @@ import {
   OEL2ContractsLike,
   BridgeAdapterData,
 } from '../interfaces'
-import { StandardBridgeAdapter, DAIBridgeAdapter } from '../adapters'
+import {
+  StandardBridgeAdapter,
+  DAIBridgeAdapter,
+  ECOBridgeAdapter,
+} from '../adapters'
 
 export const DEPOSIT_CONFIRMATION_BLOCKS: {
   [ChainID in L2ChainID]: number
@@ -24,6 +72,8 @@ export const DEPOSIT_CONFIRMATION_BLOCKS: {
   [L2ChainID.OPTIMISM_BEDROCK_LOCAL_DEVNET]: 2 as const,
   [L2ChainID.OPTIMISM_BEDROCK_ALPHA_TESTNET]: 12 as const,
   [L2ChainID.BASE_GOERLI]: 12 as const,
+  [L2ChainID.ZORA_GOERLI]: 12 as const,
+  [L2ChainID.ZORA_MAINNET]: 50 as const,
 }
 
 export const CHAIN_BLOCK_TIMES: {
@@ -37,20 +87,19 @@ export const CHAIN_BLOCK_TIMES: {
 
 /**
  * Full list of default L2 contract addresses.
- * TODO(tynes): migrate to predeploys from contracts-bedrock
  */
 export const DEFAULT_L2_CONTRACT_ADDRESSES: OEL2ContractsLike = {
   L2CrossDomainMessenger: predeploys.L2CrossDomainMessenger,
-  L2ToL1MessagePasser: predeploys.OVM_L2ToL1MessagePasser,
+  L2ToL1MessagePasser: predeploys.L2ToL1MessagePasser,
   L2StandardBridge: predeploys.L2StandardBridge,
-  OVM_L1BlockNumber: predeploys.OVM_L1BlockNumber,
-  OVM_L2ToL1MessagePasser: predeploys.OVM_L2ToL1MessagePasser,
-  OVM_DeployerWhitelist: predeploys.OVM_DeployerWhitelist,
-  OVM_ETH: predeploys.OVM_ETH,
-  OVM_GasPriceOracle: predeploys.OVM_GasPriceOracle,
-  OVM_SequencerFeeVault: predeploys.OVM_SequencerFeeVault,
+  OVM_L1BlockNumber: predeploys.L1BlockNumber,
+  OVM_L2ToL1MessagePasser: predeploys.L2ToL1MessagePasser,
+  OVM_DeployerWhitelist: predeploys.DeployerWhitelist,
+  OVM_ETH: predeploys.LegacyERC20ETH,
+  OVM_GasPriceOracle: predeploys.GasPriceOracle,
+  OVM_SequencerFeeVault: predeploys.SequencerFeeVault,
   WETH: predeploys.WETH9,
-  BedrockMessagePasser: bedrockPredeploys.L2ToL1MessagePasser,
+  BedrockMessagePasser: predeploys.L2ToL1MessagePasser,
 }
 
 /**
@@ -60,21 +109,15 @@ export const DEFAULT_L2_CONTRACT_ADDRESSES: OEL2ContractsLike = {
  * @returns The L1 contracts for the given network.
  */
 const getL1ContractsByNetworkName = (network: string): OEL1ContractsLike => {
-  const getDeployedAddress = (name: string) => {
-    return getDeployedContractDefinition(name, network).address
-  }
-
   return {
-    AddressManager: getDeployedAddress('Lib_AddressManager'),
-    L1CrossDomainMessenger: getDeployedAddress(
-      'Proxy__OVM_L1CrossDomainMessenger'
-    ),
-    L1StandardBridge: getDeployedAddress('Proxy__OVM_L1StandardBridge'),
-    StateCommitmentChain: getDeployedAddress('StateCommitmentChain'),
-    CanonicalTransactionChain: getDeployedAddress('CanonicalTransactionChain'),
-    BondManager: getDeployedAddress('BondManager'),
-    OptimismPortal: '0x5b47E1A08Ea6d985D6649300584e6722Ec4B1383' as const,
-    L2OutputOracle: '0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0' as const,
+    AddressManager: addressManagerAddresses[network],
+    L1CrossDomainMessenger: l1CrossDomainMessengerAddresses[network],
+    L1StandardBridge: l1StandardBridgeAddresses[network],
+    StateCommitmentChain: stateCommitmentChainAddresses[network],
+    CanonicalTransactionChain: canonicalTransactionChainAddresses[network],
+    BondManager: ethers.constants.AddressZero,
+    OptimismPortal: portalAddresses[network],
+    L2OutputOracle: l2OutputOracleAddresses[network],
   }
 }
 
@@ -105,6 +148,7 @@ export const CONTRACT_ADDRESSES: {
       CanonicalTransactionChain:
         '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as const,
       BondManager: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707' as const,
+      // FIXME
       OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
       L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
     },
@@ -174,6 +218,39 @@ export const CONTRACT_ADDRESSES: {
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
+  // Zora Goerli
+  [L2ChainID.ZORA_GOERLI]: {
+    l1: {
+      AddressManager: '0x54f4676203dEDA6C08E0D40557A119c602bFA246' as const,
+      L1CrossDomainMessenger:
+        '0xD87342e16352D33170557A7dA1e5fB966a60FafC' as const,
+      L1StandardBridge: '0x7CC09AC2452D6555d5e0C213Ab9E2d44eFbFc956' as const,
+      StateCommitmentChain:
+        '0x0000000000000000000000000000000000000000' as const,
+      CanonicalTransactionChain:
+        '0x0000000000000000000000000000000000000000' as const,
+      BondManager: '0x0000000000000000000000000000000000000000' as const,
+      OptimismPortal: '0xDb9F51790365e7dc196e7D072728df39Be958ACe' as const,
+      L2OutputOracle: '0xdD292C9eEd00f6A32Ff5245d0BCd7f2a15f24e00' as const,
+    },
+    l2: DEFAULT_L2_CONTRACT_ADDRESSES,
+  },
+  [L2ChainID.ZORA_MAINNET]: {
+    l1: {
+      AddressManager: '0xEF8115F2733fb2033a7c756402Fc1deaa56550Ef' as const,
+      L1CrossDomainMessenger:
+        '0xdC40a14d9abd6F410226f1E6de71aE03441ca506' as const,
+      L1StandardBridge: '0x3e2Ea9B92B7E48A52296fD261dc26fd995284631' as const,
+      StateCommitmentChain:
+        '0x0000000000000000000000000000000000000000' as const,
+      CanonicalTransactionChain:
+        '0x0000000000000000000000000000000000000000' as const,
+      BondManager: '0x0000000000000000000000000000000000000000' as const,
+      OptimismPortal: '0x1a0ad011913A150f69f6A19DF447A0CfD9551054' as const,
+      L2OutputOracle: '0x9E6204F750cD866b299594e2aC9eA824E2e5f95c' as const,
+    },
+    l2: DEFAULT_L2_CONTRACT_ADDRESSES,
+  },
 }
 
 /**
@@ -204,6 +281,11 @@ export const BRIDGE_ADAPTER_DATA: {
       Adapter: DAIBridgeAdapter,
       l1Bridge: '0x05a388Db09C2D44ec0b00Ee188cD42365c42Df23' as const,
       l2Bridge: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65' as const,
+    },
+    ECO: {
+      Adapter: ECOBridgeAdapter,
+      l1Bridge: '0x7a01E277B8fDb8CDB2A2258508514716359f44A0' as const,
+      l2Bridge: '0x7a01E277B8fDb8CDB2A2258508514716359f44A0' as const,
     },
   },
 }

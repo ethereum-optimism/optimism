@@ -1,16 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing utilities
 import { CommonTest } from "./CommonTest.t.sol";
+
+// Libraries
 import { Types } from "../libraries/Types.sol";
-import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
 import { LegacyCrossDomainUtils } from "../libraries/LegacyCrossDomainUtils.sol";
 
+// Target contract
+import { Hashing } from "../libraries/Hashing.sol";
+
 contract Hashing_hashDepositSource_Test is CommonTest {
-    /**
-     * @notice Tests that hashDepositSource returns the correct hash in a simple case.
-     */
+    /// @notice Tests that hashDepositSource returns the correct hash in a simple case.
     function test_hashDepositSource_succeeds() external {
         assertEq(
             Hashing.hashDepositSource(
@@ -23,9 +26,7 @@ contract Hashing_hashDepositSource_Test is CommonTest {
 }
 
 contract Hashing_hashCrossDomainMessage_Test is CommonTest {
-    /**
-     * @notice Tests that hashCrossDomainMessage returns the correct hash in a simple case.
-     */
+    /// @notice Tests that hashCrossDomainMessage returns the correct hash in a simple case.
     function testDiff_hashCrossDomainMessage_succeeds(
         uint240 _nonce,
         uint16 _version,
@@ -45,9 +46,7 @@ contract Hashing_hashCrossDomainMessage_Test is CommonTest {
         );
     }
 
-    /**
-     * @notice Tests that hashCrossDomainMessageV0 matches the hash of the legacy encoding.
-     */
+    /// @notice Tests that hashCrossDomainMessageV0 matches the hash of the legacy encoding.
     function testFuzz_hashCrossDomainMessageV0_matchesLegacy_succeeds(
         address _target,
         address _sender,
@@ -69,9 +68,7 @@ contract Hashing_hashCrossDomainMessage_Test is CommonTest {
 }
 
 contract Hashing_hashWithdrawal_Test is CommonTest {
-    /**
-     * @notice Tests that hashWithdrawal returns the correct hash in a simple case.
-     */
+    /// @notice Tests that hashWithdrawal returns the correct hash in a simple case.
     function testDiff_hashWithdrawal_succeeds(
         uint256 _nonce,
         address _sender,
@@ -90,9 +87,7 @@ contract Hashing_hashWithdrawal_Test is CommonTest {
 }
 
 contract Hashing_hashOutputRootProof_Test is CommonTest {
-    /**
-     * @notice Tests that hashOutputRootProof returns the correct hash in a simple case.
-     */
+    /// @notice Tests that hashOutputRootProof returns the correct hash in a simple case.
     function testDiff_hashOutputRootProof_succeeds(
         bytes32 _version,
         bytes32 _stateRoot,
@@ -119,9 +114,7 @@ contract Hashing_hashOutputRootProof_Test is CommonTest {
 }
 
 contract Hashing_hashDepositTransaction_Test is CommonTest {
-    /**
-     * @notice Tests that hashDepositTransaction returns the correct hash in a simple case.
-     */
+    /// @notice Tests that hashDepositTransaction returns the correct hash in a simple case.
     function testDiff_hashDepositTransaction_succeeds(
         address _from,
         address _to,

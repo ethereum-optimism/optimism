@@ -32,6 +32,14 @@ op-node:
 	make -C ./op-node op-node
 .PHONY: op-node
 
+generate-mocks-op-node:
+	make -C ./op-node generate-mocks
+.PHONY: generate-mocks-op-node
+
+generate-mocks-op-service:
+	make -C ./op-service generate-mocks
+.PHONY: generate-mocks-op-service
+
 op-batcher:
 	make -C ./op-batcher op-batcher
 .PHONY: op-batcher
@@ -66,11 +74,11 @@ nuke: clean devnet-clean
 .PHONY: nuke
 
 devnet-up:
-	@bash ./ops-bedrock/devnet-up.sh
+	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up
 
 devnet-up-deploy:
-	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
+	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --deploy
 .PHONY: devnet-up-deploy
 
 devnet-down:

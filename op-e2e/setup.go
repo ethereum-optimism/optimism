@@ -3,14 +3,28 @@ package op_e2e
 import (
 	"context"
 	"crypto/ecdsa"
+	"crypto/rand"
 	"fmt"
 	"math/big"
+	"net"
 	"os"
 	"path"
 	"sort"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
+	ds "github.com/ipfs/go-datastore"
+	"github.com/ipfs/go-datastore/sync"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peerstore"
+	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoremem"
+
+	ic "github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/peer"
+	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -111,9 +125,15 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		GasPriceOracleOverhead: 2100,
 		GasPriceOracleScalar:   1_000_000,
 
-		SequencerFeeVaultRecipient: common.Address{19: 1},
-		BaseFeeVaultRecipient:      common.Address{19: 2},
-		L1FeeVaultRecipient:        common.Address{19: 3},
+		SequencerFeeVaultRecipient:               common.Address{19: 1},
+		BaseFeeVaultRecipient:                    common.Address{19: 2},
+		L1FeeVaultRecipient:                      common.Address{19: 3},
+		BaseFeeVaultMinimumWithdrawalAmount:      uint642big(1000_000_000), // 1 gwei
+		L1FeeVaultMinimumWithdrawalAmount:        uint642big(1000_000_000), // 1 gwei
+		SequencerFeeVaultMinimumWithdrawalAmount: uint642big(1000_000_000), // 1 gwei
+		BaseFeeVaultWithdrawalNetwork:            uint8(1),                 // L2 withdrawal network
+		L1FeeVaultWithdrawalNetwork:              uint8(1),                 // L2 withdrawal network
+		SequencerFeeVaultWithdrawalNetwork:       uint8(1),                 // L2 withdrawal network
 
 		DeploymentWaitConfirmations: 1,
 
@@ -150,6 +170,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 					EnableAdmin: true,
 				},
 				L1EpochPollInterval: time.Second * 4,
+				ConfigPersistence:   &rollupNode.DisabledConfigPersistence{},
 			},
 			"verifier": {
 				Driver: driver.Config{
@@ -158,6 +179,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 					SequencerEnabled:   false,
 				},
 				L1EpochPollInterval: time.Second * 4,
+				ConfigPersistence:   &rollupNode.DisabledConfigPersistence{},
 			},
 		},
 		Loggers: map[string]log.Logger{
@@ -166,9 +188,10 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			"batcher":   testlog.Logger(t, log.LvlInfo).New("role", "batcher"),
 			"proposer":  testlog.Logger(t, log.LvlCrit).New("role", "proposer"),
 		},
-		GethOptions:           map[string][]GethOption{},
-		P2PTopology:           nil, // no P2P connectivity by default
-		NonFinalizedProposals: false,
+		GethOptions:                map[string][]GethOption{},
+		P2PTopology:                nil, // no P2P connectivity by default
+		NonFinalizedProposals:      false,
+		BatcherTargetL1TxSizeBytes: 100_000,
 	}
 }
 
@@ -215,6 +238,9 @@ type SystemConfig struct {
 
 	// Explicitly disable batcher, for tests that rely on unsafe L2 payloads
 	DisableBatcher bool
+
+	// Target L1 tx size for the batcher transactions
+	BatcherTargetL1TxSizeBytes uint64
 }
 
 type System struct {
@@ -335,7 +361,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	}
 
 	l1Block := l1Genesis.ToBlock()
-	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block)
+	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l1Block)
 	if err != nil {
 		return nil, err
 	}
@@ -465,7 +491,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 			if p, ok := p2pNodes[name]; ok {
 				return p, nil
 			}
-			h, err := sys.Mocknet.GenPeer()
+			h, err := sys.newMockNetPeer()
 			if err != nil {
 				return nil, fmt.Errorf("failed to init p2p host for node %s", name)
 			}
@@ -522,6 +548,9 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		nodeConfig := cfg.Nodes[name]
 		c := *nodeConfig // copy
 		c.Rollup = makeRollupConfig()
+		if err := c.LoadPersisted(cfg.Loggers[name]); err != nil {
+			return nil, err
+		}
 
 		if p, ok := p2pNodes[name]; ok {
 			c.P2P = p
@@ -597,11 +626,11 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		L1EthRpc:               sys.Nodes["l1"].WSEndpoint(),
 		L2EthRpc:               sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:              sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		MaxPendingTransactions: 1,
+		MaxPendingTransactions: 0,
 		MaxChannelDuration:     1,
 		MaxL1TxSize:            120_000,
 		CompressorConfig: compressor.CLIConfig{
-			TargetL1TxSizeBytes: 100_000,
+			TargetL1TxSizeBytes: cfg.BatcherTargetL1TxSizeBytes,
 			TargetNumFrames:     1,
 			ApproxComprRatio:    0.4,
 		},
@@ -625,6 +654,51 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	}
 
 	return sys, nil
+}
+
+// IP6 range that gets blackholed (in case our traffic ever makes it out onto
+// the internet).
+var blackholeIP6 = net.ParseIP("100::")
+
+// mocknet doesn't allow us to add a peerstore without fully creating the peer ourselves
+func (sys *System) newMockNetPeer() (host.Host, error) {
+	sk, _, err := ic.GenerateECDSAKeyPair(rand.Reader)
+	if err != nil {
+		return nil, err
+	}
+	id, err := peer.IDFromPrivateKey(sk)
+	if err != nil {
+		return nil, err
+	}
+	suffix := id
+	if len(id) > 8 {
+		suffix = id[len(id)-8:]
+	}
+	ip := append(net.IP{}, blackholeIP6...)
+	copy(ip[net.IPv6len-len(suffix):], suffix)
+	a, err := ma.NewMultiaddr(fmt.Sprintf("/ip6/%s/tcp/4242", ip))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create test multiaddr: %w", err)
+	}
+	p, err := peer.IDFromPublicKey(sk.GetPublic())
+	if err != nil {
+		return nil, err
+	}
+
+	ps, err := pstoremem.NewPeerstore()
+	if err != nil {
+		return nil, err
+	}
+	ps.AddAddr(p, a, peerstore.PermanentAddrTTL)
+	_ = ps.AddPrivKey(p, sk)
+	_ = ps.AddPubKey(p, sk.GetPublic())
+
+	ds := sync.MutexWrap(ds.NewMapDatastore())
+	eps, err := store.NewExtendedPeerstore(context.Background(), log.Root(), clock.SystemClock, ps, ds, 24*time.Hour)
+	if err != nil {
+		return nil, err
+	}
+	return sys.Mocknet.AddPeerWithPeerstore(p, eps)
 }
 
 func selectEndpoint(node *node.Node) string {

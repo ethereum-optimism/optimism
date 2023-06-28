@@ -1,19 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-/**
- * @title SafeCall
- * @notice Perform low level safe calls
- */
+/// @title SafeCall
+/// @notice Perform low level safe calls
 library SafeCall {
-    /**
-     * @notice Performs a low level call without copying any returndata.
-     * @dev Passes no calldata to the call context.
-     *
-     * @param _target   Address to call
-     * @param _gas      Amount of gas to pass to the call
-     * @param _value    Amount of value to pass to the call
-     */
+    /// @notice Performs a low level call without copying any returndata.
+    /// @dev Passes no calldata to the call context.
+    /// @param _target   Address to call
+    /// @param _gas      Amount of gas to pass to the call
+    /// @param _value    Amount of value to pass to the call
     function send(
         address _target,
         uint256 _gas,
@@ -34,14 +29,11 @@ library SafeCall {
         return _success;
     }
 
-    /**
-     * @notice Perform a low level call without copying any returndata
-     *
-     * @param _target   Address to call
-     * @param _gas      Amount of gas to pass to the call
-     * @param _value    Amount of value to pass to the call
-     * @param _calldata Calldata to pass to the call
-     */
+    /// @notice Perform a low level call without copying any returndata
+    /// @param _target   Address to call
+    /// @param _gas      Amount of gas to pass to the call
+    /// @param _value    Amount of value to pass to the call
+    /// @param _calldata Calldata to pass to the call
     function call(
         address _target,
         uint256 _gas,
@@ -63,31 +55,29 @@ library SafeCall {
         return _success;
     }
 
-    /**
-     * @notice Helper function to determine if there is sufficient gas remaining within the context
-     *         to guarantee that the minimum gas requirement for a call will be met as well as
-     *         optionally reserving a specified amount of gas for after the call has concluded.
-     * @param _minGas      The minimum amount of gas that may be passed to the target context.
-     * @param _reservedGas Optional amount of gas to reserve for the caller after the execution
-     *                     of the target context.
-     * @return `true` if there is enough gas remaining to safely supply `_minGas` to the target
-     *         context as well as reserve `_reservedGas` for the caller after the execution of
-     *         the target context.
-     * @dev !!!!! FOOTGUN ALERT !!!!!
-     *      1.) The 40_000 base buffer is to account for the worst case of the dynamic cost of the
-     *          `CALL` opcode's `address_access_cost`, `positive_value_cost`, and
-     *          `value_to_empty_account_cost` factors with an added buffer of 5,700 gas. It is
-     *          still possible to self-rekt by initiating a withdrawal with a minimum gas limit
-     *          that does not account for the `memory_expansion_cost` & `code_execution_cost`
-     *          factors of the dynamic cost of the `CALL` opcode.
-     *      2.) This function should *directly* precede the external call if possible. There is an
-     *          added buffer to account for gas consumed between this check and the call, but it
-     *          is only 5,700 gas.
-     *      3.) Because EIP-150 ensures that a maximum of 63/64ths of the remaining gas in the call
-     *          frame may be passed to a subcontext, we need to ensure that the gas will not be
-     *          truncated.
-     *      4.) Use wisely. This function is not a silver bullet.
-     */
+    /// @notice Helper function to determine if there is sufficient gas remaining within the context
+    ///         to guarantee that the minimum gas requirement for a call will be met as well as
+    ///         optionally reserving a specified amount of gas for after the call has concluded.
+    /// @param _minGas      The minimum amount of gas that may be passed to the target context.
+    /// @param _reservedGas Optional amount of gas to reserve for the caller after the execution
+    ///                     of the target context.
+    /// @return `true` if there is enough gas remaining to safely supply `_minGas` to the target
+    ///         context as well as reserve `_reservedGas` for the caller after the execution of
+    ///         the target context.
+    /// @dev !!!!! FOOTGUN ALERT !!!!!
+    ///      1.) The 40_000 base buffer is to account for the worst case of the dynamic cost of the
+    ///          `CALL` opcode's `address_access_cost`, `positive_value_cost`, and
+    ///          `value_to_empty_account_cost` factors with an added buffer of 5,700 gas. It is
+    ///          still possible to self-rekt by initiating a withdrawal with a minimum gas limit
+    ///          that does not account for the `memory_expansion_cost` & `code_execution_cost`
+    ///          factors of the dynamic cost of the `CALL` opcode.
+    ///      2.) This function should *directly* precede the external call if possible. There is an
+    ///          added buffer to account for gas consumed between this check and the call, but it
+    ///          is only 5,700 gas.
+    ///      3.) Because EIP-150 ensures that a maximum of 63/64ths of the remaining gas in the call
+    ///          frame may be passed to a subcontext, we need to ensure that the gas will not be
+    ///          truncated.
+    ///      4.) Use wisely. This function is not a silver bullet.
     function hasMinGas(uint256 _minGas, uint256 _reservedGas) internal view returns (bool) {
         bool _hasMinGas;
         assembly {
@@ -99,16 +89,13 @@ library SafeCall {
         return _hasMinGas;
     }
 
-    /**
-     * @notice Perform a low level call without copying any returndata. This function
-     *         will revert if the call cannot be performed with the specified minimum
-     *         gas.
-     *
-     * @param _target   Address to call
-     * @param _minGas   The minimum amount of gas that may be passed to the call
-     * @param _value    Amount of value to pass to the call
-     * @param _calldata Calldata to pass to the call
-     */
+    /// @notice Perform a low level call without copying any returndata. This function
+    ///         will revert if the call cannot be performed with the specified minimum
+    ///         gas.
+    /// @param _target   Address to call
+    /// @param _minGas   The minimum amount of gas that may be passed to the call
+    /// @param _value    Amount of value to pass to the call
+    /// @param _calldata Calldata to pass to the call
     function callWithMinGas(
         address _target,
         uint256 _minGas,

@@ -6,7 +6,10 @@ This directory contains documentation for all defined invariant tests within `co
 <!-- START autoTOC -->
 
 ## Table of Contents
+- [AddressAliasHelper](./AddressAliasHelper.md)
 - [AddressAliasing](./AddressAliasing.md)
+- [Burn.Eth](./Burn.Eth.md)
+- [Burn.Gas](./Burn.Gas.md)
 - [Burn](./Burn.md)
 - [CrossDomainMessenger](./CrossDomainMessenger.md)
 - [Encoding](./Encoding.md)

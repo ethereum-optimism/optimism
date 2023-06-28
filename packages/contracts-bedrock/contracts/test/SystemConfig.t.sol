@@ -1,10 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing utilities
 import { CommonTest } from "./CommonTest.t.sol";
-import { SystemConfig } from "../L1/SystemConfig.sol";
-import { ResourceMetering } from "../L1/ResourceMetering.sol";
+
+// Libraries
 import { Constants } from "../libraries/Constants.sol";
+
+// Target contract dependencies
+import { ResourceMetering } from "../L1/ResourceMetering.sol";
+
+// Target contract
+import { SystemConfig } from "../L1/SystemConfig.sol";
 
 contract SystemConfig_Init is CommonTest {
     SystemConfig sysConf;
@@ -34,6 +41,7 @@ contract SystemConfig_Init is CommonTest {
 }
 
 contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
+    /// @dev Tests that initialization reverts if the gas limit is too low.
     function test_initialize_lowGasLimit_reverts() external {
         uint64 minimumGasLimit = sysConf.minimumGasLimit();
 
@@ -60,32 +68,39 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
 }
 
 contract SystemConfig_Setters_TestFail is SystemConfig_Init {
+    /// @dev Tests that `setBatcherHash` reverts if the caller is not the owner.
     function test_setBatcherHash_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         sysConf.setBatcherHash(bytes32(hex""));
     }
 
+    /// @dev Tests that `setGasConfig` reverts if the caller is not the owner.
     function test_setGasConfig_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         sysConf.setGasConfig(0, 0);
     }
 
+    /// @dev Tests that `setGasLimit` reverts if the caller is not the owner.
     function test_setGasLimit_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         sysConf.setGasLimit(0);
     }
 
+    /// @dev Tests that `setUnsafeBlockSigner` reverts if the caller is not the owner.
     function test_setUnsafeBlockSigner_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         sysConf.setUnsafeBlockSigner(address(0x20));
     }
 
+    /// @dev Tests that `setResourceConfig` reverts if the caller is not the owner.
     function test_setResourceConfig_notOwner_reverts() external {
         ResourceMetering.ResourceConfig memory config = Constants.DEFAULT_RESOURCE_CONFIG();
         vm.expectRevert("Ownable: caller is not the owner");
         sysConf.setResourceConfig(config);
     }
 
+    /// @dev Tests that `setResourceConfig` reverts if the min base fee
+    ///      is greater than the maximum allowed base fee.
     function test_setResourceConfig_badMinMax_reverts() external {
         ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
@@ -100,6 +115,8 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         sysConf.setResourceConfig(config);
     }
 
+    /// @dev Tests that `setResourceConfig` reverts if the baseFeeMaxChangeDenominator
+    ///      is zero.
     function test_setResourceConfig_zeroDenominator_reverts() external {
         ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
@@ -114,6 +131,7 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         sysConf.setResourceConfig(config);
     }
 
+    /// @dev Tests that `setResourceConfig` reverts if the gas limit is too low.
     function test_setResourceConfig_lowGasLimit_reverts() external {
         uint64 gasLimit = sysConf.gasLimit();
 
@@ -130,6 +148,8 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         sysConf.setResourceConfig(config);
     }
 
+    /// @dev Tests that `setResourceConfig` reverts if the elasticity multiplier
+    ///      and max resource limit are configured such that there is a loss of precision.
     function test_setResourceConfig_badPrecision_reverts() external {
         ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
@@ -152,6 +172,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         bytes data
     );
 
+    /// @dev Tests that `setBatcherHash` updates the batcher hash successfully.
     function testFuzz_setBatcherHash_succeeds(bytes32 newBatcherHash) external {
         vm.expectEmit(true, true, true, true);
         emit ConfigUpdate(0, SystemConfig.UpdateType.BATCHER, abi.encode(newBatcherHash));
@@ -161,6 +182,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         assertEq(sysConf.batcherHash(), newBatcherHash);
     }
 
+    /// @dev Tests that `setGasConfig` updates the overhead and scalar successfully.
     function testFuzz_setGasConfig_succeeds(uint256 newOverhead, uint256 newScalar) external {
         vm.expectEmit(true, true, true, true);
         emit ConfigUpdate(
@@ -175,6 +197,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         assertEq(sysConf.scalar(), newScalar);
     }
 
+    /// @dev Tests that `setGasLimit` updates the gas limit successfully.
     function testFuzz_setGasLimit_succeeds(uint64 newGasLimit) external {
         uint64 minimumGasLimit = sysConf.minimumGasLimit();
         newGasLimit = uint64(
@@ -189,6 +212,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         assertEq(sysConf.gasLimit(), newGasLimit);
     }
 
+    /// @dev Tests that `setUnsafeBlockSigner` updates the block signer successfully.
     function testFuzz_setUnsafeBlockSigner_succeeds(address newUnsafeSigner) external {
         vm.expectEmit(true, true, true, true);
         emit ConfigUpdate(

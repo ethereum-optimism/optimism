@@ -10,6 +10,6 @@
   "hardhat_ignore_compile": false,
   "disable_color": false,
   "exclude_dependencies": true,
-  "filter_paths": "contracts/test,contracts/vendor,contracts/echidna,node_modules",
+  "filter_paths": "contracts/test,contracts/vendor,contracts/echidna,node_modules,contracts/cannon/MIPS.sol",
   "foundry_out_directory": "artifacts"
 }

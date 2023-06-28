@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 )
@@ -29,24 +29,27 @@ func CLIFlagsWithFlagPrefix(envPrefix string, flagPrefix string) []cli.Flag {
 	prefixFunc := func(flagName string) string {
 		return strings.Trim(fmt.Sprintf("%s.%s", flagPrefix, flagName), ".")
 	}
+	prefixEnvVars := func(name string) []string {
+		return opservice.PrefixEnvVar(envPrefix, name)
+	}
 	return []cli.Flag{
-		cli.StringFlag{
-			Name:   prefixFunc(TLSCaCertFlagName),
-			Usage:  "tls ca cert path",
-			Value:  "tls/ca.crt",
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "TLS_CA"),
+		&cli.StringFlag{
+			Name:    prefixFunc(TLSCaCertFlagName),
+			Usage:   "tls ca cert path",
+			Value:   "tls/ca.crt",
+			EnvVars: prefixEnvVars("TLS_CA"),
 		},
-		cli.StringFlag{
-			Name:   prefixFunc(TLSCertFlagName),
-			Usage:  "tls cert path",
-			Value:  "tls/tls.crt",
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "TLS_CERT"),
+		&cli.StringFlag{
+			Name:    prefixFunc(TLSCertFlagName),
+			Usage:   "tls cert path",
+			Value:   "tls/tls.crt",
+			EnvVars: prefixEnvVars("TLS_CERT"),
 		},
-		cli.StringFlag{
-			Name:   prefixFunc(TLSKeyFlagName),
-			Usage:  "tls key",
-			Value:  "tls/tls.key",
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "TLS_KEY"),
+		&cli.StringFlag{
+			Name:    prefixFunc(TLSKeyFlagName),
+			Usage:   "tls key",
+			Value:   "tls/tls.key",
+			EnvVars: prefixEnvVars("TLS_KEY"),
 		},
 	}
 }
@@ -73,9 +76,9 @@ func (c CLIConfig) TLSEnabled() bool {
 // This should be used for server TLS configs, or when client and server tls configs are the same
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
-		TLSCaCert: ctx.GlobalString(TLSCaCertFlagName),
-		TLSCert:   ctx.GlobalString(TLSCertFlagName),
-		TLSKey:    ctx.GlobalString(TLSKeyFlagName),
+		TLSCaCert: ctx.String(TLSCaCertFlagName),
+		TLSCert:   ctx.String(TLSCertFlagName),
+		TLSKey:    ctx.String(TLSKeyFlagName),
 	}
 }
 
@@ -86,8 +89,8 @@ func ReadCLIConfigWithPrefix(ctx *cli.Context, flagPrefix string) CLIConfig {
 		return strings.Trim(fmt.Sprintf("%s.%s", flagPrefix, flagName), ".")
 	}
 	return CLIConfig{
-		TLSCaCert: ctx.GlobalString(prefixFunc(TLSCaCertFlagName)),
-		TLSCert:   ctx.GlobalString(prefixFunc(TLSCertFlagName)),
-		TLSKey:    ctx.GlobalString(prefixFunc(TLSKeyFlagName)),
+		TLSCaCert: ctx.String(prefixFunc(TLSCaCertFlagName)),
+		TLSCert:   ctx.String(prefixFunc(TLSCertFlagName)),
+		TLSKey:    ctx.String(prefixFunc(TLSKeyFlagName)),
 	}
 }

@@ -1,12 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing utilities
 import { CommonTest } from "./CommonTest.t.sol";
+
+// Libraries
 import { Types } from "../libraries/Types.sol";
-import { Encoding } from "../libraries/Encoding.sol";
 import { LegacyCrossDomainUtils } from "../libraries/LegacyCrossDomainUtils.sol";
 
+// Target contract
+import { Encoding } from "../libraries/Encoding.sol";
+
 contract Encoding_Test is CommonTest {
+    /// @dev Tests encoding and decoding a nonce and version.
     function testFuzz_nonceVersioning_succeeds(uint240 _nonce, uint16 _version) external {
         (uint240 nonce, uint16 version) = Encoding.decodeVersionedNonce(
             Encoding.encodeVersionedNonce(_nonce, _version)
@@ -15,6 +21,7 @@ contract Encoding_Test is CommonTest {
         assertEq(nonce, _nonce);
     }
 
+    /// @dev Tests decoding a versioned nonce.
     function testDiff_decodeVersionedNonce_succeeds(uint240 _nonce, uint16 _version) external {
         uint256 nonce = uint256(Encoding.encodeVersionedNonce(_nonce, _version));
         (uint256 decodedNonce, uint256 decodedVersion) = ffi.decodeVersionedNonce(nonce);
@@ -24,6 +31,7 @@ contract Encoding_Test is CommonTest {
         assertEq(_nonce, uint240(decodedNonce));
     }
 
+    /// @dev Tests cross domain message encoding.
     function testDiff_encodeCrossDomainMessage_succeeds(
         uint240 _nonce,
         uint8 _version,
@@ -57,6 +65,7 @@ contract Encoding_Test is CommonTest {
         assertEq(encoding, _encoding);
     }
 
+    /// @dev Tests legacy cross domain message encoding.
     function testFuzz_encodeCrossDomainMessageV0_matchesLegacy_succeeds(
         uint240 _nonce,
         address _sender,
@@ -83,6 +92,7 @@ contract Encoding_Test is CommonTest {
         assertEq(legacyEncoding, bedrockEncoding);
     }
 
+    /// @dev Tests deposit transaction encoding.
     function testDiff_encodeDepositTransaction_succeeds(
         address _from,
         address _to,

@@ -30,6 +30,7 @@ describe('CrossChainMessenger', () => {
     describe('when given an ethers provider for the L1 provider', () => {
       it('should use the provider as the L1 provider', () => {
         const messenger = new CrossChainMessenger({
+          bedrock: false,
           l1SignerOrProvider: ethers.provider,
           l2SignerOrProvider: ethers.provider,
           l1ChainId: L1ChainID.MAINNET,
@@ -43,6 +44,7 @@ describe('CrossChainMessenger', () => {
     describe('when given an ethers provider for the L2 provider', () => {
       it('should use the provider as the L2 provider', () => {
         const messenger = new CrossChainMessenger({
+          bedrock: false,
           l1SignerOrProvider: ethers.provider,
           l2SignerOrProvider: ethers.provider,
           l1ChainId: L1ChainID.MAINNET,
@@ -56,6 +58,7 @@ describe('CrossChainMessenger', () => {
     describe('when given a string as the L1 provider', () => {
       it('should create a JSON-RPC provider for the L1 provider', () => {
         const messenger = new CrossChainMessenger({
+          bedrock: false,
           l1SignerOrProvider: 'https://localhost:8545',
           l2SignerOrProvider: ethers.provider,
           l1ChainId: L1ChainID.MAINNET,
@@ -69,6 +72,7 @@ describe('CrossChainMessenger', () => {
     describe('when given a string as the L2 provider', () => {
       it('should create a JSON-RPC provider for the L2 provider', () => {
         const messenger = new CrossChainMessenger({
+          bedrock: false,
           l1SignerOrProvider: ethers.provider,
           l2SignerOrProvider: 'https://localhost:8545',
           l1ChainId: L1ChainID.MAINNET,
@@ -83,6 +87,7 @@ describe('CrossChainMessenger', () => {
       it('should throw an error', () => {
         expect(() => {
           new CrossChainMessenger({
+            bedrock: false,
             l1SignerOrProvider: ethers.provider,
             l2SignerOrProvider: ethers.provider,
             l1ChainId: undefined as any,
@@ -96,6 +101,7 @@ describe('CrossChainMessenger', () => {
       it('should throw an error', () => {
         expect(() => {
           new CrossChainMessenger({
+            bedrock: false,
             l1SignerOrProvider: ethers.provider,
             l2SignerOrProvider: ethers.provider,
             l1ChainId: L1ChainID.MAINNET,
@@ -109,6 +115,7 @@ describe('CrossChainMessenger', () => {
       describe('when given a known chain ID', () => {
         it('should use the contract addresses for the known chain ID', () => {
           const messenger = new CrossChainMessenger({
+            bedrock: false,
             l1SignerOrProvider: ethers.provider,
             l2SignerOrProvider: 'https://localhost:8545',
             l1ChainId: L1ChainID.MAINNET,
@@ -135,6 +142,7 @@ describe('CrossChainMessenger', () => {
         it('should throw an error', () => {
           expect(() => {
             new CrossChainMessenger({
+              bedrock: false,
               l1SignerOrProvider: ethers.provider,
               l2SignerOrProvider: 'https://localhost:8545',
               l1ChainId: L1ChainID.MAINNET,
@@ -157,6 +165,7 @@ describe('CrossChainMessenger', () => {
             },
           }
           const messenger = new CrossChainMessenger({
+            bedrock: false,
             l1SignerOrProvider: ethers.provider,
             l2SignerOrProvider: 'https://localhost:8545',
             l1ChainId: L1ChainID.MAINNET,
@@ -210,6 +219,7 @@ describe('CrossChainMessenger', () => {
             }
 
             const messenger = new CrossChainMessenger({
+              bedrock: false,
               l1SignerOrProvider: ethers.provider,
               l2SignerOrProvider: 'https://localhost:8545',
               l1ChainId: L1ChainID.MAINNET,
@@ -247,6 +257,7 @@ describe('CrossChainMessenger', () => {
           it('should throw an error', () => {
             expect(() => {
               new CrossChainMessenger({
+                bedrock: false,
                 l1SignerOrProvider: ethers.provider,
                 l2SignerOrProvider: 'https://localhost:8545',
                 l1ChainId: L1ChainID.MAINNET,
@@ -283,6 +294,7 @@ describe('CrossChainMessenger', () => {
       ).deploy()) as any
 
       messenger = new CrossChainMessenger({
+        bedrock: false,
         l1SignerOrProvider: ethers.provider,
         l2SignerOrProvider: ethers.provider,
         l1ChainId: L1ChainID.HARDHAT_LOCAL,
@@ -473,6 +485,7 @@ describe('CrossChainMessenger', () => {
       ).deploy(l2Messenger.address)) as any
 
       messenger = new CrossChainMessenger({
+        bedrock: false,
         l1SignerOrProvider: ethers.provider,
         l2SignerOrProvider: ethers.provider,
         l1ChainId: L1ChainID.HARDHAT_LOCAL,
@@ -591,6 +604,7 @@ describe('CrossChainMessenger', () => {
       ).deploy()) as any
 
       messenger = new CrossChainMessenger({
+        bedrock: false,
         l1SignerOrProvider: ethers.provider,
         l2SignerOrProvider: ethers.provider,
         l1ChainId: L1ChainID.HARDHAT_LOCAL,
@@ -824,6 +838,7 @@ describe('CrossChainMessenger', () => {
       ).deploy(l2Messenger.address)) as any
 
       messenger = new CrossChainMessenger({
+        bedrock: false,
         l1SignerOrProvider: ethers.provider,
         l2SignerOrProvider: ethers.provider,
         l1ChainId: L1ChainID.HARDHAT_LOCAL,
@@ -974,6 +989,7 @@ describe('CrossChainMessenger', () => {
       ).deploy()) as any
 
       messenger = new CrossChainMessenger({
+        bedrock: false,
         l1SignerOrProvider: ethers.provider,
         l2SignerOrProvider: ethers.provider,
         l1ChainId: L1ChainID.HARDHAT_LOCAL,
@@ -1072,6 +1088,7 @@ describe('CrossChainMessenger', () => {
     let messenger: CrossChainMessenger
     beforeEach(async () => {
       messenger = new CrossChainMessenger({
+        bedrock: false,
         l1SignerOrProvider: ethers.provider,
         l2SignerOrProvider: ethers.provider,
         l1ChainId: L1ChainID.HARDHAT_LOCAL,
@@ -1176,6 +1193,7 @@ describe('CrossChainMessenger', () => {
       ).deploy()) as any
 
       messenger = new CrossChainMessenger({
+        bedrock: false,
         l1SignerOrProvider: ethers.provider,
         l2SignerOrProvider: ethers.provider,
         l1ChainId: L1ChainID.HARDHAT_LOCAL,
@@ -1349,6 +1367,7 @@ describe('CrossChainMessenger', () => {
       ).deploy()) as any
 
       messenger = new CrossChainMessenger({
+        bedrock: false,
         l1SignerOrProvider: l1Signer,
         l2SignerOrProvider: l2Signer,
         l1ChainId: L1ChainID.HARDHAT_LOCAL,
@@ -1445,6 +1464,7 @@ describe('CrossChainMessenger', () => {
       ).deploy()) as any
 
       messenger = new CrossChainMessenger({
+        bedrock: false,
         l1SignerOrProvider: l1Signer,
         l2SignerOrProvider: l2Signer,
         l1ChainId: L1ChainID.HARDHAT_LOCAL,
@@ -1542,6 +1562,7 @@ describe('CrossChainMessenger', () => {
       ).deploy(l2Messenger.address)) as any
 
       messenger = new CrossChainMessenger({
+        bedrock: false,
         l1SignerOrProvider: l1Signer,
         l2SignerOrProvider: l2Signer,
         l1ChainId: L1ChainID.HARDHAT_LOCAL,
@@ -1599,6 +1620,7 @@ describe('CrossChainMessenger', () => {
       ).deploy(l2Messenger.address)) as any
 
       messenger = new CrossChainMessenger({
+        bedrock: false,
         l1SignerOrProvider: l1Signer,
         l2SignerOrProvider: l2Signer,
         l1ChainId: L1ChainID.HARDHAT_LOCAL,

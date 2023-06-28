@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/core-utils",
-  "version": "0.12.0",
+  "version": "0.12.1",
   "description": "[Optimism] Core typescript utilities",
   "main": "dist/index",
   "types": "dist/index",
@@ -32,6 +32,7 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
+    "ethers": "^5.7.0",
     "@ethersproject/abi": "^5.7.0",
     "@ethersproject/abstract-provider": "^5.7.0",
     "@ethersproject/address": "^5.7.0",
@@ -39,17 +40,14 @@
     "@ethersproject/bytes": "^5.7.0",
     "@ethersproject/contracts": "^5.7.0",
     "@ethersproject/constants": "^5.7.0",
-    "@ethersproject/hash": "^5.7.0",
     "@ethersproject/keccak256": "^5.7.0",
-    "@ethersproject/providers": "^5.7.0",
     "@ethersproject/rlp": "^5.7.0",
-    "@ethersproject/transactions": "^5.7.0",
     "@ethersproject/properties": "^5.7.0",
     "@ethersproject/web": "^5.7.0",
-    "bufio": "^1.0.7",
     "chai": "^4.3.4"
   },
   "devDependencies": {
+    "@types/node": "^12.12.6",
     "mocha": "^10.0.0"
   }
 }
