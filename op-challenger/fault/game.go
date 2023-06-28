@@ -17,11 +17,8 @@ type Game interface {
 	// Put adds a claim into the game state.
 	Put(claim Claim) error
 
-	// ClaimPairs returns a list of claim pairs.
-	ClaimPairs() []struct {
-		claim  Claim
-		parent Claim
-	}
+	// Claims returns all of the claims in the game.
+	Claims() []Claim
 
 	IsDuplicate(claim Claim) bool
 }
@@ -93,8 +90,8 @@ func (g *gameState) recurseTree(treeNode *Node, claim ClaimData) (*Node, error) 
 
 // Put adds a claim into the game state.
 func (g *gameState) Put(claim Claim) error {
-	// If the claim is the root node and the node is set, return an error.
-	if claim.IsRoot() && g.root.self != (Claim{}) {
+	// The game is always initialized with a root claim. Cannot add a second.
+	if claim.IsRoot() {
 		return ErrClaimExists
 	}
 
@@ -132,40 +129,15 @@ func (g *gameState) IsDuplicate(claim Claim) bool {
 	return ok
 }
 
-// recurseTreePairs recursively walks down the tree from the root node
-// returning a list of claim and parent pairs.
-func (g *gameState) recurseTreePairs(current *Node) []struct {
-	claim  Claim
-	parent Claim
-} {
-	// Create a list of claim pairs.
-	pairs := make([]struct {
-		claim  Claim
-		parent Claim
-	}, 0)
-
-	// Iterate over all children of the current node.
-	for _, child := range current.children {
-		// Add the current node to the list of pairs.
-		pairs = append(pairs, struct {
-			claim  Claim
-			parent Claim
-		}{
-			claim:  child.self,
-			parent: current.self,
-		})
-
-		// Recurse down the tree.
-		pairs = append(pairs, g.recurseTreePairs(child)...)
-	}
-
-	return pairs
+func (g *gameState) Claims() []Claim {
+	return g.root.claims()
 }
 
-// ClaimPairs returns a list of claim pairs.
-func (g *gameState) ClaimPairs() []struct {
-	claim  Claim
-	parent Claim
-} {
-	return g.recurseTreePairs(&g.root)
+func (n *Node) claims() []Claim {
+	var out []Claim
+	out = append(out, n.self)
+	for _, c := range n.children {
+		out = append(out, c.claims()...)
+	}
+	return out
 }

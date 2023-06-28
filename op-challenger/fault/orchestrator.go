@@ -2,7 +2,6 @@ package fault
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"time"
 
@@ -15,17 +14,15 @@ type Orchestrator struct {
 	responses chan Claim
 }
 
-func NewOrchestrator(maxDepth uint64, traces []TraceProvider, names []string, root, counter Claim) Orchestrator {
+func NewOrchestrator(maxDepth uint64, traces []TraceProvider, names []string, root Claim) Orchestrator {
 	o := Orchestrator{
 		responses: make(chan Claim, 100),
 		outputChs: make([]chan Claim, len(traces)),
 		agents:    make([]Agent, len(traces)),
 	}
-	PrettyPrintAlphabetClaim("init", root)
-	PrettyPrintAlphabetClaim("init", counter)
+	log.Info("Starting game", "root_letter", string(root.Value[31:]))
 	for i, trace := range traces {
 		game := NewGameState(root)
-		_ = game.Put(counter)
 		o.agents[i] = NewAgent(game, int(maxDepth), trace, &o, log.New("role", names[i]))
 		o.outputChs[i] = make(chan Claim)
 	}
@@ -71,17 +68,4 @@ func (o *Orchestrator) responderThread() {
 		}
 
 	}
-}
-
-func PrettyPrintAlphabetClaim(name string, claim Claim) {
-	value := claim.Value
-	idx := value[30]
-	letter := value[31]
-	par_letter := claim.Parent.Value[31]
-	if claim.IsRoot() {
-		fmt.Printf("%s\ttrace %v letter %c\n", name, idx, letter)
-	} else {
-		fmt.Printf("%s\ttrace %v letter %c is attack %v parent letter %c\n", name, idx, letter, !claim.DefendsParent(), par_letter)
-	}
-
 }
