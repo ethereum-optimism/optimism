@@ -11,7 +11,7 @@ import {
 import { BRIDGE_ADAPTER_DATA, CrossChainMessenger, L2ChainID } from '../src'
 import { l1Provider, l2Provider } from './testUtils/ethersProviders'
 
-const ECO_WHALE: Address = '0xBd11c836279a1352ce737FbBFba36b20734B04e7'
+const ECO_WHALE: Address = '0x982E148216E3Aa6B38f9D901eF578B5c06DD7502'
 
 // we should instead use tokenlist as source of truth
 const ECO_L1_TOKEN_ADDRESS: Address =
