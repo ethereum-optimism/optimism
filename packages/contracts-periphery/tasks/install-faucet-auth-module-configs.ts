@@ -1,5 +1,4 @@
 import { task } from 'hardhat/config'
-import { LedgerSigner } from '@ethersproject/hardware-wallets'
 import { PopulatedTransaction } from 'ethers'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
@@ -7,13 +6,7 @@ import 'hardhat-deploy'
 import { getModuleConfigs, isSameConfig } from '../src/config/faucet'
 
 task('install-faucet-auth-module-configs').setAction(async (args, hre) => {
-  console.log(`connecting to ledger...`)
-  const signer = new LedgerSigner(
-    hre.ethers.provider,
-    'default',
-    hre.ethers.utils.defaultPath
-  )
-
+  const [signer] = await hre.ethers.getSigners()
   console.log(`connecting to Faucet...`)
 
   const Faucet = await hre.ethers.getContractAt(

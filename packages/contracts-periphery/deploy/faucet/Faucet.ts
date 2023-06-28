@@ -13,6 +13,8 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   const { deployer } = await hre.getNamedAccounts()
   console.log('Deploying Faucet')
 
+  console.log('admin', deployConfig.faucetAdmin)
+  console.log('deployer', deployer)
   const { deploy } = await hre.deployments.deterministic('Faucet', {
     salt: hre.ethers.utils.solidityKeccak256(['string'], ['Faucet']),
     from: deployer,
@@ -20,7 +22,8 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     log: true,
   })
 
-  await deploy()
+  const result = await deploy()
+  console.log('Faucet byte code', result.bytecode)
 }
 
 deployFn.tags = ['Faucet', 'FaucetEnvironment']

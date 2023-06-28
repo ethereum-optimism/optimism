@@ -30,7 +30,8 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     }
   )
 
-  await deploy()
+  const result = await deploy()
+  console.log('Optimist byte code', result.bytecode)
 }
 
 deployFn.tags = ['Faucet', 'FaucetEnvironment']
