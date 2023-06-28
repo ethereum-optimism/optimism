@@ -1,16 +1,17 @@
-    .section .test, "x"
+.section .test, "x"
     .balign 4
     .set    noreorder
     .global test
     .ent    test
 
 # load hash at 0x30001000
-# 0x47173285 a8d7341e 5e972fc6 77286384 f802f8ef 42a5ec5f 03bbfa25 4cb01fad = "hello world"
+# 0x47173285 a8d7341e 5e972fc6 77286384 f802f8ef 42a5ec5f 03bbfa25 4cb01fad = keccak("hello world")
+# 0x02173285 a8d7341e 5e972fc6 77286384 f802f8ef 42a5ec5f 03bbfa25 4cb01fad = keccak("hello world").key
 test:
   lui $s0, 0x3000
   ori $s0, 0x1000
 
-  lui $t0, 0x4717
+  lui $t0, 0x0217
   ori $t0, 0x3285
   sw $t0, 0($s0)
   lui $t0, 0xa8d7
@@ -35,20 +36,53 @@ test:
   ori $t0, 0x1fad
   sw $t0, 0x1c($s0)
 
-# syscall 4020 to trigger
-  li $v0, 4020
+# preimage request - write(fdPreimageWrite, preimageData, 32)
+  li $a0, 6
+  li $a1, 0x30001000
+  li $t0, 8
+  li $a2, 4
+$writeloop:
+  li $v0, 4004
   syscall
+  addiu $a1, $a1, 4
+  addiu $t0, $t0, -1
+  bnez $t0, $writeloop
+  nop
 
-# length at 0x31000000
+# preimage response to 0x30002000 - read(fdPreimageRead, addr, count)
+# read preimage length
+  li $a0, 5
+  li $a1, 0x31000000
+  li $a2, 4
+  li $v0, 4003
+  syscall
+  li $a1, 0x31000004
+  li $v0, 4003
+  syscall
+# read the preimage data
+  li $a1, 0x31000008
+  li $t0, 3
+$readloop:
+  li $v0, 4003
+  syscall
+  addiu $a1, $a1, 4
+  addiu $t0, $t0, -1
+  bnez $t0, $readloop
+  nop
+
+# length at 0x31000000. We also check that the lower 32 bits are zero
   lui $s1, 0x3100
   lw $t0, 0($s1)
-
+  sltiu $t6, $t0, 1
+  li $s1, 0x31000004
+  lw $t0, 0($s1)
 # should be len("hello world") == 11
   li $t4, 11
   subu $t5, $t0, $t4
-  sltiu $v0, $t5, 1 
+  sltiu $v0, $t5, 1
+  and $v0, $v0, $t6
 
-# data at 0x31000004
+# data at 0x31000008
   lw $t0, 4($s1)
   lui $t4, 0x6865
   ori $t4, 0x6c6c
