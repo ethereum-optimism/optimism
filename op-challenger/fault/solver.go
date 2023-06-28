@@ -31,6 +31,9 @@ func (s *Solver) NextMove(claim Claim) (*Claim, error) {
 	if err != nil {
 		return nil, err
 	}
+	if claim.Depth() == s.gameDepth {
+		return nil, errors.New("game depth reached")
+	}
 	if parentCorrect && claimCorrect {
 		// We agree with the parent, but the claim is disagreeing with it.
 		// Since we agree with the claim, the difference must be to the right of the claim
