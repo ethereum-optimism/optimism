@@ -56,28 +56,28 @@ npm install @eth-optimism/contracts-bedrock
 
 We work on this repository with a combination of [Hardhat](https://hardhat.org) and [Foundry](https://getfoundry.sh/).
 
-1. Install node modules with yarn (v1) and Node.js (16+):
+1. Install node modules with pnpm (v8) and Node.js (16+):
 
 ```shell
-yarn install
+pnpm install
 ```
 
-1. Install the correct version of foundry (defined in the .foundryrc file in the root of this repo.
+2. Install the correct version of foundry (defined in the .foundryrc file in the root of this repo.
 
 ```shell
-yarn install:foundry
+pnpm install:foundry
 ```
 
 ### Build
 
 ```shell
-yarn build
+pnpm build
 ```
 
 ### Tests
 
 ```shell
-yarn test
+pnpm test
 ```
 
 #### Running Echidna tests
@@ -85,10 +85,10 @@ yarn test
 You must have [Echidna](https://github.com/crytic/echidna) installed.
 
 Contracts targetted for Echidna testing are located in `./contracts/echidna`
-Each target contract is tested with a separate yarn command, for example:
+Each target contract is tested with a separate pnpm command, for example:
 
 ```shell
-yarn echidna:aliasing
+pnpm echidna:aliasing
 ```
 
 ### Deployment
