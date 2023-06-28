@@ -50,6 +50,56 @@ func TestIsDuplicate(t *testing.T) {
 	require.False(t, g.IsDuplicate(bottom))
 }
 
+// TestGame_PutAll_RootAlreadyExists tests the [Game.PutAll] method using a [gameState]
+// instance errors when the root claim already exists in state.
+func TestGame_PutAll_RootAlreadyExists(t *testing.T) {
+	// Setup the game state.
+	top, _, _ := createTestClaims()
+	g := NewGameState(top)
+
+	// Try to put the root claim into the game state again.
+	err := g.PutAll([]Claim{top})
+	require.ErrorIs(t, err, ErrClaimExists)
+}
+
+// TestGame_PutAll_AlreadyExists tests the [Game.PutAll] method using a [gameState]
+// instance errors when the given claim already exists in state.
+func TestGame_PutAll_AlreadyExists(t *testing.T) {
+	// Setup the game state.
+	top, middle, _ := createTestClaims()
+	g := NewGameState(top)
+
+	// Put the next claim into state.
+	err := g.PutAll([]Claim{middle})
+	require.NoError(t, err)
+
+	// Try to put the root claim into the game state again.
+	err = g.PutAll([]Claim{middle})
+	require.ErrorIs(t, err, ErrClaimExists)
+}
+
+// TestGame_PutAll_ParentsAndChildren tests the [Game.PutAll] method using a [gameState] instance.
+func TestGame_PutAll_ParentsAndChildren(t *testing.T) {
+	// Setup the game state.
+	top, middle, bottom := createTestClaims()
+	g := NewGameState(top)
+
+	// We should not be able to get the parent of the root claim.
+	parent, err := g.getParent(top)
+	require.ErrorIs(t, err, ErrClaimNotFound)
+	require.Equal(t, parent, Claim{})
+
+	// Put the rest of the claims in the state.
+	err = g.PutAll([]Claim{middle, bottom})
+	require.NoError(t, err)
+	parent, err = g.getParent(middle)
+	require.NoError(t, err)
+	require.Equal(t, parent, top)
+	parent, err = g.getParent(bottom)
+	require.NoError(t, err)
+	require.Equal(t, parent, middle)
+}
+
 // TestGame_Put_RootAlreadyExists tests the [Game.Put] method using a [gameState]
 // instance errors when the root claim already exists in state.
 func TestGame_Put_RootAlreadyExists(t *testing.T) {
