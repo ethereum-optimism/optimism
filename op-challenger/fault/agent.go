@@ -38,8 +38,12 @@ func (a *Agent) AddClaim(claim Claim) error {
 func (a *Agent) PerformActions() {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	for _, pair := range a.game.ClaimPairs() {
-		_ = a.move(pair.claim, pair.parent)
+	for _, claim := range a.game.Claims() {
+		parent := Claim{
+			Parent:    ClaimData{},
+			ClaimData: claim.Parent,
+		}
+		_ = a.move(claim, parent)
 	}
 }
 
