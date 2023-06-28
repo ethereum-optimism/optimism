@@ -13,7 +13,9 @@ compile:
 	cd $(contracts-dir) && \
 		yarn build
 
-bindings: compile
+bindings: compile bindings-build
+
+bindings-build:
 	go run ./gen/main.go \
 		-forge-artifacts ../packages/contracts-bedrock/forge-artifacts \
 		-out ./bindings \

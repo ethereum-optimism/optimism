@@ -145,9 +145,9 @@ contract MIPS {
           if lt(space, datLen) { datLen := space } // if less space than data, shorten data
           if lt(a2, datLen) { datLen := a2 } // if requested to read less, read less
           dat := shr(sub(256, mul(datLen, 8)), dat) // right-align data
-          dat := shl(mul(alignment, 8), dat) // position data to insert into memory word
+          dat := shl(mul(add(sub(4, datLen), alignment), 8), dat) // position data to insert into memory word
           let mask := sub(shl(mul(sub(4, alignment), 8), 1), 1) // mask all bytes after start
-          let suffixMask := sub(shl(mul(add(sub(4, alignment), datLen), 8), 1), 1) // mask of all bytes starting from end, maybe none
+          let suffixMask := sub(shl(mul(sub(sub(4, alignment), datLen), 8), 1), 1) // mask of all bytes starting from end, maybe none
           mask := and(mask, not(suffixMask)) // reduce mask to just cover the data we insert
           mem := or(and(mem, not(mask)), dat) // clear masked part of original memory, and insert data
         }

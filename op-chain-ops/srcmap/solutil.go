@@ -95,6 +95,9 @@ func (s *SourceMap) Info(pc uint64) (source string, line uint32, col uint32) {
 	if s.PosData[instr.F] == nil { // when the source file is known to be unavailable
 		return
 	}
+	if int(instr.S) >= len(s.PosData[instr.F]) { // possibly invalid / truncated source mapping
+		return
+	}
 	lc := s.PosData[instr.F][instr.S]
 	line = lc.Line
 	col = lc.Col

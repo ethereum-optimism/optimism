@@ -48,7 +48,7 @@ func LoadContractsFromFiles() (*Contracts, error) {
 	if err != nil {
 		return nil, err
 	}
-	oracle, err := LoadContract("Oracle")
+	oracle, err := LoadContract("PreimageOracle")
 	if err != nil {
 		return nil, err
 	}
