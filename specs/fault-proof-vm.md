@@ -11,7 +11,7 @@
 - [Delay Slots](#delay-slots)
 - [Syscalls](#syscalls)
 - [I/O](#io)
-- [Pre-image Communication](#pre-image-communication)
+  - [Pre-image Communication](#pre-image-communication)
 - [Exceptions](#exceptions)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -27,7 +27,7 @@ $$f(S_{pre}) \rightarrow S_{post}$$
 The virtual machine state highlights the effects of running a Fault Proof Program on the VM.
 It consists of the following fields:
 1. `memRoot` - A `bytes32` value representing the merkle root of VM memory.
-2. `preimageKey` - `bytes32` value of the last requested pre-image key (see [pre-image comms spec](fault-proof.md#pre-image-communication))
+2. `preimageKey` - `bytes32` value of the last requested pre-image key.
 3. `preimageOffset` - The 32-bit value of the last requested pre-image offset.
 4. `pc` - 32-bit program counter.
 5. `nextPC` - 32-bit next program counter. Note that this value may not always be $pc+4$ when executing a branch/jump delay slot.
@@ -53,7 +53,7 @@ FPVM state contains a `heap` tracking the current address of the free store used
 The FPVM has a fixed program break at `0x40000000`. However, the FPVM is permitted to extend the heap beyond this limit via mmap syscalls. For simplicity, there are no memory protections against "heap overruns" against other conceptual segments.
 Such steps are considered valid state transitions.
 
-The actual memory mappings is outside the scope of this specification as it is irrelevant to the VM state. FPVM implementations may refer to the Linux/MIPS kernel for inspiration.
+The actual memory mappings is outside the scope of this specification as it is irrelevant to the VM state. FPVM implementers may refer to the Linux/MIPS kernel for inspiration.
 
 ## Delay Slots
 
@@ -65,20 +65,17 @@ The following table list summarizes the supported syscalls and their behaviors
 
 | $v0 | system call | $a0 | $a1 | $a2 | Effect |
 | -- | -- | -- | -- | -- | -- |
-| 4090 | mmap | uint32 addr | uint32 len | | allocates a page from the heap. See [heap](#heap) for details. |
+| 4090 | mmap | uint32 addr | uint32 len | | Allocates a page from the heap. See [heap](#heap) for details. |
 | 4045 | brk | | | | Returns a fixed address for the program break at `0x40000000` |
-| 4120 | clone | | | | returns 1 |
-| 4246 | exit_group | uint8 exit_code | | | sets the Exited and ExitCode states to `true` and `$a0` respectively. |
-| read | 4003 | uint32 fd | char *buf | uint32 count | Similar behavior as Linux/MIPS with support for unaligned reads. See [I/O](#io) for more deteails. |
-| write | 4004 | uint32 fd | char *buf | uint32 count | Similar behavior as Linux/MIPS with support for unaligned writes. See [I/O](#io) for more details. |
-| fcntl | 4055 | uint32 fd | int32 cmd | | Similar behavior as Linux/MIPS. Only the `F_GETFL` (3) cmd is supported. |
+| 4120 | clone | | | | Returns 1 |
+| 4246 | exit_group | uint8 exit_code | | | Sets the Exited and ExitCode states to `true` and `$a0` respectively. |
+| 4003 | read | uint32 fd | char *buf | uint32 count | Similar behavior as Linux/MIPS with support for unaligned reads. See [I/O](#io) for more details. |
+| 4004 | write | uint32 fd | char *buf | uint32 count | Similar behavior as Linux/MIPS with support for unaligned writes. See [I/O](#io) for more details. |
+| 4055 | fcntl | uint32 fd | int32 cmd | | Similar behavior as Linux/MIPS. Only the `F_GETFL` (3) cmd is supported. |
 
-For all of the above syscalls, an error is indicated by setting the return register (`$v0`) to `0xFFFFFFFF` and `errno` (`$a3`) is set accordingly.
+For all of the above syscalls, an error is indicated by setting the return register (`$v0`) to `0xFFFFFFFF` and `errno` (`$a3`) is set accordingly. For all other syscalls, the VM must do nothing except to zero out the syscall return (`$v0`) and errno (`$a3`) registers.
 
 Note that the above syscalls have identical syscall numbers and ABIs as Linux/MIPS.
-
-For all other syscalls, the VM must do nothing except to zero out the syscall return (`$v0`) and errno (`$a3`) registers.
-
 
 ## I/O
 The VM does not support open(2). Only a preset file descriptors can be read from and written to.
@@ -94,8 +91,12 @@ The VM does not support open(2). Only a preset file descriptors can be read from
 
 Syscalls referencing unnkown file descriptors fail with an `EBADF` errno as done on Linux/MIPS.
 
+Writing to and reading from standard output, input and error streams have no effect on the FPVM state.
+FPVM implementations may use them for debugging purposes as long as I/O is stateless.
+
 All I/O operations are restricted to a maximum of 4 bytes per operation.
-Any read or write syscall request exceeding this limit will be truncated to 4 bytes. Consequently, the return value of sucha read syscall wil also be 4, indicating the actual number of bytes read.
+Any read or write syscall request exceeding this limit will be truncated to 4 bytes.
+Consequently, the return value of read syscalls is 4, indicating the actual number of bytes read.
 
 ### Pre-image Communication
 The `preimageKey` and `preimageOffset` state are updated via read/write syscalls to the pre-image read and write file descriptors (see [I/O](#io)).
@@ -107,6 +108,8 @@ When handling pre-image reads, the `preimageKey` is used to lookup the pre-imgae
 Each read operation increases the `preimageOffset` by the number of bytes requested (capped at 4 bytes).
 
 ## Exceptions
-The FPVM may throw an exception rather than output a post-state to signal an invalid state transition. Nominally, the FPVM must throw an exception in the following cases:
-- invalid instruction (either via an invalid opcode or an instruction referencing registers outside the general purpose registers).
+The FPVM may raise an exception rather than output a post-state to signal an invalid state transition. Nominally, the FPVM must raise an exception in at least the following cases:
+- Invalid instruction (either via an invalid opcode or an instruction referencing registers outside the general purpose registers).
 - Pre-image read at an offset larger than the size of the pre-image.
+
+VM implementations may raise an exception in other cases that is specific to the implementation. For example, an on-chain FPVM that relies on pre-supplied merkle proofs of memory access may raise an exception if the supplied merkle root proof doees not match the pre-state `memRoot`.
