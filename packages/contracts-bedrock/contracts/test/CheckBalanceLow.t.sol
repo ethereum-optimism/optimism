@@ -1,8 +1,8 @@
 //SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { CheckBalanceLow } from "../universal/drippie/dripchecks/CheckBalanceLow.sol";
+import { CheckBalanceLow } from "../periphery/drippie/dripchecks/CheckBalanceLow.sol";
 
 /**
  * @title  CheckBalanceLowTest

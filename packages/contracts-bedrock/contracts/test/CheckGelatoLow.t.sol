@@ -1,11 +1,11 @@
 //SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import {
     CheckGelatoLow,
     IGelatoTreasury
-} from "../universal/drippie/dripchecks/CheckGelatoLow.sol";
+} from "../periphery/drippie/dripchecks/CheckGelatoLow.sol";
 
 /**
  * @title  MockGelatoTreasury

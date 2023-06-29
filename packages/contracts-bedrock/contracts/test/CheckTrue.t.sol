@@ -1,8 +1,8 @@
 //SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { CheckTrue } from "../universal/drippie/dripchecks/CheckTrue.sol";
+import { CheckTrue } from "../periphery/drippie/dripchecks/CheckTrue.sol";
 
 /**
  * @title  CheckTrueTest

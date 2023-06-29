@@ -1,11 +1,11 @@
 //SPDX-License-Identifier: MIT
-pragma solidity 0.8.16;
+pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { Drippie } from "../universal/drippie/Drippie.sol";
-import { IDripCheck } from "../universal/drippie/IDripCheck.sol";
-import { CheckTrue } from "../universal/drippie/dripchecks/CheckTrue.sol";
-import { SimpleStorage } from "../testing/helpers/SimpleStorage.sol";
+import { Drippie } from "../periphery/drippie/Drippie.sol";
+import { IDripCheck } from "../periphery/drippie/IDripCheck.sol";
+import { CheckTrue } from "../periphery/drippie/dripchecks/CheckTrue.sol";
+import { SimpleStorage } from "./Helpers.sol";
 
 /**
  * @title  TestDrippie
