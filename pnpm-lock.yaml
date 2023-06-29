@@ -457,8 +457,8 @@ importers:
         specifier: ^0.8.2
         version: link:../common-ts
       '@eth-optimism/contracts-bedrock':
-        specifier: ^0.14.0
-        version: 0.14.0
+        specifier: 0.15.0
+        version: link:../contracts-bedrock
       '@eth-optimism/core-utils':
         specifier: ^0.12.1
         version: link:../core-utils
@@ -1482,18 +1482,6 @@ packages:
     engines: {node: ^12.22.0 || ^14.17.0 || >=16.0.0}
     dev: true
 
-  /@eth-optimism/contracts-bedrock@0.14.0:
-    resolution: {integrity: sha512-mvbSE2q2cyHUwg1jtHwR4JOQJcwdCVRAkmBdXCKUP0XsP48NT1J92bYileRdiUM5nLIESgNNmPA8L2J87mr62g==}
-    dependencies:
-      '@eth-optimism/core-utils': 0.12.1
-      '@openzeppelin/contracts': 4.7.3
-      '@openzeppelin/contracts-upgradeable': 4.7.3
-      ethers: 5.7.1
-    transitivePeerDependencies:
-      - bufferutil
-      - utf-8-validate
-    dev: false
-
   /@eth-optimism/contracts@0.6.0(ethers@5.7.1):
     resolution: {integrity: sha512-vQ04wfG9kMf1Fwy3FEMqH2QZbgS0gldKhcBeBUPfO8zu68L61VI97UDXmsMQXzTsEAxK8HnokW3/gosl4/NW3w==}
     peerDependencies:
@@ -1530,23 +1518,6 @@ packages:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
-    dev: false
-
-  /@eth-optimism/core-utils@0.12.1:
-    resolution: {integrity: sha512-H2NnH9HTVDJmr9Yzb5R7GrAaYimcyIY4bF5Oud0xM1/DP4pSoNMtWm1kG3ZBpdqHFFYWH9GiSZZC5/cjFdKBEA==}
-    dependencies:
-      '@ethersproject/abi': 5.7.0
-      '@ethersproject/abstract-provider': 5.7.0
-      '@ethersproject/address': 5.7.0
-      '@ethersproject/bignumber': 5.7.0
-      '@ethersproject/bytes': 5.7.0
-      '@ethersproject/constants': 5.7.0
-      '@ethersproject/contracts': 5.7.0
-      '@ethersproject/keccak256': 5.7.0
-      '@ethersproject/properties': 5.7.0
-      '@ethersproject/rlp': 5.7.0
-      '@ethersproject/web': 5.7.1
-      chai: 4.3.7
     dev: false
 
   /@ethereum-waffle/chai@3.4.4:
