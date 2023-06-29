@@ -22,7 +22,7 @@ func NewOrchestrator(maxDepth uint64, traces []TraceProvider, names []string, ro
 	}
 	log.Info("Starting game", "root_letter", string(root.Value[31:]))
 	for i, trace := range traces {
-		game := NewGameState(root)
+		game := NewGameState(root, maxDepth)
 		o.agents[i] = NewAgent(game, int(maxDepth), trace, &o, log.New("role", names[i]))
 		o.outputChs[i] = make(chan Claim)
 	}
