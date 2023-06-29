@@ -374,13 +374,13 @@ export class CrossChainMessenger {
     }
   }
 
-  public async getWithdrawalsFromMessage(message: MessageLike) {
+  public async getWithdrawalsFromMessage(message: MessageLike): Promise<ethers.utils.Result[]> {
     const resolved = await this.toCrossChainMessage(message)
     const receipt = await this.l2Provider.getTransactionReceipt(
       resolved.transactionHash
     )
 
-    const withdrawals: any[] = []
+    const withdrawals: ethers.utils.Result[] = []
     for (const log of receipt.logs) {
       if (log.address === this.contracts.l2.BedrockMessagePasser.address) {
         const decoded =
