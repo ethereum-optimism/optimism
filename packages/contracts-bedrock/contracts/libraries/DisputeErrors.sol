@@ -39,6 +39,9 @@ error GameNotInProgress();
 /// @notice Thrown when a move is attempted to be made after the clock has timed out.
 error ClockTimeExceeded();
 
+/// @notice Thrown when the game is attempted to be resolved too early.
+error ClockNotExpired();
+
 /// @notice Thrown when a move is attempted to be made at or greater than the max depth of the game.
 error GameDepthExceeded();
 
