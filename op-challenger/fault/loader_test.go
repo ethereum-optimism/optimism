@@ -47,6 +47,14 @@ func (m *mockGameState) IsDuplicate(claim Claim) bool {
 	return false
 }
 
+func (m *mockGameState) PreStateClaim(claim Claim) (Claim, error) {
+	panic("unimplemented")
+}
+
+func (m *mockGameState) PostStateClaim(claim Claim) (Claim, error) {
+	panic("unimplemented")
+}
+
 type mockClaimFetcher struct {
 	claimDataError bool
 	claimLenError  bool
