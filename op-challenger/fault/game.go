@@ -17,9 +17,13 @@ type Game interface {
 	// Put adds a claim into the game state.
 	Put(claim Claim) error
 
+	// PutAll adds a list of claims into the game state.
+	PutAll(claims []Claim) error
+
 	// Claims returns all of the claims in the game.
 	Claims() []Claim
 
+	// IsDuplicate returns true if the provided [Claim] already exists in the game state.
 	IsDuplicate(claim Claim) bool
 }
 
@@ -86,6 +90,17 @@ func (g *gameState) recurseTree(treeNode *Node, claim ClaimData) (*Node, error) 
 
 	// If we reach this point, the claim was not found.
 	return nil, ErrClaimNotFound
+}
+
+// PutAll adds a list of claims into the [Game] state.
+// If any of the claims already exist in the game state, an error is returned.
+func (g *gameState) PutAll(claims []Claim) error {
+	for _, claim := range claims {
+		if err := g.Put(claim); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Put adds a claim into the game state.
