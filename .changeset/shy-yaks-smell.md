@@ -4,4 +4,4 @@
 '@eth-optimism/sdk': patch
 ---
 
-Delete dead typescript https://github.com/ethereum-optimism/optimism/pull/6148
+Delete dead typescript https://github.com/ethereum-optimism/optimism/pull/6148.
