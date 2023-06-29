@@ -34,7 +34,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     IBigStepper public immutable VM;
 
     /// @notice The duration of the game.
-    /// @dev TODO: Account for resolution buffer. (?)
     Duration internal constant GAME_DURATION = Duration.wrap(7 days);
 
     /// @notice The root claim's position is always at gindex 1.
