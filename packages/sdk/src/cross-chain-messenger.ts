@@ -374,7 +374,7 @@ export class CrossChainMessenger {
     }
   }
 
-  public async getWithdrawalsFromMessage(message: MessageLike): Promise<ethers.utils.Result[]> {
+  private async getWithdrawalsFromMessage(message: MessageLike): Promise<ethers.utils.Result[]> {
     const resolved = await this.toCrossChainMessage(message)
     const receipt = await this.l2Provider.getTransactionReceipt(
       resolved.transactionHash
