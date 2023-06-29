@@ -78,3 +78,24 @@ func WaitFor(ctx context.Context, rate time.Duration, cb func() (bool, error)) e
 		}
 	}
 }
+
+func WaitAndGet[T interface{}](ctx context.Context, pollRate time.Duration, get func() (T, error), predicate func(T) bool) (T, error) {
+	tick := time.NewTicker(pollRate)
+	defer tick.Stop()
+
+	var nilT T
+	for {
+		select {
+		case <-ctx.Done():
+			return nilT, ctx.Err()
+		case <-tick.C:
+			val, err := get()
+			if err != nil {
+				return nilT, err
+			}
+			if predicate(val) {
+				return val, nil
+			}
+		}
+	}
+}
