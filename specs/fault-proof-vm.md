@@ -1,20 +1,20 @@
+# Fault Proof Virtual Machine Specification
+
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-**Table of Contents**  *generated with [DocToc](https://github.com/thlorenz/doctoc)*
+**Table of Contents**
 
-- [Fault Proof Virtual Machine Specification](#fault-proof-virtual-machine-specification)
-  - [Overview](#overview)
-  - [State](#state)
-  - [Memory](#memory)
-    - [Heap](#heap)
-  - [Delay Slots](#delay-slots)
-  - [Syscalls](#syscalls)
-  - [I/O](#io)
-  - [Exceptions](#exceptions)
+- [Overview](#overview)
+- [State](#state)
+- [Memory](#memory)
+  - [Heap](#heap)
+- [Delay Slots](#delay-slots)
+- [Syscalls](#syscalls)
+- [I/O](#io)
+- [Pre-image Communication](#pre-image-communication)
+- [Exceptions](#exceptions)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
-
-# Fault Proof Virtual Machine Specification
 
 ## Overview
 
@@ -94,6 +94,17 @@ The VM does not support open(2). Only a preset file descriptors can be read from
 
 Syscalls referencing unnkown file descriptors fail with an `EBADF` errno as done on Linux/MIPS.
 
+All I/O operations are restricted to a maximum of 4 bytes per operation.
+Any read or write syscall request exceeding this limit will be truncated to 4 bytes. Consequently, the return value of sucha read syscall wil also be 4, indicating the actual number of bytes read.
+
+## Pre-image Communication
+The `preimageKey` and `preimageOffset` state are updated via read/write syscalls to the pre-image read and write file descriptors (see [I/O](#io)).
+The `preimageKey` buffers the stream of bytes written to the pre-image write fd. Writes to the pre-image write fd resets the `preimageOffset`, indicating the intent to read a new pre-image.
+
+When handling pre-image reads, the `preimageKey` is used to lookup the pre-imgae data from an oracle. A max 4-byte chunk of the pre-image at the `preimageOffset` is returned by the read.
+Each read operation increases the `preimageOffset` by the number of bytes requested (capped at 4 bytes).
 
 ## Exceptions
-The FPVM may throw an exception rather than output a post-state to signal an invalid state transition. Nominally, the FPVM must throw an exception whenever it encounters an invalid instruction (either via an invalid opcode or an instruction referencing registers outside the general purpose registers).
+The FPVM may throw an exception rather than output a post-state to signal an invalid state transition. Nominally, the FPVM must throw an exception in the following cases:
+- invalid instruction (either via an invalid opcode or an instruction referencing registers outside the general purpose registers).
+- Pre-image read at an offset larger than the size of the pre-image.
