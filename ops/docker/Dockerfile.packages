@@ -3,7 +3,7 @@
 #
 
 # Stage 0 (named `manifests`) collects
-# dependency manifest files (`package.json` and `yarn.lock`) which are then
+# dependency manifest files (`package.json` and `pnpm-lock.yaml`) which are then
 # used by stage 1 to install these dependencies
 # development. The only reason we need a separate stage just for collecting the
 # dependency manifests is that Docker's `COPY` command still does not allow
@@ -17,41 +17,47 @@ FROM alpine:3.16 as manifests
 RUN apk add coreutils
 
 WORKDIR /tmp
-COPY yarn.lock .nvmrc package.json ./src/
+COPY pnpm-lock.yaml pnpm-workspace.yaml .nvmrc package.json ./src/
 COPY packages src/packages/
 RUN mkdir manifests && \
   cd src && \
   # copy package.json recursively
   find . -name 'package.json' | xargs cp --parents -t ../manifests/ && \
-  # yarn.lock
-  cp yarn.lock ../manifests/ && \
+  # pnpm-lock.yaml
+  cp pnpm-lock.yaml ../manifests/ && \
+  # pnpm-workspace.yaml
+  cp pnpm-workspace.yaml ../manifests/ && \
   # .nvmrc
   cp .nvmrc ../manifests/
 
 FROM ethereumoptimism/foundry:latest as foundry
-FROM node:16-alpine3.14 as base
+# bullseye-slim is debian based
+# we use it rather than alpien because it's not much
+# bigger and alpine is often missing packages for node applications
+# alpine is not officially supported by node.js
+FROM node:16.16.0-bullseye-slim as base
 
 # Base: install deps
-RUN apk --no-cache add curl \
+RUN apt-get update && apt-get install -y \
+  curl \
   jq \
   python3 \
   ca-certificates \
   git \
+  g++ \
   make \
   gcc \
   musl-dev \
-  linux-headers \
   bash \
-  build-base \
-  gcompat
+  # the following 4 deps are needed for node-hid
+  # which is a deep sub dependency of ethers to install
+  # correctly
+  pkg-config \
+  libusb-1.0-0-dev \
+  libudev-dev \
+  --no-install-recommends
 
-ENV GLIBC_KEY=https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub
-ENV GLIBC_KEY_FILE=/etc/apk/keys/sgerrand.rsa.pub
-ENV GLIBC_RELEASE=https://github.com/sgerrand/alpine-pkg-glibc/releases/download/2.35-r0/glibc-2.35-r0.apk
-
-RUN wget -q -O ${GLIBC_KEY_FILE} ${GLIBC_KEY} \
-  && wget -O glibc.apk ${GLIBC_RELEASE} \
-  && apk add glibc.apk --force
+RUN npm install pnpm --global
 
 COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
 COPY --from=foundry /usr/local/bin/cast /usr/local/bin/cast
@@ -59,37 +65,38 @@ COPY --from=foundry /usr/local/bin/cast /usr/local/bin/cast
 WORKDIR /opt/optimism
 
 # Copy manifest files into the image in
-# preparation for `yarn install`.
+# preparation for `pnpm install`.
 COPY --from=manifests /tmp/manifests  ./
 COPY *.json ./
 
-RUN yarn install --frozen-lockfile && yarn cache clean
+RUN pnpm install --frozen-lockfile
 
 COPY ./packages ./packages
 
-RUN yarn build
+RUN pnpm build
 
 FROM base as fault-detector
 WORKDIR /opt/optimism/packages/fault-detector
 COPY ./ops/scripts/detector.sh .
-CMD ["npm", "run", "start"]
+CMD ["pnpm", "run", "start"]
 
 FROM base as replica-healthcheck
 WORKDIR /opt/optimism/packages/replica-healthcheck
-ENTRYPOINT ["npm", "run", "start"]
+ENTRYPOINT ["pnpm", "run", "start"]
 
 FROM base as balance-mon
 WORKDIR /opt/optimism/packages/chain-mon
-ENTRYPOINT ["npm", "run", "start:balance-mon"]
+ENTRYPOINT ["pnpm", "run", "start:balance-mon"]
 
 FROM base as drippie-mon
 WORKDIR /opt/optimism/packages/chain-mon
-ENTRYPOINT ["npm", "run", "start:drippie-mon"]
+ENTRYPOINT ["pnpm", "run", "start:drippie-mon"]
+
 
 FROM base as wd-mon
 WORKDIR /opt/optimism/packages/chain-mon
-ENTRYPOINT ["yarn", "run", "start:wd-mon"]
+ENTRYPOINT ["pnpm", "run", "start:wd-mon"]
 
 FROM base as wallet-mon
 WORKDIR /opt/optimism/packages/chain-mon
-ENTRYPOINT ["yarn", "run", "start:wallet-mon"]
+ENTRYPOINT ["pnpm", "run", "start:wallet-mon"]

@@ -31,8 +31,9 @@ func TestState(t *testing.T) {
 
 	for _, f := range testFiles {
 		t.Run(f.Name(), func(t *testing.T) {
+			var oracle PreimageOracle
 			if f.Name() == "oracle.bin" {
-				t.Skip("oracle test needs to be updated to use syscall pre-image oracle")
+				oracle = staticOracle(t, []byte("hello world"))
 			}
 			// TODO: currently tests are compiled as flat binary objects
 			// We can use more standard tooling to compile them to ELF files and get remove maketests.py
@@ -50,7 +51,7 @@ func TestState(t *testing.T) {
 			// set the return address ($ra) to jump into when test completes
 			state.Registers[31] = endAddr
 
-			us := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+			us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
 
 			for i := 0; i < 1000; i++ {
 				if us.state.PC == endAddr {
@@ -195,4 +196,16 @@ func TestClaim(t *testing.T) {
 
 	require.Equal(t, expectedStdOut, stdOutBuf.String(), "stdout")
 	require.Equal(t, expectedStdErr, stdErrBuf.String(), "stderr")
+}
+
+func staticOracle(t *testing.T, preimageData []byte) *testOracle {
+	return &testOracle{
+		hint: func(v []byte) {},
+		getPreimage: func(k [32]byte) []byte {
+			if k != preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey() {
+				t.Fatalf("invalid preimage request for %x", k)
+			}
+			return preimageData
+		},
+	}
 }

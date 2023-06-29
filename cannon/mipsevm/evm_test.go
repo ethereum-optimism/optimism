@@ -58,8 +58,9 @@ func TestEVM(t *testing.T) {
 
 	for _, f := range testFiles {
 		t.Run(f.Name(), func(t *testing.T) {
+			var oracle PreimageOracle
 			if f.Name() == "oracle.bin" {
-				t.Skip("oracle test needs to be updated to use syscall pre-image oracle")
+				oracle = staticOracle(t, []byte("hello world"))
 			}
 
 			env, evmState := NewEVMEnv(contracts, addrs)
@@ -75,7 +76,7 @@ func TestEVM(t *testing.T) {
 			// set the return address ($ra) to jump into when test completes
 			state.Registers[31] = endAddr
 
-			us := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+			us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
 
 			for i := 0; i < 1000; i++ {
 				if us.state.PC == endAddr {
@@ -91,6 +92,16 @@ func TestEVM(t *testing.T) {
 
 				// we take a snapshot so we can clean up the state, and isolate the logs of this instruction run.
 				snap := env.StateDB.Snapshot()
+
+				// prepare pre-image oracle data, if any
+				if stepWitness.HasPreimage() {
+					t.Logf("reading preimage key %x at offset %d", stepWitness.PreimageKey, stepWitness.PreimageOffset)
+					poInput, err := stepWitness.EncodePreimageOracleInput()
+					require.NoError(t, err, "encode preimage oracle input")
+					_, leftOverGas, err := env.Call(vm.AccountRef(addrs.Sender), addrs.Oracle, poInput, startingGas, big.NewInt(0))
+					require.NoErrorf(t, err, "evm should not fail, took %d gas", startingGas-leftOverGas)
+				}
+
 				ret, leftOverGas, err := env.Call(vm.AccountRef(sender), addrs.MIPS, input, startingGas, big.NewInt(0))
 				require.NoError(t, err, "evm should not fail")
 				require.Len(t, ret, 32, "expecting 32-byte state hash")

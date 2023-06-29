@@ -23,6 +23,20 @@ func TestSolver_NextMove_Opponent(t *testing.T) {
 		response   ClaimData
 	}{
 		{
+			7,
+			Claim{
+				ClaimData: ClaimData{
+					Value:    common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000077a"),
+					Position: NewPosition(0, 0),
+				},
+				// Root claim has no parent
+			},
+			ClaimData{
+				Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000364"),
+				Position: NewPosition(1, 0),
+			},
+		},
+		{
 			3,
 			Claim{
 				ClaimData: ClaimData{

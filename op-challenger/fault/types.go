@@ -32,6 +32,10 @@ type ClaimData struct {
 type Claim struct {
 	ClaimData
 	Parent ClaimData
+	// Location of the claim & it's parent inside the contract. Does not exist
+	// for claims that have not made it to the contract.
+	ContractIndex       int
+	ParentContractIndex int
 }
 
 // IsRoot returns true if this claim is the root claim.

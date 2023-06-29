@@ -16,9 +16,9 @@
     "test:coverage": "echo 'No tests defined.'",
     "build": "tsc -p ./tsconfig.json",
     "clean": "rimraf  dist/ ./tsconfig.tsbuildinfo",
-    "lint": "yarn lint:fix && yarn lint:check",
+    "lint": "pnpm lint:fix && pnpm lint:check",
     "pre-commit": "lint-staged",
-    "lint:fix": "yarn lint:check --fix",
+    "lint:fix": "pnpm lint:check --fix",
     "lint:check": "eslint . --max-warnings=0"
   },
   "keywords": [

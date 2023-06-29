@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "author": "Optimism PBC",
   "license": "MIT",
+  "private": true,
   "workspaces": {
     "packages": [
       "packages/*",
@@ -22,7 +23,9 @@
       "forta-agent"
     ]
   },
-  "private": true,
+  "engines": {
+    "pnpm": ">=8"
+  },
   "scripts": {
     "clean": "npx nx run-many --target=clean",
     "build": "npx nx run-many --target=build",
@@ -32,15 +35,15 @@
     "lint:ts:check": "npx nx run-many --target=lint:ts:check",
     "lint:check": "npx nx run-many --target=lint:check",
     "lint:fix": "npx nx run-many --target=lint:fix",
-    "lint:specs:fix": "yarn run markdownlint-cli2-fix \"./specs/**/*.md\"",
-    "lint:specs:check": "yarn run markdownlint-cli2  \"./specs/**/*.md\"",
-    "lint:specs:toc": "yarn run doctoc '--title=**Table of Contents**' ./specs",
-    "postinstall": "patch-package",
-    "ready": "yarn lint && yarn test",
+    "lint:specs:fix": "npx markdownlint-cli2-fix \"./specs/**/*.md\"",
+    "lint:specs:check": "npx markdownlint-cli2  \"./specs/**/*.md\"",
+    "lint:specs:toc": "npx doctoc '--title=**Table of Contents**' ./specs",
+    "preinstall": "npx only-allow pnpm",
+    "postinstall": "patch-package && (test -d docs/op-stack && cd docs/op-stack && npx yarn@1 install && cd ../.. || exit 0)",
+    "ready": "pnpm lint && pnpm test",
     "prepare": "husky install",
-    "release": "yarn build && yarn changeset publish",
-    "update:yarn": "yarn set version 1.x",
-    "install:foundry": "curl -L https://foundry.paradigm.xyz | bash && yarn update:foundry",
+    "release": "pnpm build && pnpm changeset publish",
+    "install:foundry": "curl -L https://foundry.paradigm.xyz | bash && pnpm update:foundry",
     "update:foundry": "foundryup -C $(cat .foundryrc)"
   },
   "devDependencies": {
@@ -50,13 +53,13 @@
     "@types/chai-as-promised": "^7.1.4",
     "@types/mocha": "^8.2.2",
     "@types/node": "^12.0.0",
-    "@typescript-eslint/eslint-plugin": "^5.45.1",
-    "@typescript-eslint/parser": "^5.45.1",
+    "@typescript-eslint/eslint-plugin": "^5.60.1",
+    "@typescript-eslint/parser": "^5.60.1",
     "chai": "^4.2.0",
     "copyfiles": "^2.3.0",
     "depcheck": "^1.4.3",
     "doctoc": "^2.2.0",
-    "eslint": "^8.16.0",
+    "eslint": "^8.43.0",
     "eslint-config-prettier": "^8.3.0",
     "eslint-config-standard": "^16.0.3",
     "eslint-plugin-import": "^2.26.0",
@@ -68,6 +71,7 @@
     "eslint-plugin-react": "^7.24.0",
     "eslint-plugin-unicorn": "^42.0.0",
     "husky": "^6.0.0",
+    "lerna": "^6.0.0",
     "lint-staged": "11.0.0",
     "markdownlint": "^0.24.0",
     "markdownlint-cli2": "0.4.0",

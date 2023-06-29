@@ -10,8 +10,8 @@ Clone, install, and build the Optimism monorepo:
 
 ```
 git clone https://github.com/ethereum-optimism/optimism.git
-yarn install
-yarn build
+pnpm install
+pnpm build
 ```
 
 ## Running the service
@@ -22,7 +22,7 @@ a custom op chain, the `OptimismPortal` contract addresses must also be set asso
 Once your environment variables or flags have been set, run the service via:
 
 ```
-yarn start
+pnpm start
 ```
 
 ## Ports
@@ -44,11 +44,10 @@ The state root of the block is published to the [`L2OutputOracle`](https://githu
 We can therefore detect differences by, for each block, checking the state root of the given block as reported by an Optimism node and the state root as published to Ethereum.
 
 We export a series of Prometheus metrics that you can use to trigger alerting when issues are detected.
-Check the list of available metrics via `yarn start --help`:
+Check the list of available metrics via `pnpm start --help`:
 
 ```sh
-> yarn start --help
-yarn run v1.22.19
+> pnpm start --help
 $ ts-node ./src/service.ts --help
 Usage: service [options]
 
@@ -71,6 +70,4 @@ Metrics:
   l2_node_connection_failures   Number of times L2 node connection has failed (type: Gauge)
   metadata                      Service metadata (type: Gauge)
   unhandled_errors              Unhandled errors (type: Counter)
-
-Done in 2.19s.
 ```

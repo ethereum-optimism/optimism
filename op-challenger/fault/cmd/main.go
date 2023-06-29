@@ -5,8 +5,8 @@ import (
 )
 
 func main() {
-	examples.SolverExampleOne()
-
+	examples.FullGame()
+	// examples.SolverExampleOne()
 	// examples.PositionExampleOne()
 	// examples.PositionExampleTwo()
 }
