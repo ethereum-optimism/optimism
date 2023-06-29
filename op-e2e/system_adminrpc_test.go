@@ -26,17 +26,29 @@ func TestStopStartSequencer(t *testing.T) {
 
 	nodeRPC, err := rpc.DialContext(context.Background(), rollupNode.HTTPEndpoint())
 	require.Nil(t, err, "Error dialing node")
+	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(nodeRPC))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	active, err := rollupClient.SequencerActive(ctx)
+	require.NoError(t, err)
+	require.True(t, active, "sequencer should be active")
 
 	blockBefore := latestBlock(t, l2Seq)
 	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
 	blockAfter := latestBlock(t, l2Seq)
 	require.Greaterf(t, blockAfter, blockBefore, "Chain did not advance")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	blockHash := common.Hash{}
-	err = nodeRPC.CallContext(ctx, &blockHash, "admin_stopSequencer")
+	blockHash, err := rollupClient.StopSequencer(ctx)
 	require.Nil(t, err, "Error stopping sequencer")
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	active, err = rollupClient.SequencerActive(ctx)
+	require.NoError(t, err)
+	require.False(t, active, "sequencer should be inactive")
 
 	blockBefore = latestBlock(t, l2Seq)
 	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
@@ -45,8 +57,14 @@ func TestStopStartSequencer(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err = nodeRPC.CallContext(ctx, nil, "admin_startSequencer", blockHash)
+	err = rollupClient.StartSequencer(ctx, blockHash)
 	require.Nil(t, err, "Error starting sequencer")
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	active, err = rollupClient.SequencerActive(ctx)
+	require.NoError(t, err)
+	require.True(t, active, "sequencer should be active again")
 
 	blockBefore = latestBlock(t, l2Seq)
 	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
