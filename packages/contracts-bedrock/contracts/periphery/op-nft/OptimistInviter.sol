@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { OptimistConstants } from "./libraries/OptimistConstants.sol";
-import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
+import { Semver } from "../../universal/Semver.sol";
 import { AttestationStation } from "./AttestationStation.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {

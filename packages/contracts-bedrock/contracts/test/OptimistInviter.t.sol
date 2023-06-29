@@ -3,13 +3,13 @@ pragma solidity 0.8.15;
 
 /* Testing utilities */
 import { Test } from "forge-std/Test.sol";
-import { AttestationStation } from "../universal/op-nft/AttestationStation.sol";
-import { OptimistInviter } from "../universal/op-nft/OptimistInviter.sol";
-import { Optimist } from "../universal/op-nft/Optimist.sol";
+import { AttestationStation } from "../periphery/op-nft/AttestationStation.sol";
+import { OptimistInviter } from "../periphery/op-nft/OptimistInviter.sol";
+import { Optimist } from "../periphery/op-nft/Optimist.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import { TestERC1271Wallet } from "../testing/helpers/TestERC1271Wallet.sol";
-import { OptimistInviterHelper } from "../testing/helpers/OptimistInviterHelper.sol";
-import { OptimistConstants } from "../universal/op-nft/libraries/OptimistConstants.sol";
+import { TestERC1271Wallet } from "./Helpers.sol";
+import { OptimistInviterHelper } from "./Helpers.sol";
+import { OptimistConstants } from "../periphery/op-nft/libraries/OptimistConstants.sol";
 
 contract OptimistInviter_Initializer is Test {
     event InviteClaimed(address indexed issuer, address indexed claimer);

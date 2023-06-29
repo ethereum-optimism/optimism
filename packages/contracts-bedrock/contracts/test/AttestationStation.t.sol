@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 /* Testing utilities */
 import { Test } from "forge-std/Test.sol";
-import { AttestationStation } from "../universal/op-nft/AttestationStation.sol";
+import { AttestationStation } from "../periphery/op-nft/AttestationStation.sol";
 
 contract AttestationStation_Initializer is Test {
     address alice_attestor = address(128);
