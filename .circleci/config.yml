@@ -626,12 +626,12 @@ jobs:
           name: anvil-l1
           background: true
           # atm this is goerli but we should use mainnet after bedrock is live
-          command: anvil --fork-url $ANVIL_L1_FORK_URL --fork-block-number 9023108
+          command: anvil --fork-url $ANVIL_L1_FORK_URL --fork-block-number 9190101
       - run:
           name: anvil-l2
           background: true
           # atm this is goerli but we should use mainnet after bedrock is live
-          command: anvil --fork-url $ANVIL_L2_FORK_URL --port 9545 --fork-block-number 9504811
+          command: anvil --fork-url $ANVIL_L2_FORK_URL --port 9545 --fork-block-number 10756611
       - run:
           name: build
           command: pnpm build
