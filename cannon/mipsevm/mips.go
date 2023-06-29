@@ -135,7 +135,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			copy(key[:], key[a2:])
 			var tmp [4]byte
 			binary.BigEndian.PutUint32(tmp[:], mem)
-			copy(key[32-a2:], tmp[:])
+			copy(key[32-a2:], tmp[alignment:])
 			m.state.PreimageKey = key
 			m.state.PreimageOffset = 0
 			//fmt.Printf("updating pre-image key: %s\n", m.state.PreimageKey)
