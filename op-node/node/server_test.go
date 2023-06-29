@@ -227,3 +227,7 @@ func (c *mockDriverClient) StartSequencer(ctx context.Context, blockHash common.
 func (c *mockDriverClient) StopSequencer(ctx context.Context) (common.Hash, error) {
 	return c.Mock.MethodCalled("StopSequencer").Get(0).(common.Hash), nil
 }
+
+func (c *mockDriverClient) SequencerActive(ctx context.Context) (bool, error) {
+	return c.Mock.MethodCalled("SequencerActive").Get(0).(bool), nil
+}

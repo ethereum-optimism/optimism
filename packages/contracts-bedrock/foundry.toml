@@ -19,9 +19,15 @@ build_info_path = 'artifacts/build-info'
 ffi = true
 fuzz_runs = 16
 no_match_contract = 'EchidnaFuzz'
+# PNPM symlinks all node_modules from the monorepo root
+allow_paths = ["../../node_modules", "./**"]
 
 fs_permissions = [
   { 'access'='read-write', 'path'='./.resource-metering.csv' },
+  { 'access'='read-write', 'path'='./deployments/' },
+  { 'access'='read', 'path'='./deploy-config/' },
+  { 'access'='read', 'path'='./broadcast/' },
+  { access = 'read', path = './forge-artifacts/' },
 ]
 
 [profile.ci]

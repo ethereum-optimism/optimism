@@ -148,6 +148,74 @@ func TestRewriteRequest(t *testing.T) {
 			expected:    RewriteOverrideError,
 			expectedErr: ErrRewriteBlockOutOfRange,
 		},
+		/* required parameter at pos 0 */
+		{
+			name: "debug_getRawReceipts latest",
+			args: args{
+				rctx: RewriteContext{latest: hexutil.Uint64(100)},
+				req:  &RPCReq{Method: "debug_getRawReceipts", Params: mustMarshalJSON([]string{"latest"})},
+				res:  nil,
+			},
+			expected: RewriteOverrideRequest,
+			check: func(t *testing.T, args args) {
+				var p []string
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
+				require.Equal(t, 1, len(p))
+				require.Equal(t, hexutil.Uint64(100).String(), p[0])
+			},
+		},
+		{
+			name: "debug_getRawReceipts within range",
+			args: args{
+				rctx: RewriteContext{latest: hexutil.Uint64(100)},
+				req:  &RPCReq{Method: "debug_getRawReceipts", Params: mustMarshalJSON([]string{hexutil.Uint64(55).String()})},
+				res:  nil,
+			},
+			expected: RewriteNone,
+			check: func(t *testing.T, args args) {
+				var p []string
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
+				require.Equal(t, 1, len(p))
+				require.Equal(t, hexutil.Uint64(55).String(), p[0])
+			},
+		},
+		{
+			name: "debug_getRawReceipts out of range",
+			args: args{
+				rctx: RewriteContext{latest: hexutil.Uint64(100)},
+				req:  &RPCReq{Method: "debug_getRawReceipts", Params: mustMarshalJSON([]string{hexutil.Uint64(111).String()})},
+				res:  nil,
+			},
+			expected:    RewriteOverrideError,
+			expectedErr: ErrRewriteBlockOutOfRange,
+		},
+		{
+			name: "debug_getRawReceipts missing parameter",
+			args: args{
+				rctx: RewriteContext{latest: hexutil.Uint64(100)},
+				req:  &RPCReq{Method: "debug_getRawReceipts", Params: mustMarshalJSON([]string{})},
+				res:  nil,
+			},
+			expected: RewriteNone,
+		},
+		{
+			name: "debug_getRawReceipts with block hash",
+			args: args{
+				rctx: RewriteContext{latest: hexutil.Uint64(100)},
+				req:  &RPCReq{Method: "debug_getRawReceipts", Params: mustMarshalJSON([]string{"0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b"})},
+				res:  nil,
+			},
+			expected: RewriteNone,
+			check: func(t *testing.T, args args) {
+				var p []string
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
+				require.Equal(t, 1, len(p))
+				require.Equal(t, "0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b", p[0])
+			},
+		},
 		/* default block parameter */
 		{
 			name: "eth_getCode omit block, should add",
@@ -164,6 +232,21 @@ func TestRewriteRequest(t *testing.T) {
 				require.Equal(t, 2, len(p))
 				require.Equal(t, "0x123", p[0])
 				require.Equal(t, hexutil.Uint64(100).String(), p[1])
+			},
+		},
+		{
+			name: "eth_getCode not enough params, should do nothing",
+			args: args{
+				rctx: RewriteContext{latest: hexutil.Uint64(100)},
+				req:  &RPCReq{Method: "eth_getCode", Params: mustMarshalJSON([]string{})},
+				res:  nil,
+			},
+			expected: RewriteNone,
+			check: func(t *testing.T, args args) {
+				var p []string
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
+				require.Equal(t, 0, len(p))
 			},
 		},
 		{
@@ -306,6 +389,38 @@ func TestRewriteRequest(t *testing.T) {
 				require.Nil(t, err)
 				require.Equal(t, 1, len(p))
 				require.Equal(t, hexutil.Uint64(100).String(), p[0])
+			},
+		},
+		{
+			name: "eth_getBlockByNumber finalized",
+			args: args{
+				rctx: RewriteContext{latest: hexutil.Uint64(100), finalized: hexutil.Uint64(55)},
+				req:  &RPCReq{Method: "eth_getBlockByNumber", Params: mustMarshalJSON([]string{"finalized"})},
+				res:  nil,
+			},
+			expected: RewriteOverrideRequest,
+			check: func(t *testing.T, args args) {
+				var p []string
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
+				require.Equal(t, 1, len(p))
+				require.Equal(t, hexutil.Uint64(55).String(), p[0])
+			},
+		},
+		{
+			name: "eth_getBlockByNumber safe",
+			args: args{
+				rctx: RewriteContext{latest: hexutil.Uint64(100), safe: hexutil.Uint64(50)},
+				req:  &RPCReq{Method: "eth_getBlockByNumber", Params: mustMarshalJSON([]string{"safe"})},
+				res:  nil,
+			},
+			expected: RewriteOverrideRequest,
+			check: func(t *testing.T, args args) {
+				var p []string
+				err := json.Unmarshal(args.req.Params, &p)
+				require.Nil(t, err)
+				require.Equal(t, 1, len(p))
+				require.Equal(t, hexutil.Uint64(50).String(), p[0])
 			},
 		},
 		{

@@ -32,6 +32,10 @@ func TestCanonicalize(t *testing.T) {
 			"values in storage",
 			"values-in-storage.json",
 		},
+		{
+			"custom types",
+			"custom-types.json",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -35,15 +35,8 @@ var customBridgeCfgs = map[uint64][]*implConfig{
 	// Mainnet
 	10: {
 		{"BitBTC", StandardBridgeImpl, common.HexToAddress("0x158F513096923fF2d3aab2BcF4478536de6725e2")},
-		//{"DAI", "DAIBridge", "0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65"},
+		{"DAI", StandardBridgeImpl, common.HexToAddress("0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65")},
 		{"wstETH", StandardBridgeImpl, common.HexToAddress("0x8E01013243a96601a86eb3153F0d9Fa4fbFb6957")},
-	},
-	// Kovan
-	69: {
-		{"BitBTC", StandardBridgeImpl, common.HexToAddress("0x0CFb46528a7002a7D8877a5F7a69b9AaF1A9058e")},
-		{"USX", StandardBridgeImpl, common.HexToAddress("0xB4d37826b14Cd3CB7257A2A5094507d701fe715f")},
-		{"wstETH", StandardBridgeImpl, common.HexToAddress("0x2E34e7d705AfaC3C4665b6feF31Aa394A1c81c92")},
-		//{"DAI", "	DAIBridge", "0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65"},
 	},
 }
 

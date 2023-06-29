@@ -12,10 +12,6 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
     event Mint(address indexed account, uint256 amount);
     event Burn(address indexed account, uint256 amount);
 
-    function test_semver_succeeds() external {
-        assertEq(L2Token.version(), "1.0.0");
-    }
-
     function test_remoteToken_succeeds() external {
         assertEq(L2Token.remoteToken(), address(L1Token));
     }

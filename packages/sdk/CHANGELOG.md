@@ -1,5 +1,38 @@
 # @eth-optimism/sdk
 
+## 3.0.0
+
+### Major Changes
+
+- 119754c2f: Make optimism/sdk default to bedrock mode
+
+### Patch Changes
+
+- Updated dependencies [8d7dcc70c]
+- Updated dependencies [d6388be4a]
+- Updated dependencies [af292562f]
+  - @eth-optimism/core-utils@0.12.1
+  - @eth-optimism/contracts-bedrock@0.15.0
+
+## 2.1.0
+
+### Minor Changes
+
+- 5063a69fb: Update sdk contract addresses for bedrock
+
+### Patch Changes
+
+- a1b7ff9e3: add eco bridge adapter
+- 8133872ed: Fix firefox bug with getTokenPair
+- afc2ab8c9: Update the migrated withdrawal gas limit for non goerli networks
+- aa854bdd8: Add warning if bedrock is not turned on
+- Updated dependencies [f1e867177]
+- Updated dependencies [197884eae]
+- Updated dependencies [6eb05430d]
+- Updated dependencies [5063a69fb]
+  - @eth-optimism/contracts-bedrock@0.14.0
+  - @eth-optimism/contracts@0.6.0
+
 ## 2.0.2
 
 ### Patch Changes

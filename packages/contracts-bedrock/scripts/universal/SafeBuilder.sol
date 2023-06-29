@@ -10,61 +10,50 @@ import { EnhancedScript } from "../universal/EnhancedScript.sol";
 import { GlobalConstants } from "../universal/GlobalConstants.sol";
 import { ProxyAdmin } from "../../contracts/universal/ProxyAdmin.sol";
 
-/**
- * @title SafeBuilder
- * @notice Builds SafeTransactions
- *         Assumes that a gnosis safe is used as the privileged account and the same
- *         gnosis safe is the owner the proxy admin.
- *         This could be optimized by checking for the number of approvals up front
- *         and not submitting the final approval as `execTransaction` can be called when
- *         there are `threshold - 1` approvals.
- *         Uses the "approved hashes" method of interacting with the gnosis safe. Allows
- *         for the most simple user experience when using automation and no indexer.
- *         Run the command without the `--broadcast` flag and it will print a tenderly URL.
- */
+/// @title SafeBuilder
+/// @notice Builds SafeTransactions
+///         Assumes that a gnosis safe is used as the privileged account and the same
+///         gnosis safe is the owner the proxy admin.
+///         This could be optimized by checking for the number of approvals up front
+///         and not submitting the final approval as `execTransaction` can be called when
+///         there are `threshold - 1` approvals.
+///         Uses the "approved hashes" method of interacting with the gnosis safe. Allows
+///         for the most simple user experience when using automation and no indexer.
+///         Run the command without the `--broadcast` flag and it will print a tenderly URL.
 abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
-    /**
-     * @notice Interface for multicall3.
-     */
+
+    ////////////////////////////////////////////////////////////////
+    //                           State                            //
+    ////////////////////////////////////////////////////////////////
+
+
+    /// @notice Interface for multicall3.
     IMulticall3 internal constant multicall = IMulticall3(MULTICALL3_ADDRESS);
 
-    /**
-     * @notice An array of approvals, used to generate the execution transaction.
-     */
+    /// @notice An array of approvals, used to generate the execution transaction.
     address[] internal approvals;
 
-    /**
-     * -----------------------------------------------------------
-     * Virtual Functions
-     * -----------------------------------------------------------
-     */
+    ////////////////////////////////////////////////////////////////
+    //                     Virtual Functions                      //
+    ////////////////////////////////////////////////////////////////
 
-    /**
-     * @notice Follow up assertions to ensure that the script ran to completion.
-     */
+    /// @notice Follow up assertions to ensure that the script ran to completion.
     function _postCheck() internal virtual view;
 
-    /**
-     * @notice Creates the calldata
-     */
+    /// @notice Creates the calldata
     function buildCalldata(address _proxyAdmin) internal virtual view returns (bytes memory);
 
-    /**
-     * @notice Internal helper function to compute the safe transaction hash.
-     */
+    /// @notice Internal helper function to compute the safe transaction hash.
     function computeSafeTransactionHash(address _safe, address _proxyAdmin) public virtual returns (bytes32) {
         return _getTransactionHash(_safe, _proxyAdmin);
     }
 
-    /**
-     * -----------------------------------------------------------
-     * Implemented Functions
-     * -----------------------------------------------------------
-     */
+    ////////////////////////////////////////////////////////////////
+    //                        Core Logic                          //
+    ////////////////////////////////////////////////////////////////
 
-    /**
-     * @notice The entrypoint to this script.
-     */
+
+    /// @notice The entrypoint to this script.
     function run(address _safe, address _proxyAdmin) public returns (bool) {
         vm.startBroadcast();
         bool success = _run(_safe, _proxyAdmin);
@@ -72,9 +61,7 @@ abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
         return success;
     }
 
-    /**
-     * @notice Computes the safe transaction hash for the provided safe and proxy admin.
-     */
+    /// @notice Computes the safe transaction hash for the provided safe and proxy admin.
     function _getTransactionHash(address _safe, address _proxyAdmin) internal view returns (bytes32) {
         // Ensure that the required contracts exist
         require(address(multicall).code.length > 0, "multicall3 not deployed");
@@ -103,12 +90,10 @@ abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
         return hash;
     }
 
-    /**
-     * @notice The implementation of the upgrade. Split into its own function
-     *         to allow for testability. This is subject to a race condition if
-     *         the nonce changes by a different transaction finalizing while not
-     *         all of the signers have used this script.
-     */
+    /// @notice The implementation of the upgrade. Split into its own function
+    ///         to allow for testability. This is subject to a race condition if
+    ///          the nonce changes by a different transaction finalizing while not
+    ///          all of the signers have used this script.
     function _run(address _safe, address _proxyAdmin) public returns (bool) {
         IGnosisSafe safe = IGnosisSafe(payable(_safe));
         bytes memory data = buildCalldata(_proxyAdmin);
@@ -186,10 +171,8 @@ abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
         return false;
     }
 
-    /**
-     * @notice Builds the signatures by tightly packing them together.
-     *         Ensures that they are sorted.
-     */
+    /// @notice Builds the signatures by tightly packing them together.
+    ///         Ensures that they are sorted.
     function buildSignatures() internal view returns (bytes memory) {
         address[] memory addrs = new address[](approvals.length);
         for (uint256 i; i < approvals.length; i++) {

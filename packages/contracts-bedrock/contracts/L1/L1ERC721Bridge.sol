@@ -6,43 +6,34 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
 import { Semver } from "../universal/Semver.sol";
 
-/**
- * @title L1ERC721Bridge
- * @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
- *         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
- *         acts as an escrow for ERC721 tokens deposited into L2.
- */
+/// @title L1ERC721Bridge
+/// @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
+///         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
+///         acts as an escrow for ERC721 tokens deposited into L2.
 contract L1ERC721Bridge is ERC721Bridge, Semver {
-    /**
-     * @notice Mapping of L1 token to L2 token to ID to boolean, indicating if the given L1 token
-     *         by ID was deposited for a given L2 token.
-     */
+    /// @notice Mapping of L1 token to L2 token to ID to boolean, indicating if the given L1 token
+    ///         by ID was deposited for a given L2 token.
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
 
-    /**
-     * @custom:semver 1.1.1
-     *
-     * @param _messenger   Address of the CrossDomainMessenger on this network.
-     * @param _otherBridge Address of the ERC721 bridge on the other network.
-     */
+    /// @custom:semver 1.1.2
+    /// @notice Constructs the L1ERC721Bridge contract.
+    /// @param _messenger   Address of the CrossDomainMessenger on this network.
+    /// @param _otherBridge Address of the ERC721 bridge on the other network.
     constructor(address _messenger, address _otherBridge)
-        Semver(1, 1, 1)
+        Semver(1, 1, 2)
         ERC721Bridge(_messenger, _otherBridge)
     {}
 
-    /**
-     * @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
-     *         recipient on this domain.
-     *
-     * @param _localToken  Address of the ERC721 token on this domain.
-     * @param _remoteToken Address of the ERC721 token on the other domain.
-     * @param _from        Address that triggered the bridge on the other domain.
-     * @param _to          Address to receive the token on this domain.
-     * @param _tokenId     ID of the token being deposited.
-     * @param _extraData   Optional data to forward to L2. Data supplied here will not be used to
-     *                     execute any code on L2 and is only emitted as extra data for the
-     *                     convenience of off-chain tooling.
-     */
+    /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
+    ///         recipient on this domain.
+    /// @param _localToken  Address of the ERC721 token on this domain.
+    /// @param _remoteToken Address of the ERC721 token on the other domain.
+    /// @param _from        Address that triggered the bridge on the other domain.
+    /// @param _to          Address to receive the token on this domain.
+    /// @param _tokenId     ID of the token being deposited.
+    /// @param _extraData   Optional data to forward to L2.
+    ///                     Data supplied here will not be used to execute any code on L2 and is
+    ///                     only emitted as extra data for the convenience of off-chain tooling.
     function finalizeBridgeERC721(
         address _localToken,
         address _remoteToken,
@@ -71,9 +62,7 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
         emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
     }
 
-    /**
-     * @inheritdoc ERC721Bridge
-     */
+    /// @inheritdoc ERC721Bridge
     function _initiateBridgeERC721(
         address _localToken,
         address _remoteToken,

@@ -18,6 +18,9 @@ import (
 // defaultL2GasLimit represents the default gas limit for an L2 block.
 const defaultL2GasLimit = 30_000_000
 
+// BedrockTransitionBlockExtraData represents the default extra data for the bedrock transition block.
+var BedrockTransitionBlockExtraData = []byte("BEDROCK")
+
 // NewL2Genesis will create a new L2 genesis
 func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, error) {
 	if config.L2ChainID == 0 {
@@ -74,8 +77,13 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		difficulty = newHexBig(0)
 	}
 
+	extraData := config.L2GenesisBlockExtraData
+	if extraData == nil {
+		// L2GenesisBlockExtraData is optional, so use a default value when nil
+		extraData = BedrockTransitionBlockExtraData
+	}
 	// Ensure that the extradata is valid
-	if size := len(BedrockTransitionBlockExtraData); size > 32 {
+	if size := len(extraData); size > 32 {
 		return nil, fmt.Errorf("transition block extradata too long: %d", size)
 	}
 
@@ -83,7 +91,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		Config:     &optimismChainConfig,
 		Nonce:      uint64(config.L2GenesisBlockNonce),
 		Timestamp:  block.Time(),
-		ExtraData:  BedrockTransitionBlockExtraData,
+		ExtraData:  extraData,
 		GasLimit:   uint64(gasLimit),
 		Difficulty: difficulty.ToInt(),
 		Mixhash:    config.L2GenesisBlockMixHash,

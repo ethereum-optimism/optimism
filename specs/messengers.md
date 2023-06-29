@@ -68,7 +68,7 @@ while unsuccessful messages have their hash stored in the `failedMessages`
 mapping.
 
 The user experience when sending from L1 to L2 is a bit different than when
-sending a transaction from L2 to L1. When going into L2 from L1, the user does
+sending a transaction from L2 to L1. When going into L1 from L2, the user does
 not need to call `relayMessage` on L2 themselves. The user pays for L2 gas on L1
 and the transaction is automatically pulled into L2 where it is executed on L2.
 When going from L2 into L1, the user proves their withdrawal on OptimismPortal,

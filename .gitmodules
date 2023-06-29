@@ -1,6 +1,3 @@
-[submodule "tests"]
-	path = l2geth/tests/testdata
-	url = https://github.com/ethereum/tests
 [submodule "packages/contracts-periphery/lib/multicall"]
 	path = packages/contracts-periphery/lib/multicall
 	url = https://github.com/mds1/multicall

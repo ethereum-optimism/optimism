@@ -27,6 +27,8 @@ import {
   decodeVersionedNonce,
   encodeVersionedNonce,
   getChainId,
+  hashCrossDomainMessagev0,
+  hashCrossDomainMessagev1,
 } from '@eth-optimism/core-utils'
 import { getContractInterface, predeploys } from '@eth-optimism/contracts'
 import * as rlp from 'rlp'
@@ -143,13 +145,8 @@ export class CrossChainMessenger {
     bridges?: BridgeAdapterData
     bedrock?: boolean
   }) {
-    this.bedrock = opts.bedrock ?? false
+    this.bedrock = opts.bedrock ?? true
 
-    if (!this.bedrock) {
-      console.warn(
-        'Bedrock compatibility is disabled in CrossChainMessenger.  Please enable it if you are using Bedrock.'
-      )
-    }
     this.l1SignerOrProvider = toSignerOrProvider(opts.l1SignerOrProvider)
     this.l2SignerOrProvider = toSignerOrProvider(opts.l2SignerOrProvider)
 
@@ -721,7 +718,18 @@ export class CrossChainMessenger {
     message: MessageLike
   ): Promise<MessageReceipt> {
     const resolved = await this.toCrossChainMessage(message)
-    const messageHash = hashCrossDomainMessage(
+    // legacy withdrawals relayed prebedrock are v1
+    const messageHashV0 = hashCrossDomainMessagev0(
+      resolved.target,
+      resolved.sender,
+      resolved.message,
+      resolved.messageNonce
+    )
+    // bedrock withdrawals are v1
+    // legacy withdrawals relayed postbedrock are v1
+    // there is no good way to differentiate between the two types of legacy
+    // so what we will check for both
+    const messageHashV1 = hashCrossDomainMessagev1(
       resolved.messageNonce,
       resolved.sender,
       resolved.target,
@@ -736,9 +744,15 @@ export class CrossChainMessenger {
         ? this.contracts.l2.L2CrossDomainMessenger
         : this.contracts.l1.L1CrossDomainMessenger
 
-    const relayedMessageEvents = await messenger.queryFilter(
-      messenger.filters.RelayedMessage(messageHash)
-    )
+    // this is safe because we can guarantee only one of these filters max will return something
+    const relayedMessageEvents = [
+      ...(await messenger.queryFilter(
+        messenger.filters.RelayedMessage(messageHashV0)
+      )),
+      ...(await messenger.queryFilter(
+        messenger.filters.RelayedMessage(messageHashV1)
+      )),
+    ]
 
     // Great, we found the message. Convert it into a transaction receipt.
     if (relayedMessageEvents.length === 1) {
@@ -754,9 +768,14 @@ export class CrossChainMessenger {
 
     // We didn't find a transaction that relayed the message. We now attempt to find
     // FailedRelayedMessage events instead.
-    const failedRelayedMessageEvents = await messenger.queryFilter(
-      messenger.filters.FailedRelayedMessage(messageHash)
-    )
+    const failedRelayedMessageEvents = [
+      ...(await messenger.queryFilter(
+        messenger.filters.FailedRelayedMessage(messageHashV0)
+      )),
+      ...(await messenger.queryFilter(
+        messenger.filters.FailedRelayedMessage(messageHashV1)
+      )),
+    ]
 
     // A transaction can fail to be relayed multiple times. We'll always return the last
     // transaction that attempted to relay the message.
@@ -1616,7 +1635,7 @@ export class CrossChainMessenger {
       recipient?: AddressLike
       signer?: Signer
       l2GasLimit?: NumberLike
-      overrides?: Overrides
+      overrides?: CallOverrides
     }
   ): Promise<TransactionResponse> {
     return (opts?.signer || this.l1Signer).sendTransaction(
@@ -1873,13 +1892,27 @@ export class CrossChainMessenger {
         recipient?: AddressLike
         l2GasLimit?: NumberLike
         overrides?: PayableOverrides
-      }
+      },
+      isEstimatingGas: boolean = false
     ): Promise<TransactionRequest> => {
+      const getOpts = async () => {
+        if (isEstimatingGas) {
+          return opts
+        }
+        const gasEstimation = await this.estimateGas.depositETH(amount, opts)
+        return {
+          ...opts,
+          overrides: {
+            ...opts?.overrides,
+            gasLimit: gasEstimation.add(gasEstimation.div(2)),
+          },
+        }
+      }
       return this.bridges.ETH.populateTransaction.deposit(
         ethers.constants.AddressZero,
         predeploys.OVM_ETH,
         amount,
-        opts
+        await getOpts()
       )
     },
 
@@ -1948,11 +1981,48 @@ export class CrossChainMessenger {
       opts?: {
         recipient?: AddressLike
         l2GasLimit?: NumberLike
-        overrides?: Overrides
-      }
+        overrides?: CallOverrides
+      },
+      isEstimatingGas: boolean = false
     ): Promise<TransactionRequest> => {
       const bridge = await this.getBridgeForTokenPair(l1Token, l2Token)
-      return bridge.populateTransaction.deposit(l1Token, l2Token, amount, opts)
+      // we need extra buffer for gas limit
+      const getOpts = async () => {
+        if (isEstimatingGas) {
+          return opts
+        }
+        // if we don't include the users address the estimation will fail from lack of allowance
+        if (!ethers.Signer.isSigner(this.l1SignerOrProvider)) {
+          throw new Error('unable to deposit without an l1 signer')
+        }
+        const from = (this.l1SignerOrProvider as Signer).getAddress()
+        const gasEstimation = await this.estimateGas.depositERC20(
+          l1Token,
+          l2Token,
+          amount,
+          {
+            ...opts,
+            overrides: {
+              ...opts?.overrides,
+              from: opts?.overrides?.from ?? from,
+            },
+          }
+        )
+        return {
+          ...opts,
+          overrides: {
+            ...opts?.overrides,
+            gasLimit: gasEstimation.add(gasEstimation.div(2)),
+            from: opts?.overrides?.from ?? from,
+          },
+        }
+      }
+      return bridge.populateTransaction.deposit(
+        l1Token,
+        l2Token,
+        amount,
+        await getOpts()
+      )
     },
 
     /**
@@ -2091,7 +2161,7 @@ export class CrossChainMessenger {
       }
     ): Promise<BigNumber> => {
       return this.l1Provider.estimateGas(
-        await this.populateTransaction.depositETH(amount, opts)
+        await this.populateTransaction.depositETH(amount, opts, true)
       )
     },
 
@@ -2171,7 +2241,8 @@ export class CrossChainMessenger {
           l1Token,
           l2Token,
           amount,
-          opts
+          opts,
+          true
         )
       )
     },

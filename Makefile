@@ -12,8 +12,8 @@ build-ts: submodules
 	if [ -n "$$NVM_DIR" ]; then \
 		. $$NVM_DIR/nvm.sh && nvm use; \
 	fi
-	yarn install
-	yarn build
+	pnpm install
+	pnpm build
 .PHONY: build-ts
 
 submodules:
@@ -31,6 +31,14 @@ op-bindings:
 op-node:
 	make -C ./op-node op-node
 .PHONY: op-node
+
+generate-mocks-op-node:
+	make -C ./op-node generate-mocks
+.PHONY: generate-mocks-op-node
+
+generate-mocks-op-service:
+	make -C ./op-service generate-mocks
+.PHONY: generate-mocks-op-service
 
 op-batcher:
 	make -C ./op-batcher op-batcher
@@ -66,11 +74,11 @@ nuke: clean devnet-clean
 .PHONY: nuke
 
 devnet-up:
-	@bash ./ops-bedrock/devnet-up.sh
+	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up
 
 devnet-up-deploy:
-	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
+	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --deploy
 .PHONY: devnet-up-deploy
 
 devnet-down:
@@ -94,7 +102,7 @@ test-unit:
 	make -C ./op-proposer test
 	make -C ./op-batcher test
 	make -C ./op-e2e test
-	yarn test
+	pnpm test
 .PHONY: test-unit
 
 test-integration:
