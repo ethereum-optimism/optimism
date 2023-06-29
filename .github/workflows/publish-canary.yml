@@ -51,7 +51,7 @@ jobs:
           version: nightly
 
       - name: Build
-        run: pnpm build
+        run: npx nx run-many --target=build --skip-nx-cache
 
       - name: Setup Canary Snapshot
         run: pnpm changeset version --snapshot
