@@ -24,7 +24,7 @@ func CLIFlags(envPrefix string) []cli.Flag {
 		&cli.StringFlag{
 			Name:    ListenAddrFlagName,
 			Usage:   "pprof listening address",
-			Value:   "0.0.0.0",
+			Value:   "0.0.0.0", // TODO(CLI-4159): Switch to 127.0.0.1
 			EnvVars: opservice.PrefixEnvVar(envPrefix, "PPROF_ADDR"),
 		},
 		&cli.IntFlag{
