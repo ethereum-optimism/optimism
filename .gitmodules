@@ -1,5 +1,0 @@
-[submodule "packages/contracts-periphery/lib/multicall"]
-	path = packages/contracts-periphery/lib/multicall
-	url = https://github.com/mds1/multicall
-[submodule "lib/multicall"]
-	branch = v3.1.0

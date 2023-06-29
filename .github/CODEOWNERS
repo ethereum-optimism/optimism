@@ -2,7 +2,6 @@
 /packages/common-ts             @ethereum-optimism/typescript-reviewers
 /packages/contracts             @ethereum-optimism/contract-reviewers
 /packages/contracts-bedrock     @ethereum-optimism/contract-reviewers
-/packages/contracts-periphery   @ethereum-optimism/contract-reviewers
 /packages/core-utils            @ethereum-optimism/legacy-reviewers
 /packages/chain-mon             @smartcontracts
 /packages/fault-detector        @ethereum-optimism/devxpod

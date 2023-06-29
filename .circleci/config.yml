@@ -139,7 +139,6 @@ jobs:
             - "packages/chain-mon/node_modules"
             - "packages/common-ts/node_modules"
             - "packages/contracts-bedrock/node_modules"
-            - "packages/contracts-periphery/node_modules"
             - "packages/core-utils/node_modules"
             - "packages/fault-detector/node_modules"
             - "packages/hardhat-deploy-config/node_modules"
@@ -874,10 +873,6 @@ jobs:
           command: npx depcheck
           working_directory: packages/common-ts
       - run:
-          name: Check contracts-periphery
-          command: npx depcheck
-          working_directory: packages/contracts-periphery
-      - run:
           name: Check core-utils
           command: npx depcheck
           working_directory: packages/core-utils
@@ -1329,17 +1324,10 @@ workflows:
           requires:
             - pnpm-monorepo
       - js-lint-test:
-          name: contracts-periphery-tests
-          coverage_flag: contracts-periphery-tests
-          package_name: contracts-periphery
-          dependencies: "(contracts|contracts-bedrock|core-utils|hardhat-deploy-config)"
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
           package_name: chain-mon
-          dependencies: "(common-ts|contracts-periphery|core-utils|sdk)"
+          dependencies: "(common-ts|contracts-bedrock|core-utils|sdk)"
           requires:
             - pnpm-monorepo
       - js-lint-test:
