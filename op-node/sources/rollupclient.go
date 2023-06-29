@@ -52,3 +52,9 @@ func (r *RollupClient) StopSequencer(ctx context.Context) (common.Hash, error) {
 	err := r.rpc.CallContext(ctx, &result, "admin_stopSequencer")
 	return result, err
 }
+
+func (r *RollupClient) SequencerActive(ctx context.Context) (bool, error) {
+	var result bool
+	err := r.rpc.CallContext(ctx, &result, "admin_sequencerActive")
+	return result, err
+}
