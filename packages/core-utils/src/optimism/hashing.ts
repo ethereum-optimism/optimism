@@ -62,11 +62,11 @@ export const hashCrossDomainMessage = (
   target: string,
   value: BigNumber,
   gasLimit: BigNumber,
-  data: string
+  message: string
 ) => {
   const { version } = decodeVersionedNonce(nonce)
   if (version.eq(0)) {
-    return hashCrossDomainMessagev0(target, sender, data, nonce)
+    return hashCrossDomainMessagev0(target, sender, message, nonce)
   } else if (version.eq(1)) {
     return hashCrossDomainMessagev1(
       nonce,
@@ -74,7 +74,7 @@ export const hashCrossDomainMessage = (
       target,
       value,
       gasLimit,
-      data
+      message
     )
   }
   throw new Error(`unknown version ${version.toString()}`)
@@ -85,16 +85,16 @@ export const hashCrossDomainMessage = (
  *
  * @param target    The target of the cross domain message
  * @param sender    The sender of the cross domain message
- * @param data      The data passed along with the cross domain message
+ * @param message      The message passed along with the cross domain message
  * @param nonce     The cross domain message nonce
  */
 export const hashCrossDomainMessagev0 = (
   target: string,
   sender: string,
-  data: string,
+  message: string,
   nonce: BigNumber
 ) => {
-  return keccak256(encodeCrossDomainMessageV0(target, sender, data, nonce))
+  return keccak256(encodeCrossDomainMessageV0(target, sender, message, nonce))
 }
 
 /**
@@ -105,7 +105,7 @@ export const hashCrossDomainMessagev0 = (
  * @param target    The target of the cross domain message
  * @param value     The value being sent with the cross domain message
  * @param gasLimit  The gas limit of the cross domain execution
- * @param data      The data passed along with the cross domain message
+ * @param message      The message passed along with the cross domain message
  */
 export const hashCrossDomainMessagev1 = (
   nonce: BigNumber,
@@ -113,10 +113,10 @@ export const hashCrossDomainMessagev1 = (
   target: string,
   value: BigNumberish,
   gasLimit: BigNumberish,
-  data: string
+  message: string
 ) => {
   return keccak256(
-    encodeCrossDomainMessageV1(nonce, sender, target, value, gasLimit, data)
+    encodeCrossDomainMessageV1(nonce, sender, target, value, gasLimit, message)
   )
 }
 
@@ -128,7 +128,7 @@ export const hashCrossDomainMessagev1 = (
  * @param target    The target of the cross domain message
  * @param value     The value being sent with the cross domain message
  * @param gasLimit  The gas limit of the cross domain execution
- * @param data      The data passed along with the cross domain message
+ * @param message      The message passed along with the cross domain message
  */
 export const hashWithdrawal = (
   nonce: BigNumber,
@@ -136,7 +136,7 @@ export const hashWithdrawal = (
   target: string,
   value: BigNumber,
   gasLimit: BigNumber,
-  data: string
+  message: string
 ): string => {
   const types = ['uint256', 'address', 'address', 'uint256', 'uint256', 'bytes']
   const encoded = defaultAbiCoder.encode(types, [
@@ -145,7 +145,7 @@ export const hashWithdrawal = (
     target,
     value,
     gasLimit,
-    data,
+    message,
   ])
   return keccak256(encoded)
 }
