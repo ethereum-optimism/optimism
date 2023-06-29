@@ -335,10 +335,7 @@ export class CrossChainMessenger {
      */
     messageIndex = 0
   ): Promise<CrossChainMessage> {
-    const resolved = await this.toCrossChainMessage(
-      message,
-      messageIndex
-    )
+    const resolved = await this.toCrossChainMessage(message, messageIndex)
 
     // Bedrock messages are already in the correct format.
     const { version } = decodeVersionedNonce(resolved.messageNonce)
@@ -374,7 +371,9 @@ export class CrossChainMessenger {
     }
   }
 
-  private async getWithdrawalsFromMessage(message: MessageLike): Promise<ethers.utils.Result[]> {
+  private async getWithdrawalsFromMessage(
+    message: MessageLike
+  ): Promise<ethers.utils.Result[]> {
     const resolved = await this.toCrossChainMessage(message)
     const receipt = await this.l2Provider.getTransactionReceipt(
       resolved.transactionHash
@@ -407,10 +406,7 @@ export class CrossChainMessenger {
      */
     messageIndex = 0
   ): Promise<LowLevelMessage> {
-    const resolved = await this.toCrossChainMessage(
-      message,
-      messageIndex
-    )
+    const resolved = await this.toCrossChainMessage(message, messageIndex)
     if (resolved.direction === MessageDirection.L1_TO_L2) {
       throw new Error(`can only convert L2 to L1 messages to low level`)
     }
@@ -419,10 +415,7 @@ export class CrossChainMessenger {
     const { version } = decodeVersionedNonce(resolved.messageNonce)
     let updated: CrossChainMessage
     if (version.eq(0)) {
-      updated = await this.toBedrockCrossChainMessage(
-        resolved,
-        messageIndex
-      )
+      updated = await this.toBedrockCrossChainMessage(resolved, messageIndex)
     } else {
       updated = resolved
     }
@@ -672,10 +665,7 @@ export class CrossChainMessenger {
      */
     messageIndex = 0
   ): Promise<MessageStatus> {
-    const resolved = await this.toCrossChainMessage(
-      message,
-      messageIndex
-    )
+    const resolved = await this.toCrossChainMessage(message, messageIndex)
     const receipt = await this.getMessageReceipt(resolved, messageIndex)
 
     if (resolved.direction === MessageDirection.L1_TO_L2) {
@@ -767,10 +757,7 @@ export class CrossChainMessenger {
      */
     messageIndex = 0
   ): Promise<MessageReceipt> {
-    const resolved = await this.toCrossChainMessage(
-      message,
-      messageIndex
-    )
+    const resolved = await this.toCrossChainMessage(message, messageIndex)
     // legacy withdrawals relayed prebedrock are v1
     const messageHashV0 = hashCrossDomainMessagev0(
       resolved.target,
@@ -880,18 +867,12 @@ export class CrossChainMessenger {
     messageIndex = 0
   ): Promise<MessageReceipt> {
     // Resolving once up-front is slightly more efficient.
-    const resolved = await this.toCrossChainMessage(
-      message,
-      messageIndex
-    )
+    const resolved = await this.toCrossChainMessage(message, messageIndex)
 
     let totalTimeMs = 0
     while (totalTimeMs < (opts.timeoutMs || Infinity)) {
       const tick = Date.now()
-      const receipt = await this.getMessageReceipt(
-        resolved,
-        messageIndex
-      )
+      const receipt = await this.getMessageReceipt(resolved, messageIndex)
       if (receipt !== null) {
         return receipt
       } else {
@@ -929,18 +910,12 @@ export class CrossChainMessenger {
     messageIndex = 0
   ): Promise<void> {
     // Resolving once up-front is slightly more efficient.
-    const resolved = await this.toCrossChainMessage(
-      message,
-      messageIndex
-    )
+    const resolved = await this.toCrossChainMessage(message, messageIndex)
 
     let totalTimeMs = 0
     while (totalTimeMs < (opts.timeoutMs || Infinity)) {
       const tick = Date.now()
-      const currentStatus = await this.getMessageStatus(
-        resolved,
-        messageIndex
-      )
+      const currentStatus = await this.getMessageStatus(resolved, messageIndex)
 
       // Handle special cases for L1 to L2 messages.
       if (resolved.direction === MessageDirection.L1_TO_L2) {
@@ -1057,10 +1032,7 @@ export class CrossChainMessenger {
      */
     messageIndex = 0
   ): Promise<number> {
-    const resolved = await this.toCrossChainMessage(
-      message,
-      messageIndex
-    )
+    const resolved = await this.toCrossChainMessage(message, messageIndex)
     const status = await this.getMessageStatus(resolved, messageIndex)
     if (resolved.direction === MessageDirection.L1_TO_L2) {
       if (
@@ -1099,10 +1071,7 @@ export class CrossChainMessenger {
         // If the message is still within the challenge period, then we need to estimate exactly
         // the amount of time left until the challenge period expires. The challenge period starts
         // when the state root is published.
-        const stateRoot = await this.getMessageStateRoot(
-          resolved,
-          messageIndex
-        )
+        const stateRoot = await this.getMessageStateRoot(resolved, messageIndex)
         const challengePeriod = await this.getChallengePeriodSeconds()
         const targetBlock = await this.l1Provider.getBlock(
           stateRoot.batch.blockNumber
@@ -1135,13 +1104,13 @@ export class CrossChainMessenger {
     const challengePeriod =
       oracleVersion === '1.0.0'
         ? // The ABI in the SDK does not contain FINALIZATION_PERIOD_SECONDS
-        // in OptimismPortal, so making an explicit call instead.
-        BigNumber.from(
-          await this.contracts.l1.OptimismPortal.provider.call({
-            to: this.contracts.l1.OptimismPortal.address,
-            data: '0xf4daa291', // FINALIZATION_PERIOD_SECONDS
-          })
-        )
+          // in OptimismPortal, so making an explicit call instead.
+          BigNumber.from(
+            await this.contracts.l1.OptimismPortal.provider.call({
+              to: this.contracts.l1.OptimismPortal.address,
+              data: '0xf4daa291', // FINALIZATION_PERIOD_SECONDS
+            })
+          )
         : await this.contracts.l1.L2OutputOracle.FINALIZATION_PERIOD_SECONDS()
     return challengePeriod.toNumber()
   }
@@ -1179,10 +1148,7 @@ export class CrossChainMessenger {
      */
     messageIndex = 0
   ): Promise<BedrockOutputData | null> {
-    const resolved = await this.toCrossChainMessage(
-      message,
-      messageIndex
-    )
+    const resolved = await this.toCrossChainMessage(message, messageIndex)
 
     // Outputs are only a thing for L2 to L1 messages.
     if (resolved.direction === MessageDirection.L1_TO_L2) {
@@ -1238,10 +1204,7 @@ export class CrossChainMessenger {
      */
     messageIndex = 0
   ): Promise<StateRoot | null> {
-    const resolved = await this.toCrossChainMessage(
-      message,
-      messageIndex
-    )
+    const resolved = await this.toCrossChainMessage(message, messageIndex)
 
     // State roots are only a thing for L2 to L1 messages.
     if (resolved.direction === MessageDirection.L1_TO_L2) {
@@ -1431,18 +1394,12 @@ export class CrossChainMessenger {
      */
     messageIndex = 0
   ): Promise<CrossChainMessageProof> {
-    const resolved = await this.toCrossChainMessage(
-      message,
-      messageIndex
-    )
+    const resolved = await this.toCrossChainMessage(message, messageIndex)
     if (resolved.direction === MessageDirection.L1_TO_L2) {
       throw new Error(`can only generate proofs for L2 to L1 messages`)
     }
 
-    const stateRoot = await this.getMessageStateRoot(
-      resolved,
-      messageIndex
-    )
+    const stateRoot = await this.getMessageStateRoot(resolved, messageIndex)
     if (stateRoot === null) {
       throw new Error(`state root for message not yet published`)
     }
@@ -1500,26 +1457,17 @@ export class CrossChainMessenger {
      */
     messageIndex = 0
   ): Promise<BedrockCrossChainMessageProof> {
-    const resolved = await this.toCrossChainMessage(
-      message,
-      messageIndex
-    )
+    const resolved = await this.toCrossChainMessage(message, messageIndex)
     if (resolved.direction === MessageDirection.L1_TO_L2) {
       throw new Error(`can only generate proofs for L2 to L1 messages`)
     }
 
-    const output = await this.getMessageBedrockOutput(
-      resolved,
-      messageIndex
-    )
+    const output = await this.getMessageBedrockOutput(resolved, messageIndex)
     if (output === null) {
       throw new Error(`state root for message not yet published`)
     }
 
-    const withdrawal = await this.toLowLevelMessage(
-      resolved,
-      messageIndex
-    )
+    const withdrawal = await this.toLowLevelMessage(resolved, messageIndex)
     const hash = hashLowLevelMessage(withdrawal)
     const messageSlot = hashMessageHash(hash)
 
@@ -1872,10 +1820,7 @@ export class CrossChainMessenger {
        */
       messageIndex = 0
     ): Promise<TransactionRequest> => {
-      const resolved = await this.toCrossChainMessage(
-        message,
-        messageIndex
-      )
+      const resolved = await this.toCrossChainMessage(message, messageIndex)
       if (resolved.direction === MessageDirection.L2_TO_L1) {
         throw new Error(`cannot resend L2 to L1 message`)
       }
@@ -1926,10 +1871,7 @@ export class CrossChainMessenger {
        */
       messageIndex = 0
     ): Promise<TransactionRequest> => {
-      const resolved = await this.toCrossChainMessage(
-        message,
-        messageIndex
-      )
+      const resolved = await this.toCrossChainMessage(message, messageIndex)
       if (resolved.direction === MessageDirection.L1_TO_L2) {
         throw new Error('cannot finalize L1 to L2 message')
       }
@@ -1940,14 +1882,8 @@ export class CrossChainMessenger {
         )
       }
 
-      const withdrawal = await this.toLowLevelMessage(
-        resolved,
-        messageIndex
-      )
-      const proof = await this.getBedrockMessageProof(
-        resolved,
-        messageIndex
-      )
+      const withdrawal = await this.toLowLevelMessage(resolved, messageIndex)
+      const proof = await this.getBedrockMessageProof(resolved, messageIndex)
 
       const args = [
         [
@@ -1995,19 +1931,13 @@ export class CrossChainMessenger {
        */
       messageIndex = 0
     ): Promise<TransactionRequest> => {
-      const resolved = await this.toCrossChainMessage(
-        message,
-        messageIndex
-      )
+      const resolved = await this.toCrossChainMessage(message, messageIndex)
       if (resolved.direction === MessageDirection.L1_TO_L2) {
         throw new Error(`cannot finalize L1 to L2 message`)
       }
 
       if (this.bedrock) {
-        const withdrawal = await this.toLowLevelMessage(
-          resolved,
-          messageIndex
-        )
+        const withdrawal = await this.toLowLevelMessage(resolved, messageIndex)
         return this.contracts.l1.OptimismPortal.populateTransaction.finalizeWithdrawalTransaction(
           [
             withdrawal.messageNonce,
@@ -2287,11 +2217,7 @@ export class CrossChainMessenger {
       messageIndex = 0
     ): Promise<BigNumber> => {
       return this.l1Provider.estimateGas(
-        await this.populateTransaction.proveMessage(
-          message,
-          opts,
-          messageIndex
-        )
+        await this.populateTransaction.proveMessage(message, opts, messageIndex)
       )
     },
 
