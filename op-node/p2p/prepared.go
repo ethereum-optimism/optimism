@@ -69,7 +69,7 @@ func (p *Prepared) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
 	}
 }
 
-func (p *Prepared) PeerScoringParams() *pubsub.PeerScoreParams {
+func (p *Prepared) PeerScoringParams() *ScoringParams {
 	return nil
 }
 

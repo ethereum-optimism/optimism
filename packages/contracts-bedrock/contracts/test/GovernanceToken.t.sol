@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing utilities
 import { CommonTest } from "./CommonTest.t.sol";
+
+// Target contract
 import { GovernanceToken } from "../governance/GovernanceToken.sol";
 
 contract GovernanceToken_Test is CommonTest {
@@ -9,12 +12,14 @@ contract GovernanceToken_Test is CommonTest {
     address constant rando = address(0x5678);
     GovernanceToken internal gov;
 
+    /// @dev Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
         vm.prank(owner);
         gov = new GovernanceToken();
     }
 
+    /// @dev Tests that the constructor sets the correct initial state.
     function test_constructor_succeeds() external {
         assertEq(gov.owner(), owner);
         assertEq(gov.name(), "Optimism");
@@ -23,6 +28,7 @@ contract GovernanceToken_Test is CommonTest {
         assertEq(gov.totalSupply(), 0);
     }
 
+    /// @dev Tests that the owner can successfully call `mint`.
     function test_mint_fromOwner_succeeds() external {
         // Mint 100 tokens.
         vm.prank(owner);
@@ -33,6 +39,7 @@ contract GovernanceToken_Test is CommonTest {
         assertEq(gov.totalSupply(), 100);
     }
 
+    /// @dev Tests that `mint` reverts when called by a non-owner.
     function test_mint_fromNotOwner_reverts() external {
         // Mint 100 tokens as rando.
         vm.prank(rando);
@@ -44,6 +51,7 @@ contract GovernanceToken_Test is CommonTest {
         assertEq(gov.totalSupply(), 0);
     }
 
+    /// @dev Tests that the owner can successfully call `burn`.
     function test_burn_succeeds() external {
         // Mint 100 tokens to rando.
         vm.prank(owner);
@@ -58,6 +66,7 @@ contract GovernanceToken_Test is CommonTest {
         assertEq(gov.totalSupply(), 50);
     }
 
+    /// @dev Tests that the owner can successfully call `burnFrom`.
     function test_burnFrom_succeeds() external {
         // Mint 100 tokens to rando.
         vm.prank(owner);
@@ -76,6 +85,7 @@ contract GovernanceToken_Test is CommonTest {
         assertEq(gov.totalSupply(), 50);
     }
 
+    /// @dev Tests that `transfer` correctly transfers tokens.
     function test_transfer_succeeds() external {
         // Mint 100 tokens to rando.
         vm.prank(owner);
@@ -91,6 +101,7 @@ contract GovernanceToken_Test is CommonTest {
         assertEq(gov.totalSupply(), 100);
     }
 
+    /// @dev Tests that `approve` correctly sets allowances.
     function test_approve_succeeds() external {
         // Mint 100 tokens to rando.
         vm.prank(owner);
@@ -104,6 +115,7 @@ contract GovernanceToken_Test is CommonTest {
         assertEq(gov.allowance(rando, owner), 50);
     }
 
+    /// @dev Tests that `transferFrom` correctly transfers tokens.
     function test_transferFrom_succeeds() external {
         // Mint 100 tokens to rando.
         vm.prank(owner);
@@ -123,6 +135,7 @@ contract GovernanceToken_Test is CommonTest {
         assertEq(gov.totalSupply(), 100);
     }
 
+    /// @dev Tests that `increaseAllowance` correctly increases allowances.
     function test_increaseAllowance_succeeds() external {
         // Mint 100 tokens to rando.
         vm.prank(owner);
@@ -140,6 +153,7 @@ contract GovernanceToken_Test is CommonTest {
         assertEq(gov.allowance(rando, owner), 100);
     }
 
+    /// @dev Tests that `decreaseAllowance` correctly decreases allowances.
     function test_decreaseAllowance_succeeds() external {
         // Mint 100 tokens to rando.
         vm.prank(owner);

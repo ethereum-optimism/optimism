@@ -6,6 +6,7 @@ RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
 
 # build op-program with the shared go.mod & go.sum files
 COPY ./op-program /app/op-program
+COPY ./op-preimage /app/op-preimage
 COPY ./op-node /app/op-node
 COPY ./op-chain-ops /app/op-chain-ops
 COPY ./op-service /app/op-service

@@ -7,11 +7,11 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2"
 	"github.com/ethereum-optimism/optimism/op-program/client/mpt"
 	"github.com/ethereum-optimism/optimism/op-program/host/kvstore"
-	"github.com/ethereum-optimism/optimism/op-program/preimage"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -42,8 +42,8 @@ type Prefetcher struct {
 func NewPrefetcher(logger log.Logger, l1Fetcher L1Source, l2Fetcher L2Source, kvStore kvstore.KV) *Prefetcher {
 	return &Prefetcher{
 		logger:    logger,
-		l1Fetcher: l1Fetcher,
-		l2Fetcher: l2Fetcher,
+		l1Fetcher: NewRetryingL1Source(logger, l1Fetcher),
+		l2Fetcher: NewRetryingL2Source(logger, l2Fetcher),
 		kvStore:   kvStore,
 	}
 }

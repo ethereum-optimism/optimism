@@ -14,11 +14,11 @@
     "test": "hardhat test",
     "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json",
     "build": "tsc -p tsconfig.json",
-    "preview": "yarn build && yarn start",
+    "preview": "pnpm build && pnpm start",
     "clean": "rimraf dist/ ./tsconfig.tsbuildinfo",
-    "lint": "yarn lint:fix && yarn lint:check",
+    "lint": "pnpm lint:fix && pnpm lint:check",
     "pre-commit": "lint-staged",
-    "lint:fix": "yarn lint:check --fix",
+    "lint:fix": "pnpm lint:check --fix",
     "lint:check": "eslint . --max-warnings=0"
   },
   "keywords": [
@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.8.2",
-    "@eth-optimism/contracts": "^0.6.0",
+    "@eth-optimism/contracts-bedrock": "^0.14.0",
     "@eth-optimism/core-utils": "^0.12.1",
     "@eth-optimism/sdk": "^3.0.0",
     "@ethersproject/abstract-provider": "^5.7.0"

@@ -2,7 +2,7 @@
 
 This directory contains documentation for all defined invariant tests within `contracts-bedrock`.
 
-<!-- Do not modify the following section manually. It will be automatically generated on running `yarn autogen:invariant-docs` -->
+<!-- Do not modify the following section manually. It will be automatically generated on running `pnpm autogen:invariant-docs` -->
 <!-- START autoTOC -->
 
 ## Table of Contents
@@ -23,7 +23,7 @@ This directory contains documentation for all defined invariant tests within `co
 
 ## Usage
 
-To auto-generate documentation for invariant tests, run `yarn autogen:invariant-docs`.
+To auto-generate documentation for invariant tests, run `pnpm autogen:invariant-docs`.
 
 ## Documentation Standard
 

@@ -56,27 +56,28 @@ npm install @eth-optimism/contracts-bedrock
 
 We work on this repository with a combination of [Hardhat](https://hardhat.org) and [Foundry](https://getfoundry.sh/).
 
-1. Install Foundry by following [the instructions located here](https://getfoundry.sh/).
-   A specific version must be used.
-   ```shell
-   foundryup -C da2392e58bb8a7fefeba46b40c4df1afad8ccd22
-   ```
-2. Install node modules with yarn (v1) and Node.js (16+):
+1. Install node modules with pnpm (v8) and Node.js (16+):
 
-   ```shell
-   yarn install
-   ```
+```shell
+pnpm install
+```
+
+2. Install the correct version of foundry (defined in the .foundryrc file in the root of this repo.
+
+```shell
+pnpm install:foundry
+```
 
 ### Build
 
 ```shell
-yarn build
+pnpm build
 ```
 
 ### Tests
 
 ```shell
-yarn test
+pnpm test
 ```
 
 #### Running Echidna tests
@@ -84,27 +85,34 @@ yarn test
 You must have [Echidna](https://github.com/crytic/echidna) installed.
 
 Contracts targetted for Echidna testing are located in `./contracts/echidna`
-Each target contract is tested with a separate yarn command, for example:
+Each target contract is tested with a separate pnpm command, for example:
 
 ```shell
-yarn echidna:aliasing
+pnpm echidna:aliasing
 ```
 
 ### Deployment
 
+The smart contracts are deployed using `foundry` with a `hardhat-deploy` compatibility layer. When the contracts are deployed,
+they will write a temp file to disk that can then be formatted into a `hardhat-deploy` style artifact by calling another script.
+
 #### Configuration
 
-1. Create or modify a file `<network-name>.ts` inside of the [`deploy-config`](./deploy-config/) folder.
-2. Fill out this file according to the `deployConfigSpec` located inside of the [`hardhat.config.ts](./hardhat.config.ts)
-3. Optionally: Run `npx hardhat generate-deploy-config --network <network-name>` to generate the associated JSON
-   file. This is required if using `op-chain-ops`.
+Create or modify a file `<network-name>.json` inside of the [`deploy-config`](./deploy-config/) folder.
+By default, the network name will be selected automatically based on the chainid. Alternatively, the `DEPLOYMENT_CONTEXT` env var can be used to override the network name.
+The spec for the deploy config is defined by the `deployConfigSpec` located inside of the [`hardhat.config.ts`](./hardhat.config.ts).
 
 #### Execution
 
-1. Copy `.env.example` into `.env`
-2. Fill out the `L1_RPC` and `PRIVATE_KEY_DEPLOYER` environment variables in `.env`
-3. Run `npx hardhat deploy --network <network-name>` to deploy the L1 contracts
-4. Run `npx hardhat etherscan-verify --network <network-name> --sleep` to verify contracts on Etherscan
+1. Set the env vars `ETH_RPC_URL`, `PRIVATE_KEY` and `ETHERSCAN_API_KEY` if contract verification is desired
+1. Deploy the contracts with `forge script -vvv scripts/Deploy.s.sol:Deploy --rpc-url $ETH_RPC_URL --broadcast --private-key $PRIVATE_KEY`
+   Pass the `--verify` flag to verify the deployments automatically with Etherscan.
+1. Generate the hardhat deploy artifacts with `forge script -vvv scripts/Deploy.s.sol:Deploy --sig 'sync()' --rpc-url $ETH_RPC_URL --broadcast --private-key $PRIVATE_KEY`
+
+#### Deploying a single contract
+
+All of the functions for deploying a single contract are `public` meaning that the `--sig` argument to `forge script` can be used to
+target the deployment of a single contract.
 
 ## Tools
 

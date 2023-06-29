@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+// Testing utilities
 import { Messenger_Initializer } from "./CommonTest.t.sol";
-import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
+import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+
+// Target contract dependencies
 import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
 
+// Target contract
+import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
+
+/// @dev Test ERC721 contract.
 contract TestERC721 is ERC721 {
     constructor() ERC721("Test", "TST") {}
 
@@ -39,6 +45,7 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         bytes extraData
     );
 
+    /// @dev Sets up the testing environment.
     function setUp() public override {
         super.setUp();
 
@@ -58,6 +65,7 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         localToken.approve(address(bridge), tokenId);
     }
 
+    /// @dev Tests that the constructor sets the correct values.
     function test_constructor_succeeds() public {
         assertEq(address(bridge.MESSENGER()), address(L1Messenger));
         assertEq(address(bridge.OTHER_BRIDGE()), otherBridge);
@@ -65,6 +73,7 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         assertEq(address(bridge.otherBridge()), otherBridge);
     }
 
+    /// @dev Tests that the ERC721 can be bridged successfully.
     function test_bridgeERC721_succeeds() public {
         // Expect a call to the messenger.
         vm.expectCall(
@@ -109,6 +118,7 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         assertEq(localToken.ownerOf(tokenId), address(bridge));
     }
 
+    /// @dev Tests that the ERC721 bridge reverts for non externally owned accounts.
     function test_bridgeERC721_fromContract_reverts() external {
         // Bridge the token.
         vm.etch(alice, hex"01");
@@ -121,6 +131,7 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         assertEq(localToken.ownerOf(tokenId), alice);
     }
 
+    /// @dev Tests that the ERC721 bridge reverts for a zero address local token.
     function test_bridgeERC721_localTokenZeroAddress_reverts() external {
         // Bridge the token.
         vm.prank(alice);
@@ -132,6 +143,7 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         assertEq(localToken.ownerOf(tokenId), alice);
     }
 
+    /// @dev Tests that the ERC721 bridge reverts for a zero address remote token.
     function test_bridgeERC721_remoteTokenZeroAddress_reverts() external {
         // Bridge the token.
         vm.prank(alice);
@@ -143,6 +155,7 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         assertEq(localToken.ownerOf(tokenId), alice);
     }
 
+    /// @dev Tests that the ERC721 bridge reverts for an incorrect owner.
     function test_bridgeERC721_wrongOwner_reverts() external {
         // Bridge the token.
         vm.prank(bob);
@@ -154,6 +167,8 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         assertEq(localToken.ownerOf(tokenId), alice);
     }
 
+    /// @dev Tests that the ERC721 bridge successfully sends a token
+    ///      to a different address than the owner.
     function test_bridgeERC721To_succeeds() external {
         // Expect a call to the messenger.
         vm.expectCall(
@@ -198,6 +213,8 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         assertEq(localToken.ownerOf(tokenId), address(bridge));
     }
 
+    /// @dev Tests that the ERC721 bridge reverts for non externally owned accounts
+    ///      when sending to a different address than the owner.
     function test_bridgeERC721To_localTokenZeroAddress_reverts() external {
         // Bridge the token.
         vm.prank(alice);
@@ -209,6 +226,8 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         assertEq(localToken.ownerOf(tokenId), alice);
     }
 
+    /// @dev Tests that the ERC721 bridge reverts for a zero address remote token
+    ///      when sending to a different address than the owner.
     function test_bridgeERC721To_remoteTokenZeroAddress_reverts() external {
         // Bridge the token.
         vm.prank(alice);
@@ -220,6 +239,8 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         assertEq(localToken.ownerOf(tokenId), alice);
     }
 
+    /// @dev Tests that the ERC721 bridge reverts for an incorrect owner
+    ////     when sending to a different address than the owner.
     function test_bridgeERC721To_wrongOwner_reverts() external {
         // Bridge the token.
         vm.prank(bob);
@@ -238,6 +259,7 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         assertEq(localToken.ownerOf(tokenId), alice);
     }
 
+    /// @dev Tests that the ERC721 bridge successfully finalizes a withdrawal.
     function test_finalizeBridgeERC721_succeeds() external {
         // Bridge the token.
         vm.prank(alice);
@@ -275,6 +297,8 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         assertEq(localToken.ownerOf(tokenId), alice);
     }
 
+    /// @dev Tests that the ERC721 bridge finalize reverts when not called
+    ///      by the remote bridge.
     function test_finalizeBridgeERC721_notViaLocalMessenger_reverts() external {
         // Finalize a withdrawal.
         vm.prank(alice);
@@ -289,6 +313,8 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         );
     }
 
+    /// @dev Tests that the ERC721 bridge finalize reverts when not called
+    ///      from the remote messenger.
     function test_finalizeBridgeERC721_notFromRemoteMessenger_reverts() external {
         // Finalize a withdrawal.
         vm.mockCall(
@@ -308,6 +334,8 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         );
     }
 
+    /// @dev Tests that the ERC721 bridge finalize reverts when the local token
+    ///      is set as the bridge itself.
     function test_finalizeBridgeERC721_selfToken_reverts() external {
         // Finalize a withdrawal.
         vm.mockCall(
@@ -327,6 +355,8 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         );
     }
 
+    /// @dev Tests that the ERC721 bridge finalize reverts when the remote token
+    ///      is not escrowed in the L1 bridge.
     function test_finalizeBridgeERC721_notEscrowed_reverts() external {
         // Finalize a withdrawal.
         vm.mockCall(

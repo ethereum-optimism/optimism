@@ -2,6 +2,7 @@ package store
 
 import (
 	"errors"
+	"math"
 	"net"
 	"time"
 
@@ -27,9 +28,59 @@ func (g GossipScores) Apply(rec *scoreRecord) {
 	rec.PeerScores.Gossip = g
 }
 
+type ReqRespScores struct {
+	ValidResponses   float64 `json:"validResponses"`
+	ErrorResponses   float64 `json:"errorResponses"`
+	RejectedPayloads float64 `json:"rejectedPayloads"`
+}
+
+type IncrementValidResponses struct {
+	Cap float64
+}
+
+func (i IncrementValidResponses) Apply(rec *scoreRecord) {
+	rec.PeerScores.ReqResp.ValidResponses = math.Min(rec.PeerScores.ReqResp.ValidResponses+1, i.Cap)
+}
+
+type IncrementErrorResponses struct {
+	Cap float64
+}
+
+func (i IncrementErrorResponses) Apply(rec *scoreRecord) {
+	rec.PeerScores.ReqResp.ErrorResponses = math.Min(rec.PeerScores.ReqResp.ErrorResponses+1, i.Cap)
+}
+
+type IncrementRejectedPayloads struct {
+	Cap float64
+}
+
+func (i IncrementRejectedPayloads) Apply(rec *scoreRecord) {
+	rec.PeerScores.ReqResp.RejectedPayloads = math.Min(rec.PeerScores.ReqResp.RejectedPayloads+1, i.Cap)
+}
+
+type DecayApplicationScores struct {
+	ValidResponseDecay   float64
+	ErrorResponseDecay   float64
+	RejectedPayloadDecay float64
+	DecayToZero          float64
+}
+
+func (d *DecayApplicationScores) Apply(rec *scoreRecord) {
+	decay := func(value float64, decay float64) float64 {
+		value *= decay
+		if value < d.DecayToZero {
+			return 0
+		}
+		return value
+	}
+	rec.PeerScores.ReqResp.ValidResponses = decay(rec.PeerScores.ReqResp.ValidResponses, d.ValidResponseDecay)
+	rec.PeerScores.ReqResp.ErrorResponses = decay(rec.PeerScores.ReqResp.ErrorResponses, d.ErrorResponseDecay)
+	rec.PeerScores.ReqResp.RejectedPayloads = decay(rec.PeerScores.ReqResp.RejectedPayloads, d.RejectedPayloadDecay)
+}
+
 type PeerScores struct {
-	Gossip      GossipScores `json:"gossip"`
-	ReqRespSync float64      `json:"reqRespSync"`
+	Gossip  GossipScores  `json:"gossip"`
+	ReqResp ReqRespScores `json:"reqResp"`
 }
 
 // ScoreDatastore defines a type-safe API for getting and setting libp2p peer score information
