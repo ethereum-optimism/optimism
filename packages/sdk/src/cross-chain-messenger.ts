@@ -371,27 +371,6 @@ export class CrossChainMessenger {
     }
   }
 
-  private async getWithdrawalsFromMessage(
-    message: MessageLike
-  ): Promise<ethers.utils.Result[]> {
-    const resolved = await this.toCrossChainMessage(message)
-    const receipt = await this.l2Provider.getTransactionReceipt(
-      resolved.transactionHash
-    )
-
-    const withdrawals: ethers.utils.Result[] = []
-    for (const log of receipt.logs) {
-      if (log.address === this.contracts.l2.BedrockMessagePasser.address) {
-        const decoded =
-          this.contracts.l2.L2ToL1MessagePasser.interface.parseLog(log)
-        if (decoded.name === 'MessagePassed') {
-          withdrawals.push(decoded.args)
-        }
-      }
-    }
-    return withdrawals
-  }
-
   /**
    * Transforms a CrossChainMessenger message into its low-level representation inside the
    * L2ToL1MessagePasser contract on L2.
@@ -440,7 +419,22 @@ export class CrossChainMessenger {
       gasLimit = migratedWithdrawalGasLimit(encoded, chainID)
       messageNonce = resolved.messageNonce
     } else {
-      const withdrawals = await this.getWithdrawalsFromMessage(message)
+      const receipt = await this.l2Provider.getTransactionReceipt(
+        (
+          await this.toCrossChainMessage(message)
+        ).transactionHash
+      )
+
+      const withdrawals: ethers.utils.Result[] = []
+      for (const log of receipt.logs) {
+        if (log.address === this.contracts.l2.BedrockMessagePasser.address) {
+          const decoded =
+            this.contracts.l2.L2ToL1MessagePasser.interface.parseLog(log)
+          if (decoded.name === 'MessagePassed') {
+            withdrawals.push(decoded.args)
+          }
+        }
+      }
 
       // Should not happen.
       if (withdrawals.length === 0) {
