@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -59,7 +60,7 @@ func TestEVM(t *testing.T) {
 	for _, f := range testFiles {
 		t.Run(f.Name(), func(t *testing.T) {
 			var oracle PreimageOracle
-			if f.Name() == "oracle.bin" {
+			if strings.HasPrefix(f.Name(), "oracle") {
 				oracle = staticOracle(t, []byte("hello world"))
 			}
 
@@ -128,6 +129,41 @@ func TestEVM(t *testing.T) {
 			require.Equal(t, result, uint32(1), "must have success result")
 		})
 	}
+}
+
+func TestEVMFault(t *testing.T) {
+	contracts, addrs := testContractsSetup(t)
+	var tracer vm.EVMLogger // no-tracer by default, but see SourceMapTracer and MarkdownTracer
+	//tracer = SourceMapTracer(t, contracts, addrs)
+	sender := common.Address{0x13, 0x37}
+
+	env, evmState := NewEVMEnv(contracts, addrs)
+	env.Config.Tracer = tracer
+
+	programMem := []byte{0xff, 0xff, 0xff, 0xff}
+	state := &State{PC: 0, NextPC: 4, Memory: NewMemory()}
+	initialState := &State{PC: 0, NextPC: 4, Memory: state.Memory}
+	err := state.Memory.SetMemoryRange(0, bytes.NewReader(programMem))
+	require.NoError(t, err, "load program into state")
+
+	// set the return address ($ra) to jump into when test completes
+	state.Registers[31] = endAddr
+
+	us := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+	require.Panics(t, func() { _, _ = us.Step(true) }, "must panic on illegal instruction")
+
+	insnProof := initialState.Memory.MerkleProof(0)
+	stepWitness := &StepWitness{
+		State:    initialState.EncodeWitness(),
+		MemProof: insnProof[:],
+	}
+	input := stepWitness.EncodeStepInput()
+	startingGas := uint64(30_000_000)
+
+	_, _, err = env.Call(vm.AccountRef(sender), addrs.MIPS, input, startingGas, big.NewInt(0))
+	require.EqualValues(t, err, vm.ErrExecutionReverted)
+	logs := evmState.Logs()
+	require.Equal(t, 0, len(logs))
 }
 
 func TestHelloEVM(t *testing.T) {

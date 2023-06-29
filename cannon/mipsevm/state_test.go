@@ -32,7 +32,7 @@ func TestState(t *testing.T) {
 	for _, f := range testFiles {
 		t.Run(f.Name(), func(t *testing.T) {
 			var oracle PreimageOracle
-			if f.Name() == "oracle.bin" {
+			if strings.HasPrefix(f.Name(), "oracle") {
 				oracle = staticOracle(t, []byte("hello world"))
 			}
 			// TODO: currently tests are compiled as flat binary objects
