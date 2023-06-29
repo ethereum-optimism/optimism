@@ -20,8 +20,8 @@
 
 This is a description of the Fault Proof Virtual Machine (FPVM). The FPVM emulates a minimal Linux-based system running on big-endian 32-bit MIPS32 architecture. Alot of its behaviors are copied from existing Linux/MIPS specification with a few tweaks made for fault proofs.
 
-Operationally, the Fault Proof VM is a state transition function. This state transition is referred to as a *Step*, indicating a single instruction being executed. We say the VM is a function $f$, given a current state $S_{pre}$, steps on a single instruction encoded in the state to produce a new state $S_{post}$.
- $$f(S_{pre}) \rightarrow S_{post}$$
+Operationally, the Fault Proof VM is a state transition function. This state transition is referred to as a *Step*, indicating a single instruction being executed. We say the VM is a function $f$, given an input state $S_{pre}$, steps on a single instruction encoded in the state to produce a new state $S_{post}$.
+$$f(S_{pre}) \rightarrow S_{post}$$
 
 ## State
 The virtual machine state highlights the effects of running a Fault Proof Program on the VM.
@@ -97,9 +97,11 @@ Syscalls referencing unnkown file descriptors fail with an `EBADF` errno as done
 All I/O operations are restricted to a maximum of 4 bytes per operation.
 Any read or write syscall request exceeding this limit will be truncated to 4 bytes. Consequently, the return value of sucha read syscall wil also be 4, indicating the actual number of bytes read.
 
-## Pre-image Communication
+### Pre-image Communication
 The `preimageKey` and `preimageOffset` state are updated via read/write syscalls to the pre-image read and write file descriptors (see [I/O](#io)).
-The `preimageKey` buffers the stream of bytes written to the pre-image write fd. Writes to the pre-image write fd resets the `preimageOffset`, indicating the intent to read a new pre-image.
+The `preimageKey` buffers the stream of bytes written to the pre-image write fd.
+The `preimageKey` buffer is shifted to accomodate new bytes written to the end of it.
+Each write also resets the `preimageOffset` to 0, indicating the intent to read a new pre-image.
 
 When handling pre-image reads, the `preimageKey` is used to lookup the pre-imgae data from an oracle. A max 4-byte chunk of the pre-image at the `preimageOffset` is returned by the read.
 Each read operation increases the `preimageOffset` by the number of bytes requested (capped at 4 bytes).
