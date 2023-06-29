@@ -27,69 +27,32 @@ type Game interface {
 	IsDuplicate(claim Claim) bool
 }
 
-// Node is a node in the game state tree.
-type Node struct {
-	self     Claim
-	children []*Node
+type extendedClaim struct {
+	self          Claim
+	contractIndex int
+	children      []ClaimData
 }
 
 // gameState is a struct that represents the state of a dispute game.
 // The game state implements the [Game] interface.
 type gameState struct {
-	root   Node
-	claims map[ClaimData]Claim
+	root   ClaimData
+	claims map[ClaimData]*extendedClaim
 }
 
 // NewGameState returns a new game state.
 // The provided [Claim] is used as the root node.
 func NewGameState(root Claim) *gameState {
-	claims := make(map[ClaimData]Claim)
-	claims[root.ClaimData] = root
+	claims := make(map[ClaimData]*extendedClaim)
+	claims[root.ClaimData] = &extendedClaim{
+		self:          root,
+		contractIndex: 0,
+		children:      make([]ClaimData, 0),
+	}
 	return &gameState{
-		root: Node{
-			self:     root,
-			children: make([]*Node, 0),
-		},
+		root:   root.ClaimData,
 		claims: claims,
 	}
-}
-
-// getParent returns the parent of the provided [Claim].
-func (g *gameState) getParent(claim Claim) (Claim, error) {
-	// If the claim is the root node, return an error.
-	if claim.IsRoot() {
-		return Claim{}, ErrClaimNotFound
-	}
-
-	// Walk down the tree from the root node to find the parent.
-	found, err := g.recurseTree(&g.root, claim.Parent)
-	if err != nil {
-		return Claim{}, err
-	}
-
-	// Return the parent of the found node.
-	return found.self, nil
-}
-
-// recurseTree recursively walks down the tree from the root node to find the
-// node with the provided [Claim].
-func (g *gameState) recurseTree(treeNode *Node, claim ClaimData) (*Node, error) {
-	// Check if the current node is the claim.
-	if treeNode.self.ClaimData == claim {
-		return treeNode, nil
-	}
-
-	// Check all children of the current node.
-	for _, child := range treeNode.children {
-		// Recurse and drop errors.
-		n, _ := g.recurseTree(child, claim)
-		if n != nil {
-			return n, nil
-		}
-	}
-
-	// If we reach this point, the claim was not found.
-	return nil, ErrClaimNotFound
 }
 
 // PutAll adds a list of claims into the [Game] state.
@@ -105,37 +68,19 @@ func (g *gameState) PutAll(claims []Claim) error {
 
 // Put adds a claim into the game state.
 func (g *gameState) Put(claim Claim) error {
-	// The game is always initialized with a root claim. Cannot add a second.
-	if claim.IsRoot() {
+	if claim.IsRoot() || g.IsDuplicate(claim) {
 		return ErrClaimExists
 	}
-
-	// Grab the claim's parent.
-	parent := claim.Parent
-
-	// Walk down the tree from the root node to find the parent.
-	found, err := g.recurseTree(&g.root, parent)
-	if err != nil {
-		return err
+	if parent, ok := g.claims[claim.Parent]; !ok {
+		return errors.New("no parent claim")
+	} else {
+		parent.children = append(parent.children, claim.ClaimData)
 	}
-
-	// Check that the node is not already in the tree.
-	for _, child := range found.children {
-		if child.self == claim {
-			return ErrClaimExists
-		}
+	g.claims[claim.ClaimData] = &extendedClaim{
+		self:          claim,
+		contractIndex: claim.ContractIndex,
+		children:      make([]ClaimData, 0),
 	}
-
-	// Create a new node.
-	node := Node{
-		self:     claim,
-		children: make([]*Node, 0),
-	}
-
-	// Add the node to the tree.
-	found.children = append(found.children, &node)
-	g.claims[claim.ClaimData] = claim
-
 	return nil
 }
 
@@ -145,14 +90,28 @@ func (g *gameState) IsDuplicate(claim Claim) bool {
 }
 
 func (g *gameState) Claims() []Claim {
-	return g.root.claims()
-}
-
-func (n *Node) claims() []Claim {
+	queue := []ClaimData{g.root}
 	var out []Claim
-	out = append(out, n.self)
-	for _, c := range n.children {
-		out = append(out, c.claims()...)
+	for len(queue) > 0 {
+		item := queue[0]
+		queue = queue[1:]
+		queue = append(queue, g.getChildren(item)...)
+		out = append(out, g.claims[item].self)
 	}
 	return out
+}
+
+func (g *gameState) getChildren(c ClaimData) []ClaimData {
+	return g.claims[c].children
+}
+
+func (g *gameState) getParent(claim Claim) (Claim, error) {
+	if claim.IsRoot() {
+		return Claim{}, ErrClaimNotFound
+	}
+	if parent, ok := g.claims[claim.Parent]; !ok {
+		return Claim{}, ErrClaimNotFound
+	} else {
+		return parent.self, nil
+	}
 }
