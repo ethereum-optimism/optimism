@@ -24,7 +24,7 @@
     "postinstall": "patch-package && (test -d docs/op-stack && cd docs/op-stack && npx yarn@1 install && cd ../.. || exit 0)",
     "ready": "pnpm lint && pnpm test",
     "prepare": "husky install",
-    "release": "pnpm build && pnpm changeset publish",
+    "release": "npx nx run-many --target=build --skip-nx-cache && pnpm changeset publish",
     "install:foundry": "curl -L https://foundry.paradigm.xyz | bash && pnpm update:foundry",
     "update:foundry": "foundryup -C $(cat .foundryrc)"
   },
