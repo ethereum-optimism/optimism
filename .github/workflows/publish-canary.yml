@@ -38,7 +38,7 @@ jobs:
           cache: pnpm
 
       - name: Install Dependencies
-        run: pnpm --frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
