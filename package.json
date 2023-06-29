@@ -4,26 +4,8 @@
   "author": "Optimism PBC",
   "license": "MIT",
   "private": true,
-  "workspaces": {
-    "packages": [
-      "packages/*",
-      "endpoint-monitor"
-    ],
-    "nohoist": [
-      "**/typechain/*",
-      "**/@typechain/*",
-      "@eth-optimism/contracts-bedrock/ds-test",
-      "@eth-optimism/contracts-bedrock/forge-std",
-      "@eth-optimism/contracts-bedrock/@rari-capital/solmate",
-      "@eth-optimism/contracts-bedrock/clones-with-immutable-args",
-      "**/@openzeppelin/*",
-      "@eth-optimism/contracts-periphery/ds-test",
-      "@eth-optimism/contracts-periphery/forge-std",
-      "@eth-optimism/contracts-periphery/@rari-capital/solmate",
-      "forta-agent"
-    ]
-  },
   "engines": {
+    "node": ">=16",
     "pnpm": ">=8"
   },
   "scripts": {
