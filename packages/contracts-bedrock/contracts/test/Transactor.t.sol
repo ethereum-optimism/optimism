@@ -3,9 +3,9 @@ pragma solidity 0.8.15;
 
 /* Testing utilities */
 import { Test } from "forge-std/Test.sol";
-import { CallRecorder } from "../testing/helpers/CallRecorder.sol";
-import { Reverter } from "../testing/helpers/Reverter.sol";
-import { Transactor } from "../universal/Transactor.sol";
+import { CallRecorder } from "./Helpers.sol";
+import { Reverter } from "./Helpers.sol";
+import { Transactor } from "../periphery/Transactor.sol";
 
 contract Transactor_Initializer is Test {
     address alice = address(128);
