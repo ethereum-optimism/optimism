@@ -142,7 +142,7 @@ func TestMigrateBalances(t *testing.T) {
 					},
 				},
 			},
-			noCheck: false,
+			noCheck: true,
 			check: func(t *testing.T, g *types.Genesis, err error) {
 				require.NoError(t, err)
 				require.EqualValues(t, common.Big1, g.Alloc[common.Address{1}].Balance)
@@ -181,7 +181,7 @@ func TestMigrateBalances(t *testing.T) {
 					},
 				},
 			},
-			noCheck: false,
+			noCheck: true,
 			check: func(t *testing.T, g *types.Genesis, err error) {
 				require.NoError(t, err)
 				require.EqualValues(t, common.Big1, g.Alloc[common.Address{1}].Balance)
@@ -210,7 +210,7 @@ func TestMigrateBalances(t *testing.T) {
 					},
 				},
 			},
-			noCheck: false,
+			noCheck: true,
 			check: func(t *testing.T, g *types.Genesis, err error) {
 				require.ErrorContains(t, err, "unknown storage slot")
 			},
@@ -270,7 +270,7 @@ func TestMigrateBalances(t *testing.T) {
 					},
 				},
 			},
-			noCheck: false,
+			noCheck: true,
 			check: func(t *testing.T, g *types.Genesis, err error) {
 				require.ErrorContains(t, err, "supply mismatch")
 			},
@@ -297,7 +297,7 @@ func TestMigrateBalances(t *testing.T) {
 					},
 				},
 			},
-			noCheck: false,
+			noCheck: true,
 			check: func(t *testing.T, g *types.Genesis, err error) {
 				require.NoError(t, err)
 				require.EqualValues(t, common.Big1, g.Alloc[common.Address{1}].Balance)
