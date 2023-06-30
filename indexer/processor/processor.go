@@ -10,12 +10,14 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-const defaultLoopInterval = 5 * time.Second
+const (
+	defaultLoopInterval     = 5 * time.Second
+	defaultHeaderBufferSize = 500
+)
 
-// ProcessFn is the the entrypoint for processing a batch of headers. To support
-// partial batch processing, the function must return the last processed header
-// in the batch. In the event of failure, database operations are rolled back
-type ProcessFn func(*database.DB, []*types.Header) (*types.Header, error)
+// ProcessFn is the the entrypoint for processing a batch of headers.
+// In the event of failure, database operations are rolled back
+type ProcessFn func(*database.DB, []*types.Header) error
 
 type processor struct {
 	headerTraversal *node.BufferedHeaderTraversal
@@ -32,7 +34,7 @@ func (p processor) Start() {
 
 	p.processLog.Info("starting processor...")
 	for range pollTicker.C {
-		headers, err := p.headerTraversal.NextFinalizedHeaders(500)
+		headers, err := p.headerTraversal.NextFinalizedHeaders(defaultHeaderBufferSize)
 		if err != nil {
 			p.processLog.Error("error querying for headers", "err", err)
 			continue
@@ -45,30 +47,18 @@ func (p processor) Start() {
 		batchLog := p.processLog.New("batch_start_block_number", headers[0].Number, "batch_end_block_number", headers[len(headers)-1].Number)
 		batchLog.Info("processing batch")
 
-		var lastProcessedHeader *types.Header
 		err = p.db.Transaction(func(db *database.DB) error {
-			lastProcessedHeader, err = p.processFn(db, headers)
+			err := p.processFn(db, headers)
 			if err != nil {
 				return err
 			}
-
-			err = p.headerTraversal.Advance(lastProcessedHeader)
-			if err != nil {
-				batchLog.Error("unable to advance processor", "last_processed_block_number", lastProcessedHeader.Number)
-				return err
-			}
-
-			return nil
+			return p.headerTraversal.Advance(headers[len(headers)-1])
 		})
 
 		if err != nil {
 			batchLog.Warn("error processing batch. no operations committed", "err", err)
 		} else {
-			if lastProcessedHeader.Number.Cmp(headers[len(headers)-1].Number) == 0 {
-				batchLog.Info("fully committed batch")
-			} else {
-				batchLog.Info("partially committed batch", "last_processed_block_number", lastProcessedHeader.Number)
-			}
+			batchLog.Info("fully committed batch")
 		}
 	}
 }

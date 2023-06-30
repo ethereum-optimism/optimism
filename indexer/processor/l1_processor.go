@@ -115,7 +115,7 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 	outputProposedEventSig := checkpointAbi.l2OutputOracle.Events["OutputProposed"].ID
 	legacyStateBatchAppendedEventSig := checkpointAbi.legacyStateCommitmentChain.Events["StateBatchAppended"].ID
 
-	return func(db *database.DB, headers []*types.Header) (*types.Header, error) {
+	return func(db *database.DB, headers []*types.Header) error {
 		numHeaders := len(headers)
 		headerMap := make(map[common.Hash]*types.Header)
 		for _, header := range headers {
@@ -127,7 +127,7 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 		logFilter := ethereum.FilterQuery{FromBlock: headers[0].Number, ToBlock: headers[numHeaders-1].Number, Addresses: contractAddrs}
 		logs, err := rawEthClient.FilterLogs(context.Background(), logFilter)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		// L2 blocks posted on L1
@@ -141,7 +141,7 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 			header, ok := headerMap[log.BlockHash]
 			if !ok {
 				processLog.Error("contract event found with associated header not in the batch", "header", log.BlockHash, "log_index", log.Index)
-				return nil, errors.New("parsed log with a block hash not in this batch")
+				return errors.New("parsed log with a block hash not in this batch")
 			}
 
 			contractEvent := &database.L1ContractEvent{
@@ -163,7 +163,7 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 			case outputProposedEventSig:
 				if len(log.Topics) != 4 {
 					processLog.Error("parsed unexpected number of L2OutputOracle#OutputProposed log topics", "log_topics", log.Topics)
-					return nil, errors.New("parsed unexpected OutputProposed event")
+					return errors.New("parsed unexpected OutputProposed event")
 				}
 
 				outputProposals = append(outputProposals, &database.OutputProposal{
@@ -177,7 +177,7 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 				err := checkpointAbi.l2OutputOracle.UnpackIntoInterface(&stateBatchAppended, "StateBatchAppended", log.Data)
 				if err != nil || len(log.Topics) != 2 {
 					processLog.Error("unexpected StateCommitmentChain#StateBatchAppended log data or log topics", "log_topics", log.Topics, "log_data", hex.EncodeToString(log.Data), "err", err)
-					return nil, err
+					return err
 				}
 
 				legacyStateBatches = append(legacyStateBatches, &database.LegacyStateBatch{
@@ -216,20 +216,20 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 		numL1Headers := len(l1Headers)
 		if numL1Headers == 0 {
 			processLog.Info("no l1 blocks of interest")
-			return headers[numHeaders-1], nil
+			return nil
 		}
 
 		processLog.Info("saving l1 blocks of interest", "size", numL1Headers, "batch_size", numHeaders)
 		err = db.Blocks.StoreL1BlockHeaders(l1Headers)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		// Since the headers to index are derived from the existence of logs, we know in this branch `numLogs > 0`
 		processLog.Info("saving contract logs", "size", numLogs)
 		err = db.ContractEvents.StoreL1ContractEvents(l1ContractEvents)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		// Mark L2 checkpoints that have been recorded on L1 (L2OutputProposal & StateBatchAppended events)
@@ -246,11 +246,11 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 			processLog.Info("detected output proposals", "size", numOutputProposals, "latest_l2_block_number", latestL2Height)
 			err := db.Blocks.StoreOutputProposals(outputProposals)
 			if err != nil {
-				return nil, err
+				return err
 			}
 		}
 
 		// a-ok!
-		return headers[numHeaders-1], nil
+		return nil
 	}
 }

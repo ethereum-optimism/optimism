@@ -3,7 +3,6 @@ package processor
 import (
 	"context"
 	"errors"
-	"math/big"
 	"reflect"
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
@@ -96,35 +95,8 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 
 	contractAddrs := l2Contracts.toSlice()
 	processLog.Info("processor configured with contracts", "contracts", l2Contracts)
-	return func(db *database.DB, headers []*types.Header) (*types.Header, error) {
+	return func(db *database.DB, headers []*types.Header) error {
 		numHeaders := len(headers)
-
-		latestOutput, err := db.Blocks.LatestOutputProposed()
-		if err != nil {
-			return nil, err
-		} else if latestOutput == nil {
-			processLog.Warn("no checkpointed outputs found. waiting...")
-			return nil, errors.New("no checkpointed l2 outputs")
-		}
-
-		// check if any of these blocks have been published to L1
-		latestOutputHeight := latestOutput.L2BlockNumber.Int
-		if headers[0].Number.Cmp(latestOutputHeight) > 0 {
-			processLog.Warn("entire batch exceeds the latest output", "latest_output_block_number", latestOutputHeight)
-			return nil, errors.New("entire batch exceeds latest output")
-		}
-
-		// check if we need to partially process this batch
-		if headers[numHeaders-1].Number.Cmp(latestOutputHeight) > 0 {
-			processLog.Info("reducing batch", "latest_output_block_number", latestOutputHeight)
-
-			// reduce the batch size
-			lastHeaderIndex := new(big.Int).Sub(latestOutputHeight, headers[0].Number).Uint64()
-
-			// update markers (including `lastHeaderIndex`)
-			headers = headers[:lastHeaderIndex+1]
-			numHeaders = len(headers)
-		}
 
 		/** Index all L2 blocks **/
 
@@ -149,7 +121,7 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 		logFilter := ethereum.FilterQuery{FromBlock: headers[0].Number, ToBlock: headers[numHeaders-1].Number, Addresses: contractAddrs}
 		logs, err := rawEthClient.FilterLogs(context.Background(), logFilter)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		numLogs := len(logs)
@@ -158,7 +130,7 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 			header, ok := l2HeaderMap[log.BlockHash]
 			if !ok {
 				processLog.Error("contract event found with associated header not in the batch", "header", header, "log_index", log.Index)
-				return nil, errors.New("parsed log with a block hash not in this batch")
+				return errors.New("parsed log with a block hash not in this batch")
 			}
 
 			l2ContractEvents[i] = &database.L2ContractEvent{
@@ -178,18 +150,18 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 		processLog.Info("saving l2 blocks", "size", numHeaders)
 		err = db.Blocks.StoreL2BlockHeaders(l2Headers)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		if numLogs > 0 {
 			processLog.Info("detected contract logs", "size", numLogs)
 			err = db.ContractEvents.StoreL2ContractEvents(l2ContractEvents)
 			if err != nil {
-				return nil, err
+				return err
 			}
 		}
 
 		// a-ok!
-		return headers[numHeaders-1], nil
+		return nil
 	}
 }
