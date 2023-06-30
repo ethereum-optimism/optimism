@@ -78,7 +78,7 @@ contract CheckGelatoLowTest is Test {
      *         when the user's balance in the treasury is greater than or equal
      *         to the threshold.
      */
-    function testFuzz_check_fails(uint256 _threshold, address _recipient) external {
+    function testFuzz_check_highBalance_fails(uint256 _threshold, address _recipient) external {
         CheckGelatoLow.Params memory p = CheckGelatoLow.Params({
             treasury: address(gelato),
             threshold: _threshold,

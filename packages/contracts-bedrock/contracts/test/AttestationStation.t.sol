@@ -28,7 +28,7 @@ contract AttestationStationTest is AttestationStation_Initializer {
         bytes val
     );
 
-    function test_attest_individual() external {
+    function test_attest_individual_succeeds() external {
         AttestationStation attestationStation = new AttestationStation();
 
         vm.expectEmit(true, true, true, true);
@@ -38,7 +38,7 @@ contract AttestationStationTest is AttestationStation_Initializer {
         attestationStation.attest({ _about: bob, _key: bytes32("foo"), _val: bytes("bar") });
     }
 
-    function test_attest_single() external {
+    function test_attest_single_succeeds() external {
         AttestationStation attestationStation = new AttestationStation();
 
         AttestationStation.AttestationData[]
@@ -100,7 +100,7 @@ contract AttestationStationTest is AttestationStation_Initializer {
         );
     }
 
-    function test_attest_bulk() external {
+    function test_attest_bulk_succeeds() external {
         AttestationStation attestationStation = new AttestationStation();
 
         vm.prank(alice_attestor);

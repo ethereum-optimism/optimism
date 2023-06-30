@@ -10,10 +10,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import {
     ECDSAUpgradeable
 } from "@openzeppelin/contracts-upgradeable/utils/cryptography/ECDSAUpgradeable.sol";
-import {
-    AdminFaucetAuthModule
-} from "../periphery/faucet/authmodules/AdminFaucetAuthModule.sol";
-
+import { AdminFaucetAuthModule } from "../periphery/faucet/authmodules/AdminFaucetAuthModule.sol";
 
 contract TestERC20 is ERC20 {
     constructor() ERC20("TEST", "TST", 18) {}

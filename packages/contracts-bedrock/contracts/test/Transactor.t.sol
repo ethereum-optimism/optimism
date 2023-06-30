@@ -35,12 +35,12 @@ contract Transactor_Initializer is Test {
 
 contract TransactorTest is Transactor_Initializer {
     // Tests if the owner was set correctly during deploy
-    function test_constructor() external {
+    function test_constructor_succeeds() external {
         assertEq(address(alice), transactor.owner());
     }
 
     // Tests CALL, should do a call to target
-    function test_CALL() external {
+    function test_call_succeeds() external {
         // Initialize call data
         bytes memory data = abi.encodeWithSelector(callRecorded.record.selector);
         // Run CALL
@@ -50,7 +50,7 @@ contract TransactorTest is Transactor_Initializer {
     }
 
     // It should revert if called by non-owner
-    function testFail_CALL() external {
+    function test_call_unauthorized_reverts() external {
         // Initialize call data
         bytes memory data = abi.encodeWithSelector(callRecorded.record.selector);
         // Run CALL
@@ -59,7 +59,7 @@ contract TransactorTest is Transactor_Initializer {
         vm.expectRevert("UNAUTHORIZED");
     }
 
-    function test_DELEGATECALL() external {
+    function test_delegateCall_succeeds() external {
         // Initialize call data
         bytes memory data = abi.encodeWithSelector(reverter.doRevert.selector);
         // Run CALL
@@ -69,7 +69,7 @@ contract TransactorTest is Transactor_Initializer {
     }
 
     // It should revert if called by non-owner
-    function testFail_DELEGATECALLL() external {
+    function test_delegateCall_unauthorized_reverts() external {
         // Initialize call data
         bytes memory data = abi.encodeWithSelector(reverter.doRevert.selector);
         // Run CALL

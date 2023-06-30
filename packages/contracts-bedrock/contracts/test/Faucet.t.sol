@@ -126,7 +126,7 @@ contract Faucet_Initializer is Test {
 }
 
 contract FaucetTest is Faucet_Initializer {
-    function test_initialize() external {
+    function test_initialize_succeeds() external {
         assertEq(faucet.ADMIN(), faucetContractAdmin);
     }
 
@@ -181,7 +181,7 @@ contract FaucetTest is Faucet_Initializer {
         );
     }
 
-    function test_drip_optimistNft_sendsCorrectAmount() external {
+    function test_drip_optimistNftSendsCorrectAmount_succeeds() external {
         _enableFaucetAuthModules();
         bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory signature = issueProofWithEIP712Domain(
@@ -213,7 +213,7 @@ contract FaucetTest is Faucet_Initializer {
         );
     }
 
-    function test_drip_github_sendsCorrectAmount() external {
+    function test_drip_githubSendsCorrectAmount_succeeds() external {
         _enableFaucetAuthModules();
         bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory signature = issueProofWithEIP712Domain(
@@ -241,7 +241,7 @@ contract FaucetTest is Faucet_Initializer {
         );
     }
 
-    function test_drip_emitsEvent() external {
+    function test_drip_emitsEvent_succeeds() external {
         _enableFaucetAuthModules();
         bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory signature = issueProofWithEIP712Domain(
@@ -300,7 +300,7 @@ contract FaucetTest is Faucet_Initializer {
         vm.stopPrank();
     }
 
-    function test_drip_preventsReplayAttacks() external {
+    function test_drip_preventsReplayAttacks_succeeds() external {
         _enableFaucetAuthModules();
         bytes32 nonce = faucetHelper.consumeNonce();
         bytes memory signature = issueProofWithEIP712Domain(
@@ -423,7 +423,7 @@ contract FaucetTest is Faucet_Initializer {
         vm.stopPrank();
     }
 
-    function test_withdraw_nonAdmin_fails() external {
+    function test_withdraw_nonAdmin_reverts() external {
         vm.prank(nonAdmin);
         vm.expectRevert("Faucet: function can only be called by admin");
         faucet.withdraw(payable(fundsReceiver), 2 ether);

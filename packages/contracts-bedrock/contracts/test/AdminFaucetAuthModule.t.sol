@@ -104,7 +104,7 @@ contract AdminFaucetAuthModuleTest is Test {
     /**
      * @notice assert that verify returns true for valid proofs signed by admins.
      */
-    function test_adminProof_verify_returnsTrue() external {
+    function test_adminProof_verify_succeeds() external {
         bytes32 nonce = faucetHelper.consumeNonce();
         address fundsReceiver = makeAddr("fundsReceiver");
         bytes memory proof = issueProofWithEIP712Domain(
@@ -132,7 +132,7 @@ contract AdminFaucetAuthModuleTest is Test {
     /**
      * @notice assert that verify returns false for proofs signed by nonadmins.
      */
-    function test_nonAdminProof_verify_returnsFalse() external {
+    function test_nonAdminProof_verify_succeeds() external {
         bytes32 nonce = faucetHelper.consumeNonce();
         address fundsReceiver = makeAddr("fundsReceiver");
         bytes memory proof = issueProofWithEIP712Domain(
@@ -161,7 +161,7 @@ contract AdminFaucetAuthModuleTest is Test {
      * @notice assert that verify returns false for proofs where the id in the proof is different
      * than the id in the call to verify.
      */
-    function test_proofWithWrongId_verify_returnsFalse() external {
+    function test_proofWithWrongId_verify_succeeds() external {
         bytes32 nonce = faucetHelper.consumeNonce();
         address fundsReceiver = makeAddr("fundsReceiver");
         address randomAddress = makeAddr("randomAddress");

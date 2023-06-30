@@ -41,7 +41,7 @@ contract CheckBalanceLowTest is Test {
      * @notice Fuzz the `check` function and assert that it always returns false
      *         when the target's balance is larger than the threshold.
      */
-    function testFuzz_check_fails(address _target, uint256 _threshold) external {
+    function testFuzz_check_highBalance_fails(address _target, uint256 _threshold) external {
         CheckBalanceLow.Params memory p = CheckBalanceLow.Params({
             target: _target,
             threshold: _threshold
