@@ -511,7 +511,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 
 			// Wait for the finalization period, then we can finalize this withdrawal.
 			ctx, cancel = context.WithTimeout(context.Background(), 40*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-			blockNumber, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, receipt.BlockNumber)
+			blockNumber, err := withdrawals.WaitForOutputRootPublished(ctx, l1Client, predeploys.DevOptimismPortalAddr, receipt.BlockNumber)
 			cancel()
 			require.Nil(t, err)
 
@@ -642,7 +642,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 				// Wait for finalization and then create the Finalized Withdrawal Transaction
 				ctx, cancel = context.WithTimeout(context.Background(), 45*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 				defer cancel()
-				_, err = withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, header.Number)
+				err = withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, header.Number)
 				require.Nil(t, err)
 
 				// Finalize withdrawal
