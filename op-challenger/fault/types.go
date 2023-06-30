@@ -17,6 +17,7 @@ var (
 // The [AlphabetProvider] is a minimal implementation of this interface.
 type TraceProvider interface {
 	Get(i uint64) (common.Hash, error)
+	GetPreimage(i uint64) ([]byte, error)
 }
 
 // ClaimData is the core of a claim. It must be unique inside a specific game.
