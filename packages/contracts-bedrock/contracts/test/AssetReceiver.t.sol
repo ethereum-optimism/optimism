@@ -99,8 +99,8 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
     // withdrawETH should fail if called by non-owner
     function test_withdrawETH_unauthorized_reverts() external {
         vm.deal(address(assetReceiver), 1 ether);
-        assetReceiver.withdrawETH(payable(alice));
         vm.expectRevert("UNAUTHORIZED");
+        assetReceiver.withdrawETH(payable(alice));
     }
 
     // Similar as withdrawETH but specify amount to withdraw
@@ -127,8 +127,8 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
     // withdrawETH with address and amount as arguments called by non-owner
     function test_withdrawETHwithAmount_unauthorized_reverts() external {
         vm.deal(address(assetReceiver), 1 ether);
-        assetReceiver.withdrawETH(payable(alice), 0.5 ether);
         vm.expectRevert("UNAUTHORIZED");
+        assetReceiver.withdrawETH(payable(alice), 0.5 ether);
     }
 
     // Test withdrawERC20 with token and address arguments, from owner
@@ -155,8 +155,8 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
     // Same as withdrawERC20 but call from non-owner
     function test_withdrawERC20_unauthorized_reverts() external {
         deal(address(testERC20), address(assetReceiver), 100_000);
-        assetReceiver.withdrawERC20(testERC20, alice);
         vm.expectRevert("UNAUTHORIZED");
+        assetReceiver.withdrawERC20(testERC20, alice);
     }
 
     // Similar as withdrawERC20 but specify amount to withdraw
@@ -183,8 +183,8 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
     // Similar as withdrawERC20 with amount but call from non-owner
     function test_withdrawERC20withAmount_unauthorized_reverts() external {
         deal(address(testERC20), address(assetReceiver), 100_000);
-        assetReceiver.withdrawERC20(testERC20, alice, 50_000);
         vm.expectRevert("UNAUTHORIZED");
+        assetReceiver.withdrawERC20(testERC20, alice, 50_000);
     }
 
     // Test withdrawERC721 from owner
@@ -212,7 +212,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
     function test_withdrawERC721_unauthorized_reverts() external {
         vm.prank(alice);
         testERC721.transferFrom(alice, address(assetReceiver), DEFAULT_TOKEN_ID);
-        assetReceiver.withdrawERC721(testERC721, alice, DEFAULT_TOKEN_ID);
         vm.expectRevert("UNAUTHORIZED");
+        assetReceiver.withdrawERC721(testERC721, alice, DEFAULT_TOKEN_ID);
     }
 }

@@ -55,8 +55,8 @@ contract TransactorTest is Transactor_Initializer {
         bytes memory data = abi.encodeWithSelector(callRecorded.record.selector);
         // Run CALL
         vm.prank(bob);
-        transactor.CALL(address(callRecorded), data, 200_000 wei);
         vm.expectRevert("UNAUTHORIZED");
+        transactor.CALL(address(callRecorded), data, 200_000 wei);
     }
 
     function test_delegateCall_succeeds() external {
@@ -74,7 +74,7 @@ contract TransactorTest is Transactor_Initializer {
         bytes memory data = abi.encodeWithSelector(reverter.doRevert.selector);
         // Run CALL
         vm.prank(bob);
-        transactor.DELEGATECALL(address(reverter), data);
         vm.expectRevert("UNAUTHORIZED");
+        transactor.DELEGATECALL(address(reverter), data);
     }
 }
