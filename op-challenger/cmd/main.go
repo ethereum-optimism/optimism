@@ -3,14 +3,12 @@ package main
 import (
 	"os"
 
-	log "github.com/ethereum/go-ethereum/log"
-	cli "github.com/urfave/cli/v2"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/urfave/cli/v2"
 
-	watch "github.com/ethereum-optimism/optimism/op-challenger/cmd/watch"
-	config "github.com/ethereum-optimism/optimism/op-challenger/config"
-	flags "github.com/ethereum-optimism/optimism/op-challenger/flags"
-	version "github.com/ethereum-optimism/optimism/op-challenger/version"
-
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/flags"
+	"github.com/ethereum-optimism/optimism/op-challenger/version"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
@@ -35,47 +33,33 @@ var VersionWithMeta = func() string {
 }()
 
 func main() {
-	args := os.Args
-	if err := run(args, Main); err != nil {
-		log.Crit("Application failed", "err", err)
-	}
-}
-
-type ConfigAction func(log log.Logger, version string, config *config.Config) error
-
-// run parses the supplied args to create a config.Config instance, sets up logging
-// then calls the supplied ConfigAction.
-// This allows testing the translation from CLI arguments to Config
-func run(args []string, action ConfigAction) error {
-	// Set up logger with a default INFO level in case we fail to parse flags,
-	// otherwise the final critical log won't show what the parsing error was.
 	oplog.SetupDefaults()
 
 	app := cli.NewApp()
 	app.Version = VersionWithMeta
 	app.Flags = flags.Flags
 	app.Name = "op-challenger"
-	app.Usage = "Challenge Invalid L2OutputOracle Outputs"
-	app.Description = "A modular op-stack challenge agent for dispute games written in golang."
+	app.Usage = "Challenge outputs"
+	app.Description = "Ensures that on chain outputs are correct."
 	app.Action = func(ctx *cli.Context) error {
-		logger, err := config.LoggerFromCLI(ctx)
-		if err != nil {
-			return err
-		}
-		logger.Info("Starting challenger", "version", VersionWithMeta)
-
-		cfg, err := config.NewConfigFromCLI(ctx)
-		if err != nil {
-			return err
-		}
-		return action(logger, VersionWithMeta, cfg)
+		return FaultGame(VersionWithMeta, ctx)
 	}
-	app.Commands = []*cli.Command{
-		{
-			Name:        "watch",
-			Subcommands: watch.Subcommands,
-		},
+	if err := app.Run(os.Args); err != nil {
+		log.Crit("Application failed", "message", err)
 	}
+}
 
-	return app.Run(args)
+type ConfigAction func(log log.Logger, version string, config *config.Config) error
+
+func FaultGame(version string, cliCtx *cli.Context) error {
+	cfg, err := config.NewConfigFromCLI(cliCtx)
+	if err != nil {
+		return err
+	}
+	if err := cfg.Check(); err != nil {
+		return err
+	}
+	log := oplog.NewLogger(cfg.LogConfig)
+	log.Info("Fault game started")
+	return nil
 }
