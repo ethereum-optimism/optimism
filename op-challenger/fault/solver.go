@@ -25,19 +25,58 @@ func NewSolver(gameDepth int, traceProvider TraceProvider) *Solver {
 func (s *Solver) NextMove(claim Claim) (*Claim, error) {
 	// Special case of the root claim
 	if claim.IsRoot() {
-		agree, err := s.agreeWithClaim(claim.ClaimData)
-		if err != nil {
-			return nil, err
-		}
-		// Attack the root claim if we do not agree with it
-		if !agree {
-			return s.attack(claim)
-		} else {
-			return nil, nil
-		}
-
+		return s.handleRoot(claim)
 	}
+	return s.handleMiddle(claim)
+}
 
+type StepData struct {
+	LeafClaim  Claim
+	StateClaim Claim
+	IsAttack   bool
+}
+
+// AttemptStep determines what step should occur for a given leaf claim.
+// An error will be returned if the claim is not at the max depth.
+func (s *Solver) AttemptStep(claim Claim, state Game) (StepData, error) {
+	if claim.Depth() != s.gameDepth {
+		return StepData{}, errors.New("cannot step on non-leaf claims")
+	}
+	claimCorrect, err := s.agreeWithClaim(claim.ClaimData)
+	if err != nil {
+		return StepData{}, err
+	}
+	var selectorFn func(Claim) (Claim, error)
+	if claimCorrect {
+		selectorFn = state.PostStateClaim
+	} else {
+		selectorFn = state.PreStateClaim
+	}
+	stateClaim, err := selectorFn(claim)
+	if err != nil {
+		return StepData{}, err
+	}
+	return StepData{
+		LeafClaim:  claim,
+		StateClaim: stateClaim,
+		IsAttack:   claimCorrect,
+	}, nil
+}
+
+func (s *Solver) handleRoot(claim Claim) (*Claim, error) {
+	agree, err := s.agreeWithClaim(claim.ClaimData)
+	if err != nil {
+		return nil, err
+	}
+	// Attack the root claim if we do not agree with it
+	if !agree {
+		return s.attack(claim)
+	} else {
+		return nil, nil
+	}
+}
+
+func (s *Solver) handleMiddle(claim Claim) (*Claim, error) {
 	parentCorrect, err := s.agreeWithClaim(claim.Parent)
 	if err != nil {
 		return nil, err
