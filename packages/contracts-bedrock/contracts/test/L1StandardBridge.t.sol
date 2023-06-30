@@ -450,13 +450,24 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
         uint256 version = 0; // Internal constant in the OptimismPortal: DEPOSIT_VERSION
         address l1MessengerAliased = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
 
+        // Deal Alice's ERC20 State
+        deal(address(L1Token), alice, 100000, true);
+        vm.prank(alice);
+        L1Token.approve(address(L1Bridge), type(uint256).max);
+
+        // The L1Bridge should transfer alice's tokens to itself
+        vm.expectCall(
+            address(L1Token),
+            abi.encodeWithSelector(ERC20.transferFrom.selector, alice, address(L1Bridge), 1000)
+        );
+
         bytes memory message = abi.encodeWithSelector(
             StandardBridge.finalizeBridgeERC20.selector,
             address(L2Token),
             address(L1Token),
             alice,
             bob,
-            100,
+            1000,
             hex""
         );
 
@@ -504,10 +515,10 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
 
         // Should emit both the bedrock and legacy events
         vm.expectEmit(true, true, true, true, address(L1Bridge));
-        emit ERC20DepositInitiated(address(L1Token), address(L2Token), alice, bob, 100, hex"");
+        emit ERC20DepositInitiated(address(L1Token), address(L2Token), alice, bob, 1000, hex"");
 
         vm.expectEmit(true, true, true, true, address(L1Bridge));
-        emit ERC20BridgeInitiated(address(L1Token), address(L2Token), alice, bob, 100, hex"");
+        emit ERC20BridgeInitiated(address(L1Token), address(L2Token), alice, bob, 1000, hex"");
 
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
         vm.expectEmit(true, true, true, true, address(op));
@@ -521,20 +532,9 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
         vm.expectEmit(true, true, true, true, address(L1Messenger));
         emit SentMessageExtension1(address(L1Bridge), 0);
 
-        deal(address(L1Token), alice, 100000, true);
-
         vm.prank(alice);
-        L1Token.approve(address(L1Bridge), type(uint256).max);
-
-        vm.expectCall(
-            address(L1Token),
-            abi.encodeWithSelector(ERC20.transferFrom.selector, alice, address(L1Bridge), 100)
-        );
-
-        vm.prank(alice);
-        L1Bridge.depositERC20To(address(L1Token), address(L2Token), bob, 100, 10000, hex"");
-
-        assertEq(L1Bridge.deposits(address(L1Token), address(L2Token)), 100);
+        L1Bridge.depositERC20To(address(L1Token), address(L2Token), bob, 1000, 10000, hex"");
+        assertEq(L1Bridge.deposits(address(L1Token), address(L2Token)), 1000);
     }
 }
 
