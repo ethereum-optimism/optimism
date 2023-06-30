@@ -30,7 +30,7 @@ type Game interface {
 	// This will return an error if it is called with a non-leaf claim.
 	PreStateClaim(claim Claim) (Claim, error)
 
-	// PostStateClaim gets the claim which commits to the pre-state of this specific claim.
+	// PostStateClaim gets the claim which commits to the post-state of this specific claim.
 	// This will return an error if it is called with a non-leaf claim.
 	PostStateClaim(claim Claim) (Claim, error)
 }
@@ -133,7 +133,6 @@ func (g *gameState) PreStateClaim(claim Claim) (Claim, error) {
 	}
 	// If the claim is the far left most claim, the pre-state is pulled from the contracts & we can supply at contract index.
 	if claim.IndexAtDepth() == 0 {
-
 		return Claim{
 			ContractIndex: -1,
 		}, nil
