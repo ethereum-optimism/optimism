@@ -131,10 +131,10 @@ contract Boba_GasPriceOracle {
     /**
      * Initialize feeWallet and l2BobaAddress.
      */
-    function initialize(
-        address payable _feeWallet,
-        address _l2BobaAddress
-    ) public onlyNotInitialized {
+    function initialize(address payable _feeWallet, address _l2BobaAddress)
+        public
+        onlyNotInitialized
+    {
         require(_feeWallet != address(0) && _l2BobaAddress != address(0));
         feeWallet = _feeWallet;
         l2BobaAddress = _l2BobaAddress;

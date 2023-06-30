@@ -4,9 +4,11 @@ pragma solidity >0.7.5;
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/draft-ERC20Permit.sol";
 // prettier-ignore
-import {ERC20Votes} from "@openzeppelin/contracts/token/ERC20/extensions/regenesis/ERC20VotesRegenesis.sol";
+import {ERC20Votes} from
+    "@openzeppelin/contracts/token/ERC20/extensions/regenesis/ERC20VotesRegenesis.sol";
 // prettier-ignore
-import {ERC20VotesComp} from "@openzeppelin/contracts/token/ERC20/extensions/regenesis/ERC20VotesCompRegenesis.sol";
+import {ERC20VotesComp} from
+    "@openzeppelin/contracts/token/ERC20/extensions/regenesis/ERC20VotesCompRegenesis.sol";
 import { ILegacyMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 
 contract L2GovernanceERC20 is ILegacyMintableERC20, ERC20, ERC20Permit, ERC20Votes, ERC20VotesComp {
