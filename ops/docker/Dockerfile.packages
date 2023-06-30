@@ -64,11 +64,10 @@ COPY integration-tests/package.json ./integration-tests/package.json
 COPY --from=manifests /tmp/manifests  ./
 COPY *.json ./
 
-RUN yarn install --frozen-lockfile && yarn cache clean
-
 COPY ./packages ./packages
 COPY ./integration-tests ./integration-tests
 
+RUN yarn install --frozen-lockfile && yarn cache clean
 RUN yarn build
 
 FROM base as actor-tests-bedrock
