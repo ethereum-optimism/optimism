@@ -80,7 +80,7 @@ func NewL2Processor(ethClient node.EthClient, db *database.DB, l2Contracts L2Con
 
 	l2Processor := &L2Processor{
 		processor: processor{
-			headerTraversal: node.NewBufferedHeaderTraversal(ethClient, fromL2Header),
+			headerTraversal: node.NewHeaderTraversal(ethClient, fromL2Header),
 			db:              db,
 			processFn:       l2ProcessFn(l2ProcessLog, ethClient, l2Contracts),
 			processLog:      l2ProcessLog,

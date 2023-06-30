@@ -96,7 +96,7 @@ func NewL1Processor(ethClient node.EthClient, db *database.DB, l1Contracts L1Con
 
 	l1Processor := &L1Processor{
 		processor: processor{
-			headerTraversal: node.NewBufferedHeaderTraversal(ethClient, fromL1Header),
+			headerTraversal: node.NewHeaderTraversal(ethClient, fromL1Header),
 			db:              db,
 			processFn:       l1ProcessFn(l1ProcessLog, ethClient, l1Contracts, checkpointAbi),
 			processLog:      l1ProcessLog,
@@ -130,7 +130,7 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 			return err
 		}
 
-		// L2 blocks posted on L1
+		// L2 checkpoitns posted on L1
 		outputProposals := []*database.OutputProposal{}
 		legacyStateBatches := []*database.LegacyStateBatch{}
 
