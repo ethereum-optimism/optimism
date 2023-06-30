@@ -12,11 +12,21 @@ var (
 	ErrIndexTooLarge = errors.New("index is larger than the maximum index")
 )
 
+// StepCallData encapsulates the data needed to perform a step.
+type StepCallData struct {
+	StateIndex uint64
+	ClaimIndex uint64
+	IsAttack   bool
+	StateData  []byte
+	Proof      []byte
+}
+
 // TraceProvider is a generic way to get a claim value at a specific
 // step in the trace.
 // The [AlphabetProvider] is a minimal implementation of this interface.
 type TraceProvider interface {
 	Get(i uint64) (common.Hash, error)
+	GetPreimage(i uint64) ([]byte, error)
 }
 
 // ClaimData is the core of a claim. It must be unique inside a specific game.
@@ -60,4 +70,5 @@ func (c *Claim) DefendsParent() bool {
 // For full op-challenger this means executing the transaction on chain.
 type Responder interface {
 	Respond(ctx context.Context, response Claim) error
+	Step(ctx context.Context, stepData StepCallData) error
 }

@@ -80,17 +80,6 @@ pnpm build
 pnpm test
 ```
 
-#### Running Echidna tests
-
-You must have [Echidna](https://github.com/crytic/echidna) installed.
-
-Contracts targetted for Echidna testing are located in `./contracts/echidna`
-Each target contract is tested with a separate pnpm command, for example:
-
-```shell
-pnpm echidna:aliasing
-```
-
 ### Deployment
 
 The smart contracts are deployed using `foundry` with a `hardhat-deploy` compatibility layer. When the contracts are deployed,

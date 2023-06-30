@@ -74,17 +74,19 @@ func (r *faultResponder) BuildTx(ctx context.Context, response Claim) ([]byte, e
 
 // Respond takes a [Claim] and executes the response action.
 func (r *faultResponder) Respond(ctx context.Context, response Claim) error {
-	// Build the transaction data.
 	txData, err := r.BuildTx(ctx, response)
 	if err != nil {
 		return err
 	}
+	return r.sendTxAndWait(ctx, txData)
+}
 
-	// Send the transaction through the [txmgr].
+// sendTxAndWait sends a transaction through the [txmgr] and waits for a receipt.
+// This sets the tx GasLimit to 0, performing gas estimation online through the [txmgr].
+func (r *faultResponder) sendTxAndWait(ctx context.Context, txData []byte) error {
 	receipt, err := r.txMgr.Send(ctx, txmgr.TxCandidate{
-		To:     &r.fdgAddr,
-		TxData: txData,
-		// Setting GasLimit to 0 performs gas estimation online through the [txmgr].
+		To:       &r.fdgAddr,
+		TxData:   txData,
 		GasLimit: 0,
 	})
 	if err != nil {
@@ -95,6 +97,26 @@ func (r *faultResponder) Respond(ctx context.Context, response Claim) error {
 	} else {
 		r.log.Info("responder tx successfully published", "tx_hash", receipt.TxHash)
 	}
-
 	return nil
+}
+
+// buildStepTxData creates the transaction data for the step function.
+func (r *faultResponder) buildStepTxData(stepData StepCallData) ([]byte, error) {
+	return r.fdgAbi.Pack(
+		"step",
+		big.NewInt(int64(stepData.StateIndex)),
+		big.NewInt(int64(stepData.ClaimIndex)),
+		stepData.IsAttack,
+		stepData.StateData,
+		stepData.Proof,
+	)
+}
+
+// Step accepts step data and executes the step on the fault dispute game contract.
+func (r *faultResponder) Step(ctx context.Context, stepData StepCallData) error {
+	txData, err := r.buildStepTxData(stepData)
+	if err != nil {
+		return err
+	}
+	return r.sendTxAndWait(ctx, txData)
 }
