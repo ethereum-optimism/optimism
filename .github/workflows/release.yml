@@ -6,11 +6,11 @@ on:
       branch:
         description: "Trigger a release workflow"
         type: string
-        default: "master"
+        default: "develop"
         required: true
   push:
     branches:
-      - master
+      - develop
 
 # Always wait for previous release to finish before releasing again
 concurrency: ${{ github.workflow }}-${{ github.ref }}
@@ -38,7 +38,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@master
+        uses: actions/checkout@develop
         with:
           # This makes Actions fetch all Git history so that Changesets can generate changelogs with the correct commits
           fetch-depth: 0
