@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@2.3.0/schema.json",
-  "changelog": ["@changesets/changelog-github", { "repo": "latticexyz/mud" }],
+  "changelog": ["@changesets/changelog-github", { "repo": "eth-optimism/optimism" }],
   "commit": false,
   "fixed": [],
   "linked": [],
