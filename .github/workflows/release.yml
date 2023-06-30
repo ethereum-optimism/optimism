@@ -1,6 +1,13 @@
-name: Release
+name: Release and version
 
 on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Trigger a release workflow"
+        type: string
+        default: "master"
+        required: true
   push:
     branches:
       - master
@@ -12,6 +19,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
+    if: github.repository == 'eth-optimism/optimism'
     # map the step outputs to job outputs
     outputs:
       fault-detector: ${{ steps.packages.outputs.fault-detector }}
@@ -21,7 +29,13 @@ jobs:
       replica-healthcheck: ${{ steps.packages.outputs.replica-healthcheck }}
       op-exporter: ${{ steps.packages.outputs.op-exporter }}
       endpoint-monitor: ${{ steps.packages.outputs.endpoint-monitor }}
-
+    # Permissions necessary for Changesets to push a new branch and open PRs
+    # (for automated Version Packages PRs), and request the JWT for provenance.
+    # More info: https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect#adding-permissions-settings
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
     steps:
       - name: Checkout Repo
         uses: actions/checkout@master
@@ -29,24 +43,8 @@ jobs:
           # This makes Actions fetch all Git history so that Changesets can generate changelogs with the correct commits
           fetch-depth: 0
 
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8.6.5
-
-      - name: Setup Node.js 16.x
-        uses: actions/setup-node@master
-        with:
-          node-version: 16.x
-          cache: pnpm
-
-      - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: nightly
+      - name: Setup
+        uses: ./.github/actions/setup
 
       # Makes a pr to publish the changesets that when
       # merged will publish to npm
