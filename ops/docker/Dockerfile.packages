@@ -1,35 +1,6 @@
 # This Dockerfile builds all the dependencies needed by the monorepo, and should
 # be used to build any of the follow-on services
 #
-
-# Stage 0 (named `manifests`) collects
-# dependency manifest files (`package.json` and `pnpm-lock.yaml`) which are then
-# used by stage 1 to install these dependencies
-# development. The only reason we need a separate stage just for collecting the
-# dependency manifests is that Docker's `COPY` command still does not allow
-# copying based on a glob pattern (see this GitHub issue for more details
-# https://github.com/moby/moby/issues/15858). Being able to copy only manifests
-# into stage 1 (the `COPY --from=manifests` statement) is important to maximize
-# Docker build cache hit rate. `alpine` is chosen as the base image for the
-# first stage because it's the smallest image that have access to the `cp
-# --parents -t` command (by installing the `coreutils` package).
-FROM alpine:3.16 as manifests
-RUN apk add coreutils
-
-WORKDIR /tmp
-COPY pnpm-lock.yaml pnpm-workspace.yaml .nvmrc package.json ./src/
-COPY packages src/packages/
-RUN mkdir manifests && \
-  cd src && \
-  # copy package.json recursively
-  find . -name 'package.json' | xargs cp --parents -t ../manifests/ && \
-  # pnpm-lock.yaml
-  cp pnpm-lock.yaml ../manifests/ && \
-  # pnpm-workspace.yaml
-  cp pnpm-workspace.yaml ../manifests/ && \
-  # .nvmrc
-  cp .nvmrc ../manifests/
-
 FROM ethereumoptimism/foundry:latest as foundry
 # bullseye-slim is debian based
 # we use it rather than alpien because it's not much
@@ -57,23 +28,24 @@ RUN apt-get update && apt-get install -y \
   libudev-dev \
   --no-install-recommends
 
-RUN npm install pnpm --global
+RUN npm i pnpm@8.6.5 -g
 
 COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
 COPY --from=foundry /usr/local/bin/cast /usr/local/bin/cast
 
 WORKDIR /opt/optimism
 
-# Copy manifest files into the image in
-# preparation for `pnpm install`.
-COPY --from=manifests /tmp/manifests  ./
-COPY *.json ./
+COPY pnpm-lock.yaml pnpm-workspace.yaml ./
 
-RUN pnpm install --frozen-lockfile
+# Run pnpm fetch to install packages into the store with only lockfile
+# see https://pnpm.io/cli/fetch
+RUN pnpm fetch
 
+COPY *.json pnpm-workspace.yaml .npmrc ./
 COPY ./packages ./packages
 
-RUN pnpm build
+RUN pnpm install -r --prefer-offline && \
+  pnpm build
 
 FROM base as fault-detector
 WORKDIR /opt/optimism/packages/fault-detector
