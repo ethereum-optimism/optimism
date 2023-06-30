@@ -48,7 +48,7 @@ type OutputProposal struct {
 
 type BlocksView interface {
 	LatestL1BlockHeader() (*L1BlockHeader, error)
-	LatestOutputProposed() (*OutputProposal, error)
+	LatestCheckpointedOutput() (*OutputProposal, error)
 
 	LatestL2BlockHeader() (*L2BlockHeader, error)
 }
@@ -106,7 +106,7 @@ func (db *blocksDB) LatestL1BlockHeader() (*L1BlockHeader, error) {
 	return &l1Header, nil
 }
 
-func (db *blocksDB) LatestOutputProposed() (*OutputProposal, error) {
+func (db *blocksDB) LatestCheckpointedOutput() (*OutputProposal, error) {
 	var outputProposal OutputProposal
 	result := db.gorm.Order("l2_block_number DESC").Take(&outputProposal)
 	if result.Error != nil {

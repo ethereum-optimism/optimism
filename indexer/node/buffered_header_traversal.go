@@ -36,7 +36,7 @@ func (bf *BufferedHeaderTraversal) NextFinalizedHeaders(maxSize uint64) ([]*type
 			return nil, err
 		}
 
-		// swallow the error and return existing buffered headers
+		// swallow the error and return existing buffered headers since we have some
 		return bf.bufferedHeaders, nil
 	}
 
