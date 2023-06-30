@@ -10,55 +10,61 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-const defaultLoopInterval = 5 * time.Second
+const (
+	defaultLoopInterval     = 5 * time.Second
+	defaultHeaderBufferSize = 500
+)
 
-// processFn is the the function used to process unindexed headers. In
-// the event of a failure, all database operations are not committed
-type processFn func(*database.DB, []*types.Header) error
+// ProcessFn is the the entrypoint for processing a batch of headers.
+// In the event of failure, database operations are rolled back
+type ProcessFn func(*database.DB, []*types.Header) error
 
 type processor struct {
-	fetcher *node.Fetcher
+	headerTraversal *node.HeaderTraversal
 
 	db         *database.DB
-	processFn  processFn
+	processFn  ProcessFn
 	processLog log.Logger
 }
 
 // Start kicks off the processing loop
 func (p processor) Start() {
 	pollTicker := time.NewTicker(defaultLoopInterval)
+	defer pollTicker.Stop()
+
 	p.processLog.Info("starting processor...")
 
-	// Make this loop stoppable
+	var unprocessedHeaders []*types.Header
 	for range pollTicker.C {
-		p.processLog.Info("checking for new headers...")
+		if len(unprocessedHeaders) == 0 {
+			newHeaders, err := p.headerTraversal.NextFinalizedHeaders(defaultHeaderBufferSize)
+			if err != nil {
+				p.processLog.Error("error querying for headers", "err", err)
+				continue
+			} else if len(newHeaders) == 0 {
+				// Logged as an error since this loop should be operating at a longer interval than the provider
+				p.processLog.Error("no new headers. processor unexpectedly at head...")
+				continue
+			}
 
-		headers, err := p.fetcher.NextFinalizedHeaders()
-		if err != nil {
-			p.processLog.Error("unable to query for headers", "err", err)
-			continue
+			unprocessedHeaders = newHeaders
+		} else {
+			p.processLog.Info("retrying previous batch")
 		}
 
-		if len(headers) == 0 {
-			p.processLog.Info("no new headers. indexer must be at head...")
-			continue
-		}
-
-		batchLog := p.processLog.New("startHeight", headers[0].Number, "endHeight", headers[len(headers)-1].Number)
-		batchLog.Info("indexing batch of headers")
-
-		// wrap operations within a single transaction
-		err = p.db.Transaction(func(db *database.DB) error {
-			return p.processFn(db, headers)
+		firstHeader := unprocessedHeaders[0]
+		lastHeader := unprocessedHeaders[len(unprocessedHeaders)-1]
+		batchLog := p.processLog.New("batch_start_block_number", firstHeader.Number, "batch_end_block_number", lastHeader.Number)
+		batchLog.Info("processing batch")
+		err := p.db.Transaction(func(db *database.DB) error {
+			return p.processFn(db, unprocessedHeaders)
 		})
 
-		// TODO(DX-79) if processFn failed, the next poll should retry starting from this same batch of headers
-
 		if err != nil {
-			batchLog.Info("unable to index batch", "err", err)
-			panic(err)
+			batchLog.Warn("error processing batch. no operations committed", "err", err)
 		} else {
-			batchLog.Info("done indexing batch")
+			batchLog.Info("fully committed batch")
+			unprocessedHeaders = nil
 		}
 	}
 }
