@@ -1,10 +1,13 @@
 package ast
 
 import (
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+
+	"golang.org/x/exp/slices"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 )
@@ -83,9 +86,21 @@ func CanonicalizeASTIDs(in *solc.StorageLayout) *solc.StorageLayout {
 		Types: make(map[string]solc.StorageLayoutType),
 	}
 	for _, slot := range in.Storage {
+		contract := slot.Contract
+
+		// Normalize the name of the contract since absolute paths
+		// are used when there are 2 contracts imported with the same
+		// name
+		if filepath.IsAbs(contract) {
+			elements := strings.Split(contract, "/")
+			if idx := slices.Index(elements, "optimism"); idx != -1 {
+				contract = filepath.Join(elements[idx+1:]...)
+			}
+		}
+
 		outLayout.Storage = append(outLayout.Storage, solc.StorageLayoutEntry{
 			AstId:    astIDRemappings[slot.AstId],
-			Contract: slot.Contract,
+			Contract: contract,
 			Label:    slot.Label,
 			Offset:   slot.Offset,
 			Slot:     slot.Slot,

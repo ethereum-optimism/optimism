@@ -72,12 +72,38 @@ func main() {
 	defer os.RemoveAll(dir)
 	log.Printf("created temp dir %s\n", dir)
 
+	// If some contracts have the same name then the path to their
+	// artifact depends on their full import path. Scan over all artifacts
+	// and hold a mapping from the contract name to the contract path.
+	// Walk walks the directory deterministically, so the later instance
+	// of the contract with the same name will be used
+	artifactPaths := make(map[string]string)
+	if err := filepath.Walk(f.ForgeArtifacts,
+		func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				return err
+			}
+			base := filepath.Base(path)
+			if strings.HasSuffix(base, ".json") {
+				name := base[:len(base)-5]
+				if _, ok := artifactPaths[name]; !ok {
+					artifactPaths[name] = path
+				}
+			}
+			return nil
+		}); err != nil {
+		log.Fatal(err)
+	}
+
 	for _, name := range contracts {
 		log.Printf("generating code for %s\n", name)
 
 		forgeArtifactData, err := os.ReadFile(path.Join(f.ForgeArtifacts, name+".sol", name+".json"))
 		if errors.Is(err, os.ErrNotExist) {
-			log.Fatalf("cannot find forge-artifact of %q\n", name)
+			forgeArtifactData, err = os.ReadFile(artifactPaths[name])
+			if errors.Is(err, os.ErrNotExist) {
+				log.Fatalf("cannot find forge-artifact of %q\n", name)
+			}
 		}
 
 		var artifact foundry.Artifact
