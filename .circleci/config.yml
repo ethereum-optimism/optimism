@@ -686,6 +686,10 @@ jobs:
     steps:
       - checkout
       - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      - run:
           name: Lint check
           command: |
             pnpm lint:specs:check

@@ -25,6 +25,13 @@ type ClaimData struct {
 	Position
 }
 
+func (c *ClaimData) ValueBytes() [32]byte {
+	responseBytes := c.Value.Bytes()
+	var responseArr [32]byte
+	copy(responseArr[:], responseBytes[:32])
+	return responseArr
+}
+
 // Claim extends ClaimData with information about the relationship between two claims.
 // It uses ClaimData to break cyclicity without using pointers.
 // If the position of the game is Depth 0, IndexAtDepth 0 it is the root claim
