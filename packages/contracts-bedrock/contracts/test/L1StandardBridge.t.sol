@@ -456,7 +456,7 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
             address(L1Token),
             alice,
             bob,
-            1000,
+            100,
             hex""
         );
 
@@ -504,10 +504,10 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
 
         // Should emit both the bedrock and legacy events
         vm.expectEmit(true, true, true, true, address(L1Bridge));
-        emit ERC20DepositInitiated(address(L1Token), address(L2Token), alice, bob, 1000, hex"");
+        emit ERC20DepositInitiated(address(L1Token), address(L2Token), alice, bob, 100, hex"");
 
         vm.expectEmit(true, true, true, true, address(L1Bridge));
-        emit ERC20BridgeInitiated(address(L1Token), address(L2Token), alice, bob, 1000, hex"");
+        emit ERC20BridgeInitiated(address(L1Token), address(L2Token), alice, bob, 100, hex"");
 
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
         vm.expectEmit(true, true, true, true, address(op));
@@ -528,13 +528,13 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
 
         vm.expectCall(
             address(L1Token),
-            abi.encodeWithSelector(ERC20.transferFrom.selector, alice, address(L1Bridge), 1000)
+            abi.encodeWithSelector(ERC20.transferFrom.selector, alice, address(L1Bridge), 100)
         );
 
         vm.prank(alice);
-        L1Bridge.depositERC20To(address(L1Token), address(L2Token), bob, 1000, 10000, hex"");
+        L1Bridge.depositERC20To(address(L1Token), address(L2Token), bob, 100, 10000, hex"");
 
-        assertEq(L1Bridge.deposits(address(L1Token), address(L2Token)), 1000);
+        assertEq(L1Bridge.deposits(address(L1Token), address(L2Token)), 100);
     }
 }
 
