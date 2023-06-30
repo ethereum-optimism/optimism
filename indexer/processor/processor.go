@@ -12,53 +12,63 @@ import (
 
 const defaultLoopInterval = 5 * time.Second
 
-// processFn is the the function used to process unindexed headers. In
-// the event of a failure, all database operations are not committed
-type processFn func(*database.DB, []*types.Header) error
+// ProcessFn is the the entrypoint for processing a batch of headers. To support
+// partial batch processing, the function must return the last processed header
+// in the batch. In the event of failure, database operations are rolled back
+type ProcessFn func(*database.DB, []*types.Header) (*types.Header, error)
 
 type processor struct {
-	fetcher *node.Fetcher
+	headerTraversal *node.BufferedHeaderTraversal
 
 	db         *database.DB
-	processFn  processFn
+	processFn  ProcessFn
 	processLog log.Logger
 }
 
 // Start kicks off the processing loop
 func (p processor) Start() {
 	pollTicker := time.NewTicker(defaultLoopInterval)
+	defer pollTicker.Stop()
+
 	p.processLog.Info("starting processor...")
-
-	// Make this loop stoppable
 	for range pollTicker.C {
-		p.processLog.Info("checking for new headers...")
-
-		headers, err := p.fetcher.NextFinalizedHeaders()
+		headers, err := p.headerTraversal.NextFinalizedHeaders(500)
 		if err != nil {
-			p.processLog.Error("unable to query for headers", "err", err)
+			p.processLog.Error("error querying for headers", "err", err)
+			continue
+		} else if len(headers) == 0 {
+			// Logged as an error since this loop should be operating at a longer interval than the provider
+			p.processLog.Error("no new headers. processor unexpectadly at head...")
 			continue
 		}
 
-		if len(headers) == 0 {
-			p.processLog.Info("no new headers. indexer must be at head...")
-			continue
-		}
+		batchLog := p.processLog.New("batch_start_block_number", headers[0].Number, "batch_end_block_number", headers[len(headers)-1].Number)
+		batchLog.Info("processing batch")
 
-		batchLog := p.processLog.New("startHeight", headers[0].Number, "endHeight", headers[len(headers)-1].Number)
-		batchLog.Info("indexing batch of headers")
-
-		// wrap operations within a single transaction
+		var lastProcessedHeader *types.Header
 		err = p.db.Transaction(func(db *database.DB) error {
-			return p.processFn(db, headers)
+			lastProcessedHeader, err = p.processFn(db, headers)
+			if err != nil {
+				return err
+			}
+
+			err = p.headerTraversal.Advance(lastProcessedHeader)
+			if err != nil {
+				batchLog.Error("unable to advance processor", "last_processed_block_number", lastProcessedHeader.Number)
+				return err
+			}
+
+			return nil
 		})
 
-		// TODO(DX-79) if processFn failed, the next poll should retry starting from this same batch of headers
-
 		if err != nil {
-			batchLog.Info("unable to index batch", "err", err)
-			panic(err)
+			batchLog.Warn("error processing batch. no operations committed", "err", err)
 		} else {
-			batchLog.Info("done indexing batch")
+			if lastProcessedHeader.Number.Cmp(headers[len(headers)-1].Number) == 0 {
+				batchLog.Info("fully committed batch")
+			} else {
+				batchLog.Info("partially committed batch", "last_processed_block_number", lastProcessedHeader.Number)
+			}
 		}
 	}
 }
