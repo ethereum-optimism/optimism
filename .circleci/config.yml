@@ -1077,21 +1077,32 @@ jobs:
       - go/mod-download
       - go/save-cache
       - run: { command: "go build ." }
+      - run: { command: "go build junit/junitformatter.go" }
       - run:
           command: |
             ./hive \
             -sim=<<parameters.sim>> \
             -sim.loglevel=5 \
-            -client=go-ethereum_v1.11.6,op-geth_optimism,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log || echo "failed."
+            -client=go-ethereum_v1.11.6,op-geth_optimism,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log
       - run:
           command: |
             tar -cvf /tmp/workspace.tgz -C /home/circleci/project /home/circleci/project/workspace
           name: "Archive workspace"
+          when: always
+      - run:
+          command: |
+            ./junitformatter /home/circleci/project/workspace/logs/*.json > /home/circleci/project/workspace/logs/junit.xml
+          when: always
       - store_artifacts:
           path: /tmp/workspace.tgz
           destination: hive-workspace.tgz
-      - run:
-          command: "! grep 'pass.*=false' /tmp/hive.log"
+          when: always
+      - store_test_results:
+          path: /home/circleci/project/workspace/logs/junit.xml
+          when: always
+      - store_artifacts:
+          path: /home/circleci/project/workspace/logs/junit.xml
+          when: always
 
   bedrock-go-tests:
     docker:
