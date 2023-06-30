@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/exp/slices"
-
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 )
 
@@ -36,7 +34,7 @@ type typeRemapping struct {
 // inefficiency comes from replaceType, which performs a linear
 // search of all replacements when performing substring matches of
 // composite types.
-func CanonicalizeASTIDs(in *solc.StorageLayout) *solc.StorageLayout {
+func CanonicalizeASTIDs(in *solc.StorageLayout, monorepoBase string) *solc.StorageLayout {
 	lastId := uint(1000)
 	astIDRemappings := make(map[uint]uint)
 	typeRemappings := make(map[string]string)
@@ -92,10 +90,7 @@ func CanonicalizeASTIDs(in *solc.StorageLayout) *solc.StorageLayout {
 		// are used when there are 2 contracts imported with the same
 		// name
 		if filepath.IsAbs(contract) {
-			elements := strings.Split(contract, "/")
-			if idx := slices.Index(elements, "optimism"); idx != -1 {
-				contract = filepath.Join(elements[idx+1:]...)
-			}
+			contract = strings.TrimPrefix(strings.Replace(contract, monorepoBase, "", 1), "/")
 		}
 
 		outLayout.Storage = append(outLayout.Storage, solc.StorageLayoutEntry{

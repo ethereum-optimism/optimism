@@ -21,7 +21,8 @@ bindings-build:
 		-out ./bindings \
 		-contracts ./artifacts.json \
 		-source-maps MIPS,PreimageOracle \
-		-package $(pkg)
+		-package $(pkg) \
+		-monorepo-base $(shell dirname $(realpath .))
 
 mkdir:
 	mkdir -p $(pkg)

@@ -22,6 +22,7 @@ type flags struct {
 	SourceMaps     string
 	OutDir         string
 	Package        string
+	MonorepoBase   string
 }
 
 type data struct {
@@ -39,7 +40,13 @@ func main() {
 	flag.StringVar(&f.Contracts, "contracts", "artifacts.json", "Path to file containing list of contracts to generate bindings for")
 	flag.StringVar(&f.SourceMaps, "source-maps", "", "Comma-separated list of contracts to generate source-maps for")
 	flag.StringVar(&f.Package, "package", "artifacts", "Go package name")
+	flag.StringVar(&f.MonorepoBase, "monorepo-base", "", "Base of the monorepo")
 	flag.Parse()
+
+	if f.MonorepoBase == "" {
+		log.Fatal("must provide -monorepo-base")
+	}
+	log.Printf("Using monorepo base %s\n", f.MonorepoBase)
 
 	contractData, err := os.ReadFile(f.Contracts)
 	if err != nil {
@@ -147,7 +154,7 @@ func main() {
 		}
 
 		storage := artifact.StorageLayout
-		canonicalStorage := ast.CanonicalizeASTIDs(&storage)
+		canonicalStorage := ast.CanonicalizeASTIDs(&storage, f.MonorepoBase)
 		ser, err := json.Marshal(canonicalStorage)
 		if err != nil {
 			log.Fatalf("error marshaling storage: %v\n", err)
