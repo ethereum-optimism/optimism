@@ -105,20 +105,20 @@ func main() {
 	for _, name := range contracts {
 		log.Printf("generating code for %s\n", name)
 
-		forgeArtifactData, err := os.ReadFile(path.Join(f.ForgeArtifacts, name+".sol", name+".json"))
+		artifactPath := path.Join(f.ForgeArtifacts, name+".sol", name+".json")
+		forgeArtifactData, err := os.ReadFile(artifactPath)
 		if errors.Is(err, os.ErrNotExist) {
-			forgeArtifactData, err = os.ReadFile(artifactPaths[name])
+			artifactPath = artifactPaths[name]
+			forgeArtifactData, err = os.ReadFile(artifactPath)
 			if errors.Is(err, os.ErrNotExist) {
 				log.Fatalf("cannot find forge-artifact of %q\n", name)
 			}
 		}
 
+		log.Printf("using forge-artifact %s\n", artifactPath)
 		var artifact foundry.Artifact
 		if err := json.Unmarshal(forgeArtifactData, &artifact); err != nil {
 			log.Fatalf("failed to parse forge artifact of %q: %v\n", name, err)
-		}
-		if err != nil {
-			log.Fatalf("error reading storage layout %s: %v\n", name, err)
 		}
 
 		rawAbi := artifact.Abi
