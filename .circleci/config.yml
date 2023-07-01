@@ -1063,7 +1063,7 @@ jobs:
       sim:
         type: string
     machine:
-      image: ubuntu-2204:2022.07.1
+      image: ubuntu-2204:2022.10.2
       docker_layer_caching: true
       resource_class: large
     steps:
