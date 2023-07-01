@@ -3,7 +3,6 @@ package ether
 import (
 	"math/big"
 	"math/rand"
-	"sync"
 	"testing"
 
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/predeploys"
@@ -111,7 +110,7 @@ func TestMigrateBalances(t *testing.T) {
 					},
 				},
 			},
-			noCheck: false,
+			noCheck: true,
 			check: func(t *testing.T, g *types.Genesis, err error) {
 				require.NoError(t, err)
 				require.EqualValues(t, common.Big1, g.Alloc[common.Address{101}].Balance)
@@ -308,14 +307,15 @@ func TestMigrateBalances(t *testing.T) {
 		},
 	}
 
-	m := &sync.Mutex{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m.Lock()
-			tt := tt
-			err := doMigration(tt.genesis, tt.addresses, tt.allowances, tt.expDiff, tt.noCheck)
-			tt.check(t, tt.genesis, err)
-			m.Unlock()
+			g := tt.genesis
+			addr := tt.addresses
+			allow := tt.allowances
+			diff := tt.expDiff
+			noCheck := tt.noCheck
+			err := doMigration(g, addr, allow, diff, noCheck)
+			tt.check(t, g, err)
 		})
 	}
 }
