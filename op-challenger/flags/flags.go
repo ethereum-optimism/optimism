@@ -26,29 +26,24 @@ var (
 		Usage:   "HTTP provider URL for L1.",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
 	}
-	RollupRpcFlag = &cli.StringFlag{
-		Name:    "rollup-rpc",
-		Usage:   "HTTP provider URL for the rollup node.",
-		EnvVars: prefixEnvVars("ROLLUP_RPC"),
-	}
-	L2OOAddressFlag = &cli.StringFlag{
-		Name:    "l2oo-address",
-		Usage:   "Address of the L2OutputOracle contract.",
-		EnvVars: prefixEnvVars("L2OO_ADDRESS"),
-	}
 	DGFAddressFlag = &cli.StringFlag{
-		Name:    "dgf-address",
-		Usage:   "Address of the DisputeGameFactory contract.",
-		EnvVars: prefixEnvVars("DGF_ADDRESS"),
+		Name:    "game-address",
+		Usage:   "Address of the Fault Game contract.",
+		EnvVars: prefixEnvVars("GAME_ADDRESS"),
 	}
+	AlphabetFlag = &cli.StringFlag{
+		Name:    "alphabet",
+		Usage:   "Alphabet Trace (temporary)",
+		EnvVars: prefixEnvVars("ALPHABET"),
+	}
+	// Optional Flags
 )
 
 // requiredFlags are checked by [CheckRequired]
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
-	RollupRpcFlag,
-	L2OOAddressFlag,
 	DGFAddressFlag,
+	AlphabetFlag,
 }
 
 // optionalFlags is a list of unchecked cli flags
