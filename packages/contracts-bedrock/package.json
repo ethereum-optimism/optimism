@@ -37,7 +37,6 @@
     "lint": "pnpm lint:fix && pnpm lint:check"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.12.1",
     "@openzeppelin/contracts": "4.7.3",
     "@openzeppelin/contracts-upgradeable": "4.7.3",
     "@rari-capital/solmate": "github:transmissions11/solmate#8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
