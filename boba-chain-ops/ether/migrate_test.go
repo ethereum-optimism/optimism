@@ -110,7 +110,7 @@ func TestMigrateBalances(t *testing.T) {
 					},
 				},
 			},
-			noCheck: true,
+			noCheck: false,
 			check: func(t *testing.T, g *types.Genesis, err error) {
 				require.NoError(t, err)
 				require.EqualValues(t, common.Big1, g.Alloc[common.Address{101}].Balance)
@@ -142,7 +142,7 @@ func TestMigrateBalances(t *testing.T) {
 					},
 				},
 			},
-			noCheck: true,
+			noCheck: false,
 			check: func(t *testing.T, g *types.Genesis, err error) {
 				require.NoError(t, err)
 				require.EqualValues(t, common.Big1, g.Alloc[common.Address{1}].Balance)
@@ -181,7 +181,7 @@ func TestMigrateBalances(t *testing.T) {
 					},
 				},
 			},
-			noCheck: true,
+			noCheck: false,
 			check: func(t *testing.T, g *types.Genesis, err error) {
 				require.NoError(t, err)
 				require.EqualValues(t, common.Big1, g.Alloc[common.Address{1}].Balance)
@@ -297,7 +297,7 @@ func TestMigrateBalances(t *testing.T) {
 					},
 				},
 			},
-			noCheck: true,
+			noCheck: false,
 			check: func(t *testing.T, g *types.Genesis, err error) {
 				require.NoError(t, err)
 				require.EqualValues(t, common.Big1, g.Alloc[common.Address{1}].Balance)
@@ -309,6 +309,7 @@ func TestMigrateBalances(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			tt := tt
 			err := doMigration(tt.genesis, tt.addresses, tt.allowances, tt.expDiff, tt.noCheck)
 			tt.check(t, tt.genesis, err)
 		})
