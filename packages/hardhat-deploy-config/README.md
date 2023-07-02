@@ -5,5 +5,5 @@
 ## Installation
 
 ```
-yarn add @eth-optimism/hardhat-deploy-config
+pnpm i @eth-optimism/hardhat-deploy-config
 ```

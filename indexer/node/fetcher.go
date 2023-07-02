@@ -20,9 +20,8 @@ type Fetcher struct {
 // NewFetcher instantiates a new instance of Fetcher against the supplied rpc client.
 // The Fetcher will start fetching blocks starting from the supplied header unless
 // nil, indicating genesis.
-func NewFetcher(ethClient EthClient, fromHeader *types.Header) (*Fetcher, error) {
-	fetcher := &Fetcher{ethClient: ethClient, lastHeader: fromHeader}
-	return fetcher, nil
+func NewFetcher(ethClient EthClient, fromHeader *types.Header) *Fetcher {
+	return &Fetcher{ethClient: ethClient, lastHeader: fromHeader}
 }
 
 // NextConfirmedHeaders retrives the next set of headers that have been
@@ -50,7 +49,7 @@ func (f *Fetcher) NextFinalizedHeaders() ([]*types.Header, error) {
 		return nil, err
 	}
 
-	numHeaders := int64(len(headers))
+	numHeaders := len(headers)
 	if numHeaders == 0 {
 		return nil, nil
 	} else if f.lastHeader != nil && headers[0].ParentHash != f.lastHeader.Hash() {

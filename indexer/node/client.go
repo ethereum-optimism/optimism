@@ -2,11 +2,14 @@ package node
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -22,7 +25,9 @@ const (
 
 type EthClient interface {
 	FinalizedBlockHeight() (*big.Int, error)
+
 	BlockHeadersByRange(*big.Int, *big.Int) ([]*types.Header, error)
+	BlockHeaderByHash(common.Hash) (*types.Header, error)
 
 	RawRpcClient() *rpc.Client
 }
@@ -53,13 +58,33 @@ func (c *client) FinalizedBlockHeight() (*big.Int, error) {
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
 	defer cancel()
 
-	var block *types.Block
-	err := c.rpcClient.CallContext(ctxwt, block, "eth_getBlockByNumber", "finalized", false)
+	// Local devnet is having issues with the "finalized" block tag. Switch to "latest"
+	// to iterate faster locally but this needs to be updated
+	header := new(types.Header)
+	err := c.rpcClient.CallContext(ctxwt, header, "eth_getBlockByNumber", "latest", false)
 	if err != nil {
 		return nil, err
 	}
 
-	return block.Number(), nil
+	return header.Number, nil
+}
+
+// BlockHeaderByHash retrieves the block header attributed to the supplied hash
+func (c *client) BlockHeaderByHash(hash common.Hash) (*types.Header, error) {
+	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
+	defer cancel()
+
+	header, err := ethclient.NewClient(c.rpcClient).HeaderByHash(ctxwt, hash)
+	if err != nil {
+		return nil, err
+	}
+
+	// sanity check on the data returned
+	if header.Hash() != hash {
+		return nil, errors.New("header mismatch")
+	}
+
+	return header, nil
 }
 
 // BlockHeadersByRange will retrieve block headers within the specified range -- includsive. No restrictions

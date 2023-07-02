@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing utilities
 import { Test } from "forge-std/Test.sol";
+
+// Target contract dependencies
 import { L1Block } from "../L2/L1Block.sol";
-import { L1BlockNumber } from "../legacy/L1BlockNumber.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
+
+// Target contract
+import { L1BlockNumber } from "../legacy/L1BlockNumber.sol";
 
 contract L1BlockNumberTest is Test {
     L1Block lb;
@@ -12,6 +17,7 @@ contract L1BlockNumberTest is Test {
 
     uint64 constant number = 99;
 
+    /// @dev Sets up the test suite.
     function setUp() external {
         vm.etch(Predeploys.L1_BLOCK_ATTRIBUTES, address(new L1Block()).code);
         lb = L1Block(Predeploys.L1_BLOCK_ATTRIBUTES);
@@ -30,16 +36,19 @@ contract L1BlockNumberTest is Test {
         });
     }
 
+    /// @dev Tests that `getL1BlockNumber` returns the set block number.
     function test_getL1BlockNumber_succeeds() external {
         assertEq(bn.getL1BlockNumber(), number);
     }
 
+    /// @dev Tests that `fallback` is correctly dispatched.
     function test_fallback_succeeds() external {
         (bool success, bytes memory ret) = address(bn).call(hex"");
         assertEq(success, true);
         assertEq(ret, abi.encode(number));
     }
 
+    /// @dev Tests that `receive` is correctly dispatched.
     function test_receive_succeeds() external {
         (bool success, bytes memory ret) = address(bn).call{ value: 1 }(hex"");
         assertEq(success, true);

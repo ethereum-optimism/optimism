@@ -34,3 +34,20 @@ func NewDB(dsn string) (*DB, error) {
 
 	return db, nil
 }
+
+// Transaction executes all operations conducted with the supplied database in a single
+// transaction. If the supplied function errors, the transaction is rolled back.
+func (db *DB) Transaction(fn func(db *DB) error) error {
+	return db.gorm.Transaction(func(tx *gorm.DB) error {
+		return fn(dbFromGormTx(tx))
+	})
+}
+
+func dbFromGormTx(tx *gorm.DB) *DB {
+	return &DB{
+		gorm:           tx,
+		Blocks:         newBlocksDB(tx),
+		ContractEvents: newContractEventsDB(tx),
+		Bridge:         newBridgeDB(tx),
+	}
+}

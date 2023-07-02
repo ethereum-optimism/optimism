@@ -1,5 +1,23 @@
 # @eth-optimism/drippie-mon
 
+## 0.4.0
+
+### Minor Changes
+
+- d6388be4a: Added a new service wallet-mon to identify unexpected transfers from key accounts
+
+### Patch Changes
+
+- 287d317d3: Fixed an issue with logging the wrong timestamp.
+- Updated dependencies [8d7dcc70c]
+- Updated dependencies [119754c2f]
+- Updated dependencies [d6388be4a]
+- Updated dependencies [af292562f]
+  - @eth-optimism/core-utils@0.12.1
+  - @eth-optimism/sdk@3.0.0
+  - @eth-optimism/contracts-bedrock@0.15.0
+  - @eth-optimism/common-ts@0.8.2
+
 ## 0.3.1
 
 ### Patch Changes

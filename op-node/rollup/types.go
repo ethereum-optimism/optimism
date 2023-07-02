@@ -142,7 +142,7 @@ func (cfg *Config) CheckL1ChainID(ctx context.Context, client L1Client) error {
 		return err
 	}
 	if cfg.L1ChainID.Cmp(id) != 0 {
-		return fmt.Errorf("incorrect L1 RPC chain id %d, expected %d", cfg.L1ChainID, id)
+		return fmt.Errorf("incorrect L1 RPC chain id %d, expected %d", id, cfg.L1ChainID)
 	}
 	return nil
 }
@@ -154,7 +154,7 @@ func (cfg *Config) CheckL1GenesisBlockHash(ctx context.Context, client L1Client)
 		return err
 	}
 	if l1GenesisBlockRef.Hash != cfg.Genesis.L1.Hash {
-		return fmt.Errorf("incorrect L1 genesis block hash %d, expected %d", cfg.Genesis.L1.Hash, l1GenesisBlockRef.Hash)
+		return fmt.Errorf("incorrect L1 genesis block hash %s, expected %s", l1GenesisBlockRef.Hash, cfg.Genesis.L1.Hash)
 	}
 	return nil
 }
@@ -171,7 +171,7 @@ func (cfg *Config) CheckL2ChainID(ctx context.Context, client L2Client) error {
 		return err
 	}
 	if cfg.L2ChainID.Cmp(id) != 0 {
-		return fmt.Errorf("incorrect L2 RPC chain id, expected from config %d, obtained from client %d", cfg.L2ChainID, id)
+		return fmt.Errorf("incorrect L2 RPC chain id %d, expected %d", id, cfg.L2ChainID)
 	}
 	return nil
 }
@@ -183,7 +183,7 @@ func (cfg *Config) CheckL2GenesisBlockHash(ctx context.Context, client L2Client)
 		return err
 	}
 	if l2GenesisBlockRef.Hash != cfg.Genesis.L2.Hash {
-		return fmt.Errorf("incorrect L2 genesis block hash %d, expected %d", cfg.Genesis.L2.Hash, l2GenesisBlockRef.Hash)
+		return fmt.Errorf("incorrect L2 genesis block hash %s, expected %s", l2GenesisBlockRef.Hash, cfg.Genesis.L2.Hash)
 	}
 	return nil
 }

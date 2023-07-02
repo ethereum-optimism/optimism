@@ -16,11 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/core"
-
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
@@ -347,6 +345,11 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			writeRPCError(ctx, w, nil, ErrGatewayTimeout)
 			return
 		}
+		if errors.Is(err, ErrConsensusGetReceiptsCantBeBatched) ||
+			errors.Is(err, ErrConsensusGetReceiptsInvalidTarget) {
+			writeRPCError(ctx, w, nil, ErrInvalidRequest(err.Error()))
+			return
+		}
 		if err != nil {
 			writeRPCError(ctx, w, nil, ErrInternal)
 			return
@@ -360,6 +363,11 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	rawBody := json.RawMessage(body)
 	backendRes, cached, err := s.handleBatchRPC(ctx, []json.RawMessage{rawBody}, isLimited, false)
 	if err != nil {
+		if errors.Is(err, ErrConsensusGetReceiptsCantBeBatched) ||
+			errors.Is(err, ErrConsensusGetReceiptsInvalidTarget) {
+			writeRPCError(ctx, w, nil, ErrInvalidRequest(err.Error()))
+			return
+		}
 		writeRPCError(ctx, w, nil, ErrInternal)
 		return
 	}
@@ -485,6 +493,10 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 			elems := cacheMisses[start:end]
 			res, err := s.BackendGroups[group.backendGroup].Forward(ctx, createBatchRequest(elems), isBatch)
 			if err != nil {
+				if errors.Is(err, ErrConsensusGetReceiptsCantBeBatched) ||
+					errors.Is(err, ErrConsensusGetReceiptsInvalidTarget) {
+					return nil, false, err
+				}
 				log.Error(
 					"error forwarding RPC batch",
 					"batch_size", len(elems),
@@ -566,16 +578,7 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 	}
 	ctx := context.WithValue(r.Context(), ContextKeyXForwardedFor, xff) // nolint:staticcheck
 
-	if len(s.authenticatedPaths) == 0 {
-		// handle the edge case where auth is disabled
-		// but someone sends in an auth key anyway
-		if authorization != "" {
-			log.Info("blocked authenticated request against unauthenticated proxy")
-			httpResponseCodesTotal.WithLabelValues("404").Inc()
-			w.WriteHeader(404)
-			return nil
-		}
-	} else {
+	if len(s.authenticatedPaths) > 0 {
 		if authorization == "" || s.authenticatedPaths[authorization] == "" {
 			log.Info("blocked unauthorized request", "authorization", authorization)
 			httpResponseCodesTotal.WithLabelValues("401").Inc()

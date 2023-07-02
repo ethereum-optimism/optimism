@@ -5,11 +5,16 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 import { Event, Contract, Wallet, providers, utils } from 'ethers'
-import {
-  predeploys,
-  getContractDefinition,
-} from '@eth-optimism/contracts-bedrock'
-import { sleep } from '@eth-optimism/core-utils'
+import { predeploys, sleep } from '@eth-optimism/core-utils'
+import Artifact__WETH9 from '@eth-optimism/contracts-bedrock/forge-artifacts/WETH9.sol/WETH9.json'
+import Artifact__OptimismMintableERC20TokenFactory from '@eth-optimism/contracts-bedrock/forge-artifacts/OptimismMintableERC20Factory.sol/OptimismMintableERC20Factory.json'
+import Artifact__OptimismMintableERC20Token from '@eth-optimism/contracts-bedrock/forge-artifacts/OptimismMintableERC20.sol/OptimismMintableERC20.json'
+import Artifact__L2ToL1MessagePasser from '@eth-optimism/contracts-bedrock/forge-artifacts/L2ToL1MessagePasser.sol/L2ToL1MessagePasser.json'
+import Artifact__L2CrossDomainMessenger from '@eth-optimism/contracts-bedrock/forge-artifacts/L2CrossDomainMessenger.sol/L2CrossDomainMessenger.json'
+import Artifact__L2StandardBridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L2StandardBridge.sol/L2StandardBridge.json'
+import Artifact__OptimismPortal from '@eth-optimism/contracts-bedrock/forge-artifacts/OptimismPortal.sol/OptimismPortal.json'
+import Artifact__L1CrossDomainMessenger from '@eth-optimism/contracts-bedrock/forge-artifacts/L1CrossDomainMessenger.sol/L1CrossDomainMessenger.json'
+import Artifact__L1StandardBridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L1StandardBridge.sol/L1StandardBridge.json'
 
 import {
   CrossChainMessenger,
@@ -26,10 +31,9 @@ const deployWETH9 = async (
   const signers = await hre.ethers.getSigners()
   const signer = signers[0]
 
-  const Artifact__WETH9 = await getContractDefinition('WETH9')
   const Factory__WETH9 = new hre.ethers.ContractFactory(
     Artifact__WETH9.abi,
-    Artifact__WETH9.bytecode,
+    Artifact__WETH9.bytecode.object,
     signer
   )
 
@@ -54,13 +58,6 @@ const createOptimismMintableERC20 = async (
   L1ERC20: Contract,
   l2Signer: Wallet
 ): Promise<Contract> => {
-  const Artifact__OptimismMintableERC20Token = await getContractDefinition(
-    'OptimismMintableERC20'
-  )
-
-  const Artifact__OptimismMintableERC20TokenFactory =
-    await getContractDefinition('OptimismMintableERC20Factory')
-
   const OptimismMintableERC20TokenFactory = new Contract(
     predeploys.OptimismMintableERC20Factory,
     Artifact__OptimismMintableERC20TokenFactory.abi,
@@ -152,30 +149,6 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
         l2: DEFAULT_L2_CONTRACT_ADDRESSES,
       } as OEContractsLike
     }
-
-    const Artifact__L2ToL1MessagePasser = await getContractDefinition(
-      'L2ToL1MessagePasser'
-    )
-
-    const Artifact__L2CrossDomainMessenger = await getContractDefinition(
-      'L2CrossDomainMessenger'
-    )
-
-    const Artifact__L2StandardBridge = await getContractDefinition(
-      'L2StandardBridge'
-    )
-
-    const Artifact__OptimismPortal = await getContractDefinition(
-      'OptimismPortal'
-    )
-
-    const Artifact__L1CrossDomainMessenger = await getContractDefinition(
-      'L1CrossDomainMessenger'
-    )
-
-    const Artifact__L1StandardBridge = await getContractDefinition(
-      'L1StandardBridge'
-    )
 
     const OptimismPortal = new hre.ethers.Contract(
       contractAddrs.l1.OptimismPortal,

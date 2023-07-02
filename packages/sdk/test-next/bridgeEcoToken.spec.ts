@@ -11,13 +11,13 @@ import {
 import { BRIDGE_ADAPTER_DATA, CrossChainMessenger, L2ChainID } from '../src'
 import { l1Provider, l2Provider } from './testUtils/ethersProviders'
 
-const ECO_WHALE: Address = '0xBd11c836279a1352ce737FbBFba36b20734B04e7'
+const ECO_WHALE: Address = '0x982E148216E3Aa6B38f9D901eF578B5c06DD7502'
 
 // we should instead use tokenlist as source of truth
 const ECO_L1_TOKEN_ADDRESS: Address =
   '0x3E87d4d9E69163E7590f9b39a70853cf25e5ABE3'
 const ECO_L2_TOKEN_ADDRESS: Address =
-  '0x54bBECeA38ff36D32323f8A754683C1F5433A89f'
+  '0xD2f598c826429EEe7c071C02735549aCd88F2c09'
 
 const getERC20TokenBalance = async (
   publicClient: PublicClient,

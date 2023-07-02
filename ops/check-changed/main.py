@@ -10,10 +10,11 @@ REBUILD_ALL_PATTERNS = [
     r'^\.circleci/\.*',
     r'^\.github/\.*',
     r'^package\.json',
-    r'^yarn\.lock',
     r'ops/check-changed/.*',
     r'^go\.mod',
     r'^go\.sum',
+    r'^pnpm-lock\.yaml',
+    r'ops/check-changed/.*'
 ]
 
 WHITELISTED_BRANCHES = {

@@ -7,15 +7,14 @@ LDFLAGSSTRING +=-X main.GitDate=$(GITDATE)
 LDFLAGSSTRING +=-X main.GitVersion=$(GITVERSION)
 LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
-# Note: Requires legacy contracts to be built before
-# running and binding-related Make targets.
-SCC_ABI_ARTIFACT = ../packages/contracts/artifacts/contracts/L1/rollup/StateCommitmentChain.sol/StateCommitmentChain.json
-
 indexer:
 	env GO111MODULE=on go build -v $(LDFLAGS) ./cmd/indexer
 
+indexer-refresh:
+	env GO111MODULE=on go build -v $(LDFLAGS) ./cmd/indexer-refresh
+
 clean:
-	rm indexer
+	rm indexer && rm indexer-refresh
 
 test:
 	go test -v ./...
@@ -23,26 +22,9 @@ test:
 lint:
 	golangci-lint run ./...
 
-bindings: bindings-scc
-
-bindings-scc:
-	$(eval temp := $(shell mktemp))
-
-	cat $(SCC_ABI_ARTIFACT) \
-		| jq -r .bytecode > $(temp)
-
-	cat $(SCC_ABI_ARTIFACT) \
-		| jq .abi \
-		| abigen --pkg scc \
-		--abi - \
-		--out bindings/scc/statecommitmentchain.go \
-		--type StateCommitmentChain \
-		--bin $(temp)
-
-	rm $(temp)
-
 .PHONY: \
 	indexer \
+	indexer-refresh \
 	bindings \
 	bindings-scc \
 	clean \

@@ -813,10 +813,10 @@ func TestSystemDenseTopology(t *testing.T) {
 
 	// Set peer scoring for each node, but without banning
 	for _, node := range cfg.Nodes {
-		params, err := p2p.GetPeerScoreParams("light", 2)
+		params, err := p2p.GetScoringParams("light", &node.Rollup)
 		require.NoError(t, err)
 		node.P2P = &p2p.Config{
-			PeerScoring:    params,
+			ScoringParams:  params,
 			BanningEnabled: false,
 		}
 	}
@@ -1086,11 +1086,6 @@ func TestWithdrawals(t *testing.T) {
 	// Verify balance after withdrawal
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	header, err = l1Client.HeaderByNumber(ctx, finalizeReceipt.BlockNumber)
-	require.Nil(t, err)
-
-	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
 	endBalance, err = l1Client.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 
@@ -1098,7 +1093,9 @@ func TestWithdrawals(t *testing.T) {
 	// Fun fact, the fee is greater than the withdrawal amount
 	// NOTE: The gas fees include *both* the ProveWithdrawalTransaction and FinalizeWithdrawalTransaction transactions.
 	diff = new(big.Int).Sub(endBalance, startBalance)
-	fees = calcGasFees(proveReceipt.GasUsed+finalizeReceipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
+	proveFee := new(big.Int).Mul(new(big.Int).SetUint64(proveReceipt.GasUsed), proveReceipt.EffectiveGasPrice)
+	finalizeFee := new(big.Int).Mul(new(big.Int).SetUint64(finalizeReceipt.GasUsed), finalizeReceipt.EffectiveGasPrice)
+	fees = new(big.Int).Add(proveFee, finalizeFee)
 	withdrawAmount = withdrawAmount.Sub(withdrawAmount, fees)
 	require.Equal(t, withdrawAmount, diff)
 }
@@ -1246,47 +1243,6 @@ func TestFees(t *testing.T) {
 	balanceDiff := new(big.Int).Sub(startBalance, endBalance)
 	balanceDiff.Sub(balanceDiff, transferAmount)
 	require.Equal(t, balanceDiff, totalFee, "balances should add up")
-}
-
-func TestStopStartSequencer(t *testing.T) {
-	InitParallel(t)
-
-	cfg := DefaultSystemConfig(t)
-	sys, err := cfg.Start()
-	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
-
-	l2Seq := sys.Clients["sequencer"]
-	rollupNode := sys.RollupNodes["sequencer"]
-
-	nodeRPC, err := rpc.DialContext(context.Background(), rollupNode.HTTPEndpoint())
-	require.Nil(t, err, "Error dialing node")
-
-	blockBefore := latestBlock(t, l2Seq)
-	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
-	blockAfter := latestBlock(t, l2Seq)
-	require.Greaterf(t, blockAfter, blockBefore, "Chain did not advance")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	blockHash := common.Hash{}
-	err = nodeRPC.CallContext(ctx, &blockHash, "admin_stopSequencer")
-	require.Nil(t, err, "Error stopping sequencer")
-
-	blockBefore = latestBlock(t, l2Seq)
-	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
-	blockAfter = latestBlock(t, l2Seq)
-	require.Equal(t, blockAfter, blockBefore, "Chain advanced after stopping sequencer")
-
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err = nodeRPC.CallContext(ctx, nil, "admin_startSequencer", blockHash)
-	require.Nil(t, err, "Error starting sequencer")
-
-	blockBefore = latestBlock(t, l2Seq)
-	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
-	blockAfter = latestBlock(t, l2Seq)
-	require.Greater(t, blockAfter, blockBefore, "Chain did not advance after starting sequencer")
 }
 
 func TestStopStartBatcher(t *testing.T) {

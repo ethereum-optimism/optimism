@@ -1,30 +1,34 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing utilities
+// Target contract is imported by the `Bridge_Initializer`
 import { Bridge_Initializer } from "./CommonTest.t.sol";
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
-import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { console } from "forge-std/console.sol";
-import { StandardBridge } from "../universal/StandardBridge.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
+import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+// Libraries
 import { Hashing } from "../libraries/Hashing.sol";
 import { Types } from "../libraries/Types.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+
+// Target contract dependencies
+import { Predeploys } from "../libraries/Predeploys.sol";
+import { StandardBridge } from "../universal/StandardBridge.sol";
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 
 contract L2StandardBridge_Test is Bridge_Initializer {
     using stdStorage for StdStorage;
 
+    /// @dev Tests that the bridge is initialized correctly.
     function test_initialize_succeeds() external {
         assertEq(address(L2Bridge.messenger()), address(L2Messenger));
         assertEq(L1Bridge.l2TokenBridge(), address(L2Bridge));
         assertEq(address(L2Bridge.OTHER_BRIDGE()), address(L1Bridge));
     }
 
-    // receive
-    // - can accept ETH
+    /// @dev Tests that the bridge receives ETH and successfully initiates a withdrawal.
     function test_receive_succeeds() external {
         assertEq(address(messagePasser).balance, 0);
         uint256 nonce = L2Messenger.messageNonce();
@@ -109,8 +113,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         assertEq(address(messagePasser).balance, 100);
     }
 
-    // withrdraw
-    // - requires amount == msg.value
+    /// @dev Tests that `withdraw` reverts if the amount is not equal to the value sent.
     function test_withdraw_insufficientValue_reverts() external {
         assertEq(address(messagePasser).balance, 0);
 
@@ -119,10 +122,8 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         L2Bridge.withdraw(address(Predeploys.LEGACY_ERC20_ETH), 100, 1000, hex"");
     }
 
-    /**
-     * @notice Use the legacy `withdraw` interface on the L2StandardBridge to
-     *         withdraw ether from L2 to L1.
-     */
+    /// @dev Tests that the legacy `withdraw` interface on the L2StandardBridge
+    ///      successfully initiates a withdrawal.
     function test_withdraw_ether_succeeds() external {
         assertTrue(alice.balance >= 100);
         assertEq(Predeploys.L2_TO_L1_MESSAGE_PASSER.balance, 0);
@@ -153,8 +154,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
 }
 
 contract PreBridgeERC20 is Bridge_Initializer {
-    // withdraw and BridgeERC20 should behave the same when transferring ERC20 tokens
-    // so they should share the same setup and expectEmit calls
+    /// @dev Sets up expected calls and emits for a successful ERC20 withdrawal.
     function _preBridgeERC20(bool _isLegacy, address _l2Token) internal {
         // Alice has 100 L2Token
         deal(_l2Token, alice, 100, true);
@@ -430,10 +430,8 @@ contract PreBridgeERC20To is Bridge_Initializer {
 }
 
 contract L2StandardBridge_BridgeERC20To_Test is PreBridgeERC20To {
-    // withdrawTo
-    // - token is burned
-    // - emits WithdrawalInitiated w/ correct recipient
-    // - calls Withdrawer.initiateWithdrawal
+    /// @dev Tests that `withdrawTo` burns the tokens, emits `WithdrawalInitiated`,
+    ///      and initiates a withdrawal with `Withdrawer.initiateWithdrawal`.
     function test_withdrawTo_withdrawingERC20_succeeds() external {
         _preBridgeERC20To({ _isLegacy: true, _l2Token: address(L2Token) });
         L2Bridge.withdrawTo(address(L2Token), bob, 100, 1000, hex"");
@@ -441,10 +439,8 @@ contract L2StandardBridge_BridgeERC20To_Test is PreBridgeERC20To {
         assertEq(L2Token.balanceOf(alice), 0);
     }
 
-    // bridgeERC20To
-    // - token is burned
-    // - emits WithdrawalInitiated w/ correct recipient
-    // - calls Withdrawer.initiateWithdrawal
+    /// @dev Tests that `bridgeERC20To` burns the tokens, emits `WithdrawalInitiated`,
+    ///      and initiates a withdrawal with `Withdrawer.initiateWithdrawal`.
     function test_bridgeERC20To_succeeds() external {
         _preBridgeERC20To({ _isLegacy: false, _l2Token: address(L2Token) });
         L2Bridge.bridgeERC20To(address(L2Token), address(L1Token), bob, 100, 1000, hex"");
@@ -453,10 +449,10 @@ contract L2StandardBridge_BridgeERC20To_Test is PreBridgeERC20To {
 }
 
 contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
-    // finalizeDeposit
-    // - only callable by l1TokenBridge
-    // - supported token pair emits DepositFinalized
-    // - invalid deposit calls Withdrawer.initiateWithdrawal
+    /// @dev Tests that `finalizeDeposit` succeeds. It should:
+    ///      - only be callable by the l1TokenBridge
+    ///      - emit `DepositFinalized` if the token pair is supported
+    ///      - call `Withdrawer.initiateWithdrawal` if the token pair is not supported
     function test_finalizeDeposit_depositingERC20_succeeds() external {
         vm.mockCall(
             address(L2Bridge.messenger()),
@@ -480,6 +476,7 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
         L2Bridge.finalizeDeposit(address(L1Token), address(L2Token), alice, alice, 100, hex"");
     }
 
+    /// @dev Tests that `finalizeDeposit` succeeds when depositing ETH.
     function test_finalizeDeposit_depositingETH_succeeds() external {
         vm.mockCall(
             address(L2Bridge.messenger()),
@@ -505,6 +502,7 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
         L2Bridge.finalizeDeposit(address(L1Token), address(L2Token), alice, alice, 100, hex"");
     }
 
+    /// @dev Tests that `finalizeDeposit` reverts if the amounts do not match.
     function test_finalizeBridgeETH_incorrectValue_reverts() external {
         vm.mockCall(
             address(L2Bridge.messenger()),
@@ -517,6 +515,7 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
         L2Bridge.finalizeBridgeETH{ value: 50 }(alice, alice, 100, hex"");
     }
 
+    /// @dev Tests that `finalizeDeposit` reverts if the receipient is the other bridge.
     function test_finalizeBridgeETH_sendToSelf_reverts() external {
         vm.mockCall(
             address(L2Bridge.messenger()),
@@ -529,6 +528,7 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
         L2Bridge.finalizeBridgeETH{ value: 100 }(alice, address(L2Bridge), 100, hex"");
     }
 
+    /// @dev Tests that `finalizeDeposit` reverts if the receipient is the messenger.
     function test_finalizeBridgeETH_sendToMessenger_reverts() external {
         vm.mockCall(
             address(L2Bridge.messenger()),
@@ -543,6 +543,7 @@ contract L2StandardBridge_Bridge_Test is Bridge_Initializer {
 }
 
 contract L2StandardBridge_FinalizeBridgeETH_Test is Bridge_Initializer {
+    /// @dev Tests that `finalizeBridgeETH` succeeds.
     function test_finalizeBridgeETH_succeeds() external {
         address messenger = address(L2Bridge.messenger());
         vm.mockCall(
