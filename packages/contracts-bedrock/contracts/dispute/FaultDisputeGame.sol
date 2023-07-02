@@ -87,7 +87,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         bytes calldata _stateData,
         bytes calldata _proof
     ) external {
-        // Steps cannot be made unless the game is currently in progress.
+        // INVARIANT: Steps cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) {
             revert GameNotInProgress();
         }
@@ -100,7 +100,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // Determine the position of the step.
         Position stepPos = parentPos.move(_isAttack);
 
-        // Ensure that the step position is 1 deeper than the maximum game depth.
+        // INVARIANT: A step cannot be made unless the move position is 1 below the `MAX_GAME_DEPTH`
         if (stepPos.depth() != MAX_GAME_DEPTH + 1) {
             revert InvalidParent();
         }
@@ -132,8 +132,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
                 postStateClaim = claimData[_stateIndex].claim;
             }
 
-            // Assert that the given prestate commits to the instruction at `gindex - 1` and
-            // that the `_stateData` is the preimage for the prestate claim digest.
+            // INVARIANT: The prestate is always invalid if its gindex is not one less than that
+            //            of the post state.
+            // INVARIANT: The prestate is always invalid if the passed `_stateData` is not the
+            //            preimage of the prestate claim hash.
             if (
                 Position.unwrap(preStatePos.rightIndex(MAX_GAME_DEPTH)) !=
                 Position.unwrap(postStatePos.rightIndex(MAX_GAME_DEPTH)) - 1 ||
@@ -143,7 +145,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
             }
         }
 
-        // Perform the VM step and check to see if it is valid.
+        // INVARIANT: A VM step can never counter a parent claim unless it produces an unexpected
+        //            poststate. "Unexpected" is defined as "not equal to the claim at
+        //            `_parentIndex` if the step is an attack, or the claim at `_stateIndex` if
+        //            the step is a defense."
         if (VM.step(_stateData, _proof) == Claim.unwrap(postStateClaim)) {
             revert ValidStep();
         }
@@ -166,14 +171,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         Claim _pivot,
         bool _isAttack
     ) public payable {
-        // Moves cannot be made unless the game is currently in progress.
+        // INVARIANT: Moves cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) {
             revert GameNotInProgress();
         }
 
-        // The only move that can be made against a root claim is an attack. This is because the
-        // root claim commits to the entire state; Therefore, the only valid defense is to do
-        // nothing if it is agreed with.
+        // INVARIANT: A defense can never be made against the root claim. This is because the root
+        //            claim commits to the entire state. Therefore, the only valid defense is to
+        //            do nothing if it is agreed with.
         if (_challengeIndex == 0 && !_isAttack) {
             revert CannotDefendRootClaim();
         }
@@ -189,9 +194,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // or not the move is an attack or defense.
         Position nextPosition = parent.position.move(_isAttack);
 
-        // At the leaf nodes of the game, the only option is to run a step to prove or disprove
-        // the above claim. At this depth, the parent claim commits to the state after a single
-        // instruction step.
+        // INVARIANT: A move can never surpass the `MAX_GAME_DEPTH`. The only option to counter a
+        //            claim at this depth is to perform a single instruction step on-chain via
+        //            the `step` function to prove that the state transition produces an unexpected
+        //            post-state.
         if (nextPosition.depth() > MAX_GAME_DEPTH) {
             revert GameDepthExceeded();
         }
@@ -217,8 +223,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
             )
         );
 
-        // Enforce the clock time rules. If the new clock duration is greater than half of the game
-        // duration, then the move is invalid and cannot be made.
+        // INVARIANT: A move can never be made once its clock has exceeded `GAME_DURATION / 2`
+        //            seconds of time.
         if (Duration.unwrap(nextDuration) > Duration.unwrap(GAME_DURATION) >> 1) {
             revert ClockTimeExceeded();
         }
@@ -226,7 +232,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // Construct the next clock with the new duration and the current block timestamp.
         Clock nextClock = LibClock.wrap(nextDuration, Timestamp.wrap(uint64(block.timestamp)));
 
-        // Do not allow for a duplicate claim to be made.
+        // INVARIANT: A claim may only exist at a given position once. Multiple claims may exist
+        //            at the same position, however they must have different values.
         ClaimHash claimHash = _pivot.hashClaimPos(nextPosition);
         if (claims[claimHash]) {
             revert ClaimAlreadyExists();
@@ -274,7 +281,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
 
     /// @inheritdoc IDisputeGame
     function resolve() external returns (GameStatus status_) {
-        // If the game is not in progress, it cannot be resolved.
+        // INVARIANT: Resolution cannot occur unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) {
             revert GameNotInProgress();
         }
@@ -293,8 +300,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
                 --i;
             }
 
-            // If the claim is not a dangling node above the bottom of the tree,
-            // we can skip over it. These nodes are not relevant to the game resolution.
+            // INVARIANT: A claim can never be considered as the leftMostIndex or leftMostTraceIndex
+            //            if it has been countered.
             if (claim.countered) {
                 continue;
             }
@@ -314,9 +321,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // Create a reference to the left most uncontested claim and its parent.
         ClaimData storage leftMostUncontested = claimData[leftMostIndex];
 
-        // If the left most uncontested claim's parent has not expired their clock, the game
-        // cannot be resolved. If the left most uncontested claim is the root, no nodes qualified,
-        // and we check if 3.5 days has passed since the root claim's creation.
+        // INVARIANT: The game may never be resolved unless the clock of the left-most uncontested
+        //            claim's parent has expired. If the left-most uncontested claim is the root
+        //            claim, it is uncountered, and we check if 3.5 days has passed since its
+        //            creation.
         uint256 parentIndex = leftMostUncontested.parentIndex;
         Clock opposingClock = parentIndex == type(uint32).max
             ? leftMostUncontested.clock
