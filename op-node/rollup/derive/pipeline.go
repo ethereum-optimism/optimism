@@ -34,7 +34,7 @@ type ResettableEngineControl interface {
 	Reset()
 }
 
-type ResetableStage interface {
+type ResettableStage interface {
 	// Reset resets a pull stage. `base` refers to the L1 Block Reference to reset to, with corresponding configuration.
 	Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemConfig) error
 }
@@ -65,7 +65,7 @@ type DerivationPipeline struct {
 	// Index of the stage that is currently being reset.
 	// >= len(stages) if no additional resetting is required
 	resetting int
-	stages    []ResetableStage
+	stages    []ResettableStage
 
 	// Special stages to keep track of
 	traversal *L1Traversal
@@ -94,7 +94,7 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 	// Reset from engine queue then up from L1 Traversal. The stages do not talk to each other during
 	// the reset, but after the engine queue, this is the order in which the stages could talk to each other.
 	// Note: The engine queue stage is the only reset that can fail.
-	stages := []ResetableStage{eng, l1Traversal, l1Src, frameQueue, bank, chInReader, batchQueue, attributesQueue}
+	stages := []ResettableStage{eng, l1Traversal, l1Src, frameQueue, bank, chInReader, batchQueue, attributesQueue}
 
 	return &DerivationPipeline{
 		log:       log,
