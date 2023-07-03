@@ -58,7 +58,7 @@ func NewL2Processor(ethClient node.EthClient, db *database.DB, l2Contracts L2Con
 	l2ProcessLog := log.New("processor", "l2")
 	l2ProcessLog.Info("initializing processor")
 
-	latestHeader, err := db.Blocks.FinalizedL2BlockHeader()
+	latestHeader, err := db.Blocks.LatestL2BlockHeader()
 	if err != nil {
 		return nil, err
 	}
@@ -80,17 +80,17 @@ func NewL2Processor(ethClient node.EthClient, db *database.DB, l2Contracts L2Con
 
 	l2Processor := &L2Processor{
 		processor: processor{
-			fetcher:    node.NewFetcher(ethClient, fromL2Header),
-			db:         db,
-			processFn:  l2ProcessFn(l2ProcessLog, ethClient, l2Contracts),
-			processLog: l2ProcessLog,
+			headerTraversal: node.NewHeaderTraversal(ethClient, fromL2Header),
+			db:              db,
+			processFn:       l2ProcessFn(l2ProcessLog, ethClient, l2Contracts),
+			processLog:      l2ProcessLog,
 		},
 	}
 
 	return l2Processor, nil
 }
 
-func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2Contracts) func(db *database.DB, headers []*types.Header) error {
+func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2Contracts) ProcessFn {
 	rawEthClient := ethclient.NewClient(ethClient.RawRpcClient())
 
 	contractAddrs := l2Contracts.toSlice()
@@ -98,7 +98,7 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 	return func(db *database.DB, headers []*types.Header) error {
 		numHeaders := len(headers)
 
-		/** Index All L2 Blocks **/
+		/** Index all L2 blocks **/
 
 		l2Headers := make([]*database.L2BlockHeader, len(headers))
 		l2HeaderMap := make(map[common.Hash]*types.Header)
@@ -129,8 +129,7 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 		for i, log := range logs {
 			header, ok := l2HeaderMap[log.BlockHash]
 			if !ok {
-				// Log the individual headers in the batch?
-				processLog.Crit("contract event found with associated header not in the batch", "header", header, "log_index", log.Index)
+				processLog.Error("contract event found with associated header not in the batch", "header", header, "log_index", log.Index)
 				return errors.New("parsed log with a block hash not in this batch")
 			}
 
@@ -148,13 +147,14 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 
 		/** Update Database **/
 
+		processLog.Info("saving l2 blocks", "size", numHeaders)
 		err = db.Blocks.StoreL2BlockHeaders(l2Headers)
 		if err != nil {
 			return err
 		}
 
 		if numLogs > 0 {
-			processLog.Info("detected new contract logs", "size", numLogs)
+			processLog.Info("detected contract logs", "size", numLogs)
 			err = db.ContractEvents.StoreL2ContractEvents(l2ContractEvents)
 			if err != nil {
 				return err

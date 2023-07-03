@@ -1,5 +1,19 @@
 # @eth-optimism/sdk
 
+## 3.0.0
+
+### Major Changes
+
+- 119754c2f: Make optimism/sdk default to bedrock mode
+
+### Patch Changes
+
+- Updated dependencies [8d7dcc70c]
+- Updated dependencies [d6388be4a]
+- Updated dependencies [af292562f]
+  - @eth-optimism/core-utils@0.12.1
+  - @eth-optimism/contracts-bedrock@0.15.0
+
 ## 2.1.0
 
 ### Minor Changes

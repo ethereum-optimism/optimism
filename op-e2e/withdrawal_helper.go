@@ -79,7 +79,7 @@ func defaultWithdrawalTxOpts() *WithdrawalTxOpts {
 
 func ProveAndFinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, l2Node *node.Node, ethPrivKey *ecdsa.PrivateKey, l2WithdrawalReceipt *types.Receipt) (*types.Receipt, *types.Receipt) {
 	params, proveReceipt := ProveWithdrawal(t, cfg, l1Client, l2Node, ethPrivKey, l2WithdrawalReceipt)
-	finalizeReceipt := FinalizeWithdrawal(t, cfg, l1Client, ethPrivKey, l2WithdrawalReceipt, params)
+	finalizeReceipt := FinalizeWithdrawal(t, cfg, l1Client, ethPrivKey, proveReceipt, params)
 	return proveReceipt, finalizeReceipt
 }
 
@@ -87,7 +87,8 @@ func ProveWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client,
 	// Get l2BlockNumber for proof generation
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
-	blockNumber, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, l2WithdrawalReceipt.BlockNumber)
+
+	blockNumber, err := withdrawals.WaitForOutputRootPublished(ctx, l1Client, predeploys.DevOptimismPortalAddr, l2WithdrawalReceipt.BlockNumber)
 	require.Nil(t, err)
 
 	rpcClient, err := rpc.Dial(l2Node.WSEndpoint())
@@ -142,7 +143,7 @@ func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Clie
 	// Wait for finalization and then create the Finalized Withdrawal Transaction
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
-	_, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, withdrawalReceipt.BlockNumber)
+	err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, withdrawalReceipt.BlockNumber)
 	require.Nil(t, err)
 
 	opts, err := bind.NewKeyedTransactorWithChainID(privKey, cfg.L1ChainIDBig())

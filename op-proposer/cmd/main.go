@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-proposer/cmd/doc"
 	"github.com/ethereum-optimism/optimism/op-proposer/flags"
@@ -29,7 +29,7 @@ func main() {
 	app.Usage = "L2Output Submitter"
 	app.Description = "Service for generating and submitting L2 Output checkpoints to the L2OutputOracle contract"
 	app.Action = curryMain(Version)
-	app.Commands = []cli.Command{
+	app.Commands = []*cli.Command{
 		{
 			Name:        "doc",
 			Subcommands: doc.Subcommands,

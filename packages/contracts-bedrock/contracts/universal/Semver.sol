@@ -3,31 +3,21 @@ pragma solidity ^0.8.0;
 
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
-/**
- * @title Semver
- * @notice Semver is a simple contract for managing contract versions.
- */
+/// @title Semver
+/// @notice Semver is a simple contract for managing contract versions.
 contract Semver {
-    /**
-     * @notice Contract version number (major).
-     */
+    /// @notice Contract version number (major).
     uint256 private immutable MAJOR_VERSION;
 
-    /**
-     * @notice Contract version number (minor).
-     */
+    /// @notice Contract version number (minor).
     uint256 private immutable MINOR_VERSION;
 
-    /**
-     * @notice Contract version number (patch).
-     */
+    /// @notice Contract version number (patch).
     uint256 private immutable PATCH_VERSION;
 
-    /**
-     * @param _major Version number (major).
-     * @param _minor Version number (minor).
-     * @param _patch Version number (patch).
-     */
+    /// @param _major Version number (major).
+    /// @param _minor Version number (minor).
+    /// @param _patch Version number (patch).
     constructor(
         uint256 _major,
         uint256 _minor,
@@ -38,11 +28,8 @@ contract Semver {
         PATCH_VERSION = _patch;
     }
 
-    /**
-     * @notice Returns the full semver contract version.
-     *
-     * @return Semver contract version as a string.
-     */
+    /// @notice Returns the full semver contract version.
+    /// @return Semver contract version as a string.
     function version() public view returns (string memory) {
         return
             string(

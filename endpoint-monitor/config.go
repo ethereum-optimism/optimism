@@ -9,7 +9,7 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 type ProviderConfig struct {
@@ -24,24 +24,27 @@ const (
 )
 
 func CLIFlags(envPrefix string) []cli.Flag {
+	prefixEnvVars := func(name string) []string {
+		return opservice.PrefixEnvVar(envPrefix, name)
+	}
 	flags := []cli.Flag{
-		cli.StringSliceFlag{
+		&cli.StringSliceFlag{
 			Name:     ProvidersFlagName,
 			Usage:    "List of providers",
 			Required: true,
-			EnvVar:   opservice.PrefixEnvVar(envPrefix, "PROVIDERS"),
+			EnvVars:  prefixEnvVars("PROVIDERS"),
 		},
-		cli.DurationFlag{
-			Name:   CheckIntervalFlagName,
-			Usage:  "Check interval duration",
-			Value:  5 * time.Minute,
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "CHECK_INTERVAL"),
+		&cli.DurationFlag{
+			Name:    CheckIntervalFlagName,
+			Usage:   "Check interval duration",
+			Value:   5 * time.Minute,
+			EnvVars: prefixEnvVars("CHECK_INTERVAL"),
 		},
-		cli.DurationFlag{
-			Name:   CheckDurationFlagName,
-			Usage:  "Check duration",
-			Value:  4 * time.Minute,
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "CHECK_DURATION"),
+		&cli.DurationFlag{
+			Name:    CheckDurationFlagName,
+			Usage:   "Check duration",
+			Value:   4 * time.Minute,
+			EnvVars: prefixEnvVars("CHECK_DURATION"),
 		},
 	}
 	flags = append(flags, opmetrics.CLIFlags(envPrefix)...)
@@ -73,9 +76,9 @@ func (c Config) Check() error {
 
 func NewConfig(ctx *cli.Context) Config {
 	return Config{
-		Providers:     ctx.GlobalStringSlice(ProvidersFlagName),
-		CheckInterval: ctx.GlobalDuration(CheckIntervalFlagName),
-		CheckDuration: ctx.GlobalDuration(CheckDurationFlagName),
+		Providers:     ctx.StringSlice(ProvidersFlagName),
+		CheckInterval: ctx.Duration(CheckIntervalFlagName),
+		CheckDuration: ctx.Duration(CheckDurationFlagName),
 		LogConfig:     oplog.ReadCLIConfig(ctx),
 		MetricsConfig: opmetrics.ReadCLIConfig(ctx),
 	}

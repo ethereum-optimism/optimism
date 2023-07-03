@@ -69,7 +69,7 @@ func (p *Prepared) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
 	}
 }
 
-func (p *Prepared) PeerScoringParams() *pubsub.PeerScoreParams {
+func (p *Prepared) PeerScoringParams() *ScoringParams {
 	return nil
 }
 
@@ -83,10 +83,6 @@ func (p *Prepared) BanThreshold() float64 {
 
 func (p *Prepared) BanDuration() time.Duration {
 	return 1 * time.Hour
-}
-
-func (p *Prepared) TopicScoringParams() *pubsub.TopicScoreParams {
-	return nil
 }
 
 func (p *Prepared) Disabled() bool {

@@ -138,7 +138,7 @@ See table in the **Active Branches** section above to find the right branch to t
 We use [changesets](https://github.com/changesets/changesets) to mark packages for new releases.
 When merging commits to the `develop` branch you MUST include a changeset file if your change would require that a new version of a package be released.
 
-To add a changeset, run the command `yarn changeset` in the root of this monorepo.
+To add a changeset, run the command `pnpm changeset` in the root of this monorepo.
 You will be presented with a small prompt to select the packages to be released, the scope of the release (major, minor, or patch), and the reason for the release.
 Comments within changeset files will be automatically included in the changelog of the package.
 

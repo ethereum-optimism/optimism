@@ -12,8 +12,8 @@ build-ts: submodules
 	if [ -n "$$NVM_DIR" ]; then \
 		. $$NVM_DIR/nvm.sh && nvm use; \
 	fi
-	yarn install
-	yarn build
+	pnpm install
+	pnpm build
 .PHONY: build-ts
 
 submodules:
@@ -102,7 +102,7 @@ test-unit:
 	make -C ./op-proposer test
 	make -C ./op-batcher test
 	make -C ./op-e2e test
-	yarn test
+	pnpm test
 .PHONY: test-unit
 
 test-integration:

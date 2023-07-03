@@ -734,12 +734,14 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 		GasTipCap: big.NewInt(txTipCap),
 		GasFeeCap: big.NewInt(txFeeCap),
 	})
-	newTx := mgr.increaseGasPrice(context.Background(), tx)
+	newTx, err := mgr.increaseGasPrice(context.Background(), tx)
+	require.NoError(t, err)
 	return tx, newTx
 }
 
 func TestIncreaseGasPrice(t *testing.T) {
 	// t.Parallel()
+	require.Equal(t, int64(10), priceBump, "test must be updated if priceBump is adjusted")
 	tests := []struct {
 		name string
 		run  func(t *testing.T)
@@ -781,22 +783,16 @@ func TestIncreaseGasPrice(t *testing.T) {
 			run: func(t *testing.T) {
 				_, newTx := doGasPriceIncrease(t, 100, 2200, 120, 1050)
 				require.True(t, newTx.GasTipCap().Cmp(big.NewInt(120)) == 0, "new tx tip must be equal L1")
-				require.True(t, newTx.GasFeeCap().Cmp(big.NewInt(2530)) == 0, "new tx fee cap must be equal to the threshold value")
+				require.True(t, newTx.GasFeeCap().Cmp(big.NewInt(2420)) == 0, "new tx fee cap must be equal to the threshold value")
 			},
 		},
 		{
 			name: "uses L1 FC when larger and threshold tip",
 			run: func(t *testing.T) {
 				_, newTx := doGasPriceIncrease(t, 100, 2200, 100, 2000)
-				require.True(t, newTx.GasTipCap().Cmp(big.NewInt(115)) == 0, "new tx tip must be equal the threshold value")
-				require.True(t, newTx.GasFeeCap().Cmp(big.NewInt(4115)) == 0, "new tx fee cap must be equal L1")
-			},
-		},
-		{
-			name: "reuses tx when no bump",
-			run: func(t *testing.T) {
-				tx, newTx := doGasPriceIncrease(t, 10, 100, 10, 45)
-				require.Equal(t, tx.Hash(), newTx.Hash(), "tx hash must be the same")
+				require.True(t, newTx.GasTipCap().Cmp(big.NewInt(110)) == 0, "new tx tip must be equal the threshold value")
+				t.Log("Vals:", newTx.GasFeeCap())
+				require.True(t, newTx.GasFeeCap().Cmp(big.NewInt(4110)) == 0, "new tx fee cap must be equal L1")
 			},
 		},
 	}
@@ -811,11 +807,12 @@ func TestIncreaseGasPrice(t *testing.T) {
 func TestIncreaseGasPriceNotExponential(t *testing.T) {
 	t.Parallel()
 
+	borkedTip := int64(10)
+	borkedFee := int64(45)
 	borkedBackend := failingBackend{
-		gasTip:  big.NewInt(10),
-		baseFee: big.NewInt(45),
+		gasTip:  big.NewInt(borkedTip),
+		baseFee: big.NewInt(borkedFee),
 	}
-	feeCap := calcGasFeeCap(borkedBackend.baseFee, borkedBackend.gasTip)
 
 	mgr := &SimpleTxManager{
 		cfg: Config{
@@ -839,14 +836,23 @@ func TestIncreaseGasPriceNotExponential(t *testing.T) {
 	})
 
 	// Run IncreaseGasPrice a bunch of times in a row to simulate a very fast resubmit loop.
-	for i := 0; i < 20; i++ {
+	var err error
+	for i := 0; i < 30; i++ {
 		ctx := context.Background()
-		newTx := mgr.increaseGasPrice(ctx, tx)
-		require.True(t, newTx.GasFeeCap().Cmp(feeCap) == 0, "new tx fee cap must be equal L1")
-		require.True(t, newTx.GasTipCap().Cmp(borkedBackend.gasTip) == 0, "new tx tip must be equal L1")
-		tx = newTx
+		tx, err = mgr.increaseGasPrice(ctx, tx)
+		require.NoError(t, err)
 	}
-
+	lastTip, lastFee := tx.GasTipCap(), tx.GasFeeCap()
+	require.Equal(t, lastTip.Int64(), feeLimitMultiplier*borkedTip)
+	require.Equal(t, lastFee.Int64(), feeLimitMultiplier*(borkedTip+2*borkedFee))
+	// Confirm that fees stop rising
+	for i := 0; i < 5; i++ {
+		ctx := context.Background()
+		tx, err := mgr.increaseGasPrice(ctx, tx)
+		require.NoError(t, err)
+		require.True(t, tx.GasTipCap().Cmp(lastTip) == 0, "suggested tx tip must stop increasing")
+		require.True(t, tx.GasFeeCap().Cmp(lastFee) == 0, "suggested tx fee must stop increasing")
+	}
 }
 
 func TestErrStringMatch(t *testing.T) {

@@ -813,10 +813,10 @@ func TestSystemDenseTopology(t *testing.T) {
 
 	// Set peer scoring for each node, but without banning
 	for _, node := range cfg.Nodes {
-		params, err := p2p.GetPeerScoreParams("light", 2)
+		params, err := p2p.GetScoringParams("light", &node.Rollup)
 		require.NoError(t, err)
 		node.P2P = &p2p.Config{
-			PeerScoring:    &params,
+			ScoringParams:  params,
 			BanningEnabled: false,
 		}
 	}
@@ -1243,47 +1243,6 @@ func TestFees(t *testing.T) {
 	balanceDiff := new(big.Int).Sub(startBalance, endBalance)
 	balanceDiff.Sub(balanceDiff, transferAmount)
 	require.Equal(t, balanceDiff, totalFee, "balances should add up")
-}
-
-func TestStopStartSequencer(t *testing.T) {
-	InitParallel(t)
-
-	cfg := DefaultSystemConfig(t)
-	sys, err := cfg.Start()
-	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
-
-	l2Seq := sys.Clients["sequencer"]
-	rollupNode := sys.RollupNodes["sequencer"]
-
-	nodeRPC, err := rpc.DialContext(context.Background(), rollupNode.HTTPEndpoint())
-	require.Nil(t, err, "Error dialing node")
-
-	blockBefore := latestBlock(t, l2Seq)
-	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
-	blockAfter := latestBlock(t, l2Seq)
-	require.Greaterf(t, blockAfter, blockBefore, "Chain did not advance")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	blockHash := common.Hash{}
-	err = nodeRPC.CallContext(ctx, &blockHash, "admin_stopSequencer")
-	require.Nil(t, err, "Error stopping sequencer")
-
-	blockBefore = latestBlock(t, l2Seq)
-	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
-	blockAfter = latestBlock(t, l2Seq)
-	require.Equal(t, blockAfter, blockBefore, "Chain advanced after stopping sequencer")
-
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err = nodeRPC.CallContext(ctx, nil, "admin_startSequencer", blockHash)
-	require.Nil(t, err, "Error starting sequencer")
-
-	blockBefore = latestBlock(t, l2Seq)
-	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
-	blockAfter = latestBlock(t, l2Seq)
-	require.Greater(t, blockAfter, blockBefore, "Chain did not advance after starting sequencer")
 }
 
 func TestStopStartBatcher(t *testing.T) {

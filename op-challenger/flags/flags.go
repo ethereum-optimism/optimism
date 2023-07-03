@@ -3,7 +3,7 @@ package flags
 import (
 	"fmt"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -15,36 +15,35 @@ import (
 
 const envVarPrefix = "OP_CHALLENGER"
 
+func prefixEnvVars(name string) []string {
+	return opservice.PrefixEnvVar(envVarPrefix, name)
+}
+
 var (
 	// Required Flags
-	L1EthRpcFlag = cli.StringFlag{
-		Name:   "l1-eth-rpc",
-		Usage:  "HTTP provider URL for L1.",
-		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_RPC"),
+	L1EthRpcFlag = &cli.StringFlag{
+		Name:    "l1-eth-rpc",
+		Usage:   "HTTP provider URL for L1.",
+		EnvVars: prefixEnvVars("L1_ETH_RPC"),
 	}
-	RollupRpcFlag = cli.StringFlag{
-		Name:   "rollup-rpc",
-		Usage:  "HTTP provider URL for the rollup node.",
-		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "ROLLUP_RPC"),
+	DGFAddressFlag = &cli.StringFlag{
+		Name:    "game-address",
+		Usage:   "Address of the Fault Game contract.",
+		EnvVars: prefixEnvVars("GAME_ADDRESS"),
 	}
-	L2OOAddressFlag = cli.StringFlag{
-		Name:   "l2oo-address",
-		Usage:  "Address of the L2OutputOracle contract.",
-		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L2OO_ADDRESS"),
+	AlphabetFlag = &cli.StringFlag{
+		Name:    "alphabet",
+		Usage:   "Alphabet Trace (temporary)",
+		EnvVars: prefixEnvVars("ALPHABET"),
 	}
-	DGFAddressFlag = cli.StringFlag{
-		Name:   "dgf-address",
-		Usage:  "Address of the DisputeGameFactory contract.",
-		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "DGF_ADDRESS"),
-	}
+	// Optional Flags
 )
 
 // requiredFlags are checked by [CheckRequired]
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
-	RollupRpcFlag,
-	L2OOAddressFlag,
 	DGFAddressFlag,
+	AlphabetFlag,
 }
 
 // optionalFlags is a list of unchecked cli flags
@@ -65,8 +64,8 @@ var Flags []cli.Flag
 
 func CheckRequired(ctx *cli.Context) error {
 	for _, f := range requiredFlags {
-		if !ctx.GlobalIsSet(f.GetName()) {
-			return fmt.Errorf("flag %s is required", f.GetName())
+		if !ctx.IsSet(f.Names()[0]) {
+			return fmt.Errorf("flag %s is required", f.Names()[0])
 		}
 	}
 	return nil

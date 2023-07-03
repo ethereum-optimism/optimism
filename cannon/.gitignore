@@ -1,0 +1,13 @@
+node_modules
+artifacts
+cache
+.*.swp
+venv
+.idea
+*.log
+example/bin
+contracts/out
+state.json
+*.json
+*.pprof
+*.out

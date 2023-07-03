@@ -91,7 +91,7 @@ func (c *client) BlockHeaderByHash(hash common.Hash) (*types.Header, error) {
 // are placed on the range such as blocks in the "latest", "safe" or "finalized" states. If the specified
 // range is too large, `endHeight > latest`, the resulting list is truncated to the available headers
 func (c *client) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]*types.Header, error) {
-	count := new(big.Int).Sub(endHeight, startHeight).Uint64()
+	count := new(big.Int).Sub(endHeight, startHeight).Uint64() + 1
 	batchElems := make([]rpc.BatchElem, count)
 	for i := uint64(0); i < count; i++ {
 		height := new(big.Int).Add(startHeight, new(big.Int).SetUint64(i))

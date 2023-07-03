@@ -1,12 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
+// Testing utilities
 import { CommonTest, Messenger_Initializer } from "./CommonTest.t.sol";
-import { CrossDomainOwnable2 } from "../L2/CrossDomainOwnable2.sol";
-import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
+
+// Libraries
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
+import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
+
+// Target contract dependencies
+import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
+
+// Target contract
+import { CrossDomainOwnable2 } from "../L2/CrossDomainOwnable2.sol";
 
 contract XDomainSetter2 is CrossDomainOwnable2 {
     uint256 public value;
@@ -19,17 +26,20 @@ contract XDomainSetter2 is CrossDomainOwnable2 {
 contract CrossDomainOwnable2_Test is Messenger_Initializer {
     XDomainSetter2 setter;
 
+    /// @dev Sets up the test suite.
     function setUp() public override {
         super.setUp();
         vm.prank(alice);
         setter = new XDomainSetter2();
     }
 
+    /// @dev Tests that the `onlyOwner` modifier reverts when the caller is not the messenger.
     function test_onlyOwner_notMessenger_reverts() external {
         vm.expectRevert("CrossDomainOwnable2: caller is not the messenger");
         setter.set(1);
     }
 
+    /// @dev Tests that the `onlyOwner` modifier reverts when not called by the owner.
     function test_onlyOwner_notOwner_reverts() external {
         // set the xDomainMsgSender storage slot
         bytes32 key = bytes32(uint256(204));
@@ -41,6 +51,7 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
         setter.set(1);
     }
 
+    /// @dev Tests that the `onlyOwner` modifier causes the relayed message to fail.
     function test_onlyOwner_notOwner2_reverts() external {
         uint240 nonce = 0;
         address sender = bob;
@@ -76,6 +87,7 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
         assertEq(setter.value(), 0);
     }
 
+    /// @dev Tests that the `onlyOwner` modifier succeeds when called by the messenger.
     function test_onlyOwner_succeeds() external {
         address owner = setter.owner();
 
