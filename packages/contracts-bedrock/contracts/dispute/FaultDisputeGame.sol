@@ -66,18 +66,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     }
 
     ////////////////////////////////////////////////////////////////
-    //                       External Logic                       //
+    //                  `IFaultDisputeGame` impl                  //
     ////////////////////////////////////////////////////////////////
-
-    /// @inheritdoc IFaultDisputeGame
-    function attack(uint256 _parentIndex, Claim _pivot) external payable {
-        move(_parentIndex, _pivot, true);
-    }
-
-    /// @inheritdoc IFaultDisputeGame
-    function defend(uint256 _parentIndex, Claim _pivot) external payable {
-        move(_parentIndex, _pivot, false);
-    }
 
     /// @inheritdoc IFaultDisputeGame
     function step(
@@ -88,9 +78,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         bytes calldata _proof
     ) external {
         // INVARIANT: Steps cannot be made unless the game is currently in progress.
-        if (status != GameStatus.IN_PROGRESS) {
-            revert GameNotInProgress();
-        }
+        if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
         // Get the parent. If it does not exist, the call will revert with OOB.
         ClaimData storage parent = claimData[_claimIndex];
@@ -101,9 +89,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         Position stepPos = parentPos.move(_isAttack);
 
         // INVARIANT: A step cannot be made unless the move position is 1 below the `MAX_GAME_DEPTH`
-        if (stepPos.depth() != MAX_GAME_DEPTH + 1) {
-            revert InvalidParent();
-        }
+        if (stepPos.depth() != MAX_GAME_DEPTH + 1) revert InvalidParent();
 
         // Determine the expected pre & post states of the step.
         Claim preStateClaim;
@@ -145,43 +131,32 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
             }
         }
 
-        // INVARIANT: A VM step can never counter a parent claim unless it produces an unexpected
-        //            poststate. "Unexpected" is defined as "not equal to the claim at
-        //            `_parentIndex` if the step is an attack, or the claim at `_stateIndex` if
-        //            the step is a defense."
-        if (VM.step(_stateData, _proof) == Claim.unwrap(postStateClaim)) {
-            revert ValidStep();
-        }
+        // INVARIANT: A VM step can never counter a parent claim unless it produces a poststate
+        //            that is not equal to the claim at `_parentIndex` if the step is an attack,
+        //            or the claim at `_stateIndex` if the step is a defense.
+        if (VM.step(_stateData, _proof) == Claim.unwrap(postStateClaim)) revert ValidStep();
 
         // Set the parent claim as countered. We do not need to append a new claim to the game;
         // instead, we can just set the existing parent as countered.
         parent.countered = true;
     }
 
-    ////////////////////////////////////////////////////////////////
-    //                       Internal Logic                       //
-    ////////////////////////////////////////////////////////////////
-
     /// @notice Internal move function, used by both `attack` and `defend`.
     /// @param _challengeIndex The index of the claim being moved against.
-    /// @param _pivot The claim at the next logical position in the game.
+    /// @param _claim The claim at the next logical position in the game.
     /// @param _isAttack Whether or not the move is an attack or defense.
     function move(
         uint256 _challengeIndex,
-        Claim _pivot,
+        Claim _claim,
         bool _isAttack
     ) public payable {
         // INVARIANT: Moves cannot be made unless the game is currently in progress.
-        if (status != GameStatus.IN_PROGRESS) {
-            revert GameNotInProgress();
-        }
+        if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
         // INVARIANT: A defense can never be made against the root claim. This is because the root
         //            claim commits to the entire state. Therefore, the only valid defense is to
         //            do nothing if it is agreed with.
-        if (_challengeIndex == 0 && !_isAttack) {
-            revert CannotDefendRootClaim();
-        }
+        if (_challengeIndex == 0 && !_isAttack) revert CannotDefendRootClaim();
 
         // Get the parent. If it does not exist, the call will revert with OOB.
         ClaimData memory parent = claimData[_challengeIndex];
@@ -198,9 +173,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         //            claim at this depth is to perform a single instruction step on-chain via
         //            the `step` function to prove that the state transition produces an unexpected
         //            post-state.
-        if (nextPosition.depth() > MAX_GAME_DEPTH) {
-            revert GameDepthExceeded();
-        }
+        if (nextPosition.depth() > MAX_GAME_DEPTH) revert GameDepthExceeded();
 
         // Fetch the grandparent clock, if it exists.
         // The grandparent clock should always exist unless the parent is the root claim.
@@ -234,17 +207,15 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
 
         // INVARIANT: A claim may only exist at a given position once. Multiple claims may exist
         //            at the same position, however they must have different values.
-        ClaimHash claimHash = _pivot.hashClaimPos(nextPosition);
-        if (claims[claimHash]) {
-            revert ClaimAlreadyExists();
-        }
+        ClaimHash claimHash = _claim.hashClaimPos(nextPosition);
+        if (claims[claimHash]) revert ClaimAlreadyExists();
         claims[claimHash] = true;
 
         // Create the new claim.
         claimData.push(
             ClaimData({
                 parentIndex: uint32(_challengeIndex),
-                claim: _pivot,
+                claim: _claim,
                 position: nextPosition,
                 clock: nextClock,
                 countered: false
@@ -252,17 +223,22 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         );
 
         // Emit the appropriate event for the attack or defense.
-        emit Move(_challengeIndex, _pivot, msg.sender);
+        emit Move(_challengeIndex, _claim, msg.sender);
+    }
+
+    /// @inheritdoc IFaultDisputeGame
+    function attack(uint256 _parentIndex, Claim _claim) external payable {
+        move(_parentIndex, _claim, true);
+    }
+
+    /// @inheritdoc IFaultDisputeGame
+    function defend(uint256 _parentIndex, Claim _claim) external payable {
+        move(_parentIndex, _claim, false);
     }
 
     /// @inheritdoc IFaultDisputeGame
     function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
         l2BlockNumber_ = _getArgUint256(0x20);
-    }
-
-    /// @notice Returns the length of the `claimData` array.
-    function claimDataLen() external view returns (uint256 len_) {
-        len_ = claimData.length;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -282,9 +258,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @inheritdoc IDisputeGame
     function resolve() external returns (GameStatus status_) {
         // INVARIANT: Resolution cannot occur unless the game is currently in progress.
-        if (status != GameStatus.IN_PROGRESS) {
-            revert GameNotInProgress();
-        }
+        if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
         // Search for the left-most dangling non-bottom node
         // The most recent claim is always a dangling, non-bottom node so we start with that
@@ -302,9 +276,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
 
             // INVARIANT: A claim can never be considered as the leftMostIndex or leftMostTraceIndex
             //            if it has been countered.
-            if (claim.countered) {
-                continue;
-            }
+            if (claim.countered) continue;
 
             // If the claim is a dangling node, we can check if it is the left-most
             // dangling node we've come across so far. If it is, we can update the
@@ -349,8 +321,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         }
 
         // Update the game status
-        status = status_;
-        emit Resolved(status_);
+        emit Resolved(status = status_);
     }
 
     /// @inheritdoc IDisputeGame
@@ -381,6 +352,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         extraData_ = extraData();
     }
 
+    ////////////////////////////////////////////////////////////////
+    //                       MISC EXTERNAL                        //
+    ////////////////////////////////////////////////////////////////
+
     /// @inheritdoc IInitializable
     function initialize() external {
         // Set the game start
@@ -398,5 +373,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
                 countered: false
             })
         );
+    }
+
+    /// @notice Returns the length of the `claimData` array.
+    function claimDataLen() external view returns (uint256 len_) {
+        len_ = claimData.length;
     }
 }
