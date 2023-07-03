@@ -819,25 +819,25 @@ func (_FaultDisputeGame *FaultDisputeGameTransactorSession) Resolve() (*types.Tr
 	return _FaultDisputeGame.Contract.Resolve(&_FaultDisputeGame.TransactOpts)
 }
 
-// Step is a paid mutator transaction binding the contract method 0xe4c290c4.
+// Step is a paid mutator transaction binding the contract method 0xd8cc1a3c.
 //
-// Solidity: function step(uint256 _stateIndex, uint256 _claimIndex, bool _isAttack, bytes _stateData, bytes _proof) returns()
-func (_FaultDisputeGame *FaultDisputeGameTransactor) Step(opts *bind.TransactOpts, _stateIndex *big.Int, _claimIndex *big.Int, _isAttack bool, _stateData []byte, _proof []byte) (*types.Transaction, error) {
-	return _FaultDisputeGame.contract.Transact(opts, "step", _stateIndex, _claimIndex, _isAttack, _stateData, _proof)
+// Solidity: function step(uint256 _claimIndex, bool _isAttack, bytes _stateData, bytes _proof) returns()
+func (_FaultDisputeGame *FaultDisputeGameTransactor) Step(opts *bind.TransactOpts, _claimIndex *big.Int, _isAttack bool, _stateData []byte, _proof []byte) (*types.Transaction, error) {
+	return _FaultDisputeGame.contract.Transact(opts, "step", _claimIndex, _isAttack, _stateData, _proof)
 }
 
-// Step is a paid mutator transaction binding the contract method 0xe4c290c4.
+// Step is a paid mutator transaction binding the contract method 0xd8cc1a3c.
 //
-// Solidity: function step(uint256 _stateIndex, uint256 _claimIndex, bool _isAttack, bytes _stateData, bytes _proof) returns()
-func (_FaultDisputeGame *FaultDisputeGameSession) Step(_stateIndex *big.Int, _claimIndex *big.Int, _isAttack bool, _stateData []byte, _proof []byte) (*types.Transaction, error) {
-	return _FaultDisputeGame.Contract.Step(&_FaultDisputeGame.TransactOpts, _stateIndex, _claimIndex, _isAttack, _stateData, _proof)
+// Solidity: function step(uint256 _claimIndex, bool _isAttack, bytes _stateData, bytes _proof) returns()
+func (_FaultDisputeGame *FaultDisputeGameSession) Step(_claimIndex *big.Int, _isAttack bool, _stateData []byte, _proof []byte) (*types.Transaction, error) {
+	return _FaultDisputeGame.Contract.Step(&_FaultDisputeGame.TransactOpts, _claimIndex, _isAttack, _stateData, _proof)
 }
 
-// Step is a paid mutator transaction binding the contract method 0xe4c290c4.
+// Step is a paid mutator transaction binding the contract method 0xd8cc1a3c.
 //
-// Solidity: function step(uint256 _stateIndex, uint256 _claimIndex, bool _isAttack, bytes _stateData, bytes _proof) returns()
-func (_FaultDisputeGame *FaultDisputeGameTransactorSession) Step(_stateIndex *big.Int, _claimIndex *big.Int, _isAttack bool, _stateData []byte, _proof []byte) (*types.Transaction, error) {
-	return _FaultDisputeGame.Contract.Step(&_FaultDisputeGame.TransactOpts, _stateIndex, _claimIndex, _isAttack, _stateData, _proof)
+// Solidity: function step(uint256 _claimIndex, bool _isAttack, bytes _stateData, bytes _proof) returns()
+func (_FaultDisputeGame *FaultDisputeGameTransactorSession) Step(_claimIndex *big.Int, _isAttack bool, _stateData []byte, _proof []byte) (*types.Transaction, error) {
+	return _FaultDisputeGame.Contract.Step(&_FaultDisputeGame.TransactOpts, _claimIndex, _isAttack, _stateData, _proof)
 }
 
 // FaultDisputeGameMoveIterator is returned from FilterMove and is used to iterate over the raw logs and unpacked data for Move events raised by the FaultDisputeGame contract.

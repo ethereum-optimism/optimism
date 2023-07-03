@@ -71,7 +71,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
 
     /// @inheritdoc IFaultDisputeGame
     function step(
-        uint256 _stateIndex,
         uint256 _claimIndex,
         bool _isAttack,
         bytes calldata _stateData,
@@ -94,42 +93,35 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // Determine the expected pre & post states of the step.
         Claim preStateClaim;
         Claim postStateClaim;
-        if (stepPos.indexAtDepth() == 0) {
-            // If the step position's index at depth is 0, the prestate is the absolute prestate
-            // and the post state is the parent claim.
-            preStateClaim = ABSOLUTE_PRESTATE;
-            postStateClaim = claimData[_claimIndex].claim;
-        } else {
-            Position preStatePos;
-            Position postStatePos;
-            if (_isAttack) {
-                // If the step is an attack, the prestate exists elsewhere in the game state,
-                // and the parent claim is the expected post-state.
-                preStatePos = claimData[_stateIndex].position;
-                preStateClaim = claimData[_stateIndex].claim;
-                postStatePos = parentPos;
-                postStateClaim = parent.claim;
+        if (_isAttack) {
+            if (stepPos.indexAtDepth() == 0) {
+                // If the step position's index at depth is 0, the prestate is the absolute
+                // prestate.
+                preStateClaim = ABSOLUTE_PRESTATE;
             } else {
-                // If the step is a defense, the poststate exists elsewhere in the game state,
-                // and the parent claim is the expected pre-state.
-                preStatePos = parent.position;
-                preStateClaim = parent.claim;
-                postStatePos = claimData[_stateIndex].position;
-                postStateClaim = claimData[_stateIndex].claim;
+                // If the step is an attack at a trace index > 0, the prestate exists elsewhere in
+                // the game state.
+                preStateClaim = findTraceAncestor(
+                    Position.wrap(Position.unwrap(parentPos) - 1),
+                    parent.parentIndex
+                );
             }
 
-            // INVARIANT: The prestate is always invalid if its gindex is not one less than that
-            //            of the post state.
-            // INVARIANT: The prestate is always invalid if the passed `_stateData` is not the
-            //            preimage of the prestate claim hash.
-            if (
-                Position.unwrap(preStatePos.rightIndex(MAX_GAME_DEPTH)) !=
-                Position.unwrap(postStatePos.rightIndex(MAX_GAME_DEPTH)) - 1 ||
-                keccak256(_stateData) != Claim.unwrap(preStateClaim)
-            ) {
-                revert InvalidPrestate();
-            }
+            // For all attacks, the poststate is the parent claim.
+            postStateClaim = parent.claim;
+        } else {
+            // If the step is a defense, the poststate exists elsewhere in the game state,
+            // and the parent claim is the expected pre-state.
+            preStateClaim = parent.claim;
+            postStateClaim = findTraceAncestor(
+                Position.wrap(Position.unwrap(parentPos) + 1),
+                parent.parentIndex
+            );
         }
+
+        // INVARIANT: The prestate is always invalid if the passed `_stateData` is not the
+        //            preimage of the prestate claim hash.
+        if (keccak256(_stateData) != Claim.unwrap(preStateClaim)) revert InvalidPrestate();
 
         // INVARIANT: A VM step can never counter a parent claim unless it produces a poststate
         //            that is not equal to the claim at `_parentIndex` if the step is an attack,
@@ -378,5 +370,31 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @notice Returns the length of the `claimData` array.
     function claimDataLen() external view returns (uint256 len_) {
         len_ = claimData.length;
+    }
+
+    ////////////////////////////////////////////////////////////////
+    //                          HELPERS                           //
+    ////////////////////////////////////////////////////////////////
+
+    /// @notice Finds the trace ancestor of a given position within the DAG.
+    /// @param _pos The position to find the trace ancestor claim of.
+    /// @param _start The index to start searching from.
+    /// @return ancestor_ The ancestor claim that commits to the same trace index as `_pos`.
+    // TODO: Can we form a relationship between the trace path and the position to avoid looping?
+    function findTraceAncestor(Position _pos, uint256 _start)
+        internal
+        view
+        returns (Claim ancestor_)
+    {
+        // Grab the trace ancestor's expected position.
+        Position preStateTraceAncestor = _pos.traceAncestor();
+
+        // Walk up the DAG to find a claim that commits to the same trace index as `_pos`. It is
+        // guaranteed that such a claim exists.
+        ClaimData storage ancestor = claimData[_start];
+        while (Position.unwrap(ancestor.position) != Position.unwrap(preStateTraceAncestor)) {
+            ancestor = claimData[ancestor.parentIndex];
+        }
+        ancestor_ = ancestor.claim;
     }
 }

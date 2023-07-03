@@ -424,7 +424,6 @@ contract GamePlayer {
 
         // If we are past the maximum depth, break the recursion and step.
         if (movePos.depth() > maxDepth) {
-            uint256 stateIndex;
             bytes memory preStateTrace;
 
             // First, we need to find the pre/post state index depending on whether we
@@ -435,27 +434,7 @@ contract GamePlayer {
                 Position leafPos = isAttack
                     ? Position.wrap(Position.unwrap(parentPos) - 1)
                     : Position.wrap(Position.unwrap(parentPos) + 1);
-                Position statePos = leafPos;
-
-                // Walk up until the valid position that commits to the prestate's
-                // trace index is found.
-                while (
-                    Position.unwrap(statePos.parent().rightIndex(maxDepth)) ==
-                    Position.unwrap(leafPos)
-                ) {
-                    statePos = statePos.parent();
-                }
-
-                // Now, search for the index of the claim that commits to the prestate's trace
-                // index.
-                uint256 len = gameProxy.claimDataLen();
-                for (uint256 i = 0; i < len; i++) {
-                    (, , , Position pos, ) = gameProxy.claimData(i);
-                    if (Position.unwrap(pos) == Position.unwrap(statePos)) {
-                        stateIndex = i;
-                        break;
-                    }
-                }
+                Position statePos = leafPos.traceAncestor();
 
                 // Grab the trace up to the prestate's trace index.
                 if (isAttack) {
@@ -463,10 +442,12 @@ contract GamePlayer {
                 } else {
                     preStateTrace = abi.encode(parentPos.traceIndex(maxDepth), traceAt(parentPos));
                 }
+            } else {
+                preStateTrace = abi.encode(15);
             }
 
             // Perform the step and halt recursion.
-            try gameProxy.step(stateIndex, _parentIndex, isAttack, preStateTrace, hex"") {
+            try gameProxy.step(_parentIndex, isAttack, preStateTrace, hex"") {
                 // Do nothing, step succeeded.
             } catch {
                 failedToStep = true;
@@ -523,7 +504,9 @@ contract GamePlayer {
 
 contract OneVsOne_Arena is FaultDisputeGame_Init {
     /// @dev The absolute prestate of the trace.
-    Claim internal constant ABSOLUTE_PRESTATE = Claim.wrap(bytes32(uint256(15)));
+    bytes ABSOLUTE_PRESTATE = abi.encode(15);
+    /// @dev The absolute prestate claim.
+    Claim internal constant ABSOLUTE_PRESTATE_CLAIM = Claim.wrap(keccak256(abi.encode(15)));
     /// @dev The defender.
     GamePlayer internal defender;
     /// @dev The challenger.
@@ -531,7 +514,7 @@ contract OneVsOne_Arena is FaultDisputeGame_Init {
 
     function init(GamePlayer _defender, GamePlayer _challenger) public {
         Claim rootClaim = Claim.wrap(keccak256(abi.encode(15, _defender.traceAt(15))));
-        super.init(rootClaim, ABSOLUTE_PRESTATE);
+        super.init(rootClaim, ABSOLUTE_PRESTATE_CLAIM);
         defender = _defender;
         challenger = _challenger;
 
@@ -545,7 +528,7 @@ contract OneVsOne_Arena is FaultDisputeGame_Init {
     }
 }
 
-contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot is OneVsOne_Arena {
+contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot1 is OneVsOne_Arena {
     function setUp() public override {
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new FullyDivergentPlayer(ABSOLUTE_PRESTATE);
@@ -566,7 +549,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot is OneVsOne_Arena {
     }
 }
 
-contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot is OneVsOne_Arena {
+contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot1 is OneVsOne_Arena {
     function setUp() public override {
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
         GamePlayer dishonest = new FullyDivergentPlayer(ABSOLUTE_PRESTATE);
@@ -676,8 +659,8 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot3 is OneVsOne_Arena {
 ////////////////////////////////////////////////////////////////
 
 contract HonestPlayer is GamePlayer {
-    constructor(Claim _absolutePrestate) {
-        uint8 absolutePrestate = uint8(uint256(Claim.unwrap(_absolutePrestate)));
+    constructor(bytes memory _absolutePrestate) {
+        uint8 absolutePrestate = uint8(_absolutePrestate[31]);
         bytes memory honestTrace = new bytes(16);
         for (uint8 i = 0; i < honestTrace.length; i++) {
             honestTrace[i] = bytes1(absolutePrestate + i + 1);
@@ -687,8 +670,8 @@ contract HonestPlayer is GamePlayer {
 }
 
 contract FullyDivergentPlayer is GamePlayer {
-    constructor(Claim _absolutePrestate) {
-        uint8 absolutePrestate = uint8(uint256(Claim.unwrap(_absolutePrestate)));
+    constructor(bytes memory _absolutePrestate) {
+        uint8 absolutePrestate = uint8(_absolutePrestate[31]);
         bytes memory dishonestTrace = new bytes(16);
         for (uint8 i = 0; i < dishonestTrace.length; i++) {
             // Offset the honest trace by 1.
@@ -699,8 +682,8 @@ contract FullyDivergentPlayer is GamePlayer {
 }
 
 contract HalfDivergentPlayer is GamePlayer {
-    constructor(Claim _absolutePrestate) {
-        uint8 absolutePrestate = uint8(uint256(Claim.unwrap(_absolutePrestate)));
+    constructor(bytes memory _absolutePrestate) {
+        uint8 absolutePrestate = uint8(_absolutePrestate[31]);
         bytes memory dishonestTrace = new bytes(16);
         for (uint8 i = 0; i < dishonestTrace.length; i++) {
             // Offset the trace after the first half.
@@ -711,11 +694,11 @@ contract HalfDivergentPlayer is GamePlayer {
 }
 
 contract EarlyDivergentPlayer is GamePlayer {
-    constructor(Claim _absolutePrestate) {
-        uint8 absolutePrestate = uint8(uint256(Claim.unwrap(_absolutePrestate)));
+    constructor(bytes memory _absolutePrestate) {
+        uint8 absolutePrestate = uint8(_absolutePrestate[31]);
         bytes memory dishonestTrace = new bytes(16);
         for (uint8 i = 0; i < dishonestTrace.length; i++) {
-            // Offset the trace after the first half.
+            // Offset the trace after the first 3 instructions.
             dishonestTrace[i] = i > 2 ? bytes1(i) : bytes1(absolutePrestate + i + 1);
         }
         trace = dishonestTrace;
@@ -741,10 +724,10 @@ contract AlphabetVM is IBigStepper {
     {
         uint256 traceIndex;
         uint256 claim;
-        if (_stateData.length == 0) {
+        if (keccak256(_stateData) == Claim.unwrap(ABSOLUTE_PRESTATE)) {
             // If the state data is empty, then the absolute prestate is the claim.
             traceIndex = 0;
-            claim = uint256(Claim.unwrap(ABSOLUTE_PRESTATE));
+            (claim) = abi.decode(_stateData, (uint256));
         } else {
             // Otherwise, decode the state data.
             (traceIndex, claim) = abi.decode(_stateData, (uint256, uint256));

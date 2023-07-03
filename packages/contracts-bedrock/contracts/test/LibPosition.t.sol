@@ -74,6 +74,24 @@ contract LibPosition_Test is Test {
         assertEq(parent.indexAtDepth(), _indexAtDepth / 2);
     }
 
+    /// @notice Tests that the `traceAncestor` function correctly computes the position of the
+    ///         highest ancestor that commits to the same trace index.
+    function testFuzz_traceAncestor_correctness_succeeds(uint8 _depth, uint64 _indexAtDepth)
+        public
+    {
+        _depth = uint8(bound(_depth, 1, MAX_DEPTH));
+        _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
+
+        Position position = LibPosition.wrap(_depth, _indexAtDepth);
+        Position ancestor = position.traceAncestor();
+        Position loopAncestor = position;
+        while (loopAncestor.parent().traceIndex(MAX_DEPTH) == position.traceIndex(MAX_DEPTH)) {
+            loopAncestor = loopAncestor.parent();
+        }
+
+        assertEq(Position.unwrap(ancestor), Position.unwrap(loopAncestor));
+    }
+
     /// @notice Tests that the `rightIndex` function correctly computes the deepest, right most index relative
     ///         to a given position.
     function testFuzz_rightIndex_correctness_succeeds(
