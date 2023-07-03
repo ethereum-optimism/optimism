@@ -68,7 +68,11 @@ contract OptimismMintableERC1155 is ERC1155, IOptimismMintableERC1155, Semver {
     }
 
     /// @inheritdoc IOptimismMintableERC1155
-    function mint(address _to, uint256 _id, uint256 _amount) external virtual onlyBridge {
+    function mint(
+        address _to,
+        uint256 _id,
+        uint256 _amount
+    ) external virtual onlyBridge {
         _mint(_to, _id, _amount, "");
 
         emit Mint(_to, _id, _amount);
@@ -86,7 +90,11 @@ contract OptimismMintableERC1155 is ERC1155, IOptimismMintableERC1155, Semver {
     }
 
     /// @inheritdoc IOptimismMintableERC1155
-    function burn(address _from, uint256 _id, uint256 _amount) external virtual onlyBridge {
+    function burn(
+        address _from,
+        uint256 _id,
+        uint256 _amount
+    ) external virtual onlyBridge {
         _burn(_from, _id, _amount);
 
         emit Burn(_from, _id, _amount);
@@ -106,9 +114,12 @@ contract OptimismMintableERC1155 is ERC1155, IOptimismMintableERC1155, Semver {
     /// @notice Checks if a given interface ID is supported by this contract.
     /// @param _interfaceId The interface ID to check.
     /// @return True if the interface ID is supported, false otherwise.
-    function supportsInterface(
-        bytes4 _interfaceId
-    ) public view override(ERC1155, IERC165) returns (bool) {
+    function supportsInterface(bytes4 _interfaceId)
+        public
+        view
+        override(ERC1155, IERC165)
+        returns (bool)
+    {
         bytes4 iface = type(IOptimismMintableERC1155).interfaceId;
         return _interfaceId == iface || super.supportsInterface(_interfaceId);
     }

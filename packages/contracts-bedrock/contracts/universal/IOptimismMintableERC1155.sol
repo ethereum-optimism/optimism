@@ -35,25 +35,41 @@ interface IOptimismMintableERC1155 is IERC1155 {
     /// @param _to     Address of the user to mint the token to.
     /// @param _id     Type ID of the tokens to mint.
     /// @param _amount Amount of tokens to mint.
-    function mint(address _to, uint256 _id, uint256 _amount) external;
+    function mint(
+        address _to,
+        uint256 _id,
+        uint256 _amount
+    ) external;
 
     /// @notice Batch version of mint. Mints multiple amounts of multiple token types to a user
     /// @param _to      Address of the user to mint the token to.
     /// @param _ids     Type IDs of the tokens to mint.
     /// @param _amounts Amounts of tokens to mint.
-    function mintBatch(address _to, uint256[] memory _ids, uint256[] memory _amounts) external;
+    function mintBatch(
+        address _to,
+        uint256[] memory _ids,
+        uint256[] memory _amounts
+    ) external;
 
     /// @notice Burns an amount of a token type from a user
     /// @param _from  Address of the user to burn the token from.
     /// @param _id    Type ID of the tokens to burn.
     /// @param _amount Amount of tokens to burn.
-    function burn(address _from, uint256 _id, uint256 _amount) external;
+    function burn(
+        address _from,
+        uint256 _id,
+        uint256 _amount
+    ) external;
 
     /// @notice Batch version of Burn. Burns multiple amounts of multiple token types from a user
     /// @param _from  Address of the user to burn the token from.
     /// @param _ids    Type IDs of the tokens to burn.
     /// @param _amounts Amounts of tokens to burn.
-    function burnBatch(address _from, uint256[] memory _ids, uint256[] memory _amounts) external;
+    function burnBatch(
+        address _from,
+        uint256[] memory _ids,
+        uint256[] memory _amounts
+    ) external;
 
     /// @notice Chain ID of the chain where the remote token is deployed.
     function REMOTE_CHAIN_ID() external view returns (uint256);

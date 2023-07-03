@@ -85,15 +85,15 @@ abstract contract ERC1155Bridge {
         return OTHER_BRIDGE;
     }
 
-    /// @notice Initiates a bridge of an ERC1155 to the caller's account on the other chain. Note that
-    ///         this function can only be called by EOAs. Smart contract wallets should use the
+    /// @notice Initiates a bridge of an ERC1155 to the caller's account on the other chain. Note
+    ///         that this function can only be called by EOAs. Smart contract wallets should use the
     ///         `bridgeERC1155To` function after ensuring that the recipient address on the remote
     ///         chain exists. Also note that the current owner of the tokens on this chain must
     ///         approve this contract to operate the tokens before it can be bridged.
     ///         **WARNING**: Do not bridge an ERC1155 that was originally deployed on Optimism. This
     ///         bridge only supports ERC1155s originally deployed on Ethereum. Users will need to
-    ///         wait for the one-week challenge period to elapse before their Optimism-native ERC1155
-    ///         can be refunded on L2.
+    ///         wait for the one-week challenge period to elapse before their Optimism-native
+    ///         ERC1155 can be refunded on L2.
     /// @param _localToken  Address of the ERC1155 on this domain.
     /// @param _remoteToken Address of the ERC1155 on the remote domain.
     /// @param _id          Type ID of the token to bridge.
@@ -113,9 +113,9 @@ abstract contract ERC1155Bridge {
         // Modifier requiring sender to be EOA. This prevents against a user error that would occur
         // if the sender is a smart contract wallet that has a different address on the remote chain
         // (or doesn't have an address on the remote chain at all). The user would fail to receive
-        // the tokens if they use this function because it sends the tokens to the same address as the
-        // caller. This check could be bypassed by a malicious contract via initcode, but it takes
-        // care of the user error we want to avoid.
+        // the tokens if they use this function because it sends the tokens to the same address as
+        // the caller. This check could be bypassed by a malicious contract via initcode, but it
+        // takes care of the user error we want to avoid.
         require(!Address.isContract(msg.sender), "ERC1155Bridge: account is not externally owned");
 
         _initiateBridgeERC1155(
@@ -130,9 +130,9 @@ abstract contract ERC1155Bridge {
         );
     }
 
-    /// @notice Initiates a bridge of an ERC1155 to some recipient's account on the other chain. Note
-    ///         that the current owner of the tokens on this chain must approve this contract to
-    ///         operate the tokens before it can be bridged.
+    /// @notice Initiates a bridge of an ERC1155 to some recipient's account on the other chain.
+    ///         Note that the current owner of the tokens on this chain must approve this contract
+    ///         to operate the tokens before it can be bridged.
     ///         **WARNING**: Do not bridge an ERC1155 that was originally deployed on Optimism. This
     ///         bridge only supports ERC1155s originally deployed on Ethereum. Users will need to
     ///         wait for the one-week challenge period to elapse before their Optimism-native tokens

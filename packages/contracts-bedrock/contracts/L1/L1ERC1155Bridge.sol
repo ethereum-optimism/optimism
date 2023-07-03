@@ -12,21 +12,21 @@ import { Semver } from "../universal/Semver.sol";
 ///         make it possible to transfer ERC1155 tokens from Ethereum to Optimism. This contract
 ///         acts as an escrow for ERC1155 tokens deposited into L2.
 contract L1ERC1155Bridge is ERC1155Bridge, ERC1155Holder, Semver {
-    /// @notice Mapping of L1 token to L2 token to type ID to deposits, indicating the amount of L1 tokens
-    ///         by type ID deposited for L2 tokens.
+    /// @notice Mapping of L1 token to L2 token to type ID to deposits, indicating the amount of
+    ///         L1 tokens by type ID deposited for L2 tokens.
     mapping(address => mapping(address => mapping(uint256 => uint256))) public deposits;
 
     /// @custom:semver 1.0.0
     /// @notice Constructs the L1ERC1155Bridge contract.
     /// @param _messenger   Address of the CrossDomainMessenger on this network.
     /// @param _otherBridge Address of the ERC1155 bridge on the other network.
-    constructor(
-        address _messenger,
-        address _otherBridge
-    ) Semver(1, 0, 0) ERC1155Bridge(_messenger, _otherBridge) {}
+    constructor(address _messenger, address _otherBridge)
+        Semver(1, 0, 0)
+        ERC1155Bridge(_messenger, _otherBridge)
+    {}
 
-    /// @notice Completes an ERC1155 bridge from the other domain and sends the ERC1155 tokens to the
-    ///         recipient on this domain.
+    /// @notice Completes an ERC1155 bridge from the other domain and sends the ERC1155 tokens to
+    ///         the recipient on this domain.
     /// @param _localToken  Address of the ERC1155 token on this domain.
     /// @param _remoteToken Address of the ERC1155 token on the other domain.
     /// @param _from        Address that triggered the bridge on the other domain.

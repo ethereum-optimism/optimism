@@ -21,10 +21,10 @@ contract L2ERC1155Bridge is ERC1155Bridge, Semver {
     /// @notice Constructs the L2ERC1155Bridge contract.
     /// @param _messenger   Address of the CrossDomainMessenger on this network.
     /// @param _otherBridge Address of the ERC1155 bridge on the other network.
-    constructor(
-        address _messenger,
-        address _otherBridge
-    ) Semver(1, 0, 0) ERC1155Bridge(_messenger, _otherBridge) {}
+    constructor(address _messenger, address _otherBridge)
+        Semver(1, 0, 0)
+        ERC1155Bridge(_messenger, _otherBridge)
+    {}
 
     /// @notice Completes an ERC1155 bridge from the other domain and sends the ERC1155 token to the
     ///         recipient on this domain.
@@ -99,7 +99,8 @@ contract L2ERC1155Bridge is ERC1155Bridge, Semver {
             "L2ERC1155Bridge: remote token does not match given value"
         );
 
-        // When a withdrawal is initiated, we burn the amount of the type ID to prevent subsequent L2 usage
+        // When a withdrawal is initiated, we burn the amount of the type ID to prevent subsequent
+        // L2 usage
         // slither-disable-next-line reentrancy-events
         IOptimismMintableERC1155(_localToken).burn(_from, _id, _amount);
 
