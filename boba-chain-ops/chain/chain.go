@@ -49,6 +49,19 @@ var (
 	// Mainnet L1 BOBA Address
 	BobaTokenMainnetL1Address = "0x42bBFa2e77757C645eeaAd1655E0911a7553Efbc"
 
+	// Bobaopera
+	BobaoperaChainId = big.NewInt(301)
+	// Bobaopera genesis gas limit
+	BobaoperaGenesisGasLimit = 11000000
+	// Bobaopera genesis block coinbase
+	BobaoperaGenesisCoinbase = "0x0000000000000000000000000000000000000000"
+	// Bobaopera genesis block extra data
+	BobaoperaGenesisExtraData = "000000000000000000000000000000000000000000000000000000000000000000000398232e2064f896018496b4b44b3d62751f0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+	// Bobaopera genesis root
+	BobaoperaGenesisRoot = "0xd055a97184267cd223d625c86dc0263f49ce25d5b3018b763030d4e27679c163"
+	// Bobaopera genesis block hash
+	BobaoperaGenesisBlockHash = "0xbade701e9bfd25da39cede73d1bed919a7a4856c74d122944d9639c4cfeb8bdf"
+
 	// error
 	ErrInvalidChainID = errors.New("invalid chain id")
 )
@@ -64,6 +77,10 @@ func IsBobaValidChainId(chainId *big.Int) bool {
 	}
 	// Mainnet
 	if BobaMainnetChainId.Cmp(chainId) == 0 {
+		return true
+	}
+	// Bobaopera
+	if BobaoperaChainId.Cmp(chainId) == 0 {
 		return true
 	}
 	return false
@@ -82,6 +99,10 @@ func GetBobaGenesisGasLimit(chainId *big.Int) int {
 	if BobaMainnetChainId.Cmp(chainId) == 0 {
 		return BobaMainnetGenesisGasLimit
 	}
+	// Bobaopera
+	if BobaoperaChainId.Cmp(chainId) == 0 {
+		return BobaoperaGenesisGasLimit
+	}
 	return 11000000
 }
 
@@ -97,6 +118,10 @@ func GetBobaGenesisCoinbase(chainId *big.Int) string {
 	// Mainnet
 	if BobaMainnetChainId.Cmp(chainId) == 0 {
 		return BobaMainnetGenesisCoinbase
+	}
+	// Bobaopera
+	if BobaoperaChainId.Cmp(chainId) == 0 {
+		return BobaoperaGenesisCoinbase
 	}
 	return "0x0000000000000000000000000000000000000000"
 }
@@ -114,6 +139,10 @@ func GetBobaGenesisExtraData(chainId *big.Int) string {
 	if BobaMainnetChainId.Cmp(chainId) == 0 {
 		return BobaMainnetGenesisExtraData
 	}
+	// Bobaopera
+	if BobaoperaChainId.Cmp(chainId) == 0 {
+		return BobaoperaGenesisExtraData
+	}
 	return ""
 }
 
@@ -129,6 +158,10 @@ func GetBobaGenesisRoot(chainId *big.Int) string {
 	// Mainnet
 	if BobaMainnetChainId.Cmp(chainId) == 0 {
 		return BobaMainnetGenesisRoot
+	}
+	// Bobaopera
+	if BobaoperaChainId.Cmp(chainId) == 0 {
+		return BobaoperaGenesisRoot
 	}
 	return ""
 }
@@ -146,6 +179,10 @@ func GetBobaGenesisHash(chainId *big.Int) string {
 	if BobaMainnetChainId.Cmp(chainId) == 0 {
 		return BobaMainnetGenesisBlockHash
 	}
+	// Bobaopera
+	if BobaoperaChainId.Cmp(chainId) == 0 {
+		return BobaoperaGenesisBlockHash
+	}
 	return ""
 }
 
@@ -161,6 +198,10 @@ func GetBobaTokenL1Address(chainId *big.Int) string {
 	// Mainnet
 	if BobaMainnetChainId.Cmp(chainId) == 0 {
 		return BobaTokenMainnetL1Address
+	}
+	// Bobaopera
+	if BobaoperaChainId.Cmp(chainId) == 0 {
+		return ""
 	}
 	return "0x0000000000000000000000000000000000000000"
 }
