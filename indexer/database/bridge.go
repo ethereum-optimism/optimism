@@ -2,6 +2,7 @@ package database
 
 import (
 	"errors"
+	"math/big"
 
 	"gorm.io/gorm"
 
@@ -30,7 +31,16 @@ type TokenPair struct {
 
 type Deposit struct {
 	GUID                 uuid.UUID `gorm:"primaryKey"`
-	InitiatedL1EventGUID string
+	InitiatedL1EventGUID uuid.UUID
+	FinalizedL2EventGUID uuid.UUID `gorm:"default:null"`
+
+	// Since we're only currently indexing a single StandardBridge,
+	// the message nonce serves as a unique identifier for this
+	// deposit. Once this generalizes to more than 1 deployed
+	// bridge, we need to include the `CrossDomainMessenger` address
+	// such that the (messenger_addr, nonce) is the unique identifer
+	// for a bridge msg
+	SentMessageNonce U256
 
 	Tx        Transaction `gorm:"embedded"`
 	TokenPair TokenPair   `gorm:"embedded"`
@@ -43,11 +53,19 @@ type DepositWithTransactionHash struct {
 
 type Withdrawal struct {
 	GUID                 uuid.UUID `gorm:"primaryKey"`
-	InitiatedL2EventGUID string
+	InitiatedL2EventGUID uuid.UUID
+
+	// Since we're only currently indexing a single StandardBridge,
+	// the message nonce serves as a unique identifier for this
+	// withdrawal. Once this generalizes to more than 1 deployed
+	// bridge, we need to include the `CrossDomainMessenger` address
+	// such that the (messenger_addr, nonce) is the unique identifer
+	// for a bridge msg
+	SentMessageNonce U256
 
 	WithdrawalHash       common.Hash `gorm:"serializer:json"`
-	ProvenL1EventGUID    *string
-	FinalizedL1EventGUID *string
+	ProvenL1EventGUID    uuid.UUID   `gorm:"default:null"`
+	FinalizedL1EventGUID uuid.UUID   `gorm:"default:null"`
 
 	Tx        Transaction `gorm:"embedded"`
 	TokenPair TokenPair   `gorm:"embedded"`
@@ -63,16 +81,23 @@ type WithdrawalWithTransactionHashes struct {
 
 type BridgeView interface {
 	DepositsByAddress(address common.Address) ([]*DepositWithTransactionHash, error)
+	DepositByMessageNonce(*big.Int) (*Deposit, error)
+	LatestDepositMessageNonce() (*big.Int, error)
+
 	WithdrawalsByAddress(address common.Address) ([]*WithdrawalWithTransactionHashes, error)
+	WithdrawalByMessageNonce(*big.Int) (*Withdrawal, error)
+	LatestWithdrawalMessageNonce() (*big.Int, error)
 }
 
 type BridgeDB interface {
 	BridgeView
 
 	StoreDeposits([]*Deposit) error
+	MarkFinalizedDepositEvent(uuid.UUID, uuid.UUID) error
+
 	StoreWithdrawals([]*Withdrawal) error
-	MarkProvenWithdrawalEvent(string, string) error
-	MarkFinalizedWithdrawalEvent(string, string) error
+	MarkProvenWithdrawalEvent(uuid.UUID, uuid.UUID) error
+	MarkFinalizedWithdrawalEvent(uuid.UUID, uuid.UUID) error
 }
 
 /**
@@ -114,6 +139,46 @@ func (db *bridgeDB) DepositsByAddress(address common.Address) ([]*DepositWithTra
 	return deposits, nil
 }
 
+func (db *bridgeDB) DepositByMessageNonce(nonce *big.Int) (*Deposit, error) {
+	var deposit Deposit
+	result := db.gorm.First(&deposit, "sent_message_nonce = ?", U256{Int: nonce})
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return &deposit, nil
+}
+
+func (db *bridgeDB) LatestDepositMessageNonce() (*big.Int, error) {
+	var deposit Deposit
+	result := db.gorm.Order("sent_message_nonce DESC").Take(&deposit)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return deposit.SentMessageNonce.Int, nil
+}
+
+func (db *bridgeDB) MarkFinalizedDepositEvent(guid, finalizationEventGUID uuid.UUID) error {
+	var deposit Deposit
+	result := db.gorm.First(&deposit, "guid = ?", guid)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	deposit.FinalizedL2EventGUID = finalizationEventGUID
+	result = db.gorm.Save(&deposit)
+	return result.Error
+}
+
 // Withdrawals
 
 func (db *bridgeDB) StoreWithdrawals(withdrawals []*Withdrawal) error {
@@ -121,26 +186,26 @@ func (db *bridgeDB) StoreWithdrawals(withdrawals []*Withdrawal) error {
 	return result.Error
 }
 
-func (db *bridgeDB) MarkProvenWithdrawalEvent(guid, provenL1EventGuid string) error {
+func (db *bridgeDB) MarkProvenWithdrawalEvent(guid, provenL1EventGuid uuid.UUID) error {
 	var withdrawal Withdrawal
 	result := db.gorm.First(&withdrawal, "guid = ?", guid)
 	if result.Error != nil {
 		return result.Error
 	}
 
-	withdrawal.ProvenL1EventGUID = &provenL1EventGuid
+	withdrawal.ProvenL1EventGUID = provenL1EventGuid
 	result = db.gorm.Save(&withdrawal)
 	return result.Error
 }
 
-func (db *bridgeDB) MarkFinalizedWithdrawalEvent(guid, finalizedL1EventGuid string) error {
+func (db *bridgeDB) MarkFinalizedWithdrawalEvent(guid, finalizedL1EventGuid uuid.UUID) error {
 	var withdrawal Withdrawal
 	result := db.gorm.First(&withdrawal, "guid = ?", guid)
 	if result.Error != nil {
 		return result.Error
 	}
 
-	withdrawal.FinalizedL1EventGUID = &finalizedL1EventGuid
+	withdrawal.FinalizedL1EventGUID = finalizedL1EventGuid
 	result = db.gorm.Save(&withdrawal)
 	return result.Error
 }
@@ -166,4 +231,32 @@ func (db *bridgeDB) WithdrawalsByAddress(address common.Address) ([]*WithdrawalW
 	}
 
 	return withdrawals, nil
+}
+
+func (db *bridgeDB) WithdrawalByMessageNonce(nonce *big.Int) (*Withdrawal, error) {
+	var withdrawal Withdrawal
+	result := db.gorm.First(&withdrawal, "sent_message_nonce = ?", U256{Int: nonce})
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return &withdrawal, nil
+}
+
+func (db *bridgeDB) LatestWithdrawalMessageNonce() (*big.Int, error) {
+	var withdrawal Withdrawal
+	result := db.gorm.Order("sent_message_nonce DESC").Take(&withdrawal)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return withdrawal.SentMessageNonce.Int, nil
 }
