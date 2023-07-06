@@ -14,6 +14,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -193,13 +194,6 @@ func l2BridgeProcessContractEvents(
 		return err
 	}
 
-	type BridgeData struct {
-		From      common.Address
-		To        common.Address
-		Amount    *big.Int
-		ExtraData []byte
-	}
-
 	numFinalizedDeposits := 0
 	ethBridgeFinalizedEventSig := l2StandardBridgeABI.Events["ETHBridgeFinalized"].ID
 	relayedMessageEventSig := l2CrossDomainMessengerABI.Events["RelayedMessage"].ID
@@ -215,8 +209,8 @@ func l2BridgeProcessContractEvents(
 				return errors.New("unexpected bridge event ordering")
 			}
 
-			// unfortunately there's no way to extract the nonce on the relayed message event. we can
-			// extract the nonce by unpacking the transaction input for the `relayMessage` transaction
+			// There's no way to extract the nonce on the relayed message event. we can extract
+			// the nonce by unpacking the transaction input for the `relayMessage` transaction
 			tx, isPending, err := rawEthClient.TransactionByHash(context.Background(), relayedMsgLog.TxHash)
 			if err != nil || isPending {
 				processLog.Crit("CrossDomainMessager#relayeMessage transaction query err or found pending", err, "err", "isPending", isPending)
@@ -224,15 +218,13 @@ func l2BridgeProcessContractEvents(
 			}
 
 			txData := tx.Data()
-			fnSelector := txData[:4]
-			if !bytes.Equal(fnSelector, relayMessageMethod.ID) {
+			if !bytes.Equal(txData[:4], relayMessageMethod.ID) {
 				processLog.Crit("expected relayMessage function selector")
 				return errors.New("RelayMessage log does not match relayMessage transaction")
 			}
 
-			fnData := txData[4:]
 			inputsMap := make(map[string]interface{})
-			err = relayMessageMethod.Inputs.UnpackIntoMap(inputsMap, fnData)
+			err = relayMessageMethod.Inputs.UnpackIntoMap(inputsMap, txData[4:])
 			if err != nil {
 				processLog.Crit("unable to unpack CrossDomainMessenger#relayMessage function data", "err", err)
 				return err
@@ -255,12 +247,13 @@ func l2BridgeProcessContractEvents(
 					return err
 				}
 
-				// check if the the L1Processor is behind or really has missed an event
+				// Check if the L1Processor is behind or really has missed an event. Since the decimal representation
+				// of the nonce will be large (first two bytes indicate the version), we log the nonce as needed in hex format
 				if latestNonce == nil || nonce.Cmp(latestNonce) > 0 {
-					processLog.Warn("behind on indexed L1 deposits", "deposit_message_nonce", nonce, "latest_deposit_message_nonce", latestNonce)
+					processLog.Warn("behind on indexed L1 deposits", "deposit_message_nonce", hexutil.EncodeBig(nonce), "latest_deposit_message_nonce", hexutil.EncodeBig(latestNonce))
 					return errors.New("waiting for L1Processor to catch up")
 				} else {
-					processLog.Crit("missing indexed deposit for this finalization event", "deposit_message_nonce", nonce, "tx_hash", log.TxHash, "log_index", log.Index)
+					processLog.Crit("missing indexed deposit for this finalization event", "deposit_message_nonce", hexutil.EncodeBig(nonce), "tx_hash", log.TxHash, "log_index", log.Index)
 					return errors.New("missing deposit message")
 				}
 			}

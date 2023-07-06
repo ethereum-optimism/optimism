@@ -156,6 +156,7 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 			contractEvent := &database.L1ContractEvent{ContractEvent: database.ContractEventFromLog(&log, header.Time)}
 
 			l1ContractEvents[i] = contractEvent
+			l1ContractEventLogs[contractEvent.GUID] = &logs[i]
 			l1HeadersOfInterest[log.BlockHash] = true
 
 			// Track Checkpoint Events for L2
@@ -273,20 +274,6 @@ func l1BridgeProcessContractEvents(
 		return err
 	}
 
-	type MessageData struct {
-		Sender       common.Address
-		Message      []byte
-		MessageNonce *big.Int
-		GasLimit     *big.Int
-	}
-
-	type BridgeData struct {
-		From      common.Address
-		To        common.Address
-		Amount    *big.Int
-		ExtraData []byte
-	}
-
 	l1StandardBridgeDeposits := []*database.Deposit{}
 	ethBridgeInitiatedEventSig := l1StandardBridgeABI.Events["ETHBridgeInitiated"].ID
 	sentMessageEventSig := l1CrossDomainMessengerABI.Events["SentMessage"].ID
@@ -295,14 +282,14 @@ func l1BridgeProcessContractEvents(
 		log := eventLogs[contractEvent.GUID]
 		if eventSig == ethBridgeInitiatedEventSig {
 			// (1) Deconstruct the bridge event
-			var bridgeData BridgeData
+			var bridgeData bindings.L1StandardBridgeETHBridgeInitiated
 			err = l1StandardBridgeABI.UnpackIntoInterface(&bridgeData, "ETHBridgeInitiated", log.Data)
 			if err != nil || len(log.Topics) != 3 {
 				processLog.Crit("unexpected ETHDepositInitiated log format", "tx", log.TxHash, "err", err)
 				return err
 			}
 
-			// from/to are indexed event fields (not present in the log data)
+			// from/to must be retrieved from log topics
 			bridgeData.From = common.BytesToAddress(log.Topics[1].Bytes())
 			bridgeData.To = common.BytesToAddress(log.Topics[2].Bytes())
 
@@ -320,13 +307,13 @@ func l1BridgeProcessContractEvents(
 				return err
 			}
 
-			var sentMsgData MessageData
-			err = l1CrossDomainMessengerABI.UnpackIntoInterface(&sentMsgData, "SentMessage", sentMsgLog.Data)
+			var sentMsg bindings.L1CrossDomainMessengerSentMessage
+			err = l1CrossDomainMessengerABI.UnpackIntoInterface(&sentMsg, "SentMessage", sentMsgLog.Data)
 			if err != nil {
 				processLog.Crit("unexpected SentMessage log format", "tx", log.TxHash, "err", err)
 				return err
-			} else if !bytes.Equal(sentMsgData.Message, expectedMsg) {
-				processLog.Crit("SentMessage message mismatch", "expected_bridge_msg", hex.EncodeToString(expectedMsg), "event_msg", hex.EncodeToString(sentMsgData.Message))
+			} else if !bytes.Equal(sentMsg.Message, expectedMsg) {
+				processLog.Crit("SentMessage message mismatch", "expected_bridge_msg", hex.EncodeToString(expectedMsg), "event_msg", hex.EncodeToString(sentMsg.Message))
 				return errors.New("bridge message mismatch")
 			}
 
@@ -334,7 +321,7 @@ func l1BridgeProcessContractEvents(
 			l1StandardBridgeDeposits = append(l1StandardBridgeDeposits, &database.Deposit{
 				GUID:                 uuid.New(),
 				InitiatedL1EventGUID: contractEvent.GUID,
-				SentMessageNonce:     database.U256{Int: sentMsgData.MessageNonce},
+				SentMessageNonce:     database.U256{Int: sentMsg.MessageNonce},
 				TokenPair:            database.TokenPair{L1TokenAddress: ethAddress, L2TokenAddress: ethAddress},
 				Tx: database.Transaction{
 					FromAddress: common.BytesToAddress(log.Topics[1].Bytes()),
