@@ -140,6 +140,8 @@ type TxCandidate struct {
 	To *common.Address
 	// GasLimit is the gas limit to be used in the constructed tx.
 	GasLimit uint64
+	// Value is the value to be used in the constructed tx.
+	Value *big.Int
 }
 
 // Send is used to publish a transaction with incrementally higher gas prices
@@ -214,6 +216,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 		GasTipCap: gasTipCap,
 		GasFeeCap: gasFeeCap,
 		Data:      candidate.TxData,
+		Value:     candidate.Value,
 	}
 
 	m.l.Info("Creating tx", "to", rawTx.To, "from", m.cfg.From)
@@ -229,6 +232,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 			GasFeeCap: gasFeeCap,
 			GasTipCap: gasTipCap,
 			Data:      rawTx.Data,
+			Value:     rawTx.Value,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to estimate gas: %w", err)
