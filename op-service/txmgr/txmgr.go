@@ -112,7 +112,14 @@ func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLI
 	if err != nil {
 		return nil, err
 	}
+	return NewSimpleTxManagerFromConfig(name, l, m, conf)
+}
 
+// NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
+func NewSimpleTxManagerFromConfig(name string, l log.Logger, m metrics.TxMetricer, conf Config) (*SimpleTxManager, error) {
+	if err := conf.Check(); err != nil {
+		return nil, fmt.Errorf("invalid config: %w", err)
+	}
 	return &SimpleTxManager{
 		chainID: conf.ChainID,
 		name:    name,

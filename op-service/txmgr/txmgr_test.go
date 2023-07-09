@@ -603,12 +603,21 @@ func TestWaitMinedMultipleConfs(t *testing.T) {
 	require.Equal(t, txHash, receipt.TxHash)
 }
 
+// TestManagerErrsOnZeroCLIConfs ensures that the NewSimpleTxManager will error
+// when attempting to configure with NumConfirmations set to zero.
+func TestManagerErrsOnZeroCLIConfs(t *testing.T) {
+	t.Parallel()
+
+	_, err := NewSimpleTxManager("TEST", testlog.Logger(t, log.LvlCrit), &metrics.NoopTxMetrics{}, CLIConfig{})
+	require.Error(t, err)
+}
+
 // TestManagerErrsOnZeroConfs ensures that the NewSimpleTxManager will error
 // when attempting to configure with NumConfirmations set to zero.
 func TestManagerErrsOnZeroConfs(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewSimpleTxManager("TEST", testlog.Logger(t, log.LvlCrit), &metrics.NoopTxMetrics{}, CLIConfig{})
+	_, err := NewSimpleTxManagerFromConfig("TEST", testlog.Logger(t, log.LvlCrit), &metrics.NoopTxMetrics{}, Config{})
 	require.Error(t, err)
 }
 
