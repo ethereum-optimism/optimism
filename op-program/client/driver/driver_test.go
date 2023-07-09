@@ -23,7 +23,7 @@ func TestDerivationComplete(t *testing.T) {
 func TestTemporaryError(t *testing.T) {
 	driver := createDriver(t, fmt.Errorf("whoopsie: %w", derive.ErrTemporary))
 	err := driver.Step(context.Background())
-	require.ErrorIs(t, err, derive.ErrTemporary)
+	require.NoError(t, err, "should allow derivation to continue after temporary error")
 }
 
 func TestNotEnoughDataError(t *testing.T) {
