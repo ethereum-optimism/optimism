@@ -7,10 +7,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/google/uuid"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -168,6 +169,56 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 func l2BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethClient node.EthClient, events *ProcessedContractEvents) error {
 	rawEthClient := ethclient.NewClient(ethClient.RawRpcClient())
 
+	l2ToL1MessagePasserABI, err := bindings.L2ToL1MessagePasserMetaData.GetAbi()
+	if err != nil {
+		return err
+	}
+
+	messagePassedEventAbi := l2ToL1MessagePasserABI.Events["MessagePassed"]
+
+	// Process New Withdrawals
+	initiatedWithdrawalEvents, err := StandardBridgeInitiatedEvents(events)
+	if err != nil {
+		return err
+	}
+
+	withdrawals := make([]*database.Withdrawal, len(initiatedWithdrawalEvents))
+	for i, initiatedBridgeEvent := range initiatedWithdrawalEvents {
+		log := events.eventLog[initiatedBridgeEvent.RawEvent.GUID]
+
+		// extract the withdrawal hash from the MessagePassed event
+		var msgPassedData bindings.L2ToL1MessagePasserMessagePassed
+		msgPassedLog := events.eventLog[events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 1}].GUID]
+		err := UnpackLog(&msgPassedData, msgPassedLog, messagePassedEventAbi.Name, l2ToL1MessagePasserABI)
+		if err != nil {
+			return err
+		}
+
+		withdrawals[i] = &database.Withdrawal{
+			GUID:                 uuid.New(),
+			InitiatedL2EventGUID: initiatedBridgeEvent.RawEvent.GUID,
+			SentMessageNonce:     database.U256{Int: initiatedBridgeEvent.CrossDomainMessengerNonce},
+			WithdrawalHash:       msgPassedData.WithdrawalHash,
+			TokenPair:            database.TokenPair{L1TokenAddress: initiatedBridgeEvent.LocalToken, L2TokenAddress: initiatedBridgeEvent.RemoteToken},
+			Tx: database.Transaction{
+				FromAddress: initiatedBridgeEvent.From,
+				ToAddress:   initiatedBridgeEvent.To,
+				Amount:      database.U256{Int: initiatedBridgeEvent.Amount},
+				Data:        initiatedBridgeEvent.ExtraData,
+				Timestamp:   initiatedBridgeEvent.RawEvent.Timestamp,
+			},
+		}
+	}
+
+	if len(withdrawals) > 0 {
+		processLog.Info("detected L2StandardBridge withdrawals", "num", len(withdrawals))
+		err := db.Bridge.StoreWithdrawals(withdrawals)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Finalize Deposits
 	finalizationBridgeEvents, err := StandardBridgeFinalizedEvents(rawEthClient, events)
 	if err != nil {
 		return err
@@ -186,14 +237,12 @@ func l2BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethCl
 				return err
 			}
 
-			// Check if the L1Processor is behind or really has missed an event. Since the decimal representation
-			// of the nonce will be large (first two bytes indicate the version), we log the nonce as needed in hex format
+			// Check if the L1Processor is behind or really has missed an event
 			if latestNonce == nil || nonce.Cmp(latestNonce) > 0 {
-				processLog.Warn("behind on indexed L1 deposits", "deposit_message_nonce", hexutil.EncodeBig(nonce), "latest_deposit_message_nonce", hexutil.EncodeBig(latestNonce))
+				processLog.Warn("behind on indexed L1 deposits")
 				return errors.New("waiting for L1Processor to catch up")
 			} else {
-				log := events.eventLog[finalizedBridgeEvent.RawEvent.GUID]
-				processLog.Crit("missing indexed deposit for this finalization event", "deposit_cross_domain_message_nonce", hexutil.EncodeBig(nonce), "tx_hash", log.TxHash)
+				processLog.Crit("missing indexed deposit for this finalization event")
 				return errors.New("missing deposit message")
 			}
 		}
@@ -205,9 +254,8 @@ func l2BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethCl
 		}
 	}
 
-	numFinalizedDeposits := len(finalizationBridgeEvents)
-	if numFinalizedDeposits > 0 {
-		processLog.Info("finalized L1StandardBridge deposits", "size", numFinalizedDeposits)
+	if len(finalizationBridgeEvents) > 0 {
+		processLog.Info("finalized L1StandardBridge deposits", "size", len(finalizationBridgeEvents))
 	}
 
 	// a-ok

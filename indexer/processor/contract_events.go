@@ -13,10 +13,15 @@ import (
 	"github.com/google/uuid"
 )
 
+type ProcessedContractEventLogIndexKey struct {
+	header common.Hash
+	index  uint
+}
+
 type ProcessedContractEvents struct {
 	events            []*database.ContractEvent
 	eventsBySignature map[common.Hash][]*database.ContractEvent
-	eventByLogIndex   map[uint]*database.ContractEvent
+	eventByLogIndex   map[ProcessedContractEventLogIndexKey]*database.ContractEvent
 	eventLog          map[uuid.UUID]*types.Log
 }
 
@@ -24,7 +29,7 @@ func NewProcessedContractEvents() *ProcessedContractEvents {
 	return &ProcessedContractEvents{
 		events:            []*database.ContractEvent{},
 		eventsBySignature: make(map[common.Hash][]*database.ContractEvent),
-		eventByLogIndex:   make(map[uint]*database.ContractEvent),
+		eventByLogIndex:   make(map[ProcessedContractEventLogIndexKey]*database.ContractEvent),
 		eventLog:          make(map[uuid.UUID]*types.Log),
 	}
 }
@@ -34,13 +39,13 @@ func (p *ProcessedContractEvents) AddLog(log *types.Log, time uint64) *database.
 
 	p.events = append(p.events, &contractEvent)
 	p.eventsBySignature[contractEvent.EventSignature] = append(p.eventsBySignature[contractEvent.EventSignature], &contractEvent)
-	p.eventByLogIndex[log.Index] = &contractEvent
+	p.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index}] = &contractEvent
 	p.eventLog[contractEvent.GUID] = log
 
 	return &contractEvent
 }
 
-func DecodeFromProcessedEvents[ABI any](p *ProcessedContractEvents, name string, contractAbi *abi.ABI) ([]*ABI, error) {
+func DecodeFromProcessedContractEvents[ABI any](p *ProcessedContractEvents, name string, contractAbi *abi.ABI) ([]*ABI, error) {
 	eventAbi, ok := contractAbi.Events[name]
 	if !ok {
 		return nil, errors.New(fmt.Sprintf("event %s not present in supplied ABI", name))
@@ -85,7 +90,7 @@ func UnpackLog(out interface{}, log *types.Log, name string, contractAbi *abi.AB
 	} else if len(log.Topics) == 0 {
 		return errors.New("anonymous events are not supported")
 	} else if log.Topics[0] != eventAbi.ID {
-		return errors.New("event signature mismatch not present in supplied ABI")
+		return errors.New("event signature mismatch")
 	}
 
 	err := contractAbi.UnpackIntoInterface(out, name, log.Data)
