@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS l2_block_headers (
 	hash                     VARCHAR NOT NULL PRIMARY KEY,
 	parent_hash              VARCHAR NOT NULL,
 	number                   UINT256,
-	timestamp                INTEGER NOT NULL CHECK (timestamp > 0),
+	timestamp                INTEGER NOT NULL CHECK (timestamp > 0)
 );
 
 /** 
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS deposits (
 
     -- Event causing the deposit
     initiated_l1_event_guid VARCHAR NOT NULL REFERENCES l1_contract_events(guid),
-    sent_message_nonce      UINT256 NOT NULL UNIQUE,
+    sent_message_nonce      UINT256 UNIQUE,
 
     -- Finalization marker for the deposit
     finalized_l2_event_guid VARCHAR REFERENCES l2_contract_events(guid),
@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 
     -- Event causing this withdrawal
     initiated_l2_event_guid VARCHAR NOT NULL REFERENCES l2_contract_events(guid),
-    sent_message_nonce      UINT256 NOT NULL UNIQUE,
+    sent_message_nonce      UINT256 UNIQUE,
 
     -- Multistep (bedrock) process of a withdrawal
     withdrawal_hash      VARCHAR NOT NULL,

@@ -52,8 +52,9 @@ type LegacyStateBatch struct {
 }
 
 type OutputProposal struct {
-	OutputRoot          common.Hash `gorm:"primaryKey;serializer:json"`
-	L2BlockNumber       U256
+	OutputRoot    common.Hash `gorm:"primaryKey;serializer:json"`
+	L2BlockNumber U256
+
 	L1ContractEventGUID uuid.UUID
 }
 

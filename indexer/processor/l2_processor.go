@@ -1,16 +1,12 @@
 package processor
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"math/big"
 	"reflect"
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/google/uuid"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -128,11 +124,8 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 			return err
 		}
 
-		numLogs := len(logs)
-		logsByIndex := make(map[uint]*types.Log, numLogs)
-
-		l2ContractEvents := make([]*database.L2ContractEvent, numLogs)
-		l2ContractEventLogs := make(map[uuid.UUID]*types.Log)
+		l2ContractEvents := make([]*database.L2ContractEvent, len(logs))
+		processedContractEvents := NewProcessedContractEvents()
 		for i, log := range logs {
 			header, ok := l2HeaderMap[log.BlockHash]
 			if !ok {
@@ -140,11 +133,8 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 				return errors.New("parsed log with a block hash not in this batch")
 			}
 
-			logsByIndex[log.Index] = &logs[i]
-			contractEvent := &database.L2ContractEvent{ContractEvent: database.ContractEventFromLog(&log, header.Time)}
-
-			l2ContractEvents[i] = contractEvent
-			l2ContractEventLogs[contractEvent.GUID] = &logs[i]
+			contractEvent := processedContractEvents.AddLog(&logs[i], header.Time)
+			l2ContractEvents[i] = &database.L2ContractEvent{ContractEvent: *contractEvent}
 		}
 
 		/** Update Database **/
@@ -155,6 +145,7 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 			return err
 		}
 
+		numLogs := len(l2ContractEvents)
 		if numLogs > 0 {
 			processLog.Info("detected contract logs", "size", numLogs)
 			err = db.ContractEvents.StoreL2ContractEvents(l2ContractEvents)
@@ -163,7 +154,7 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 			}
 
 			// forward along contract events to the bridge processor
-			err = l2BridgeProcessContractEvents(processLog, db, ethClient, l2ContractEvents, l2ContractEventLogs, logsByIndex)
+			err = l2BridgeProcessContractEvents(processLog, db, ethClient, processedContractEvents)
 			if err != nil {
 				return err
 			}
@@ -174,104 +165,51 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 	}
 }
 
-func l2BridgeProcessContractEvents(
-	processLog log.Logger,
-	db *database.DB,
-	ethClient node.EthClient,
-	events []*database.L2ContractEvent,
-	eventLogs map[uuid.UUID]*types.Log,
-	logsByIndex map[uint]*types.Log,
-) error {
+func l2BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethClient node.EthClient, events *ProcessedContractEvents) error {
 	rawEthClient := ethclient.NewClient(ethClient.RawRpcClient())
 
-	l2StandardBridgeABI, err := bindings.L2StandardBridgeMetaData.GetAbi()
+	finalizationBridgeEvents, err := StandardBridgeFinalizedEvents(rawEthClient, events)
 	if err != nil {
 		return err
 	}
 
-	l2CrossDomainMessengerABI, err := bindings.L2CrossDomainMessengerMetaData.GetAbi()
-	if err != nil {
-		return err
-	}
+	for _, finalizedBridgeEvent := range finalizationBridgeEvents {
+		nonce := finalizedBridgeEvent.CrossDomainMessengerNonce
 
-	numFinalizedDeposits := 0
-	ethBridgeFinalizedEventSig := l2StandardBridgeABI.Events["ETHBridgeFinalized"].ID
-	relayedMessageEventSig := l2CrossDomainMessengerABI.Events["RelayedMessage"].ID
-	relayMessageMethod := l2CrossDomainMessengerABI.Methods["relayMessage"]
-	for _, contractEvent := range events {
-		eventSig := contractEvent.EventSignature
-		log := eventLogs[contractEvent.GUID]
-		if eventSig == ethBridgeFinalizedEventSig {
-			// (1) Ensure the RelayedMessage follows the log right after the bridge event
-			relayedMsgLog := logsByIndex[log.Index+1]
-			if relayedMsgLog.Topics[0] != relayedMessageEventSig {
-				processLog.Crit("expected CrossDomainMessenger#RelayedMessage following StandardBridge#EthBridgeFinalized event", "event_sig", relayedMsgLog.Topics[0], "relayed_message_sig", relayedMessageEventSig)
-				return errors.New("unexpected bridge event ordering")
-			}
-
-			// There's no way to extract the nonce on the relayed message event. we can extract
-			// the nonce by unpacking the transaction input for the `relayMessage` transaction
-			tx, isPending, err := rawEthClient.TransactionByHash(context.Background(), relayedMsgLog.TxHash)
-			if err != nil || isPending {
-				processLog.Crit("CrossDomainMessager#relayeMessage transaction query err or found pending", err, "err", "isPending", isPending)
-				return errors.New("unable to query relayMessage tx")
-			}
-
-			txData := tx.Data()
-			if !bytes.Equal(txData[:4], relayMessageMethod.ID) {
-				processLog.Crit("expected relayMessage function selector")
-				return errors.New("RelayMessage log does not match relayMessage transaction")
-			}
-
-			inputsMap := make(map[string]interface{})
-			err = relayMessageMethod.Inputs.UnpackIntoMap(inputsMap, txData[4:])
+		deposit, err := db.Bridge.DepositByMessageNonce(nonce)
+		if err != nil {
+			processLog.Error("error querying associated deposit messsage using nonce", "cross_domain_messenger_nonce", nonce)
+			return err
+		} else if deposit == nil {
+			latestNonce, err := db.Bridge.LatestDepositMessageNonce()
 			if err != nil {
-				processLog.Crit("unable to unpack CrossDomainMessenger#relayMessage function data", "err", err)
 				return err
 			}
 
-			nonce, ok := inputsMap["_nonce"].(*big.Int)
-			if !ok {
-				processLog.Crit("unable to extract _nonce from CrossDomainMessenger#relayMessage function call")
-				return errors.New("unable to extract relayMessage nonce")
+			// Check if the L1Processor is behind or really has missed an event. Since the decimal representation
+			// of the nonce will be large (first two bytes indicate the version), we log the nonce as needed in hex format
+			if latestNonce == nil || nonce.Cmp(latestNonce) > 0 {
+				processLog.Warn("behind on indexed L1 deposits", "deposit_message_nonce", hexutil.EncodeBig(nonce), "latest_deposit_message_nonce", hexutil.EncodeBig(latestNonce))
+				return errors.New("waiting for L1Processor to catch up")
+			} else {
+				log := events.eventLog[finalizedBridgeEvent.RawEvent.GUID]
+				processLog.Crit("missing indexed deposit for this finalization event", "deposit_cross_domain_message_nonce", hexutil.EncodeBig(nonce), "tx_hash", log.TxHash)
+				return errors.New("missing deposit message")
 			}
+		}
 
-			// (2) Mark initiated L1 deposit as finalized
-			deposit, err := db.Bridge.DepositByMessageNonce(nonce)
-			if err != nil {
-				processLog.Error("error querying initiated deposit messsage using nonce", "nonce", nonce)
-				return err
-			} else if deposit == nil {
-				latestNonce, err := db.Bridge.LatestDepositMessageNonce()
-				if err != nil {
-					return err
-				}
-
-				// Check if the L1Processor is behind or really has missed an event. Since the decimal representation
-				// of the nonce will be large (first two bytes indicate the version), we log the nonce as needed in hex format
-				if latestNonce == nil || nonce.Cmp(latestNonce) > 0 {
-					processLog.Warn("behind on indexed L1 deposits", "deposit_message_nonce", hexutil.EncodeBig(nonce), "latest_deposit_message_nonce", hexutil.EncodeBig(latestNonce))
-					return errors.New("waiting for L1Processor to catch up")
-				} else {
-					processLog.Crit("missing indexed deposit for this finalization event", "deposit_message_nonce", hexutil.EncodeBig(nonce), "tx_hash", log.TxHash, "log_index", log.Index)
-					return errors.New("missing deposit message")
-				}
-			}
-
-			err = db.Bridge.MarkFinalizedDepositEvent(deposit.GUID, contractEvent.GUID)
-			if err != nil {
-				processLog.Error("error finalizing deposit", "err", err)
-				return err
-			}
-
-			numFinalizedDeposits++
+		err = db.Bridge.MarkFinalizedDepositEvent(deposit.GUID, finalizedBridgeEvent.RawEvent.GUID)
+		if err != nil {
+			processLog.Error("error finalizing deposit", "err", err)
+			return err
 		}
 	}
 
-	// a-ok!
+	numFinalizedDeposits := len(finalizationBridgeEvents)
 	if numFinalizedDeposits > 0 {
-		processLog.Info("finalized deposits", "num", numFinalizedDeposits)
+		processLog.Info("finalized deposits", "size", numFinalizedDeposits)
 	}
 
+	// a-ok
 	return nil
 }

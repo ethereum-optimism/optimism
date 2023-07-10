@@ -1,7 +1,6 @@
 package processor
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"errors"
@@ -21,10 +20,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-)
-
-var (
-	ethAddress = common.HexToAddress("0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000")
 )
 
 type L1Contracts struct {
@@ -135,16 +130,14 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 			return err
 		}
 
-		// L2 checkpoitns posted on L1
+		// L2 checkpoints posted on L1
 		outputProposals := []*database.OutputProposal{}
 		legacyStateBatches := []*database.LegacyStateBatch{}
 
-		numLogs := len(logs)
-		logsByIndex := make(map[uint]*types.Log, numLogs)
-
-		l1ContractEvents := make([]*database.L1ContractEvent, numLogs)
-		l1ContractEventLogs := make(map[uuid.UUID]*types.Log)
 		l1HeadersOfInterest := make(map[common.Hash]bool)
+		l1ContractEvents := make([]*database.L1ContractEvent, len(logs))
+
+		processedContractEvents := NewProcessedContractEvents()
 		for i, log := range logs {
 			header, ok := headerMap[log.BlockHash]
 			if !ok {
@@ -152,12 +145,9 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 				return errors.New("parsed log with a block hash not in this batch")
 			}
 
-			logsByIndex[log.Index] = &logs[i]
-			contractEvent := &database.L1ContractEvent{ContractEvent: database.ContractEventFromLog(&log, header.Time)}
-
-			l1ContractEvents[i] = contractEvent
-			l1ContractEventLogs[contractEvent.GUID] = &logs[i]
+			contractEvent := processedContractEvents.AddLog(&logs[i], header.Time)
 			l1HeadersOfInterest[log.BlockHash] = true
+			l1ContractEvents[i] = &database.L1ContractEvent{ContractEvent: *contractEvent}
 
 			// Track Checkpoint Events for L2
 			switch contractEvent.EventSignature {
@@ -202,24 +192,21 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 				continue
 			}
 
-			indexedL1Headers = append(
-				indexedL1Headers,
-				&database.L1BlockHeader{BlockHeader: database.BlockHeaderFromHeader(header)},
-			)
+			indexedL1Headers = append(indexedL1Headers, &database.L1BlockHeader{BlockHeader: database.BlockHeaderFromHeader(header)})
 		}
 
 		/** Update Database **/
 
 		numIndexedL1Headers := len(indexedL1Headers)
 		if numIndexedL1Headers > 0 {
-			processLog.Info("saved l1 blocks of interest within batch", "num", numIndexedL1Headers, "batchSize", numHeaders)
+			processLog.Info("saving l1 blocks with optimism logs", "size", numIndexedL1Headers, "batch_size", numHeaders)
 			err = db.Blocks.StoreL1BlockHeaders(indexedL1Headers)
 			if err != nil {
 				return err
 			}
 
 			// Since the headers to index are derived from the existence of logs, we know in this branch `numLogs > 0`
-			processLog.Info("saving contract logs", "size", numLogs)
+			processLog.Info("detected contract logs", "size", len(l1ContractEvents))
 			err = db.ContractEvents.StoreL1ContractEvents(l1ContractEvents)
 			if err != nil {
 				return err
@@ -244,7 +231,7 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 			}
 
 			// forward along contract events to the bridge processor
-			err = l1BridgeProcessContractEvents(processLog, db, l1ContractEvents, l1ContractEventLogs, logsByIndex)
+			err = l1BridgeProcessContractEvents(processLog, db, processedContractEvents)
 			if err != nil {
 				return err
 			}
@@ -257,86 +244,35 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 	}
 }
 
-func l1BridgeProcessContractEvents(
-	processLog log.Logger,
-	db *database.DB,
-	events []*database.L1ContractEvent,
-	eventLogs map[uuid.UUID]*types.Log,
-	logsByIndex map[uint]*types.Log,
-) error {
-	l1StandardBridgeABI, err := bindings.L1StandardBridgeMetaData.GetAbi()
+func l1BridgeProcessContractEvents(processLog log.Logger, db *database.DB, events *ProcessedContractEvents) error {
+	initiatedBridgeEvents, err := StandardBridgeInitiatedEvents(events)
 	if err != nil {
 		return err
 	}
 
-	l1CrossDomainMessengerABI, err := bindings.L1CrossDomainMessengerMetaData.GetAbi()
-	if err != nil {
-		return err
-	}
-
-	l1StandardBridgeDeposits := []*database.Deposit{}
-	ethBridgeInitiatedEventSig := l1StandardBridgeABI.Events["ETHBridgeInitiated"].ID
-	sentMessageEventSig := l1CrossDomainMessengerABI.Events["SentMessage"].ID
-	for _, contractEvent := range events {
-		eventSig := contractEvent.EventSignature
-		log := eventLogs[contractEvent.GUID]
-		if eventSig == ethBridgeInitiatedEventSig {
-			// (1) Deconstruct the bridge event
-			var bridgeData bindings.L1StandardBridgeETHBridgeInitiated
-			err = l1StandardBridgeABI.UnpackIntoInterface(&bridgeData, "ETHBridgeInitiated", log.Data)
-			if err != nil || len(log.Topics) != 3 {
-				processLog.Crit("unexpected ETHDepositInitiated log format", "tx", log.TxHash, "err", err)
-				return err
-			}
-
-			// from/to must be retrieved from log topics
-			bridgeData.From = common.BytesToAddress(log.Topics[1].Bytes())
-			bridgeData.To = common.BytesToAddress(log.Topics[2].Bytes())
-
-			// (2) Look for the sent message event to extract the associated messager nonce
-			//       - The `SentMessage` event is the second after the bridge initiated event. BridgeInitiated -> Portal#DepositTransaction -> SentMesage ...
-			sentMsgLog := logsByIndex[log.Index+2]
-			if sentMsgLog.Topics[0] != sentMessageEventSig {
-				processLog.Crit("expected CrossDomainMessenger#SentMessage to follow StandardBridge#EthBridgeInitiated event", "event_sig", sentMsgLog.Topics[0], "sent_message_sig", sentMessageEventSig)
-				return errors.New("unexpected bridge event ordering")
-			}
-
-			expectedMsg, err := l1StandardBridgeABI.Pack("finalizeBridgeETH", bridgeData.From, bridgeData.To, bridgeData.Amount, bridgeData.ExtraData)
-			if err != nil {
-				processLog.Crit("unable to create bridge message")
-				return err
-			}
-
-			var sentMsg bindings.L1CrossDomainMessengerSentMessage
-			err = l1CrossDomainMessengerABI.UnpackIntoInterface(&sentMsg, "SentMessage", sentMsgLog.Data)
-			if err != nil {
-				processLog.Crit("unexpected SentMessage log format", "tx", log.TxHash, "err", err)
-				return err
-			} else if !bytes.Equal(sentMsg.Message, expectedMsg) {
-				processLog.Crit("SentMessage message mismatch", "expected_bridge_msg", hex.EncodeToString(expectedMsg), "event_msg", hex.EncodeToString(sentMsg.Message))
-				return errors.New("bridge message mismatch")
-			}
-
-			// (3) Record the deposit
-			l1StandardBridgeDeposits = append(l1StandardBridgeDeposits, &database.Deposit{
-				GUID:                 uuid.New(),
-				InitiatedL1EventGUID: contractEvent.GUID,
-				SentMessageNonce:     database.U256{Int: sentMsg.MessageNonce},
-				TokenPair:            database.TokenPair{L1TokenAddress: ethAddress, L2TokenAddress: ethAddress},
-				Tx: database.Transaction{
-					FromAddress: common.BytesToAddress(log.Topics[1].Bytes()),
-					ToAddress:   common.BytesToAddress(log.Topics[2].Bytes()),
-					Amount:      database.U256{Int: bridgeData.Amount},
-					Data:        bridgeData.ExtraData,
-					Timestamp:   contractEvent.Timestamp,
-				},
-			})
+	l1StandardBridgeDeposits := make([]*database.Deposit, len(initiatedBridgeEvents))
+	for i, initiatedBridgeEvent := range initiatedBridgeEvents {
+		l1StandardBridgeDeposits[i] = &database.Deposit{
+			GUID:                 uuid.New(),
+			InitiatedL1EventGUID: initiatedBridgeEvent.RawEvent.GUID,
+			SentMessageNonce:     database.U256{Int: initiatedBridgeEvent.CrossDomainMessengerNonce},
+			TokenPair:            database.TokenPair{L1TokenAddress: initiatedBridgeEvent.LocalToken, L2TokenAddress: initiatedBridgeEvent.RemoteToken},
+			Tx: database.Transaction{
+				FromAddress: initiatedBridgeEvent.From,
+				ToAddress:   initiatedBridgeEvent.To,
+				Amount:      database.U256{Int: initiatedBridgeEvent.Amount},
+				Data:        initiatedBridgeEvent.ExtraData,
+				Timestamp:   initiatedBridgeEvent.RawEvent.Timestamp,
+			},
 		}
 	}
 
 	if len(l1StandardBridgeDeposits) > 0 {
 		processLog.Info("detected L1StandardBridge deposits", "num", len(l1StandardBridgeDeposits))
-		return db.Bridge.StoreDeposits(l1StandardBridgeDeposits)
+		err := db.Bridge.StoreDeposits(l1StandardBridgeDeposits)
+		if err != nil {
+			return err
+		}
 	}
 
 	// no-op
