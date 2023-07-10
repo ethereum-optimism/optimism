@@ -23,6 +23,12 @@ func CLIFlags(envPrefix string) []cli.Flag {
 	return CLIFlagsWithFlagPrefix(envPrefix, "")
 }
 
+var (
+	defaultTLSCaCert = "tls/ca.crt"
+	defaultTLSCert   = "tls/tls.crt"
+	defaultTLSKey    = "tls/tls.key"
+)
+
 // CLIFlagsWithFlagPrefix returns flags with env var and cli flag prefixes
 // Should be used for client TLS configs when different from server on the same process
 func CLIFlagsWithFlagPrefix(envPrefix string, flagPrefix string) []cli.Flag {
@@ -36,19 +42,19 @@ func CLIFlagsWithFlagPrefix(envPrefix string, flagPrefix string) []cli.Flag {
 		&cli.StringFlag{
 			Name:    prefixFunc(TLSCaCertFlagName),
 			Usage:   "tls ca cert path",
-			Value:   "tls/ca.crt",
+			Value:   defaultTLSCaCert,
 			EnvVars: prefixEnvVars("TLS_CA"),
 		},
 		&cli.StringFlag{
 			Name:    prefixFunc(TLSCertFlagName),
 			Usage:   "tls cert path",
-			Value:   "tls/tls.crt",
+			Value:   defaultTLSCert,
 			EnvVars: prefixEnvVars("TLS_CERT"),
 		},
 		&cli.StringFlag{
 			Name:    prefixFunc(TLSKeyFlagName),
 			Usage:   "tls key",
-			Value:   "tls/tls.key",
+			Value:   defaultTLSKey,
 			EnvVars: prefixEnvVars("TLS_KEY"),
 		},
 	}
@@ -58,6 +64,14 @@ type CLIConfig struct {
 	TLSCaCert string
 	TLSCert   string
 	TLSKey    string
+}
+
+func NewCLIConfig() CLIConfig {
+	return CLIConfig{
+		TLSCaCert: defaultTLSCaCert,
+		TLSCert:   defaultTLSCert,
+		TLSKey:    defaultTLSKey,
+	}
 }
 
 func (c CLIConfig) Check() error {

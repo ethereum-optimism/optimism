@@ -38,6 +38,12 @@ type CLIConfig struct {
 	TLSConfig optls.CLIConfig
 }
 
+func NewCLIConfig() CLIConfig {
+	return CLIConfig{
+		TLSConfig: optls.NewCLIConfig(),
+	}
+}
+
 func (c CLIConfig) Check() error {
 	if err := c.TLSConfig.Check(); err != nil {
 		return err

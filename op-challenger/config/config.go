@@ -8,10 +8,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -29,31 +25,18 @@ type Config struct {
 	GameAddress   common.Address // Address of the fault game
 	AlphabetTrace string         // String for the AlphabetTraceProvider
 
-	TxMgrConfig   txmgr.CLIConfig
-	RPCConfig     oprpc.CLIConfig
-	LogConfig     oplog.CLIConfig
-	MetricsConfig opmetrics.CLIConfig
-	PprofConfig   oppprof.CLIConfig
+	TxMgrConfig txmgr.CLIConfig
 }
 
-func NewConfig(L1EthRpc string,
+func NewConfig(l1EthRpc string,
 	GameAddress common.Address,
 	AlphabetTrace string,
-	TxMgrConfig txmgr.CLIConfig,
-	RPCConfig oprpc.CLIConfig,
-	LogConfig oplog.CLIConfig,
-	MetricsConfig opmetrics.CLIConfig,
-	PprofConfig oppprof.CLIConfig,
 ) Config {
 	return Config{
-		L1EthRpc,
-		GameAddress,
-		AlphabetTrace,
-		TxMgrConfig,
-		RPCConfig,
-		LogConfig,
-		MetricsConfig,
-		PprofConfig,
+		L1EthRpc:      l1EthRpc,
+		GameAddress:   GameAddress,
+		AlphabetTrace: AlphabetTrace,
+		TxMgrConfig:   txmgr.NewCLIConfig(l1EthRpc),
 	}
 }
 
@@ -66,18 +49,6 @@ func (c Config) Check() error {
 	}
 	if c.AlphabetTrace == "" {
 		return ErrMissingAlphabetTrace
-	}
-	if err := c.RPCConfig.Check(); err != nil {
-		return err
-	}
-	if err := c.LogConfig.Check(); err != nil {
-		return err
-	}
-	if err := c.MetricsConfig.Check(); err != nil {
-		return err
-	}
-	if err := c.PprofConfig.Check(); err != nil {
-		return err
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {
 		return err
@@ -96,10 +67,6 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 	}
 
 	txMgrConfig := txmgr.ReadCLIConfig(ctx)
-	rpcConfig := oprpc.ReadCLIConfig(ctx)
-	logConfig := oplog.ReadCLIConfig(ctx)
-	metricsConfig := opmetrics.ReadCLIConfig(ctx)
-	pprofConfig := oppprof.ReadCLIConfig(ctx)
 
 	return &Config{
 		// Required Flags
@@ -107,10 +74,5 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 		GameAddress:   dgfAddress,
 		AlphabetTrace: ctx.String(flags.AlphabetFlag.Name),
 		TxMgrConfig:   txMgrConfig,
-		// Optional Flags
-		RPCConfig:     rpcConfig,
-		LogConfig:     logConfig,
-		MetricsConfig: metricsConfig,
-		PprofConfig:   pprofConfig,
 	}, nil
 }
