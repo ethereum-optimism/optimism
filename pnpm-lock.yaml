@@ -277,9 +277,6 @@ importers:
       forge-std:
         specifier: github:foundry-rs/forge-std#e8a047e3f40f13fa37af6fe14e6e06283d9a060e
         version: github.com/foundry-rs/forge-std/e8a047e3f40f13fa37af6fe14e6e06283d9a060e
-      glob:
-        specifier: ^7.1.6
-        version: 7.1.6
       solhint:
         specifier: ^3.4.1
         version: 3.4.1
