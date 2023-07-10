@@ -226,12 +226,12 @@ var requiredFlags = []cli.Flag{
 	L2EngineAddr,
 	RPCListenAddr,
 	RPCListenPort,
+	DaRPC,
+	NamespaceId,
 }
 
 var optionalFlags = []cli.Flag{
 	RollupConfig,
-	DaRPC,
-	NamespaceId,
 	Network,
 	L1TrustRPC,
 	L1RPCProviderKind,

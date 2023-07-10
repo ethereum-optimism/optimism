@@ -61,6 +61,12 @@ services:
     build:
       context: ../
       dockerfile: ./op-node/Dockerfile
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://op-node:8545"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     command: >
       op-node
       --l1=ws://l1:8546
@@ -141,7 +147,7 @@ services:
       - "7301:7300"
       - "6545:8545"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://da:26659/header/1"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://da:26659/header/1"]
       interval: 5s
       timeout: 5s
       retries: 5
