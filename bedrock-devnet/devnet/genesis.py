@@ -1,6 +1,8 @@
 import time
 
 DEV_ACCOUNTS = [
+    # {test .. test junk} account 4 - op-challenger
+    '90F79bf6EB2c4f870365E785982E1f101E93b906',
     '3c44cdddb6a900fa2b585dd299e03d12fa4293bc',
     '70997970c51812dc3a010c7d01b50e0d17dc79c8',
     'f39fd6e51aad88f6f4ce6ab8827279cfffb92266'
