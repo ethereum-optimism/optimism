@@ -20,19 +20,19 @@ interface IFaultDisputeGame is IDisputeGame {
 
     /// @notice Emitted when a new claim is added to the DAG by `claimant`
     /// @param parentIndex The index within the `claimData` array of the parent claim
-    /// @param pivot The claim being added
+    /// @param claim The claim being added
     /// @param claimant The address of the claimant
-    event Move(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
+    event Move(uint256 indexed parentIndex, Claim indexed claim, address indexed claimant);
 
     /// @notice Attack a disagreed upon `Claim`.
     /// @param _parentIndex Index of the `Claim` to attack in `claimData`.
-    /// @param _pivot The `Claim` at the relative attack position.
-    function attack(uint256 _parentIndex, Claim _pivot) external payable;
+    /// @param _claim The `Claim` at the relative attack position.
+    function attack(uint256 _parentIndex, Claim _claim) external payable;
 
     /// @notice Defend an agreed upon `Claim`.
     /// @param _parentIndex Index of the claim to defend in `claimData`.
-    /// @param _pivot The `Claim` at the relative defense position.
-    function defend(uint256 _parentIndex, Claim _pivot) external payable;
+    /// @param _claim The `Claim` at the relative defense position.
+    function defend(uint256 _parentIndex, Claim _claim) external payable;
 
     /// @notice Perform the final step via an on-chain fault proof processor
     /// @dev This function should point to a fault proof processor in order to execute
@@ -42,7 +42,10 @@ interface IFaultDisputeGame is IDisputeGame {
     /// @param _stateIndex The index of the pre/post state of the step within `claimData`.
     /// @param _claimIndex The index of the challenged claim within `claimData`.
     /// @param _isAttack Whether or not the step is an attack or a defense.
-    /// @param _stateData The stateData of the step is the preimage of the claim @ `prestateIndex`
+    /// @param _stateData The stateData of the step is the preimage of the claim at the given
+    ///        prestate, which is at `_stateIndex` if the move is an attack and `_claimIndex` if
+    ///        the move is a defense. If the step is an attack on the first instruction, it is
+    ///        the absolute prestate of the fault proof VM.
     /// @param _proof Proof to access memory leaf nodes in the VM.
     function step(
         uint256 _stateIndex,

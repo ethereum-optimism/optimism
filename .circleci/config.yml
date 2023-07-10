@@ -690,6 +690,10 @@ jobs:
           command: |
             npm i pnpm --global
       - run:
+          name: Install node_modules
+          command: |
+            pnpm install
+      - run:
           name: Lint check
           command: |
             pnpm lint:specs:check
