@@ -15,13 +15,13 @@ services:
     container_name: celestia-light-node
     user: root
     platform: "${PLATFORM}"
-    image: "ghcr.io/celestiaorg/celestia-node:v0.11.0-rc2"
-    command: celestia light start --core.ip consensus-full-arabica-8.celestia-arabica.com --gateway --gateway.addr da --gateway.port 26659 --p2p.network arabica
+    image: "ghcr.io/celestiaorg/celestia-node:v0.11.0-rc6"
+    command: celestia light start --core.ip consensus-full-arabica-9.celestia-arabica.com --gateway --gateway.addr da --gateway.port 26659  --gateway.deprecated-endpoints --p2p.network arabica
     environment:
       - NODE_TYPE=light
       - P2P_NETWORK=arabica
     volumes:
-      - $HOME/.celestia-light-arabica-8/:/home/celestia/.celestia-light-arabica-8/
+      - $HOME/.celestia-light-arabica-9/:/home/celestia/.celestia-light-arabica-9/
     ports:
       - "26657:26657"
       - "26659:26659"

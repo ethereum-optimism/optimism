@@ -218,12 +218,16 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 	// frame pointer to celestia, while retaining the proposer pathway that
 	// writes the state commitment data to ethereum.
 	if candidate.To.Hex() == "0xfF00000000000000000000000000000000000000" {
-		res, err := m.daClient.SubmitPFB(ctx, m.namespace, candidate.TxData, 70000, 700000)
+		res, err := m.daClient.SubmitPFB(ctx, m.namespace, candidate.TxData, 200000, 2000000)
 		if err != nil {
 			m.l.Warn("unable to publish tx to celestia", "err", err)
 			return nil, err
 		}
 		fmt.Printf("res: %v\n", res)
+		if res.Code != 0 || res.TxHash == "" || res.Height == 0 {
+			m.l.Warn("unexpected response from celestia got", "res.Code", res.Code, "res.TxHash", res.TxHash, "res.Height", res.Height)
+			return nil, errors.New("unexpected response code")
+		}
 
 		height := res.Height
 
