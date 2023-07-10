@@ -33,7 +33,6 @@ type TokenPair struct {
 type Deposit struct {
 	GUID                 uuid.UUID `gorm:"primaryKey"`
 	InitiatedL1EventGUID uuid.UUID
-	FinalizedL2EventGUID uuid.UUID `gorm:"default:null"`
 
 	// Since we're only currently indexing a single StandardBridge,
 	// the message nonce serves as a unique identifier for this
@@ -42,6 +41,8 @@ type Deposit struct {
 	// such that the (messenger_addr, nonce) is the unique identifer
 	// for a bridge msg
 	SentMessageNonce U256
+
+	FinalizedL2EventGUID *uuid.UUID
 
 	Tx        Transaction `gorm:"embedded"`
 	TokenPair TokenPair   `gorm:"embedded"`
@@ -176,7 +177,7 @@ func (db *bridgeDB) MarkFinalizedDepositEvent(guid, finalizationEventGUID uuid.U
 		return result.Error
 	}
 
-	deposit.FinalizedL2EventGUID = finalizationEventGUID
+	deposit.FinalizedL2EventGUID = &finalizationEventGUID
 	result = db.gorm.Save(&deposit)
 	return result.Error
 }
