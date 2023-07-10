@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
+	op_challenger "github.com/ethereum-optimism/optimism/op-challenger"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
@@ -33,6 +35,15 @@ var VersionWithMeta = func() string {
 }()
 
 func main() {
+	args := os.Args
+	if err := run(args, op_challenger.Main); err != nil {
+		log.Crit("Application failed", "err", err)
+	}
+}
+
+type ConfigAction func(log log.Logger, config *config.Config) error
+
+func run(args []string, action ConfigAction) error {
 	oplog.SetupDefaults()
 
 	app := cli.NewApp()
@@ -42,24 +53,26 @@ func main() {
 	app.Usage = "Challenge outputs"
 	app.Description = "Ensures that on chain outputs are correct."
 	app.Action = func(ctx *cli.Context) error {
-		return FaultGame(VersionWithMeta, ctx)
+		logger, err := setupLogging(ctx)
+		if err != nil {
+			return err
+		}
+		logger.Info("Starting op-challenger", "version", VersionWithMeta)
+
+		cfg, err := config.NewConfigFromCLI(ctx)
+		if err != nil {
+			return err
+		}
+		return action(logger, cfg)
 	}
-	if err := app.Run(os.Args); err != nil {
-		log.Crit("Application failed", "message", err)
-	}
+	return app.Run(args)
 }
 
-type ConfigAction func(log log.Logger, version string, config *config.Config) error
-
-func FaultGame(version string, cliCtx *cli.Context) error {
-	cfg, err := config.NewConfigFromCLI(cliCtx)
-	if err != nil {
-		return err
+func setupLogging(ctx *cli.Context) (log.Logger, error) {
+	logCfg := oplog.ReadCLIConfig(ctx)
+	if err := logCfg.Check(); err != nil {
+		return nil, fmt.Errorf("log config error: %w", err)
 	}
-	if err := cfg.Check(); err != nil {
-		return err
-	}
-	log := oplog.NewLogger(cfg.LogConfig)
-	log.Info("Fault game started")
-	return nil
+	logger := oplog.NewLogger(logCfg)
+	return logger, nil
 }

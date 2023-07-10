@@ -1634,7 +1634,7 @@ workflows:
           docker_file: ./ops/docker/ci-builder/Dockerfile
           docker_name: ci-builder
           docker_tags: <<pipeline.git.revision>>,latest
-          docker_context: ./ops/docker/ci-builder
+          docker_context: .
           context:
             - oplabs-gcr
           requires:

@@ -124,6 +124,27 @@ library LibPosition {
         }
     }
 
+    /// @notice Gets the position of the highest ancestor of `_position` that commits to the same
+    ///         trace index.
+    /// @param _position The position to get the highest ancestor of.
+    /// @return ancestor_ The highest ancestor of `position` that commits to the same trace index.
+    function traceAncestor(Position _position) internal pure returns (Position ancestor_) {
+        // Create a field with only the lowest unset bit of `_position` set.
+        Position lsb;
+        assembly {
+            lsb := and(not(_position), add(_position, 1))
+        }
+        // Find the index of the lowest unset bit within the field.
+        uint256 msb = depth(lsb);
+        // The highest ancestor that commits to the same trace index is the original position
+        // shifted right by the index of the lowest unset bit.
+        assembly {
+            let a := shr(msb, _position)
+            // Bound the ancestor to the minimum gindex, 1.
+            ancestor_ := or(a, iszero(a))
+        }
+    }
+
     /// @notice Get the move position of `_position`, which is the left child of:
     ///         1. `_position + 1` if `_isAttack` is true.
     ///         1. `_position` if `_isAttack` is false.
