@@ -78,20 +78,19 @@ func DecodeFromProcessedEvents[ABI any](p *ProcessedContractEvents, name string,
 	return decodedEvents, nil
 }
 
-func UnpackLog[EventType any](log *types.Log, name string, contractAbi *abi.ABI) (*EventType, error) {
+func UnpackLog(out interface{}, log *types.Log, name string, contractAbi *abi.ABI) error {
 	eventAbi, ok := contractAbi.Events[name]
 	if !ok {
-		return nil, errors.New(fmt.Sprintf("event %s not present in supplied ABI", name))
+		return errors.New(fmt.Sprintf("event %s not present in supplied ABI", name))
 	} else if len(log.Topics) == 0 {
-		return nil, errors.New("anonymous events are not supported")
+		return errors.New("anonymous events are not supported")
 	} else if log.Topics[0] != eventAbi.ID {
-		return nil, errors.New("event signature mismatch not present in supplied ABI")
+		return errors.New("event signature mismatch not present in supplied ABI")
 	}
 
-	var event EventType
-	err := contractAbi.UnpackIntoInterface(&event, name, log.Data)
+	err := contractAbi.UnpackIntoInterface(out, name, log.Data)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// handle topics if present
@@ -104,11 +103,11 @@ func UnpackLog[EventType any](log *types.Log, name string, contractAbi *abi.ABI)
 		}
 
 		// The first topic (event signature) is ommitted
-		err := abi.ParseTopics(&event, indexedArgs, log.Topics[1:])
+		err := abi.ParseTopics(out, indexedArgs, log.Topics[1:])
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 
-	return &event, nil
+	return nil
 }

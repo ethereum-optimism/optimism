@@ -18,6 +18,8 @@ var (
 )
 
 type StandardBridgeInitiatedEvent struct {
+	// We hardcode to ERC20 since ETH can be psuedo-represented as an ERC20 utilizing
+	// the hardcoded ETH address
 	*bindings.L1StandardBridgeERC20BridgeInitiated
 
 	CrossDomainMessengerNonce *big.Int
@@ -25,6 +27,8 @@ type StandardBridgeInitiatedEvent struct {
 }
 
 type StandardBridgeFinalizedEvent struct {
+	// We hardcode to ERC20 since ETH can be psuedo-represented as an ERC20 utilizing
+	// the hardcoded ETH address
 	*bindings.L1StandardBridgeERC20BridgeFinalized
 
 	CrossDomainMessengerNonce *big.Int
@@ -33,7 +37,37 @@ type StandardBridgeFinalizedEvent struct {
 
 // StandardBridgeInitiatedEvents extracts all initiated bridge events from the contracts that follow the StandardBridge ABI. The
 // correlated CrossDomainMessenger nonce is also parsed from the associated messenger events.
-func StandardBridgeInitiatedEvents(events *ProcessedContractEvents) ([]*StandardBridgeInitiatedEvent, error) {
+func StandardBridgeInitiatedEvents(events *ProcessedContractEvents) ([]StandardBridgeInitiatedEvent, error) {
+	ethBridgeInitiatedEvents, err := _standardBridgeInitiatedEvents[bindings.L1StandardBridgeETHBridgeInitiated](events)
+	if err != nil {
+		return nil, err
+	}
+
+	erc20BridgeInitiatedEvents, err := _standardBridgeInitiatedEvents[bindings.L1StandardBridgeERC20BridgeInitiated](events)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(ethBridgeInitiatedEvents, erc20BridgeInitiatedEvents...), nil
+}
+
+// StandardBridgeFinalizedEvents extracts all finalization bridge events from the contracts that follow the StandardBridge ABI. The
+// correlated CrossDomainMessenger nonce is also parsed by looking at the parameters of the corresponding relayMessage transaction data.
+func StandardBridgeFinalizedEvents(rawEthClient *ethclient.Client, events *ProcessedContractEvents) ([]StandardBridgeFinalizedEvent, error) {
+	ethBridgeFinalizedEvents, err := _standardBridgeFinalizedEvents[bindings.L1StandardBridgeETHBridgeFinalized](rawEthClient, events)
+	if err != nil {
+		return nil, err
+	}
+
+	erc20BridgeFinalizedEvents, err := _standardBridgeFinalizedEvents[bindings.L1StandardBridgeERC20BridgeFinalized](rawEthClient, events)
+	if err != nil {
+		return nil, err
+	}
+
+	return append(ethBridgeFinalizedEvents, erc20BridgeFinalizedEvents...), nil
+}
+
+func _standardBridgeInitiatedEvents[BridgeEvent bindings.L1StandardBridgeETHBridgeInitiated | bindings.L1StandardBridgeERC20BridgeInitiated](events *ProcessedContractEvents) ([]StandardBridgeInitiatedEvent, error) {
 	l1StandardBridgeABI, err := bindings.L1StandardBridgeMetaData.GetAbi()
 	if err != nil {
 		return nil, err
@@ -44,82 +78,77 @@ func StandardBridgeInitiatedEvents(events *ProcessedContractEvents) ([]*Standard
 		return nil, err
 	}
 
-	ethBridgeInitiatedEventAbi := l1StandardBridgeABI.Events["ETHBridgeInitiated"]
-	erc20BridgeInitiatedEventAbi := l1StandardBridgeABI.Events["ERC20BridgeInitiated"]
 	sentMessageEventAbi := l1CrossDomainMessengerABI.Events["SentMessage"]
 
-	ethBridgeInitiatedEvents := events.eventsBySignature[ethBridgeInitiatedEventAbi.ID]
-	erc20BridgeInitiatedEvents := events.eventsBySignature[erc20BridgeInitiatedEventAbi.ID]
-	initiatedBridgeEvents := []*StandardBridgeInitiatedEvent{}
-
-	// Handle ETH Bridge
-	for _, bridgeInitiatedEvent := range ethBridgeInitiatedEvents {
-		log := events.eventLog[bridgeInitiatedEvent.GUID]
-		bridgeData, err := UnpackLog[bindings.L1StandardBridgeETHBridgeInitiated](log, ethBridgeInitiatedEventAbi.Name, l1StandardBridgeABI)
-		if err != nil {
-			return nil, err
-		}
-
-		// Look for the sent message event to extract the associated messager nonce
-		//       - The `SentMessage` event is the second after the bridge initiated event. BridgeInitiated -> Portal#DepositTransaction -> SentMesage ...
-		sentMsgLog := events.eventLog[events.eventByLogIndex[log.Index+2].GUID]
-		sentMsgData, err := UnpackLog[bindings.L1CrossDomainMessengerSentMessage](sentMsgLog, sentMessageEventAbi.Name, l1CrossDomainMessengerABI)
-		if err != nil {
-			return nil, err
-		}
-
-		expectedMsg, err := l1StandardBridgeABI.Pack("finalizeBridgeETH", bridgeData.From, bridgeData.To, bridgeData.Amount, bridgeData.ExtraData)
-		if err != nil {
-			return nil, err
-		} else if !bytes.Equal(sentMsgData.Message, expectedMsg) {
-			return nil, errors.New("bridge cross domain message mismatch")
-		}
-
-		initiatedBridgeEvents = append(initiatedBridgeEvents, &StandardBridgeInitiatedEvent{
-			&bindings.L1StandardBridgeERC20BridgeInitiated{
-				// Default ETH
-				LocalToken: ethAddress, RemoteToken: ethAddress,
-
-				// BridgeDAta
-				From: bridgeData.From, To: bridgeData.To, Amount: bridgeData.Amount, ExtraData: bridgeData.ExtraData,
-			},
-			sentMsgData.MessageNonce,
-			bridgeInitiatedEvent,
-		})
+	var bridgeData BridgeEvent
+	var eventName string
+	var finalizeMethodName string
+	switch any(bridgeData).(type) {
+	case bindings.L1StandardBridgeETHBridgeInitiated:
+		eventName = "ETHBridgeInitiated"
+		finalizeMethodName = "finalizeBridgeETH"
+	case bindings.L1StandardBridgeERC20BridgeInitiated:
+		eventName = "ERC20BridgeInitiated"
+		finalizeMethodName = "finalizeBridgeERC20"
+	default:
+		panic("should not be here")
 	}
 
-	// Handle ERC20 Bridge
-	for _, bridgeInitiatedEvent := range erc20BridgeInitiatedEvents {
+	processedInitiatedBridgeEvents := events.eventsBySignature[l1StandardBridgeABI.Events[eventName].ID]
+	initiatedBridgeEvents := make([]StandardBridgeInitiatedEvent, len(processedInitiatedBridgeEvents))
+	for i, bridgeInitiatedEvent := range processedInitiatedBridgeEvents {
 		log := events.eventLog[bridgeInitiatedEvent.GUID]
-		bridgeData, err := UnpackLog[bindings.L1StandardBridgeERC20BridgeInitiated](log, erc20BridgeInitiatedEventAbi.Name, l1StandardBridgeABI)
+		err := UnpackLog(&bridgeData, log, eventName, l1StandardBridgeABI)
 		if err != nil {
 			return nil, err
 		}
 
 		// Look for the sent message event to extract the associated messager nonce
 		//       - The `SentMessage` event is the second after the bridge initiated event. BridgeInitiated -> Portal#DepositTransaction -> SentMesage ...
+		var sentMsgData bindings.L1CrossDomainMessengerSentMessage
 		sentMsgLog := events.eventLog[events.eventByLogIndex[log.Index+2].GUID]
-		sentMsgData, err := UnpackLog[bindings.L1CrossDomainMessengerSentMessage](sentMsgLog, sentMessageEventAbi.Name, l1CrossDomainMessengerABI)
+		err = UnpackLog(&sentMsgData, sentMsgLog, sentMessageEventAbi.Name, l1CrossDomainMessengerABI)
 		if err != nil {
 			return nil, err
 		}
 
-		expectedMsg, err := l1StandardBridgeABI.Pack("finalizeBridgeERC20", bridgeData.RemoteToken, bridgeData.LocalToken, bridgeData.From, bridgeData.To, bridgeData.Amount, bridgeData.ExtraData)
-		if err != nil {
-			return nil, err
-		} else if !bytes.Equal(sentMsgData.Message, expectedMsg) {
+		var erc20BridgeData *bindings.L1StandardBridgeERC20BridgeInitiated
+		var expectedCrossDomainMessage []byte
+		switch any(bridgeData).(type) {
+		case bindings.L1StandardBridgeETHBridgeInitiated:
+			ethBridgeData := any(bridgeData).(bindings.L1StandardBridgeETHBridgeInitiated)
+			expectedCrossDomainMessage, err = l1StandardBridgeABI.Pack(finalizeMethodName, ethBridgeData.From, ethBridgeData.To, ethBridgeData.Amount, ethBridgeData.ExtraData)
+			if err != nil {
+				return nil, err
+			}
+			erc20BridgeData = &bindings.L1StandardBridgeERC20BridgeInitiated{
+				// Represent ETH using the hardcoded address
+				LocalToken: ethAddress, RemoteToken: ethAddress,
+				// Bridge data
+				From: ethBridgeData.From, To: ethBridgeData.To, Amount: ethBridgeData.Amount, ExtraData: ethBridgeData.ExtraData,
+			}
+
+		case bindings.L1StandardBridgeERC20BridgeInitiated:
+			_temp := any(bridgeData).(bindings.L1StandardBridgeERC20BridgeInitiated)
+			// TODO: fix this as bridgeData is the same pointer
+			erc20BridgeData = &_temp
+			expectedCrossDomainMessage, err = l1StandardBridgeABI.Pack(finalizeMethodName, erc20BridgeData.RemoteToken, erc20BridgeData.LocalToken, erc20BridgeData.From, erc20BridgeData.To, erc20BridgeData.Amount, erc20BridgeData.ExtraData)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if !bytes.Equal(sentMsgData.Message, expectedCrossDomainMessage) {
 			return nil, errors.New("bridge cross domain message mismatch")
 		}
 
-		initiatedBridgeEvents = append(initiatedBridgeEvents, &StandardBridgeInitiatedEvent{bridgeData, sentMsgData.MessageNonce, bridgeInitiatedEvent})
+		initiatedBridgeEvents[i] = StandardBridgeInitiatedEvent{erc20BridgeData, sentMsgData.MessageNonce, bridgeInitiatedEvent}
 	}
 
 	return initiatedBridgeEvents, nil
 }
 
-// StandardBridgeFinalizedEvents extracts all finalization bridge events from the contracts that follow the StandardBridge ABI. The
-// correlated CrossDomainMessenger nonce is also parsed by looking at the parameters of the corresponding relayMessage transaction data.
-func StandardBridgeFinalizedEvents(rawEthClient *ethclient.Client, events *ProcessedContractEvents) ([]*StandardBridgeFinalizedEvent, error) {
+func _standardBridgeFinalizedEvents[BridgeEvent bindings.L1StandardBridgeETHBridgeFinalized | bindings.L1StandardBridgeERC20BridgeFinalized](rawEthClient *ethclient.Client, events *ProcessedContractEvents) ([]StandardBridgeFinalizedEvent, error) {
 	l1StandardBridgeABI, err := bindings.L1StandardBridgeMetaData.GetAbi()
 	if err != nil {
 		return nil, err
@@ -130,69 +159,25 @@ func StandardBridgeFinalizedEvents(rawEthClient *ethclient.Client, events *Proce
 		return nil, err
 	}
 
-	ethBridgeFinalizedEventAbi := l1StandardBridgeABI.Events["ETHBridgeFinalized"]
-	erc20BridgeFinalizedEventAbi := l1StandardBridgeABI.Events["ERC20BridgeFinalized"]
 	relayedMessageEventAbi := l1CrossDomainMessengerABI.Events["RelayedMessage"]
 	relayMessageMethodAbi := l1CrossDomainMessengerABI.Methods["relayMessage"]
 
-	ethBridgeFinalizedEvents := events.eventsBySignature[ethBridgeFinalizedEventAbi.ID]
-	erc20BridgeFinalizedEvents := events.eventsBySignature[erc20BridgeFinalizedEventAbi.ID]
-	finalizedBridgeEvents := []*StandardBridgeFinalizedEvent{}
-
-	// Handle ETH Bridge
-	for _, bridgeFinalizedEvent := range ethBridgeFinalizedEvents {
-		log := events.eventLog[bridgeFinalizedEvent.GUID]
-		bridgeData, err := UnpackLog[bindings.L1StandardBridgeETHBridgeFinalized](log, ethBridgeFinalizedEventAbi.Name, l1StandardBridgeABI)
-		if err != nil {
-			return nil, err
-		}
-
-		// Look for the RelayedMessage event that follows right after the BridgeFinalized Event
-		relayedMsgLog := events.eventLog[events.eventByLogIndex[log.Index+1].GUID]
-		if relayedMsgLog.Topics[0] != relayedMessageEventAbi.ID {
-			return nil, errors.New("unexpected bridge event ordering")
-		}
-
-		// There's no way to extract the nonce on the relayed message event. we can extract
-		// the nonce by unpacking the transaction input for the `relayMessage` transaction
-		tx, isPending, err := rawEthClient.TransactionByHash(context.Background(), relayedMsgLog.TxHash)
-		if err != nil || isPending {
-			return nil, errors.New("unable to query relayMessage tx for bridge finalization event")
-		}
-
-		txData := tx.Data()
-		if !bytes.Equal(txData[:4], relayMessageMethodAbi.ID) {
-			return nil, errors.New("bridge finalization event does not match relayMessage tx invocation")
-		}
-
-		inputsMap := make(map[string]interface{})
-		err = relayMessageMethodAbi.Inputs.UnpackIntoMap(inputsMap, txData[4:])
-		if err != nil {
-			return nil, err
-		}
-
-		nonce, ok := inputsMap["_nonce"].(*big.Int)
-		if !ok {
-			return nil, errors.New("unable to extract `_nonce` parameter from relayMessage transaction")
-		}
-
-		finalizedBridgeEvents = append(finalizedBridgeEvents, &StandardBridgeFinalizedEvent{
-			&bindings.L1StandardBridgeERC20BridgeFinalized{
-				// Default ETH
-				LocalToken: ethAddress, RemoteToken: ethAddress,
-
-				// BridgeDAta
-				From: bridgeData.From, To: bridgeData.To, Amount: bridgeData.Amount, ExtraData: bridgeData.ExtraData,
-			},
-			nonce,
-			bridgeFinalizedEvent,
-		})
+	var bridgeData BridgeEvent
+	var eventName string
+	switch any(bridgeData).(type) {
+	case bindings.L1StandardBridgeETHBridgeFinalized:
+		eventName = "ETHBridgeFinalized"
+	case bindings.L1StandardBridgeERC20BridgeFinalized:
+		eventName = "ERC20BridgeFinalized"
+	default:
+		panic("should not be here")
 	}
 
-	// Handle ERC20 Bridge
-	for _, bridgeFinalizedEvent := range erc20BridgeFinalizedEvents {
+	processedFinalizedBridgeEvents := events.eventsBySignature[l1StandardBridgeABI.Events[eventName].ID]
+	finalizedBridgeEvents := make([]StandardBridgeFinalizedEvent, len(processedFinalizedBridgeEvents))
+	for i, bridgeFinalizedEvent := range processedFinalizedBridgeEvents {
 		log := events.eventLog[bridgeFinalizedEvent.GUID]
-		bridgeData, err := UnpackLog[bindings.L1StandardBridgeERC20BridgeFinalized](log, erc20BridgeFinalizedEventAbi.Name, l1StandardBridgeABI)
+		err := UnpackLog(&bridgeData, log, eventName, l1StandardBridgeABI)
 		if err != nil {
 			return nil, err
 		}
@@ -226,7 +211,24 @@ func StandardBridgeFinalizedEvents(rawEthClient *ethclient.Client, events *Proce
 			return nil, errors.New("unable to extract `_nonce` parameter from relayMessage transaction")
 		}
 
-		finalizedBridgeEvents = append(finalizedBridgeEvents, &StandardBridgeFinalizedEvent{bridgeData, nonce, bridgeFinalizedEvent})
+		var erc20BridgeData *bindings.L1StandardBridgeERC20BridgeFinalized
+		switch any(bridgeData).(type) {
+		case bindings.L1StandardBridgeETHBridgeInitiated:
+			ethBridgeData := any(bridgeData).(bindings.L1StandardBridgeETHBridgeFinalized)
+			erc20BridgeData = &bindings.L1StandardBridgeERC20BridgeFinalized{
+				// Represent ETH using the hardcoded address
+				LocalToken: ethAddress, RemoteToken: ethAddress,
+				// Bridge data
+				From: ethBridgeData.From, To: ethBridgeData.To, Amount: ethBridgeData.Amount, ExtraData: ethBridgeData.ExtraData,
+			}
+
+		case bindings.L1StandardBridgeERC20BridgeInitiated:
+			_temp := any(bridgeData).(bindings.L1StandardBridgeERC20BridgeFinalized)
+			// TODO: fix this as bridgeData is the same pointer
+			erc20BridgeData = &_temp
+		}
+
+		finalizedBridgeEvents[i] = StandardBridgeFinalizedEvent{erc20BridgeData, nonce, bridgeFinalizedEvent}
 	}
 
 	return finalizedBridgeEvents, nil

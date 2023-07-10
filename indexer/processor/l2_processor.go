@@ -207,7 +207,7 @@ func l2BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethCl
 
 	numFinalizedDeposits := len(finalizationBridgeEvents)
 	if numFinalizedDeposits > 0 {
-		processLog.Info("finalized deposits", "size", numFinalizedDeposits)
+		processLog.Info("finalized L1StandardBridge deposits", "size", numFinalizedDeposits)
 	}
 
 	// a-ok
