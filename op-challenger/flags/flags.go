@@ -6,7 +6,6 @@ import (
 	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	txmgr "github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -47,7 +46,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{}
 
 func init() {
-	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
+	// TODO: Introduce a txmgr app.Service to handle flag management and creating the txmgr.
 	optionalFlags = append(optionalFlags, txmgr.CLIFlags(envVarPrefix)...)
 
 	Flags = append(requiredFlags, optionalFlags...)

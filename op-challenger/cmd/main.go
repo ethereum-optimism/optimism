@@ -1,17 +1,18 @@
 package main
 
 import (
-	"fmt"
 	"os"
 
 	op_challenger "github.com/ethereum-optimism/optimism/op-challenger"
+	"github.com/ethereum-optimism/optimism/op-challenger/flags"
+	"github.com/ethereum-optimism/optimism/op-service/app"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-challenger/version"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 var (
@@ -41,38 +42,26 @@ func main() {
 	}
 }
 
-type ConfigAction func(log log.Logger, config *config.Config) error
+type ConfigAction func(log log.Logger, config *config.Config, metricsFactory opmetrics.Factory) error
 
 func run(args []string, action ConfigAction) error {
-	oplog.SetupDefaults()
-
-	app := cli.NewApp()
-	app.Version = VersionWithMeta
-	app.Flags = flags.Flags
-	app.Name = "op-challenger"
-	app.Usage = "Challenge outputs"
-	app.Description = "Ensures that on chain outputs are correct."
-	app.Action = func(ctx *cli.Context) error {
-		logger, err := setupLogging(ctx)
-		if err != nil {
-			return err
-		}
-		logger.Info("Starting op-challenger", "version", VersionWithMeta)
-
+	metricsSvc := opmetrics.NewService(func(service *opmetrics.Service) {
+		// TODO: Ultimately this should create the op-challenger Metrics instance.
+		// Kind of ugly to have to create the app specific Metrics wrapper here though
+		// Maybe just embrace it and pass the Metrics instance into ConfigAction instead of just the factory?
+		metrics.MakeTxMetrics("foo", service.Factory())
+	})
+	return app.Run(args, "OP_CHALLENGER", func(app *cli.App) {
+		app.Name = "op-challenger"
+		app.Version = VersionWithMeta
+		app.Usage = "Challenge outputs"
+		app.Description = "Ensures that on chain outputs are correct."
+		app.Flags = flags.Flags
+	}, func(l log.Logger, ctx *cli.Context) error {
 		cfg, err := config.NewConfigFromCLI(ctx)
 		if err != nil {
 			return err
 		}
-		return action(logger, cfg)
-	}
-	return app.Run(args)
-}
-
-func setupLogging(ctx *cli.Context) (log.Logger, error) {
-	logCfg := oplog.ReadCLIConfig(ctx)
-	if err := logCfg.Check(); err != nil {
-		return nil, fmt.Errorf("log config error: %w", err)
-	}
-	logger := oplog.NewLogger(logCfg)
-	return logger, nil
+		return action(l, cfg, metricsSvc.Factory())
+	}, metricsSvc)
 }
