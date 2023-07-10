@@ -2,6 +2,7 @@ package database
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 
 	"gorm.io/gorm"
@@ -64,8 +65,8 @@ type Withdrawal struct {
 	SentMessageNonce U256
 
 	WithdrawalHash       common.Hash `gorm:"serializer:json"`
-	ProvenL1EventGUID    uuid.UUID   `gorm:"default:null"`
-	FinalizedL1EventGUID uuid.UUID   `gorm:"default:null"`
+	ProvenL1EventGUID    *uuid.UUID
+	FinalizedL1EventGUID *uuid.UUID
 
 	Tx        Transaction `gorm:"embedded"`
 	TokenPair TokenPair   `gorm:"embedded"`
@@ -86,6 +87,7 @@ type BridgeView interface {
 
 	WithdrawalsByAddress(address common.Address) ([]*WithdrawalWithTransactionHashes, error)
 	WithdrawalByMessageNonce(*big.Int) (*Withdrawal, error)
+	WithdrawalByHash(common.Hash) (*Withdrawal, error)
 	LatestWithdrawalMessageNonce() (*big.Int, error)
 }
 
@@ -193,7 +195,7 @@ func (db *bridgeDB) MarkProvenWithdrawalEvent(guid, provenL1EventGuid uuid.UUID)
 		return result.Error
 	}
 
-	withdrawal.ProvenL1EventGUID = provenL1EventGuid
+	withdrawal.ProvenL1EventGUID = &provenL1EventGuid
 	result = db.gorm.Save(&withdrawal)
 	return result.Error
 }
@@ -205,7 +207,11 @@ func (db *bridgeDB) MarkFinalizedWithdrawalEvent(guid, finalizedL1EventGuid uuid
 		return result.Error
 	}
 
-	withdrawal.FinalizedL1EventGUID = finalizedL1EventGuid
+	if withdrawal.ProvenL1EventGUID == nil {
+		return errors.New(fmt.Sprintf("withdrawal %s marked finalized prior to being proven", guid))
+	}
+
+	withdrawal.FinalizedL1EventGUID = &finalizedL1EventGuid
 	result = db.gorm.Save(&withdrawal)
 	return result.Error
 }
@@ -236,6 +242,20 @@ func (db *bridgeDB) WithdrawalsByAddress(address common.Address) ([]*WithdrawalW
 func (db *bridgeDB) WithdrawalByMessageNonce(nonce *big.Int) (*Withdrawal, error) {
 	var withdrawal Withdrawal
 	result := db.gorm.First(&withdrawal, "sent_message_nonce = ?", U256{Int: nonce})
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return &withdrawal, nil
+}
+
+func (db *bridgeDB) WithdrawalByHash(hash common.Hash) (*Withdrawal, error) {
+	var withdrawal Withdrawal
+	result := db.gorm.First(&withdrawal, "withdrawal_hash = ?", hash.String())
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
