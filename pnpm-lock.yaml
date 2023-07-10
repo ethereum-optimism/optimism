@@ -4,6 +4,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+neverBuiltDependencies:
+  - node-hid
+
 importers:
 
   .:
@@ -13406,7 +13409,6 @@ packages:
     resolution: {integrity: sha512-BA6G4V84kiNd1uAChub/Z/5s/xS3EHBCxotQ0nyYrUG65mXewUDHE1tWOSqA2dp3N+mV0Ffq9wo2AW9t4p/G7g==}
     engines: {node: '>=6.0.0'}
     hasBin: true
-    requiresBuild: true
     dependencies:
       bindings: 1.5.0
       nan: 2.17.0
@@ -13419,7 +13421,6 @@ packages:
     resolution: {integrity: sha512-Skzhqow7hyLZU93eIPthM9yjot9lszg9xrKxESleEs05V2NcbUptZc5HFqzjOkSmL0sFlZFr3kmvaYebx06wrw==}
     engines: {node: '>=10'}
     hasBin: true
-    requiresBuild: true
     dependencies:
       bindings: 1.5.0
       node-addon-api: 3.2.1

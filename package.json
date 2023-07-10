@@ -8,6 +8,11 @@
     "node": ">=16",
     "pnpm": ">=8"
   },
+  "pnpm": {
+    "neverBuiltDependencies": [
+      "node-hid"
+    ]
+  },
   "scripts": {
     "clean": "npx nx run-many --target=clean",
     "build": "npx nx run-many --target=build",
