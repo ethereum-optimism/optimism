@@ -7,9 +7,6 @@ import (
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	txmgr "github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
@@ -50,10 +47,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{}
 
 func init() {
-	optionalFlags = append(optionalFlags, oprpc.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
-	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(envVarPrefix)...)
-	optionalFlags = append(optionalFlags, oppprof.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, txmgr.CLIFlags(envVarPrefix)...)
 
 	Flags = append(requiredFlags, optionalFlags...)
