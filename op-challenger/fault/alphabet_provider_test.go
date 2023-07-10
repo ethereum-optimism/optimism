@@ -50,17 +50,26 @@ func FuzzIndexToBytes(f *testing.F) {
 	})
 }
 
-// TestComputeAlphabetClaim tests the ComputeAlphabetClaim function.
-func TestComputeAlphabetClaim(t *testing.T) {
+// TestGetPreimage_Succeeds tests the GetPreimage function
+// returns the correct pre-image for a index.
+func TestGetPreimage_Succeeds(t *testing.T) {
 	ap := NewAlphabetProvider("abc", 2)
-	claim := ap.ComputeAlphabetClaim(0)
-	concatenated := append(IndexToBytes(0), []byte("a")...)
-	expected := common.BytesToHash(concatenated)
-	require.Equal(t, expected, claim)
+	expected := append(IndexToBytes(uint64(0)), []byte("a")...)
+	retrieved, err := ap.GetPreimage(uint64(0))
+	require.NoError(t, err)
+	require.Equal(t, expected, retrieved)
 }
 
-// TestGet tests the Get function.
-func TestGet(t *testing.T) {
+// TestGetPreimage_TooLargeIndex_Fails tests the GetPreimage
+// function errors if the index is too large.
+func TestGetPreimage_TooLargeIndex_Fails(t *testing.T) {
+	ap := NewAlphabetProvider("abc", 2)
+	_, err := ap.GetPreimage(4)
+	require.ErrorIs(t, err, ErrIndexTooLarge)
+}
+
+// TestGet_Succeeds tests the Get function.
+func TestGet_Succeeds(t *testing.T) {
 	ap := NewAlphabetProvider("abc", 2)
 	claim, err := ap.Get(0)
 	require.NoError(t, err)

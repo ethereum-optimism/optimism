@@ -40,6 +40,10 @@ func (m *mockTxManager) Send(ctx context.Context, candidate txmgr.TxCandidate) (
 	), nil
 }
 
+func (m *mockTxManager) BlockNumber(ctx context.Context) (uint64, error) {
+	panic("not implemented")
+}
+
 func (m *mockTxManager) From() common.Address {
 	return m.from
 }

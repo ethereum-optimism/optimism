@@ -690,6 +690,10 @@ jobs:
           command: |
             npm i pnpm --global
       - run:
+          name: Install node_modules
+          command: |
+            pnpm install
+      - run:
           name: Lint check
           command: |
             pnpm lint:specs:check
@@ -1063,7 +1067,7 @@ jobs:
       sim:
         type: string
     machine:
-      image: ubuntu-2204:2022.07.1
+      image: ubuntu-2204:2022.10.2
       docker_layer_caching: true
       resource_class: large
     steps:

@@ -18,27 +18,35 @@ type AlphabetProvider struct {
 func NewAlphabetProvider(state string, depth uint64) *AlphabetProvider {
 	return &AlphabetProvider{
 		state:  strings.Split(state, ""),
-		maxLen: (1 << depth),
+		maxLen: uint64(1 << depth),
 	}
+}
+
+// GetPreimage returns the preimage for the given hash.
+func (ap *AlphabetProvider) GetPreimage(i uint64) ([]byte, error) {
+	// The index cannot be larger than the maximum index as computed by the depth.
+	if i >= ap.maxLen {
+		return []byte{}, ErrIndexTooLarge
+	}
+	// We extend the deepest hash to the maximum depth if the trace is not expansive.
+	if i >= uint64(len(ap.state)) {
+		return ap.GetPreimage(uint64(len(ap.state)) - 1)
+	}
+	return buildAlphabetClaimBytes(i, ap.state[i]), nil
 }
 
 // Get returns the claim value at the given index in the trace.
 func (ap *AlphabetProvider) Get(i uint64) (common.Hash, error) {
-	// The index cannot be larger than the maximum index as computed by the depth.
-	if i >= ap.maxLen {
-		return common.Hash{}, ErrIndexTooLarge
+	claimBytes, err := ap.GetPreimage(i)
+	if err != nil {
+		return common.Hash{}, err
 	}
-	// We extend the deepest hash to the maximum depth if the trace is not expansive.
-	if i >= uint64(len(ap.state)) {
-		return ap.Get(uint64(len(ap.state)) - 1)
-	}
-	return ap.ComputeAlphabetClaim(i), nil
+	return common.BytesToHash(claimBytes), nil
 }
 
-// ComputeAlphabetClaim computes the claim for the given index in the trace.
-func (ap *AlphabetProvider) ComputeAlphabetClaim(i uint64) common.Hash {
-	concatenated := append(IndexToBytes(i), []byte(ap.state[i])...)
-	return common.BytesToHash(concatenated)
+// buildAlphabetClaimBytes constructs the claim bytes for the index and state item.
+func buildAlphabetClaimBytes(i uint64, letter string) []byte {
+	return append(IndexToBytes(i), []byte(letter)...)
 }
 
 // IndexToBytes converts an index to a byte slice big endian

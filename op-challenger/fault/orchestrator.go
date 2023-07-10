@@ -34,6 +34,10 @@ func (o *Orchestrator) Respond(_ context.Context, response Claim) error {
 	return nil
 }
 
+func (o *Orchestrator) Step(ctx context.Context, stepData StepCallData) error {
+	return nil
+}
+
 func (o *Orchestrator) Start() {
 	for i := 0; i < len(o.agents); i++ {
 		go runAgent(&o.agents[i], o.outputChs[i])

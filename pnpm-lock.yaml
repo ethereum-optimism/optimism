@@ -249,9 +249,6 @@ importers:
 
   packages/contracts-bedrock:
     dependencies:
-      '@eth-optimism/core-utils':
-        specifier: ^0.12.1
-        version: link:../core-utils
       '@openzeppelin/contracts':
         specifier: 4.7.3
         version: 4.7.3

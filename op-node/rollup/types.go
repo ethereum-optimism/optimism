@@ -286,7 +286,7 @@ func (c *Config) Description(l2Chains map[string]string) string {
 	return banner
 }
 
-// Description outputs a banner describing the important parts of rollup configuration in a log format.
+// LogDescription outputs a banner describing the important parts of rollup configuration in a log format.
 // Optionally provide a mapping of L2 chain IDs to network names to label the L2 chain with if not unknown.
 // The config should be config.Check()-ed before creating a description.
 func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {

@@ -78,3 +78,23 @@ func TestSolver_NextMove_Opponent(t *testing.T) {
 		require.Equal(t, test.response, res.ClaimData)
 	}
 }
+
+func TestAttemptStep(t *testing.T) {
+	maxDepth := 3
+	canonicalProvider := NewAlphabetProvider("abcdefgh", uint64(maxDepth))
+	solver := NewSolver(maxDepth, canonicalProvider)
+	root, top, middle, bottom := createTestClaims()
+	g := NewGameState(root, testMaxDepth)
+	require.NoError(t, g.Put(top))
+	require.NoError(t, g.Put(middle))
+	require.NoError(t, g.Put(bottom))
+
+	step, err := solver.AttemptStep(bottom, g)
+	require.NoError(t, err)
+	require.Equal(t, bottom, step.LeafClaim)
+	require.Equal(t, middle, step.StateClaim)
+	require.True(t, step.IsAttack)
+
+	_, err = solver.AttemptStep(middle, g)
+	require.Error(t, err)
+}

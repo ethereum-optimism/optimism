@@ -18,7 +18,6 @@ build_info = true
 build_info_path = 'artifacts/build-info'
 ffi = true
 fuzz_runs = 16
-no_match_contract = 'EchidnaFuzz'
 # PNPM symlinks all node_modules from the monorepo root
 allow_paths = ["../../node_modules", "./**"]
 
@@ -32,6 +31,3 @@ fs_permissions = [
 
 [profile.ci]
 fuzz_runs = 512
-
-[profile.echidna]
-bytecode_hash = 'ipfs'

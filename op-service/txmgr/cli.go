@@ -48,6 +48,16 @@ var (
 	}
 )
 
+var (
+	defaultNumConfirmations          = uint64(10)
+	defaultSafeAbortNonceTooLowCount = uint64(3)
+	defaultResubmissionTimeout       = 48 * time.Second
+	defaultNetworkTimeout            = 2 * time.Second
+	defaultTxSendTimeout             = 0 * time.Second
+	defaultTxNotInMempoolTimeout     = 2 * time.Minute
+	defaultReceiptQueryInterval      = 12 * time.Second
+)
+
 func CLIFlags(envPrefix string) []cli.Flag {
 	prefixEnvVars := func(name string) []string {
 		return opservice.PrefixEnvVar(envPrefix, name)
@@ -71,43 +81,43 @@ func CLIFlags(envPrefix string) []cli.Flag {
 		&cli.Uint64Flag{
 			Name:    NumConfirmationsFlagName,
 			Usage:   "Number of confirmations which we will wait after sending a transaction",
-			Value:   10,
+			Value:   defaultNumConfirmations,
 			EnvVars: prefixEnvVars("NUM_CONFIRMATIONS"),
 		},
 		&cli.Uint64Flag{
 			Name:    SafeAbortNonceTooLowCountFlagName,
 			Usage:   "Number of ErrNonceTooLow observations required to give up on a tx at a particular nonce without receiving confirmation",
-			Value:   3,
+			Value:   defaultSafeAbortNonceTooLowCount,
 			EnvVars: prefixEnvVars("SAFE_ABORT_NONCE_TOO_LOW_COUNT"),
 		},
 		&cli.DurationFlag{
 			Name:    ResubmissionTimeoutFlagName,
 			Usage:   "Duration we will wait before resubmitting a transaction to L1",
-			Value:   48 * time.Second,
+			Value:   defaultResubmissionTimeout,
 			EnvVars: prefixEnvVars("RESUBMISSION_TIMEOUT"),
 		},
 		&cli.DurationFlag{
 			Name:    NetworkTimeoutFlagName,
 			Usage:   "Timeout for all network operations",
-			Value:   2 * time.Second,
+			Value:   defaultNetworkTimeout,
 			EnvVars: prefixEnvVars("NETWORK_TIMEOUT"),
 		},
 		&cli.DurationFlag{
 			Name:    TxSendTimeoutFlagName,
 			Usage:   "Timeout for sending transactions. If 0 it is disabled.",
-			Value:   0,
+			Value:   defaultTxSendTimeout,
 			EnvVars: prefixEnvVars("TXMGR_TX_SEND_TIMEOUT"),
 		},
 		&cli.DurationFlag{
 			Name:    TxNotInMempoolTimeoutFlagName,
 			Usage:   "Timeout for aborting a tx send if the tx does not make it to the mempool.",
-			Value:   2 * time.Minute,
+			Value:   defaultTxNotInMempoolTimeout,
 			EnvVars: prefixEnvVars("TXMGR_TX_NOT_IN_MEMPOOL_TIMEOUT"),
 		},
 		&cli.DurationFlag{
 			Name:    ReceiptQueryIntervalFlagName,
 			Usage:   "Frequency to poll for receipts",
-			Value:   12 * time.Second,
+			Value:   defaultReceiptQueryInterval,
 			EnvVars: prefixEnvVars("TXMGR_RECEIPT_QUERY_INTERVAL"),
 		},
 	}, client.CLIFlags(envPrefix)...)
@@ -128,6 +138,20 @@ type CLIConfig struct {
 	NetworkTimeout            time.Duration
 	TxSendTimeout             time.Duration
 	TxNotInMempoolTimeout     time.Duration
+}
+
+func NewCLIConfig(l1RPCURL string) CLIConfig {
+	return CLIConfig{
+		L1RPCURL:                  l1RPCURL,
+		NumConfirmations:          defaultNumConfirmations,
+		SafeAbortNonceTooLowCount: defaultSafeAbortNonceTooLowCount,
+		ResubmissionTimeout:       defaultResubmissionTimeout,
+		NetworkTimeout:            defaultNetworkTimeout,
+		TxSendTimeout:             defaultTxSendTimeout,
+		TxNotInMempoolTimeout:     defaultTxNotInMempoolTimeout,
+		ReceiptQueryInterval:      defaultReceiptQueryInterval,
+		SignerCLIConfig:           client.NewCLIConfig(),
+	}
 }
 
 func (m CLIConfig) Check() error {

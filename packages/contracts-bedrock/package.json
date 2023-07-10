@@ -10,7 +10,6 @@
   ],
   "scripts": {
     "bindings": "cd ../../op-bindings && make",
-    "build:with-metadata": "FOUNDRY_PROFILE=echidna pnpm build:forge",
     "build": "npx nx build:contracts",
     "prebuild:contracts": "./scripts/verify-foundry-install.sh",
     "build:contracts": "pnpm build:forge",
@@ -35,17 +34,9 @@
     "lint:ts:fix": "eslint --fix .",
     "lint:contracts:fix": "pnpm solhint --fix 'contracts/**/!(DisputeTypes|RLPReader).sol' && pnpm prettier --write 'contracts/**/!(DisputeTypes|RLPReader).sol'",
     "lint:fix": "pnpm lint:contracts:fix && pnpm lint:ts:fix",
-    "lint": "pnpm lint:fix && pnpm lint:check",
-    "echidna:aliasing": "echidna-test --contract EchidnaFuzzAddressAliasing --config ./echidna.yaml .",
-    "echidna:burn:gas": "echidna-test --contract EchidnaFuzzBurnGas --config ./echidna.yaml .",
-    "echidna:burn:eth": "echidna-test --contract EchidnaFuzzBurnEth --config ./echidna.yaml .",
-    "echidna:encoding": "echidna-test --contract EchidnaFuzzEncoding --config ./echidna.yaml .",
-    "echidna:portal": "echidna-test --contract EchidnaFuzzOptimismPortal --config ./echidna.yaml .",
-    "echidna:hashing": "echidna-test --contract EchidnaFuzzHashing --config ./echidna.yaml .",
-    "echidna:metering": "echidna-test --contract EchidnaFuzzResourceMetering --config ./echidna.yaml ."
+    "lint": "pnpm lint:fix && pnpm lint:check"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.12.1",
     "@openzeppelin/contracts": "4.7.3",
     "@openzeppelin/contracts-upgradeable": "4.7.3",
     "@rari-capital/solmate": "github:transmissions11/solmate#8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
