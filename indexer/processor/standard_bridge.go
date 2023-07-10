@@ -18,7 +18,7 @@ var (
 )
 
 type StandardBridgeInitiatedEvent struct {
-	// We hardcode to ERC20 since ETH can be psuedo-represented as an ERC20 utilizing
+	// We hardcode to ERC20 since ETH can be pseudo-represented as an ERC20 utilizing
 	// the hardcoded ETH address
 	*bindings.L1StandardBridgeERC20BridgeInitiated
 
@@ -27,7 +27,7 @@ type StandardBridgeInitiatedEvent struct {
 }
 
 type StandardBridgeFinalizedEvent struct {
-	// We hardcode to ERC20 since ETH can be psuedo-represented as an ERC20 utilizing
+	// We hardcode to ERC20 since ETH can be pseudo-represented as an ERC20 utilizing
 	// the hardcoded ETH address
 	*bindings.L1StandardBridgeERC20BridgeFinalized
 

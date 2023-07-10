@@ -38,7 +38,7 @@ type Deposit struct {
 	// the message nonce serves as a unique identifier for this
 	// deposit. Once this generalizes to more than 1 deployed
 	// bridge, we need to include the `CrossDomainMessenger` address
-	// such that the (messenger_addr, nonce) is the unique identifer
+	// such that the (messenger_addr, nonce) is the unique identifier
 	// for a bridge msg
 	SentMessageNonce U256
 
@@ -61,7 +61,7 @@ type Withdrawal struct {
 	// the message nonce serves as a unique identifier for this
 	// withdrawal. Once this generalizes to more than 1 deployed
 	// bridge, we need to include the `CrossDomainMessenger` address
-	// such that the (messenger_addr, nonce) is the unique identifer
+	// such that the (messenger_addr, nonce) is the unique identifier
 	// for a bridge msg
 	SentMessageNonce U256
 
@@ -209,7 +209,7 @@ func (db *bridgeDB) MarkFinalizedWithdrawalEvent(guid, finalizedL1EventGuid uuid
 	}
 
 	if withdrawal.ProvenL1EventGUID == nil {
-		return errors.New(fmt.Sprintf("withdrawal %s marked finalized prior to being proven", guid))
+		return fmt.Errorf("withdrawal %s marked finalized prior to being proven", guid)
 	}
 
 	withdrawal.FinalizedL1EventGUID = &finalizedL1EventGuid
