@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.7.6;
 
+/// @title IPreimageOracle
+/// @notice Interface for the `PreimageOracle` contract.
+/// @dev Inlined in `MIPS.sol` and not imported due to `MIPS.sol` utilizing solc v0.7.6
+///      for unchecked math. Will remove this interface once `MIPS.sol` and `PreimageOracle.sol`
+///      are upgraded to solc >= v0.8.0.
 interface IPreimageOracle {
   function readPreimage(bytes32 key, uint256 offset) external view returns (bytes32 dat, uint256 datLen);
 }

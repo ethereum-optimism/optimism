@@ -12,10 +12,11 @@ import "../libraries/DisputeErrors.sol";
 import { LibClock } from "../dispute/lib/LibClock.sol";
 import { LibPosition } from "../dispute/lib/LibPosition.sol";
 import { IBigStepper } from "../dispute/interfaces/IBigStepper.sol";
+import { IPreimageOracle } from "../cannon/interfaces/IPreimageOracle.sol";
 
 contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     /// @dev The extra data passed to the game for initialization.
-    bytes internal constant EXTRA_DATA = abi.encode(1);
+    bytes internal constant EXTRA_DATA = hex"0a";
     /// @dev The type of the game being tested.
     GameType internal constant GAME_TYPE = GameType.wrap(0);
 
@@ -712,8 +713,21 @@ contract EarlyDivergentPlayer is GamePlayer {
 contract AlphabetVM is IBigStepper {
     Claim internal immutable ABSOLUTE_PRESTATE;
 
+    Vm vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+
+    IPreimageOracle public oracle;
+
     constructor(Claim _absolutePrestate) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
+
+        assembly {
+            // Store noop contract code in memory.
+            mstore(0x00, 0x60016000F3)
+
+            // Deploy the contract and assign to PREIMAGE_ORACLE; The
+            // alphabet game doesn't consult it.
+            sstore(oracle.slot, create(0, 0x1b, 5))
+        }
     }
 
     /// @inheritdoc IBigStepper

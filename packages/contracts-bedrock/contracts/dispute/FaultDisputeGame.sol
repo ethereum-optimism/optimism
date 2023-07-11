@@ -6,6 +6,7 @@ import { IFaultDisputeGame } from "./interfaces/IFaultDisputeGame.sol";
 import { IInitializable } from "./interfaces/IInitializable.sol";
 import { IBondManager } from "./interfaces/IBondManager.sol";
 import { IBigStepper } from "./interfaces/IBigStepper.sol";
+import { IPreimageOracle } from "../cannon/interfaces/IPreimageOracle.sol";
 
 import { Clone } from "../libraries/Clone.sol";
 import { Semver } from "../universal/Semver.sol";
@@ -326,7 +327,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // The extra data starts at the second word within the cwia calldata.
         // TODO: What data do we need to pass along to this contract from the factory?
         //       Block hash, preimage data, etc.?
-        extraData_ = _getArgDynBytes(0x20, 0x20);
+        extraData_ = _getArgDynBytes(0x40, extraDataLen());
+    }
+
+    /// @inheritdoc IDisputeGame
+    function extraDataLen() public pure returns (uint64 extraDataLen_) {
+        extraDataLen_ = uint64(_getArgUint256(0x20));
     }
 
     /// @inheritdoc IDisputeGame
@@ -365,6 +371,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
                 countered: false
             })
         );
+
+        // Supply bootstrap data to preimage oracle.
+        VM.oracle().loadKeccak256PreimagePart(0, extraData());
     }
 
     /// @notice Returns the length of the `claimData` array.
