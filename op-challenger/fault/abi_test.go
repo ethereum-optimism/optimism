@@ -72,3 +72,25 @@ func TestBuildFaultAttackData(t *testing.T) {
 
 	require.Equal(t, data, tx.Data())
 }
+
+// TestBuildFaultStepData ensures that the manual ABI packing is the same as going through the bound contract.
+func TestBuildFaultStepData(t *testing.T) {
+	_, opts, _, contract, err := setupFaultDisputeGame()
+	require.NoError(t, err)
+
+	responder, _ := newTestFaultResponder(t, false)
+
+	data, err := responder.buildStepTxData(StepCallData{
+		ClaimIndex: 2,
+		IsAttack:   false,
+		StateData:  []byte{0x01},
+		Proof:      []byte{0x02},
+	})
+	require.NoError(t, err)
+
+	opts.GasLimit = 100_000
+	tx, err := contract.Step(opts, big.NewInt(2), false, []byte{0x01}, []byte{0x02})
+	require.NoError(t, err)
+
+	require.Equal(t, data, tx.Data())
+}
