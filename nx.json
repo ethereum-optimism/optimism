@@ -4,7 +4,8 @@
     "defaultBase": "develop"
   },
   "implicitDependencies": {
-    "nx.json": "*"
+    "nx.json": "*",
+    ".foundryrc": "*"
   },
   "tasksRunnerOptions": {
     "default": {
