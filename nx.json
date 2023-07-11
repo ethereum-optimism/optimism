@@ -5,7 +5,9 @@
   },
   "implicitDependencies": {
     "nx.json": "*",
-    ".foundryrc": "*"
+    "tsconfig.json": "*",
+    ".foundryrc": "*",
+    ".nvmrc": "*"
   },
   "tasksRunnerOptions": {
     "default": {
