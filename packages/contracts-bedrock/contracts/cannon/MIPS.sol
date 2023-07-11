@@ -379,7 +379,7 @@ contract MIPS {
   }
 
   // will revert if any required input state is missing
-  function Step(bytes calldata stateData, bytes calldata proof) public returns (bytes32) {
+  function step(bytes calldata stateData, bytes calldata proof) public returns (bytes32) {
     State memory state;
     // packed data is ~6 times smaller
     assembly {
