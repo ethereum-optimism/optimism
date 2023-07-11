@@ -35,7 +35,7 @@ func NewProcessedContractEvents() *ProcessedContractEvents {
 }
 
 func (p *ProcessedContractEvents) AddLog(log *types.Log, time uint64) *database.ContractEvent {
-	contractEvent := database.ContractEventFromLog(log, time)
+	contractEvent := database.ContractEventFromGethLog(log, time)
 
 	p.events = append(p.events, &contractEvent)
 	p.eventsBySignature[contractEvent.EventSignature] = append(p.eventsBySignature[contractEvent.EventSignature], &contractEvent)

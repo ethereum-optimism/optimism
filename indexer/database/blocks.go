@@ -23,7 +23,7 @@ type BlockHeader struct {
 	Timestamp  uint64
 }
 
-func BlockHeaderFromHeader(header *types.Header) BlockHeader {
+func BlockHeaderFromGethHeader(header *types.Header) BlockHeader {
 	return BlockHeader{
 		Hash:       header.Hash(),
 		ParentHash: header.ParentHash,

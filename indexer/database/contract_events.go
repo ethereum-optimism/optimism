@@ -23,7 +23,7 @@ type ContractEvent struct {
 	Timestamp      uint64
 }
 
-func ContractEventFromLog(log *types.Log, timestamp uint64) ContractEvent {
+func ContractEventFromGethLog(log *types.Log, timestamp uint64) ContractEvent {
 	return ContractEvent{
 		GUID: uuid.New(),
 
