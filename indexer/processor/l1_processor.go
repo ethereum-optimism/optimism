@@ -231,7 +231,7 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 			}
 
 			// forward along contract events to the bridge processor
-			err = l1BridgeProcessContractEvents(processLog, db, ethClient, processedContractEvents)
+			err = l1BridgeProcessContractEvents(processLog, db, ethClient, processedContractEvents, l1Contracts)
 			if err != nil {
 				return err
 			}
