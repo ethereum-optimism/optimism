@@ -712,9 +712,6 @@ contract EarlyDivergentPlayer is GamePlayer {
 
 contract AlphabetVM is IBigStepper {
     Claim internal immutable ABSOLUTE_PRESTATE;
-
-    Vm vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
-
     IPreimageOracle public oracle;
 
     constructor(Claim _absolutePrestate) {
