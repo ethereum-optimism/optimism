@@ -30,7 +30,7 @@ You’ll need the following software installed to follow this tutorial:
 - [Git](https://git-scm.com/)
 - [Go](https://go.dev/)
 - [Node](https://nodejs.org/en/)
-- [Yarn](https://classic.yarnpkg.com/lang/en/docs/install/)
+- [Pnpm](https://classic.yarnpkg.com/lang/en/docs/install/)
 - [Foundry](https://github.com/foundry-rs/foundry#installation)
 - [Make](https://linux.die.net/man/1/make)
 - [jq](https://github.com/jqlang/jq)
@@ -44,7 +44,7 @@ This tutorial was checked on:
 | git, curl, jq, and make | OS default | `sudo apt install -y git curl make jq` |
 | Go       | 1.20       | `sudo apt update` <br> `wget https://go.dev/dl/go1.20.linux-amd64.tar.gz` <br> `tar xvzf go1.20.linux-amd64.tar.gz` <br> `sudo cp go/bin/go /usr/bin/go` <br> `sudo mv go /usr/lib` <br> `echo export GOROOT=/usr/lib/go >> ~/.bashrc`
 | Node     | 16.19.0    | `curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -` <br> `sudo apt-get install -y nodejs npm`
-| yarn     | 1.22.19    | `sudo npm install -g yarn`
+| pnpm     | 8.5.6      | `sudo npm install -g pnpm`
 | Foundry  | 0.2.0      | `yarn install:foundry`
 
 ## Build the Source Code
@@ -69,14 +69,14 @@ We’re going to be spinning up an EVM Rollup from the OP Stack source code.  Yo
 1. Install required modules. This is a slow process, while it is running you can already start building `op-geth`, as shown below.
 
     ```bash
-    yarn install
+    pnpm install
     ```
 
 1. Build the various packages inside of the Optimism Monorepo.
 
     ```bash
     make op-node op-batcher op-proposer
-    yarn build
+    pnpm build
     ```
 
 ### Build op-geth
@@ -312,6 +312,7 @@ We’re almost ready to run our chain! Now we just need to run a few commands to
     ```bash
     echo "pwd" > datadir/password
     ```
+
 
 1. Put the `Sequencer` private key into the data directory folder (don’t include a “0x” prefix):
 
