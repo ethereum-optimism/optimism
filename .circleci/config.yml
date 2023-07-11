@@ -709,6 +709,27 @@ jobs:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
 
+  contracts-ts-tests:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore pnpm Package Cache
+          keys:
+            - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
+      - check-changed:
+          patterns: sdk,contracts-bedrock,contracts
+      - run:
+          name: Check generated and build
+          command: pnpm generate:check
+          working_directory: packages/contracts-ts
+      - run:
+          name: typecheck
+          command: pnpm typecheck
+
   sdk-next-tests:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
@@ -1334,6 +1355,13 @@ workflows:
           coverage_flag: fault-detector-tests
           package_name: fault-detector
           dependencies: "(common-ts|core-utils|sdk)"
+          requires:
+            - pnpm-monorepo
+      - js-lint-test:
+          name: contracts-ts-tests
+          coverage_flag: contracts-ts-tests
+          package_name: contracts-ts
+          dependencies: '(contracts-bedrock|contracts-ts)'
           requires:
             - pnpm-monorepo
       - js-lint-test:
