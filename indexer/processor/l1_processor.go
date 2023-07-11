@@ -244,7 +244,7 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 	}
 }
 
-func l1BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethClient node.EthClient, events *ProcessedContractEvents) error {
+func l1BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethClient node.EthClient, events *ProcessedContractEvents, l1Contracts L1Contracts) error {
 	rawEthClient := ethclient.NewClient(ethClient.RawRpcClient())
 
 	// Process New Deposits
@@ -296,8 +296,8 @@ func l1BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethCl
 		// Check if the L2Processor is behind or really has missed an event. We can compare against the
 		// OptimismPortal#ProvenWithdrawal on-chain mapping relative to the latest indexed L2 height
 		if withdrawal == nil {
-			var bridgeAddress common.Address
-			var portalAddress common.Address
+			bridgeAddress := l1Contracts.L1StandardBridge
+			portalAddress := l1Contracts.OptimismPortal
 			if provenWithdrawalEvent.From != bridgeAddress || provenWithdrawalEvent.To != bridgeAddress {
 				// non-bridge withdrawal
 				continue
