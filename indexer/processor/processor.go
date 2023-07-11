@@ -55,8 +55,8 @@ func (p processor) Start() {
 		firstHeader := unprocessedHeaders[0]
 		lastHeader := unprocessedHeaders[len(unprocessedHeaders)-1]
 		batchLog := p.processLog.New("batch_start_block_number", firstHeader.Number, "batch_end_block_number", lastHeader.Number)
-		batchLog.Info("processing batch")
 		err := p.db.Transaction(func(db *database.DB) error {
+			batchLog.Info("processing batch")
 			return p.processFn(db, unprocessedHeaders)
 		})
 

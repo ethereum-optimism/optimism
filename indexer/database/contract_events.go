@@ -4,6 +4,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/google/uuid"
 )
@@ -20,6 +21,20 @@ type ContractEvent struct {
 	EventSignature common.Hash `gorm:"serializer:json"`
 	LogIndex       uint64
 	Timestamp      uint64
+}
+
+func ContractEventFromGethLog(log *types.Log, timestamp uint64) ContractEvent {
+	return ContractEvent{
+		GUID: uuid.New(),
+
+		BlockHash:       log.BlockHash,
+		TransactionHash: log.TxHash,
+
+		EventSignature: log.Topics[0],
+		LogIndex:       uint64(log.Index),
+
+		Timestamp: timestamp,
+	}
 }
 
 type L1ContractEvent struct {

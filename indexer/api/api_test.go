@@ -1,6 +1,7 @@
 package api
 
 import (
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -25,7 +26,7 @@ func (mbv *MockBridgeView) DepositsByAddress(address common.Address) ([]*databas
 		{
 			Deposit: database.Deposit{
 				GUID:                 uuid.MustParse(guid1),
-				InitiatedL1EventGUID: guid2,
+				InitiatedL1EventGUID: uuid.MustParse(guid2),
 				Tx:                   database.Transaction{},
 				TokenPair:            database.TokenPair{},
 			},
@@ -34,13 +35,28 @@ func (mbv *MockBridgeView) DepositsByAddress(address common.Address) ([]*databas
 	}, nil
 }
 
+// DepositsByAddress mocks returning deposits by an address
+func (mbv *MockBridgeView) DepositByMessageNonce(nonce *big.Int) (*database.Deposit, error) {
+	return &database.Deposit{
+		GUID:                 uuid.MustParse(guid1),
+		InitiatedL1EventGUID: uuid.MustParse(guid2),
+		Tx:                   database.Transaction{},
+		TokenPair:            database.TokenPair{},
+	}, nil
+}
+
+// LatestDepositMessageNonce mocks returning the latest cross domain message nonce for a deposit
+func (mbv *MockBridgeView) LatestDepositMessageNonce() (*big.Int, error) {
+	return big.NewInt(0), nil
+}
+
 // WithdrawalsByAddress mocks returning withdrawals by an address
 func (mbv *MockBridgeView) WithdrawalsByAddress(address common.Address) ([]*database.WithdrawalWithTransactionHashes, error) {
 	return []*database.WithdrawalWithTransactionHashes{
 		{
 			Withdrawal: database.Withdrawal{
 				GUID:                 uuid.MustParse(guid2),
-				InitiatedL2EventGUID: guid1,
+				InitiatedL2EventGUID: uuid.MustParse(guid1),
 				WithdrawalHash:       common.HexToHash("0x456"),
 				Tx:                   database.Transaction{},
 				TokenPair:            database.TokenPair{},
@@ -48,6 +64,33 @@ func (mbv *MockBridgeView) WithdrawalsByAddress(address common.Address) ([]*data
 			L2TransactionHash: common.HexToHash("0x789"),
 		},
 	}, nil
+}
+
+// WithdrawalsByMessageNonce mocks returning withdrawals by a withdrawal hash
+func (mbv *MockBridgeView) WithdrawalByMessageNonce(nonce *big.Int) (*database.Withdrawal, error) {
+	return &database.Withdrawal{
+		GUID:                 uuid.MustParse(guid2),
+		InitiatedL2EventGUID: uuid.MustParse(guid1),
+		WithdrawalHash:       common.HexToHash("0x456"),
+		Tx:                   database.Transaction{},
+		TokenPair:            database.TokenPair{},
+	}, nil
+}
+
+// WithdrawalsByHash mocks returning withdrawals by a withdrawal hash
+func (mbv *MockBridgeView) WithdrawalByHash(address common.Hash) (*database.Withdrawal, error) {
+	return &database.Withdrawal{
+		GUID:                 uuid.MustParse(guid2),
+		InitiatedL2EventGUID: uuid.MustParse(guid1),
+		WithdrawalHash:       common.HexToHash("0x456"),
+		Tx:                   database.Transaction{},
+		TokenPair:            database.TokenPair{},
+	}, nil
+}
+
+// LatestWithdrawalMessageNonce mocks returning the latest cross domain message nonce for a withdrawal
+func (mbv *MockBridgeView) LatestWithdrawalMessageNonce() (*big.Int, error) {
+	return big.NewInt(0), nil
 }
 
 func TestHealthz(t *testing.T) {
