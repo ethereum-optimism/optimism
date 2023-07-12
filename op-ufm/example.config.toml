@@ -32,11 +32,11 @@ port = 9761
 chain_id = 420
 # Signer method to use
 # Possible values: signer | static
-signer_method = "signer"
+signer_method = "static"
 # Address used to send transactions
-address="0x0123"
+address="0x0000000000000000000000000000000000000000"
 # For static signer method, the private key to use
-# private_key=""
+private_key="0000000000000000000000000000000000000000000000000000000000000000"
 # Transaction value in wei
 tx_value=100000000000000
 # Gas limit
@@ -57,6 +57,12 @@ read_interval = "1s"
 send_interval = "5s"
 # Wallet to be used for sending transactions
 wallet = "default"
+# Network to pool transactions, i.e. providers in the same network will check transactions from each other
+network = "op-goerli"
+# Interval between receipt retrieval
+receipt_retrieval_interval = "500ms"
+# Max time to check for receipt
+receipt_retrieval_timeout = "2m"
 
 [providers.p2]
 # Uncomment to disable this provider
@@ -71,3 +77,9 @@ read_interval = "2s"
 send_interval = "3s"
 # Wallet to be used for sending transactions
 wallet = "default"
+# Network to pool transactions, i.e. providers in the same network will check transactions from each other
+network = "op-goerli"
+# Interval between receipt retrieval
+receipt_retrieval_interval = "500ms"
+# Max time to check for receipt
+receipt_retrieval_timeout = "2m"
