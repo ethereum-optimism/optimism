@@ -8,17 +8,23 @@ import (
 )
 
 type Provider struct {
-	name       string
-	config     *config.ProviderConfig
-	cancelFunc context.CancelFunc
+	name         string
+	config       *config.ProviderConfig
+	signerConfig *config.SignerServiceConfig
+	walletConfig *config.WalletConfig
+	cancelFunc   context.CancelFunc
 
 	client *http.Client
 }
 
-func New(name string, cfg *config.ProviderConfig) *Provider {
+func New(name string, cfg *config.ProviderConfig,
+	signerConfig *config.SignerServiceConfig,
+	walletConfig *config.WalletConfig) *Provider {
 	p := &Provider{
-		name:   name,
-		config: cfg,
+		name:         name,
+		config:       cfg,
+		signerConfig: signerConfig,
+		walletConfig: walletConfig,
 
 		client: http.DefaultClient,
 	}

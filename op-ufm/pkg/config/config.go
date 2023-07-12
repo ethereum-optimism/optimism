@@ -1,6 +1,8 @@
 package config
 
 import (
+	"math/big"
+
 	"github.com/BurntSushi/toml"
 	"github.com/pkg/errors"
 )
@@ -17,7 +19,10 @@ type Config struct {
 }
 
 type SignerServiceConfig struct {
-	URL string `toml:"url"`
+	URL       string `toml:"url"`
+	TLSCaCert string `toml:"tls_ca_cert"`
+	TLSCert   string `toml:"tls_cert"`
+	TLSKey    string `toml:"tls_key"`
 }
 
 type MetricsConfig struct {
@@ -34,17 +39,23 @@ type HealthzConfig struct {
 
 type WalletConfig struct {
 	// default: 420 (Optimism Goerli)
-	ChainID uint `toml:"chain_id"`
+	ChainID big.Int `toml:"chain_id"`
 
 	// signer | static, default: signer
 	SignerMethod string `toml:"signer_method"`
-
-	// for static signing
-	Address    string `toml:"address"`
+	Address      string `toml:"address"`
+	// private key is used for static signing
 	PrivateKey string `toml:"private_key"`
+
+	// transaction parameters
+	TxValue   big.Int `toml:"tx_value"`
+	GasLimit  uint64  `toml:"gas_limit"`
+	GasTipCap big.Int `toml:"gas_tip_cap"`
+	GasFeeCap big.Int `toml:"gas_fee_cap"`
 }
 
 type ProviderConfig struct {
+	Disabled     bool         `toml:"disabled"`
 	URL          string       `toml:"url"`
 	Wallet       string       `toml:"wallet"`
 	ReadOnly     bool         `toml:"read_only"`
@@ -81,7 +92,7 @@ func (c *Config) Validate() error {
 	}
 
 	for name, wallet := range c.Wallets {
-		if wallet.ChainID == 0 {
+		if wallet.ChainID.BitLen() == 0 {
 			return errors.Errorf("wallet [%s] chain_id is missing", name)
 		}
 		if wallet.SignerMethod != "signer" && wallet.SignerMethod != "static" {
@@ -90,6 +101,15 @@ func (c *Config) Validate() error {
 		if wallet.SignerMethod == "signer" {
 			if c.Signer.URL == "" {
 				return errors.New("signer url is missing")
+			}
+			if c.Signer.TLSCaCert == "" {
+				return errors.New("signer tls_ca_cert is missing")
+			}
+			if c.Signer.TLSCert == "" {
+				return errors.New("signer tls_cert is missing")
+			}
+			if c.Signer.TLSKey == "" {
+				return errors.New("signer tls_key is missing")
 			}
 		}
 		if wallet.SignerMethod == "static" {

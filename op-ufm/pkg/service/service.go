@@ -30,7 +30,11 @@ func (s *Service) Start(ctx context.Context) {
 		log.Info("healthz started")
 	}
 	for name, providerConfig := range s.Config.Providers {
-		s.Providers[name] = provider.New(name, providerConfig)
+		if providerConfig.Disabled {
+			log.Info("provider is disabled", "provider", name)
+			continue
+		}
+		s.Providers[name] = provider.New(name, providerConfig, &s.Config.Signer, s.Config.Wallets[providerConfig.Wallet])
 		s.Providers[name].Start(ctx)
 		log.Info("provider started", "provider", name)
 	}

@@ -6,6 +6,9 @@ log_level = "debug"
 [signer_service]
 # URL to the signer service
 url = "http://localhost:1234"
+tls_ca_cert = "tls/ca.crt"
+tls_cert = "tls/tls.crt"
+tls_key = "tls/tls.key"
 
 [healthz]
 # Whether or not to enable healthz endpoint
@@ -34,6 +37,14 @@ signer_method = "signer"
 address="0x0123"
 # For static signer method, the private key to use
 # private_key=""
+# Transaction value in wei
+tx_value=100000000000000
+# Gas limit
+gas_limit=21000
+# Gas tip cap
+gas_tip_cap=2000000000
+# Fee cap
+gas_fee_cap=20000000000
 
 [providers.p1]
 # URL to the RPC provider
@@ -48,6 +59,8 @@ send_interval = "5s"
 wallet = "default"
 
 [providers.p2]
+# Uncomment to disable this provider
+# disabled=true
 # URL to the RPC provider
 url = "http://localhost:8552"
 # Read only providers are only used to check for transactions
