@@ -146,10 +146,10 @@ func (c *Config) Validate() error {
 		if provider.Wallet == "" {
 			return errors.Errorf("provider [%s] wallet is missing", name)
 		}
-		if provider.SendInterval == 0 {
+		if provider.ReceiptRetrievalInterval == 0 {
 			return errors.Errorf("provider [%s] receipt_retrieval_interval is missing", name)
 		}
-		if provider.SendInterval == 0 {
+		if provider.ReceiptRetrievalTimeout == 0 {
 			return errors.Errorf("provider [%s] receipt_retrieval_timeout is missing", name)
 		}
 		if _, ok := c.Wallets[provider.Wallet]; !ok {
