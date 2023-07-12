@@ -150,7 +150,7 @@ func startL1OnlySystem(t *testing.T) (*System, *ethclient.Client) {
 	delete(cfg.Nodes, "verifier")
 	delete(cfg.Nodes, "sequencer")
 	cfg.SupportL1TimeTravel = true
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	return sys, sys.Clients["l1"]
 }

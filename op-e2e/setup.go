@@ -139,6 +139,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		GethOptions:                map[string][]GethOption{},
 		P2PTopology:                nil, // no P2P connectivity by default
 		NonFinalizedProposals:      false,
+		ExternalL2Nodes:            config.ExternalL2Nodes,
 		BatcherTargetL1TxSizeBytes: 100_000,
 	}
 }
@@ -146,7 +147,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 func writeDefaultJWT(t *testing.T) string {
 	// Sadly the geth node config cannot load JWT secret from memory, it has to be a file
 	jwtPath := path.Join(t.TempDir(), "jwt_secret")
-	if err := os.WriteFile(jwtPath, []byte(hexutil.Encode(testingJWTSecret[:])), 0600); err != nil {
+	if err := os.WriteFile(jwtPath, []byte(hexutil.Encode(testingJWTSecret[:])), 0o600); err != nil {
 		t.Fatalf("failed to prepare jwt file for geth: %v", err)
 	}
 	return jwtPath
@@ -174,6 +175,8 @@ type SystemConfig struct {
 	ProposerLogger log.Logger
 	BatcherLogger  log.Logger
 
+	ExternalL2Nodes string
+
 	// map of outbound connections to other nodes. Node names prefixed with "~" are unconnected but linked.
 	// A nil map disables P2P completely.
 	// Any node name not in the topology will not have p2p enabled.
@@ -195,6 +198,41 @@ type SystemConfig struct {
 	SupportL1TimeTravel bool
 }
 
+type GethInstance struct {
+	Backend *geth_eth.Ethereum
+	Node    *node.Node
+}
+
+func (gi *GethInstance) HTTPEndpoint() string {
+	return gi.Node.HTTPEndpoint()
+}
+
+func (gi *GethInstance) WSEndpoint() string {
+	return gi.Node.WSEndpoint()
+}
+
+func (gi *GethInstance) WSAuthEndpoint() string {
+	return gi.Node.WSAuthEndpoint()
+}
+
+func (gi *GethInstance) HTTPAuthEndpoint() string {
+	return gi.Node.HTTPAuthEndpoint()
+}
+
+func (gi *GethInstance) Close() {
+	gi.Node.Close()
+}
+
+// EthInstance is either an in process Geth or external process exposing its
+// endpoints over the network
+type EthInstance interface {
+	HTTPEndpoint() string
+	WSEndpoint() string
+	HTTPAuthEndpoint() string
+	WSAuthEndpoint() string
+	Close()
+}
+
 type System struct {
 	cfg SystemConfig
 
@@ -203,9 +241,9 @@ type System struct {
 	L2GenesisCfg *core.Genesis
 
 	// Connections to running nodes
-	Nodes             map[string]*node.Node
-	Backends          map[string]*geth_eth.Ethereum
+	EthInstances      map[string]EthInstance
 	Clients           map[string]*ethclient.Client
+	RawClients        map[string]*rpc.Client
 	RollupNodes       map[string]*rollupNode.OpNode
 	L2OutputSubmitter *l2os.L2OutputSubmitter
 	BatchSubmitter    *bss.BatchSubmitter
@@ -220,7 +258,7 @@ type System struct {
 }
 
 func (sys *System) NodeEndpoint(name string) string {
-	return selectEndpoint(sys.Nodes[name])
+	return selectEndpoint(sys.EthInstances[name])
 }
 
 func (sys *System) Close() {
@@ -236,8 +274,8 @@ func (sys *System) Close() {
 	for _, node := range sys.RollupNodes {
 		node.Close()
 	}
-	for _, node := range sys.Nodes {
-		node.Close()
+	for _, ei := range sys.EthInstances {
+		ei.Close()
 	}
 	sys.Mocknet.Close()
 }
@@ -273,18 +311,18 @@ func (s *SystemConfigOptions) Get(key, role string) (systemConfigHook, bool) {
 	return v, ok
 }
 
-func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
+func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*System, error) {
 	opts, err := NewSystemConfigOptions(_opts)
 	if err != nil {
 		return nil, err
 	}
 
 	sys := &System{
-		cfg:         cfg,
-		Nodes:       make(map[string]*node.Node),
-		Backends:    make(map[string]*geth_eth.Ethereum),
-		Clients:     make(map[string]*ethclient.Client),
-		RollupNodes: make(map[string]*rollupNode.OpNode),
+		cfg:          cfg,
+		EthInstances: make(map[string]EthInstance),
+		Clients:      make(map[string]*ethclient.Client),
+		RawClients:   make(map[string]*rpc.Client),
+		RollupNodes:  make(map[string]*rollupNode.OpNode),
 	}
 	didErrAfterStart := false
 	defer func() {
@@ -292,8 +330,8 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 			for _, node := range sys.RollupNodes {
 				node.Close()
 			}
-			for _, node := range sys.Nodes {
-				node.Close()
+			for _, ei := range sys.EthInstances {
+				ei.Close()
 			}
 		}
 	}()
@@ -388,41 +426,53 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	if err != nil {
 		return nil, err
 	}
-	sys.Nodes["l1"] = l1Node
-	sys.Backends["l1"] = l1Backend
-
-	for name := range cfg.Nodes {
-		node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
-		if err != nil {
-			return nil, err
-		}
-		sys.Nodes[name] = node
-		sys.Backends[name] = backend
+	sys.EthInstances["l1"] = &GethInstance{
+		Backend: l1Backend,
+		Node:    l1Node,
 	}
-
-	// Start
 	err = l1Node.Start()
 	if err != nil {
 		didErrAfterStart = true
 		return nil, err
 	}
-	for name, node := range sys.Nodes {
-		if name == "l1" {
-			continue
+
+	for name := range cfg.Nodes {
+		var ethClient EthInstance
+		if cfg.ExternalL2Nodes == "" {
+			node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
+			if err != nil {
+				return nil, err
+			}
+			gethInst := &GethInstance{
+				Backend: backend,
+				Node:    node,
+			}
+			err = gethInst.Node.Start()
+			if err != nil {
+				didErrAfterStart = true
+				return nil, err
+			}
+			ethClient = gethInst
+		} else {
+			if len(cfg.GethOptions[name]) > 0 {
+				t.Errorf("External L2 nodes do not support configuration through GethOptions")
+			}
+			ethClient = (&ExternalRunner{
+				Name:    name,
+				BinPath: cfg.ExternalL2Nodes,
+				Genesis: l2Genesis,
+				JWTPath: cfg.JWTFilePath,
+			}).Run(t)
 		}
-		err = node.Start()
-		if err != nil {
-			didErrAfterStart = true
-			return nil, err
-		}
+		sys.EthInstances[name] = ethClient
 	}
 
 	// Configure connections to L1 and L2 for rollup nodes.
-	// TODO: refactor testing to use in-process rpc connections instead of websockets.
-
+	// TODO: refactor testing to allow use of in-process rpc connections instead
+	// of only websockets (which are required for external eth client tests).
 	for name, rollupCfg := range cfg.Nodes {
-		configureL1(rollupCfg, l1Node)
-		configureL2(rollupCfg, sys.Nodes[name], cfg.JWTSecret)
+		configureL1(rollupCfg, sys.EthInstances["l1"])
+		configureL2(rollupCfg, sys.EthInstances[name], cfg.JWTSecret)
 
 		rollupCfg.L2Sync = &rollupNode.PreparedL2SyncEndpoint{
 			Client:   nil,
@@ -438,14 +488,18 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		didErrAfterStart = true
 		return nil, err
 	}
-	l1Client := ethclient.NewClient(rpc.DialInProc(l1Srv))
+	rawL1Client := rpc.DialInProc(l1Srv)
+	l1Client := ethclient.NewClient(rawL1Client)
 	sys.Clients["l1"] = l1Client
-	for name, node := range sys.Nodes {
-		client, err := ethclient.DialContext(ctx, node.WSEndpoint())
+	sys.RawClients["l1"] = rawL1Client
+	for name, ethInst := range sys.EthInstances {
+		rawClient, err := rpc.DialContext(ctx, ethInst.WSEndpoint())
 		if err != nil {
 			didErrAfterStart = true
 			return nil, err
 		}
+		client := ethclient.NewClient(rawClient)
+		sys.RawClients[name] = rawClient
 		sys.Clients[name] = client
 	}
 
@@ -579,11 +633,11 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 
 	// L2Output Submitter
 	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
-		L1EthRpc:          sys.Nodes["l1"].WSEndpoint(),
+		L1EthRpc:          sys.EthInstances["l1"].WSEndpoint(),
 		RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
 		PollInterval:      50 * time.Millisecond,
-		TxMgrConfig:       newTxMgrConfig(sys.Nodes["l1"].WSEndpoint(), cfg.Secrets.Proposer),
+		TxMgrConfig:       newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Proposer),
 		AllowNonFinalized: cfg.NonFinalizedProposals,
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
@@ -600,8 +654,8 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 
 	// Batch Submitter
 	sys.BatchSubmitter, err = bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
-		L1EthRpc:               sys.Nodes["l1"].WSEndpoint(),
-		L2EthRpc:               sys.Nodes["sequencer"].WSEndpoint(),
+		L1EthRpc:               sys.EthInstances["l1"].WSEndpoint(),
+		L2EthRpc:               sys.EthInstances["sequencer"].WSEndpoint(),
 		RollupRpc:              sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		MaxPendingTransactions: 0,
 		MaxChannelDuration:     1,
@@ -613,7 +667,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		},
 		SubSafetyMargin: 4,
 		PollInterval:    50 * time.Millisecond,
-		TxMgrConfig:     newTxMgrConfig(sys.Nodes["l1"].WSEndpoint(), cfg.Secrets.Batcher),
+		TxMgrConfig:     newTxMgrConfig(sys.EthInstances["l1"].WSEndpoint(), cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",
@@ -678,7 +732,7 @@ func (sys *System) newMockNetPeer() (host.Host, error) {
 	return sys.Mocknet.AddPeerWithPeerstore(p, eps)
 }
 
-func selectEndpoint(node *node.Node) string {
+func selectEndpoint(node EthInstance) string {
 	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
 	if useHTTP {
 		log.Info("using HTTP client")
@@ -687,7 +741,7 @@ func selectEndpoint(node *node.Node) string {
 	return node.WSEndpoint()
 }
 
-func configureL1(rollupNodeCfg *rollupNode.Config, l1Node *node.Node) {
+func configureL1(rollupNodeCfg *rollupNode.Config, l1Node EthInstance) {
 	l1EndpointConfig := selectEndpoint(l1Node)
 	rollupNodeCfg.L1 = &rollupNode.L1EndpointConfig{
 		L1NodeAddr:       l1EndpointConfig,
@@ -698,7 +752,13 @@ func configureL1(rollupNodeCfg *rollupNode.Config, l1Node *node.Node) {
 		HttpPollInterval: time.Millisecond * 100,
 	}
 }
-func configureL2(rollupNodeCfg *rollupNode.Config, l2Node *node.Node, jwtSecret [32]byte) {
+
+type WSOrHTTPEndpoint interface {
+	WSAuthEndpoint() string
+	HTTPAuthEndpoint() string
+}
+
+func configureL2(rollupNodeCfg *rollupNode.Config, l2Node WSOrHTTPEndpoint, jwtSecret [32]byte) {
 	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
 	l2EndpointConfig := l2Node.WSAuthEndpoint()
 	if useHTTP {
