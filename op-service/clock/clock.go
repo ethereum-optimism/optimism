@@ -13,6 +13,8 @@ type Clock interface {
 	// It is equivalent to time.After
 	After(d time.Duration) <-chan time.Time
 
+	AfterFunc(d time.Duration, f func()) Timer
+
 	// NewTicker returns a new Ticker containing a channel that will send
 	// the current time on the channel after each tick. The period of the
 	// ticks is specified by the duration argument. The ticker will adjust
@@ -36,6 +38,20 @@ type Ticker interface {
 	// The next tick will arrive after the new period elapses. The duration d
 	// must be greater than zero; if not, Reset will panic.
 	Reset(d time.Duration)
+}
+
+// Timer represents a single event.
+type Timer interface {
+	// Stop prevents the Timer from firing.
+	// It returns true if the call stops the timer, false if the timer has already
+	// expired or been stopped.
+	//
+	// For a timer created with AfterFunc(d, f), if t.Stop returns false, then the timer
+	// has already expired and the function f has been started in its own goroutine;
+	// Stop does not wait for f to complete before returning.
+	// If the caller needs to know whether f is completed, it must coordinate
+	// with f explicitly.
+	Stop() bool
 }
 
 // SystemClock provides an instance of Clock that uses the system clock via methods in the time package.
@@ -62,4 +78,12 @@ func (t *SystemTicker) Ch() <-chan time.Time {
 
 func (s systemClock) NewTicker(d time.Duration) Ticker {
 	return &SystemTicker{time.NewTicker(d)}
+}
+
+type SystemTimer struct {
+	*time.Timer
+}
+
+func (s systemClock) AfterFunc(d time.Duration, f func()) Timer {
+	return &SystemTimer{time.AfterFunc(d, f)}
 }

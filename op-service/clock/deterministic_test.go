@@ -2,6 +2,7 @@ package clock
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -59,6 +60,64 @@ func TestAfter(t *testing.T) {
 		ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancelFunc()
 		require.True(t, clock.WaitForNewPendingTask(ctx), "should have added a new pending task")
+	})
+}
+
+func TestAfterFunc(t *testing.T) {
+	t.Run("ZeroExecutesImmediately", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		ran := new(atomic.Bool)
+		timer := clock.AfterFunc(0, func() { ran.Store(true) })
+		require.True(t, ran.Load(), "duration should already have been reached")
+		require.False(t, timer.Stop(), "Stop should return false after executing")
+	})
+
+	t.Run("CompletesWhenTimeAdvances", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		ran := new(atomic.Bool)
+		timer := clock.AfterFunc(500*time.Millisecond, func() { ran.Store(true) })
+		require.False(t, ran.Load(), "should not complete immediately")
+
+		clock.AdvanceTime(499 * time.Millisecond)
+		require.False(t, ran.Load(), "should not complete before time is due")
+
+		clock.AdvanceTime(1 * time.Millisecond)
+		require.True(t, ran.Load(), "should complete when time is reached")
+		require.False(t, timer.Stop(), "Stop should return false after executing")
+	})
+
+	t.Run("CompletesWhenTimeAdvancesPastDue", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		ran := new(atomic.Bool)
+		timer := clock.AfterFunc(500*time.Millisecond, func() { ran.Store(true) })
+		require.False(t, ran.Load(), "should not complete immediately")
+
+		clock.AdvanceTime(9000 * time.Millisecond)
+		require.True(t, ran.Load(), "should complete when time is reached")
+		require.False(t, timer.Stop(), "Stop should return false after executing")
+	})
+
+	t.Run("RegisterAsPending", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		ran := new(atomic.Bool)
+		clock.AfterFunc(500*time.Millisecond, func() { ran.Store(true) })
+
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancelFunc()
+		require.True(t, clock.WaitForNewPendingTask(ctx), "should have added a new pending task")
+	})
+
+	t.Run("DoNotRunIfStopped", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		ran := new(atomic.Bool)
+		timer := clock.AfterFunc(500*time.Millisecond, func() { ran.Store(true) })
+		require.False(t, ran.Load(), "should not complete immediately")
+
+		require.True(t, timer.Stop(), "Stop should return true on first call")
+		require.False(t, timer.Stop(), "Stop should return false on subsequent calls")
+
+		clock.AdvanceTime(9000 * time.Millisecond)
+		require.False(t, ran.Load(), "should not run when time is reached")
 	})
 }
 

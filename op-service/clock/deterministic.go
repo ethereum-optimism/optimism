@@ -29,6 +29,38 @@ func (t task) fire(now time.Time) bool {
 	return false
 }
 
+type timer struct {
+	f       func()
+	due     time.Time
+	stopped bool
+	run     bool
+	sync.Mutex
+}
+
+func (t *timer) isDue(now time.Time) bool {
+	t.Lock()
+	defer t.Unlock()
+	return !t.due.After(now)
+}
+
+func (t *timer) fire(now time.Time) bool {
+	t.Lock()
+	defer t.Unlock()
+	if !t.stopped {
+		t.f()
+		t.run = true
+	}
+	return false
+}
+
+func (t *timer) Stop() bool {
+	t.Lock()
+	defer t.Unlock()
+	r := !t.stopped && !t.run
+	t.stopped = true
+	return r
+}
+
 type ticker struct {
 	c       Clock
 	ch      chan time.Time
@@ -108,6 +140,18 @@ func (s *DeterministicClock) After(d time.Duration) <-chan time.Time {
 		s.addPending(&task{ch: ch, due: s.now.Add(d)})
 	}
 	return ch
+}
+
+func (s *DeterministicClock) AfterFunc(d time.Duration, f func()) Timer {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	timer := &timer{f: f, due: s.now.Add(d)}
+	if d.Nanoseconds() == 0 {
+		timer.fire(s.now)
+	} else {
+		s.addPending(timer)
+	}
+	return timer
 }
 
 func (s *DeterministicClock) NewTicker(d time.Duration) Ticker {
