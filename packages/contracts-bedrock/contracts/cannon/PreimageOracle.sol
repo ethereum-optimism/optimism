@@ -23,12 +23,16 @@ contract PreimageOracle {
         GLOBAL
     }
 
-    function readPreimage(
-        bytes32 key,
-        uint256 offset
-    ) external view returns (bytes32 dat, uint256 datLen) {
-        (bytes32 preimagePartOkSlot, bytes32 preimageLengthsSlot, bytes32 preimagePartsSlot) =
-            _getKeyKindMappingSlots(key);
+    function readPreimage(bytes32 key, uint256 offset)
+        external
+        view
+        returns (bytes32 dat, uint256 datLen)
+    {
+        (
+            bytes32 preimagePartOkSlot,
+            bytes32 preimageLengthsSlot,
+            bytes32 preimagePartsSlot
+        ) = _getKeyKindMappingSlots(key);
         assembly {
             // Loads a value from a mapping. Only works for mappings with a fixed-size
             // key <= 32 bytes in size and a value that is fixed-size and <= 32 bytes
@@ -79,43 +83,28 @@ contract PreimageOracle {
         bytes32 part,
         uint256 size
     ) external {
-        (bytes32 preimagePartOkSlot, bytes32 preimageLengthsSlot, bytes32 preimagePartsSlot) =
-            _getKeyKindMappingSlots(key);
+        (
+            bytes32 preimagePartOkSlot,
+            bytes32 preimageLengthsSlot,
+            bytes32 preimagePartsSlot
+        ) = _getKeyKindMappingSlots(key);
+
+        // TEMP
         assembly {
-            // Stores a value in a mapping. Only works for mappings with a fixed-size
-            // key <= 32 bytes in size and a value that is fixed-size and <= 32 bytes
-            // in size.
-            function storeInMapping(k, v, mappingSlot) {
-                // Compute the slot of the value & load it
-                mstore(0x00, k)
-                mstore(0x20, mappingSlot)
-                sstore(keccak256(0x00, 0x40), v)
+            if eq(byte(0, key), 1) {
+                key := or(key, shl(88, caller()))
             }
-
-            // Stores a value in a nested mapping. Only works for nested mappings
-            // with two fixed-size keys <= 32 bytes in size and a final value that
-            // is fixed-size and <= 32 bytes in size.
-            function storeInNestedMapping(keyA, keyB, val, mappingSlot) {
-                // Compute the slot of the nested mapping
-                mstore(0x00, keyA)
-                mstore(0x20, mappingSlot)
-                let nestedSlot := keccak256(0x00, 0x40)
-                // Compute the slot of the value & load it
-                mstore(0x00, keyB)
-                mstore(0x20, nestedSlot)
-                sstore(keccak256(0x00, 0x40), val)
-            }
-
-            storeInNestedMapping(key, partOffset, true, preimagePartOkSlot)
-            storeInNestedMapping(key, partOffset, part, preimagePartsSlot)
-            storeInMapping(key, size, preimageLengthsSlot)
         }
+
+        storeInNestedMapping(key, bytes32(partOffset), bytes32(uint256(1)), preimagePartOkSlot);
+        storeInNestedMapping(key, bytes32(partOffset), part, preimagePartsSlot);
+        storeInMapping(key, bytes32(size), preimageLengthsSlot);
     }
 
     // loadKeccak256PreimagePart prepares the pre-image to be read by keccak256 key,
     // starting at the given offset, up to 32 bytes (clipped at preimage length, if out of data).
     function loadKeccak256PreimagePart(uint256 partOffset, bytes calldata preimage) external {
-        uint256 size;
+        bytes32 size;
         bytes32 key;
         bytes32 part;
         assembly {
@@ -141,38 +130,15 @@ contract PreimageOracle {
             key := or(and(h, not(shl(248, 0xFF))), shl(248, 2))
         }
 
-        (bytes32 preimagePartOkSlot, bytes32 preimageLengthsSlot, bytes32 preimagePartsSlot) =
-            _getKeyKindMappingSlots(key);
+        (
+            bytes32 preimagePartOkSlot,
+            bytes32 preimageLengthsSlot,
+            bytes32 preimagePartsSlot
+        ) = _getKeyKindMappingSlots(key);
 
-        assembly {
-            // Stores a value in a mapping. Only works for mappings with a fixed-size
-            // key <= 32 bytes in size and a value that is fixed-size and <= 32 bytes
-            // in size.
-            function storeInMapping(k, v, mappingSlot) {
-                // Compute the slot of the value & load it
-                mstore(0x00, k)
-                mstore(0x20, mappingSlot)
-                sstore(keccak256(0x00, 0x40), v)
-            }
-
-            // Stores a value in a nested mapping. Only works for nested mappings
-            // with two fixed-size keys <= 32 bytes in size and a final value that
-            // is fixed-size and <= 32 bytes in size.
-            function storeInNestedMapping(keyA, keyB, val, mappingSlot) {
-                // Compute the slot of the nested mapping
-                mstore(0x00, keyA)
-                mstore(0x20, mappingSlot)
-                let nestedSlot := keccak256(0x00, 0x40)
-                // Compute the slot of the value & load it
-                mstore(0x00, keyB)
-                mstore(0x20, nestedSlot)
-                sstore(keccak256(0x00, 0x40), val)
-            }
-
-            storeInNestedMapping(key, partOffset, true, preimagePartOkSlot)
-            storeInNestedMapping(key, partOffset, part, preimagePartsSlot)
-            storeInMapping(key, size, preimageLengthsSlot)
-        }
+        storeInNestedMapping(key, bytes32(partOffset), bytes32(uint256(1)), preimagePartOkSlot);
+        storeInNestedMapping(key, bytes32(partOffset), part, preimagePartsSlot);
+        storeInMapping(key, size, preimageLengthsSlot);
     }
 
     // loadLocalBootData prepares the boot data for a game to be read by the local key,
@@ -183,37 +149,19 @@ contract PreimageOracle {
         bytes calldata _bootData
     ) external {
         // Boot data is always a local key.
-        (bytes32 preimagePartOkSlot, bytes32 preimageLengthsSlot, bytes32 preimagePartsSlot) =
-            _getKeyKindMappingSlots(bytes32(uint256(1) << 248));
+        (
+            bytes32 preimagePartOkSlot,
+            bytes32 preimageLengthsSlot,
+            bytes32 preimagePartsSlot
+        ) = _getKeyKindMappingSlots(bytes32(uint256(1) << 248));
+        bytes32 size;
+        bytes32 part;
+        bytes32 key;
         assembly {
-            // Stores a value in a mapping. Only works for mappings with a fixed-size
-            // key <= 32 bytes in size and a value that is fixed-size and <= 32 bytes
-            // in size.
-            function storeInMapping(k, v, mappingSlot) {
-                // Compute the slot of the value & load it
-                mstore(0x00, k)
-                mstore(0x20, mappingSlot)
-                sstore(keccak256(0x00, 0x40), v)
-            }
-
-            // Stores a value in a nested mapping. Only works for nested mappings
-            // with two fixed-size keys <= 32 bytes in size and a final value that
-            // is fixed-size and <= 32 bytes in size.
-            function storeInNestedMapping(keyA, keyB, val, mappingSlot) {
-                // Compute the slot of the nested mapping
-                mstore(0x00, keyA)
-                mstore(0x20, mappingSlot)
-                let nestedSlot := keccak256(0x00, 0x40)
-                // Compute the slot of the value & load it
-                mstore(0x00, keyB)
-                mstore(0x20, nestedSlot)
-                sstore(keccak256(0x00, 0x40), val)
-            }
-
             // Load the length of the `_bootData` contents.
             // Stored at len(sig) + len(_game) + 0x0C + len(_partOffset) = 4 + 32 + 20 + 12 + 32 = 0x64
             // in calldata.
-            let size := calldataload(0x64)
+            size := calldataload(0x64)
 
             // Revert if part offset >= size + 8 (i.e. parts must be within bounds)
             if iszero(lt(_partOffset, add(size, 8))) {
@@ -230,18 +178,14 @@ contract PreimageOracle {
             calldatacopy(add(ptr, 8), _bootData.offset, size)
             // Note that the part includes the 8-byte big-endian uint64 length prefix.
             // This will be zero-padded at the end, since memory past it is clean.
-            let part := mload(add(ptr, _partOffset))
+            part := mload(add(ptr, _partOffset))
 
             // The key of the boot data part is `1 << 248 | _game << 88 | localKey`
-            let key := or(or(shl(248, 1), shl(88, _game)), 1)
-
-            // Store a flag in the `localDataPartOk` mapping to indicate that the part exists.
-            storeInNestedMapping(key, _partOffset, true, preimagePartOkSlot)
-            // Store the part in the `localDataParts` mapping
-            storeInNestedMapping(key, _partOffset, part, preimagePartsSlot)
-            // Store the size in the `localDataLengths` mapping
-            storeInMapping(key, size, preimageLengthsSlot)
+            key := or(or(shl(248, 1), shl(88, _game)), 1)
         }
+        storeInNestedMapping(key, bytes32(_partOffset), bytes32(uint256(1)), preimagePartOkSlot);
+        storeInNestedMapping(key, bytes32(_partOffset), part, preimagePartsSlot);
+        storeInMapping(key, size, preimageLengthsSlot);
     }
 
     /// @notice Returns the mapping storage slots for the given key kind.
@@ -252,7 +196,11 @@ contract PreimageOracle {
     function _getKeyKindMappingSlots(bytes32 _key)
         public
         pure
-        returns (bytes32 partOk_, bytes32 lengths_, bytes32 parts_)
+        returns (
+            bytes32 partOk_,
+            bytes32 lengths_,
+            bytes32 parts_
+        )
     {
         assembly {
             let ty := shr(248, _key)
@@ -263,6 +211,37 @@ contract PreimageOracle {
             lengths_ := keccak256(0x00, 0x20)
             mstore(0x00, or(ty, shl(0x08, 0x02)))
             parts_ := keccak256(0x00, 0x20)
+        }
+    }
+
+    function storeInMapping(
+        bytes32 k,
+        bytes32 v,
+        bytes32 mappingSlot
+    ) internal {
+        assembly {
+            // Value slot: `keccak256(k . mappingSlot)`
+            mstore(0x00, k)
+            mstore(0x20, mappingSlot)
+            sstore(keccak256(0x00, 0x40), v)
+        }
+    }
+
+    function storeInNestedMapping(
+        bytes32 ka,
+        bytes32 kb,
+        bytes32 mappingSlot,
+        bytes32 val
+    ) internal {
+        assembly {
+            // Compute the slot of the nested mapping
+            mstore(0x00, ka)
+            mstore(0x20, mappingSlot)
+            let nestedSlot := keccak256(0x00, 0x40)
+            // Compute the slot of the value & store it
+            mstore(0x00, kb)
+            mstore(0x20, nestedSlot)
+            sstore(keccak256(0x00, 0x40), val)
         }
     }
 }

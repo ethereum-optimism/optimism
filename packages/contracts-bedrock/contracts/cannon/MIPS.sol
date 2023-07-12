@@ -149,7 +149,7 @@ contract MIPS {
         if (preimageKey[0] == 0x01) {
             preimageKey |= bytes32(uint256(uint160(msg.sender))) << 0x88;
         }
-        (bytes32 dat, uint256 datLen) = oracle.readPreimage(state.preimageKey, state.preimageOffset);
+        (bytes32 dat, uint256 datLen) = oracle.readPreimage(preimageKey, state.preimageOffset);
         assembly { // assembly for more precise ops, and no var count limit
           let alignment := and(a1, 3) // the read might not start at an aligned address
           let space := sub(4, alignment) // remaining space in memory word
