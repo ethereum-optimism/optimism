@@ -55,6 +55,7 @@ type WalletConfig struct {
 
 type ProviderConfig struct {
 	Disabled                 bool         `toml:"disabled"`
+	Network                  string       `toml:"network"`
 	URL                      string       `toml:"url"`
 	ReadOnly                 bool         `toml:"read_only"`
 	ReadInterval             TOMLDuration `toml:"read_interval"`

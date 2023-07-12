@@ -29,12 +29,36 @@ func (s *Service) Start(ctx context.Context) {
 		s.Healthz.Start(ctx, s.Config.Healthz.Host, s.Config.Healthz.Port)
 		log.Info("healthz started")
 	}
+
+	// map networks to its providers
+	networks := make(map[string][]string)
+	for name, providerConfig := range s.Config.Providers {
+		if providerConfig.Disabled {
+			continue
+		}
+		networks[providerConfig.Network] = append(networks[providerConfig.Network], name)
+	}
+
+	txpool := &provider.TransactionPool{}
+	for name, providers := range networks {
+		if len(providers) == 1 {
+			log.Warn("can't measure first seen for network, please another provider", "network", name)
+		}
+		(*txpool)[name] = &provider.NetworkTransactionPool{}
+		(*txpool)[name].Transactions = make(map[string]*provider.TransactionState)
+		(*txpool)[name].Expected = len(providers)
+	}
+
 	for name, providerConfig := range s.Config.Providers {
 		if providerConfig.Disabled {
 			log.Info("provider is disabled", "provider", name)
 			continue
 		}
-		s.Providers[name] = provider.New(name, providerConfig, &s.Config.Signer, s.Config.Wallets[providerConfig.Wallet])
+		s.Providers[name] = provider.New(name,
+			providerConfig,
+			&s.Config.Signer,
+			s.Config.Wallets[providerConfig.Wallet],
+			(*txpool)[providerConfig.Network])
 		s.Providers[name].Start(ctx)
 		log.Info("provider started", "provider", name)
 	}

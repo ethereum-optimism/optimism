@@ -12,6 +12,7 @@ type Provider struct {
 	config       *config.ProviderConfig
 	signerConfig *config.SignerServiceConfig
 	walletConfig *config.WalletConfig
+	txPool       *NetworkTransactionPool
 	cancelFunc   context.CancelFunc
 
 	client *http.Client
@@ -19,12 +20,14 @@ type Provider struct {
 
 func New(name string, cfg *config.ProviderConfig,
 	signerConfig *config.SignerServiceConfig,
-	walletConfig *config.WalletConfig) *Provider {
+	walletConfig *config.WalletConfig,
+	txPool *NetworkTransactionPool) *Provider {
 	p := &Provider{
 		name:         name,
 		config:       cfg,
 		signerConfig: signerConfig,
 		walletConfig: walletConfig,
+		txPool:       txPool,
 
 		client: http.DefaultClient,
 	}

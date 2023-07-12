@@ -16,9 +16,9 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// Heartbeat poll for expected transactions
-func (p *Provider) Heartbeat(ctx context.Context) {
-	log.Debug("heartbeat", "provider", p.name)
+// Roundtrip send a new transaction to measure round trip latency
+func (p *Provider) Roundtrip(ctx context.Context) {
+	log.Debug("roundtrip", "provider", p.name)
 
 	ethClient, err := p.dial(ctx)
 	if err != nil {
@@ -44,17 +44,26 @@ func (p *Provider) Heartbeat(ctx context.Context) {
 	txHash := signedTx.Hash()
 	log.Info("transaction sent", "hash", txHash.Hex())
 
+	// add to pool
 	sentAt := time.Now()
+	p.txPool.M.Lock()
+	p.txPool.Transactions[txHash.Hex()] = &TransactionState{
+		Hash:   txHash,
+		SentAt: sentAt,
+		SeenBy: make(map[string]time.Time),
+	}
+	p.txPool.M.Unlock()
+
 	var receipt *types.Receipt
 	attempt := 0
 	for receipt == nil {
 		if time.Since(sentAt) >= time.Duration(p.config.ReceiptRetrievalTimeout) {
-			log.Error("receipt retrieval timedout", "provider", p.name, "hash", "ellapsed", time.Since(sentAt))
+			log.Error("receipt retrieval timed out", "provider", p.name, "hash", "elapsed", time.Since(sentAt))
 			break
 		}
 		time.Sleep(time.Duration(p.config.ReceiptRetrievalInterval))
 		if attempt%10 == 0 {
-			log.Debug("checking for receipt...", "attempt", attempt, "ellapsed", time.Since(sentAt))
+			log.Debug("checking for receipt...", "attempt", attempt, "elapsed", time.Since(sentAt))
 		}
 		receipt, err = ethClient.TransactionReceipt(ctx, txHash)
 		if err != nil && !errors.Is(err, ethereum.NotFound) {
@@ -72,10 +81,6 @@ func (p *Provider) Heartbeat(ctx context.Context) {
 		"gasUsed", receipt.GasUsed)
 }
 
-func (p *Provider) dial(ctx context.Context) (*ethclient.Client, error) {
-	return ethclient.Dial(p.config.URL)
-}
-
 func (p *Provider) createTx(nonce uint64) *types.Transaction {
 	toAddress := common.HexToAddress(p.walletConfig.Address)
 	var data []byte
@@ -89,7 +94,7 @@ func (p *Provider) createTx(nonce uint64) *types.Transaction {
 		Value:     &p.walletConfig.TxValue,
 		Data:      data,
 	})
-	log.Debug("tx", "tx", tx)
+	// log.Debug("tx", "tx", tx)
 	return tx
 }
 
@@ -118,7 +123,6 @@ func (p *Provider) sign(ctx context.Context, tx *types.Transaction) (*types.Tran
 		}
 
 		signedTx, err := client.SignTransaction(ctx, &p.walletConfig.ChainID, tx)
-		log.Debug("signedtx", "tx", signedTx, "err", err)
 		if err != nil {
 			return nil, err
 		}
@@ -132,9 +136,4 @@ func (p *Provider) sign(ctx context.Context, tx *types.Transaction) (*types.Tran
 func (p *Provider) nonce(ctx context.Context, client *ethclient.Client) (uint64, error) {
 	fromAddress := common.HexToAddress(p.walletConfig.Address)
 	return client.PendingNonceAt(ctx, fromAddress)
-}
-
-// Roundtrip send a new transaction to measure round trip latency
-func (p *Provider) Roundtrip(ctx context.Context) {
-	log.Debug("roundtrip", "provider", p.name)
 }
