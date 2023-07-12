@@ -373,7 +373,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         );
 
         // Supply bootstrap data to preimage oracle.
-        VM.oracle().loadKeccak256PreimagePart(0, extraData());
+        // TODO
     }
 
     /// @notice Returns the length of the `claimData` array.

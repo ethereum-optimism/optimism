@@ -143,6 +143,12 @@ contract MIPS {
       } else if (a0 == FD_PREIMAGE_READ) { // pre-image oracle
         // verify proof 1 is correct, and get the existing memory.
         uint32 mem = readMem(a1 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
+        bytes32 preimageKey = state.preimageKey;
+        // If the preimage key is a local key, then the sender must be the owner of the key.
+        // Pack the sender address into the preimage key for lookup ahead of the type byte.
+        if (preimageKey[0] == 0x01) {
+            preimageKey |= bytes32(uint256(uint160(msg.sender))) << 0x88;
+        }
         (bytes32 dat, uint256 datLen) = oracle.readPreimage(state.preimageKey, state.preimageOffset);
         assembly { // assembly for more precise ops, and no var count limit
           let alignment := and(a1, 3) // the read might not start at an aligned address
