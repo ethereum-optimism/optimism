@@ -38,10 +38,9 @@ type HealthzConfig struct {
 }
 
 type WalletConfig struct {
-	// default: 420 (Optimism Goerli)
 	ChainID big.Int `toml:"chain_id"`
 
-	// signer | static, default: signer
+	// signer | static
 	SignerMethod string `toml:"signer_method"`
 	Address      string `toml:"address"`
 	// private key is used for static signing
@@ -55,12 +54,14 @@ type WalletConfig struct {
 }
 
 type ProviderConfig struct {
-	Disabled     bool         `toml:"disabled"`
-	URL          string       `toml:"url"`
-	Wallet       string       `toml:"wallet"`
-	ReadOnly     bool         `toml:"read_only"`
-	ReadInterval TOMLDuration `toml:"read_interval"`
-	SendInterval TOMLDuration `toml:"send_interval"`
+	Disabled                 bool         `toml:"disabled"`
+	URL                      string       `toml:"url"`
+	ReadOnly                 bool         `toml:"read_only"`
+	ReadInterval             TOMLDuration `toml:"read_interval"`
+	SendInterval             TOMLDuration `toml:"send_interval"`
+	Wallet                   string       `toml:"wallet"`
+	ReceiptRetrievalInterval TOMLDuration `toml:"receipt_retrieval_interval"`
+	ReceiptRetrievalTimeout  TOMLDuration `toml:"receipt_retrieval_timeout"`
 }
 
 func New(file string) (*Config, error) {
@@ -120,6 +121,15 @@ func (c *Config) Validate() error {
 		if wallet.Address == "" {
 			return errors.Errorf("wallet [%s] address is missing", name)
 		}
+		if wallet.TxValue.BitLen() == 0 {
+			return errors.Errorf("wallet [%s] tx_value is missing", name)
+		}
+		if wallet.GasLimit == 0 {
+			return errors.Errorf("wallet [%s] gas_limit is missing", name)
+		}
+		if wallet.GasFeeCap.BitLen() == 0 {
+			return errors.Errorf("wallet [%s] gas_fee_cap is missing", name)
+		}
 	}
 
 	for name, provider := range c.Providers {
@@ -127,13 +137,19 @@ func (c *Config) Validate() error {
 			return errors.Errorf("provider [%s] url is missing", name)
 		}
 		if provider.ReadInterval == 0 {
-			return errors.Errorf("provider [%s] read interval is missing", name)
+			return errors.Errorf("provider [%s] read_interval is missing", name)
 		}
 		if provider.SendInterval == 0 {
-			return errors.Errorf("provider [%s] send interval is missing", name)
+			return errors.Errorf("provider [%s] send_interval is missing", name)
 		}
 		if provider.Wallet == "" {
 			return errors.Errorf("provider [%s] wallet is missing", name)
+		}
+		if provider.SendInterval == 0 {
+			return errors.Errorf("provider [%s] receipt_retrieval_interval is missing", name)
+		}
+		if provider.SendInterval == 0 {
+			return errors.Errorf("provider [%s] receipt_retrieval_timeout is missing", name)
 		}
 		if _, ok := c.Wallets[provider.Wallet]; !ok {
 			return errors.Errorf("provider [%s] has an invalid wallet [%s]", name, provider.Wallet)

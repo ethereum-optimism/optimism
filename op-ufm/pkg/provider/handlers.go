@@ -2,9 +2,11 @@ package provider
 
 import (
 	"context"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/tls"
 	signer "github.com/ethereum-optimism/optimism/op-signer/client"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -39,7 +41,35 @@ func (p *Provider) Heartbeat(ctx context.Context) {
 	if err != nil {
 		log.Error("cant send transaction", "provider", p.name, "err", err)
 	}
-	log.Info("transaction sent", "hash", signedTx.Hash().Hex())
+	txHash := signedTx.Hash()
+	log.Info("transaction sent", "hash", txHash.Hex())
+
+	sentAt := time.Now()
+	var receipt *types.Receipt
+	attempt := 0
+	for receipt == nil {
+		if time.Since(sentAt) >= time.Duration(p.config.ReceiptRetrievalTimeout) {
+			log.Error("receipt retrieval timedout", "provider", p.name, "hash", "ellapsed", time.Since(sentAt))
+			break
+		}
+		time.Sleep(time.Duration(p.config.ReceiptRetrievalInterval))
+		if attempt%10 == 0 {
+			log.Debug("checking for receipt...", "attempt", attempt, "ellapsed", time.Since(sentAt))
+		}
+		receipt, err = ethClient.TransactionReceipt(ctx, txHash)
+		if err != nil && !errors.Is(err, ethereum.NotFound) {
+			log.Error("cant get receipt for transaction", "provider", p.name, "hash", txHash.Hex(), "err", err)
+			break
+		}
+		attempt++
+	}
+	roundtrip := time.Since(sentAt)
+
+	log.Info("got transaction receipt", "hash", txHash.Hex(),
+		"roundtrip", roundtrip,
+		"blockNumber", receipt.BlockNumber,
+		"blockHash", receipt.BlockHash,
+		"gasUsed", receipt.GasUsed)
 }
 
 func (p *Provider) dial(ctx context.Context) (*ethclient.Client, error) {
