@@ -3,8 +3,17 @@ title: Using the SDK with OP Stack
 lang: en-US
 ---
 
-When building applications for use with your OP Stack, you can continue to use [the Optimism JavaScript SDK](https://sdk.optimism.io/).
-The main difference is you need to provide some contract addresses to the `CrossDomainMessenger` because they aren't preconfigured.
+
+::: info Other OP Chains
+
+The SDK supports multiple OP Chains: OP, Base, Zora, etc.
+To see whether a specific OP Chain is supported directly, look in the `CONTRACT_ADDRESSES` constant in [`chain-constants.ts`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/sdk/src/utils/chain-constants.ts#L124-L129).
+
+The steps in this document are only needed if you are using a chain that the SDK does not support natively.
+
+:::
+
+When building applications for use with your OP Stack, you can continue to use [the Optimism JavaScript SDK](https://sdk.optimism.io/). The main difference is you need to provide some contract addresses to the `CrossDomainMessenger` because they aren't preconfigured.
 
 
 ## Contract addresses
