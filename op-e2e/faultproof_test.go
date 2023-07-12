@@ -15,7 +15,7 @@ func TestTimeTravel(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	delete(cfg.Nodes, "verifier")
 	cfg.SupportL1TimeTravel = true
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 

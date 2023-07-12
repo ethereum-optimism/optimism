@@ -44,9 +44,17 @@ func TestMissingGasLimit(t *testing.T) {
 // TestTxGasSameAsBlockGasLimit tests that op-geth rejects transactions that attempt to use the full block gas limit.
 // The L1 Info deposit always takes gas so the effective gas limit is lower than the full block gas limit.
 func TestTxGasSameAsBlockGasLimit(t *testing.T) {
+	if externalL2Nodes != "" {
+		// Some clients, such as Erigon will not discard txes that exceed the
+		// block gas limit, and instead retains them to re-evaluate with the
+		// next block whose gas limit may have increased.  We should enable this
+		// tests for external clients which exhibit this behavior, but currently
+		// we are disabling it for all external clients.
+		t.Skip("external client may not discard txes which exceed the gas limit")
+	}
 	InitParallel(t)
 	cfg := DefaultSystemConfig(t)
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 

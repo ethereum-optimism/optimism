@@ -46,6 +46,9 @@ func TestVerifyL2OutputRootEmptyBlockDetached(t *testing.T) {
 // - update the state root via a tx
 // - run program
 func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
+	if externalL2Nodes != "" {
+		t.Skip("debug_dbGet is a custom geth RPC which is not generally suported by other eth clients")
+	}
 	InitParallel(t)
 	ctx := context.Background()
 
@@ -56,7 +59,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 	// But not too small to ensure that our claim and subsequent state change is published
 	cfg.DeployConfig.SequencerWindowSize = 16
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -143,6 +146,9 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 }
 
 func testVerifyL2OutputRoot(t *testing.T, detached bool) {
+	if externalL2Nodes != "" {
+		t.Skip("debug_dbGet is a custom geth RPC which is not generally supported by other clients")
+	}
 	InitParallel(t)
 	ctx := context.Background()
 
@@ -150,7 +156,7 @@ func testVerifyL2OutputRoot(t *testing.T, detached bool) {
 	// We don't need a verifier - just the sequencer is enough
 	delete(cfg.Nodes, "verifier")
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -251,8 +257,8 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 	sys.BatchSubmitter.StopIfRunning(context.Background())
 	sys.L2OutputSubmitter.Stop()
 	sys.L2OutputSubmitter = nil
-	for _, node := range sys.Nodes {
-		require.NoError(t, node.Close())
+	for _, node := range sys.EthInstances {
+		node.Close()
 	}
 
 	t.Log("Running fault proof in offline mode")
