@@ -89,12 +89,11 @@ func TestAttemptStep(t *testing.T) {
 	require.NoError(t, g.Put(middle))
 	require.NoError(t, g.Put(bottom))
 
-	step, err := solver.AttemptStep(bottom, g)
+	step, err := solver.AttemptStep(bottom)
 	require.NoError(t, err)
 	require.Equal(t, bottom, step.LeafClaim)
-	require.Equal(t, middle, step.StateClaim)
 	require.True(t, step.IsAttack)
 
-	_, err = solver.AttemptStep(middle, g)
+	_, err = solver.AttemptStep(middle)
 	require.Error(t, err)
 }

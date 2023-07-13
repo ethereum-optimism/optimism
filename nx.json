@@ -4,7 +4,10 @@
     "defaultBase": "develop"
   },
   "implicitDependencies": {
-    "nx.json": "*"
+    "nx.json": "*",
+    "tsconfig.json": "*",
+    ".foundryrc": "*",
+    ".nvmrc": "*"
   },
   "tasksRunnerOptions": {
     "default": {

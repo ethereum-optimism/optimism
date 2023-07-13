@@ -10,14 +10,15 @@ CREATE TABLE IF NOT EXISTS l1_block_headers (
 	hash        VARCHAR NOT NULL PRIMARY KEY,
 	parent_hash VARCHAR NOT NULL,
 	number      UINT256,
-	timestamp   INTEGER NOT NULL
+	timestamp   INTEGER NOT NULL CHECK (timestamp > 0)
 );
 
 CREATE TABLE IF NOT EXISTS l2_block_headers (
-	hash        VARCHAR NOT NULL PRIMARY KEY,
-	parent_hash VARCHAR NOT NULL,
-	number      UINT256,
-	timestamp   INTEGER NOT NULL
+    -- Block header
+	hash                     VARCHAR NOT NULL PRIMARY KEY,
+	parent_hash              VARCHAR NOT NULL,
+	number                   UINT256,
+	timestamp                INTEGER NOT NULL CHECK (timestamp > 0)
 );
 
 /** 
@@ -30,7 +31,7 @@ CREATE TABLE IF NOT EXISTS l1_contract_events (
     transaction_hash VARCHAR NOT NULL,
     event_signature  VARCHAR NOT NULL,
     log_index        INTEGER NOT NULL,
-    timestamp        INTEGER NOT NULL
+    timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
 );
 
 CREATE TABLE IF NOT EXISTS l2_contract_events (
@@ -39,7 +40,7 @@ CREATE TABLE IF NOT EXISTS l2_contract_events (
     transaction_hash VARCHAR NOT NULL,
     event_signature  VARCHAR NOT NULL,
     log_index        INTEGER NOT NULL,
-    timestamp        INTEGER NOT NULL
+    timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
 );
 
 -- Tables that index finalization markers for L2 blocks.
@@ -69,6 +70,10 @@ CREATE TABLE IF NOT EXISTS deposits (
 
     -- Event causing the deposit
     initiated_l1_event_guid VARCHAR NOT NULL REFERENCES l1_contract_events(guid),
+    sent_message_nonce      UINT256 UNIQUE,
+
+    -- Finalization marker for the deposit
+    finalized_l2_event_guid VARCHAR REFERENCES l2_contract_events(guid),
 
     -- Deposit information (do we need indexes on from/to?)
 	from_address     VARCHAR NOT NULL,
@@ -78,7 +83,7 @@ CREATE TABLE IF NOT EXISTS deposits (
 	l2_token_address VARCHAR NOT NULL,
 	amount           UINT256,
 	data             VARCHAR NOT NULL,
-    timestamp        INTEGER NOT NULL
+    timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
 );
 
 CREATE TABLE IF NOT EXISTS withdrawals (
@@ -86,6 +91,7 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 
     -- Event causing this withdrawal
     initiated_l2_event_guid VARCHAR NOT NULL REFERENCES l2_contract_events(guid),
+    sent_message_nonce      UINT256 UNIQUE,
 
     -- Multistep (bedrock) process of a withdrawal
     withdrawal_hash      VARCHAR NOT NULL,
@@ -101,5 +107,5 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 	l2_token_address VARCHAR NOT NULL,
 	amount           UINT256,
 	data             VARCHAR NOT NULL,
-    timestamp        INTEGER NOT NULL
+    timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
 );

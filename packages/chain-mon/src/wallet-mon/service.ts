@@ -7,7 +7,7 @@ import {
   waitForProvider,
 } from '@eth-optimism/common-ts'
 import { getChainId, compareAddrs } from '@eth-optimism/core-utils'
-import { Provider } from '@ethersproject/abstract-provider'
+import { Provider, TransactionResponse } from '@ethersproject/abstract-provider'
 import mainnetConfig from '@eth-optimism/contracts-bedrock/deploy-config/mainnet.json'
 import goerliConfig from '@eth-optimism/contracts-bedrock/deploy-config/goerli.json'
 import l2OutputOracleArtifactsMainnet from '@eth-optimism/contracts-bedrock/deployments/mainnet/L2OutputOracleProxy.json'
@@ -101,7 +101,7 @@ export class WalletMonService extends BaseServiceV2<
         unexpectedCalls: {
           type: Counter,
           desc: 'Number of unexpected wallets',
-          labels: ['wallet', 'target', 'nickname'],
+          labels: ['wallet', 'target', 'nickname', 'transactionHash'],
         },
         unexpectedRpcErrors: {
           type: Counter,
@@ -150,7 +150,7 @@ export class WalletMonService extends BaseServiceV2<
       number: block.number,
     })
 
-    const transactions = []
+    const transactions: TransactionResponse[] = []
     for (const txHash of block.transactions) {
       const t = await this.options.rpc.getTransaction(txHash)
       transactions.push(t)
@@ -175,11 +175,13 @@ export class WalletMonService extends BaseServiceV2<
               nickname: account.label,
               wallet: account.address,
               target: transaction.to,
+              transactionHash: transaction.hash,
             })
             this.logger.error('Unexpected call detected', {
               nickname: account.label,
               address: account.address,
               target: transaction.to,
+              transactionHash: transaction.hash,
             })
           }
         }

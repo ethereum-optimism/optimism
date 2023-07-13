@@ -14,7 +14,6 @@ var (
 
 // StepCallData encapsulates the data needed to perform a step.
 type StepCallData struct {
-	StateIndex uint64
 	ClaimIndex uint64
 	IsAttack   bool
 	StateData  []byte

@@ -31,14 +31,13 @@ func (s *Solver) NextMove(claim Claim) (*Claim, error) {
 }
 
 type StepData struct {
-	LeafClaim  Claim
-	StateClaim Claim
-	IsAttack   bool
+	LeafClaim Claim
+	IsAttack  bool
 }
 
 // AttemptStep determines what step should occur for a given leaf claim.
 // An error will be returned if the claim is not at the max depth.
-func (s *Solver) AttemptStep(claim Claim, state Game) (StepData, error) {
+func (s *Solver) AttemptStep(claim Claim) (StepData, error) {
 	if claim.Depth() != s.gameDepth {
 		return StepData{}, errors.New("cannot step on non-leaf claims")
 	}
@@ -46,20 +45,9 @@ func (s *Solver) AttemptStep(claim Claim, state Game) (StepData, error) {
 	if err != nil {
 		return StepData{}, err
 	}
-	var selectorFn func(Claim) (Claim, error)
-	if claimCorrect {
-		selectorFn = state.PostStateClaim
-	} else {
-		selectorFn = state.PreStateClaim
-	}
-	stateClaim, err := selectorFn(claim)
-	if err != nil {
-		return StepData{}, err
-	}
 	return StepData{
-		LeafClaim:  claim,
-		StateClaim: stateClaim,
-		IsAttack:   claimCorrect,
+		LeafClaim: claim,
+		IsAttack:  claimCorrect,
 	}, nil
 }
 
