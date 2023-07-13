@@ -6,6 +6,16 @@ import (
 	"io"
 )
 
+const (
+	sysMmap      = 4090
+	sysBrk       = 4045
+	sysClone     = 4120
+	sysExitGroup = 4246
+	sysRead      = 4003
+	sysWrite     = 4004
+	sysFcntl     = 4055
+)
+
 func (m *InstrumentedState) readPreimage(key [32]byte, offset uint32) (dat [32]byte, datLen uint32) {
 	preimage := m.lastPreimage
 	if key != m.lastPreimageKey {
@@ -43,7 +53,7 @@ func (m *InstrumentedState) handleSyscall() error {
 
 	//fmt.Printf("syscall: %d\n", syscallNum)
 	switch syscallNum {
-	case 4090: // mmap
+	case sysMmap:
 		sz := a1
 		if sz&PageAddrMask != 0 { // adjust size to align with page size
 			sz += PageSize - (sz & PageAddrMask)
@@ -56,15 +66,15 @@ func (m *InstrumentedState) handleSyscall() error {
 			v0 = a0
 			//fmt.Printf("mmap hint 0x%x size 0x%x\n", v0, sz)
 		}
-	case 4045: // brk
+	case sysBrk:
 		v0 = 0x40000000
-	case 4120: // clone (not supported)
+	case sysClone: // clone (not supported)
 		v0 = 1
-	case 4246: // exit_group
+	case sysExitGroup:
 		m.state.Exited = true
 		m.state.ExitCode = uint8(a0)
 		return nil
-	case 4003: // read
+	case sysRead:
 		// args: a0 = fd, a1 = addr, a2 = count
 		// returns: v0 = read, v1 = err code
 		switch a0 {
@@ -98,7 +108,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			v0 = 0xFFffFFff
 			v1 = MipsEBADF
 		}
-	case 4004: // write
+	case sysWrite:
 		// args: a0 = fd, a1 = addr, a2 = count
 		// returns: v0 = written, v1 = err code
 		switch a0 {
@@ -144,7 +154,7 @@ func (m *InstrumentedState) handleSyscall() error {
 			v0 = 0xFFffFFff
 			v1 = MipsEBADF
 		}
-	case 4055: // fcntl
+	case sysFcntl:
 		// args: a0 = fd, a1 = cmd
 		if a1 == 3 { // F_GETFL: get file descriptor flags
 			switch a0 {
