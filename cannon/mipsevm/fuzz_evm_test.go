@@ -274,6 +274,53 @@ func FuzzStateSyscallFnctl(f *testing.F) {
 	})
 }
 
+func FuzzStateHintRead(f *testing.F) {
+	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
+		preimageData := []byte("hello world")
+		state := &State{
+			PC:             0,
+			NextPC:         4,
+			LO:             0,
+			HI:             0,
+			Heap:           0,
+			ExitCode:       0,
+			Exited:         false,
+			Memory:         NewMemory(),
+			Registers:      [32]uint32{2: sysRead, 4: fdHintRead, 5: addr, 6: count},
+			Step:           0,
+			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
+			PreimageOffset: 0,
+		}
+		state.Memory.SetMemory(0, syscallInsn)
+		preStatePreimageKey := state.PreimageKey
+		preStateRoot := state.Memory.MerkleRoot()
+		expectedRegisters := state.Registers
+		expectedRegisters[2] = count
+
+		oracle := staticOracle(t, preimageData) // only used for hinting
+		us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
+		stepWitness, err := us.Step(true)
+		require.NoError(t, err)
+		require.False(t, stepWitness.HasPreimage())
+
+		require.Equal(t, uint32(4), state.PC)
+		require.Equal(t, uint32(8), state.NextPC)
+		require.Equal(t, uint32(0), state.LO)
+		require.Equal(t, uint32(0), state.HI)
+		require.Equal(t, uint32(0), state.Heap)
+		require.Equal(t, uint8(0), state.ExitCode)
+		require.Equal(t, false, state.Exited)
+		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
+		require.Equal(t, uint64(1), state.Step)
+		require.Equal(t, preStatePreimageKey, state.PreimageKey)
+
+		evmPost := computeMIPSEVMPostState(t, stepWitness)
+		uniPost := us.state.EncodeWitness()
+		require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
+			"mipsevm produced different state than EVM")
+	})
+}
+
 func FuzzStatePreimageRead(f *testing.F) {
 	f.Fuzz(func(t *testing.T, addr uint32, count uint32, preimageOffset uint32) {
 		preimageData := []byte("hello world")
@@ -311,8 +358,6 @@ func FuzzStatePreimageRead(f *testing.F) {
 		require.NoError(t, err)
 		require.True(t, stepWitness.HasPreimage())
 
-		t.Logf("inputs addr=%x count=%x preimageOffset=%x", addr, count, preimageOffset)
-
 		require.Equal(t, uint32(4), state.PC)
 		require.Equal(t, uint32(8), state.NextPC)
 		require.Equal(t, uint32(0), state.LO)
@@ -322,9 +367,113 @@ func FuzzStatePreimageRead(f *testing.F) {
 		require.Equal(t, false, state.Exited)
 		if toWrite > 0 {
 			require.NotEqual(t, preStateRoot, state.Memory.MerkleRoot())
+			require.Greater(t, state.PreimageOffset, preimageOffset)
+		} else {
+			require.Equal(t, state.PreimageOffset, preimageOffset)
 		}
 		require.Equal(t, uint64(1), state.Step)
 		require.Equal(t, preStatePreimageKey, state.PreimageKey)
+
+		evmPost := computeMIPSEVMPostState(t, stepWitness)
+		uniPost := us.state.EncodeWitness()
+		require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
+			"mipsevm produced different state than EVM")
+	})
+}
+
+func FuzzStateHintWrite(f *testing.F) {
+	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
+		preimageData := []byte("hello world")
+		state := &State{
+			PC:             0,
+			NextPC:         4,
+			LO:             0,
+			HI:             0,
+			Heap:           0,
+			ExitCode:       0,
+			Exited:         false,
+			Memory:         NewMemory(),
+			Registers:      [32]uint32{2: sysWrite, 4: fdHintWrite, 5: addr, 6: count},
+			Step:           0,
+			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
+			PreimageOffset: 0,
+
+			// This is only used by mips.go. The reads a zeroed page-sized buffer when reading hint data from memory.
+			// We pre-allocate a buffer for the read hint data to be copied into.
+			LastHint: make(hexutil.Bytes, PageSize),
+		}
+		state.Memory.SetMemory(0, syscallInsn)
+		preStatePreimageKey := state.PreimageKey
+		preStateRoot := state.Memory.MerkleRoot()
+		expectedRegisters := state.Registers
+		expectedRegisters[2] = count
+
+		oracle := staticOracle(t, preimageData) // only used for hinting
+		us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
+		stepWitness, err := us.Step(true)
+		require.NoError(t, err)
+		require.False(t, stepWitness.HasPreimage())
+
+		require.Equal(t, uint32(4), state.PC)
+		require.Equal(t, uint32(8), state.NextPC)
+		require.Equal(t, uint32(0), state.LO)
+		require.Equal(t, uint32(0), state.HI)
+		require.Equal(t, uint32(0), state.Heap)
+		require.Equal(t, uint8(0), state.ExitCode)
+		require.Equal(t, false, state.Exited)
+		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
+		require.Equal(t, uint64(1), state.Step)
+		require.Equal(t, preStatePreimageKey, state.PreimageKey)
+
+		evmPost := computeMIPSEVMPostState(t, stepWitness)
+		uniPost := us.state.EncodeWitness()
+		require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
+			"mipsevm produced different state than EVM")
+	})
+}
+
+func FuzzStatePreimageWrite(f *testing.F) {
+	f.Fuzz(func(t *testing.T, addr uint32, count uint32) {
+		preimageData := []byte("hello world")
+		state := &State{
+			PC:             0,
+			NextPC:         4,
+			LO:             0,
+			HI:             0,
+			Heap:           0,
+			ExitCode:       0,
+			Exited:         false,
+			Memory:         NewMemory(),
+			Registers:      [32]uint32{2: sysWrite, 4: fdPreimageWrite, 5: addr, 6: count},
+			Step:           0,
+			PreimageKey:    preimage.Keccak256Key(crypto.Keccak256Hash(preimageData)).PreimageKey(),
+			PreimageOffset: 128,
+		}
+		state.Memory.SetMemory(0, syscallInsn)
+		preStateRoot := state.Memory.MerkleRoot()
+		expectedRegisters := state.Registers
+		sz := 4 - (addr & 0x3)
+		if sz < count {
+			sz = count
+		}
+		expectedRegisters[2] = sz
+
+		oracle := staticOracle(t, preimageData)
+		us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
+		stepWitness, err := us.Step(true)
+		require.NoError(t, err)
+		require.False(t, stepWitness.HasPreimage())
+
+		require.Equal(t, uint32(4), state.PC)
+		require.Equal(t, uint32(8), state.NextPC)
+		require.Equal(t, uint32(0), state.LO)
+		require.Equal(t, uint32(0), state.HI)
+		require.Equal(t, uint32(0), state.Heap)
+		require.Equal(t, uint8(0), state.ExitCode)
+		require.Equal(t, false, state.Exited)
+		require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
+		require.Equal(t, uint64(1), state.Step)
+		require.Equal(t, uint32(0), state.PreimageOffset)
 
 		evmPost := computeMIPSEVMPostState(t, stepWitness)
 		uniPost := us.state.EncodeWitness()
