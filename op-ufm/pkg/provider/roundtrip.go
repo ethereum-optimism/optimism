@@ -2,80 +2,116 @@ package provider
 
 import (
 	"context"
+	"op-ufm/pkg/metrics"
+	iclients "op-ufm/pkg/metrics/clients"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/tls"
-	signer "github.com/ethereum-optimism/optimism/op-signer/client"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/pkg/errors"
 
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// Roundtrip send a new transaction to measure round trip latency
-func (p *Provider) Roundtrip(ctx context.Context) {
+// RoundTrip send a new transaction to measure round trip latency
+func (p *Provider) RoundTrip(ctx context.Context) {
 	log.Debug("roundtrip", "provider", p.name)
 
-	ethClient, err := p.dial(ctx)
+	client, err := iclients.Dial(p.name, p.config.URL)
 	if err != nil {
 		log.Error("cant dial to provider", "provider", p.name, "url", p.config.URL, "err", err)
+		return
 	}
 
-	nonce, err := p.nonce(ctx, ethClient)
+	nonce, err := client.PendingNonceAt(ctx, p.walletConfig.Address)
 	if err != nil {
 		log.Error("cant get nounce", "provider", p.name, "err", err)
+		return
 	}
 
-	tx := p.createTx(nonce)
+	txHash := common.Hash{}
+	attempt := 0
+	startedAt := time.Now()
+	for {
+		tx := p.createTx(nonce)
+		txHash = tx.Hash()
 
-	signedTx, err := p.sign(ctx, tx)
-	if err != nil {
-		log.Error("cant sign tx", "tx", tx, "err", err)
+		signedTx, err := p.sign(ctx, tx)
+		if err != nil {
+			log.Error("cant sign tx", "provider", p.name, "tx", tx, "err", err)
+			return
+		}
+
+		txHash = signedTx.Hash()
+
+		err = client.SendTransaction(ctx, signedTx)
+		if err != nil {
+			if err.Error() == txpool.ErrAlreadyKnown.Error() || err.Error() == core.ErrNonceTooLow.Error() {
+				if time.Since(startedAt) >= time.Duration(p.config.SendTransactionRetryTimeout) {
+					log.Error("send transaction timed out (known already)", "provider", p.name, "hash", txHash.Hex(), "elapsed", time.Since(startedAt), "attempt", attempt, "nonce", nonce)
+					metrics.RecordError(p.name, "ethclient.SendTransaction.nonce")
+					return
+				}
+				log.Warn("tx already known, incrementing nonce and trying again", "provider", p.name, "nonce", nonce)
+				time.Sleep(time.Duration(p.config.SendTransactionRetryInterval))
+				nonce++
+				attempt++
+				if attempt%10 == 0 {
+					log.Debug("retrying send transaction...", "provider", p.name, "attempt", attempt, "nonce", nonce, "elapsed", time.Since(startedAt))
+				}
+			} else {
+				log.Error("cant send transaction", "provider", p.name, "err", err)
+				return
+			}
+		} else {
+			break
+		}
 	}
 
-	err = ethClient.SendTransaction(ctx, signedTx)
-	if err != nil {
-		log.Error("cant send transaction", "provider", p.name, "err", err)
-	}
-	txHash := signedTx.Hash()
-	log.Info("transaction sent", "hash", txHash.Hex())
+	log.Info("transaction sent", "provider", p.name, "hash", txHash.Hex(), "nonce", nonce)
 
 	// add to pool
 	sentAt := time.Now()
 	p.txPool.M.Lock()
 	p.txPool.Transactions[txHash.Hex()] = &TransactionState{
-		Hash:   txHash,
-		SentAt: sentAt,
-		SeenBy: make(map[string]time.Time),
+		Hash:           txHash,
+		ProviderSentTo: p.name,
+		SentAt:         sentAt,
+		SeenBy:         make(map[string]time.Time),
 	}
 	p.txPool.M.Unlock()
 
 	var receipt *types.Receipt
-	attempt := 0
+	attempt = 0
 	for receipt == nil {
 		if time.Since(sentAt) >= time.Duration(p.config.ReceiptRetrievalTimeout) {
 			log.Error("receipt retrieval timed out", "provider", p.name, "hash", "elapsed", time.Since(sentAt))
-			break
+			return
 		}
 		time.Sleep(time.Duration(p.config.ReceiptRetrievalInterval))
 		if attempt%10 == 0 {
-			log.Debug("checking for receipt...", "attempt", attempt, "elapsed", time.Since(sentAt))
+			log.Debug("checking for receipt...", "provider", p.name, "attempt", attempt, "elapsed", time.Since(sentAt))
 		}
-		receipt, err = ethClient.TransactionReceipt(ctx, txHash)
+		receipt, err = client.TransactionReceipt(ctx, txHash)
 		if err != nil && !errors.Is(err, ethereum.NotFound) {
 			log.Error("cant get receipt for transaction", "provider", p.name, "hash", txHash.Hex(), "err", err)
-			break
+			return
 		}
 		attempt++
 	}
 	roundtrip := time.Since(sentAt)
+	metrics.RecordRoundTripLatency(p.name, roundtrip)
+
+	metrics.RecordGasUsed(p.name, receipt.GasUsed)
 
 	log.Info("got transaction receipt", "hash", txHash.Hex(),
 		"roundtrip", roundtrip,
+		"provider", p.name,
 		"blockNumber", receipt.BlockNumber,
 		"blockHash", receipt.BlockHash,
 		"gasUsed", receipt.GasUsed)
@@ -94,7 +130,6 @@ func (p *Provider) createTx(nonce uint64) *types.Transaction {
 		Value:     &p.walletConfig.TxValue,
 		Data:      data,
 	})
-	// log.Debug("tx", "tx", tx)
 	return tx
 }
 
@@ -112,7 +147,7 @@ func (p *Provider) sign(ctx context.Context, tx *types.Transaction) (*types.Tran
 			TLSCert:   p.signerConfig.TLSCert,
 			TLSKey:    p.signerConfig.TLSKey,
 		}
-		client, err := signer.NewSignerClient(log.Root(), p.signerConfig.URL, tlsConfig)
+		client, err := iclients.NewSignerClient(p.name, log.Root(), p.signerConfig.URL, tlsConfig)
 		log.Debug("signerclient", "client", client, "err", err)
 		if err != nil {
 			return nil, err
@@ -131,9 +166,4 @@ func (p *Provider) sign(ctx context.Context, tx *types.Transaction) (*types.Tran
 	} else {
 		return nil, errors.New("invalid signer method")
 	}
-}
-
-func (p *Provider) nonce(ctx context.Context, client *ethclient.Client) (uint64, error) {
-	fromAddress := common.HexToAddress(p.walletConfig.Address)
-	return client.PendingNonceAt(ctx, fromAddress)
 }

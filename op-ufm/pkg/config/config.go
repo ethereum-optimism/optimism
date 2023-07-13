@@ -54,15 +54,20 @@ type WalletConfig struct {
 }
 
 type ProviderConfig struct {
-	Disabled                 bool         `toml:"disabled"`
-	Network                  string       `toml:"network"`
-	URL                      string       `toml:"url"`
-	ReadOnly                 bool         `toml:"read_only"`
-	ReadInterval             TOMLDuration `toml:"read_interval"`
-	SendInterval             TOMLDuration `toml:"send_interval"`
-	Wallet                   string       `toml:"wallet"`
-	ReceiptRetrievalInterval TOMLDuration `toml:"receipt_retrieval_interval"`
-	ReceiptRetrievalTimeout  TOMLDuration `toml:"receipt_retrieval_timeout"`
+	Disabled bool   `toml:"disabled"`
+	Network  string `toml:"network"`
+	URL      string `toml:"url"`
+
+	ReadOnly     bool         `toml:"read_only"`
+	ReadInterval TOMLDuration `toml:"read_interval"`
+
+	SendInterval                 TOMLDuration `toml:"send_interval"`
+	SendTransactionRetryInterval TOMLDuration `toml:"send_transaction_retry_interval"`
+	SendTransactionRetryTimeout  TOMLDuration `toml:"send_transaction_retry_timeout"`
+	ReceiptRetrievalInterval     TOMLDuration `toml:"receipt_retrieval_interval"`
+	ReceiptRetrievalTimeout      TOMLDuration `toml:"receipt_retrieval_timeout"`
+
+	Wallet string `toml:"wallet"`
 }
 
 func New(file string) (*Config, error) {
@@ -143,14 +148,20 @@ func (c *Config) Validate() error {
 		if provider.SendInterval == 0 {
 			return errors.Errorf("provider [%s] send_interval is missing", name)
 		}
-		if provider.Wallet == "" {
-			return errors.Errorf("provider [%s] wallet is missing", name)
+		if provider.SendTransactionRetryInterval == 0 {
+			return errors.Errorf("provider [%s] send_transaction_retry_interval is missing", name)
+		}
+		if provider.SendTransactionRetryTimeout == 0 {
+			return errors.Errorf("provider [%s] send_transaction_retry_timeout is missing", name)
 		}
 		if provider.ReceiptRetrievalInterval == 0 {
 			return errors.Errorf("provider [%s] receipt_retrieval_interval is missing", name)
 		}
 		if provider.ReceiptRetrievalTimeout == 0 {
 			return errors.Errorf("provider [%s] receipt_retrieval_timeout is missing", name)
+		}
+		if provider.Wallet == "" {
+			return errors.Errorf("provider [%s] wallet is missing", name)
 		}
 		if _, ok := c.Wallets[provider.Wallet]; !ok {
 			return errors.Errorf("provider [%s] has an invalid wallet [%s]", name, provider.Wallet)

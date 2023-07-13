@@ -39,7 +39,7 @@ func (p *Provider) Start(ctx context.Context) {
 	p.cancelFunc = cancelFunc
 	schedule(providerCtx, time.Duration(p.config.ReadInterval), p.Heartbeat)
 	if !p.config.ReadOnly {
-		schedule(providerCtx, time.Duration(p.config.SendInterval), p.Roundtrip)
+		schedule(providerCtx, time.Duration(p.config.SendInterval), p.RoundTrip)
 	}
 }
 
@@ -47,6 +47,14 @@ func (p *Provider) Shutdown() {
 	if p.cancelFunc != nil {
 		p.cancelFunc()
 	}
+}
+
+func (p *Provider) Name() string {
+	return p.name
+}
+
+func (p *Provider) URL() string {
+	return p.config.URL
 }
 
 func schedule(ctx context.Context, interval time.Duration, handler func(ctx context.Context)) {

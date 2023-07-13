@@ -2,10 +2,13 @@ package service
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"op-ufm/pkg/config"
 	"op-ufm/pkg/provider"
 
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Service struct {
@@ -26,8 +29,23 @@ func New(cfg *config.Config) *Service {
 func (s *Service) Start(ctx context.Context) {
 	log.Info("service starting")
 	if s.Config.Healthz.Enabled {
-		s.Healthz.Start(ctx, s.Config.Healthz.Host, s.Config.Healthz.Port)
-		log.Info("healthz started")
+		addr := fmt.Sprintf("%s:%d", s.Config.Healthz.Host, s.Config.Healthz.Port)
+		log.Info("starting healthz server", "addr", addr)
+		go func() {
+			if err := s.Healthz.Start(ctx, s.Config.Healthz.Host, s.Config.Healthz.Port); err != nil {
+				log.Error("error starting healthz server", "err", err)
+			}
+		}()
+	}
+
+	if s.Config.Metrics.Enabled {
+		addr := fmt.Sprintf("%s:%d", s.Config.Metrics.Host, s.Config.Metrics.Port)
+		log.Info("starting metrics server", "addr", addr)
+		go func() {
+			if err := http.ListenAndServe(addr, promhttp.Handler()); err != nil {
+				log.Error("error starting metrics server", "err", err)
+			}
+		}()
 	}
 
 	// map networks to its providers
@@ -46,7 +64,9 @@ func (s *Service) Start(ctx context.Context) {
 		}
 		(*txpool)[name] = &provider.NetworkTransactionPool{}
 		(*txpool)[name].Transactions = make(map[string]*provider.TransactionState)
-		(*txpool)[name].Expected = len(providers)
+		// set expected number of providers for this network
+		// -1 since we don't wait for acking from the same provider
+		(*txpool)[name].Expected = len(providers) - 1
 	}
 
 	for name, providerConfig := range s.Config.Providers {
@@ -62,6 +82,7 @@ func (s *Service) Start(ctx context.Context) {
 		s.Providers[name].Start(ctx)
 		log.Info("provider started", "provider", name)
 	}
+
 	log.Info("service started")
 }
 
