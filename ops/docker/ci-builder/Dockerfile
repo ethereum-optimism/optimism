@@ -6,10 +6,10 @@ WORKDIR /opt
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-    apt-get install -y curl build-essential git && \
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
-    chmod +x ./rustup.sh && \
-    ./rustup.sh -y
+  apt-get install -y curl build-essential git && \
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
+  chmod +x ./rustup.sh && \
+  ./rustup.sh -y
 
 COPY ./.foundryrc ./.foundryrc
 
@@ -21,10 +21,10 @@ RUN git clone https://github.com/foundry-rs/foundry.git ./foundry \
 WORKDIR /opt/foundry
 
 RUN source $HOME/.profile && \
-    cargo build --release && \
-    strip /opt/foundry/target/release/forge && \
-    strip /opt/foundry/target/release/cast && \
-    strip /opt/foundry/target/release/anvil
+  cargo build --release && \
+  strip /opt/foundry/target/release/forge && \
+  strip /opt/foundry/target/release/cast && \
+  strip /opt/foundry/target/release/anvil
 
 FROM ethereum/client-go:alltools-v1.10.25 as geth
 
@@ -105,3 +105,8 @@ RUN echo "downloading mockery tool" && \
   cp mockery-tmp-dir/mockery /usr/local/bin/mockery && \
   chmod +x /usr/local/bin/mockery && \
   rm -rf mockery-tmp-dir
+
+
+RUN echo "installing mips binutils" && \
+  apt-get install -y binutils-mips-linux-gnu python3 python3-pip && \
+  pip3 install capstone pyelftools
