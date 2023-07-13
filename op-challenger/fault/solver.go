@@ -9,7 +9,6 @@ import (
 // Solver uses a [TraceProvider] to determine the moves to make in a dispute game.
 type Solver struct {
 	TraceProvider
-
 	gameDepth int
 }
 
@@ -31,8 +30,9 @@ func (s *Solver) NextMove(claim Claim) (*Claim, error) {
 }
 
 type StepData struct {
-	LeafClaim Claim
-	IsAttack  bool
+	LeafClaim          Claim
+	IsAttack           bool
+	PreStateTraceIndex uint64
 }
 
 // AttemptStep determines what step should occur for a given leaf claim.
@@ -45,9 +45,15 @@ func (s *Solver) AttemptStep(claim Claim) (StepData, error) {
 	if err != nil {
 		return StepData{}, err
 	}
+	index := claim.TraceIndex(s.gameDepth)
+	// TODO(CLI-4198): Handle case where we dispute trace index 0
+	if !claimCorrect {
+		index -= 1
+	}
 	return StepData{
-		LeafClaim: claim,
-		IsAttack:  claimCorrect,
+		LeafClaim:          claim,
+		IsAttack:           !claimCorrect,
+		PreStateTraceIndex: index,
 	}, nil
 }
 
@@ -105,8 +111,9 @@ func (s *Solver) attack(claim Claim) (*Claim, error) {
 		return nil, err
 	}
 	return &Claim{
-		ClaimData: ClaimData{Value: value, Position: position},
-		Parent:    claim.ClaimData,
+		ClaimData:           ClaimData{Value: value, Position: position},
+		Parent:              claim.ClaimData,
+		ParentContractIndex: claim.ContractIndex,
 	}, nil
 }
 
@@ -118,8 +125,9 @@ func (s *Solver) defend(claim Claim) (*Claim, error) {
 		return nil, err
 	}
 	return &Claim{
-		ClaimData: ClaimData{Value: value, Position: position},
-		Parent:    claim.ClaimData,
+		ClaimData:           ClaimData{Value: value, Position: position},
+		Parent:              claim.ClaimData,
+		ParentContractIndex: claim.ContractIndex,
 	}, nil
 }
 
