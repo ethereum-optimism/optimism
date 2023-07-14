@@ -46,7 +46,7 @@ It consists of the following fields:
  when executing a branch/jump delay slot.
 6. `lo` - 32-bit MIPS LO special register.
 7. `hi` - 32-bit MIPS HI special register.
-8. `heap` - 32-bit address of the base of the VM heap memory.
+8. `heap` - 32-bit base address of the most recently allocated page in the free store.
 9. `exitCode` - 8-bit exit code.
 10. `exited` - 1-bit indicator that the VM has exited.
 11. `registers` - General-purpose MIPS32 registers. Each register is a 32-bit value.
