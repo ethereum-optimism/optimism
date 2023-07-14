@@ -102,6 +102,10 @@ Consequently, the return value of read/write syscalls is at most 4, indicating t
 Writing to stderr/stdout standard stream always succeeds with the write count input returned.
 Reading from stdin has no effect other than to return zero and errno set to 0.
 
+### Hint Communication
+
+Hint requests and responses have no effect on the VM state other than setting the `$v0` return register to the requested read/write count. VM implementations may utilize hints to setup subsequent pre-image requests.
+
 ### Pre-image Communication
 
 The `preimageKey` and `preimageOffset` state are updated via read/write syscalls to the pre-image read and write file descriptors (see [I/O](#io)).
@@ -112,6 +116,13 @@ A write also resets the `preimageOffset` to 0, indicating the intent to read a n
 When handling pre-image reads, the `preimageKey` is used to lookup the pre-image data from an Oracle.
 A max 4-byte chunk of the pre-image at the `preimageOffset` is read to the specified address.
 Each read operation increases the `preimageOffset` by the number of bytes requested (truncated to 4 bytes and subject to alignment contraints).
+
+#### Pre-image I/O Alignment
+As mentioned earlier in [memory](#memory), all memory operations are 4-byte aligned. Since pre-image I/O occurs on memory, all pre-image I/O operations must strictly adhere to alignment boundaries. This means the start and end of a read/write operation must fall within the same alignment boundary.
+If an operation were to violate this, the input `count` of the read/write syscall must be truncated such that the effective address of the last byte read/writtten matches the input effective address.
+
+The VM must read/write the maximum amount of bytes possible without crossing the input adress alignment boundary. For example, the effect of a write request for a 3-byte aligned buffer must be exactly 3 bytes.
+If the buffer is misaligned, then the VM may write less than 3 bytes depending on the size of the misalignment.
 
 
 ## Exceptions
