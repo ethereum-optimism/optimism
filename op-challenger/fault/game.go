@@ -33,6 +33,9 @@ type Game interface {
 	// PostStateClaim gets the claim which commits to the post-state of this specific claim.
 	// This will return an error if it is called with a non-leaf claim.
 	PostStateClaim(claim Claim) (Claim, error)
+
+	// AgreeWithLevel returns if the game state agrees with the provided claim level.
+	AgreeWithClaimLevel(claim Claim) bool
 }
 
 type extendedClaim struct {
@@ -43,23 +46,37 @@ type extendedClaim struct {
 // gameState is a struct that represents the state of a dispute game.
 // The game state implements the [Game] interface.
 type gameState struct {
-	root   ClaimData
-	claims map[ClaimData]*extendedClaim
-	depth  uint64
+	agreeWithProposedOutput bool
+	root                    ClaimData
+	claims                  map[ClaimData]*extendedClaim
+	depth                   uint64
 }
 
 // NewGameState returns a new game state.
 // The provided [Claim] is used as the root node.
-func NewGameState(root Claim, depth uint64) *gameState {
+func NewGameState(agreeWithProposedOutput bool, root Claim, depth uint64) *gameState {
 	claims := make(map[ClaimData]*extendedClaim)
 	claims[root.ClaimData] = &extendedClaim{
 		self:     root,
 		children: make([]ClaimData, 0),
 	}
 	return &gameState{
-		root:   root.ClaimData,
-		claims: claims,
-		depth:  depth,
+		agreeWithProposedOutput: agreeWithProposedOutput,
+		root:                    root.ClaimData,
+		claims:                  claims,
+		depth:                   depth,
+	}
+}
+
+// AgreeWithLevel returns if the game state agrees with the provided claim level.
+func (g *gameState) AgreeWithClaimLevel(claim Claim) bool {
+	isOddLevel := claim.Depth()%2 == 1
+	// If we agree with the proposed output, we agree with odd levels
+	// If we disagree with the proposed output, we agree with the root claim level & even levels
+	if g.agreeWithProposedOutput {
+		return isOddLevel
+	} else {
+		return !isOddLevel
 	}
 }
 
@@ -79,7 +96,8 @@ func (g *gameState) Put(claim Claim) error {
 	if claim.IsRoot() || g.IsDuplicate(claim) {
 		return ErrClaimExists
 	}
-	if parent, ok := g.claims[claim.Parent]; !ok {
+	parent, ok := g.claims[claim.Parent]
+	if !ok {
 		return errors.New("no parent claim")
 	} else {
 		parent.children = append(parent.children, claim.ClaimData)
