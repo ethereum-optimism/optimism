@@ -104,7 +104,6 @@ func (r *faultResponder) sendTxAndWait(ctx context.Context, txData []byte) error
 func (r *faultResponder) buildStepTxData(stepData StepCallData) ([]byte, error) {
 	return r.fdgAbi.Pack(
 		"step",
-		big.NewInt(int64(stepData.StateIndex)),
 		big.NewInt(int64(stepData.ClaimIndex)),
 		stepData.IsAttack,
 		stepData.StateData,

@@ -9,7 +9,6 @@ import (
 // Solver uses a [TraceProvider] to determine the moves to make in a dispute game.
 type Solver struct {
 	TraceProvider
-
 	gameDepth int
 }
 
@@ -31,14 +30,14 @@ func (s *Solver) NextMove(claim Claim) (*Claim, error) {
 }
 
 type StepData struct {
-	LeafClaim  Claim
-	StateClaim Claim
-	IsAttack   bool
+	LeafClaim          Claim
+	IsAttack           bool
+	PreStateTraceIndex uint64
 }
 
 // AttemptStep determines what step should occur for a given leaf claim.
 // An error will be returned if the claim is not at the max depth.
-func (s *Solver) AttemptStep(claim Claim, state Game) (StepData, error) {
+func (s *Solver) AttemptStep(claim Claim) (StepData, error) {
 	if claim.Depth() != s.gameDepth {
 		return StepData{}, errors.New("cannot step on non-leaf claims")
 	}
@@ -46,20 +45,15 @@ func (s *Solver) AttemptStep(claim Claim, state Game) (StepData, error) {
 	if err != nil {
 		return StepData{}, err
 	}
-	var selectorFn func(Claim) (Claim, error)
-	if claimCorrect {
-		selectorFn = state.PostStateClaim
-	} else {
-		selectorFn = state.PreStateClaim
-	}
-	stateClaim, err := selectorFn(claim)
-	if err != nil {
-		return StepData{}, err
+	index := claim.TraceIndex(s.gameDepth)
+	// TODO(CLI-4198): Handle case where we dispute trace index 0
+	if !claimCorrect {
+		index -= 1
 	}
 	return StepData{
-		LeafClaim:  claim,
-		StateClaim: stateClaim,
-		IsAttack:   claimCorrect,
+		LeafClaim:          claim,
+		IsAttack:           !claimCorrect,
+		PreStateTraceIndex: index,
 	}, nil
 }
 
@@ -117,8 +111,9 @@ func (s *Solver) attack(claim Claim) (*Claim, error) {
 		return nil, err
 	}
 	return &Claim{
-		ClaimData: ClaimData{Value: value, Position: position},
-		Parent:    claim.ClaimData,
+		ClaimData:           ClaimData{Value: value, Position: position},
+		Parent:              claim.ClaimData,
+		ParentContractIndex: claim.ContractIndex,
 	}, nil
 }
 
@@ -130,8 +125,9 @@ func (s *Solver) defend(claim Claim) (*Claim, error) {
 		return nil, err
 	}
 	return &Claim{
-		ClaimData: ClaimData{Value: value, Position: position},
-		Parent:    claim.ClaimData,
+		ClaimData:           ClaimData{Value: value, Position: position},
+		Parent:              claim.ClaimData,
+		ParentContractIndex: claim.ContractIndex,
 	}, nil
 }
 

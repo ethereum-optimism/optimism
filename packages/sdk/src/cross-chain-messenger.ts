@@ -1563,9 +1563,17 @@ export class CrossChainMessenger {
     opts?: {
       signer?: Signer
       overrides?: Overrides
-    }
+    },
+    /**
+     * The index of the withdrawal if multiple are made with multicall
+     */
+    messageIndex: number = 0
   ): Promise<TransactionResponse> {
-    const tx = await this.populateTransaction.proveMessage(message, opts)
+    const tx = await this.populateTransaction.proveMessage(
+      message,
+      opts,
+      messageIndex
+    )
     return (opts?.signer || this.l1Signer).sendTransaction(tx)
   }
 
@@ -1584,10 +1592,18 @@ export class CrossChainMessenger {
     opts?: {
       signer?: Signer
       overrides?: PayableOverrides
-    }
+    },
+    /**
+     * The index of the withdrawal if multiple are made with multicall
+     */
+    messageIndex = 0
   ): Promise<TransactionResponse> {
     return (opts?.signer || this.l1Signer).sendTransaction(
-      await this.populateTransaction.finalizeMessage(message, opts)
+      await this.populateTransaction.finalizeMessage(
+        message,
+        opts,
+        messageIndex
+      )
     )
   }
 
@@ -1810,7 +1826,6 @@ export class CrossChainMessenger {
       opts?: {
         overrides?: Overrides
       },
-
       /**
        * The index of the withdrawal if multiple are made with multicall
        */
@@ -1822,13 +1837,17 @@ export class CrossChainMessenger {
       }
 
       if (this.bedrock) {
-        return this.populateTransaction.finalizeMessage(resolved, {
-          ...(opts || {}),
-          overrides: {
-            ...opts?.overrides,
-            gasLimit: messageGasLimit,
+        return this.populateTransaction.finalizeMessage(
+          resolved,
+          {
+            ...(opts || {}),
+            overrides: {
+              ...opts?.overrides,
+              gasLimit: messageGasLimit,
+            },
           },
-        })
+          messageIndex
+        )
       } else {
         const legacyL1XDM = new ethers.Contract(
           this.contracts.l1.L1CrossDomainMessenger.address,
@@ -1861,7 +1880,6 @@ export class CrossChainMessenger {
       opts?: {
         overrides?: PayableOverrides
       },
-
       /**
        * The index of the withdrawal if multiple are made with multicall
        */
@@ -1921,7 +1939,6 @@ export class CrossChainMessenger {
       opts?: {
         overrides?: PayableOverrides
       },
-
       /**
        * The index of the withdrawal if multiple are made with multicall
        */
@@ -2229,10 +2246,18 @@ export class CrossChainMessenger {
       message: MessageLike,
       opts?: {
         overrides?: CallOverrides
-      }
+      },
+      /**
+       * The index of the withdrawal if multiple are made with multicall
+       */
+      messageIndex = 0
     ): Promise<BigNumber> => {
       return this.l1Provider.estimateGas(
-        await this.populateTransaction.finalizeMessage(message, opts)
+        await this.populateTransaction.finalizeMessage(
+          message,
+          opts,
+          messageIndex
+        )
       )
     },
 
