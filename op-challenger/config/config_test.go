@@ -9,13 +9,14 @@ import (
 )
 
 var (
-	validL1EthRpc      = "http://localhost:8545"
-	validGameAddress   = common.HexToAddress("0x7bdd3b028C4796eF0EAf07d11394d0d9d8c24139")
-	validAlphabetTrace = "abcdefgh"
+	validL1EthRpc           = "http://localhost:8545"
+	validGameAddress        = common.HexToAddress("0x7bdd3b028C4796eF0EAf07d11394d0d9d8c24139")
+	validAlphabetTrace      = "abcdefgh"
+	agreeWithProposedOutput = true
 )
 
 func validConfig() Config {
-	cfg := NewConfig(validL1EthRpc, validGameAddress, validAlphabetTrace)
+	cfg := NewConfig(validL1EthRpc, validGameAddress, validAlphabetTrace, agreeWithProposedOutput)
 	return cfg
 }
 

@@ -74,10 +74,28 @@ func TestSolver_NextMove_Opponent(t *testing.T) {
 	}
 
 	for _, test := range indices {
-		res, err := solver.NextMove(test.claim)
+		res, err := solver.NextMove(test.claim, false)
 		require.NoError(t, err)
 		require.Equal(t, test.response, res.ClaimData)
 	}
+}
+
+func TestNoMoveAgainstOwnLevel(t *testing.T) {
+	maxDepth := 3
+	mallory := NewAlphabetProvider("abcdepqr", uint64(maxDepth))
+	solver := NewSolver(maxDepth, mallory)
+
+	claim := Claim{
+		ClaimData: ClaimData{
+			Value:    alphabetClaim(7, "z"),
+			Position: NewPosition(0, 0),
+		},
+		// Root claim has no parent
+	}
+
+	move, err := solver.NextMove(claim, true)
+	require.Nil(t, move)
+	require.Nil(t, err)
 }
 
 func TestAttemptStep(t *testing.T) {
@@ -85,7 +103,7 @@ func TestAttemptStep(t *testing.T) {
 	canonicalProvider := NewAlphabetProvider("abcdefgh", uint64(maxDepth))
 	solver := NewSolver(maxDepth, canonicalProvider)
 	root, top, middle, bottom := createTestClaims()
-	g := NewGameState(root, testMaxDepth)
+	g := NewGameState(false, root, testMaxDepth)
 	require.NoError(t, g.Put(top))
 	require.NoError(t, g.Put(middle))
 	require.NoError(t, g.Put(bottom))
