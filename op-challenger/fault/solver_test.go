@@ -85,7 +85,7 @@ func TestAttemptStep(t *testing.T) {
 	canonicalProvider := NewAlphabetProvider("abcdefgh", uint64(maxDepth))
 	solver := NewSolver(maxDepth, canonicalProvider)
 	root, top, middle, bottom := createTestClaims()
-	g := NewGameState(root, testMaxDepth)
+	g := NewGameState(false, root, testMaxDepth)
 	require.NoError(t, g.Put(top))
 	require.NoError(t, g.Put(middle))
 	require.NoError(t, g.Put(bottom))

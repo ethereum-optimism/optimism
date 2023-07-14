@@ -38,7 +38,7 @@ func Main(logger log.Logger, cfg *config.Config) error {
 	gameDepth := 4
 	trace := fault.NewAlphabetProvider(cfg.AlphabetTrace, uint64(gameDepth))
 
-	agent := fault.NewAgent(loader, gameDepth, trace, responder, logger)
+	agent := fault.NewAgent(loader, gameDepth, trace, responder, cfg.AgreeWithProposedOutput, logger)
 
 	logger.Info("Fault game started")
 
