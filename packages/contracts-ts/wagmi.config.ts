@@ -152,10 +152,9 @@ const deployments = {
     `node_modules/@eth-optimism/contracts-bedrock/deployments/${chains[420]}/*.json`
   ),
 }
-
 Object.entries(deployments).forEach(([chain, deploymentFiles]) => {
   if (deploymentFiles.length === 0) {
-    throw new Error(`No deployments found for ${chains[chain]}`)
+    throw new Error(`No bedrock deployments found for ${chains[chain]}`)
   }
 })
 

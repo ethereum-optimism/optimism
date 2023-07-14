@@ -45,7 +45,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@eth-optimism/contracts-bedrock": "workspace:0.15.0",
+    "@eth-optimism/contracts-bedrock": "workspace:*",
     "@testing-library/jest-dom": "^5.16.5",
     "@testing-library/react-hooks": "^8.0.1",
     "@types/glob": "^8.1.0",

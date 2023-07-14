@@ -309,8 +309,11 @@ importers:
         version: 1.0.1(react-dom@18.2.0)(react@18.2.0)(typescript@4.9.3)(viem@0.3.30)
     devDependencies:
       '@eth-optimism/contracts-bedrock':
-        specifier: workspace:0.15.0
+        specifier: workspace:*
         version: link:../contracts-bedrock
+      '@eth-optimism/contracts-periphery':
+        specifier: workspace:*
+        version: link:../contracts-periphery
       '@testing-library/jest-dom':
         specifier: ^5.16.5
         version: 5.16.5
