@@ -14,4 +14,4 @@ MALLORY_KEY="28d7045146193f5f4eeb151c4843544b1b0d30a7ac1680c845a416fac65a7715"
 
 FAULT_GAME_ADDRESS="0x8daf17a20c9dba35f005b6324f493785d239719d"
 
-./bin/op-challenger --l1-eth-rpc http://localhost:8545 --alphabet "abcdefgh" --game-address $FAULT_GAME_ADDRESS --private-key $CHARLIE_KEY --num-confirmations 1 
+./bin/op-challenger --l1-eth-rpc http://localhost:8545 --alphabet "abcdefgh" --game-address $FAULT_GAME_ADDRESS --private-key $CHARLIE_KEY --num-confirmations 1 --agree-with-proposed-output=true

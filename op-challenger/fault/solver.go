@@ -21,12 +21,46 @@ func NewSolver(gameDepth int, traceProvider TraceProvider) *Solver {
 }
 
 // NextMove returns the next move to make given the current state of the game.
-func (s *Solver) NextMove(claim Claim) (*Claim, error) {
+func (s *Solver) NextMove(claim Claim, agreeWithClaimLevel bool) (*Claim, error) {
+	if agreeWithClaimLevel {
+		return nil, nil
+	}
+
 	// Special case of the root claim
 	if claim.IsRoot() {
 		return s.handleRoot(claim)
 	}
 	return s.handleMiddle(claim)
+}
+
+func (s *Solver) handleRoot(claim Claim) (*Claim, error) {
+	agree, err := s.agreeWithClaim(claim.ClaimData)
+	if err != nil {
+		return nil, err
+	}
+	// Attack the root claim if we do not agree with it
+	// Note: We always disagree with the claim level at this point,
+	// so if we agree with claim maybe we should also attack?
+	if !agree {
+		return s.attack(claim)
+	} else {
+		return nil, nil
+	}
+}
+
+func (s *Solver) handleMiddle(claim Claim) (*Claim, error) {
+	claimCorrect, err := s.agreeWithClaim(claim.ClaimData)
+	if err != nil {
+		return nil, err
+	}
+	if claim.Depth() == s.gameDepth {
+		return nil, errors.New("game depth reached")
+	}
+	if claimCorrect {
+		return s.defend(claim)
+	} else {
+		return s.attack(claim)
+	}
 }
 
 type StepData struct {
@@ -55,52 +89,6 @@ func (s *Solver) AttemptStep(claim Claim) (StepData, error) {
 		IsAttack:           !claimCorrect,
 		PreStateTraceIndex: index,
 	}, nil
-}
-
-func (s *Solver) handleRoot(claim Claim) (*Claim, error) {
-	agree, err := s.agreeWithClaim(claim.ClaimData)
-	if err != nil {
-		return nil, err
-	}
-	// Attack the root claim if we do not agree with it
-	if !agree {
-		return s.attack(claim)
-	} else {
-		return nil, nil
-	}
-}
-
-func (s *Solver) handleMiddle(claim Claim) (*Claim, error) {
-	parentCorrect, err := s.agreeWithClaim(claim.Parent)
-	if err != nil {
-		return nil, err
-	}
-	claimCorrect, err := s.agreeWithClaim(claim.ClaimData)
-	if err != nil {
-		return nil, err
-	}
-	if claim.Depth() == s.gameDepth {
-		return nil, errors.New("game depth reached")
-	}
-	if parentCorrect && claimCorrect {
-		// We agree with the parent, but the claim is disagreeing with it.
-		// Since we agree with the claim, the difference must be to the right of the claim
-		return s.defend(claim)
-	} else if parentCorrect && !claimCorrect {
-		// We agree with the parent, but the claim disagrees with it.
-		// Since we disagree with the claim, the difference must be to the left of the claim
-		return s.attack(claim)
-	} else if !parentCorrect && claimCorrect {
-		// Do nothing, we disagree with the parent, but this claim has correctly countered it
-		return nil, nil
-	} else if !parentCorrect && !claimCorrect {
-		// We disagree with the parent so want to counter it (which the claim is doing)
-		// but we also disagree with the claim so there must be a difference to the left of claim
-		// Note that we will create the correct counter-claim for parent when it is evaluated, no need to do it here
-		return s.attack(claim)
-	}
-	// This should not be reached
-	return nil, errors.New("no next move")
 }
 
 // attack returns a response that attacks the claim.
