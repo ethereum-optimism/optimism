@@ -35,6 +35,9 @@ func TestState(t *testing.T) {
 			if strings.HasPrefix(f.Name(), "oracle") {
 				oracle = staticOracle(t, []byte("hello world"))
 			}
+			// Short-circuit early for exit_group.bin
+			exitGroup := f.Name() == "exit_group.bin"
+
 			// TODO: currently tests are compiled as flat binary objects
 			// We can use more standard tooling to compile them to ELF files and get remove maketests.py
 			fn := path.Join("open_mips_tests/test/bin", f.Name())
@@ -57,14 +60,24 @@ func TestState(t *testing.T) {
 				if us.state.PC == endAddr {
 					break
 				}
+				if exitGroup && us.state.Exited {
+					break
+				}
 				_, err := us.Step(false)
 				require.NoError(t, err)
 			}
-			require.Equal(t, uint32(endAddr), us.state.PC, "must reach end")
-			// inspect test result
-			done, result := state.Memory.GetMemory(baseAddrEnd+4), state.Memory.GetMemory(baseAddrEnd+8)
-			require.Equal(t, done, uint32(1), "must be done")
-			require.Equal(t, result, uint32(1), "must have success result")
+
+			if exitGroup {
+				require.NotEqual(t, uint32(endAddr), us.state.PC, "must not reach end")
+				require.True(t, us.state.Exited, "must set exited state")
+				require.Equal(t, uint8(1), us.state.ExitCode, "must exit with 1")
+			} else {
+				require.Equal(t, uint32(endAddr), us.state.PC, "must reach end")
+				done, result := state.Memory.GetMemory(baseAddrEnd+4), state.Memory.GetMemory(baseAddrEnd+8)
+				// inspect test result
+				require.Equal(t, done, uint32(1), "must be done")
+				require.Equal(t, result, uint32(1), "must have success result")
+			}
 		})
 	}
 }
