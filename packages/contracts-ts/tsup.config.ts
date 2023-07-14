@@ -1,7 +1,8 @@
 import { defineConfig } from 'tsup'
+import packageJson from './package.json'
 
 export default defineConfig({
-  name: '@eth-optimsim/contracts-ts',
+  name: packageJson.name,
   entry: ['src/index.ts', 'src/actions.ts', 'src/react.ts'],
   outDir: 'dist',
   format: ['esm', 'cjs'],
@@ -9,3 +10,4 @@ export default defineConfig({
   sourcemap: true,
   clean: false,
 })
+
