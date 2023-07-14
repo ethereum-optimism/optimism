@@ -9,22 +9,24 @@ import (
 )
 
 type Agent struct {
-	solver    *Solver
-	trace     TraceProvider
-	loader    Loader
-	responder Responder
-	maxDepth  int
-	log       log.Logger
+	solver                  *Solver
+	trace                   TraceProvider
+	loader                  Loader
+	responder               Responder
+	maxDepth                int
+	agreeWithProposedOutput bool
+	log                     log.Logger
 }
 
-func NewAgent(loader Loader, maxDepth int, trace TraceProvider, responder Responder, log log.Logger) Agent {
+func NewAgent(loader Loader, maxDepth int, trace TraceProvider, responder Responder, agreeWithProposedOutput bool, log log.Logger) Agent {
 	return Agent{
-		solver:    NewSolver(maxDepth, trace),
-		trace:     trace,
-		loader:    loader,
-		responder: responder,
-		maxDepth:  maxDepth,
-		log:       log,
+		solver:                  NewSolver(maxDepth, trace),
+		trace:                   trace,
+		loader:                  loader,
+		responder:               responder,
+		maxDepth:                maxDepth,
+		agreeWithProposedOutput: agreeWithProposedOutput,
+		log:                     log,
 	}
 }
 
@@ -59,7 +61,7 @@ func (a *Agent) newGameFromContracts(ctx context.Context) (Game, error) {
 	if len(claims) == 0 {
 		return nil, errors.New("no claims")
 	}
-	game := NewGameState(claims[0], uint64(a.maxDepth))
+	game := NewGameState(a.agreeWithProposedOutput, claims[0], uint64(a.maxDepth))
 	if err := game.PutAll(claims[1:]); err != nil {
 		return nil, fmt.Errorf("failed to load claims into the local state: %w", err)
 	}
