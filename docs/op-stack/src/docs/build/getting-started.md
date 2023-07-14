@@ -278,7 +278,7 @@ We’ve set up the L1 side of things, but now we need to set up the L2 side of t
 
     You should then see the `genesis.json` and `rollup.json` files inside the `op-node` package.
 
-1. Next, generate the `jwt.txt` file with the following command:
+ 1. Next, generate the `jwt.txt` file with the following command:
 
     ```bash
     openssl rand -hex 32 > jwt.txt
@@ -307,20 +307,20 @@ We’re almost ready to run our chain! Now we just need to run a few commands to
     mkdir datadir
     ```
 
-1. Put a password file into the data directory folder:
+// 1. Put a password file into the data directory folder:
 
     ```bash
     echo "pwd" > datadir/password
     ```
 
 
-1. Put the `Sequencer` private key into the data directory folder (don’t include a “0x” prefix):
+// 1. Put the `Sequencer` private key into the data directory folder (don’t include a “0x” prefix):
 
     ```bash
     echo "<SEQUENCER KEY HERE>" > datadir/block-signer-key
     ```
 
-1. Import the key into `op-geth`:
+// 1. Import the key into `op-geth`:
 
     ```bash
     ./build/bin/geth account import --datadir=datadir --password=datadir/password datadir/block-signer-key
@@ -361,32 +361,27 @@ Run `op-geth` with the following commands.
 cd ~/op-geth
 
 ./build/bin/geth \
-	--datadir ./datadir \
-	--http \
-	--http.corsdomain="*" \
-	--http.vhosts="*" \
-	--http.addr=0.0.0.0 \
-	--http.api=web3,debug,eth,txpool,net,engine \
-	--ws \
-	--ws.addr=0.0.0.0 \
-	--ws.port=8546 \
-	--ws.origins="*" \
-	--ws.api=debug,eth,txpool,net,engine \
-	--syncmode=full \
-	--gcmode=archive \
-	--nodiscover \
-	--maxpeers=0 \
-	--networkid=42069 \
-	--authrpc.vhosts="*" \
-	--authrpc.addr=0.0.0.0 \
-	--authrpc.port=8551 \
-	--authrpc.jwtsecret=./jwt.txt \
-	--rollup.disabletxpoolgossip=true \
-	--password=./datadir/password \
-	--allow-insecure-unlock \
-	--mine \
-	--miner.etherbase=$SEQ_ADDR \
-	--unlock=$SEQ_ADDR
+        --datadir ./datadir \
+        --http \
+        --http.corsdomain="*" \
+        --http.vhosts="*" \
+        --http.addr=0.0.0.0 \
+        --http.api=web3,debug,eth,txpool,net,engine \
+        --ws \
+        --ws.addr=0.0.0.0 \
+        --ws.port=8546 \
+        --ws.origins="*" \
+        --ws.api=debug,eth,txpool,net,engine \
+        --syncmode=full \
+        --gcmode=archive \
+        --nodiscover \
+        --maxpeers=0 \
+        --networkid=42069 \
+        --authrpc.vhosts="*" \
+        --authrpc.addr=0.0.0.0 \
+        --authrpc.port=8551 \
+        --authrpc.jwtsecret=./jwt.txt \
+        --rollup.disabletxpoolgossip=true
 ```
 
 And `op-geth` should be running! You should see some output, but you won’t see any blocks being created yet because `op-geth` is driven by the `op-node`. We’ll need to get that running next.
@@ -444,7 +439,7 @@ cd ~/optimism/op-node
 
 ./bin/op-node \
 	--l2=http://localhost:8551 \
-	--l2.jwt-secret=./jwt.txt \
+	--l2.jwt-secret=./jwt.txt \    
 	--sequencer.enabled \
 	--sequencer.l1-confs=3 \
 	--verifier.l1-confs=3 \
