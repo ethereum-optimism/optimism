@@ -138,7 +138,7 @@ if (!glob.sync('node_modules/*').length) {
   )
 }
 
-const deployments = {
+const bedrockDeployments = {
   [1]: glob.sync(
     `node_modules/@eth-optimism/contracts-bedrock/deployments/${chains[1]}/*.json`
   ),
@@ -152,12 +152,17 @@ const deployments = {
     `node_modules/@eth-optimism/contracts-bedrock/deployments/${chains[420]}/*.json`
   ),
 }
-
-Object.entries(deployments).forEach(([chain, deploymentFiles]) => {
+Object.entries(bedrockDeployments).forEach(([chain, deploymentFiles]) => {
   if (deploymentFiles.length === 0) {
-    throw new Error(`No deployments found for ${chains[chain]}`)
+    throw new Error(`No bedrock deployments found for ${chains[chain]}`)
   }
 })
+const deployments = {
+  [1]: bedrockDeployments[1],
+  [10]: bedrockDeployments[10],
+  [5]: bedrockDeployments[5],
+  [420]: bedrockDeployments[420],
+}
 
 const getWagmiContracts = (deploymentFiles: string[]) =>
   deploymentFiles.map((artifactPath) => {
