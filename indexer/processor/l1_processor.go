@@ -57,8 +57,8 @@ type L1Processor struct {
 	processor
 }
 
-func NewL1Processor(ethClient node.EthClient, db *database.DB, l1Contracts L1Contracts) (*L1Processor, error) {
-	l1ProcessLog := log.New("processor", "l1")
+func NewL1Processor(logger log.Logger, ethClient node.EthClient, db *database.DB, l1Contracts L1Contracts) (*L1Processor, error) {
+	l1ProcessLog := logger.New("processor", "l1")
 	l1ProcessLog.Info("initializing processor")
 
 	l2OutputOracleABI, err := bindings.L2OutputOracleMetaData.GetAbi()

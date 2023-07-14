@@ -1,49 +1,20 @@
 package indexer
 
 import (
+	"context"
 	"fmt"
-	"os"
+	"sync"
 
+	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
-	"github.com/ethereum-optimism/optimism/indexer/flags"
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/indexer/processor"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
-
-	"github.com/urfave/cli"
 )
 
-// Main is the entrypoint into the indexer service. This method returns
-// a closure that executes the service and blocks until the service exits. The
-// use of a closure allows the parameters bound to the top-level main package,
-// e.g. GitVersion, to be captured and used once the function is executed.
-func Main(gitVersion string) func(ctx *cli.Context) error {
-	return func(ctx *cli.Context) error {
-		log.Info("initializing indexer")
-		indexer, err := NewIndexer(ctx)
-		if err != nil {
-			log.Error("unable to initialize indexer", "err", err)
-			return err
-		}
-
-		log.Info("starting indexer")
-		if err := indexer.Start(); err != nil {
-			log.Error("unable to start indexer", "err", err)
-		}
-
-		defer indexer.Stop()
-		log.Info("indexer started")
-
-		// Never terminate
-		<-(chan struct{})(nil)
-		return nil
-	}
-}
-
-// Indexer is a service that configures the necessary resources for
-// running the Sync and BlockHandler sub-services.
+// Indexer contains the necessary resources for
+// indexing the configured L1 and L2 chains
 type Indexer struct {
 	db *database.DB
 
@@ -51,23 +22,9 @@ type Indexer struct {
 	l2Processor *processor.L2Processor
 }
 
-// NewIndexer initializes the Indexer, gathering any resources
-// that will be needed by the TxIndexer and StateIndexer
-// sub-services.
-func NewIndexer(ctx *cli.Context) (*Indexer, error) {
-	// TODO https://linear.app/optimism/issue/DX-55/api-implement-rest-api-with-mocked-data
-	// do json format too
-	// TODO https://linear.app/optimism/issue/DX-55/api-implement-rest-api-with-mocked-data
-
-	logLevel, err := log.LvlFromString(ctx.GlobalString(flags.LogLevelFlag.Name))
-	if err != nil {
-		return nil, err
-	}
-
-	logHandler := log.StreamHandler(os.Stdout, log.TerminalFormat(true))
-	log.Root().SetHandler(log.LvlFilterHandler(logLevel, logHandler))
-
-	dsn := fmt.Sprintf("database=%s", ctx.GlobalString(flags.DBNameFlag.Name))
+// NewIndexer initializes an instance of the Indexer
+func NewIndexer(cfg config.Config) (*Indexer, error) {
+	dsn := fmt.Sprintf("database=%s", cfg.DB.Name)
 	db, err := database.NewDB(dsn)
 	if err != nil {
 		return nil, err
@@ -81,22 +38,22 @@ func NewIndexer(ctx *cli.Context) (*Indexer, error) {
 		L1StandardBridge:       common.HexToAddress("0x6900000000000000000000000000000000000003"),
 		L1ERC721Bridge:         common.HexToAddress("0x6900000000000000000000000000000000000004"),
 	}
-	l1EthClient, err := node.NewEthClient(ctx.GlobalString(flags.L1EthRPCFlag.Name))
+	l1EthClient, err := node.NewEthClient(cfg.RPCs.L1RPC)
 	if err != nil {
 		return nil, err
 	}
-	l1Processor, err := processor.NewL1Processor(l1EthClient, db, l1Contracts)
+	l1Processor, err := processor.NewL1Processor(cfg.Logger, l1EthClient, db, l1Contracts)
 	if err != nil {
 		return nil, err
 	}
 
 	// L2Processor
 	l2Contracts := processor.L2ContractPredeploys() // Make this configurable
-	l2EthClient, err := node.NewEthClient(ctx.GlobalString(flags.L2EthRPCFlag.Name))
+	l2EthClient, err := node.NewEthClient(cfg.RPCs.L2RPC)
 	if err != nil {
 		return nil, err
 	}
-	l2Processor, err := processor.NewL2Processor(l2EthClient, db, l2Contracts)
+	l2Processor, err := processor.NewL2Processor(cfg.Logger, l2EthClient, db, l2Contracts)
 	if err != nil {
 		return nil, err
 	}
@@ -110,20 +67,35 @@ func NewIndexer(ctx *cli.Context) (*Indexer, error) {
 	return indexer, nil
 }
 
-// Serve spins up a REST API server at the given hostname and port.
-func (b *Indexer) Serve() error {
-	return nil
+// Start starts the indexing service on L1 and L2 chains
+func (i *Indexer) Run(ctx context.Context) error {
+	var wg sync.WaitGroup
+	errCh := make(chan error)
+
+	// If either processor errors out, we stop
+	processorCtx, cancel := context.WithCancelCause(ctx)
+	run := func(start func(ctx context.Context) error) {
+		wg.Add(1)
+		defer wg.Done()
+
+		err := start(processorCtx)
+		if err != nil {
+			cancel(err)
+			errCh <- err
+		}
+	}
+
+	// Kick off the processors
+	go run(i.l1Processor.Start)
+	go run(i.l2Processor.Start)
+	err := <-errCh
+
+	// ensure both processors have halted before returning
+	wg.Wait()
+	return err
 }
 
-// Start starts the starts the indexing service on L1 and L2 chains and also
-// starts the REST server.
-func (b *Indexer) Start() error {
-	go b.l1Processor.Start()
-	go b.l2Processor.Start()
-
-	return nil
-}
-
-// Stop stops the indexing service on L1 and L2 chains.
-func (b *Indexer) Stop() {
+// Cleanup releases any resources that might be currently held by the indexer
+func (i *Indexer) Cleanup() {
+	i.db.Close()
 }

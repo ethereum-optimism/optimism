@@ -1,12 +1,18 @@
 package cli
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/signal"
 
+	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/config"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+
 	"github.com/urfave/cli/v2"
 )
 
@@ -20,16 +26,29 @@ type Cli struct {
 
 func runIndexer(ctx *cli.Context) error {
 	configPath := ctx.String(ConfigFlag.Name)
-	conf, err := config.LoadConfig(configPath)
-
-	fmt.Println(conf)
-
+	cfg, err := config.LoadConfig(configPath)
 	if err != nil {
-		log.Crit("Failed to load config", "message", err)
+		return err
 	}
 
-	// finish me
-	return nil
+	// setup logger
+	cfg.Logger = log.New()
+	cfg.Logger.SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stdout, log.TerminalFormat(true))))
+
+	indexer, err := indexer.NewIndexer(cfg)
+	if err != nil {
+		return err
+	}
+
+	signalChannel := make(chan os.Signal, 1)
+	indexerCtx, indexerCancel := context.WithCancelCause(context.Background())
+	signal.Notify(signalChannel, os.Interrupt)
+	go func() {
+		<-signalChannel
+		indexerCancel(errors.New("caught interrrupt"))
+	}()
+
+	return indexer.Run(indexerCtx)
 }
 
 func runApi(ctx *cli.Context) error {
@@ -41,6 +60,7 @@ func runApi(ctx *cli.Context) error {
 	if err != nil {
 		log.Crit("Failed to load config", "message", err)
 	}
+
 	// finish me
 	return nil
 }

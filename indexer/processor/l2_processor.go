@@ -55,8 +55,8 @@ type L2Processor struct {
 	processor
 }
 
-func NewL2Processor(ethClient node.EthClient, db *database.DB, l2Contracts L2Contracts) (*L2Processor, error) {
-	l2ProcessLog := log.New("processor", "l2")
+func NewL2Processor(logger log.Logger, ethClient node.EthClient, db *database.DB, l2Contracts L2Contracts) (*L2Processor, error) {
+	l2ProcessLog := logger.New("processor", "l2")
 	l2ProcessLog.Info("initializing processor")
 
 	latestHeader, err := db.Blocks.LatestL2BlockHeader()
