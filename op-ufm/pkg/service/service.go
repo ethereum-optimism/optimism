@@ -3,24 +3,25 @@ package service
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"op-ufm/pkg/config"
+	"op-ufm/pkg/metrics"
 	"op-ufm/pkg/provider"
 
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 type Service struct {
 	Config    *config.Config
-	Healthz   *Healthz
+	Healthz   *HealthzServer
+	Metrics   *MetricsServer
 	Providers map[string]*provider.Provider
 }
 
 func New(cfg *config.Config) *Service {
 	s := &Service{
 		Config:    cfg,
-		Healthz:   &Healthz{},
+		Healthz:   &HealthzServer{},
+		Metrics:   &MetricsServer{},
 		Providers: make(map[string]*provider.Provider, len(cfg.Providers)),
 	}
 	return s
@@ -38,11 +39,12 @@ func (s *Service) Start(ctx context.Context) {
 		}()
 	}
 
+	metrics.Debug = s.Config.Metrics.Debug
 	if s.Config.Metrics.Enabled {
 		addr := fmt.Sprintf("%s:%d", s.Config.Metrics.Host, s.Config.Metrics.Port)
 		log.Info("starting metrics server", "addr", addr)
 		go func() {
-			if err := http.ListenAndServe(addr, promhttp.Handler()); err != nil {
+			if err := s.Metrics.Start(ctx, addr); err != nil {
 				log.Error("error starting metrics server", "err", err)
 			}
 		}()
@@ -51,9 +53,6 @@ func (s *Service) Start(ctx context.Context) {
 	// map networks to its providers
 	networks := make(map[string][]string)
 	for name, providerConfig := range s.Config.Providers {
-		if providerConfig.Disabled {
-			continue
-		}
 		networks[providerConfig.Network] = append(networks[providerConfig.Network], name)
 	}
 
@@ -70,10 +69,6 @@ func (s *Service) Start(ctx context.Context) {
 	}
 
 	for name, providerConfig := range s.Config.Providers {
-		if providerConfig.Disabled {
-			log.Info("provider is disabled", "provider", name)
-			continue
-		}
 		s.Providers[name] = provider.New(name,
 			providerConfig,
 			&s.Config.Signer,
@@ -91,6 +86,10 @@ func (s *Service) Shutdown() {
 	if s.Config.Healthz.Enabled {
 		s.Healthz.Shutdown()
 		log.Info("healthz stopped")
+	}
+	if s.Config.Metrics.Enabled {
+		s.Metrics.Shutdown()
+		log.Info("metrics stopped")
 	}
 	for name, provider := range s.Providers {
 		provider.Shutdown()

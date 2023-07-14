@@ -3,6 +3,7 @@ package metrics
 import (
 	"time"
 
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -12,6 +13,8 @@ const (
 )
 
 var (
+	Debug bool
+
 	errorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: MetricsNamespace,
 		Name:      "errors_total",
@@ -75,29 +78,57 @@ var (
 )
 
 func RecordError(provider string, errorLabel string) {
+	if Debug {
+		log.Debug("metric inc", "m", "errors_total",
+			"provider", provider, "error", errorLabel)
+	}
 	errorsTotal.WithLabelValues(provider, errorLabel).Inc()
 }
 
 func RecordRPCLatency(provider string, client string, method string, latency time.Duration) {
+	if Debug {
+		log.Debug("metric set", "m", "rpc_latency",
+			"provider", provider, "client", client, "method", method, "latency", latency)
+	}
 	rpcLatency.WithLabelValues(provider, client, method).Set(float64(latency.Milliseconds()))
 }
 
 func RecordRoundTripLatency(provider string, latency time.Duration) {
+	if Debug {
+		log.Debug("metric set", "m", "roundtrip_latency",
+			"provider", provider, "latency", latency)
+	}
 	roundTripLatency.WithLabelValues(provider).Set(float64(latency.Milliseconds()))
 }
 
 func RecordGasUsed(provider string, val uint64) {
-	gasUsed.WithLabelValues(provider).Set(float64(val))
+	if Debug {
+		log.Debug("metric add", "m", "gas_used",
+			"provider", provider, "val", val)
+	}
+	gasUsed.WithLabelValues(provider).Add(float64(val))
 }
 
-func RecordFirstSeenLatency(provider_source string, provider_seen string, latency time.Duration) {
-	firstSeenLatency.WithLabelValues(provider_source, provider_seen).Set(float64(latency.Milliseconds()))
+func RecordFirstSeenLatency(providerSource string, providerSeen string, latency time.Duration) {
+	if Debug {
+		log.Debug("metric set", "m", "first_seen_latency",
+			"provider_source", providerSource, "provider_seen", providerSeen, "latency", latency)
+	}
+	firstSeenLatency.WithLabelValues(providerSource, providerSeen).Set(float64(latency.Milliseconds()))
 }
 
-func RecordProviderToProviderLatency(provider_source string, provider_seen string, latency time.Duration) {
-	firstSeenLatency.WithLabelValues(provider_source, provider_seen).Set(float64(latency.Milliseconds()))
+func RecordProviderToProviderLatency(providerSource string, providerSeen string, latency time.Duration) {
+	if Debug {
+		log.Debug("metric set", "m", "provider_to_provider_latency",
+			"provider_source", providerSource, "provider_seen", providerSeen, "latency", latency)
+	}
+	providerToProviderLatency.WithLabelValues(providerSource, providerSeen).Set(float64(latency.Milliseconds()))
 }
 
 func RecordTransactionsInFlight(network string, count int) {
+	if Debug {
+		log.Debug("metric set", "m", "transactions_inflight",
+			"network", network, "count", count)
+	}
 	networkTransactionsInFlight.WithLabelValues(network).Set(float64(count))
 }

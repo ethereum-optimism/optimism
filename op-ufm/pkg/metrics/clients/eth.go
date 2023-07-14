@@ -33,7 +33,7 @@ func (i *InstrumentedEthClient) TransactionByHash(ctx context.Context, hash comm
 	start := time.Now()
 	tx, isPending, err := i.c.TransactionByHash(ctx, hash)
 	if err != nil {
-		if !i.IgnorableErrors(err) {
+		if !i.ignorableErrors(err) {
 			metrics.RecordError(i.providerName, "ethclient.TransactionByHash")
 		}
 		return nil, false, err
@@ -57,7 +57,7 @@ func (i *InstrumentedEthClient) TransactionReceipt(ctx context.Context, txHash c
 	start := time.Now()
 	receipt, err := i.c.TransactionReceipt(ctx, txHash)
 	if err != nil {
-		if !i.IgnorableErrors(err) {
+		if !i.ignorableErrors(err) {
 			metrics.RecordError(i.providerName, "ethclient.TransactionReceipt")
 		}
 		return nil, err
@@ -70,7 +70,7 @@ func (i *InstrumentedEthClient) SendTransaction(ctx context.Context, tx *types.T
 	start := time.Now()
 	err := i.c.SendTransaction(ctx, tx)
 	if err != nil {
-		if !i.IgnorableErrors(err) {
+		if !i.ignorableErrors(err) {
 			metrics.RecordError(i.providerName, "ethclient.SendTransaction")
 		}
 		return err
@@ -79,7 +79,7 @@ func (i *InstrumentedEthClient) SendTransaction(ctx context.Context, tx *types.T
 	return err
 }
 
-func (i *InstrumentedEthClient) IgnorableErrors(err error) bool {
+func (i *InstrumentedEthClient) ignorableErrors(err error) bool {
 	msg := err.Error()
 	// we dont use errors.Is because eth client actually uses errors.New,
 	// therefore creating an incomparable instance :(

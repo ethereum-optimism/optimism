@@ -27,6 +27,7 @@ type SignerServiceConfig struct {
 
 type MetricsConfig struct {
 	Enabled bool   `toml:"enabled"`
+	Debug   bool   `toml:"debug"`
 	Host    string `toml:"host"`
 	Port    int    `toml:"port"`
 }
@@ -54,9 +55,8 @@ type WalletConfig struct {
 }
 
 type ProviderConfig struct {
-	Disabled bool   `toml:"disabled"`
-	Network  string `toml:"network"`
-	URL      string `toml:"url"`
+	Network string `toml:"network"`
+	URL     string `toml:"url"`
 
 	ReadOnly     bool         `toml:"read_only"`
 	ReadInterval TOMLDuration `toml:"read_interval"`

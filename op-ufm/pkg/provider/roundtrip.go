@@ -20,7 +20,7 @@ import (
 
 // RoundTrip send a new transaction to measure round trip latency
 func (p *Provider) RoundTrip(ctx context.Context) {
-	log.Debug("roundtrip", "provider", p.name)
+	log.Debug("roundTripLatency", "provider", p.name)
 
 	client, err := iclients.Dial(p.name, p.config.URL)
 	if err != nil {
@@ -36,7 +36,10 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 
 	txHash := common.Hash{}
 	attempt := 0
-	startedAt := time.Now()
+	// used for timeout
+	firstAttemptAt := time.Now()
+	// used for actual round trip time (disregard retry time)
+	roundTripStartedAt := time.Now()
 	for {
 		tx := p.createTx(nonce)
 		txHash = tx.Hash()
@@ -49,11 +52,12 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 
 		txHash = signedTx.Hash()
 
+		roundTripStartedAt = time.Now()
 		err = client.SendTransaction(ctx, signedTx)
 		if err != nil {
 			if err.Error() == txpool.ErrAlreadyKnown.Error() || err.Error() == core.ErrNonceTooLow.Error() {
-				if time.Since(startedAt) >= time.Duration(p.config.SendTransactionRetryTimeout) {
-					log.Error("send transaction timed out (known already)", "provider", p.name, "hash", txHash.Hex(), "elapsed", time.Since(startedAt), "attempt", attempt, "nonce", nonce)
+				if time.Since(firstAttemptAt) >= time.Duration(p.config.SendTransactionRetryTimeout) {
+					log.Error("send transaction timed out (known already)", "provider", p.name, "hash", txHash.Hex(), "elapsed", time.Since(firstAttemptAt), "attempt", attempt, "nonce", nonce)
 					metrics.RecordError(p.name, "ethclient.SendTransaction.nonce")
 					return
 				}
@@ -62,7 +66,7 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 				nonce++
 				attempt++
 				if attempt%10 == 0 {
-					log.Debug("retrying send transaction...", "provider", p.name, "attempt", attempt, "nonce", nonce, "elapsed", time.Since(startedAt))
+					log.Debug("retrying send transaction...", "provider", p.name, "attempt", attempt, "nonce", nonce, "elapsed", time.Since(firstAttemptAt))
 				}
 			} else {
 				log.Error("cant send transaction", "provider", p.name, "err", err)
@@ -104,13 +108,14 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 		}
 		attempt++
 	}
-	roundtrip := time.Since(sentAt)
-	metrics.RecordRoundTripLatency(p.name, roundtrip)
 
+	roundTripLatency := time.Since(roundTripStartedAt)
+
+	metrics.RecordRoundTripLatency(p.name, roundTripLatency)
 	metrics.RecordGasUsed(p.name, receipt.GasUsed)
 
 	log.Info("got transaction receipt", "hash", txHash.Hex(),
-		"roundtrip", roundtrip,
+		"roundTripLatency", roundTripLatency,
 		"provider", p.name,
 		"blockNumber", receipt.BlockNumber,
 		"blockHash", receipt.BlockHash,

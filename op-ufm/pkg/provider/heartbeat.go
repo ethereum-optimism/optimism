@@ -55,19 +55,19 @@ func (p *Provider) Heartbeat(ctx context.Context) {
 
 		// mark transaction as seen by this provider
 		st.M.Lock()
+		latency := time.Since(st.SentAt)
 		if st.FirstSeen.IsZero() {
 			st.FirstSeen = time.Now()
-			firstSeenLatency := time.Since(st.SentAt)
-			metrics.RecordFirstSeenLatency(st.ProviderSentTo, p.name, time.Since(st.SentAt))
+			metrics.RecordFirstSeenLatency(st.ProviderSentTo, p.name, latency)
 			log.Info("transaction first seen",
 				"hash", hash,
-				"firstSeenLatency", firstSeenLatency,
-				"provider_source", st.ProviderSentTo,
-				"provider_seen", p.name)
+				"firstSeenLatency", latency,
+				"providerSource", st.ProviderSentTo,
+				"providerSeen", p.name)
 		}
 		if _, exist := st.SeenBy[p.name]; !exist {
 			st.SeenBy[p.name] = time.Now()
-			metrics.RecordProviderToProviderLatency(st.ProviderSentTo, p.name, time.Since(st.SentAt))
+			metrics.RecordProviderToProviderLatency(st.ProviderSentTo, p.name, latency)
 		}
 		st.M.Unlock()
 

@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"net/http"
 	"op-ufm/pkg/config"
 	"time"
 )
@@ -13,9 +12,8 @@ type Provider struct {
 	signerConfig *config.SignerServiceConfig
 	walletConfig *config.WalletConfig
 	txPool       *NetworkTransactionPool
-	cancelFunc   context.CancelFunc
 
-	client *http.Client
+	cancelFunc context.CancelFunc
 }
 
 func New(name string, cfg *config.ProviderConfig,
@@ -28,8 +26,6 @@ func New(name string, cfg *config.ProviderConfig,
 		signerConfig: signerConfig,
 		walletConfig: walletConfig,
 		txPool:       txPool,
-
-		client: http.DefaultClient,
 	}
 	return p
 }
@@ -37,6 +33,7 @@ func New(name string, cfg *config.ProviderConfig,
 func (p *Provider) Start(ctx context.Context) {
 	providerCtx, cancelFunc := context.WithCancel(ctx)
 	p.cancelFunc = cancelFunc
+
 	schedule(providerCtx, time.Duration(p.config.ReadInterval), p.Heartbeat)
 	if !p.config.ReadOnly {
 		schedule(providerCtx, time.Duration(p.config.SendInterval), p.RoundTrip)
