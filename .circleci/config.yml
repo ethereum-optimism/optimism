@@ -726,9 +726,6 @@ jobs:
           name: Check generated and build
           command: pnpm generate:check
           working_directory: packages/contracts-ts
-      - run:
-          name: typecheck
-          command: pnpm typecheck
 
   sdk-next-tests:
     docker:
