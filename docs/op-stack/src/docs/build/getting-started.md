@@ -307,25 +307,6 @@ We’re almost ready to run our chain! Now we just need to run a few commands to
     mkdir datadir
     ```
 
-// 1. Put a password file into the data directory folder:
-
-    ```bash
-    echo "pwd" > datadir/password
-    ```
-
-
-// 1. Put the `Sequencer` private key into the data directory folder (don’t include a “0x” prefix):
-
-    ```bash
-    echo "<SEQUENCER KEY HERE>" > datadir/block-signer-key
-    ```
-
-// 1. Import the key into `op-geth`:
-
-    ```bash
-    ./build/bin/geth account import --datadir=datadir --password=datadir/password datadir/block-signer-key
-    ```
-
 1. Next we need to initialize `op-geth` with the genesis file we generated and copied earlier:
 
     ```bash
@@ -345,7 +326,6 @@ Set these environment variables for the configuration
 
 | Variable       | Value |
 | -------------- | -
-| `SEQ_ADDR`     | Address of the `Sequencer` account
 | `SEQ_KEY`      | Private key of the `Sequencer` account
 | `BATCHER_KEY`  | Private key of the `Batcher` accounts, which should have at least 1 ETH
 | `PROPOSER_KEY` | Private key of the `Proposer` account
