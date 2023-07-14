@@ -70,6 +70,7 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 				}
 			} else {
 				log.Error("cant send transaction", "provider", p.name, "err", err)
+				metrics.RecordErrorDetails(p.name, "ethclient.SendTransaction", err)
 				return
 			}
 		} else {

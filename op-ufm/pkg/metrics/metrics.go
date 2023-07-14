@@ -1,6 +1,9 @@
 package metrics
 
 import (
+	fmt "fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -77,12 +80,22 @@ var (
 	})
 )
 
+var nonAlphanumericRegex = regexp.MustCompile(`[^a-zA-Z ]+`)
+
 func RecordError(provider string, errorLabel string) {
 	if Debug {
 		log.Debug("metric inc", "m", "errors_total",
 			"provider", provider, "error", errorLabel)
 	}
 	errorsTotal.WithLabelValues(provider, errorLabel).Inc()
+}
+
+// RecordErrorDetails concats the error message to the label removing non-alpha chars
+func RecordErrorDetails(provider string, label string, err error) {
+	errClean := nonAlphanumericRegex.ReplaceAllString(err.Error(), "")
+	errClean = strings.ReplaceAll(errClean, " ", "_")
+	label = fmt.Sprintf("%s.%s", label)
+	RecordError(provider, label)
 }
 
 func RecordRPCLatency(provider string, client string, method string, latency time.Duration) {
