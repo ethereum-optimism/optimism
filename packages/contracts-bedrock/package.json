@@ -19,6 +19,7 @@
     "build:differential": "go build -o ./scripts/differential-testing/differential-testing ./scripts/differential-testing",
     "build:fuzz": "(cd test-case-generator && go build ./cmd/fuzz.go)",
     "generate:addresses": "tsx scripts/generate-addresses.ts",
+    "generate:addresses:check": "pnpm generate:addresses && git diff --exit-code ./addresses.json && git diff --exit-code ./addresses.json",
     "autogen:invariant-docs": "tsx scripts/invariant-doc-gen.ts",
     "test": "pnpm build:differential && pnpm build:fuzz && forge test",
     "coverage": "pnpm build:differential && pnpm build:fuzz && forge coverage",
