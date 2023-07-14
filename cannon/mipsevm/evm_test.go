@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
@@ -21,7 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
 )
 
-func testContractsSetup(t *testing.T) (*Contracts, *Addresses) {
+func testContractsSetup(t require.TestingT) (*Contracts, *Addresses) {
 	contracts, err := LoadContracts()
 	require.NoError(t, err)
 
@@ -48,6 +49,53 @@ func MarkdownTracer() vm.EVMLogger {
 	return logger.NewMarkdownLogger(&logger.Config{}, os.Stdout)
 }
 
+type MIPSEVM struct {
+	env      *vm.EVM
+	evmState *state.StateDB
+	addrs    *Addresses
+}
+
+func NewMIPSEVM(contracts *Contracts, addrs *Addresses) *MIPSEVM {
+	env, evmState := NewEVMEnv(contracts, addrs)
+	return &MIPSEVM{env, evmState, addrs}
+}
+
+func (m *MIPSEVM) SetTracer(tracer vm.EVMLogger) {
+	m.env.Config.Tracer = tracer
+}
+
+// Step is a pure function that computes the poststate from the VM state encoded in the StepWitness.
+func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness) []byte {
+	sender := common.Address{0x13, 0x37}
+	startingGas := uint64(30_000_000)
+
+	// we take a snapshot so we can clean up the state, and isolate the logs of this instruction run.
+	snap := m.env.StateDB.Snapshot()
+
+	if stepWitness.HasPreimage() {
+		t.Logf("reading preimage key %x at offset %d", stepWitness.PreimageKey, stepWitness.PreimageOffset)
+		poInput, err := stepWitness.EncodePreimageOracleInput()
+		require.NoError(t, err, "encode preimage oracle input")
+		_, leftOverGas, err := m.env.Call(vm.AccountRef(m.addrs.Sender), m.addrs.Oracle, poInput, startingGas, big.NewInt(0))
+		require.NoErrorf(t, err, "evm should not fail, took %d gas", startingGas-leftOverGas)
+	}
+
+	input := stepWitness.EncodeStepInput()
+	ret, leftOverGas, err := m.env.Call(vm.AccountRef(sender), m.addrs.MIPS, input, startingGas, big.NewInt(0))
+	require.NoError(t, err, "evm should not fail")
+	require.Len(t, ret, 32, "expecting 32-byte state hash")
+	// remember state hash, to check it against state
+	postHash := common.Hash(*(*[32]byte)(ret))
+	logs := m.evmState.Logs()
+	require.Equal(t, 1, len(logs), "expecting a log with post-state")
+	evmPost := logs[0].Data
+	require.Equal(t, crypto.Keccak256Hash(evmPost), postHash, "logged state must be accurate")
+
+	m.env.StateDB.RevertToSnapshot(snap)
+	t.Logf("EVM step took %d gas, and returned stateHash %s", startingGas-leftOverGas, postHash)
+	return evmPost
+}
+
 func TestEVM(t *testing.T) {
 	testFiles, err := os.ReadDir("open_mips_tests/test/bin")
 	require.NoError(t, err)
@@ -55,7 +103,6 @@ func TestEVM(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
 	var tracer vm.EVMLogger // no-tracer by default, but see SourceMapTracer and MarkdownTracer
 	//tracer = SourceMapTracer(t, contracts, addrs)
-	sender := common.Address{0x13, 0x37}
 
 	for _, f := range testFiles {
 		t.Run(f.Name(), func(t *testing.T) {
@@ -66,8 +113,8 @@ func TestEVM(t *testing.T) {
 			// Short-circuit early for exit_group.bin
 			exitGroup := f.Name() == "exit_group.bin"
 
-			env, evmState := NewEVMEnv(contracts, addrs)
-			env.Config.Tracer = tracer
+			evm := NewMIPSEVM(contracts, addrs)
+			evm.SetTracer(tracer)
 
 			fn := path.Join("open_mips_tests/test/bin", f.Name())
 			programMem, err := os.ReadFile(fn)
@@ -93,34 +140,7 @@ func TestEVM(t *testing.T) {
 
 				stepWitness, err := us.Step(true)
 				require.NoError(t, err)
-				input := stepWitness.EncodeStepInput()
-				startingGas := uint64(30_000_000)
-
-				// we take a snapshot so we can clean up the state, and isolate the logs of this instruction run.
-				snap := env.StateDB.Snapshot()
-
-				// prepare pre-image oracle data, if any
-				if stepWitness.HasPreimage() {
-					t.Logf("reading preimage key %x at offset %d", stepWitness.PreimageKey, stepWitness.PreimageOffset)
-					poInput, err := stepWitness.EncodePreimageOracleInput()
-					require.NoError(t, err, "encode preimage oracle input")
-					_, leftOverGas, err := env.Call(vm.AccountRef(addrs.Sender), addrs.Oracle, poInput, startingGas, big.NewInt(0))
-					require.NoErrorf(t, err, "evm should not fail, took %d gas", startingGas-leftOverGas)
-				}
-
-				ret, leftOverGas, err := env.Call(vm.AccountRef(sender), addrs.MIPS, input, startingGas, big.NewInt(0))
-				require.NoError(t, err, "evm should not fail")
-				require.Len(t, ret, 32, "expecting 32-byte state hash")
-				// remember state hash, to check it against state
-				postHash := common.Hash(*(*[32]byte)(ret))
-				logs := evmState.Logs()
-				require.Equal(t, 1, len(logs), "expecting a log with post-state")
-				evmPost := logs[0].Data
-				require.Equal(t, crypto.Keccak256Hash(evmPost), postHash, "logged state must be accurate")
-				env.StateDB.RevertToSnapshot(snap)
-
-				t.Logf("EVM step took %d gas, and returned stateHash %s", startingGas-leftOverGas, postHash)
-
+				evmPost := evm.Step(t, stepWitness)
 				// verify the post-state matches.
 				// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
 				uniPost := us.state.EncodeWitness()
@@ -181,7 +201,6 @@ func TestHelloEVM(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
 	var tracer vm.EVMLogger // no-tracer by default, but see SourceMapTracer and MarkdownTracer
 	//tracer = SourceMapTracer(t, contracts, addrs)
-	sender := common.Address{0x13, 0x37}
 
 	elfProgram, err := elf.Open("../example/bin/hello.elf")
 	require.NoError(t, err, "open ELF file")
@@ -196,9 +215,6 @@ func TestHelloEVM(t *testing.T) {
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	us := NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 
-	env, evmState := NewEVMEnv(contracts, addrs)
-	env.Config.Tracer = tracer
-
 	start := time.Now()
 	for i := 0; i < 400_000; i++ {
 		if us.state.Exited {
@@ -209,26 +225,12 @@ func TestHelloEVM(t *testing.T) {
 			t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
 		}
 
+		evm := NewMIPSEVM(contracts, addrs)
+		evm.SetTracer(tracer)
+
 		stepWitness, err := us.Step(true)
 		require.NoError(t, err)
-		input := stepWitness.EncodeStepInput()
-		startingGas := uint64(30_000_000)
-
-		// we take a snapshot so we can clean up the state, and isolate the logs of this instruction run.
-		snap := env.StateDB.Snapshot()
-		ret, leftOverGas, err := env.Call(vm.AccountRef(sender), addrs.MIPS, input, startingGas, big.NewInt(0))
-		require.NoErrorf(t, err, "evm should not fail, took %d gas", startingGas-leftOverGas)
-		require.Len(t, ret, 32, "expecting 32-byte state hash")
-		// remember state hash, to check it against state
-		postHash := common.Hash(*(*[32]byte)(ret))
-		logs := evmState.Logs()
-		require.Equal(t, 1, len(logs), "expecting a log with post-state")
-		evmPost := logs[0].Data
-		require.Equal(t, crypto.Keccak256Hash(evmPost), postHash, "logged state must be accurate")
-		env.StateDB.RevertToSnapshot(snap)
-
-		//t.Logf("EVM step took %d gas, and returned stateHash %s", startingGas-leftOverGas, postHash)
-
+		evmPost := evm.Step(t, stepWitness)
 		// verify the post-state matches.
 		// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
 		uniPost := us.state.EncodeWitness()
@@ -266,9 +268,6 @@ func TestClaimEVM(t *testing.T) {
 	var stdOutBuf, stdErrBuf bytes.Buffer
 	us := NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 
-	env, evmState := NewEVMEnv(contracts, addrs)
-	env.Config.Tracer = tracer
-
 	for i := 0; i < 2000_000; i++ {
 		if us.state.Exited {
 			break
@@ -281,30 +280,14 @@ func TestClaimEVM(t *testing.T) {
 
 		stepWitness, err := us.Step(true)
 		require.NoError(t, err)
-		input := stepWitness.EncodeStepInput()
-		startingGas := uint64(30_000_000)
 
-		// we take a snapshot so we can clean up the state, and isolate the logs of this instruction run.
-		snap := env.StateDB.Snapshot()
+		evm := NewMIPSEVM(contracts, addrs)
+		evm.SetTracer(tracer)
+		evmPost := evm.Step(t, stepWitness)
 
-		// prepare pre-image oracle data, if any
-		if stepWitness.HasPreimage() {
-			poInput, err := stepWitness.EncodePreimageOracleInput()
-			require.NoError(t, err, "encode preimage oracle input")
-			_, leftOverGas, err := env.Call(vm.AccountRef(addrs.Sender), addrs.Oracle, poInput, startingGas, big.NewInt(0))
-			require.NoErrorf(t, err, "evm should not fail, took %d gas", startingGas-leftOverGas)
-		}
-
-		ret, leftOverGas, err := env.Call(vm.AccountRef(addrs.Sender), addrs.MIPS, input, startingGas, big.NewInt(0))
-		require.NoErrorf(t, err, "evm should not fail, took %d gas", startingGas-leftOverGas)
-		require.Len(t, ret, 32, "expecting 32-byte state hash")
-		// remember state hash, to check it against state
-		postHash := common.Hash(*(*[32]byte)(ret))
-		logs := evmState.Logs()
-		require.Equal(t, 1, len(logs), "expecting a log with post-state")
-		evmPost := logs[0].Data
-		require.Equal(t, crypto.Keccak256Hash(evmPost), postHash, "logged state must be accurate")
-		env.StateDB.RevertToSnapshot(snap)
+		uniPost := us.state.EncodeWitness()
+		require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
+			"mipsevm produced different state than EVM")
 	}
 
 	require.True(t, state.Exited, "must complete program")
