@@ -15,45 +15,7 @@ import (
 var (
 	mockClaimDataError = fmt.Errorf("claim data errored")
 	mockClaimLenError  = fmt.Errorf("claim len errored")
-	mockPutError       = fmt.Errorf("put errored")
 )
-
-type mockGameState struct {
-	putCalled int
-	putErrors bool
-}
-
-func (m *mockGameState) Put(claim Claim) error {
-	m.putCalled++
-	if m.putErrors {
-		return mockPutError
-	}
-	return nil
-}
-
-func (m *mockGameState) PutAll(claims []Claim) error {
-	m.putCalled += len(claims)
-	if m.putErrors {
-		return mockPutError
-	}
-	return nil
-}
-
-func (m *mockGameState) Claims() []Claim {
-	return []Claim{}
-}
-
-func (m *mockGameState) IsDuplicate(claim Claim) bool {
-	return false
-}
-
-func (m *mockGameState) PreStateClaim(claim Claim) (Claim, error) {
-	panic("unimplemented")
-}
-
-func (m *mockGameState) PostStateClaim(claim Claim) (Claim, error) {
-	panic("unimplemented")
-}
 
 type mockClaimFetcher struct {
 	claimDataError bool
@@ -126,7 +88,7 @@ func TestLoader_FetchClaims_Succeeds(t *testing.T) {
 	log := testlog.Logger(t, log.LvlError)
 	mockClaimFetcher := newMockClaimFetcher()
 	expectedClaims := mockClaimFetcher.returnClaims
-	loader := NewLoader(log, &mockGameState{}, mockClaimFetcher)
+	loader := NewLoader(log, mockClaimFetcher)
 	claims, err := loader.FetchClaims(context.Background())
 	require.NoError(t, err)
 	require.ElementsMatch(t, []Claim{
@@ -139,6 +101,7 @@ func TestLoader_FetchClaims_Succeeds(t *testing.T) {
 				Value:    expectedClaims[0].Claim,
 				Position: NewPositionFromGIndex(expectedClaims[0].Position.Uint64()),
 			},
+			ContractIndex: 0,
 		},
 		{
 			ClaimData: ClaimData{
@@ -149,6 +112,7 @@ func TestLoader_FetchClaims_Succeeds(t *testing.T) {
 				Value:    expectedClaims[0].Claim,
 				Position: NewPositionFromGIndex(expectedClaims[1].Position.Uint64()),
 			},
+			ContractIndex: 1,
 		},
 		{
 			ClaimData: ClaimData{
@@ -159,6 +123,7 @@ func TestLoader_FetchClaims_Succeeds(t *testing.T) {
 				Value:    expectedClaims[0].Claim,
 				Position: NewPositionFromGIndex(expectedClaims[2].Position.Uint64()),
 			},
+			ContractIndex: 2,
 		},
 	}, claims)
 }
@@ -169,7 +134,7 @@ func TestLoader_FetchClaims_ClaimDataErrors(t *testing.T) {
 	log := testlog.Logger(t, log.LvlError)
 	mockClaimFetcher := newMockClaimFetcher()
 	mockClaimFetcher.claimDataError = true
-	loader := NewLoader(log, &mockGameState{}, mockClaimFetcher)
+	loader := NewLoader(log, mockClaimFetcher)
 	claims, err := loader.FetchClaims(context.Background())
 	require.ErrorIs(t, err, mockClaimDataError)
 	require.Empty(t, claims)
@@ -181,7 +146,7 @@ func TestLoader_FetchClaims_ClaimLenErrors(t *testing.T) {
 	log := testlog.Logger(t, log.LvlError)
 	mockClaimFetcher := newMockClaimFetcher()
 	mockClaimFetcher.claimLenError = true
-	loader := NewLoader(log, &mockGameState{}, mockClaimFetcher)
+	loader := NewLoader(log, mockClaimFetcher)
 	claims, err := loader.FetchClaims(context.Background())
 	require.ErrorIs(t, err, mockClaimLenError)
 	require.Empty(t, claims)

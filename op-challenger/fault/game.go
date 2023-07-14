@@ -36,9 +36,8 @@ type Game interface {
 }
 
 type extendedClaim struct {
-	self          Claim
-	contractIndex int
-	children      []ClaimData
+	self     Claim
+	children []ClaimData
 }
 
 // gameState is a struct that represents the state of a dispute game.
@@ -54,9 +53,8 @@ type gameState struct {
 func NewGameState(root Claim, depth uint64) *gameState {
 	claims := make(map[ClaimData]*extendedClaim)
 	claims[root.ClaimData] = &extendedClaim{
-		self:          root,
-		contractIndex: 0,
-		children:      make([]ClaimData, 0),
+		self:     root,
+		children: make([]ClaimData, 0),
 	}
 	return &gameState{
 		root:   root.ClaimData,
@@ -87,9 +85,8 @@ func (g *gameState) Put(claim Claim) error {
 		parent.children = append(parent.children, claim.ClaimData)
 	}
 	g.claims[claim.ClaimData] = &extendedClaim{
-		self:          claim,
-		contractIndex: claim.ContractIndex,
-		children:      make([]ClaimData, 0),
+		self:     claim,
+		children: make([]ClaimData, 0),
 	}
 	return nil
 }
