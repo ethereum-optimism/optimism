@@ -2,74 +2,74 @@ package fault
 
 import (
 	"context"
-	"os"
-	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 )
 
 type Orchestrator struct {
-	agents    []Agent
-	outputChs []chan Claim
-	responses chan Claim
+	agents []Agent
+	claims []Claim
+	steps  []StepCallData
+
+	// tracking when to exit
+	claimLen, stepLen, step int
 }
 
 func NewOrchestrator(maxDepth uint64, traces []TraceProvider, names []string, root Claim) Orchestrator {
 	o := Orchestrator{
-		responses: make(chan Claim, 100),
-		outputChs: make([]chan Claim, len(traces)),
-		agents:    make([]Agent, len(traces)),
+		agents: make([]Agent, len(traces)),
+		claims: []Claim{root},
+		steps:  make([]StepCallData, 0),
 	}
 	log.Info("Starting game", "root_letter", string(root.Value[31:]))
 	for i, trace := range traces {
-		game := NewGameState(root, maxDepth)
-		o.agents[i] = NewAgent(game, int(maxDepth), trace, &o, log.New("role", names[i]))
-		o.outputChs[i] = make(chan Claim)
+		o.agents[i] = NewAgent(&o, int(maxDepth), trace, &o, log.New("role", names[i]))
 	}
 	return o
 }
 
 func (o *Orchestrator) Respond(_ context.Context, response Claim) error {
-	o.responses <- response
+	response.ContractIndex = len(o.claims)
+	o.claims = append(o.claims, response)
 	return nil
 }
 
-func (o *Orchestrator) Step(ctx context.Context, stepData StepCallData) error {
+func (o *Orchestrator) Step(_ context.Context, stepData StepCallData) error {
+	log.Info("Step recorded", "step", stepData)
+	o.steps = append(o.steps, stepData)
 	return nil
+}
+
+func (o *Orchestrator) FetchClaims(ctx context.Context) ([]Claim, error) {
+	c := make([]Claim, len(o.claims))
+	copy(c, o.claims)
+	return c, nil
 }
 
 func (o *Orchestrator) Start() {
-	for i := 0; i < len(o.agents); i++ {
-		go runAgent(&o.agents[i], o.outputChs[i])
-	}
-	o.responderThread()
-}
-
-func runAgent(agent *Agent, claimCh <-chan Claim) {
 	for {
-		agent.PerformActions()
-		// Note: Should drain the channel here
-		claim := <-claimCh
-		_ = agent.AddClaim(claim)
-
-	}
-}
-
-func (o *Orchestrator) responderThread() {
-	timer := time.NewTimer(200 * time.Millisecond)
-	defer timer.Stop()
-	for {
-		select {
-		case resp := <-o.responses:
-			timer.Reset(200 * time.Millisecond)
-			for _, ch := range o.outputChs {
-				// Copy it. Should be immutable, but be sure.
-				resp := resp
-				ch <- resp
-			}
-		case <-timer.C:
-			os.Exit(0)
+		for _, a := range o.agents {
+			_ = a.Act()
 		}
-
+		if o.shouldExit() {
+			log.Info("exiting")
+			return
+		}
 	}
+}
+
+func (o *Orchestrator) shouldExit() bool {
+	cl := o.claimLen
+	sl := o.stepLen
+
+	o.claimLen = len(o.claims)
+	o.stepLen = len(o.steps)
+
+	noProgress := o.claimLen == cl && o.stepLen == sl
+	if noProgress {
+		o.step = o.step + 1
+	} else {
+		o.step = 0
+	}
+	return noProgress && o.step == 1
 }

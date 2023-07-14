@@ -4,7 +4,12 @@
     "defaultBase": "develop"
   },
   "implicitDependencies": {
-    "nx.json": "*"
+    "nx.json": "*",
+    "tsconfig.json": "*",
+    ".foundryrc": "*",
+    "pnpm.lock.yaml": "*",
+    ".npmrc": "*",
+    ".nvmrc":  "*"
   },
   "tasksRunnerOptions": {
     "default": {

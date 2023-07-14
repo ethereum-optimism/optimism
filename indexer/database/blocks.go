@@ -5,6 +5,8 @@ import (
 	"errors"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/google/uuid"
 
 	"gorm.io/gorm"
@@ -19,6 +21,15 @@ type BlockHeader struct {
 	ParentHash common.Hash `gorm:"serializer:json"`
 	Number     U256
 	Timestamp  uint64
+}
+
+func BlockHeaderFromGethHeader(header *types.Header) BlockHeader {
+	return BlockHeader{
+		Hash:       header.Hash(),
+		ParentHash: header.ParentHash,
+		Number:     U256{Int: header.Number},
+		Timestamp:  header.Time,
+	}
 }
 
 type L1BlockHeader struct {
@@ -41,8 +52,9 @@ type LegacyStateBatch struct {
 }
 
 type OutputProposal struct {
-	OutputRoot          common.Hash `gorm:"primaryKey;serializer:json"`
-	L2BlockNumber       U256
+	OutputRoot    common.Hash `gorm:"primaryKey;serializer:json"`
+	L2BlockNumber U256
+
 	L1ContractEventGUID uuid.UUID
 }
 

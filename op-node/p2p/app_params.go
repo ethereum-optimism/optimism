@@ -38,11 +38,11 @@ func LightApplicationScoreParams(cfg *rollup.Config) ApplicationScoreParams {
 		ValidResponseWeight: 0.5,
 		ValidResponseDecay:  ScoreDecay(tenEpochs, slot),
 
-		// Takes 20 error responses to reach the default ban threshold of -100
-		// But at most we track 10. These errors include not supporting p2p sync
-		// so we don't (yet) want to ban a peer based on this measure alone.
-		ErrorResponseCap:    10,
-		ErrorResponseWeight: -5,
+		// Takes 10 error responses to reach the default gossip threshold of -10
+		// But at most we track 9. These errors include not supporting p2p sync
+		// so we don't (yet) want to ignore gossip from a peer based on this measure alone.
+		ErrorResponseCap:    9,
+		ErrorResponseWeight: -1,
 		ErrorResponseDecay:  ScoreDecay(tenEpochs, slot),
 
 		// Takes 5 rejected payloads to reach the default ban threshold of -100

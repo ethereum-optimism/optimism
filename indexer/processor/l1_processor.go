@@ -122,21 +122,22 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 			headerMap[header.Hash()] = header
 		}
 
-		/** Watch for Contract Events **/
+		/** Watch for all Optimism Contract Events **/
 
 		logFilter := ethereum.FilterQuery{FromBlock: headers[0].Number, ToBlock: headers[numHeaders-1].Number, Addresses: contractAddrs}
-		logs, err := rawEthClient.FilterLogs(context.Background(), logFilter)
+		logs, err := rawEthClient.FilterLogs(context.Background(), logFilter) // []types.Log
 		if err != nil {
 			return err
 		}
 
-		// L2 checkpoitns posted on L1
+		// L2 checkpoints posted on L1
 		outputProposals := []*database.OutputProposal{}
 		legacyStateBatches := []*database.LegacyStateBatch{}
 
-		numLogs := len(logs)
-		l1ContractEvents := make([]*database.L1ContractEvent, numLogs)
 		l1HeadersOfInterest := make(map[common.Hash]bool)
+		l1ContractEvents := make([]*database.L1ContractEvent, len(logs))
+
+		processedContractEvents := NewProcessedContractEvents()
 		for i, log := range logs {
 			header, ok := headerMap[log.BlockHash]
 			if !ok {
@@ -144,19 +145,9 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 				return errors.New("parsed log with a block hash not in this batch")
 			}
 
-			contractEvent := &database.L1ContractEvent{
-				ContractEvent: database.ContractEvent{
-					GUID:            uuid.New(),
-					BlockHash:       log.BlockHash,
-					TransactionHash: log.TxHash,
-					EventSignature:  log.Topics[0],
-					LogIndex:        uint64(log.Index),
-					Timestamp:       header.Time,
-				},
-			}
-
-			l1ContractEvents[i] = contractEvent
+			contractEvent := processedContractEvents.AddLog(&logs[i], header.Time)
 			l1HeadersOfInterest[log.BlockHash] = true
+			l1ContractEvents[i] = &database.L1ContractEvent{ContractEvent: *contractEvent}
 
 			// Track Checkpoint Events for L2
 			switch contractEvent.EventSignature {
@@ -194,63 +185,188 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 
 		// we iterate on the original array to maintain ordering. probably can find a more efficient
 		// way to iterate over the `l1HeadersOfInterest` map while maintaining ordering
-		l1Headers := []*database.L1BlockHeader{}
+		indexedL1Headers := []*database.L1BlockHeader{}
 		for _, header := range headers {
-			blockHash := header.Hash()
-			if _, hasLogs := l1HeadersOfInterest[blockHash]; !hasLogs {
+			_, hasLogs := l1HeadersOfInterest[header.Hash()]
+			if !hasLogs {
 				continue
 			}
 
-			l1Headers = append(l1Headers, &database.L1BlockHeader{
-				BlockHeader: database.BlockHeader{
-					Hash:       blockHash,
-					ParentHash: header.ParentHash,
-					Number:     database.U256{Int: header.Number},
-					Timestamp:  header.Time,
-				},
-			})
+			indexedL1Headers = append(indexedL1Headers, &database.L1BlockHeader{BlockHeader: database.BlockHeaderFromGethHeader(header)})
 		}
 
 		/** Update Database **/
 
-		numL1Headers := len(l1Headers)
-		if numL1Headers == 0 {
-			processLog.Info("no l1 blocks of interest")
-			return nil
-		}
-
-		processLog.Info("saving l1 blocks of interest", "size", numL1Headers, "batch_size", numHeaders)
-		err = db.Blocks.StoreL1BlockHeaders(l1Headers)
-		if err != nil {
-			return err
-		}
-
-		// Since the headers to index are derived from the existence of logs, we know in this branch `numLogs > 0`
-		processLog.Info("saving contract logs", "size", numLogs)
-		err = db.ContractEvents.StoreL1ContractEvents(l1ContractEvents)
-		if err != nil {
-			return err
-		}
-
-		// Mark L2 checkpoints that have been recorded on L1 (L2OutputProposal & StateBatchAppended events)
-		numLegacyStateBatches := len(legacyStateBatches)
-		if numLegacyStateBatches > 0 {
-			latestBatch := legacyStateBatches[numLegacyStateBatches-1]
-			latestL2Height := latestBatch.PrevTotal + latestBatch.Size - 1
-			processLog.Info("detected legacy state batches", "size", numLegacyStateBatches, "latest_l2_block_number", latestL2Height)
-		}
-
-		numOutputProposals := len(outputProposals)
-		if numOutputProposals > 0 {
-			latestL2Height := outputProposals[numOutputProposals-1].L2BlockNumber.Int
-			processLog.Info("detected output proposals", "size", numOutputProposals, "latest_l2_block_number", latestL2Height)
-			err := db.Blocks.StoreOutputProposals(outputProposals)
+		numIndexedL1Headers := len(indexedL1Headers)
+		if numIndexedL1Headers > 0 {
+			processLog.Info("saving l1 blocks with optimism logs", "size", numIndexedL1Headers, "batch_size", numHeaders)
+			err = db.Blocks.StoreL1BlockHeaders(indexedL1Headers)
 			if err != nil {
 				return err
 			}
+
+			// Since the headers to index are derived from the existence of logs, we know in this branch `numLogs > 0`
+			processLog.Info("detected contract logs", "size", len(l1ContractEvents))
+			err = db.ContractEvents.StoreL1ContractEvents(l1ContractEvents)
+			if err != nil {
+				return err
+			}
+
+			// Mark L2 checkpoints that have been recorded on L1 (L2OutputProposal & StateBatchAppended events)
+			numLegacyStateBatches := len(legacyStateBatches)
+			if numLegacyStateBatches > 0 {
+				latestBatch := legacyStateBatches[numLegacyStateBatches-1]
+				latestL2Height := latestBatch.PrevTotal + latestBatch.Size - 1
+				processLog.Info("detected legacy state batches", "size", numLegacyStateBatches, "latest_l2_block_number", latestL2Height)
+			}
+
+			numOutputProposals := len(outputProposals)
+			if numOutputProposals > 0 {
+				latestL2Height := outputProposals[numOutputProposals-1].L2BlockNumber.Int
+				processLog.Info("detected output proposals", "size", numOutputProposals, "latest_l2_block_number", latestL2Height)
+				err := db.Blocks.StoreOutputProposals(outputProposals)
+				if err != nil {
+					return err
+				}
+			}
+
+			// forward along contract events to the bridge processor
+			err = l1BridgeProcessContractEvents(processLog, db, ethClient, processedContractEvents, l1Contracts)
+			if err != nil {
+				return err
+			}
+		} else {
+			processLog.Info("no l1 blocks of interest within batch")
 		}
 
 		// a-ok!
 		return nil
 	}
+}
+
+func l1BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethClient node.EthClient, events *ProcessedContractEvents, l1Contracts L1Contracts) error {
+	rawEthClient := ethclient.NewClient(ethClient.RawRpcClient())
+
+	// Process New Deposits
+	initiatedDepositEvents, err := StandardBridgeInitiatedEvents(events)
+	if err != nil {
+		return err
+	}
+
+	deposits := make([]*database.Deposit, len(initiatedDepositEvents))
+	for i, initiatedBridgeEvent := range initiatedDepositEvents {
+		deposits[i] = &database.Deposit{
+			GUID:                 uuid.New(),
+			InitiatedL1EventGUID: initiatedBridgeEvent.RawEvent.GUID,
+			SentMessageNonce:     database.U256{Int: initiatedBridgeEvent.CrossDomainMessengerNonce},
+			TokenPair:            database.TokenPair{L1TokenAddress: initiatedBridgeEvent.LocalToken, L2TokenAddress: initiatedBridgeEvent.RemoteToken},
+			Tx: database.Transaction{
+				FromAddress: initiatedBridgeEvent.From,
+				ToAddress:   initiatedBridgeEvent.To,
+				Amount:      database.U256{Int: initiatedBridgeEvent.Amount},
+				Data:        initiatedBridgeEvent.ExtraData,
+				Timestamp:   initiatedBridgeEvent.RawEvent.Timestamp,
+			},
+		}
+	}
+
+	if len(deposits) > 0 {
+		processLog.Info("detected L1StandardBridge deposits", "num", len(deposits))
+		err := db.Bridge.StoreDeposits(deposits)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Prove L2 Withdrawals
+	provenWithdrawalEvents, err := OptimismPortalWithdrawalProvenEvents(events)
+	if err != nil {
+		return err
+	}
+
+	// we manually keep track since not every proven withdrawal is a standard bridge withdrawal
+	numProvenWithdrawals := 0
+	for _, provenWithdrawalEvent := range provenWithdrawalEvents {
+		withdrawalHash := provenWithdrawalEvent.WithdrawalHash
+		withdrawal, err := db.Bridge.WithdrawalByHash(withdrawalHash)
+		if err != nil {
+			return err
+		}
+
+		// Check if the L2Processor is behind or really has missed an event. We can compare against the
+		// OptimismPortal#ProvenWithdrawal on-chain mapping relative to the latest indexed L2 height
+		if withdrawal == nil {
+			bridgeAddress := l1Contracts.L1StandardBridge
+			portalAddress := l1Contracts.OptimismPortal
+			if provenWithdrawalEvent.From != bridgeAddress || provenWithdrawalEvent.To != bridgeAddress {
+				// non-bridge withdrawal
+				continue
+			}
+
+			// Query for the the proven withdrawal on-chain
+			provenWithdrawal, err := OptimismPortalQueryProvenWithdrawal(rawEthClient, portalAddress, withdrawalHash)
+			if err != nil {
+				return err
+			}
+
+			latestL2Header, err := db.Blocks.LatestL2BlockHeader()
+			if err != nil {
+				return err
+			}
+
+			if latestL2Header == nil || provenWithdrawal.L2OutputIndex.Cmp(latestL2Header.Number.Int) > 0 {
+				processLog.Warn("behind on indexed L2 withdrawals")
+				return errors.New("waiting for L2Processor to catch up")
+			} else {
+				processLog.Crit("missing indexed withdrawal for this proven event")
+				return errors.New("missing withdrawal message")
+			}
+		}
+
+		err = db.Bridge.MarkProvenWithdrawalEvent(withdrawal.GUID, provenWithdrawalEvent.RawEvent.GUID)
+		if err != nil {
+			return err
+		}
+
+		numProvenWithdrawals++
+	}
+
+	if numProvenWithdrawals > 0 {
+		processLog.Info("proven L2StandardBridge withdrawals", "size", numProvenWithdrawals)
+	}
+
+	// Finalize Pending Withdrawals
+	finalizedWithdrawalEvents, err := StandardBridgeFinalizedEvents(rawEthClient, events)
+	if err != nil {
+		return err
+	}
+
+	for _, finalizedBridgeEvent := range finalizedWithdrawalEvents {
+		nonce := finalizedBridgeEvent.CrossDomainMessengerNonce
+		withdrawal, err := db.Bridge.WithdrawalByMessageNonce(nonce)
+		if err != nil {
+			processLog.Error("error querying associated withdrawal messsage using nonce", "cross_domain_messenger_nonce", nonce)
+			return err
+		}
+
+		// Since we have to prove the event on-chain first, we don't need to check if the processor is
+		// behind. we're definitely in an error state if we cannot find the withdrawal when parsing this even
+		if withdrawal == nil {
+			processLog.Crit("missing indexed withdrawal for this finalization event")
+			return errors.New("missing withdrawal message")
+		}
+
+		err = db.Bridge.MarkFinalizedWithdrawalEvent(withdrawal.GUID, finalizedBridgeEvent.RawEvent.GUID)
+		if err != nil {
+			processLog.Error("error finalizing withdrawal", "err", err)
+			return err
+		}
+	}
+
+	if len(finalizedWithdrawalEvents) > 0 {
+		processLog.Info("finalized L2StandardBridge withdrawals", "num", len(finalizedWithdrawalEvents))
+	}
+
+	// a-ok!
+	return nil
 }
