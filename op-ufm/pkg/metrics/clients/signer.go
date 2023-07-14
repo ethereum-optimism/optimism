@@ -3,8 +3,9 @@ package clients
 import (
 	"context"
 	"math/big"
-	"op-ufm/pkg/metrics"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/op-ufm/pkg/metrics"
 
 	optls "github.com/ethereum-optimism/optimism/op-service/tls"
 	signer "github.com/ethereum-optimism/optimism/op-signer/client"

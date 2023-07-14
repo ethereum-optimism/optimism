@@ -2,9 +2,10 @@ package provider
 
 import (
 	"context"
-	"op-ufm/pkg/metrics"
-	"op-ufm/pkg/metrics/clients"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/op-ufm/pkg/metrics"
+	"github.com/ethereum-optimism/optimism/op-ufm/pkg/metrics/clients"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"

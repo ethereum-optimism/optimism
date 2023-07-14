@@ -3,9 +3,10 @@ package service
 import (
 	"context"
 	"fmt"
-	"op-ufm/pkg/config"
-	"op-ufm/pkg/metrics"
-	"op-ufm/pkg/provider"
+
+	"github.com/ethereum-optimism/optimism/op-ufm/pkg/config"
+	"github.com/ethereum-optimism/optimism/op-ufm/pkg/metrics"
+	"github.com/ethereum-optimism/optimism/op-ufm/pkg/provider"
 
 	"github.com/ethereum/go-ethereum/log"
 )

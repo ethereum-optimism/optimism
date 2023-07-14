@@ -2,8 +2,9 @@ package clients
 
 import (
 	"context"
-	"op-ufm/pkg/metrics"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/op-ufm/pkg/metrics"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"

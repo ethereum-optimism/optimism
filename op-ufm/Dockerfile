@@ -24,7 +24,7 @@ EXPOSE 8080
 
 VOLUME /etc/ufm
 
-COPY --from=builder /app/bin/ufm /bin/ufm
+COPY --from=builder /app/bin/op-ufm /bin/op-ufm
 
 ENTRYPOINT ["/bin/entrypoint.sh"]
-CMD ["/bin/ufm", "/etc/ufm/config.toml"]
+CMD ["/bin/op-ufm", "/etc/op-ufm/config.toml"]

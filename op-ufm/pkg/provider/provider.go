@@ -2,8 +2,9 @@ package provider
 
 import (
 	"context"
-	"op-ufm/pkg/config"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/op-ufm/pkg/config"
 )
 
 type Provider struct {

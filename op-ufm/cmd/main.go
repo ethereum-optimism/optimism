@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"op-ufm/pkg/config"
-	"op-ufm/pkg/service"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/ethereum-optimism/optimism/op-ufm/pkg/config"
+	"github.com/ethereum-optimism/optimism/op-ufm/pkg/service"
 
 	"github.com/ethereum/go-ethereum/log"
 )
