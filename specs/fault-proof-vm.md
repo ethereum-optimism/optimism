@@ -1,4 +1,4 @@
-# Fault Proof Virtual Machine Specification
+# Cannon Fault Proof Virtual Machine Specification
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -21,11 +21,12 @@
 
 ## Overview
 
-This is a description of the Fault Proof Virtual Machine (FPVM). The FPVM emulates a minimal Linux-based system
-running on big-endian 32-bit MIPS32 architecture. Alot of its behaviors are copied from Linux/MIPS with a few
-tweaks made for fault proofs.
+This is a description of the Cannon Fault Proof Virtual Machine (FPVM). The Cannon FPVM emulates
+a minimal Linux-based system running on big-endian 32-bit MIPS32 architecture.
+Alot of its behaviors are copied from Linux/MIPS with a few tweaks made for fault proofs.
+For the rest of this doc, we refer to the Cannon FPVM as simply the FPVM.
 
-Operationally, the Fault Proof VM is a state transition function. This state transition is referred to as a *Step*,
+Operationally, the FPVM is a state transition function. This state transition is referred to as a *Step*,
 that executes a single instruction. We say the VM is a function $f$, given an input state $S_{pre}$, steps on a
 single instruction encoded in the state to produce a new state $S_{post}$.
 $$f(S_{pre}) \rightarrow S_{post}$$
@@ -77,9 +78,15 @@ the VM state. FPVM implementers may refer to the Linux/MIPS kernel for inspirati
 
 ## Delay Slots
 
-The post-state of a step updates the `nextPC`, indicating instruction following the `pc`.
+The post-state of a step updates the `nextPC`, indicating the instruction following the `pc`.
 However, in the case of where a branch instruction is being stepped, the `nextPC` post-state is
 set to the branch target. And the `pc` post-state set to the branch delay slot as usual.
+
+A VM state transition is invalid whenever the current instruction is a delay slot that is filled
+with jump or branch type instruction.
+That is, where $nextPC \neq pc + 4$ while stepping on a jump/branch instruction.
+Otherwise, there would be two consecutive delay slots. While this is considered "undefined"
+behavior in typical MIPS implementations, FPVM must raise an exception when stepping on such states.
 
 ## Syscalls
 
@@ -118,7 +125,7 @@ The VM does not support Linux open(2). However, the VM can read from and write t
 | pre-image response | 5 | read-only. Used to [read pre-images](./fault-proof.md#pre-image-communication). |
 | pre-image request | 6 | write-only. Used to [request pre-images](./fault-proof.md#pre-image-communication). |
 
-Syscalls referencing unnkown file descriptors fail with an `EBADF` errno as done on Linux/MIPS.
+Syscalls referencing unnkown file descriptors fail with an `EBADF` errno as done on Linux.
 
 Writing to and reading from standard output, input and error streams have no effect on the FPVM state.
 FPVM implementations may use them for debugging purposes as long as I/O is stateless.
@@ -129,7 +136,8 @@ Consequently, the return value of read/write syscalls is at most 4, indicating t
 
 ### Standard Streams
 
-Writing to stderr/stdout standard stream always succeeds with the write count input returned, effectively continuing execution without writing work.
+Writing to stderr/stdout standard stream always succeeds with the write count input returned,
+effectively continuing execution without writing work.
 Reading from stdin has no effect other than to return zero and errno set to 0, signalling that there is no input.
 
 ### Hint Communication
@@ -171,6 +179,7 @@ transition. Nominally, the FPVM must raise an exception in at least the followin
 - Invalid instruction (either via an invalid opcode or an instruction referencing registers
 outside the general purpose registers).
 - Pre-image read at an offset larger than the size of the pre-image.
+- Delay slot contains branch/jump instruction types.
 
 VM implementations may raise an exception in other cases that is specific to the implementation.
 For example, an on-chain FPVM that relies on pre-supplied merkle proofs for memory access may
