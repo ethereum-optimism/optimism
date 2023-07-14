@@ -33,6 +33,9 @@ type Game interface {
 	// PostStateClaim gets the claim which commits to the post-state of this specific claim.
 	// This will return an error if it is called with a non-leaf claim.
 	PostStateClaim(claim Claim) (Claim, error)
+
+	// AgreeWithLevel returns if the game state agrees with the provided claim level.
+	AgreeWithClaimLevel(claim Claim) bool
 }
 
 type extendedClaim struct {

@@ -53,19 +53,19 @@ func SolverExampleOne() {
 	fmt.Println()
 	PrettyPrintAlphabetClaim("Root claim", root)
 
-	claim1, err := cannonicalSolver.NextMove(root)
+	claim1, err := cannonicalSolver.NextMove(root, false)
 	if err != nil {
 		fmt.Printf("error getting claim from provider: %v", err)
 	}
 	PrettyPrintAlphabetClaim("Cannonical move", *claim1)
 
-	claim2, err := disputedSolver.NextMove(*claim1)
+	claim2, err := disputedSolver.NextMove(*claim1, false)
 	if err != nil {
 		fmt.Printf("error getting claim from provider: %v", err)
 	}
 	PrettyPrintAlphabetClaim("Disputed moved", *claim2)
 
-	claim3, err := cannonicalSolver.NextMove(*claim2)
+	claim3, err := cannonicalSolver.NextMove(*claim2, false)
 	if err != nil {
 		fmt.Printf("error getting claim from provider: %v", err)
 	}

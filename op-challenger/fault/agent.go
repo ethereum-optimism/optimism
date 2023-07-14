@@ -70,7 +70,7 @@ func (a *Agent) newGameFromContracts(ctx context.Context) (Game, error) {
 
 // move determines & executes the next move given a claim
 func (a *Agent) move(claim Claim, game Game) error {
-	nextMove, err := a.solver.NextMove(claim)
+	nextMove, err := a.solver.NextMove(claim, game.AgreeWithClaimLevel(claim))
 	if err != nil {
 		a.log.Warn("Failed to execute the next move", "err", err)
 		return err
