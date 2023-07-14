@@ -1,0 +1,748 @@
+{
+  "address": "0x5E4e65926BA27467555EB562121fac00D24E9dD2",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_libAddressManager",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_maxTransactionGasLimit",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_l2GasDiscountDivisor",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_enqueueGasCost",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "l2GasDiscountDivisor",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "enqueueGasCost",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "enqueueL2GasPrepaid",
+          "type": "uint256"
+        }
+      ],
+      "name": "L2GasParamsUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "_startingQueueIndex",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "_numQueueElements",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "_totalElements",
+          "type": "uint256"
+        }
+      ],
+      "name": "QueueBatchAppended",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "_startingQueueIndex",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "_numQueueElements",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "_totalElements",
+          "type": "uint256"
+        }
+      ],
+      "name": "SequencerBatchAppended",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "_batchIndex",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes32",
+          "name": "_batchRoot",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "_batchSize",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "_prevTotalElements",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes",
+          "name": "_extraData",
+          "type": "bytes"
+        }
+      ],
+      "name": "TransactionBatchAppended",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "_l1TxOrigin",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "_target",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "_gasLimit",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes",
+          "name": "_data",
+          "type": "bytes"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "_queueIndex",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "_timestamp",
+          "type": "uint256"
+        }
+      ],
+      "name": "TransactionEnqueued",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "MAX_ROLLUP_TX_SIZE",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "MIN_ROLLUP_TX_GAS",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "appendSequencerBatch",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "batches",
+      "outputs": [
+        {
+          "internalType": "contract IChainStorageContainer",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_target",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_gasLimit",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_data",
+          "type": "bytes"
+        }
+      ],
+      "name": "enqueue",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "enqueueGasCost",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "enqueueL2GasPrepaid",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getLastBlockNumber",
+      "outputs": [
+        {
+          "internalType": "uint40",
+          "name": "",
+          "type": "uint40"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getLastTimestamp",
+      "outputs": [
+        {
+          "internalType": "uint40",
+          "name": "",
+          "type": "uint40"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getNextQueueIndex",
+      "outputs": [
+        {
+          "internalType": "uint40",
+          "name": "",
+          "type": "uint40"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getNumPendingQueueElements",
+      "outputs": [
+        {
+          "internalType": "uint40",
+          "name": "",
+          "type": "uint40"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_index",
+          "type": "uint256"
+        }
+      ],
+      "name": "getQueueElement",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "bytes32",
+              "name": "transactionHash",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint40",
+              "name": "timestamp",
+              "type": "uint40"
+            },
+            {
+              "internalType": "uint40",
+              "name": "blockNumber",
+              "type": "uint40"
+            }
+          ],
+          "internalType": "struct Lib_OVMCodec.QueueElement",
+          "name": "_element",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getQueueLength",
+      "outputs": [
+        {
+          "internalType": "uint40",
+          "name": "",
+          "type": "uint40"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getTotalBatches",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "_totalBatches",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getTotalElements",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "_totalElements",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "l2GasDiscountDivisor",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "libAddressManager",
+      "outputs": [
+        {
+          "internalType": "contract Lib_AddressManager",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "maxTransactionGasLimit",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_name",
+          "type": "string"
+        }
+      ],
+      "name": "resolve",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_l2GasDiscountDivisor",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_enqueueGasCost",
+          "type": "uint256"
+        }
+      ],
+      "name": "setGasParams",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0xf6f22923d0cb24db64e8fc0ccb9f04e399b0d08acc45bed0b2bd803d52e678e7",
+  "receipt": {
+    "to": null,
+    "from": "0x0bb2cA5Ea700ba04c713008E1a3D198B4e8dA7a7",
+    "contractAddress": "0x5E4e65926BA27467555EB562121fac00D24E9dD2",
+    "transactionIndex": 7,
+    "gasUsed": "1577250",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0x2cbf3d1d86bd51e7c695e35b1417c893f64b2343c705ae27c6228e9e9701ec4d",
+    "transactionHash": "0xf6f22923d0cb24db64e8fc0ccb9f04e399b0d08acc45bed0b2bd803d52e678e7",
+    "logs": [],
+    "blockNumber": 13596466,
+    "cumulativeGasUsed": "1837245",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [
+    "0xdE1FCfB0851916CA5101820A69b13a4E276bd81F",
+    15000000,
+    32,
+    60000
+  ],
+  "solcInputHash": "e2f1121f17d06f85851dd0c837a00344",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.9+commit.e5eed63a\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_libAddressManager\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_maxTransactionGasLimit\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_l2GasDiscountDivisor\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_enqueueGasCost\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"l2GasDiscountDivisor\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"enqueueGasCost\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"enqueueL2GasPrepaid\",\"type\":\"uint256\"}],\"name\":\"L2GasParamsUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_startingQueueIndex\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_numQueueElements\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_totalElements\",\"type\":\"uint256\"}],\"name\":\"QueueBatchAppended\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_startingQueueIndex\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_numQueueElements\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_totalElements\",\"type\":\"uint256\"}],\"name\":\"SequencerBatchAppended\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_batchIndex\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"bytes32\",\"name\":\"_batchRoot\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_batchSize\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_prevTotalElements\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"_extraData\",\"type\":\"bytes\"}],\"name\":\"TransactionBatchAppended\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_l1TxOrigin\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_gasLimit\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"_queueIndex\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_timestamp\",\"type\":\"uint256\"}],\"name\":\"TransactionEnqueued\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"MAX_ROLLUP_TX_SIZE\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MIN_ROLLUP_TX_GAS\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"appendSequencerBatch\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"batches\",\"outputs\":[{\"internalType\":\"contract IChainStorageContainer\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_gasLimit\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"}],\"name\":\"enqueue\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"enqueueGasCost\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"enqueueL2GasPrepaid\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getLastBlockNumber\",\"outputs\":[{\"internalType\":\"uint40\",\"name\":\"\",\"type\":\"uint40\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getLastTimestamp\",\"outputs\":[{\"internalType\":\"uint40\",\"name\":\"\",\"type\":\"uint40\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getNextQueueIndex\",\"outputs\":[{\"internalType\":\"uint40\",\"name\":\"\",\"type\":\"uint40\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getNumPendingQueueElements\",\"outputs\":[{\"internalType\":\"uint40\",\"name\":\"\",\"type\":\"uint40\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_index\",\"type\":\"uint256\"}],\"name\":\"getQueueElement\",\"outputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"transactionHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint40\",\"name\":\"timestamp\",\"type\":\"uint40\"},{\"internalType\":\"uint40\",\"name\":\"blockNumber\",\"type\":\"uint40\"}],\"internalType\":\"struct Lib_OVMCodec.QueueElement\",\"name\":\"_element\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getQueueLength\",\"outputs\":[{\"internalType\":\"uint40\",\"name\":\"\",\"type\":\"uint40\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getTotalBatches\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"_totalBatches\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getTotalElements\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"_totalElements\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"l2GasDiscountDivisor\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"libAddressManager\",\"outputs\":[{\"internalType\":\"contract Lib_AddressManager\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"maxTransactionGasLimit\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_name\",\"type\":\"string\"}],\"name\":\"resolve\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_l2GasDiscountDivisor\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_enqueueGasCost\",\"type\":\"uint256\"}],\"name\":\"setGasParams\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"details\":\"The Canonical Transaction Chain (CTC) contract is an append-only log of transactions which must be applied to the rollup state. It defines the ordering of rollup transactions by writing them to the 'CTC:batches' instance of the Chain Storage Container. The CTC also allows any account to 'enqueue' an L2 transaction, which will require that the Sequencer will eventually append it to the rollup state. Runtime target: EVM\",\"kind\":\"dev\",\"methods\":{\"appendSequencerBatch()\":{\"details\":\"This function uses a custom encoding scheme for efficiency reasons. .param _shouldStartAtElement Specific batch we expect to start appending to. .param _totalElementsToAppend Total number of batch elements we expect to append. .param _contexts Array of batch contexts. .param _transactionDataFields Array of raw transaction data.\"},\"batches()\":{\"returns\":{\"_0\":\"Reference to the batch storage container.\"}},\"enqueue(address,uint256,bytes)\":{\"params\":{\"_data\":\"Transaction data.\",\"_gasLimit\":\"Gas limit for the enqueued L2 transaction.\",\"_target\":\"Target L2 contract to send the transaction to.\"}},\"getLastBlockNumber()\":{\"returns\":{\"_0\":\"Blocknumber for the last transaction.\"}},\"getLastTimestamp()\":{\"returns\":{\"_0\":\"Timestamp for the last transaction.\"}},\"getNextQueueIndex()\":{\"returns\":{\"_0\":\"Index for the next queue element.\"}},\"getNumPendingQueueElements()\":{\"returns\":{\"_0\":\"Number of pending queue elements.\"}},\"getQueueElement(uint256)\":{\"params\":{\"_index\":\"Index of the queue element to access.\"},\"returns\":{\"_element\":\"Queue element at the given index.\"}},\"getQueueLength()\":{\"returns\":{\"_0\":\"Length of the queue.\"}},\"getTotalBatches()\":{\"returns\":{\"_totalBatches\":\"Total submitted batches.\"}},\"getTotalElements()\":{\"returns\":{\"_totalElements\":\"Total submitted elements.\"}},\"resolve(string)\":{\"params\":{\"_name\":\"Name to resolve an address for.\"},\"returns\":{\"_0\":\"Address associated with the given name.\"}}},\"title\":\"CanonicalTransactionChain\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"appendSequencerBatch()\":{\"notice\":\"Allows the sequencer to append a batch of transactions.\"},\"batches()\":{\"notice\":\"Accesses the batch storage container.\"},\"enqueue(address,uint256,bytes)\":{\"notice\":\"Adds a transaction to the queue.\"},\"getLastBlockNumber()\":{\"notice\":\"Returns the blocknumber of the last transaction.\"},\"getLastTimestamp()\":{\"notice\":\"Returns the timestamp of the last transaction.\"},\"getNextQueueIndex()\":{\"notice\":\"Returns the index of the next element to be enqueued.\"},\"getNumPendingQueueElements()\":{\"notice\":\"Get the number of queue elements which have not yet been included.\"},\"getQueueElement(uint256)\":{\"notice\":\"Gets the queue element at a particular index.\"},\"getQueueLength()\":{\"notice\":\"Retrieves the length of the queue, including both pending and canonical transactions.\"},\"getTotalBatches()\":{\"notice\":\"Retrieves the total number of batches submitted.\"},\"getTotalElements()\":{\"notice\":\"Retrieves the total number of elements submitted.\"},\"resolve(string)\":{\"notice\":\"Resolves the address associated with a given name.\"},\"setGasParams(uint256,uint256)\":{\"notice\":\"Allows the Burn Admin to update the parameters which determine the amount of gas to burn. The value of enqueueL2GasPrepaid is immediately updated as well.\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/L1/rollup/CanonicalTransactionChain.sol\":\"CanonicalTransactionChain\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":10000},\"remappings\":[]},\"sources\":{\"@openzeppelin/contracts/access/Ownable.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n\\npragma solidity ^0.8.0;\\n\\nimport \\\"../utils/Context.sol\\\";\\n\\n/**\\n * @dev Contract module which provides a basic access control mechanism, where\\n * there is an account (an owner) that can be granted exclusive access to\\n * specific functions.\\n *\\n * By default, the owner account will be the one that deploys the contract. This\\n * can later be changed with {transferOwnership}.\\n *\\n * This module is used through inheritance. It will make available the modifier\\n * `onlyOwner`, which can be applied to your functions to restrict their use to\\n * the owner.\\n */\\nabstract contract Ownable is Context {\\n    address private _owner;\\n\\n    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);\\n\\n    /**\\n     * @dev Initializes the contract setting the deployer as the initial owner.\\n     */\\n    constructor() {\\n        _setOwner(_msgSender());\\n    }\\n\\n    /**\\n     * @dev Returns the address of the current owner.\\n     */\\n    function owner() public view virtual returns (address) {\\n        return _owner;\\n    }\\n\\n    /**\\n     * @dev Throws if called by any account other than the owner.\\n     */\\n    modifier onlyOwner() {\\n        require(owner() == _msgSender(), \\\"Ownable: caller is not the owner\\\");\\n        _;\\n    }\\n\\n    /**\\n     * @dev Leaves the contract without owner. It will not be possible to call\\n     * `onlyOwner` functions anymore. Can only be called by the current owner.\\n     *\\n     * NOTE: Renouncing ownership will leave the contract without an owner,\\n     * thereby removing any functionality that is only available to the owner.\\n     */\\n    function renounceOwnership() public virtual onlyOwner {\\n        _setOwner(address(0));\\n    }\\n\\n    /**\\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\\n     * Can only be called by the current owner.\\n     */\\n    function transferOwnership(address newOwner) public virtual onlyOwner {\\n        require(newOwner != address(0), \\\"Ownable: new owner is the zero address\\\");\\n        _setOwner(newOwner);\\n    }\\n\\n    function _setOwner(address newOwner) private {\\n        address oldOwner = _owner;\\n        _owner = newOwner;\\n        emit OwnershipTransferred(oldOwner, newOwner);\\n    }\\n}\\n\",\"keccak256\":\"0x6bb804a310218875e89d12c053e94a13a4607cdf7cc2052f3e52bd32a0dc50a1\",\"license\":\"MIT\"},\"@openzeppelin/contracts/utils/Context.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n\\npragma solidity ^0.8.0;\\n\\n/**\\n * @dev Provides information about the current execution context, including the\\n * sender of the transaction and its data. While these are generally available\\n * via msg.sender and msg.data, they should not be accessed in such a direct\\n * manner, since when dealing with meta-transactions the account sending and\\n * paying for execution may not be the actual sender (as far as an application\\n * is concerned).\\n *\\n * This contract is only required for intermediate, library-like contracts.\\n */\\nabstract contract Context {\\n    function _msgSender() internal view virtual returns (address) {\\n        return msg.sender;\\n    }\\n\\n    function _msgData() internal view virtual returns (bytes calldata) {\\n        return msg.data;\\n    }\\n}\\n\",\"keccak256\":\"0x90565a39ae45c80f0468dc96c7b20d0afc3055f344c8203a0c9258239f350b9f\",\"license\":\"MIT\"},\"contracts/L1/rollup/CanonicalTransactionChain.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.9;\\n\\n/* Library Imports */\\nimport { AddressAliasHelper } from \\\"../../standards/AddressAliasHelper.sol\\\";\\nimport { Lib_OVMCodec } from \\\"../../libraries/codec/Lib_OVMCodec.sol\\\";\\nimport { Lib_AddressResolver } from \\\"../../libraries/resolver/Lib_AddressResolver.sol\\\";\\n\\n/* Interface Imports */\\nimport { ICanonicalTransactionChain } from \\\"./ICanonicalTransactionChain.sol\\\";\\nimport { IChainStorageContainer } from \\\"./IChainStorageContainer.sol\\\";\\n\\n/**\\n * @title CanonicalTransactionChain\\n * @dev The Canonical Transaction Chain (CTC) contract is an append-only log of transactions\\n * which must be applied to the rollup state. It defines the ordering of rollup transactions by\\n * writing them to the 'CTC:batches' instance of the Chain Storage Container.\\n * The CTC also allows any account to 'enqueue' an L2 transaction, which will require that the\\n * Sequencer will eventually append it to the rollup state.\\n *\\n * Runtime target: EVM\\n */\\ncontract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressResolver {\\n    /*************\\n     * Constants *\\n     *************/\\n\\n    // L2 tx gas-related\\n    uint256 public constant MIN_ROLLUP_TX_GAS = 100000;\\n    uint256 public constant MAX_ROLLUP_TX_SIZE = 50000;\\n\\n    // The approximate cost of calling the enqueue function\\n    uint256 public enqueueGasCost;\\n    // The ratio of the cost of L1 gas to the cost of L2 gas\\n    uint256 public l2GasDiscountDivisor;\\n    // The amount of L2 gas which can be forwarded to L2 without spam prevention via 'gas burn'.\\n    // Calculated as the product of l2GasDiscountDivisor * enqueueGasCost.\\n    // See comments in enqueue() for further detail.\\n    uint256 public enqueueL2GasPrepaid;\\n\\n    // Encoding-related (all in bytes)\\n    uint256 internal constant BATCH_CONTEXT_SIZE = 16;\\n    uint256 internal constant BATCH_CONTEXT_LENGTH_POS = 12;\\n    uint256 internal constant BATCH_CONTEXT_START_POS = 15;\\n    uint256 internal constant TX_DATA_HEADER_SIZE = 3;\\n    uint256 internal constant BYTES_TILL_TX_DATA = 65;\\n\\n    /*************\\n     * Variables *\\n     *************/\\n\\n    uint256 public maxTransactionGasLimit;\\n\\n    /***************\\n     * Queue State *\\n     ***************/\\n\\n    uint40 private _nextQueueIndex; // index of the first queue element not yet included\\n    Lib_OVMCodec.QueueElement[] queueElements;\\n\\n    /***************\\n     * Constructor *\\n     ***************/\\n\\n    constructor(\\n        address _libAddressManager,\\n        uint256 _maxTransactionGasLimit,\\n        uint256 _l2GasDiscountDivisor,\\n        uint256 _enqueueGasCost\\n    ) Lib_AddressResolver(_libAddressManager) {\\n        maxTransactionGasLimit = _maxTransactionGasLimit;\\n        l2GasDiscountDivisor = _l2GasDiscountDivisor;\\n        enqueueGasCost = _enqueueGasCost;\\n        enqueueL2GasPrepaid = _l2GasDiscountDivisor * _enqueueGasCost;\\n    }\\n\\n    /**********************\\n     * Function Modifiers *\\n     **********************/\\n\\n    /**\\n     * Modifier to enforce that, if configured, only the Burn Admin may\\n     * successfully call a method.\\n     */\\n    modifier onlyBurnAdmin() {\\n        require(msg.sender == libAddressManager.owner(), \\\"Only callable by the Burn Admin.\\\");\\n        _;\\n    }\\n\\n    /*******************************\\n     * Authorized Setter Functions *\\n     *******************************/\\n\\n    /**\\n     * Allows the Burn Admin to update the parameters which determine the amount of gas to burn.\\n     * The value of enqueueL2GasPrepaid is immediately updated as well.\\n     */\\n    function setGasParams(uint256 _l2GasDiscountDivisor, uint256 _enqueueGasCost)\\n        external\\n        onlyBurnAdmin\\n    {\\n        enqueueGasCost = _enqueueGasCost;\\n        l2GasDiscountDivisor = _l2GasDiscountDivisor;\\n        // See the comment in enqueue() for the rationale behind this formula.\\n        enqueueL2GasPrepaid = _l2GasDiscountDivisor * _enqueueGasCost;\\n\\n        emit L2GasParamsUpdated(l2GasDiscountDivisor, enqueueGasCost, enqueueL2GasPrepaid);\\n    }\\n\\n    /********************\\n     * Public Functions *\\n     ********************/\\n\\n    /**\\n     * Accesses the batch storage container.\\n     * @return Reference to the batch storage container.\\n     */\\n    function batches() public view returns (IChainStorageContainer) {\\n        return IChainStorageContainer(resolve(\\\"ChainStorageContainer-CTC-batches\\\"));\\n    }\\n\\n    /**\\n     * Retrieves the total number of elements submitted.\\n     * @return _totalElements Total submitted elements.\\n     */\\n    function getTotalElements() public view returns (uint256 _totalElements) {\\n        (uint40 totalElements, , , ) = _getBatchExtraData();\\n        return uint256(totalElements);\\n    }\\n\\n    /**\\n     * Retrieves the total number of batches submitted.\\n     * @return _totalBatches Total submitted batches.\\n     */\\n    function getTotalBatches() public view returns (uint256 _totalBatches) {\\n        return batches().length();\\n    }\\n\\n    /**\\n     * Returns the index of the next element to be enqueued.\\n     * @return Index for the next queue element.\\n     */\\n    function getNextQueueIndex() public view returns (uint40) {\\n        return _nextQueueIndex;\\n    }\\n\\n    /**\\n     * Returns the timestamp of the last transaction.\\n     * @return Timestamp for the last transaction.\\n     */\\n    function getLastTimestamp() public view returns (uint40) {\\n        (, , uint40 lastTimestamp, ) = _getBatchExtraData();\\n        return lastTimestamp;\\n    }\\n\\n    /**\\n     * Returns the blocknumber of the last transaction.\\n     * @return Blocknumber for the last transaction.\\n     */\\n    function getLastBlockNumber() public view returns (uint40) {\\n        (, , , uint40 lastBlockNumber) = _getBatchExtraData();\\n        return lastBlockNumber;\\n    }\\n\\n    /**\\n     * Gets the queue element at a particular index.\\n     * @param _index Index of the queue element to access.\\n     * @return _element Queue element at the given index.\\n     */\\n    function getQueueElement(uint256 _index)\\n        public\\n        view\\n        returns (Lib_OVMCodec.QueueElement memory _element)\\n    {\\n        return queueElements[_index];\\n    }\\n\\n    /**\\n     * Get the number of queue elements which have not yet been included.\\n     * @return Number of pending queue elements.\\n     */\\n    function getNumPendingQueueElements() public view returns (uint40) {\\n        return uint40(queueElements.length) - _nextQueueIndex;\\n    }\\n\\n    /**\\n     * Retrieves the length of the queue, including\\n     * both pending and canonical transactions.\\n     * @return Length of the queue.\\n     */\\n    function getQueueLength() public view returns (uint40) {\\n        return uint40(queueElements.length);\\n    }\\n\\n    /**\\n     * Adds a transaction to the queue.\\n     * @param _target Target L2 contract to send the transaction to.\\n     * @param _gasLimit Gas limit for the enqueued L2 transaction.\\n     * @param _data Transaction data.\\n     */\\n    function enqueue(\\n        address _target,\\n        uint256 _gasLimit,\\n        bytes memory _data\\n    ) external {\\n        require(\\n            _data.length <= MAX_ROLLUP_TX_SIZE,\\n            \\\"Transaction data size exceeds maximum for rollup transaction.\\\"\\n        );\\n\\n        require(\\n            _gasLimit <= maxTransactionGasLimit,\\n            \\\"Transaction gas limit exceeds maximum for rollup transaction.\\\"\\n        );\\n\\n        require(_gasLimit >= MIN_ROLLUP_TX_GAS, \\\"Transaction gas limit too low to enqueue.\\\");\\n\\n        // Transactions submitted to the queue lack a method for paying gas fees to the Sequencer.\\n        // So we need to prevent spam attacks by ensuring that the cost of enqueueing a transaction\\n        // from L1 to L2 is not underpriced. For transaction with a high L2 gas limit, we do this by\\n        // burning some extra gas on L1. Of course there is also some intrinsic cost to enqueueing a\\n        // transaction, so we want to make sure not to over-charge (by burning too much L1 gas).\\n        // Therefore, we define 'enqueueL2GasPrepaid' as the L2 gas limit above which we must burn\\n        // additional gas on L1. This threshold is the product of two inputs:\\n        // 1. enqueueGasCost: the base cost of calling this function.\\n        // 2. l2GasDiscountDivisor: the ratio between the cost of gas on L1 and L2. This is a\\n        //    positive integer, meaning we assume L2 gas is always less costly.\\n        // The calculation below for gasToConsume can be seen as converting the difference (between\\n        // the specified L2 gas limit and the prepaid L2 gas limit) to an L1 gas amount.\\n        if (_gasLimit > enqueueL2GasPrepaid) {\\n            uint256 gasToConsume = (_gasLimit - enqueueL2GasPrepaid) / l2GasDiscountDivisor;\\n            uint256 startingGas = gasleft();\\n\\n            // Although this check is not necessary (burn below will run out of gas if not true), it\\n            // gives the user an explicit reason as to why the enqueue attempt failed.\\n            require(startingGas > gasToConsume, \\\"Insufficient gas for L2 rate limiting burn.\\\");\\n\\n            uint256 i;\\n            while (startingGas - gasleft() < gasToConsume) {\\n                i++;\\n            }\\n        }\\n\\n        // Apply an aliasing unless msg.sender == tx.origin. This prevents an attack in which a\\n        // contract on L1 has the same address as a contract on L2 but doesn't have the same code.\\n        // We can safely ignore this for EOAs because they're guaranteed to have the same \\\"code\\\"\\n        // (i.e. no code at all). This also makes it possible for users to interact with contracts\\n        // on L2 even when the Sequencer is down.\\n        address sender;\\n        if (msg.sender == tx.origin) {\\n            sender = msg.sender;\\n        } else {\\n            sender = AddressAliasHelper.applyL1ToL2Alias(msg.sender);\\n        }\\n\\n        bytes32 transactionHash = keccak256(abi.encode(sender, _target, _gasLimit, _data));\\n\\n        queueElements.push(\\n            Lib_OVMCodec.QueueElement({\\n                transactionHash: transactionHash,\\n                timestamp: uint40(block.timestamp),\\n                blockNumber: uint40(block.number)\\n            })\\n        );\\n        uint256 queueIndex = queueElements.length - 1;\\n        emit TransactionEnqueued(sender, _target, _gasLimit, _data, queueIndex, block.timestamp);\\n    }\\n\\n    /**\\n     * Allows the sequencer to append a batch of transactions.\\n     * @dev This function uses a custom encoding scheme for efficiency reasons.\\n     * .param _shouldStartAtElement Specific batch we expect to start appending to.\\n     * .param _totalElementsToAppend Total number of batch elements we expect to append.\\n     * .param _contexts Array of batch contexts.\\n     * .param _transactionDataFields Array of raw transaction data.\\n     */\\n    function appendSequencerBatch() external {\\n        uint40 shouldStartAtElement;\\n        uint24 totalElementsToAppend;\\n        uint24 numContexts;\\n        assembly {\\n            shouldStartAtElement := shr(216, calldataload(4))\\n            totalElementsToAppend := shr(232, calldataload(9))\\n            numContexts := shr(232, calldataload(12))\\n        }\\n\\n        require(\\n            shouldStartAtElement == getTotalElements(),\\n            \\\"Actual batch start index does not match expected start index.\\\"\\n        );\\n\\n        require(\\n            msg.sender == resolve(\\\"OVM_Sequencer\\\"),\\n            \\\"Function can only be called by the Sequencer.\\\"\\n        );\\n\\n        uint40 nextTransactionPtr = uint40(\\n            BATCH_CONTEXT_START_POS + BATCH_CONTEXT_SIZE * numContexts\\n        );\\n\\n        require(msg.data.length >= nextTransactionPtr, \\\"Not enough BatchContexts provided.\\\");\\n\\n        // Counter for number of sequencer transactions appended so far.\\n        uint32 numSequencerTransactions = 0;\\n\\n        // Cache the _nextQueueIndex storage variable to a temporary stack variable.\\n        // This is safe as long as nothing reads or writes to the storage variable\\n        // until it is updated by the temp variable.\\n        uint40 nextQueueIndex = _nextQueueIndex;\\n\\n        BatchContext memory curContext;\\n        for (uint32 i = 0; i < numContexts; i++) {\\n            BatchContext memory nextContext = _getBatchContext(i);\\n\\n            // Now we can update our current context.\\n            curContext = nextContext;\\n\\n            // Process sequencer transactions first.\\n            numSequencerTransactions += uint32(curContext.numSequencedTransactions);\\n\\n            // Now process any subsequent queue transactions.\\n            nextQueueIndex += uint40(curContext.numSubsequentQueueTransactions);\\n        }\\n\\n        require(\\n            nextQueueIndex <= queueElements.length,\\n            \\\"Attempted to append more elements than are available in the queue.\\\"\\n        );\\n\\n        // Generate the required metadata that we need to append this batch\\n        uint40 numQueuedTransactions = totalElementsToAppend - numSequencerTransactions;\\n        uint40 blockTimestamp;\\n        uint40 blockNumber;\\n        if (curContext.numSubsequentQueueTransactions == 0) {\\n            // The last element is a sequencer tx, therefore pull timestamp and block number from\\n            // the last context.\\n            blockTimestamp = uint40(curContext.timestamp);\\n            blockNumber = uint40(curContext.blockNumber);\\n        } else {\\n            // The last element is a queue tx, therefore pull timestamp and block number from the\\n            // queue element.\\n            // curContext.numSubsequentQueueTransactions > 0 which means that we've processed at\\n            // least one queue element. We increment nextQueueIndex after processing each queue\\n            // element, so the index of the last element we processed is nextQueueIndex - 1.\\n            Lib_OVMCodec.QueueElement memory lastElement = queueElements[nextQueueIndex - 1];\\n\\n            blockTimestamp = lastElement.timestamp;\\n            blockNumber = lastElement.blockNumber;\\n        }\\n\\n        // Cache the previous blockhash to ensure all transaction data can be retrieved efficiently.\\n        _appendBatch(\\n            blockhash(block.number - 1),\\n            totalElementsToAppend,\\n            numQueuedTransactions,\\n            blockTimestamp,\\n            blockNumber\\n        );\\n\\n        emit SequencerBatchAppended(\\n            nextQueueIndex - numQueuedTransactions,\\n            numQueuedTransactions,\\n            getTotalElements()\\n        );\\n\\n        // Update the _nextQueueIndex storage variable.\\n        _nextQueueIndex = nextQueueIndex;\\n    }\\n\\n    /**********************\\n     * Internal Functions *\\n     **********************/\\n\\n    /**\\n     * Returns the BatchContext located at a particular index.\\n     * @param _index The index of the BatchContext\\n     * @return The BatchContext at the specified index.\\n     */\\n    function _getBatchContext(uint256 _index) internal pure returns (BatchContext memory) {\\n        uint256 contextPtr = 15 + _index * BATCH_CONTEXT_SIZE;\\n        uint256 numSequencedTransactions;\\n        uint256 numSubsequentQueueTransactions;\\n        uint256 ctxTimestamp;\\n        uint256 ctxBlockNumber;\\n\\n        assembly {\\n            numSequencedTransactions := shr(232, calldataload(contextPtr))\\n            numSubsequentQueueTransactions := shr(232, calldataload(add(contextPtr, 3)))\\n            ctxTimestamp := shr(216, calldataload(add(contextPtr, 6)))\\n            ctxBlockNumber := shr(216, calldataload(add(contextPtr, 11)))\\n        }\\n\\n        return\\n            BatchContext({\\n                numSequencedTransactions: numSequencedTransactions,\\n                numSubsequentQueueTransactions: numSubsequentQueueTransactions,\\n                timestamp: ctxTimestamp,\\n                blockNumber: ctxBlockNumber\\n            });\\n    }\\n\\n    /**\\n     * Parses the batch context from the extra data.\\n     * @return Total number of elements submitted.\\n     * @return Index of the next queue element.\\n     */\\n    function _getBatchExtraData()\\n        internal\\n        view\\n        returns (\\n            uint40,\\n            uint40,\\n            uint40,\\n            uint40\\n        )\\n    {\\n        bytes27 extraData = batches().getGlobalMetadata();\\n\\n        uint40 totalElements;\\n        uint40 nextQueueIndex;\\n        uint40 lastTimestamp;\\n        uint40 lastBlockNumber;\\n\\n        // solhint-disable max-line-length\\n        assembly {\\n            extraData := shr(40, extraData)\\n            totalElements := and(\\n                extraData,\\n                0x000000000000000000000000000000000000000000000000000000FFFFFFFFFF\\n            )\\n            nextQueueIndex := shr(\\n                40,\\n                and(extraData, 0x00000000000000000000000000000000000000000000FFFFFFFFFF0000000000)\\n            )\\n            lastTimestamp := shr(\\n                80,\\n                and(extraData, 0x0000000000000000000000000000000000FFFFFFFFFF00000000000000000000)\\n            )\\n            lastBlockNumber := shr(\\n                120,\\n                and(extraData, 0x000000000000000000000000FFFFFFFFFF000000000000000000000000000000)\\n            )\\n        }\\n        // solhint-enable max-line-length\\n\\n        return (totalElements, nextQueueIndex, lastTimestamp, lastBlockNumber);\\n    }\\n\\n    /**\\n     * Encodes the batch context for the extra data.\\n     * @param _totalElements Total number of elements submitted.\\n     * @param _nextQueueIdx Index of the next queue element.\\n     * @param _timestamp Timestamp for the last batch.\\n     * @param _blockNumber Block number of the last batch.\\n     * @return Encoded batch context.\\n     */\\n    function _makeBatchExtraData(\\n        uint40 _totalElements,\\n        uint40 _nextQueueIdx,\\n        uint40 _timestamp,\\n        uint40 _blockNumber\\n    ) internal pure returns (bytes27) {\\n        bytes27 extraData;\\n        assembly {\\n            extraData := _totalElements\\n            extraData := or(extraData, shl(40, _nextQueueIdx))\\n            extraData := or(extraData, shl(80, _timestamp))\\n            extraData := or(extraData, shl(120, _blockNumber))\\n            extraData := shl(40, extraData)\\n        }\\n\\n        return extraData;\\n    }\\n\\n    /**\\n     * Inserts a batch into the chain of batches.\\n     * @param _transactionRoot Root of the transaction tree for this batch.\\n     * @param _batchSize Number of elements in the batch.\\n     * @param _numQueuedTransactions Number of queue transactions in the batch.\\n     * @param _timestamp The latest batch timestamp.\\n     * @param _blockNumber The latest batch blockNumber.\\n     */\\n    function _appendBatch(\\n        bytes32 _transactionRoot,\\n        uint256 _batchSize,\\n        uint256 _numQueuedTransactions,\\n        uint40 _timestamp,\\n        uint40 _blockNumber\\n    ) internal {\\n        IChainStorageContainer batchesRef = batches();\\n        (uint40 totalElements, uint40 nextQueueIndex, , ) = _getBatchExtraData();\\n\\n        Lib_OVMCodec.ChainBatchHeader memory header = Lib_OVMCodec.ChainBatchHeader({\\n            batchIndex: batchesRef.length(),\\n            batchRoot: _transactionRoot,\\n            batchSize: _batchSize,\\n            prevTotalElements: totalElements,\\n            extraData: hex\\\"\\\"\\n        });\\n\\n        emit TransactionBatchAppended(\\n            header.batchIndex,\\n            header.batchRoot,\\n            header.batchSize,\\n            header.prevTotalElements,\\n            header.extraData\\n        );\\n\\n        bytes32 batchHeaderHash = Lib_OVMCodec.hashBatchHeader(header);\\n        bytes27 latestBatchContext = _makeBatchExtraData(\\n            totalElements + uint40(header.batchSize),\\n            nextQueueIndex + uint40(_numQueuedTransactions),\\n            _timestamp,\\n            _blockNumber\\n        );\\n\\n        batchesRef.push(batchHeaderHash, latestBatchContext);\\n    }\\n}\\n\",\"keccak256\":\"0x9e7772f17c6ed75da8d10c47c1781d56ac08dcf7e93108e729157831db9b1125\",\"license\":\"MIT\"},\"contracts/L1/rollup/ICanonicalTransactionChain.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity >0.5.0 <0.9.0;\\n\\n/* Library Imports */\\nimport { Lib_OVMCodec } from \\\"../../libraries/codec/Lib_OVMCodec.sol\\\";\\n\\n/* Interface Imports */\\nimport { IChainStorageContainer } from \\\"./IChainStorageContainer.sol\\\";\\n\\n/**\\n * @title ICanonicalTransactionChain\\n */\\ninterface ICanonicalTransactionChain {\\n    /**********\\n     * Events *\\n     **********/\\n\\n    event L2GasParamsUpdated(\\n        uint256 l2GasDiscountDivisor,\\n        uint256 enqueueGasCost,\\n        uint256 enqueueL2GasPrepaid\\n    );\\n\\n    event TransactionEnqueued(\\n        address indexed _l1TxOrigin,\\n        address indexed _target,\\n        uint256 _gasLimit,\\n        bytes _data,\\n        uint256 indexed _queueIndex,\\n        uint256 _timestamp\\n    );\\n\\n    event QueueBatchAppended(\\n        uint256 _startingQueueIndex,\\n        uint256 _numQueueElements,\\n        uint256 _totalElements\\n    );\\n\\n    event SequencerBatchAppended(\\n        uint256 _startingQueueIndex,\\n        uint256 _numQueueElements,\\n        uint256 _totalElements\\n    );\\n\\n    event TransactionBatchAppended(\\n        uint256 indexed _batchIndex,\\n        bytes32 _batchRoot,\\n        uint256 _batchSize,\\n        uint256 _prevTotalElements,\\n        bytes _extraData\\n    );\\n\\n    /***********\\n     * Structs *\\n     ***********/\\n\\n    struct BatchContext {\\n        uint256 numSequencedTransactions;\\n        uint256 numSubsequentQueueTransactions;\\n        uint256 timestamp;\\n        uint256 blockNumber;\\n    }\\n\\n    /*******************************\\n     * Authorized Setter Functions *\\n     *******************************/\\n\\n    /**\\n     * Allows the Burn Admin to update the parameters which determine the amount of gas to burn.\\n     * The value of enqueueL2GasPrepaid is immediately updated as well.\\n     */\\n    function setGasParams(uint256 _l2GasDiscountDivisor, uint256 _enqueueGasCost) external;\\n\\n    /********************\\n     * Public Functions *\\n     ********************/\\n\\n    /**\\n     * Accesses the batch storage container.\\n     * @return Reference to the batch storage container.\\n     */\\n    function batches() external view returns (IChainStorageContainer);\\n\\n    /**\\n     * Retrieves the total number of elements submitted.\\n     * @return _totalElements Total submitted elements.\\n     */\\n    function getTotalElements() external view returns (uint256 _totalElements);\\n\\n    /**\\n     * Retrieves the total number of batches submitted.\\n     * @return _totalBatches Total submitted batches.\\n     */\\n    function getTotalBatches() external view returns (uint256 _totalBatches);\\n\\n    /**\\n     * Returns the index of the next element to be enqueued.\\n     * @return Index for the next queue element.\\n     */\\n    function getNextQueueIndex() external view returns (uint40);\\n\\n    /**\\n     * Gets the queue element at a particular index.\\n     * @param _index Index of the queue element to access.\\n     * @return _element Queue element at the given index.\\n     */\\n    function getQueueElement(uint256 _index)\\n        external\\n        view\\n        returns (Lib_OVMCodec.QueueElement memory _element);\\n\\n    /**\\n     * Returns the timestamp of the last transaction.\\n     * @return Timestamp for the last transaction.\\n     */\\n    function getLastTimestamp() external view returns (uint40);\\n\\n    /**\\n     * Returns the blocknumber of the last transaction.\\n     * @return Blocknumber for the last transaction.\\n     */\\n    function getLastBlockNumber() external view returns (uint40);\\n\\n    /**\\n     * Get the number of queue elements which have not yet been included.\\n     * @return Number of pending queue elements.\\n     */\\n    function getNumPendingQueueElements() external view returns (uint40);\\n\\n    /**\\n     * Retrieves the length of the queue, including\\n     * both pending and canonical transactions.\\n     * @return Length of the queue.\\n     */\\n    function getQueueLength() external view returns (uint40);\\n\\n    /**\\n     * Adds a transaction to the queue.\\n     * @param _target Target contract to send the transaction to.\\n     * @param _gasLimit Gas limit for the given transaction.\\n     * @param _data Transaction data.\\n     */\\n    function enqueue(\\n        address _target,\\n        uint256 _gasLimit,\\n        bytes memory _data\\n    ) external;\\n\\n    /**\\n     * Allows the sequencer to append a batch of transactions.\\n     * @dev This function uses a custom encoding scheme for efficiency reasons.\\n     * .param _shouldStartAtElement Specific batch we expect to start appending to.\\n     * .param _totalElementsToAppend Total number of batch elements we expect to append.\\n     * .param _contexts Array of batch contexts.\\n     * .param _transactionDataFields Array of raw transaction data.\\n     */\\n    function appendSequencerBatch(\\n        // uint40 _shouldStartAtElement,\\n        // uint24 _totalElementsToAppend,\\n        // BatchContext[] _contexts,\\n        // bytes[] _transactionDataFields\\n    ) external;\\n}\\n\",\"keccak256\":\"0xa534e90efd57e3c36053cb4aabba63ef8f53e35e3a4ce3d0f127ec2d0af1f618\",\"license\":\"MIT\"},\"contracts/L1/rollup/IChainStorageContainer.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity >0.5.0 <0.9.0;\\n\\n/**\\n * @title IChainStorageContainer\\n */\\ninterface IChainStorageContainer {\\n    /********************\\n     * Public Functions *\\n     ********************/\\n\\n    /**\\n     * Sets the container's global metadata field. We're using `bytes27` here because we use five\\n     * bytes to maintain the length of the underlying data structure, meaning we have an extra\\n     * 27 bytes to store arbitrary data.\\n     * @param _globalMetadata New global metadata to set.\\n     */\\n    function setGlobalMetadata(bytes27 _globalMetadata) external;\\n\\n    /**\\n     * Retrieves the container's global metadata field.\\n     * @return Container global metadata field.\\n     */\\n    function getGlobalMetadata() external view returns (bytes27);\\n\\n    /**\\n     * Retrieves the number of objects stored in the container.\\n     * @return Number of objects in the container.\\n     */\\n    function length() external view returns (uint256);\\n\\n    /**\\n     * Pushes an object into the container.\\n     * @param _object A 32 byte value to insert into the container.\\n     */\\n    function push(bytes32 _object) external;\\n\\n    /**\\n     * Pushes an object into the container. Function allows setting the global metadata since\\n     * we'll need to touch the \\\"length\\\" storage slot anyway, which also contains the global\\n     * metadata (it's an optimization).\\n     * @param _object A 32 byte value to insert into the container.\\n     * @param _globalMetadata New global metadata for the container.\\n     */\\n    function push(bytes32 _object, bytes27 _globalMetadata) external;\\n\\n    /**\\n     * Retrieves an object from the container.\\n     * @param _index Index of the particular object to access.\\n     * @return 32 byte object value.\\n     */\\n    function get(uint256 _index) external view returns (bytes32);\\n\\n    /**\\n     * Removes all objects after and including a given index.\\n     * @param _index Object index to delete from.\\n     */\\n    function deleteElementsAfterInclusive(uint256 _index) external;\\n\\n    /**\\n     * Removes all objects after and including a given index. Also allows setting the global\\n     * metadata field.\\n     * @param _index Object index to delete from.\\n     * @param _globalMetadata New global metadata for the container.\\n     */\\n    function deleteElementsAfterInclusive(uint256 _index, bytes27 _globalMetadata) external;\\n}\\n\",\"keccak256\":\"0xe55ad72572ec47dc09a02228d0c5a438571c76a41d16d92b35add057811977ce\",\"license\":\"MIT\"},\"contracts/libraries/codec/Lib_OVMCodec.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.9;\\n\\n/* Library Imports */\\nimport { Lib_RLPReader } from \\\"../rlp/Lib_RLPReader.sol\\\";\\nimport { Lib_RLPWriter } from \\\"../rlp/Lib_RLPWriter.sol\\\";\\nimport { Lib_BytesUtils } from \\\"../utils/Lib_BytesUtils.sol\\\";\\nimport { Lib_Bytes32Utils } from \\\"../utils/Lib_Bytes32Utils.sol\\\";\\n\\n/**\\n * @title Lib_OVMCodec\\n */\\nlibrary Lib_OVMCodec {\\n    /*********\\n     * Enums *\\n     *********/\\n\\n    enum QueueOrigin {\\n        SEQUENCER_QUEUE,\\n        L1TOL2_QUEUE\\n    }\\n\\n    /***********\\n     * Structs *\\n     ***********/\\n\\n    struct EVMAccount {\\n        uint256 nonce;\\n        uint256 balance;\\n        bytes32 storageRoot;\\n        bytes32 codeHash;\\n    }\\n\\n    struct ChainBatchHeader {\\n        uint256 batchIndex;\\n        bytes32 batchRoot;\\n        uint256 batchSize;\\n        uint256 prevTotalElements;\\n        bytes extraData;\\n    }\\n\\n    struct ChainInclusionProof {\\n        uint256 index;\\n        bytes32[] siblings;\\n    }\\n\\n    struct Transaction {\\n        uint256 timestamp;\\n        uint256 blockNumber;\\n        QueueOrigin l1QueueOrigin;\\n        address l1TxOrigin;\\n        address entrypoint;\\n        uint256 gasLimit;\\n        bytes data;\\n    }\\n\\n    struct TransactionChainElement {\\n        bool isSequenced;\\n        uint256 queueIndex; // QUEUED TX ONLY\\n        uint256 timestamp; // SEQUENCER TX ONLY\\n        uint256 blockNumber; // SEQUENCER TX ONLY\\n        bytes txData; // SEQUENCER TX ONLY\\n    }\\n\\n    struct QueueElement {\\n        bytes32 transactionHash;\\n        uint40 timestamp;\\n        uint40 blockNumber;\\n    }\\n\\n    /**********************\\n     * Internal Functions *\\n     **********************/\\n\\n    /**\\n     * Encodes a standard OVM transaction.\\n     * @param _transaction OVM transaction to encode.\\n     * @return Encoded transaction bytes.\\n     */\\n    function encodeTransaction(Transaction memory _transaction)\\n        internal\\n        pure\\n        returns (bytes memory)\\n    {\\n        return\\n            abi.encodePacked(\\n                _transaction.timestamp,\\n                _transaction.blockNumber,\\n                _transaction.l1QueueOrigin,\\n                _transaction.l1TxOrigin,\\n                _transaction.entrypoint,\\n                _transaction.gasLimit,\\n                _transaction.data\\n            );\\n    }\\n\\n    /**\\n     * Hashes a standard OVM transaction.\\n     * @param _transaction OVM transaction to encode.\\n     * @return Hashed transaction\\n     */\\n    function hashTransaction(Transaction memory _transaction) internal pure returns (bytes32) {\\n        return keccak256(encodeTransaction(_transaction));\\n    }\\n\\n    /**\\n     * @notice Decodes an RLP-encoded account state into a useful struct.\\n     * @param _encoded RLP-encoded account state.\\n     * @return Account state struct.\\n     */\\n    function decodeEVMAccount(bytes memory _encoded) internal pure returns (EVMAccount memory) {\\n        Lib_RLPReader.RLPItem[] memory accountState = Lib_RLPReader.readList(_encoded);\\n\\n        return\\n            EVMAccount({\\n                nonce: Lib_RLPReader.readUint256(accountState[0]),\\n                balance: Lib_RLPReader.readUint256(accountState[1]),\\n                storageRoot: Lib_RLPReader.readBytes32(accountState[2]),\\n                codeHash: Lib_RLPReader.readBytes32(accountState[3])\\n            });\\n    }\\n\\n    /**\\n     * Calculates a hash for a given batch header.\\n     * @param _batchHeader Header to hash.\\n     * @return Hash of the header.\\n     */\\n    function hashBatchHeader(Lib_OVMCodec.ChainBatchHeader memory _batchHeader)\\n        internal\\n        pure\\n        returns (bytes32)\\n    {\\n        return\\n            keccak256(\\n                abi.encode(\\n                    _batchHeader.batchRoot,\\n                    _batchHeader.batchSize,\\n                    _batchHeader.prevTotalElements,\\n                    _batchHeader.extraData\\n                )\\n            );\\n    }\\n}\\n\",\"keccak256\":\"0xb5009ac1e0617e0b3b2fb917f08f8e8a7ae706034cc3a675258bc3d91978525e\",\"license\":\"MIT\"},\"contracts/libraries/resolver/Lib_AddressManager.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.9;\\n\\n/* External Imports */\\nimport { Ownable } from \\\"@openzeppelin/contracts/access/Ownable.sol\\\";\\n\\n/**\\n * @title Lib_AddressManager\\n */\\ncontract Lib_AddressManager is Ownable {\\n    /**********\\n     * Events *\\n     **********/\\n\\n    event AddressSet(string indexed _name, address _newAddress, address _oldAddress);\\n\\n    /*************\\n     * Variables *\\n     *************/\\n\\n    mapping(bytes32 => address) private addresses;\\n\\n    /********************\\n     * Public Functions *\\n     ********************/\\n\\n    /**\\n     * Changes the address associated with a particular name.\\n     * @param _name String name to associate an address with.\\n     * @param _address Address to associate with the name.\\n     */\\n    function setAddress(string memory _name, address _address) external onlyOwner {\\n        bytes32 nameHash = _getNameHash(_name);\\n        address oldAddress = addresses[nameHash];\\n        addresses[nameHash] = _address;\\n\\n        emit AddressSet(_name, _address, oldAddress);\\n    }\\n\\n    /**\\n     * Retrieves the address associated with a given name.\\n     * @param _name Name to retrieve an address for.\\n     * @return Address associated with the given name.\\n     */\\n    function getAddress(string memory _name) external view returns (address) {\\n        return addresses[_getNameHash(_name)];\\n    }\\n\\n    /**********************\\n     * Internal Functions *\\n     **********************/\\n\\n    /**\\n     * Computes the hash of a name.\\n     * @param _name Name to compute a hash for.\\n     * @return Hash of the given name.\\n     */\\n    function _getNameHash(string memory _name) internal pure returns (bytes32) {\\n        return keccak256(abi.encodePacked(_name));\\n    }\\n}\\n\",\"keccak256\":\"0xcde9b29429d512c549f7c1b8a033f161fa71c18cda08b241748663854196ae14\",\"license\":\"MIT\"},\"contracts/libraries/resolver/Lib_AddressResolver.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.9;\\n\\n/* Library Imports */\\nimport { Lib_AddressManager } from \\\"./Lib_AddressManager.sol\\\";\\n\\n/**\\n * @title Lib_AddressResolver\\n */\\nabstract contract Lib_AddressResolver {\\n    /*************\\n     * Variables *\\n     *************/\\n\\n    Lib_AddressManager public libAddressManager;\\n\\n    /***************\\n     * Constructor *\\n     ***************/\\n\\n    /**\\n     * @param _libAddressManager Address of the Lib_AddressManager.\\n     */\\n    constructor(address _libAddressManager) {\\n        libAddressManager = Lib_AddressManager(_libAddressManager);\\n    }\\n\\n    /********************\\n     * Public Functions *\\n     ********************/\\n\\n    /**\\n     * Resolves the address associated with a given name.\\n     * @param _name Name to resolve an address for.\\n     * @return Address associated with the given name.\\n     */\\n    function resolve(string memory _name) public view returns (address) {\\n        return libAddressManager.getAddress(_name);\\n    }\\n}\\n\",\"keccak256\":\"0x515c4db671a28e2fe180201f6d11c0208c05f582ca3489fb6b8e81c27659bc62\",\"license\":\"MIT\"},\"contracts/libraries/rlp/Lib_RLPReader.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.9;\\n\\n/**\\n * @title Lib_RLPReader\\n * @dev Adapted from \\\"RLPReader\\\" by Hamdi Allam (hamdi.allam97@gmail.com).\\n */\\nlibrary Lib_RLPReader {\\n    /*************\\n     * Constants *\\n     *************/\\n\\n    uint256 internal constant MAX_LIST_LENGTH = 32;\\n\\n    /*********\\n     * Enums *\\n     *********/\\n\\n    enum RLPItemType {\\n        DATA_ITEM,\\n        LIST_ITEM\\n    }\\n\\n    /***********\\n     * Structs *\\n     ***********/\\n\\n    struct RLPItem {\\n        uint256 length;\\n        uint256 ptr;\\n    }\\n\\n    /**********************\\n     * Internal Functions *\\n     **********************/\\n\\n    /**\\n     * Converts bytes to a reference to memory position and length.\\n     * @param _in Input bytes to convert.\\n     * @return Output memory reference.\\n     */\\n    function toRLPItem(bytes memory _in) internal pure returns (RLPItem memory) {\\n        uint256 ptr;\\n        assembly {\\n            ptr := add(_in, 32)\\n        }\\n\\n        return RLPItem({ length: _in.length, ptr: ptr });\\n    }\\n\\n    /**\\n     * Reads an RLP list value into a list of RLP items.\\n     * @param _in RLP list value.\\n     * @return Decoded RLP list items.\\n     */\\n    function readList(RLPItem memory _in) internal pure returns (RLPItem[] memory) {\\n        (uint256 listOffset, , RLPItemType itemType) = _decodeLength(_in);\\n\\n        require(itemType == RLPItemType.LIST_ITEM, \\\"Invalid RLP list value.\\\");\\n\\n        // Solidity in-memory arrays can't be increased in size, but *can* be decreased in size by\\n        // writing to the length. Since we can't know the number of RLP items without looping over\\n        // the entire input, we'd have to loop twice to accurately size this array. It's easier to\\n        // simply set a reasonable maximum list length and decrease the size before we finish.\\n        RLPItem[] memory out = new RLPItem[](MAX_LIST_LENGTH);\\n\\n        uint256 itemCount = 0;\\n        uint256 offset = listOffset;\\n        while (offset < _in.length) {\\n            require(itemCount < MAX_LIST_LENGTH, \\\"Provided RLP list exceeds max list length.\\\");\\n\\n            (uint256 itemOffset, uint256 itemLength, ) = _decodeLength(\\n                RLPItem({ length: _in.length - offset, ptr: _in.ptr + offset })\\n            );\\n\\n            out[itemCount] = RLPItem({ length: itemLength + itemOffset, ptr: _in.ptr + offset });\\n\\n            itemCount += 1;\\n            offset += itemOffset + itemLength;\\n        }\\n\\n        // Decrease the array size to match the actual item count.\\n        assembly {\\n            mstore(out, itemCount)\\n        }\\n\\n        return out;\\n    }\\n\\n    /**\\n     * Reads an RLP list value into a list of RLP items.\\n     * @param _in RLP list value.\\n     * @return Decoded RLP list items.\\n     */\\n    function readList(bytes memory _in) internal pure returns (RLPItem[] memory) {\\n        return readList(toRLPItem(_in));\\n    }\\n\\n    /**\\n     * Reads an RLP bytes value into bytes.\\n     * @param _in RLP bytes value.\\n     * @return Decoded bytes.\\n     */\\n    function readBytes(RLPItem memory _in) internal pure returns (bytes memory) {\\n        (uint256 itemOffset, uint256 itemLength, RLPItemType itemType) = _decodeLength(_in);\\n\\n        require(itemType == RLPItemType.DATA_ITEM, \\\"Invalid RLP bytes value.\\\");\\n\\n        return _copy(_in.ptr, itemOffset, itemLength);\\n    }\\n\\n    /**\\n     * Reads an RLP bytes value into bytes.\\n     * @param _in RLP bytes value.\\n     * @return Decoded bytes.\\n     */\\n    function readBytes(bytes memory _in) internal pure returns (bytes memory) {\\n        return readBytes(toRLPItem(_in));\\n    }\\n\\n    /**\\n     * Reads an RLP string value into a string.\\n     * @param _in RLP string value.\\n     * @return Decoded string.\\n     */\\n    function readString(RLPItem memory _in) internal pure returns (string memory) {\\n        return string(readBytes(_in));\\n    }\\n\\n    /**\\n     * Reads an RLP string value into a string.\\n     * @param _in RLP string value.\\n     * @return Decoded string.\\n     */\\n    function readString(bytes memory _in) internal pure returns (string memory) {\\n        return readString(toRLPItem(_in));\\n    }\\n\\n    /**\\n     * Reads an RLP bytes32 value into a bytes32.\\n     * @param _in RLP bytes32 value.\\n     * @return Decoded bytes32.\\n     */\\n    function readBytes32(RLPItem memory _in) internal pure returns (bytes32) {\\n        require(_in.length <= 33, \\\"Invalid RLP bytes32 value.\\\");\\n\\n        (uint256 itemOffset, uint256 itemLength, RLPItemType itemType) = _decodeLength(_in);\\n\\n        require(itemType == RLPItemType.DATA_ITEM, \\\"Invalid RLP bytes32 value.\\\");\\n\\n        uint256 ptr = _in.ptr + itemOffset;\\n        bytes32 out;\\n        assembly {\\n            out := mload(ptr)\\n\\n            // Shift the bytes over to match the item size.\\n            if lt(itemLength, 32) {\\n                out := div(out, exp(256, sub(32, itemLength)))\\n            }\\n        }\\n\\n        return out;\\n    }\\n\\n    /**\\n     * Reads an RLP bytes32 value into a bytes32.\\n     * @param _in RLP bytes32 value.\\n     * @return Decoded bytes32.\\n     */\\n    function readBytes32(bytes memory _in) internal pure returns (bytes32) {\\n        return readBytes32(toRLPItem(_in));\\n    }\\n\\n    /**\\n     * Reads an RLP uint256 value into a uint256.\\n     * @param _in RLP uint256 value.\\n     * @return Decoded uint256.\\n     */\\n    function readUint256(RLPItem memory _in) internal pure returns (uint256) {\\n        return uint256(readBytes32(_in));\\n    }\\n\\n    /**\\n     * Reads an RLP uint256 value into a uint256.\\n     * @param _in RLP uint256 value.\\n     * @return Decoded uint256.\\n     */\\n    function readUint256(bytes memory _in) internal pure returns (uint256) {\\n        return readUint256(toRLPItem(_in));\\n    }\\n\\n    /**\\n     * Reads an RLP bool value into a bool.\\n     * @param _in RLP bool value.\\n     * @return Decoded bool.\\n     */\\n    function readBool(RLPItem memory _in) internal pure returns (bool) {\\n        require(_in.length == 1, \\\"Invalid RLP boolean value.\\\");\\n\\n        uint256 ptr = _in.ptr;\\n        uint256 out;\\n        assembly {\\n            out := byte(0, mload(ptr))\\n        }\\n\\n        require(out == 0 || out == 1, \\\"Lib_RLPReader: Invalid RLP boolean value, must be 0 or 1\\\");\\n\\n        return out != 0;\\n    }\\n\\n    /**\\n     * Reads an RLP bool value into a bool.\\n     * @param _in RLP bool value.\\n     * @return Decoded bool.\\n     */\\n    function readBool(bytes memory _in) internal pure returns (bool) {\\n        return readBool(toRLPItem(_in));\\n    }\\n\\n    /**\\n     * Reads an RLP address value into a address.\\n     * @param _in RLP address value.\\n     * @return Decoded address.\\n     */\\n    function readAddress(RLPItem memory _in) internal pure returns (address) {\\n        if (_in.length == 1) {\\n            return address(0);\\n        }\\n\\n        require(_in.length == 21, \\\"Invalid RLP address value.\\\");\\n\\n        return address(uint160(readUint256(_in)));\\n    }\\n\\n    /**\\n     * Reads an RLP address value into a address.\\n     * @param _in RLP address value.\\n     * @return Decoded address.\\n     */\\n    function readAddress(bytes memory _in) internal pure returns (address) {\\n        return readAddress(toRLPItem(_in));\\n    }\\n\\n    /**\\n     * Reads the raw bytes of an RLP item.\\n     * @param _in RLP item to read.\\n     * @return Raw RLP bytes.\\n     */\\n    function readRawBytes(RLPItem memory _in) internal pure returns (bytes memory) {\\n        return _copy(_in);\\n    }\\n\\n    /*********************\\n     * Private Functions *\\n     *********************/\\n\\n    /**\\n     * Decodes the length of an RLP item.\\n     * @param _in RLP item to decode.\\n     * @return Offset of the encoded data.\\n     * @return Length of the encoded data.\\n     * @return RLP item type (LIST_ITEM or DATA_ITEM).\\n     */\\n    function _decodeLength(RLPItem memory _in)\\n        private\\n        pure\\n        returns (\\n            uint256,\\n            uint256,\\n            RLPItemType\\n        )\\n    {\\n        require(_in.length > 0, \\\"RLP item cannot be null.\\\");\\n\\n        uint256 ptr = _in.ptr;\\n        uint256 prefix;\\n        assembly {\\n            prefix := byte(0, mload(ptr))\\n        }\\n\\n        if (prefix <= 0x7f) {\\n            // Single byte.\\n\\n            return (0, 1, RLPItemType.DATA_ITEM);\\n        } else if (prefix <= 0xb7) {\\n            // Short string.\\n\\n            uint256 strLen = prefix - 0x80;\\n\\n            require(_in.length > strLen, \\\"Invalid RLP short string.\\\");\\n\\n            return (1, strLen, RLPItemType.DATA_ITEM);\\n        } else if (prefix <= 0xbf) {\\n            // Long string.\\n            uint256 lenOfStrLen = prefix - 0xb7;\\n\\n            require(_in.length > lenOfStrLen, \\\"Invalid RLP long string length.\\\");\\n\\n            uint256 strLen;\\n            assembly {\\n                // Pick out the string length.\\n                strLen := div(mload(add(ptr, 1)), exp(256, sub(32, lenOfStrLen)))\\n            }\\n\\n            require(_in.length > lenOfStrLen + strLen, \\\"Invalid RLP long string.\\\");\\n\\n            return (1 + lenOfStrLen, strLen, RLPItemType.DATA_ITEM);\\n        } else if (prefix <= 0xf7) {\\n            // Short list.\\n            uint256 listLen = prefix - 0xc0;\\n\\n            require(_in.length > listLen, \\\"Invalid RLP short list.\\\");\\n\\n            return (1, listLen, RLPItemType.LIST_ITEM);\\n        } else {\\n            // Long list.\\n            uint256 lenOfListLen = prefix - 0xf7;\\n\\n            require(_in.length > lenOfListLen, \\\"Invalid RLP long list length.\\\");\\n\\n            uint256 listLen;\\n            assembly {\\n                // Pick out the list length.\\n                listLen := div(mload(add(ptr, 1)), exp(256, sub(32, lenOfListLen)))\\n            }\\n\\n            require(_in.length > lenOfListLen + listLen, \\\"Invalid RLP long list.\\\");\\n\\n            return (1 + lenOfListLen, listLen, RLPItemType.LIST_ITEM);\\n        }\\n    }\\n\\n    /**\\n     * Copies the bytes from a memory location.\\n     * @param _src Pointer to the location to read from.\\n     * @param _offset Offset to start reading from.\\n     * @param _length Number of bytes to read.\\n     * @return Copied bytes.\\n     */\\n    function _copy(\\n        uint256 _src,\\n        uint256 _offset,\\n        uint256 _length\\n    ) private pure returns (bytes memory) {\\n        bytes memory out = new bytes(_length);\\n        if (out.length == 0) {\\n            return out;\\n        }\\n\\n        uint256 src = _src + _offset;\\n        uint256 dest;\\n        assembly {\\n            dest := add(out, 32)\\n        }\\n\\n        // Copy over as many complete words as we can.\\n        for (uint256 i = 0; i < _length / 32; i++) {\\n            assembly {\\n                mstore(dest, mload(src))\\n            }\\n\\n            src += 32;\\n            dest += 32;\\n        }\\n\\n        // Pick out the remaining bytes.\\n        uint256 mask;\\n        unchecked {\\n            mask = 256**(32 - (_length % 32)) - 1;\\n        }\\n\\n        assembly {\\n            mstore(dest, or(and(mload(src), not(mask)), and(mload(dest), mask)))\\n        }\\n        return out;\\n    }\\n\\n    /**\\n     * Copies an RLP item into bytes.\\n     * @param _in RLP item to copy.\\n     * @return Copied bytes.\\n     */\\n    function _copy(RLPItem memory _in) private pure returns (bytes memory) {\\n        return _copy(_in.ptr, 0, _in.length);\\n    }\\n}\\n\",\"keccak256\":\"0xde4a27577a23b2b11b21e8af3e1a0df50b0b27f08864795f7a84b1e3c230da33\",\"license\":\"MIT\"},\"contracts/libraries/rlp/Lib_RLPWriter.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.9;\\n\\n/**\\n * @title Lib_RLPWriter\\n * @author Bakaoh (with modifications)\\n */\\nlibrary Lib_RLPWriter {\\n    /**********************\\n     * Internal Functions *\\n     **********************/\\n\\n    /**\\n     * RLP encodes a byte string.\\n     * @param _in The byte string to encode.\\n     * @return The RLP encoded string in bytes.\\n     */\\n    function writeBytes(bytes memory _in) internal pure returns (bytes memory) {\\n        bytes memory encoded;\\n\\n        if (_in.length == 1 && uint8(_in[0]) < 128) {\\n            encoded = _in;\\n        } else {\\n            encoded = abi.encodePacked(_writeLength(_in.length, 128), _in);\\n        }\\n\\n        return encoded;\\n    }\\n\\n    /**\\n     * RLP encodes a list of RLP encoded byte byte strings.\\n     * @param _in The list of RLP encoded byte strings.\\n     * @return The RLP encoded list of items in bytes.\\n     */\\n    function writeList(bytes[] memory _in) internal pure returns (bytes memory) {\\n        bytes memory list = _flatten(_in);\\n        return abi.encodePacked(_writeLength(list.length, 192), list);\\n    }\\n\\n    /**\\n     * RLP encodes a string.\\n     * @param _in The string to encode.\\n     * @return The RLP encoded string in bytes.\\n     */\\n    function writeString(string memory _in) internal pure returns (bytes memory) {\\n        return writeBytes(bytes(_in));\\n    }\\n\\n    /**\\n     * RLP encodes an address.\\n     * @param _in The address to encode.\\n     * @return The RLP encoded address in bytes.\\n     */\\n    function writeAddress(address _in) internal pure returns (bytes memory) {\\n        return writeBytes(abi.encodePacked(_in));\\n    }\\n\\n    /**\\n     * RLP encodes a uint.\\n     * @param _in The uint256 to encode.\\n     * @return The RLP encoded uint256 in bytes.\\n     */\\n    function writeUint(uint256 _in) internal pure returns (bytes memory) {\\n        return writeBytes(_toBinary(_in));\\n    }\\n\\n    /**\\n     * RLP encodes a bool.\\n     * @param _in The bool to encode.\\n     * @return The RLP encoded bool in bytes.\\n     */\\n    function writeBool(bool _in) internal pure returns (bytes memory) {\\n        bytes memory encoded = new bytes(1);\\n        encoded[0] = (_in ? bytes1(0x01) : bytes1(0x80));\\n        return encoded;\\n    }\\n\\n    /*********************\\n     * Private Functions *\\n     *********************/\\n\\n    /**\\n     * Encode the first byte, followed by the `len` in binary form if `length` is more than 55.\\n     * @param _len The length of the string or the payload.\\n     * @param _offset 128 if item is string, 192 if item is list.\\n     * @return RLP encoded bytes.\\n     */\\n    function _writeLength(uint256 _len, uint256 _offset) private pure returns (bytes memory) {\\n        bytes memory encoded;\\n\\n        if (_len < 56) {\\n            encoded = new bytes(1);\\n            encoded[0] = bytes1(uint8(_len) + uint8(_offset));\\n        } else {\\n            uint256 lenLen;\\n            uint256 i = 1;\\n            while (_len / i != 0) {\\n                lenLen++;\\n                i *= 256;\\n            }\\n\\n            encoded = new bytes(lenLen + 1);\\n            encoded[0] = bytes1(uint8(lenLen) + uint8(_offset) + 55);\\n            for (i = 1; i <= lenLen; i++) {\\n                encoded[i] = bytes1(uint8((_len / (256**(lenLen - i))) % 256));\\n            }\\n        }\\n\\n        return encoded;\\n    }\\n\\n    /**\\n     * Encode integer in big endian binary form with no leading zeroes.\\n     * @notice TODO: This should be optimized with assembly to save gas costs.\\n     * @param _x The integer to encode.\\n     * @return RLP encoded bytes.\\n     */\\n    function _toBinary(uint256 _x) private pure returns (bytes memory) {\\n        bytes memory b = abi.encodePacked(_x);\\n\\n        uint256 i = 0;\\n        for (; i < 32; i++) {\\n            if (b[i] != 0) {\\n                break;\\n            }\\n        }\\n\\n        bytes memory res = new bytes(32 - i);\\n        for (uint256 j = 0; j < res.length; j++) {\\n            res[j] = b[i++];\\n        }\\n\\n        return res;\\n    }\\n\\n    /**\\n     * Copies a piece of memory to another location.\\n     * @notice From: https://github.com/Arachnid/solidity-stringutils/blob/master/src/strings.sol.\\n     * @param _dest Destination location.\\n     * @param _src Source location.\\n     * @param _len Length of memory to copy.\\n     */\\n    function _memcpy(\\n        uint256 _dest,\\n        uint256 _src,\\n        uint256 _len\\n    ) private pure {\\n        uint256 dest = _dest;\\n        uint256 src = _src;\\n        uint256 len = _len;\\n\\n        for (; len >= 32; len -= 32) {\\n            assembly {\\n                mstore(dest, mload(src))\\n            }\\n            dest += 32;\\n            src += 32;\\n        }\\n\\n        uint256 mask;\\n        unchecked {\\n            mask = 256**(32 - len) - 1;\\n        }\\n        assembly {\\n            let srcpart := and(mload(src), not(mask))\\n            let destpart := and(mload(dest), mask)\\n            mstore(dest, or(destpart, srcpart))\\n        }\\n    }\\n\\n    /**\\n     * Flattens a list of byte strings into one byte string.\\n     * @notice From: https://github.com/sammayo/solidity-rlp-encoder/blob/master/RLPEncode.sol.\\n     * @param _list List of byte strings to flatten.\\n     * @return The flattened byte string.\\n     */\\n    function _flatten(bytes[] memory _list) private pure returns (bytes memory) {\\n        if (_list.length == 0) {\\n            return new bytes(0);\\n        }\\n\\n        uint256 len;\\n        uint256 i = 0;\\n        for (; i < _list.length; i++) {\\n            len += _list[i].length;\\n        }\\n\\n        bytes memory flattened = new bytes(len);\\n        uint256 flattenedPtr;\\n        assembly {\\n            flattenedPtr := add(flattened, 0x20)\\n        }\\n\\n        for (i = 0; i < _list.length; i++) {\\n            bytes memory item = _list[i];\\n\\n            uint256 listPtr;\\n            assembly {\\n                listPtr := add(item, 0x20)\\n            }\\n\\n            _memcpy(flattenedPtr, listPtr, item.length);\\n            flattenedPtr += _list[i].length;\\n        }\\n\\n        return flattened;\\n    }\\n}\\n\",\"keccak256\":\"0x215b90672ce126effc3f2df61ca0cdf52d2b1cc9be602877e637829b0bf229fd\",\"license\":\"MIT\"},\"contracts/libraries/utils/Lib_Bytes32Utils.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.9;\\n\\n/**\\n * @title Lib_Byte32Utils\\n */\\nlibrary Lib_Bytes32Utils {\\n    /**********************\\n     * Internal Functions *\\n     **********************/\\n\\n    /**\\n     * Converts a bytes32 value to a boolean. Anything non-zero will be converted to \\\"true.\\\"\\n     * @param _in Input bytes32 value.\\n     * @return Bytes32 as a boolean.\\n     */\\n    function toBool(bytes32 _in) internal pure returns (bool) {\\n        return _in != 0;\\n    }\\n\\n    /**\\n     * Converts a boolean to a bytes32 value.\\n     * @param _in Input boolean value.\\n     * @return Boolean as a bytes32.\\n     */\\n    function fromBool(bool _in) internal pure returns (bytes32) {\\n        return bytes32(uint256(_in ? 1 : 0));\\n    }\\n\\n    /**\\n     * Converts a bytes32 value to an address. Takes the *last* 20 bytes.\\n     * @param _in Input bytes32 value.\\n     * @return Bytes32 as an address.\\n     */\\n    function toAddress(bytes32 _in) internal pure returns (address) {\\n        return address(uint160(uint256(_in)));\\n    }\\n\\n    /**\\n     * Converts an address to a bytes32.\\n     * @param _in Input address value.\\n     * @return Address as a bytes32.\\n     */\\n    function fromAddress(address _in) internal pure returns (bytes32) {\\n        return bytes32(uint256(uint160(_in)));\\n    }\\n}\\n\",\"keccak256\":\"0xf2d1a526f2529e51fc2fffccf093c1691e291cbbb6de8a3da7d7f80024a9a234\",\"license\":\"MIT\"},\"contracts/libraries/utils/Lib_BytesUtils.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.9;\\n\\n/**\\n * @title Lib_BytesUtils\\n */\\nlibrary Lib_BytesUtils {\\n    /**********************\\n     * Internal Functions *\\n     **********************/\\n\\n    function slice(\\n        bytes memory _bytes,\\n        uint256 _start,\\n        uint256 _length\\n    ) internal pure returns (bytes memory) {\\n        require(_length + 31 >= _length, \\\"slice_overflow\\\");\\n        require(_start + _length >= _start, \\\"slice_overflow\\\");\\n        require(_bytes.length >= _start + _length, \\\"slice_outOfBounds\\\");\\n\\n        bytes memory tempBytes;\\n\\n        assembly {\\n            switch iszero(_length)\\n            case 0 {\\n                // Get a location of some free memory and store it in tempBytes as\\n                // Solidity does for memory variables.\\n                tempBytes := mload(0x40)\\n\\n                // The first word of the slice result is potentially a partial\\n                // word read from the original array. To read it, we calculate\\n                // the length of that partial word and start copying that many\\n                // bytes into the array. The first word we copy will start with\\n                // data we don't care about, but the last `lengthmod` bytes will\\n                // land at the beginning of the contents of the new array. When\\n                // we're done copying, we overwrite the full first word with\\n                // the actual length of the slice.\\n                let lengthmod := and(_length, 31)\\n\\n                // The multiplication in the next line is necessary\\n                // because when slicing multiples of 32 bytes (lengthmod == 0)\\n                // the following copy loop was copying the origin's length\\n                // and then ending prematurely not copying everything it should.\\n                let mc := add(add(tempBytes, lengthmod), mul(0x20, iszero(lengthmod)))\\n                let end := add(mc, _length)\\n\\n                for {\\n                    // The multiplication in the next line has the same exact purpose\\n                    // as the one above.\\n                    let cc := add(add(add(_bytes, lengthmod), mul(0x20, iszero(lengthmod))), _start)\\n                } lt(mc, end) {\\n                    mc := add(mc, 0x20)\\n                    cc := add(cc, 0x20)\\n                } {\\n                    mstore(mc, mload(cc))\\n                }\\n\\n                mstore(tempBytes, _length)\\n\\n                //update free-memory pointer\\n                //allocating the array padded to 32 bytes like the compiler does now\\n                mstore(0x40, and(add(mc, 31), not(31)))\\n            }\\n            //if we want a zero-length slice let's just return a zero-length array\\n            default {\\n                tempBytes := mload(0x40)\\n\\n                //zero out the 32 bytes slice we are about to return\\n                //we need to do it because Solidity does not garbage collect\\n                mstore(tempBytes, 0)\\n\\n                mstore(0x40, add(tempBytes, 0x20))\\n            }\\n        }\\n\\n        return tempBytes;\\n    }\\n\\n    function slice(bytes memory _bytes, uint256 _start) internal pure returns (bytes memory) {\\n        if (_start >= _bytes.length) {\\n            return bytes(\\\"\\\");\\n        }\\n\\n        return slice(_bytes, _start, _bytes.length - _start);\\n    }\\n\\n    function toBytes32(bytes memory _bytes) internal pure returns (bytes32) {\\n        if (_bytes.length < 32) {\\n            bytes32 ret;\\n            assembly {\\n                ret := mload(add(_bytes, 32))\\n            }\\n            return ret;\\n        }\\n\\n        return abi.decode(_bytes, (bytes32)); // will truncate if input length > 32 bytes\\n    }\\n\\n    function toUint256(bytes memory _bytes) internal pure returns (uint256) {\\n        return uint256(toBytes32(_bytes));\\n    }\\n\\n    function toNibbles(bytes memory _bytes) internal pure returns (bytes memory) {\\n        bytes memory nibbles = new bytes(_bytes.length * 2);\\n\\n        for (uint256 i = 0; i < _bytes.length; i++) {\\n            nibbles[i * 2] = _bytes[i] >> 4;\\n            nibbles[i * 2 + 1] = bytes1(uint8(_bytes[i]) % 16);\\n        }\\n\\n        return nibbles;\\n    }\\n\\n    function fromNibbles(bytes memory _bytes) internal pure returns (bytes memory) {\\n        bytes memory ret = new bytes(_bytes.length / 2);\\n\\n        for (uint256 i = 0; i < ret.length; i++) {\\n            ret[i] = (_bytes[i * 2] << 4) | (_bytes[i * 2 + 1]);\\n        }\\n\\n        return ret;\\n    }\\n\\n    function equal(bytes memory _bytes, bytes memory _other) internal pure returns (bool) {\\n        return keccak256(_bytes) == keccak256(_other);\\n    }\\n}\\n\",\"keccak256\":\"0xc39ee13f97e4ccfbc72a5aac571deb3c1aff882fca2dd18be794d43ac5de0a30\",\"license\":\"MIT\"},\"contracts/standards/AddressAliasHelper.sol\":{\"content\":\"// SPDX-License-Identifier: Apache-2.0\\n\\n/*\\n * Copyright 2019-2021, Offchain Labs, Inc.\\n *\\n * Licensed under the Apache License, Version 2.0 (the \\\"License\\\");\\n * you may not use this file except in compliance with the License.\\n * You may obtain a copy of the License at\\n *\\n *    http://www.apache.org/licenses/LICENSE-2.0\\n *\\n * Unless required by applicable law or agreed to in writing, software\\n * distributed under the License is distributed on an \\\"AS IS\\\" BASIS,\\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\\n * See the License for the specific language governing permissions and\\n * limitations under the License.\\n */\\n\\npragma solidity ^0.8.7;\\n\\nlibrary AddressAliasHelper {\\n    uint160 constant offset = uint160(0x1111000000000000000000000000000000001111);\\n\\n    /// @notice Utility function that converts the address in the L1 that submitted a tx to\\n    /// the inbox to the msg.sender viewed in the L2\\n    /// @param l1Address the address in the L1 that triggered the tx to L2\\n    /// @return l2Address L2 address as viewed in msg.sender\\n    function applyL1ToL2Alias(address l1Address) internal pure returns (address l2Address) {\\n        unchecked {\\n            l2Address = address(uint160(l1Address) + offset);\\n        }\\n    }\\n\\n    /// @notice Utility function that converts the msg.sender viewed in the L2 to the\\n    /// address in the L1 that submitted a tx to the inbox\\n    /// @param l2Address L2 address as viewed in msg.sender\\n    /// @return l1Address the address in the L1 that triggered the tx to L2\\n    function undoL1ToL2Alias(address l2Address) internal pure returns (address l1Address) {\\n        unchecked {\\n            l1Address = address(uint160(l2Address) - offset);\\n        }\\n    }\\n}\\n\",\"keccak256\":\"0xf330061b0ad081dd4d35a3efaeb3acd0a926c23ebb1ce7115007dac406d61b3f\",\"license\":\"Apache-2.0\"}},\"version\":1}",
+  "bytecode": "0x608060405234801561001057600080fd5b5060405162001a9838038062001a9883398101604081905261003191610072565b600080546001600160a01b0319166001600160a01b03861617905560048390556002829055600181905561006581836100bd565b600355506100ea92505050565b6000806000806080858703121561008857600080fd5b84516001600160a01b038116811461009f57600080fd5b60208601516040870151606090970151919890975090945092505050565b60008160001904831182151516156100e557634e487b7160e01b600052601160045260246000fd5b500290565b61199e80620000fa6000396000f3fe608060405234801561001057600080fd5b506004361061016c5760003560e01c8063876ed5cb116100cd578063d0f8934411610081578063e654b1fb11610066578063e654b1fb146102c0578063edcc4a45146102c9578063f722b41a146102dc57600080fd5b8063d0f89344146102b0578063e561dddc146102b857600080fd5b8063b8f77005116100b2578063b8f7700514610297578063ccf987c81461029f578063cfdf677e146102a857600080fd5b8063876ed5cb146102855780638d38c6c11461028e57600080fd5b80635ae6256d1161012457806378f4b2f21161010957806378f4b2f2146102645780637a167a8a1461026e5780637aa63a861461027d57600080fd5b80635ae6256d146102475780636fee07e01461024f57600080fd5b80632a7f18be116101555780632a7f18be146101d25780633789977014610216578063461a44781461023457600080fd5b80630b3dfa9714610171578063299ca4781461018d575b600080fd5b61017a60035481565b6040519081526020015b60405180910390f35b6000546101ad9073ffffffffffffffffffffffffffffffffffffffff1681565b60405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610184565b6101e56101e03660046113e5565b6102e4565b604080518251815260208084015164ffffffffff908116918301919091529282015190921690820152606001610184565b61021e610362565b60405164ffffffffff9091168152602001610184565b6101ad6102423660046114c1565b610376565b61021e610423565b61026261025d366004611537565b610437565b005b61017a620186a081565b60055464ffffffffff1661021e565b61017a610899565b61017a61c35081565b61017a60045481565b60065461021e565b61017a60025481565b6101ad6108b4565b6102626108dc565b61017a610df8565b61017a60015481565b6102626102d73660046115a4565b610e7f565b61021e611016565b604080516060810182526000808252602082018190529181019190915260068281548110610314576103146115c6565b6000918252602091829020604080516060810182526002909302909101805483526001015464ffffffffff808216948401949094526501000000000090049092169181019190915292915050565b60008061036d611032565b50949350505050565b600080546040517fbf40fac100000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff9091169063bf40fac1906103cd908590600401611660565b60206040518083038186803b1580156103e557600080fd5b505afa1580156103f9573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061041d919061167a565b92915050565b60008061042e611032565b95945050505050565b61c350815111156104cf576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603d60248201527f5472616e73616374696f6e20646174612073697a652065786365656473206d6160448201527f78696d756d20666f7220726f6c6c7570207472616e73616374696f6e2e00000060648201526084015b60405180910390fd5b600454821115610561576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603d60248201527f5472616e73616374696f6e20676173206c696d69742065786365656473206d6160448201527f78696d756d20666f7220726f6c6c7570207472616e73616374696f6e2e00000060648201526084016104c6565b620186a08210156105f4576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602960248201527f5472616e73616374696f6e20676173206c696d697420746f6f206c6f7720746f60448201527f20656e71756575652e000000000000000000000000000000000000000000000060648201526084016104c6565b6003548211156106dc5760006002546003548461061191906116c6565b61061b91906116dd565b905060005a90508181116106b1576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e73756666696369656e742067617320666f72204c322072617465206c696d60448201527f6974696e67206275726e2e00000000000000000000000000000000000000000060648201526084016104c6565b60005b825a6106c090846116c6565b10156106d857806106d081611718565b9150506106b4565b5050505b6000333214156106ed575033610706565b5033731111000000000000000000000000000000001111015b60008185858560405160200161071f9493929190611751565b604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0818403018152828252805160209182012060608401835280845264ffffffffff42811692850192835243811693850193845260068054600181810183556000838152975160029092027ff652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d3f81019290925594517ff652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d4090910180549651841665010000000000027fffffffffffffffffffffffffffffffffffffffffffff0000000000000000000090971691909316179490941790559154919350610825916116c6565b9050808673ffffffffffffffffffffffffffffffffffffffff168473ffffffffffffffffffffffffffffffffffffffff167f4b388aecf9fa6cc92253704e5975a6129a4f735bdbd99567df4ed0094ee4ceb58888426040516108899392919061179a565b60405180910390a4505050505050565b6000806108a4611032565b50505064ffffffffff1692915050565b60006108d760405180606001604052806021815260200161194860219139610376565b905090565b60043560d81c60093560e890811c90600c35901c6108f8610899565b8364ffffffffff161461098d576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603d60248201527f41637475616c20626174636820737461727420696e64657820646f6573206e6f60448201527f74206d6174636820657870656374656420737461727420696e6465782e00000060648201526084016104c6565b6109cb6040518060400160405280600d81526020017f4f564d5f53657175656e63657200000000000000000000000000000000000000815250610376565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614610a85576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602d60248201527f46756e6374696f6e2063616e206f6e6c792062652063616c6c6564206279207460448201527f68652053657175656e6365722e0000000000000000000000000000000000000060648201526084016104c6565b6000610a9762ffffff831660106117c3565b610aa290600f611800565b905064ffffffffff8116361015610b3b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602260248201527f4e6f7420656e6f756768204261746368436f6e74657874732070726f7669646560448201527f642e00000000000000000000000000000000000000000000000000000000000060648201526084016104c6565b6005546040805160808101825260008082526020820181905291810182905260608101829052909164ffffffffff169060005b8562ffffff168163ffffffff161015610bcc576000610b928263ffffffff166110ed565b8051909350839150610ba49086611818565b9450826020015184610bb69190611840565b9350508080610bc490611860565b915050610b6e565b5060065464ffffffffff83161115610c8c576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604260248201527f417474656d7074656420746f20617070656e64206d6f726520656c656d656e7460448201527f73207468616e2061726520617661696c61626c6520696e20746865207175657560648201527f652e000000000000000000000000000000000000000000000000000000000000608482015260a4016104c6565b6000610c9d8462ffffff8916611884565b63ffffffff169050600080836020015160001415610cc657505060408201516060830151610d37565b60006006610cd56001886118a9565b64ffffffffff1681548110610cec57610cec6115c6565b6000918252602091829020604080516060810182526002909302909101805483526001015464ffffffffff808216948401859052650100000000009091041691018190529093509150505b610d5b610d456001436116c6565b408a62ffffff168564ffffffffff168585611174565b7f602f1aeac0ca2e7a13e281a9ef0ad7838542712ce16780fa2ecffd351f05f899610d8684876118a9565b84610d8f610899565b6040805164ffffffffff94851681529390921660208401529082015260600160405180910390a15050600580547fffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000001664ffffffffff949094169390931790925550505050505050565b6000610e026108b4565b73ffffffffffffffffffffffffffffffffffffffff16631f7b6d326040518163ffffffff1660e01b815260040160206040518083038186803b158015610e4757600080fd5b505afa158015610e5b573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906108d791906118c7565b60008054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16638da5cb5b6040518163ffffffff1660e01b815260040160206040518083038186803b158015610ee557600080fd5b505afa158015610ef9573d6000803e3d6000fd5b505050506040513d601f19601f82011682018060405250810190610f1d919061167a565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614610fb1576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f6e6c792063616c6c61626c6520627920746865204275726e2041646d696e2e60448201526064016104c6565b60018190556002829055610fc581836117c3565b60038190556002546001546040805192835260208301919091528101919091527fc6ed75e96b8b18b71edc1a6e82a9d677f8268c774a262c624eeb2cf0a8b3e07e9060600160405180910390a15050565b6005546006546000916108d79164ffffffffff909116906118a9565b60008060008060006110426108b4565b73ffffffffffffffffffffffffffffffffffffffff1663ccf8f9696040518163ffffffff1660e01b815260040160206040518083038186803b15801561108757600080fd5b505afa15801561109b573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906110bf91906118e0565b64ffffffffff602882901c811697605083901c82169750607883901c8216965060a09290921c169350915050565b6111186040518060800160405280600081526020016000815260200160008152602001600081525090565b60006111256010846117c3565b61113090600f611800565b60408051608081018252823560e890811c82526003840135901c6020820152600683013560d890811c92820192909252600b90920135901c60608201529392505050565b600061117e6108b4565b905060008061118b611032565b50509150915060006040518060a001604052808573ffffffffffffffffffffffffffffffffffffffff16631f7b6d326040518163ffffffff1660e01b815260040160206040518083038186803b1580156111e457600080fd5b505afa1580156111f8573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061121c91906118c7565b81526020018a81526020018981526020018464ffffffffff16815260200160405180602001604052806000815250815250905080600001517f127186556e7be68c7e31263195225b4de02820707889540969f62c05cf73525e82602001518360400151846060015185608001516040516112999493929190611922565b60405180910390a260006112ac8261139f565b905060006112e78360400151866112c39190611840565b6112cd8b87611840565b602890811b9190911760508b901b1760788a901b17901b90565b6040517f2015276c000000000000000000000000000000000000000000000000000000008152600481018490527fffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000008216602482015290915073ffffffffffffffffffffffffffffffffffffffff871690632015276c90604401600060405180830381600087803b15801561137a57600080fd5b505af115801561138e573d6000803e3d6000fd5b505050505050505050505050505050565b600081602001518260400151836060015184608001516040516020016113c89493929190611922565b604051602081830303815290604052805190602001209050919050565b6000602082840312156113f757600080fd5b5035919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b600067ffffffffffffffff80841115611448576114486113fe565b604051601f85017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f0116810190828211818310171561148e5761148e6113fe565b816040528093508581528686860111156114a757600080fd5b858560208301376000602087830101525050509392505050565b6000602082840312156114d357600080fd5b813567ffffffffffffffff8111156114ea57600080fd5b8201601f810184136114fb57600080fd5b61150a8482356020840161142d565b949350505050565b73ffffffffffffffffffffffffffffffffffffffff8116811461153457600080fd5b50565b60008060006060848603121561154c57600080fd5b833561155781611512565b925060208401359150604084013567ffffffffffffffff81111561157a57600080fd5b8401601f8101861361158b57600080fd5b61159a8682356020840161142d565b9150509250925092565b600080604083850312156115b757600080fd5b50508035926020909101359150565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b6000815180845260005b8181101561161b576020818501810151868301820152016115ff565b8181111561162d576000602083870101525b50601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b60208152600061167360208301846115f5565b9392505050565b60006020828403121561168c57600080fd5b815161167381611512565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b6000828210156116d8576116d8611697565b500390565b600082611713577f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b500490565b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82141561174a5761174a611697565b5060010190565b600073ffffffffffffffffffffffffffffffffffffffff80871683528086166020840152508360408301526080606083015261179060808301846115f5565b9695505050505050565b8381526060602082015260006117b360608301856115f5565b9050826040830152949350505050565b6000817fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff04831182151516156117fb576117fb611697565b500290565b6000821982111561181357611813611697565b500190565b600063ffffffff80831681851680830382111561183757611837611697565b01949350505050565b600064ffffffffff80831681851680830382111561183757611837611697565b600063ffffffff8083168181141561187a5761187a611697565b6001019392505050565b600063ffffffff838116908316818110156118a1576118a1611697565b039392505050565b600064ffffffffff838116908316818110156118a1576118a1611697565b6000602082840312156118d957600080fd5b5051919050565b6000602082840312156118f257600080fd5b81517fffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000008116811461167357600080fd5b84815283602082015282604082015260806060820152600061179060808301846115f556fe436861696e53746f72616765436f6e7461696e65722d4354432d62617463686573a2646970667358221220e14033f9f98984edb3353943a45655d112afab7b0a7aa8401f8826506d85b00164736f6c63430008090033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b506004361061016c5760003560e01c8063876ed5cb116100cd578063d0f8934411610081578063e654b1fb11610066578063e654b1fb146102c0578063edcc4a45146102c9578063f722b41a146102dc57600080fd5b8063d0f89344146102b0578063e561dddc146102b857600080fd5b8063b8f77005116100b2578063b8f7700514610297578063ccf987c81461029f578063cfdf677e146102a857600080fd5b8063876ed5cb146102855780638d38c6c11461028e57600080fd5b80635ae6256d1161012457806378f4b2f21161010957806378f4b2f2146102645780637a167a8a1461026e5780637aa63a861461027d57600080fd5b80635ae6256d146102475780636fee07e01461024f57600080fd5b80632a7f18be116101555780632a7f18be146101d25780633789977014610216578063461a44781461023457600080fd5b80630b3dfa9714610171578063299ca4781461018d575b600080fd5b61017a60035481565b6040519081526020015b60405180910390f35b6000546101ad9073ffffffffffffffffffffffffffffffffffffffff1681565b60405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610184565b6101e56101e03660046113e5565b6102e4565b604080518251815260208084015164ffffffffff908116918301919091529282015190921690820152606001610184565b61021e610362565b60405164ffffffffff9091168152602001610184565b6101ad6102423660046114c1565b610376565b61021e610423565b61026261025d366004611537565b610437565b005b61017a620186a081565b60055464ffffffffff1661021e565b61017a610899565b61017a61c35081565b61017a60045481565b60065461021e565b61017a60025481565b6101ad6108b4565b6102626108dc565b61017a610df8565b61017a60015481565b6102626102d73660046115a4565b610e7f565b61021e611016565b604080516060810182526000808252602082018190529181019190915260068281548110610314576103146115c6565b6000918252602091829020604080516060810182526002909302909101805483526001015464ffffffffff808216948401949094526501000000000090049092169181019190915292915050565b60008061036d611032565b50949350505050565b600080546040517fbf40fac100000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff9091169063bf40fac1906103cd908590600401611660565b60206040518083038186803b1580156103e557600080fd5b505afa1580156103f9573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061041d919061167a565b92915050565b60008061042e611032565b95945050505050565b61c350815111156104cf576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603d60248201527f5472616e73616374696f6e20646174612073697a652065786365656473206d6160448201527f78696d756d20666f7220726f6c6c7570207472616e73616374696f6e2e00000060648201526084015b60405180910390fd5b600454821115610561576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603d60248201527f5472616e73616374696f6e20676173206c696d69742065786365656473206d6160448201527f78696d756d20666f7220726f6c6c7570207472616e73616374696f6e2e00000060648201526084016104c6565b620186a08210156105f4576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602960248201527f5472616e73616374696f6e20676173206c696d697420746f6f206c6f7720746f60448201527f20656e71756575652e000000000000000000000000000000000000000000000060648201526084016104c6565b6003548211156106dc5760006002546003548461061191906116c6565b61061b91906116dd565b905060005a90508181116106b1576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e73756666696369656e742067617320666f72204c322072617465206c696d60448201527f6974696e67206275726e2e00000000000000000000000000000000000000000060648201526084016104c6565b60005b825a6106c090846116c6565b10156106d857806106d081611718565b9150506106b4565b5050505b6000333214156106ed575033610706565b5033731111000000000000000000000000000000001111015b60008185858560405160200161071f9493929190611751565b604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0818403018152828252805160209182012060608401835280845264ffffffffff42811692850192835243811693850193845260068054600181810183556000838152975160029092027ff652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d3f81019290925594517ff652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d4090910180549651841665010000000000027fffffffffffffffffffffffffffffffffffffffffffff0000000000000000000090971691909316179490941790559154919350610825916116c6565b9050808673ffffffffffffffffffffffffffffffffffffffff168473ffffffffffffffffffffffffffffffffffffffff167f4b388aecf9fa6cc92253704e5975a6129a4f735bdbd99567df4ed0094ee4ceb58888426040516108899392919061179a565b60405180910390a4505050505050565b6000806108a4611032565b50505064ffffffffff1692915050565b60006108d760405180606001604052806021815260200161194860219139610376565b905090565b60043560d81c60093560e890811c90600c35901c6108f8610899565b8364ffffffffff161461098d576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603d60248201527f41637475616c20626174636820737461727420696e64657820646f6573206e6f60448201527f74206d6174636820657870656374656420737461727420696e6465782e00000060648201526084016104c6565b6109cb6040518060400160405280600d81526020017f4f564d5f53657175656e63657200000000000000000000000000000000000000815250610376565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614610a85576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602d60248201527f46756e6374696f6e2063616e206f6e6c792062652063616c6c6564206279207460448201527f68652053657175656e6365722e0000000000000000000000000000000000000060648201526084016104c6565b6000610a9762ffffff831660106117c3565b610aa290600f611800565b905064ffffffffff8116361015610b3b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602260248201527f4e6f7420656e6f756768204261746368436f6e74657874732070726f7669646560448201527f642e00000000000000000000000000000000000000000000000000000000000060648201526084016104c6565b6005546040805160808101825260008082526020820181905291810182905260608101829052909164ffffffffff169060005b8562ffffff168163ffffffff161015610bcc576000610b928263ffffffff166110ed565b8051909350839150610ba49086611818565b9450826020015184610bb69190611840565b9350508080610bc490611860565b915050610b6e565b5060065464ffffffffff83161115610c8c576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604260248201527f417474656d7074656420746f20617070656e64206d6f726520656c656d656e7460448201527f73207468616e2061726520617661696c61626c6520696e20746865207175657560648201527f652e000000000000000000000000000000000000000000000000000000000000608482015260a4016104c6565b6000610c9d8462ffffff8916611884565b63ffffffff169050600080836020015160001415610cc657505060408201516060830151610d37565b60006006610cd56001886118a9565b64ffffffffff1681548110610cec57610cec6115c6565b6000918252602091829020604080516060810182526002909302909101805483526001015464ffffffffff808216948401859052650100000000009091041691018190529093509150505b610d5b610d456001436116c6565b408a62ffffff168564ffffffffff168585611174565b7f602f1aeac0ca2e7a13e281a9ef0ad7838542712ce16780fa2ecffd351f05f899610d8684876118a9565b84610d8f610899565b6040805164ffffffffff94851681529390921660208401529082015260600160405180910390a15050600580547fffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000001664ffffffffff949094169390931790925550505050505050565b6000610e026108b4565b73ffffffffffffffffffffffffffffffffffffffff16631f7b6d326040518163ffffffff1660e01b815260040160206040518083038186803b158015610e4757600080fd5b505afa158015610e5b573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906108d791906118c7565b60008054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16638da5cb5b6040518163ffffffff1660e01b815260040160206040518083038186803b158015610ee557600080fd5b505afa158015610ef9573d6000803e3d6000fd5b505050506040513d601f19601f82011682018060405250810190610f1d919061167a565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614610fb1576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f6e6c792063616c6c61626c6520627920746865204275726e2041646d696e2e60448201526064016104c6565b60018190556002829055610fc581836117c3565b60038190556002546001546040805192835260208301919091528101919091527fc6ed75e96b8b18b71edc1a6e82a9d677f8268c774a262c624eeb2cf0a8b3e07e9060600160405180910390a15050565b6005546006546000916108d79164ffffffffff909116906118a9565b60008060008060006110426108b4565b73ffffffffffffffffffffffffffffffffffffffff1663ccf8f9696040518163ffffffff1660e01b815260040160206040518083038186803b15801561108757600080fd5b505afa15801561109b573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906110bf91906118e0565b64ffffffffff602882901c811697605083901c82169750607883901c8216965060a09290921c169350915050565b6111186040518060800160405280600081526020016000815260200160008152602001600081525090565b60006111256010846117c3565b61113090600f611800565b60408051608081018252823560e890811c82526003840135901c6020820152600683013560d890811c92820192909252600b90920135901c60608201529392505050565b600061117e6108b4565b905060008061118b611032565b50509150915060006040518060a001604052808573ffffffffffffffffffffffffffffffffffffffff16631f7b6d326040518163ffffffff1660e01b815260040160206040518083038186803b1580156111e457600080fd5b505afa1580156111f8573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061121c91906118c7565b81526020018a81526020018981526020018464ffffffffff16815260200160405180602001604052806000815250815250905080600001517f127186556e7be68c7e31263195225b4de02820707889540969f62c05cf73525e82602001518360400151846060015185608001516040516112999493929190611922565b60405180910390a260006112ac8261139f565b905060006112e78360400151866112c39190611840565b6112cd8b87611840565b602890811b9190911760508b901b1760788a901b17901b90565b6040517f2015276c000000000000000000000000000000000000000000000000000000008152600481018490527fffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000008216602482015290915073ffffffffffffffffffffffffffffffffffffffff871690632015276c90604401600060405180830381600087803b15801561137a57600080fd5b505af115801561138e573d6000803e3d6000fd5b505050505050505050505050505050565b600081602001518260400151836060015184608001516040516020016113c89493929190611922565b604051602081830303815290604052805190602001209050919050565b6000602082840312156113f757600080fd5b5035919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b600067ffffffffffffffff80841115611448576114486113fe565b604051601f85017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f0116810190828211818310171561148e5761148e6113fe565b816040528093508581528686860111156114a757600080fd5b858560208301376000602087830101525050509392505050565b6000602082840312156114d357600080fd5b813567ffffffffffffffff8111156114ea57600080fd5b8201601f810184136114fb57600080fd5b61150a8482356020840161142d565b949350505050565b73ffffffffffffffffffffffffffffffffffffffff8116811461153457600080fd5b50565b60008060006060848603121561154c57600080fd5b833561155781611512565b925060208401359150604084013567ffffffffffffffff81111561157a57600080fd5b8401601f8101861361158b57600080fd5b61159a8682356020840161142d565b9150509250925092565b600080604083850312156115b757600080fd5b50508035926020909101359150565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b6000815180845260005b8181101561161b576020818501810151868301820152016115ff565b8181111561162d576000602083870101525b50601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b60208152600061167360208301846115f5565b9392505050565b60006020828403121561168c57600080fd5b815161167381611512565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b6000828210156116d8576116d8611697565b500390565b600082611713577f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b500490565b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82141561174a5761174a611697565b5060010190565b600073ffffffffffffffffffffffffffffffffffffffff80871683528086166020840152508360408301526080606083015261179060808301846115f5565b9695505050505050565b8381526060602082015260006117b360608301856115f5565b9050826040830152949350505050565b6000817fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff04831182151516156117fb576117fb611697565b500290565b6000821982111561181357611813611697565b500190565b600063ffffffff80831681851680830382111561183757611837611697565b01949350505050565b600064ffffffffff80831681851680830382111561183757611837611697565b600063ffffffff8083168181141561187a5761187a611697565b6001019392505050565b600063ffffffff838116908316818110156118a1576118a1611697565b039392505050565b600064ffffffffff838116908316818110156118a1576118a1611697565b6000602082840312156118d957600080fd5b5051919050565b6000602082840312156118f257600080fd5b81517fffffffffffffffffffffffffffffffffffffffffffffffffffffff00000000008116811461167357600080fd5b84815283602082015282604082015260806060820152600061179060808301846115f556fe436861696e53746f72616765436f6e7461696e65722d4354432d62617463686573a2646970667358221220e14033f9f98984edb3353943a45655d112afab7b0a7aa8401f8826506d85b00164736f6c63430008090033",
+  "devdoc": {
+    "details": "The Canonical Transaction Chain (CTC) contract is an append-only log of transactions which must be applied to the rollup state. It defines the ordering of rollup transactions by writing them to the 'CTC:batches' instance of the Chain Storage Container. The CTC also allows any account to 'enqueue' an L2 transaction, which will require that the Sequencer will eventually append it to the rollup state. Runtime target: EVM",
+    "kind": "dev",
+    "methods": {
+      "appendSequencerBatch()": {
+        "details": "This function uses a custom encoding scheme for efficiency reasons. .param _shouldStartAtElement Specific batch we expect to start appending to. .param _totalElementsToAppend Total number of batch elements we expect to append. .param _contexts Array of batch contexts. .param _transactionDataFields Array of raw transaction data."
+      },
+      "batches()": {
+        "returns": {
+          "_0": "Reference to the batch storage container."
+        }
+      },
+      "enqueue(address,uint256,bytes)": {
+        "params": {
+          "_data": "Transaction data.",
+          "_gasLimit": "Gas limit for the enqueued L2 transaction.",
+          "_target": "Target L2 contract to send the transaction to."
+        }
+      },
+      "getLastBlockNumber()": {
+        "returns": {
+          "_0": "Blocknumber for the last transaction."
+        }
+      },
+      "getLastTimestamp()": {
+        "returns": {
+          "_0": "Timestamp for the last transaction."
+        }
+      },
+      "getNextQueueIndex()": {
+        "returns": {
+          "_0": "Index for the next queue element."
+        }
+      },
+      "getNumPendingQueueElements()": {
+        "returns": {
+          "_0": "Number of pending queue elements."
+        }
+      },
+      "getQueueElement(uint256)": {
+        "params": {
+          "_index": "Index of the queue element to access."
+        },
+        "returns": {
+          "_element": "Queue element at the given index."
+        }
+      },
+      "getQueueLength()": {
+        "returns": {
+          "_0": "Length of the queue."
+        }
+      },
+      "getTotalBatches()": {
+        "returns": {
+          "_totalBatches": "Total submitted batches."
+        }
+      },
+      "getTotalElements()": {
+        "returns": {
+          "_totalElements": "Total submitted elements."
+        }
+      },
+      "resolve(string)": {
+        "params": {
+          "_name": "Name to resolve an address for."
+        },
+        "returns": {
+          "_0": "Address associated with the given name."
+        }
+      }
+    },
+    "title": "CanonicalTransactionChain",
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {
+      "appendSequencerBatch()": {
+        "notice": "Allows the sequencer to append a batch of transactions."
+      },
+      "batches()": {
+        "notice": "Accesses the batch storage container."
+      },
+      "enqueue(address,uint256,bytes)": {
+        "notice": "Adds a transaction to the queue."
+      },
+      "getLastBlockNumber()": {
+        "notice": "Returns the blocknumber of the last transaction."
+      },
+      "getLastTimestamp()": {
+        "notice": "Returns the timestamp of the last transaction."
+      },
+      "getNextQueueIndex()": {
+        "notice": "Returns the index of the next element to be enqueued."
+      },
+      "getNumPendingQueueElements()": {
+        "notice": "Get the number of queue elements which have not yet been included."
+      },
+      "getQueueElement(uint256)": {
+        "notice": "Gets the queue element at a particular index."
+      },
+      "getQueueLength()": {
+        "notice": "Retrieves the length of the queue, including both pending and canonical transactions."
+      },
+      "getTotalBatches()": {
+        "notice": "Retrieves the total number of batches submitted."
+      },
+      "getTotalElements()": {
+        "notice": "Retrieves the total number of elements submitted."
+      },
+      "resolve(string)": {
+        "notice": "Resolves the address associated with a given name."
+      },
+      "setGasParams(uint256,uint256)": {
+        "notice": "Allows the Burn Admin to update the parameters which determine the amount of gas to burn. The value of enqueueL2GasPrepaid is immediately updated as well."
+      }
+    },
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 6653,
+        "contract": "contracts/L1/rollup/CanonicalTransactionChain.sol:CanonicalTransactionChain",
+        "label": "libAddressManager",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_contract(Lib_AddressManager)6645"
+      },
+      {
+        "astId": 3291,
+        "contract": "contracts/L1/rollup/CanonicalTransactionChain.sol:CanonicalTransactionChain",
+        "label": "enqueueGasCost",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 3293,
+        "contract": "contracts/L1/rollup/CanonicalTransactionChain.sol:CanonicalTransactionChain",
+        "label": "l2GasDiscountDivisor",
+        "offset": 0,
+        "slot": "2",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 3295,
+        "contract": "contracts/L1/rollup/CanonicalTransactionChain.sol:CanonicalTransactionChain",
+        "label": "enqueueL2GasPrepaid",
+        "offset": 0,
+        "slot": "3",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 3312,
+        "contract": "contracts/L1/rollup/CanonicalTransactionChain.sol:CanonicalTransactionChain",
+        "label": "maxTransactionGasLimit",
+        "offset": 0,
+        "slot": "4",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 3314,
+        "contract": "contracts/L1/rollup/CanonicalTransactionChain.sol:CanonicalTransactionChain",
+        "label": "_nextQueueIndex",
+        "offset": 0,
+        "slot": "5",
+        "type": "t_uint40"
+      },
+      {
+        "astId": 3318,
+        "contract": "contracts/L1/rollup/CanonicalTransactionChain.sol:CanonicalTransactionChain",
+        "label": "queueElements",
+        "offset": 0,
+        "slot": "6",
+        "type": "t_array(t_struct(QueueElement)6395_storage)dyn_storage"
+      }
+    ],
+    "types": {
+      "t_array(t_struct(QueueElement)6395_storage)dyn_storage": {
+        "base": "t_struct(QueueElement)6395_storage",
+        "encoding": "dynamic_array",
+        "label": "struct Lib_OVMCodec.QueueElement[]",
+        "numberOfBytes": "32"
+      },
+      "t_bytes32": {
+        "encoding": "inplace",
+        "label": "bytes32",
+        "numberOfBytes": "32"
+      },
+      "t_contract(Lib_AddressManager)6645": {
+        "encoding": "inplace",
+        "label": "contract Lib_AddressManager",
+        "numberOfBytes": "20"
+      },
+      "t_struct(QueueElement)6395_storage": {
+        "encoding": "inplace",
+        "label": "struct Lib_OVMCodec.QueueElement",
+        "members": [
+          {
+            "astId": 6390,
+            "contract": "contracts/L1/rollup/CanonicalTransactionChain.sol:CanonicalTransactionChain",
+            "label": "transactionHash",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_bytes32"
+          },
+          {
+            "astId": 6392,
+            "contract": "contracts/L1/rollup/CanonicalTransactionChain.sol:CanonicalTransactionChain",
+            "label": "timestamp",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_uint40"
+          },
+          {
+            "astId": 6394,
+            "contract": "contracts/L1/rollup/CanonicalTransactionChain.sol:CanonicalTransactionChain",
+            "label": "blockNumber",
+            "offset": 5,
+            "slot": "1",
+            "type": "t_uint40"
+          }
+        ],
+        "numberOfBytes": "64"
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      },
+      "t_uint40": {
+        "encoding": "inplace",
+        "label": "uint40",
+        "numberOfBytes": "5"
+      }
+    }
+  }
+}

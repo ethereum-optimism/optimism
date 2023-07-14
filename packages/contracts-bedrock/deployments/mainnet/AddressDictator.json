@@ -1,0 +1,243 @@
+{
+  "address": "0x7a74f7934a233e10E8757264132B2E4EbccF5098",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "contract Lib_AddressManager",
+          "name": "_manager",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_finalOwner",
+          "type": "address"
+        },
+        {
+          "internalType": "string[]",
+          "name": "_names",
+          "type": "string[]"
+        },
+        {
+          "internalType": "address[]",
+          "name": "_addresses",
+          "type": "address[]"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "finalOwner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "getNamedAddresses",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "string",
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "internalType": "address",
+              "name": "addr",
+              "type": "address"
+            }
+          ],
+          "internalType": "struct AddressDictator.NamedAddress[]",
+          "name": "",
+          "type": "tuple[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "manager",
+      "outputs": [
+        {
+          "internalType": "contract Lib_AddressManager",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "returnOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "setAddresses",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0xedbb6b8ddf9576d12f37434b146b889ba2874f2683f887f4db7e50b780ab11dc",
+  "receipt": {
+    "to": null,
+    "from": "0x0bb2cA5Ea700ba04c713008E1a3D198B4e8dA7a7",
+    "contractAddress": "0x7a74f7934a233e10E8757264132B2E4EbccF5098",
+    "transactionIndex": 12,
+    "gasUsed": "989432",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0x59ae23de1dc7d96c0c6fcd028afc195d3f6ae7d87b86527478dbcfd805e9167e",
+    "transactionHash": "0xedbb6b8ddf9576d12f37434b146b889ba2874f2683f887f4db7e50b780ab11dc",
+    "logs": [],
+    "blockNumber": 13596598,
+    "cumulativeGasUsed": "2032231",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [
+    "0xdE1FCfB0851916CA5101820A69b13a4E276bd81F",
+    "0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A",
+    [
+      "ChainStorageContainer-CTC-batches",
+      "ChainStorageContainer-SCC-batches",
+      "CanonicalTransactionChain",
+      "StateCommitmentChain",
+      "BondManager",
+      "OVM_L1CrossDomainMessenger",
+      "L2CrossDomainMessenger"
+    ],
+    [
+      "0xD16463EF9b0338CE3D73309028ef1714D220c024",
+      "0xb0ddFf09c4019e31960de11bD845E836078E8EbE",
+      "0x5E4e65926BA27467555EB562121fac00D24E9dD2",
+      "0xBe5dAb4A2e9cd0F27300dB4aB94BeE3A233AEB19",
+      "0xcd626E1328b41fCF24737F137BcD4CE0c32bc8d1",
+      "0xd9166833FF12A5F900ccfBf2c8B62a90F1Ca1FD5",
+      "0x4200000000000000000000000000000000000007"
+    ]
+  ],
+  "solcInputHash": "8a22f2b322f61ab13865f2d2a82e5f09",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.9+commit.e5eed63a\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"contract Lib_AddressManager\",\"name\":\"_manager\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_finalOwner\",\"type\":\"address\"},{\"internalType\":\"string[]\",\"name\":\"_names\",\"type\":\"string[]\"},{\"internalType\":\"address[]\",\"name\":\"_addresses\",\"type\":\"address[]\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[],\"name\":\"finalOwner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getNamedAddresses\",\"outputs\":[{\"components\":[{\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"internalType\":\"address\",\"name\":\"addr\",\"type\":\"address\"}],\"internalType\":\"struct AddressDictator.NamedAddress[]\",\"name\":\"\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"manager\",\"outputs\":[{\"internalType\":\"contract Lib_AddressManager\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"returnOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"setAddresses\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}],\"devdoc\":{\"details\":\"The AddressDictator (glory to Arstotzka) is a contract that allows us to safely manipulate      many different addresses in the AddressManager without transferring ownership of the      AddressManager to a hot wallet or hardware wallet.\",\"kind\":\"dev\",\"methods\":{\"constructor\":{\"params\":{\"_addresses\":\"Array of addresses to associate with the name.\",\"_finalOwner\":\"Address to transfer AddressManager ownership to afterwards.\",\"_manager\":\"Address of the AddressManager contract.\",\"_names\":\"Array of names to associate an address with.\"}}},\"title\":\"AddressDictator\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"getNamedAddresses()\":{\"notice\":\"Returns the full namedAddresses array.\"},\"returnOwnership()\":{\"notice\":\"Transfers ownership of this contract to the finalOwner. Only callable by the Final Owner, which is intended to be our multisig. This function shouldn't be necessary, but it gives a sense of reassurance that we can recover if something really surprising goes wrong.\"},\"setAddresses()\":{\"notice\":\"Called to finalize the transfer, this function is callable by anyone, but will only result in an upgrade if this contract is the owner Address Manager.\"}},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/L1/deployment/AddressDictator.sol\":\"AddressDictator\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":10000},\"remappings\":[]},\"sources\":{\"@openzeppelin/contracts/access/Ownable.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n\\npragma solidity ^0.8.0;\\n\\nimport \\\"../utils/Context.sol\\\";\\n\\n/**\\n * @dev Contract module which provides a basic access control mechanism, where\\n * there is an account (an owner) that can be granted exclusive access to\\n * specific functions.\\n *\\n * By default, the owner account will be the one that deploys the contract. This\\n * can later be changed with {transferOwnership}.\\n *\\n * This module is used through inheritance. It will make available the modifier\\n * `onlyOwner`, which can be applied to your functions to restrict their use to\\n * the owner.\\n */\\nabstract contract Ownable is Context {\\n    address private _owner;\\n\\n    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);\\n\\n    /**\\n     * @dev Initializes the contract setting the deployer as the initial owner.\\n     */\\n    constructor() {\\n        _setOwner(_msgSender());\\n    }\\n\\n    /**\\n     * @dev Returns the address of the current owner.\\n     */\\n    function owner() public view virtual returns (address) {\\n        return _owner;\\n    }\\n\\n    /**\\n     * @dev Throws if called by any account other than the owner.\\n     */\\n    modifier onlyOwner() {\\n        require(owner() == _msgSender(), \\\"Ownable: caller is not the owner\\\");\\n        _;\\n    }\\n\\n    /**\\n     * @dev Leaves the contract without owner. It will not be possible to call\\n     * `onlyOwner` functions anymore. Can only be called by the current owner.\\n     *\\n     * NOTE: Renouncing ownership will leave the contract without an owner,\\n     * thereby removing any functionality that is only available to the owner.\\n     */\\n    function renounceOwnership() public virtual onlyOwner {\\n        _setOwner(address(0));\\n    }\\n\\n    /**\\n     * @dev Transfers ownership of the contract to a new account (`newOwner`).\\n     * Can only be called by the current owner.\\n     */\\n    function transferOwnership(address newOwner) public virtual onlyOwner {\\n        require(newOwner != address(0), \\\"Ownable: new owner is the zero address\\\");\\n        _setOwner(newOwner);\\n    }\\n\\n    function _setOwner(address newOwner) private {\\n        address oldOwner = _owner;\\n        _owner = newOwner;\\n        emit OwnershipTransferred(oldOwner, newOwner);\\n    }\\n}\\n\",\"keccak256\":\"0x6bb804a310218875e89d12c053e94a13a4607cdf7cc2052f3e52bd32a0dc50a1\",\"license\":\"MIT\"},\"@openzeppelin/contracts/utils/Context.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n\\npragma solidity ^0.8.0;\\n\\n/**\\n * @dev Provides information about the current execution context, including the\\n * sender of the transaction and its data. While these are generally available\\n * via msg.sender and msg.data, they should not be accessed in such a direct\\n * manner, since when dealing with meta-transactions the account sending and\\n * paying for execution may not be the actual sender (as far as an application\\n * is concerned).\\n *\\n * This contract is only required for intermediate, library-like contracts.\\n */\\nabstract contract Context {\\n    function _msgSender() internal view virtual returns (address) {\\n        return msg.sender;\\n    }\\n\\n    function _msgData() internal view virtual returns (bytes calldata) {\\n        return msg.data;\\n    }\\n}\\n\",\"keccak256\":\"0x90565a39ae45c80f0468dc96c7b20d0afc3055f344c8203a0c9258239f350b9f\",\"license\":\"MIT\"},\"contracts/L1/deployment/AddressDictator.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.9;\\n\\nimport { Lib_AddressManager } from \\\"../../libraries/resolver/Lib_AddressManager.sol\\\";\\n\\n/**\\n * @title AddressDictator\\n * @dev The AddressDictator (glory to Arstotzka) is a contract that allows us to safely manipulate\\n *      many different addresses in the AddressManager without transferring ownership of the\\n *      AddressManager to a hot wallet or hardware wallet.\\n */\\ncontract AddressDictator {\\n    /*********\\n     * Types *\\n     *********/\\n\\n    struct NamedAddress {\\n        string name;\\n        address addr;\\n    }\\n\\n    /*************\\n     * Variables *\\n     *************/\\n\\n    Lib_AddressManager public manager;\\n    address public finalOwner;\\n    NamedAddress[] namedAddresses;\\n\\n    /***************\\n     * Constructor *\\n     ***************/\\n\\n    /**\\n     * @param _manager Address of the AddressManager contract.\\n     * @param _finalOwner Address to transfer AddressManager ownership to afterwards.\\n     * @param _names Array of names to associate an address with.\\n     * @param _addresses Array of addresses to associate with the name.\\n     */\\n    constructor(\\n        Lib_AddressManager _manager,\\n        address _finalOwner,\\n        string[] memory _names,\\n        address[] memory _addresses\\n    ) {\\n        manager = _manager;\\n        finalOwner = _finalOwner;\\n        require(\\n            _names.length == _addresses.length,\\n            \\\"AddressDictator: Must provide an equal number of names and addresses.\\\"\\n        );\\n        for (uint256 i = 0; i < _names.length; i++) {\\n            namedAddresses.push(NamedAddress({ name: _names[i], addr: _addresses[i] }));\\n        }\\n    }\\n\\n    /********************\\n     * Public Functions *\\n     ********************/\\n\\n    /**\\n     * Called to finalize the transfer, this function is callable by anyone, but will only result in\\n     * an upgrade if this contract is the owner Address Manager.\\n     */\\n    function setAddresses() external {\\n        for (uint256 i = 0; i < namedAddresses.length; i++) {\\n            manager.setAddress(namedAddresses[i].name, namedAddresses[i].addr);\\n        }\\n        // note that this will revert if _finalOwner == currentOwner\\n        manager.transferOwnership(finalOwner);\\n    }\\n\\n    /**\\n     * Transfers ownership of this contract to the finalOwner.\\n     * Only callable by the Final Owner, which is intended to be our multisig.\\n     * This function shouldn't be necessary, but it gives a sense of reassurance that we can recover\\n     * if something really surprising goes wrong.\\n     */\\n    function returnOwnership() external {\\n        require(msg.sender == finalOwner, \\\"AddressDictator: only callable by finalOwner\\\");\\n        manager.transferOwnership(finalOwner);\\n    }\\n\\n    /******************\\n     * View Functions *\\n     ******************/\\n\\n    /**\\n     * Returns the full namedAddresses array.\\n     */\\n    function getNamedAddresses() external view returns (NamedAddress[] memory) {\\n        return namedAddresses;\\n    }\\n}\\n\",\"keccak256\":\"0xd7257dc5d6c5855f57dc6c42f430f3c7bd4514a26756bac4183c65c77fd7cb70\",\"license\":\"MIT\"},\"contracts/libraries/resolver/Lib_AddressManager.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.9;\\n\\n/* External Imports */\\nimport { Ownable } from \\\"@openzeppelin/contracts/access/Ownable.sol\\\";\\n\\n/**\\n * @title Lib_AddressManager\\n */\\ncontract Lib_AddressManager is Ownable {\\n    /**********\\n     * Events *\\n     **********/\\n\\n    event AddressSet(string indexed _name, address _newAddress, address _oldAddress);\\n\\n    /*************\\n     * Variables *\\n     *************/\\n\\n    mapping(bytes32 => address) private addresses;\\n\\n    /********************\\n     * Public Functions *\\n     ********************/\\n\\n    /**\\n     * Changes the address associated with a particular name.\\n     * @param _name String name to associate an address with.\\n     * @param _address Address to associate with the name.\\n     */\\n    function setAddress(string memory _name, address _address) external onlyOwner {\\n        bytes32 nameHash = _getNameHash(_name);\\n        address oldAddress = addresses[nameHash];\\n        addresses[nameHash] = _address;\\n\\n        emit AddressSet(_name, _address, oldAddress);\\n    }\\n\\n    /**\\n     * Retrieves the address associated with a given name.\\n     * @param _name Name to retrieve an address for.\\n     * @return Address associated with the given name.\\n     */\\n    function getAddress(string memory _name) external view returns (address) {\\n        return addresses[_getNameHash(_name)];\\n    }\\n\\n    /**********************\\n     * Internal Functions *\\n     **********************/\\n\\n    /**\\n     * Computes the hash of a name.\\n     * @param _name Name to compute a hash for.\\n     * @return Hash of the given name.\\n     */\\n    function _getNameHash(string memory _name) internal pure returns (bytes32) {\\n        return keccak256(abi.encodePacked(_name));\\n    }\\n}\\n\",\"keccak256\":\"0xcde9b29429d512c549f7c1b8a033f161fa71c18cda08b241748663854196ae14\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x60806040523480156200001157600080fd5b5060405162000d5e38038062000d5e83398101604081905262000034916200037a565b600080546001600160a01b038087166001600160a01b03199283161790925560018054928616929091169190911790558051825114620000ee5760405162461bcd60e51b815260206004820152604560248201527f416464726573734469637461746f723a204d7573742070726f7669646520616e60448201527f20657175616c206e756d626572206f66206e616d657320616e6420616464726560648201526439b9b2b99760d91b608482015260a40160405180910390fd5b60005b8251811015620001c357600260405180604001604052808584815181106200011d576200011d62000505565b602002602001015181526020018484815181106200013f576200013f62000505565b6020908102919091018101516001600160a01b0316909152825460018101845560009384529281902082518051939460020290910192620001849284920190620001ce565b5060209190910151600190910180546001600160a01b0319166001600160a01b0390921691909117905580620001ba816200051b565b915050620000f1565b505050505062000582565b828054620001dc9062000545565b90600052602060002090601f0160209004810192826200020057600085556200024b565b82601f106200021b57805160ff19168380011785556200024b565b828001600101855582156200024b579182015b828111156200024b5782518255916020019190600101906200022e565b50620002599291506200025d565b5090565b5b808211156200025957600081556001016200025e565b6001600160a01b03811681146200028a57600080fd5b50565b634e487b7160e01b600052604160045260246000fd5b604051601f8201601f191681016001600160401b0381118282101715620002ce57620002ce6200028d565b604052919050565b60006001600160401b03821115620002f257620002f26200028d565b5060051b60200190565b600082601f8301126200030e57600080fd5b81516020620003276200032183620002d6565b620002a3565b82815260059290921b840181019181810190868411156200034757600080fd5b8286015b848110156200036f578051620003618162000274565b83529183019183016200034b565b509695505050505050565b600080600080608085870312156200039157600080fd5b84516200039e8162000274565b80945050602080860151620003b38162000274565b60408701519094506001600160401b0380821115620003d157600080fd5b818801915088601f830112620003e657600080fd5b8151620003f76200032182620002d6565b81815260059190911b8301840190848101908b8311156200041757600080fd5b8585015b83811015620004ce57805185811115620004355760008081fd5b8601603f81018e13620004485760008081fd5b87810151868111156200045f576200045f6200028d565b62000473601f8201601f19168a01620002a3565b8181528f60408385010111156200048a5760008081fd5b60005b82811015620004ab57838101604001518282018c01528a016200048d565b82811115620004bd5760008b84840101525b50855250509186019186016200041b565b5060608b01519097509450505080831115620004e957600080fd5b5050620004f987828801620002fc565b91505092959194509250565b634e487b7160e01b600052603260045260246000fd5b60006000198214156200053e57634e487b7160e01b600052601160045260246000fd5b5060010190565b600181811c908216806200055a57607f821691505b602082108114156200057c57634e487b7160e01b600052602260045260246000fd5b50919050565b6107cc80620005926000396000f3fe608060405234801561001057600080fd5b50600436106100675760003560e01c80633ccad6fc116100505780633ccad6fc146100c0578063481c6a75146100d5578063bc3a429b146100f557600080fd5b806317ad94ec1461006c578063297d1a34146100b6575b600080fd5b60015461008c9073ffffffffffffffffffffffffffffffffffffffff1681565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b6100be6100fd565b005b6100c8610232565b6040516100ad91906104af565b60005461008c9073ffffffffffffffffffffffffffffffffffffffff1681565b6100be610343565b60015473ffffffffffffffffffffffffffffffffffffffff1633146101a8576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602c60248201527f416464726573734469637461746f723a206f6e6c792063616c6c61626c65206260448201527f792066696e616c4f776e65720000000000000000000000000000000000000000606482015260840160405180910390fd5b6000546001546040517ff2fde38b00000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff918216600482015291169063f2fde38b906024015b600060405180830381600087803b15801561021857600080fd5b505af115801561022c573d6000803e3d6000fd5b50505050565b60606002805480602002602001604051908101604052809291908181526020016000905b8282101561033a5783829060005260206000209060020201604051806040016040529081600082018054610289906105ae565b80601f01602080910402602001604051908101604052809291908181526020018280546102b5906105ae565b80156103025780601f106102d757610100808354040283529160200191610302565b820191906000526020600020905b8154815290600101906020018083116102e557829003601f168201915b505050918352505060019182015473ffffffffffffffffffffffffffffffffffffffff16602091820152918352929092019101610256565b50505050905090565b60005b600254811015610454576000546002805473ffffffffffffffffffffffffffffffffffffffff90921691639b2ea4bd91908490811061038757610387610602565b9060005260206000209060020201600001600284815481106103ab576103ab610602565b60009182526020909120600160029092020101546040517fffffffff0000000000000000000000000000000000000000000000000000000060e085901b16815261040f929173ffffffffffffffffffffffffffffffffffffffff1690600401610631565b600060405180830381600087803b15801561042957600080fd5b505af115801561043d573d6000803e3d6000fd5b50505050808061044c90610736565b915050610346565b506000546001546040517ff2fde38b00000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff918216600482015291169063f2fde38b906024016101fe565b60006020808301818452808551808352604092508286019150828160051b8701018488016000805b8481101561059f577fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc08a8503018652825180518886528051808a880152845b81811015610532578281018c0151888201606001528b01610516565b8181111561054357856060838a0101525b50918a015173ffffffffffffffffffffffffffffffffffffffff16868b01525095880195601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01690930160600192918701916001016104d7565b50919998505050505050505050565b600181811c908216806105c257607f821691505b602082108114156105fc577f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b50919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b60408152600080845481600182811c91508083168061065157607f831692505b602080841082141561068a577f4e487b710000000000000000000000000000000000000000000000000000000086526022600452602486fd5b60408801849052606088018280156106a957600181146106d857610703565b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00871682528282019750610703565b60008c81526020902060005b878110156106fd578154848201529086019084016106e4565b83019850505b50508596506107298189018a73ffffffffffffffffffffffffffffffffffffffff169052565b5050505050509392505050565b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82141561078f577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b506001019056fea2646970667358221220887af7eba4d3f3d6334054ac570c07f1274d85013ffd1137e64c17b5cc13380864736f6c63430008090033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b50600436106100675760003560e01c80633ccad6fc116100505780633ccad6fc146100c0578063481c6a75146100d5578063bc3a429b146100f557600080fd5b806317ad94ec1461006c578063297d1a34146100b6575b600080fd5b60015461008c9073ffffffffffffffffffffffffffffffffffffffff1681565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b6100be6100fd565b005b6100c8610232565b6040516100ad91906104af565b60005461008c9073ffffffffffffffffffffffffffffffffffffffff1681565b6100be610343565b60015473ffffffffffffffffffffffffffffffffffffffff1633146101a8576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602c60248201527f416464726573734469637461746f723a206f6e6c792063616c6c61626c65206260448201527f792066696e616c4f776e65720000000000000000000000000000000000000000606482015260840160405180910390fd5b6000546001546040517ff2fde38b00000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff918216600482015291169063f2fde38b906024015b600060405180830381600087803b15801561021857600080fd5b505af115801561022c573d6000803e3d6000fd5b50505050565b60606002805480602002602001604051908101604052809291908181526020016000905b8282101561033a5783829060005260206000209060020201604051806040016040529081600082018054610289906105ae565b80601f01602080910402602001604051908101604052809291908181526020018280546102b5906105ae565b80156103025780601f106102d757610100808354040283529160200191610302565b820191906000526020600020905b8154815290600101906020018083116102e557829003601f168201915b505050918352505060019182015473ffffffffffffffffffffffffffffffffffffffff16602091820152918352929092019101610256565b50505050905090565b60005b600254811015610454576000546002805473ffffffffffffffffffffffffffffffffffffffff90921691639b2ea4bd91908490811061038757610387610602565b9060005260206000209060020201600001600284815481106103ab576103ab610602565b60009182526020909120600160029092020101546040517fffffffff0000000000000000000000000000000000000000000000000000000060e085901b16815261040f929173ffffffffffffffffffffffffffffffffffffffff1690600401610631565b600060405180830381600087803b15801561042957600080fd5b505af115801561043d573d6000803e3d6000fd5b50505050808061044c90610736565b915050610346565b506000546001546040517ff2fde38b00000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff918216600482015291169063f2fde38b906024016101fe565b60006020808301818452808551808352604092508286019150828160051b8701018488016000805b8481101561059f577fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffc08a8503018652825180518886528051808a880152845b81811015610532578281018c0151888201606001528b01610516565b8181111561054357856060838a0101525b50918a015173ffffffffffffffffffffffffffffffffffffffff16868b01525095880195601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe01690930160600192918701916001016104d7565b50919998505050505050505050565b600181811c908216806105c257607f821691505b602082108114156105fc577f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b50919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b60408152600080845481600182811c91508083168061065157607f831692505b602080841082141561068a577f4e487b710000000000000000000000000000000000000000000000000000000086526022600452602486fd5b60408801849052606088018280156106a957600181146106d857610703565b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00871682528282019750610703565b60008c81526020902060005b878110156106fd578154848201529086019084016106e4565b83019850505b50508596506107298189018a73ffffffffffffffffffffffffffffffffffffffff169052565b5050505050509392505050565b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82141561078f577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b506001019056fea2646970667358221220887af7eba4d3f3d6334054ac570c07f1274d85013ffd1137e64c17b5cc13380864736f6c63430008090033",
+  "devdoc": {
+    "details": "The AddressDictator (glory to Arstotzka) is a contract that allows us to safely manipulate      many different addresses in the AddressManager without transferring ownership of the      AddressManager to a hot wallet or hardware wallet.",
+    "kind": "dev",
+    "methods": {
+      "constructor": {
+        "params": {
+          "_addresses": "Array of addresses to associate with the name.",
+          "_finalOwner": "Address to transfer AddressManager ownership to afterwards.",
+          "_manager": "Address of the AddressManager contract.",
+          "_names": "Array of names to associate an address with."
+        }
+      }
+    },
+    "title": "AddressDictator",
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {
+      "getNamedAddresses()": {
+        "notice": "Returns the full namedAddresses array."
+      },
+      "returnOwnership()": {
+        "notice": "Transfers ownership of this contract to the finalOwner. Only callable by the Final Owner, which is intended to be our multisig. This function shouldn't be necessary, but it gives a sense of reassurance that we can recover if something really surprising goes wrong."
+      },
+      "setAddresses()": {
+        "notice": "Called to finalize the transfer, this function is callable by anyone, but will only result in an upgrade if this contract is the owner Address Manager."
+      }
+    },
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 1908,
+        "contract": "contracts/L1/deployment/AddressDictator.sol:AddressDictator",
+        "label": "manager",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_contract(Lib_AddressManager)6645"
+      },
+      {
+        "astId": 1910,
+        "contract": "contracts/L1/deployment/AddressDictator.sol:AddressDictator",
+        "label": "finalOwner",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_address"
+      },
+      {
+        "astId": 1914,
+        "contract": "contracts/L1/deployment/AddressDictator.sol:AddressDictator",
+        "label": "namedAddresses",
+        "offset": 0,
+        "slot": "2",
+        "type": "t_array(t_struct(NamedAddress)1905_storage)dyn_storage"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_array(t_struct(NamedAddress)1905_storage)dyn_storage": {
+        "base": "t_struct(NamedAddress)1905_storage",
+        "encoding": "dynamic_array",
+        "label": "struct AddressDictator.NamedAddress[]",
+        "numberOfBytes": "32"
+      },
+      "t_contract(Lib_AddressManager)6645": {
+        "encoding": "inplace",
+        "label": "contract Lib_AddressManager",
+        "numberOfBytes": "20"
+      },
+      "t_string_storage": {
+        "encoding": "bytes",
+        "label": "string",
+        "numberOfBytes": "32"
+      },
+      "t_struct(NamedAddress)1905_storage": {
+        "encoding": "inplace",
+        "label": "struct AddressDictator.NamedAddress",
+        "members": [
+          {
+            "astId": 1902,
+            "contract": "contracts/L1/deployment/AddressDictator.sol:AddressDictator",
+            "label": "name",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_string_storage"
+          },
+          {
+            "astId": 1904,
+            "contract": "contracts/L1/deployment/AddressDictator.sol:AddressDictator",
+            "label": "addr",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_address"
+          }
+        ],
+        "numberOfBytes": "64"
+      }
+    }
+  }
+}
