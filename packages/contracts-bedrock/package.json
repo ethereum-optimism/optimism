@@ -18,14 +18,15 @@
     "build:forge": "forge build",
     "build:differential": "go build -o ./scripts/differential-testing/differential-testing ./scripts/differential-testing",
     "build:fuzz": "(cd test-case-generator && go build ./cmd/fuzz.go)",
-    "autogen:invariant-docs": "ts-node scripts/invariant-doc-gen.ts",
+    "generate:addresses": "tsx scripts/generate-addresses.ts",
+    "autogen:invariant-docs": "tsx scripts/invariant-doc-gen.ts",
     "test": "pnpm build:differential && pnpm build:fuzz && forge test",
     "coverage": "pnpm build:differential && pnpm build:fuzz && forge coverage",
     "coverage:lcov": "pnpm build:differential && pnpm build:fuzz && forge coverage --report lcov",
     "gas-snapshot": "pnpm build:differential && pnpm build:fuzz && forge snapshot --no-match-test 'testDiff|testFuzz|invariant|generateArtifact'",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
     "validate-deploy-configs": "./scripts/validate-deploy-configs.sh",
-    "validate-spacers": "forge build && npx ts-node scripts/validate-spacers.ts",
+    "validate-spacers": "forge build && tsx scripts/validate-spacers.ts",
     "slither": "./scripts/slither.sh",
     "slither:triage": "TRIAGE_MODE=1 ./scripts/slither.sh",
     "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./tsconfig.build.tsbuildinfo ./src/contract-artifacts.ts ./test-case-generator/fuzz",
@@ -33,6 +34,8 @@
     "lint:ts:check": "eslint . --max-warnings=0",
     "lint:forge-tests:check": "ts-node scripts/forge-test-names.ts",
     "lint:contracts:check": "pnpm solhint -f table 'contracts/**/!(DisputeTypes|RLPReader|EAS|SchemaRegistry|IEAS|ISchemaRegistry|SchemaResolver|EIP712Verifier|ISchemaResolver).sol' && pnpm prettier --check 'contracts/**/!(DisputeTypes|RLPReader|EAS|SchemaRegistry|IEAS|ISchemaRegistry|SchemaResolver|EIP712Verifier|ISchemaResolver).sol' && pnpm lint:forge-tests:check",
+    "lint:forge-tests:check": "tsx scripts/forge-test-names.ts",
+    "lint:contracts:check": "pnpm solhint -f table 'contracts/**/!(DisputeTypes|RLPReader).sol' && pnpm prettier --check 'contracts/**/!(DisputeTypes|RLPReader).sol' && pnpm lint:forge-tests:check",
     "lint:check": "pnpm lint:contracts:check && pnpm lint:ts:check",
     "lint:ts:fix": "eslint --fix .",
     "lint:contracts:fix": "pnpm solhint --fix 'contracts/**/!(DisputeTypes|RLPReader|EAS|SchemaRegistry|IEAS|ISchemaRegistry|SchemaResolver|EIP712Verifier|ISchemaResolver).sol' && pnpm prettier --write 'contracts/**/!(DisputeTypes|RLPReader|EAS|SchemaRegistry|IEAS|ISchemaRegistry|SchemaResolver|EIP712Verifier|ISchemaResolver).sol'",
@@ -46,13 +49,18 @@
     "clones-with-immutable-args": "github:Saw-mon-and-Natalie/clones-with-immutable-args#105efee1b9127ed7f6fedf139e1fc796ce8791f2"
   },
   "devDependencies": {
+    "@types/glob": "^8.1.0",
+    "@types/node": "^16.18.38",
     "@typescript-eslint/eslint-plugin": "^5.60.1",
     "@typescript-eslint/parser": "^5.60.1",
+    "abitype": "^0.9.0",
     "ds-test": "github:dapphub/ds-test#c9ce3f25bde29fc5eb9901842bf02850dfd2d084",
     "forge-std": "github:foundry-rs/forge-std#e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
+    "glob": "^7.2.3",
     "solhint": "^3.4.1",
     "solhint-plugin-prettier": "^0.0.5",
-    "ts-node": "^10.9.1",
-    "typescript": "^4.9.3"
+    "tsx": "^3.12.7",
+    "typescript": "^4.9.3",
+    "zod": "^3.11.6"
   }
 }
