@@ -46,7 +46,7 @@ It consists of the following fields:
  when executing a branch/jump delay slot.
 6. `lo` - 32-bit MIPS LO special register.
 7. `hi` - 32-bit MIPS HI special register.
-8. `heap` - 32-bit base address of the most recently allocated page in the free store.
+8. `heap` - 32-bit base address of the most recent memory allocation via mmap.
 9. `exitCode` - 8-bit exit code.
 10. `exited` - 1-bit indicator that the VM has exited.
 11. `registers` - General-purpose MIPS32 registers. Each register is a 32-bit value.
@@ -65,7 +65,7 @@ location as the entire address space is unprotected.
 
 ### Heap
 
-FPVM state contains a `heap` that tracks the current address of the free store used for memory allocation.
+FPVM state contains a `heap` that tracks the base address of the most recent memory allocation.
 Heap pages are bump allocated at the page boundary, per `mmap` syscall. The page size is 4096.
 
 The FPVM has a fixed program break at `0x40000000`. However, the FPVM is permitted to extend the
