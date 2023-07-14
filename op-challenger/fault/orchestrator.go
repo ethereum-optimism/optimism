@@ -15,7 +15,7 @@ type Orchestrator struct {
 	claimLen, stepLen, step int
 }
 
-func NewOrchestrator(maxDepth uint64, traces []TraceProvider, names []string, root Claim) Orchestrator {
+func NewOrchestrator(maxDepth uint64, traces []TraceProvider, names []string, agreeWithProposedOutput []bool, root Claim) Orchestrator {
 	o := Orchestrator{
 		agents: make([]Agent, len(traces)),
 		claims: []Claim{root},
@@ -23,7 +23,7 @@ func NewOrchestrator(maxDepth uint64, traces []TraceProvider, names []string, ro
 	}
 	log.Info("Starting game", "root_letter", string(root.Value[31:]))
 	for i, trace := range traces {
-		o.agents[i] = NewAgent(&o, int(maxDepth), trace, &o, log.New("role", names[i]))
+		o.agents[i] = NewAgent(&o, int(maxDepth), trace, &o, agreeWithProposedOutput[i], log.New("role", names[i]))
 	}
 	return o
 }

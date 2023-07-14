@@ -26,6 +26,6 @@ func FullGame() {
 		},
 	}
 
-	o := fault.NewOrchestrator(maxDepth, []fault.TraceProvider{canonicalProvider, disputedProvider}, []string{"charlie", "mallory"}, root)
+	o := fault.NewOrchestrator(maxDepth, []fault.TraceProvider{canonicalProvider, disputedProvider}, []string{"charlie", "mallory"}, []bool{false, true}, root)
 	o.Start()
 }

@@ -21,22 +21,26 @@ var (
 // This also contains config options for auxiliary services.
 // It is used to initialize the challenger.
 type Config struct {
-	L1EthRpc      string         // L1 RPC Url
-	GameAddress   common.Address // Address of the fault game
-	AlphabetTrace string         // String for the AlphabetTraceProvider
+	L1EthRpc                string         // L1 RPC Url
+	GameAddress             common.Address // Address of the fault game
+	AlphabetTrace           string         // String for the AlphabetTraceProvider
+	AgreeWithProposedOutput bool           // Temporary config if we agree or disagree with the posted output
 
 	TxMgrConfig txmgr.CLIConfig
 }
 
-func NewConfig(l1EthRpc string,
+func NewConfig(
+	l1EthRpc string,
 	GameAddress common.Address,
 	AlphabetTrace string,
+	AgreeWithProposedOutput bool,
 ) Config {
 	return Config{
-		L1EthRpc:      l1EthRpc,
-		GameAddress:   GameAddress,
-		AlphabetTrace: AlphabetTrace,
-		TxMgrConfig:   txmgr.NewCLIConfig(l1EthRpc),
+		L1EthRpc:                l1EthRpc,
+		GameAddress:             GameAddress,
+		AlphabetTrace:           AlphabetTrace,
+		TxMgrConfig:             txmgr.NewCLIConfig(l1EthRpc),
+		AgreeWithProposedOutput: AgreeWithProposedOutput,
 	}
 }
 
@@ -70,9 +74,10 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 
 	return &Config{
 		// Required Flags
-		L1EthRpc:      ctx.String(flags.L1EthRpcFlag.Name),
-		GameAddress:   dgfAddress,
-		AlphabetTrace: ctx.String(flags.AlphabetFlag.Name),
-		TxMgrConfig:   txMgrConfig,
+		L1EthRpc:                ctx.String(flags.L1EthRpcFlag.Name),
+		GameAddress:             dgfAddress,
+		AlphabetTrace:           ctx.String(flags.AlphabetFlag.Name),
+		AgreeWithProposedOutput: ctx.Bool(flags.AgreeWithProposedOutputFlag.Name),
+		TxMgrConfig:             txMgrConfig,
 	}, nil
 }
