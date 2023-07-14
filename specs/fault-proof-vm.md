@@ -11,7 +11,10 @@
 - [Delay Slots](#delay-slots)
 - [Syscalls](#syscalls)
 - [I/O](#io)
+  - [Standard Streams](#standard-streams)
+  - [Hint Communication](#hint-communication)
   - [Pre-image Communication](#pre-image-communication)
+    - [Pre-image I/O Alignment](#pre-image-io-alignment)
 - [Exceptions](#exceptions)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
