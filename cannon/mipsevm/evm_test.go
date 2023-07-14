@@ -63,6 +63,8 @@ func TestEVM(t *testing.T) {
 			if strings.HasPrefix(f.Name(), "oracle") {
 				oracle = staticOracle(t, []byte("hello world"))
 			}
+			// Short-circuit early for exit_group.bin
+			exitGroup := f.Name() == "exit_group.bin"
 
 			env, evmState := NewEVMEnv(contracts, addrs)
 			env.Config.Tracer = tracer
@@ -81,6 +83,9 @@ func TestEVM(t *testing.T) {
 
 			for i := 0; i < 1000; i++ {
 				if us.state.PC == endAddr {
+					break
+				}
+				if exitGroup && us.state.Exited {
 					break
 				}
 				insn := state.Memory.GetMemory(state.PC)
@@ -122,11 +127,17 @@ func TestEVM(t *testing.T) {
 				require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
 					"mipsevm produced different state than EVM")
 			}
-			require.Equal(t, uint32(endAddr), state.PC, "must reach end")
-			// inspect test result
-			done, result := state.Memory.GetMemory(baseAddrEnd+4), state.Memory.GetMemory(baseAddrEnd+8)
-			require.Equal(t, done, uint32(1), "must be done")
-			require.Equal(t, result, uint32(1), "must have success result")
+			if exitGroup {
+				require.NotEqual(t, uint32(endAddr), us.state.PC, "must not reach end")
+				require.True(t, us.state.Exited, "must set exited state")
+				require.Equal(t, uint8(1), us.state.ExitCode, "must exit with 1")
+			} else {
+				require.Equal(t, uint32(endAddr), state.PC, "must reach end")
+				// inspect test result
+				done, result := state.Memory.GetMemory(baseAddrEnd+4), state.Memory.GetMemory(baseAddrEnd+8)
+				require.Equal(t, done, uint32(1), "must be done")
+				require.Equal(t, result, uint32(1), "must have success result")
+			}
 		})
 	}
 }

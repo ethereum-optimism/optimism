@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.7.6;
 
-interface IPreimageOracle {
-  function readPreimage(bytes32 key, uint256 offset) external view returns (bytes32 dat, uint256 datLen);
-}
+import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
 
 // https://inst.eecs.berkeley.edu/~cs61c/resources/MIPS_Green_Sheet.pdf
 // https://uweb.engr.arizona.edu/~ece369/Resources/spim/MIPSReference.pdf

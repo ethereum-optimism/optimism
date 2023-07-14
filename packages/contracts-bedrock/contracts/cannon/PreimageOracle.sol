@@ -46,8 +46,8 @@ contract PreimageOracle {
         assembly {
             // len(sig) + len(partOffset) + len(preimage offset) = 4 + 32 + 32 = 0x44
             size := calldataload(0x44)
-            // revert if part offset >= size+8 (i.e. parts must be within bounds)
-            if iszero(lt(partOffset, add(size, 8))) {
+            // revert if part offset > size+8 (i.e. parts must be within bounds)
+            if gt(partOffset, add(size, 8)) {
                 revert(0, 0)
             }
             // we leave solidity slots 0x40 and 0x60 untouched,

@@ -7,7 +7,9 @@
     "nx.json": "*",
     "tsconfig.json": "*",
     ".foundryrc": "*",
-    ".nvmrc": "*"
+    "pnpm.lock.yaml": "*",
+    ".npmrc": "*",
+    ".nvmrc":  "*"
   },
   "tasksRunnerOptions": {
     "default": {
