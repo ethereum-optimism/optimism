@@ -30,7 +30,7 @@ You’ll need the following software installed to follow this tutorial:
 - [Git](https://git-scm.com/)
 - [Go](https://go.dev/)
 - [Node](https://nodejs.org/en/)
-- [Yarn](https://classic.yarnpkg.com/lang/en/docs/install/)
+- [Pnpm](https://classic.yarnpkg.com/lang/en/docs/install/)
 - [Foundry](https://github.com/foundry-rs/foundry#installation)
 - [Make](https://linux.die.net/man/1/make)
 - [jq](https://github.com/jqlang/jq)
@@ -44,7 +44,7 @@ This tutorial was checked on:
 | git, curl, jq, and make | OS default | `sudo apt install -y git curl make jq` |
 | Go       | 1.20       | `sudo apt update` <br> `wget https://go.dev/dl/go1.20.linux-amd64.tar.gz` <br> `tar xvzf go1.20.linux-amd64.tar.gz` <br> `sudo cp go/bin/go /usr/bin/go` <br> `sudo mv go /usr/lib` <br> `echo export GOROOT=/usr/lib/go >> ~/.bashrc`
 | Node     | 16.19.0    | `curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -` <br> `sudo apt-get install -y nodejs npm`
-| yarn     | 1.22.19    | `sudo npm install -g yarn`
+| pnpm     | 8.5.6      | `sudo npm install -g pnpm`
 | Foundry  | 0.2.0      | `yarn install:foundry`
 
 ## Build the Source Code
@@ -69,14 +69,14 @@ We’re going to be spinning up an EVM Rollup from the OP Stack source code.  Yo
 1. Install required modules. This is a slow process, while it is running you can already start building `op-geth`, as shown below.
 
     ```bash
-    yarn install
+    pnpm install
     ```
 
 1. Build the various packages inside of the Optimism Monorepo.
 
     ```bash
     make op-node op-batcher op-proposer
-    yarn build
+    pnpm build
     ```
 
 ### Build op-geth
@@ -278,7 +278,7 @@ We’ve set up the L1 side of things, but now we need to set up the L2 side of t
 
     You should then see the `genesis.json` and `rollup.json` files inside the `op-node` package.
 
-1. Next, generate the `jwt.txt` file with the following command:
+ 1. Next, generate the `jwt.txt` file with the following command:
 
     ```bash
     openssl rand -hex 32 > jwt.txt
@@ -307,24 +307,6 @@ We’re almost ready to run our chain! Now we just need to run a few commands to
     mkdir datadir
     ```
 
-1. Put a password file into the data directory folder:
-
-    ```bash
-    echo "pwd" > datadir/password
-    ```
-
-1. Put the `Sequencer` private key into the data directory folder (don’t include a “0x” prefix):
-
-    ```bash
-    echo "<SEQUENCER KEY HERE>" > datadir/block-signer-key
-    ```
-
-1. Import the key into `op-geth`:
-
-    ```bash
-    ./build/bin/geth account import --datadir=datadir --password=datadir/password datadir/block-signer-key
-    ```
-
 1. Next we need to initialize `op-geth` with the genesis file we generated and copied earlier:
 
     ```bash
@@ -344,7 +326,6 @@ Set these environment variables for the configuration
 
 | Variable       | Value |
 | -------------- | -
-| `SEQ_ADDR`     | Address of the `Sequencer` account
 | `SEQ_KEY`      | Private key of the `Sequencer` account
 | `BATCHER_KEY`  | Private key of the `Batcher` accounts, which should have at least 1 ETH
 | `PROPOSER_KEY` | Private key of the `Proposer` account
@@ -360,32 +341,27 @@ Run `op-geth` with the following commands.
 cd ~/op-geth
 
 ./build/bin/geth \
-	--datadir ./datadir \
-	--http \
-	--http.corsdomain="*" \
-	--http.vhosts="*" \
-	--http.addr=0.0.0.0 \
-	--http.api=web3,debug,eth,txpool,net,engine \
-	--ws \
-	--ws.addr=0.0.0.0 \
-	--ws.port=8546 \
-	--ws.origins="*" \
-	--ws.api=debug,eth,txpool,net,engine \
-	--syncmode=full \
-	--gcmode=archive \
-	--nodiscover \
-	--maxpeers=0 \
-	--networkid=42069 \
-	--authrpc.vhosts="*" \
-	--authrpc.addr=0.0.0.0 \
-	--authrpc.port=8551 \
-	--authrpc.jwtsecret=./jwt.txt \
-	--rollup.disabletxpoolgossip=true \
-	--password=./datadir/password \
-	--allow-insecure-unlock \
-	--mine \
-	--miner.etherbase=$SEQ_ADDR \
-	--unlock=$SEQ_ADDR
+        --datadir ./datadir \
+        --http \
+        --http.corsdomain="*" \
+        --http.vhosts="*" \
+        --http.addr=0.0.0.0 \
+        --http.api=web3,debug,eth,txpool,net,engine \
+        --ws \
+        --ws.addr=0.0.0.0 \
+        --ws.port=8546 \
+        --ws.origins="*" \
+        --ws.api=debug,eth,txpool,net,engine \
+        --syncmode=full \
+        --gcmode=archive \
+        --nodiscover \
+        --maxpeers=0 \
+        --networkid=42069 \
+        --authrpc.vhosts="*" \
+        --authrpc.addr=0.0.0.0 \
+        --authrpc.port=8551 \
+        --authrpc.jwtsecret=./jwt.txt \
+        --rollup.disabletxpoolgossip=true
 ```
 
 And `op-geth` should be running! You should see some output, but you won’t see any blocks being created yet because `op-geth` is driven by the `op-node`. We’ll need to get that running next.
@@ -443,7 +419,7 @@ cd ~/optimism/op-node
 
 ./bin/op-node \
 	--l2=http://localhost:8551 \
-	--l2.jwt-secret=./jwt.txt \
+	--l2.jwt-secret=./jwt.txt \    
 	--sequencer.enabled \
 	--sequencer.l1-confs=3 \
 	--verifier.l1-confs=3 \
