@@ -10,14 +10,14 @@
   },
   "homepage": "https://optimism.io",
   "type": "module",
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
-  "types": "src/index.ts",
+  "main": "dist/constants.js",
+  "module": "dist/constants.mjs",
+  "types": "src/constants.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
+      "types": "./src/constants.ts",
+      "import": "./dist/constants.js",
+      "require": "./dist/constants.cjs"
     },
     "./actions": {
       "types": "./src/actions.ts",
