@@ -1351,22 +1351,21 @@ func TestBatcherMultiTx(t *testing.T) {
 	err = sys.BatchSubmitter.Start()
 	require.Nil(t, err)
 
-	// wait for 3 L1 blocks
-	_, err = waitForBlock(big.NewInt(int64(l1Number)+3), l1Client, time.Duration(cfg.DeployConfig.L1BlockTime*5)*time.Second)
-	require.Nil(t, err, "Waiting for l1 blocks")
-
-	// count the number of transactions submitted to L1 in the last 3 blocks
-	ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 	totalTxCount := 0
-	for i := int64(0); i < 3; i++ {
-		block, err := l1Client.BlockByNumber(ctx, big.NewInt(int64(l1Number)+i+1))
-		require.Nil(t, err)
+	// wait for up to 10 L1 blocks, usually only 3 is required, but it's
+	// possible additional L1 blocks will be created before the batcher starts,
+	// so we wait additional blocks.
+	for i := int64(0); i < 10; i++ {
+		block, err := waitForBlock(big.NewInt(int64(l1Number)+i), l1Client, time.Duration(cfg.DeployConfig.L1BlockTime*5)*time.Second)
+		require.Nil(t, err, "Waiting for l1 blocks")
 		totalTxCount += len(block.Transactions())
+
+		if totalTxCount >= 10 {
+			return
+		}
 	}
 
-	// expect at least 10 batcher transactions, given 10 L2 blocks were generated above
-	require.GreaterOrEqual(t, totalTxCount, 10)
+	t.Fatal("Expected at least 10 transactions from the batcher")
 }
 
 func safeAddBig(a *big.Int, b *big.Int) *big.Int {
