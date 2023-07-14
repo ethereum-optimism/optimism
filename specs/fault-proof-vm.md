@@ -129,7 +129,7 @@ Consequently, the return value of read/write syscalls is at most 4, indicating t
 
 ### Standard Streams
 
-Writing to stderr/stdout standard stream always succeeds with the write count input returned.
+Writing to stderr/stdout standard stream always succeeds with the write count input returned, effectively continuing execution without writing work.
 Reading from stdin has no effect other than to return zero and errno set to 0.
 
 ### Hint Communication
