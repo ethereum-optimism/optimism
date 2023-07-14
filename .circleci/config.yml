@@ -86,6 +86,10 @@ jobs:
             -- -parallel=2 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./...
           working_directory: cannon
       - run:
+          name: Cannon Go fuzz tests
+          command: make fuzz
+          working_directory: cannon
+      - run:
           name: upload Cannon coverage
           command: codecov --verbose --clean --flags cannon-go-tests
       - store_test_results:
