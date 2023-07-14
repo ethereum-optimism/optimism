@@ -10,7 +10,7 @@
   ],
   "scripts": {
     "bindings": "pnpm bindings:ts && pnpm bindings:go",
-    "bindings:ts": "nx generate @eth-optimism/contracts-ts",
+    "bindings:ts": "pnpm generate:addresses && nx generate @eth-optimism/contracts-ts",
     "bindings:go": "cd ../../op-bindings && make",
     "build": "nx build:contracts",
     "prebuild:contracts": "./scripts/verify-foundry-install.sh",
