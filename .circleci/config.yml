@@ -72,7 +72,7 @@ jobs:
           command: mkdir -p /tmp/test-results
       - run:
           name: build Cannon example binaries
-          command: make elf  # only compile ELF binaries with Go, we do not have MIPS GCC for creating the debug-dumps.
+          command: make elf # only compile ELF binaries with Go, we do not have MIPS GCC for creating the debug-dumps.
           working_directory: cannon/example
       - run:
           name: Cannon Go lint
@@ -90,6 +90,18 @@ jobs:
           command: codecov --verbose --clean --flags cannon-go-tests
       - store_test_results:
           path: /tmp/test-results
+  cannon-build-test-vectors:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: medium
+    steps:
+      - checkout
+      - check-changed:
+          patterns: cannon/mipsevm/open_mips_tests/test
+      - run:
+          name: Build MIPS test vectors
+          command: python3 maketests.py && git diff --exit-code
+          working_directory: cannon/mipsevm/open_mips_tests
 
   pnpm-monorepo:
     docker:
@@ -1208,14 +1220,14 @@ workflows:
           name: fault-detector-tests
           coverage_flag: fault-detector-tests
           package_name: fault-detector
-          dependencies: '(common-ts|core-utils|sdk)'
+          dependencies: "(common-ts|core-utils|sdk)"
           requires:
             - pnpm-monorepo
       - js-lint-test:
           name: sdk-next-tests
           coverage_flag: sdk-next-tests
           package_name: sdk
-          dependencies: '(common-ts|contracts-bedrock|core-utils)'
+          dependencies: "(common-ts|contracts-bedrock|core-utils)"
           requires:
             - pnpm-monorepo
       - js-lint-test:
@@ -1229,7 +1241,7 @@ workflows:
           name: sdk-tests
           coverage_flag: sdk-tests
           package_name: sdk
-          dependencies: '(contracts-bedrock|core-utils)'
+          dependencies: "(contracts-bedrock|core-utils)"
           requires:
             - pnpm-monorepo
       - depcheck:
@@ -1489,6 +1501,7 @@ workflows:
       - check-generated-mocks-op-node
       - check-generated-mocks-op-service
       - cannon-go-lint-and-test
+      - cannon-build-test-vectors
   release:
     jobs:
       - hold:
@@ -1646,7 +1659,7 @@ workflows:
           cron: "0 0,6,12,18 * * *"
           filters:
             branches:
-              only: [ "develop" ]
+              only: ["develop"]
     jobs:
       - fpp-verify:
           context:
@@ -1660,7 +1673,7 @@ workflows:
           cron: "0 0 * * *"
           filters:
             branches:
-              only: [ "develop" ]
+              only: ["develop"]
     jobs:
       - bedrock-markdown-links:
           context: slack
