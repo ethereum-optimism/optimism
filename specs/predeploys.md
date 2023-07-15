@@ -311,3 +311,20 @@ Address: `0x420000000000000000000000000000000000001a`
 The `L1FeeVault` predeploy receives the L1 portion of the transaction fees.
 Once the contract has received a certain amount of fees, the ETH can be
 withdrawn to an immutable address on L1.
+
+## SchemaRegistry
+
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/EAS/SchemaRegistry.sol)
+
+Address: `0x4200000000000000000000000000000000000020`
+
+The `SchemaRegistry` predeploy implements the global attestation schemas for the `Ethereum Attestation Service`
+protocol.
+
+## EAS
+
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/EAS/EAS.sol)
+
+Address: `0x4200000000000000000000000000000000000021`
+
+The `EAS` predeploy implements the `Ethereum Attestation Service` protocol.
