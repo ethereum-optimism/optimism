@@ -13,16 +13,16 @@ volumes:
 services:
   da:
     platform: linux/x86_64
-    image: "ghcr.io/rollkit/local-celestia-devnet:v0.10.0"
+    image: "ghcr.io/rollkit/local-celestia-devnet:v0.11.0-rc6"
     ports:
       - "26657:26657"
       - "26659:26659"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:26659/header/1"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
 
   l1:
     build:
@@ -126,10 +126,14 @@ services:
 
   op-batcher:
     depends_on:
-      - l1
-      - l2
-      - op-node
-      - da
+      l1:
+        condition: service_started
+      l2:
+        condition: service_started
+      op-node:
+        condition: service_started
+      da:
+        condition: service_healthy
     build:
       context: ../
       dockerfile: ./op-batcher/Dockerfile
@@ -137,9 +141,6 @@ services:
       - "6061:6060"
       - "7301:7300"
       - "6545:8545"
-    depends_on:
-      da:
-        condition: service_healthy
     environment:
       OP_BATCHER_L1_ETH_RPC: http://l1:8545
       OP_BATCHER_L2_ETH_RPC: http://l2:8545

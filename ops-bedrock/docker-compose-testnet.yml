@@ -15,8 +15,8 @@ services:
     container_name: celestia-light-node
     user: root
     platform: "${PLATFORM}"
-    image: "ghcr.io/celestiaorg/celestia-node:v0.11.0-rc6"
-    command: celestia light start --core.ip consensus-full-arabica-9.celestia-arabica.com --gateway --gateway.addr da --gateway.port 26659  --gateway.deprecated-endpoints --p2p.network arabica
+    image: "ghcr.io/celestiaorg/celestia-node:v0.11.0-rc8"
+    command: celestia light start --core.ip consensus-full-arabica-9.celestia-arabica.com --p2p.network arabica
     environment:
       - NODE_TYPE=light
       - P2P_NETWORK=arabica
@@ -92,7 +92,7 @@ services:
       --pprof.enabled
       --rpc.enable-admin
       --da-rpc=http://da:26659
-      --namespace-id=000008e5f679bf7116cb
+      --namespace-id=00000aae0236e90166d3
     ports:
       - "7545:8545"
       - "9003:9003"
@@ -129,7 +129,7 @@ services:
       OP_PROPOSER_PPROF_ENABLED: "true"
       OP_PROPOSER_METRICS_ENABLED: "true"
       OP_PROPOSER_ALLOW_NON_FINALIZED: "false"
-      OP_PROPOSER_NAMESPACE_ID: "000008e5f679bf7116cb"
+      OP_PROPOSER_NAMESPACE_ID: "00000aae0236e90166d3"
       OP_PROPOSER_DA_RPC: http://da:26659
       OP_PROPOSER_NETWORK_TIMEOUT: 180s
 
@@ -172,7 +172,7 @@ services:
       OP_BATCHER_PPROF_ENABLED: "true"
       OP_BATCHER_METRICS_ENABLED: "true"
       OP_BATCHER_RPC_ENABLE_ADMIN: "true"
-      OP_BATCHER_NAMESPACE_ID: "000008e5f679bf7116cb"
+      OP_BATCHER_NAMESPACE_ID: "00000aae0236e90166d3"
       OP_BATCHER_DA_RPC: http://da:26659
 
   stateviz:
