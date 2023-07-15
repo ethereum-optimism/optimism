@@ -14,9 +14,8 @@ struct SchemaRecord {
     string schema; // Custom specification of the schema (e.g., an ABI).
 }
 
-/**
- * @title The global schema registry interface.
- */
+/// @title ISchemaRegistry
+/// @notice The interface of global attestation schemas for the Ethereum Attestation Service protocol.
 interface ISchemaRegistry {
     /**
      * @dev Emitted when a new schema has been registered

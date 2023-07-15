@@ -45,9 +45,10 @@ struct AttestationsResult {
     bytes32[] uids; // UIDs of the new attestations.
 }
 
-/**
- * @title EAS - Ethereum Attestation Service
- */
+/// @custom:proxied
+/// @custom:predeploy 0x4200000000000000000000000000000000000021
+/// @title EAS
+/// @notice The Ethereum Attestation Service protocol.
 contract EAS is IEAS, Semver, EIP712Verifier {
     using Address for address payable;
 

@@ -16,9 +16,8 @@ import {
 
 import { EIP712Signature, InvalidSignature, MAX_GAP, stringToBytes32, bytes32ToString } from "../Common.sol";
 
-/**
- * @title EIP712 typed signatures verifier for EAS delegated attestations.
- */
+/// @title EIP712
+/// @notice The EIP712 typed signatures verifier for EAS delegated attestations.
 abstract contract EIP712Verifier is EIP712 {
     // The hash of the data type used to relay calls to the attest function. It's the value of
     // keccak256("Attest(bytes32 schema,address recipient,uint64 expirationTime,bool revocable,bytes32 refUID,bytes data,uint256 nonce)").
