@@ -3,7 +3,6 @@
 pragma solidity 0.8.19;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 import { Semver } from "../universal/Semver.sol";
 
@@ -49,7 +48,7 @@ struct AttestationsResult {
 /**
  * @title EAS - Ethereum Attestation Service
  */
-contract EAS is IEAS, Semver, Initializable, EIP712Verifier {
+contract EAS is IEAS, Semver, EIP712Verifier {
     using Address for address payable;
 
     error AlreadyRevoked();
@@ -96,29 +95,6 @@ contract EAS is IEAS, Semver, Initializable, EIP712Verifier {
 
         _schemaRegistry = registry;
     }
-
-    /**
-     * @dev Initializes the contract and its parents.
-     */
-    function initialize() external initializer {
-        __EAS_init();
-    }
-
-    // solhint-disable func-name-mixedcase
-
-    /**
-     * @dev Upgradeable initialization.
-     */
-    function __EAS_init() internal onlyInitializing {
-        __EAS_init_unchained();
-    }
-
-    /**
-     * @dev Upgradeable initialization.
-     */
-    function __EAS_init_unchained() internal onlyInitializing {}
-
-    // solhint-enable func-name-mixedcase
 
     /**
      * @inheritdoc IEAS
