@@ -299,8 +299,6 @@ const addressesByContractByNetworkPlugin: Plugin = {
     const addresses = Object.fromEntries(
       contracts.map((contract) => [contract.name, contract.address ?? {}])
     )
-    // write to json file so it's easy to audit in prs relative to the generated file diff
-    writeFileSync('./addresses.json', JSON.stringify(addresses, null, 2))
     return {
       content: [
         `export const addresses = ${JSON.stringify(addresses)} as const`,

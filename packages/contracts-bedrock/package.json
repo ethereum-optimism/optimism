@@ -18,8 +18,8 @@
     "build:forge": "forge build",
     "build:differential": "go build -o ./scripts/differential-testing/differential-testing ./scripts/differential-testing",
     "build:fuzz": "(cd test-case-generator && go build ./cmd/fuzz.go)",
-    "generate:addresses": "tsx scripts/generate-addresses.ts",
-    "generate:addresses:check": "pnpm generate:addresses && git diff --exit-code ./addresses.json && git diff --exit-code ./addresses.json",
+    "generate:addresses": "pnpm --filter=@eth-optimism/contracts-ts generate:addresses $PWD/addresses.json",
+    "generate:addresses:check": "pnpm generate:addresses && git diff --exit-code ./addresses.json",
     "autogen:invariant-docs": "tsx scripts/invariant-doc-gen.ts",
     "test": "pnpm build:differential && pnpm build:fuzz && forge test",
     "coverage": "pnpm build:differential && pnpm build:fuzz && forge coverage",
@@ -51,17 +51,13 @@
   },
   "devDependencies": {
     "@types/glob": "^8.1.0",
-    "@types/node": "^16.18.38",
     "@typescript-eslint/eslint-plugin": "^5.60.1",
     "@typescript-eslint/parser": "^5.60.1",
-    "abitype": "^0.9.0",
     "ds-test": "github:dapphub/ds-test#c9ce3f25bde29fc5eb9901842bf02850dfd2d084",
     "forge-std": "github:foundry-rs/forge-std#e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
-    "glob": "^7.2.3",
     "solhint": "^3.4.1",
     "solhint-plugin-prettier": "^0.0.5",
     "tsx": "^3.12.7",
-    "typescript": "^4.9.3",
-    "zod": "^3.11.6"
+    "typescript": "^4.9.3"
   }
 }

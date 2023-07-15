@@ -20,7 +20,8 @@
           "build",
           "test",
           "build:contracts",
-          "autogen:artifacts"
+          "autogen:artifacts",
+          "generate:addresses:check"
         ]
       }
     }
@@ -36,6 +37,7 @@
       "{projectRoot}/package.json"
     ],
     "default": ["{projectRoot}/**/*", "configsWorkspace"],
+    "deployments": ["{projectRoot}/deployments/**/*"],
     "srcGenerated": [
       "{projectRoot}/src/contract-artifacts.ts",
       "{projectRoot}/src/contract-deployed-artifacts.ts"
@@ -46,7 +48,9 @@
     ],
     "productionContracts": ["{projectRoot}/contracts/**/*"],
     "production": ["productionSrc", "productionContracts"],
-    "testing": ["configsWorkspace", "default"]
+    "testing": ["configsWorkspace", "default"],
+    "deployments": ["{projectRoot}/deployments/**/*"],
+    "scripts": ["{projectRoot}/scripts/**/*", "{workspaceRoot}/scripts/**/*"]
   },
   "targetDefaults": {
     "lint": {
@@ -58,6 +62,9 @@
     },
     "generate": {
       "dependsOn": ["^build"]
+    },
+    "generate:addresses:check": {
+      "dependson": ["deployments", "^deployments", "scripts"]
     },
     "build:contracts": {
       "inputs": [

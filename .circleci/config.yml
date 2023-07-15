@@ -409,7 +409,28 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
+<<<<<<< HEAD
           no_output_timeout: 15m
+=======
+
+  contracts-bedrock-check-addresses:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore pnpm Package Cache
+          keys:
+            - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
+      - check-changed:
+          patterns: sdk,contracts-bedrock,contracts
+      - run:
+          name: Check generated addresses.ts file
+          command: pnpm nx run-many --target=generate:addresses:check
+    
+>>>>>>> 446649994 (feat: maximally cachable script build with it's own pipeline and command script defined in contracts-ts keep the npx change though)
 
   contracts-bedrock-checks:
     docker:
