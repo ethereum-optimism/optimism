@@ -97,9 +97,8 @@ struct MultiDelegatedRevocationRequest {
     address revoker; // The revoking account.
 }
 
-/**
- * @title EAS - Ethereum Attestation Service interface.
- */
+/// @title IEAS
+/// @notice The Ethereum Attestation Service interface.
 interface IEAS {
     /**
      * @dev Emitted when an attestation has been made.

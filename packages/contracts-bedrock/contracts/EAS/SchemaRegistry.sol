@@ -9,9 +9,10 @@ import { ISchemaResolver } from "./resolver/ISchemaResolver.sol";
 import { EMPTY_UID, MAX_GAP } from "./Common.sol";
 import { ISchemaRegistry, SchemaRecord } from "./ISchemaRegistry.sol";
 
-/**
- * @title The global schema registry.
- */
+/// @custom:proxied
+/// @custom:predeploy 0x4200000000000000000000000000000000000020
+/// @title SchemaRegistry
+/// @notice The global attestation schemas for the Ethereum Attestation Service protocol.
 contract SchemaRegistry is ISchemaRegistry, Semver {
     error AlreadyExists();
 
