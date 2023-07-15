@@ -195,46 +195,6 @@ func TestGame_ClaimPairs(t *testing.T) {
 	require.ElementsMatch(t, expected, claims)
 }
 
-// TestPrePostStateOnlyOnLeafClaim tests that if PreStateClaim or PostStateClaim is called with an non-leaf claim
-// those functions return an error.
-func TestPrePostStateOnlyOnLeafClaim(t *testing.T) {
-	root, top, middle, bottom := createTestClaims()
-	g := NewGameState(false, root, testMaxDepth)
-	require.NoError(t, g.PutAll([]Claim{top, middle, bottom}))
-
-	_, err := g.PreStateClaim(middle)
-	require.Error(t, err)
-	_, err = g.PostStateClaim(middle)
-	require.Error(t, err)
-}
-
-func TestPreStateClaim(t *testing.T) {
-	root, top, middle, bottom := createTestClaims()
-	g := NewGameState(false, root, testMaxDepth)
-	require.NoError(t, g.Put(top))
-	require.NoError(t, g.Put(middle))
-	require.NoError(t, g.Put(bottom))
-
-	// Bottom trace index is 4. Pre trace index is then 3
-	pre, err := g.PreStateClaim(bottom)
-	require.NoError(t, err)
-	require.Equal(t, top, pre)
-
-}
-
-func TestPostStateClaim(t *testing.T) {
-	root, top, middle, bottom := createTestClaims()
-	g := NewGameState(false, root, testMaxDepth)
-	require.NoError(t, g.Put(top))
-	require.NoError(t, g.Put(middle))
-	require.NoError(t, g.Put(bottom))
-
-	// Bottom trace index is 4. Post trace index is then 5
-	post, err := g.PostStateClaim(bottom)
-	require.NoError(t, err)
-	require.Equal(t, middle, post)
-}
-
 func TestAgreeWithClaimLevelDisagreeWithOutput(t *testing.T) {
 	// Setup the game state.
 	root, top, middle, bottom := createTestClaims()
