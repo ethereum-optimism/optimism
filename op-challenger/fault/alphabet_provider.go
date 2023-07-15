@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // AlphabetProvider is a [TraceProvider] that provides claims for specific
@@ -32,7 +33,7 @@ func (ap *AlphabetProvider) GetPreimage(i uint64) ([]byte, error) {
 	if i >= uint64(len(ap.state)) {
 		return ap.GetPreimage(uint64(len(ap.state)) - 1)
 	}
-	return buildAlphabetClaimBytes(i, ap.state[i]), nil
+	return BuildAlphabetPreimage(i, ap.state[i]), nil
 }
 
 // Get returns the claim value at the given index in the trace.
@@ -41,17 +42,25 @@ func (ap *AlphabetProvider) Get(i uint64) (common.Hash, error) {
 	if err != nil {
 		return common.Hash{}, err
 	}
-	return common.BytesToHash(claimBytes), nil
+	return crypto.Keccak256Hash(claimBytes), nil
 }
 
-// buildAlphabetClaimBytes constructs the claim bytes for the index and state item.
-func buildAlphabetClaimBytes(i uint64, letter string) []byte {
-	return append(IndexToBytes(i), []byte(letter)...)
+// BuildAlphabetPreimage constructs the claim bytes for the index and state item.
+func BuildAlphabetPreimage(i uint64, letter string) []byte {
+	return append(IndexToBytes(i), LetterToBytes(letter)...)
 }
 
 // IndexToBytes converts an index to a byte slice big endian
 func IndexToBytes(i uint64) []byte {
 	big := new(big.Int)
 	big.SetUint64(i)
-	return big.Bytes()
+	out := make([]byte, 32)
+	return big.FillBytes(out)
+}
+
+// LetterToBytes converts a letter to a 32 byte array
+func LetterToBytes(letter string) []byte {
+	out := make([]byte, 32)
+	out[31] = byte(letter[0])
+	return out
 }

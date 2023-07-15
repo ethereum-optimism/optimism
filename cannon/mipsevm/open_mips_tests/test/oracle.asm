@@ -69,6 +69,10 @@ $readloop:
   addiu $t0, $t0, -1
   bnez $t0, $readloop
   nop
+# reading the pre-image stream at EOF should have no effect
+  li $a1, 0x31000008
+  li $v0, 4003
+  syscall
 
 # length at 0x31000000. We also check that the lower 32 bits are zero
   lui $s1, 0x3100
