@@ -5,6 +5,7 @@ pragma solidity 0.8.19;
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 import { Semver } from "../universal/Semver.sol";
+import { Predeploys } from "../libraries/Predeploys.sol";
 
 import { EIP712Verifier } from "./eip712/EIP712Verifier.sol";
 
@@ -70,7 +71,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
     error WrongSchema();
 
     // The global schema registry.
-    ISchemaRegistry private immutable _schemaRegistry;
+    ISchemaRegistry private immutable _schemaRegistry = ISchemaRegistry(Predeploys.SCHEMA_REGISTRY);
 
     // The global mapping between attestations and their UIDs.
     mapping(bytes32 uid => Attestation attestation) private _db;
@@ -86,15 +87,8 @@ contract EAS is IEAS, Semver, EIP712Verifier {
 
     /**
      * @dev Creates a new EAS instance.
-     *
-     * @param registry The address of the global schema registry.
      */
-    constructor(ISchemaRegistry registry) Semver(1, 0, 0) EIP712Verifier("EAS", "1.0.0") {
-        if (address(registry) == address(0)) {
-            revert InvalidRegistry();
-        }
-
-        _schemaRegistry = registry;
+    constructor() Semver(1, 0, 0) EIP712Verifier("EAS", "1.0.0") {
     }
 
     /**
