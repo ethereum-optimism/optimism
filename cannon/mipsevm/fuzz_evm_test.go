@@ -355,12 +355,12 @@ func FuzzStatePreimageRead(f *testing.F) {
 		state.Memory.SetMemory(0, syscallInsn)
 		preStatePreimageKey := state.PreimageKey
 		preStateRoot := state.Memory.MerkleRoot()
-		toWrite := count
-		if toWrite > 4 {
-			toWrite = 4
+		writeLen := count
+		if writeLen > 4 {
+			writeLen = 4
 		}
-		if preimageOffset+toWrite > uint32(8+len(preimageData)) {
-			toWrite = uint32(8+len(preimageData)) - preimageOffset
+		if preimageOffset+writeLen > uint32(8+len(preimageData)) {
+			writeLen = uint32(8+len(preimageData)) - preimageOffset
 		}
 		oracle := staticOracle(t, preimageData)
 
@@ -376,10 +376,12 @@ func FuzzStatePreimageRead(f *testing.F) {
 		require.Equal(t, uint32(0), state.Heap)
 		require.Equal(t, uint8(0), state.ExitCode)
 		require.Equal(t, false, state.Exited)
-		if toWrite > 0 {
-			require.NotEqual(t, preStateRoot, state.Memory.MerkleRoot())
+		if writeLen > 0 {
+			// Memory may be unchanged if we're writing the first zero-valued 7 bytes of the pre-image.
+			//require.NotEqual(t, preStateRoot, state.Memory.MerkleRoot())
 			require.Greater(t, state.PreimageOffset, preimageOffset)
 		} else {
+			require.Equal(t, preStateRoot, state.Memory.MerkleRoot())
 			require.Equal(t, state.PreimageOffset, preimageOffset)
 		}
 		require.Equal(t, uint64(1), state.Step)
