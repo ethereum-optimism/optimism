@@ -2,8 +2,6 @@
 
 pragma solidity 0.8.19;
 
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-
 import { Semver } from "../universal/Semver.sol";
 
 import { ISchemaResolver } from "./resolver/ISchemaResolver.sol";
@@ -14,7 +12,7 @@ import { ISchemaRegistry, SchemaRecord } from "./ISchemaRegistry.sol";
 /**
  * @title The global schema registry.
  */
-contract SchemaRegistry is ISchemaRegistry, Semver, Initializable {
+contract SchemaRegistry is ISchemaRegistry, Semver {
     error AlreadyExists();
 
     // The global mapping between schema records and their IDs.
@@ -27,29 +25,6 @@ contract SchemaRegistry is ISchemaRegistry, Semver, Initializable {
      * @dev Creates a new SchemaRegistry instance.
      */
     constructor() Semver(1, 0, 0) {}
-
-    /**
-     * @dev Initializes the contract and its parents.
-     */
-    function initialize() external initializer {
-        __SchemaRegistry_init();
-    }
-
-    // solhint-disable func-name-mixedcase
-
-    /**
-     * @dev Upgradeable initialization.
-     */
-    function __SchemaRegistry_init() internal onlyInitializing {
-        __SchemaRegistry_init_unchained();
-    }
-
-    /**
-     * @dev Upgradeable initialization.
-     */
-    function __SchemaRegistry_init_unchained() internal onlyInitializing {}
-
-    // solhint-enable func-name-mixedcase
 
     /**
      * @inheritdoc ISchemaRegistry
