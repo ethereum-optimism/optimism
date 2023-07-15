@@ -4,9 +4,8 @@ pragma solidity ^0.8.0;
 
 import { Attestation } from "../Common.sol";
 
-/**
- * @title The interface of an optional schema resolver.
- */
+/// @title ISchemaResolver
+/// @notice The interface of an optional schema resolver.
 interface ISchemaResolver {
     /**
      * @dev Returns whether the resolver supports ETH transfers.

@@ -7,12 +7,10 @@ import { Semver } from "../../universal/Semver.sol";
 import { IEAS, Attestation } from "../IEAS.sol";
 import { InvalidEAS, uncheckedInc } from "../Common.sol";
 
-
 import { ISchemaResolver } from "./ISchemaResolver.sol";
 
-/**
- * @title A base resolver contract
- */
+/// @title SchemaResolver
+/// @notice The base schema resolver contract.
 abstract contract SchemaResolver is ISchemaResolver, Semver {
     error AccessDenied();
     error InsufficientValue();
