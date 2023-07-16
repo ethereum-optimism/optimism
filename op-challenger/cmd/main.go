@@ -36,7 +36,7 @@ var VersionWithMeta = func() string {
 
 func main() {
 	args := os.Args
-	if err := run(args, op_challenger.Main); err != nil {
+	if err := run(args, op_challenger.MainLoop); err != nil {
 		log.Crit("Application failed", "err", err)
 	}
 }
@@ -64,6 +64,24 @@ func run(args []string, action ConfigAction) error {
 			return err
 		}
 		return action(logger, cfg)
+	}
+	app.Commands = []*cli.Command{
+		{
+			Name: "act",
+			Action: func(ctx *cli.Context) error {
+				logger, err := setupLogging(ctx)
+				if err != nil {
+					return err
+				}
+				logger.Info("Starting op-challenger", "version", VersionWithMeta)
+
+				cfg, err := config.NewConfigFromCLI(ctx)
+				if err != nil {
+					return err
+				}
+				return op_challenger.MainAct(logger, cfg)
+			},
+		},
 	}
 	return app.Run(args)
 }
