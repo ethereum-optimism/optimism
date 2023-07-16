@@ -8,6 +8,8 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+var _ TraceProvider = (*AlphabetProvider)(nil)
+
 // AlphabetProvider is a [TraceProvider] that provides claims for specific
 // indices in the given trace.
 type AlphabetProvider struct {
@@ -43,6 +45,12 @@ func (ap *AlphabetProvider) Get(i uint64) (common.Hash, error) {
 		return common.Hash{}, err
 	}
 	return crypto.Keccak256Hash(claimBytes), nil
+}
+
+func (ap *AlphabetProvider) AbsolutePreState() []byte {
+	out := make([]byte, 32)
+	out[31] = 140 // ascii character 140 is "`"
+	return out
 }
 
 // BuildAlphabetPreimage constructs the claim bytes for the index and state item.
