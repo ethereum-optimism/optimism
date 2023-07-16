@@ -102,17 +102,27 @@ func TestAttemptStep(t *testing.T) {
 	maxDepth := 3
 	canonicalProvider := NewAlphabetProvider("abcdefgh", uint64(maxDepth))
 	solver := NewSolver(maxDepth, canonicalProvider)
-	root, top, middle, bottom := createTestClaims()
-	g := NewGameState(false, root, testMaxDepth)
-	require.NoError(t, g.Put(top))
-	require.NoError(t, g.Put(middle))
-	require.NoError(t, g.Put(bottom))
+	_, _, middle, bottom := createTestClaims()
+
+	zero := Claim{
+		ClaimData: ClaimData{
+			// Zero value is a purposely disagree with claim value "a"
+			Position: NewPosition(3, 0),
+		},
+	}
 
 	step, err := solver.AttemptStep(bottom)
 	require.NoError(t, err)
 	require.Equal(t, bottom, step.LeafClaim)
 	require.True(t, step.IsAttack)
+	require.Equal(t, step.PreState, BuildAlphabetPreimage(3, "d"))
 
 	_, err = solver.AttemptStep(middle)
 	require.Error(t, err)
+
+	step, err = solver.AttemptStep(zero)
+	require.NoError(t, err)
+	require.Equal(t, zero, step.LeafClaim)
+	require.True(t, step.IsAttack)
+	require.Equal(t, canonicalProvider.AbsolutePreState(), step.PreState)
 }

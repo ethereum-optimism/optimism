@@ -64,9 +64,9 @@ func (s *Solver) handleMiddle(claim Claim) (*Claim, error) {
 }
 
 type StepData struct {
-	LeafClaim          Claim
-	IsAttack           bool
-	PreStateTraceIndex uint64
+	LeafClaim Claim
+	IsAttack  bool
+	PreState  []byte
 }
 
 // AttemptStep determines what step should occur for a given leaf claim.
@@ -80,14 +80,25 @@ func (s *Solver) AttemptStep(claim Claim) (StepData, error) {
 		return StepData{}, err
 	}
 	index := claim.TraceIndex(s.gameDepth)
-	// TODO(CLI-4198): Handle case where we dispute trace index 0
-	if !claimCorrect {
-		index -= 1
+	var preState []byte
+	// If we are attacking index 0, we provide the absolute pre-state, not an intermediate state
+	if index == 0 && !claimCorrect {
+		preState = s.AbsolutePreState()
+	} else {
+		// If attacking, get the state just before, other get the state after
+		if !claimCorrect {
+			index = index - 1
+		}
+		preState, err = s.GetPreimage(index)
+		if err != nil {
+			return StepData{}, err
+		}
 	}
+
 	return StepData{
-		LeafClaim:          claim,
-		IsAttack:           !claimCorrect,
-		PreStateTraceIndex: index,
+		LeafClaim: claim,
+		IsAttack:  !claimCorrect,
+		PreState:  preState,
 	}, nil
 }
 
