@@ -290,6 +290,10 @@ contract MIPS {
 
             bool shouldBranch = false;
 
+            if (state.nextPC != state.pc+4) {
+                revert("branch in delay slot");
+            }
+
             // beq/bne: Branch on equal / not equal
             if (_opcode == 4 || _opcode == 5) {
                 uint32 rt = state.registers[_rtReg];
@@ -417,6 +421,10 @@ contract MIPS {
             State memory state;
             assembly {
                 state := 0x80
+            }
+
+            if (state.nextPC != state.pc+4) {
+                revert("jump in delay slot");
             }
 
             // Update the next PC to the jump destination.
