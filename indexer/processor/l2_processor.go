@@ -127,14 +127,15 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 
 		l2ContractEvents := make([]*database.L2ContractEvent, len(logs))
 		processedContractEvents := NewProcessedContractEvents()
-		for i, log := range logs {
+		for i := range logs {
+			log := &logs[i]
 			header, ok := l2HeaderMap[log.BlockHash]
 			if !ok {
 				processLog.Error("contract event found with associated header not in the batch", "header", header, "log_index", log.Index)
 				return errors.New("parsed log with a block hash not in this batch")
 			}
 
-			contractEvent := processedContractEvents.AddLog(&logs[i], header.Time)
+			contractEvent := processedContractEvents.AddLog(log, header.Time)
 			l2ContractEvents[i] = &database.L2ContractEvent{ContractEvent: *contractEvent}
 		}
 

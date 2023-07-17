@@ -26,12 +26,14 @@ type processor struct {
 	db         *database.DB
 	processFn  ProcessFn
 	processLog log.Logger
+
+	latestProcessedHeader *types.Header
 }
 
 // Start kicks off the processing loop. This is a block operation
 // unless the processor encountering an error, abrupting the loop,
 // or the supplied context is cancelled.
-func (p processor) Start(ctx context.Context) error {
+func (p *processor) Start(ctx context.Context) error {
 	done := ctx.Done()
 	pollTicker := time.NewTicker(defaultLoopInterval)
 	defer pollTicker.Stop()
@@ -75,8 +77,14 @@ func (p processor) Start(ctx context.Context) error {
 				batchLog.Warn("error processing batch. no operations committed", "err", err)
 			} else {
 				batchLog.Info("fully committed batch")
+
 				unprocessedHeaders = nil
+				p.latestProcessedHeader = lastHeader
 			}
 		}
 	}
+}
+
+func (p processor) LatestProcessedHeader() *types.Header {
+	return p.latestProcessedHeader
 }
