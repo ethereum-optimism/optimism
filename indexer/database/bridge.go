@@ -51,6 +51,8 @@ type Deposit struct {
 type DepositWithTransactionHash struct {
 	Deposit           Deposit     `gorm:"embedded"`
 	L1TransactionHash common.Hash `gorm:"serializer:json"`
+
+	FinalizedL2TransactionHash common.Hash `gorm:"serializer:json"`
 }
 
 type Withdrawal struct {
@@ -123,11 +125,13 @@ func (db *bridgeDB) StoreDeposits(deposits []*Deposit) error {
 }
 
 func (db *bridgeDB) DepositsByAddress(address common.Address) ([]*DepositWithTransactionHash, error) {
-	depositsQuery := db.gorm.Table("deposits").Select("deposits.*, l1_contract_events.transaction_hash AS l1_transaction_hash")
-	eventsJoinQuery := depositsQuery.Joins("LEFT JOIN l1_contract_events ON deposits.initiated_l1_event_guid = l1_contract_events.guid")
+	depositsQuery := db.gorm.Table("deposits").Select("deposits.*, l1_contract_events.transaction_hash AS l1_transaction_hash, l2_contract_events.transaction_hash AS finalized_l2_transaction_hash")
+
+	initiatedJoinQuery := depositsQuery.Joins("LEFT JOIN l1_contract_events ON deposits.initiated_l1_event_guid = l1_contract_events.guid")
+	finalizedJoinQuery := initiatedJoinQuery.Joins("LEFT JOIN l2_contract_events ON deposits.finalized_l2_event_guid = l2_contract_events.guid")
 
 	// add in cursoring options
-	filteredQuery := eventsJoinQuery.Where(&Transaction{FromAddress: address}).Order("deposits.timestamp DESC").Limit(100)
+	filteredQuery := finalizedJoinQuery.Where(&Transaction{FromAddress: address}).Order("deposits.timestamp DESC").Limit(100)
 
 	deposits := make([]*DepositWithTransactionHash, 100)
 	result := filteredQuery.Scan(&deposits)

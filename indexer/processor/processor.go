@@ -27,6 +27,7 @@ type processor struct {
 	processFn  ProcessFn
 	processLog log.Logger
 
+	paused                bool
 	latestProcessedHeader *types.Header
 }
 
@@ -47,6 +48,11 @@ func (p *processor) Start(ctx context.Context) error {
 			return nil
 
 		case <-pollTicker.C:
+			if p.paused {
+				p.processLog.Warn("processor is paused...")
+				continue
+			}
+
 			if len(unprocessedHeaders) == 0 {
 				newHeaders, err := p.headerTraversal.NextFinalizedHeaders(defaultHeaderBufferSize)
 				if err != nil {
@@ -87,4 +93,14 @@ func (p *processor) Start(ctx context.Context) error {
 
 func (p processor) LatestProcessedHeader() *types.Header {
 	return p.latestProcessedHeader
+}
+
+// Useful ONLY for tests!
+
+func (p *processor) PauseForTest() {
+	p.paused = true
+}
+
+func (p *processor) ResumeForTest() {
+	p.paused = false
 }

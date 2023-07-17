@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	ethAddress = common.HexToAddress("0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000")
+	EthAddress = common.HexToAddress("0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000")
 )
 
 type StandardBridgeInitiatedEvent struct {
@@ -131,7 +131,7 @@ func _standardBridgeInitiatedEvents[BridgeEvent bindings.L1StandardBridgeETHBrid
 			// represent eth bridge as an erc20
 			erc20BridgeData = &bindings.L1StandardBridgeERC20BridgeInitiated{
 				// Represent ETH using the hardcoded address
-				LocalToken: ethAddress, RemoteToken: ethAddress,
+				LocalToken: EthAddress, RemoteToken: EthAddress,
 				// Bridge data
 				From: ethBridgeData.From, To: ethBridgeData.To, Amount: ethBridgeData.Amount, ExtraData: ethBridgeData.ExtraData,
 			}
@@ -230,7 +230,7 @@ func _standardBridgeFinalizedEvents[BridgeEvent bindings.L1StandardBridgeETHBrid
 			ethBridgeData := any(bridgeData).(bindings.L1StandardBridgeETHBridgeFinalized)
 			erc20BridgeData = &bindings.L1StandardBridgeERC20BridgeFinalized{
 				// Represent ETH using the hardcoded address
-				LocalToken: ethAddress, RemoteToken: ethAddress,
+				LocalToken: EthAddress, RemoteToken: EthAddress,
 				// Bridge data
 				From: ethBridgeData.From, To: ethBridgeData.To, Amount: ethBridgeData.Amount, ExtraData: ethBridgeData.ExtraData,
 			}
