@@ -9,8 +9,6 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/indexer/processor"
-
-	"github.com/ethereum/go-ethereum/common"
 )
 
 // Indexer contains the necessary resources for
@@ -31,13 +29,7 @@ func NewIndexer(cfg config.Config) (*Indexer, error) {
 	}
 
 	// L1 Processor (hardhat devnet contracts). Make this configurable
-	l1Contracts := processor.L1Contracts{
-		OptimismPortal:         common.HexToAddress("0x6900000000000000000000000000000000000000"),
-		L2OutputOracle:         common.HexToAddress("0x6900000000000000000000000000000000000001"),
-		L1CrossDomainMessenger: common.HexToAddress("0x6900000000000000000000000000000000000002"),
-		L1StandardBridge:       common.HexToAddress("0x6900000000000000000000000000000000000003"),
-		L1ERC721Bridge:         common.HexToAddress("0x6900000000000000000000000000000000000004"),
-	}
+	l1Contracts := processor.DevL1Contracts()
 	l1EthClient, err := node.DialEthClient(cfg.RPCs.L1RPC)
 	if err != nil {
 		return nil, err
@@ -47,8 +39,8 @@ func NewIndexer(cfg config.Config) (*Indexer, error) {
 		return nil, err
 	}
 
-	// L2Processor
-	l2Contracts := processor.L2ContractPredeploys() // Make this configurable
+	// L2Processor (predeploys). Although most likely the right setting, make this configurable?
+	l2Contracts := processor.L2ContractPredeploys()
 	l2EthClient, err := node.DialEthClient(cfg.RPCs.L2RPC)
 	if err != nil {
 		return nil, err

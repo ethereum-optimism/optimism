@@ -34,12 +34,17 @@ type L1Contracts struct {
 	// Remove afterwards?
 }
 
-type checkpointAbi struct {
-	l2OutputOracle             *abi.ABI
-	legacyStateCommitmentChain *abi.ABI
+func DevL1Contracts() L1Contracts {
+	return L1Contracts{
+		OptimismPortal:         common.HexToAddress("0x6900000000000000000000000000000000000000"),
+		L2OutputOracle:         common.HexToAddress("0x6900000000000000000000000000000000000001"),
+		L1CrossDomainMessenger: common.HexToAddress("0x6900000000000000000000000000000000000002"),
+		L1StandardBridge:       common.HexToAddress("0x6900000000000000000000000000000000000003"),
+		L1ERC721Bridge:         common.HexToAddress("0x6900000000000000000000000000000000000004"),
+	}
 }
 
-func (c L1Contracts) toSlice() []common.Address {
+func (c L1Contracts) ToSlice() []common.Address {
 	fields := reflect.VisibleFields(reflect.TypeOf(c))
 	v := reflect.ValueOf(c)
 
@@ -49,6 +54,11 @@ func (c L1Contracts) toSlice() []common.Address {
 	}
 
 	return contracts
+}
+
+type checkpointAbi struct {
+	l2OutputOracle             *abi.ABI
+	legacyStateCommitmentChain *abi.ABI
 }
 
 type L1Processor struct {
@@ -107,7 +117,7 @@ func NewL1Processor(logger log.Logger, ethClient node.EthClient, db *database.DB
 func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1Contracts, checkpointAbi checkpointAbi) ProcessFn {
 	rawEthClient := ethclient.NewClient(ethClient.RawRpcClient())
 
-	contractAddrs := l1Contracts.toSlice()
+	contractAddrs := l1Contracts.ToSlice()
 	processLog.Info("processor configured with contracts", "contracts", l1Contracts)
 
 	outputProposedEventName := "OutputProposed"

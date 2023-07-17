@@ -1,4 +1,4 @@
-package integration_tests
+package e2e_tests
 
 import (
 	"context"
@@ -7,17 +7,20 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/node"
+	"github.com/ethereum-optimism/optimism/indexer/processor"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	e2eutils "github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestE2E(t *testing.T) {
+func TestE2EBlockHeaders(t *testing.T) {
 	testSuite := createE2ETestSuite(t)
 
 	l1Client := testSuite.OpSys.Clients["l1"]
@@ -44,7 +47,7 @@ func TestE2E(t *testing.T) {
 		return (l1Header != nil && l1Header.Number.Uint64() >= l1Height) && (l2Header != nil && l2Header.Number.Uint64() >= 9), nil
 	}))
 
-	t.Run("indexes L2 headers", func(t *testing.T) {
+	t.Run("indexes L2 blocks", func(t *testing.T) {
 		latestL2Header, err := testSuite.DB.Blocks.LatestL2BlockHeader()
 		require.NoError(t, err)
 		require.NotNil(t, latestL2Header)
@@ -104,6 +107,35 @@ func TestE2E(t *testing.T) {
 		}
 	})
 
-	t.Run("indexes L1 blocks of interest", func(t *testing.T) {
+	t.Run("indexes L1 logs and associated blocks", func(t *testing.T) {
+		testCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		devContracts := processor.DevL1Contracts().ToSlice()
+		logFilter := ethereum.FilterQuery{FromBlock: big.NewInt(0), ToBlock: big.NewInt(int64(l1Height)), Addresses: devContracts}
+		logs, err := l1Client.FilterLogs(testCtx, logFilter) // []types.Log
+		require.NoError(t, err)
+
+		for _, log := range logs {
+			contractEvent, err := testSuite.DB.ContractEvents.L1ContractEventByTxLogIndex(log.TxHash, uint64(log.Index))
+			require.NoError(t, err)
+			require.Equal(t, log.Topics[0], contractEvent.EventSignature)
+			require.Equal(t, log.BlockHash, contractEvent.BlockHash)
+			require.Equal(t, log.TxHash, contractEvent.TransactionHash)
+			require.Equal(t, log.Index, uint(contractEvent.LogIndex))
+
+			// ensure the block is also indexed
+			block, err := l1Client.BlockByNumber(testCtx, big.NewInt(int64(log.BlockNumber)))
+			require.NoError(t, err)
+
+			require.Equal(t, block.Time(), contractEvent.Timestamp)
+
+			l1BlockHeader, err := testSuite.DB.Blocks.L1BlockHeader(block.Number())
+			require.NoError(t, err)
+			require.Equal(t, block.Hash(), l1BlockHeader.Hash)
+			require.Equal(t, block.ParentHash(), l1BlockHeader.ParentHash)
+			require.Equal(t, block.Number(), l1BlockHeader.Number.Int)
+			require.Equal(t, block.Time(), l1BlockHeader.Timestamp)
+		}
 	})
 }
