@@ -124,18 +124,20 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         if (keccak256(_stateData) != Claim.unwrap(preStateClaim)) revert InvalidPrestate();
 
         // INVARIANT: If a step is an attack, the poststate is valid if the step produces
-        //            the same poststate claim hash as the parent claim.
-        //            If a step is a defense, the poststate is only valid if the step
-        //            produces the same poststate claim hash as the `postState` *and*
-        //            the difference between the post state's depth and the parent's depth
-        //            is even.
+        //            the same poststate hash as the parent claim's value.
+        //            If a step is a defense:
+        //              1. If the parent claim and the found post state agree with each other
+        //                 (depth diff % 2 == 0), the step is valid if it produces the same
+        //                 state hash as the post state's claim.
+        //              2. If the parent claim and the found post state disagree with each other
+        //                 (depth diff % 2 != 0), the parent cannot be countered unless the step
+        //                 produces the same state hash as `postState.claim`.
         // SAFETY:    While the `attack` path does not need an extra check for the post
         //            state's depth in relation to the parent, we don't need another
-        //            branch because 0 % 0 == 0.
-        if (
-            VM.step(_stateData, _proof) == Claim.unwrap(postState.claim) &&
-                (parentPos.depth() - postState.position.depth()) % 2 == 0
-        ) revert ValidStep();
+        //            branch because n % n == 0.
+        bool validStep = VM.step(_stateData, _proof) == Claim.unwrap(postState.claim);
+        bool parentPostAgree = (parentPos.depth() - postState.position.depth()) % 2 == 0;
+        if ((parentPostAgree && validStep) || (!parentPostAgree && !validStep)) revert ValidStep();
 
         // Set the parent claim as countered. We do not need to append a new claim to the game;
         // instead, we can just set the existing parent as countered.

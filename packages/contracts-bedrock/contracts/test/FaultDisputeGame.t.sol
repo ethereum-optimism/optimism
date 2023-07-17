@@ -710,36 +710,48 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot4 is OneVsOne_Arena {
         // claim unsuccessfully.
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
         assertTrue(challenger.failedToStep());
+    }
+}
 
-        buildGraph();
+contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot5 is OneVsOne_Arena {
+    function setUp() public override {
+        GamePlayer honest = new HonestPlayer_QuarterTrace(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new DivergentPlayer_QuarterTrace(ABSOLUTE_PRESTATE);
+        super.init(dishonest, honest, 3);
     }
 
-    function buildGraph() internal {
-        uint256 numClaims = uint256(vm.load(address(gameProxy), bytes32(uint256(1))));
-        IFaultDisputeGame.ClaimData[] memory gameData = new IFaultDisputeGame.ClaimData[](numClaims);
-        for (uint256 i = 0; i < numClaims; i++) {
-            (
-                uint32 parentIndex,
-                bool countered,
-                Claim claim,
-                Position position,
-                Clock clock
-            ) = gameProxy.claimData(i);
+    function test_resolvesCorrectly_succeeds() public {
+        // Play the game until a step is forced.
+        challenger.play(0);
 
-            gameData[i] = IFaultDisputeGame.ClaimData({
-                parentIndex: parentIndex,
-                countered: countered,
-                claim: claim,
-                position: position,
-                clock: clock
-            });
-        }
+        // Warp ahead to expire the other player's clock.
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
 
-        string[] memory commands = new string[](3);
-        commands[0] = "python3";
-        commands[1] = "scripts/dag-viz.py";
-        commands[2] = vm.toString(abi.encode(gameData));
-        vm.ffi(commands);
+        // Resolve the game and assert that the honest player challenged the root
+        // claim successfully.
+        assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
+        assertFalse(challenger.failedToStep());
+    }
+}
+
+contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot5 is OneVsOne_Arena {
+    function setUp() public override {
+        GamePlayer honest = new HonestPlayer_QuarterTrace(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new DivergentPlayer_QuarterTrace(ABSOLUTE_PRESTATE);
+        super.init(honest, dishonest, 3);
+    }
+
+    function test_resolvesCorrectly_succeeds() public {
+        // Play the game until a step is forced.
+        challenger.play(0);
+
+        // Warp ahead to expire the other player's clock.
+        vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+
+        // Resolve the game and assert that the dishonest player challenged the root
+        // claim unsuccessfully.
+        assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
+        assertTrue(challenger.failedToStep());
     }
 }
 
@@ -812,6 +824,29 @@ contract DivergentPlayer_HalfTrace is GamePlayer {
         for (uint8 i = 0; i < halfTrace.length; i++) {
             // Diverge at trace instruction 5.
             halfTrace[i] = i > 4 ? bytes1(i) : bytes1(absolutePrestate + i + 1);
+        }
+        trace = halfTrace;
+    }
+}
+
+contract HonestPlayer_QuarterTrace is GamePlayer {
+    constructor(bytes memory _absolutePrestate) {
+        uint8 absolutePrestate = uint8(_absolutePrestate[31]);
+        bytes memory halfTrace = new bytes(4);
+        for (uint8 i = 0; i < halfTrace.length; i++) {
+            halfTrace[i] = bytes1(absolutePrestate + i + 1);
+        }
+        trace = halfTrace;
+    }
+}
+
+contract DivergentPlayer_QuarterTrace is GamePlayer {
+    constructor(bytes memory _absolutePrestate) {
+        uint8 absolutePrestate = uint8(_absolutePrestate[31]);
+        bytes memory halfTrace = new bytes(4);
+        for (uint8 i = 0; i < halfTrace.length; i++) {
+            // Diverge at trace instruction 3.
+            halfTrace[i] = i > 2 ? bytes1(i) : bytes1(absolutePrestate + i + 1);
         }
         trace = halfTrace;
     }
