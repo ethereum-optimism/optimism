@@ -9,51 +9,51 @@ const checks: Array<{
   check: (parts: string[]) => boolean
   error: string
 }> = [
-    {
-      error: 'test name parts should be in camelCase',
-      check: (parts: string[]): boolean => {
-        return parts.every((part) => {
-          return part[0] === part[0].toLowerCase()
-        })
-      },
+  {
+    error: 'test name parts should be in camelCase',
+    check: (parts: string[]): boolean => {
+      return parts.every((part) => {
+        return part[0] === part[0].toLowerCase()
+      })
     },
-    {
-      error:
-        'test names should have either 3 or 4 parts, each separated by underscores',
-      check: (parts: string[]): boolean => {
-        return parts.length === 3 || parts.length === 4
-      },
+  },
+  {
+    error:
+      'test names should have either 3 or 4 parts, each separated by underscores',
+    check: (parts: string[]): boolean => {
+      return parts.length === 3 || parts.length === 4
     },
-    {
-      error: 'test names should begin with "test", "testFuzz", or "testDiff"',
-      check: (parts: string[]): boolean => {
-        return ['test', 'testFuzz', 'testDiff'].includes(parts[0])
-      },
+  },
+  {
+    error: 'test names should begin with "test", "testFuzz", or "testDiff"',
+    check: (parts: string[]): boolean => {
+      return ['test', 'testFuzz', 'testDiff'].includes(parts[0])
     },
-    {
-      error:
-        'test names should end with either "succeeds", "reverts", "fails", "works" or "benchmark[_num]"',
-      check: (parts: string[]): boolean => {
-        return (
-          ['succeeds', 'reverts', 'fails', 'benchmark', 'works'].includes(
-            parts[parts.length - 1]
-          ) ||
-          (parts[parts.length - 2] === 'benchmark' &&
-            !isNaN(parseInt(parts[parts.length - 1], 10)))
-        )
-      },
+  },
+  {
+    error:
+      'test names should end with either "succeeds", "reverts", "fails", "works" or "benchmark[_num]"',
+    check: (parts: string[]): boolean => {
+      return (
+        ['succeeds', 'reverts', 'fails', 'benchmark', 'works'].includes(
+          parts[parts.length - 1]
+        ) ||
+        (parts[parts.length - 2] === 'benchmark' &&
+          !isNaN(parseInt(parts[parts.length - 1], 10)))
+      )
     },
-    {
-      error:
-        'failure tests should have 4 parts, third part should indicate the reason for failure',
-      check: (parts: string[]): boolean => {
-        return (
-          parts.length === 4 ||
-          !['reverts', 'fails'].includes(parts[parts.length - 1])
-        )
-      },
+  },
+  {
+    error:
+      'failure tests should have 4 parts, third part should indicate the reason for failure',
+    check: (parts: string[]): boolean => {
+      return (
+        parts.length === 4 ||
+        !['reverts', 'fails'].includes(parts[parts.length - 1])
+      )
     },
-  ]
+  },
+]
 
 /**
  * Script for checking that all test functions are named correctly.
