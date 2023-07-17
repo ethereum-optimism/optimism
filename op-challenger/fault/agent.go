@@ -10,7 +10,6 @@ import (
 
 type Agent struct {
 	solver                  *Solver
-	trace                   TraceProvider
 	loader                  Loader
 	responder               Responder
 	maxDepth                int
@@ -21,7 +20,6 @@ type Agent struct {
 func NewAgent(loader Loader, maxDepth int, trace TraceProvider, responder Responder, agreeWithProposedOutput bool, log log.Logger) Agent {
 	return Agent{
 		solver:                  NewSolver(maxDepth, trace),
-		trace:                   trace,
 		loader:                  loader,
 		responder:               responder,
 		maxDepth:                maxDepth,
