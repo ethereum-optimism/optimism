@@ -4,7 +4,7 @@ import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 
 export type ModuleConfig = {
-  authModuleDeploymentName: string
+  address: string
 } & ContractModuleConfig
 
 export interface ContractModuleConfig {
