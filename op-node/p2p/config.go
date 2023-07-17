@@ -65,9 +65,6 @@ type Config struct {
 	DisableP2P  bool
 	NoDiscovery bool
 
-	// Enable P2P-based alt-syncing method (req-resp protocol, not gossip)
-	AltSync bool
-
 	ScoringParams *ScoringParams
 
 	// Whether to ban peers based on their [PeerScoring] score. Should be negative.
