@@ -18,8 +18,8 @@ import (
 type Indexer struct {
 	db *database.DB
 
-	l1Processor *processor.L1Processor
-	l2Processor *processor.L2Processor
+	L1Processor *processor.L1Processor
+	L2Processor *processor.L2Processor
 }
 
 // NewIndexer initializes an instance of the Indexer
@@ -38,7 +38,7 @@ func NewIndexer(cfg config.Config) (*Indexer, error) {
 		L1StandardBridge:       common.HexToAddress("0x6900000000000000000000000000000000000003"),
 		L1ERC721Bridge:         common.HexToAddress("0x6900000000000000000000000000000000000004"),
 	}
-	l1EthClient, err := node.NewEthClient(cfg.RPCs.L1RPC)
+	l1EthClient, err := node.DialEthClient(cfg.RPCs.L1RPC)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func NewIndexer(cfg config.Config) (*Indexer, error) {
 
 	// L2Processor
 	l2Contracts := processor.L2ContractPredeploys() // Make this configurable
-	l2EthClient, err := node.NewEthClient(cfg.RPCs.L2RPC)
+	l2EthClient, err := node.DialEthClient(cfg.RPCs.L2RPC)
 	if err != nil {
 		return nil, err
 	}
@@ -60,8 +60,8 @@ func NewIndexer(cfg config.Config) (*Indexer, error) {
 
 	indexer := &Indexer{
 		db:          db,
-		l1Processor: l1Processor,
-		l2Processor: l2Processor,
+		L1Processor: l1Processor,
+		L2Processor: l2Processor,
 	}
 
 	return indexer, nil
@@ -86,8 +86,8 @@ func (i *Indexer) Run(ctx context.Context) error {
 	}
 
 	// Kick off the processors
-	go run(i.l1Processor.Start)
-	go run(i.l2Processor.Start)
+	go run(i.L1Processor.Start)
+	go run(i.L2Processor.Start)
 	err := <-errCh
 
 	// ensure both processors have halted before returning
