@@ -59,11 +59,6 @@ const config: HardhatUserConfig = {
         '../contracts-bedrock/deployments/goerli',
         '../contracts/deployments/goerli',
       ],
-      'final-migration-rehearsal': [
-        '../contracts-bedrock/deployments/final-migration-rehearsal',
-        '../contracts/deployments/goerli',
-        '../contracts-periphery/deployments/goerli',
-      ],
     },
   },
 }

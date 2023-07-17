@@ -10,7 +10,6 @@ import (
 
 type Agent struct {
 	solver                  *Solver
-	trace                   TraceProvider
 	loader                  Loader
 	responder               Responder
 	maxDepth                int
@@ -21,7 +20,6 @@ type Agent struct {
 func NewAgent(loader Loader, maxDepth int, trace TraceProvider, responder Responder, agreeWithProposedOutput bool, log log.Logger) Agent {
 	return Agent{
 		solver:                  NewSolver(maxDepth, trace),
-		trace:                   trace,
 		loader:                  loader,
 		responder:               responder,
 		maxDepth:                maxDepth,
@@ -102,19 +100,13 @@ func (a *Agent) step(claim Claim, game Game) error {
 		a.log.Warn("Failed to get a step", "err", err)
 		return err
 	}
-	stateData, err := a.trace.GetPreimage(step.PreStateTraceIndex)
-	if err != nil {
-		a.log.Warn("Failed to get a state data", "err", err)
-		return err
-	}
 
-	a.log.Info("Performing step",
-		"depth", step.LeafClaim.Depth(), "index_at_depth", step.LeafClaim.IndexAtDepth(), "value", step.LeafClaim.Value,
-		"is_attack", step.IsAttack, "prestate_trace_index", step.PreStateTraceIndex)
+	a.log.Info("Performing step", "is_attack", step.IsAttack,
+		"depth", step.LeafClaim.Depth(), "index_at_depth", step.LeafClaim.IndexAtDepth(), "value", step.LeafClaim.Value)
 	callData := StepCallData{
 		ClaimIndex: uint64(step.LeafClaim.ContractIndex),
 		IsAttack:   step.IsAttack,
-		StateData:  stateData,
+		StateData:  step.PreState,
 	}
 	return a.responder.Step(context.TODO(), callData)
 }

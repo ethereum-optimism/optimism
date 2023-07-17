@@ -56,7 +56,9 @@ RUN apt-get update && \
   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.48.0 && \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash
 
-RUN echo "downloading pnpm" && npm i -g pnpm
+# We need to isntall yarn because a bespoke dependency installed from github https://codeload.github.com/Saw-mon-and-Natalie/clones-with-immutable-arg needs it
+# it is installed from github which means it's postpack script which uses yarn is ran when unpacked into node_modules
+RUN echo "downloading pnpm and yarn" && npm i -g pnpm && npm i -g yarn@1 && pnpm --version && yarn --version
 
 RUN echo "downloading solidity compilers" && \
   curl -o solc-linux-amd64-v0.5.17+commit.d19bba13 -sL https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.5.17+commit.d19bba13 && \

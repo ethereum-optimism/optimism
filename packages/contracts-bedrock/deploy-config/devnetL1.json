@@ -44,6 +44,6 @@
   "l1GenesisBlockTimestamp": "0x64935846",
   "l1StartingBlockTag": "earliest",
   "l2GenesisRegolithTimeOffset": "0x0",
-  "faultGameAbsolutePrestate": 15,
+  "faultGameAbsolutePrestate": 140,
   "faultGameMaxDepth": 4
 }

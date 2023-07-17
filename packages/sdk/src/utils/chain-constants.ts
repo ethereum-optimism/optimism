@@ -72,6 +72,7 @@ export const DEPOSIT_CONFIRMATION_BLOCKS: {
   [L2ChainID.OPTIMISM_BEDROCK_LOCAL_DEVNET]: 2 as const,
   [L2ChainID.OPTIMISM_BEDROCK_ALPHA_TESTNET]: 12 as const,
   [L2ChainID.BASE_GOERLI]: 12 as const,
+  [L2ChainID.BASE_MAINNET]: 50 as const,
   [L2ChainID.ZORA_GOERLI]: 12 as const,
   [L2ChainID.ZORA_MAINNET]: 50 as const,
 }
@@ -215,6 +216,22 @@ export const CONTRACT_ADDRESSES: {
       BondManager: '0x0000000000000000000000000000000000000000' as const,
       OptimismPortal: '0xe93c8cD0D409341205A592f8c4Ac1A5fe5585cfA' as const,
       L2OutputOracle: '0x2A35891ff30313CcFa6CE88dcf3858bb075A2298' as const,
+    },
+    l2: DEFAULT_L2_CONTRACT_ADDRESSES,
+  },
+  [L2ChainID.BASE_MAINNET]: {
+    l1: {
+      AddressManager: '0x8EfB6B5c4767B09Dc9AA6Af4eAA89F749522BaE2' as const,
+      L1CrossDomainMessenger:
+        '0x866E82a600A1414e583f7F13623F1aC5d58b0Afa' as const,
+      L1StandardBridge: '0x3154Cf16ccdb4C6d922629664174b904d80F2C35' as const,
+      StateCommitmentChain:
+        '0x0000000000000000000000000000000000000000' as const,
+      CanonicalTransactionChain:
+        '0x0000000000000000000000000000000000000000' as const,
+      BondManager: '0x0000000000000000000000000000000000000000' as const,
+      OptimismPortal: '0x49048044D57e1C92A77f79988d21Fa8fAF74E97e' as const,
+      L2OutputOracle: '0x56315b90c40730925ec5485cf004d835058518A0' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },

@@ -33,7 +33,6 @@ flag_management:
     - name: common-ts-tests
     - name: contracts-tests
     - name: core-utils-tests
-    - name: contracts-periphery-tests
     - name: dtl-tests
     - name: chain-mon-tests
     - name: fault-detector-tests

@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -33,7 +34,7 @@ type typeRemapping struct {
 // inefficiency comes from replaceType, which performs a linear
 // search of all replacements when performing substring matches of
 // composite types.
-func CanonicalizeASTIDs(in *solc.StorageLayout) *solc.StorageLayout {
+func CanonicalizeASTIDs(in *solc.StorageLayout, monorepoBase string) *solc.StorageLayout {
 	lastId := uint(1000)
 	astIDRemappings := make(map[uint]uint)
 	typeRemappings := make(map[string]string)
@@ -83,9 +84,18 @@ func CanonicalizeASTIDs(in *solc.StorageLayout) *solc.StorageLayout {
 		Types: make(map[string]solc.StorageLayoutType),
 	}
 	for _, slot := range in.Storage {
+		contract := slot.Contract
+
+		// Normalize the name of the contract since absolute paths
+		// are used when there are 2 contracts imported with the same
+		// name
+		if filepath.IsAbs(contract) {
+			contract = strings.TrimPrefix(strings.Replace(contract, monorepoBase, "", 1), "/")
+		}
+
 		outLayout.Storage = append(outLayout.Storage, solc.StorageLayoutEntry{
 			AstId:    astIDRemappings[slot.AstId],
-			Contract: slot.Contract,
+			Contract: contract,
 			Label:    slot.Label,
 			Offset:   slot.Offset,
 			Slot:     slot.Slot,
