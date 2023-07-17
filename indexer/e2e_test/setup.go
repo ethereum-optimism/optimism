@@ -29,6 +29,7 @@ type E2ETestSuite struct {
 	Indexer *indexer.Indexer
 
 	// Rollup
+	OpCfg *op_e2e.SystemConfig
 	OpSys *op_e2e.System
 }
 
@@ -87,6 +88,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 		t:       t,
 		DB:      db,
 		Indexer: indexer,
+		OpCfg:   &opCfg,
 		OpSys:   opSys,
 	}
 }
