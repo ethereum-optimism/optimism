@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"errors"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -53,15 +54,20 @@ type LegacyStateBatch struct {
 
 type OutputProposal struct {
 	OutputRoot    common.Hash `gorm:"primaryKey;serializer:json"`
+	L2OutputIndex U256
 	L2BlockNumber U256
 
 	L1ContractEventGUID uuid.UUID
 }
 
 type BlocksView interface {
+	L1BlockHeader(*big.Int) (*L1BlockHeader, error)
 	LatestL1BlockHeader() (*L1BlockHeader, error)
-	LatestCheckpointedOutput() (*OutputProposal, error)
 
+	LatestCheckpointedOutput() (*OutputProposal, error)
+	OutputProposal(index *big.Int) (*OutputProposal, error)
+
+	L2BlockHeader(*big.Int) (*L2BlockHeader, error)
 	LatestL2BlockHeader() (*L2BlockHeader, error)
 }
 
@@ -104,6 +110,20 @@ func (db *blocksDB) StoreOutputProposals(outputs []*OutputProposal) error {
 	return result.Error
 }
 
+func (db *blocksDB) L1BlockHeader(height *big.Int) (*L1BlockHeader, error) {
+	var l1Header L1BlockHeader
+	result := db.gorm.Where(&BlockHeader{Number: U256{Int: height}}).Take(&l1Header)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return &l1Header, nil
+}
+
 func (db *blocksDB) LatestL1BlockHeader() (*L1BlockHeader, error) {
 	var l1Header L1BlockHeader
 	result := db.gorm.Order("number DESC").Take(&l1Header)
@@ -120,7 +140,21 @@ func (db *blocksDB) LatestL1BlockHeader() (*L1BlockHeader, error) {
 
 func (db *blocksDB) LatestCheckpointedOutput() (*OutputProposal, error) {
 	var outputProposal OutputProposal
-	result := db.gorm.Order("l2_block_number DESC").Take(&outputProposal)
+	result := db.gorm.Order("l2_output_index DESC").Take(&outputProposal)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return &outputProposal, nil
+}
+
+func (db *blocksDB) OutputProposal(index *big.Int) (*OutputProposal, error) {
+	var outputProposal OutputProposal
+	result := db.gorm.Where(&OutputProposal{L2OutputIndex: U256{Int: index}}).Take(&outputProposal)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -137,6 +171,20 @@ func (db *blocksDB) LatestCheckpointedOutput() (*OutputProposal, error) {
 func (db *blocksDB) StoreL2BlockHeaders(headers []*L2BlockHeader) error {
 	result := db.gorm.Create(&headers)
 	return result.Error
+}
+
+func (db *blocksDB) L2BlockHeader(height *big.Int) (*L2BlockHeader, error) {
+	var l2Header L2BlockHeader
+	result := db.gorm.Where(&BlockHeader{Number: U256{Int: height}}).Take(&l2Header)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return &l2Header, nil
 }
 
 func (db *blocksDB) LatestL2BlockHeader() (*L2BlockHeader, error) {
