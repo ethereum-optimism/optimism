@@ -767,7 +767,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRootFuzz is OneVsOne_Arena 
     function testFuzz_resolvesCorrectly_succeeds(uint256 _dishonestTraceLength) public {
         _dishonestTraceLength = bound(_dishonestTraceLength, 1, 16);
 
-        for (uint256 i = 0; i < 16; i++) {
+        for (uint256 i = 0; i < _dishonestTraceLength; i++) {
             uint256 snapshot = vm.snapshot();
 
             GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
@@ -794,7 +794,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRootFuzz is OneVsOne_Arena {
     function testFuzz_resolvesCorrectly_succeeds(uint256 _dishonestTraceLength) public {
         _dishonestTraceLength = bound(_dishonestTraceLength, 1, 16);
 
-        for (uint256 i = 0; i < 16; i++) {
+        for (uint256 i = 0; i < _dishonestTraceLength; i++) {
             uint256 snapshot = vm.snapshot();
 
             GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
