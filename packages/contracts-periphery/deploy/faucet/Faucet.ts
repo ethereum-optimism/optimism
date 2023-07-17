@@ -4,6 +4,7 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import '@nomiclabs/hardhat-ethers'
 import '@eth-optimism/hardhat-deploy-config'
 import 'hardhat-deploy'
+import { BigNumber } from 'ethers'
 
 import type { DeployConfig } from '../../src'
 
@@ -20,6 +21,7 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     from: deployer,
     args: [deployConfig.faucetAdmin],
     log: true,
+    gasPrice: BigNumber.from(2000000000),
   })
 
   const result = await deploy()

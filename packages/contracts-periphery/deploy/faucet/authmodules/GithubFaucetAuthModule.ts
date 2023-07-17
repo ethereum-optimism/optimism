@@ -4,6 +4,7 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import '@nomiclabs/hardhat-ethers'
 import '@eth-optimism/hardhat-deploy-config'
 import 'hardhat-deploy'
+import { BigNumber } from 'ethers'
 
 import type { DeployConfig } from '../../../src'
 
@@ -28,6 +29,7 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
         deployConfig.githubFamVersion,
       ],
       log: true,
+      gasPrice: BigNumber.from(2000000000),
     }
   )
 

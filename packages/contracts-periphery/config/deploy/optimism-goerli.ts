@@ -15,10 +15,10 @@ const config: DeployConfig = {
     '0x9A75024c09b48B78205dfCf9D9FC5E026CD9A416',
   faucetAdmin: '0xf2C22a95bBA6F35545269183D8d1751a27F047F6',
   githubFamAdmin: '0xA5d13744Ea2E9cF26EA82660A765BAbF3dEB75CB',
-  githubFamName: 'GithubFam',
+  githubFamName: 'GithubFAM',
   githubFamVersion: '1',
   optimistFamAdmin: '0xA5d13744Ea2E9cF26EA82660A765BAbF3dEB75CB',
-  optimistFamName: 'OptimistFam',
+  optimistFamName: 'OptimistFAM',
   optimistFamVersion: '1',
 }
 
