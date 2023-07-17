@@ -477,7 +477,10 @@ contract GamePlayer {
                 }
             } else {
                 // Don't defend a claim we would've made ourselves.
-                if (parentPos.depth() % 2 == 0 && Claim.unwrap(claimAt(15)) == Claim.unwrap(rootClaim)) {
+                if (
+                    parentPos.depth() % 2 == 0 &&
+                    Claim.unwrap(claimAt(15)) == Claim.unwrap(rootClaim)
+                ) {
                     return;
                 }
 
@@ -504,7 +507,15 @@ contract GamePlayer {
 
     /// @notice Returns the player's claim that commits to a given trace index.
     function claimAt(uint256 _traceIndex) public view returns (Claim claim_) {
-        return Claim.wrap(keccak256(abi.encode(_traceIndex >= trace.length ? trace.length - 1 : _traceIndex, traceAt(_traceIndex))));
+        return
+            Claim.wrap(
+                keccak256(
+                    abi.encode(
+                        _traceIndex >= trace.length ? trace.length - 1 : _traceIndex,
+                        traceAt(_traceIndex)
+                    )
+                )
+            );
     }
 
     /// @notice Returns the player's claim that commits to a given trace index.
