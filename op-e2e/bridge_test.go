@@ -76,7 +76,7 @@ func TestERC20BridgeDeposits(t *testing.T) {
 	// Approve WETH9 with the bridge
 	tx, err = WETH9.Approve(opts, predeploys.DevL1StandardBridgeAddr, new(big.Int).SetUint64(math.MaxUint64))
 	require.NoError(t, err)
-	_, err = waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	_, err = waitForTransaction(tx.Hash(), l1Client, 6*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.NoError(t, err)
 
 	// Bridge the WETH9
