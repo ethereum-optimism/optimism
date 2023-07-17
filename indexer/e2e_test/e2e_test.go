@@ -29,7 +29,7 @@ func TestE2E(t *testing.T) {
 	setupCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
 
-	// wait for at least 10 L2 blocks to be created & finalized on L1
+	// wait for at least 10 L2 blocks to be created & posted on L1
 	require.NoError(t, e2eutils.WaitFor(setupCtx, time.Second, func() (bool, error) {
 		l2Height, err := l2OutputOracle.LatestBlockNumber(&bind.CallOpts{Context: setupCtx})
 		return l2Height != nil && l2Height.Uint64() >= 9, err
@@ -80,19 +80,19 @@ func TestE2E(t *testing.T) {
 		submissionInterval := testSuite.OpCfg.DeployConfig.L2OutputOracleSubmissionInterval
 		numOutputs := latestOutput.L2BlockNumber.Int.Uint64() / submissionInterval
 		for i := int64(0); i < int64(numOutputs); i++ {
-			expectedBlockNumber := big.NewInt((i + 1) * int64(submissionInterval))
+			blockNumber := big.NewInt((i + 1) * int64(submissionInterval))
 
 			output, err := testSuite.DB.Blocks.OutputProposal(big.NewInt(i))
 			require.NoError(t, err)
 			require.NotNil(t, output)
 			require.Equal(t, i, output.L2OutputIndex.Int.Int64())
-			require.Equal(t, expectedBlockNumber, output.L2BlockNumber.Int)
+			require.Equal(t, blockNumber, output.L2BlockNumber.Int)
 			require.NotEmpty(t, output.L1ContractEventGUID)
 
 			// we may as well check the integrity of the output root
-			l2Block, err := l2Client.BlockByNumber(context.Background(), expectedBlockNumber)
+			l2Block, err := l2Client.BlockByNumber(context.Background(), blockNumber)
 			require.NoError(t, err)
-			messagePasserStorageHash, err := l2EthClient.StorageHash(predeploys.L2ToL1MessagePasserAddr, expectedBlockNumber)
+			messagePasserStorageHash, err := l2EthClient.StorageHash(predeploys.L2ToL1MessagePasserAddr, blockNumber)
 			require.NoError(t, err)
 
 			// construct and check output root
