@@ -6,7 +6,6 @@ import { Vm } from "forge-std/Vm.sol";
 import { DisputeGameFactory_Init } from "./DisputeGameFactory.t.sol";
 import { DisputeGameFactory } from "../dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "../dispute/FaultDisputeGame.sol";
-import { IFaultDisputeGame } from "../dispute/interfaces/IFaultDisputeGame.sol";
 
 import "../libraries/DisputeTypes.sol";
 import "../libraries/DisputeErrors.sol";
@@ -360,7 +359,6 @@ contract GamePlayer {
     GamePlayer internal counterParty;
     Vm internal vm;
     uint256 internal maxDepth;
-    Claim internal rootClaim;
 
     /// @notice Initializes the player
     function init(
@@ -372,7 +370,6 @@ contract GamePlayer {
         counterParty = _counterParty;
         vm = _vm;
         maxDepth = _gameProxy.MAX_GAME_DEPTH();
-        (, , rootClaim, , ) = _gameProxy.claimData(0);
     }
 
     /// @notice Perform the next move in the game.
@@ -479,7 +476,7 @@ contract GamePlayer {
                 // Don't defend a claim we would've made ourselves.
                 if (
                     parentPos.depth() % 2 == 0 &&
-                    Claim.unwrap(claimAt(15)) == Claim.unwrap(rootClaim)
+                    Claim.unwrap(claimAt(15)) == Claim.unwrap(gameProxy.rootClaim())
                 ) {
                     return;
                 }

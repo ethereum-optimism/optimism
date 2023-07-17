@@ -59,7 +59,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         Claim _absolutePrestate,
         uint256 _maxGameDepth,
         IBigStepper _vm
-    ) Semver(0, 0, 2) {
+    ) Semver(0, 0, 3) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
         VM = _vm;
