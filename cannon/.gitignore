@@ -11,3 +11,4 @@ state.json
 *.json
 *.pprof
 *.out
+bin

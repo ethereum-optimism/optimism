@@ -556,7 +556,7 @@ contract OneVsOne_Arena is FaultDisputeGame_Init {
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot1 is OneVsOne_Arena {
     function setUp() public override {
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
-        GamePlayer dishonest = new FullyDivergentPlayer(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 0);
         super.init(dishonest, honest, 15);
     }
 
@@ -577,7 +577,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot1 is OneVsOne_Arena {
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot1 is OneVsOne_Arena {
     function setUp() public override {
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
-        GamePlayer dishonest = new FullyDivergentPlayer(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 0);
         super.init(honest, dishonest, 15);
     }
 
@@ -598,7 +598,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot1 is OneVsOne_Arena {
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot2 is OneVsOne_Arena {
     function setUp() public override {
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
-        GamePlayer dishonest = new HalfDivergentPlayer(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 7);
         super.init(dishonest, honest, 15);
     }
 
@@ -619,7 +619,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot2 is OneVsOne_Arena {
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot2 is OneVsOne_Arena {
     function setUp() public override {
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
-        GamePlayer dishonest = new HalfDivergentPlayer(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 7);
         super.init(honest, dishonest, 15);
     }
 
@@ -640,7 +640,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot2 is OneVsOne_Arena {
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot3 is OneVsOne_Arena {
     function setUp() public override {
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
-        GamePlayer dishonest = new EarlyDivergentPlayer(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 2);
         super.init(dishonest, honest, 15);
     }
 
@@ -661,7 +661,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot3 is OneVsOne_Arena {
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot3 is OneVsOne_Arena {
     function setUp() public override {
         GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
-        GamePlayer dishonest = new EarlyDivergentPlayer(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 16, 2);
         super.init(honest, dishonest, 15);
     }
 
@@ -682,7 +682,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot3 is OneVsOne_Arena {
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot4 is OneVsOne_Arena {
     function setUp() public override {
         GamePlayer honest = new HonestPlayer_HalfTrace(ABSOLUTE_PRESTATE);
-        GamePlayer dishonest = new DivergentPlayer_HalfTrace(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 8, 5);
         super.init(dishonest, honest, 7);
     }
 
@@ -703,7 +703,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot4 is OneVsOne_Arena {
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot4 is OneVsOne_Arena {
     function setUp() public override {
         GamePlayer honest = new HonestPlayer_HalfTrace(ABSOLUTE_PRESTATE);
-        GamePlayer dishonest = new DivergentPlayer_HalfTrace(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 8, 5);
         super.init(honest, dishonest, 7);
     }
 
@@ -724,7 +724,7 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot4 is OneVsOne_Arena {
 contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot5 is OneVsOne_Arena {
     function setUp() public override {
         GamePlayer honest = new HonestPlayer_QuarterTrace(ABSOLUTE_PRESTATE);
-        GamePlayer dishonest = new DivergentPlayer_QuarterTrace(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 4, 3);
         super.init(dishonest, honest, 3);
     }
 
@@ -745,7 +745,7 @@ contract FaultDisputeGame_ResolvesCorrectly_IncorrectRoot5 is OneVsOne_Arena {
 contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot5 is OneVsOne_Arena {
     function setUp() public override {
         GamePlayer honest = new HonestPlayer_QuarterTrace(ABSOLUTE_PRESTATE);
-        GamePlayer dishonest = new DivergentPlayer_QuarterTrace(ABSOLUTE_PRESTATE);
+        GamePlayer dishonest = new VariableDivergentPlayer(ABSOLUTE_PRESTATE, 4, 3);
         super.init(honest, dishonest, 3);
     }
 
@@ -760,6 +760,68 @@ contract FaultDisputeGame_ResolvesCorrectly_CorrectRoot5 is OneVsOne_Arena {
         // claim unsuccessfully.
         assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
         assertTrue(challenger.failedToStep());
+    }
+}
+
+contract FaultDisputeGame_ResolvesCorrectly_IncorrectRootFuzz is OneVsOne_Arena {
+    function testFuzz_resolvesCorrectly_succeeds(uint256 _dishonestTraceLength) public {
+        _dishonestTraceLength = bound(_dishonestTraceLength, 1, 16);
+
+        for (uint256 i = 0; i < _dishonestTraceLength; i++) {
+            uint256 snapshot = vm.snapshot();
+
+            GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
+            GamePlayer dishonest = new VariableDivergentPlayer(
+                ABSOLUTE_PRESTATE,
+                _dishonestTraceLength,
+                i
+            );
+            super.init(dishonest, honest, _dishonestTraceLength - 1);
+
+            // Play the game until a step is forced.
+            challenger.play(0);
+
+            // Warp ahead to expire the other player's clock.
+            vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+
+            // Resolve the game and assert that the honest player challenged the root
+            // claim successfully.
+            assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.CHALLENGER_WINS));
+            assertFalse(defender.failedToStep());
+
+            vm.revertTo(snapshot);
+        }
+    }
+}
+
+contract FaultDisputeGame_ResolvesCorrectly_CorrectRootFuzz is OneVsOne_Arena {
+    function testFuzz_resolvesCorrectly_succeeds(uint256 _dishonestTraceLength) public {
+        _dishonestTraceLength = bound(_dishonestTraceLength, 1, 16);
+
+        for (uint256 i = 0; i < _dishonestTraceLength; i++) {
+            uint256 snapshot = vm.snapshot();
+
+            GamePlayer honest = new HonestPlayer(ABSOLUTE_PRESTATE);
+            GamePlayer dishonest = new VariableDivergentPlayer(
+                ABSOLUTE_PRESTATE,
+                _dishonestTraceLength,
+                i
+            );
+            super.init(honest, dishonest, 15);
+
+            // Play the game until a step is forced.
+            challenger.play(0);
+
+            // Warp ahead to expire the other player's clock.
+            vm.warp(block.timestamp + 3 days + 12 hours + 1 seconds);
+
+            // Resolve the game and assert that the honest player challenged the root
+            // claim successfully.
+            assertEq(uint8(gameProxy.resolve()), uint8(GameStatus.DEFENDER_WINS));
+            assertTrue(challenger.failedToStep());
+
+            vm.revertTo(snapshot);
+        }
     }
 }
 
@@ -778,60 +840,12 @@ contract HonestPlayer is GamePlayer {
     }
 }
 
-contract FullyDivergentPlayer is GamePlayer {
-    constructor(bytes memory _absolutePrestate) {
-        uint8 absolutePrestate = uint8(_absolutePrestate[31]);
-        bytes memory dishonestTrace = new bytes(16);
-        for (uint8 i = 0; i < dishonestTrace.length; i++) {
-            // Offset the honest trace by 1.
-            dishonestTrace[i] = bytes1(absolutePrestate + i);
-        }
-        trace = dishonestTrace;
-    }
-}
-
-contract HalfDivergentPlayer is GamePlayer {
-    constructor(bytes memory _absolutePrestate) {
-        uint8 absolutePrestate = uint8(_absolutePrestate[31]);
-        bytes memory dishonestTrace = new bytes(16);
-        for (uint8 i = 0; i < dishonestTrace.length; i++) {
-            // Offset the trace after the first half.
-            dishonestTrace[i] = i > 7 ? bytes1(i) : bytes1(absolutePrestate + i + 1);
-        }
-        trace = dishonestTrace;
-    }
-}
-
-contract EarlyDivergentPlayer is GamePlayer {
-    constructor(bytes memory _absolutePrestate) {
-        uint8 absolutePrestate = uint8(_absolutePrestate[31]);
-        bytes memory dishonestTrace = new bytes(16);
-        for (uint8 i = 0; i < dishonestTrace.length; i++) {
-            // Offset the trace after the first 3 instructions.
-            dishonestTrace[i] = i > 2 ? bytes1(i) : bytes1(absolutePrestate + i + 1);
-        }
-        trace = dishonestTrace;
-    }
-}
-
 contract HonestPlayer_HalfTrace is GamePlayer {
     constructor(bytes memory _absolutePrestate) {
         uint8 absolutePrestate = uint8(_absolutePrestate[31]);
         bytes memory halfTrace = new bytes(8);
         for (uint8 i = 0; i < halfTrace.length; i++) {
             halfTrace[i] = bytes1(absolutePrestate + i + 1);
-        }
-        trace = halfTrace;
-    }
-}
-
-contract DivergentPlayer_HalfTrace is GamePlayer {
-    constructor(bytes memory _absolutePrestate) {
-        uint8 absolutePrestate = uint8(_absolutePrestate[31]);
-        bytes memory halfTrace = new bytes(8);
-        for (uint8 i = 0; i < halfTrace.length; i++) {
-            // Diverge at trace instruction 5.
-            halfTrace[i] = i > 4 ? bytes1(i) : bytes1(absolutePrestate + i + 1);
         }
         trace = halfTrace;
     }
@@ -848,15 +862,19 @@ contract HonestPlayer_QuarterTrace is GamePlayer {
     }
 }
 
-contract DivergentPlayer_QuarterTrace is GamePlayer {
-    constructor(bytes memory _absolutePrestate) {
+contract VariableDivergentPlayer is GamePlayer {
+    constructor(
+        bytes memory _absolutePrestate,
+        uint256 _traceLength,
+        uint256 _divergeAt
+    ) {
         uint8 absolutePrestate = uint8(_absolutePrestate[31]);
-        bytes memory halfTrace = new bytes(4);
-        for (uint8 i = 0; i < halfTrace.length; i++) {
-            // Diverge at trace instruction 3.
-            halfTrace[i] = i > 2 ? bytes1(i) : bytes1(absolutePrestate + i + 1);
+        bytes memory _trace = new bytes(_traceLength);
+        for (uint8 i = 0; i < _trace.length; i++) {
+            // Diverge at trace instruction `_divergeAt`.
+            _trace[i] = i >= _divergeAt ? bytes1(i) : bytes1(absolutePrestate + i + 1);
         }
-        trace = halfTrace;
+        trace = _trace;
     }
 }
 

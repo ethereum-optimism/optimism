@@ -77,7 +77,7 @@ jobs:
       - run:
           name: Cannon Go lint
           command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
+            make lint
           working_directory: cannon
       - run:
           name: Cannon Go tests

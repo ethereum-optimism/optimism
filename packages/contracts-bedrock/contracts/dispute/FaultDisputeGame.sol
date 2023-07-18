@@ -137,7 +137,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         //            branch because (n - n) % 2 == 0.
         bool validStep = VM.step(_stateData, _proof) == Claim.unwrap(postState.claim);
         bool parentPostAgree = (parentPos.depth() - postState.position.depth()) % 2 == 0;
-        if ((parentPostAgree && validStep) || (!parentPostAgree && !validStep)) revert ValidStep();
+        if (parentPostAgree == validStep) revert ValidStep();
 
         // Set the parent claim as countered. We do not need to append a new claim to the game;
         // instead, we can just set the existing parent as countered.
