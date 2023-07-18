@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"fmt"
+	"net"
 
 	"github.com/ethereum-optimism/optimism/op-ufm/pkg/config"
 	"github.com/ethereum-optimism/optimism/op-ufm/pkg/metrics"
@@ -31,10 +31,10 @@ func New(cfg *config.Config) *Service {
 func (s *Service) Start(ctx context.Context) {
 	log.Info("service starting")
 	if s.Config.Healthz.Enabled {
-		addr := fmt.Sprintf("%s:%d", s.Config.Healthz.Host, s.Config.Healthz.Port)
+		addr := net.JoinHostPort(s.Config.Healthz.Host, s.Config.Healthz.Port)
 		log.Info("starting healthz server", "addr", addr)
 		go func() {
-			if err := s.Healthz.Start(ctx, s.Config.Healthz.Host, s.Config.Healthz.Port); err != nil {
+			if err := s.Healthz.Start(ctx, addr); err != nil {
 				log.Error("error starting healthz server", "err", err)
 			}
 		}()
@@ -42,7 +42,7 @@ func (s *Service) Start(ctx context.Context) {
 
 	metrics.Debug = s.Config.Metrics.Debug
 	if s.Config.Metrics.Enabled {
-		addr := fmt.Sprintf("%s:%d", s.Config.Metrics.Host, s.Config.Metrics.Port)
+		addr := net.JoinHostPort(s.Config.Metrics.Host, s.Config.Metrics.Port)
 		log.Info("starting metrics server", "addr", addr)
 		go func() {
 			if err := s.Metrics.Start(ctx, addr); err != nil {

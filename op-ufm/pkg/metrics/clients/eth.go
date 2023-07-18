@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-ufm/pkg/metrics"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -32,7 +33,9 @@ func Dial(providerName string, url string) (*InstrumentedEthClient, error) {
 
 func (i *InstrumentedEthClient) TransactionByHash(ctx context.Context, hash common.Hash) (*types.Transaction, bool, error) {
 	start := time.Now()
+	log.Debug(">> TransactionByHash", "hash", hash, "provider", i.providerName)
 	tx, isPending, err := i.c.TransactionByHash(ctx, hash)
+	log.Debug("<< TransactionByHash", "tx", tx, "isPending", isPending, "err", err, "hash", hash, "provider", i.providerName)
 	if err != nil {
 		if !i.ignorableErrors(err) {
 			metrics.RecordError(i.providerName, "ethclient.TransactionByHash")

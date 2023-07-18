@@ -16,7 +16,7 @@ enabled = true
 # Host for the healthz endpoint to listen on
 host = "0.0.0.0"
 # Port for the above.
-port = 8080
+port = "8080"
 
 [metrics]
 # Whether or not to enable Prometheus metrics
@@ -24,7 +24,7 @@ enabled = true
 # Host for the Prometheus metrics endpoint to listen on.
 host = "0.0.0.0"
 # Port for the above.
-port = 9761
+port = "9761"
 
 [wallets.default]
 # OP Stack Chain ID

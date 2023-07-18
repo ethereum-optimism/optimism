@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -14,10 +13,9 @@ type HealthzServer struct {
 	server *http.Server
 }
 
-func (h *HealthzServer) Start(ctx context.Context, host string, port int) error {
+func (h *HealthzServer) Start(ctx context.Context, addr string) error {
 	hdlr := mux.NewRouter()
 	hdlr.HandleFunc("/healthz", h.Handle).Methods("GET")
-	addr := fmt.Sprintf("%s:%d", host, port)
 	c := cors.New(cors.Options{
 		AllowedOrigins: []string{"*"},
 	})

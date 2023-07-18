@@ -29,13 +29,13 @@ type MetricsConfig struct {
 	Enabled bool   `toml:"enabled"`
 	Debug   bool   `toml:"debug"`
 	Host    string `toml:"host"`
-	Port    int    `toml:"port"`
+	Port    string `toml:"port"`
 }
 
 type HealthzConfig struct {
 	Enabled bool   `toml:"enabled"`
 	Host    string `toml:"host"`
-	Port    int    `toml:"port"`
+	Port    string `toml:"port"`
 }
 
 type WalletConfig struct {
@@ -80,12 +80,12 @@ func New(file string) (*Config, error) {
 
 func (c *Config) Validate() error {
 	if c.Metrics.Enabled {
-		if c.Metrics.Host == "" || c.Metrics.Port == 0 {
+		if c.Metrics.Host == "" || c.Metrics.Port == "" {
 			return errors.New("metrics is enabled but host or port are missing")
 		}
 	}
 	if c.Healthz.Enabled {
-		if c.Healthz.Host == "" || c.Healthz.Port == 0 {
+		if c.Healthz.Host == "" || c.Healthz.Port == "" {
 			return errors.New("healthz is enabled but host or port are missing")
 		}
 	}
