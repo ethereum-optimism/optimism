@@ -23,7 +23,7 @@ runs:
     - name: Setup foundry
       uses: foundry-rs/foundry-toolchain@v1
       with:
-        version: ${{ steps.foundry-version.outputs.version }}
+        version: nightly-${{ steps.foundry-version.outputs.version }}
 
     - name: Install node dependencies
       shell: bash
