@@ -102,22 +102,16 @@ func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption)
 // Dials a JSON-RPC endpoint repeatedly, with a backoff, until a client connection is established. Auth is optional.
 func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, attempts int, opts ...rpc.ClientOption) (*rpc.Client, error) {
 	bOff := backoff.Exponential()
-	var ret *rpc.Client
-	err := backoff.DoCtx(ctx, attempts, bOff, func() error {
+	return backoff.Do(ctx, attempts, bOff, func() (*rpc.Client, error) {
 		client, err := rpc.DialOptions(ctx, addr, opts...)
 		if err != nil {
 			if client == nil {
-				return fmt.Errorf("failed to dial address (%s): %w", addr, err)
+				return nil, fmt.Errorf("failed to dial address (%s): %w", addr, err)
 			}
 			log.Warn("failed to dial address, but may connect later", "addr", addr, "err", err)
 		}
-		ret = client
-		return nil
+		return client, nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	return ret, nil
 }
 
 // BaseRPCClient is a wrapper around a concrete *rpc.Client instance to make it compliant

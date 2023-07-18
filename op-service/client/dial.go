@@ -52,20 +52,14 @@ func DialRollupClientWithTimeout(timeout time.Duration, log log.Logger, url stri
 // Dials a JSON-RPC endpoint repeatedly, with a backoff, until a client connection is established. Auth is optional.
 func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string) (*rpc.Client, error) {
 	bOff := backoff.Fixed(defaultRetryTime)
-	var ret *rpc.Client
-	err := backoff.DoCtx(ctx, defaultRetryCount, bOff, func() error {
+	return backoff.Do(ctx, defaultRetryCount, bOff, func() (*rpc.Client, error) {
 		client, err := rpc.DialOptions(ctx, addr)
 		if err != nil {
-			return fmt.Errorf("failed to dial address (%s): %w", addr, err)
+			return nil, fmt.Errorf("failed to dial address (%s): %w", addr, err)
 		}
 		// log.Warn("failed to dial address, but may connect later", "addr", addr, "err", err)
-		ret = client
-		return nil
+		return client, nil
 	})
-	if err != nil {
-		return nil, err
-	}
-	return ret, nil
 }
 
 func IsURLAvailable(address string) bool {
