@@ -40,16 +40,22 @@ func newMockClaimFetcher() *mockClaimFetcher {
 			Clock       *big.Int
 		}{
 			{
-				Claim:    [32]byte{0x00},
-				Position: big.NewInt(0),
+				Claim:     [32]byte{0x00},
+				Position:  big.NewInt(0),
+				Countered: false,
+				Clock:     big.NewInt(0),
 			},
 			{
-				Claim:    [32]byte{0x01},
-				Position: big.NewInt(0),
+				Claim:     [32]byte{0x01},
+				Position:  big.NewInt(0),
+				Countered: false,
+				Clock:     big.NewInt(0),
 			},
 			{
-				Claim:    [32]byte{0x02},
-				Position: big.NewInt(0),
+				Claim:     [32]byte{0x02},
+				Position:  big.NewInt(0),
+				Countered: false,
+				Clock:     big.NewInt(0),
 			},
 		},
 	}
@@ -101,6 +107,8 @@ func TestLoader_FetchClaims_Succeeds(t *testing.T) {
 				Value:    expectedClaims[0].Claim,
 				Position: NewPositionFromGIndex(expectedClaims[0].Position.Uint64()),
 			},
+			Countered:     false,
+			Clock:         uint64(0),
 			ContractIndex: 0,
 		},
 		{
@@ -112,6 +120,8 @@ func TestLoader_FetchClaims_Succeeds(t *testing.T) {
 				Value:    expectedClaims[0].Claim,
 				Position: NewPositionFromGIndex(expectedClaims[1].Position.Uint64()),
 			},
+			Countered:     false,
+			Clock:         uint64(0),
 			ContractIndex: 1,
 		},
 		{
@@ -123,6 +133,8 @@ func TestLoader_FetchClaims_Succeeds(t *testing.T) {
 				Value:    expectedClaims[0].Claim,
 				Position: NewPositionFromGIndex(expectedClaims[2].Position.Uint64()),
 			},
+			Countered:     false,
+			Clock:         uint64(0),
 			ContractIndex: 2,
 		},
 	}, claims)
