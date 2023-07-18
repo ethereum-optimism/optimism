@@ -25,11 +25,15 @@
     "ready": "pnpm lint && pnpm test",
     "prepare": "husky install",
     "release": "npx nx run-many --target=build --skip-nx-cache && pnpm changeset publish",
+    "release:check": "changeset status --verbose --since=origin/main",
+    "release:publish": "npx nx run-many --target=build && pnpm install && pnpm build && changeset publish",
+    "release:version": "changeset version && pnpm install --lockfile-only",
     "install:foundry": "curl -L https://foundry.paradigm.xyz | bash && pnpm update:foundry",
     "update:foundry": "foundryup -C $(cat .foundryrc)"
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.18.2",
+    "@changesets/changelog-github": "^0.4.8",
     "@nrwl/nx-cloud": "latest",
     "@types/chai": "^4.2.18",
     "@types/chai-as-promised": "^7.1.4",

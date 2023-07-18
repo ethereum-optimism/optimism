@@ -1,4 +1,4 @@
-name: Publish Packages (canary)
+name: Publish Docker images (canary)
 
 on:
   # enable users to manually trigger with workflow_dispatch
@@ -30,48 +30,6 @@ jobs:
         with:
           # This makes Actions fetch all Git history so that Changesets can generate changelogs with the correct commits
           fetch-depth: 0
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8.6.5
-
-      - name: Setup Node.js 16.x
-        uses: actions/setup-node@master
-        with:
-          node-version: 16.x
-          cache: pnpm
-
-      - name: Install Dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: nightly
-
-      - name: Build
-        run: npx nx run-many --target=build --skip-nx-cache
-
-      - name: Setup Canary Snapshot
-        run: pnpm changeset version --snapshot
-
-      - name: Publish To NPM
-        uses: changesets/action@v1
-        id: changesets
-        with:
-          createGithubReleases: false
-          publish: pnpm changeset publish --tag canary
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      # Conditional on the release being executed, we unbundle the publishedPackages to specific
-      # job outputs
-      - name: Get version tags from each published version
-        id: packages
-        run: |
-          node ops/scripts/ci-versions.js ${{ toJSON(steps.changesets.outputs.publishedPackages) }}
 
       - name: Docker Image Name
         id: docker-image-name
