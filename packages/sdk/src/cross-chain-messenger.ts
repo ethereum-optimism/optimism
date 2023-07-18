@@ -1063,7 +1063,12 @@ export class CrossChainMessenger {
     toBlockOrBlockHash?: BlockTag
   ): Promise<number> {
     const resolved = await this.toCrossChainMessage(message, messageIndex)
-    const status = await this.getMessageStatus(resolved, messageIndex, fromBlockOrBlockHash, toBlockOrBlockHash)
+    const status = await this.getMessageStatus(
+      resolved,
+      messageIndex,
+      fromBlockOrBlockHash,
+      toBlockOrBlockHash
+    )
     if (resolved.direction === MessageDirection.L1_TO_L2) {
       if (
         status === MessageStatus.RELAYED ||
