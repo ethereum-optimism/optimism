@@ -310,7 +310,7 @@ func l1BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethCl
 		if withdrawal == nil {
 
 			// This needs to be updated to read from config as well as correctly identify if the CrossDomainMessenger message is a standard
-			// bridge message. This will easier to do once we index passed messages seperately which will include the right To/From fields
+			// bridge message. This will easier to do once we index passed messages separately which will include the right To/From fields
 			if provenWithdrawalEvent.From != common.HexToAddress("0x4200000000000000000000000000000000000007") || provenWithdrawalEvent.To != l1Contracts.L1CrossDomainMessenger {
 				// non-bridge withdrawal
 				continue

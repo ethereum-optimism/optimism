@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -41,11 +40,11 @@ func runIndexer(ctx *cli.Context) error {
 	}
 
 	signalChannel := make(chan os.Signal, 1)
-	indexerCtx, indexerCancel := context.WithCancelCause(context.Background())
+	indexerCtx, indexerCancel := context.WithCancel(context.Background())
 	signal.Notify(signalChannel, os.Interrupt)
 	go func() {
 		<-signalChannel
-		indexerCancel(errors.New("caught interrrupt"))
+		indexerCancel()
 	}()
 
 	return indexer.Run(indexerCtx)

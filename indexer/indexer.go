@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
@@ -14,7 +16,8 @@ import (
 // Indexer contains the necessary resources for
 // indexing the configured L1 and L2 chains
 type Indexer struct {
-	db *database.DB
+	db  *database.DB
+	log log.Logger
 
 	L1Processor *processor.L1Processor
 	L2Processor *processor.L2Processor
@@ -52,6 +55,7 @@ func NewIndexer(cfg config.Config) (*Indexer, error) {
 
 	indexer := &Indexer{
 		db:          db,
+		log:         cfg.Logger,
 		L1Processor: l1Processor,
 		L2Processor: l2Processor,
 	}
@@ -65,14 +69,16 @@ func (i *Indexer) Run(ctx context.Context) error {
 	errCh := make(chan error)
 
 	// If either processor errors out, we stop
-	processorCtx, cancel := context.WithCancelCause(ctx)
+	processorCtx, cancel := context.WithCancel(ctx)
 	run := func(start func(ctx context.Context) error) {
 		wg.Add(1)
 		defer wg.Done()
 
 		err := start(processorCtx)
 		if err != nil {
-			cancel(err)
+			i.log.Error("halting indexer on error", "err", err)
+
+			cancel()
 			errCh <- err
 		}
 	}
