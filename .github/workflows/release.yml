@@ -49,15 +49,9 @@ jobs:
           registry-url: https://registry.npmjs.org
           cache: pnpm
 
-      - name: Get foundry version
-        id: foundry-version
-        shell: bash
-        run: echo ::set-output name=version::$(cat .foundryrc)
-
       - name: Setup foundry
         uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: nightly-${{ steps.foundry-version.outputs.version }}
+
       - name: Install node dependencies
         shell: bash
         run: pnpm install --frozen-lockfile
