@@ -6,7 +6,7 @@ ARG GITVERSION=docker
 
 RUN apk add make jq git gcc musl-dev linux-headers
 
-COPY ./ufm /app
+COPY ./op-ufm /app
 
 WORKDIR /app
 
@@ -14,17 +14,16 @@ RUN make ufm
 
 FROM alpine:3.18
 
-COPY ./ufm/entrypoint.sh /bin/entrypoint.sh
+COPY --from=builder /app/entrypoint.sh /bin/entrypoint.sh
+COPY --from=builder /app/bin/ufm /bin/ufm
 
 RUN apk update && \
     apk add ca-certificates && \
     chmod +x /bin/entrypoint.sh
 
-EXPOSE 8080
-
 VOLUME /etc/ufm
 
-COPY --from=builder /app/bin/op-ufm /bin/op-ufm
+EXPOSE 8080
 
 ENTRYPOINT ["/bin/entrypoint.sh"]
-CMD ["/bin/op-ufm", "/etc/op-ufm/config.toml"]
+CMD ["/bin/ufm", "/etc/ufm/config.toml"]

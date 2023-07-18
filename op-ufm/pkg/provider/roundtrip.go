@@ -86,7 +86,7 @@ func (p *Provider) RoundTrip(ctx context.Context) {
 	p.txPool.M.Lock()
 	p.txPool.Transactions[txHash.Hex()] = &TransactionState{
 		Hash:           txHash,
-		ProviderSentTo: p.name,
+		ProviderSource: p.name,
 		SentAt:         sentAt,
 		SeenBy:         make(map[string]time.Time),
 	}

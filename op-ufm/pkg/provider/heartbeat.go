@@ -22,7 +22,7 @@ func (p *Provider) Heartbeat(ctx context.Context) {
 	expectedTransactions := make([]*TransactionState, 0, len(p.txPool.Transactions))
 	alreadySeen := 0
 	for _, st := range p.txPool.Transactions {
-		if st.ProviderSentTo == p.name {
+		if st.ProviderSource == p.name {
 			continue
 		}
 		if _, exist := st.SeenBy[p.name]; exist {
@@ -59,16 +59,16 @@ func (p *Provider) Heartbeat(ctx context.Context) {
 		latency := time.Since(st.SentAt)
 		if st.FirstSeen.IsZero() {
 			st.FirstSeen = time.Now()
-			metrics.RecordFirstSeenLatency(st.ProviderSentTo, p.name, latency)
+			metrics.RecordFirstSeenLatency(st.ProviderSource, p.name, latency)
 			log.Info("transaction first seen",
 				"hash", hash,
 				"firstSeenLatency", latency,
-				"providerSource", st.ProviderSentTo,
+				"providerSource", st.ProviderSource,
 				"providerSeen", p.name)
 		}
 		if _, exist := st.SeenBy[p.name]; !exist {
 			st.SeenBy[p.name] = time.Now()
-			metrics.RecordProviderToProviderLatency(st.ProviderSentTo, p.name, latency)
+			metrics.RecordProviderToProviderLatency(st.ProviderSource, p.name, latency)
 		}
 		st.M.Unlock()
 

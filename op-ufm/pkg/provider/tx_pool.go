@@ -25,7 +25,7 @@ type TransactionState struct {
 	M sync.Mutex
 
 	SentAt         time.Time
-	ProviderSentTo string
+	ProviderSource string
 
 	FirstSeen time.Time
 

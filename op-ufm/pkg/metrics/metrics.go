@@ -18,10 +18,10 @@ const (
 var (
 	Debug bool
 
-	errorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	errorsTotal = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: MetricsNamespace,
 		Name:      "errors_total",
-		Help:      "Count of errors.",
+		Help:      "Count of errors",
 	}, []string{
 		"provider",
 		"error",
@@ -119,7 +119,7 @@ func RecordGasUsed(provider string, val uint64) {
 		log.Debug("metric add", "m", "gas_used",
 			"provider", provider, "val", val)
 	}
-	gasUsed.WithLabelValues(provider).Add(float64(val))
+	gasUsed.WithLabelValues(provider).Set(float64(val))
 }
 
 func RecordFirstSeenLatency(providerSource string, providerSeen string, latency time.Duration) {
