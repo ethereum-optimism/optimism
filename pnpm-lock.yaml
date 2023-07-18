@@ -267,9 +267,6 @@ importers:
       clones-with-immutable-args:
         specifier: github:Saw-mon-and-Natalie/clones-with-immutable-args#105efee1b9127ed7f6fedf139e1fc796ce8791f2
         version: github.com/Saw-mon-and-Natalie/clones-with-immutable-args/105efee1b9127ed7f6fedf139e1fc796ce8791f2
-      ethers:
-        specifier: ^5.7.0
-        version: 5.7.1
     devDependencies:
       '@typescript-eslint/eslint-plugin':
         specifier: ^5.60.1
