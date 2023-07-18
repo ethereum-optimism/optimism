@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.19;
+pragma solidity 0.8.15;
 
 import { Semver } from "../universal/Semver.sol";
 
@@ -17,7 +17,7 @@ contract SchemaRegistry is ISchemaRegistry, Semver {
     error AlreadyExists();
 
     // The global mapping between schema records and their IDs.
-    mapping(bytes32 uid => SchemaRecord schemaRecord) private _registry;
+    mapping(bytes32 => SchemaRecord) private _registry;
 
     // Upgrade forward-compatibility storage gap
     uint256[MAX_GAP - 1] private __gap;
