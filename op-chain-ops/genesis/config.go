@@ -162,7 +162,7 @@ type DeployConfig struct {
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
 	// EIP1559Elasticity is the elasticity of the EIP1559 fee market.
 	EIP1559Elasticity uint64 `json:"eip1559Elasticity"`
-	// EIP1559BaseFeeMaxChangeDenominator is the denominator of EIP1559 base fee market.
+	// EIP1559Denominator is the denominator of EIP1559 base fee market.
 	EIP1559Denominator uint64 `json:"eip1559Denominator"`
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
 	// during devnet deployments.
