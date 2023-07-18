@@ -19,7 +19,7 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    if: github.repository == 'eth-optimism/optimism'
+    if: github.repository == 'ethereum-optimism/optimism'
     # map the step outputs to job outputs
     outputs:
       fault-detector: ${{ steps.packages.outputs.fault-detector }}

@@ -12,7 +12,7 @@ on:
 jobs:
   snapshot-snapshot:
     name: Publish snapshot release to npm
-    if: github.repository == 'eth-optimism/optimism'
+    if: github.repository == 'ethereum-optimism/optimism'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
