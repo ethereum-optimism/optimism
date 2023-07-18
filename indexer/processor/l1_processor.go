@@ -308,15 +308,16 @@ func l1BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethCl
 		// Check if the L2Processor is behind or really has missed an event. We can compare against the
 		// OptimismPortal#ProvenWithdrawal on-chain mapping relative to the latest indexed L2 height
 		if withdrawal == nil {
-			bridgeAddress := l1Contracts.L1StandardBridge
-			portalAddress := l1Contracts.OptimismPortal
-			if provenWithdrawalEvent.From != bridgeAddress || provenWithdrawalEvent.To != bridgeAddress {
+
+			// This needs to be updated to read from config as well as correctly identify if the CrossDomainMessenger message is a standard
+			// bridge message. This will easier to do once we index passed messages seperately which will include the right To/From fields
+			if provenWithdrawalEvent.From != common.HexToAddress("0x4200000000000000000000000000000000000007") || provenWithdrawalEvent.To != l1Contracts.L1CrossDomainMessenger {
 				// non-bridge withdrawal
 				continue
 			}
 
 			// Query for the the proven withdrawal on-chain
-			provenWithdrawal, err := OptimismPortalQueryProvenWithdrawal(rawEthClient, portalAddress, withdrawalHash)
+			provenWithdrawal, err := OptimismPortalQueryProvenWithdrawal(rawEthClient, l1Contracts.OptimismPortal, withdrawalHash)
 			if err != nil {
 				return err
 			}
@@ -361,8 +362,8 @@ func l1BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethCl
 			return err
 		}
 
-		// Since we have to prove the event on-chain first, we don't need to check if the processor is
-		// behind. we're definitely in an error state if we cannot find the withdrawal when parsing this even
+		// Since we have to prove the event on-chain first, we don't need to check if the processor is behind
+		// We're definitely in an error state if we cannot find the withdrawal when parsing this event
 		if withdrawal == nil {
 			processLog.Crit("missing indexed withdrawal for this finalization event")
 			return errors.New("missing withdrawal message")
