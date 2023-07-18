@@ -46,7 +46,7 @@ RPC_FLAGS=" \
 
 if [ ! -f ${DATADIR}/init_done ] ; then
   echo "Chain init"
-  erigon ${COMMON_FLAGS} init /genesis.json
+  erigon ${COMMON_FLAGS} init /config/genesis-l2.json
   echo "Creating keyfile"
   echo "2e0834786285daccd064ca17f1654f67b4aef298acbb82cef9ec422fb4975622" > ${DATADIR}/nodekey
   touch ${DATADIR}/init_done

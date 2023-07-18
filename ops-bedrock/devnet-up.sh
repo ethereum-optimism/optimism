@@ -34,6 +34,7 @@ L2_URL="http://localhost:9545"
 
 OP_NODE="$PWD/op-node"
 CONTRACTS_BEDROCK="$PWD/packages/contracts-bedrock"
+OPS_BEDROCK="$PWD/ops-bedrock"
 NETWORK=devnetL1
 DEVNET="$PWD/.devnet"
 
@@ -57,11 +58,17 @@ function wait_up {
   echo "Done!"
 }
 
-mkdir -p ./.devnet
+mkdir -p $DEVNET
 
 # Regenerate the L1 genesis file if necessary. The existence of the genesis
 # file is used to determine if we need to recreate the devnet's state folder.
 if [ ! -f "$DEVNET/done" ]; then
+  echo "Copying devnet keys"
+
+  cp $OPS_BEDROCK/test-jwt-secret.txt $DEVNET/
+  cp $OPS_BEDROCK/p2p-node-key.txt $DEVNET/
+  cp $OPS_BEDROCK/op-batcher-key.txt $DEVNET/
+
   echo "Regenerating genesis files"
 
   TIMESTAMP=$(date +%s | xargs printf '0x%x')
