@@ -94,7 +94,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
     /**
      * @inheritdoc IEAS
      */
-    function getSchemaRegistry() external view returns (ISchemaRegistry) {
+    function getSchemaRegistry() external pure returns (ISchemaRegistry) {
         return _schemaRegistry;
     }
 
