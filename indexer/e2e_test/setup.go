@@ -95,7 +95,8 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 }
 
 func setupTestDatabase(t *testing.T) string {
-	pg, err := sql.Open("pgx", "database=postgres")
+	user := os.Getenv("DB_USER")
+	pg, err := sql.Open("pgx", fmt.Sprintf("postgres://%s@localhost:5432?sslmode=disable", user))
 	require.NoError(t, err)
 	require.NoError(t, pg.Ping())
 
