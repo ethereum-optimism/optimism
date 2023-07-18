@@ -34,17 +34,17 @@ chain_id = 420
 # Possible values: signer | static
 signer_method = "static"
 # Address used to send transactions
-address="0x0000000000000000000000000000000000000000"
+address = "0x0000000000000000000000000000000000000000"
 # For static signer method, the private key to use
-private_key="0000000000000000000000000000000000000000000000000000000000000000"
+private_key = "0000000000000000000000000000000000000000000000000000000000000000"
 # Transaction value in wei
-tx_value=100000000000000
+tx_value = 100000000000000
 # Gas limit
-gas_limit=21000
+gas_limit = 21000
 # Gas tip cap
-gas_tip_cap=2000000000
+gas_tip_cap = 2000000000
 # Fee cap
-gas_fee_cap=20000000000
+gas_fee_cap = 20000000000
 
 [providers.p1]
 # URL to the RPC provider
