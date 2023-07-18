@@ -143,6 +143,7 @@ jobs:
             - "packages/fault-detector/node_modules"
             - "packages/replica-healthcheck/node_modules"
             - "packages/sdk/node_modules"
+            - "packages/contracts-ts/node_modules"
       - run:
           name: print forge version
           command: forge --version
