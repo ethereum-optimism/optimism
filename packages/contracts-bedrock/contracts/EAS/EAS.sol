@@ -71,7 +71,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
     error WrongSchema();
 
     // The global schema registry.
-    ISchemaRegistry private immutable _schemaRegistry = ISchemaRegistry(Predeploys.SCHEMA_REGISTRY);
+    ISchemaRegistry private constant _schemaRegistry = ISchemaRegistry(Predeploys.SCHEMA_REGISTRY);
 
     // The global mapping between attestations and their UIDs.
     mapping(bytes32 uid => Attestation attestation) private _db;
