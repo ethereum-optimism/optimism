@@ -5,7 +5,6 @@ import {
   TransactionReceipt,
   TransactionResponse,
   TransactionRequest,
-  Block,
 } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
 import {
