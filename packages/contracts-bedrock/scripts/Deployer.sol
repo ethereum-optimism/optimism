@@ -103,8 +103,8 @@ abstract contract Deployer is Script {
             string memory deploymentName = deployments[i].name;
 
             string memory deployTx = _getDeployTransactionByContractAddress(addr);
-            string memory contractName = stdJson.readString(deployTx, ".contractName");
-            console.log("Syncing %s", deploymentName);
+            string memory contractName = _getContractNameFromDeployTransaction(deployTx);
+            console.log("Syncing %s: %s", deploymentName, contractName);
 
             string memory fqn = getFullyQualifiedName(contractName);
             string[] memory args = getDeployTransactionConstructorArguments(deployTx);
@@ -257,6 +257,18 @@ abstract contract Deployer is Script {
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
         cmd[2] = string.concat(Executables.jq, " -r '.transactions[] | select(.contractAddress == ", '"', vm.toString(_addr), '"', ") | select(.transactionType == ", '"CREATE"', ")' < ", deployPath);
+        bytes memory res = vm.ffi(cmd);
+        return string(res);
+    }
+
+    /// @notice Returns the contract name from a deploy transaction. Removes the semver from the contract
+    //          name if present.
+    function _getContractNameFromDeployTransaction(string memory _deployTx) internal returns (string memory) {
+        string memory contractName = stdJson.readString(_deployTx, ".contractName");
+        string[] memory cmd = new string[](3);
+        cmd[0] = Executables.bash;
+        cmd[1] = "-c";
+        cmd[2] = string.concat(Executables.echo, " ", contractName, " | ", Executables.sed, " -E 's/[.][0-9]+\\.[0-9]+\\.[0-9]+//g'");
         bytes memory res = vm.ffi(cmd);
         return string(res);
     }
