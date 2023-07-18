@@ -1107,3 +1107,88 @@ func TestResetLoop(t *testing.T) {
 	l1F.AssertExpectations(t)
 	eng.AssertExpectations(t)
 }
+
+func TestEngineQueue_StepPopOlderUnsafe(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	eng := &testutils.MockEngine{}
+	l1F := &testutils.MockL1Source{}
+
+	rng := rand.New(rand.NewSource(1234))
+
+	refA := testutils.RandomBlockRef(rng)
+	refA0 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         0,
+		ParentHash:     common.Hash{},
+		Time:           refA.Time,
+		L1Origin:       refA.ID(),
+		SequenceNumber: 0,
+	}
+	gasLimit := eth.Uint64Quantity(20_000_000)
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L1:     refA.ID(),
+			L2:     refA0.ID(),
+			L2Time: refA0.Time,
+			SystemConfig: eth.SystemConfig{
+				BatcherAddr: common.Address{42},
+				Overhead:    [32]byte{123},
+				Scalar:      [32]byte{42},
+				GasLimit:    20_000_000,
+			},
+		},
+		BlockTime:     1,
+		SeqWindowSize: 2,
+	}
+
+	refA1 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         refA0.Number + 1,
+		ParentHash:     refA0.Hash,
+		Time:           refA0.Time + cfg.BlockTime,
+		L1Origin:       refA.ID(),
+		SequenceNumber: 1,
+	}
+	refA2 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         refA1.Number + 1,
+		ParentHash:     refA1.Hash,
+		Time:           refA1.Time + cfg.BlockTime,
+		L1Origin:       refA.ID(),
+		SequenceNumber: 2,
+	}
+	payloadA1 := &eth.ExecutionPayload{
+		ParentHash:    refA1.ParentHash,
+		FeeRecipient:  common.Address{},
+		StateRoot:     eth.Bytes32{},
+		ReceiptsRoot:  eth.Bytes32{},
+		LogsBloom:     eth.Bytes256{},
+		PrevRandao:    eth.Bytes32{},
+		BlockNumber:   eth.Uint64Quantity(refA1.Number),
+		GasLimit:      gasLimit,
+		GasUsed:       0,
+		Timestamp:     eth.Uint64Quantity(refA1.Time),
+		ExtraData:     nil,
+		BaseFeePerGas: *uint256.NewInt(7),
+		BlockHash:     refA1.Hash,
+		Transactions:  []eth.Data{},
+	}
+
+	prev := &fakeAttributesQueue{origin: refA}
+
+	eq := NewEngineQueue(logger, cfg, eng, metrics.NoopMetrics, prev, l1F)
+	eq.unsafeHead = refA2
+	eq.safeHead = refA0
+	eq.finalized = refA0
+
+	eq.AddUnsafePayload(payloadA1)
+
+	err := eq.Step(context.Background())
+	require.NoError(t, err)
+
+	require.Nil(t, eq.unsafePayloads.Peek(), "should pop the unsafe payload because it is too old")
+	fmt.Println(eq.unsafePayloads.Peek())
+
+	l1F.AssertExpectations(t)
+	eng.AssertExpectations(t)
+}
