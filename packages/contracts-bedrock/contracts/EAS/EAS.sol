@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.8.15;
+pragma solidity 0.8.19;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
@@ -70,14 +70,17 @@ contract EAS is IEAS, Semver, EIP712Verifier {
     error NotPayable();
     error WrongSchema();
 
+    // The global schema registry.
+    ISchemaRegistry private constant _schemaRegistry = ISchemaRegistry(Predeploys.SCHEMA_REGISTRY);
+
     // The global mapping between attestations and their UIDs.
-    mapping(bytes32 => Attestation) private _db;
+    mapping(bytes32 uid => Attestation attestation) private _db;
 
     // The global mapping between data and their timestamps.
-    mapping(bytes32 => uint64) private _timestamps;
+    mapping(bytes32 data => uint64 timestamp) private _timestamps;
 
     // The global mapping between data and their revocation timestamps.
-    mapping(address => mapping(bytes32 => uint64)) private _revocationsOffchain;
+    mapping(address revoker => mapping(bytes32 data => uint64 timestamp)) private _revocationsOffchain;
 
     // Upgrade forward-compatibility storage gap
     uint256[MAX_GAP - 3] private __gap;
@@ -92,7 +95,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
      * @inheritdoc IEAS
      */
     function getSchemaRegistry() external pure returns (ISchemaRegistry) {
-        return ISchemaRegistry(Predeploys.SCHEMA_REGISTRY);
+        return _schemaRegistry;
     }
 
     /**
@@ -438,7 +441,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         res.uids = new bytes32[](length);
 
         // Ensure that we aren't attempting to attest to a non-existing schema.
-        SchemaRecord memory schemaRecord = ISchemaRegistry(Predeploys.SCHEMA_REGISTRY).getSchema(schema);
+        SchemaRecord memory schemaRecord = _schemaRegistry.getSchema(schema);
         if (schemaRecord.uid == EMPTY_UID) {
             revert InvalidSchema();
         }
@@ -528,7 +531,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         bool last
     ) private returns (uint256) {
         // Ensure that a non-existing schema ID wasn't passed by accident.
-        SchemaRecord memory schemaRecord = ISchemaRegistry(Predeploys.SCHEMA_REGISTRY).getSchema(schema);
+        SchemaRecord memory schemaRecord = _schemaRegistry.getSchema(schema);
         if (schemaRecord.uid == EMPTY_UID) {
             revert InvalidSchema();
         }
@@ -774,7 +777,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
      * @param time The timestamp.
      */
     function _revokeOffchain(address revoker, bytes32 data, uint64 time) private {
-        mapping(bytes32 => uint64) storage revocations = _revocationsOffchain[revoker];
+        mapping(bytes32 data => uint64 timestamp) storage revocations = _revocationsOffchain[revoker];
 
         if (revocations[data] != 0) {
             revert AlreadyRevokedOffchain();
