@@ -106,10 +106,9 @@ abstract contract Deployer is Script {
             string memory contractName = _getContractNameFromDeployTransaction(deployTx);
             console.log("Syncing deployment %s: contract %s", deploymentName, contractName);
 
-            string memory fqn = getFullyQualifiedName(contractName);
             string[] memory args = getDeployTransactionConstructorArguments(deployTx);
-            bytes memory code = vm.getCode(fqn);
-            bytes memory deployedCode = vm.getDeployedCode(fqn);
+            bytes memory code = _getCode(contractName);
+            bytes memory deployedCode = _getDeployedCode(contractName);
             string memory receipt = _getDeployReceiptByContractAddress(addr);
 
             string memory artifactPath = string.concat(deploymentsDir, "/", deploymentName, ".json");
@@ -267,6 +266,20 @@ abstract contract Deployer is Script {
         return stdJson.readString(_deployTx, ".contractName");
     }
 
+    /// @notice
+    function _getCode(string memory _name) returns (bytes memory) {
+        string memory fqn = _getFullyQualifiedName(_name);
+        bytes memory code = vm.getCode(fqn);
+        return code;
+    }
+
+    /// @notice
+    function _getDeployedCode(string memorh _name) returns (bytes memory) {
+        string memory fqn = _getFullyQualifiedName(_name);
+        bytes memory code = vm.getDeployedCode(fqn);
+        return code;
+    }
+
     /// @notice Removes the semantic versioning from a contract name. The semver will exist if the contract is compiled more than
     ///         once with different versions of the compiler.
     function _stripSemver(string memory _name) internal returns (string memory) {
@@ -294,9 +307,10 @@ abstract contract Deployer is Script {
     }
 
     /// @notice Builds the fully qualified name of a contract. Assumes that the
-    ///         file name is the same as the contract name.
-    function getFullyQualifiedName(string memory _name) internal pure returns (string memory) {
-        return string.concat(_name, ".sol:", _name);
+    ///         file name is the same as the contract name but strips semver for the file name.
+    function _getFullyQualifiedName(string memory _name) internal pure returns (string memory) {
+        string memory sanitized = _stripSemver(_name);
+        return string.concat(sanitized, ".sol:", _name);
     }
 
     /// @notice Returns the filesystem path to the artifact path. Assumes that the name of the
