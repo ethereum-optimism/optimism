@@ -216,21 +216,16 @@ func _standardBridgeFinalizedEvents[BridgeEvent bindings.L1StandardBridgeETHBrid
 			return nil, errors.New("unable to query relayMessage tx for bridge finalization event")
 		}
 
-		// If this is a finalization step with the optimism portal, the same relay message nonce is used as the
-		// withdrawal transaction nonce. lets simply read the withdrawal message nonce and save additional decoding
-		var nonce *big.Int
+		// If this is a finalization step with the optimism portal, the calldata for relayMessage invocation can be
+		// extracted from the withdrawal transaction.
+
+		// NOTE: the L2CrossDomainMessenger nonce may not match the L2ToL1MessagePasser nonce, hence the additional
+		// layer of decoding vs reading the nocne of the withdrawal transaction. Both nonces have a similar but
+		// different lifeycle that might not match (i.e L2ToL1MessagePasser can be invoced directly)
+		var relayMsgCallData []byte
 		switch {
 		case bytes.Equal(tx.Data()[:4], relayMessageMethodAbi.ID):
-			inputsMap := make(map[string]interface{})
-			err = relayMessageMethodAbi.Inputs.UnpackIntoMap(inputsMap, tx.Data()[4:])
-			if err != nil {
-				return nil, err
-			}
-			_nonce, ok := inputsMap["_nonce"].(*big.Int)
-			if !ok {
-				return nil, errors.New("unable to extract `_nonce` parameter from relayMessage transaction")
-			}
-			nonce = _nonce
+			relayMsgCallData = tx.Data()[4:]
 		case bytes.Equal(tx.Data()[:4], finalizeWithdrawalTransactionMethodAbi.ID):
 			data, err := finalizeWithdrawalTransactionMethodAbi.Inputs.Unpack(tx.Data()[4:])
 			if err != nil {
@@ -242,11 +237,23 @@ func _standardBridgeFinalizedEvents[BridgeEvent bindings.L1StandardBridgeETHBrid
 			})
 			err = finalizeWithdrawalTransactionMethodAbi.Inputs.Copy(finalizeWithdrawTransactionInput, data)
 			if err != nil {
-				return nil, fmt.Errorf("unable extract withdrawal tx input from finalizeWithdrawalTransaction transaction: %w", err)
+				return nil, fmt.Errorf("unable extract withdrawal tx input from finalizeWithdrawalTransaction calldata: %w", err)
+			} else if !bytes.Equal(finalizeWithdrawTransactionInput.Tx.Data[:4], relayMessageMethodAbi.ID) {
+				return nil, errors.New("finalizeWithdrawalTransaction calldata does not match relayMessage invocation")
 			}
-			nonce = finalizeWithdrawTransactionInput.Tx.Nonce
+			relayMsgCallData = finalizeWithdrawTransactionInput.Tx.Data[4:]
 		default:
-			return nil, errors.New("bridge finalization event does not match relayMessage tx invocation")
+			return nil, errors.New("bridge finalization event does not correlate with a relayMessage tx invocation")
+		}
+
+		inputsMap := make(map[string]interface{})
+		err = relayMessageMethodAbi.Inputs.UnpackIntoMap(inputsMap, relayMsgCallData)
+		if err != nil {
+			return nil, err
+		}
+		nonce, ok := inputsMap["_nonce"].(*big.Int)
+		if !ok {
+			return nil, errors.New("unable to extract `_nonce` parameter from relayMessage calldata")
 		}
 
 		var erc20BridgeData *bindings.L1StandardBridgeERC20BridgeFinalized
