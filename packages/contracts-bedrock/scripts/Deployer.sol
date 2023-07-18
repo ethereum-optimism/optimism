@@ -106,7 +106,7 @@ abstract contract Deployer is Script {
             string memory contractName = _getContractNameFromDeployTransaction(deployTx);
             console.log("Syncing deployment %s: contract %s", deploymentName, contractName);
 
-            string memory fqn = getFullyQualifiedName(deploymentName, contractName);
+            string memory fqn = getFullyQualifiedName(contractName);
             string[] memory args = getDeployTransactionConstructorArguments(deployTx);
             bytes memory code = vm.getCode(fqn);
             bytes memory deployedCode = vm.getDeployedCode(fqn);
@@ -295,8 +295,8 @@ abstract contract Deployer is Script {
 
     /// @notice Builds the fully qualified name of a contract. Assumes that the
     ///         file name is the same as the contract name.
-    function getFullyQualifiedName(string memory _deployment, string memory _name) internal pure returns (string memory) {
-        return string.concat(_deployment, ".sol:", _name);
+    function getFullyQualifiedName(string memory _name) internal pure returns (string memory) {
+        return string.concat(_name, ".sol:", _name);
     }
 
     /// @notice Returns the filesystem path to the artifact path. Assumes that the name of the
