@@ -45,9 +45,9 @@ New OP Stack blockchains are currently configured with a JSON file inside the Op
 
 | Key | Type | Description | Default value |
 | --- | --- | --- | --- |
-| `baseFeeVaultWithdrawalNetwork` | Number representing network enum | A value of `0` will withdraw funds to the recient address on L1 and a value of `1` will withdraw funds to the recient address on L2. |
-| `l1FeeVaultWithdrawalNetwork` | Number representing network enum | A value of `0` will withdraw funds to the recient address on L1 and a value of `1` will withdraw funds to the recient address on L2. |
-| `sequencerFeeVaultWithdrawalNetwork` | Number representing network enum | A value of `0` will withdraw funds to the recient address on L1 and a value of `1` will withdraw funds to the recient address on L2. |
+| `baseFeeVaultWithdrawalNetwork` | Number representing network enum | A value of `0` will withdraw funds to the recipient address on L1 and a value of `1` will withdraw funds to the recipient address on L2. |
+| `l1FeeVaultWithdrawalNetwork` | Number representing network enum | A value of `0` will withdraw funds to the recipient address on L1 and a value of `1` will withdraw funds to the recipient address on L2. |
+| `sequencerFeeVaultWithdrawalNetwork` | Number representing network enum | A value of `0` will withdraw funds to the recipient address on L1 and a value of `1` will withdraw funds to the recipient address on L2. |
 
 ### Misc.
 
