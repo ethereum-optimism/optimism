@@ -64,7 +64,7 @@ func TestE2EBridge(t *testing.T) {
 		testCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 
-		// Pause the L2Processor so that we can test for finalization seperately. A pause is
+		// Pause the L2Processor so that we can test for finalization separately. A pause is
 		// required since deposit inclusion is apart of the L2 block derivation process
 		testSuite.Indexer.L2Processor.PauseForTest()
 
