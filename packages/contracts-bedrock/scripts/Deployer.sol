@@ -106,7 +106,7 @@ abstract contract Deployer is Script {
             string memory contractName = _getContractNameFromDeployTransaction(deployTx);
             console.log("Syncing deployment %s: contract %s", deploymentName, contractName);
 
-            string memory fqn = getFullyQualifiedName(contractName);
+            string memory fqn = getFullyQualifiedName(deploymentName, contractName);
             string[] memory args = getDeployTransactionConstructorArguments(deployTx);
             bytes memory code = vm.getCode(fqn);
             bytes memory deployedCode = vm.getDeployedCode(fqn);
@@ -262,14 +262,18 @@ abstract contract Deployer is Script {
         return string(res);
     }
 
-    /// @notice Returns the contract name from a deploy transaction. Removes the semver from the contract
-    //          name if present.
+    /// @notice Returns the contract name from a deploy transaction.
     function _getContractNameFromDeployTransaction(string memory _deployTx) internal returns (string memory) {
-        string memory contractName = stdJson.readString(_deployTx, ".contractName");
+        return stdJson.readString(_deployTx, ".contractName");
+    }
+
+    /// @notice Removes the semantic versioning from a contract name. The semver will exist if the contract is compiled more than
+    ///         once with different versions of the compiler.
+    function _stripSemver(string memory _name) internal returns (string memory) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
-        cmd[2] = string.concat(Executables.echo, " ", contractName, " | ", Executables.sed, " -E 's/[.][0-9]+\\.[0-9]+\\.[0-9]+//g'");
+        cmd[2] = string.concat(Executables.echo, " ", _name, " | ", Executables.sed, " -E 's/[.][0-9]+\\.[0-9]+\\.[0-9]+//g'");
         bytes memory res = vm.ffi(cmd);
         return string(res);
     }
@@ -291,8 +295,8 @@ abstract contract Deployer is Script {
 
     /// @notice Builds the fully qualified name of a contract. Assumes that the
     ///         file name is the same as the contract name.
-    function getFullyQualifiedName(string memory _name) internal pure returns (string memory) {
-        return string.concat(_name, ".sol:", _name);
+    function getFullyQualifiedName(string memory _deployment, string memory _name) internal pure returns (string memory) {
+        return string.concat(_deployment, ".sol:", _name);
     }
 
     /// @notice Returns the filesystem path to the artifact path. Assumes that the name of the
@@ -303,7 +307,8 @@ abstract contract Deployer is Script {
         cmd[1] = "-c";
         cmd[2] = string.concat(Executables.forge, " config --json | ", Executables.jq, " -r .out");
         bytes memory res = vm.ffi(cmd);
-        string memory forgeArtifactPath = string.concat(vm.projectRoot(), "/", string(res), "/", _name, ".sol/", _name, ".json");
+        string memory contractName = _stripSemver(_name);
+        string memory forgeArtifactPath = string.concat(vm.projectRoot(), "/", string(res), "/", contractName, ".sol/", _name, ".json");
         return forgeArtifactPath;
     }
 
