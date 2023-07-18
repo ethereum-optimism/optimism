@@ -266,15 +266,15 @@ abstract contract Deployer is Script {
         return stdJson.readString(_deployTx, ".contractName");
     }
 
-    /// @notice
+    /// @notice Wrapper for vm.getCode that handles semver in the name.
     function _getCode(string memory _name) returns (bytes memory) {
         string memory fqn = _getFullyQualifiedName(_name);
         bytes memory code = vm.getCode(fqn);
         return code;
     }
 
-    /// @notice
-    function _getDeployedCode(string memorh _name) returns (bytes memory) {
+    /// @notice Wrapper for vm.getDeployedCode that handles semver in the name.
+    function _getDeployedCode(string memory _name) returns (bytes memory) {
         string memory fqn = _getFullyQualifiedName(_name);
         bytes memory code = vm.getDeployedCode(fqn);
         return code;
