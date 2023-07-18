@@ -17,6 +17,7 @@ runs:
 
     - name: Get foundry version
       id: foundry-version
+      shell: bash
       run: echo ::set-output name=version::$(cat .foundryrc)
 
     - name: Setup foundry
