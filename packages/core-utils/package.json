@@ -32,19 +32,20 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
-    "ethers": "^5.7.0",
     "@ethersproject/abi": "^5.7.0",
     "@ethersproject/abstract-provider": "^5.7.0",
     "@ethersproject/address": "^5.7.0",
     "@ethersproject/bignumber": "^5.7.0",
     "@ethersproject/bytes": "^5.7.0",
-    "@ethersproject/contracts": "^5.7.0",
     "@ethersproject/constants": "^5.7.0",
+    "@ethersproject/contracts": "^5.7.0",
     "@ethersproject/keccak256": "^5.7.0",
-    "@ethersproject/rlp": "^5.7.0",
     "@ethersproject/properties": "^5.7.0",
+    "@ethersproject/rlp": "^5.7.0",
     "@ethersproject/web": "^5.7.0",
-    "chai": "^4.3.4"
+    "chai": "^4.3.4",
+    "ethers": "^5.7.0",
+    "node-fetch": "^2.6.7"
   },
   "devDependencies": {
     "@types/node": "^12.12.6",

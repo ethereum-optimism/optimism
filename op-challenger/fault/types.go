@@ -22,10 +22,12 @@ type StepCallData struct {
 
 // TraceProvider is a generic way to get a claim value at a specific
 // step in the trace.
-// The [AlphabetProvider] is a minimal implementation of this interface.
+// Get(i) = Keccak256(GetPreimage(i))
+// AbsolutePreState is the value of the trace that transitions to the trace value at index 0
 type TraceProvider interface {
 	Get(i uint64) (common.Hash, error)
 	GetPreimage(i uint64) ([]byte, error)
+	AbsolutePreState() []byte
 }
 
 // ClaimData is the core of a claim. It must be unique inside a specific game.

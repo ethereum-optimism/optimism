@@ -49,7 +49,7 @@ func TestCanonicalize(t *testing.T) {
 			// Run 100 times to make sure that we aren't relying
 			// on random map iteration order.
 			for i := 0; i < 100; i++ {
-				require.Equal(t, testData.Out, CanonicalizeASTIDs(testData.In))
+				require.Equal(t, testData.Out, CanonicalizeASTIDs(testData.In, ""))
 			}
 		})
 	}

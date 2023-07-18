@@ -26,11 +26,11 @@ make op-program # build
 
 # Switch back to cannon, and build the CLI
 cd ../cannon
-go build -o cannon .
+make cannon
 
 # Transform MIPS op-program client binary into first VM state.
 # This outputs state.json (VM state) and meta.json (for debug symbols).
-./cannon load-elf --path=../op-program/bin/op-program-client.elf
+./bin/cannon load-elf --path=../op-program/bin/op-program-client.elf
 
 # Run cannon emulator (with example inputs)
 # Note that the server-mode op-program command is passed into cannon (after the --),
@@ -39,7 +39,7 @@ go build -o cannon .
 # Note:
 #  - The L2 RPC is an archive L2 node on OP goerli.
 #  - The L1 RPC is a non-archive RPC, also change `--l1.rpckind` to reflect the correct L1 RPC type.
-./cannon run
+./bin/cannon run
 --pprof.cpu
 --info-at '%10000000'
 --proof-at never
@@ -62,7 +62,7 @@ go build -o cannon .
 # Add --proof-at '=12345' (or pick other pattern, see --help)
 # to pick a step to build a proof for (e.g. exact step, every N steps, etc.)
 
-# Also see `./cannon run --help` for more options
+# Also see `./bin/cannon run --help` for more options
 ```
 
 ## Contracts

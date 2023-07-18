@@ -26,42 +26,49 @@ type Game interface {
 	// IsDuplicate returns true if the provided [Claim] already exists in the game state.
 	IsDuplicate(claim Claim) bool
 
-	// PreStateClaim gets the claim which commits to the pre-state of this specific claim.
-	// This will return an error if it is called with a non-leaf claim.
-	PreStateClaim(claim Claim) (Claim, error)
-
-	// PostStateClaim gets the claim which commits to the post-state of this specific claim.
-	// This will return an error if it is called with a non-leaf claim.
-	PostStateClaim(claim Claim) (Claim, error)
+	// AgreeWithLevel returns if the game state agrees with the provided claim level.
+	AgreeWithClaimLevel(claim Claim) bool
 }
 
 type extendedClaim struct {
-	self          Claim
-	contractIndex int
-	children      []ClaimData
+	self     Claim
+	children []ClaimData
 }
 
 // gameState is a struct that represents the state of a dispute game.
 // The game state implements the [Game] interface.
 type gameState struct {
-	root   ClaimData
-	claims map[ClaimData]*extendedClaim
-	depth  uint64
+	agreeWithProposedOutput bool
+	root                    ClaimData
+	claims                  map[ClaimData]*extendedClaim
+	depth                   uint64
 }
 
 // NewGameState returns a new game state.
 // The provided [Claim] is used as the root node.
-func NewGameState(root Claim, depth uint64) *gameState {
+func NewGameState(agreeWithProposedOutput bool, root Claim, depth uint64) *gameState {
 	claims := make(map[ClaimData]*extendedClaim)
 	claims[root.ClaimData] = &extendedClaim{
-		self:          root,
-		contractIndex: 0,
-		children:      make([]ClaimData, 0),
+		self:     root,
+		children: make([]ClaimData, 0),
 	}
 	return &gameState{
-		root:   root.ClaimData,
-		claims: claims,
-		depth:  depth,
+		agreeWithProposedOutput: agreeWithProposedOutput,
+		root:                    root.ClaimData,
+		claims:                  claims,
+		depth:                   depth,
+	}
+}
+
+// AgreeWithLevel returns if the game state agrees with the provided claim level.
+func (g *gameState) AgreeWithClaimLevel(claim Claim) bool {
+	isOddLevel := claim.Depth()%2 == 1
+	// If we agree with the proposed output, we agree with odd levels
+	// If we disagree with the proposed output, we agree with the root claim level & even levels
+	if g.agreeWithProposedOutput {
+		return isOddLevel
+	} else {
+		return !isOddLevel
 	}
 }
 
@@ -81,15 +88,15 @@ func (g *gameState) Put(claim Claim) error {
 	if claim.IsRoot() || g.IsDuplicate(claim) {
 		return ErrClaimExists
 	}
-	if parent, ok := g.claims[claim.Parent]; !ok {
+	parent, ok := g.claims[claim.Parent]
+	if !ok {
 		return errors.New("no parent claim")
 	} else {
 		parent.children = append(parent.children, claim.ClaimData)
 	}
 	g.claims[claim.ClaimData] = &extendedClaim{
-		self:          claim,
-		contractIndex: claim.ContractIndex,
-		children:      make([]ClaimData, 0),
+		self:     claim,
+		children: make([]ClaimData, 0),
 	}
 	return nil
 }
@@ -123,47 +130,5 @@ func (g *gameState) getParent(claim Claim) (Claim, error) {
 		return Claim{}, ErrClaimNotFound
 	} else {
 		return parent.self, nil
-	}
-}
-
-func (g *gameState) PreStateClaim(claim Claim) (Claim, error) {
-	// Do checks in PreStateClaim because these do not hold while walking the tree
-	if claim.Depth() != int(g.depth) {
-		return Claim{}, errors.New("Only leaf claims have pre or post state")
-	}
-	// If the claim is the far left most claim, the pre-state is pulled from the contracts & we can supply at contract index.
-	if claim.IndexAtDepth() == 0 {
-		return Claim{
-			ContractIndex: -1,
-		}, nil
-	}
-	return g.preStateClaim(claim)
-}
-
-// preStateClaim is the internal tree walker which does not do error handling
-func (g *gameState) preStateClaim(claim Claim) (Claim, error) {
-	parent, _ := g.getParent(claim)
-	if claim.DefendsParent() {
-		return parent, nil
-	} else {
-		return g.preStateClaim(parent)
-	}
-}
-
-func (g *gameState) PostStateClaim(claim Claim) (Claim, error) {
-	// Do checks in PostStateClaim because these do not hold while walking the tree
-	if claim.Depth() != int(g.depth) {
-		return Claim{}, errors.New("Only leaf claims have pre or post state")
-	}
-	return g.postStateClaim(claim)
-}
-
-// postStateClaim is the internal tree walker which does not do error handling
-func (g *gameState) postStateClaim(claim Claim) (Claim, error) {
-	parent, _ := g.getParent(claim)
-	if claim.DefendsParent() {
-		return g.postStateClaim(parent)
-	} else {
-		return parent, nil
 	}
 }

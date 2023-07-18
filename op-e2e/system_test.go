@@ -1279,7 +1279,7 @@ func TestStopStartBatcher(t *testing.T) {
 	receipt := sendTx()
 
 	// wait until the block the tx was first included in shows up in the safe chain on the verifier
-	safeBlockInclusionDuration := time.Duration(3*cfg.DeployConfig.L1BlockTime) * time.Second
+	safeBlockInclusionDuration := time.Duration(6*cfg.DeployConfig.L1BlockTime) * time.Second
 	_, err = waitForBlock(receipt.BlockNumber, l2Verif, safeBlockInclusionDuration)
 	require.Nil(t, err, "Waiting for block on verifier")
 

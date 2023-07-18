@@ -30,8 +30,8 @@ var (
 
 // PreimageOracleMetaData contains all meta data concerning the PreimageOracle contract.
 var PreimageOracleMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"partOffset\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"key\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"part\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"size\",\"type\":\"uint256\"}],\"name\":\"cheat\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"partOffset\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"preimage\",\"type\":\"bytes\"}],\"name\":\"loadKeccak256PreimagePart\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"name\":\"preimageLengths\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"preimagePartOk\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"preimageParts\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"key\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"offset\",\"type\":\"uint256\"}],\"name\":\"readPreimage\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"dat\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"datLen\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
-	Bin: "0x608060405234801561001057600080fd5b50610509806100206000396000f3fe608060405234801561001057600080fd5b50600436106100725760003560e01c8063e159261111610050578063e15926111461011b578063fe4ac08e14610130578063fef2b4ed146101a557600080fd5b806361238bde146100775780638542cf50146100b5578063e03110e1146100f3575b600080fd5b6100a26100853660046103b5565b600160209081526000928352604080842090915290825290205481565b6040519081526020015b60405180910390f35b6100e36100c33660046103b5565b600260209081526000928352604080842090915290825290205460ff1681565b60405190151581526020016100ac565b6101066101013660046103b5565b6101c5565b604080519283526020830191909152016100ac565b61012e6101293660046103d7565b6102b6565b005b61012e61013e366004610453565b6000838152600260209081526040808320878452825280832080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff001660019081179091558684528252808320968352958152858220939093559283529082905291902055565b6100a26101b3366004610485565b60006020819052908152604090205481565b6000828152600260209081526040808320848452909152812054819060ff1661024e576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601360248201527f707265696d616765206d75737420657869737400000000000000000000000000604482015260640160405180910390fd5b506000838152602081815260409091205461026a8160086104cd565b6102758560206104cd565b1061029357836102868260086104cd565b61029091906104e5565b91505b506000938452600160209081526040808620948652939052919092205492909150565b6044356000806008830186106102cb57600080fd5b60c083901b6080526088838682378087017ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80151908490207effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff167f02000000000000000000000000000000000000000000000000000000000000001760008181526002602090815260408083208b8452825280832080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600190811790915584845282528083209a83529981528982209390935590815290819052959095209190915550505050565b600080604083850312156103c857600080fd5b50508035926020909101359150565b6000806000604084860312156103ec57600080fd5b83359250602084013567ffffffffffffffff8082111561040b57600080fd5b818601915086601f83011261041f57600080fd5b81358181111561042e57600080fd5b87602082850101111561044057600080fd5b6020830194508093505050509250925092565b6000806000806080858703121561046957600080fd5b5050823594602084013594506040840135936060013592509050565b60006020828403121561049757600080fd5b5035919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600082198211156104e0576104e061049e565b500190565b6000828210156104f7576104f761049e565b50039056fea164736f6c634300080f000a",
+	ABI: "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"partOffset\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"key\",\"type\":\"bytes32\"},{\"internalType\":\"bytes32\",\"name\":\"part\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"size\",\"type\":\"uint256\"}],\"name\":\"cheat\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_preimage\",\"type\":\"bytes\"}],\"name\":\"computePreimageKey\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"key_\",\"type\":\"bytes32\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_partOffset\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_preimage\",\"type\":\"bytes\"}],\"name\":\"loadKeccak256PreimagePart\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"name\":\"preimageLengths\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"preimagePartOk\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"preimageParts\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_key\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_offset\",\"type\":\"uint256\"}],\"name\":\"readPreimage\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"dat_\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"datLen_\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	Bin: "0x608060405234801561001057600080fd5b506105e2806100206000396000f3fe608060405234801561001057600080fd5b506004361061007d5760003560e01c8063e03110e11161005b578063e03110e114610111578063e159261114610139578063fe4ac08e1461014e578063fef2b4ed146101c357600080fd5b806361238bde146100825780638542cf50146100c0578063a57c202c146100fe575b600080fd5b6100ad610090366004610433565b600160209081526000928352604080842090915290825290205481565b6040519081526020015b60405180910390f35b6100ee6100ce366004610433565b600260209081526000928352604080842090915290825290205460ff1681565b60405190151581526020016100b7565b6100ad61010c36600461049e565b6101e3565b61012461011f366004610433565b610242565b604080519283526020830191909152016100b7565b61014c6101473660046104e0565b610333565b005b61014c61015c36600461052c565b6000838152600260209081526040808320878452825280832080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff001660019081179091558684528252808320968352958152858220939093559283529082905291902055565b6100ad6101d136600461055e565b60006020819052908152604090205481565b60243560c081901b608052600090608881858237207effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff167f0200000000000000000000000000000000000000000000000000000000000000179392505050565b6000828152600260209081526040808320848452909152812054819060ff166102cb576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601460248201527f7072652d696d616765206d757374206578697374000000000000000000000000604482015260640160405180910390fd5b50600083815260208181526040909120546102e78160086105a6565b6102f28560206105a6565b1061031057836103038260086105a6565b61030d91906105be565b91505b506000938452600160209081526040808620948652939052919092205492909150565b6044356000806008830186111561034957600080fd5b60c083901b6080526088838682378087017ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80151908490207effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff167f02000000000000000000000000000000000000000000000000000000000000001760008181526002602090815260408083208b8452825280832080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600190811790915584845282528083209a83529981528982209390935590815290819052959095209190915550505050565b6000806040838503121561044657600080fd5b50508035926020909101359150565b60008083601f84011261046757600080fd5b50813567ffffffffffffffff81111561047f57600080fd5b60208301915083602082850101111561049757600080fd5b9250929050565b600080602083850312156104b157600080fd5b823567ffffffffffffffff8111156104c857600080fd5b6104d485828601610455565b90969095509350505050565b6000806000604084860312156104f557600080fd5b83359250602084013567ffffffffffffffff81111561051357600080fd5b61051f86828701610455565b9497909650939450505050565b6000806000806080858703121561054257600080fd5b5050823594602084013594506040840135936060013592509050565b60006020828403121561057057600080fd5b5035919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600082198211156105b9576105b9610577565b500190565b6000828210156105d0576105d0610577565b50039056fea164736f6c634300080f000a",
 }
 
 // PreimageOracleABI is the input ABI used to generate the binding from.
@@ -201,6 +201,37 @@ func (_PreimageOracle *PreimageOracleTransactorRaw) Transact(opts *bind.Transact
 	return _PreimageOracle.Contract.contract.Transact(opts, method, params...)
 }
 
+// ComputePreimageKey is a free data retrieval call binding the contract method 0xa57c202c.
+//
+// Solidity: function computePreimageKey(bytes _preimage) pure returns(bytes32 key_)
+func (_PreimageOracle *PreimageOracleCaller) ComputePreimageKey(opts *bind.CallOpts, _preimage []byte) ([32]byte, error) {
+	var out []interface{}
+	err := _PreimageOracle.contract.Call(opts, &out, "computePreimageKey", _preimage)
+
+	if err != nil {
+		return *new([32]byte), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
+
+	return out0, err
+
+}
+
+// ComputePreimageKey is a free data retrieval call binding the contract method 0xa57c202c.
+//
+// Solidity: function computePreimageKey(bytes _preimage) pure returns(bytes32 key_)
+func (_PreimageOracle *PreimageOracleSession) ComputePreimageKey(_preimage []byte) ([32]byte, error) {
+	return _PreimageOracle.Contract.ComputePreimageKey(&_PreimageOracle.CallOpts, _preimage)
+}
+
+// ComputePreimageKey is a free data retrieval call binding the contract method 0xa57c202c.
+//
+// Solidity: function computePreimageKey(bytes _preimage) pure returns(bytes32 key_)
+func (_PreimageOracle *PreimageOracleCallerSession) ComputePreimageKey(_preimage []byte) ([32]byte, error) {
+	return _PreimageOracle.Contract.ComputePreimageKey(&_PreimageOracle.CallOpts, _preimage)
+}
+
 // PreimageLengths is a free data retrieval call binding the contract method 0xfef2b4ed.
 //
 // Solidity: function preimageLengths(bytes32 ) view returns(uint256)
@@ -296,13 +327,13 @@ func (_PreimageOracle *PreimageOracleCallerSession) PreimageParts(arg0 [32]byte,
 
 // ReadPreimage is a free data retrieval call binding the contract method 0xe03110e1.
 //
-// Solidity: function readPreimage(bytes32 key, uint256 offset) view returns(bytes32 dat, uint256 datLen)
-func (_PreimageOracle *PreimageOracleCaller) ReadPreimage(opts *bind.CallOpts, key [32]byte, offset *big.Int) (struct {
+// Solidity: function readPreimage(bytes32 _key, uint256 _offset) view returns(bytes32 dat_, uint256 datLen_)
+func (_PreimageOracle *PreimageOracleCaller) ReadPreimage(opts *bind.CallOpts, _key [32]byte, _offset *big.Int) (struct {
 	Dat    [32]byte
 	DatLen *big.Int
 }, error) {
 	var out []interface{}
-	err := _PreimageOracle.contract.Call(opts, &out, "readPreimage", key, offset)
+	err := _PreimageOracle.contract.Call(opts, &out, "readPreimage", _key, _offset)
 
 	outstruct := new(struct {
 		Dat    [32]byte
@@ -321,22 +352,22 @@ func (_PreimageOracle *PreimageOracleCaller) ReadPreimage(opts *bind.CallOpts, k
 
 // ReadPreimage is a free data retrieval call binding the contract method 0xe03110e1.
 //
-// Solidity: function readPreimage(bytes32 key, uint256 offset) view returns(bytes32 dat, uint256 datLen)
-func (_PreimageOracle *PreimageOracleSession) ReadPreimage(key [32]byte, offset *big.Int) (struct {
+// Solidity: function readPreimage(bytes32 _key, uint256 _offset) view returns(bytes32 dat_, uint256 datLen_)
+func (_PreimageOracle *PreimageOracleSession) ReadPreimage(_key [32]byte, _offset *big.Int) (struct {
 	Dat    [32]byte
 	DatLen *big.Int
 }, error) {
-	return _PreimageOracle.Contract.ReadPreimage(&_PreimageOracle.CallOpts, key, offset)
+	return _PreimageOracle.Contract.ReadPreimage(&_PreimageOracle.CallOpts, _key, _offset)
 }
 
 // ReadPreimage is a free data retrieval call binding the contract method 0xe03110e1.
 //
-// Solidity: function readPreimage(bytes32 key, uint256 offset) view returns(bytes32 dat, uint256 datLen)
-func (_PreimageOracle *PreimageOracleCallerSession) ReadPreimage(key [32]byte, offset *big.Int) (struct {
+// Solidity: function readPreimage(bytes32 _key, uint256 _offset) view returns(bytes32 dat_, uint256 datLen_)
+func (_PreimageOracle *PreimageOracleCallerSession) ReadPreimage(_key [32]byte, _offset *big.Int) (struct {
 	Dat    [32]byte
 	DatLen *big.Int
 }, error) {
-	return _PreimageOracle.Contract.ReadPreimage(&_PreimageOracle.CallOpts, key, offset)
+	return _PreimageOracle.Contract.ReadPreimage(&_PreimageOracle.CallOpts, _key, _offset)
 }
 
 // Cheat is a paid mutator transaction binding the contract method 0xfe4ac08e.
@@ -362,21 +393,21 @@ func (_PreimageOracle *PreimageOracleTransactorSession) Cheat(partOffset *big.In
 
 // LoadKeccak256PreimagePart is a paid mutator transaction binding the contract method 0xe1592611.
 //
-// Solidity: function loadKeccak256PreimagePart(uint256 partOffset, bytes preimage) returns()
-func (_PreimageOracle *PreimageOracleTransactor) LoadKeccak256PreimagePart(opts *bind.TransactOpts, partOffset *big.Int, preimage []byte) (*types.Transaction, error) {
-	return _PreimageOracle.contract.Transact(opts, "loadKeccak256PreimagePart", partOffset, preimage)
+// Solidity: function loadKeccak256PreimagePart(uint256 _partOffset, bytes _preimage) returns()
+func (_PreimageOracle *PreimageOracleTransactor) LoadKeccak256PreimagePart(opts *bind.TransactOpts, _partOffset *big.Int, _preimage []byte) (*types.Transaction, error) {
+	return _PreimageOracle.contract.Transact(opts, "loadKeccak256PreimagePart", _partOffset, _preimage)
 }
 
 // LoadKeccak256PreimagePart is a paid mutator transaction binding the contract method 0xe1592611.
 //
-// Solidity: function loadKeccak256PreimagePart(uint256 partOffset, bytes preimage) returns()
-func (_PreimageOracle *PreimageOracleSession) LoadKeccak256PreimagePart(partOffset *big.Int, preimage []byte) (*types.Transaction, error) {
-	return _PreimageOracle.Contract.LoadKeccak256PreimagePart(&_PreimageOracle.TransactOpts, partOffset, preimage)
+// Solidity: function loadKeccak256PreimagePart(uint256 _partOffset, bytes _preimage) returns()
+func (_PreimageOracle *PreimageOracleSession) LoadKeccak256PreimagePart(_partOffset *big.Int, _preimage []byte) (*types.Transaction, error) {
+	return _PreimageOracle.Contract.LoadKeccak256PreimagePart(&_PreimageOracle.TransactOpts, _partOffset, _preimage)
 }
 
 // LoadKeccak256PreimagePart is a paid mutator transaction binding the contract method 0xe1592611.
 //
-// Solidity: function loadKeccak256PreimagePart(uint256 partOffset, bytes preimage) returns()
-func (_PreimageOracle *PreimageOracleTransactorSession) LoadKeccak256PreimagePart(partOffset *big.Int, preimage []byte) (*types.Transaction, error) {
-	return _PreimageOracle.Contract.LoadKeccak256PreimagePart(&_PreimageOracle.TransactOpts, partOffset, preimage)
+// Solidity: function loadKeccak256PreimagePart(uint256 _partOffset, bytes _preimage) returns()
+func (_PreimageOracle *PreimageOracleTransactorSession) LoadKeccak256PreimagePart(_partOffset *big.Int, _preimage []byte) (*types.Transaction, error) {
+	return _PreimageOracle.Contract.LoadKeccak256PreimagePart(&_PreimageOracle.TransactOpts, _partOffset, _preimage)
 }

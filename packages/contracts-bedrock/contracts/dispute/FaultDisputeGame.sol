@@ -59,7 +59,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         Claim _absolutePrestate,
         uint256 _maxGameDepth,
         IBigStepper _vm
-    ) Semver(0, 0, 2) {
+    ) Semver(0, 0, 3) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
         VM = _vm;
@@ -92,7 +92,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
 
         // Determine the expected pre & post states of the step.
         Claim preStateClaim;
-        Claim postStateClaim;
+        ClaimData storage postState;
         if (_isAttack) {
             if (stepPos.indexAtDepth() == 0) {
                 // If the step position's index at depth is 0, the prestate is the absolute
@@ -104,16 +104,16 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
                 preStateClaim = findTraceAncestor(
                     Position.wrap(Position.unwrap(parentPos) - 1),
                     parent.parentIndex
-                );
+                ).claim;
             }
 
             // For all attacks, the poststate is the parent claim.
-            postStateClaim = parent.claim;
+            postState = parent;
         } else {
             // If the step is a defense, the poststate exists elsewhere in the game state,
             // and the parent claim is the expected pre-state.
             preStateClaim = parent.claim;
-            postStateClaim = findTraceAncestor(
+            postState = findTraceAncestor(
                 Position.wrap(Position.unwrap(parentPos) + 1),
                 parent.parentIndex
             );
@@ -123,10 +123,21 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         //            preimage of the prestate claim hash.
         if (keccak256(_stateData) != Claim.unwrap(preStateClaim)) revert InvalidPrestate();
 
-        // INVARIANT: A VM step can never counter a parent claim unless it produces a poststate
-        //            that is not equal to the claim at `_parentIndex` if the step is an attack,
-        //            or the claim at `_stateIndex` if the step is a defense.
-        if (VM.step(_stateData, _proof) == Claim.unwrap(postStateClaim)) revert ValidStep();
+        // INVARIANT: If a step is an attack, the poststate is valid if the step produces
+        //            the same poststate hash as the parent claim's value.
+        //            If a step is a defense:
+        //              1. If the parent claim and the found post state agree with each other
+        //                 (depth diff % 2 == 0), the step is valid if it produces the same
+        //                 state hash as the post state's claim.
+        //              2. If the parent claim and the found post state disagree with each other
+        //                 (depth diff % 2 != 0), the parent cannot be countered unless the step
+        //                 produces the same state hash as `postState.claim`.
+        // SAFETY:    While the `attack` path does not need an extra check for the post
+        //            state's depth in relation to the parent, we don't need another
+        //            branch because (n - n) % 2 == 0.
+        bool validStep = VM.step(_stateData, _proof) == Claim.unwrap(postState.claim);
+        bool parentPostAgree = (parentPos.depth() - postState.position.depth()) % 2 == 0;
+        if ((parentPostAgree && validStep) || (!parentPostAgree && !validStep)) revert ValidStep();
 
         // Set the parent claim as countered. We do not need to append a new claim to the game;
         // instead, we can just set the existing parent as countered.
@@ -384,17 +395,16 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     function findTraceAncestor(Position _pos, uint256 _start)
         internal
         view
-        returns (Claim ancestor_)
+        returns (ClaimData storage ancestor_)
     {
         // Grab the trace ancestor's expected position.
         Position preStateTraceAncestor = _pos.traceAncestor();
 
         // Walk up the DAG to find a claim that commits to the same trace index as `_pos`. It is
         // guaranteed that such a claim exists.
-        ClaimData storage ancestor = claimData[_start];
-        while (Position.unwrap(ancestor.position) != Position.unwrap(preStateTraceAncestor)) {
-            ancestor = claimData[ancestor.parentIndex];
+        ancestor_ = claimData[_start];
+        while (Position.unwrap(ancestor_.position) != Position.unwrap(preStateTraceAncestor)) {
+            ancestor_ = claimData[ancestor_.parentIndex];
         }
-        ancestor_ = ancestor.claim;
     }
 }

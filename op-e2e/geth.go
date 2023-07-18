@@ -300,23 +300,25 @@ func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, pri
 		return nil, nil, err
 	}
 
-	keydir := n.KeyStoreDir()
-	scryptN := 2
-	scryptP := 1
-	n.AccountManager().AddBackend(keystore.NewKeyStore(keydir, scryptN, scryptP))
-	ks := n.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
+	if !l2 {
+		keydir := n.KeyStoreDir()
+		scryptN := 2
+		scryptP := 1
+		n.AccountManager().AddBackend(keystore.NewKeyStore(keydir, scryptN, scryptP))
+		ks := n.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 
-	password := "foobar"
-	for _, pk := range privateKeys {
-		act, err := ks.ImportECDSA(pk, password)
-		if err != nil {
-			n.Close()
-			return nil, nil, err
-		}
-		err = ks.Unlock(act, password)
-		if err != nil {
-			n.Close()
-			return nil, nil, err
+		password := "foobar"
+		for _, pk := range privateKeys {
+			act, err := ks.ImportECDSA(pk, password)
+			if err != nil {
+				n.Close()
+				return nil, nil, err
+			}
+			err = ks.Unlock(act, password)
+			if err != nil {
+				n.Close()
+				return nil, nil, err
+			}
 		}
 	}
 
@@ -341,5 +343,4 @@ func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, pri
 		}
 	}
 	return n, backend, nil
-
 }

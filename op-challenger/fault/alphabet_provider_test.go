@@ -20,15 +20,15 @@ func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 	}{
 		{
 			7,
-			common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000768"),
+			alphabetClaim(7, "h"),
 		},
 		{
 			3,
-			common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000364"),
+			alphabetClaim(3, "d"),
 		},
 		{
 			5,
-			common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000566"),
+			alphabetClaim(5, "f"),
 		},
 	}
 
@@ -54,7 +54,7 @@ func FuzzIndexToBytes(f *testing.F) {
 // returns the correct pre-image for a index.
 func TestGetPreimage_Succeeds(t *testing.T) {
 	ap := NewAlphabetProvider("abc", 2)
-	expected := append(IndexToBytes(uint64(0)), []byte("a")...)
+	expected := BuildAlphabetPreimage(0, "a'")
 	retrieved, err := ap.GetPreimage(uint64(0))
 	require.NoError(t, err)
 	require.Equal(t, expected, retrieved)
@@ -73,8 +73,7 @@ func TestGet_Succeeds(t *testing.T) {
 	ap := NewAlphabetProvider("abc", 2)
 	claim, err := ap.Get(0)
 	require.NoError(t, err)
-	concatenated := append(IndexToBytes(0), []byte("a")...)
-	expected := common.BytesToHash(concatenated)
+	expected := alphabetClaim(0, "a")
 	require.Equal(t, expected, claim)
 }
 
@@ -92,7 +91,6 @@ func TestGet_Extends(t *testing.T) {
 	ap := NewAlphabetProvider("abc", 2)
 	claim, err := ap.Get(3)
 	require.NoError(t, err)
-	concatenated := append(IndexToBytes(2), []byte("c")...)
-	expected := common.BytesToHash(concatenated)
+	expected := alphabetClaim(2, "c")
 	require.Equal(t, expected, claim)
 }
