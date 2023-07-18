@@ -1115,6 +1115,18 @@ jobs:
                 command: |
                   docker logs ops-bedrock-op-proposer-1 || echo "No logs."
                 when: on_fail
+            - run:
+                name: Log deployment artifact
+                command: |
+                  cat broadcast/Deploy.s.sol/900/run-latest.json || echo "No deployment file found"
+                when: on_fail
+                working_directory: packages/contracts-bedrock
+            - run:
+                name: Log artifacts directory
+                command: |
+                  ls -R forge-artifacts || echo "No forge artifacts found"
+                when: on_fail
+                working_directory: packages/contracts-bedrock
       - when:
           condition:
             and:

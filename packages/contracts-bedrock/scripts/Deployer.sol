@@ -104,7 +104,7 @@ abstract contract Deployer is Script {
 
             string memory deployTx = _getDeployTransactionByContractAddress(addr);
             string memory contractName = _getContractNameFromDeployTransaction(deployTx);
-            console.log("Syncing %s: %s", deploymentName, contractName);
+            console.log("Syncing deployment %s: contract %s", deploymentName, contractName);
 
             string memory fqn = getFullyQualifiedName(contractName);
             string[] memory args = getDeployTransactionConstructorArguments(deployTx);
@@ -117,6 +117,7 @@ abstract contract Deployer is Script {
             uint256 numDeployments = 0;
             try vm.readFile(artifactPath) returns (string memory res) {
                 numDeployments = stdJson.readUint(string(res), "$.numDeployments");
+                numDeployments++;
                 vm.removeFile(artifactPath);
             } catch {}
 
