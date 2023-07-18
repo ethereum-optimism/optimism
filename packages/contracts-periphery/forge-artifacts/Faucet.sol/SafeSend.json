@@ -1,0 +1,3248 @@
+{
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address payable",
+          "name": "_recipient",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "constructor"
+    }
+  ],
+  "bytecode": {
+    "object": "0x608060405260405160593803806059833981016040819052601e91602a565b806001600160a01b0316ff5b600060208284031215603b57600080fd5b81516001600160a01b0381168114605157600080fd5b939250505056fe",
+    "sourceMap": "232:180:49:-:0;;;321:89;;;;;;;;;;;;;;;;;;:::i;:::-;392:10;-1:-1:-1;;;;;379:24:49;;14:298:101;92:6;145:2;133:9;124:7;120:23;116:32;113:52;;;161:1;158;151:12;113:52;187:16;;-1:-1:-1;;;;;232:31:101;;222:42;;212:70;;278:1;275;268:12;212:70;301:5;14:298;-1:-1:-1;;;14:298:101:o",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x6080604052600080fdfea164736f6c634300080f000a",
+    "sourceMap": "232:180:49:-:0;;;;;",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {},
+  "rawMetadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address payable\",\"name\":\"_recipient\",\"type\":\"address\"}],\"stateMutability\":\"payable\",\"type\":\"constructor\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"constructor\":{\"params\":{\"_recipient\":\"Account to send ETH to.\"}}},\"title\":\"SafeSend\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"notice\":\"Sends ETH to a recipient account without triggering any code.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/universal/faucet/Faucet.sol\":\"SafeSend\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"none\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":@ds/=lib/multicall/lib/ds-test/src/\",\":@eth-optimism/contracts-bedrock/=node_modules/@eth-optimism/contracts-bedrock/\",\":@openzeppelin/=node_modules/@openzeppelin/\",\":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/\",\":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/\",\":@rari-capital/=node_modules/@rari-capital/\",\":@rari-capital/solmate/=node_modules/@rari-capital/solmate/\",\":@std/=lib/multicall/lib/forge-std/src/\",\":ds-test/=node_modules/ds-test/src/\",\":forge-std/=node_modules/forge-std/src/\",\":hardhat-deploy/=node_modules/hardhat-deploy/\",\":hardhat/=node_modules/hardhat/\",\":multicall/=lib/multicall/\"]},\"sources\":{\"contracts/universal/faucet/Faucet.sol\":{\"keccak256\":\"0x0df3b36eae1b8593259f7c96d0c11164b92ea6d03a379c96e13b851c9142fcc5\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://3594bcb5373ccd847c64e1ae1d7e3f5db656d09746a4712e4e0bbbc2abfe2eaf\",\"dweb:/ipfs/QmQgVTGXHHh7Yxn41GvSFppG1yk4wKwsfrzjs74rZomVto\"]},\"contracts/universal/faucet/authmodules/IFaucetAuthModule.sol\":{\"keccak256\":\"0x8d957f6f57a7ffdbb89ea3405bedaca9462a15c13767c9b6025b02923d9af792\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://0fd6798f85729c64f9b93519ccdf707b1dc0d51a319cf07bb884542a3d3a6d69\",\"dweb:/ipfs/QmYkmf59sFtzRMz9qYyuU1A3fBEypFbhKwaegNLjRLrpwW\"]}},\"version\":1}",
+  "metadata": {
+    "compiler": {
+      "version": "0.8.15+commit.e14f2714"
+    },
+    "language": "Solidity",
+    "output": {
+      "abi": [
+        {
+          "inputs": [
+            {
+              "internalType": "address payable",
+              "name": "_recipient",
+              "type": "address"
+            }
+          ],
+          "stateMutability": "payable",
+          "type": "constructor"
+        }
+      ],
+      "devdoc": {
+        "kind": "dev",
+        "methods": {
+          "constructor": {
+            "params": {
+              "_recipient": "Account to send ETH to."
+            }
+          }
+        },
+        "version": 1
+      },
+      "userdoc": {
+        "kind": "user",
+        "methods": {},
+        "version": 1
+      }
+    },
+    "settings": {
+      "remappings": [
+        ":@ds/=lib/multicall/lib/ds-test/src/",
+        ":@eth-optimism/contracts-bedrock/=node_modules/@eth-optimism/contracts-bedrock/",
+        ":@openzeppelin/=node_modules/@openzeppelin/",
+        ":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/",
+        ":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+        ":@rari-capital/=node_modules/@rari-capital/",
+        ":@rari-capital/solmate/=node_modules/@rari-capital/solmate/",
+        ":@std/=lib/multicall/lib/forge-std/src/",
+        ":ds-test/=node_modules/ds-test/src/",
+        ":forge-std/=node_modules/forge-std/src/",
+        ":hardhat-deploy/=node_modules/hardhat-deploy/",
+        ":hardhat/=node_modules/hardhat/",
+        ":multicall/=lib/multicall/"
+      ],
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "metadata": {
+        "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+        "contracts/universal/faucet/Faucet.sol": "SafeSend"
+      },
+      "libraries": {}
+    },
+    "sources": {
+      "contracts/universal/faucet/Faucet.sol": {
+        "keccak256": "0x0df3b36eae1b8593259f7c96d0c11164b92ea6d03a379c96e13b851c9142fcc5",
+        "urls": [
+          "bzz-raw://3594bcb5373ccd847c64e1ae1d7e3f5db656d09746a4712e4e0bbbc2abfe2eaf",
+          "dweb:/ipfs/QmQgVTGXHHh7Yxn41GvSFppG1yk4wKwsfrzjs74rZomVto"
+        ],
+        "license": "MIT"
+      },
+      "contracts/universal/faucet/authmodules/IFaucetAuthModule.sol": {
+        "keccak256": "0x8d957f6f57a7ffdbb89ea3405bedaca9462a15c13767c9b6025b02923d9af792",
+        "urls": [
+          "bzz-raw://0fd6798f85729c64f9b93519ccdf707b1dc0d51a319cf07bb884542a3d3a6d69",
+          "dweb:/ipfs/QmYkmf59sFtzRMz9qYyuU1A3fBEypFbhKwaegNLjRLrpwW"
+        ],
+        "license": "MIT"
+      }
+    },
+    "version": 1
+  },
+  "ast": {
+    "absolutePath": "contracts/universal/faucet/Faucet.sol",
+    "id": 38852,
+    "exportedSymbols": {
+      "Faucet": [
+        38851
+      ],
+      "IFaucetAuthModule": [
+        38954
+      ],
+      "SafeSend": [
+        38614
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "32:5034:49",
+    "nodes": [
+      {
+        "id": 38599,
+        "nodeType": "PragmaDirective",
+        "src": "32:23:49",
+        "nodes": [],
+        "literals": [
+          "solidity",
+          "0.8",
+          ".15"
+        ]
+      },
+      {
+        "id": 38601,
+        "nodeType": "ImportDirective",
+        "src": "57:72:49",
+        "nodes": [],
+        "absolutePath": "contracts/universal/faucet/authmodules/IFaucetAuthModule.sol",
+        "file": "./authmodules/IFaucetAuthModule.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 38852,
+        "sourceUnit": 38955,
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 38600,
+              "name": "IFaucetAuthModule",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "referencedDeclaration": 38954,
+              "src": "66:17:49",
+              "typeDescriptions": {}
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "id": 38614,
+        "nodeType": "ContractDefinition",
+        "src": "232:180:49",
+        "nodes": [
+          {
+            "id": 38613,
+            "nodeType": "FunctionDefinition",
+            "src": "321:89:49",
+            "nodes": [],
+            "body": {
+              "id": 38612,
+              "nodeType": "Block",
+              "src": "369:41:49",
+              "nodes": [],
+              "statements": [
+                {
+                  "expression": {
+                    "arguments": [
+                      {
+                        "id": 38609,
+                        "name": "_recipient",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 38605,
+                        "src": "392:10:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_address_payable",
+                          "typeString": "address payable"
+                        }
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_address_payable",
+                          "typeString": "address payable"
+                        }
+                      ],
+                      "id": 38608,
+                      "name": "selfdestruct",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": -21,
+                      "src": "379:12:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_selfdestruct_nonpayable$_t_address_payable_$returns$__$",
+                        "typeString": "function (address payable)"
+                      }
+                    },
+                    "id": 38610,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "379:24:49",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$__$",
+                      "typeString": "tuple()"
+                    }
+                  },
+                  "id": 38611,
+                  "nodeType": "ExpressionStatement",
+                  "src": "379:24:49"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 38603,
+              "nodeType": "StructuredDocumentation",
+              "src": "256:60:49",
+              "text": " @param _recipient Account to send ETH to."
+            },
+            "implemented": true,
+            "kind": "constructor",
+            "modifiers": [],
+            "name": "",
+            "nameLocation": "-1:-1:-1",
+            "parameters": {
+              "id": 38606,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 38605,
+                  "mutability": "mutable",
+                  "name": "_recipient",
+                  "nameLocation": "349:10:49",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38613,
+                  "src": "333:26:49",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address_payable",
+                    "typeString": "address payable"
+                  },
+                  "typeName": {
+                    "id": 38604,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "333:15:49",
+                    "stateMutability": "payable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address_payable",
+                      "typeString": "address payable"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "332:28:49"
+            },
+            "returnParameters": {
+              "id": 38607,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "369:0:49"
+            },
+            "scope": 38614,
+            "stateMutability": "payable",
+            "virtual": false,
+            "visibility": "public"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "SafeSend",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "documentation": {
+          "id": 38602,
+          "nodeType": "StructuredDocumentation",
+          "src": "131:100:49",
+          "text": " @title  SafeSend\n @notice Sends ETH to a recipient account without triggering any code."
+        },
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          38614
+        ],
+        "name": "SafeSend",
+        "nameLocation": "241:8:49",
+        "scope": 38852,
+        "usedErrors": []
+      },
+      {
+        "id": 38851,
+        "nodeType": "ContractDefinition",
+        "src": "492:4573:49",
+        "nodes": [
+          {
+            "id": 38626,
+            "nodeType": "EventDefinition",
+            "src": "836:143:49",
+            "nodes": [],
+            "anonymous": false,
+            "documentation": {
+              "id": 38616,
+              "nodeType": "StructuredDocumentation",
+              "src": "514:317:49",
+              "text": " @notice Emitted on each drip.\n @param authModule The type of authentication that was used for verifying the drip.\n @param userId     The id of the user that requested the drip.\n @param amount     The amount of funds sent.\n @param recipient  The recipient of the drip."
+            },
+            "eventSelector": "2cebdf1cc706a50e1b28bf2fc5cfbd7204747a3b82439b85721a474df3a355a4",
+            "name": "Drip",
+            "nameLocation": "842:4:49",
+            "parameters": {
+              "id": 38625,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 38618,
+                  "indexed": true,
+                  "mutability": "mutable",
+                  "name": "authModule",
+                  "nameLocation": "871:10:49",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38626,
+                  "src": "856:25:49",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_string_memory_ptr",
+                    "typeString": "string"
+                  },
+                  "typeName": {
+                    "id": 38617,
+                    "name": "string",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "856:6:49",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_string_storage_ptr",
+                      "typeString": "string"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 38620,
+                  "indexed": true,
+                  "mutability": "mutable",
+                  "name": "userId",
+                  "nameLocation": "907:6:49",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38626,
+                  "src": "891:22:49",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes32",
+                    "typeString": "bytes32"
+                  },
+                  "typeName": {
+                    "id": 38619,
+                    "name": "bytes32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "891:7:49",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bytes32",
+                      "typeString": "bytes32"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 38622,
+                  "indexed": false,
+                  "mutability": "mutable",
+                  "name": "amount",
+                  "nameLocation": "931:6:49",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38626,
+                  "src": "923:14:49",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 38621,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "923:7:49",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 38624,
+                  "indexed": true,
+                  "mutability": "mutable",
+                  "name": "recipient",
+                  "nameLocation": "963:9:49",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38626,
+                  "src": "947:25:49",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 38623,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "947:7:49",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "846:132:49"
+            }
+          },
+          {
+            "id": 38631,
+            "nodeType": "StructDefinition",
+            "src": "1039:87:49",
+            "nodes": [],
+            "canonicalName": "Faucet.DripParameters",
+            "members": [
+              {
+                "constant": false,
+                "id": 38628,
+                "mutability": "mutable",
+                "name": "recipient",
+                "nameLocation": "1087:9:49",
+                "nodeType": "VariableDeclaration",
+                "scope": 38631,
+                "src": "1071:25:49",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_address_payable",
+                  "typeString": "address payable"
+                },
+                "typeName": {
+                  "id": 38627,
+                  "name": "address",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1071:15:49",
+                  "stateMutability": "payable",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address_payable",
+                    "typeString": "address payable"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 38630,
+                "mutability": "mutable",
+                "name": "nonce",
+                "nameLocation": "1114:5:49",
+                "nodeType": "VariableDeclaration",
+                "scope": 38631,
+                "src": "1106:13:49",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_bytes32",
+                  "typeString": "bytes32"
+                },
+                "typeName": {
+                  "id": 38629,
+                  "name": "bytes32",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1106:7:49",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes32",
+                    "typeString": "bytes32"
+                  }
+                },
+                "visibility": "internal"
+              }
+            ],
+            "name": "DripParameters",
+            "nameLocation": "1046:14:49",
+            "scope": 38851,
+            "visibility": "public"
+          },
+          {
+            "id": 38639,
+            "nodeType": "StructDefinition",
+            "src": "1194:104:49",
+            "nodes": [],
+            "canonicalName": "Faucet.AuthParameters",
+            "members": [
+              {
+                "constant": false,
+                "id": 38634,
+                "mutability": "mutable",
+                "name": "module",
+                "nameLocation": "1244:6:49",
+                "nodeType": "VariableDeclaration",
+                "scope": 38639,
+                "src": "1226:24:49",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_contract$_IFaucetAuthModule_$38954",
+                  "typeString": "contract IFaucetAuthModule"
+                },
+                "typeName": {
+                  "id": 38633,
+                  "nodeType": "UserDefinedTypeName",
+                  "pathNode": {
+                    "id": 38632,
+                    "name": "IFaucetAuthModule",
+                    "nodeType": "IdentifierPath",
+                    "referencedDeclaration": 38954,
+                    "src": "1226:17:49"
+                  },
+                  "referencedDeclaration": 38954,
+                  "src": "1226:17:49",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_contract$_IFaucetAuthModule_$38954",
+                    "typeString": "contract IFaucetAuthModule"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 38636,
+                "mutability": "mutable",
+                "name": "id",
+                "nameLocation": "1268:2:49",
+                "nodeType": "VariableDeclaration",
+                "scope": 38639,
+                "src": "1260:10:49",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_bytes32",
+                  "typeString": "bytes32"
+                },
+                "typeName": {
+                  "id": 38635,
+                  "name": "bytes32",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1260:7:49",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes32",
+                    "typeString": "bytes32"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 38638,
+                "mutability": "mutable",
+                "name": "proof",
+                "nameLocation": "1286:5:49",
+                "nodeType": "VariableDeclaration",
+                "scope": 38639,
+                "src": "1280:11:49",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_bytes_storage_ptr",
+                  "typeString": "bytes"
+                },
+                "typeName": {
+                  "id": 38637,
+                  "name": "bytes",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1280:5:49",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes_storage_ptr",
+                    "typeString": "bytes"
+                  }
+                },
+                "visibility": "internal"
+              }
+            ],
+            "name": "AuthParameters",
+            "nameLocation": "1201:14:49",
+            "scope": 38851,
+            "visibility": "public"
+          },
+          {
+            "id": 38648,
+            "nodeType": "StructDefinition",
+            "src": "1379:115:49",
+            "nodes": [],
+            "canonicalName": "Faucet.ModuleConfig",
+            "members": [
+              {
+                "constant": false,
+                "id": 38641,
+                "mutability": "mutable",
+                "name": "name",
+                "nameLocation": "1416:4:49",
+                "nodeType": "VariableDeclaration",
+                "scope": 38648,
+                "src": "1409:11:49",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_string_storage_ptr",
+                  "typeString": "string"
+                },
+                "typeName": {
+                  "id": 38640,
+                  "name": "string",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1409:6:49",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_string_storage_ptr",
+                    "typeString": "string"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 38643,
+                "mutability": "mutable",
+                "name": "enabled",
+                "nameLocation": "1435:7:49",
+                "nodeType": "VariableDeclaration",
+                "scope": 38648,
+                "src": "1430:12:49",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_bool",
+                  "typeString": "bool"
+                },
+                "typeName": {
+                  "id": 38642,
+                  "name": "bool",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1430:4:49",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bool",
+                    "typeString": "bool"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 38645,
+                "mutability": "mutable",
+                "name": "ttl",
+                "nameLocation": "1460:3:49",
+                "nodeType": "VariableDeclaration",
+                "scope": 38648,
+                "src": "1452:11:49",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_uint256",
+                  "typeString": "uint256"
+                },
+                "typeName": {
+                  "id": 38644,
+                  "name": "uint256",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1452:7:49",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 38647,
+                "mutability": "mutable",
+                "name": "amount",
+                "nameLocation": "1481:6:49",
+                "nodeType": "VariableDeclaration",
+                "scope": 38648,
+                "src": "1473:14:49",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_uint256",
+                  "typeString": "uint256"
+                },
+                "typeName": {
+                  "id": 38646,
+                  "name": "uint256",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1473:7:49",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  }
+                },
+                "visibility": "internal"
+              }
+            ],
+            "name": "ModuleConfig",
+            "nameLocation": "1386:12:49",
+            "scope": 38851,
+            "visibility": "public"
+          },
+          {
+            "id": 38651,
+            "nodeType": "VariableDeclaration",
+            "src": "1576:30:49",
+            "nodes": [],
+            "constant": false,
+            "documentation": {
+              "id": 38649,
+              "nodeType": "StructuredDocumentation",
+              "src": "1500:71:49",
+              "text": " @notice Admin address that can configure the faucet."
+            },
+            "functionSelector": "2a0acc6a",
+            "mutability": "immutable",
+            "name": "ADMIN",
+            "nameLocation": "1601:5:49",
+            "scope": 38851,
+            "stateVariable": true,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_address",
+              "typeString": "address"
+            },
+            "typeName": {
+              "id": 38650,
+              "name": "address",
+              "nodeType": "ElementaryTypeName",
+              "src": "1576:7:49",
+              "stateMutability": "nonpayable",
+              "typeDescriptions": {
+                "typeIdentifier": "t_address",
+                "typeString": "address"
+              }
+            },
+            "visibility": "public"
+          },
+          {
+            "id": 38658,
+            "nodeType": "VariableDeclaration",
+            "src": "1703:57:49",
+            "nodes": [],
+            "constant": false,
+            "documentation": {
+              "id": 38652,
+              "nodeType": "StructuredDocumentation",
+              "src": "1613:85:49",
+              "text": " @notice Mapping of authentication modules to their configurations."
+            },
+            "functionSelector": "a8ee49fe",
+            "mutability": "mutable",
+            "name": "modules",
+            "nameLocation": "1753:7:49",
+            "scope": 38851,
+            "stateVariable": true,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_mapping$_t_contract$_IFaucetAuthModule_$38954_$_t_struct$_ModuleConfig_$38648_storage_$",
+              "typeString": "mapping(contract IFaucetAuthModule => struct Faucet.ModuleConfig)"
+            },
+            "typeName": {
+              "id": 38657,
+              "keyType": {
+                "id": 38654,
+                "nodeType": "UserDefinedTypeName",
+                "pathNode": {
+                  "id": 38653,
+                  "name": "IFaucetAuthModule",
+                  "nodeType": "IdentifierPath",
+                  "referencedDeclaration": 38954,
+                  "src": "1711:17:49"
+                },
+                "referencedDeclaration": 38954,
+                "src": "1711:17:49",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_contract$_IFaucetAuthModule_$38954",
+                  "typeString": "contract IFaucetAuthModule"
+                }
+              },
+              "nodeType": "Mapping",
+              "src": "1703:42:49",
+              "typeDescriptions": {
+                "typeIdentifier": "t_mapping$_t_contract$_IFaucetAuthModule_$38954_$_t_struct$_ModuleConfig_$38648_storage_$",
+                "typeString": "mapping(contract IFaucetAuthModule => struct Faucet.ModuleConfig)"
+              },
+              "valueType": {
+                "id": 38656,
+                "nodeType": "UserDefinedTypeName",
+                "pathNode": {
+                  "id": 38655,
+                  "name": "ModuleConfig",
+                  "nodeType": "IdentifierPath",
+                  "referencedDeclaration": 38648,
+                  "src": "1732:12:49"
+                },
+                "referencedDeclaration": 38648,
+                "src": "1732:12:49",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_struct$_ModuleConfig_$38648_storage_ptr",
+                  "typeString": "struct Faucet.ModuleConfig"
+                }
+              }
+            },
+            "visibility": "public"
+          },
+          {
+            "id": 38666,
+            "nodeType": "VariableDeclaration",
+            "src": "1877:73:49",
+            "nodes": [],
+            "constant": false,
+            "documentation": {
+              "id": 38659,
+              "nodeType": "StructuredDocumentation",
+              "src": "1767:105:49",
+              "text": " @notice Mapping of authentication IDs to the next timestamp at which they can be used."
+            },
+            "functionSelector": "38757bfd",
+            "mutability": "mutable",
+            "name": "timeouts",
+            "nameLocation": "1942:8:49",
+            "scope": 38851,
+            "stateVariable": true,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_mapping$_t_contract$_IFaucetAuthModule_$38954_$_t_mapping$_t_bytes32_$_t_uint256_$_$",
+              "typeString": "mapping(contract IFaucetAuthModule => mapping(bytes32 => uint256))"
+            },
+            "typeName": {
+              "id": 38665,
+              "keyType": {
+                "id": 38661,
+                "nodeType": "UserDefinedTypeName",
+                "pathNode": {
+                  "id": 38660,
+                  "name": "IFaucetAuthModule",
+                  "nodeType": "IdentifierPath",
+                  "referencedDeclaration": 38954,
+                  "src": "1885:17:49"
+                },
+                "referencedDeclaration": 38954,
+                "src": "1885:17:49",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_contract$_IFaucetAuthModule_$38954",
+                  "typeString": "contract IFaucetAuthModule"
+                }
+              },
+              "nodeType": "Mapping",
+              "src": "1877:57:49",
+              "typeDescriptions": {
+                "typeIdentifier": "t_mapping$_t_contract$_IFaucetAuthModule_$38954_$_t_mapping$_t_bytes32_$_t_uint256_$_$",
+                "typeString": "mapping(contract IFaucetAuthModule => mapping(bytes32 => uint256))"
+              },
+              "valueType": {
+                "id": 38664,
+                "keyType": {
+                  "id": 38662,
+                  "name": "bytes32",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1914:7:49",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes32",
+                    "typeString": "bytes32"
+                  }
+                },
+                "nodeType": "Mapping",
+                "src": "1906:27:49",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_mapping$_t_bytes32_$_t_uint256_$",
+                  "typeString": "mapping(bytes32 => uint256)"
+                },
+                "valueType": {
+                  "id": 38663,
+                  "name": "uint256",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1925:7:49",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  }
+                }
+              }
+            },
+            "visibility": "public"
+          },
+          {
+            "id": 38673,
+            "nodeType": "VariableDeclaration",
+            "src": "2050:58:49",
+            "nodes": [],
+            "constant": false,
+            "documentation": {
+              "id": 38667,
+              "nodeType": "StructuredDocumentation",
+              "src": "1957:88:49",
+              "text": " @notice Maps from id to nonces to whether or not they have been used."
+            },
+            "functionSelector": "1d5d26bc",
+            "mutability": "mutable",
+            "name": "nonces",
+            "nameLocation": "2102:6:49",
+            "scope": 38851,
+            "stateVariable": true,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_mapping$_t_bytes32_$_t_mapping$_t_bytes32_$_t_bool_$_$",
+              "typeString": "mapping(bytes32 => mapping(bytes32 => bool))"
+            },
+            "typeName": {
+              "id": 38672,
+              "keyType": {
+                "id": 38668,
+                "name": "bytes32",
+                "nodeType": "ElementaryTypeName",
+                "src": "2058:7:49",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_bytes32",
+                  "typeString": "bytes32"
+                }
+              },
+              "nodeType": "Mapping",
+              "src": "2050:44:49",
+              "typeDescriptions": {
+                "typeIdentifier": "t_mapping$_t_bytes32_$_t_mapping$_t_bytes32_$_t_bool_$_$",
+                "typeString": "mapping(bytes32 => mapping(bytes32 => bool))"
+              },
+              "valueType": {
+                "id": 38671,
+                "keyType": {
+                  "id": 38669,
+                  "name": "bytes32",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "2077:7:49",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes32",
+                    "typeString": "bytes32"
+                  }
+                },
+                "nodeType": "Mapping",
+                "src": "2069:24:49",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_mapping$_t_bytes32_$_t_bool_$",
+                  "typeString": "mapping(bytes32 => bool)"
+                },
+                "valueType": {
+                  "id": 38670,
+                  "name": "bool",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "2088:4:49",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bool",
+                    "typeString": "bool"
+                  }
+                }
+              }
+            },
+            "visibility": "public"
+          },
+          {
+            "id": 38686,
+            "nodeType": "ModifierDefinition",
+            "src": "2196:127:49",
+            "nodes": [],
+            "body": {
+              "id": 38685,
+              "nodeType": "Block",
+              "src": "2219:104:49",
+              "nodes": [],
+              "statements": [
+                {
+                  "expression": {
+                    "arguments": [
+                      {
+                        "commonType": {
+                          "typeIdentifier": "t_address",
+                          "typeString": "address"
+                        },
+                        "id": 38680,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "leftExpression": {
+                          "expression": {
+                            "id": 38677,
+                            "name": "msg",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": -15,
+                            "src": "2237:3:49",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_magic_message",
+                              "typeString": "msg"
+                            }
+                          },
+                          "id": 38678,
+                          "isConstant": false,
+                          "isLValue": false,
+                          "isPure": false,
+                          "lValueRequested": false,
+                          "memberName": "sender",
+                          "nodeType": "MemberAccess",
+                          "src": "2237:10:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_address",
+                            "typeString": "address"
+                          }
+                        },
+                        "nodeType": "BinaryOperation",
+                        "operator": "==",
+                        "rightExpression": {
+                          "id": 38679,
+                          "name": "ADMIN",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 38651,
+                          "src": "2251:5:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_address",
+                            "typeString": "address"
+                          }
+                        },
+                        "src": "2237:19:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_bool",
+                          "typeString": "bool"
+                        }
+                      },
+                      {
+                        "hexValue": "4661756365743a2066756e6374696f6e2063616e206f6e6c792062652063616c6c65642062792061646d696e",
+                        "id": 38681,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": true,
+                        "kind": "string",
+                        "lValueRequested": false,
+                        "nodeType": "Literal",
+                        "src": "2258:46:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_stringliteral_11dc0a10cbbc1cc6b65f2557b3594efa38f24c7a8739675b3fb6ad92d74983c4",
+                          "typeString": "literal_string \"Faucet: function can only be called by admin\""
+                        },
+                        "value": "Faucet: function can only be called by admin"
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_bool",
+                          "typeString": "bool"
+                        },
+                        {
+                          "typeIdentifier": "t_stringliteral_11dc0a10cbbc1cc6b65f2557b3594efa38f24c7a8739675b3fb6ad92d74983c4",
+                          "typeString": "literal_string \"Faucet: function can only be called by admin\""
+                        }
+                      ],
+                      "id": 38676,
+                      "name": "require",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [
+                        -18,
+                        -18
+                      ],
+                      "referencedDeclaration": -18,
+                      "src": "2229:7:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_require_pure$_t_bool_$_t_string_memory_ptr_$returns$__$",
+                        "typeString": "function (bool,string memory) pure"
+                      }
+                    },
+                    "id": 38682,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "2229:76:49",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$__$",
+                      "typeString": "tuple()"
+                    }
+                  },
+                  "id": 38683,
+                  "nodeType": "ExpressionStatement",
+                  "src": "2229:76:49"
+                },
+                {
+                  "id": 38684,
+                  "nodeType": "PlaceholderStatement",
+                  "src": "2315:1:49"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 38674,
+              "nodeType": "StructuredDocumentation",
+              "src": "2115:76:49",
+              "text": " @notice Modifier that makes a function admin priviledged."
+            },
+            "name": "priviledged",
+            "nameLocation": "2205:11:49",
+            "parameters": {
+              "id": 38675,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "2216:2:49"
+            },
+            "virtual": false,
+            "visibility": "internal"
+          },
+          {
+            "id": 38697,
+            "nodeType": "FunctionDefinition",
+            "src": "2411:59:49",
+            "nodes": [],
+            "body": {
+              "id": 38696,
+              "nodeType": "Block",
+              "src": "2439:31:49",
+              "nodes": [],
+              "statements": [
+                {
+                  "expression": {
+                    "id": 38694,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftHandSide": {
+                      "id": 38692,
+                      "name": "ADMIN",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 38651,
+                      "src": "2449:5:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    },
+                    "nodeType": "Assignment",
+                    "operator": "=",
+                    "rightHandSide": {
+                      "id": 38693,
+                      "name": "_admin",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 38689,
+                      "src": "2457:6:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    },
+                    "src": "2449:14:49",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "id": 38695,
+                  "nodeType": "ExpressionStatement",
+                  "src": "2449:14:49"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 38687,
+              "nodeType": "StructuredDocumentation",
+              "src": "2329:77:49",
+              "text": " @param _admin Admin address that can configure the faucet."
+            },
+            "implemented": true,
+            "kind": "constructor",
+            "modifiers": [],
+            "name": "",
+            "nameLocation": "-1:-1:-1",
+            "parameters": {
+              "id": 38690,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 38689,
+                  "mutability": "mutable",
+                  "name": "_admin",
+                  "nameLocation": "2431:6:49",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38697,
+                  "src": "2423:14:49",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 38688,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "2423:7:49",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "2422:16:49"
+            },
+            "returnParameters": {
+              "id": 38691,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "2439:0:49"
+            },
+            "scope": 38851,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "public"
+          },
+          {
+            "id": 38702,
+            "nodeType": "FunctionDefinition",
+            "src": "2552:56:49",
+            "nodes": [],
+            "body": {
+              "id": 38701,
+              "nodeType": "Block",
+              "src": "2579:29:49",
+              "nodes": [],
+              "statements": []
+            },
+            "documentation": {
+              "id": 38698,
+              "nodeType": "StructuredDocumentation",
+              "src": "2476:71:49",
+              "text": " @notice Allows users to donate ETH to this contract."
+            },
+            "implemented": true,
+            "kind": "receive",
+            "modifiers": [],
+            "name": "",
+            "nameLocation": "-1:-1:-1",
+            "parameters": {
+              "id": 38699,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "2559:2:49"
+            },
+            "returnParameters": {
+              "id": 38700,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "2579:0:49"
+            },
+            "scope": 38851,
+            "stateMutability": "payable",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 38721,
+            "nodeType": "FunctionDefinition",
+            "src": "2802:141:49",
+            "nodes": [],
+            "body": {
+              "id": 38720,
+              "nodeType": "Block",
+              "src": "2884:59:49",
+              "nodes": [],
+              "statements": [
+                {
+                  "expression": {
+                    "arguments": [
+                      {
+                        "id": 38717,
+                        "name": "_recipient",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 38705,
+                        "src": "2925:10:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_address_payable",
+                          "typeString": "address payable"
+                        }
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_address_payable",
+                          "typeString": "address payable"
+                        }
+                      ],
+                      "expression": {
+                        "argumentTypes": [
+                          {
+                            "typeIdentifier": "t_address_payable",
+                            "typeString": "address payable"
+                          }
+                        ],
+                        "id": 38714,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "nodeType": "NewExpression",
+                        "src": "2894:12:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_function_creation_payable$_t_address_payable_$returns$_t_contract$_SafeSend_$38614_$",
+                          "typeString": "function (address payable) payable returns (contract SafeSend)"
+                        },
+                        "typeName": {
+                          "id": 38713,
+                          "nodeType": "UserDefinedTypeName",
+                          "pathNode": {
+                            "id": 38712,
+                            "name": "SafeSend",
+                            "nodeType": "IdentifierPath",
+                            "referencedDeclaration": 38614,
+                            "src": "2898:8:49"
+                          },
+                          "referencedDeclaration": 38614,
+                          "src": "2898:8:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_contract$_SafeSend_$38614",
+                            "typeString": "contract SafeSend"
+                          }
+                        }
+                      },
+                      "id": 38716,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "names": [
+                        "value"
+                      ],
+                      "nodeType": "FunctionCallOptions",
+                      "options": [
+                        {
+                          "id": 38715,
+                          "name": "_amount",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 38707,
+                          "src": "2915:7:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_uint256",
+                            "typeString": "uint256"
+                          }
+                        }
+                      ],
+                      "src": "2894:30:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_creation_payable$_t_address_payable_$returns$_t_contract$_SafeSend_$38614_$value",
+                        "typeString": "function (address payable) payable returns (contract SafeSend)"
+                      }
+                    },
+                    "id": 38718,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "2894:42:49",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_contract$_SafeSend_$38614",
+                      "typeString": "contract SafeSend"
+                    }
+                  },
+                  "id": 38719,
+                  "nodeType": "ExpressionStatement",
+                  "src": "2894:42:49"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 38703,
+              "nodeType": "StructuredDocumentation",
+              "src": "2614:183:49",
+              "text": " @notice Allows the admin to withdraw funds.\n @param _recipient Address to receive the funds.\n @param _amount    Amount of ETH in wei to withdraw."
+            },
+            "functionSelector": "f3fef3a3",
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [
+              {
+                "id": 38710,
+                "kind": "modifierInvocation",
+                "modifierName": {
+                  "id": 38709,
+                  "name": "priviledged",
+                  "nodeType": "IdentifierPath",
+                  "referencedDeclaration": 38686,
+                  "src": "2872:11:49"
+                },
+                "nodeType": "ModifierInvocation",
+                "src": "2872:11:49"
+              }
+            ],
+            "name": "withdraw",
+            "nameLocation": "2811:8:49",
+            "parameters": {
+              "id": 38708,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 38705,
+                  "mutability": "mutable",
+                  "name": "_recipient",
+                  "nameLocation": "2836:10:49",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38721,
+                  "src": "2820:26:49",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address_payable",
+                    "typeString": "address payable"
+                  },
+                  "typeName": {
+                    "id": 38704,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "2820:15:49",
+                    "stateMutability": "payable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address_payable",
+                      "typeString": "address payable"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 38707,
+                  "mutability": "mutable",
+                  "name": "_amount",
+                  "nameLocation": "2856:7:49",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38721,
+                  "src": "2848:15:49",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 38706,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "2848:7:49",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "2819:45:49"
+            },
+            "returnParameters": {
+              "id": 38711,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "2884:0:49"
+            },
+            "scope": 38851,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "public"
+          },
+          {
+            "id": 38740,
+            "nodeType": "FunctionDefinition",
+            "src": "3160:137:49",
+            "nodes": [],
+            "body": {
+              "id": 38739,
+              "nodeType": "Block",
+              "src": "3254:43:49",
+              "nodes": [],
+              "statements": [
+                {
+                  "expression": {
+                    "id": 38737,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftHandSide": {
+                      "baseExpression": {
+                        "id": 38733,
+                        "name": "modules",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 38658,
+                        "src": "3264:7:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_mapping$_t_contract$_IFaucetAuthModule_$38954_$_t_struct$_ModuleConfig_$38648_storage_$",
+                          "typeString": "mapping(contract IFaucetAuthModule => struct Faucet.ModuleConfig storage ref)"
+                        }
+                      },
+                      "id": 38735,
+                      "indexExpression": {
+                        "id": 38734,
+                        "name": "_module",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 38725,
+                        "src": "3272:7:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_contract$_IFaucetAuthModule_$38954",
+                          "typeString": "contract IFaucetAuthModule"
+                        }
+                      },
+                      "isConstant": false,
+                      "isLValue": true,
+                      "isPure": false,
+                      "lValueRequested": true,
+                      "nodeType": "IndexAccess",
+                      "src": "3264:16:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_struct$_ModuleConfig_$38648_storage",
+                        "typeString": "struct Faucet.ModuleConfig storage ref"
+                      }
+                    },
+                    "nodeType": "Assignment",
+                    "operator": "=",
+                    "rightHandSide": {
+                      "id": 38736,
+                      "name": "_config",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 38728,
+                      "src": "3283:7:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_struct$_ModuleConfig_$38648_memory_ptr",
+                        "typeString": "struct Faucet.ModuleConfig memory"
+                      }
+                    },
+                    "src": "3264:26:49",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_ModuleConfig_$38648_storage",
+                      "typeString": "struct Faucet.ModuleConfig storage ref"
+                    }
+                  },
+                  "id": 38738,
+                  "nodeType": "ExpressionStatement",
+                  "src": "3264:26:49"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 38722,
+              "nodeType": "StructuredDocumentation",
+              "src": "2949:206:49",
+              "text": " @notice Allows the admin to configure an authentication module.\n @param _module Authentication module to configure.\n @param _config Configuration to set for the module."
+            },
+            "functionSelector": "1cb81b88",
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [
+              {
+                "id": 38731,
+                "kind": "modifierInvocation",
+                "modifierName": {
+                  "id": 38730,
+                  "name": "priviledged",
+                  "nodeType": "IdentifierPath",
+                  "referencedDeclaration": 38686,
+                  "src": "3242:11:49"
+                },
+                "nodeType": "ModifierInvocation",
+                "src": "3242:11:49"
+              }
+            ],
+            "name": "configure",
+            "nameLocation": "3169:9:49",
+            "parameters": {
+              "id": 38729,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 38725,
+                  "mutability": "mutable",
+                  "name": "_module",
+                  "nameLocation": "3197:7:49",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38740,
+                  "src": "3179:25:49",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_contract$_IFaucetAuthModule_$38954",
+                    "typeString": "contract IFaucetAuthModule"
+                  },
+                  "typeName": {
+                    "id": 38724,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 38723,
+                      "name": "IFaucetAuthModule",
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 38954,
+                      "src": "3179:17:49"
+                    },
+                    "referencedDeclaration": 38954,
+                    "src": "3179:17:49",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_contract$_IFaucetAuthModule_$38954",
+                      "typeString": "contract IFaucetAuthModule"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 38728,
+                  "mutability": "mutable",
+                  "name": "_config",
+                  "nameLocation": "3226:7:49",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38740,
+                  "src": "3206:27:49",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_ModuleConfig_$38648_memory_ptr",
+                    "typeString": "struct Faucet.ModuleConfig"
+                  },
+                  "typeName": {
+                    "id": 38727,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 38726,
+                      "name": "ModuleConfig",
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 38648,
+                      "src": "3206:12:49"
+                    },
+                    "referencedDeclaration": 38648,
+                    "src": "3206:12:49",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_ModuleConfig_$38648_storage_ptr",
+                      "typeString": "struct Faucet.ModuleConfig"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "3178:56:49"
+            },
+            "returnParameters": {
+              "id": 38732,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "3254:0:49"
+            },
+            "scope": 38851,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "public"
+          },
+          {
+            "id": 38850,
+            "nodeType": "FunctionDefinition",
+            "src": "3463:1600:49",
+            "nodes": [],
+            "body": {
+              "id": 38849,
+              "nodeType": "Block",
+              "src": "3544:1519:49",
+              "nodes": [],
+              "statements": [
+                {
+                  "assignments": [
+                    38752
+                  ],
+                  "declarations": [
+                    {
+                      "constant": false,
+                      "id": 38752,
+                      "mutability": "mutable",
+                      "name": "config",
+                      "nameLocation": "3614:6:49",
+                      "nodeType": "VariableDeclaration",
+                      "scope": 38849,
+                      "src": "3594:26:49",
+                      "stateVariable": false,
+                      "storageLocation": "memory",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_struct$_ModuleConfig_$38648_memory_ptr",
+                        "typeString": "struct Faucet.ModuleConfig"
+                      },
+                      "typeName": {
+                        "id": 38751,
+                        "nodeType": "UserDefinedTypeName",
+                        "pathNode": {
+                          "id": 38750,
+                          "name": "ModuleConfig",
+                          "nodeType": "IdentifierPath",
+                          "referencedDeclaration": 38648,
+                          "src": "3594:12:49"
+                        },
+                        "referencedDeclaration": 38648,
+                        "src": "3594:12:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_struct$_ModuleConfig_$38648_storage_ptr",
+                          "typeString": "struct Faucet.ModuleConfig"
+                        }
+                      },
+                      "visibility": "internal"
+                    }
+                  ],
+                  "id": 38757,
+                  "initialValue": {
+                    "baseExpression": {
+                      "id": 38753,
+                      "name": "modules",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 38658,
+                      "src": "3623:7:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_mapping$_t_contract$_IFaucetAuthModule_$38954_$_t_struct$_ModuleConfig_$38648_storage_$",
+                        "typeString": "mapping(contract IFaucetAuthModule => struct Faucet.ModuleConfig storage ref)"
+                      }
+                    },
+                    "id": 38756,
+                    "indexExpression": {
+                      "expression": {
+                        "id": 38754,
+                        "name": "_auth",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 38747,
+                        "src": "3631:5:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_struct$_AuthParameters_$38639_memory_ptr",
+                          "typeString": "struct Faucet.AuthParameters memory"
+                        }
+                      },
+                      "id": 38755,
+                      "isConstant": false,
+                      "isLValue": true,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "memberName": "module",
+                      "nodeType": "MemberAccess",
+                      "referencedDeclaration": 38634,
+                      "src": "3631:12:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_contract$_IFaucetAuthModule_$38954",
+                        "typeString": "contract IFaucetAuthModule"
+                      }
+                    },
+                    "isConstant": false,
+                    "isLValue": true,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "nodeType": "IndexAccess",
+                    "src": "3623:21:49",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_ModuleConfig_$38648_storage",
+                      "typeString": "struct Faucet.ModuleConfig storage ref"
+                    }
+                  },
+                  "nodeType": "VariableDeclarationStatement",
+                  "src": "3594:50:49"
+                },
+                {
+                  "expression": {
+                    "arguments": [
+                      {
+                        "expression": {
+                          "id": 38759,
+                          "name": "config",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 38752,
+                          "src": "3725:6:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_ModuleConfig_$38648_memory_ptr",
+                            "typeString": "struct Faucet.ModuleConfig memory"
+                          }
+                        },
+                        "id": 38760,
+                        "isConstant": false,
+                        "isLValue": true,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberName": "enabled",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 38643,
+                        "src": "3725:14:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_bool",
+                          "typeString": "bool"
+                        }
+                      },
+                      {
+                        "hexValue": "4661756365743a2070726f76696465642061757468206d6f64756c65206973206e6f7420737570706f72746564206279207468697320666175636574",
+                        "id": 38761,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": true,
+                        "kind": "string",
+                        "lValueRequested": false,
+                        "nodeType": "Literal",
+                        "src": "3741:62:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_stringliteral_a487bd17616eecf27b0cfc5721c4a6f239e71d3a78775f3783bebb377904f494",
+                          "typeString": "literal_string \"Faucet: provided auth module is not supported by this faucet\""
+                        },
+                        "value": "Faucet: provided auth module is not supported by this faucet"
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_bool",
+                          "typeString": "bool"
+                        },
+                        {
+                          "typeIdentifier": "t_stringliteral_a487bd17616eecf27b0cfc5721c4a6f239e71d3a78775f3783bebb377904f494",
+                          "typeString": "literal_string \"Faucet: provided auth module is not supported by this faucet\""
+                        }
+                      ],
+                      "id": 38758,
+                      "name": "require",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [
+                        -18,
+                        -18
+                      ],
+                      "referencedDeclaration": -18,
+                      "src": "3717:7:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_require_pure$_t_bool_$_t_string_memory_ptr_$returns$__$",
+                        "typeString": "function (bool,string memory) pure"
+                      }
+                    },
+                    "id": 38762,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "3717:87:49",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$__$",
+                      "typeString": "tuple()"
+                    }
+                  },
+                  "id": 38763,
+                  "nodeType": "ExpressionStatement",
+                  "src": "3717:87:49"
+                },
+                {
+                  "expression": {
+                    "arguments": [
+                      {
+                        "commonType": {
+                          "typeIdentifier": "t_bool",
+                          "typeString": "bool"
+                        },
+                        "id": 38773,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "leftExpression": {
+                          "baseExpression": {
+                            "baseExpression": {
+                              "id": 38765,
+                              "name": "nonces",
+                              "nodeType": "Identifier",
+                              "overloadedDeclarations": [],
+                              "referencedDeclaration": 38673,
+                              "src": "4119:6:49",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_mapping$_t_bytes32_$_t_mapping$_t_bytes32_$_t_bool_$_$",
+                                "typeString": "mapping(bytes32 => mapping(bytes32 => bool))"
+                              }
+                            },
+                            "id": 38768,
+                            "indexExpression": {
+                              "expression": {
+                                "id": 38766,
+                                "name": "_auth",
+                                "nodeType": "Identifier",
+                                "overloadedDeclarations": [],
+                                "referencedDeclaration": 38747,
+                                "src": "4126:5:49",
+                                "typeDescriptions": {
+                                  "typeIdentifier": "t_struct$_AuthParameters_$38639_memory_ptr",
+                                  "typeString": "struct Faucet.AuthParameters memory"
+                                }
+                              },
+                              "id": 38767,
+                              "isConstant": false,
+                              "isLValue": true,
+                              "isPure": false,
+                              "lValueRequested": false,
+                              "memberName": "id",
+                              "nodeType": "MemberAccess",
+                              "referencedDeclaration": 38636,
+                              "src": "4126:8:49",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_bytes32",
+                                "typeString": "bytes32"
+                              }
+                            },
+                            "isConstant": false,
+                            "isLValue": true,
+                            "isPure": false,
+                            "lValueRequested": false,
+                            "nodeType": "IndexAccess",
+                            "src": "4119:16:49",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_mapping$_t_bytes32_$_t_bool_$",
+                              "typeString": "mapping(bytes32 => bool)"
+                            }
+                          },
+                          "id": 38771,
+                          "indexExpression": {
+                            "expression": {
+                              "id": 38769,
+                              "name": "_params",
+                              "nodeType": "Identifier",
+                              "overloadedDeclarations": [],
+                              "referencedDeclaration": 38744,
+                              "src": "4136:7:49",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_struct$_DripParameters_$38631_memory_ptr",
+                                "typeString": "struct Faucet.DripParameters memory"
+                              }
+                            },
+                            "id": 38770,
+                            "isConstant": false,
+                            "isLValue": true,
+                            "isPure": false,
+                            "lValueRequested": false,
+                            "memberName": "nonce",
+                            "nodeType": "MemberAccess",
+                            "referencedDeclaration": 38630,
+                            "src": "4136:13:49",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_bytes32",
+                              "typeString": "bytes32"
+                            }
+                          },
+                          "isConstant": false,
+                          "isLValue": true,
+                          "isPure": false,
+                          "lValueRequested": false,
+                          "nodeType": "IndexAccess",
+                          "src": "4119:31:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_bool",
+                            "typeString": "bool"
+                          }
+                        },
+                        "nodeType": "BinaryOperation",
+                        "operator": "==",
+                        "rightExpression": {
+                          "hexValue": "66616c7365",
+                          "id": 38772,
+                          "isConstant": false,
+                          "isLValue": false,
+                          "isPure": true,
+                          "kind": "bool",
+                          "lValueRequested": false,
+                          "nodeType": "Literal",
+                          "src": "4154:5:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_bool",
+                            "typeString": "bool"
+                          },
+                          "value": "false"
+                        },
+                        "src": "4119:40:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_bool",
+                          "typeString": "bool"
+                        }
+                      },
+                      {
+                        "hexValue": "4661756365743a206e6f6e63652068617320616c7265616479206265656e2075736564",
+                        "id": 38774,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": true,
+                        "kind": "string",
+                        "lValueRequested": false,
+                        "nodeType": "Literal",
+                        "src": "4161:37:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_stringliteral_38a35c84541827923eff9aa90f61202cb382140ced78b1ed52388919b57b3f37",
+                          "typeString": "literal_string \"Faucet: nonce has already been used\""
+                        },
+                        "value": "Faucet: nonce has already been used"
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_bool",
+                          "typeString": "bool"
+                        },
+                        {
+                          "typeIdentifier": "t_stringliteral_38a35c84541827923eff9aa90f61202cb382140ced78b1ed52388919b57b3f37",
+                          "typeString": "literal_string \"Faucet: nonce has already been used\""
+                        }
+                      ],
+                      "id": 38764,
+                      "name": "require",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [
+                        -18,
+                        -18
+                      ],
+                      "referencedDeclaration": -18,
+                      "src": "4111:7:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_require_pure$_t_bool_$_t_string_memory_ptr_$returns$__$",
+                        "typeString": "function (bool,string memory) pure"
+                      }
+                    },
+                    "id": 38775,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "4111:88:49",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$__$",
+                      "typeString": "tuple()"
+                    }
+                  },
+                  "id": 38776,
+                  "nodeType": "ExpressionStatement",
+                  "src": "4111:88:49"
+                },
+                {
+                  "expression": {
+                    "arguments": [
+                      {
+                        "commonType": {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        },
+                        "id": 38787,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "leftExpression": {
+                          "baseExpression": {
+                            "baseExpression": {
+                              "id": 38778,
+                              "name": "timeouts",
+                              "nodeType": "Identifier",
+                              "overloadedDeclarations": [],
+                              "referencedDeclaration": 38666,
+                              "src": "4277:8:49",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_mapping$_t_contract$_IFaucetAuthModule_$38954_$_t_mapping$_t_bytes32_$_t_uint256_$_$",
+                                "typeString": "mapping(contract IFaucetAuthModule => mapping(bytes32 => uint256))"
+                              }
+                            },
+                            "id": 38781,
+                            "indexExpression": {
+                              "expression": {
+                                "id": 38779,
+                                "name": "_auth",
+                                "nodeType": "Identifier",
+                                "overloadedDeclarations": [],
+                                "referencedDeclaration": 38747,
+                                "src": "4286:5:49",
+                                "typeDescriptions": {
+                                  "typeIdentifier": "t_struct$_AuthParameters_$38639_memory_ptr",
+                                  "typeString": "struct Faucet.AuthParameters memory"
+                                }
+                              },
+                              "id": 38780,
+                              "isConstant": false,
+                              "isLValue": true,
+                              "isPure": false,
+                              "lValueRequested": false,
+                              "memberName": "module",
+                              "nodeType": "MemberAccess",
+                              "referencedDeclaration": 38634,
+                              "src": "4286:12:49",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_contract$_IFaucetAuthModule_$38954",
+                                "typeString": "contract IFaucetAuthModule"
+                              }
+                            },
+                            "isConstant": false,
+                            "isLValue": true,
+                            "isPure": false,
+                            "lValueRequested": false,
+                            "nodeType": "IndexAccess",
+                            "src": "4277:22:49",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_mapping$_t_bytes32_$_t_uint256_$",
+                              "typeString": "mapping(bytes32 => uint256)"
+                            }
+                          },
+                          "id": 38784,
+                          "indexExpression": {
+                            "expression": {
+                              "id": 38782,
+                              "name": "_auth",
+                              "nodeType": "Identifier",
+                              "overloadedDeclarations": [],
+                              "referencedDeclaration": 38747,
+                              "src": "4300:5:49",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_struct$_AuthParameters_$38639_memory_ptr",
+                                "typeString": "struct Faucet.AuthParameters memory"
+                              }
+                            },
+                            "id": 38783,
+                            "isConstant": false,
+                            "isLValue": true,
+                            "isPure": false,
+                            "lValueRequested": false,
+                            "memberName": "id",
+                            "nodeType": "MemberAccess",
+                            "referencedDeclaration": 38636,
+                            "src": "4300:8:49",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_bytes32",
+                              "typeString": "bytes32"
+                            }
+                          },
+                          "isConstant": false,
+                          "isLValue": true,
+                          "isPure": false,
+                          "lValueRequested": false,
+                          "nodeType": "IndexAccess",
+                          "src": "4277:32:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_uint256",
+                            "typeString": "uint256"
+                          }
+                        },
+                        "nodeType": "BinaryOperation",
+                        "operator": "<",
+                        "rightExpression": {
+                          "expression": {
+                            "id": 38785,
+                            "name": "block",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": -4,
+                            "src": "4312:5:49",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_magic_block",
+                              "typeString": "block"
+                            }
+                          },
+                          "id": 38786,
+                          "isConstant": false,
+                          "isLValue": false,
+                          "isPure": false,
+                          "lValueRequested": false,
+                          "memberName": "timestamp",
+                          "nodeType": "MemberAccess",
+                          "src": "4312:15:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_uint256",
+                            "typeString": "uint256"
+                          }
+                        },
+                        "src": "4277:50:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_bool",
+                          "typeString": "bool"
+                        }
+                      },
+                      {
+                        "hexValue": "4661756365743a20617574682063616e6e6f7420626520757365642079657420626563617573652074696d656f757420686173206e6f7420656c6170736564",
+                        "id": 38788,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": true,
+                        "kind": "string",
+                        "lValueRequested": false,
+                        "nodeType": "Literal",
+                        "src": "4341:65:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_stringliteral_f21b1e0d72b431af603cc6414de35a527238124b8e3e145303b8ecafae0064cb",
+                          "typeString": "literal_string \"Faucet: auth cannot be used yet because timeout has not elapsed\""
+                        },
+                        "value": "Faucet: auth cannot be used yet because timeout has not elapsed"
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_bool",
+                          "typeString": "bool"
+                        },
+                        {
+                          "typeIdentifier": "t_stringliteral_f21b1e0d72b431af603cc6414de35a527238124b8e3e145303b8ecafae0064cb",
+                          "typeString": "literal_string \"Faucet: auth cannot be used yet because timeout has not elapsed\""
+                        }
+                      ],
+                      "id": 38777,
+                      "name": "require",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [
+                        -18,
+                        -18
+                      ],
+                      "referencedDeclaration": -18,
+                      "src": "4256:7:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_require_pure$_t_bool_$_t_string_memory_ptr_$returns$__$",
+                        "typeString": "function (bool,string memory) pure"
+                      }
+                    },
+                    "id": 38789,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "4256:160:49",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$__$",
+                      "typeString": "tuple()"
+                    }
+                  },
+                  "id": 38790,
+                  "nodeType": "ExpressionStatement",
+                  "src": "4256:160:49"
+                },
+                {
+                  "expression": {
+                    "arguments": [
+                      {
+                        "arguments": [
+                          {
+                            "id": 38795,
+                            "name": "_params",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": 38744,
+                            "src": "4497:7:49",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_struct$_DripParameters_$38631_memory_ptr",
+                              "typeString": "struct Faucet.DripParameters memory"
+                            }
+                          },
+                          {
+                            "expression": {
+                              "id": 38796,
+                              "name": "_auth",
+                              "nodeType": "Identifier",
+                              "overloadedDeclarations": [],
+                              "referencedDeclaration": 38747,
+                              "src": "4506:5:49",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_struct$_AuthParameters_$38639_memory_ptr",
+                                "typeString": "struct Faucet.AuthParameters memory"
+                              }
+                            },
+                            "id": 38797,
+                            "isConstant": false,
+                            "isLValue": true,
+                            "isPure": false,
+                            "lValueRequested": false,
+                            "memberName": "id",
+                            "nodeType": "MemberAccess",
+                            "referencedDeclaration": 38636,
+                            "src": "4506:8:49",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_bytes32",
+                              "typeString": "bytes32"
+                            }
+                          },
+                          {
+                            "expression": {
+                              "id": 38798,
+                              "name": "_auth",
+                              "nodeType": "Identifier",
+                              "overloadedDeclarations": [],
+                              "referencedDeclaration": 38747,
+                              "src": "4516:5:49",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_struct$_AuthParameters_$38639_memory_ptr",
+                                "typeString": "struct Faucet.AuthParameters memory"
+                              }
+                            },
+                            "id": 38799,
+                            "isConstant": false,
+                            "isLValue": true,
+                            "isPure": false,
+                            "lValueRequested": false,
+                            "memberName": "proof",
+                            "nodeType": "MemberAccess",
+                            "referencedDeclaration": 38638,
+                            "src": "4516:11:49",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_bytes_memory_ptr",
+                              "typeString": "bytes memory"
+                            }
+                          }
+                        ],
+                        "expression": {
+                          "argumentTypes": [
+                            {
+                              "typeIdentifier": "t_struct$_DripParameters_$38631_memory_ptr",
+                              "typeString": "struct Faucet.DripParameters memory"
+                            },
+                            {
+                              "typeIdentifier": "t_bytes32",
+                              "typeString": "bytes32"
+                            },
+                            {
+                              "typeIdentifier": "t_bytes_memory_ptr",
+                              "typeString": "bytes memory"
+                            }
+                          ],
+                          "expression": {
+                            "expression": {
+                              "id": 38792,
+                              "name": "_auth",
+                              "nodeType": "Identifier",
+                              "overloadedDeclarations": [],
+                              "referencedDeclaration": 38747,
+                              "src": "4477:5:49",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_struct$_AuthParameters_$38639_memory_ptr",
+                                "typeString": "struct Faucet.AuthParameters memory"
+                              }
+                            },
+                            "id": 38793,
+                            "isConstant": false,
+                            "isLValue": true,
+                            "isPure": false,
+                            "lValueRequested": false,
+                            "memberName": "module",
+                            "nodeType": "MemberAccess",
+                            "referencedDeclaration": 38634,
+                            "src": "4477:12:49",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_contract$_IFaucetAuthModule_$38954",
+                              "typeString": "contract IFaucetAuthModule"
+                            }
+                          },
+                          "id": 38794,
+                          "isConstant": false,
+                          "isLValue": false,
+                          "isPure": false,
+                          "lValueRequested": false,
+                          "memberName": "verify",
+                          "nodeType": "MemberAccess",
+                          "referencedDeclaration": 38953,
+                          "src": "4477:19:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_external_view$_t_struct$_DripParameters_$38631_memory_ptr_$_t_bytes32_$_t_bytes_memory_ptr_$returns$_t_bool_$",
+                            "typeString": "function (struct Faucet.DripParameters memory,bytes32,bytes memory) view external returns (bool)"
+                          }
+                        },
+                        "id": 38800,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "kind": "functionCall",
+                        "lValueRequested": false,
+                        "names": [],
+                        "nodeType": "FunctionCall",
+                        "src": "4477:51:49",
+                        "tryCall": false,
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_bool",
+                          "typeString": "bool"
+                        }
+                      },
+                      {
+                        "hexValue": "4661756365743a206472697020706172616d657465727320636f756c64206e6f74206265207665726966696564206279207365637572697479206d6f64756c65",
+                        "id": 38801,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": true,
+                        "kind": "string",
+                        "lValueRequested": false,
+                        "nodeType": "Literal",
+                        "src": "4542:66:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_stringliteral_6bbdb926f863761ec12b934a9f8a495456fde72dcb6f7b3711891b4ba4651e91",
+                          "typeString": "literal_string \"Faucet: drip parameters could not be verified by security module\""
+                        },
+                        "value": "Faucet: drip parameters could not be verified by security module"
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_bool",
+                          "typeString": "bool"
+                        },
+                        {
+                          "typeIdentifier": "t_stringliteral_6bbdb926f863761ec12b934a9f8a495456fde72dcb6f7b3711891b4ba4651e91",
+                          "typeString": "literal_string \"Faucet: drip parameters could not be verified by security module\""
+                        }
+                      ],
+                      "id": 38791,
+                      "name": "require",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [
+                        -18,
+                        -18
+                      ],
+                      "referencedDeclaration": -18,
+                      "src": "4456:7:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_require_pure$_t_bool_$_t_string_memory_ptr_$returns$__$",
+                        "typeString": "function (bool,string memory) pure"
+                      }
+                    },
+                    "id": 38802,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "4456:162:49",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$__$",
+                      "typeString": "tuple()"
+                    }
+                  },
+                  "id": 38803,
+                  "nodeType": "ExpressionStatement",
+                  "src": "4456:162:49"
+                },
+                {
+                  "expression": {
+                    "id": 38816,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftHandSide": {
+                      "baseExpression": {
+                        "baseExpression": {
+                          "id": 38804,
+                          "name": "timeouts",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 38666,
+                          "src": "4698:8:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_mapping$_t_contract$_IFaucetAuthModule_$38954_$_t_mapping$_t_bytes32_$_t_uint256_$_$",
+                            "typeString": "mapping(contract IFaucetAuthModule => mapping(bytes32 => uint256))"
+                          }
+                        },
+                        "id": 38809,
+                        "indexExpression": {
+                          "expression": {
+                            "id": 38805,
+                            "name": "_auth",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": 38747,
+                            "src": "4707:5:49",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_struct$_AuthParameters_$38639_memory_ptr",
+                              "typeString": "struct Faucet.AuthParameters memory"
+                            }
+                          },
+                          "id": 38806,
+                          "isConstant": false,
+                          "isLValue": true,
+                          "isPure": false,
+                          "lValueRequested": false,
+                          "memberName": "module",
+                          "nodeType": "MemberAccess",
+                          "referencedDeclaration": 38634,
+                          "src": "4707:12:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_contract$_IFaucetAuthModule_$38954",
+                            "typeString": "contract IFaucetAuthModule"
+                          }
+                        },
+                        "isConstant": false,
+                        "isLValue": true,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "nodeType": "IndexAccess",
+                        "src": "4698:22:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_mapping$_t_bytes32_$_t_uint256_$",
+                          "typeString": "mapping(bytes32 => uint256)"
+                        }
+                      },
+                      "id": 38810,
+                      "indexExpression": {
+                        "expression": {
+                          "id": 38807,
+                          "name": "_auth",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 38747,
+                          "src": "4721:5:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_AuthParameters_$38639_memory_ptr",
+                            "typeString": "struct Faucet.AuthParameters memory"
+                          }
+                        },
+                        "id": 38808,
+                        "isConstant": false,
+                        "isLValue": true,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberName": "id",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 38636,
+                        "src": "4721:8:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_bytes32",
+                          "typeString": "bytes32"
+                        }
+                      },
+                      "isConstant": false,
+                      "isLValue": true,
+                      "isPure": false,
+                      "lValueRequested": true,
+                      "nodeType": "IndexAccess",
+                      "src": "4698:32:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      }
+                    },
+                    "nodeType": "Assignment",
+                    "operator": "=",
+                    "rightHandSide": {
+                      "commonType": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      },
+                      "id": 38815,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "leftExpression": {
+                        "expression": {
+                          "id": 38811,
+                          "name": "block",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": -4,
+                          "src": "4733:5:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_magic_block",
+                            "typeString": "block"
+                          }
+                        },
+                        "id": 38812,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberName": "timestamp",
+                        "nodeType": "MemberAccess",
+                        "src": "4733:15:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        }
+                      },
+                      "nodeType": "BinaryOperation",
+                      "operator": "+",
+                      "rightExpression": {
+                        "expression": {
+                          "id": 38813,
+                          "name": "config",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 38752,
+                          "src": "4751:6:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_ModuleConfig_$38648_memory_ptr",
+                            "typeString": "struct Faucet.ModuleConfig memory"
+                          }
+                        },
+                        "id": 38814,
+                        "isConstant": false,
+                        "isLValue": true,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberName": "ttl",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 38645,
+                        "src": "4751:10:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        }
+                      },
+                      "src": "4733:28:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      }
+                    },
+                    "src": "4698:63:49",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "id": 38817,
+                  "nodeType": "ExpressionStatement",
+                  "src": "4698:63:49"
+                },
+                {
+                  "expression": {
+                    "id": 38826,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftHandSide": {
+                      "baseExpression": {
+                        "baseExpression": {
+                          "id": 38818,
+                          "name": "nonces",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 38673,
+                          "src": "4807:6:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_mapping$_t_bytes32_$_t_mapping$_t_bytes32_$_t_bool_$_$",
+                            "typeString": "mapping(bytes32 => mapping(bytes32 => bool))"
+                          }
+                        },
+                        "id": 38823,
+                        "indexExpression": {
+                          "expression": {
+                            "id": 38819,
+                            "name": "_auth",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": 38747,
+                            "src": "4814:5:49",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_struct$_AuthParameters_$38639_memory_ptr",
+                              "typeString": "struct Faucet.AuthParameters memory"
+                            }
+                          },
+                          "id": 38820,
+                          "isConstant": false,
+                          "isLValue": true,
+                          "isPure": false,
+                          "lValueRequested": false,
+                          "memberName": "id",
+                          "nodeType": "MemberAccess",
+                          "referencedDeclaration": 38636,
+                          "src": "4814:8:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_bytes32",
+                            "typeString": "bytes32"
+                          }
+                        },
+                        "isConstant": false,
+                        "isLValue": true,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "nodeType": "IndexAccess",
+                        "src": "4807:16:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_mapping$_t_bytes32_$_t_bool_$",
+                          "typeString": "mapping(bytes32 => bool)"
+                        }
+                      },
+                      "id": 38824,
+                      "indexExpression": {
+                        "expression": {
+                          "id": 38821,
+                          "name": "_params",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 38744,
+                          "src": "4824:7:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_DripParameters_$38631_memory_ptr",
+                            "typeString": "struct Faucet.DripParameters memory"
+                          }
+                        },
+                        "id": 38822,
+                        "isConstant": false,
+                        "isLValue": true,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberName": "nonce",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 38630,
+                        "src": "4824:13:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_bytes32",
+                          "typeString": "bytes32"
+                        }
+                      },
+                      "isConstant": false,
+                      "isLValue": true,
+                      "isPure": false,
+                      "lValueRequested": true,
+                      "nodeType": "IndexAccess",
+                      "src": "4807:31:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_bool",
+                        "typeString": "bool"
+                      }
+                    },
+                    "nodeType": "Assignment",
+                    "operator": "=",
+                    "rightHandSide": {
+                      "hexValue": "74727565",
+                      "id": 38825,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": true,
+                      "kind": "bool",
+                      "lValueRequested": false,
+                      "nodeType": "Literal",
+                      "src": "4841:4:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_bool",
+                        "typeString": "bool"
+                      },
+                      "value": "true"
+                    },
+                    "src": "4807:38:49",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bool",
+                      "typeString": "bool"
+                    }
+                  },
+                  "id": 38827,
+                  "nodeType": "ExpressionStatement",
+                  "src": "4807:38:49"
+                },
+                {
+                  "expression": {
+                    "arguments": [
+                      {
+                        "expression": {
+                          "id": 38834,
+                          "name": "_params",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 38744,
+                          "src": "4961:7:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_DripParameters_$38631_memory_ptr",
+                            "typeString": "struct Faucet.DripParameters memory"
+                          }
+                        },
+                        "id": 38835,
+                        "isConstant": false,
+                        "isLValue": true,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberName": "recipient",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 38628,
+                        "src": "4961:17:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_address_payable",
+                          "typeString": "address payable"
+                        }
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_address_payable",
+                          "typeString": "address payable"
+                        }
+                      ],
+                      "expression": {
+                        "argumentTypes": [
+                          {
+                            "typeIdentifier": "t_address_payable",
+                            "typeString": "address payable"
+                          }
+                        ],
+                        "id": 38830,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "nodeType": "NewExpression",
+                        "src": "4924:12:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_function_creation_payable$_t_address_payable_$returns$_t_contract$_SafeSend_$38614_$",
+                          "typeString": "function (address payable) payable returns (contract SafeSend)"
+                        },
+                        "typeName": {
+                          "id": 38829,
+                          "nodeType": "UserDefinedTypeName",
+                          "pathNode": {
+                            "id": 38828,
+                            "name": "SafeSend",
+                            "nodeType": "IdentifierPath",
+                            "referencedDeclaration": 38614,
+                            "src": "4928:8:49"
+                          },
+                          "referencedDeclaration": 38614,
+                          "src": "4928:8:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_contract$_SafeSend_$38614",
+                            "typeString": "contract SafeSend"
+                          }
+                        }
+                      },
+                      "id": 38833,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "names": [
+                        "value"
+                      ],
+                      "nodeType": "FunctionCallOptions",
+                      "options": [
+                        {
+                          "expression": {
+                            "id": 38831,
+                            "name": "config",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": 38752,
+                            "src": "4945:6:49",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_struct$_ModuleConfig_$38648_memory_ptr",
+                              "typeString": "struct Faucet.ModuleConfig memory"
+                            }
+                          },
+                          "id": 38832,
+                          "isConstant": false,
+                          "isLValue": true,
+                          "isPure": false,
+                          "lValueRequested": false,
+                          "memberName": "amount",
+                          "nodeType": "MemberAccess",
+                          "referencedDeclaration": 38647,
+                          "src": "4945:13:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_uint256",
+                            "typeString": "uint256"
+                          }
+                        }
+                      ],
+                      "src": "4924:36:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_creation_payable$_t_address_payable_$returns$_t_contract$_SafeSend_$38614_$value",
+                        "typeString": "function (address payable) payable returns (contract SafeSend)"
+                      }
+                    },
+                    "id": 38836,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "4924:55:49",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_contract$_SafeSend_$38614",
+                      "typeString": "contract SafeSend"
+                    }
+                  },
+                  "id": 38837,
+                  "nodeType": "ExpressionStatement",
+                  "src": "4924:55:49"
+                },
+                {
+                  "eventCall": {
+                    "arguments": [
+                      {
+                        "expression": {
+                          "id": 38839,
+                          "name": "config",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 38752,
+                          "src": "5000:6:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_ModuleConfig_$38648_memory_ptr",
+                            "typeString": "struct Faucet.ModuleConfig memory"
+                          }
+                        },
+                        "id": 38840,
+                        "isConstant": false,
+                        "isLValue": true,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberName": "name",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 38641,
+                        "src": "5000:11:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_string_memory_ptr",
+                          "typeString": "string memory"
+                        }
+                      },
+                      {
+                        "expression": {
+                          "id": 38841,
+                          "name": "_auth",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 38747,
+                          "src": "5013:5:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_AuthParameters_$38639_memory_ptr",
+                            "typeString": "struct Faucet.AuthParameters memory"
+                          }
+                        },
+                        "id": 38842,
+                        "isConstant": false,
+                        "isLValue": true,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberName": "id",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 38636,
+                        "src": "5013:8:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_bytes32",
+                          "typeString": "bytes32"
+                        }
+                      },
+                      {
+                        "expression": {
+                          "id": 38843,
+                          "name": "config",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 38752,
+                          "src": "5023:6:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_ModuleConfig_$38648_memory_ptr",
+                            "typeString": "struct Faucet.ModuleConfig memory"
+                          }
+                        },
+                        "id": 38844,
+                        "isConstant": false,
+                        "isLValue": true,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberName": "amount",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 38647,
+                        "src": "5023:13:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        }
+                      },
+                      {
+                        "expression": {
+                          "id": 38845,
+                          "name": "_params",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 38744,
+                          "src": "5038:7:49",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_DripParameters_$38631_memory_ptr",
+                            "typeString": "struct Faucet.DripParameters memory"
+                          }
+                        },
+                        "id": 38846,
+                        "isConstant": false,
+                        "isLValue": true,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberName": "recipient",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 38628,
+                        "src": "5038:17:49",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_address_payable",
+                          "typeString": "address payable"
+                        }
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_string_memory_ptr",
+                          "typeString": "string memory"
+                        },
+                        {
+                          "typeIdentifier": "t_bytes32",
+                          "typeString": "bytes32"
+                        },
+                        {
+                          "typeIdentifier": "t_uint256",
+                          "typeString": "uint256"
+                        },
+                        {
+                          "typeIdentifier": "t_address_payable",
+                          "typeString": "address payable"
+                        }
+                      ],
+                      "id": 38838,
+                      "name": "Drip",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 38626,
+                      "src": "4995:4:49",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_event_nonpayable$_t_string_memory_ptr_$_t_bytes32_$_t_uint256_$_t_address_$returns$__$",
+                        "typeString": "function (string memory,bytes32,uint256,address)"
+                      }
+                    },
+                    "id": 38847,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "4995:61:49",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_tuple$__$",
+                      "typeString": "tuple()"
+                    }
+                  },
+                  "id": 38848,
+                  "nodeType": "EmitStatement",
+                  "src": "4990:66:49"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 38741,
+              "nodeType": "StructuredDocumentation",
+              "src": "3303:155:49",
+              "text": " @notice Drips ETH to a recipient account.\n @param _params Drip parameters.\n @param _auth   Authentication parameters."
+            },
+            "functionSelector": "b960bc2b",
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "drip",
+            "nameLocation": "3472:4:49",
+            "parameters": {
+              "id": 38748,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 38744,
+                  "mutability": "mutable",
+                  "name": "_params",
+                  "nameLocation": "3499:7:49",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38850,
+                  "src": "3477:29:49",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_DripParameters_$38631_memory_ptr",
+                    "typeString": "struct Faucet.DripParameters"
+                  },
+                  "typeName": {
+                    "id": 38743,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 38742,
+                      "name": "DripParameters",
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 38631,
+                      "src": "3477:14:49"
+                    },
+                    "referencedDeclaration": 38631,
+                    "src": "3477:14:49",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_DripParameters_$38631_storage_ptr",
+                      "typeString": "struct Faucet.DripParameters"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 38747,
+                  "mutability": "mutable",
+                  "name": "_auth",
+                  "nameLocation": "3530:5:49",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38850,
+                  "src": "3508:27:49",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_AuthParameters_$38639_memory_ptr",
+                    "typeString": "struct Faucet.AuthParameters"
+                  },
+                  "typeName": {
+                    "id": 38746,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 38745,
+                      "name": "AuthParameters",
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 38639,
+                      "src": "3508:14:49"
+                    },
+                    "referencedDeclaration": 38639,
+                    "src": "3508:14:49",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_AuthParameters_$38639_storage_ptr",
+                      "typeString": "struct Faucet.AuthParameters"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "3476:60:49"
+            },
+            "returnParameters": {
+              "id": 38749,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "3544:0:49"
+            },
+            "scope": 38851,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "public"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "Faucet",
+        "contractDependencies": [
+          38614
+        ],
+        "contractKind": "contract",
+        "documentation": {
+          "id": 38615,
+          "nodeType": "StructuredDocumentation",
+          "src": "414:77:49",
+          "text": " @title  Faucet\n @notice Faucet contract that drips ETH to users."
+        },
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          38851
+        ],
+        "name": "Faucet",
+        "nameLocation": "501:6:49",
+        "scope": 38852,
+        "usedErrors": []
+      }
+    ],
+    "license": "MIT"
+  },
+  "id": 49
+}

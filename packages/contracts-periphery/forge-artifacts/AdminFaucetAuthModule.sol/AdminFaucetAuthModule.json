@@ -1,0 +1,1475 @@
+{
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_admin",
+          "type": "address"
+        },
+        {
+          "internalType": "string",
+          "name": "_name",
+          "type": "string"
+        },
+        {
+          "internalType": "string",
+          "name": "_version",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "ADMIN",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "PROOF_TYPEHASH",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "address payable",
+              "name": "recipient",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "nonce",
+              "type": "bytes32"
+            }
+          ],
+          "internalType": "struct Faucet.DripParameters",
+          "name": "_params",
+          "type": "tuple"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "_id",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_proof",
+          "type": "bytes"
+        }
+      ],
+      "name": "verify",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": {
+    "object": "0x61016060405234801561001157600080fd5b50604051610a0b380380610a0b83398101604081905261003091610193565b815160209283012081519183019190912060e08290526101008190524660a0818152604080517f8b73c3c69bb8fe3d512ecc4cf759cc79239f7b179b0ffacaa9a75d522b39400f818801819052818301969096526060810194909452608080850193909352308483018190528151808603909301835260c094850190915281519190950120905291909152610120526001600160a01b031661014052610215565b634e487b7160e01b600052604160045260246000fd5b600082601f8301126100f857600080fd5b81516001600160401b0380821115610112576101126100d1565b604051601f8301601f19908116603f0116810190828211818310171561013a5761013a6100d1565b8160405283815260209250868385880101111561015657600080fd5b600091505b83821015610178578582018301518183018401529082019061015b565b838211156101895760008385830101525b9695505050505050565b6000806000606084860312156101a857600080fd5b83516001600160a01b03811681146101bf57600080fd5b60208501519093506001600160401b03808211156101dc57600080fd5b6101e8878388016100e7565b935060408601519150808211156101fe57600080fd5b5061020b868287016100e7565b9150509250925092565b60805160a05160c05160e05161010051610120516101405161079761027460003960008181604b015260e9015260006103b401526000610403015260006103de01526000610337015260006103610152600061038b01526107976000f3fe608060405234801561001057600080fd5b50600436106100415760003560e01c80632a0acc6a146100465780638b3e3bf61461008a578063f5431ffa146100bf575b600080fd5b61006d7f000000000000000000000000000000000000000000000000000000000000000081565b6040516001600160a01b0390911681526020015b60405180910390f35b6100b17fd4283507dc7a8282faa6b4c8c18bacbb74dbbab5467342e6f581656f3577236e81565b604051908152602001610081565b6100d26100cd3660046105f3565b6100e2565b6040519015158152602001610081565b600061018a7f00000000000000000000000000000000000000000000000000000000000000006101847fd4283507dc7a8282faa6b4c8c18bacbb74dbbab5467342e6f581656f3577236e876000015188602001518860405160200161016994939291909384526001600160a01b039290921660208401526040830152606082015260800190565b60405160208183030381529060405280519060200120610194565b846101e8565b90505b9392505050565b60006101e26101a161032a565b8360405161190160f01b6020820152602281018390526042810182905260009060620160405160208183030381529060405280519060200120905092915050565b92915050565b60008060006101f78585610451565b90925090506000816004811115610210576102106106d5565b14801561022e5750856001600160a01b0316826001600160a01b0316145b1561023e5760019250505061018d565b600080876001600160a01b0316631626ba7e60e01b888860405160240161026692919061071b565b60408051601f198184030181529181526020820180516001600160e01b03166001600160e01b03199094169390931790925290516102a49190610755565b600060405180830381855afa9150503d80600081146102df576040519150601f19603f3d011682016040523d82523d6000602084013e6102e4565b606091505b50915091508180156102f7575080516020145b801561031e57508051630b135d3f60e11b9061031c9083016020908101908401610771565b145b98975050505050505050565b6000306001600160a01b037f00000000000000000000000000000000000000000000000000000000000000001614801561038357507f000000000000000000000000000000000000000000000000000000000000000046145b156103ad57507f000000000000000000000000000000000000000000000000000000000000000090565b50604080517f00000000000000000000000000000000000000000000000000000000000000006020808301919091527f0000000000000000000000000000000000000000000000000000000000000000828401527f000000000000000000000000000000000000000000000000000000000000000060608301524660808301523060a0808401919091528351808403909101815260c0909201909252805191012090565b60008082516041036104875760208301516040840151606085015160001a61047b87828585610496565b9450945050505061048f565b506000905060025b9250929050565b6000807f7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a08311156104cd575060009050600361057a565b8460ff16601b141580156104e557508460ff16601c14155b156104f6575060009050600461057a565b6040805160008082526020820180845289905260ff881692820192909252606081018690526080810185905260019060a0016020604051602081039080840390855afa15801561054a573d6000803e3d6000fd5b5050604051601f1901519150506001600160a01b0381166105735760006001925092505061057a565b9150600090505b94509492505050565b634e487b7160e01b600052604160045260246000fd5b6040805190810167ffffffffffffffff811182821017156105bc576105bc610583565b60405290565b604051601f8201601f1916810167ffffffffffffffff811182821017156105eb576105eb610583565b604052919050565b6000806000838503608081121561060957600080fd5b604081121561061757600080fd5b50610620610599565b84356001600160a01b038116811461063757600080fd5b8152602085810135818301529093506040850135925060608501359067ffffffffffffffff8083111561066957600080fd5b828701925087601f84011261067d57600080fd5b82358181111561068f5761068f610583565b6106a1601f8201601f191684016105c2565b915080825288838286010111156106b757600080fd5b80838501848401376000838284010152508093505050509250925092565b634e487b7160e01b600052602160045260246000fd5b60005b838110156107065781810151838201526020016106ee565b83811115610715576000848401525b50505050565b82815260406020820152600082518060408401526107408160608501602087016106eb565b601f01601f1916919091016060019392505050565b600082516107678184602087016106eb565b9190910192915050565b60006020828403121561078357600080fd5b505191905056fea164736f6c634300080f000a",
+    "sourceMap": "526:1699:50:-:0;;;1501:158;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;2541:22:79;;;;;;;2597:25;;;;;;;;;2778;;;;2813:31;;;;2873:13;2854:32;;;;-1:-1:-1;3633:73:79;;2651:117;3633:73;;;2029:25:101;;;2070:18;;;2063:34;;;;-1:-1:-1;2113:18:101;;2106:34;;;;2156:18;;;;2149:34;;;;3700:4:79;2199:19:101;;;2192:61;;;3633:73:79;;;;;;;;;;2001:19:101;;;;3633:73:79;;;3623:84;;;;;;;2896:85;;2991:28;;;;3029:21;;-1:-1:-1;;;;;1638:14:50::1;;::::0;526:1699;;14:127:101;75:10;70:3;66:20;63:1;56:31;106:4;103:1;96:15;130:4;127:1;120:15;146:885;200:5;253:3;246:4;238:6;234:17;230:27;220:55;;271:1;268;261:12;220:55;294:13;;-1:-1:-1;;;;;356:10:101;;;353:36;;;369:18;;:::i;:::-;444:2;438:9;412:2;498:13;;-1:-1:-1;;494:22:101;;;518:2;490:31;486:40;474:53;;;542:18;;;562:22;;;539:46;536:72;;;588:18;;:::i;:::-;628:10;624:2;617:22;663:2;655:6;648:18;685:4;675:14;;730:3;725:2;720;712:6;708:15;704:24;701:33;698:53;;;747:1;744;737:12;698:53;769:1;760:10;;779:133;793:2;790:1;787:9;779:133;;;881:14;;;877:23;;871:30;850:14;;;846:23;;839:63;804:10;;;;779:133;;;930:2;927:1;924:9;921:80;;;989:1;984:2;979;971:6;967:15;963:24;956:35;921:80;1019:6;146:885;-1:-1:-1;;;;;;146:885:101:o;1036:729::-;1144:6;1152;1160;1213:2;1201:9;1192:7;1188:23;1184:32;1181:52;;;1229:1;1226;1219:12;1181:52;1255:16;;-1:-1:-1;;;;;1300:31:101;;1290:42;;1280:70;;1346:1;1343;1336:12;1280:70;1418:2;1403:18;;1397:25;1369:5;;-1:-1:-1;;;;;;1471:14:101;;;1468:34;;;1498:1;1495;1488:12;1468:34;1521:61;1574:7;1565:6;1554:9;1550:22;1521:61;:::i;:::-;1511:71;;1628:2;1617:9;1613:18;1607:25;1591:41;;1657:2;1647:8;1644:16;1641:36;;;1673:1;1670;1663:12;1641:36;;1696:63;1751:7;1740:8;1729:9;1725:24;1696:63;:::i;:::-;1686:73;;;1036:729;;;;;:::o;1770:489::-;526:1699:50;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x608060405234801561001057600080fd5b50600436106100415760003560e01c80632a0acc6a146100465780638b3e3bf61461008a578063f5431ffa146100bf575b600080fd5b61006d7f000000000000000000000000000000000000000000000000000000000000000081565b6040516001600160a01b0390911681526020015b60405180910390f35b6100b17fd4283507dc7a8282faa6b4c8c18bacbb74dbbab5467342e6f581656f3577236e81565b604051908152602001610081565b6100d26100cd3660046105f3565b6100e2565b6040519015158152602001610081565b600061018a7f00000000000000000000000000000000000000000000000000000000000000006101847fd4283507dc7a8282faa6b4c8c18bacbb74dbbab5467342e6f581656f3577236e876000015188602001518860405160200161016994939291909384526001600160a01b039290921660208401526040830152606082015260800190565b60405160208183030381529060405280519060200120610194565b846101e8565b90505b9392505050565b60006101e26101a161032a565b8360405161190160f01b6020820152602281018390526042810182905260009060620160405160208183030381529060405280519060200120905092915050565b92915050565b60008060006101f78585610451565b90925090506000816004811115610210576102106106d5565b14801561022e5750856001600160a01b0316826001600160a01b0316145b1561023e5760019250505061018d565b600080876001600160a01b0316631626ba7e60e01b888860405160240161026692919061071b565b60408051601f198184030181529181526020820180516001600160e01b03166001600160e01b03199094169390931790925290516102a49190610755565b600060405180830381855afa9150503d80600081146102df576040519150601f19603f3d011682016040523d82523d6000602084013e6102e4565b606091505b50915091508180156102f7575080516020145b801561031e57508051630b135d3f60e11b9061031c9083016020908101908401610771565b145b98975050505050505050565b6000306001600160a01b037f00000000000000000000000000000000000000000000000000000000000000001614801561038357507f000000000000000000000000000000000000000000000000000000000000000046145b156103ad57507f000000000000000000000000000000000000000000000000000000000000000090565b50604080517f00000000000000000000000000000000000000000000000000000000000000006020808301919091527f0000000000000000000000000000000000000000000000000000000000000000828401527f000000000000000000000000000000000000000000000000000000000000000060608301524660808301523060a0808401919091528351808403909101815260c0909201909252805191012090565b60008082516041036104875760208301516040840151606085015160001a61047b87828585610496565b9450945050505061048f565b506000905060025b9250929050565b6000807f7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a08311156104cd575060009050600361057a565b8460ff16601b141580156104e557508460ff16601c14155b156104f6575060009050600461057a565b6040805160008082526020820180845289905260ff881692820192909252606081018690526080810185905260019060a0016020604051602081039080840390855afa15801561054a573d6000803e3d6000fd5b5050604051601f1901519150506001600160a01b0381166105735760006001925092505061057a565b9150600090505b94509492505050565b634e487b7160e01b600052604160045260246000fd5b6040805190810167ffffffffffffffff811182821017156105bc576105bc610583565b60405290565b604051601f8201601f1916810167ffffffffffffffff811182821017156105eb576105eb610583565b604052919050565b6000806000838503608081121561060957600080fd5b604081121561061757600080fd5b50610620610599565b84356001600160a01b038116811461063757600080fd5b8152602085810135818301529093506040850135925060608501359067ffffffffffffffff8083111561066957600080fd5b828701925087601f84011261067d57600080fd5b82358181111561068f5761068f610583565b6106a1601f8201601f191684016105c2565b915080825288838286010111156106b757600080fd5b80838501848401376000838284010152508093505050509250925092565b634e487b7160e01b600052602160045260246000fd5b60005b838110156107065781810151838201526020016106ee565b83811115610715576000848401525b50505050565b82815260406020820152600082518060408401526107408160608501602087016106eb565b601f01601f1916919091016060019392505050565b600082516107678184602087016106eb565b9190910192915050565b60006020828403121561078357600080fd5b505191905056fea164736f6c634300080f000a",
+    "sourceMap": "526:1699:50:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;665:30;;;;;;;;-1:-1:-1;;;;;178:32:101;;;160:51;;148:2;133:18;665:30:50;;;;;;;;769:111;;818:62;769:111;;;;;368:25:101;;;356:2;341:18;769:111:50;222:177:101;1718:505:50;;;;;;:::i;:::-;;:::i;:::-;;;2496:14:101;;2489:22;2471:41;;2459:2;2444:18;1718:505:50;2331:187:101;1718:505:50;1859:4;1969:247;2023:5;2046:132;818:62;2121:7;:17;;;2140:7;:13;;;2155:3;2094:65;;;;;;;;;;2770:25:101;;;-1:-1:-1;;;;;2831:32:101;;;;2826:2;2811:18;;2804:60;2895:2;2880:18;;2873:34;2938:2;2923:18;;2916:34;2757:3;2742:19;;2523:433;2094:65:50;;;;;;;;;;;;;2084:76;;;;;;2046:16;:132::i;:::-;2196:6;1969:36;:247::i;:::-;1950:266;;1718:505;;;;;;:::o;4339:165:79:-;4416:7;4442:55;4464:20;:18;:20::i;:::-;4486:10;8677:57:77;;-1:-1:-1;;;8677:57:77;;;4539:27:101;4582:11;;;4575:27;;;4618:12;;;4611:28;;;8641:7:77;;4655:12:101;;8677:57:77;;;;;;;;;;;;8667:68;;;;;;8660:75;;8548:194;;;;;4442:55:79;4435:62;4339:165;-1:-1:-1;;4339:165:79:o;1039:667:78:-;1175:4;1192:17;1211:24;1239:33;1256:4;1262:9;1239:16;:33::i;:::-;1191:81;;-1:-1:-1;1191:81:78;-1:-1:-1;1295:26:78;1286:5;:35;;;;;;;;:::i;:::-;;:58;;;;;1338:6;-1:-1:-1;;;;;1325:19:78;:9;-1:-1:-1;;;;;1325:19:78;;1286:58;1282:100;;;1367:4;1360:11;;;;;;1282:100;1393:12;1407:19;1430:6;-1:-1:-1;;;;;1430:17:78;1484:34;;;1520:4;1526:9;1461:75;;;;;;;;;:::i;:::-;;;;-1:-1:-1;;1461:75:78;;;;;;;;;;;;;;-1:-1:-1;;;;;1461:75:78;-1:-1:-1;;;;;;1461:75:78;;;;;;;;;;1430:116;;;;1461:75;1430:116;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;1392:154;;;;1564:7;:42;;;;;1587:6;:13;1604:2;1587:19;1564:42;:134;;;;-1:-1:-1;1622:29:78;;-1:-1:-1;;;1663:34:78;1622:29;;;;;;;;;;;;:::i;:::-;:76;1564:134;1556:143;1039:667;-1:-1:-1;;;;;;;;1039:667:78:o;3143:308:79:-;3196:7;3227:4;-1:-1:-1;;;;;3236:12:79;3219:29;;:66;;;;;3269:16;3252:13;:33;3219:66;3215:230;;;-1:-1:-1;3308:24:79;;3143:308::o;3215:230::-;-1:-1:-1;3633:73:79;;;3392:10;3633:73;;;;4937:25:101;;;;3404:12:79;4978:18:101;;;4971:34;3418:15:79;5021:18:101;;;5014:34;3677:13:79;5064:18:101;;;5057:34;3700:4:79;5107:19:101;;;;5100:61;;;;3633:73:79;;;;;;;;;;4909:19:101;;;;3633:73:79;;;3623:84;;;;;;3143:308::o;2243:730:77:-;2324:7;2333:12;2361:9;:16;2381:2;2361:22;2357:610;;2697:4;2682:20;;2676:27;2746:4;2731:20;;2725:27;2803:4;2788:20;;2782:27;2399:9;2774:36;2844:25;2855:4;2774:36;2676:27;2725;2844:10;:25::i;:::-;2837:32;;;;;;;;;2357:610;-1:-1:-1;2916:1:77;;-1:-1:-1;2920:35:77;2357:610;2243:730;;;;;:::o;5167:1603::-;5293:7;;6217:66;6204:79;;6200:161;;;-1:-1:-1;6315:1:77;;-1:-1:-1;6319:30:77;6299:51;;6200:161;6374:1;:7;;6379:2;6374:7;;:18;;;;;6385:1;:7;;6390:2;6385:7;;6374:18;6370:100;;;-1:-1:-1;6424:1:77;;-1:-1:-1;6428:30:77;6408:51;;6370:100;6581:24;;;6564:14;6581:24;;;;;;;;;5399:25:101;;;5472:4;5460:17;;5440:18;;;5433:45;;;;5494:18;;;5487:34;;;5537:18;;;5530:34;;;6581:24:77;;5371:19:101;;6581:24:77;;;;;;;;;;;;;;;;;;;;;;;;;;;-1:-1:-1;;6581:24:77;;-1:-1:-1;;6581:24:77;;;-1:-1:-1;;;;;;;6619:20:77;;6615:101;;6671:1;6675:29;6655:50;;;;;;;6615:101;6734:6;-1:-1:-1;6742:20:77;;-1:-1:-1;5167:1603:77;;;;;;;;:::o;404:127:101:-;465:10;460:3;456:20;453:1;446:31;496:4;493:1;486:15;520:4;517:1;510:15;536:256;607:4;601:11;;;639:17;;686:18;671:34;;707:22;;;668:62;665:88;;;733:18;;:::i;:::-;769:4;762:24;536:256;:::o;797:275::-;868:2;862:9;933:2;914:13;;-1:-1:-1;;910:27:101;898:40;;968:18;953:34;;989:22;;;950:62;947:88;;;1015:18;;:::i;:::-;1051:2;1044:22;797:275;;-1:-1:-1;797:275:101:o;1077:1249::-;1196:6;1204;1212;1256:9;1247:7;1243:23;1286:3;1282:2;1278:12;1275:32;;;1303:1;1300;1293:12;1275:32;1327:4;1323:2;1319:13;1316:33;;;1345:1;1342;1335:12;1316:33;;1371:21;;:::i;:::-;1416:23;;-1:-1:-1;;;;;1470:33:101;;1458:46;;1448:74;;1518:1;1515;1508:12;1448:74;1531:22;;1572:2;1619:18;;;1606:32;1590:14;;;1583:56;1538:5;;-1:-1:-1;1710:4:101;1695:20;;1682:34;;-1:-1:-1;1767:2:101;1752:18;;1739:32;;1790:18;1820:14;;;1817:34;;;1847:1;1844;1837:12;1817:34;1885:6;1874:9;1870:22;1860:32;;1930:7;1923:4;1919:2;1915:13;1911:27;1901:55;;1952:1;1949;1942:12;1901:55;1988:2;1975:16;2010:2;2006;2003:10;2000:36;;;2016:18;;:::i;:::-;2058:53;2101:2;2082:13;;-1:-1:-1;;2078:27:101;2074:36;;2058:53;:::i;:::-;2045:66;;2134:2;2127:5;2120:17;2174:7;2169:2;2164;2160;2156:11;2152:20;2149:33;2146:53;;;2195:1;2192;2185:12;2146:53;2250:2;2245;2241;2237:11;2232:2;2225:5;2221:14;2208:45;2294:1;2289:2;2284;2277:5;2273:14;2269:23;2262:34;;2315:5;2305:15;;;;;1077:1249;;;;;:::o;2961:127::-;3022:10;3017:3;3013:20;3010:1;3003:31;3053:4;3050:1;3043:15;3077:4;3074:1;3067:15;3093:258;3165:1;3175:113;3189:6;3186:1;3183:13;3175:113;;;3265:11;;;3259:18;3246:11;;;3239:39;3211:2;3204:10;3175:113;;;3306:6;3303:1;3300:13;3297:48;;;3341:1;3332:6;3327:3;3323:16;3316:27;3297:48;;3093:258;;;:::o;3356:452::-;3531:6;3520:9;3513:25;3574:2;3569;3558:9;3554:18;3547:30;3494:4;3606:6;3600:13;3649:6;3644:2;3633:9;3629:18;3622:34;3665:66;3724:6;3719:2;3708:9;3704:18;3699:2;3691:6;3687:15;3665:66;:::i;:::-;3792:2;3771:15;-1:-1:-1;;3767:29:101;3752:45;;;;3799:2;3748:54;;3356:452;-1:-1:-1;;;3356:452:101:o;3813:274::-;3942:3;3980:6;3974:13;3996:53;4042:6;4037:3;4030:4;4022:6;4018:17;3996:53;:::i;:::-;4065:16;;;;;3813:274;-1:-1:-1;;3813:274:101:o;4092:184::-;4162:6;4215:2;4203:9;4194:7;4190:23;4186:32;4183:52;;;4231:1;4228;4221:12;4183:52;-1:-1:-1;4254:16:101;;4092:184;-1:-1:-1;4092:184:101:o",
+    "linkReferences": {},
+    "immutableReferences": {
+      "38869": [
+        {
+          "start": 75,
+          "length": 32
+        },
+        {
+          "start": 233,
+          "length": 32
+        }
+      ],
+      "41441": [
+        {
+          "start": 907,
+          "length": 32
+        }
+      ],
+      "41443": [
+        {
+          "start": 865,
+          "length": 32
+        }
+      ],
+      "41445": [
+        {
+          "start": 823,
+          "length": 32
+        }
+      ],
+      "41447": [
+        {
+          "start": 990,
+          "length": 32
+        }
+      ],
+      "41449": [
+        {
+          "start": 1027,
+          "length": 32
+        }
+      ],
+      "41451": [
+        {
+          "start": 948,
+          "length": 32
+        }
+      ]
+    }
+  },
+  "methodIdentifiers": {
+    "ADMIN()": "2a0acc6a",
+    "PROOF_TYPEHASH()": "8b3e3bf6",
+    "verify((address,bytes32),bytes32,bytes)": "f5431ffa"
+  },
+  "rawMetadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_admin\",\"type\":\"address\"},{\"internalType\":\"string\",\"name\":\"_name\",\"type\":\"string\"},{\"internalType\":\"string\",\"name\":\"_version\",\"type\":\"string\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[],\"name\":\"ADMIN\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"PROOF_TYPEHASH\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"address payable\",\"name\":\"recipient\",\"type\":\"address\"},{\"internalType\":\"bytes32\",\"name\":\"nonce\",\"type\":\"bytes32\"}],\"internalType\":\"struct Faucet.DripParameters\",\"name\":\"_params\",\"type\":\"tuple\"},{\"internalType\":\"bytes32\",\"name\":\"_id\",\"type\":\"bytes32\"},{\"internalType\":\"bytes\",\"name\":\"_proof\",\"type\":\"bytes\"}],\"name\":\"verify\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"constructor\":{\"params\":{\"_admin\":\"Admin address that can sign off on drips.\",\"_name\":\"Contract name.\",\"_version\":\"The current major version of the signing domain.\"}},\"verify((address,bytes32),bytes32,bytes)\":{\"params\":{\"_id\":\"Authentication ID to verify.\",\"_params\":\"Drip parameters to verify.\",\"_proof\":\"Authentication proof to verify.\"}}},\"title\":\"AdminFaucetAuthModule\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"ADMIN()\":{\"notice\":\"Admin address that can sign off on drips.\"},\"PROOF_TYPEHASH()\":{\"notice\":\"EIP712 typehash for the Proof type.\"},\"verify((address,bytes32),bytes32,bytes)\":{\"notice\":\"Verifies that the given drip parameters are valid.\"}},\"notice\":\"FaucetAuthModule that allows an admin to sign off on a given faucet drip. Takes an admin         as the constructor argument.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/universal/faucet/authmodules/AdminFaucetAuthModule.sol\":\"AdminFaucetAuthModule\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"none\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":@ds/=lib/multicall/lib/ds-test/src/\",\":@eth-optimism/contracts-bedrock/=node_modules/@eth-optimism/contracts-bedrock/\",\":@openzeppelin/=node_modules/@openzeppelin/\",\":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/\",\":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/\",\":@rari-capital/=node_modules/@rari-capital/\",\":@rari-capital/solmate/=node_modules/@rari-capital/solmate/\",\":@std/=lib/multicall/lib/forge-std/src/\",\":ds-test/=node_modules/ds-test/src/\",\":forge-std/=node_modules/forge-std/src/\",\":hardhat-deploy/=node_modules/hardhat-deploy/\",\":hardhat/=node_modules/hardhat/\",\":multicall/=lib/multicall/\"]},\"sources\":{\"contracts/universal/faucet/Faucet.sol\":{\"keccak256\":\"0x0df3b36eae1b8593259f7c96d0c11164b92ea6d03a379c96e13b851c9142fcc5\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://3594bcb5373ccd847c64e1ae1d7e3f5db656d09746a4712e4e0bbbc2abfe2eaf\",\"dweb:/ipfs/QmQgVTGXHHh7Yxn41GvSFppG1yk4wKwsfrzjs74rZomVto\"]},\"contracts/universal/faucet/authmodules/AdminFaucetAuthModule.sol\":{\"keccak256\":\"0x43edc72987f5b64e986ea678bc57bee4f9bc637cd8cfb942edcb0c9160fb0e69\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://b1d3ecbeebdf22c5ba9d0c1d3edf574f8a9346b85bfc6b7491993ece1e2638e6\",\"dweb:/ipfs/QmUXeLETUjSN9b4jjXoXBzB8KqtbWm2Spo3TNXknvUk66Z\"]},\"contracts/universal/faucet/authmodules/IFaucetAuthModule.sol\":{\"keccak256\":\"0x8d957f6f57a7ffdbb89ea3405bedaca9462a15c13767c9b6025b02923d9af792\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://0fd6798f85729c64f9b93519ccdf707b1dc0d51a319cf07bb884542a3d3a6d69\",\"dweb:/ipfs/QmYkmf59sFtzRMz9qYyuU1A3fBEypFbhKwaegNLjRLrpwW\"]},\"node_modules/@openzeppelin/contracts/interfaces/IERC1271.sol\":{\"keccak256\":\"0x0705a4b1b86d7b0bd8432118f226ba139c44b9dcaba0a6eafba2dd7d0639c544\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://c45b821ef9e882e57c256697a152e108f0f2ad6997609af8904cae99c9bd422e\",\"dweb:/ipfs/QmRKCJW6jjzR5UYZcLpGnhEJ75UVbH6EHkEa49sWx2SKng\"]},\"node_modules/@openzeppelin/contracts/utils/Address.sol\":{\"keccak256\":\"0xd6153ce99bcdcce22b124f755e72553295be6abcd63804cfdffceb188b8bef10\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://35c47bece3c03caaa07fab37dd2bb3413bfbca20db7bd9895024390e0a469487\",\"dweb:/ipfs/QmPGWT2x3QHcKxqe6gRmAkdakhbaRgx3DLzcakHz5M4eXG\"]},\"node_modules/@openzeppelin/contracts/utils/Strings.sol\":{\"keccak256\":\"0xaf159a8b1923ad2a26d516089bceca9bdeaeacd04be50983ea00ba63070f08a3\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://6f2cf1c531122bc7ca96b8c8db6a60deae60441e5223065e792553d4849b5638\",\"dweb:/ipfs/QmPBdJmBBABMDCfyDjCbdxgiqRavgiSL88SYPGibgbPas9\"]},\"node_modules/@openzeppelin/contracts/utils/cryptography/ECDSA.sol\":{\"keccak256\":\"0xdb7f5c28fc61cda0bd8ab60ce288e206b791643bcd3ba464a70cbec18895a2f5\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://bf52bdf22a33263f5ca6227a35faeac3b81e7d2c692fbcc6a079d488710c5900\",\"dweb:/ipfs/QmcmsjkP4yq3UhiJbvyzwufaY2EKh1zhHaRK8ATag2cpD2\"]},\"node_modules/@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol\":{\"keccak256\":\"0xbb5c92a62f2a917ec08667ebc024d5f4172ae3594cd5f4eaa997485ed0440d81\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://392c009a19ece7831c9851d8f47fa8a1ee7ae81eeff01040a976cc110b0b9a3b\",\"dweb:/ipfs/QmbtmS8RRPVNghAu9qWieesPkyrabQSypVpgbyhfzzubCe\"]},\"node_modules/@openzeppelin/contracts/utils/cryptography/draft-EIP712.sol\":{\"keccak256\":\"0x6688fad58b9ec0286d40fa957152e575d5d8bd4c3aa80985efdb11b44f776ae7\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://8bc00ab7f133cdaafd212a5cc6a16c8d37319721105d130c8e5af0c4e8f170ba\",\"dweb:/ipfs/QmVmf6LVMfFiEkvKYLzSv3bGHzymEW93AcUuFrNUdY3NtT\"]}},\"version\":1}",
+  "metadata": {
+    "compiler": {
+      "version": "0.8.15+commit.e14f2714"
+    },
+    "language": "Solidity",
+    "output": {
+      "abi": [
+        {
+          "inputs": [
+            {
+              "internalType": "address",
+              "name": "_admin",
+              "type": "address"
+            },
+            {
+              "internalType": "string",
+              "name": "_name",
+              "type": "string"
+            },
+            {
+              "internalType": "string",
+              "name": "_version",
+              "type": "string"
+            }
+          ],
+          "stateMutability": "nonpayable",
+          "type": "constructor"
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "ADMIN",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+            }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "PROOF_TYPEHASH",
+          "outputs": [
+            {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+            }
+          ]
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "struct Faucet.DripParameters",
+              "name": "_params",
+              "type": "tuple",
+              "components": [
+                {
+                  "internalType": "address payable",
+                  "name": "recipient",
+                  "type": "address"
+                },
+                {
+                  "internalType": "bytes32",
+                  "name": "nonce",
+                  "type": "bytes32"
+                }
+              ]
+            },
+            {
+              "internalType": "bytes32",
+              "name": "_id",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes",
+              "name": "_proof",
+              "type": "bytes"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "verify",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        }
+      ],
+      "devdoc": {
+        "kind": "dev",
+        "methods": {
+          "constructor": {
+            "params": {
+              "_admin": "Admin address that can sign off on drips.",
+              "_name": "Contract name.",
+              "_version": "The current major version of the signing domain."
+            }
+          },
+          "verify((address,bytes32),bytes32,bytes)": {
+            "params": {
+              "_id": "Authentication ID to verify.",
+              "_params": "Drip parameters to verify.",
+              "_proof": "Authentication proof to verify."
+            }
+          }
+        },
+        "version": 1
+      },
+      "userdoc": {
+        "kind": "user",
+        "methods": {
+          "ADMIN()": {
+            "notice": "Admin address that can sign off on drips."
+          },
+          "PROOF_TYPEHASH()": {
+            "notice": "EIP712 typehash for the Proof type."
+          },
+          "verify((address,bytes32),bytes32,bytes)": {
+            "notice": "Verifies that the given drip parameters are valid."
+          }
+        },
+        "version": 1
+      }
+    },
+    "settings": {
+      "remappings": [
+        ":@ds/=lib/multicall/lib/ds-test/src/",
+        ":@eth-optimism/contracts-bedrock/=node_modules/@eth-optimism/contracts-bedrock/",
+        ":@openzeppelin/=node_modules/@openzeppelin/",
+        ":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/",
+        ":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+        ":@rari-capital/=node_modules/@rari-capital/",
+        ":@rari-capital/solmate/=node_modules/@rari-capital/solmate/",
+        ":@std/=lib/multicall/lib/forge-std/src/",
+        ":ds-test/=node_modules/ds-test/src/",
+        ":forge-std/=node_modules/forge-std/src/",
+        ":hardhat-deploy/=node_modules/hardhat-deploy/",
+        ":hardhat/=node_modules/hardhat/",
+        ":multicall/=lib/multicall/"
+      ],
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "metadata": {
+        "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+        "contracts/universal/faucet/authmodules/AdminFaucetAuthModule.sol": "AdminFaucetAuthModule"
+      },
+      "libraries": {}
+    },
+    "sources": {
+      "contracts/universal/faucet/Faucet.sol": {
+        "keccak256": "0x0df3b36eae1b8593259f7c96d0c11164b92ea6d03a379c96e13b851c9142fcc5",
+        "urls": [
+          "bzz-raw://3594bcb5373ccd847c64e1ae1d7e3f5db656d09746a4712e4e0bbbc2abfe2eaf",
+          "dweb:/ipfs/QmQgVTGXHHh7Yxn41GvSFppG1yk4wKwsfrzjs74rZomVto"
+        ],
+        "license": "MIT"
+      },
+      "contracts/universal/faucet/authmodules/AdminFaucetAuthModule.sol": {
+        "keccak256": "0x43edc72987f5b64e986ea678bc57bee4f9bc637cd8cfb942edcb0c9160fb0e69",
+        "urls": [
+          "bzz-raw://b1d3ecbeebdf22c5ba9d0c1d3edf574f8a9346b85bfc6b7491993ece1e2638e6",
+          "dweb:/ipfs/QmUXeLETUjSN9b4jjXoXBzB8KqtbWm2Spo3TNXknvUk66Z"
+        ],
+        "license": "MIT"
+      },
+      "contracts/universal/faucet/authmodules/IFaucetAuthModule.sol": {
+        "keccak256": "0x8d957f6f57a7ffdbb89ea3405bedaca9462a15c13767c9b6025b02923d9af792",
+        "urls": [
+          "bzz-raw://0fd6798f85729c64f9b93519ccdf707b1dc0d51a319cf07bb884542a3d3a6d69",
+          "dweb:/ipfs/QmYkmf59sFtzRMz9qYyuU1A3fBEypFbhKwaegNLjRLrpwW"
+        ],
+        "license": "MIT"
+      },
+      "node_modules/@openzeppelin/contracts/interfaces/IERC1271.sol": {
+        "keccak256": "0x0705a4b1b86d7b0bd8432118f226ba139c44b9dcaba0a6eafba2dd7d0639c544",
+        "urls": [
+          "bzz-raw://c45b821ef9e882e57c256697a152e108f0f2ad6997609af8904cae99c9bd422e",
+          "dweb:/ipfs/QmRKCJW6jjzR5UYZcLpGnhEJ75UVbH6EHkEa49sWx2SKng"
+        ],
+        "license": "MIT"
+      },
+      "node_modules/@openzeppelin/contracts/utils/Address.sol": {
+        "keccak256": "0xd6153ce99bcdcce22b124f755e72553295be6abcd63804cfdffceb188b8bef10",
+        "urls": [
+          "bzz-raw://35c47bece3c03caaa07fab37dd2bb3413bfbca20db7bd9895024390e0a469487",
+          "dweb:/ipfs/QmPGWT2x3QHcKxqe6gRmAkdakhbaRgx3DLzcakHz5M4eXG"
+        ],
+        "license": "MIT"
+      },
+      "node_modules/@openzeppelin/contracts/utils/Strings.sol": {
+        "keccak256": "0xaf159a8b1923ad2a26d516089bceca9bdeaeacd04be50983ea00ba63070f08a3",
+        "urls": [
+          "bzz-raw://6f2cf1c531122bc7ca96b8c8db6a60deae60441e5223065e792553d4849b5638",
+          "dweb:/ipfs/QmPBdJmBBABMDCfyDjCbdxgiqRavgiSL88SYPGibgbPas9"
+        ],
+        "license": "MIT"
+      },
+      "node_modules/@openzeppelin/contracts/utils/cryptography/ECDSA.sol": {
+        "keccak256": "0xdb7f5c28fc61cda0bd8ab60ce288e206b791643bcd3ba464a70cbec18895a2f5",
+        "urls": [
+          "bzz-raw://bf52bdf22a33263f5ca6227a35faeac3b81e7d2c692fbcc6a079d488710c5900",
+          "dweb:/ipfs/QmcmsjkP4yq3UhiJbvyzwufaY2EKh1zhHaRK8ATag2cpD2"
+        ],
+        "license": "MIT"
+      },
+      "node_modules/@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol": {
+        "keccak256": "0xbb5c92a62f2a917ec08667ebc024d5f4172ae3594cd5f4eaa997485ed0440d81",
+        "urls": [
+          "bzz-raw://392c009a19ece7831c9851d8f47fa8a1ee7ae81eeff01040a976cc110b0b9a3b",
+          "dweb:/ipfs/QmbtmS8RRPVNghAu9qWieesPkyrabQSypVpgbyhfzzubCe"
+        ],
+        "license": "MIT"
+      },
+      "node_modules/@openzeppelin/contracts/utils/cryptography/draft-EIP712.sol": {
+        "keccak256": "0x6688fad58b9ec0286d40fa957152e575d5d8bd4c3aa80985efdb11b44f776ae7",
+        "urls": [
+          "bzz-raw://8bc00ab7f133cdaafd212a5cc6a16c8d37319721105d130c8e5af0c4e8f170ba",
+          "dweb:/ipfs/QmVmf6LVMfFiEkvKYLzSv3bGHzymEW93AcUuFrNUdY3NtT"
+        ],
+        "license": "MIT"
+      }
+    },
+    "version": 1
+  },
+  "ast": {
+    "absolutePath": "contracts/universal/faucet/authmodules/AdminFaucetAuthModule.sol",
+    "id": 38936,
+    "exportedSymbols": {
+      "AdminFaucetAuthModule": [
+        38935
+      ],
+      "EIP712": [
+        41589
+      ],
+      "Faucet": [
+        38851
+      ],
+      "IFaucetAuthModule": [
+        38954
+      ],
+      "SignatureChecker": [
+        41435
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "32:2194:50",
+    "nodes": [
+      {
+        "id": 38853,
+        "nodeType": "PragmaDirective",
+        "src": "32:23:50",
+        "nodes": [],
+        "literals": [
+          "solidity",
+          "0.8",
+          ".15"
+        ]
+      },
+      {
+        "id": 38855,
+        "nodeType": "ImportDirective",
+        "src": "57:85:50",
+        "nodes": [],
+        "absolutePath": "node_modules/@openzeppelin/contracts/utils/cryptography/draft-EIP712.sol",
+        "file": "@openzeppelin/contracts/utils/cryptography/draft-EIP712.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 38936,
+        "sourceUnit": 41590,
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 38854,
+              "name": "EIP712",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "referencedDeclaration": 41589,
+              "src": "66:6:50",
+              "typeDescriptions": {}
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "id": 38857,
+        "nodeType": "ImportDirective",
+        "src": "143:99:50",
+        "nodes": [],
+        "absolutePath": "node_modules/@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol",
+        "file": "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 38936,
+        "sourceUnit": 41436,
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 38856,
+              "name": "SignatureChecker",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "referencedDeclaration": 41435,
+              "src": "152:16:50",
+              "typeDescriptions": {}
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "id": 38859,
+        "nodeType": "ImportDirective",
+        "src": "243:60:50",
+        "nodes": [],
+        "absolutePath": "contracts/universal/faucet/authmodules/IFaucetAuthModule.sol",
+        "file": "./IFaucetAuthModule.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 38936,
+        "sourceUnit": 38955,
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 38858,
+              "name": "IFaucetAuthModule",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "referencedDeclaration": 38954,
+              "src": "252:17:50",
+              "typeDescriptions": {}
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "id": 38861,
+        "nodeType": "ImportDirective",
+        "src": "304:39:50",
+        "nodes": [],
+        "absolutePath": "contracts/universal/faucet/Faucet.sol",
+        "file": "../Faucet.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 38936,
+        "sourceUnit": 38852,
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 38860,
+              "name": "Faucet",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "referencedDeclaration": 38851,
+              "src": "313:6:50",
+              "typeDescriptions": {}
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "id": 38935,
+        "nodeType": "ContractDefinition",
+        "src": "526:1699:50",
+        "nodes": [
+          {
+            "id": 38869,
+            "nodeType": "VariableDeclaration",
+            "src": "665:30:50",
+            "nodes": [],
+            "constant": false,
+            "documentation": {
+              "id": 38867,
+              "nodeType": "StructuredDocumentation",
+              "src": "592:68:50",
+              "text": " @notice Admin address that can sign off on drips."
+            },
+            "functionSelector": "2a0acc6a",
+            "mutability": "immutable",
+            "name": "ADMIN",
+            "nameLocation": "690:5:50",
+            "scope": 38935,
+            "stateVariable": true,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_address",
+              "typeString": "address"
+            },
+            "typeName": {
+              "id": 38868,
+              "name": "address",
+              "nodeType": "ElementaryTypeName",
+              "src": "665:7:50",
+              "stateMutability": "nonpayable",
+              "typeDescriptions": {
+                "typeIdentifier": "t_address",
+                "typeString": "address"
+              }
+            },
+            "visibility": "public"
+          },
+          {
+            "id": 38875,
+            "nodeType": "VariableDeclaration",
+            "src": "769:111:50",
+            "nodes": [],
+            "constant": true,
+            "documentation": {
+              "id": 38870,
+              "nodeType": "StructuredDocumentation",
+              "src": "702:62:50",
+              "text": " @notice EIP712 typehash for the Proof type."
+            },
+            "functionSelector": "8b3e3bf6",
+            "mutability": "constant",
+            "name": "PROOF_TYPEHASH",
+            "nameLocation": "793:14:50",
+            "scope": 38935,
+            "stateVariable": true,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_bytes32",
+              "typeString": "bytes32"
+            },
+            "typeName": {
+              "id": 38871,
+              "name": "bytes32",
+              "nodeType": "ElementaryTypeName",
+              "src": "769:7:50",
+              "typeDescriptions": {
+                "typeIdentifier": "t_bytes32",
+                "typeString": "bytes32"
+              }
+            },
+            "value": {
+              "arguments": [
+                {
+                  "hexValue": "50726f6f66286164647265737320726563697069656e742c62797465733332206e6f6e63652c6279746573333220696429",
+                  "id": 38873,
+                  "isConstant": false,
+                  "isLValue": false,
+                  "isPure": true,
+                  "kind": "string",
+                  "lValueRequested": false,
+                  "nodeType": "Literal",
+                  "src": "828:51:50",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_stringliteral_d4283507dc7a8282faa6b4c8c18bacbb74dbbab5467342e6f581656f3577236e",
+                    "typeString": "literal_string \"Proof(address recipient,bytes32 nonce,bytes32 id)\""
+                  },
+                  "value": "Proof(address recipient,bytes32 nonce,bytes32 id)"
+                }
+              ],
+              "expression": {
+                "argumentTypes": [
+                  {
+                    "typeIdentifier": "t_stringliteral_d4283507dc7a8282faa6b4c8c18bacbb74dbbab5467342e6f581656f3577236e",
+                    "typeString": "literal_string \"Proof(address recipient,bytes32 nonce,bytes32 id)\""
+                  }
+                ],
+                "id": 38872,
+                "name": "keccak256",
+                "nodeType": "Identifier",
+                "overloadedDeclarations": [],
+                "referencedDeclaration": -8,
+                "src": "818:9:50",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_function_keccak256_pure$_t_bytes_memory_ptr_$returns$_t_bytes32_$",
+                  "typeString": "function (bytes memory) pure returns (bytes32)"
+                }
+              },
+              "id": 38874,
+              "isConstant": false,
+              "isLValue": false,
+              "isPure": true,
+              "kind": "functionCall",
+              "lValueRequested": false,
+              "names": [],
+              "nodeType": "FunctionCall",
+              "src": "818:62:50",
+              "tryCall": false,
+              "typeDescriptions": {
+                "typeIdentifier": "t_bytes32",
+                "typeString": "bytes32"
+              }
+            },
+            "visibility": "public"
+          },
+          {
+            "id": 38882,
+            "nodeType": "StructDefinition",
+            "src": "1214:90:50",
+            "nodes": [],
+            "canonicalName": "AdminFaucetAuthModule.Proof",
+            "members": [
+              {
+                "constant": false,
+                "id": 38877,
+                "mutability": "mutable",
+                "name": "recipient",
+                "nameLocation": "1245:9:50",
+                "nodeType": "VariableDeclaration",
+                "scope": 38882,
+                "src": "1237:17:50",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_address",
+                  "typeString": "address"
+                },
+                "typeName": {
+                  "id": 38876,
+                  "name": "address",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1237:7:50",
+                  "stateMutability": "nonpayable",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 38879,
+                "mutability": "mutable",
+                "name": "nonce",
+                "nameLocation": "1272:5:50",
+                "nodeType": "VariableDeclaration",
+                "scope": 38882,
+                "src": "1264:13:50",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_bytes32",
+                  "typeString": "bytes32"
+                },
+                "typeName": {
+                  "id": 38878,
+                  "name": "bytes32",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1264:7:50",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes32",
+                    "typeString": "bytes32"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 38881,
+                "mutability": "mutable",
+                "name": "id",
+                "nameLocation": "1295:2:50",
+                "nodeType": "VariableDeclaration",
+                "scope": 38882,
+                "src": "1287:10:50",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_bytes32",
+                  "typeString": "bytes32"
+                },
+                "typeName": {
+                  "id": 38880,
+                  "name": "bytes32",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "1287:7:50",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes32",
+                    "typeString": "bytes32"
+                  }
+                },
+                "visibility": "internal"
+              }
+            ],
+            "name": "Proof",
+            "nameLocation": "1221:5:50",
+            "scope": 38935,
+            "visibility": "public"
+          },
+          {
+            "id": 38901,
+            "nodeType": "FunctionDefinition",
+            "src": "1501:158:50",
+            "nodes": [],
+            "body": {
+              "id": 38900,
+              "nodeType": "Block",
+              "src": "1628:31:50",
+              "nodes": [],
+              "statements": [
+                {
+                  "expression": {
+                    "id": 38898,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftHandSide": {
+                      "id": 38896,
+                      "name": "ADMIN",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 38869,
+                      "src": "1638:5:50",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    },
+                    "nodeType": "Assignment",
+                    "operator": "=",
+                    "rightHandSide": {
+                      "id": 38897,
+                      "name": "_admin",
+                      "nodeType": "Identifier",
+                      "overloadedDeclarations": [],
+                      "referencedDeclaration": 38885,
+                      "src": "1646:6:50",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    },
+                    "src": "1638:14:50",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "id": 38899,
+                  "nodeType": "ExpressionStatement",
+                  "src": "1638:14:50"
+                }
+              ]
+            },
+            "documentation": {
+              "id": 38883,
+              "nodeType": "StructuredDocumentation",
+              "src": "1310:186:50",
+              "text": " @param _admin   Admin address that can sign off on drips.\n @param _name    Contract name.\n @param _version The current major version of the signing domain."
+            },
+            "implemented": true,
+            "kind": "constructor",
+            "modifiers": [
+              {
+                "arguments": [
+                  {
+                    "id": 38892,
+                    "name": "_name",
+                    "nodeType": "Identifier",
+                    "overloadedDeclarations": [],
+                    "referencedDeclaration": 38887,
+                    "src": "1611:5:50",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_string_memory_ptr",
+                      "typeString": "string memory"
+                    }
+                  },
+                  {
+                    "id": 38893,
+                    "name": "_version",
+                    "nodeType": "Identifier",
+                    "overloadedDeclarations": [],
+                    "referencedDeclaration": 38889,
+                    "src": "1618:8:50",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_string_memory_ptr",
+                      "typeString": "string memory"
+                    }
+                  }
+                ],
+                "id": 38894,
+                "kind": "baseConstructorSpecifier",
+                "modifierName": {
+                  "id": 38891,
+                  "name": "EIP712",
+                  "nodeType": "IdentifierPath",
+                  "referencedDeclaration": 41589,
+                  "src": "1604:6:50"
+                },
+                "nodeType": "ModifierInvocation",
+                "src": "1604:23:50"
+              }
+            ],
+            "name": "",
+            "nameLocation": "-1:-1:-1",
+            "parameters": {
+              "id": 38890,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 38885,
+                  "mutability": "mutable",
+                  "name": "_admin",
+                  "nameLocation": "1530:6:50",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38901,
+                  "src": "1522:14:50",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 38884,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1522:7:50",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 38887,
+                  "mutability": "mutable",
+                  "name": "_name",
+                  "nameLocation": "1560:5:50",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38901,
+                  "src": "1546:19:50",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_string_memory_ptr",
+                    "typeString": "string"
+                  },
+                  "typeName": {
+                    "id": 38886,
+                    "name": "string",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1546:6:50",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_string_storage_ptr",
+                      "typeString": "string"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 38889,
+                  "mutability": "mutable",
+                  "name": "_version",
+                  "nameLocation": "1589:8:50",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38901,
+                  "src": "1575:22:50",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_string_memory_ptr",
+                    "typeString": "string"
+                  },
+                  "typeName": {
+                    "id": 38888,
+                    "name": "string",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1575:6:50",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_string_storage_ptr",
+                      "typeString": "string"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1512:91:50"
+            },
+            "returnParameters": {
+              "id": 38895,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "1628:0:50"
+            },
+            "scope": 38935,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "public"
+          },
+          {
+            "id": 38934,
+            "nodeType": "FunctionDefinition",
+            "src": "1718:505:50",
+            "nodes": [],
+            "body": {
+              "id": 38933,
+              "nodeType": "Block",
+              "src": "1865:358:50",
+              "nodes": [],
+              "statements": [
+                {
+                  "expression": {
+                    "arguments": [
+                      {
+                        "id": 38916,
+                        "name": "ADMIN",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 38869,
+                        "src": "2023:5:50",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_address",
+                          "typeString": "address"
+                        }
+                      },
+                      {
+                        "arguments": [
+                          {
+                            "arguments": [
+                              {
+                                "arguments": [
+                                  {
+                                    "id": 38921,
+                                    "name": "PROOF_TYPEHASH",
+                                    "nodeType": "Identifier",
+                                    "overloadedDeclarations": [],
+                                    "referencedDeclaration": 38875,
+                                    "src": "2105:14:50",
+                                    "typeDescriptions": {
+                                      "typeIdentifier": "t_bytes32",
+                                      "typeString": "bytes32"
+                                    }
+                                  },
+                                  {
+                                    "expression": {
+                                      "id": 38922,
+                                      "name": "_params",
+                                      "nodeType": "Identifier",
+                                      "overloadedDeclarations": [],
+                                      "referencedDeclaration": 38905,
+                                      "src": "2121:7:50",
+                                      "typeDescriptions": {
+                                        "typeIdentifier": "t_struct$_DripParameters_$38631_memory_ptr",
+                                        "typeString": "struct Faucet.DripParameters memory"
+                                      }
+                                    },
+                                    "id": 38923,
+                                    "isConstant": false,
+                                    "isLValue": true,
+                                    "isPure": false,
+                                    "lValueRequested": false,
+                                    "memberName": "recipient",
+                                    "nodeType": "MemberAccess",
+                                    "referencedDeclaration": 38628,
+                                    "src": "2121:17:50",
+                                    "typeDescriptions": {
+                                      "typeIdentifier": "t_address_payable",
+                                      "typeString": "address payable"
+                                    }
+                                  },
+                                  {
+                                    "expression": {
+                                      "id": 38924,
+                                      "name": "_params",
+                                      "nodeType": "Identifier",
+                                      "overloadedDeclarations": [],
+                                      "referencedDeclaration": 38905,
+                                      "src": "2140:7:50",
+                                      "typeDescriptions": {
+                                        "typeIdentifier": "t_struct$_DripParameters_$38631_memory_ptr",
+                                        "typeString": "struct Faucet.DripParameters memory"
+                                      }
+                                    },
+                                    "id": 38925,
+                                    "isConstant": false,
+                                    "isLValue": true,
+                                    "isPure": false,
+                                    "lValueRequested": false,
+                                    "memberName": "nonce",
+                                    "nodeType": "MemberAccess",
+                                    "referencedDeclaration": 38630,
+                                    "src": "2140:13:50",
+                                    "typeDescriptions": {
+                                      "typeIdentifier": "t_bytes32",
+                                      "typeString": "bytes32"
+                                    }
+                                  },
+                                  {
+                                    "id": 38926,
+                                    "name": "_id",
+                                    "nodeType": "Identifier",
+                                    "overloadedDeclarations": [],
+                                    "referencedDeclaration": 38907,
+                                    "src": "2155:3:50",
+                                    "typeDescriptions": {
+                                      "typeIdentifier": "t_bytes32",
+                                      "typeString": "bytes32"
+                                    }
+                                  }
+                                ],
+                                "expression": {
+                                  "argumentTypes": [
+                                    {
+                                      "typeIdentifier": "t_bytes32",
+                                      "typeString": "bytes32"
+                                    },
+                                    {
+                                      "typeIdentifier": "t_address_payable",
+                                      "typeString": "address payable"
+                                    },
+                                    {
+                                      "typeIdentifier": "t_bytes32",
+                                      "typeString": "bytes32"
+                                    },
+                                    {
+                                      "typeIdentifier": "t_bytes32",
+                                      "typeString": "bytes32"
+                                    }
+                                  ],
+                                  "expression": {
+                                    "id": 38919,
+                                    "name": "abi",
+                                    "nodeType": "Identifier",
+                                    "overloadedDeclarations": [],
+                                    "referencedDeclaration": -1,
+                                    "src": "2094:3:50",
+                                    "typeDescriptions": {
+                                      "typeIdentifier": "t_magic_abi",
+                                      "typeString": "abi"
+                                    }
+                                  },
+                                  "id": 38920,
+                                  "isConstant": false,
+                                  "isLValue": false,
+                                  "isPure": true,
+                                  "lValueRequested": false,
+                                  "memberName": "encode",
+                                  "nodeType": "MemberAccess",
+                                  "src": "2094:10:50",
+                                  "typeDescriptions": {
+                                    "typeIdentifier": "t_function_abiencode_pure$__$returns$_t_bytes_memory_ptr_$",
+                                    "typeString": "function () pure returns (bytes memory)"
+                                  }
+                                },
+                                "id": 38927,
+                                "isConstant": false,
+                                "isLValue": false,
+                                "isPure": false,
+                                "kind": "functionCall",
+                                "lValueRequested": false,
+                                "names": [],
+                                "nodeType": "FunctionCall",
+                                "src": "2094:65:50",
+                                "tryCall": false,
+                                "typeDescriptions": {
+                                  "typeIdentifier": "t_bytes_memory_ptr",
+                                  "typeString": "bytes memory"
+                                }
+                              }
+                            ],
+                            "expression": {
+                              "argumentTypes": [
+                                {
+                                  "typeIdentifier": "t_bytes_memory_ptr",
+                                  "typeString": "bytes memory"
+                                }
+                              ],
+                              "id": 38918,
+                              "name": "keccak256",
+                              "nodeType": "Identifier",
+                              "overloadedDeclarations": [],
+                              "referencedDeclaration": -8,
+                              "src": "2084:9:50",
+                              "typeDescriptions": {
+                                "typeIdentifier": "t_function_keccak256_pure$_t_bytes_memory_ptr_$returns$_t_bytes32_$",
+                                "typeString": "function (bytes memory) pure returns (bytes32)"
+                              }
+                            },
+                            "id": 38928,
+                            "isConstant": false,
+                            "isLValue": false,
+                            "isPure": false,
+                            "kind": "functionCall",
+                            "lValueRequested": false,
+                            "names": [],
+                            "nodeType": "FunctionCall",
+                            "src": "2084:76:50",
+                            "tryCall": false,
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_bytes32",
+                              "typeString": "bytes32"
+                            }
+                          }
+                        ],
+                        "expression": {
+                          "argumentTypes": [
+                            {
+                              "typeIdentifier": "t_bytes32",
+                              "typeString": "bytes32"
+                            }
+                          ],
+                          "id": 38917,
+                          "name": "_hashTypedDataV4",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 41588,
+                          "src": "2046:16:50",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_function_internal_view$_t_bytes32_$returns$_t_bytes32_$",
+                            "typeString": "function (bytes32) view returns (bytes32)"
+                          }
+                        },
+                        "id": 38929,
+                        "isConstant": false,
+                        "isLValue": false,
+                        "isPure": false,
+                        "kind": "functionCall",
+                        "lValueRequested": false,
+                        "names": [],
+                        "nodeType": "FunctionCall",
+                        "src": "2046:132:50",
+                        "tryCall": false,
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_bytes32",
+                          "typeString": "bytes32"
+                        }
+                      },
+                      {
+                        "id": 38930,
+                        "name": "_proof",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 38909,
+                        "src": "2196:6:50",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_bytes_memory_ptr",
+                          "typeString": "bytes memory"
+                        }
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_address",
+                          "typeString": "address"
+                        },
+                        {
+                          "typeIdentifier": "t_bytes32",
+                          "typeString": "bytes32"
+                        },
+                        {
+                          "typeIdentifier": "t_bytes_memory_ptr",
+                          "typeString": "bytes memory"
+                        }
+                      ],
+                      "expression": {
+                        "id": 38914,
+                        "name": "SignatureChecker",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 41435,
+                        "src": "1969:16:50",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_type$_t_contract$_SignatureChecker_$41435_$",
+                          "typeString": "type(library SignatureChecker)"
+                        }
+                      },
+                      "id": 38915,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "memberName": "isValidSignatureNow",
+                      "nodeType": "MemberAccess",
+                      "referencedDeclaration": 41434,
+                      "src": "1969:36:50",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_internal_view$_t_address_$_t_bytes32_$_t_bytes_memory_ptr_$returns$_t_bool_$",
+                        "typeString": "function (address,bytes32,bytes memory) view returns (bool)"
+                      }
+                    },
+                    "id": 38931,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "1969:247:50",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bool",
+                      "typeString": "bool"
+                    }
+                  },
+                  "functionReturnParameters": 38913,
+                  "id": 38932,
+                  "nodeType": "Return",
+                  "src": "1950:266:50"
+                }
+              ]
+            },
+            "baseFunctions": [
+              38953
+            ],
+            "documentation": {
+              "id": 38902,
+              "nodeType": "StructuredDocumentation",
+              "src": "1665:48:50",
+              "text": " @inheritdoc IFaucetAuthModule"
+            },
+            "functionSelector": "f5431ffa",
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "verify",
+            "nameLocation": "1727:6:50",
+            "parameters": {
+              "id": 38910,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 38905,
+                  "mutability": "mutable",
+                  "name": "_params",
+                  "nameLocation": "1772:7:50",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38934,
+                  "src": "1743:36:50",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_DripParameters_$38631_memory_ptr",
+                    "typeString": "struct Faucet.DripParameters"
+                  },
+                  "typeName": {
+                    "id": 38904,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 38903,
+                      "name": "Faucet.DripParameters",
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 38631,
+                      "src": "1743:21:50"
+                    },
+                    "referencedDeclaration": 38631,
+                    "src": "1743:21:50",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_DripParameters_$38631_storage_ptr",
+                      "typeString": "struct Faucet.DripParameters"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 38907,
+                  "mutability": "mutable",
+                  "name": "_id",
+                  "nameLocation": "1797:3:50",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38934,
+                  "src": "1789:11:50",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes32",
+                    "typeString": "bytes32"
+                  },
+                  "typeName": {
+                    "id": 38906,
+                    "name": "bytes32",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1789:7:50",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bytes32",
+                      "typeString": "bytes32"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 38909,
+                  "mutability": "mutable",
+                  "name": "_proof",
+                  "nameLocation": "1823:6:50",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38934,
+                  "src": "1810:19:50",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes_memory_ptr",
+                    "typeString": "bytes"
+                  },
+                  "typeName": {
+                    "id": 38908,
+                    "name": "bytes",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1810:5:50",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bytes_storage_ptr",
+                      "typeString": "bytes"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1733:102:50"
+            },
+            "returnParameters": {
+              "id": 38913,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 38912,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 38934,
+                  "src": "1859:4:50",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bool",
+                    "typeString": "bool"
+                  },
+                  "typeName": {
+                    "id": 38911,
+                    "name": "bool",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1859:4:50",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bool",
+                      "typeString": "bool"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1858:6:50"
+            },
+            "scope": 38935,
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "external"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [
+          {
+            "baseName": {
+              "id": 38863,
+              "name": "IFaucetAuthModule",
+              "nodeType": "IdentifierPath",
+              "referencedDeclaration": 38954,
+              "src": "560:17:50"
+            },
+            "id": 38864,
+            "nodeType": "InheritanceSpecifier",
+            "src": "560:17:50"
+          },
+          {
+            "baseName": {
+              "id": 38865,
+              "name": "EIP712",
+              "nodeType": "IdentifierPath",
+              "referencedDeclaration": 41589,
+              "src": "579:6:50"
+            },
+            "id": 38866,
+            "nodeType": "InheritanceSpecifier",
+            "src": "579:6:50"
+          }
+        ],
+        "canonicalName": "AdminFaucetAuthModule",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "documentation": {
+          "id": 38862,
+          "nodeType": "StructuredDocumentation",
+          "src": "345:180:50",
+          "text": " @title  AdminFaucetAuthModule\n @notice FaucetAuthModule that allows an admin to sign off on a given faucet drip. Takes an admin\n         as the constructor argument."
+        },
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          38935,
+          41589,
+          38954
+        ],
+        "name": "AdminFaucetAuthModule",
+        "nameLocation": "535:21:50",
+        "scope": 38936,
+        "usedErrors": []
+      }
+    ],
+    "license": "MIT"
+  },
+  "id": 50
+}

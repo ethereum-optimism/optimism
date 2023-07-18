@@ -1,0 +1,680 @@
+{
+  "abi": [
+    {
+      "inputs": [],
+      "name": "lastCall",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "sender",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes",
+          "name": "data",
+          "type": "bytes"
+        },
+        {
+          "internalType": "uint256",
+          "name": "gas",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "value",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "record",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    }
+  ],
+  "bytecode": {
+    "object": "0x608060405234801561001057600080fd5b50610320806100206000396000f3fe6080604052600436106100295760003560e01c8063266cf1091461002e578063da516aa914610038575b600080fd5b610036610066565b005b34801561004457600080fd5b5061004d610092565b60405161005d949392919061013f565b60405180910390f35b600080546001600160a01b0319163317815560019061008790369083610252565b505a60025534600355565b60008054600180546001600160a01b0390921692916100b0906101c9565b80601f01602080910402602001604051908101604052809291908181526020018280546100dc906101c9565b80156101295780601f106100fe57610100808354040283529160200191610129565b820191906000526020600020905b81548152906001019060200180831161010c57829003601f168201915b5050505050908060020154908060030154905084565b60018060a01b038516815260006020608081840152855180608085015260005b8181101561017b5787810183015185820160a00152820161015f565b8181111561018d57600060a083870101525b5060408401959095525050606081019190915260a0601f909201601f1916010192915050565b634e487b7160e01b600052604160045260246000fd5b600181811c908216806101dd57607f821691505b6020821081036101fd57634e487b7160e01b600052602260045260246000fd5b50919050565b601f82111561024d57600081815260208120601f850160051c8101602086101561022a5750805b601f850160051c820191505b8181101561024957828155600101610236565b5050505b505050565b67ffffffffffffffff83111561026a5761026a6101b3565b61027e8361027883546101c9565b83610203565b6000601f8411600181146102b2576000851561029a5750838201355b600019600387901b1c1916600186901b17835561030c565b600083815260209020601f19861690835b828110156102e357868501358255602094850194600190920191016102c3565b50868210156103005760001960f88860031b161c19848701351681555b505060018560011b0183555b505050505056fea164736f6c634300080f000a",
+    "sourceMap": "57:360:40:-:0;;;;;;;;;;;;;;;;;;;",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x6080604052600436106100295760003560e01c8063266cf1091461002e578063da516aa914610038575b600080fd5b610036610066565b005b34801561004457600080fd5b5061004d610092565b60405161005d949392919061013f565b60405180910390f35b600080546001600160a01b0319163317815560019061008790369083610252565b505a60025534600355565b60008054600180546001600160a01b0390921692916100b0906101c9565b80601f01602080910402602001604051908101604052809291908181526020018280546100dc906101c9565b80156101295780601f106100fe57610100808354040283529160200191610129565b820191906000526020600020905b81548152906001019060200180831161010c57829003601f168201915b5050505050908060020154908060030154905084565b60018060a01b038516815260006020608081840152855180608085015260005b8181101561017b5787810183015185820160a00152820161015f565b8181111561018d57600060a083870101525b5060408401959095525050606081019190915260a0601f909201601f1916010192915050565b634e487b7160e01b600052604160045260246000fd5b600181811c908216806101dd57607f821691505b6020821081036101fd57634e487b7160e01b600052602260045260246000fd5b50919050565b601f82111561024d57600081815260208120601f850160051c8101602086101561022a5750805b601f850160051c820191505b8181101561024957828155600101610236565b5050505b505050565b67ffffffffffffffff83111561026a5761026a6101b3565b61027e8361027883546101c9565b83610203565b6000601f8411600181146102b2576000851561029a5750838201355b600019600387901b1c1916600186901b17835561030c565b600083815260209020601f19861690835b828110156102e357868501358255602094850194600190920191016102c3565b50868210156103005760001960f88860031b161c19848701351681555b505060018560011b0183555b505050505056fea164736f6c634300080f000a",
+    "sourceMap": "57:360:40:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;233:182;;;:::i;:::-;;202:24;;;;;;;;;;;;;:::i;:::-;;;;;;;;;;:::i;:::-;;;;;;;;233:182;276:8;:28;;-1:-1:-1;;;;;;276:28:40;294:10;276:28;;;;;314:24;;330:8;;276:28;314:24;:::i;:::-;;363:9;348:12;:24;399:9;382:14;:26;233:182::o;202:24::-;;;;;;;-1:-1:-1;;;;;202:24:40;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::i;:::-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;:::o;14:839:101:-;274:1;270;265:3;261:11;257:19;249:6;245:32;234:9;227:51;208:4;297:2;335:3;330:2;319:9;315:18;308:31;368:6;362:13;412:6;406:3;395:9;391:19;384:35;437:1;447:141;461:6;458:1;455:13;447:141;;;557:14;;;553:23;;547:30;522:17;;;541:3;518:27;511:67;476:10;;447:141;;;606:6;603:1;600:13;597:92;;;677:1;671:3;662:6;651:9;647:22;643:32;636:43;597:92;-1:-1:-1;792:2:101;777:18;;770:34;;;;-1:-1:-1;;835:2:101;820:18;;813:34;;;;757:3;750:2;729:15;;;-1:-1:-1;;725:29:101;710:45;706:55;;;-1:-1:-1;;14:839:101:o;858:127::-;919:10;914:3;910:20;907:1;900:31;950:4;947:1;940:15;974:4;971:1;964:15;990:380;1069:1;1065:12;;;;1112;;;1133:61;;1187:4;1179:6;1175:17;1165:27;;1133:61;1240:2;1232:6;1229:14;1209:18;1206:38;1203:161;;1286:10;1281:3;1277:20;1274:1;1267:31;1321:4;1318:1;1311:15;1349:4;1346:1;1339:15;1203:161;;990:380;;;:::o;1500:544::-;1601:2;1596:3;1593:11;1590:448;;;1637:1;1662:5;1658:2;1651:17;1707:4;1703:2;1693:19;1777:2;1765:10;1761:19;1758:1;1754:27;1748:4;1744:38;1813:4;1801:10;1798:20;1795:47;;;-1:-1:-1;1836:4:101;1795:47;1891:2;1886:3;1882:12;1879:1;1875:20;1869:4;1865:31;1855:41;;1946:82;1964:2;1957:5;1954:13;1946:82;;;2009:17;;;1990:1;1979:13;1946:82;;;1950:3;;;1590:448;1500:544;;;:::o;2220:1202::-;2342:18;2337:3;2334:27;2331:53;;;2364:18;;:::i;:::-;2393:93;2482:3;2442:38;2474:4;2468:11;2442:38;:::i;:::-;2436:4;2393:93;:::i;:::-;2512:1;2537:2;2532:3;2529:11;2554:1;2549:615;;;;3208:1;3225:3;3222:93;;;-1:-1:-1;3281:19:101;;;3268:33;3222:93;-1:-1:-1;;2177:1:101;2173:11;;;2169:24;2165:29;2155:40;2201:1;2197:11;;;2152:57;3328:78;;2522:894;;2549:615;1447:1;1440:14;;;1484:4;1471:18;;-1:-1:-1;;2585:17:101;;;2685:9;2707:229;2721:7;2718:1;2715:14;2707:229;;;2810:19;;;2797:33;2782:49;;2917:4;2902:20;;;;2870:1;2858:14;;;;2737:12;2707:229;;;2711:3;2964;2955:7;2952:16;2949:159;;;3088:1;3084:6;3078:3;3072;3069:1;3065:11;3061:21;3057:34;3053:39;3040:9;3035:3;3031:19;3018:33;3014:79;3006:6;2999:95;2949:159;;;3151:1;3145:3;3142:1;3138:11;3134:19;3128:4;3121:33;2522:894;;;2220:1202;;;:::o",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {
+    "lastCall()": "da516aa9",
+    "record()": "266cf109"
+  },
+  "rawMetadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"name\":\"lastCall\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"},{\"internalType\":\"uint256\",\"name\":\"gas\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"record\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/testing/helpers/CallRecorder.sol\":\"CallRecorder\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"none\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":@ds/=lib/multicall/lib/ds-test/src/\",\":@eth-optimism/contracts-bedrock/=node_modules/@eth-optimism/contracts-bedrock/\",\":@openzeppelin/=node_modules/@openzeppelin/\",\":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/\",\":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/\",\":@rari-capital/=node_modules/@rari-capital/\",\":@rari-capital/solmate/=node_modules/@rari-capital/solmate/\",\":@std/=lib/multicall/lib/forge-std/src/\",\":ds-test/=node_modules/ds-test/src/\",\":forge-std/=node_modules/forge-std/src/\",\":hardhat-deploy/=node_modules/hardhat-deploy/\",\":hardhat/=node_modules/hardhat/\",\":multicall/=lib/multicall/\"]},\"sources\":{\"contracts/testing/helpers/CallRecorder.sol\":{\"keccak256\":\"0xe91bda55d4fb540b032875b04af6c5d4867e9799fdb124a2d0509c5600b183bf\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://be473f85e9e04096e62b063475cf81820a32f8a42a1a936b4fa65f83cacf1038\",\"dweb:/ipfs/QmRYyV5YGUyRg97NEzYpCZLuaNaXF77u86xzeueW6ADkAF\"]}},\"version\":1}",
+  "metadata": {
+    "compiler": {
+      "version": "0.8.15+commit.e14f2714"
+    },
+    "language": "Solidity",
+    "output": {
+      "abi": [
+        {
+          "inputs": [],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "lastCall",
+          "outputs": [
+            {
+              "internalType": "address",
+              "name": "sender",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes",
+              "name": "data",
+              "type": "bytes"
+            },
+            {
+              "internalType": "uint256",
+              "name": "gas",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "value",
+              "type": "uint256"
+            }
+          ]
+        },
+        {
+          "inputs": [],
+          "stateMutability": "payable",
+          "type": "function",
+          "name": "record"
+        }
+      ],
+      "devdoc": {
+        "kind": "dev",
+        "methods": {},
+        "version": 1
+      },
+      "userdoc": {
+        "kind": "user",
+        "methods": {},
+        "version": 1
+      }
+    },
+    "settings": {
+      "remappings": [
+        ":@ds/=lib/multicall/lib/ds-test/src/",
+        ":@eth-optimism/contracts-bedrock/=node_modules/@eth-optimism/contracts-bedrock/",
+        ":@openzeppelin/=node_modules/@openzeppelin/",
+        ":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/",
+        ":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+        ":@rari-capital/=node_modules/@rari-capital/",
+        ":@rari-capital/solmate/=node_modules/@rari-capital/solmate/",
+        ":@std/=lib/multicall/lib/forge-std/src/",
+        ":ds-test/=node_modules/ds-test/src/",
+        ":forge-std/=node_modules/forge-std/src/",
+        ":hardhat-deploy/=node_modules/hardhat-deploy/",
+        ":hardhat/=node_modules/hardhat/",
+        ":multicall/=lib/multicall/"
+      ],
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "metadata": {
+        "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+        "contracts/testing/helpers/CallRecorder.sol": "CallRecorder"
+      },
+      "libraries": {}
+    },
+    "sources": {
+      "contracts/testing/helpers/CallRecorder.sol": {
+        "keccak256": "0xe91bda55d4fb540b032875b04af6c5d4867e9799fdb124a2d0509c5600b183bf",
+        "urls": [
+          "bzz-raw://be473f85e9e04096e62b063475cf81820a32f8a42a1a936b4fa65f83cacf1038",
+          "dweb:/ipfs/QmRYyV5YGUyRg97NEzYpCZLuaNaXF77u86xzeueW6ADkAF"
+        ],
+        "license": "MIT"
+      }
+    },
+    "version": 1
+  },
+  "ast": {
+    "absolutePath": "contracts/testing/helpers/CallRecorder.sol",
+    "id": 37915,
+    "exportedSymbols": {
+      "CallRecorder": [
+        37914
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "32:386:40",
+    "nodes": [
+      {
+        "id": 37869,
+        "nodeType": "PragmaDirective",
+        "src": "32:23:40",
+        "nodes": [],
+        "literals": [
+          "solidity",
+          "^",
+          "0.8",
+          ".0"
+        ]
+      },
+      {
+        "id": 37914,
+        "nodeType": "ContractDefinition",
+        "src": "57:360:40",
+        "nodes": [
+          {
+            "id": 37878,
+            "nodeType": "StructDefinition",
+            "src": "85:111:40",
+            "nodes": [],
+            "canonicalName": "CallRecorder.CallInfo",
+            "members": [
+              {
+                "constant": false,
+                "id": 37871,
+                "mutability": "mutable",
+                "name": "sender",
+                "nameLocation": "119:6:40",
+                "nodeType": "VariableDeclaration",
+                "scope": 37878,
+                "src": "111:14:40",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_address",
+                  "typeString": "address"
+                },
+                "typeName": {
+                  "id": 37870,
+                  "name": "address",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "111:7:40",
+                  "stateMutability": "nonpayable",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 37873,
+                "mutability": "mutable",
+                "name": "data",
+                "nameLocation": "141:4:40",
+                "nodeType": "VariableDeclaration",
+                "scope": 37878,
+                "src": "135:10:40",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_bytes_storage_ptr",
+                  "typeString": "bytes"
+                },
+                "typeName": {
+                  "id": 37872,
+                  "name": "bytes",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "135:5:40",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes_storage_ptr",
+                    "typeString": "bytes"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 37875,
+                "mutability": "mutable",
+                "name": "gas",
+                "nameLocation": "163:3:40",
+                "nodeType": "VariableDeclaration",
+                "scope": 37878,
+                "src": "155:11:40",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_uint256",
+                  "typeString": "uint256"
+                },
+                "typeName": {
+                  "id": 37874,
+                  "name": "uint256",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "155:7:40",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 37877,
+                "mutability": "mutable",
+                "name": "value",
+                "nameLocation": "184:5:40",
+                "nodeType": "VariableDeclaration",
+                "scope": 37878,
+                "src": "176:13:40",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_uint256",
+                  "typeString": "uint256"
+                },
+                "typeName": {
+                  "id": 37876,
+                  "name": "uint256",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "176:7:40",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  }
+                },
+                "visibility": "internal"
+              }
+            ],
+            "name": "CallInfo",
+            "nameLocation": "92:8:40",
+            "scope": 37914,
+            "visibility": "public"
+          },
+          {
+            "id": 37881,
+            "nodeType": "VariableDeclaration",
+            "src": "202:24:40",
+            "nodes": [],
+            "constant": false,
+            "functionSelector": "da516aa9",
+            "mutability": "mutable",
+            "name": "lastCall",
+            "nameLocation": "218:8:40",
+            "scope": 37914,
+            "stateVariable": true,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_struct$_CallInfo_$37878_storage",
+              "typeString": "struct CallRecorder.CallInfo"
+            },
+            "typeName": {
+              "id": 37880,
+              "nodeType": "UserDefinedTypeName",
+              "pathNode": {
+                "id": 37879,
+                "name": "CallInfo",
+                "nodeType": "IdentifierPath",
+                "referencedDeclaration": 37878,
+                "src": "202:8:40"
+              },
+              "referencedDeclaration": 37878,
+              "src": "202:8:40",
+              "typeDescriptions": {
+                "typeIdentifier": "t_struct$_CallInfo_$37878_storage_ptr",
+                "typeString": "struct CallRecorder.CallInfo"
+              }
+            },
+            "visibility": "public"
+          },
+          {
+            "id": 37913,
+            "nodeType": "FunctionDefinition",
+            "src": "233:182:40",
+            "nodes": [],
+            "body": {
+              "id": 37912,
+              "nodeType": "Block",
+              "src": "266:149:40",
+              "nodes": [],
+              "statements": [
+                {
+                  "expression": {
+                    "id": 37889,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftHandSide": {
+                      "expression": {
+                        "id": 37884,
+                        "name": "lastCall",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 37881,
+                        "src": "276:8:40",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_struct$_CallInfo_$37878_storage",
+                          "typeString": "struct CallRecorder.CallInfo storage ref"
+                        }
+                      },
+                      "id": 37886,
+                      "isConstant": false,
+                      "isLValue": true,
+                      "isPure": false,
+                      "lValueRequested": true,
+                      "memberName": "sender",
+                      "nodeType": "MemberAccess",
+                      "referencedDeclaration": 37871,
+                      "src": "276:15:40",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    },
+                    "nodeType": "Assignment",
+                    "operator": "=",
+                    "rightHandSide": {
+                      "expression": {
+                        "id": 37887,
+                        "name": "msg",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": -15,
+                        "src": "294:3:40",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_magic_message",
+                          "typeString": "msg"
+                        }
+                      },
+                      "id": 37888,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "memberName": "sender",
+                      "nodeType": "MemberAccess",
+                      "src": "294:10:40",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_address",
+                        "typeString": "address"
+                      }
+                    },
+                    "src": "276:28:40",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "id": 37890,
+                  "nodeType": "ExpressionStatement",
+                  "src": "276:28:40"
+                },
+                {
+                  "expression": {
+                    "id": 37896,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftHandSide": {
+                      "expression": {
+                        "id": 37891,
+                        "name": "lastCall",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 37881,
+                        "src": "314:8:40",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_struct$_CallInfo_$37878_storage",
+                          "typeString": "struct CallRecorder.CallInfo storage ref"
+                        }
+                      },
+                      "id": 37893,
+                      "isConstant": false,
+                      "isLValue": true,
+                      "isPure": false,
+                      "lValueRequested": true,
+                      "memberName": "data",
+                      "nodeType": "MemberAccess",
+                      "referencedDeclaration": 37873,
+                      "src": "314:13:40",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_bytes_storage",
+                        "typeString": "bytes storage ref"
+                      }
+                    },
+                    "nodeType": "Assignment",
+                    "operator": "=",
+                    "rightHandSide": {
+                      "expression": {
+                        "id": 37894,
+                        "name": "msg",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": -15,
+                        "src": "330:3:40",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_magic_message",
+                          "typeString": "msg"
+                        }
+                      },
+                      "id": 37895,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "memberName": "data",
+                      "nodeType": "MemberAccess",
+                      "src": "330:8:40",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_bytes_calldata_ptr",
+                        "typeString": "bytes calldata"
+                      }
+                    },
+                    "src": "314:24:40",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bytes_storage",
+                      "typeString": "bytes storage ref"
+                    }
+                  },
+                  "id": 37897,
+                  "nodeType": "ExpressionStatement",
+                  "src": "314:24:40"
+                },
+                {
+                  "expression": {
+                    "id": 37903,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftHandSide": {
+                      "expression": {
+                        "id": 37898,
+                        "name": "lastCall",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 37881,
+                        "src": "348:8:40",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_struct$_CallInfo_$37878_storage",
+                          "typeString": "struct CallRecorder.CallInfo storage ref"
+                        }
+                      },
+                      "id": 37900,
+                      "isConstant": false,
+                      "isLValue": true,
+                      "isPure": false,
+                      "lValueRequested": true,
+                      "memberName": "gas",
+                      "nodeType": "MemberAccess",
+                      "referencedDeclaration": 37875,
+                      "src": "348:12:40",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      }
+                    },
+                    "nodeType": "Assignment",
+                    "operator": "=",
+                    "rightHandSide": {
+                      "arguments": [],
+                      "expression": {
+                        "argumentTypes": [],
+                        "id": 37901,
+                        "name": "gasleft",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": -7,
+                        "src": "363:7:40",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_function_gasleft_view$__$returns$_t_uint256_$",
+                          "typeString": "function () view returns (uint256)"
+                        }
+                      },
+                      "id": 37902,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "kind": "functionCall",
+                      "lValueRequested": false,
+                      "names": [],
+                      "nodeType": "FunctionCall",
+                      "src": "363:9:40",
+                      "tryCall": false,
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      }
+                    },
+                    "src": "348:24:40",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "id": 37904,
+                  "nodeType": "ExpressionStatement",
+                  "src": "348:24:40"
+                },
+                {
+                  "expression": {
+                    "id": 37910,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftHandSide": {
+                      "expression": {
+                        "id": 37905,
+                        "name": "lastCall",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 37881,
+                        "src": "382:8:40",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_struct$_CallInfo_$37878_storage",
+                          "typeString": "struct CallRecorder.CallInfo storage ref"
+                        }
+                      },
+                      "id": 37907,
+                      "isConstant": false,
+                      "isLValue": true,
+                      "isPure": false,
+                      "lValueRequested": true,
+                      "memberName": "value",
+                      "nodeType": "MemberAccess",
+                      "referencedDeclaration": 37877,
+                      "src": "382:14:40",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      }
+                    },
+                    "nodeType": "Assignment",
+                    "operator": "=",
+                    "rightHandSide": {
+                      "expression": {
+                        "id": 37908,
+                        "name": "msg",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": -15,
+                        "src": "399:3:40",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_magic_message",
+                          "typeString": "msg"
+                        }
+                      },
+                      "id": 37909,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "memberName": "value",
+                      "nodeType": "MemberAccess",
+                      "src": "399:9:40",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      }
+                    },
+                    "src": "382:26:40",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "id": 37911,
+                  "nodeType": "ExpressionStatement",
+                  "src": "382:26:40"
+                }
+              ]
+            },
+            "functionSelector": "266cf109",
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "record",
+            "nameLocation": "242:6:40",
+            "parameters": {
+              "id": 37882,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "248:2:40"
+            },
+            "returnParameters": {
+              "id": 37883,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "266:0:40"
+            },
+            "scope": 37914,
+            "stateMutability": "payable",
+            "virtual": false,
+            "visibility": "public"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "CallRecorder",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          37914
+        ],
+        "name": "CallRecorder",
+        "nameLocation": "66:12:40",
+        "scope": 37915,
+        "usedErrors": []
+      }
+    ],
+    "license": "MIT"
+  },
+  "id": 40
+}

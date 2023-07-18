@@ -1,0 +1,165 @@
+{
+  "abi": [],
+  "bytecode": {
+    "object": "0x6080604052348015600f57600080fd5b50601680601d6000396000f3fe6080604052600080fdfea164736f6c634300080c000a",
+    "sourceMap": "173:39:0:-:0;;;;;;;;;;;;;;;;;;;",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x6080604052600080fdfea164736f6c634300080c000a",
+    "sourceMap": "173:39:0:-:0;;;;;",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {},
+  "rawMetadata": "{\"compiler\":{\"version\":\"0.8.12+commit.f00d7308\"},\"language\":\"Solidity\",\"output\":{\"abi\":[],\"devdoc\":{\"kind\":\"dev\",\"methods\":{},\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{},\"notice\":\"Just exists so we can compile this contract.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/foundry-tests/MulticallContractCompiler.t.sol\":\"MulticallContractCompiler\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"none\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":@ds/=lib/multicall/lib/ds-test/src/\",\":@eth-optimism/contracts-bedrock/=node_modules/@eth-optimism/contracts-bedrock/\",\":@openzeppelin/=node_modules/@openzeppelin/\",\":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/\",\":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/\",\":@rari-capital/=node_modules/@rari-capital/\",\":@rari-capital/solmate/=node_modules/@rari-capital/solmate/\",\":@std/=lib/multicall/lib/forge-std/src/\",\":ds-test/=node_modules/ds-test/src/\",\":forge-std/=node_modules/forge-std/src/\",\":hardhat-deploy/=node_modules/hardhat-deploy/\",\":hardhat/=node_modules/hardhat/\",\":multicall/=lib/multicall/\"]},\"sources\":{\"contracts/foundry-tests/MulticallContractCompiler.t.sol\":{\"keccak256\":\"0xa70026f9bc0b4223900e73fe61b5a8d3423ebc40b0f22fb989a77b797417e897\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://adcdc11a07dc991dd271654900d555accd0698a8280e6b0734dc1c787cab4cc3\",\"dweb:/ipfs/QmWXyVGacqeR4zJqfM7HqxNBetw5ktH1pMgkNFygc7B54x\"]},\"lib/multicall/src/Multicall3.sol\":{\"keccak256\":\"0x95dfd0a2dd6626c7119ff7c3f214d56b289145f81a0521cd93a6252a326966f6\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://ead513cb13fe5373523cb3e1f3f1a1052791503269f4cc22e5e6177ed57d03ae\",\"dweb:/ipfs/Qmd5sRoq3rxHpBkcHr4baM2zP6Sud6eAL7AFoBbizFnWji\"]}},\"version\":1}",
+  "metadata": {
+    "compiler": {
+      "version": "0.8.12+commit.f00d7308"
+    },
+    "language": "Solidity",
+    "output": {
+      "abi": [],
+      "devdoc": {
+        "kind": "dev",
+        "methods": {},
+        "version": 1
+      },
+      "userdoc": {
+        "kind": "user",
+        "methods": {},
+        "version": 1
+      }
+    },
+    "settings": {
+      "remappings": [
+        ":@ds/=lib/multicall/lib/ds-test/src/",
+        ":@eth-optimism/contracts-bedrock/=node_modules/@eth-optimism/contracts-bedrock/",
+        ":@openzeppelin/=node_modules/@openzeppelin/",
+        ":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/",
+        ":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+        ":@rari-capital/=node_modules/@rari-capital/",
+        ":@rari-capital/solmate/=node_modules/@rari-capital/solmate/",
+        ":@std/=lib/multicall/lib/forge-std/src/",
+        ":ds-test/=node_modules/ds-test/src/",
+        ":forge-std/=node_modules/forge-std/src/",
+        ":hardhat-deploy/=node_modules/hardhat-deploy/",
+        ":hardhat/=node_modules/hardhat/",
+        ":multicall/=lib/multicall/"
+      ],
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "metadata": {
+        "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+        "contracts/foundry-tests/MulticallContractCompiler.t.sol": "MulticallContractCompiler"
+      },
+      "libraries": {}
+    },
+    "sources": {
+      "contracts/foundry-tests/MulticallContractCompiler.t.sol": {
+        "keccak256": "0xa70026f9bc0b4223900e73fe61b5a8d3423ebc40b0f22fb989a77b797417e897",
+        "urls": [
+          "bzz-raw://adcdc11a07dc991dd271654900d555accd0698a8280e6b0734dc1c787cab4cc3",
+          "dweb:/ipfs/QmWXyVGacqeR4zJqfM7HqxNBetw5ktH1pMgkNFygc7B54x"
+        ],
+        "license": "MIT"
+      },
+      "lib/multicall/src/Multicall3.sol": {
+        "keccak256": "0x95dfd0a2dd6626c7119ff7c3f214d56b289145f81a0521cd93a6252a326966f6",
+        "urls": [
+          "bzz-raw://ead513cb13fe5373523cb3e1f3f1a1052791503269f4cc22e5e6177ed57d03ae",
+          "dweb:/ipfs/Qmd5sRoq3rxHpBkcHr4baM2zP6Sud6eAL7AFoBbizFnWji"
+        ],
+        "license": "MIT"
+      }
+    },
+    "version": 1
+  },
+  "ast": {
+    "absolutePath": "contracts/foundry-tests/MulticallContractCompiler.t.sol",
+    "id": 6,
+    "exportedSymbols": {
+      "Multicall3": [
+        554
+      ],
+      "MulticallContractCompiler": [
+        5
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "32:181:0",
+    "nodes": [
+      {
+        "id": 1,
+        "nodeType": "PragmaDirective",
+        "src": "32:23:0",
+        "nodes": [],
+        "literals": [
+          "solidity",
+          "^",
+          "0.8",
+          ".0"
+        ]
+      },
+      {
+        "id": 3,
+        "nodeType": "ImportDirective",
+        "src": "57:58:0",
+        "nodes": [],
+        "absolutePath": "lib/multicall/src/Multicall3.sol",
+        "file": "multicall/src/Multicall3.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 6,
+        "sourceUnit": 555,
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 2,
+              "name": "Multicall3",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "referencedDeclaration": 554,
+              "src": "66:10:0",
+              "typeDescriptions": {
+                "typeIdentifier": "t_type$_t_contract$_Multicall3_$554_$",
+                "typeString": "type(contract Multicall3)"
+              }
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "id": 5,
+        "nodeType": "ContractDefinition",
+        "src": "173:39:0",
+        "nodes": [],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "MulticallContractCompiler",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "documentation": {
+          "id": 4,
+          "nodeType": "StructuredDocumentation",
+          "src": "117:55:0",
+          "text": " Just exists so we can compile this contract."
+        },
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          5
+        ],
+        "name": "MulticallContractCompiler",
+        "nameLocation": "182:25:0",
+        "scope": 6,
+        "usedErrors": []
+      }
+    ],
+    "license": "MIT"
+  },
+  "id": 0
+}

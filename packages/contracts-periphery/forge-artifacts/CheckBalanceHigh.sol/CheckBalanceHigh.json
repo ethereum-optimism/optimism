@@ -1,0 +1,752 @@
+{
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "target",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "threshold",
+              "type": "uint256"
+            }
+          ],
+          "indexed": false,
+          "internalType": "struct CheckBalanceHigh.Params",
+          "name": "params",
+          "type": "tuple"
+        }
+      ],
+      "name": "_EventToExposeStructInABI__Params",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "_params",
+          "type": "bytes"
+        }
+      ],
+      "name": "check",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": {
+    "object": "0x608060405234801561001057600080fd5b506101bf806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c8063c64b3bb514610030575b600080fd5b61004361003e36600461009d565b610057565b604051901515815260200160405180910390f35b6000808280602001905181019061006e919061014e565b602081015190516001600160a01b031631119392505050565b634e487b7160e01b600052604160045260246000fd5b6000602082840312156100af57600080fd5b813567ffffffffffffffff808211156100c757600080fd5b818401915084601f8301126100db57600080fd5b8135818111156100ed576100ed610087565b604051601f8201601f19908116603f0116810190838211818310171561011557610115610087565b8160405282815287602084870101111561012e57600080fd5b826020860160208301376000928101602001929092525095945050505050565b60006040828403121561016057600080fd5b6040516040810181811067ffffffffffffffff8211171561018357610183610087565b60405282516001600160a01b038116811461019d57600080fd5b8152602092830151928101929092525091905056fea164736f6c6343000810000a",
+    "sourceMap": "227:626:25:-:0;;;;;;;;;;;;;;;;;;;",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x608060405234801561001057600080fd5b506004361061002b5760003560e01c8063c64b3bb514610030575b600080fd5b61004361003e36600461009d565b610057565b604051901515815260200160405180910390f35b6000808280602001905181019061006e919061014e565b602081015190516001600160a01b031631119392505050565b634e487b7160e01b600052604160045260246000fd5b6000602082840312156100af57600080fd5b813567ffffffffffffffff808211156100c757600080fd5b818401915084601f8301126100db57600080fd5b8135818111156100ed576100ed610087565b604051601f8201601f19908116603f0116810190838211818310171561011557610115610087565b8160405282815287602084870101111561012e57600080fd5b826020860160208301376000928101602001929092525095945050505050565b60006040828403121561016057600080fd5b6040516040810181811067ffffffffffffffff8211171561018357610183610087565b60405282516001600160a01b038116811461019d57600080fd5b8152602092830151928101929092525091905056fea164736f6c6343000810000a",
+    "sourceMap": "227:626:25:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;606:245;;;;;;:::i;:::-;;:::i;:::-;;;1237:14:49;;1230:22;1212:41;;1200:2;1185:18;606:245:25;;;;;;;;666:4;682:20;716:7;705:29;;;;;;;;;;;;:::i;:::-;828:16;;;;804:13;;-1:-1:-1;;;;;804:21:25;;:40;;606:245;-1:-1:-1;;;606:245:25:o;14:127:49:-;75:10;70:3;66:20;63:1;56:31;106:4;103:1;96:15;130:4;127:1;120:15;146:921;214:6;267:2;255:9;246:7;242:23;238:32;235:52;;;283:1;280;273:12;235:52;323:9;310:23;352:18;393:2;385:6;382:14;379:34;;;409:1;406;399:12;379:34;447:6;436:9;432:22;422:32;;492:7;485:4;481:2;477:13;473:27;463:55;;514:1;511;504:12;463:55;550:2;537:16;572:2;568;565:10;562:36;;;578:18;;:::i;:::-;653:2;647:9;621:2;707:13;;-1:-1:-1;;703:22:49;;;727:2;699:31;695:40;683:53;;;751:18;;;771:22;;;748:46;745:72;;;797:18;;:::i;:::-;837:10;833:2;826:22;872:2;864:6;857:18;912:7;907:2;902;898;894:11;890:20;887:33;884:53;;;933:1;930;923:12;884:53;989:2;984;980;976:11;971:2;963:6;959:15;946:46;1034:1;1012:15;;;1029:2;1008:24;1001:35;;;;-1:-1:-1;1016:6:49;146:921;-1:-1:-1;;;;;146:921:49:o;1264:607::-;1359:6;1412:2;1400:9;1391:7;1387:23;1383:32;1380:52;;;1428:1;1425;1418:12;1380:52;1461:2;1455:9;1503:2;1495:6;1491:15;1572:6;1560:10;1557:22;1536:18;1524:10;1521:34;1518:62;1515:88;;;1583:18;;:::i;:::-;1619:2;1612:22;1656:16;;-1:-1:-1;;;;;1701:31:49;;1691:42;;1681:70;;1747:1;1744;1737:12;1681:70;1760:21;;1835:2;1820:18;;;1814:25;1797:15;;;1790:50;;;;-1:-1:-1;1767:6:49;1264:607;-1:-1:-1;1264:607:49:o",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {
+    "check(bytes)": "c64b3bb5"
+  },
+  "rawMetadata": "{\"compiler\":{\"version\":\"0.8.16+commit.07a7930e\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"anonymous\":false,\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"target\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"threshold\",\"type\":\"uint256\"}],\"indexed\":false,\"internalType\":\"struct CheckBalanceHigh.Params\",\"name\":\"params\",\"type\":\"tuple\"}],\"name\":\"_EventToExposeStructInABI__Params\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_params\",\"type\":\"bytes\"}],\"name\":\"check\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"events\":{\"_EventToExposeStructInABI__Params((address,uint256))\":{\"params\":{\"params\":\"Parameters to encode.\"}}},\"kind\":\"dev\",\"methods\":{\"check(bytes)\":{\"params\":{\"_params\":\"Encoded parameters for the drip check.\"},\"returns\":{\"_0\":\"Whether the drip should be executed.\"}}},\"title\":\"CheckBalanceHigh\",\"version\":1},\"userdoc\":{\"events\":{\"_EventToExposeStructInABI__Params((address,uint256))\":{\"notice\":\"External event used to help client-side tooling encode parameters.\"}},\"kind\":\"user\",\"methods\":{\"check(bytes)\":{\"notice\":\"Checks whether a drip should be executable.\"}},\"notice\":\"DripCheck for checking if an account's balance is above a given threshold.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/universal/drippie/dripchecks/CheckBalanceHigh.sol\":\"CheckBalanceHigh\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"none\"},\"optimizer\":{\"enabled\":true,\"runs\":200},\"remappings\":[\":@ds/=lib/multicall/lib/ds-test/src/\",\":@eth-optimism/contracts-bedrock/=node_modules/@eth-optimism/contracts-bedrock/\",\":@openzeppelin/=node_modules/@openzeppelin/\",\":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/\",\":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/\",\":@rari-capital/=node_modules/@rari-capital/\",\":@rari-capital/solmate/=node_modules/@rari-capital/solmate/\",\":@std/=lib/multicall/lib/forge-std/src/\",\":ds-test/=node_modules/ds-test/src/\",\":forge-std/=node_modules/forge-std/src/\",\":hardhat-deploy/=node_modules/hardhat-deploy/\",\":hardhat/=node_modules/hardhat/\",\":multicall/=lib/multicall/\"]},\"sources\":{\"contracts/universal/drippie/IDripCheck.sol\":{\"keccak256\":\"0xb52c89360566b2963dfd82cb2cc23f0c3ce4503a69e8563878e8aa80b6c60b3f\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://2d1a67f456f8eb6219f4e85857714bed1c27ce934e5e81497b733646848b315c\",\"dweb:/ipfs/QmRFwsdm5ZCWP9b3S7YAz9TuCdgLzsNrAMpX5WckU3v7WG\"]},\"contracts/universal/drippie/dripchecks/CheckBalanceHigh.sol\":{\"keccak256\":\"0xcb27d9e50a7c32406872b8fdc4ca62ee0d27372eb9077657f6d16f3cd3b58c85\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://3667196094e9e295f8bd35e38c380fc704480767439de8b8add8bc4341eed00c\",\"dweb:/ipfs/QmSooTertdN6VARY2TsVAh462RazEpKSYct52L8j5oDatW\"]}},\"version\":1}",
+  "metadata": {
+    "compiler": {
+      "version": "0.8.16+commit.07a7930e"
+    },
+    "language": "Solidity",
+    "output": {
+      "abi": [
+        {
+          "inputs": [
+            {
+              "internalType": "struct CheckBalanceHigh.Params",
+              "name": "params",
+              "type": "tuple",
+              "components": [
+                {
+                  "internalType": "address",
+                  "name": "target",
+                  "type": "address"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "threshold",
+                  "type": "uint256"
+                }
+              ],
+              "indexed": false
+            }
+          ],
+          "type": "event",
+          "name": "_EventToExposeStructInABI__Params",
+          "anonymous": false
+        },
+        {
+          "inputs": [
+            {
+              "internalType": "bytes",
+              "name": "_params",
+              "type": "bytes"
+            }
+          ],
+          "stateMutability": "view",
+          "type": "function",
+          "name": "check",
+          "outputs": [
+            {
+              "internalType": "bool",
+              "name": "",
+              "type": "bool"
+            }
+          ]
+        }
+      ],
+      "devdoc": {
+        "kind": "dev",
+        "methods": {
+          "check(bytes)": {
+            "params": {
+              "_params": "Encoded parameters for the drip check."
+            },
+            "returns": {
+              "_0": "Whether the drip should be executed."
+            }
+          }
+        },
+        "version": 1
+      },
+      "userdoc": {
+        "kind": "user",
+        "methods": {
+          "check(bytes)": {
+            "notice": "Checks whether a drip should be executable."
+          }
+        },
+        "version": 1
+      }
+    },
+    "settings": {
+      "remappings": [
+        ":@ds/=lib/multicall/lib/ds-test/src/",
+        ":@eth-optimism/contracts-bedrock/=node_modules/@eth-optimism/contracts-bedrock/",
+        ":@openzeppelin/=node_modules/@openzeppelin/",
+        ":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/",
+        ":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/",
+        ":@rari-capital/=node_modules/@rari-capital/",
+        ":@rari-capital/solmate/=node_modules/@rari-capital/solmate/",
+        ":@std/=lib/multicall/lib/forge-std/src/",
+        ":ds-test/=node_modules/ds-test/src/",
+        ":forge-std/=node_modules/forge-std/src/",
+        ":hardhat-deploy/=node_modules/hardhat-deploy/",
+        ":hardhat/=node_modules/hardhat/",
+        ":multicall/=lib/multicall/"
+      ],
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "metadata": {
+        "bytecodeHash": "none"
+      },
+      "compilationTarget": {
+        "contracts/universal/drippie/dripchecks/CheckBalanceHigh.sol": "CheckBalanceHigh"
+      },
+      "libraries": {}
+    },
+    "sources": {
+      "contracts/universal/drippie/IDripCheck.sol": {
+        "keccak256": "0xb52c89360566b2963dfd82cb2cc23f0c3ce4503a69e8563878e8aa80b6c60b3f",
+        "urls": [
+          "bzz-raw://2d1a67f456f8eb6219f4e85857714bed1c27ce934e5e81497b733646848b315c",
+          "dweb:/ipfs/QmRFwsdm5ZCWP9b3S7YAz9TuCdgLzsNrAMpX5WckU3v7WG"
+        ],
+        "license": "MIT"
+      },
+      "contracts/universal/drippie/dripchecks/CheckBalanceHigh.sol": {
+        "keccak256": "0xcb27d9e50a7c32406872b8fdc4ca62ee0d27372eb9077657f6d16f3cd3b58c85",
+        "urls": [
+          "bzz-raw://3667196094e9e295f8bd35e38c380fc704480767439de8b8add8bc4341eed00c",
+          "dweb:/ipfs/QmSooTertdN6VARY2TsVAh462RazEpKSYct52L8j5oDatW"
+        ],
+        "license": "MIT"
+      }
+    },
+    "version": 1
+  },
+  "ast": {
+    "absolutePath": "contracts/universal/drippie/dripchecks/CheckBalanceHigh.sol",
+    "id": 30200,
+    "exportedSymbols": {
+      "CheckBalanceHigh": [
+        30199
+      ],
+      "IDripCheck": [
+        30154
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "32:822:25",
+    "nodes": [
+      {
+        "id": 30156,
+        "nodeType": "PragmaDirective",
+        "src": "32:23:25",
+        "nodes": [],
+        "literals": [
+          "solidity",
+          "0.8",
+          ".16"
+        ]
+      },
+      {
+        "id": 30158,
+        "nodeType": "ImportDirective",
+        "src": "57:47:25",
+        "nodes": [],
+        "absolutePath": "contracts/universal/drippie/IDripCheck.sol",
+        "file": "../IDripCheck.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 30200,
+        "sourceUnit": 30155,
+        "symbolAliases": [
+          {
+            "foreign": {
+              "id": 30157,
+              "name": "IDripCheck",
+              "nodeType": "Identifier",
+              "overloadedDeclarations": [],
+              "referencedDeclaration": 30154,
+              "src": "66:10:25",
+              "typeDescriptions": {}
+            },
+            "nameLocation": "-1:-1:-1"
+          }
+        ],
+        "unitAlias": ""
+      },
+      {
+        "id": 30199,
+        "nodeType": "ContractDefinition",
+        "src": "227:626:25",
+        "nodes": [
+          {
+            "id": 30166,
+            "nodeType": "StructDefinition",
+            "src": "273:72:25",
+            "nodes": [],
+            "canonicalName": "CheckBalanceHigh.Params",
+            "members": [
+              {
+                "constant": false,
+                "id": 30163,
+                "mutability": "mutable",
+                "name": "target",
+                "nameLocation": "305:6:25",
+                "nodeType": "VariableDeclaration",
+                "scope": 30166,
+                "src": "297:14:25",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_address",
+                  "typeString": "address"
+                },
+                "typeName": {
+                  "id": 30162,
+                  "name": "address",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "297:7:25",
+                  "stateMutability": "nonpayable",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 30165,
+                "mutability": "mutable",
+                "name": "threshold",
+                "nameLocation": "329:9:25",
+                "nodeType": "VariableDeclaration",
+                "scope": 30166,
+                "src": "321:17:25",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_uint256",
+                  "typeString": "uint256"
+                },
+                "typeName": {
+                  "id": 30164,
+                  "name": "uint256",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "321:7:25",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  }
+                },
+                "visibility": "internal"
+              }
+            ],
+            "name": "Params",
+            "nameLocation": "280:6:25",
+            "scope": 30199,
+            "visibility": "public"
+          },
+          {
+            "id": 30172,
+            "nodeType": "EventDefinition",
+            "src": "499:55:25",
+            "nodes": [],
+            "anonymous": false,
+            "documentation": {
+              "id": 30167,
+              "nodeType": "StructuredDocumentation",
+              "src": "351:143:25",
+              "text": " @notice External event used to help client-side tooling encode parameters.\n @param params Parameters to encode."
+            },
+            "eventSelector": "d675e8c1bf2f28f052b74c311412663dd60576c00ce3346b9a6d614df2b0b60b",
+            "name": "_EventToExposeStructInABI__Params",
+            "nameLocation": "505:33:25",
+            "parameters": {
+              "id": 30171,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 30170,
+                  "indexed": false,
+                  "mutability": "mutable",
+                  "name": "params",
+                  "nameLocation": "546:6:25",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 30172,
+                  "src": "539:13:25",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_Params_$30166_memory_ptr",
+                    "typeString": "struct CheckBalanceHigh.Params"
+                  },
+                  "typeName": {
+                    "id": 30169,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 30168,
+                      "name": "Params",
+                      "nameLocations": [
+                        "539:6:25"
+                      ],
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 30166,
+                      "src": "539:6:25"
+                    },
+                    "referencedDeclaration": 30166,
+                    "src": "539:6:25",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_Params_$30166_storage_ptr",
+                      "typeString": "struct CheckBalanceHigh.Params"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "538:15:25"
+            }
+          },
+          {
+            "id": 30198,
+            "nodeType": "FunctionDefinition",
+            "src": "606:245:25",
+            "nodes": [],
+            "body": {
+              "id": 30197,
+              "nodeType": "Block",
+              "src": "672:179:25",
+              "nodes": [],
+              "statements": [
+                {
+                  "assignments": [
+                    30182
+                  ],
+                  "declarations": [
+                    {
+                      "constant": false,
+                      "id": 30182,
+                      "mutability": "mutable",
+                      "name": "params",
+                      "nameLocation": "696:6:25",
+                      "nodeType": "VariableDeclaration",
+                      "scope": 30197,
+                      "src": "682:20:25",
+                      "stateVariable": false,
+                      "storageLocation": "memory",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_struct$_Params_$30166_memory_ptr",
+                        "typeString": "struct CheckBalanceHigh.Params"
+                      },
+                      "typeName": {
+                        "id": 30181,
+                        "nodeType": "UserDefinedTypeName",
+                        "pathNode": {
+                          "id": 30180,
+                          "name": "Params",
+                          "nameLocations": [
+                            "682:6:25"
+                          ],
+                          "nodeType": "IdentifierPath",
+                          "referencedDeclaration": 30166,
+                          "src": "682:6:25"
+                        },
+                        "referencedDeclaration": 30166,
+                        "src": "682:6:25",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_struct$_Params_$30166_storage_ptr",
+                          "typeString": "struct CheckBalanceHigh.Params"
+                        }
+                      },
+                      "visibility": "internal"
+                    }
+                  ],
+                  "id": 30189,
+                  "initialValue": {
+                    "arguments": [
+                      {
+                        "id": 30185,
+                        "name": "_params",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 30175,
+                        "src": "716:7:25",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_bytes_memory_ptr",
+                          "typeString": "bytes memory"
+                        }
+                      },
+                      {
+                        "components": [
+                          {
+                            "id": 30186,
+                            "name": "Params",
+                            "nodeType": "Identifier",
+                            "overloadedDeclarations": [],
+                            "referencedDeclaration": 30166,
+                            "src": "726:6:25",
+                            "typeDescriptions": {
+                              "typeIdentifier": "t_type$_t_struct$_Params_$30166_storage_ptr_$",
+                              "typeString": "type(struct CheckBalanceHigh.Params storage pointer)"
+                            }
+                          }
+                        ],
+                        "id": 30187,
+                        "isConstant": false,
+                        "isInlineArray": false,
+                        "isLValue": false,
+                        "isPure": true,
+                        "lValueRequested": false,
+                        "nodeType": "TupleExpression",
+                        "src": "725:8:25",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_type$_t_struct$_Params_$30166_storage_ptr_$",
+                          "typeString": "type(struct CheckBalanceHigh.Params storage pointer)"
+                        }
+                      }
+                    ],
+                    "expression": {
+                      "argumentTypes": [
+                        {
+                          "typeIdentifier": "t_bytes_memory_ptr",
+                          "typeString": "bytes memory"
+                        },
+                        {
+                          "typeIdentifier": "t_type$_t_struct$_Params_$30166_storage_ptr_$",
+                          "typeString": "type(struct CheckBalanceHigh.Params storage pointer)"
+                        }
+                      ],
+                      "expression": {
+                        "id": 30183,
+                        "name": "abi",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": -1,
+                        "src": "705:3:25",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_magic_abi",
+                          "typeString": "abi"
+                        }
+                      },
+                      "id": 30184,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": true,
+                      "lValueRequested": false,
+                      "memberLocation": "709:6:25",
+                      "memberName": "decode",
+                      "nodeType": "MemberAccess",
+                      "src": "705:10:25",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_function_abidecode_pure$__$returns$__$",
+                        "typeString": "function () pure"
+                      }
+                    },
+                    "id": 30188,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "kind": "functionCall",
+                    "lValueRequested": false,
+                    "nameLocations": [],
+                    "names": [],
+                    "nodeType": "FunctionCall",
+                    "src": "705:29:25",
+                    "tryCall": false,
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_Params_$30166_memory_ptr",
+                      "typeString": "struct CheckBalanceHigh.Params memory"
+                    }
+                  },
+                  "nodeType": "VariableDeclarationStatement",
+                  "src": "682:52:25"
+                },
+                {
+                  "expression": {
+                    "commonType": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    },
+                    "id": 30195,
+                    "isConstant": false,
+                    "isLValue": false,
+                    "isPure": false,
+                    "lValueRequested": false,
+                    "leftExpression": {
+                      "expression": {
+                        "expression": {
+                          "id": 30190,
+                          "name": "params",
+                          "nodeType": "Identifier",
+                          "overloadedDeclarations": [],
+                          "referencedDeclaration": 30182,
+                          "src": "804:6:25",
+                          "typeDescriptions": {
+                            "typeIdentifier": "t_struct$_Params_$30166_memory_ptr",
+                            "typeString": "struct CheckBalanceHigh.Params memory"
+                          }
+                        },
+                        "id": 30191,
+                        "isConstant": false,
+                        "isLValue": true,
+                        "isPure": false,
+                        "lValueRequested": false,
+                        "memberLocation": "811:6:25",
+                        "memberName": "target",
+                        "nodeType": "MemberAccess",
+                        "referencedDeclaration": 30163,
+                        "src": "804:13:25",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_address",
+                          "typeString": "address"
+                        }
+                      },
+                      "id": 30192,
+                      "isConstant": false,
+                      "isLValue": false,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "memberLocation": "818:7:25",
+                      "memberName": "balance",
+                      "nodeType": "MemberAccess",
+                      "src": "804:21:25",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      }
+                    },
+                    "nodeType": "BinaryOperation",
+                    "operator": ">",
+                    "rightExpression": {
+                      "expression": {
+                        "id": 30193,
+                        "name": "params",
+                        "nodeType": "Identifier",
+                        "overloadedDeclarations": [],
+                        "referencedDeclaration": 30182,
+                        "src": "828:6:25",
+                        "typeDescriptions": {
+                          "typeIdentifier": "t_struct$_Params_$30166_memory_ptr",
+                          "typeString": "struct CheckBalanceHigh.Params memory"
+                        }
+                      },
+                      "id": 30194,
+                      "isConstant": false,
+                      "isLValue": true,
+                      "isPure": false,
+                      "lValueRequested": false,
+                      "memberLocation": "835:9:25",
+                      "memberName": "threshold",
+                      "nodeType": "MemberAccess",
+                      "referencedDeclaration": 30165,
+                      "src": "828:16:25",
+                      "typeDescriptions": {
+                        "typeIdentifier": "t_uint256",
+                        "typeString": "uint256"
+                      }
+                    },
+                    "src": "804:40:25",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bool",
+                      "typeString": "bool"
+                    }
+                  },
+                  "functionReturnParameters": 30179,
+                  "id": 30196,
+                  "nodeType": "Return",
+                  "src": "797:47:25"
+                }
+              ]
+            },
+            "baseFunctions": [
+              30153
+            ],
+            "documentation": {
+              "id": 30173,
+              "nodeType": "StructuredDocumentation",
+              "src": "560:41:25",
+              "text": " @inheritdoc IDripCheck"
+            },
+            "functionSelector": "c64b3bb5",
+            "implemented": true,
+            "kind": "function",
+            "modifiers": [],
+            "name": "check",
+            "nameLocation": "615:5:25",
+            "parameters": {
+              "id": 30176,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 30175,
+                  "mutability": "mutable",
+                  "name": "_params",
+                  "nameLocation": "634:7:25",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 30198,
+                  "src": "621:20:25",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bytes_memory_ptr",
+                    "typeString": "bytes"
+                  },
+                  "typeName": {
+                    "id": 30174,
+                    "name": "bytes",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "621:5:25",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bytes_storage_ptr",
+                      "typeString": "bytes"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "620:22:25"
+            },
+            "returnParameters": {
+              "id": 30179,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 30178,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 30198,
+                  "src": "666:4:25",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bool",
+                    "typeString": "bool"
+                  },
+                  "typeName": {
+                    "id": 30177,
+                    "name": "bool",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "666:4:25",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bool",
+                      "typeString": "bool"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "665:6:25"
+            },
+            "scope": 30199,
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "external"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [
+          {
+            "baseName": {
+              "id": 30160,
+              "name": "IDripCheck",
+              "nameLocations": [
+                "256:10:25"
+              ],
+              "nodeType": "IdentifierPath",
+              "referencedDeclaration": 30154,
+              "src": "256:10:25"
+            },
+            "id": 30161,
+            "nodeType": "InheritanceSpecifier",
+            "src": "256:10:25"
+          }
+        ],
+        "canonicalName": "CheckBalanceHigh",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "documentation": {
+          "id": 30159,
+          "nodeType": "StructuredDocumentation",
+          "src": "106:120:25",
+          "text": " @title CheckBalanceHigh\n @notice DripCheck for checking if an account's balance is above a given threshold."
+        },
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          30199,
+          30154
+        ],
+        "name": "CheckBalanceHigh",
+        "nameLocation": "236:16:25",
+        "scope": 30200,
+        "usedErrors": []
+      }
+    ],
+    "license": "MIT"
+  },
+  "id": 25
+}

@@ -5,6 +5,7 @@ import {
   TransactionReceipt,
   TransactionResponse,
   TransactionRequest,
+  Block,
 } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
 import {
@@ -659,10 +660,17 @@ export class CrossChainMessenger {
     /**
      * The index of the withdrawal if multiple are made with multicall
      */
-    messageIndex = 0
+    messageIndex = 0,
+    fromBlockOrBlockHash?: BlockTag,
+    toBlockOrBlockHash?: BlockTag
   ): Promise<MessageStatus> {
     const resolved = await this.toCrossChainMessage(message, messageIndex)
-    const receipt = await this.getMessageReceipt(resolved, messageIndex)
+    const receipt = await this.getMessageReceipt(
+      resolved,
+      messageIndex,
+      fromBlockOrBlockHash,
+      toBlockOrBlockHash
+    )
 
     if (resolved.direction === MessageDirection.L1_TO_L2) {
       if (receipt === null) {
@@ -751,7 +759,9 @@ export class CrossChainMessenger {
     /**
      * The index of the withdrawal if multiple are made with multicall
      */
-    messageIndex = 0
+    messageIndex = 0,
+    fromBlockOrBlockHash?: BlockTag,
+    toBlockOrHash?: BlockTag
   ): Promise<MessageReceipt> {
     const resolved = await this.toCrossChainMessage(message, messageIndex)
     // legacy withdrawals relayed prebedrock are v1
@@ -783,10 +793,14 @@ export class CrossChainMessenger {
     // this is safe because we can guarantee only one of these filters max will return something
     const relayedMessageEvents = [
       ...(await messenger.queryFilter(
-        messenger.filters.RelayedMessage(messageHashV0)
+        messenger.filters.RelayedMessage(messageHashV0),
+        fromBlockOrBlockHash,
+        toBlockOrHash
       )),
       ...(await messenger.queryFilter(
-        messenger.filters.RelayedMessage(messageHashV1)
+        messenger.filters.RelayedMessage(messageHashV1),
+        fromBlockOrBlockHash,
+        toBlockOrHash
       )),
     ]
 
@@ -806,10 +820,14 @@ export class CrossChainMessenger {
     // FailedRelayedMessage events instead.
     const failedRelayedMessageEvents = [
       ...(await messenger.queryFilter(
-        messenger.filters.FailedRelayedMessage(messageHashV0)
+        messenger.filters.FailedRelayedMessage(messageHashV0),
+        fromBlockOrBlockHash,
+        toBlockOrHash
       )),
       ...(await messenger.queryFilter(
-        messenger.filters.FailedRelayedMessage(messageHashV1)
+        messenger.filters.FailedRelayedMessage(messageHashV1),
+        fromBlockOrBlockHash,
+        toBlockOrHash
       )),
     ]
 
@@ -852,6 +870,8 @@ export class CrossChainMessenger {
   public async waitForMessageReceipt(
     message: MessageLike,
     opts: {
+      fromBlockOrBlockHash?: BlockTag
+      toBlockOrHash?: BlockTag
       confirmations?: number
       pollIntervalMs?: number
       timeoutMs?: number
@@ -868,7 +888,12 @@ export class CrossChainMessenger {
     let totalTimeMs = 0
     while (totalTimeMs < (opts.timeoutMs || Infinity)) {
       const tick = Date.now()
-      const receipt = await this.getMessageReceipt(resolved, messageIndex)
+      const receipt = await this.getMessageReceipt(
+        resolved,
+        messageIndex,
+        opts.fromBlockOrBlockHash,
+        opts.toBlockOrHash
+      )
       if (receipt !== null) {
         return receipt
       } else {
@@ -896,6 +921,8 @@ export class CrossChainMessenger {
     message: MessageLike,
     status: MessageStatus,
     opts: {
+      fromBlockOrBlockHash?: BlockTag
+      toBlockOrBlockHash?: BlockTag
       pollIntervalMs?: number
       timeoutMs?: number
     } = {},
@@ -911,7 +938,12 @@ export class CrossChainMessenger {
     let totalTimeMs = 0
     while (totalTimeMs < (opts.timeoutMs || Infinity)) {
       const tick = Date.now()
-      const currentStatus = await this.getMessageStatus(resolved, messageIndex)
+      const currentStatus = await this.getMessageStatus(
+        resolved,
+        messageIndex,
+        opts.fromBlockOrBlockHash,
+        opts.toBlockOrBlockHash
+      )
 
       // Handle special cases for L1 to L2 messages.
       if (resolved.direction === MessageDirection.L1_TO_L2) {
@@ -1026,10 +1058,12 @@ export class CrossChainMessenger {
     /**
      * The index of the withdrawal if multiple are made with multicall
      */
-    messageIndex = 0
+    messageIndex = 0,
+    fromBlockOrBlockHash?: BlockTag,
+    toBlockOrBlockHash?: BlockTag
   ): Promise<number> {
     const resolved = await this.toCrossChainMessage(message, messageIndex)
-    const status = await this.getMessageStatus(resolved, messageIndex)
+    const status = await this.getMessageStatus(resolved, messageIndex, fromBlockOrBlockHash, toBlockOrBlockHash)
     if (resolved.direction === MessageDirection.L1_TO_L2) {
       if (
         status === MessageStatus.RELAYED ||
