@@ -659,6 +659,7 @@ export class CrossChainMessenger {
     /**
      * The index of the withdrawal if multiple are made with multicall
      */
+    // consider making this an options object next breaking release
     messageIndex = 0,
     fromBlockOrBlockHash?: BlockTag,
     toBlockOrBlockHash?: BlockTag
@@ -1057,6 +1058,7 @@ export class CrossChainMessenger {
     /**
      * The index of the withdrawal if multiple are made with multicall
      */
+    // consider making this an options object next breaking release
     messageIndex = 0,
     fromBlockOrBlockHash?: BlockTag,
     toBlockOrBlockHash?: BlockTag
