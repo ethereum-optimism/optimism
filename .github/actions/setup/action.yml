@@ -28,16 +28,6 @@ runs:
       shell: bash
       run: pnpm install --frozen-lockfile
 
-    # Workaround for parallel building with forge:
-    # we need to run a build on a single package to make sure
-    # that no race conditions happen with multiple forge instances
-    # later when we call nx build
-    # see https://github.com/foundry-rs/foundry/issues/4736
-    - name: Forge issue 4736 workaround
-      shell: bash
-      working-directory: packages/contracts-bedrock
-      run: forge build
-
     - name: Derive appropriate SHAs for base and head for `nx affected` commands
       uses: nrwl/nx-set-shas@v3
 
