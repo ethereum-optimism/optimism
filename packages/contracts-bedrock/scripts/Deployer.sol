@@ -308,7 +308,7 @@ abstract contract Deployer is Script {
 
     /// @notice Builds the fully qualified name of a contract. Assumes that the
     ///         file name is the same as the contract name but strips semver for the file name.
-    function _getFullyQualifiedName(string memory _name) internal pure returns (string memory) {
+    function _getFullyQualifiedName(string memory _name) internal returns (string memory) {
         string memory sanitized = _stripSemver(_name);
         return string.concat(sanitized, ".sol:", _name);
     }
