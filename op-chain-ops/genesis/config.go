@@ -135,7 +135,7 @@ type DeployConfig struct {
 	// L1CrossDomainMessengerProxy represents the address of the L1CrossDomainMessengerProxy on L1 and is used
 	// as part of building the L2 genesis state.
 	L1CrossDomainMessengerProxy common.Address `json:"l1CrossDomainMessengerProxy"`
-	// L1ERC721Bridge represents the address of the L1ERC721Bridge on L1 and is used
+	// L1ERC721BridgeProxy represents the address of the L1ERC721Bridge on L1 and is used
 	// as part of building the L2 genesis state.
 	L1ERC721BridgeProxy common.Address `json:"l1ERC721BridgeProxy"`
 	// SystemConfigProxy represents the address of the SystemConfigProxy on L1 and is used
