@@ -53,11 +53,14 @@ func DialRollupClientWithTimeout(timeout time.Duration, log log.Logger, url stri
 func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string) (*rpc.Client, error) {
 	bOff := backoff.Fixed(defaultRetryTime)
 	return backoff.Do(ctx, defaultRetryCount, bOff, func() (*rpc.Client, error) {
+		if !IsURLAvailable(addr) {
+			log.Warn("failed to dial address, but may connect later", "addr", addr)
+			return nil, fmt.Errorf("address unavailable (%s)", addr)
+		}
 		client, err := rpc.DialOptions(ctx, addr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to dial address (%s): %w", addr, err)
 		}
-		// log.Warn("failed to dial address, but may connect later", "addr", addr, "err", err)
 		return client, nil
 	})
 }
