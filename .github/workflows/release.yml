@@ -38,32 +38,9 @@ jobs:
           fetch-depth: 0
           ref: "develop"
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8.6.5
-      - name: Setup node 16.x
-        uses: actions/setup-node@v3
-        with:
-          node-version-file: .nvmrc
-          registry-url: https://registry.npmjs.org
-          cache: pnpm
+      - name: Setup
+        uses: ./.github/actions/setup
 
-      - name: Setup foundry
-        uses: foundry-rs/foundry-toolchain@v1
-
-      - name: Install node dependencies
-        shell: bash
-        run: pnpm install --frozen-lockfile
-      - name: Derive appropriate SHAs for base and head for `nx affected` commands
-        uses: nrwl/nx-set-shas@v3
-        with: 
-          main-branch-name: "develop"
-      - run: |
-          echo "nx using following shas:"
-          echo "BASE: ${{ env.NX_BASE }}"
-          echo "HEAD: ${{ env.NX_HEAD }}"
-        shell: bash
       # Makes a pr to publish the changesets that when
       # merged will publish to npm
       # see https://github.com/changesets/action
