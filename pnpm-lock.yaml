@@ -311,9 +311,6 @@ importers:
       '@eth-optimism/contracts-bedrock':
         specifier: workspace:*
         version: link:../contracts-bedrock
-      '@eth-optimism/contracts-periphery':
-        specifier: workspace:*
-        version: link:../contracts-periphery
       '@testing-library/jest-dom':
         specifier: ^5.16.5
         version: 5.16.5
