@@ -36,7 +36,7 @@
   ],
   "scripts": {
     "build": "tsup",
-    "generate": "nx build @eth-optimism/contracts-bedrock && wagmi generate && pnpm build && pnpm lint:fix",
+    "generate": "wagmi generate && pnpm build && pnpm lint:fix",
     "generate:check": "pnpm generate && git diff --exit-code ./addresses.json && git diff --exit-code ./abis.json",
     "lint": "prettier --check .",
     "lint:fix": "prettier --write .",
