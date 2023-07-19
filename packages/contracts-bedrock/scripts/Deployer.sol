@@ -116,9 +116,9 @@ abstract contract Deployer is Script {
             uint256 numDeployments = 0;
             try vm.readFile(artifactPath) returns (string memory res) {
                 numDeployments = stdJson.readUint(string(res), "$.numDeployments");
-                numDeployments++;
                 vm.removeFile(artifactPath);
             } catch {}
+            numDeployments++;
 
             Artifact memory artifact = Artifact({
                 abi: getAbi(contractName),
