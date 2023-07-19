@@ -74,7 +74,6 @@
   },
   "dependencies": {
     "@changesets/cli": "^2.26.0",
-    "@codechecks/client": "^0.1.11",
-    "@ethersproject/abstract-provider": "^5.7.0"
+    "@codechecks/client": "^0.1.11"
   }
 }
