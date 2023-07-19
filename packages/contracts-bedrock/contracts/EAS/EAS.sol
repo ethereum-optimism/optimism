@@ -88,7 +88,8 @@ contract EAS is IEAS, Semver, EIP712Verifier {
     /**
      * @dev Creates a new EAS instance.
      */
-    constructor() Semver(1, 0, 0) EIP712Verifier("EAS", "1.0.0") {}
+    constructor() Semver(1, 0, 0) EIP712Verifier("EAS", "1.0.0") {
+    }
 
     /**
      * @inheritdoc IEAS
@@ -110,30 +111,21 @@ contract EAS is IEAS, Semver, EIP712Verifier {
     /**
      * @inheritdoc IEAS
      */
-    function attestByDelegation(DelegatedAttestationRequest calldata delegatedRequest)
-        external
-        payable
-        returns (bytes32)
-    {
+    function attestByDelegation(
+        DelegatedAttestationRequest calldata delegatedRequest
+    ) external payable returns (bytes32) {
         _verifyAttest(delegatedRequest);
 
         AttestationRequestData[] memory data = new AttestationRequestData[](1);
         data[0] = delegatedRequest.data;
 
-        return
-            _attest(delegatedRequest.schema, data, delegatedRequest.attester, msg.value, true).uids[
-                0
-            ];
+        return _attest(delegatedRequest.schema, data, delegatedRequest.attester, msg.value, true).uids[0];
     }
 
     /**
      * @inheritdoc IEAS
      */
-    function multiAttest(MultiAttestationRequest[] calldata multiRequests)
-        external
-        payable
-        returns (bytes32[] memory)
-    {
+    function multiAttest(MultiAttestationRequest[] calldata multiRequests) external payable returns (bytes32[] memory) {
         // Since a multi-attest call is going to make multiple attestations for multiple schemas, we'd need to collect
         // all the returned UIDs into a single list.
         bytes32[][] memory totalUids = new bytes32[][](multiRequests.length);
@@ -143,7 +135,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         // from it to verify that there isn't any attempt to send too much ETH to resolvers. Please note that unless
         // some ETH was stuck in the contract by accident (which shouldn't happen in normal conditions), it won't be
         // possible to send too much ETH anyway.
-        uint256 availableValue = msg.value;
+        uint availableValue = msg.value;
 
         for (uint256 i = 0; i < multiRequests.length; i = uncheckedInc(i)) {
             // The last batch is handled slightly differently: if the total available ETH wasn't spent in full and there
@@ -193,7 +185,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         // from it to verify that there isn't any attempt to send too much ETH to resolvers. Please note that unless
         // some ETH was stuck in the contract by accident (which shouldn't happen in normal conditions), it won't be
         // possible to send too much ETH anyway.
-        uint256 availableValue = msg.value;
+        uint availableValue = msg.value;
 
         for (uint256 i = 0; i < multiDelegatedRequests.length; i = uncheckedInc(i)) {
             // The last batch is handled slightly differently: if the total available ETH wasn't spent in full and there
@@ -204,8 +196,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
                 last = i == multiDelegatedRequests.length - 1;
             }
 
-            MultiDelegatedAttestationRequest
-                calldata multiDelegatedRequest = multiDelegatedRequests[i];
+            MultiDelegatedAttestationRequest calldata multiDelegatedRequest = multiDelegatedRequests[i];
             AttestationRequestData[] calldata data = multiDelegatedRequest.data;
 
             // Ensure that no inputs are missing.
@@ -261,10 +252,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
     /**
      * @inheritdoc IEAS
      */
-    function revokeByDelegation(DelegatedRevocationRequest calldata delegatedRequest)
-        external
-        payable
-    {
+    function revokeByDelegation(DelegatedRevocationRequest calldata delegatedRequest) external payable {
         _verifyRevoke(delegatedRequest);
 
         RevocationRequestData[] memory data = new RevocationRequestData[](1);
@@ -281,7 +269,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         // from it to verify that there isn't any attempt to send too much ETH to resolvers. Please note that unless
         // some ETH was stuck in the contract by accident (which shouldn't happen in normal conditions), it won't be
         // possible to send too much ETH anyway.
-        uint256 availableValue = msg.value;
+        uint availableValue = msg.value;
 
         for (uint256 i = 0; i < multiRequests.length; i = uncheckedInc(i)) {
             // The last batch is handled slightly differently: if the total available ETH wasn't spent in full and there
@@ -295,13 +283,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
             MultiRevocationRequest calldata multiRequest = multiRequests[i];
 
             // Ensure to deduct the ETH that was forwarded to the resolver during the processing of this batch.
-            availableValue -= _revoke(
-                multiRequest.schema,
-                multiRequest.data,
-                msg.sender,
-                availableValue,
-                last
-            );
+            availableValue -= _revoke(multiRequest.schema, multiRequest.data, msg.sender, availableValue, last);
         }
     }
 
@@ -315,7 +297,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         // from it to verify that there isn't any attempt to send too much ETH to resolvers. Please note that unless
         // some ETH was stuck in the contract by accident (which shouldn't happen in normal conditions), it won't be
         // possible to send too much ETH anyway.
-        uint256 availableValue = msg.value;
+        uint availableValue = msg.value;
 
         for (uint256 i = 0; i < multiDelegatedRequests.length; i = uncheckedInc(i)) {
             // The last batch is handled slightly differently: if the total available ETH wasn't spent in full and there
@@ -326,9 +308,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
                 last = i == multiDelegatedRequests.length - 1;
             }
 
-            MultiDelegatedRevocationRequest memory multiDelegatedRequest = multiDelegatedRequests[
-                i
-            ];
+            MultiDelegatedRevocationRequest memory multiDelegatedRequest = multiDelegatedRequests[i];
             RevocationRequestData[] memory data = multiDelegatedRequest.data;
 
             // Ensure that no inputs are missing.
@@ -527,14 +507,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
             emit Attested(request.recipient, attester, uid, schema);
         }
 
-        res.usedValue = _resolveAttestations(
-            schemaRecord,
-            attestations,
-            values,
-            false,
-            availableValue,
-            last
-        );
+        res.usedValue = _resolveAttestations(schemaRecord, attestations, values, false, availableValue, last);
 
         return res;
     }
@@ -690,15 +663,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
     ) private returns (uint256) {
         uint256 length = attestations.length;
         if (length == 1) {
-            return
-                _resolveAttestation(
-                    schemaRecord,
-                    attestations[0],
-                    values[0],
-                    isRevocation,
-                    availableValue,
-                    last
-                );
+            return _resolveAttestation(schemaRecord, attestations[0], values[0], isRevocation, availableValue, last);
         }
 
         ISchemaResolver resolver = schemaRecord.resolver;
@@ -811,12 +776,8 @@ contract EAS is IEAS, Semver, EIP712Verifier {
      * @param data The data to timestamp.
      * @param time The timestamp.
      */
-    function _revokeOffchain(
-        address revoker,
-        bytes32 data,
-        uint64 time
-    ) private {
-        mapping(bytes32 data => uint64 timestamp) storage revocations = _revocationsOffchain[revoker];
+    function _revokeOffchain(address revoker, bytes32 data, uint64 time) private {
+        mapping(bytes32 => uint64) storage revocations = _revocationsOffchain[revoker];
 
         if (revocations[data] != 0) {
             revert AlreadyRevokedOffchain();
@@ -843,11 +804,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
      *
      * @return A merged and flatten list of all the UIDs.
      */
-    function _mergeUIDs(bytes32[][] memory uidLists, uint256 uidsCount)
-        private
-        pure
-        returns (bytes32[] memory)
-    {
+    function _mergeUIDs(bytes32[][] memory uidLists, uint256 uidsCount) private pure returns (bytes32[] memory) {
         bytes32[] memory uids = new bytes32[](uidsCount);
 
         uint256 currentIndex = 0;

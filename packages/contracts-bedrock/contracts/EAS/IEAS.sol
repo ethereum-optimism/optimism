@@ -108,12 +108,7 @@ interface IEAS {
      * @param uid The UID the revoked attestation.
      * @param schema The UID of the schema.
      */
-    event Attested(
-        address indexed recipient,
-        address indexed attester,
-        bytes32 uid,
-        bytes32 indexed schema
-    );
+    event Attested(address indexed recipient, address indexed attester, bytes32 uid, bytes32 indexed schema);
 
     /**
      * @dev Emitted when an attestation has been revoked.
@@ -123,12 +118,7 @@ interface IEAS {
      * @param schema The UID of the schema.
      * @param uid The UID the revoked attestation.
      */
-    event Revoked(
-        address indexed recipient,
-        address indexed attester,
-        bytes32 uid,
-        bytes32 indexed schema
-    );
+    event Revoked(address indexed recipient, address indexed attester, bytes32 uid, bytes32 indexed schema);
 
     /**
      * @dev Emitted when a data has been timestamped.
@@ -204,10 +194,9 @@ interface IEAS {
      *
      * @return The UID of the new attestation.
      */
-    function attestByDelegation(DelegatedAttestationRequest calldata delegatedRequest)
-        external
-        payable
-        returns (bytes32);
+    function attestByDelegation(
+        DelegatedAttestationRequest calldata delegatedRequest
+    ) external payable returns (bytes32);
 
     /**
      * @dev Attests to multiple schemas.
@@ -250,10 +239,7 @@ interface IEAS {
      *
      * @return The UIDs of the new attestations.
      */
-    function multiAttest(MultiAttestationRequest[] calldata multiRequests)
-        external
-        payable
-        returns (bytes32[] memory);
+    function multiAttest(MultiAttestationRequest[] calldata multiRequests) external payable returns (bytes32[] memory);
 
     /**
      * @dev Attests to multiple schemas using via provided EIP712 signatures.
@@ -338,9 +324,7 @@ interface IEAS {
      *
      * @param delegatedRequest The arguments of the delegated revocation request.
      */
-    function revokeByDelegation(DelegatedRevocationRequest calldata delegatedRequest)
-        external
-        payable;
+    function revokeByDelegation(DelegatedRevocationRequest calldata delegatedRequest) external payable;
 
     /**
      * @dev Revokes existing attestations to multiple schemas.

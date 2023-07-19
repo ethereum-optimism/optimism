@@ -67,12 +67,10 @@ abstract contract SchemaResolver is ISchemaResolver, Semver {
     /**
      * @inheritdoc ISchemaResolver
      */
-    function multiAttest(Attestation[] calldata attestations, uint256[] calldata values)
-        external
-        payable
-        onlyEAS
-        returns (bool)
-    {
+    function multiAttest(
+        Attestation[] calldata attestations,
+        uint256[] calldata values
+    ) external payable onlyEAS returns (bool) {
         uint256 length = attestations.length;
 
         // We are keeping track of the remaining ETH amount that can be sent to resolvers and will keep deducting
@@ -112,12 +110,10 @@ abstract contract SchemaResolver is ISchemaResolver, Semver {
     /**
      * @inheritdoc ISchemaResolver
      */
-    function multiRevoke(Attestation[] calldata attestations, uint256[] calldata values)
-        external
-        payable
-        onlyEAS
-        returns (bool)
-    {
+    function multiRevoke(
+        Attestation[] calldata attestations,
+        uint256[] calldata values
+    ) external payable onlyEAS returns (bool) {
         uint256 length = attestations.length;
 
         // We are keeping track of the remaining ETH amount that can be sent to resolvers and will keep deducting
@@ -158,10 +154,7 @@ abstract contract SchemaResolver is ISchemaResolver, Semver {
      *
      * @return Whether the attestation is valid.
      */
-    function onAttest(Attestation calldata attestation, uint256 value)
-        internal
-        virtual
-        returns (bool);
+    function onAttest(Attestation calldata attestation, uint256 value) internal virtual returns (bool);
 
     /**
      * @dev Processes an attestation revocation and verifies if it can be revoked.
@@ -174,10 +167,7 @@ abstract contract SchemaResolver is ISchemaResolver, Semver {
      *
      * @return Whether the attestation can be revoked.
      */
-    function onRevoke(Attestation calldata attestation, uint256 value)
-        internal
-        virtual
-        returns (bool);
+    function onRevoke(Attestation calldata attestation, uint256 value) internal virtual returns (bool);
 
     /**
      * @dev Ensures that only the EAS contract can make this call.
