@@ -24,7 +24,7 @@ import { Provider } from '@ethersproject/abstract-provider'
 import { Contract, ethers } from 'ethers'
 import dateformat from 'dateformat'
 
-import { version } from '../package.json'
+import { version } from '../../package.json'
 import {
   findFirstUnfinalizedStateBatchIndex,
   findOutputForIndex,
@@ -387,7 +387,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
           new Date(
             (ethers.BigNumber.from(outputBlock.timestamp).toNumber() +
               this.state.faultProofWindow) *
-              1000
+            1000
           ),
           'mmmm dS, yyyy, h:MM:ss TT'
         ),

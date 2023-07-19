@@ -5,7 +5,7 @@ lang: en-US
 
 ## Overview
 
-The first release of the OP Stack codebase is called **Bedrock**. 
+The first release of the OP Stack codebase is called **Bedrock**.
 The Bedrock release primarily consists of the core software required to run L2 blockchains and was originally designed to power an upgrade to the Optimism Mainnet network.
 
 ## Resources
@@ -29,6 +29,6 @@ Dive deep into the specifications for the Bedrock release in the [specs folder o
 - [`op-batcher`](https://github.com/ethereum-optimism/optimism/tree/develop/op-batcher)
 - [`op-proposer`](https://github.com/ethereum-optimism/optimism/tree/develop/op-proposer)
 - [`contracts-bedrock`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock)
-- [`fault-detector`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/fault-detector)
+- [`fault-mon`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/packages/chain-mon/src/fault-mon)
 - [`sdk`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/sdk)
 - [`chain-mon`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/chain-mon)

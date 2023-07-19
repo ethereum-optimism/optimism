@@ -140,7 +140,6 @@ jobs:
             - "packages/common-ts/node_modules"
             - "packages/contracts-bedrock/node_modules"
             - "packages/core-utils/node_modules"
-            - "packages/fault-detector/node_modules"
             - "packages/replica-healthcheck/node_modules"
             - "packages/sdk/node_modules"
             - "packages/contracts-ts/node_modules"
@@ -1364,13 +1363,6 @@ workflows:
           requires:
             - pnpm-monorepo
       - js-lint-test:
-          name: fault-detector-tests
-          coverage_flag: fault-detector-tests
-          package_name: fault-detector
-          dependencies: "(common-ts|core-utils|sdk)"
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
           name: contracts-ts-tests
           coverage_flag: contracts-ts-tests
           package_name: contracts-ts
@@ -1616,14 +1608,6 @@ workflows:
           docker_target: wd-mon
           context:
             - oplabs-gcr
-      - docker-publish:
-          name: fault-detector-docker-publish
-          docker_file: ./ops/docker/Dockerfile.packages
-          docker_name: fault-detector
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_target: fault-detector
-          context:
-            - oplabs-gcr
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
@@ -1661,7 +1645,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(fault-detector|proxyd|indexer|ci-builder|op-[a-z0-9\-]*)\/v.*/
+              only: /^(proxyd|indexer|ci-builder|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-release:
@@ -1722,23 +1706,6 @@ workflows:
           docker_file: op-challenger/Dockerfile
           docker_name: op-challenger
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_context: .
-          platforms: "linux/amd64,linux/arm64"
-          context:
-            - oplabs-gcr-release
-          requires:
-            - hold
-      - docker-release:
-          name: fault-detector-docker-release
-          filters:
-            tags:
-              only: /^fault-detector\/v.*/
-            branches:
-              ignore: /.*/
-          docker_file: ./ops/docker/Dockerfile.packages
-          docker_name: fault-detector
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_target: fault-detector
           docker_context: .
           platforms: "linux/amd64,linux/arm64"
           context:
