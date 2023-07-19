@@ -70,6 +70,8 @@ func TestMain(m *testing.M) {
 
 		cmd := exec.Command(externalL2Nodes, "--init")
 		cmd.Dir = filepath.Dir(shimPath)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
 			fmt.Printf("Could not initialize external L2 node command: %s\n", err)
 			os.Exit(4)
