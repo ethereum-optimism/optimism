@@ -5,7 +5,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer/db"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum-optimism/optimism/op-service/backoff"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -45,6 +44,11 @@ func (s *StandardBridge) GetWithdrawalsByBlockRange(ctx context.Context, start, 
 		return nil, err
 	}
 
+	l2L1MpABI, err := bindings.L2ToL1MessagePasserMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+
 	receipts := make(map[common.Hash]*types.Receipt)
 	defer iter.Close()
 	for iter.Next() {
@@ -61,7 +65,7 @@ func (s *StandardBridge) GetWithdrawalsByBlockRange(ctx context.Context, start, 
 
 			var withdrawalInitiated *bindings.L2ToL1MessagePasserMessagePassed
 			for _, eLog := range receipt.Logs {
-				if len(eLog.Topics) == 0 || eLog.Topics[0] != withdrawals.MessagePassedTopic {
+				if len(eLog.Topics) == 0 || eLog.Topics[0] != l2L1MpABI.Events["MessagePassed"].ID {
 					continue
 				}
 
@@ -76,11 +80,7 @@ func (s *StandardBridge) GetWithdrawalsByBlockRange(ctx context.Context, start, 
 				}
 			}
 
-			hash, err := withdrawals.WithdrawalHash(withdrawalInitiated)
-			if err != nil {
-				return nil, err
-			}
-
+			hash := common.Hash(withdrawalInitiated.WithdrawalHash)
 			withdrawalsByBlockhash[ev.Raw.BlockHash] = append(
 				withdrawalsByBlockhash[ev.Raw.BlockHash], db.Withdrawal{
 					TxHash:      ev.Raw.TxHash,
