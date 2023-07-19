@@ -49,7 +49,8 @@ jobs:
         id: changesets
         with:
           createGithubReleases: false
-          publish: pnpm release
+          publish: pnpm release:publish
+          version: pnpm release:version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
