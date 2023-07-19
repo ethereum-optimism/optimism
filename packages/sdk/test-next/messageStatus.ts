@@ -43,8 +43,8 @@ describe('prove message', () => {
 
     expect(txReceipt).toBeDefined()
 
-    expect(await crossChainMessenger.getMessageStatus(txWithdrawalHash, 0, 0, 0)).toBe(
-      MessageStatus.RELAYED
-    )
+    expect(
+      await crossChainMessenger.getMessageStatus(txWithdrawalHash, 0, 0, 0)
+    ).toBe(MessageStatus.RELAYED)
   }, 20_000)
 })
