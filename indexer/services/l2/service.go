@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/metrics"
+	op_legacy "github.com/ethereum-optimism/optimism/indexer/op-legacy"
 	"github.com/ethereum-optimism/optimism/indexer/server"
 	"github.com/ethereum-optimism/optimism/indexer/services/query"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum-optimism/optimism/indexer/db"
@@ -122,7 +122,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		headerSelector: confirmedHeaderSelector,
 		metrics:        cfg.Metrics,
 		tokenCache: map[common.Address]*db.Token{
-			predeploys.LegacyERC20ETHAddr: db.ETHL1Token,
+			op_legacy.LegacyERC20ETHAddr: db.ETHL1Token,
 		},
 	}
 	service.wg.Add(1)
