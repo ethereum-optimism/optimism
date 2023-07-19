@@ -13,6 +13,12 @@ test: pre-test
 lint:
 	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is"
 
+test-external-%: pre-test external_%/shim
+	go test -v --externalL2 ./external_$*/shim
+
+external_%/shim: external_%/*.go
+	go build -o external_$*/shim ./external_$*/
+
 .PHONY: \
 	test \
 	lint
