@@ -45,5 +45,6 @@
   "l1StartingBlockTag": "earliest",
   "l2GenesisRegolithTimeOffset": "0x0",
   "faultGameAbsolutePrestate": 140,
-  "faultGameMaxDepth": 4
+  "faultGameMaxDepth": 4,
+  "faultGameMaxDuration": 604800
 }

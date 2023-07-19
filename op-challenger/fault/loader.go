@@ -56,6 +56,8 @@ func (l *loader) fetchClaim(ctx context.Context, arrIndex uint64) (Claim, error)
 			Value:    fetchedClaim.Claim,
 			Position: NewPositionFromGIndex(fetchedClaim.Position.Uint64()),
 		},
+		Countered:           fetchedClaim.Countered,
+		Clock:               fetchedClaim.Clock.Uint64(),
 		ContractIndex:       int(arrIndex),
 		ParentContractIndex: int(fetchedClaim.ParentIndex),
 	}

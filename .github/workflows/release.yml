@@ -2,12 +2,6 @@ name: Release and version
 
 on:
   workflow_dispatch:
-    inputs:
-      branch:
-        description: "Trigger a release workflow"
-        type: string
-        default: "develop"
-        required: true
   push:
     branches:
       - develop
@@ -38,10 +32,11 @@ jobs:
       id-token: write
     steps:
       - name: Checkout Repo
-        uses: actions/checkout@develop
+        uses: actions/checkout@v3
         with:
           # This makes Actions fetch all Git history so that Changesets can generate changelogs with the correct commits
           fetch-depth: 0
+          ref: "develop"
 
       - name: Setup
         uses: ./.github/actions/setup
@@ -54,7 +49,8 @@ jobs:
         id: changesets
         with:
           createGithubReleases: false
-          publish: pnpm release
+          publish: pnpm release:publish
+          version: pnpm release:version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -49,7 +49,13 @@ func (c *ClaimData) ValueBytes() [32]byte {
 // and the Parent field is empty & meaningless.
 type Claim struct {
 	ClaimData
-	Parent ClaimData
+	// WARN: Countered is a mutable field in the FaultDisputeGame contract
+	//       and rely on it for determining whether to step on leaf claims.
+	//       When caching is implemented for the Challenger, this will need
+	//       to be changed/removed to avoid invalid/stale contract state.
+	Countered bool
+	Clock     uint64
+	Parent    ClaimData
 	// Location of the claim & it's parent inside the contract. Does not exist
 	// for claims that have not made it to the contract.
 	ContractIndex       int
