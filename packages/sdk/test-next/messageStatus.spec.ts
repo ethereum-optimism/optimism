@@ -11,33 +11,28 @@ const crossChainMessenger = new CrossChainMessenger({
   bedrock: true,
 })
 
-describe('prove message', () => {
+describe('getMessageStatus', () => {
   it(`should be able to correctly find a finalized withdrawal`, async () => {
     /**
-     * Tx hash of legacy withdrawal that was claimed
+     * Tx hash of a withdrawal
      *
-     * @see https://goerli-optimism.etherscan.io/tx/0xda9e9c8dfc7718bc1499e1e64d8df6cddbabc46e819475a6c755db286a41b9fa
+     * @see https://goerli-optimism.etherscan.io/tx/0x8fb235a61079f3fa87da66e78c9da075281bc4ba5f1af4b95197dd9480e03bb5
      */
     const txWithdrawalHash =
-      '0xda9e9c8dfc7718bc1499e1e64d8df6cddbabc46e819475a6c755db286a41b9fa'
+      '0x8fb235a61079f3fa87da66e78c9da075281bc4ba5f1af4b95197dd9480e03bb5'
 
     const txReceipt = await l2Provider.getTransactionReceipt(txWithdrawalHash)
 
     expect(txReceipt).toBeDefined()
 
-    expect(await crossChainMessenger.getMessageStatus(txWithdrawalHash)).toBe(
+    expect(await crossChainMessenger.getMessageStatus(txWithdrawalHash, 0, 9370789 - 1000, 9370789)).toBe(
       MessageStatus.RELAYED
     )
   }, 20_000)
 
-  it(`should return null if not in block range`, async () => {
-    /**
-     * Tx hash of legacy withdrawal that was claimed
-     *
-     * @see https://goerli-optimism.etherscan.io/tx/0xda9e9c8dfc7718bc1499e1e64d8df6cddbabc46e819475a6c755db286a41b9fa
-     */
+  it(`should return READY_FOR_RELAY if not in block range`, async () => {
     const txWithdrawalHash =
-      '0xda9e9c8dfc7718bc1499e1e64d8df6cddbabc46e819475a6c755db286a41b9fa'
+      '0x8fb235a61079f3fa87da66e78c9da075281bc4ba5f1af4b95197dd9480e03bb5'
 
     const txReceipt = await l2Provider.getTransactionReceipt(txWithdrawalHash)
 
@@ -45,6 +40,6 @@ describe('prove message', () => {
 
     expect(
       await crossChainMessenger.getMessageStatus(txWithdrawalHash, 0, 0, 0)
-    ).toBe(MessageStatus.RELAYED)
+    ).toBe(MessageStatus.READY_FOR_RELAY)
   }, 20_000)
 })
