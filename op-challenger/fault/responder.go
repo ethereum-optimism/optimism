@@ -55,6 +55,11 @@ func (r *faultResponder) buildFaultAttackData(parentContractIndex int, pivot [32
 	)
 }
 
+// buildResolveData creates the transaction data for the Resolve function.
+func (r *faultResponder) buildResolveData() ([]byte, error) {
+	return r.fdgAbi.Pack("resolve")
+}
+
 // BuildTx builds the transaction for the [faultResponder].
 func (r *faultResponder) BuildTx(ctx context.Context, response Claim) ([]byte, error) {
 	if response.DefendsParent() {
@@ -70,6 +75,16 @@ func (r *faultResponder) BuildTx(ctx context.Context, response Claim) ([]byte, e
 		}
 		return txData, nil
 	}
+}
+
+// Resolve executes a resolve transaction to resolve a fault dispute game.
+func (r *faultResponder) Resolve(ctx context.Context) error {
+	txData, err := r.buildResolveData()
+	if err != nil {
+		return err
+	}
+
+	return r.sendTxAndWait(ctx, txData)
 }
 
 // Respond takes a [Claim] and executes the response action.
