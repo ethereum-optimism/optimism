@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"math/big"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/go-redis/redis/v8"
@@ -56,6 +58,7 @@ type Server struct {
 	mainLim                FrontendRateLimiter
 	overrideLims           map[string]FrontendRateLimiter
 	senderLim              FrontendRateLimiter
+	allowedChainIds        []*big.Int
 	limExemptOrigins       []*regexp.Regexp
 	limExemptUserAgents    []*regexp.Regexp
 	globallyLimitedMethods map[string]bool
@@ -173,6 +176,7 @@ func NewServer(
 		overrideLims:           overrideLims,
 		globallyLimitedMethods: globalMethodLims,
 		senderLim:              senderLim,
+		allowedChainIds:        senderRateLimitConfig.AllowedChainIds,
 		limExemptOrigins:       limExemptOrigins,
 		limExemptUserAgents:    limExemptUserAgents,
 	}, nil
@@ -654,6 +658,13 @@ func (s *Server) rateLimitSender(ctx context.Context, req *RPCReq) error {
 		return ErrInvalidParams(err.Error())
 	}
 
+	// Check if the transaction is for the expected chain,
+	// otherwise reject before rate limiting to avoid replay attacks.
+	if !s.isAllowedChainId(tx.ChainId()) {
+		log.Debug("chain id is not allowed", "req_id", GetReqID(ctx))
+		return txpool.ErrInvalidSender
+	}
+
 	// Convert the transaction into a Message object so that we can get the
 	// sender. This method performs an ecrecover, which can be expensive.
 	msg, err := core.TransactionToMessage(tx, types.LatestSignerForChainID(tx.ChainId()), nil)
@@ -672,6 +683,18 @@ func (s *Server) rateLimitSender(ctx context.Context, req *RPCReq) error {
 	}
 
 	return nil
+}
+
+func (s *Server) isAllowedChainId(chainId *big.Int) bool {
+	if s.allowedChainIds == nil || len(s.allowedChainIds) == 0 {
+		return true
+	}
+	for _, id := range s.allowedChainIds {
+		if chainId.Cmp(id) == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 func setCacheHeader(w http.ResponseWriter, cached bool) {
