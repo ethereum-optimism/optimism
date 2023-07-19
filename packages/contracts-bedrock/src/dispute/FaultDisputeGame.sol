@@ -335,11 +335,15 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     }
 
     /// @inheritdoc IDisputeGame
+    function extraDataLen() public pure returns (uint256 extraDataLen_) {
+        // The extra data length is in the second word of the cwia calldata.
+        extraDataLen_ = _getArgUint256(0x20);
+    }
+
+    /// @inheritdoc IDisputeGame
     function extraData() public pure returns (bytes memory extraData_) {
-        // The extra data starts at the second word within the cwia calldata.
-        // TODO: What data do we need to pass along to this contract from the factory?
-        //       Block hash, preimage data, etc.?
-        extraData_ = _getArgDynBytes(0x20, 0x20);
+        // The extra data starts at the third word within the cwia calldata.
+        extraData_ = _getArgDynBytes(0x40, uint64(extraDataLen()));
     }
 
     /// @inheritdoc IDisputeGame
