@@ -1,5 +1,4 @@
 ---
-'@eth-optimism/contracts-periphery': patch
 '@eth-optimism/contracts-bedrock': patch
 '@eth-optimism/fault-detector': patch
 '@eth-optimism/core-utils': patch
