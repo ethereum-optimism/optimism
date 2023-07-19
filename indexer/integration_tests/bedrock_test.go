@@ -18,7 +18,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer/db"
 	"github.com/ethereum-optimism/optimism/indexer/legacy"
-	op_legacy "github.com/ethereum-optimism/optimism/indexer/op-legacy"
 	"github.com/ethereum-optimism/optimism/indexer/services/l1"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -149,7 +148,7 @@ func TestBedrockIndexer(t *testing.T) {
 
 		// Perform withdrawal through bridge
 		l2Opts.Value = big.NewInt(0.5 * params.Ether)
-		wdTx, err := l2SB.Withdraw(l2Opts, op_legacy.LegacyERC20ETHAddr, big.NewInt(0.5*params.Ether), 0, nil)
+		wdTx, err := l2SB.Withdraw(l2Opts, predeploys.LegacyERC20ETHAddr, big.NewInt(0.5*params.Ether), 0, nil)
 		require.NoError(t, err)
 		wdReceipt, err := utils.WaitReceiptOK(e2eutils.TimeoutCtx(t, 30*time.Second), l2Client, wdTx.Hash())
 		require.NoError(t, err)
