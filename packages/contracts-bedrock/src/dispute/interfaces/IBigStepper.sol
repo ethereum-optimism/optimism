@@ -31,4 +31,15 @@ interface IBigStepper {
     function step(bytes calldata _stateData, bytes calldata _proof)
         external
         returns (bytes32 postState_);
+
+    /// @notice Returns the preimage oracle used by the stepper.
+    function oracle() external view returns (IPreimageOracle oracle_);
+}
+
+/// @notice Temporary interface for the `IPreimageOracle`. Remove once we've upgraded
+///         the cannon contracts to a newer version of solc.
+interface IPreimageOracle {
+    /// @notice Loads local data into the pre-image oracle in the context of the caller.
+    /// @param _bootInfo The boot info struct encoded as a tuple of .
+    function loadLocalData(bytes memory _bootInfo) external;
 }
