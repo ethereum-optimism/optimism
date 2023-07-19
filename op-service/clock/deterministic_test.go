@@ -2,6 +2,7 @@ package clock
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -154,6 +155,38 @@ func TestNewTicker(t *testing.T) {
 
 		clock.AdvanceTime(1 * time.Second)
 		require.Len(t, ticker.Ch(), 0, "should not fire until due again")
+	})
+
+	t.Run("SkipsFiringWhenProcessingIsSlow", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		ticker := clock.NewTicker(5 * time.Second)
+
+		// Fire once to fill the channel queue
+		clock.AdvanceTime(5 * time.Second)
+		firstEventTime := clock.Now()
+
+		var startProcessing sync.WaitGroup
+		startProcessing.Add(1)
+		processedTicks := make(chan time.Time)
+		go func() {
+			startProcessing.Wait()
+			// Read two events then exit
+			for i := 0; i < 2; i++ {
+				event := <-ticker.Ch()
+				processedTicks <- event
+			}
+		}()
+
+		// Advance time further before processing of events has started
+		// Can't publish any further events to the channel but shouldn't block
+		clock.AdvanceTime(30 * time.Second)
+
+		// Allow processing to start
+		startProcessing.Done()
+		require.Equal(t, firstEventTime, <-processedTicks, "Should process first event")
+
+		clock.AdvanceTime(5 * time.Second)
+		require.Equal(t, clock.Now(), <-processedTicks, "Should skip to latest time")
 	})
 
 	t.Run("StopFiring", func(t *testing.T) {
