@@ -30,7 +30,11 @@ contract SchemaRegistry is ISchemaRegistry, Semver {
     /**
      * @inheritdoc ISchemaRegistry
      */
-    function register(string calldata schema, ISchemaResolver resolver, bool revocable) external returns (bytes32) {
+    function register(
+        string calldata schema,
+        ISchemaResolver resolver,
+        bool revocable
+    ) external returns (bytes32) {
         SchemaRecord memory schemaRecord = SchemaRecord({
             uid: EMPTY_UID,
             schema: schema,
@@ -66,6 +70,9 @@ contract SchemaRegistry is ISchemaRegistry, Semver {
      * @return schema UID.
      */
     function _getUID(SchemaRecord memory schemaRecord) private pure returns (bytes32) {
-        return keccak256(abi.encodePacked(schemaRecord.schema, schemaRecord.resolver, schemaRecord.revocable));
+        return
+            keccak256(
+                abi.encodePacked(schemaRecord.schema, schemaRecord.resolver, schemaRecord.revocable)
+            );
     }
 }

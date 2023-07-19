@@ -34,7 +34,11 @@ interface ISchemaRegistry {
      *
      * @return The UID of the new schema.
      */
-    function register(string calldata schema, ISchemaResolver resolver, bool revocable) external returns (bytes32);
+    function register(
+        string calldata schema,
+        ISchemaResolver resolver,
+        bool revocable
+    ) external returns (bytes32);
 
     /**
      * @dev Returns an existing schema by UID

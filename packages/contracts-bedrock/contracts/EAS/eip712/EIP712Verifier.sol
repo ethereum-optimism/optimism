@@ -14,18 +14,26 @@ import {
     RevocationRequestData
 } from "../IEAS.sol";
 
-import { EIP712Signature, InvalidSignature, MAX_GAP, stringToBytes32, bytes32ToString } from "../Common.sol";
+import {
+    EIP712Signature,
+    InvalidSignature,
+    MAX_GAP,
+    stringToBytes32,
+    bytes32ToString
+} from "../Common.sol";
 
 /// @title EIP712
 /// @notice The EIP712 typed signatures verifier for EAS delegated attestations.
 abstract contract EIP712Verifier is EIP712 {
     // The hash of the data type used to relay calls to the attest function. It's the value of
     // keccak256("Attest(bytes32 schema,address recipient,uint64 expirationTime,bool revocable,bytes32 refUID,bytes data,uint256 nonce)").
-    bytes32 private constant ATTEST_TYPEHASH = 0xdbfdf8dc2b135c26253e00d5b6cbe6f20457e003fd526d97cea183883570de61;
+    bytes32 private constant ATTEST_TYPEHASH =
+        0xdbfdf8dc2b135c26253e00d5b6cbe6f20457e003fd526d97cea183883570de61;
 
     // The hash of the data type used to relay calls to the revoke function. It's the value of
     // keccak256("Revoke(bytes32 schema,bytes32 uid,uint256 nonce)").
-    bytes32 private constant REVOKE_TYPEHASH = 0xa98d02348410c9c76735e0d0bb1396f4015ac2bb9615f9c2611d19d7a8a99650;
+    bytes32 private constant REVOKE_TYPEHASH =
+        0xa98d02348410c9c76735e0d0bb1396f4015ac2bb9615f9c2611d19d7a8a99650;
 
     // The user readable name of the signing domain.
     bytes32 private immutable _name;
@@ -132,7 +140,9 @@ abstract contract EIP712Verifier is EIP712 {
             nonce = _nonces[request.revoker]++;
         }
 
-        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(REVOKE_TYPEHASH, request.schema, data.uid, nonce)));
+        bytes32 digest = _hashTypedDataV4(
+            keccak256(abi.encode(REVOKE_TYPEHASH, request.schema, data.uid, nonce))
+        );
 
         if (ECDSA.recover(digest, signature.v, signature.r, signature.s) != request.revoker) {
             revert InvalidSignature();

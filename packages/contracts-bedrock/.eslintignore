@@ -6,6 +6,4 @@ lib
 artifacts
 forge-artifacts
 cache
-typechain
-coverage*
 deployments
