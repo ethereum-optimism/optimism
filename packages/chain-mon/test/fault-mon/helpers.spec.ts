@@ -6,7 +6,10 @@ import Artifact__L2OutputOracle from '@eth-optimism/contracts-bedrock/forge-arti
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
 import { expect } from './setup'
-import { findOutputForIndex, findFirstUnfinalizedStateBatchIndex } from '../../src/fault-mon'
+import {
+  findOutputForIndex,
+  findFirstUnfinalizedStateBatchIndex,
+} from '../../src/fault-mon'
 
 describe('helpers', () => {
   const deployConfig = {
@@ -112,7 +115,7 @@ describe('helpers', () => {
         await L2OutputOracle.proposeL2Output(
           utils.formatBytes32String('outputRoot3'),
           params._l2BlockNumber +
-          deployConfig.l2OutputOracleSubmissionInterval * 2,
+            deployConfig.l2OutputOracleSubmissionInterval * 2,
           params._l1BlockHash,
           params._l1BlockNumber
         )
@@ -154,7 +157,7 @@ describe('helpers', () => {
         await L2OutputOracle.proposeL2Output(
           params._outputRoot,
           params._l2BlockNumber +
-          deployConfig.l2OutputOracleSubmissionInterval * 2,
+            deployConfig.l2OutputOracleSubmissionInterval * 2,
           params._l1BlockHash,
           params._l1BlockNumber
         )
@@ -196,7 +199,7 @@ describe('helpers', () => {
         await L2OutputOracle.proposeL2Output(
           params._outputRoot,
           params._l2BlockNumber +
-          deployConfig.l2OutputOracleSubmissionInterval * 2,
+            deployConfig.l2OutputOracleSubmissionInterval * 2,
           params._l1BlockHash,
           params._l1BlockNumber
         )

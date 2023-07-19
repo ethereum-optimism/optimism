@@ -387,7 +387,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
           new Date(
             (ethers.BigNumber.from(outputBlock.timestamp).toNumber() +
               this.state.faultProofWindow) *
-            1000
+              1000
           ),
           'mmmm dS, yyyy, h:MM:ss TT'
         ),
