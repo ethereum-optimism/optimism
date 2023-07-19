@@ -1496,12 +1496,12 @@ workflows:
           name: op-e2e-WS-tests-external-geth
           module: op-e2e
           use_http: "false"
-          use_external: "external_geth/shim"
+          use_external: "external_erigon/shim"
       - go-e2e-test:
           name: op-e2e-HTTP-tests-external-geth
           module: op-e2e
           use_http: "true"
-          use_external: "external_geth/shim"
+          use_external: "external_erigon/shim"
       - bedrock-go-tests:
           requires:
             - op-batcher-lint
