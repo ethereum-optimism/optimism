@@ -40,11 +40,17 @@ func Main(logger log.Logger, cfg *config.Config) error {
 
 	agent := fault.NewAgent(loader, gameDepth, trace, responder, cfg.AgreeWithProposedOutput, logger)
 
+	caller, err := fault.NewFaultCallerFromBindings(cfg.GameAddress, client, logger)
+	if err != nil {
+		return fmt.Errorf("failed to bind the fault contract: %w", err)
+	}
+
 	logger.Info("Fault game started")
 
 	for {
 		logger.Info("Performing action")
 		_ = agent.Act()
+		caller.LogGameInfo()
 		time.Sleep(300 * time.Millisecond)
 	}
 }

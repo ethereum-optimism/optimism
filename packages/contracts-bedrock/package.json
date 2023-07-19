@@ -9,8 +9,10 @@
     "contracts/**/*.sol"
   ],
   "scripts": {
-    "bindings": "cd ../../op-bindings && make",
-    "build": "npx nx build:contracts",
+    "bindings": "pnpm bindings:ts && pnpm bindings:go",
+    "bindings:ts": "pnpm generate:addresses && nx generate @eth-optimism/contracts-ts",
+    "bindings:go": "cd ../../op-bindings && make",
+    "build": "nx build:contracts",
     "prebuild:contracts": "./scripts/verify-foundry-install.sh",
     "build:contracts": "pnpm build:forge",
     "build:forge": "forge build",
