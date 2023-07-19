@@ -32,7 +32,7 @@ func main() {
 
 	addr, err := resolveAddr(ctx, client, keyName)
 	if err != nil {
-		panic("failed to retrieve the key")
+		panic(fmt.Sprintf("failed to retrieve the key: %w", err))
 	}
 	fmt.Printf("ethereum addr: %s", addr)
 	println()
@@ -42,12 +42,12 @@ func main() {
 func resolveAddr(ctx context.Context, client *kms.KeyManagementClient, keyName string) (common.Address, error) {
 	resp, err := client.GetPublicKey(ctx, &kmspb.GetPublicKeyRequest{Name: keyName})
 	if err != nil {
-		return common.Address{}, fmt.Errorf("Google KMS public key %q lookup: %w", keyName, err)
+		return common.Address{}, fmt.Errorf("google kms public key %q lookup: %w", keyName, err)
 	}
 
 	block, _ := pem.Decode([]byte(resp.Pem))
 	if block == nil {
-		return common.Address{}, fmt.Errorf("Google KMS public key %q PEM empty: %.130q", keyName, resp.Pem)
+		return common.Address{}, fmt.Errorf("google kms public key %q pem empty: %.130q", keyName, resp.Pem)
 	}
 
 	var info struct {
@@ -56,12 +56,12 @@ func resolveAddr(ctx context.Context, client *kms.KeyManagementClient, keyName s
 	}
 	_, err = asn1.Unmarshal(block.Bytes, &info)
 	if err != nil {
-		return common.Address{}, fmt.Errorf("Google KMS public key %q PEM block %q: %v", keyName, block.Type, err)
+		return common.Address{}, fmt.Errorf("google kms public key %q pem block %q: %v", keyName, block.Type, err)
 	}
 
 	wantAlg := asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
 	if gotAlg := info.AlgID.Algorithm; !gotAlg.Equal(wantAlg) {
-		return common.Address{}, fmt.Errorf("Google KMS public key %q ASN.1 algorithm %s intead of %s", keyName, gotAlg, wantAlg)
+		return common.Address{}, fmt.Errorf("google kms public key %q asn.1 algorithm %s intead of %s", keyName, gotAlg, wantAlg)
 	}
 
 	return pubKeyAddr(info.Key.Bytes), nil
