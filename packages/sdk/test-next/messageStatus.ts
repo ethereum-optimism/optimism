@@ -29,4 +29,22 @@ describe('prove message', () => {
       MessageStatus.RELAYED
     )
   }, 20_000)
+
+  it(`should return null if not in block range`, async () => {
+    /**
+     * Tx hash of legacy withdrawal that was claimed
+     *
+     * @see https://goerli-optimism.etherscan.io/tx/0xda9e9c8dfc7718bc1499e1e64d8df6cddbabc46e819475a6c755db286a41b9fa
+     */
+    const txWithdrawalHash =
+      '0xda9e9c8dfc7718bc1499e1e64d8df6cddbabc46e819475a6c755db286a41b9fa'
+
+    const txReceipt = await l2Provider.getTransactionReceipt(txWithdrawalHash)
+
+    expect(txReceipt).toBeDefined()
+
+    expect(await crossChainMessenger.getMessageStatus(txWithdrawalHash, 0, 0, 0)).toBe(
+      MessageStatus.RELAYED
+    )
+  }, 20_000)
 })
