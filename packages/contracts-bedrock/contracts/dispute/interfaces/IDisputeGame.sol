@@ -22,16 +22,20 @@ interface IDisputeGame is IInitializable {
     function status() external view returns (GameStatus status_);
 
     /// @notice Getter for the game type.
-    /// @dev `clones-with-immutable-args` argument #1
     /// @dev The reference impl should be entirely different depending on the type (fault, validity)
     ///      i.e. The game type should indicate the security model.
     /// @return gameType_ The type of proof system being used.
     function gameType() external pure returns (GameType gameType_);
 
     /// @notice Getter for the root claim.
-    /// @dev `clones-with-immutable-args` argument #2
+    /// @dev `clones-with-immutable-args` argument #1
     /// @return rootClaim_ The root claim of the DisputeGame.
     function rootClaim() external pure returns (Claim rootClaim_);
+
+    /// @notice Getter for the length of the extra data.
+    /// @dev `clones-with-immutable-args` argument #2
+    /// @return extraDataLen_ The length of the `extraData`
+    function extraDataLen() external pure returns (uint256 extraDataLen_);
 
     /// @notice Getter for the extra data.
     /// @dev `clones-with-immutable-args` argument #3

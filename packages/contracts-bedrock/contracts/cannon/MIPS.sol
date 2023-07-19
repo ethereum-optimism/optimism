@@ -168,6 +168,19 @@ contract MIPS {
             else if (a0 == FD_PREIMAGE_READ) {
                 // verify proof 1 is correct, and get the existing memory.
                 uint32 mem = readMem(a1 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
+                bytes32 preimageKey = state.preimageKey;
+                assembly {
+                    // If the preimage key has a local data type, we need to hash it with the sender address
+                    // (the dispute game) to get the context-specific key and re-set it's type byte.
+                    if eq(byte(0, preimageKey), 1) {
+                        // Store preimage key and caller in scratch space
+                        mstore(0x00, preimageKey)
+                        mstore(0x20, caller())
+                        // Local key alteration for the sender's context:
+                        // localize(k) = H(k .. sender) & ~(0xFF << 248) | (0x01 << 248)
+                        preimageKey := or(and(keccak256(0x00, 0x40), not(shl(248, 0xFF))), shl(248, 0x01))
+                    }
+                }
                 (bytes32 dat, uint256 datLen) = oracle.readPreimage(state.preimageKey, state.preimageOffset);
 
                 // Transform data for writing to memory
