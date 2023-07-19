@@ -21,6 +21,8 @@
 - [OptimismMintableERC721Factory](#optimismmintableerc721factory)
 - [BaseFeeVault](#basefeevault)
 - [L1FeeVault](#l1feevault)
+- [SchemaRegistry](#schemaregistry)
+- [EAS](#eas)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
