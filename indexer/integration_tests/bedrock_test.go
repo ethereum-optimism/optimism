@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
+	"github.com/ethereum-optimism/optimism/op-service/client/utils"
 
 	_ "github.com/lib/pq"
 )
@@ -44,7 +45,7 @@ func TestBedrockIndexer(t *testing.T) {
 	fromAddr := cfg.Secrets.Addresses().Alice
 
 	// wait a couple of blocks
-	require.NoError(t, e2eutils.WaitBlock(e2eutils.TimeoutCtx(t, 30*time.Second), l2Client, 10))
+	require.NoError(t, utils.WaitBlock(e2eutils.TimeoutCtx(t, 30*time.Second), l2Client, 10))
 
 	l1SB, err := bindings.NewL1StandardBridge(predeploys.DevL1StandardBridgeAddr, l1Client)
 	require.NoError(t, err)
@@ -99,7 +100,7 @@ func TestBedrockIndexer(t *testing.T) {
 		l1Opts.Value = big.NewInt(params.Ether)
 		depTx, err := l1SB.DepositETH(l1Opts, 200_000, nil)
 		require.NoError(t, err)
-		depReceipt, err := e2eutils.WaitReceiptOK(e2eutils.TimeoutCtx(t, 10*time.Second), l1Client, depTx.Hash())
+		depReceipt, err := utils.WaitReceiptOK(e2eutils.TimeoutCtx(t, 10*time.Second), l1Client, depTx.Hash())
 		require.NoError(t, err)
 		require.Greaterf(t, len(depReceipt.Logs), 0, "must have logs")
 		var l2Hash common.Hash
@@ -114,12 +115,12 @@ func TestBedrockIndexer(t *testing.T) {
 			l2Hash = tx.Hash()
 		}
 		require.NotEqual(t, common.Hash{}, l2Hash)
-		_, err = e2eutils.WaitReceiptOK(e2eutils.TimeoutCtx(t, 15*time.Second), l2Client, l2Hash)
+		_, err = utils.WaitReceiptOK(e2eutils.TimeoutCtx(t, 15*time.Second), l2Client, l2Hash)
 		require.NoError(t, err)
 
 		// Poll for indexer deposit
 		var depPage *db.PaginatedDeposits
-		require.NoError(t, e2eutils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {
+		require.NoError(t, utils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {
 			res := new(db.PaginatedDeposits)
 			err := getJSON(makeURL(fmt.Sprintf("v1/deposits/%s", fromAddr)), res)
 			if err != nil {
@@ -150,11 +151,11 @@ func TestBedrockIndexer(t *testing.T) {
 		l2Opts.Value = big.NewInt(0.5 * params.Ether)
 		wdTx, err := l2SB.Withdraw(l2Opts, op_legacy.LegacyERC20ETHAddr, big.NewInt(0.5*params.Ether), 0, nil)
 		require.NoError(t, err)
-		wdReceipt, err := e2eutils.WaitReceiptOK(e2eutils.TimeoutCtx(t, 30*time.Second), l2Client, wdTx.Hash())
+		wdReceipt, err := utils.WaitReceiptOK(e2eutils.TimeoutCtx(t, 30*time.Second), l2Client, wdTx.Hash())
 		require.NoError(t, err)
 
 		var wdPage *db.PaginatedWithdrawals
-		require.NoError(t, e2eutils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {
+		require.NoError(t, utils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {
 			res := new(db.PaginatedWithdrawals)
 			err := getJSON(makeURL(fmt.Sprintf("v1/withdrawals/%s", fromAddr)), res)
 			if err != nil {
@@ -188,7 +189,7 @@ func TestBedrockIndexer(t *testing.T) {
 		wdParams, proveReceipt := op_e2e.ProveWithdrawal(t, cfg, l1Client, sys.Nodes["sequencer"], cfg.Secrets.Alice, wdReceipt)
 
 		wdPage = nil
-		require.NoError(t, e2eutils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {
+		require.NoError(t, utils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {
 			res := new(db.PaginatedWithdrawals)
 			err := getJSON(makeURL(fmt.Sprintf("v1/withdrawals/%s", fromAddr)), res)
 			if err != nil {
@@ -213,7 +214,7 @@ func TestBedrockIndexer(t *testing.T) {
 		finReceipt := op_e2e.FinalizeWithdrawal(t, cfg, l1Client, cfg.Secrets.Alice, wdReceipt, wdParams)
 
 		wdPage = nil
-		require.NoError(t, e2eutils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {
+		require.NoError(t, utils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {
 			res := new(db.PaginatedWithdrawals)
 			err := getJSON(makeURL(fmt.Sprintf("v1/withdrawals/%s", fromAddr)), res)
 			if err != nil {
