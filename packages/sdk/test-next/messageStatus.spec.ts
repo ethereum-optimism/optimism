@@ -25,9 +25,14 @@ describe('getMessageStatus', () => {
 
     expect(txReceipt).toBeDefined()
 
-    expect(await crossChainMessenger.getMessageStatus(txWithdrawalHash, 0, 9370789 - 1000, 9370789)).toBe(
-      MessageStatus.RELAYED
-    )
+    expect(
+      await crossChainMessenger.getMessageStatus(
+        txWithdrawalHash,
+        0,
+        9370789 - 1000,
+        9370789
+      )
+    ).toBe(MessageStatus.RELAYED)
   }, 20_000)
 
   it(`should return READY_FOR_RELAY if not in block range`, async () => {
