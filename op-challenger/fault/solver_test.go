@@ -111,18 +111,29 @@ func TestAttemptStep(t *testing.T) {
 		},
 	}
 
-	step, err := solver.AttemptStep(bottom)
+	step, err := solver.AttemptStep(bottom, false)
 	require.NoError(t, err)
 	require.Equal(t, bottom, step.LeafClaim)
 	require.True(t, step.IsAttack)
 	require.Equal(t, step.PreState, BuildAlphabetPreimage(3, "d"))
 
-	_, err = solver.AttemptStep(middle)
+	_, err = solver.AttemptStep(middle, false)
 	require.Error(t, err)
 
-	step, err = solver.AttemptStep(zero)
+	step, err = solver.AttemptStep(zero, false)
 	require.NoError(t, err)
 	require.Equal(t, zero, step.LeafClaim)
 	require.True(t, step.IsAttack)
 	require.Equal(t, canonicalProvider.AbsolutePreState(), step.PreState)
+}
+
+func TestAttempStep_AgreeWithClaimLevel_Fails(t *testing.T) {
+	maxDepth := 3
+	canonicalProvider := NewAlphabetProvider("abcdefgh", uint64(maxDepth))
+	solver := NewSolver(maxDepth, canonicalProvider)
+	_, _, middle, _ := createTestClaims()
+
+	step, err := solver.AttemptStep(middle, true)
+	require.Error(t, err)
+	require.Equal(t, StepData{}, step)
 }
