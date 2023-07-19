@@ -11,7 +11,7 @@ import "../libraries/DisputeTypes.sol";
 import "../libraries/DisputeErrors.sol";
 import { LibClock } from "../dispute/lib/LibClock.sol";
 import { LibPosition } from "../dispute/lib/LibPosition.sol";
-import { IBigStepper } from "../dispute/interfaces/IBigStepper.sol";
+import { IBigStepper, IPreimageOracle } from "../dispute/interfaces/IBigStepper.sol";
 
 contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     /// @dev The extra data passed to the game for initialization.
@@ -889,9 +889,16 @@ contract VariableDivergentPlayer is GamePlayer {
 
 contract AlphabetVM is IBigStepper {
     Claim internal immutable ABSOLUTE_PRESTATE;
+    IPreimageOracle public oracle;
 
     constructor(Claim _absolutePrestate) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
+        // Deploy a noop preimage oracle
+        assembly {
+            mstore(0x00, 0x60016000F3)
+            let size := 5
+            sstore(oracle.slot, create(0, sub(0x20, size), size))
+        }
     }
 
     /// @inheritdoc IBigStepper

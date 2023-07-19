@@ -93,7 +93,9 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
         }
 
         // Clone the implementation contract and initialize it with the given parameters.
-        proxy = IDisputeGame(address(impl).clone(abi.encodePacked(rootClaim, extraData.length, extraData)));
+        proxy = IDisputeGame(
+            address(impl).clone(abi.encodePacked(rootClaim, extraData.length, extraData))
+        );
         proxy.initialize();
 
         // Compute the unique identifier for the dispute game.

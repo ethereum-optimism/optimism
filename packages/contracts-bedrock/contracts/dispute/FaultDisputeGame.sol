@@ -382,6 +382,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
                 countered: false
             })
         );
+
+        // Load the local data into the preimage oracle.
+        VM.oracle().loadLocalData(extraData());
     }
 
     /// @notice Returns the length of the `claimData` array.
