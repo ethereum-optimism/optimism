@@ -29,7 +29,12 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     function init(Claim rootClaim, Claim absolutePrestate) public {
         super.setUp();
         // Deploy an implementation of the fault game
-        gameImpl = new FaultDisputeGame(absolutePrestate, 4, new AlphabetVM(absolutePrestate));
+        gameImpl = new FaultDisputeGame(
+            absolutePrestate,
+            4,
+            Duration.wrap(7 days),
+            new AlphabetVM(absolutePrestate)
+        );
         // Register the game implementation with the factory.
         factory.setImplementation(GAME_TYPE, gameImpl);
         // Create a new game.
