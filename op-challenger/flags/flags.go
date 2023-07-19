@@ -38,6 +38,11 @@ var (
 		Usage:   "Temporary hardcoded flag if we agree or disagree with the proposed output.",
 		EnvVars: prefixEnvVars("AGREE_WITH_PROPOSED_OUTPUT"),
 	}
+	GameDepthFlag = &cli.IntFlag{
+		Name:    "game-depth",
+		Usage:   "Depth of the game tree.",
+		EnvVars: prefixEnvVars("GAME_DEPTH"),
+	}
 	// Optional Flags
 )
 
@@ -47,6 +52,7 @@ var requiredFlags = []cli.Flag{
 	DGFAddressFlag,
 	AlphabetFlag,
 	AgreeWithProposedOutputFlag,
+	GameDepthFlag,
 }
 
 // optionalFlags is a list of unchecked cli flags
