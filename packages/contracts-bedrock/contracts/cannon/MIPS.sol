@@ -56,11 +56,11 @@ contract MIPS {
     IPreimageOracle public oracle;
 
     /// @notice Extends the value leftwards with its most significant bit (sign extension).
-    function SE(uint32 dat, uint32 idx) internal pure returns (uint32) {
-        bool isSigned = (dat >> (idx - 1)) != 0;
-        uint256 signed = ((1 << (32 - idx)) - 1) << idx;
-        uint256 mask = (1 << idx) - 1;
-        return uint32(dat & mask | (isSigned ? signed : 0));
+    function SE(uint32 _dat, uint32 _idx) internal pure returns (uint32) {
+        bool isSigned = (_dat >> (_idx - 1)) != 0;
+        uint256 signed = ((1 << (32 - _idx)) - 1) << _idx;
+        uint256 mask = (1 << _idx) - 1;
+        return uint32(_dat & mask | (isSigned ? signed : 0));
     }
 
     /// @notice Computes the hash of the MIPS state.
@@ -113,23 +113,25 @@ contract MIPS {
     }
 
     /// @notice Handles a syscall.
-    function handleSyscall() internal returns (bytes32) {
+    function handleSyscall() internal returns (bytes32 out_) {
         // Load state from memory
         State memory state;
         assembly {
             state := 0x80
         }
 
+        // Load the syscall number from the registers
         uint32 syscall_no = state.registers[2];
         uint32 v0 = 0;
         uint32 v1 = 0;
 
+        // Load the syscall arguments from the registers
         uint32 a0 = state.registers[4];
         uint32 a1 = state.registers[5];
         uint32 a2 = state.registers[6];
 
+        // mmap: Allocates a page from the heap.
         if (syscall_no == 4090) {
-            // mmap
             uint32 sz = a1;
             if (sz&4095 != 0) { // adjust size to align with page size
                 sz += 4096 - (sz&4095);
@@ -140,27 +142,37 @@ contract MIPS {
             } else {
                 v0 = a0;
             }
-        } else if (syscall_no == 4045) {
-            // brk
+        }
+        // brk: Returns a fixed address for the program break at 0x40000000
+        else if (syscall_no == 4045) {
             v0 = BRK_START;
-        } else if (syscall_no == 4120) {
-            // clone (not supported)
+        }
+        // clone (not supported) returns 1
+        else if (syscall_no == 4120) {
             v0 = 1;
-        } else if (syscall_no == 4246) {
-            // exit group
+        }
+        // exit group: Sets the Exited and ExitCode states to true and argument 0.
+        else if (syscall_no == 4246) {
             state.exited = true;
             state.exitCode = uint8(a0);
             return outputState();
-        } else if (syscall_no == 4003) { // read
+        }
+        // read: Like Linux read syscall. Splits unaligned reads into aligned reads.
+        else if (syscall_no == 4003) {
             // args: a0 = fd, a1 = addr, a2 = count
             // returns: v0 = read, v1 = err code
             if (a0 == FD_STDIN) {
-                // leave v0 and v1 zero: read nothing, no error
-            } else if (a0 == FD_PREIMAGE_READ) { // pre-image oracle
+                // Leave v0 and v1 zero: read nothing, no error
+            }
+            // pre-image oracle read
+            else if (a0 == FD_PREIMAGE_READ) {
                 // verify proof 1 is correct, and get the existing memory.
                 uint32 mem = readMem(a1 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
                 (bytes32 dat, uint256 datLen) = oracle.readPreimage(state.preimageKey, state.preimageOffset);
-                assembly { // assembly for more precise ops, and no var count limit
+
+                // Transform data for writing to memory
+                // We use assembly for more precise ops, and no var count limit
+                assembly {
                     let alignment := and(a1, 3) // the read might not start at an aligned address
                     let space := sub(4, alignment) // remaining space in memory word
                     if lt(space, datLen) { datLen := space } // if less space than data, shorten data
@@ -172,25 +184,38 @@ contract MIPS {
                     mask := and(mask, not(suffixMask)) // reduce mask to just cover the data we insert
                     mem := or(and(mem, not(mask)), dat) // clear masked part of original memory, and insert data
                 }
+
+                // Write memory back
                 writeMem(a1 & 0xFFffFFfc, 1, mem);
                 state.preimageOffset += uint32(datLen);
                 v0 = uint32(datLen);
-            } else if (a0 == FD_HINT_READ) { // hint response
-                // don't actually read into memory, just say we read it all, we ignore the result anyway
+            }
+            // hint response
+            else if (a0 == FD_HINT_READ) {
+                // Don't read into memory, just say we read it all
+                // The result is ignored anyway
                 v0 = a2;
-            } else {
+            }
+            else {
                 v0 = 0xFFffFFff;
                 v1 = EBADF;
             }
-        } else if (syscall_no == 4004) { // write
+        }
+        // write: like Linux write syscall. Splits unaligned writes into aligned writes.
+        else if (syscall_no == 4004) {
             // args: a0 = fd, a1 = addr, a2 = count
             // returns: v0 = written, v1 = err code
             if (a0 == FD_STDOUT || a0 == FD_STDERR || a0 == FD_HINT_WRITE) {
                 v0 = a2; // tell program we have written everything
-            } else if (a0 == FD_PREIMAGE_WRITE) { // pre-image oracle
+            }
+            // pre-image oracle
+            else if (a0 == FD_PREIMAGE_WRITE) {
                 uint32 mem = readMem(a1 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
                 bytes32 key = state.preimageKey;
-                assembly { // assembly for more precise ops, and no var count limit
+
+                // Construct pre-image key from memory
+                // We use assembly for more precise ops, and no var count limit
+                assembly {
                     let alignment := and(a1, 3) // the read might not start at an aligned address
                     let space := sub(4, alignment) // remaining space in memory word
                     if lt(space, a2) { a2 := space } // if less space than data, shorten data
@@ -199,14 +224,20 @@ contract MIPS {
                     mem := and(shr(mul(sub(space, a2), 8), mem), mask) // align value to right, mask it
                     key := or(key, mem) // insert into key
                 }
+
+                // Write pre-image key to oracle
                 state.preimageKey = key;
                 state.preimageOffset = 0; // reset offset, to read new pre-image data from the start
                 v0 = a2;
-            } else {
+            }
+            else {
                 v0 = 0xFFffFFff;
                 v1 = EBADF;
             }
-        } else if (syscall_no == 4055) { // fcntl
+        }
+        // fcntl: Like linux fcntl syscall, but only supports minimal file-descriptor control commands,
+        // to retrieve the file-descriptor R/W flags.
+        else if (syscall_no == 4055) { // fcntl
             // args: a0 = fd, a1 = cmd
             if (a1 == 3) { // F_GETFL: get file descriptor flags
                 if (a0 == FD_STDIN || a0 == FD_PREIMAGE_READ || a0 == FD_HINT_READ) {
@@ -223,13 +254,15 @@ contract MIPS {
             }
         }
 
+        // Write the results back to the state registers
         state.registers[2] = v0;
         state.registers[7] = v1;
 
+        // Update the PC and nextPC
         state.pc = state.nextPC;
         state.nextPC = state.nextPC + 4;
 
-        return outputState();
+        out_ = outputState();
     }
 
     /// @notice Handles a branch instruction, updating the MIPS state PC where needed.

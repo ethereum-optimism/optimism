@@ -241,6 +241,9 @@ type SystemConfig struct {
 
 	// Target L1 tx size for the batcher transactions
 	BatcherTargetL1TxSizeBytes uint64
+
+	// SupportL1TimeTravel determines if the L1 node supports quickly skipping forward in time
+	SupportL1TimeTravel bool
 }
 
 type System struct {
@@ -258,6 +261,13 @@ type System struct {
 	L2OutputSubmitter *l2os.L2OutputSubmitter
 	BatchSubmitter    *bss.BatchSubmitter
 	Mocknet           mocknet.Mocknet
+
+	// TimeTravelClock is nil unless SystemConfig.SupportL1TimeTravel was set to true
+	// It provides access to the clock instance used by the L1 node. Calling TimeTravelClock.AdvanceBy
+	// allows tests to quickly time travel L1 into the future.
+	// Note that this time travel may occur in a single block, creating a very large difference in the Time
+	// on sequential blocks.
+	TimeTravelClock *clock.AdvancingClock
 }
 
 func (sys *System) NodeEndpoint(name string) string {
@@ -339,6 +349,12 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		}
 	}()
 
+	c := clock.SystemClock
+	if cfg.SupportL1TimeTravel {
+		sys.TimeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
+		c = sys.TimeTravelClock
+	}
+
 	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig)
 	if err != nil {
 		return nil, err
@@ -412,7 +428,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	sys.RollupConfig = &defaultConfig
 
 	// Initialize nodes
-	l1Node, l1Backend, err := initL1Geth(&cfg, l1Genesis, cfg.GethOptions["l1"]...)
+	l1Node, l1Backend, err := initL1Geth(&cfg, l1Genesis, c, cfg.GethOptions["l1"]...)
 	if err != nil {
 		return nil, err
 	}

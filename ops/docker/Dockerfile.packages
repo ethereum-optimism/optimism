@@ -30,7 +30,7 @@ RUN mkdir manifests && \
   # .nvmrc
   cp .nvmrc ../manifests/
 
-FROM ethereumoptimism/foundry:latest as foundry
+FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest as foundry
 # bullseye-slim is debian based
 # we use it rather than alpien because it's not much
 # bigger and alpine is often missing packages for node applications

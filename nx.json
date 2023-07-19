@@ -56,6 +56,9 @@
       "inputs": ["default", "testing", "^production"],
       "dependsOn": ["^build"]
     },
+    "generate": {
+      "dependsOn": ["^build"]
+    },
     "build:contracts": {
       "inputs": [
         "configsProject",
