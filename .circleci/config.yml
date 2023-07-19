@@ -409,6 +409,7 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
+          no_output_timeout: 15m
 
   contracts-bedrock-checks:
     docker:
@@ -448,6 +449,7 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
+          no_output_timeout: 15m
       - run:
           name: validate deploy configs
           command: |
