@@ -17,7 +17,7 @@ contract PreimageOracle_Test is Test {
     /// @notice Test the pre-image key computation with a known pre-image.
     function test_computePreimageKey_succeeds() public {
         bytes memory preimage = hex"deadbeef";
-        bytes32 key = oracle.computePreimageKey(preimage);
+        bytes32 key = oracle.computeKeccak256PreimageKey(preimage);
         bytes32 known = 0x02fd4e189132273036449fc9e11198c739161b4c0116a9a2dccdfa1c492006f1;
         assertEq(key, known);
     }
@@ -26,7 +26,7 @@ contract PreimageOracle_Test is Test {
     function test_loadKeccak256PreimagePart_succeeds() public {
         // Set the pre-image
         bytes memory preimage = hex"deadbeef";
-        bytes32 key = oracle.computePreimageKey(preimage);
+        bytes32 key = oracle.computeKeccak256PreimageKey(preimage);
         uint256 offset = 0;
         oracle.loadKeccak256PreimagePart(offset, preimage);
 
