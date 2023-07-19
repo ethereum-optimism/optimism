@@ -35,3 +35,11 @@
 /infra            @ethereum-optimism/infra-reviewers
 /specs            @ethereum-optimism/contract-reviewers @ethereum-optimism/go-reviewers
 /endpoint-monitor @ethereum-optimism/infra-reviewers
+
+# Don't add owners if only package.json is updated
+/packages/*/package.json 
+/*/package.json 
+
+# JavaScript Releases
+/packages/*/CHANGELOG.md @ethereum-optimism/release-managers
+/*/CHANGELOG.md          @ethereum-optimism/release-managers
