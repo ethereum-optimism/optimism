@@ -29,6 +29,6 @@ Dive deep into the specifications for the Bedrock release in the [specs folder o
 - [`op-batcher`](https://github.com/ethereum-optimism/optimism/tree/develop/op-batcher)
 - [`op-proposer`](https://github.com/ethereum-optimism/optimism/tree/develop/op-proposer)
 - [`contracts-bedrock`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock)
-- [`fault-mon`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/packages/chain-mon/src/fault-mon)
+- [`fault-mon`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/chain-mon/src/fault-mon)
 - [`sdk`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/sdk)
 - [`chain-mon`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/chain-mon)
