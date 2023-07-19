@@ -47,6 +47,7 @@ contract DeployConfig is Script {
     uint256 public l2GenesisRegolithTimeOffset;
     uint256 public faultGameAbsolutePrestate;
     uint256 public faultGameMaxDepth;
+    uint256 public faultGameMaxDuration;
 
     constructor(string memory _path) {
         console.log("DeployConfig: reading file %s", _path);
@@ -88,6 +89,7 @@ contract DeployConfig is Script {
         if (block.chainid == 900) {
             faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
             faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
+            faultGameMaxDuration = stdJson.readUint(_json, "$.faultGameMaxDuration");
         }
     }
 

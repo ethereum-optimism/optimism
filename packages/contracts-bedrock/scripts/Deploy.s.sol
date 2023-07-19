@@ -697,6 +697,7 @@ contract Deploy is Deployer {
                 factory.setImplementation(GameTypes.FAULT, new FaultDisputeGame({
                     _absolutePrestate: absolutePrestate,
                     _maxGameDepth: cfg.faultGameMaxDepth(),
+                    _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
                     _vm: faultVm
                 }));
                 console.log("DisputeGameFactory: set `FaultDisputeGame` implementation");
