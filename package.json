@@ -26,7 +26,7 @@
     "prepare": "husky install",
     "release": "npx nx run-many --target=build --skip-nx-cache && pnpm changeset publish",
     "release:check": "changeset status --verbose --since=origin/main",
-    "release:publish": "npx nx run-many --target=build && pnpm install && pnpm build && changeset publish",
+    "release:publish": "pnpm install --frozen-lockfile && npx nx run-many --target=build && pnpm build && changeset publish",
     "release:version": "changeset version && pnpm install --lockfile-only",
     "install:foundry": "curl -L https://foundry.paradigm.xyz | bash && pnpm update:foundry",
     "update:foundry": "foundryup -C $(cat .foundryrc)"
