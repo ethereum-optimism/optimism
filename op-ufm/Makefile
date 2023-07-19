@@ -19,3 +19,9 @@ test:
 lint:
 	go vet ./...
 .PHONY: test
+
+tls:
+	kubectl get secrets op-ufm-client-tls -o yaml | yq '.data."tls.key"' | base64 --decode > tls/tls.key
+	kubectl get secrets op-ufm-client-tls -o yaml | yq '.data."tls.crt"' | base64 --decode > tls/tls.crt
+	kubectl get secrets op-ufm-client-tls -o yaml | yq '.data."ca.crt"' | base64 --decode > tls/ca.crt
+.PHONY: tls
