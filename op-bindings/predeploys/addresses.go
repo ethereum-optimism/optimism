@@ -3,6 +3,7 @@ package predeploys
 import "github.com/ethereum/go-ethereum/common"
 
 const (
+	LegacyERC20ETH                = "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000"
 	L2ToL1MessagePasser           = "0x4200000000000000000000000000000000000016"
 	DeployerWhitelist             = "0x4200000000000000000000000000000000000002"
 	WETH9                         = "0x4200000000000000000000000000000000000006"
@@ -23,6 +24,7 @@ const (
 )
 
 var (
+	LegacyERC20ETHAddr                = common.HexToAddress(LegacyERC20ETH)
 	L2ToL1MessagePasserAddr           = common.HexToAddress(L2ToL1MessagePasser)
 	DeployerWhitelistAddr             = common.HexToAddress(DeployerWhitelist)
 	WETH9Addr                         = common.HexToAddress(WETH9)
@@ -56,6 +58,7 @@ func IsProxied(predeployAddr common.Address) bool {
 }
 
 func init() {
+	Predeploys["LegacyERC20ETHAddr"] = &LegacyERC20ETHAddr
 	Predeploys["L2ToL1MessagePasser"] = &L2ToL1MessagePasserAddr
 	Predeploys["DeployerWhitelist"] = &DeployerWhitelistAddr
 	Predeploys["WETH9"] = &WETH9Addr

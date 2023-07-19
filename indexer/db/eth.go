@@ -1,9 +1,8 @@
 package db
 
 import (
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/common"
-
-	op_legacy "github.com/ethereum-optimism/optimism/indexer/op-legacy"
 )
 
 var ETHL1Address common.Address
@@ -20,7 +19,7 @@ var ETHL1Token = &Token{
 // ETHL2Token is a placeholder token for differentiating ETH transactions from
 // ERC20 transactions on L2.
 var ETHL2Token = &Token{
-	Address:  op_legacy.LegacyERC20ETH,
+	Address:  predeploys.LegacyERC20ETH,
 	Name:     "Ethereum",
 	Symbol:   "ETH",
 	Decimals: 18,
