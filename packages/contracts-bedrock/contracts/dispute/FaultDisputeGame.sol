@@ -30,11 +30,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @notice The max depth of the game.
     uint256 public immutable MAX_GAME_DEPTH;
 
+    /// @notice The duration of the game.
+    Duration public immutable GAME_DURATION;
+
     /// @notice A hypervisor that performs single instruction steps on a fault proof program trace.
     IBigStepper public immutable VM;
-
-    /// @notice The duration of the game.
-    Duration internal constant GAME_DURATION = Duration.wrap(7 days);
 
     /// @notice The root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
@@ -58,10 +58,12 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     constructor(
         Claim _absolutePrestate,
         uint256 _maxGameDepth,
+        Duration _gameDuration,
         IBigStepper _vm
     ) Semver(0, 0, 3) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
+        GAME_DURATION = _gameDuration;
         VM = _vm;
     }
 
