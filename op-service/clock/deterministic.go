@@ -31,6 +31,7 @@ func (t task) fire(now time.Time) bool {
 
 type timer struct {
 	f       func()
+	ch      chan time.Time
 	due     time.Time
 	stopped bool
 	run     bool
@@ -51,6 +52,10 @@ func (t *timer) fire(now time.Time) bool {
 		t.run = true
 	}
 	return false
+}
+
+func (t *timer) Ch() <-chan time.Time {
+	return t.ch
 }
 
 func (t *timer) Stop() bool {
@@ -166,6 +171,21 @@ func (s *DeterministicClock) NewTicker(d time.Duration) Ticker {
 		ch:      ch,
 		nextDue: s.now.Add(d),
 		period:  d,
+	}
+	s.addPending(t)
+	return t
+}
+
+func (s *DeterministicClock) NewTimer(d time.Duration) Timer {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	ch := make(chan time.Time, 1)
+	t := &timer{
+		f: func() {
+			ch <- s.now
+		},
+		ch:  ch,
+		due: s.now.Add(d),
 	}
 	s.addPending(t)
 	return t

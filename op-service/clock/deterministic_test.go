@@ -217,6 +217,46 @@ func TestNewTicker(t *testing.T) {
 	})
 }
 
+func TestNewTimer(t *testing.T) {
+	t.Run("FireOnceAfterDuration", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		timer := clock.NewTimer(5 * time.Second)
+
+		require.Len(t, timer.Ch(), 0, "should not fire immediately")
+
+		clock.AdvanceTime(4 * time.Second)
+		require.Len(t, timer.Ch(), 0, "should not fire before due")
+
+		clock.AdvanceTime(1 * time.Second)
+		require.Len(t, timer.Ch(), 1, "should fire when due")
+		require.Equal(t, clock.Now(), <-timer.Ch(), "should post current time")
+
+		clock.AdvanceTime(6 * time.Second)
+		require.Len(t, timer.Ch(), 0, "should not fire when due again")
+	})
+
+	t.Run("StopBeforeExecuted", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		timer := clock.NewTimer(5 * time.Second)
+
+		require.True(t, timer.Stop())
+
+		clock.AdvanceTime(10 * time.Second)
+		require.Len(t, timer.Ch(), 0, "should not fire after stop")
+	})
+
+	t.Run("StopAfterExecuted", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		timer := clock.NewTimer(5 * time.Second)
+
+		clock.AdvanceTime(10 * time.Second)
+		require.Len(t, timer.Ch(), 1, "should fire when due")
+		require.Equal(t, clock.Now(), <-timer.Ch(), "should post current time")
+
+		require.False(t, timer.Stop())
+	})
+}
+
 func TestWaitForPending(t *testing.T) {
 	t.Run("DoNotBlockWhenAlreadyPending", func(t *testing.T) {
 		clock := NewDeterministicClock(time.UnixMilli(1000))

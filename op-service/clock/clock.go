@@ -22,6 +22,10 @@ type Clock interface {
 	// The duration d must be greater than zero; if not, NewTicker will
 	// panic. Stop the ticker to release associated resources.
 	NewTicker(d time.Duration) Ticker
+
+	// NewTimer creates a new Timer that will send
+	// the current time on its channel after at least duration d.
+	NewTimer(d time.Duration) Timer
 }
 
 // A Ticker holds a channel that delivers "ticks" of a clock at intervals
@@ -42,9 +46,14 @@ type Ticker interface {
 
 // Timer represents a single event.
 type Timer interface {
+	// Ch returns the channel for the ticker. Equivalent to time.Timer.C
+	Ch() <-chan time.Time
+
 	// Stop prevents the Timer from firing.
 	// It returns true if the call stops the timer, false if the timer has already
 	// expired or been stopped.
+	// Stop does not close the channel, to prevent a read from the channel succeeding
+	// incorrectly.
 	//
 	// For a timer created with AfterFunc(d, f), if t.Stop returns false, then the timer
 	// has already expired and the function f has been started in its own goroutine;
@@ -80,8 +89,16 @@ func (s systemClock) NewTicker(d time.Duration) Ticker {
 	return &SystemTicker{time.NewTicker(d)}
 }
 
+func (s systemClock) NewTimer(d time.Duration) Timer {
+	return &SystemTimer{time.NewTimer(d)}
+}
+
 type SystemTimer struct {
 	*time.Timer
+}
+
+func (t *SystemTimer) Ch() <-chan time.Time {
+	return t.C
 }
 
 func (s systemClock) AfterFunc(d time.Duration, f func()) Timer {
