@@ -25,7 +25,14 @@ type Indexer struct {
 
 // NewIndexer initializes an instance of the Indexer
 func NewIndexer(cfg config.Config) (*Indexer, error) {
-	dsn := fmt.Sprintf("database=%s", cfg.DB.Name)
+	dsn := fmt.Sprintf("host=%s port=%d dbname=%s sslmode=disable", cfg.DB.Host, cfg.DB.Port, cfg.DB.Name)
+	if cfg.DB.User != "" {
+		dsn += fmt.Sprintf(" user=%s", cfg.DB.User)
+	}
+	if cfg.DB.Password != "" {
+		dsn += fmt.Sprintf(" password=%s", cfg.DB.Password)
+	}
+
 	db, err := database.NewDB(dsn)
 	if err != nil {
 		return nil, err

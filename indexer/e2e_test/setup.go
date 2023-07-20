@@ -36,6 +36,7 @@ type E2ETestSuite struct {
 }
 
 func createE2ETestSuite(t *testing.T) E2ETestSuite {
+	dbUser := os.Getenv("DB_USER")
 	dbName := setupTestDatabase(t)
 
 	// Replace the handler of the global logger with the testlog
@@ -54,6 +55,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 			Host: "127.0.0.1",
 			Port: 5432,
 			Name: dbName,
+			User: dbUser,
 		},
 		RPCs: config.RPCsConfig{
 			L1RPC: opSys.Nodes["l1"].HTTPEndpoint(),
@@ -62,7 +64,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 		Logger: logger,
 	}
 
-	db, err := database.NewDB(fmt.Sprintf("database=%s", dbName))
+	db, err := database.NewDB(fmt.Sprintf("postgres://%s@localhost:5432/%s?sslmode=disable", dbUser, dbName))
 	require.NoError(t, err)
 	indexer, err := indexer.NewIndexer(indexerCfg)
 	require.NoError(t, err)
