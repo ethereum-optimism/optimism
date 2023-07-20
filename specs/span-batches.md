@@ -64,7 +64,8 @@ Introduce version `1` to the [batch-format](./derivation.md#batch-format) table:
 
 Notation:
 `++`: concatenation of byte-strings.
-`anchor`: first L2 block in the span
+`span_start`: first L2 block in the span
+`span_end`: last L2 block in the span
 `uvarint`: unsigned Base128 varint, as defined in [protobuf spec]
 
 [protobuf spec]: https://protobuf.dev/programming-guides/encoding/#varints
@@ -72,11 +73,11 @@ Notation:
 Where:
 
 - `prefix = rel_timestamp ++ parent_check ++ l1_origin_check`
-  - `rel_timestamp`: relative time since genesis, i.e. `anchor.timestamp - config.genesis.timestamp`.
-  - `parent_check`: first 20 bytes of parent hash, i.e. `anchor.parent_hash[:20]`.
+  - `rel_timestamp`: relative time since genesis, i.e. `span_start.timestamp - config.genesis.timestamp`.
+  - `parent_check`: first 20 bytes of parent hash, i.e. `span_start.parent_hash[:20]`.
   - `l1_origin_check`: to ensure the intended L1 origins of this span of
         L2 blocks are consistent with the L1 chain, the blockhash of the last L1 origin is referenced.
-        The hash is truncated to 20 bytes for efficiency, i.e. `anchor.l1_origin.hash[:20]`.
+        The hash is truncated to 20 bytes for efficiency, i.e. `span_end.l1_origin.hash[:20]`.
 - `payload = block_count ++ block_tx_counts ++ tx_data_headers ++ tx_data ++ tx_sigs`:
   - `block_count`: `uvarint` number of L2 blocks.
   - `origin_bits`: bitlist of `block_count` bits, right-padded to a multiple of 8 bits:
@@ -149,10 +150,10 @@ Span-batch rules, in validation order:
   - Rules:
     - `start_epoch_num + sequence_window_size < inclusion_block_number` -> `drop`:
       i.e. the batch must be included timely.
-    - `end_epoch_num < epoch.number` -> `future`: i.e. all referenced L1 epochs must be there.
+    - `start_epoch_num > epoch.number` -> `future`: i.e. all referenced L1 epochs must be there.
     - `end_epoch_num == epoch.number`:
       - If `batch.l1_origin_check != epoch.hash[:20]` -> `drop`: verify the batch is intended for this L1 chain.
-    - `end_epoch_num > epoch.number` -> `drop`: must have been duplicate batch,
+    - `end_epoch_num < epoch.number` -> `drop`: must have been duplicate batch,
       we may be past this L1 block in the safe L2 chain.
 - Max Sequencer time-drift checks:
   - Note: The max time-drift is enforced for the *batch as a whole*, to keep the possible output variants small.
