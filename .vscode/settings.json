@@ -17,10 +17,6 @@
       "changeProcessCWD": true
     },
     {
-      "directory": "packages/contracts-periphery",
-      "changeProcessCWD": true
-    },
-    {
       "directory": "packages/chain-mon",
       "changeProcessCWD": true
     },

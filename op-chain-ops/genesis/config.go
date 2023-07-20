@@ -27,25 +27,52 @@ var (
 	ErrInvalidImmutablesConfig = errors.New("invalid immutables config")
 )
 
-// DeployConfig represents the deployment configuration for Optimism
+// DeployConfig represents the deployment configuration for an OP Stack chain.
 type DeployConfig struct {
+	// L1StartingBlockTag is used to fill in the storage of the L1Block info predeploy. The rollup
+	// config script uses this to fill the L1 genesis info for the rollup. The Output oracle deploy
+	// script may use it if the L2 starting timestamp is nil, assuming the L2 genesis is set up
+	// with this.
 	L1StartingBlockTag *MarshalableRPCBlockNumberOrHash `json:"l1StartingBlockTag"`
-	L1ChainID          uint64                           `json:"l1ChainID"`
-	L2ChainID          uint64                           `json:"l2ChainID"`
-	L2BlockTime        uint64                           `json:"l2BlockTime"`
-
-	FinalizationPeriodSeconds uint64         `json:"finalizationPeriodSeconds"`
-	MaxSequencerDrift         uint64         `json:"maxSequencerDrift"`
-	SequencerWindowSize       uint64         `json:"sequencerWindowSize"`
-	ChannelTimeout            uint64         `json:"channelTimeout"`
-	P2PSequencerAddress       common.Address `json:"p2pSequencerAddress"`
-	BatchInboxAddress         common.Address `json:"batchInboxAddress"`
-	BatchSenderAddress        common.Address `json:"batchSenderAddress"`
-
-	L2OutputOracleSubmissionInterval uint64         `json:"l2OutputOracleSubmissionInterval"`
-	L2OutputOracleStartingTimestamp  int            `json:"l2OutputOracleStartingTimestamp"`
-	L2OutputOracleProposer           common.Address `json:"l2OutputOracleProposer"`
-	L2OutputOracleChallenger         common.Address `json:"l2OutputOracleChallenger"`
+	// L1ChainID is the chain ID of the L1 chain.
+	L1ChainID uint64 `json:"l1ChainID"`
+	// L2ChainID is the chain ID of the L2 chain.
+	L2ChainID uint64 `json:"l2ChainID"`
+	// L2BlockTime is the number of seconds between each L2 block.
+	L2BlockTime uint64 `json:"l2BlockTime"`
+	// FinalizationPeriodSeconds represents the number of seconds before an output is considered
+	// finalized. This impacts the amount of time that withdrawals take to finalize and is
+	// generally set to 1 week.
+	FinalizationPeriodSeconds uint64 `json:"finalizationPeriodSeconds"`
+	// MaxSequencerDrift is the number of seconds after the L1 timestamp of the end of the
+	// sequencing window that batches must be included, otherwise L2 blocks including
+	// deposits are force included.
+	MaxSequencerDrift uint64 `json:"maxSequencerDrift"`
+	// SequencerWindowSize is the number of L1 blocks per sequencing window.
+	SequencerWindowSize uint64 `json:"sequencerWindowSize"`
+	// ChannelTimeout is the number of L1 blocks that a frame stays valid when included in L1.
+	ChannelTimeout uint64 `json:"channelTimeout"`
+	// P2PSequencerAddress is the address of the key the sequencer uses to sign blocks on the P2P layer.
+	P2PSequencerAddress common.Address `json:"p2pSequencerAddress"`
+	// BatchInboxAddress is the L1 account that batches are sent to.
+	BatchInboxAddress common.Address `json:"batchInboxAddress"`
+	// BatchSenderAddress represents the initial sequencer account that authorizes batches.
+	// Transactions sent from this account to the batch inbox address are considered valid.
+	BatchSenderAddress common.Address `json:"batchSenderAddress"`
+	// L2OutputOracleSubmissionInterval is the number of L2 blocks between outputs that are submitted
+	// to the L2OutputOracle contract located on L1.
+	L2OutputOracleSubmissionInterval uint64 `json:"l2OutputOracleSubmissionInterval"`
+	// L2OutputOracleStartingTimestamp is the starting timestamp for the L2OutputOracle.
+	// MUST be the same as the timestamp of the L2OO start block.
+	L2OutputOracleStartingTimestamp int `json:"l2OutputOracleStartingTimestamp"`
+	// L2OutputOracleStartingBlockNumber is the starting block number for the L2OutputOracle.
+	// Must be greater than or equal to the first Bedrock block. The first L2 output will correspond
+	// to this value plus the submission interval.
+	L2OutputOracleStartingBlockNumber uint64 `json:"l2OutputOracleStartingBlockNumber"`
+	// L2OutputOracleProposer is the address of the account that proposes L2 outputs.
+	L2OutputOracleProposer common.Address `json:"l2OutputOracleProposer"`
+	// L2OutputOracleChallenger is the address of the account that challenges L2 outputs.
+	L2OutputOracleChallenger common.Address `json:"l2OutputOracleChallenger"`
 
 	L1BlockTime                 uint64         `json:"l1BlockTime"`
 	L1GenesisBlockTimestamp     hexutil.Uint64 `json:"l1GenesisBlockTimestamp"`
@@ -69,64 +96,76 @@ type DeployConfig struct {
 	L2GenesisBlockParentHash    common.Hash    `json:"l2GenesisBlockParentHash"`
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
 
-	// Seconds after genesis block that Regolith hard fork activates. 0 to activate at genesis. Nil to disable regolith
+	// L2GenesisRegolithTimeOffset is the number of seconds after genesis block that Regolith hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable regolith.
 	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
-
 	// Configurable extradata. Will default to []byte("BEDROCK") if left unspecified.
 	L2GenesisBlockExtraData []byte `json:"l2GenesisBlockExtraData"`
-
-	// Owner of the ProxyAdmin predeploy
+	// ProxyAdminOwner represents the owner of the ProxyAdmin predeploy on L2.
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
-	// Owner of the system on L1
+	// FinalSystemOwner is the owner of the system on L1. Any L1 contract that is ownable has
+	// this account set as its owner.
 	FinalSystemOwner common.Address `json:"finalSystemOwner"`
-	// GUARDIAN account in the OptimismPortal
+	// PortalGuardian represents the GUARDIAN account in the OptimismPortal. Has the ability to pause withdrawals.
 	PortalGuardian common.Address `json:"portalGuardian"`
-	// L1 recipient of fees accumulated in the BaseFeeVault
+	// BaseFeeVaultRecipient represents the recipient of fees accumulated in the BaseFeeVault.
+	// Can be an account on L1 or L2, depending on the BaseFeeVaultWithdrawalNetwork value.
 	BaseFeeVaultRecipient common.Address `json:"baseFeeVaultRecipient"`
-	// L1 recipient of fees accumulated in the L1FeeVault
+	// L1FeeVaultRecipient represents the recipient of fees accumulated in the L1FeeVault.
+	// Can be an account on L1 or L2, depending on the L1FeeVaultWithdrawalNetwork value.
 	L1FeeVaultRecipient common.Address `json:"l1FeeVaultRecipient"`
-	// L1 recipient of fees accumulated in the SequencerFeeVault
+	// SequencerFeeVaultRecipient represents the recipient of fees accumulated in the SequencerFeeVault.
+	// Can be an account on L1 or L2, depending on the SequencerFeeVaultWithdrawalNetwork value.
 	SequencerFeeVaultRecipient common.Address `json:"sequencerFeeVaultRecipient"`
-	// Minimum withdrawal amount for the BaseFeeVault
+	// BaseFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the BaseFeeVault.
 	BaseFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"baseFeeVaultMinimumWithdrawalAmount"`
-	// Minimum withdrawal amount for the L1FeeVault
+	// L1FeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the L1FeeVault.
 	L1FeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"l1FeeVaultMinimumWithdrawalAmount"`
-	// Minimum withdrawal amount for the SequencerFeeVault
+	// SequencerFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the SequencerFeeVault.
 	SequencerFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"sequencerFeeVaultMinimumWithdrawalAmount"`
-	// Withdrawal network for the BaseFeeVault
+	// BaseFeeVaultWithdrawalNetwork represents the withdrawal network for the BaseFeeVault.
 	BaseFeeVaultWithdrawalNetwork uint8 `json:"baseFeeVaultWithdrawalNetwork"`
-	// Withdrawal network for the L1FeeVault
+	// L1FeeVaultWithdrawalNetwork represents the withdrawal network for the L1FeeVault.
 	L1FeeVaultWithdrawalNetwork uint8 `json:"l1FeeVaultWithdrawalNetwork"`
-	// Withdrawal network for the SequencerFeeVault
+	// SequencerFeeVaultWithdrawalNetwork represents the withdrawal network for the SequencerFeeVault.
 	SequencerFeeVaultWithdrawalNetwork uint8 `json:"sequencerFeeVaultWithdrawalNetwork"`
-	// L1StandardBridge proxy address on L1
+	// L1StandardBridgeProxy represents the address of the L1StandardBridgeProxy on L1 and is used
+	// as part of building the L2 genesis state.
 	L1StandardBridgeProxy common.Address `json:"l1StandardBridgeProxy"`
-	// L1CrossDomainMessenger proxy address on L1
+	// L1CrossDomainMessengerProxy represents the address of the L1CrossDomainMessengerProxy on L1 and is used
+	// as part of building the L2 genesis state.
 	L1CrossDomainMessengerProxy common.Address `json:"l1CrossDomainMessengerProxy"`
-	// L1ERC721Bridge proxy address on L1
+	// L1ERC721BridgeProxy represents the address of the L1ERC721Bridge on L1 and is used
+	// as part of building the L2 genesis state.
 	L1ERC721BridgeProxy common.Address `json:"l1ERC721BridgeProxy"`
-	// SystemConfig proxy address on L1
+	// SystemConfigProxy represents the address of the SystemConfigProxy on L1 and is used
+	// as part of the derivation pipeline.
 	SystemConfigProxy common.Address `json:"systemConfigProxy"`
-	// OptimismPortal proxy address on L1
+	// OptimismPortalProxy represents the address of the OptimismPortalProxy on L1 and is used
+	// as part of the derivation pipeline.
 	OptimismPortalProxy common.Address `json:"optimismPortalProxy"`
-	// The initial value of the gas overhead
+	// GasPriceOracleOverhead represents the initial value of the gas overhead in the GasPriceOracle predeploy.
 	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
-	// The initial value of the gas scalar
+	// GasPriceOracleScalar represents the initial value of the gas scalar in the GasPriceOracle predeploy.
 	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
-	// Whether or not include governance token predeploy
+	// EnableGovernance configures whether or not include governance token predeploy.
 	EnableGovernance bool `json:"enableGovernance"`
-	// The ERC20 symbol of the GovernanceToken
+	// GovernanceTokenSymbol represents the  ERC20 symbol of the GovernanceToken.
 	GovernanceTokenSymbol string `json:"governanceTokenSymbol"`
-	// The ERC20 name of the GovernanceToken
+	// GovernanceTokenName represents the ERC20 name of the GovernanceToken
 	GovernanceTokenName string `json:"governanceTokenName"`
-	// The owner of the GovernanceToken
+	// GovernanceTokenOwner represents the owner of the GovernanceToken. Has the ability
+	// to mint and burn tokens.
 	GovernanceTokenOwner common.Address `json:"governanceTokenOwner"`
-
+	// DeploymentWaitConfirmations is the number of confirmations to wait during
+	// deployment. This is DEPRECATED and should be removed in a future PR.
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
-
-	EIP1559Elasticity  uint64 `json:"eip1559Elasticity"`
+	// EIP1559Elasticity is the elasticity of the EIP1559 fee market.
+	EIP1559Elasticity uint64 `json:"eip1559Elasticity"`
+	// EIP1559Denominator is the denominator of EIP1559 base fee market.
 	EIP1559Denominator uint64 `json:"eip1559Denominator"`
-
+	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
+	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`
 }
 
@@ -146,6 +185,9 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.FinalizationPeriodSeconds == 0 {
 		return fmt.Errorf("%w: FinalizationPeriodSeconds cannot be 0", ErrInvalidDeployConfig)
+	}
+	if d.L2OutputOracleStartingBlockNumber == 0 {
+		log.Warn("L2OutputOracleStartingBlockNumber is 0, should only be 0 for fresh chains")
 	}
 	if d.PortalGuardian == (common.Address{}) {
 		return fmt.Errorf("%w: PortalGuardian cannot be address(0)", ErrInvalidDeployConfig)

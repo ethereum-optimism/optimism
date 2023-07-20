@@ -17,11 +17,6 @@ dist
 artifacts
 cache
 
-packages/contracts-periphery/coverage*
-packages/contracts-periphery/@openzeppelin*
-packages/contracts-periphery/hardhat*
-packages/contracts-periphery/forge-artifacts*
-
 packages/contracts-bedrock/deployments/devnetL1
 packages/contracts-bedrock/deployments/anvil
 

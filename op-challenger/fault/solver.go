@@ -9,7 +9,6 @@ import (
 // Solver uses a [TraceProvider] to determine the moves to make in a dispute game.
 type Solver struct {
 	TraceProvider
-
 	gameDepth int
 }
 
@@ -22,33 +21,16 @@ func NewSolver(gameDepth int, traceProvider TraceProvider) *Solver {
 }
 
 // NextMove returns the next move to make given the current state of the game.
-func (s *Solver) NextMove(claim Claim) (*Claim, error) {
+func (s *Solver) NextMove(claim Claim, agreeWithClaimLevel bool) (*Claim, error) {
+	if agreeWithClaimLevel {
+		return nil, nil
+	}
+
 	// Special case of the root claim
 	if claim.IsRoot() {
 		return s.handleRoot(claim)
 	}
 	return s.handleMiddle(claim)
-}
-
-type StepData struct {
-	LeafClaim Claim
-	IsAttack  bool
-}
-
-// AttemptStep determines what step should occur for a given leaf claim.
-// An error will be returned if the claim is not at the max depth.
-func (s *Solver) AttemptStep(claim Claim) (StepData, error) {
-	if claim.Depth() != s.gameDepth {
-		return StepData{}, errors.New("cannot step on non-leaf claims")
-	}
-	claimCorrect, err := s.agreeWithClaim(claim.ClaimData)
-	if err != nil {
-		return StepData{}, err
-	}
-	return StepData{
-		LeafClaim: claim,
-		IsAttack:  claimCorrect,
-	}, nil
 }
 
 func (s *Solver) handleRoot(claim Claim) (*Claim, error) {
@@ -57,6 +39,8 @@ func (s *Solver) handleRoot(claim Claim) (*Claim, error) {
 		return nil, err
 	}
 	// Attack the root claim if we do not agree with it
+	// Note: We always disagree with the claim level at this point,
+	// so if we agree with claim maybe we should also attack?
 	if !agree {
 		return s.attack(claim)
 	} else {
@@ -65,10 +49,6 @@ func (s *Solver) handleRoot(claim Claim) (*Claim, error) {
 }
 
 func (s *Solver) handleMiddle(claim Claim) (*Claim, error) {
-	parentCorrect, err := s.agreeWithClaim(claim.Parent)
-	if err != nil {
-		return nil, err
-	}
 	claimCorrect, err := s.agreeWithClaim(claim.ClaimData)
 	if err != nil {
 		return nil, err
@@ -76,25 +56,53 @@ func (s *Solver) handleMiddle(claim Claim) (*Claim, error) {
 	if claim.Depth() == s.gameDepth {
 		return nil, errors.New("game depth reached")
 	}
-	if parentCorrect && claimCorrect {
-		// We agree with the parent, but the claim is disagreeing with it.
-		// Since we agree with the claim, the difference must be to the right of the claim
+	if claimCorrect {
 		return s.defend(claim)
-	} else if parentCorrect && !claimCorrect {
-		// We agree with the parent, but the claim disagrees with it.
-		// Since we disagree with the claim, the difference must be to the left of the claim
-		return s.attack(claim)
-	} else if !parentCorrect && claimCorrect {
-		// Do nothing, we disagree with the parent, but this claim has correctly countered it
-		return nil, nil
-	} else if !parentCorrect && !claimCorrect {
-		// We disagree with the parent so want to counter it (which the claim is doing)
-		// but we also disagree with the claim so there must be a difference to the left of claim
-		// Note that we will create the correct counter-claim for parent when it is evaluated, no need to do it here
+	} else {
 		return s.attack(claim)
 	}
-	// This should not be reached
-	return nil, errors.New("no next move")
+}
+
+type StepData struct {
+	LeafClaim Claim
+	IsAttack  bool
+	PreState  []byte
+}
+
+// AttemptStep determines what step should occur for a given leaf claim.
+// An error will be returned if the claim is not at the max depth.
+func (s *Solver) AttemptStep(claim Claim, agreeWithClaimLevel bool) (StepData, error) {
+	if claim.Depth() != s.gameDepth {
+		return StepData{}, errors.New("cannot step on non-leaf claims")
+	}
+	if agreeWithClaimLevel {
+		return StepData{}, errors.New("cannot step on claims we agree with")
+	}
+	claimCorrect, err := s.agreeWithClaim(claim.ClaimData)
+	if err != nil {
+		return StepData{}, err
+	}
+	index := claim.TraceIndex(s.gameDepth)
+	var preState []byte
+	// If we are attacking index 0, we provide the absolute pre-state, not an intermediate state
+	if index == 0 && !claimCorrect {
+		preState = s.AbsolutePreState()
+	} else {
+		// If attacking, get the state just before, other get the state after
+		if !claimCorrect {
+			index = index - 1
+		}
+		preState, err = s.GetPreimage(index)
+		if err != nil {
+			return StepData{}, err
+		}
+	}
+
+	return StepData{
+		LeafClaim: claim,
+		IsAttack:  !claimCorrect,
+		PreState:  preState,
+	}, nil
 }
 
 // attack returns a response that attacks the claim.
@@ -105,8 +113,9 @@ func (s *Solver) attack(claim Claim) (*Claim, error) {
 		return nil, err
 	}
 	return &Claim{
-		ClaimData: ClaimData{Value: value, Position: position},
-		Parent:    claim.ClaimData,
+		ClaimData:           ClaimData{Value: value, Position: position},
+		Parent:              claim.ClaimData,
+		ParentContractIndex: claim.ContractIndex,
 	}, nil
 }
 
@@ -118,8 +127,9 @@ func (s *Solver) defend(claim Claim) (*Claim, error) {
 		return nil, err
 	}
 	return &Claim{
-		ClaimData: ClaimData{Value: value, Position: position},
-		Parent:    claim.ClaimData,
+		ClaimData:           ClaimData{Value: value, Position: position},
+		Parent:              claim.ClaimData,
+		ParentContractIndex: claim.ContractIndex,
 	}, nil
 }
 

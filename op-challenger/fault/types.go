@@ -22,10 +22,12 @@ type StepCallData struct {
 
 // TraceProvider is a generic way to get a claim value at a specific
 // step in the trace.
-// The [AlphabetProvider] is a minimal implementation of this interface.
+// Get(i) = Keccak256(GetPreimage(i))
+// AbsolutePreState is the value of the trace that transitions to the trace value at index 0
 type TraceProvider interface {
 	Get(i uint64) (common.Hash, error)
 	GetPreimage(i uint64) ([]byte, error)
+	AbsolutePreState() []byte
 }
 
 // ClaimData is the core of a claim. It must be unique inside a specific game.
@@ -47,7 +49,13 @@ func (c *ClaimData) ValueBytes() [32]byte {
 // and the Parent field is empty & meaningless.
 type Claim struct {
 	ClaimData
-	Parent ClaimData
+	// WARN: Countered is a mutable field in the FaultDisputeGame contract
+	//       and rely on it for determining whether to step on leaf claims.
+	//       When caching is implemented for the Challenger, this will need
+	//       to be changed/removed to avoid invalid/stale contract state.
+	Countered bool
+	Clock     uint64
+	Parent    ClaimData
 	// Location of the claim & it's parent inside the contract. Does not exist
 	// for claims that have not made it to the contract.
 	ContractIndex       int

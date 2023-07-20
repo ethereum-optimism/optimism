@@ -291,7 +291,8 @@ var (
 	}
 	SyncReqRespFlag = &cli.BoolFlag{
 		Name:     "p2p.sync.req-resp",
-		Usage:    "Enables experimental P2P req-resp alternative sync method, on both server and client side.",
+		Usage:    "Enables P2P req-resp alternative sync method, on both server and client side.",
+		Value:    true,
 		Required: false,
 		EnvVars:  p2pEnv("SYNC_REQ_RESP"),
 	}

@@ -35,7 +35,7 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
         _;
     }
 
-    /// @custom:semver 1.0.1
+    /// @custom:semver 1.0.2
     /// @param _bridge      Address of the L2 standard bridge.
     /// @param _remoteToken Address of the corresponding L1 token.
     /// @param _name        ERC20 name.
@@ -45,7 +45,7 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
         address _remoteToken,
         string memory _name,
         string memory _symbol
-    ) ERC20(_name, _symbol) Semver(1, 0, 1) {
+    ) ERC20(_name, _symbol) Semver(1, 0, 2) {
         REMOTE_TOKEN = _remoteToken;
         BRIDGE = _bridge;
     }
@@ -79,7 +79,7 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
     /// @notice ERC165 interface check function.
     /// @param _interfaceId Interface ID to check.
     /// @return Whether or not the interface is supported by this contract.
-    function supportsInterface(bytes4 _interfaceId) external pure returns (bool) {
+    function supportsInterface(bytes4 _interfaceId) external pure virtual returns (bool) {
         bytes4 iface1 = type(IERC165).interfaceId;
         // Interface corresponding to the legacy L2StandardERC20.
         bytes4 iface2 = type(ILegacyMintableERC20).interfaceId;

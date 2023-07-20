@@ -8,10 +8,9 @@ md = Cs(CS_ARCH_MIPS, CS_MODE_32 + CS_MODE_BIG_ENDIAN)
 
 def maketest(d, out):
   with tempfile.NamedTemporaryFile() as nf:
-    path = "/Users/kafka/fun/mips/mips-gcc-4.8.1/bin/"
     print("building", d, "->", out)
     # which mips is go
-    ret = os.system("%s/mips-elf-as -defsym big_endian=1 -march=mips32r2 -o %s %s" % (path, nf.name, d))
+    ret = os.system("mips-linux-gnu-as -defsym big_endian=1 -march=mips32r2 -o %s %s" % (nf.name, d))
     assert(ret == 0)
     nf.seek(0)
     elffile = ELFFile(nf)

@@ -6,10 +6,10 @@ WORKDIR /opt
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-    apt-get install -y curl build-essential git && \
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
-    chmod +x ./rustup.sh && \
-    ./rustup.sh -y
+  apt-get install -y curl build-essential git && \
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
+  chmod +x ./rustup.sh && \
+  ./rustup.sh -y
 
 COPY ./.foundryrc ./.foundryrc
 
@@ -21,10 +21,10 @@ RUN git clone https://github.com/foundry-rs/foundry.git ./foundry \
 WORKDIR /opt/foundry
 
 RUN source $HOME/.profile && \
-    cargo build --release && \
-    strip /opt/foundry/target/release/forge && \
-    strip /opt/foundry/target/release/cast && \
-    strip /opt/foundry/target/release/anvil
+  cargo build --release && \
+  strip /opt/foundry/target/release/forge && \
+  strip /opt/foundry/target/release/cast && \
+  strip /opt/foundry/target/release/anvil
 
 FROM ethereum/client-go:alltools-v1.10.25 as geth
 
@@ -56,7 +56,9 @@ RUN apt-get update && \
   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.48.0 && \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash
 
-RUN echo "downloading pnpm" && npm i -g pnpm
+# We need to isntall yarn because a bespoke dependency installed from github https://codeload.github.com/Saw-mon-and-Natalie/clones-with-immutable-arg needs it
+# it is installed from github which means it's postpack script which uses yarn is ran when unpacked into node_modules
+RUN echo "downloading pnpm and yarn" && npm i -g pnpm && npm i -g yarn@1 && pnpm --version && yarn --version
 
 RUN echo "downloading solidity compilers" && \
   curl -o solc-linux-amd64-v0.5.17+commit.d19bba13 -sL https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.5.17+commit.d19bba13 && \
@@ -105,3 +107,8 @@ RUN echo "downloading mockery tool" && \
   cp mockery-tmp-dir/mockery /usr/local/bin/mockery && \
   chmod +x /usr/local/bin/mockery && \
   rm -rf mockery-tmp-dir
+
+
+RUN echo "installing mips binutils" && \
+  apt-get install -y binutils-mips-linux-gnu python3 python3-pip && \
+  pip3 install capstone pyelftools

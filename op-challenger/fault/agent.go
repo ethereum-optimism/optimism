@@ -3,27 +3,28 @@ package fault
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/log"
 )
 
 type Agent struct {
-	solver    *Solver
-	trace     TraceProvider
-	loader    Loader
-	responder Responder
-	maxDepth  int
-	log       log.Logger
+	solver                  *Solver
+	loader                  Loader
+	responder               Responder
+	maxDepth                int
+	agreeWithProposedOutput bool
+	log                     log.Logger
 }
 
-func NewAgent(loader Loader, maxDepth int, trace TraceProvider, responder Responder, log log.Logger) Agent {
+func NewAgent(loader Loader, maxDepth int, trace TraceProvider, responder Responder, agreeWithProposedOutput bool, log log.Logger) Agent {
 	return Agent{
-		solver:    NewSolver(maxDepth, trace),
-		trace:     trace,
-		loader:    loader,
-		responder: responder,
-		maxDepth:  maxDepth,
-		log:       log,
+		solver:                  NewSolver(maxDepth, trace),
+		loader:                  loader,
+		responder:               responder,
+		maxDepth:                maxDepth,
+		agreeWithProposedOutput: agreeWithProposedOutput,
+		log:                     log,
 	}
 }
 
@@ -36,11 +37,15 @@ func (a *Agent) Act() error {
 	}
 	// Create counter claims
 	for _, claim := range game.Claims() {
-		_ = a.move(claim, game)
+		if err := a.move(claim, game); err != nil {
+			log.Error("Failed to move", "err", err)
+		}
 	}
 	// Step on all leaf claims
 	for _, claim := range game.Claims() {
-		_ = a.step(claim, game)
+		if err := a.step(claim, game); err != nil {
+			log.Error("Failed to step", "err", err)
+		}
 	}
 	return nil
 }
@@ -49,34 +54,33 @@ func (a *Agent) Act() error {
 func (a *Agent) newGameFromContracts(ctx context.Context) (Game, error) {
 	claims, err := a.loader.FetchClaims(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to fetch claims: %w", err)
 	}
 	if len(claims) == 0 {
 		return nil, errors.New("no claims")
 	}
-	game := NewGameState(claims[0], uint64(a.maxDepth))
+	game := NewGameState(a.agreeWithProposedOutput, claims[0], uint64(a.maxDepth))
 	if err := game.PutAll(claims[1:]); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load claims into the local state: %w", err)
 	}
 	return game, nil
 }
 
-// move determines & executes the next move given a claim pair
+// move determines & executes the next move given a claim
 func (a *Agent) move(claim Claim, game Game) error {
-	a.log.Info("Fetching claims")
-	nextMove, err := a.solver.NextMove(claim)
+	nextMove, err := a.solver.NextMove(claim, game.AgreeWithClaimLevel(claim))
 	if err != nil {
 		a.log.Warn("Failed to execute the next move", "err", err)
 		return err
 	}
 	if nextMove == nil {
-		a.log.Info("No next move")
+		a.log.Debug("No next move")
 		return nil
 	}
 	move := *nextMove
-	log := a.log.New("is_defend", move.DefendsParent(), "depth", move.Depth(), "index_at_depth", move.IndexAtDepth(), "value", move.Value,
-		"letter", string(move.Value[31:]), "trace_index", move.Value[30],
-		"parent_letter", string(claim.Value[31:]), "parent_trace_index", claim.Value[30])
+	log := a.log.New("is_defend", move.DefendsParent(), "depth", move.Depth(), "index_at_depth", move.IndexAtDepth(),
+		"value", move.Value, "trace_index", move.TraceIndex(a.maxDepth),
+		"parent_value", claim.Value, "parent_trace_index", claim.TraceIndex(a.maxDepth))
 	if game.IsDuplicate(move) {
 		log.Debug("Duplicate move")
 		return nil
@@ -85,25 +89,36 @@ func (a *Agent) move(claim Claim, game Game) error {
 	return a.responder.Respond(context.TODO(), move)
 }
 
-// step attempts to execute the step through the responder
+// step determines & executes the next step against a leaf claim through the responder
 func (a *Agent) step(claim Claim, game Game) error {
 	if claim.Depth() != a.maxDepth {
 		return nil
 	}
-	a.log.Info("Attempting step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
 
-	step, err := a.solver.AttemptStep(claim)
+	agreeWithClaimLevel := game.AgreeWithClaimLevel(claim)
+	if agreeWithClaimLevel {
+		a.log.Warn("Agree with leaf claim, skipping step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
+		return nil
+	}
+
+	if claim.Countered {
+		a.log.Info("Claim already stepped on", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
+		return nil
+	}
+
+	a.log.Info("Attempting step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
+	step, err := a.solver.AttemptStep(claim, agreeWithClaimLevel)
 	if err != nil {
-		a.log.Info("Failed to get a step", "err", err)
+		a.log.Warn("Failed to get a step", "err", err)
 		return err
 	}
 
-	a.log.Info("Performing step",
-		"depth", step.LeafClaim.Depth(), "index_at_depth", step.LeafClaim.IndexAtDepth(), "value", step.LeafClaim.Value,
-		"is_attack", step.IsAttack)
+	a.log.Info("Performing step", "is_attack", step.IsAttack,
+		"depth", step.LeafClaim.Depth(), "index_at_depth", step.LeafClaim.IndexAtDepth(), "value", step.LeafClaim.Value)
 	callData := StepCallData{
 		ClaimIndex: uint64(step.LeafClaim.ContractIndex),
 		IsAttack:   step.IsAttack,
+		StateData:  step.PreState,
 	}
 	return a.responder.Step(context.TODO(), callData)
 }

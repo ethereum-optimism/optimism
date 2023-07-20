@@ -107,7 +107,7 @@ const main = async () => {
         // Check the rest.
         for (const { check, error } of checks) {
           if (!check(element.name.split('_'))) {
-            errors.push(`${filepath} function ${element.name}: ${error}`)
+            errors.push(`${filepath}#${element.name}: ${error}`)
             success = false
           }
         }

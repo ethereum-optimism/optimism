@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
@@ -11,9 +12,11 @@ import (
 )
 
 var (
-	l1EthRpc         = "http://example.com:8545"
-	gameAddressValue = "0xaa00000000000000000000000000000000000000"
-	alphabetTrace    = "abcdefghijz"
+	l1EthRpc                = "http://example.com:8545"
+	gameAddressValue        = "0xaa00000000000000000000000000000000000000"
+	alphabetTrace           = "abcdefghijz"
+	agreeWithProposedOutput = "true"
+	gameDepth               = "4"
 )
 
 func TestLogLevel(t *testing.T) {
@@ -33,12 +36,12 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
-	defaultCfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), alphabetTrace)
+	defaultCfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), alphabetTrace, true, 4)
 	require.Equal(t, defaultCfg, cfg)
 }
 
 func TestDefaultConfigIsValid(t *testing.T) {
-	cfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), alphabetTrace)
+	cfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), alphabetTrace, true, 4)
 	require.NoError(t, cfg.Check())
 }
 
@@ -89,6 +92,36 @@ func TestTxManagerFlagsSupported(t *testing.T) {
 	require.Equal(t, uint64(7), cfg.TxMgrConfig.NumConfirmations)
 }
 
+func TestAgreeWithProposedOutput(t *testing.T) {
+	t.Run("MustBeProvided", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag agree-with-proposed-output is required", addRequiredArgsExcept("--agree-with-proposed-output"))
+	})
+	t.Run("Enabled", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs("--agree-with-proposed-output"))
+		require.True(t, cfg.AgreeWithProposedOutput)
+	})
+	t.Run("EnabledWithArg", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs("--agree-with-proposed-output=true"))
+		require.True(t, cfg.AgreeWithProposedOutput)
+	})
+	t.Run("Disabled", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs("--agree-with-proposed-output=false"))
+		require.False(t, cfg.AgreeWithProposedOutput)
+	})
+}
+
+func TestGameDepth(t *testing.T) {
+	t.Run("Required", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag game-depth is required", addRequiredArgsExcept("--game-depth"))
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		value := "4"
+		cfg := configForArgs(t, addRequiredArgsExcept("--game-depth", "--game-depth="+value))
+		require.Equal(t, value, fmt.Sprint(cfg.GameDepth))
+	})
+}
+
 func verifyArgsInvalid(t *testing.T, messageContains string, cliArgs []string) {
 	_, _, err := runWithArgs(cliArgs)
 	require.ErrorContains(t, err, messageContains)
@@ -103,7 +136,7 @@ func configForArgs(t *testing.T, cliArgs []string) config.Config {
 func runWithArgs(cliArgs []string) (log.Logger, config.Config, error) {
 	cfg := new(config.Config)
 	var logger log.Logger
-	fullArgs := append([]string{"op-program"}, cliArgs...)
+	fullArgs := append([]string{"op-challenger"}, cliArgs...)
 	err := run(fullArgs, func(log log.Logger, config *config.Config) error {
 		logger = log
 		cfg = config
@@ -126,17 +159,18 @@ func addRequiredArgsExcept(name string, optionalArgs ...string) []string {
 
 func requiredArgs() map[string]string {
 	return map[string]string{
-		"--l1-eth-rpc":   l1EthRpc,
-		"--game-address": gameAddressValue,
-		"--alphabet":     alphabetTrace,
+		"--game-depth":                 gameDepth,
+		"--agree-with-proposed-output": agreeWithProposedOutput,
+		"--l1-eth-rpc":                 l1EthRpc,
+		"--game-address":               gameAddressValue,
+		"--alphabet":                   alphabetTrace,
 	}
 }
 
 func toArgList(req map[string]string) []string {
 	var combined []string
 	for name, value := range req {
-		combined = append(combined, name)
-		combined = append(combined, value)
+		combined = append(combined, fmt.Sprintf("%s=%s", name, value))
 	}
 	return combined
 }

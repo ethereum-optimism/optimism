@@ -9,8 +9,10 @@
     "contracts/**/*.sol"
   ],
   "scripts": {
-    "bindings": "cd ../../op-bindings && make",
-    "build": "npx nx build:contracts",
+    "bindings": "pnpm bindings:ts && pnpm bindings:go",
+    "bindings:ts": "pnpm generate:addresses && nx generate @eth-optimism/contracts-ts",
+    "bindings:go": "cd ../../op-bindings && make",
+    "build": "nx build:contracts",
     "prebuild:contracts": "./scripts/verify-foundry-install.sh",
     "build:contracts": "pnpm build:forge",
     "build:forge": "forge build",
@@ -40,8 +42,7 @@
     "@openzeppelin/contracts": "4.7.3",
     "@openzeppelin/contracts-upgradeable": "4.7.3",
     "@rari-capital/solmate": "github:transmissions11/solmate#8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
-    "clones-with-immutable-args": "github:Saw-mon-and-Natalie/clones-with-immutable-args#105efee1b9127ed7f6fedf139e1fc796ce8791f2",
-    "ethers": "^5.7.0"
+    "clones-with-immutable-args": "github:Saw-mon-and-Natalie/clones-with-immutable-args#105efee1b9127ed7f6fedf139e1fc796ce8791f2"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^5.60.1",
