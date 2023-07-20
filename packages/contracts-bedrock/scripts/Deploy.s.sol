@@ -699,7 +699,7 @@ contract Deploy is Deployer {
                     _maxGameDepth: cfg.faultGameMaxDepth(),
                     _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
                     _vm: faultVm,
-                    _l2OO: L2OutputOracle(mustGetAddress("L2OutputOracleProxy"))
+                    _l2oo: L2OutputOracle(mustGetAddress("L2OutputOracleProxy"))
                 }));
                 console.log("DisputeGameFactory: set `FaultDisputeGame` implementation");
             }
