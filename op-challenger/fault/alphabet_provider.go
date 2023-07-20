@@ -49,7 +49,7 @@ func (ap *AlphabetProvider) Get(i uint64) (common.Hash, error) {
 
 func (ap *AlphabetProvider) AbsolutePreState() []byte {
 	out := make([]byte, 32)
-	out[31] = 140 // ascii character 140 is "`"
+	out[31] = 96 // ascii character 96 is "`"
 	return out
 }
 
