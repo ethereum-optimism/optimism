@@ -2,6 +2,7 @@ package disputegame
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -58,7 +59,7 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	trace := fault.NewAlphabetProvider(claimedAlphabet, 4)
-	rootClaim, err := trace.Get(2 ^ alphabetGameDepth - 1)
+	rootClaim, err := trace.Get(uint64(math.Pow(2, alphabetGameDepth)) - 1)
 	h.require.NoError(err)
 	tx, err := h.factory.Create(h.opts, faultGameType, rootClaim, alphaExtraData)
 	h.require.NoError(err)
