@@ -26,6 +26,7 @@ var (
 type mockTxManager struct {
 	from      common.Address
 	sends     int
+	calls     int
 	sendFails bool
 }
 
@@ -42,7 +43,11 @@ func (m *mockTxManager) Send(ctx context.Context, candidate txmgr.TxCandidate) (
 }
 
 func (m *mockTxManager) Call(_ context.Context, _ ethereum.CallMsg, _ *big.Int) ([]byte, error) {
-	panic("unimplemented")
+	if m.sendFails {
+		return nil, mockSendError
+	}
+	m.calls++
+	return []byte{}, nil
 }
 
 func (m *mockTxManager) BlockNumber(ctx context.Context) (uint64, error) {
@@ -60,6 +65,24 @@ func newTestFaultResponder(t *testing.T, sendFails bool) (*faultResponder, *mock
 	responder, err := NewFaultResponder(log, mockTxMgr, mockFdgAddress)
 	require.NoError(t, err)
 	return responder, mockTxMgr
+}
+
+// TestResponder_CanResolve_CallFails tests the [Responder.CanResolve] method
+// bubbles up the error returned by the [txmgr.Call] method.
+func TestResponder_CanResolve_CallFails(t *testing.T) {
+	responder, mockTxMgr := newTestFaultResponder(t, true)
+	resolved := responder.CanResolve(context.Background())
+	require.False(t, resolved)
+	require.Equal(t, 0, mockTxMgr.sends)
+}
+
+// TestResponder_CanResolve_Success tests the [Responder.CanResolve] method
+// succeeds when the call message is successfully sent through the txmgr.
+func TestResponder_CanResolve_Success(t *testing.T) {
+	responder, mockTxMgr := newTestFaultResponder(t, false)
+	resolved := responder.CanResolve(context.Background())
+	require.True(t, resolved)
+	require.Equal(t, 1, mockTxMgr.calls)
 }
 
 // TestResponder_Resolve_SendFails tests the [Responder.Resolve] method

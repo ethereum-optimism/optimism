@@ -49,10 +49,15 @@ func Main(ctx context.Context, logger log.Logger, cfg *config.Config) error {
 
 	for {
 		logger.Info("Performing action")
-		_ = agent.Act()
-		caller.LogGameInfo()
+		_ = agent.Act(ctx)
+		status, _ := caller.GetGameStatus(ctx)
+		if status != 0 {
+			caller.LogGameStatus()
+			return nil
+		} else {
+			caller.LogGameInfo()
+		}
 		select {
-		// nosemgrep: dgryski.semgrep-go.timeafter.leaky-time-after
 		case <-time.After(300 * time.Millisecond):
 		// Continue
 		case <-ctx.Done():

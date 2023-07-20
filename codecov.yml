@@ -8,6 +8,7 @@ ignore:
   - "op-bindings/bindings/*.go"
   - "packages/contracts-bedrock/contracts/vendor/WETH9.sol"
   - "packages/contracts-bedrock/contracts/cannon"  # tested through Go tests
+  - 'packages/contracts-bedrock/contracts/EAS/**/*.sol'
 coverage:
   status:
     patch:
@@ -35,6 +36,5 @@ flag_management:
     - name: core-utils-tests
     - name: dtl-tests
     - name: chain-mon-tests
-    - name: fault-detector-tests
     - name: replica-healthcheck-tests
     - name: sdk-tests

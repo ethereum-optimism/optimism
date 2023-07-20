@@ -1,5 +1,17 @@
 # @eth-optimism/drippie-mon
 
+## 0.4.1
+
+### Patch Changes
+
+- [#6206](https://github.com/ethereum-optimism/optimism/pull/6206) [`3969730dc`](https://github.com/ethereum-optimism/optimism/commit/3969730dc938947a7105c27989e53d4b5cf788a9) Thanks [@tynes](https://github.com/tynes)! - Update import path for artifact
+
+- Updated dependencies [[`a666c4f20`](https://github.com/ethereum-optimism/optimism/commit/a666c4f2082253abbb68c0678e5a0a1ed0c00f4b), [`ff577455f`](https://github.com/ethereum-optimism/optimism/commit/ff577455f196b5f5b8a889339b845561ca6c538a), [`89ca741a6`](https://github.com/ethereum-optimism/optimism/commit/89ca741a63c5e07f9d691bb6f7a89f7718fc49ca), [`c11039060`](https://github.com/ethereum-optimism/optimism/commit/c11039060bc037a88916c2cba602687b6d69ad1a), [`72d184854`](https://github.com/ethereum-optimism/optimism/commit/72d184854ebad8b2025641f126ed76573b1f0ac3), [`77da6edc6`](https://github.com/ethereum-optimism/optimism/commit/77da6edc643e0b5e39f7b6bb41c3c7ead418a876), [`3f13fd0bb`](https://github.com/ethereum-optimism/optimism/commit/3f13fd0bbea051a4550f1df6def1a53a616aa6f6), [`639163253`](https://github.com/ethereum-optimism/optimism/commit/639163253a5e2128f1c21c446b68d358d38cbd30)]:
+  - @eth-optimism/sdk@3.1.0
+  - @eth-optimism/contracts-bedrock@0.16.0
+  - @eth-optimism/core-utils@0.12.2
+  - @eth-optimism/common-ts@0.8.3
+
 ## 0.4.0
 
 ### Minor Changes

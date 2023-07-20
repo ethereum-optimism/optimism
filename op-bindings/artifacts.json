@@ -32,5 +32,7 @@
   "StandardBridge",
   "CrossDomainMessenger",
   "MIPS",
-  "PreimageOracle"
+  "PreimageOracle",
+  "EAS",
+  "SchemaRegistry"
 ]

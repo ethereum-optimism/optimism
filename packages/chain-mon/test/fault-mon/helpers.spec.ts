@@ -6,7 +6,10 @@ import Artifact__L2OutputOracle from '@eth-optimism/contracts-bedrock/forge-arti
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
 import { expect } from './setup'
-import { findOutputForIndex, findFirstUnfinalizedStateBatchIndex } from '../src'
+import {
+  findOutputForIndex,
+  findFirstUnfinalizedStateBatchIndex,
+} from '../../src/fault-mon'
 
 describe('helpers', () => {
   const deployConfig = {
