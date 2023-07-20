@@ -15,6 +15,7 @@ import (
 // deployDisputeGameContracts deploys the DisputeGameFactory, AlphabetVM and FaultDisputeGame contracts
 // It configures the alphabet fault game as game type 0 (faultGameType)
 // If/when the dispute game factory becomes a predeployed contract this can be removed and just use the
+// predeployed version
 func deployDisputeGameContracts(require *require.Assertions, ctx context.Context, client *ethclient.Client, opts *bind.TransactOpts, gameDuration uint64) *bindings.DisputeGameFactory {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()

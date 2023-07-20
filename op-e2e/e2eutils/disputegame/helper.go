@@ -32,7 +32,7 @@ const (
 )
 
 var alphaExtraData = common.Hex2Bytes("1000000000000000000000000000000000000000000000000000000000000000")
-var alphabetVMAbsolutePrestate = uint256.NewInt(140).Bytes32()
+var alphabetVMAbsolutePrestate = uint256.NewInt(96).Bytes32()
 
 type FactoryHelper struct {
 	t       *testing.T
