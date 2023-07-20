@@ -86,10 +86,6 @@ jobs:
             -- -parallel=2 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./...
           working_directory: cannon
       - run:
-          name: Cannon Go fuzz tests
-          command: make fuzz
-          working_directory: cannon
-      - run:
           name: upload Cannon coverage
           command: codecov --verbose --clean --flags cannon-go-tests
       - store_test_results:
@@ -863,6 +859,18 @@ jobs:
           command: make fuzz
           working_directory: op-chain-ops
 
+  fuzz-cannon:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - check-changed:
+          patterns: cannon,packages/contracts-bedrock/contracts/cannon
+      - run:
+          name: Fuzz
+          command: make fuzz
+          working_directory: cannon
+
   depcheck:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
@@ -1412,6 +1420,7 @@ workflows:
       - go-mod-tidy
       - fuzz-op-node
       - fuzz-op-chain-ops
+      - fuzz-cannon
       - bedrock-markdown
       - go-lint:
           name: op-batcher-lint
