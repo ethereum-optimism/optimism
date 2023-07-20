@@ -53,24 +53,49 @@ contract PreimageOracle {
         preimageLengths[key] = size;
     }
 
-    /// @notice Loads a local data part into the preimage oracle.
-    /// @param _partOffset The offset of the local data part.
+    /// @notice Loads a word of local data into the preimage oracle in two separate parts.
     /// @param _ident The identifier of the local data.
-    /// @param _part The local data part.
-    /// @param _size The size of the local data.
-    /// @dev The local data part is loaded into the preimage oracle under the context
+    /// @param _word The local data word.
+    /// @param _size The number of bytes in `_word` to load.
+    /// @dev The local data parts are loaded into the preimage oracle under the context
     ///      of the caller - no other account can write to the caller's context
     ///      specific data.
-    function loadLocalPart(
-        uint256 _partOffset,
-        uint256 _ident,
-        bytes32 _part,
-        uint256 _size
-    ) external {
+    ///
+    ///      There are 5 local data identifiers:
+    ///      ┌────────────┬─────────────────┐
+    ///      │ Identifier │      Data       │
+    ///      ├────────────┼─────────────────┤
+    ///      │          1 │ L1 Head Hash    │
+    ///      │          2 │ Output Root     │
+    ///      │          3 │ Root Claim      │
+    ///      │          4 │ L2 Block Number │
+    ///      │          5 │ Chain ID        │
+    ///      └────────────┴─────────────────┘
+    function loadLocalData(uint256 _ident, bytes32 _word, uint8 _size) external {
+        // Compute the localized key from the given local identifier.
         bytes32 key = PreimageKeyLib.localizeIdent(_ident);
 
-        preimagePartOk[key][_partOffset] = true;
-        preimageParts[key][_partOffset] = _part;
+        // Load both parts of the local data word into storage for future
+        // reads.
+        bytes32 part1;
+        assembly {
+            // The first part is prepended with an 8 byte length prefix and contains
+            // the first 24 bytes of the passed word.
+            part1 := or(shl(192, _size), shr(64, _word))
+        }
+
+        // Store the first part with offset 0.
+        preimagePartOk[key][0] = true;
+        preimageParts[key][0] = part1;
+
+        // If the size is greater than 24, we need to store a second part as well.
+        if (_size > 24) {
+            bytes32 part2 = _word << 192;
+            preimagePartOk[key][32] = true;
+            preimageParts[key][32] = part2;
+        }
+
+        // Assign the length of the preimage at the localized key.
         preimageLengths[key] = _size;
     }
 
