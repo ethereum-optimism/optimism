@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.7.6;
+pragma solidity 0.8.15;
 
+import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
 import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 
 /// @title PreimageOracle
 /// @notice A contract for storing permissioned pre-images.
-contract PreimageOracle {
+contract PreimageOracle is IPreimageOracle {
     /// @notice Mapping of pre-image keys to pre-image lengths.
     mapping(bytes32 => uint256) public preimageLengths;
     /// @notice Mapping of pre-image keys to pre-image parts.
@@ -13,11 +14,7 @@ contract PreimageOracle {
     /// @notice Mapping of pre-image keys to pre-image part offsets.
     mapping(bytes32 => mapping(uint256 => bool)) public preimagePartOk;
 
-    /// @notice Reads a pre-image from the oracle.
-    /// @param _key The key of the pre-image to read.
-    /// @param _offset The offset of the pre-image to read.
-    /// @return dat_ The pre-image data.
-    /// @return datLen_ The length of the pre-image data.
+    /// @inheritdoc IPreimageOracle
     function readPreimage(bytes32 _key, uint256 _offset)
         external
         view
@@ -53,24 +50,7 @@ contract PreimageOracle {
         preimageLengths[key] = size;
     }
 
-    /// @notice Loads a word of local data into the preimage oracle in two separate parts.
-    /// @param _ident The identifier of the local data.
-    /// @param _word The local data word.
-    /// @param _size The number of bytes in `_word` to load.
-    /// @dev The local data parts are loaded into the preimage oracle under the context
-    ///      of the caller - no other account can write to the caller's context
-    ///      specific data.
-    ///
-    ///      There are 5 local data identifiers:
-    ///      ┌────────────┬────────────────────────┐
-    ///      │ Identifier │      Data              │
-    ///      ├────────────┼────────────────────────┤
-    ///      │          1 │ L1 Head Hash (bytes32) │
-    ///      │          2 │ Output Root (bytes32)  │
-    ///      │          3 │ Root Claim (bytes32)   │
-    ///      │          4 │ L2 Block Number (u64)  │
-    ///      │          5 │ Chain ID (u64)         │
-    ///      └────────────┴────────────────────────┘
+    /// @inheritdoc IPreimageOracle
     function loadLocalData(
         uint256 _ident,
         bytes32 _word,
@@ -106,10 +86,7 @@ contract PreimageOracle {
         preimageLengths[key_] = _size;
     }
 
-    /// @notice Prepares a pre-image to be read by keccak256 key, starting at
-    ///         the given offset and up to 32 bytes (clipped at pre-image length, if out of data).
-    /// @param _partOffset The offset of the pre-image to read.
-    /// @param _preimage The preimage data.
+    /// @inheritdoc IPreimageOracle
     function loadKeccak256PreimagePart(uint256 _partOffset, bytes calldata _preimage) external {
         uint256 size;
         bytes32 key;

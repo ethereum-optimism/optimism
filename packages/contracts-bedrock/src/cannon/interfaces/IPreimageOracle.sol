@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.7.6;
+pragma solidity 0.8.15;
 
 /// @title IPreimageOracle
 /// @notice Interface for a preimage oracle.
@@ -14,10 +14,29 @@ interface IPreimageOracle {
         view
         returns (bytes32 dat_, uint256 datLen_);
 
-    /// @notice Computes and returns the key for a pre-image.
-    /// @param _preimage The pre-image.
-    /// @return key_ The pre-image key.
-    function computePreimageKey(bytes calldata _preimage) external pure returns (bytes32 key_);
+    /// @notice Loads a word of local data into the preimage oracle in two separate parts.
+    /// @param _ident The identifier of the local data.
+    /// @param _word The local data word.
+    /// @param _size The number of bytes in `_word` to load.
+    /// @dev The local data parts are loaded into the preimage oracle under the context
+    ///      of the caller - no other account can write to the caller's context
+    ///      specific data.
+    ///
+    ///      There are 5 local data identifiers:
+    ///      ┌────────────┬────────────────────────┐
+    ///      │ Identifier │      Data              │
+    ///      ├────────────┼────────────────────────┤
+    ///      │          1 │ L1 Head Hash (bytes32) │
+    ///      │          2 │ Output Root (bytes32)  │
+    ///      │          3 │ Root Claim (bytes32)   │
+    ///      │          4 │ L2 Block Number (u64)  │
+    ///      │          5 │ Chain ID (u64)         │
+    ///      └────────────┴────────────────────────┘
+    function loadLocalData(
+        uint256 _ident,
+        bytes32 _word,
+        uint8 _size
+    ) external returns (bytes32 key_);
 
     /// @notice Prepares a preimage to be read by keccak256 key, starting at
     ///         the given offset and up to 32 bytes (clipped at preimage length, if out of data).

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
+import { IPreimageOracle } from "../../cannon/interfaces/IPreimageOracle.sol";
+
 /// @title IBigStepper
 /// @notice An interface for a contract with a state transition function that
 ///         will accept a pre state and return a post state.
@@ -34,15 +36,4 @@ interface IBigStepper {
 
     /// @notice Returns the preimage oracle used by the stepper.
     function oracle() external view returns (IPreimageOracle oracle_);
-}
-
-/// @notice Temporary interface for the `IPreimageOracle`. Remove once we've upgraded
-///         the cannon contracts to a newer version of solc.
-interface IPreimageOracle {
-    function loadLocalData(
-        uint256 _ident,
-        bytes32 _word,
-        uint256 _size,
-        uint256 _partOffset
-    ) external returns (bytes32 key_);
 }
