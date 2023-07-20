@@ -126,31 +126,31 @@ func TestEVM(t *testing.T) {
 			// set the return address ($ra) to jump into when test completes
 			state.Registers[31] = endAddr
 
-			us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
+			goState := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
 
 			for i := 0; i < 1000; i++ {
-				if us.state.PC == endAddr {
+				if goState.state.PC == endAddr {
 					break
 				}
-				if exitGroup && us.state.Exited {
+				if exitGroup && goState.state.Exited {
 					break
 				}
 				insn := state.Memory.GetMemory(state.PC)
 				t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
 
-				stepWitness, err := us.Step(true)
+				stepWitness, err := goState.Step(true)
 				require.NoError(t, err)
 				evmPost := evm.Step(t, stepWitness)
 				// verify the post-state matches.
 				// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
-				uniPost := us.state.EncodeWitness()
-				require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
+				goPost := goState.state.EncodeWitness()
+				require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 					"mipsevm produced different state than EVM")
 			}
 			if exitGroup {
-				require.NotEqual(t, uint32(endAddr), us.state.PC, "must not reach end")
-				require.True(t, us.state.Exited, "must set exited state")
-				require.Equal(t, uint8(1), us.state.ExitCode, "must exit with 1")
+				require.NotEqual(t, uint32(endAddr), goState.state.PC, "must not reach end")
+				require.True(t, goState.state.Exited, "must set exited state")
+				require.Equal(t, uint8(1), goState.state.ExitCode, "must exit with 1")
 			} else {
 				require.Equal(t, uint32(endAddr), state.PC, "must reach end")
 				// inspect test result
@@ -180,8 +180,8 @@ func TestEVMFault(t *testing.T) {
 	// set the return address ($ra) to jump into when test completes
 	state.Registers[31] = endAddr
 
-	us := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
-	require.Panics(t, func() { _, _ = us.Step(true) }, "must panic on illegal instruction")
+	goState := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+	require.Panics(t, func() { _, _ = goState.Step(true) }, "must panic on illegal instruction")
 
 	insnProof := initialState.Memory.MerkleProof(0)
 	stepWitness := &StepWitness{
@@ -213,11 +213,11 @@ func TestHelloEVM(t *testing.T) {
 	require.NoError(t, PatchStack(state), "add initial stack")
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	us := NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
+	goState := NewInstrumentedState(state, nil, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 
 	start := time.Now()
 	for i := 0; i < 400_000; i++ {
-		if us.state.Exited {
+		if goState.state.Exited {
 			break
 		}
 		insn := state.Memory.GetMemory(state.PC)
@@ -228,13 +228,13 @@ func TestHelloEVM(t *testing.T) {
 		evm := NewMIPSEVM(contracts, addrs)
 		evm.SetTracer(tracer)
 
-		stepWitness, err := us.Step(true)
+		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		evmPost := evm.Step(t, stepWitness)
 		// verify the post-state matches.
 		// TODO: maybe more readable to decode the evmPost state, and do attribute-wise comparison.
-		uniPost := us.state.EncodeWitness()
-		require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
+		goPost := goState.state.EncodeWitness()
+		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	}
 	end := time.Now()
@@ -266,10 +266,10 @@ func TestClaimEVM(t *testing.T) {
 	oracle, expectedStdOut, expectedStdErr := claimTestOracle(t)
 
 	var stdOutBuf, stdErrBuf bytes.Buffer
-	us := NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
+	goState := NewInstrumentedState(state, oracle, io.MultiWriter(&stdOutBuf, os.Stdout), io.MultiWriter(&stdErrBuf, os.Stderr))
 
 	for i := 0; i < 2000_000; i++ {
-		if us.state.Exited {
+		if goState.state.Exited {
 			break
 		}
 
@@ -278,15 +278,15 @@ func TestClaimEVM(t *testing.T) {
 			t.Logf("step: %4d pc: 0x%08x insn: 0x%08x", state.Step, state.PC, insn)
 		}
 
-		stepWitness, err := us.Step(true)
+		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evm.SetTracer(tracer)
 		evmPost := evm.Step(t, stepWitness)
 
-		uniPost := us.state.EncodeWitness()
-		require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
+		goPost := goState.state.EncodeWitness()
+		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	}
 

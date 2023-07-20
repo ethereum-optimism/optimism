@@ -37,8 +37,8 @@ func FuzzStateSyscallBrk(f *testing.F) {
 		expectedRegisters := state.Registers
 		expectedRegisters[2] = 0x4000_0000
 
-		us := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
-		stepWitness, err := us.Step(true)
+		goState := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
@@ -57,8 +57,8 @@ func FuzzStateSyscallBrk(f *testing.F) {
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)
-		uniPost := us.state.EncodeWitness()
-		require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
+		goPost := goState.state.EncodeWitness()
+		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
 }
@@ -86,8 +86,8 @@ func FuzzStateSyscallClone(f *testing.F) {
 		expectedRegisters := state.Registers
 		expectedRegisters[2] = 0x1
 
-		us := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
-		stepWitness, err := us.Step(true)
+		goState := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
@@ -106,8 +106,8 @@ func FuzzStateSyscallClone(f *testing.F) {
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)
-		uniPost := us.state.EncodeWitness()
-		require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
+		goPost := goState.state.EncodeWitness()
+		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
 }
@@ -132,8 +132,8 @@ func FuzzStateSyscallMmap(f *testing.F) {
 		preStateRoot := state.Memory.MerkleRoot()
 		preStateRegisters := state.Registers
 
-		us := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
-		stepWitness, err := us.Step(true)
+		goState := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
@@ -165,8 +165,8 @@ func FuzzStateSyscallMmap(f *testing.F) {
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)
-		uniPost := us.state.EncodeWitness()
-		require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
+		goPost := goState.state.EncodeWitness()
+		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
 }
@@ -193,8 +193,8 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 		preStateRoot := state.Memory.MerkleRoot()
 		preStateRegisters := state.Registers
 
-		us := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
-		stepWitness, err := us.Step(true)
+		goState := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
@@ -213,8 +213,8 @@ func FuzzStateSyscallExitGroup(f *testing.F) {
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)
-		uniPost := us.state.EncodeWitness()
-		require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
+		goPost := goState.state.EncodeWitness()
+		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
 }
@@ -239,8 +239,8 @@ func FuzzStateSyscallFnctl(f *testing.F) {
 		preStateRoot := state.Memory.MerkleRoot()
 		preStateRegisters := state.Registers
 
-		us := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
-		stepWitness, err := us.Step(true)
+		goState := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
@@ -276,8 +276,8 @@ func FuzzStateSyscallFnctl(f *testing.F) {
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)
-		uniPost := us.state.EncodeWitness()
-		require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
+		goPost := goState.state.EncodeWitness()
+		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
 }
@@ -307,8 +307,8 @@ func FuzzStateHintRead(f *testing.F) {
 		expectedRegisters[2] = count
 
 		oracle := staticOracle(t, preimageData) // only used for hinting
-		us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
-		stepWitness, err := us.Step(true)
+		goState := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
+		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
@@ -325,8 +325,8 @@ func FuzzStateHintRead(f *testing.F) {
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)
-		uniPost := us.state.EncodeWitness()
-		require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
+		goPost := goState.state.EncodeWitness()
+		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
 }
@@ -364,8 +364,8 @@ func FuzzStatePreimageRead(f *testing.F) {
 		}
 		oracle := staticOracle(t, preimageData)
 
-		us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
-		stepWitness, err := us.Step(true)
+		goState := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
+		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.True(t, stepWitness.HasPreimage())
 
@@ -389,8 +389,8 @@ func FuzzStatePreimageRead(f *testing.F) {
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)
-		uniPost := us.state.EncodeWitness()
-		require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
+		goPost := goState.state.EncodeWitness()
+		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
 }
@@ -424,8 +424,8 @@ func FuzzStateHintWrite(f *testing.F) {
 		expectedRegisters[2] = count
 
 		oracle := staticOracle(t, preimageData) // only used for hinting
-		us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
-		stepWitness, err := us.Step(true)
+		goState := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
+		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
@@ -442,8 +442,8 @@ func FuzzStateHintWrite(f *testing.F) {
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)
-		uniPost := us.state.EncodeWitness()
-		require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
+		goPost := goState.state.EncodeWitness()
+		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
 }
@@ -476,8 +476,8 @@ func FuzzStatePreimageWrite(f *testing.F) {
 		expectedRegisters[2] = sz
 
 		oracle := staticOracle(t, preimageData)
-		us := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
-		stepWitness, err := us.Step(true)
+		goState := NewInstrumentedState(state, oracle, os.Stdout, os.Stderr)
+		stepWitness, err := goState.Step(true)
 		require.NoError(t, err)
 		require.False(t, stepWitness.HasPreimage())
 
@@ -494,8 +494,8 @@ func FuzzStatePreimageWrite(f *testing.F) {
 
 		evm := NewMIPSEVM(contracts, addrs)
 		evmPost := evm.Step(t, stepWitness)
-		uniPost := us.state.EncodeWitness()
-		require.Equal(t, hexutil.Bytes(uniPost).String(), hexutil.Bytes(evmPost).String(),
+		goPost := goState.state.EncodeWitness()
+		require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
 			"mipsevm produced different state than EVM")
 	})
 }
