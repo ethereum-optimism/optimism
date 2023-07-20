@@ -5,7 +5,7 @@ import { IDisputeGame } from "./interfaces/IDisputeGame.sol";
 import { IFaultDisputeGame } from "./interfaces/IFaultDisputeGame.sol";
 import { IInitializable } from "./interfaces/IInitializable.sol";
 import { IBondManager } from "./interfaces/IBondManager.sol";
-import { IBigStepper } from "./interfaces/IBigStepper.sol";
+import { IBigStepper, IPreimageOracle } from "./interfaces/IBigStepper.sol";
 
 import { Clone } from "../libraries/Clone.sol";
 import { Semver } from "../universal/Semver.sol";
@@ -242,6 +242,35 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @inheritdoc IFaultDisputeGame
     function defend(uint256 _parentIndex, Claim _claim) external payable {
         move(_parentIndex, _claim, false);
+    }
+
+    /// @inheritdoc IFaultDisputeGame
+    function addLocalData(uint256 _ident) external {
+        // INVARIANT: Local data can only be added if the game is currently in progress.
+        if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
+
+        IPreimageOracle oracle = VM.oracle();
+        if (_ident == 1) {
+            // Load the L1 head hash into the game's local context in the preimage oracle.
+            oracle.loadLocalData(_ident, Hash.unwrap(l1Head), 32);
+        } else if (_ident == 2) {
+            // Load the earliest output root that commits to the passed L2 block number
+            // into the game's local context in the preimage oracle.
+            // TODO(clabby): Add an immutable for the L2OO.
+        } else if (_ident == 3) {
+            // Load the root claim into the game's local context in the preimage oracle.
+            oracle.loadLocalData(_ident, Claim.unwrap(rootClaim()), 32);
+        } else if (_ident == 4) {
+            // Load the L2 block number into the game's local context in the preimage oracle.
+            // The L2 block number is stored as a big-endian uint64 in the upper 8 bytes of the
+            // passed word.
+            oracle.loadLocalData(_ident, bytes32(l2BlockNumber() << 192), 8);
+        } else if (_ident == 5) {
+            // Load the chain ID into the game's local context in the preimage oracle.
+            // The chain ID is stored as a big-endian uint64 in the upper 8 bytes of the
+            // passed word.
+            oracle.loadLocalData(_ident, bytes32(block.chainid << 192), 8);
+        }
     }
 
     /// @inheritdoc IFaultDisputeGame

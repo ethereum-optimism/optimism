@@ -381,23 +381,23 @@ func (_PreimageOracle *PreimageOracleTransactorSession) LoadKeccak256PreimagePar
 	return _PreimageOracle.Contract.LoadKeccak256PreimagePart(&_PreimageOracle.TransactOpts, _partOffset, _preimage)
 }
 
-// LoadLocalPart is a paid mutator transaction binding the contract method 0x90fbc1e2.
+// LoadLocalData is a paid mutator transaction binding the contract method 0xe52f0937.
 //
-// Solidity: function loadLocalPart(uint256 _partOffset, uint256 _ident, bytes32 _part, uint256 _size) returns()
-func (_PreimageOracle *PreimageOracleTransactor) LoadLocalPart(opts *bind.TransactOpts, _partOffset *big.Int, _ident *big.Int, _part [32]byte, _size *big.Int) (*types.Transaction, error) {
-	return _PreimageOracle.contract.Transact(opts, "loadLocalPart", _partOffset, _ident, _part, _size)
+// Solidity: function loadLocalData(uint256 _ident, bytes32 _word, uint8 _size) returns()
+func (_PreimageOracle *PreimageOracleTransactor) LoadLocalData(opts *bind.TransactOpts, _ident *big.Int, _word [32]byte, _size uint8) (*types.Transaction, error) {
+	return _PreimageOracle.contract.Transact(opts, "loadLocalData", _ident, _word, _size)
 }
 
-// LoadLocalPart is a paid mutator transaction binding the contract method 0x90fbc1e2.
+// LoadLocalData is a paid mutator transaction binding the contract method 0xe52f0937.
 //
-// Solidity: function loadLocalPart(uint256 _partOffset, uint256 _ident, bytes32 _part, uint256 _size) returns()
-func (_PreimageOracle *PreimageOracleSession) LoadLocalPart(_partOffset *big.Int, _ident *big.Int, _part [32]byte, _size *big.Int) (*types.Transaction, error) {
-	return _PreimageOracle.Contract.LoadLocalPart(&_PreimageOracle.TransactOpts, _partOffset, _ident, _part, _size)
+// Solidity: function loadLocalData(uint256 _ident, bytes32 _word, uint8 _size) returns()
+func (_PreimageOracle *PreimageOracleSession) LoadLocalData(_ident *big.Int, _word [32]byte, _size uint8) (*types.Transaction, error) {
+	return _PreimageOracle.Contract.LoadLocalData(&_PreimageOracle.TransactOpts, _ident, _word, _size)
 }
 
-// LoadLocalPart is a paid mutator transaction binding the contract method 0x90fbc1e2.
+// LoadLocalData is a paid mutator transaction binding the contract method 0xe52f0937.
 //
-// Solidity: function loadLocalPart(uint256 _partOffset, uint256 _ident, bytes32 _part, uint256 _size) returns()
-func (_PreimageOracle *PreimageOracleTransactorSession) LoadLocalPart(_partOffset *big.Int, _ident *big.Int, _part [32]byte, _size *big.Int) (*types.Transaction, error) {
-	return _PreimageOracle.Contract.LoadLocalPart(&_PreimageOracle.TransactOpts, _partOffset, _ident, _part, _size)
+// Solidity: function loadLocalData(uint256 _ident, bytes32 _word, uint8 _size) returns()
+func (_PreimageOracle *PreimageOracleTransactorSession) LoadLocalData(_ident *big.Int, _word [32]byte, _size uint8) (*types.Transaction, error) {
+	return _PreimageOracle.Contract.LoadLocalData(&_PreimageOracle.TransactOpts, _ident, _word, _size)
 }
