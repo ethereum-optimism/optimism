@@ -1,17 +1,24 @@
 ---
-title: Using the SDK with OP Stack
+title: Using the OP Stack Client SDK
 lang: en-US
 ---
 
-When building applications for use with your OP Stack, you can continue to use [the Optimism JavaScript SDK](https://sdk.optimism.io/).
-The main difference is you need to provide some contract addresses to the `CrossDomainMessenger` because they aren't preconfigured.
 
+## Natively supported chains
 
-## Contract addresses
+[The OP Stack Client SDK](https://sdk.optimism.io/) natively supports multiple OP Chains: OP, Base, etc.
+To see whether a specific OP Chain is supported directly, [see the documentation](https://sdk.optimism.io/enums/l2chainid).
 
-### L1 contract addresses
+## Not natively supported chains
 
-The contract addresses are in `.../optimism/packages/contracts-bedrock/deployments/getting-started`, which you created when you deployed the L1 contracts.
+If you are using a chain that is *not* natively supported, for example an OP Stack chain [you just created](./getting-started.md), you can continue to use [the OP Stack Client SDK](https://sdk.optimism.io/). 
+You just need to provide some contract addresses to the `CrossDomainMessenger` because they aren't preconfigured.
+
+### Getting contract addresses
+
+#### L1 contract addresses
+
+If you followed the directions in [Getting Started](./getting-started.md), the contract addresses are in `.../optimism/packages/contracts-bedrock/deployments/getting-started`, which you created when you deployed the L1 contracts.
 
 | Contract name when creating `CrossDomainMessenger` | File with address |
 | - | - |
@@ -22,9 +29,9 @@ The contract addresses are in `.../optimism/packages/contracts-bedrock/deploymen
 | `L2OutputOracle`         | `L2OutputOracleProxy.json`
 
 
-### Unneeded contract addresses
+#### Unneeded contract addresses
 
-Some contracts are required by the SDK, but not actually used.
+Some contracts are required by the SDK as a sanity check, but are not actually used.
 For these contracts you can just specify the zero address:
 
 - `StateCommitmentChain`
@@ -33,7 +40,7 @@ For these contracts you can just specify the zero address:
 
 In JavaScript you can create the zero address using the expression `"0x".padEnd(42, "0")`.
 
-## The CrossChainMessenger object
+### The CrossChainMessenger object
 
 These directions assume you are inside the [Hardhat console](https://hardhat.org/hardhat-runner/docs/guides/hardhat-console).
 They further assume that your project already includes the Optimism SDK [`@eth-optimism/sdk`](https://www.npmjs.com/package/@eth-optimism/sdk).
@@ -113,7 +120,7 @@ They further assume that your project already includes the Optimism SDK [`@eth-o
    })
    ```
 
-## Verify SDK functionality
+### Verify SDK functionality
 
 To verify the SDK's functionality, transfer some ETH from L1 to L2.
 
