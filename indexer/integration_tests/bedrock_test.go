@@ -1,7 +1,6 @@
 package integration_tests
 
 import (
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -14,10 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/indexer/db"
@@ -29,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
+	"github.com/ethereum-optimism/optimism/op-service/client/utils"
 
 	_ "github.com/lib/pq"
 )
@@ -47,13 +44,11 @@ func TestBedrockIndexer(t *testing.T) {
 	fromAddr := cfg.Secrets.Addresses().Alice
 
 	// wait a couple of blocks
-	require.NoError(t, e2eutils.WaitBlock(e2eutils.TimeoutCtx(t, 30*time.Second), l2Client, 10))
+	require.NoError(t, utils.WaitBlock(e2eutils.TimeoutCtx(t, 30*time.Second), l2Client, 10))
 
 	l1SB, err := bindings.NewL1StandardBridge(predeploys.DevL1StandardBridgeAddr, l1Client)
 	require.NoError(t, err)
 	l2SB, err := bindings.NewL2StandardBridge(predeploys.L2StandardBridgeAddr, l2Client)
-	require.NoError(t, err)
-	portal, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)
 	require.NoError(t, err)
 	l1Opts, err := bind.NewKeyedTransactorWithChainID(cfg.Secrets.Alice, cfg.L1ChainIDBig())
 	require.NoError(t, err)
@@ -104,7 +99,7 @@ func TestBedrockIndexer(t *testing.T) {
 		l1Opts.Value = big.NewInt(params.Ether)
 		depTx, err := l1SB.DepositETH(l1Opts, 200_000, nil)
 		require.NoError(t, err)
-		depReceipt, err := e2eutils.WaitReceiptOK(e2eutils.TimeoutCtx(t, 10*time.Second), l1Client, depTx.Hash())
+		depReceipt, err := utils.WaitReceiptOK(e2eutils.TimeoutCtx(t, 10*time.Second), l1Client, depTx.Hash())
 		require.NoError(t, err)
 		require.Greaterf(t, len(depReceipt.Logs), 0, "must have logs")
 		var l2Hash common.Hash
@@ -119,12 +114,12 @@ func TestBedrockIndexer(t *testing.T) {
 			l2Hash = tx.Hash()
 		}
 		require.NotEqual(t, common.Hash{}, l2Hash)
-		_, err = e2eutils.WaitReceiptOK(e2eutils.TimeoutCtx(t, 15*time.Second), l2Client, l2Hash)
+		_, err = utils.WaitReceiptOK(e2eutils.TimeoutCtx(t, 15*time.Second), l2Client, l2Hash)
 		require.NoError(t, err)
 
 		// Poll for indexer deposit
 		var depPage *db.PaginatedDeposits
-		require.NoError(t, e2eutils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {
+		require.NoError(t, utils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {
 			res := new(db.PaginatedDeposits)
 			err := getJSON(makeURL(fmt.Sprintf("v1/deposits/%s", fromAddr)), res)
 			if err != nil {
@@ -155,11 +150,11 @@ func TestBedrockIndexer(t *testing.T) {
 		l2Opts.Value = big.NewInt(0.5 * params.Ether)
 		wdTx, err := l2SB.Withdraw(l2Opts, predeploys.LegacyERC20ETHAddr, big.NewInt(0.5*params.Ether), 0, nil)
 		require.NoError(t, err)
-		wdReceipt, err := e2eutils.WaitReceiptOK(e2eutils.TimeoutCtx(t, 30*time.Second), l2Client, wdTx.Hash())
+		wdReceipt, err := utils.WaitReceiptOK(e2eutils.TimeoutCtx(t, 30*time.Second), l2Client, wdTx.Hash())
 		require.NoError(t, err)
 
 		var wdPage *db.PaginatedWithdrawals
-		require.NoError(t, e2eutils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {
+		require.NoError(t, utils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {
 			res := new(db.PaginatedWithdrawals)
 			err := getJSON(makeURL(fmt.Sprintf("v1/withdrawals/%s", fromAddr)), res)
 			if err != nil {
@@ -189,50 +184,11 @@ func TestBedrockIndexer(t *testing.T) {
 		require.Equal(t, db.ETHL2Token, withdrawal.L2Token)
 		require.NotEmpty(t, withdrawal.GUID)
 
-		finBlockNum, err := withdrawals.WaitForFinalizationPeriod(
-			e2eutils.TimeoutCtx(t, time.Minute),
-			l1Client,
-			predeploys.DevOptimismPortalAddr,
-			wdReceipt.BlockNumber,
-		)
-		require.NoError(t, err)
-		finHeader, err := l2Client.HeaderByNumber(context.Background(), big.NewInt(int64(finBlockNum)))
-		require.NoError(t, err)
-
-		rpcClient, err := rpc.Dial(sys.Nodes["sequencer"].HTTPEndpoint())
-		require.NoError(t, err)
-		proofCl := gethclient.New(rpcClient)
-		receiptCl := ethclient.NewClient(rpcClient)
-		oracle, err := bindings.NewL2OutputOracleCaller(predeploys.DevL2OutputOracleAddr, l1Client)
-		require.Nil(t, err)
-		wParams, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, wdTx.Hash(), finHeader, oracle)
-		require.NoError(t, err)
-
-		l1Opts.Value = big.NewInt(0)
-		withdrawalTx := bindings.TypesWithdrawalTransaction{
-			Nonce:    wParams.Nonce,
-			Sender:   wParams.Sender,
-			Target:   wParams.Target,
-			Value:    wParams.Value,
-			GasLimit: wParams.GasLimit,
-			Data:     wParams.Data,
-		}
-
 		// Prove our withdrawal
-		proveTx, err := portal.ProveWithdrawalTransaction(
-			l1Opts,
-			withdrawalTx,
-			wParams.L2OutputIndex,
-			wParams.OutputRootProof,
-			wParams.WithdrawalProof,
-		)
-		require.NoError(t, err)
-
-		proveReceipt, err := e2eutils.WaitReceiptOK(e2eutils.TimeoutCtx(t, time.Minute), l1Client, proveTx.Hash())
-		require.NoError(t, err)
+		wdParams, proveReceipt := op_e2e.ProveWithdrawal(t, cfg, l1Client, sys.Nodes["sequencer"], cfg.Secrets.Alice, wdReceipt)
 
 		wdPage = nil
-		require.NoError(t, e2eutils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {
+		require.NoError(t, utils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {
 			res := new(db.PaginatedWithdrawals)
 			err := getJSON(makeURL(fmt.Sprintf("v1/withdrawals/%s", fromAddr)), res)
 			if err != nil {
@@ -251,27 +207,13 @@ func TestBedrockIndexer(t *testing.T) {
 		require.Equal(t, proveReceipt.TxHash.String(), *wd.BedrockProvenTxHash)
 		require.Nil(t, wd.BedrockFinalizedTxHash)
 
-		// Wait for the finalization period to elapse
-		_, err = withdrawals.WaitForFinalizationPeriod(
-			e2eutils.TimeoutCtx(t, time.Minute),
-			l1Client,
-			predeploys.DevOptimismPortalAddr,
-			finHeader.Number,
-		)
-		require.NoError(t, err)
-
-		// Send our finalize withdrawal transaction
-		finTx, err := portal.FinalizeWithdrawalTransaction(
-			l1Opts,
-			withdrawalTx,
-		)
-		require.NoError(t, err)
-
-		finReceipt, err := e2eutils.WaitReceiptOK(e2eutils.TimeoutCtx(t, time.Minute), l1Client, finTx.Hash())
-		require.NoError(t, err)
+		// Finalize withdrawal
+		err = withdrawals.WaitForFinalizationPeriod(e2eutils.TimeoutCtx(t, 30*time.Second), l1Client, predeploys.DevOptimismPortalAddr, proveReceipt.BlockNumber)
+		require.Nil(t, err)
+		finReceipt := op_e2e.FinalizeWithdrawal(t, cfg, l1Client, cfg.Secrets.Alice, wdReceipt, wdParams)
 
 		wdPage = nil
-		require.NoError(t, e2eutils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {
+		require.NoError(t, utils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {
 			res := new(db.PaginatedWithdrawals)
 			err := getJSON(makeURL(fmt.Sprintf("v1/withdrawals/%s", fromAddr)), res)
 			if err != nil {
