@@ -381,7 +381,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         );
 
         // Set the L1 head hash at the time of the game's creation.
-        l1Head = Hash.wrap(blockhash(block.number));
+        l1Head = Hash.wrap(blockhash(block.number - 1));
     }
 
     /// @notice Returns the length of the `claimData` array.
