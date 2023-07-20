@@ -43,5 +43,5 @@ interface IPreimageOracle {
         uint256 _ident,
         bytes32 _word,
         uint8 _size
-    ) external;
+    ) external returns (bytes32 key_);
 }

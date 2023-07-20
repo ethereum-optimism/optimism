@@ -383,21 +383,21 @@ func (_PreimageOracle *PreimageOracleTransactorSession) LoadKeccak256PreimagePar
 
 // LoadLocalData is a paid mutator transaction binding the contract method 0xe52f0937.
 //
-// Solidity: function loadLocalData(uint256 _ident, bytes32 _word, uint8 _size) returns()
+// Solidity: function loadLocalData(uint256 _ident, bytes32 _word, uint8 _size) returns(bytes32 key_)
 func (_PreimageOracle *PreimageOracleTransactor) LoadLocalData(opts *bind.TransactOpts, _ident *big.Int, _word [32]byte, _size uint8) (*types.Transaction, error) {
 	return _PreimageOracle.contract.Transact(opts, "loadLocalData", _ident, _word, _size)
 }
 
 // LoadLocalData is a paid mutator transaction binding the contract method 0xe52f0937.
 //
-// Solidity: function loadLocalData(uint256 _ident, bytes32 _word, uint8 _size) returns()
+// Solidity: function loadLocalData(uint256 _ident, bytes32 _word, uint8 _size) returns(bytes32 key_)
 func (_PreimageOracle *PreimageOracleSession) LoadLocalData(_ident *big.Int, _word [32]byte, _size uint8) (*types.Transaction, error) {
 	return _PreimageOracle.Contract.LoadLocalData(&_PreimageOracle.TransactOpts, _ident, _word, _size)
 }
 
 // LoadLocalData is a paid mutator transaction binding the contract method 0xe52f0937.
 //
-// Solidity: function loadLocalData(uint256 _ident, bytes32 _word, uint8 _size) returns()
+// Solidity: function loadLocalData(uint256 _ident, bytes32 _word, uint8 _size) returns(bytes32 key_)
 func (_PreimageOracle *PreimageOracleTransactorSession) LoadLocalData(_ident *big.Int, _word [32]byte, _size uint8) (*types.Transaction, error) {
 	return _PreimageOracle.Contract.LoadLocalData(&_PreimageOracle.TransactOpts, _ident, _word, _size)
 }
