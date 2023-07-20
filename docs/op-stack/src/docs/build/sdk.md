@@ -6,7 +6,7 @@ lang: en-US
 
 ## Natively supported chains
 
-[The OP Stack Client SDK](https://sdk.optimism.io/) natively supports multiple OP Chains: OP, Base, Zora, etc.
+[The OP Stack Client SDK](https://sdk.optimism.io/) natively supports multiple OP Chains: OP, Base, etc.
 To see whether a specific OP Chain is supported directly, [see the documentation](https://sdk.optimism.io/enums/l2chainid).
 
 ## Not natively supported chains
