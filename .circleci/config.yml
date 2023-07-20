@@ -376,7 +376,7 @@ jobs:
   contracts-bedrock-tests:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -409,10 +409,12 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
+          no_output_timeout: 15m
 
   contracts-bedrock-checks:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: xlarge
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -448,6 +450,7 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
+          no_output_timeout: 15m
       - run:
           name: validate deploy configs
           command: |
@@ -1115,6 +1118,18 @@ jobs:
                 command: |
                   docker logs ops-bedrock-op-proposer-1 || echo "No logs."
                 when: on_fail
+            - run:
+                name: Log deployment artifact
+                command: |
+                  cat broadcast/Deploy.s.sol/900/run-latest.json || echo "No deployment file found"
+                when: on_fail
+                working_directory: packages/contracts-bedrock
+            - run:
+                name: Log artifacts directory
+                command: |
+                  ls -R forge-artifacts || echo "No forge artifacts found"
+                when: on_fail
+                working_directory: packages/contracts-bedrock
       - when:
           condition:
             and:

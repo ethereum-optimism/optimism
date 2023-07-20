@@ -225,6 +225,16 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 			if err := checkL2ToL1MessagePasser(p, client); err != nil {
 				return err
 			}
+
+		case predeploys.SchemaRegistryAddr:
+			if err := checkSchemaRegistry(p, client); err != nil {
+				return err
+			}
+
+		case predeploys.EASAddr:
+			if err := checkEAS(p, client); err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -709,6 +719,43 @@ func checkDeployerWhitelist(addr common.Address, client *ethclient.Client) error
 		return err
 	}
 	log.Info("DeployerWhitelist version", "version", version)
+	return nil
+}
+
+func checkSchemaRegistry(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewSchemaRegistry(addr, client)
+	if err != nil {
+		return err
+	}
+
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("SchemaRegistry version", "version", version)
+	return nil
+}
+
+func checkEAS(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewEAS(addr, client)
+	if err != nil {
+		return err
+	}
+
+	registry, err := contract.GetSchemaRegistry(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if registry != predeploys.SchemaRegistryAddr {
+		return fmt.Errorf("Incorrect registry address %s", registry)
+	}
+	log.Info("EAS", "registry", registry)
+
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("EAS version", "version", version)
 	return nil
 }
 
