@@ -150,11 +150,12 @@ Span-batch rules, in validation order:
   - Rules:
     - `start_epoch_num + sequence_window_size < inclusion_block_number` -> `drop`:
       i.e. the batch must be included timely.
-    - `start_epoch_num > epoch.number` -> `future`: i.e. all referenced L1 epochs must be there.
+    - `start_epoch_num > epoch.number + 1` -> `future`: i.e. the L1 origin may jump to the next L1 block, but not further.
     - `end_epoch_num == epoch.number`:
       - If `batch.l1_origin_check != epoch.hash[:20]` -> `drop`: verify the batch is intended for this L1 chain.
-    - `end_epoch_num < epoch.number` -> `drop`: must have been duplicate batch,
-      we may be past this L1 block in the safe L2 chain.
+    - `start_epoch_num < epoch.number` -> `drop`: must have been duplicate batch,
+      we may be past this L1 block in the safe L2 chain. If a span-batch overlaps with older information,
+      it is dropped, since partially valid span-batches are not accepted.
 - Max Sequencer time-drift checks:
   - Note: The max time-drift is enforced for the *batch as a whole*, to keep the possible output variants small.
   - Variables:
