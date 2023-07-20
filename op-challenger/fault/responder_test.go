@@ -57,6 +57,24 @@ func newTestFaultResponder(t *testing.T, sendFails bool) (*faultResponder, *mock
 	return responder, mockTxMgr
 }
 
+// TestResponder_Resolve_SendFails tests the [Responder.Resolve] method
+// bubbles up the error returned by the [txmgr.Send] method.
+func TestResponder_Resolve_SendFails(t *testing.T) {
+	responder, mockTxMgr := newTestFaultResponder(t, true)
+	err := responder.Resolve(context.Background())
+	require.ErrorIs(t, err, mockSendError)
+	require.Equal(t, 0, mockTxMgr.sends)
+}
+
+// TestResponder_Resolve_Success tests the [Responder.Resolve] method
+// succeeds when the tx candidate is successfully sent through the txmgr.
+func TestResponder_Resolve_Success(t *testing.T) {
+	responder, mockTxMgr := newTestFaultResponder(t, false)
+	err := responder.Resolve(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, mockTxMgr.sends)
+}
+
 // TestResponder_Respond_SendFails tests the [Responder.Respond] method
 // bubbles up the error returned by the [txmgr.Send] method.
 func TestResponder_Respond_SendFails(t *testing.T) {
