@@ -2,9 +2,11 @@ package op_e2e
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"math/big"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"testing"
@@ -16,6 +18,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/eth/ethconfig"
+	"github.com/ethereum/go-ethereum/node"
 
 	//"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -43,19 +47,34 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	if erigonL2Nodes {
-		fmt.Println("Running tests with erigon support!")
-		buildDir, err := os.MkdirTemp("", "op-e2e-erigon")
+	flag.BoolVar(&verboseGethNodes, "gethlogs", true, "Enable logs on geth nodes")
+	flag.StringVar(&externalL2Nodes, "externalL2", "", "Enable tests with erigon")
+	flag.Parse()
+
+	if externalL2Nodes != "" {
+		fmt.Println("Running tests with external L2 process adapter at ", externalL2Nodes)
+		shimPath, err := filepath.Abs(externalL2Nodes)
 		if err != nil {
-			fmt.Printf("Failed to make erigon build dir: %s\n", err)
-			os.Exit(1)
-		}
-		defer os.RemoveAll(buildDir)
-		erigonBinPath = filepath.Join(buildDir, "erigon")
-		err = BuildErigon(erigonBinPath)
-		if err != nil {
-			fmt.Printf("Failed to build erigon: %s\n", err)
+			fmt.Printf("Could not compute abs of externalL2Nodes shim: %s\n", err)
 			os.Exit(2)
+		}
+		// We convert the passed in path to an absolute path, as it simplifies
+		// the path handling logic for the rest of the testing
+		externalL2Nodes = shimPath
+
+		_, err = os.Stat(externalL2Nodes)
+		if err != nil {
+			fmt.Printf("Failed to stat externalL2Nodes path: %s\n", err)
+			os.Exit(3)
+		}
+
+		cmd := exec.Command(externalL2Nodes, "--init")
+		cmd.Dir = filepath.Dir(shimPath)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		if err := cmd.Run(); err != nil {
+			fmt.Printf("Could not initialize external L2 node command: %s\n", err)
+			os.Exit(4)
 		}
 
 		// As these are integration tests which launch many other processes, the
@@ -269,17 +288,30 @@ func TestPendingGasLimit(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	if cfg.ErigonL2Nodes {
+	if cfg.ExternalL2Nodes != "" {
+		// Some eth clients such as Erigon don't currently build blocks until
+		// they receive the engine call which includes the gas limit.  After we
+		// provide a mechanism for external clients to advertise test support we
+		// should enable for those which support it.
 		t.Skip()
-		// Erigon doesn't currently build blocks until it receives the engine call
-		// which includes the gas limit, so, this test can't work (at least not
-		// yet).
 	}
 
 	// configure the L2 gas limit to be high, and the pending gas limits to be lower for resource saving.
 	cfg.DeployConfig.L2GenesisBlockGasLimit = 30_000_000
-	cfg.GasCeilOverride["sequencer"] = 10_000_000
-	cfg.GasCeilOverride["verifier"] = 9_000_000
+	cfg.GethOptions["sequencer"] = []GethOption{
+		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
+			ethCfg.Miner.GasCeil = 10_000_000
+			ethCfg.Miner.RollupComputePendingBlock = true
+			return nil
+		},
+	}
+	cfg.GethOptions["verifier"] = []GethOption{
+		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
+			ethCfg.Miner.GasCeil = 9_000_000
+			ethCfg.Miner.RollupComputePendingBlock = true
+			return nil
+		},
+	}
 
 	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
@@ -354,7 +386,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	l1Client := sys.Clients["l1"]
 	l2Verif := sys.Clients["verifier"]
 
-	l1Node := sys.EthInstances["l1"].GethInstance.Node
+	l1Node := sys.EthInstances["l1"].(*GethInstance).Node
 
 	// create signer
 	ks := l1Node.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
@@ -447,8 +479,6 @@ func TestMissingBatchE2E(t *testing.T) {
 	require.Equal(t, ethereum.NotFound, err, "Found transaction in verifier when it should not have been included")
 
 	// Wait a short time for the L2 reorg to occur on the sequencer as well.
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 	err = waitForSafeHead(ctx, receipt.BlockNumber.Uint64(), seqRollupClient)
 	require.Nil(t, err, "timeout waiting for L2 reorg on sequencer safe head")
 
@@ -770,11 +800,11 @@ func TestSystemP2PAltSync(t *testing.T) {
 		},
 	}
 	configureL1(syncNodeCfg, sys.EthInstances["l1"])
-	syncerL2Engine, _, err := initL2Geth("syncer", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), sys.L2GenesisCfg, cfg.JWTFilePath, 0)
+	syncerL2Engine, _, err := initL2Geth("syncer", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), sys.L2GenesisCfg, cfg.JWTFilePath)
 	require.NoError(t, err)
 	require.NoError(t, syncerL2Engine.Start())
 
-	configureL2n(syncNodeCfg, syncerL2Engine, cfg.JWTSecret)
+	configureL2(syncNodeCfg, syncerL2Engine, cfg.JWTSecret)
 
 	syncerNode, err := rollupNode.New(context.Background(), syncNodeCfg, cfg.Loggers["syncer"], snapLog, "", metrics.NewMetrics(""))
 	require.NoError(t, err)
@@ -845,10 +875,10 @@ func TestSystemDenseTopology(t *testing.T) {
 
 	// Set peer scoring for each node, but without banning
 	for _, node := range cfg.Nodes {
-		params, err := p2p.GetPeerScoreParams("light", 2)
+		params, err := p2p.GetScoringParams("light", &node.Rollup)
 		require.NoError(t, err)
 		node.P2P = &p2p.Config{
-			PeerScoring:    params,
+			ScoringParams:  params,
 			BanningEnabled: false,
 		}
 	}
@@ -1261,53 +1291,20 @@ func TestFees(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, l1Fee, gpoL1Fee, "l1 fee mismatch")
 
+	require.Equal(t, receipt.L1Fee, l1Fee, "l1 fee in receipt is correct")
+	require.Equal(t,
+		new(big.Float).Mul(
+			new(big.Float).SetInt(l1Header.BaseFee),
+			new(big.Float).Mul(new(big.Float).SetInt(receipt.L1GasUsed), receipt.FeeScalar),
+		),
+		new(big.Float).SetInt(receipt.L1Fee), "fee field in receipt matches gas used times scalar times basefee")
+
 	// Calculate total fee
 	baseFeeRecipientDiff.Add(baseFeeRecipientDiff, coinbaseDiff)
 	totalFee := new(big.Int).Add(baseFeeRecipientDiff, l1FeeRecipientDiff)
 	balanceDiff := new(big.Int).Sub(startBalance, endBalance)
 	balanceDiff.Sub(balanceDiff, transferAmount)
 	require.Equal(t, balanceDiff, totalFee, "balances should add up")
-}
-
-func TestStopStartSequencer(t *testing.T) {
-	InitParallel(t)
-
-	cfg := DefaultSystemConfig(t)
-	sys, err := cfg.Start(t)
-	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
-
-	l2Seq := sys.Clients["sequencer"]
-	rollupNode := sys.RollupNodes["sequencer"]
-
-	nodeRPC, err := rpc.DialContext(context.Background(), rollupNode.HTTPEndpoint())
-	require.Nil(t, err, "Error dialing node")
-
-	blockBefore := latestBlock(t, l2Seq)
-	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
-	blockAfter := latestBlock(t, l2Seq)
-	require.Greaterf(t, blockAfter, blockBefore, "Chain did not advance")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	blockHash := common.Hash{}
-	err = nodeRPC.CallContext(ctx, &blockHash, "admin_stopSequencer")
-	require.Nil(t, err, "Error stopping sequencer")
-
-	blockBefore = latestBlock(t, l2Seq)
-	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
-	blockAfter = latestBlock(t, l2Seq)
-	require.Equal(t, blockAfter, blockBefore, "Chain advanced after stopping sequencer")
-
-	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	err = nodeRPC.CallContext(ctx, nil, "admin_startSequencer", blockHash)
-	require.Nil(t, err, "Error starting sequencer")
-
-	blockBefore = latestBlock(t, l2Seq)
-	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
-	blockAfter = latestBlock(t, l2Seq)
-	require.Greater(t, blockAfter, blockBefore, "Chain did not advance after starting sequencer")
 }
 
 func TestStopStartBatcher(t *testing.T) {
@@ -1344,7 +1341,7 @@ func TestStopStartBatcher(t *testing.T) {
 	receipt := sendTx()
 
 	// wait until the block the tx was first included in shows up in the safe chain on the verifier
-	safeBlockInclusionDuration := time.Duration(4*cfg.DeployConfig.L1BlockTime) * time.Second
+	safeBlockInclusionDuration := time.Duration(6*cfg.DeployConfig.L1BlockTime) * time.Second
 	_, err = waitForBlock(receipt.BlockNumber, l2Verif, safeBlockInclusionDuration)
 	require.Nil(t, err, "Waiting for block on verifier")
 
@@ -1391,6 +1388,48 @@ func TestStopStartBatcher(t *testing.T) {
 	require.Greater(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain did not advance after batcher was restarted")
 }
 
+func TestBatcherMultiTx(t *testing.T) {
+	InitParallel(t)
+
+	cfg := DefaultSystemConfig(t)
+	cfg.BatcherTargetL1TxSizeBytes = 2 // ensures that batcher txs are as small as possible
+	cfg.DisableBatcher = true
+	sys, err := cfg.Start(t)
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	l1Client := sys.Clients["l1"]
+	l2Seq := sys.Clients["sequencer"]
+
+	_, err = waitForBlock(big.NewInt(10), l2Seq, time.Duration(cfg.DeployConfig.L2BlockTime*15)*time.Second)
+	require.Nil(t, err, "Waiting for L2 blocks")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	l1Number, err := l1Client.BlockNumber(ctx)
+	require.Nil(t, err)
+
+	// start batch submission
+	err = sys.BatchSubmitter.Start()
+	require.Nil(t, err)
+
+	totalTxCount := 0
+	// wait for up to 10 L1 blocks, usually only 3 is required, but it's
+	// possible additional L1 blocks will be created before the batcher starts,
+	// so we wait additional blocks.
+	for i := int64(0); i < 10; i++ {
+		block, err := waitForBlock(big.NewInt(int64(l1Number)+i), l1Client, time.Duration(cfg.DeployConfig.L1BlockTime*5)*time.Second)
+		require.Nil(t, err, "Waiting for l1 blocks")
+		totalTxCount += len(block.Transactions())
+
+		if totalTxCount >= 10 {
+			return
+		}
+	}
+
+	t.Fatal("Expected at least 10 transactions from the batcher")
+}
+
 func safeAddBig(a *big.Int, b *big.Int) *big.Int {
 	return new(big.Int).Add(a, b)
 }
@@ -1401,4 +1440,46 @@ func latestBlock(t *testing.T, client *ethclient.Client) uint64 {
 	blockAfter, err := client.BlockNumber(ctx)
 	require.Nil(t, err, "Error getting latest block")
 	return blockAfter
+}
+
+// TestPendingBlockIsLatest tests that we serve the latest block as pending block
+func TestPendingBlockIsLatest(t *testing.T) {
+	InitParallel(t)
+
+	cfg := DefaultSystemConfig(t)
+	sys, err := cfg.Start(t)
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+	l2Seq := sys.Clients["sequencer"]
+
+	t.Run("block", func(t *testing.T) {
+		for i := 0; i < 10; i++ {
+			// TODO(CLI-4044): pending-block ID change
+			pending, err := l2Seq.BlockByNumber(context.Background(), big.NewInt(-1))
+			require.NoError(t, err)
+			latest, err := l2Seq.BlockByNumber(context.Background(), nil)
+			require.NoError(t, err)
+			if pending.NumberU64() == latest.NumberU64() {
+				require.Equal(t, pending.Hash(), latest.Hash(), "pending must exactly match latest block")
+				return
+			}
+			// re-try until we have the same number, as the requests are not an atomic bundle, and the sequencer may create a block.
+		}
+		t.Fatal("failed to get pending block with same number as latest block")
+	})
+	t.Run("header", func(t *testing.T) {
+		for i := 0; i < 10; i++ {
+			// TODO(CLI-4044): pending-block ID change
+			pending, err := l2Seq.HeaderByNumber(context.Background(), big.NewInt(-1))
+			require.NoError(t, err)
+			latest, err := l2Seq.HeaderByNumber(context.Background(), nil)
+			require.NoError(t, err)
+			if pending.Number.Uint64() == latest.Number.Uint64() {
+				require.Equal(t, pending.Hash(), latest.Hash(), "pending must exactly match latest header")
+				return
+			}
+			// re-try until we have the same number, as the requests are not an atomic bundle, and the sequencer may create a block.
+		}
+		t.Fatal("failed to get pending header with same number as latest header")
+	})
 }

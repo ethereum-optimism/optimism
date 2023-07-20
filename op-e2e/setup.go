@@ -58,10 +58,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
-var testingJWTSecret = [32]byte{123}
-
 var (
-	erigonBinPath string
+	testingJWTSecret = [32]byte{123}
 )
 
 func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
@@ -85,7 +83,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 	deployConfig := &genesis.DeployConfig{
 		L1ChainID:   900,
 		L2ChainID:   901,
-		L2BlockTime: 2,
+		L2BlockTime: 1,
 
 		FinalizationPeriodSeconds: 60 * 60 * 24,
 		MaxSequencerDrift:         10,
@@ -127,9 +125,15 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		GasPriceOracleOverhead: 2100,
 		GasPriceOracleScalar:   1_000_000,
 
-		SequencerFeeVaultRecipient: common.Address{19: 1},
-		BaseFeeVaultRecipient:      common.Address{19: 2},
-		L1FeeVaultRecipient:        common.Address{19: 3},
+		SequencerFeeVaultRecipient:               common.Address{19: 1},
+		BaseFeeVaultRecipient:                    common.Address{19: 2},
+		L1FeeVaultRecipient:                      common.Address{19: 3},
+		BaseFeeVaultMinimumWithdrawalAmount:      uint642big(1000_000_000), // 1 gwei
+		L1FeeVaultMinimumWithdrawalAmount:        uint642big(1000_000_000), // 1 gwei
+		SequencerFeeVaultMinimumWithdrawalAmount: uint642big(1000_000_000), // 1 gwei
+		BaseFeeVaultWithdrawalNetwork:            uint8(1),                 // L2 withdrawal network
+		L1FeeVaultWithdrawalNetwork:              uint8(1),                 // L2 withdrawal network
+		SequencerFeeVaultWithdrawalNetwork:       uint8(1),                 // L2 withdrawal network
 
 		DeploymentWaitConfirmations: 1,
 
@@ -166,6 +170,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 					EnableAdmin: true,
 				},
 				L1EpochPollInterval: time.Second * 4,
+				ConfigPersistence:   &rollupNode.DisabledConfigPersistence{},
 			},
 			"verifier": {
 				Driver: driver.Config{
@@ -174,18 +179,20 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 					SequencerEnabled:   false,
 				},
 				L1EpochPollInterval: time.Second * 4,
+				ConfigPersistence:   &rollupNode.DisabledConfigPersistence{},
 			},
 		},
 		Loggers: map[string]log.Logger{
 			"verifier":  testlog.Logger(t, log.LvlInfo).New("role", "verifier"),
 			"sequencer": testlog.Logger(t, log.LvlInfo).New("role", "sequencer"),
 			"batcher":   testlog.Logger(t, log.LvlInfo).New("role", "batcher"),
-			"proposer":  testlog.Logger(t, log.LvlInfo).New("role", "proposer"),
+			"proposer":  testlog.Logger(t, log.LvlCrit).New("role", "proposer"),
 		},
-		GasCeilOverride:       map[string]uint64{},
-		P2PTopology:           nil, // no P2P connectivity by default
-		NonFinalizedProposals: false,
-		ErigonL2Nodes:         erigonL2Nodes,
+		GethOptions:                map[string][]GethOption{},
+		P2PTopology:                nil, // no P2P connectivity by default
+		NonFinalizedProposals:      false,
+		ExternalL2Nodes:            externalL2Nodes,
+		BatcherTargetL1TxSizeBytes: 100_000,
 	}
 }
 
@@ -212,14 +219,14 @@ type SystemConfig struct {
 	JWTFilePath string
 	JWTSecret   [32]byte
 
-	Premine         map[common.Address]*big.Int
-	Nodes           map[string]*rollupNode.Config // Per node config. Don't use populate rollup.Config
-	Loggers         map[string]log.Logger
-	GasCeilOverride map[string]uint64
-	ProposerLogger  log.Logger
-	BatcherLogger   log.Logger
+	Premine        map[common.Address]*big.Int
+	Nodes          map[string]*rollupNode.Config // Per node config. Don't use populate rollup.Config
+	Loggers        map[string]log.Logger
+	GethOptions    map[string][]GethOption
+	ProposerLogger log.Logger
+	BatcherLogger  log.Logger
 
-	ErigonL2Nodes bool
+	ExternalL2Nodes string
 
 	// map of outbound connections to other nodes. Node names prefixed with "~" are unconnected but linked.
 	// A nil map disables P2P completely.
@@ -234,6 +241,12 @@ type SystemConfig struct {
 
 	// Explicitly disable batcher, for tests that rely on unsafe L2 payloads
 	DisableBatcher bool
+
+	// Target L1 tx size for the batcher transactions
+	BatcherTargetL1TxSizeBytes uint64
+
+	// SupportL1TimeTravel determines if the L1 node supports quickly skipping forward in time
+	SupportL1TimeTravel bool
 }
 
 type GethInstance struct {
@@ -241,47 +254,34 @@ type GethInstance struct {
 	Node    *node.Node
 }
 
-type EthInstance struct {
-	GethInstance   *GethInstance
-	ErigonInstance *ErigonInstance
+func (gi *GethInstance) HTTPEndpoint() string {
+	return gi.Node.HTTPEndpoint()
 }
 
-func (ei *EthInstance) Close() {
-	if ei.GethInstance != nil {
-		ei.GethInstance.Node.Close()
-	}
-	if ei.ErigonInstance != nil {
-		ei.ErigonInstance.Shutdown()
-	}
+func (gi *GethInstance) WSEndpoint() string {
+	return gi.Node.WSEndpoint()
 }
 
-func (ei *EthInstance) WSEndpoint() string {
-	if ei.GethInstance != nil {
-		return ei.GethInstance.Node.WSEndpoint()
-	}
-	// Erigon does HTTP and WS on the same port
-	return fmt.Sprintf("ws://127.0.0.1:%d", ei.ErigonInstance.HTTPPort)
+func (gi *GethInstance) WSAuthEndpoint() string {
+	return gi.Node.WSAuthEndpoint()
 }
 
-func (ei *EthInstance) HTTPEndpoint() string {
-	if ei.GethInstance != nil {
-		return ei.GethInstance.Node.HTTPEndpoint()
-	}
-	return fmt.Sprintf("http://127.0.0.1:%d", ei.ErigonInstance.HTTPPort)
+func (gi *GethInstance) HTTPAuthEndpoint() string {
+	return gi.Node.HTTPAuthEndpoint()
 }
 
-func (ei *EthInstance) WSAuthEndpoint() string {
-	if ei.GethInstance != nil {
-		return ei.GethInstance.Node.WSAuthEndpoint()
-	}
-	return fmt.Sprintf("ws://127.0.0.1:%d", ei.ErigonInstance.EnginePort)
+func (gi *GethInstance) Close() {
+	gi.Node.Close()
 }
 
-func (ei *EthInstance) HTTPAuthEndpoint() string {
-	if ei.GethInstance != nil {
-		return ei.GethInstance.Node.HTTPAuthEndpoint()
-	}
-	return fmt.Sprintf("http://127.0.0.1:%d", ei.ErigonInstance.EnginePort)
+// EthInstance is either an in process Geth or external process exposing its
+// endpoints over the network
+type EthInstance interface {
+	HTTPEndpoint() string
+	WSEndpoint() string
+	HTTPAuthEndpoint() string
+	WSAuthEndpoint() string
+	Close()
 }
 
 type System struct {
@@ -292,13 +292,20 @@ type System struct {
 	L2GenesisCfg *core.Genesis
 
 	// Connections to running nodes
-	EthInstances      map[string]*EthInstance
+	EthInstances      map[string]EthInstance
 	Clients           map[string]*ethclient.Client
 	RawClients        map[string]*rpc.Client
 	RollupNodes       map[string]*rollupNode.OpNode
 	L2OutputSubmitter *l2os.L2OutputSubmitter
 	BatchSubmitter    *bss.BatchSubmitter
 	Mocknet           mocknet.Mocknet
+
+	// TimeTravelClock is nil unless SystemConfig.SupportL1TimeTravel was set to true
+	// It provides access to the clock instance used by the L1 node. Calling TimeTravelClock.AdvanceBy
+	// allows tests to quickly time travel L1 into the future.
+	// Note that this time travel may occur in a single block, creating a very large difference in the Time
+	// on sequential blocks.
+	TimeTravelClock *clock.AdvancingClock
 }
 
 func (sys *System) NodeEndpoint(name string) string {
@@ -363,7 +370,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 	sys := &System{
 		cfg:          cfg,
-		EthInstances: make(map[string]*EthInstance),
+		EthInstances: make(map[string]EthInstance),
 		Clients:      make(map[string]*ethclient.Client),
 		RawClients:   make(map[string]*rpc.Client),
 		RollupNodes:  make(map[string]*rollupNode.OpNode),
@@ -379,6 +386,12 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			}
 		}
 	}()
+
+	c := clock.SystemClock
+	if cfg.SupportL1TimeTravel {
+		sys.TimeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
+		c = sys.TimeTravelClock
+	}
 
 	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig)
 	if err != nil {
@@ -402,7 +415,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 
 	l1Block := l1Genesis.ToBlock()
-	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block)
+	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l1Block)
 	if err != nil {
 		return nil, err
 	}
@@ -453,68 +466,54 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	sys.RollupConfig = &defaultConfig
 
 	// Initialize nodes
-	l1Node, l1Backend, err := initL1Geth(&cfg, l1Genesis)
+	l1Node, l1Backend, err := initL1Geth(&cfg, l1Genesis, c, cfg.GethOptions["l1"]...)
 	if err != nil {
 		return nil, err
 	}
-	sys.EthInstances["l1"] = &EthInstance{
-		GethInstance: &GethInstance{
-			Backend: l1Backend,
-			Node:    l1Node,
-		},
+	sys.EthInstances["l1"] = &GethInstance{
+		Backend: l1Backend,
+		Node:    l1Node,
 	}
-
-	for name := range cfg.Nodes {
-		var gethInstance *GethInstance
-		var erigonInstance *ErigonInstance
-		if !cfg.ErigonL2Nodes {
-			node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GasCeilOverride[name])
-			if err != nil {
-				return nil, err
-			}
-			gethInstance = &GethInstance{
-				Backend: backend,
-				Node:    node,
-			}
-		} else {
-			ei := (&ErigonRunner{
-				Name:     name,
-				BinPath:  erigonBinPath,
-				ChainID:  cfg.DeployConfig.L2ChainID,
-				Genesis:  l2Genesis,
-				JWTPath:  cfg.JWTFilePath,
-				GasCeil:  cfg.GasCeilOverride[name],
-				GasPrice: 1_000_000_000,
-			}).Run(t)
-			erigonInstance = &ei
-		}
-		sys.EthInstances[name] = &EthInstance{
-			GethInstance:   gethInstance,
-			ErigonInstance: erigonInstance,
-		}
-	}
-
-	// Start
 	err = l1Node.Start()
 	if err != nil {
 		didErrAfterStart = true
 		return nil, err
 	}
-	for name, ethInst := range sys.EthInstances {
-		if name == "l1" {
-			continue
-		}
-		if gethInst := ethInst.GethInstance; gethInst != nil {
+
+	for name := range cfg.Nodes {
+		var ethClient EthInstance
+		if cfg.ExternalL2Nodes == "" {
+			node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
+			if err != nil {
+				return nil, err
+			}
+			gethInst := &GethInstance{
+				Backend: backend,
+				Node:    node,
+			}
 			err = gethInst.Node.Start()
 			if err != nil {
 				didErrAfterStart = true
 				return nil, err
 			}
+			ethClient = gethInst
+		} else {
+			if len(cfg.GethOptions[name]) > 0 {
+				t.Errorf("External L2 nodes do not support configuration through GethOptions")
+			}
+			ethClient = (&ExternalRunner{
+				Name:    name,
+				BinPath: cfg.ExternalL2Nodes,
+				Genesis: l2Genesis,
+				JWTPath: cfg.JWTFilePath,
+			}).Run(t)
 		}
+		sys.EthInstances[name] = ethClient
 	}
 
 	// Configure connections to L1 and L2 for rollup nodes.
-	// TODO: refactor testing to use in-process rpc connections instead of websockets.
+	// TODO: refactor testing to allow use of in-process rpc connections instead
+	// of only websockets (which are required for Erigon tests).
 
 	for name, rollupCfg := range cfg.Nodes {
 		configureL1(rollupCfg, sys.EthInstances["l1"])
@@ -620,6 +619,9 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		nodeConfig := cfg.Nodes[name]
 		c := *nodeConfig // copy
 		c.Rollup = makeRollupConfig()
+		if err := c.LoadPersisted(cfg.Loggers[name]); err != nil {
+			return nil, err
+		}
 
 		if p, ok := p2pNodes[name]; ok {
 			c.P2P = p
@@ -695,11 +697,11 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		L1EthRpc:               sys.EthInstances["l1"].WSEndpoint(),
 		L2EthRpc:               sys.EthInstances["sequencer"].WSEndpoint(),
 		RollupRpc:              sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		MaxPendingTransactions: 1,
+		MaxPendingTransactions: 0,
 		MaxChannelDuration:     1,
 		MaxL1TxSize:            120_000,
 		CompressorConfig: compressor.CLIConfig{
-			TargetL1TxSizeBytes: 100_000,
+			TargetL1TxSizeBytes: cfg.BatcherTargetL1TxSizeBytes,
 			TargetNumFrames:     1,
 			ApproxComprRatio:    0.4,
 		},
@@ -763,14 +765,14 @@ func (sys *System) newMockNetPeer() (host.Host, error) {
 	_ = ps.AddPubKey(p, sk.GetPublic())
 
 	ds := sync.MutexWrap(ds.NewMapDatastore())
-	eps, err := store.NewExtendedPeerstore(context.Background(), log.Root(), clock.SystemClock, ps, ds)
+	eps, err := store.NewExtendedPeerstore(context.Background(), log.Root(), clock.SystemClock, ps, ds, 24*time.Hour)
 	if err != nil {
 		return nil, err
 	}
 	return sys.Mocknet.AddPeerWithPeerstore(p, eps)
 }
 
-func selectEndpoint(node *EthInstance) string {
+func selectEndpoint(node EthInstance) string {
 	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
 	if useHTTP {
 		log.Info("using HTTP client")
@@ -779,7 +781,7 @@ func selectEndpoint(node *EthInstance) string {
 	return node.WSEndpoint()
 }
 
-func configureL1(rollupNodeCfg *rollupNode.Config, l1Node *EthInstance) {
+func configureL1(rollupNodeCfg *rollupNode.Config, l1Node EthInstance) {
 	l1EndpointConfig := selectEndpoint(l1Node)
 	rollupNodeCfg.L1 = &rollupNode.L1EndpointConfig{
 		L1NodeAddr:       l1EndpointConfig,
@@ -790,21 +792,13 @@ func configureL1(rollupNodeCfg *rollupNode.Config, l1Node *EthInstance) {
 		HttpPollInterval: time.Millisecond * 100,
 	}
 }
-func configureL2(rollupNodeCfg *rollupNode.Config, l2Node *EthInstance, jwtSecret [32]byte) {
-	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
-	l2EndpointConfig := l2Node.WSAuthEndpoint()
-	if useHTTP {
-		l2EndpointConfig = l2Node.HTTPAuthEndpoint()
-	}
 
-	rollupNodeCfg.L2 = &rollupNode.L2EndpointConfig{
-		L2EngineAddr:      l2EndpointConfig,
-		L2EngineJWTSecret: jwtSecret,
-	}
+type WSOrHTTPEndpoint interface {
+	WSAuthEndpoint() string
+	HTTPAuthEndpoint() string
 }
 
-// FIXME - added to support syncerL2Engine at system_test.go line 872
-func configureL2n(rollupNodeCfg *rollupNode.Config, l2Node *node.Node, jwtSecret [32]byte) {
+func configureL2(rollupNodeCfg *rollupNode.Config, l2Node WSOrHTTPEndpoint, jwtSecret [32]byte) {
 	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
 	l2EndpointConfig := l2Node.WSAuthEndpoint()
 	if useHTTP {

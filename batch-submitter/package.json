@@ -1,6 +1,0 @@
-{
-	"name": "@eth-optimism/batch-submitter-service",
-	"version": "0.1.16",
-	"private": true,
-	"devDependencies": {}
-}

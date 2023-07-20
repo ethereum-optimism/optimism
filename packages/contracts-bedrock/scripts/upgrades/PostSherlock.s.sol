@@ -12,20 +12,15 @@ import { SystemConfig } from "../../contracts/L1/SystemConfig.sol";
 import { ResourceMetering } from "../../contracts/L1/ResourceMetering.sol";
 import { Semver } from "../../contracts/universal/Semver.sol";
 
-/**
- * @title PostSherlockL1
- * @notice Upgrade script for upgrading the L1 contracts after the sherlock audit.
- */
+/// @title PostSherlockL1
+/// @notice Upgrade script for upgrading the L1 contracts after the sherlock audit.
 contract PostSherlockL1 is SafeBuilder {
-    /**
-     * @notice Address of the ProxyAdmin, passed in via constructor of `run`.
-     */
+
+    /// @notice Address of the ProxyAdmin, passed in via constructor of `run`.
     ProxyAdmin internal PROXY_ADMIN;
 
-    /**
-     * @notice Represents a set of L1 contracts. Used to represent a set of
-     *         implementations and also a set of proxies.
-     */
+    /// @notice Represents a set of L1 contracts. Used to represent a set of
+    ///         implementations and also a set of proxies.
     struct ContractSet {
         address L1CrossDomainMessenger;
         address L1StandardBridge;
@@ -36,19 +31,13 @@ contract PostSherlockL1 is SafeBuilder {
         address L1ERC721Bridge;
     }
 
-    /**
-     * @notice A mapping of chainid to a ContractSet of implementations.
-     */
+    /// @notice A mapping of chainid to a ContractSet of implementations.
     mapping(uint256 => ContractSet) internal implementations;
 
-    /**
-     * @notice A mapping of chainid to ContractSet of proxy addresses.
-     */
+    /// @notice A mapping of chainid to ContractSet of proxy addresses.
     mapping(uint256 => ContractSet) internal proxies;
 
-    /**
-     * @notice The expected versions for the contracts to be upgraded to.
-     */
+    /// @notice The expected versions for the contracts to be upgraded to.
     string constant internal L1CrossDomainMessenger_Version = "1.4.0";
     string constant internal L1StandardBridge_Version = "1.1.0";
     string constant internal L2OutputOracle_Version = "1.3.0";
@@ -57,9 +46,7 @@ contract PostSherlockL1 is SafeBuilder {
     string constant internal SystemConfig_Version = "1.3.0";
     string constant internal L1ERC721Bridge_Version = "1.1.1";
 
-    /**
-     * @notice Place the contract addresses in storage so they can be used when building calldata.
-     */
+    /// @notice Place the contract addresses in storage so they can be used when building calldata.
     function setUp() external {
         implementations[GOERLI] = ContractSet({
             L1CrossDomainMessenger: 0x9D1dACf9d9299D17EFFE1aAd559c06bb3Fbf9BC4,
@@ -82,9 +69,7 @@ contract PostSherlockL1 is SafeBuilder {
         });
     }
 
-    /**
-     * @notice Follow up assertions to ensure that the script ran to completion.
-     */
+    /// @notice Follow up assertions to ensure that the script ran to completion.
     function _postCheck() internal override view {
         ContractSet memory prox = getProxies();
         require(_versionHash(prox.L1CrossDomainMessenger) == keccak256(bytes(L1CrossDomainMessenger_Version)), "L1CrossDomainMessenger");
@@ -110,10 +95,8 @@ contract PostSherlockL1 is SafeBuilder {
         require(PROXY_ADMIN.getProxyImplementation(prox.L1ERC721Bridge).codehash == impl.L1ERC721Bridge.codehash, "L1ERC721Bridge codehash");
     }
 
-    /**
-     * @notice Test coverage of the logic. Should only run on goerli but other chains
-     *         could be added.
-     */
+    /// @notice Test coverage of the logic. Should only run on goerli but other chains
+    ///         could be added.
     function test_script_succeeds() skipWhenNotForking external {
         address _safe;
         address _proxyAdmin;
@@ -144,11 +127,9 @@ contract PostSherlockL1 is SafeBuilder {
         _postCheck();
     }
 
-    /**
-     * @notice Builds the calldata that the multisig needs to make for the upgrade to happen.
-     *         A total of 8 calls are made, 7 upgrade implementations and 1 sets the resource
-     *         config to the default value in the SystemConfig contract.
-     */
+    /// @notice Builds the calldata that the multisig needs to make for the upgrade to happen.
+    ///         A total of 8 calls are made, 7 upgrade implementations and 1 sets the resource
+    ///         config to the default value in the SystemConfig contract.
     function buildCalldata(address _proxyAdmin) internal override view returns (bytes memory) {
         IMulticall3.Call3[] memory calls = new IMulticall3.Call3[](8);
 
@@ -236,18 +217,14 @@ contract PostSherlockL1 is SafeBuilder {
         return abi.encodeCall(IMulticall3.aggregate3, (calls));
     }
 
-    /**
-     * @notice Returns the ContractSet that represents the implementations for a given network.
-     */
+    /// @notice Returns the ContractSet that represents the implementations for a given network.
     function getImplementations() internal view returns (ContractSet memory) {
         ContractSet memory set = implementations[block.chainid];
         require(set.L1CrossDomainMessenger != address(0), "no implementations for this network");
         return set;
     }
 
-    /**
-     * @notice Returns the ContractSet that represents the proxies for a given network.
-     */
+    /// @notice Returns the ContractSet that represents the proxies for a given network.
     function getProxies() internal view returns (ContractSet memory) {
         ContractSet memory set = proxies[block.chainid];
         require(set.L1CrossDomainMessenger != address(0), "no proxies for this network");

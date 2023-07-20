@@ -7,22 +7,16 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
 )
 
-func ProgressLogger(n int, msg string) func(...any) {
-	var i int
-
-	return func(args ...any) {
-		i++
-		if i%n != 0 {
-			return
-		}
-		log.Info(msg, append([]any{"count", i}, args...)...)
-	}
-}
+var (
+	// EIP1976ImplementationSlot
+	EIP1967ImplementationSlot = common.HexToHash("0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
+	// EIP1967AdminSlot
+	EIP1967AdminSlot = common.HexToHash("0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103")
+)
 
 // clients represents a set of initialized RPC clients
 type Clients struct {
@@ -36,53 +30,44 @@ type Clients struct {
 
 // NewClients will create new RPC clients from a CLI context
 func NewClients(ctx *cli.Context) (*Clients, error) {
+	clients := Clients{}
+
 	l1RpcURL := ctx.String("l1-rpc-url")
-	l1Client, err := ethclient.Dial(l1RpcURL)
-	if err != nil {
-		return nil, fmt.Errorf("cannot dial L1: %w", err)
-	}
-	l1ChainID, err := l1Client.ChainID(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("cannot fetch L1 chainid: %w", err)
+	if l1RpcURL != "" {
+		l1Client, l1RpcClient, l1GethClient, err := newClients(l1RpcURL)
+		if err != nil {
+			return nil, err
+		}
+		clients.L1Client = l1Client
+		clients.L1RpcClient = l1RpcClient
+		clients.L1GethClient = l1GethClient
 	}
 
 	l2RpcURL := ctx.String("l2-rpc-url")
-	l2Client, err := ethclient.Dial(l2RpcURL)
-	if err != nil {
-		return nil, fmt.Errorf("cannot dial L2: %w", err)
-	}
-	l2ChainID, err := l2Client.ChainID(context.Background())
-	if err != nil {
-		return nil, fmt.Errorf("cannot fetch L2 chainid: %w", err)
-	}
-
-	l1RpcClient, err := rpc.DialContext(context.Background(), l1RpcURL)
-	if err != nil {
-		return nil, err
+	if l2RpcURL != "" {
+		l2Client, l2RpcClient, l2GethClient, err := newClients(l2RpcURL)
+		if err != nil {
+			return nil, err
+		}
+		clients.L2Client = l2Client
+		clients.L2RpcClient = l2RpcClient
+		clients.L2GethClient = l2GethClient
 	}
 
-	l2RpcClient, err := rpc.DialContext(context.Background(), l2RpcURL)
+	return &clients, nil
+}
+
+// newClients will create new clients from a given URL
+func newClients(url string) (*ethclient.Client, *rpc.Client, *gethclient.Client, error) {
+	ethClient, err := ethclient.Dial(url)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, fmt.Errorf("cannot dial ethclient: %w", err)
 	}
-
-	l1GethClient := gethclient.New(l1RpcClient)
-	l2GethClient := gethclient.New(l2RpcClient)
-
-	log.Info(
-		"Set up RPC clients",
-		"l1-chain-id", l1ChainID,
-		"l2-chain-id", l2ChainID,
-	)
-
-	return &Clients{
-		L1Client:     l1Client,
-		L2Client:     l2Client,
-		L1RpcClient:  l1RpcClient,
-		L2RpcClient:  l2RpcClient,
-		L1GethClient: l1GethClient,
-		L2GethClient: l2GethClient,
-	}, nil
+	rpcClient, err := rpc.DialContext(context.Background(), url)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("cannot dial rpc client: %w", err)
+	}
+	return ethClient, rpcClient, gethclient.New(rpcClient), nil
 }
 
 // ClientsFlags represent the flags associated with creating RPC clients.

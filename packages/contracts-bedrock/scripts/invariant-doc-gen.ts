@@ -8,9 +8,7 @@ const BASE_INVARIANTS_DIR = path.join(
   'test',
   'invariants'
 )
-const BASE_ECHIDNA_DIR = path.join(__dirname, '..', 'contracts', 'echidna')
 const BASE_DOCS_DIR = path.join(__dirname, '..', 'invariant-docs')
-const BASE_ECHIDNA_GH_URL = '../contracts/echidna/'
 const BASE_INVARIANT_GH_URL = '../contracts/test/invariants/'
 const NATSPEC_INV = '@custom:invariant'
 const BLOCK_COMMENT_PREFIX_REGEX = /\*(\/)?/
@@ -20,7 +18,6 @@ const BLOCK_COMMENT_HEADER_REGEX = /\*\s(.)+/
 type Contract = {
   name: string
   fileName: string
-  isEchidna: boolean
   docs: InvariantDoc[]
 }
 
@@ -52,11 +49,8 @@ const docGen = (dir: string): void => {
     const lines = fileContents.split('\n').map((line: string) => line.trim())
 
     // Create an object to store all invariant test docs for the current contract
-    const isEchidna = fileName.startsWith('Fuzz')
-    const name = isEchidna
-      ? fileName.replace('Fuzz', '').replace('.sol', '')
-      : fileName.replace('.t.sol', '')
-    const contract: Contract = { name, fileName, isEchidna, docs: [] }
+    const name = fileName.replace('.t.sol', '')
+    const contract: Contract = { name, fileName, docs: [] }
 
     let currentDoc: InvariantDoc
 
@@ -179,19 +173,11 @@ const renderContractDoc = (contract: Contract, header: boolean): string => {
   const docs = contract.docs
     .map((doc: InvariantDoc) => {
       const line = `${contract.fileName}#L${doc.lineNo}`
-      return `## ${doc.header}\n**Test:** [\`${line}\`](${getGithubBase(
-        contract
-      )}${line})\n\n${doc.desc}`
+      return `## ${doc.header}\n**Test:** [\`${line}\`](${BASE_INVARIANT_GH_URL}${line})\n\n${doc.desc}`
     })
     .join('\n\n')
   return `${_header}\n${docs}`
 }
-
-/**
- * Get the base URL for the test contract
- */
-const getGithubBase = ({ isEchidna }: Contract): string =>
-  isEchidna ? BASE_ECHIDNA_GH_URL : BASE_INVARIANT_GH_URL
 
 // Generate the docs
 
@@ -201,10 +187,6 @@ docGen(BASE_INVARIANTS_DIR)
 
 // New line
 console.log()
-
-// Echidna
-console.log('Generating docs for echidna invariants...')
-docGen(BASE_ECHIDNA_DIR)
 
 // Generate an updated table of contents
 tocGen()

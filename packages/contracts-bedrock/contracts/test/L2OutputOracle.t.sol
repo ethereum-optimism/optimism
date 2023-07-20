@@ -1,15 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing utilities
 import { stdError } from "forge-std/Test.sol";
 import { L2OutputOracle_Initializer, NextImpl } from "./CommonTest.t.sol";
-import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
-import { Proxy } from "../universal/Proxy.sol";
+
+// Libraries
 import { Types } from "../libraries/Types.sol";
 
-contract L2OutputOracleTest is L2OutputOracle_Initializer {
-    bytes32 proposedOutput1 = keccak256(abi.encode(1));
+// Target contract dependencies
+import { Proxy } from "../universal/Proxy.sol";
 
+// Target contract
+import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
+
+contract L2OutputOracle_constructor_Test is L2OutputOracle_Initializer {
+    /// @dev Tests that constructor sets the initial values correctly.
     function test_constructor_succeeds() external {
         assertEq(oracle.PROPOSER(), proposer);
         assertEq(oracle.CHALLENGER(), owner);
@@ -19,6 +25,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(oracle.startingTimestamp(), startingTimestamp);
     }
 
+    /// @dev Tests that the constructor reverts if the starting timestamp is invalid.
     function test_constructor_badTimestamp_reverts() external {
         vm.expectRevert("L2OutputOracle: starting L2 timestamp must be less than current time");
 
@@ -34,6 +41,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         });
     }
 
+    /// @dev Tests that the constructor reverts if the l2BlockTime is invalid.
     function test_constructor_l2BlockTimeZero_reverts() external {
         vm.expectRevert("L2OutputOracle: L2 block time must be greater than 0");
         new L2OutputOracle({
@@ -47,6 +55,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         });
     }
 
+    /// @dev Tests that the constructor reverts if the submissionInterval is zero.
     function test_constructor_submissionInterval_reverts() external {
         vm.expectRevert("L2OutputOracle: submission interval must be greater than 0");
         new L2OutputOracle({
@@ -59,12 +68,12 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
             _finalizationPeriodSeconds: 7 days
         });
     }
+}
 
-    /****************
-     * Getter Tests *
-     ****************/
+contract L2OutputOracle_getter_Test is L2OutputOracle_Initializer {
+    bytes32 proposedOutput1 = keccak256(abi.encode(1));
 
-    // Test: latestBlockNumber() should return the correct value
+    /// @dev Tests that `latestBlockNumber` returns the correct value.
     function test_latestBlockNumber_succeeds() external {
         uint256 proposedNumber = oracle.nextBlockNumber();
 
@@ -75,7 +84,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(oracle.latestBlockNumber(), proposedNumber);
     }
 
-    // Test: getL2Output() should return the correct value
+    /// @dev Tests that `getL2Output` returns the correct value.
     function test_getL2Output_succeeds() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         uint256 nextOutputIndex = oracle.nextOutputIndex();
@@ -92,7 +101,8 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         oracle.getL2Output(nextOutputIndex + 1);
     }
 
-    // Test: getL2OutputIndexAfter() returns correct value when input is exact block
+    /// @dev Tests that `getL2OutputIndexAfter` returns the correct value
+    ///      when the input is the exact block number of the proposal.
     function test_getL2OutputIndexAfter_sameBlock_succeeds() external {
         bytes32 output1 = keccak256(abi.encode(1));
         uint256 nextBlockNumber1 = oracle.nextBlockNumber();
@@ -105,7 +115,8 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(index1, 0);
     }
 
-    // Test: getL2OutputIndexAfter() returns correct value when input is previous block
+    /// @dev Tests that `getL2OutputIndexAfter` returns the correct value
+    ///      when the input is the previous block number of the proposal.
     function test_getL2OutputIndexAfter_previousBlock_succeeds() external {
         bytes32 output1 = keccak256(abi.encode(1));
         uint256 nextBlockNumber1 = oracle.nextBlockNumber();
@@ -118,7 +129,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(index1, 0);
     }
 
-    // Test: getL2OutputIndexAfter() returns correct value during binary search
+    /// @dev Tests that `getL2OutputIndexAfter` returns the correct value.
     function test_getL2OutputIndexAfter_multipleOutputsExist_succeeds() external {
         bytes32 output1 = keccak256(abi.encode(1));
         uint256 nextBlockNumber1 = oracle.nextBlockNumber();
@@ -157,13 +168,13 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(index3, 3);
     }
 
-    // Test: getL2OutputIndexAfter() reverts when no output exists yet
+    /// @dev Tests that `getL2OutputIndexAfter` reverts when no output exists.
     function test_getL2OutputIndexAfter_noOutputsExis_reverts() external {
         vm.expectRevert("L2OutputOracle: cannot get output as no outputs have been proposed yet");
         oracle.getL2OutputIndexAfter(0);
     }
 
-    // Test: nextBlockNumber() should return the correct value
+    /// @dev Tests that `nextBlockNumber` returns the correct value.
     function test_nextBlockNumber_succeeds() external {
         assertEq(
             oracle.nextBlockNumber(),
@@ -172,55 +183,38 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         );
     }
 
+    /// @dev Tests that `computeL2Timestamp` returns the correct value.
     function test_computeL2Timestamp_succeeds() external {
         // reverts if timestamp is too low
         vm.expectRevert(stdError.arithmeticError);
         oracle.computeL2Timestamp(startingBlockNumber - 1);
 
-        // returns the correct value...
-        // ... for the very first block
+        // check timestamp for the very first block
         assertEq(oracle.computeL2Timestamp(startingBlockNumber), startingTimestamp);
 
-        // ... for the first block after the starting block
+        // check timestamp for the first block after the starting block
         assertEq(
             oracle.computeL2Timestamp(startingBlockNumber + 1),
             startingTimestamp + l2BlockTime
         );
 
-        // ... for some other block number
+        // check timestamp for some other block number
         assertEq(
             oracle.computeL2Timestamp(startingBlockNumber + 96024),
             startingTimestamp + l2BlockTime * 96024
         );
     }
+}
 
-    /*****************************
-     * Propose Tests - Happy Path *
-     *****************************/
-
-    // Test: proposeL2Output succeeds when given valid input, and no block hash and number are
-    // specified.
+contract L2OutputOracle_proposeL2Output_Test is L2OutputOracle_Initializer {
+    /// @dev Test that `proposeL2Output` succeeds for a valid input
+    ///      and when a block hash and number are not specified.
     function test_proposeL2Output_proposeAnotherOutput_succeeds() public {
-        bytes32 proposedOutput2 = keccak256(abi.encode());
-        uint256 nextBlockNumber = oracle.nextBlockNumber();
-        uint256 nextOutputIndex = oracle.nextOutputIndex();
-        warpToProposeTime(nextBlockNumber);
-        uint256 proposedNumber = oracle.latestBlockNumber();
-
-        // Ensure the submissionInterval is enforced
-        assertEq(nextBlockNumber, proposedNumber + submissionInterval);
-
-        vm.roll(nextBlockNumber + 1);
-
-        vm.expectEmit(true, true, true, true);
-        emit OutputProposed(proposedOutput2, nextOutputIndex, nextBlockNumber, block.timestamp);
-
-        vm.prank(proposer);
-        oracle.proposeL2Output(proposedOutput2, nextBlockNumber, 0, 0);
+        proposeAnotherOutput();
     }
 
-    // Test: proposeL2Output succeeds when given valid input, and when a block hash and number are
-    // specified for reorg protection.
+    /// @dev Tests that `proposeL2Output` succeeds when given valid input and
+    ///      when a block hash and number are specified for reorg protection.
     function test_proposeWithBlockhashAndHeight_succeeds() external {
         // Get the number and hash of a previous block in the chain
         uint256 prevL1BlockNumber = block.number - 1;
@@ -232,11 +226,8 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber, prevL1BlockHash, prevL1BlockNumber);
     }
 
-    /***************************
-     * Propose Tests - Sad Path *
-     ***************************/
-
-    // Test: proposeL2Output fails if called by a party that is not the proposer.
+    /// @dev Tests that `proposeL2Output` reverts when called by a party
+    ///      that is not the proposer.
     function test_proposeL2Output_notProposer_reverts() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
@@ -246,7 +237,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber, 0, 0);
     }
 
-    // Test: proposeL2Output fails given a zero blockhash.
+    /// @dev Tests that `proposeL2Output` reverts when given a zero blockhash.
     function test_proposeL2Output_emptyOutput_reverts() external {
         bytes32 outputToPropose = bytes32(0);
         uint256 nextBlockNumber = oracle.nextBlockNumber();
@@ -256,7 +247,8 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         oracle.proposeL2Output(outputToPropose, nextBlockNumber, 0, 0);
     }
 
-    // Test: proposeL2Output fails if the block number doesn't match the next expected number.
+    /// @dev Tests that `proposeL2Output` reverts when given a block number
+    ///      that does not match the next expected block number.
     function test_proposeL2Output_unexpectedBlockNumber_reverts() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
@@ -265,7 +257,8 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber - 1, 0, 0);
     }
 
-    // Test: proposeL2Output fails if it would have a timestamp in the future.
+    /// @dev Tests that `proposeL2Output` reverts when given a block number
+    ///      that has a timestamp in the future.
     function test_proposeL2Output_futureTimetamp_reverts() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         uint256 nextTimestamp = oracle.computeL2Timestamp(nextBlockNumber);
@@ -275,8 +268,8 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber, 0, 0);
     }
 
-    // Test: proposeL2Output fails if a non-existent L1 block hash and number are provided for reorg
-    // protection.
+    /// @dev Tests that `proposeL2Output` reverts when given a block number
+    ///      whose hash does not match the given block hash.
     function test_proposeL2Output_wrongFork_reverts() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
@@ -292,8 +285,8 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         );
     }
 
-    // Test: proposeL2Output fails when given valid input, but the block hash and number do not
-    // match.
+    /// @dev Tests that `proposeL2Output` reverts when given a block number
+    ///      whose block hash does not match the given block hash.
     function test_proposeL2Output_unmatchedBlockhash_reverts() external {
         // Move ahead to block 100 so that we can reference historical blocks
         vm.roll(100);
@@ -312,14 +305,13 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         );
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber, l1BlockHash, l1BlockNumber - 1);
     }
+}
 
-    /*****************************
-     * Delete Tests - Happy Path *
-     *****************************/
-
+contract L2OutputOracle_deleteOutputs_Test is L2OutputOracle_Initializer {
+    /// @dev Tests that `deleteL2Outputs` succeeds for a single output.
     function test_deleteOutputs_singleOutput_succeeds() external {
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
+        proposeAnotherOutput();
+        proposeAnotherOutput();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
         uint256 latestOutputIndex = oracle.latestOutputIndex();
@@ -341,11 +333,12 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(newLatestOutput.timestamp, proposal.timestamp);
     }
 
+    /// @dev Tests that `deleteL2Outputs` succeeds for multiple outputs.
     function test_deleteOutputs_multipleOutputs_succeeds() external {
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
+        proposeAnotherOutput();
+        proposeAnotherOutput();
+        proposeAnotherOutput();
+        proposeAnotherOutput();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
         uint256 latestOutputIndex = oracle.latestOutputIndex();
@@ -367,10 +360,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(newLatestOutput.timestamp, proposal.timestamp);
     }
 
-    /***************************
-     * Delete Tests - Sad Path *
-     ***************************/
-
+    /// @dev Tests that `deleteL2Outputs` reverts when not called by the challenger.
     function test_deleteL2Outputs_ifNotChallenger_reverts() external {
         uint256 latestBlockNumber = oracle.latestBlockNumber();
 
@@ -378,8 +368,9 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         oracle.deleteL2Outputs(latestBlockNumber);
     }
 
+    /// @dev Tests that `deleteL2Outputs` reverts for a non-existant output index.
     function test_deleteL2Outputs_nonExistent_reverts() external {
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
+        proposeAnotherOutput();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
 
@@ -388,11 +379,12 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         oracle.deleteL2Outputs(latestBlockNumber + 1);
     }
 
+    /// @dev Tests that `deleteL2Outputs` reverts when trying to delete outputs
+    ///      after the latest output index.
     function test_deleteL2Outputs_afterLatest_reverts() external {
-        // Start by proposing three outputs
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
+        proposeAnotherOutput();
+        proposeAnotherOutput();
+        proposeAnotherOutput();
 
         // Delete the latest two outputs
         uint256 latestOutputIndex = oracle.latestOutputIndex();
@@ -405,8 +397,9 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         oracle.deleteL2Outputs(latestOutputIndex - 2);
     }
 
+    /// @dev Tests that `deleteL2Outputs` reverts for finalized outputs.
     function test_deleteL2Outputs_finalized_reverts() external {
-        test_proposeL2Output_proposeAnotherOutput_succeeds();
+        proposeAnotherOutput();
 
         // Warp past the finalization period + 1 second
         vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
@@ -428,6 +421,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         proxy = Proxy(payable(address(oracle)));
     }
 
+    /// @dev Tests that the proxy is initialized with the correct values.
     function test_initValuesOnProxy_succeeds() external {
         assertEq(submissionInterval, oracleImpl.SUBMISSION_INTERVAL());
         assertEq(l2BlockTime, oracleImpl.L2_BLOCK_TIME());
@@ -438,16 +432,19 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         assertEq(owner, oracleImpl.CHALLENGER());
     }
 
+    /// @dev Tests that the proxy cannot be initialized twice.
     function test_initializeProxy_alreadyInitialized_reverts() external {
         vm.expectRevert("Initializable: contract is already initialized");
         L2OutputOracle(payable(proxy)).initialize(startingBlockNumber, startingTimestamp);
     }
 
+    /// @dev Tests that the implementation contract cannot be initialized twice.
     function test_initializeImpl_alreadyInitialized_reverts() external {
         vm.expectRevert("Initializable: contract is already initialized");
         L2OutputOracle(oracleImpl).initialize(startingBlockNumber, startingTimestamp);
     }
 
+    /// @dev Tests that the proxy can be successfully upgraded.
     function test_upgrading_succeeds() external {
         // Check an unused slot before upgrading.
         bytes32 slot21Before = vm.load(address(oracle), bytes32(uint256(21)));

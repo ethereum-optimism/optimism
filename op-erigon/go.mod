@@ -1,4 +1,4 @@
-module github.com/bobanetwork/v3-anchorage/op-erigon
+module github.com/ethereum-optimism/optimism/op-erigon
 
 go 1.19
 
@@ -253,9 +253,9 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon v1.9.7-0.20230614130900-7f03fdcac55a
+replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon v1.9.7-0.20230628134239-242485b05d1e
 
-replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/v3-erigon-lib v0.0.0-20230531233321-6227883c25ae
+replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/v3-erigon-lib v0.0.0-20230614223018-e4233355d8a5
 
 replace github.com/tendermint/tendermint => github.com/bnb-chain/tendermint v0.31.12
 

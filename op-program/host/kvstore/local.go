@@ -27,7 +27,7 @@ var (
 )
 
 func (s *LocalPreimageSource) Get(key common.Hash) ([]byte, error) {
-	switch key {
+	switch [32]byte(key) {
 	case l1HeadKey:
 		return s.config.L1Head.Bytes(), nil
 	case l2HeadKey:

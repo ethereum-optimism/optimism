@@ -1,0 +1,4 @@
+packages:
+  - 'packages/*'
+  - 'endpoint-monitor'
+  - 'op-exporter'

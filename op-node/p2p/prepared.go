@@ -3,6 +3,7 @@ package p2p
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
@@ -68,11 +69,7 @@ func (p *Prepared) ConfigureGossip(rollupCfg *rollup.Config) []pubsub.Option {
 	}
 }
 
-func (p *Prepared) PeerScoringParams() *pubsub.PeerScoreParams {
-	return nil
-}
-
-func (p *Prepared) PeerBandScorer() *BandScoreThresholds {
+func (p *Prepared) PeerScoringParams() *ScoringParams {
 	return nil
 }
 
@@ -80,8 +77,12 @@ func (p *Prepared) BanPeers() bool {
 	return false
 }
 
-func (p *Prepared) TopicScoringParams() *pubsub.TopicScoreParams {
-	return nil
+func (p *Prepared) BanThreshold() float64 {
+	return -100
+}
+
+func (p *Prepared) BanDuration() time.Duration {
+	return 1 * time.Hour
 }
 
 func (p *Prepared) Disabled() bool {

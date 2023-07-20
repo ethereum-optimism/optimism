@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 const (
@@ -16,29 +16,29 @@ const (
 
 func CLIFlags(envPrefix string) []cli.Flag {
 	return []cli.Flag{
-		cli.Uint64Flag{
-			Name:   TargetL1TxSizeBytesFlagName,
-			Usage:  "The target size of a batch tx submitted to L1.",
-			Value:  100_000,
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "TARGET_L1_TX_SIZE_BYTES"),
+		&cli.Uint64Flag{
+			Name:    TargetL1TxSizeBytesFlagName,
+			Usage:   "The target size of a batch tx submitted to L1.",
+			Value:   100_000,
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "TARGET_L1_TX_SIZE_BYTES"),
 		},
-		cli.IntFlag{
-			Name:   TargetNumFramesFlagName,
-			Usage:  "The target number of frames to create per channel",
-			Value:  1,
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "TARGET_NUM_FRAMES"),
+		&cli.IntFlag{
+			Name:    TargetNumFramesFlagName,
+			Usage:   "The target number of frames to create per channel",
+			Value:   1,
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "TARGET_NUM_FRAMES"),
 		},
-		cli.Float64Flag{
-			Name:   ApproxComprRatioFlagName,
-			Usage:  "The approximate compression ratio (<= 1.0)",
-			Value:  0.4,
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "APPROX_COMPR_RATIO"),
+		&cli.Float64Flag{
+			Name:    ApproxComprRatioFlagName,
+			Usage:   "The approximate compression ratio (<= 1.0)",
+			Value:   0.4,
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "APPROX_COMPR_RATIO"),
 		},
-		cli.StringFlag{
-			Name:   KindFlagName,
-			Usage:  "The type of compressor. Valid options: " + strings.Join(KindKeys, ", "),
-			EnvVar: opservice.PrefixEnvVar(envPrefix, "COMPRESSOR"),
-			Value:  RatioKind,
+		&cli.StringFlag{
+			Name:    KindFlagName,
+			Usage:   "The type of compressor. Valid options: " + strings.Join(KindKeys, ", "),
+			EnvVars: opservice.PrefixEnvVar(envPrefix, "COMPRESSOR"),
+			Value:   RatioKind,
 		},
 	}
 }
@@ -70,9 +70,9 @@ func (c *CLIConfig) Config() Config {
 
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
-		Kind:                ctx.GlobalString(KindFlagName),
-		TargetL1TxSizeBytes: ctx.GlobalUint64(TargetL1TxSizeBytesFlagName),
-		TargetNumFrames:     ctx.GlobalInt(TargetNumFramesFlagName),
-		ApproxComprRatio:    ctx.GlobalFloat64(ApproxComprRatioFlagName),
+		Kind:                ctx.String(KindFlagName),
+		TargetL1TxSizeBytes: ctx.Uint64(TargetL1TxSizeBytesFlagName),
+		TargetNumFrames:     ctx.Int(TargetNumFramesFlagName),
+		ApproxComprRatio:    ctx.Float64(ApproxComprRatioFlagName),
 	}
 }

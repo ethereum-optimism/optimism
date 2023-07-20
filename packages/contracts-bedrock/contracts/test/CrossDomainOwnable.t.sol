@@ -1,11 +1,18 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest, Portal_Initializer } from "./CommonTest.t.sol";
-import { CrossDomainOwnable } from "../L2/CrossDomainOwnable.sol";
-import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
+// Testing utilities
 import { Vm, VmSafe } from "forge-std/Vm.sol";
+import { CommonTest, Portal_Initializer } from "./CommonTest.t.sol";
+
+// Libraries
 import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
+
+// Target contract dependencies
+import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
+
+// Target contract
+import { CrossDomainOwnable } from "../L2/CrossDomainOwnable.sol";
 
 contract XDomainSetter is CrossDomainOwnable {
     uint256 public value;
@@ -23,13 +30,13 @@ contract CrossDomainOwnable_Test is CommonTest {
         setter = new XDomainSetter();
     }
 
-    // Check that the revert message is correct
+    /// @dev Tests that the `onlyOwner` modifier reverts with the correct message.
     function test_onlyOwner_notOwner_reverts() external {
         vm.expectRevert("CrossDomainOwnable: caller is not the owner");
         setter.set(1);
     }
 
-    // Check that making a call can set the value properly
+    /// @dev Tests that the `onlyOwner` modifier succeeds when called by the owner.
     function test_onlyOwner_succeeds() external {
         assertEq(setter.value(), 0);
 
@@ -42,6 +49,7 @@ contract CrossDomainOwnable_Test is CommonTest {
 contract CrossDomainOwnableThroughPortal_Test is Portal_Initializer {
     XDomainSetter setter;
 
+    /// @dev Sets up the test suite.
     function setUp() public override {
         super.setUp();
 
@@ -49,6 +57,8 @@ contract CrossDomainOwnableThroughPortal_Test is Portal_Initializer {
         setter = new XDomainSetter();
     }
 
+    /// @dev Tests that `depositTransaction` succeeds when calling the `set` function on the
+    ///      `XDomainSetter` contract.
     function test_depositTransaction_crossDomainOwner_succeeds() external {
         vm.recordLogs();
 

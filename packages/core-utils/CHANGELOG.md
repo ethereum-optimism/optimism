@@ -1,5 +1,12 @@
 # @eth-optimism/core-utils
 
+## 0.12.1
+
+### Patch Changes
+
+- 8d7dcc70c: Delete legacy core-utils
+- d6388be4a: Added a new service wallet-mon to identify unexpected transfers from key accounts
+
 ## 0.12.0
 
 ### Minor Changes

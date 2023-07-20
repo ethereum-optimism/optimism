@@ -121,6 +121,10 @@ func (s *l2VerifierBackend) StopSequencer(ctx context.Context) (common.Hash, err
 	return common.Hash{}, errors.New("stopping the L2Verifier sequencer is not supported")
 }
 
+func (s *l2VerifierBackend) SequencerActive(ctx context.Context) (bool, error) {
+	return false, nil
+}
+
 func (s *L2Verifier) L2Finalized() eth.L2BlockRef {
 	return s.derivation.Finalized()
 }

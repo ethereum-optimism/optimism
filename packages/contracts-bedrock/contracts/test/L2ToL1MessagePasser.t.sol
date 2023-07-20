@@ -1,10 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing utilities
 import { CommonTest } from "./CommonTest.t.sol";
-import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
+
+// Libraries
 import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
+
+// Target contract
+import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
 
 contract L2ToL1MessagePasserTest is CommonTest {
     L2ToL1MessagePasser messagePasser;
@@ -21,11 +26,14 @@ contract L2ToL1MessagePasserTest is CommonTest {
 
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
+    /// @dev Sets up the test suite.
     function setUp() public virtual override {
         super.setUp();
         messagePasser = new L2ToL1MessagePasser();
     }
 
+    /// @dev Tests that `initiateWithdrawal` succeeds and correctly sets the state
+    ///      of the message passer for the withdrawal hash.
     function testFuzz_initiateWithdrawal_succeeds(
         address _sender,
         address _target,
@@ -60,7 +68,8 @@ contract L2ToL1MessagePasserTest is CommonTest {
         assertEq(vm.load(address(messagePasser), slot), bytes32(uint256(1)));
     }
 
-    // Test: initiateWithdrawal should emit the correct log when called by a contract
+    /// @dev Tests that `initiateWithdrawal` succeeds and emits the correct MessagePassed
+    ///      log when called by a contract.
     function test_initiateWithdrawal_fromContract_succeeds() external {
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction(
@@ -88,7 +97,8 @@ contract L2ToL1MessagePasserTest is CommonTest {
         messagePasser.initiateWithdrawal{ value: 100 }(address(4), 64000, hex"");
     }
 
-    // Test: initiateWithdrawal should emit the correct log when called by an EOA
+    /// @dev Tests that `initiateWithdrawal` succeeds and emits the correct MessagePassed
+    ///      log when called by an EOA.
     function test_initiateWithdrawal_fromEOA_succeeds() external {
         uint256 gasLimit = 64000;
         address target = address(4);
@@ -114,7 +124,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
         assertEq(nonce + 1, messagePasser.messageNonce());
     }
 
-    // Test: burn should destroy the ETH held in the contract
+    /// @dev Tests that `burn` succeeds and destroys the ETH held in the contract.
     function test_burn_succeeds() external {
         messagePasser.initiateWithdrawal{ value: NON_ZERO_VALUE }(
             NON_ZERO_ADDRESS,

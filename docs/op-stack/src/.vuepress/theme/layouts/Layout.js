@@ -1,4 +1,6 @@
 import Vue from "vue";
+import BlogInfo from "@BlogInfo";
+import BlogHome from "@BlogHome";
 import ContentBottom from "@ContentBottom";
 import ContentTop from "@ContentTop";
 import NavbarStart from "@NavbarStart";
@@ -15,6 +17,8 @@ import Page from "@theme/components/Page.vue";
 export default Vue.extend({
     name: "Layout",
     components: {
+        BlogInfo,
+        BlogHome,
         Common,
         ContentBottom,
         ContentTop,

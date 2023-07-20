@@ -2,10 +2,12 @@ package predeploys
 
 import "github.com/ethereum/go-ethereum/common"
 
+// TODO - we should get a single toml yaml or json file source of truth in @eth-optimism/bedrock package
+// This needs to be kept in sync with @eth-optimism/contracts-ts/wagmi.config.ts which also specifies this
+// To improve robustness and maintainability contracts-bedrock should export all addresses
 const (
 	L2ToL1MessagePasser           = "0x4200000000000000000000000000000000000016"
 	DeployerWhitelist             = "0x4200000000000000000000000000000000000002"
-	LegacyERC20ETH                = "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000"
 	WETH9                         = "0x4200000000000000000000000000000000000006"
 	L2CrossDomainMessenger        = "0x4200000000000000000000000000000000000007"
 	L2StandardBridge              = "0x4200000000000000000000000000000000000010"
@@ -29,7 +31,6 @@ const (
 var (
 	L2ToL1MessagePasserAddr           = common.HexToAddress(L2ToL1MessagePasser)
 	DeployerWhitelistAddr             = common.HexToAddress(DeployerWhitelist)
-	LegacyERC20ETHAddr                = common.HexToAddress(LegacyERC20ETH)
 	WETH9Addr                         = common.HexToAddress(WETH9)
 	L2CrossDomainMessengerAddr        = common.HexToAddress(L2CrossDomainMessenger)
 	L2StandardBridgeAddr              = common.HexToAddress(L2StandardBridge)
@@ -52,10 +53,20 @@ var (
 	Predeploys = make(map[string]*common.Address)
 )
 
+// IsProxied returns true for predeploys that will sit behind a proxy contract
+func IsProxied(predeployAddr common.Address) bool {
+	switch predeployAddr {
+	case WETH9Addr:
+	case GovernanceTokenAddr:
+	default:
+		return true
+	}
+	return false
+}
+
 func init() {
 	Predeploys["L2ToL1MessagePasser"] = &L2ToL1MessagePasserAddr
 	Predeploys["DeployerWhitelist"] = &DeployerWhitelistAddr
-	Predeploys["LegacyERC20ETH"] = &LegacyERC20ETHAddr
 	Predeploys["WETH9"] = &WETH9Addr
 	Predeploys["L2CrossDomainMessenger"] = &L2CrossDomainMessengerAddr
 	Predeploys["L2StandardBridge"] = &L2StandardBridgeAddr

@@ -1,10 +1,8 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.10;
 
-/**
- * @title Enum - Collection of enums used in Safe contracts.
- * @author Richard Meissner - @rmeissner
- */
+/// @title Enum - Collection of enums used in Safe contracts.
+/// @author Richard Meissner - @rmeissner
 abstract contract Enum {
     enum Operation {
         Call,
@@ -12,9 +10,7 @@ abstract contract Enum {
     }
 }
 
-/**
- * @title IGnosisSafe - Gnosis Safe Interface
- */
+/// @title IGnosisSafe - Gnosis Safe Interface
 interface IGnosisSafe {
     event AddedOwner(address owner);
     event ApproveHash(bytes32 indexed approvedHash, address indexed owner);
