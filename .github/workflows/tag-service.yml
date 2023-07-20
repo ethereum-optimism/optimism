@@ -26,6 +26,8 @@ on:
           - op-proposer
           - op-ufm
           - proxyd
+          - indexer
+          - ci-builder
       prerelease:
         description: Increment major/minor/patch as prerelease?
         required: false

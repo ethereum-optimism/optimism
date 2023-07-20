@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     # map the step outputs to job outputs
     outputs:
-      fault-detector: ${{ steps.packages.outputs.fault-detector }}
+      fault-mon: ${{ steps.packages.outputs.fault-mon }}
       balance-mon: ${{ steps.packages.outputs.balance-mon }}
       drippie-mon: ${{ steps.packages.outputs.drippie-mon }}
       wd-mon: ${{ steps.packages.outputs.wd-mon }}
@@ -43,10 +43,10 @@ jobs:
         env:
           CUSTOM_IMAGE_NAME: ${{ github.event.inputs.customImageName }}
 
-  fault-detector:
-    name: Publish Fault Detector Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+  fault-mon:
+    name: Publish fault-mon Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
     needs: canary-publish
-    if: needs.canary-publish.outputs.fault-detector != ''
+    if: needs.canary-publish.outputs.fault-mon != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -66,9 +66,9 @@ jobs:
         with:
           context: .
           file: ./ops/docker/Dockerfile.packages
-          target: fault-detector
+          target: fault-mon
           push: true
-          tags: ethereumoptimism/fault-detector:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ethereumoptimism/fault-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   balance-mon:
     name: Publish Balance Monitor Version ${{ needs.canary-publish.outputs.canary-docker-tag }}

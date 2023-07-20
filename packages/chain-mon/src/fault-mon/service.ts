@@ -24,7 +24,7 @@ import { Provider } from '@ethersproject/abstract-provider'
 import { Contract, ethers } from 'ethers'
 import dateformat from 'dateformat'
 
-import { version } from '../package.json'
+import { version } from '../../package.json'
 import {
   findFirstUnfinalizedStateBatchIndex,
   findOutputForIndex,
