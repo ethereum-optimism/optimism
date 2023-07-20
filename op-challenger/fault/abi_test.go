@@ -30,10 +30,11 @@ func setupFaultDisputeGame() (common.Address, *bind.TransactOpts, *backends.Simu
 	_, _, contract, err := bindings.DeployFaultDisputeGame(
 		opts,
 		backend,
-		[32]byte{0x01},
-		big.NewInt(15),
-		uint64(604800), // 7 days
-		common.Address{0xdd},
+		[32]byte{0x01},       // Absolute Prestate Claim
+		big.NewInt(15),       // Max Game Depth
+		uint64(604800),       // 7 days
+		common.Address{0xdd}, // VM
+		common.Address{0xee}, // L2OutputOracle (Not used in Alphabet Game)
 	)
 	if err != nil {
 		return common.Address{}, nil, nil, nil, err
