@@ -1,17 +1,23 @@
 package client
 
 import (
-	"net/http"
+	"fmt"
+	"net"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
 func TestIsURLAvailable(t *testing.T) {
-	go func() {
-		_ = http.ListenAndServe(":8989", nil)
-	}()
+	listener, err := net.Listen("tcp4", ":0")
+	require.NoError(t, err)
+	defer listener.Close()
 
-	require.True(t, IsURLAvailable("http://localhost:8989"))
-	require.False(t, IsURLAvailable("http://localhost:9898"))
+	a := listener.Addr().String()
+	parts := strings.Split(a, ":")
+	addr := fmt.Sprintf("http://localhost:%s", parts[1])
+
+	require.True(t, IsURLAvailable(addr))
+	require.False(t, IsURLAvailable("http://localhost:0"))
 }
