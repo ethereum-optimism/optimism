@@ -201,37 +201,6 @@ func (_PreimageOracle *PreimageOracleTransactorRaw) Transact(opts *bind.Transact
 	return _PreimageOracle.Contract.contract.Transact(opts, method, params...)
 }
 
-// ComputeKeccak256PreimageKey is a free data retrieval call binding the contract method 0xdfb77667.
-//
-// Solidity: function computeKeccak256PreimageKey(bytes _preimage) pure returns(bytes32 key_)
-func (_PreimageOracle *PreimageOracleCaller) ComputeKeccak256PreimageKey(opts *bind.CallOpts, _preimage []byte) ([32]byte, error) {
-	var out []interface{}
-	err := _PreimageOracle.contract.Call(opts, &out, "computeKeccak256PreimageKey", _preimage)
-
-	if err != nil {
-		return *new([32]byte), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new([32]byte)).(*[32]byte)
-
-	return out0, err
-
-}
-
-// ComputeKeccak256PreimageKey is a free data retrieval call binding the contract method 0xdfb77667.
-//
-// Solidity: function computeKeccak256PreimageKey(bytes _preimage) pure returns(bytes32 key_)
-func (_PreimageOracle *PreimageOracleSession) ComputeKeccak256PreimageKey(_preimage []byte) ([32]byte, error) {
-	return _PreimageOracle.Contract.ComputeKeccak256PreimageKey(&_PreimageOracle.CallOpts, _preimage)
-}
-
-// ComputeKeccak256PreimageKey is a free data retrieval call binding the contract method 0xdfb77667.
-//
-// Solidity: function computeKeccak256PreimageKey(bytes _preimage) pure returns(bytes32 key_)
-func (_PreimageOracle *PreimageOracleCallerSession) ComputeKeccak256PreimageKey(_preimage []byte) ([32]byte, error) {
-	return _PreimageOracle.Contract.ComputeKeccak256PreimageKey(&_PreimageOracle.CallOpts, _preimage)
-}
-
 // PreimageLengths is a free data retrieval call binding the contract method 0xfef2b4ed.
 //
 // Solidity: function preimageLengths(bytes32 ) view returns(uint256)
@@ -412,23 +381,23 @@ func (_PreimageOracle *PreimageOracleTransactorSession) LoadKeccak256PreimagePar
 	return _PreimageOracle.Contract.LoadKeccak256PreimagePart(&_PreimageOracle.TransactOpts, _partOffset, _preimage)
 }
 
-// LoadLocalData is a paid mutator transaction binding the contract method 0x3eba58ce.
+// LoadLocalPart is a paid mutator transaction binding the contract method 0x90fbc1e2.
 //
-// Solidity: function loadLocalData(bytes _bootInfo) returns()
-func (_PreimageOracle *PreimageOracleTransactor) LoadLocalData(opts *bind.TransactOpts, _bootInfo []byte) (*types.Transaction, error) {
-	return _PreimageOracle.contract.Transact(opts, "loadLocalData", _bootInfo)
+// Solidity: function loadLocalPart(uint256 _partOffset, uint256 _ident, bytes32 _part, uint256 _size) returns()
+func (_PreimageOracle *PreimageOracleTransactor) LoadLocalPart(opts *bind.TransactOpts, _partOffset *big.Int, _ident *big.Int, _part [32]byte, _size *big.Int) (*types.Transaction, error) {
+	return _PreimageOracle.contract.Transact(opts, "loadLocalPart", _partOffset, _ident, _part, _size)
 }
 
-// LoadLocalData is a paid mutator transaction binding the contract method 0x3eba58ce.
+// LoadLocalPart is a paid mutator transaction binding the contract method 0x90fbc1e2.
 //
-// Solidity: function loadLocalData(bytes _bootInfo) returns()
-func (_PreimageOracle *PreimageOracleSession) LoadLocalData(_bootInfo []byte) (*types.Transaction, error) {
-	return _PreimageOracle.Contract.LoadLocalData(&_PreimageOracle.TransactOpts, _bootInfo)
+// Solidity: function loadLocalPart(uint256 _partOffset, uint256 _ident, bytes32 _part, uint256 _size) returns()
+func (_PreimageOracle *PreimageOracleSession) LoadLocalPart(_partOffset *big.Int, _ident *big.Int, _part [32]byte, _size *big.Int) (*types.Transaction, error) {
+	return _PreimageOracle.Contract.LoadLocalPart(&_PreimageOracle.TransactOpts, _partOffset, _ident, _part, _size)
 }
 
-// LoadLocalData is a paid mutator transaction binding the contract method 0x3eba58ce.
+// LoadLocalPart is a paid mutator transaction binding the contract method 0x90fbc1e2.
 //
-// Solidity: function loadLocalData(bytes _bootInfo) returns()
-func (_PreimageOracle *PreimageOracleTransactorSession) LoadLocalData(_bootInfo []byte) (*types.Transaction, error) {
-	return _PreimageOracle.Contract.LoadLocalData(&_PreimageOracle.TransactOpts, _bootInfo)
+// Solidity: function loadLocalPart(uint256 _partOffset, uint256 _ident, bytes32 _part, uint256 _size) returns()
+func (_PreimageOracle *PreimageOracleTransactorSession) LoadLocalPart(_partOffset *big.Int, _ident *big.Int, _part [32]byte, _size *big.Int) (*types.Transaction, error) {
+	return _PreimageOracle.Contract.LoadLocalPart(&_PreimageOracle.TransactOpts, _partOffset, _ident, _part, _size)
 }
