@@ -112,7 +112,7 @@ func setupTestDatabase(t *testing.T) string {
 
 	// setup schema, migration files ware walked in lexical order
 	t.Logf("created database %s", dbName)
-	db, err := sql.Open("pgx", fmt.Sprintf("database=%s", dbName))
+	db, err := sql.Open("pgx", fmt.Sprintf("postgres://%s@localhost:5432/%s?sslmode=disable", user, dbName))
 	require.NoError(t, err)
 	require.NoError(t, db.Ping())
 	defer db.Close()

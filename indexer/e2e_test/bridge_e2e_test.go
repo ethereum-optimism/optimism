@@ -7,11 +7,11 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/processor"
+	"github.com/ethereum-optimism/optimism/op-service/client/utils"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
-	e2eutils "github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -54,10 +54,10 @@ func TestE2EBridge(t *testing.T) {
 	withdrawTx, err := l2StandardBridge.Withdraw(l2Opts, processor.EthAddress, big.NewInt(params.Ether), 200_000, []byte{byte(1)})
 	require.NoError(t, err)
 
-	depositReceipt, err := e2eutils.WaitReceiptOK(setupCtx, l1Client, depositTx.Hash())
+	depositReceipt, err := utils.WaitReceiptOK(setupCtx, l1Client, depositTx.Hash())
 	require.NoError(t, err)
 
-	withdrawalReceipt, err := e2eutils.WaitReceiptOK(setupCtx, l2Client, withdrawTx.Hash())
+	withdrawalReceipt, err := utils.WaitReceiptOK(setupCtx, l2Client, withdrawTx.Hash())
 	require.NoError(t, err)
 
 	t.Run("indexes ETH deposits", func(t *testing.T) {
@@ -71,7 +71,7 @@ func TestE2EBridge(t *testing.T) {
 		// (1) Test Deposit Initiation
 
 		// wait for processor catchup
-		require.NoError(t, e2eutils.WaitFor(testCtx, 500*time.Millisecond, func() (bool, error) {
+		require.NoError(t, utils.WaitFor(testCtx, 500*time.Millisecond, func() (bool, error) {
 			l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
 			return l1Header != nil && l1Header.Number.Uint64() >= depositReceipt.BlockNumber.Uint64(), nil
 		}))
@@ -106,11 +106,11 @@ func TestE2EBridge(t *testing.T) {
 		}
 
 		// wait for the l2 processor to catch this deposit in the derivation process
-		_, err = e2eutils.WaitReceiptOK(testCtx, l2Client, depositTxHash)
+		_, err = utils.WaitReceiptOK(testCtx, l2Client, depositTxHash)
 		require.NoError(t, err)
 		l2Height, err := l2Client.BlockNumber(testCtx)
 		require.NoError(t, err)
-		require.NoError(t, e2eutils.WaitFor(testCtx, 500*time.Millisecond, func() (bool, error) {
+		require.NoError(t, utils.WaitFor(testCtx, 500*time.Millisecond, func() (bool, error) {
 			l2Header := testSuite.Indexer.L2Processor.LatestProcessedHeader()
 			return l2Header != nil && l2Header.Number.Uint64() >= l2Height, nil
 		}))
@@ -128,7 +128,7 @@ func TestE2EBridge(t *testing.T) {
 		// (1) Test Withdrawal Initiation
 
 		// wait for processor catchup
-		require.NoError(t, e2eutils.WaitFor(testCtx, 500*time.Millisecond, func() (bool, error) {
+		require.NoError(t, utils.WaitFor(testCtx, 500*time.Millisecond, func() (bool, error) {
 			l2Header := testSuite.Indexer.L2Processor.LatestProcessedHeader()
 			return l2Header != nil && l2Header.Number.Uint64() >= withdrawalReceipt.BlockNumber.Uint64(), nil
 		}))
@@ -154,7 +154,7 @@ func TestE2EBridge(t *testing.T) {
 
 		// prove & wait for processor catchup
 		withdrawParams, proveReceipt := op_e2e.ProveWithdrawal(t, *testSuite.OpCfg, l1Client, testSuite.OpSys.Nodes["sequencer"], testSuite.OpCfg.Secrets.Alice, withdrawalReceipt)
-		require.NoError(t, e2eutils.WaitFor(testCtx, 500*time.Millisecond, func() (bool, error) {
+		require.NoError(t, utils.WaitFor(testCtx, 500*time.Millisecond, func() (bool, error) {
 			l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
 			return l1Header != nil && l1Header.Number.Uint64() >= proveReceipt.BlockNumber.Uint64(), nil
 		}))
@@ -168,7 +168,7 @@ func TestE2EBridge(t *testing.T) {
 
 		// finalize & wait for processor catchup
 		finalizeReceipt := op_e2e.FinalizeWithdrawal(t, *testSuite.OpCfg, l1Client, testSuite.OpCfg.Secrets.Alice, withdrawalReceipt, withdrawParams)
-		require.NoError(t, e2eutils.WaitFor(testCtx, 500*time.Millisecond, func() (bool, error) {
+		require.NoError(t, utils.WaitFor(testCtx, 500*time.Millisecond, func() (bool, error) {
 			l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
 			return l1Header != nil && l1Header.Number.Uint64() >= finalizeReceipt.BlockNumber.Uint64(), nil
 		}))
