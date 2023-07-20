@@ -8,7 +8,6 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -19,6 +18,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-service/client/utils"
 )
 
 var MessagePassedTopic = crypto.Keccak256Hash([]byte("MessagePassed(uint256,address,address,uint256,uint256,bytes,bytes32)"))
@@ -36,7 +36,7 @@ func WaitForOutputRootPublished(ctx context.Context, client *ethclient.Client, p
 	}
 
 	getL2BlockFromLatestOutput := func() (*big.Int, error) { return l2OO.LatestBlockNumber(opts) }
-	outputBlockNum, err := e2eutils.WaitAndGet[*big.Int](ctx, time.Second, getL2BlockFromLatestOutput, func(latest *big.Int) bool {
+	outputBlockNum, err := utils.WaitAndGet[*big.Int](ctx, time.Second, getL2BlockFromLatestOutput, func(latest *big.Int) bool {
 		return latest.Cmp(l2BlockNumber) >= 0
 	})
 	if err != nil {
@@ -72,7 +72,7 @@ func WaitForFinalizationPeriod(ctx context.Context, client *ethclient.Client, po
 	// Assume clock is relatively correct
 	time.Sleep(time.Until(targetTime))
 	// Poll for L1 Block to have a time greater than the target time
-	return e2eutils.WaitFor(ctx, time.Second, func() (bool, error) {
+	return utils.WaitFor(ctx, time.Second, func() (bool, error) {
 		header, err := client.HeaderByNumber(ctx, nil)
 		if err != nil {
 			return false, fmt.Errorf("retrieve latest header: %w", err)

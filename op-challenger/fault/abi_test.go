@@ -31,6 +31,7 @@ func setupFaultDisputeGame() (common.Address, *bind.TransactOpts, *backends.Simu
 		backend,
 		[32]byte{0x01},
 		big.NewInt(15),
+		uint64(604800), // 7 days
 		common.Address{0xdd},
 	)
 	if err != nil {

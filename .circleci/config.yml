@@ -143,6 +143,7 @@ jobs:
             - "packages/fault-detector/node_modules"
             - "packages/replica-healthcheck/node_modules"
             - "packages/sdk/node_modules"
+            - "packages/contracts-ts/node_modules"
       - run:
           name: print forge version
           command: forge --version
@@ -709,6 +710,24 @@ jobs:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
 
+  contracts-ts-tests:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore pnpm Package Cache
+          keys:
+            - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
+      - check-changed:
+          patterns: sdk,contracts-bedrock,contracts
+      - run:
+          name: Check generated and build
+          command: pnpm generate:check
+          working_directory: packages/contracts-ts
+
   sdk-next-tests:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
@@ -1008,7 +1027,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: op-(.+),packages
+          patterns: op-(.+),packages,ops-bedrock
       - run:
           name: Install latest golang
           command: |
@@ -1337,6 +1356,13 @@ workflows:
           requires:
             - pnpm-monorepo
       - js-lint-test:
+          name: contracts-ts-tests
+          coverage_flag: contracts-ts-tests
+          package_name: contracts-ts
+          dependencies: '(contracts-bedrock|contracts-ts)'
+          requires:
+            - pnpm-monorepo
+      - js-lint-test:
           name: sdk-next-tests
           coverage_flag: sdk-next-tests
           package_name: sdk
@@ -1374,7 +1400,6 @@ workflows:
           name: indexer-tests
           binary_name: indexer
           working_directory: indexer
-          dependencies: op-bindings
       - go-lint-test-build:
           name: op-heartbeat tests
           binary_name: op-heartbeat
