@@ -1,5 +1,23 @@
 # @eth-optimism/fault-detector
 
+## 1.1.0
+
+### Minor Changes
+
+- [#6095](https://github.com/ethereum-optimism/optimism/pull/6095) [`5884c763a`](https://github.com/ethereum-optimism/optimism/commit/5884c763aa5e7687c61c906cb65069052d9c5d9e) Thanks [@zchn](https://github.com/zchn)! - Remove pre-bedrock support from fault detector.
+
+### Patch Changes
+
+- [#6201](https://github.com/ethereum-optimism/optimism/pull/6201) [`6fb399f27`](https://github.com/ethereum-optimism/optimism/commit/6fb399f27333ef709516765dde5b3d12501803cc) Thanks [@tynes](https://github.com/tynes)! - Bump contracts-bedrock version
+
+- [#6164](https://github.com/ethereum-optimism/optimism/pull/6164) [`c11039060`](https://github.com/ethereum-optimism/optimism/commit/c11039060bc037a88916c2cba602687b6d69ad1a) Thanks [@pengin7384](https://github.com/pengin7384)! - fix typo
+
+- Updated dependencies [[`a666c4f20`](https://github.com/ethereum-optimism/optimism/commit/a666c4f2082253abbb68c0678e5a0a1ed0c00f4b), [`ff577455f`](https://github.com/ethereum-optimism/optimism/commit/ff577455f196b5f5b8a889339b845561ca6c538a), [`89ca741a6`](https://github.com/ethereum-optimism/optimism/commit/89ca741a63c5e07f9d691bb6f7a89f7718fc49ca), [`c11039060`](https://github.com/ethereum-optimism/optimism/commit/c11039060bc037a88916c2cba602687b6d69ad1a), [`72d184854`](https://github.com/ethereum-optimism/optimism/commit/72d184854ebad8b2025641f126ed76573b1f0ac3), [`77da6edc6`](https://github.com/ethereum-optimism/optimism/commit/77da6edc643e0b5e39f7b6bb41c3c7ead418a876), [`3f13fd0bb`](https://github.com/ethereum-optimism/optimism/commit/3f13fd0bbea051a4550f1df6def1a53a616aa6f6), [`639163253`](https://github.com/ethereum-optimism/optimism/commit/639163253a5e2128f1c21c446b68d358d38cbd30)]:
+  - @eth-optimism/sdk@3.1.0
+  - @eth-optimism/contracts-bedrock@0.16.0
+  - @eth-optimism/core-utils@0.12.2
+  - @eth-optimism/common-ts@0.8.3
+
 ## 1.0.0
 
 ### Major Changes
