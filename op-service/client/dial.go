@@ -18,7 +18,7 @@ import (
 // DefaultDialTimeout is a default timeout for dialing a client.
 const DefaultDialTimeout = 30 * time.Second
 const defaultRetryCount = 30
-const defaultRetryTime = 1 * time.Second
+const defaultRetryTime = 1_500 * time.Millisecond
 
 // DialEthClientWithTimeout attempts to dial the L1 provider using the provided
 // URL. If the dial doesn't complete within defaultDialTimeout seconds, this
