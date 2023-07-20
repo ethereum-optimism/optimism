@@ -16,7 +16,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/opio"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/node"
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -78,7 +80,11 @@ func main() {
 				return err
 			}
 
-			l1Node, l1Backend, err := geth.InitL1Geth(config, genesis, clock.SystemClock, []*ecdsa.PrivateKey{})
+			portSetter := func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
+				nodeCfg.HTTPPort = 8545
+				return nil
+			}
+			l1Node, l1Backend, err := geth.InitL1Geth(config, genesis, clock.SystemClock, []*ecdsa.PrivateKey{}, portSetter)
 			if err != nil {
 				return err
 			}
@@ -86,7 +92,7 @@ func main() {
 			if err := l1Node.Start(); err != nil {
 				return err
 			}
-			if err = l1Backend.Start(); err != nil {
+			if err := l1Backend.Start(); err != nil {
 				return err
 			}
 
@@ -115,11 +121,11 @@ func main() {
 				select {
 				case <-c:
 				case <-interruptChannel:
-					defer close(c)
-					defer close(interruptChannel)
+					//defer close(c)
+					//defer close(interruptChannel)
 
-					// defer l1Backend.Stop()
-					// defer l1Node.Close()
+					//defer l1Backend.Stop()
+					//defer l1Node.Close()
 
 					/*
 						if err := l1Backend.Stop(); err != nil {
