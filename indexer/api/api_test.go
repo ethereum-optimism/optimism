@@ -21,8 +21,8 @@ const (
 )
 
 // DepositsByAddress mocks returning deposits by an address
-func (mbv *MockBridgeView) DepositsByAddress(address common.Address) ([]*database.DepositWithTransactionHash, error) {
-	return []*database.DepositWithTransactionHash{
+func (mbv *MockBridgeView) DepositsByAddress(address common.Address) ([]*database.DepositWithTransactionHashes, error) {
+	return []*database.DepositWithTransactionHashes{
 		{
 			Deposit: database.Deposit{
 				GUID:                 uuid.MustParse(guid1),
