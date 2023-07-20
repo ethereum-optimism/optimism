@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -137,7 +138,7 @@ func runWithArgs(cliArgs []string) (log.Logger, config.Config, error) {
 	cfg := new(config.Config)
 	var logger log.Logger
 	fullArgs := append([]string{"op-challenger"}, cliArgs...)
-	err := run(fullArgs, func(log log.Logger, config *config.Config) error {
+	err := run(fullArgs, func(ctx context.Context, log log.Logger, config *config.Config) error {
 		logger = log
 		cfg = config
 		return nil
