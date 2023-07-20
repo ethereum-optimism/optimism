@@ -11,6 +11,7 @@
 
 # Bedrock codebases
 /bedrock-devnet @ethereum-optimism/go-reviewers
+/cannon         @ethereum-optimism/go-reviewers
 /op-batcher     @ethereum-optimism/go-reviewers
 /op-chain-ops   @ethereum-optimism/go-reviewers
 /op-e2e         @ethereum-optimism/go-reviewers
