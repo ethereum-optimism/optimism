@@ -6,8 +6,10 @@ import { IFaultDisputeGame } from "./interfaces/IFaultDisputeGame.sol";
 import { IInitializable } from "./interfaces/IInitializable.sol";
 import { IBondManager } from "./interfaces/IBondManager.sol";
 import { IBigStepper, IPreimageOracle } from "./interfaces/IBigStepper.sol";
+import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 
 import { Clone } from "../libraries/Clone.sol";
+import { Types } from "../libraries/Types.sol";
 import { Semver } from "../universal/Semver.sol";
 import { LibHashing } from "./lib/LibHashing.sol";
 import { LibPosition } from "./lib/LibPosition.sol";
@@ -33,8 +35,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @notice The duration of the game.
     Duration public immutable GAME_DURATION;
 
-    /// @notice A hypervisor that performs single instruction steps on a fault proof program trace.
+    /// @notice An onchain VM that performs single instruction steps on a fault proof program trace.
     IBigStepper public immutable VM;
+
+    /// @notice The trusted L2OutputOracle contract.
+    L2OutputOracle public immutable L2_OUTPUT_ORACLE;
 
     /// @notice The root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
@@ -62,12 +67,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         Claim _absolutePrestate,
         uint256 _maxGameDepth,
         Duration _gameDuration,
-        IBigStepper _vm
+        IBigStepper _vm,
+        L2OutputOracle _l2oo
     ) Semver(0, 0, 3) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
         GAME_DURATION = _gameDuration;
         VM = _vm;
+        L2_OUTPUT_ORACLE = _l2oo;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -256,7 +263,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         } else if (_ident == 2) {
             // Load the earliest output root that commits to the passed L2 block number
             // into the game's local context in the preimage oracle.
-            // TODO(clabby): Add an immutable for the L2OO.
+            Types.OutputProposal memory proposal = L2_OUTPUT_ORACLE.getL2OutputAfter(
+                l2BlockNumber()
+            );
+            oracle.loadLocalData(_ident, proposal.outputRoot, 32);
         } else if (_ident == 3) {
             // Load the root claim into the game's local context in the preimage oracle.
             oracle.loadLocalData(_ident, Claim.unwrap(rootClaim()), 32);

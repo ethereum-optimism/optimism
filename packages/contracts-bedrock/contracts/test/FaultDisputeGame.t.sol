@@ -6,6 +6,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { DisputeGameFactory_Init } from "./DisputeGameFactory.t.sol";
 import { DisputeGameFactory } from "../dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "../dispute/FaultDisputeGame.sol";
+import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 
 import "../libraries/DisputeTypes.sol";
 import "../libraries/DisputeErrors.sol";
@@ -28,12 +29,14 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
 
     function init(Claim rootClaim, Claim absolutePrestate) public {
         super.setUp();
+
         // Deploy an implementation of the fault game
         gameImpl = new FaultDisputeGame(
             absolutePrestate,
             4,
             Duration.wrap(7 days),
-            new AlphabetVM(absolutePrestate)
+            new AlphabetVM(absolutePrestate),
+            L2OutputOracle(deployNoop())
         );
         // Register the game implementation with the factory.
         factory.setImplementation(GAME_TYPE, gameImpl);
@@ -893,12 +896,7 @@ contract AlphabetVM is IBigStepper {
 
     constructor(Claim _absolutePrestate) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
-        // Deploy a noop preimage oracle
-        assembly {
-            mstore(0x00, 0x60016000F3)
-            let size := 5
-            sstore(oracle.slot, create(0, sub(0x20, size), size))
-        }
+        oracle = IPreimageOracle(deployNoop());
     }
 
     /// @inheritdoc IBigStepper
@@ -920,5 +918,18 @@ contract AlphabetVM is IBigStepper {
         }
         // STF: n -> n + 1
         postState_ = keccak256(abi.encode(traceIndex, claim + 1));
+    }
+}
+
+////////////////////////////////////////////////////////////////
+//                          HELPERS                           //
+////////////////////////////////////////////////////////////////
+
+/// @notice Deploys a noop contract.
+function deployNoop() returns (address noop_) {
+    assembly {
+        mstore(0x00, 0x60016000F3)
+        let size := 5
+        noop_ := create(0, sub(0x20, size), size)
     }
 }

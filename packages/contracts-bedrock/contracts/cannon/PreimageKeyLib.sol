@@ -36,11 +36,7 @@ library PreimageKeyLib {
     /// @notice Computes and returns the key for a global keccak pre-image.
     /// @param _preimage The pre-image.
     /// @return key_ The pre-image key.
-    function keccak256PreimageKey(bytes memory _preimage)
-        internal
-        pure
-        returns (bytes32 key_)
-    {
+    function keccak256PreimageKey(bytes memory _preimage) internal pure returns (bytes32 key_) {
         assembly {
             // Grab the size of the `_preimage`
             let size := mload(_preimage)
