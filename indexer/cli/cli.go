@@ -1,12 +1,16 @@
 package cli
 
 import (
+	"context"
 	"fmt"
-	"os"
 
+	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/config"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
+
 	"github.com/ethereum/go-ethereum/params"
+
 	"github.com/urfave/cli/v2"
 )
 
@@ -20,16 +24,26 @@ type Cli struct {
 
 func runIndexer(ctx *cli.Context) error {
 	configPath := ctx.String(ConfigFlag.Name)
-	conf, err := config.LoadConfig(configPath)
-
-	fmt.Println(conf)
-
+	cfg, err := config.LoadConfig(configPath)
 	if err != nil {
-		log.Crit("Failed to load config", "message", err)
+		return err
 	}
 
-	// finish me
-	return nil
+	// setup logger
+	cfg.Logger = log.NewLogger(log.ReadCLIConfig(ctx))
+
+	indexer, err := indexer.NewIndexer(cfg)
+	if err != nil {
+		return err
+	}
+
+	indexerCtx, indexerCancel := context.WithCancel(context.Background())
+	go func() {
+		opio.BlockOnInterrupts()
+		indexerCancel()
+	}()
+
+	return indexer.Run(indexerCtx)
 }
 
 func runApi(ctx *cli.Context) error {
@@ -39,8 +53,9 @@ func runApi(ctx *cli.Context) error {
 	fmt.Println(conf)
 
 	if err != nil {
-		log.Crit("Failed to load config", "message", err)
+		panic(err)
 	}
+
 	// finish me
 	return nil
 }
@@ -71,17 +86,7 @@ func (c *Cli) Run(args []string) error {
 }
 
 func NewCli(GitVersion string, GitCommit string, GitDate string) *Cli {
-	log.Root().SetHandler(
-		log.LvlFilterHandler(
-			log.LvlInfo,
-			log.StreamHandler(os.Stdout, log.TerminalFormat(true)),
-		),
-	)
-
-	flags := []cli.Flag{
-		ConfigFlag,
-	}
-
+	flags := append([]cli.Flag{ConfigFlag}, log.CLIFlags("INDEXER")...)
 	app := &cli.App{
 		Version:     fmt.Sprintf("%s-%s", GitVersion, params.VersionWithCommit(GitCommit, GitDate)),
 		Description: "An indexer of all optimism events with a serving api layer",
