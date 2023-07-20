@@ -106,7 +106,7 @@ The following table list summarizes the supported syscalls and their behaviors.
 | 4055 | fcntl | uint32 fd | int32 cmd | | Similar behavior as Linux/MIPS. Only the `F_GETFL` (3) cmd is supported. Sets errno to `0x16` for all other commands |
 
 For all of the above syscalls, an error is indicated by setting the return register (`$v0`) to
-`0xFFFFFFFF` (-1) and `errno` (`$a3`) is set accordingly.
+`0xFFFFFFFF` (-1) and `errno` (`$a3`) is set accordingly. The VM must not change the value of registers other than `$v0` and `$a3` during syscall handling.
 For unsupported syscalls, the VM must do nothing except to zero out the syscall return (`$v0`)
 and errno (`$a3`) registers.
 
