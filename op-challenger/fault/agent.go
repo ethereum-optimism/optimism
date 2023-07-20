@@ -95,7 +95,8 @@ func (a *Agent) step(claim Claim, game Game) error {
 		return nil
 	}
 
-	if game.AgreeWithClaimLevel(claim) {
+	agreeWithClaimLevel := game.AgreeWithClaimLevel(claim)
+	if agreeWithClaimLevel {
 		a.log.Warn("Agree with leaf claim, skipping step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
 		return nil
 	}
@@ -106,7 +107,7 @@ func (a *Agent) step(claim Claim, game Game) error {
 	}
 
 	a.log.Info("Attempting step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
-	step, err := a.solver.AttemptStep(claim)
+	step, err := a.solver.AttemptStep(claim, agreeWithClaimLevel)
 	if err != nil {
 		a.log.Warn("Failed to get a step", "err", err)
 		return err
