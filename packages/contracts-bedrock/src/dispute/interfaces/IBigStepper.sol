@@ -39,5 +39,9 @@ interface IBigStepper {
 /// @notice Temporary interface for the `IPreimageOracle`. Remove once we've upgraded
 ///         the cannon contracts to a newer version of solc.
 interface IPreimageOracle {
-    function loadLocalData(uint256 _ident, bytes32 _word, uint8 _size) external;
+    function loadLocalData(
+        uint256 _ident,
+        bytes32 _word,
+        uint8 _size
+    ) external;
 }

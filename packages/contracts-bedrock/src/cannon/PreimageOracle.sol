@@ -71,7 +71,11 @@ contract PreimageOracle {
     ///      │          4 │ L2 Block Number │
     ///      │          5 │ Chain ID        │
     ///      └────────────┴─────────────────┘
-    function loadLocalData(uint256 _ident, bytes32 _word, uint8 _size) external {
+    function loadLocalData(
+        uint256 _ident,
+        bytes32 _word,
+        uint8 _size
+    ) external {
         // Compute the localized key from the given local identifier.
         bytes32 key = PreimageKeyLib.localizeIdent(_ident);
 
