@@ -62,7 +62,7 @@ contract PreimageOracle_Test is Test {
         bool ok = oracle.preimagePartOk(contextKey, 0);
         assertTrue(ok);
         // Validate the first local data part
-        bytes32 expectedPart1 = bytes32(size << 192 | uint256(word) >> 64);
+        bytes32 expectedPart1 = bytes32((size << 192) | (uint256(word) >> 64));
         assertEq(oracle.preimageParts(contextKey, 0), expectedPart1);
 
         // If the size is > 24, validate the second part. Otherwise, ensure
