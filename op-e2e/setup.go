@@ -431,7 +431,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	// Initialize nodes
 	l1Node, l1Backend, err := geth.InitL1Geth(cfg.DeployConfig, l1Genesis, c, []*ecdsa.PrivateKey{cfg.Secrets.CliqueSigner}, cfg.GethOptions["l1"]...)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot initialize L1 geth: %w", err)
 	}
 	sys.Nodes["l1"] = l1Node
 	sys.Backends["l1"] = l1Backend
@@ -439,7 +439,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	for name := range cfg.Nodes {
 		node, backend, err := geth.InitL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot initialize L2 geth: %w", err)
 		}
 		sys.Nodes[name] = node
 		sys.Backends[name] = backend
