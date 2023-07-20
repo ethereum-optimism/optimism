@@ -71,9 +71,12 @@ type StepData struct {
 
 // AttemptStep determines what step should occur for a given leaf claim.
 // An error will be returned if the claim is not at the max depth.
-func (s *Solver) AttemptStep(claim Claim) (StepData, error) {
+func (s *Solver) AttemptStep(claim Claim, agreeWithClaimLevel bool) (StepData, error) {
 	if claim.Depth() != s.gameDepth {
 		return StepData{}, errors.New("cannot step on non-leaf claims")
+	}
+	if agreeWithClaimLevel {
+		return StepData{}, errors.New("cannot step on claims we agree with")
 	}
 	claimCorrect, err := s.agreeWithClaim(claim.ClaimData)
 	if err != nil {

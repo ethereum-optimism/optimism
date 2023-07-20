@@ -326,13 +326,11 @@ export class CrossChainMessenger {
    * Transforms a legacy message into its corresponding Bedrock representation.
    *
    * @param message Legacy message to transform.
+   * @param messageIndex The index of the message, if multiple exist from multicall
    * @returns Bedrock representation of the message.
    */
   public async toBedrockCrossChainMessage(
     message: MessageLike,
-    /**
-     * The index of the withdrawal if multiple are made with multicall
-     */
     messageIndex = 0
   ): Promise<CrossChainMessage> {
     const resolved = await this.toCrossChainMessage(message, messageIndex)
@@ -376,13 +374,11 @@ export class CrossChainMessenger {
    * L2ToL1MessagePasser contract on L2.
    *
    * @param message Message to transform.
+   * @param messageIndex The index of the message, if multiple exist from multicall
    * @return Transformed message.
    */
   public async toLowLevelMessage(
     message: MessageLike,
-    /**
-     * The index of the withdrawal if multiple are made with multicall
-     */
     messageIndex = 0
   ): Promise<LowLevelMessage> {
     const resolved = await this.toCrossChainMessage(message, messageIndex)
@@ -586,13 +582,11 @@ export class CrossChainMessenger {
    * create an entire CrossChainProvider object.
    *
    * @param message MessageLike to resolve into a CrossChainMessage.
+   * @param messageIndex The index of the message, if multiple exist from multicall
    * @returns Message coerced into a CrossChainMessage.
    */
   public async toCrossChainMessage(
     message: MessageLike,
-    /**
-     * The index of the withdrawal if multiple are made with multicall
-     */
     messageIndex = 0
   ): Promise<CrossChainMessage> {
     if (!message) {
@@ -651,18 +645,25 @@ export class CrossChainMessenger {
    * Retrieves the status of a particular message as an enum.
    *
    * @param message Cross chain message to check the status of.
+   * @param messageIndex The index of the message, if multiple exist from multicall
+   * @param fromBlockOrBlockHash The start block to use for the query filter on the RECEIVING chain
+   * @param toBlockOrBlockHash The end block to use for the query filter on the RECEIVING chain
    * @returns Status of the message.
    */
   public async getMessageStatus(
     message: MessageLike,
-
-    /**
-     * The index of the withdrawal if multiple are made with multicall
-     */
-    messageIndex = 0
+    // consider making this an options object next breaking release
+    messageIndex = 0,
+    fromBlockOrBlockHash?: BlockTag,
+    toBlockOrBlockHash?: BlockTag
   ): Promise<MessageStatus> {
     const resolved = await this.toCrossChainMessage(message, messageIndex)
-    const receipt = await this.getMessageReceipt(resolved, messageIndex)
+    const receipt = await this.getMessageReceipt(
+      resolved,
+      messageIndex,
+      fromBlockOrBlockHash,
+      toBlockOrBlockHash
+    )
 
     if (resolved.direction === MessageDirection.L1_TO_L2) {
       if (receipt === null) {
@@ -697,7 +698,6 @@ export class CrossChainMessenger {
             await this.contracts.l1.OptimismPortal.provenWithdrawals(
               hashLowLevelMessage(withdrawal)
             )
-
           // If the withdrawal hash has not been proven on L1,
           // return `READY_TO_PROVE`
           if (provenWithdrawal.timestamp.eq(BigNumber.from(0))) {
@@ -742,16 +742,17 @@ export class CrossChainMessenger {
    * Finds the receipt of the transaction that executed a particular cross chain message.
    *
    * @param message Message to find the receipt of.
+   * @param messageIndex The index of the message, if multiple exist from multicall
+   * @param fromBlockOrBlockHash The start block to use for the query filter on the RECEIVING chain
+   * @param toBlockOrBlockHash The end block to use for the query filter on the RECEIVING chain
    * @returns CrossChainMessage receipt including receipt of the transaction that relayed the
    * given message.
    */
   public async getMessageReceipt(
     message: MessageLike,
-
-    /**
-     * The index of the withdrawal if multiple are made with multicall
-     */
-    messageIndex = 0
+    messageIndex = 0,
+    fromBlockOrBlockHash?: BlockTag,
+    toBlockOrHash?: BlockTag
   ): Promise<MessageReceipt> {
     const resolved = await this.toCrossChainMessage(message, messageIndex)
     // legacy withdrawals relayed prebedrock are v1
@@ -783,10 +784,14 @@ export class CrossChainMessenger {
     // this is safe because we can guarantee only one of these filters max will return something
     const relayedMessageEvents = [
       ...(await messenger.queryFilter(
-        messenger.filters.RelayedMessage(messageHashV0)
+        messenger.filters.RelayedMessage(messageHashV0),
+        fromBlockOrBlockHash,
+        toBlockOrHash
       )),
       ...(await messenger.queryFilter(
-        messenger.filters.RelayedMessage(messageHashV1)
+        messenger.filters.RelayedMessage(messageHashV1),
+        fromBlockOrBlockHash,
+        toBlockOrHash
       )),
     ]
 
@@ -806,10 +811,14 @@ export class CrossChainMessenger {
     // FailedRelayedMessage events instead.
     const failedRelayedMessageEvents = [
       ...(await messenger.queryFilter(
-        messenger.filters.FailedRelayedMessage(messageHashV0)
+        messenger.filters.FailedRelayedMessage(messageHashV0),
+        fromBlockOrBlockHash,
+        toBlockOrHash
       )),
       ...(await messenger.queryFilter(
-        messenger.filters.FailedRelayedMessage(messageHashV1)
+        messenger.filters.FailedRelayedMessage(messageHashV1),
+        fromBlockOrBlockHash,
+        toBlockOrHash
       )),
     ]
 
@@ -846,12 +855,17 @@ export class CrossChainMessenger {
    * @param opts.confirmations Number of transaction confirmations to wait for before returning.
    * @param opts.pollIntervalMs Number of milliseconds to wait between polling for the receipt.
    * @param opts.timeoutMs Milliseconds to wait before timing out.
+   * @param opts.fromBlockOrBlockHash The start block to use for the query filter on the RECEIVING chain
+   * @param opts.toBlockOrBlockHash The end block to use for the query filter on the RECEIVING chain
+   * @param messageIndex The index of the message, if multiple exist from multicall
    * @returns CrossChainMessage receipt including receipt of the transaction that relayed the
    * given message.
    */
   public async waitForMessageReceipt(
     message: MessageLike,
     opts: {
+      fromBlockOrBlockHash?: BlockTag
+      toBlockOrHash?: BlockTag
       confirmations?: number
       pollIntervalMs?: number
       timeoutMs?: number
@@ -868,7 +882,12 @@ export class CrossChainMessenger {
     let totalTimeMs = 0
     while (totalTimeMs < (opts.timeoutMs || Infinity)) {
       const tick = Date.now()
-      const receipt = await this.getMessageReceipt(resolved, messageIndex)
+      const receipt = await this.getMessageReceipt(
+        resolved,
+        messageIndex,
+        opts.fromBlockOrBlockHash,
+        opts.toBlockOrHash
+      )
       if (receipt !== null) {
         return receipt
       } else {
@@ -891,18 +910,19 @@ export class CrossChainMessenger {
    * @param opts Options to pass to the waiting function.
    * @param opts.pollIntervalMs Number of milliseconds to wait when polling.
    * @param opts.timeoutMs Milliseconds to wait before timing out.
+   * @param opts.fromBlockOrBlockHash The start block to use for the query filter on the RECEIVING chain
+   * @param opts.toBlockOrBlockHash The end block to use for the query filter on the RECEIVING chain
+   * @param messageIndex The index of the message, if multiple exist from multicall
    */
   public async waitForMessageStatus(
     message: MessageLike,
     status: MessageStatus,
     opts: {
+      fromBlockOrBlockHash?: BlockTag
+      toBlockOrBlockHash?: BlockTag
       pollIntervalMs?: number
       timeoutMs?: number
     } = {},
-
-    /**
-     * The index of the withdrawal if multiple are made with multicall
-     */
     messageIndex = 0
   ): Promise<void> {
     // Resolving once up-front is slightly more efficient.
@@ -911,7 +931,12 @@ export class CrossChainMessenger {
     let totalTimeMs = 0
     while (totalTimeMs < (opts.timeoutMs || Infinity)) {
       const tick = Date.now()
-      const currentStatus = await this.getMessageStatus(resolved, messageIndex)
+      const currentStatus = await this.getMessageStatus(
+        resolved,
+        messageIndex,
+        opts.fromBlockOrBlockHash,
+        opts.toBlockOrBlockHash
+      )
 
       // Handle special cases for L1 to L2 messages.
       if (resolved.direction === MessageDirection.L1_TO_L2) {
@@ -1018,18 +1043,25 @@ export class CrossChainMessenger {
    * amount of time until the message will be picked up and executed on L2.
    *
    * @param message Message to estimate the time remaining for.
+   * @param messageIndex The index of the message, if multiple exist from multicall
+   * @param opts.fromBlockOrBlockHash The start block to use for the query filter on the RECEIVING chain
+   * @param opts.toBlockOrBlockHash The end block to use for the query filter on the RECEIVING chain
    * @returns Estimated amount of time remaining (in seconds) before the message can be executed.
    */
   public async estimateMessageWaitTimeSeconds(
     message: MessageLike,
-
-    /**
-     * The index of the withdrawal if multiple are made with multicall
-     */
-    messageIndex = 0
+    // consider making this an options object next breaking release
+    messageIndex = 0,
+    fromBlockOrBlockHash?: BlockTag,
+    toBlockOrBlockHash?: BlockTag
   ): Promise<number> {
     const resolved = await this.toCrossChainMessage(message, messageIndex)
-    const status = await this.getMessageStatus(resolved, messageIndex)
+    const status = await this.getMessageStatus(
+      resolved,
+      messageIndex,
+      fromBlockOrBlockHash,
+      toBlockOrBlockHash
+    )
     if (resolved.direction === MessageDirection.L1_TO_L2) {
       if (
         status === MessageStatus.RELAYED ||
@@ -1134,14 +1166,11 @@ export class CrossChainMessenger {
    * Returns the Bedrock output root that corresponds to the given message.
    *
    * @param message Message to get the Bedrock output root for.
+   * @param messageIndex The index of the message, if multiple exist from multicall
    * @returns Bedrock output root.
    */
   public async getMessageBedrockOutput(
     message: MessageLike,
-
-    /**
-     * The index of the withdrawal if multiple are made with multicall
-     */
     messageIndex = 0
   ): Promise<BedrockOutputData | null> {
     const resolved = await this.toCrossChainMessage(message, messageIndex)
@@ -1190,14 +1219,11 @@ export class CrossChainMessenger {
    * state root for the given message has not been published yet, this function returns null.
    *
    * @param message Message to find a state root for.
+   * @param messageIndex The index of the message, if multiple exist from multicall
    * @returns State root for the block in which the message was created.
    */
   public async getMessageStateRoot(
     message: MessageLike,
-
-    /**
-     * The index of the withdrawal if multiple are made with multicall
-     */
     messageIndex = 0
   ): Promise<StateRoot | null> {
     const resolved = await this.toCrossChainMessage(message, messageIndex)
@@ -1380,14 +1406,11 @@ export class CrossChainMessenger {
    * Generates the proof required to finalize an L2 to L1 message.
    *
    * @param message Message to generate a proof for.
+   * @param messageIndex The index of the message, if multiple exist from multicall
    * @returns Proof that can be used to finalize the message.
    */
   public async getMessageProof(
     message: MessageLike,
-
-    /**
-     * The index of the withdrawal if multiple are made with multicall
-     */
     messageIndex = 0
   ): Promise<CrossChainMessageProof> {
     const resolved = await this.toCrossChainMessage(message, messageIndex)
@@ -1443,14 +1466,11 @@ export class CrossChainMessenger {
    * Generates the bedrock proof required to finalize an L2 to L1 message.
    *
    * @param message Message to generate a proof for.
+   * @param messageIndex The index of the message, if multiple exist from multicall
    * @returns Proof that can be used to finalize the message.
    */
   public async getBedrockMessageProof(
     message: MessageLike,
-
-    /**
-     * The index of the withdrawal if multiple are made with multicall
-     */
     messageIndex = 0
   ): Promise<BedrockCrossChainMessageProof> {
     const resolved = await this.toCrossChainMessage(message, messageIndex)
@@ -1585,6 +1605,7 @@ export class CrossChainMessenger {
    * @param opts Additional options.
    * @param opts.signer Optional signer to use to send the transaction.
    * @param opts.overrides Optional transaction overrides.
+   * @param messageIndex The index of the message, if multiple exist from multicall
    * @returns Transaction response for the finalization transaction.
    */
   public async finalizeMessage(
@@ -1593,9 +1614,6 @@ export class CrossChainMessenger {
       signer?: Signer
       overrides?: PayableOverrides
     },
-    /**
-     * The index of the withdrawal if multiple are made with multicall
-     */
     messageIndex = 0
   ): Promise<TransactionResponse> {
     return (opts?.signer || this.l1Signer).sendTransaction(
@@ -1873,6 +1891,7 @@ export class CrossChainMessenger {
      * @param message Message to generate the proving transaction for.
      * @param opts Additional options.
      * @param opts.overrides Optional transaction overrides.
+     * @param messageIndex The index of the message, if multiple exist from multicall
      * @returns Transaction that can be signed and executed to prove the message.
      */
     proveMessage: async (
@@ -1880,9 +1899,6 @@ export class CrossChainMessenger {
       opts?: {
         overrides?: PayableOverrides
       },
-      /**
-       * The index of the withdrawal if multiple are made with multicall
-       */
       messageIndex = 0
     ): Promise<TransactionRequest> => {
       const resolved = await this.toCrossChainMessage(message, messageIndex)
@@ -1932,6 +1948,7 @@ export class CrossChainMessenger {
      * @param message Message to generate the finalization transaction for.
      * @param opts Additional options.
      * @param opts.overrides Optional transaction overrides.
+     * @param messageIndex The index of the message, if multiple exist from multicall
      * @returns Transaction that can be signed and executed to finalize the message.
      */
     finalizeMessage: async (
@@ -1939,9 +1956,6 @@ export class CrossChainMessenger {
       opts?: {
         overrides?: PayableOverrides
       },
-      /**
-       * The index of the withdrawal if multiple are made with multicall
-       */
       messageIndex = 0
     ): Promise<TransactionRequest> => {
       const resolved = await this.toCrossChainMessage(message, messageIndex)
@@ -2217,6 +2231,7 @@ export class CrossChainMessenger {
      * @param message Message to generate the proving transaction for.
      * @param opts Additional options.
      * @param opts.overrides Optional transaction overrides.
+     * @param messageIndex The index of the message, if multiple exist from multicall
      * @returns Gas estimate for the transaction.
      */
     proveMessage: async (
@@ -2224,9 +2239,6 @@ export class CrossChainMessenger {
       opts?: {
         overrides?: CallOverrides
       },
-      /**
-       * The index of the withdrawal if multiple are made with multicall
-       */
       messageIndex = 0
     ): Promise<BigNumber> => {
       return this.l1Provider.estimateGas(
@@ -2240,6 +2252,7 @@ export class CrossChainMessenger {
      * @param message Message to generate the finalization transaction for.
      * @param opts Additional options.
      * @param opts.overrides Optional transaction overrides.
+     * @param messageIndex The index of the message, if multiple exist from multicall
      * @returns Gas estimate for the transaction.
      */
     finalizeMessage: async (
@@ -2247,9 +2260,6 @@ export class CrossChainMessenger {
       opts?: {
         overrides?: CallOverrides
       },
-      /**
-       * The index of the withdrawal if multiple are made with multicall
-       */
       messageIndex = 0
     ): Promise<BigNumber> => {
       return this.l1Provider.estimateGas(

@@ -107,8 +107,12 @@ func (t *ticker) fire(now time.Time) bool {
 	if t.stopped {
 		return false
 	}
-	t.ch <- now
-	t.nextDue = now.Add(t.period)
+	// Publish without blocking and only update due time if we publish successfully
+	select {
+	case t.ch <- now:
+		t.nextDue = now.Add(t.period)
+	default:
+	}
 	return true
 }
 

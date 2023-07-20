@@ -35,16 +35,21 @@ func Main(logger log.Logger, cfg *config.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to create the responder: %w", err)
 	}
-	gameDepth := 4
-	trace := fault.NewAlphabetProvider(cfg.AlphabetTrace, uint64(gameDepth))
+	trace := fault.NewAlphabetProvider(cfg.AlphabetTrace, uint64(cfg.GameDepth))
 
-	agent := fault.NewAgent(loader, gameDepth, trace, responder, cfg.AgreeWithProposedOutput, logger)
+	agent := fault.NewAgent(loader, cfg.GameDepth, trace, responder, cfg.AgreeWithProposedOutput, logger)
+
+	caller, err := fault.NewFaultCallerFromBindings(cfg.GameAddress, client, logger)
+	if err != nil {
+		return fmt.Errorf("failed to bind the fault contract: %w", err)
+	}
 
 	logger.Info("Fault game started")
 
 	for {
 		logger.Info("Performing action")
 		_ = agent.Act()
+		caller.LogGameInfo()
 		time.Sleep(300 * time.Millisecond)
 	}
 }
