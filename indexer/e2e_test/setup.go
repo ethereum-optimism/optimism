@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"io/fs"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"testing"
@@ -103,8 +102,8 @@ func setupTestDatabase(t *testing.T) string {
 	require.NoError(t, err)
 	require.NoError(t, pg.Ping())
 
-	// create database. In the rare case two tests are run at the same nanosecond, we add a random number to the name
-	dbName := fmt.Sprintf("indexer_test_%d_%d", rand.Intn(10_000), time.Now().UnixNano())
+	// create database
+	dbName := fmt.Sprintf("indexer_test_%d", time.Now().UnixNano())
 	_, err = pg.Exec("CREATE DATABASE " + dbName)
 	require.NoError(t, err)
 	t.Cleanup(func() {
