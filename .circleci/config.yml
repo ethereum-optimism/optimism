@@ -1400,7 +1400,6 @@ workflows:
           name: indexer-tests
           binary_name: indexer
           working_directory: indexer
-          dependencies: op-bindings
       - go-lint-test-build:
           name: op-heartbeat tests
           binary_name: op-heartbeat
