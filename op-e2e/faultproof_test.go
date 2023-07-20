@@ -32,7 +32,7 @@ func TestResolveDisputeGame(t *testing.T) {
 	game := disputeGameFactory.StartAlphabetGame(ctx, "zyxwvut")
 	require.NotNil(t, game)
 
-	game.AssertStatusEquals(ctx, disputegame.StatusInProgress)
+	game.WaitForGameStatus(ctx, disputegame.StatusInProgress)
 
 	honest := game.StartChallenger(ctx, sys.NodeEndpoint("l1"), "honestAlice", func(c *config.Config) {
 		c.AgreeWithProposedOutput = true // Agree with the proposed output, so disagree with the root claim
@@ -46,8 +46,7 @@ func TestResolveDisputeGame(t *testing.T) {
 	sys.TimeTravelClock.AdvanceTime(gameDuration)
 	require.NoError(t, utils.WaitNextBlock(ctx, l1Client))
 
-	game.Resolve(ctx)
-
-	game.AssertStatusEquals(ctx, disputegame.StatusChallengerWins)
+	// Challenger should resolve the game now that the clocks have expired.
+	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 	require.NoError(t, honest.Close())
 }

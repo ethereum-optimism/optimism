@@ -2,6 +2,7 @@ package disputegame
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"math/big"
 	"testing"
@@ -134,10 +135,18 @@ func (g *FaultGameHelper) Resolve(ctx context.Context) {
 	g.require.NoError(err)
 }
 
-func (g *FaultGameHelper) AssertStatusEquals(ctx context.Context, expected Status) {
+func (g *FaultGameHelper) WaitForGameStatus(ctx context.Context, expected Status) {
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
-	status, err := g.game.Status(&bind.CallOpts{Context: ctx})
-	g.require.NoError(err)
-	g.require.Equal(expected, Status(status))
+	err := utils.WaitFor(ctx, 1*time.Second, func() (bool, error) {
+		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		status, err := g.game.Status(&bind.CallOpts{Context: ctx})
+		if err != nil {
+			return false, fmt.Errorf("game status unavailable: %w", err)
+		}
+
+		return expected == Status(status), nil
+	})
+	g.require.NoError(err, "wait for game status")
 }
