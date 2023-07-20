@@ -1,6 +1,7 @@
 package op_challenger
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -48,8 +49,14 @@ func Main(logger log.Logger, cfg *config.Config) error {
 
 	for {
 		logger.Info("Performing action")
-		_ = agent.Act()
-		caller.LogGameInfo()
+		_ = agent.Act(context.Background())
+		status, _ := caller.GetGameStatus(context.Background())
+		if status != 0 {
+			caller.LogGameStatus()
+			return nil
+		} else {
+			caller.LogGameInfo()
+		}
 		time.Sleep(300 * time.Millisecond)
 	}
 }
