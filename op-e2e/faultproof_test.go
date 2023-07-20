@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-service/client/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -29,7 +29,7 @@ func TestTimeTravel(t *testing.T) {
 	// It should be able to jump straight to the new time with just a single block
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
-	err = e2eutils.WaitFor(ctx, time.Second, func() (bool, error) {
+	err = utils.WaitFor(ctx, time.Second, func() (bool, error) {
 		postTravel, err := l1Client.BlockByNumber(context.Background(), nil)
 		if err != nil {
 			return false, err
