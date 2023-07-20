@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/geth"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum/go-ethereum/common"
@@ -77,7 +78,7 @@ func main() {
 				return err
 			}
 
-			l1Node, l1Backend, err := geth.InitL1Geth(config, genesis, []*ecdsa.PrivateKey{})
+			l1Node, l1Backend, err := geth.InitL1Geth(config, genesis, clock.SystemClock, []*ecdsa.PrivateKey{})
 			if err != nil {
 				return err
 			}
