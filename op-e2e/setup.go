@@ -429,7 +429,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	sys.RollupConfig = &defaultConfig
 
 	// Initialize nodes
-	l1Node, l1Backend, err := geth.InitL1Geth(cfg.DeployConfig, l1Genesis, []*ecdsa.PrivateKey{cfg.Secrets.CliqueSigner}, cfg.GethOptions["l1"]...)
+	l1Node, l1Backend, err := geth.InitL1Geth(cfg.DeployConfig, l1Genesis, c, []*ecdsa.PrivateKey{cfg.Secrets.CliqueSigner}, cfg.GethOptions["l1"]...)
 	if err != nil {
 		return nil, err
 	}
