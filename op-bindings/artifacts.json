@@ -28,6 +28,7 @@
   "L1BlockNumber",
   "DisputeGameFactory",
   "FaultDisputeGame",
+  "AlphabetVM",
   "StandardBridge",
   "CrossDomainMessenger",
   "MIPS",
