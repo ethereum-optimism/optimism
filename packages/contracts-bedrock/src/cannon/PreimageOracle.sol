@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.15;
+pragma solidity 0.7.6;
+
+import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 
 /// @title PreimageOracle
 /// @notice A contract for storing permissioned pre-images.
@@ -35,11 +37,11 @@ contract PreimageOracle {
         dat_ = preimageParts[_key][_offset];
     }
 
-    // TODO(CLI-4104):
-    // we need to mix-in the ID of the dispute for local-type keys to avoid collisions,
-    // and restrict local pre-image insertion to the dispute-managing contract.
-    // For now we permit anyone to write any pre-image unchecked, to make testing easy.
-    // This method is DANGEROUS. And NOT FOR PRODUCTION.
+    /// TODO(CLI-4104):
+    /// we need to mix-in the ID of the dispute for local-type keys to avoid collisions,
+    /// and restrict local pre-image insertion to the dispute-managing contract.
+    /// For now we permit anyone to write any pre-image unchecked, to make testing easy.
+    /// This method is DANGEROUS. And NOT FOR PRODUCTION.
     function cheat(
         uint256 partOffset,
         bytes32 key,
@@ -51,88 +53,25 @@ contract PreimageOracle {
         preimageLengths[key] = size;
     }
 
-    /// @notice Loads local data into the pre-image oracle in the context of the caller.
-    /// @param _bootInfo The boot info struct encoded as a tuple of .
-    function loadLocalData(bytes memory _bootInfo) external {
-        (
-            bytes32 l1head,
-            bytes32 l2head,
-            bytes32 l2claim,
-            uint64 l2ClaimBlockNumber,
-            bytes memory l2ChainConfig,
-            bytes memory rollupConfig
-        ) = abi.decode(_bootInfo, (bytes32, bytes32, bytes32, uint64, bytes, bytes));
+    /// @notice Loads a local data part into the preimage oracle.
+    /// @param _partOffset The offset of the local data part.
+    /// @param _ident The identifier of the local data.
+    /// @param _part The local data part.
+    /// @param _size The size of the local data.
+    /// @dev The local data part is loaded into the preimage oracle under the context
+    ///      of the caller - no other account can write to the caller's context
+    ///      specific data.
+    function loadLocalPart(
+        uint256 _partOffset,
+        uint256 _ident,
+        bytes32 _part,
+        uint256 _size
+    ) external {
+        bytes32 key = PreimageKeyLib.localizeIdent(_ident);
 
-        assembly {
-            /// Store a value in a mapping
-            function storeInMapping(k, v, mappingSlot) {
-                // Value slot: `keccak256(k . mappingSlot)`
-                mstore(0x00, k)
-                mstore(0x20, mappingSlot)
-                sstore(keccak256(0x00, 0x40), v)
-            }
-
-            /// Store a value in a nested mapping
-            function storeInNestedMapping(ka, kb, v, mappingSlot) {
-                // Compute the slot of the nested mapping
-                mstore(0x00, ka)
-                mstore(0x20, mappingSlot)
-                let nestedSlot := keccak256(0x00, 0x40)
-                // Compute the slot of the value & store it
-                mstore(0x00, kb)
-                mstore(0x20, nestedSlot)
-                sstore(keccak256(0x00, 0x40), v)
-            }
-
-            /// Compute the context-specifc key for a given local data identifier
-            function contextKey(ident) -> key {
-                // Store the global key (1 << 248 | ident)
-                mstore(0, or(shl(248, 1), ident))
-                // Store the caller to add context to the local data's global key
-                mstore(0x20, caller())
-                // Hash the data to get the context-specific key
-                // localize(k) = H(k .. sender) & ~(0xFF << 248) | (1 << 248)
-                key := or(and(keccak256(0, 0x40), not(shl(248, 0xFF))), shl(248, 1))
-            }
-
-            /// Store a fixed-size piece of local data
-            function storeFixed(ident, offset, size, data) {
-                // Grab the context key for the given `ident`
-                let k := contextKey(ident)
-
-                // Store the fixed data
-                storeInNestedMapping(k, offset, true, preimagePartOk.slot)
-                storeInNestedMapping(k, offset, data, preimageParts.slot)
-                storeInMapping(k, size, preimageLengths.slot)
-            }
-
-            /// Store a dynamic-size piece of local data
-            function storeDyn(ident, dataOffset) {
-                // Grab the length of the data
-                let size := mload(dataOffset)
-                // Grab the context key for the given `ident`
-                let k := contextKey(ident)
-
-                // Store each component of the preimage key.
-                let dataStart := add(dataOffset, 0x20)
-                for { let i := 0 } lt(i, size) { i := add(i, 0x20) } {
-                    // Load the part at the given offset
-                    // TODO(clabby): Verify size.
-                    let part := mload(add(dataStart, i))
-                    storeInNestedMapping(k, i, true, preimagePartOk.slot)
-                    storeInNestedMapping(k, i, part, preimageParts.slot)
-                    storeInMapping(k, size, preimageLengths.slot)
-                }
-            }
-
-            // Store all components of the boot info.
-            storeFixed(0, 0, 32, l1head)
-            storeFixed(1, 0, 32, l2head)
-            storeFixed(2, 0, 32, l2claim)
-            storeFixed(3, 0, 32, l2ClaimBlockNumber)
-            storeDyn(4, l2ChainConfig)
-            storeDyn(5, rollupConfig)
-        }
+        preimagePartOk[key][_partOffset] = true;
+        preimageParts[key][_partOffset] = _part;
+        preimageLengths[key] = _size;
     }
 
     /// @notice Prepares a pre-image to be read by keccak256 key, starting at
@@ -169,31 +108,5 @@ contract PreimageOracle {
         preimagePartOk[key][_partOffset] = true;
         preimageParts[key][_partOffset] = part;
         preimageLengths[key] = size;
-    }
-
-    /// @notice Computes and returns the key for a global keccak pre-image.
-    /// @param _preimage The pre-image.
-    /// @return key_ The pre-image key.
-    function computeKeccak256PreimageKey(bytes calldata _preimage) external pure returns (bytes32 key_) {
-        assembly {
-            let size := calldataload(0x24)
-
-            // Leave slots 0x40 and 0x60 untouched,
-            // and everything after as scratch-memory.
-            let ptr := 0x80
-
-            // Store size as a big-endian uint64 at the start of pre-image
-            mstore(ptr, shl(192, size))
-            ptr := add(ptr, 8)
-
-            // Copy preimage payload into memory so we can hash and read it.
-            calldatacopy(ptr, _preimage.offset, size)
-
-            // Compute the pre-image keccak256 hash (aka the pre-image key)
-            let h := keccak256(ptr, size)
-
-            // Mask out prefix byte, replace with type 2 byte
-            key_ := or(and(h, not(shl(248, 0xFF))), shl(248, 2))
-        }
     }
 }

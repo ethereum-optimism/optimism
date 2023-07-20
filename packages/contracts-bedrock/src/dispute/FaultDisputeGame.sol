@@ -243,7 +243,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
 
     /// @inheritdoc IFaultDisputeGame
     function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
-        l2BlockNumber_ = _getArgUint256(0x20);
+        l2BlockNumber_ = _getArgUint256(0x40);
     }
 
     ////////////////////////////////////////////////////////////////
@@ -335,15 +335,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     }
 
     /// @inheritdoc IDisputeGame
-    function extraDataLen() public pure returns (uint256 extraDataLen_) {
-        // The extra data length is in the second word of the cwia calldata.
-        extraDataLen_ = _getArgUint256(0x20);
-    }
-
-    /// @inheritdoc IDisputeGame
     function extraData() public pure returns (bytes memory extraData_) {
         // The extra data starts at the third word within the cwia calldata.
-        extraData_ = _getArgDynBytes(0x40, uint64(extraDataLen()));
+        // Account for the `l2BlockNumber` argument @ 0x40.
+        extraData_ = _getArgDynBytes(0x20, 0x20);
     }
 
     /// @inheritdoc IDisputeGame
@@ -383,8 +378,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
             })
         );
 
-        // Load the local data into the preimage oracle.
-        VM.oracle().loadLocalData(extraData());
+        // TODO(clabby): Load the local data into the preimage oracle.
     }
 
     /// @notice Returns the length of the `claimData` array.

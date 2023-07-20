@@ -39,7 +39,15 @@ interface IBigStepper {
 /// @notice Temporary interface for the `IPreimageOracle`. Remove once we've upgraded
 ///         the cannon contracts to a newer version of solc.
 interface IPreimageOracle {
-    /// @notice Loads local data into the pre-image oracle in the context of the caller.
-    /// @param _bootInfo The boot info struct encoded as a tuple of .
-    function loadLocalData(bytes memory _bootInfo) external;
+    /// @notice Loads a local data part into the preimage oracle.
+    /// @param _partOffset The offset of the local data part.
+    /// @param _ident The identifier of the local data.
+    /// @param _part The local data part.
+    /// @param _size The size of the local data.
+    function loadLocalPart(
+        uint256 _partOffset,
+        uint256 _ident,
+        bytes32 _part,
+        uint256 _size
+    ) external;
 }
