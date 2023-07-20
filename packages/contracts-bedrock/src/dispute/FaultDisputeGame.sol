@@ -48,6 +48,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @inheritdoc IDisputeGame
     IBondManager public bondManager;
 
+    /// @inheritdoc IFaultDisputeGame
+    Hash public l1Head;
+
     /// @notice An append-only array of all claims made during the dispute game.
     ClaimData[] public claimData;
 
@@ -243,7 +246,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
 
     /// @inheritdoc IFaultDisputeGame
     function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
-        l2BlockNumber_ = _getArgUint256(0x40);
+        l2BlockNumber_ = _getArgUint256(0x20);
     }
 
     ////////////////////////////////////////////////////////////////
@@ -336,8 +339,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
 
     /// @inheritdoc IDisputeGame
     function extraData() public pure returns (bytes memory extraData_) {
-        // The extra data starts at the third word within the cwia calldata.
-        // Account for the `l2BlockNumber` argument @ 0x40.
+        // The extra data starts at the second word within the cwia calldata.
         extraData_ = _getArgDynBytes(0x20, 0x20);
     }
 
@@ -378,7 +380,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
             })
         );
 
-        // TODO(clabby): Load the local data into the preimage oracle.
+        // Set the L1 head hash at the time of the game's creation.
+        l1Head = Hash.wrap(blockhash(block.number));
     }
 
     /// @notice Returns the length of the `claimData` array.
