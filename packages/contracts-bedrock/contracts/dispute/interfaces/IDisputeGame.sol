@@ -32,13 +32,8 @@ interface IDisputeGame is IInitializable {
     /// @return rootClaim_ The root claim of the DisputeGame.
     function rootClaim() external pure returns (Claim rootClaim_);
 
-    /// @notice Getter for the length of the extra data.
-    /// @dev `clones-with-immutable-args` argument #2
-    /// @return extraDataLen_ The length of the `extraData`
-    function extraDataLen() external pure returns (uint256 extraDataLen_);
-
     /// @notice Getter for the extra data.
-    /// @dev `clones-with-immutable-args` argument #3
+    /// @dev `clones-with-immutable-args` argument #2
     /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
     function extraData() external pure returns (bytes memory extraData_);
 

@@ -509,37 +509,6 @@ func (_FaultDisputeGame *FaultDisputeGameCallerSession) ExtraData() ([]byte, err
 	return _FaultDisputeGame.Contract.ExtraData(&_FaultDisputeGame.CallOpts)
 }
 
-// ExtraDataLen is a free data retrieval call binding the contract method 0x1f62d0c6.
-//
-// Solidity: function extraDataLen() pure returns(uint256 extraDataLen_)
-func (_FaultDisputeGame *FaultDisputeGameCaller) ExtraDataLen(opts *bind.CallOpts) (*big.Int, error) {
-	var out []interface{}
-	err := _FaultDisputeGame.contract.Call(opts, &out, "extraDataLen")
-
-	if err != nil {
-		return *new(*big.Int), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-
-	return out0, err
-
-}
-
-// ExtraDataLen is a free data retrieval call binding the contract method 0x1f62d0c6.
-//
-// Solidity: function extraDataLen() pure returns(uint256 extraDataLen_)
-func (_FaultDisputeGame *FaultDisputeGameSession) ExtraDataLen() (*big.Int, error) {
-	return _FaultDisputeGame.Contract.ExtraDataLen(&_FaultDisputeGame.CallOpts)
-}
-
-// ExtraDataLen is a free data retrieval call binding the contract method 0x1f62d0c6.
-//
-// Solidity: function extraDataLen() pure returns(uint256 extraDataLen_)
-func (_FaultDisputeGame *FaultDisputeGameCallerSession) ExtraDataLen() (*big.Int, error) {
-	return _FaultDisputeGame.Contract.ExtraDataLen(&_FaultDisputeGame.CallOpts)
-}
-
 // GameData is a free data retrieval call binding the contract method 0xfa24f743.
 //
 // Solidity: function gameData() pure returns(uint8 gameType_, bytes32 rootClaim_, bytes extraData_)

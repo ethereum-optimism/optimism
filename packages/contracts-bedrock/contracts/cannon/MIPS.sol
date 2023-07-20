@@ -2,6 +2,7 @@
 pragma solidity 0.7.6;
 
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
+import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 
 /// @title MIPS
 /// @notice The MIPS contract emulates a single MIPS instruction.
@@ -169,19 +170,11 @@ contract MIPS {
                 // verify proof 1 is correct, and get the existing memory.
                 uint32 mem = readMem(a1 & 0xFFffFFfc, 1); // mask the addr to align it to 4 bytes
                 bytes32 preimageKey = state.preimageKey;
-                assembly {
-                    // If the preimage key has a local data type, we need to hash it with the sender address
-                    // (the dispute game) to get the context-specific key and re-set it's type byte.
-                    if eq(byte(0, preimageKey), 1) {
-                        // Store preimage key and caller in scratch space
-                        mstore(0x00, preimageKey)
-                        mstore(0x20, caller())
-                        // Local key alteration for the sender's context:
-                        // localize(k) = H(k .. sender) & ~(0xFF << 248) | (0x01 << 248)
-                        preimageKey := or(and(keccak256(0x00, 0x40), not(shl(248, 0xFF))), shl(248, 0x01))
-                    }
+                // If the preimage key is a local key, localize it in the context of the caller.
+                if (uint8(preimageKey[0]) == 1) {
+                    preimageKey = PreimageKeyLib.localize(preimageKey);
                 }
-                (bytes32 dat, uint256 datLen) = oracle.readPreimage(state.preimageKey, state.preimageOffset);
+                (bytes32 dat, uint256 datLen) = oracle.readPreimage(preimageKey, state.preimageOffset);
 
                 // Transform data for writing to memory
                 // We use assembly for more precise ops, and no var count limit
