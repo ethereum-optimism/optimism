@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -38,6 +39,10 @@ func (m *mockTxManager) Send(ctx context.Context, candidate txmgr.TxCandidate) (
 		false,
 		0,
 	), nil
+}
+
+func (m *mockTxManager) Call(_ context.Context, _ ethereum.CallMsg, _ *big.Int) ([]byte, error) {
+	panic("unimplemented")
 }
 
 func (m *mockTxManager) BlockNumber(ctx context.Context) (uint64, error) {

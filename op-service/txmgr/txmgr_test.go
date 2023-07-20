@@ -194,6 +194,11 @@ func (b *mockBackend) BlockNumber(ctx context.Context) (uint64, error) {
 	return b.blockHeight, nil
 }
 
+// Call mocks a call to the EVM.
+func (b *mockBackend) CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
+	return nil, nil
+}
+
 func (b *mockBackend) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
 	return &types.Header{
 		BaseFee: b.g.basefee(),
@@ -647,6 +652,10 @@ func (b *failingBackend) HeaderByNumber(_ context.Context, _ *big.Int) (*types.H
 	return &types.Header{
 		BaseFee: b.baseFee,
 	}, nil
+}
+
+func (b *failingBackend) CallContract(_ context.Context, _ ethereum.CallMsg, _ *big.Int) ([]byte, error) {
+	return nil, errors.New("unimplemented")
 }
 
 func (b *failingBackend) SendTransaction(_ context.Context, _ *types.Transaction) error {
