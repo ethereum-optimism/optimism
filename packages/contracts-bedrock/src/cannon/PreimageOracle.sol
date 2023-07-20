@@ -62,22 +62,22 @@ contract PreimageOracle {
     ///      specific data.
     ///
     ///      There are 5 local data identifiers:
-    ///      ┌────────────┬─────────────────┐
-    ///      │ Identifier │      Data       │
-    ///      ├────────────┼─────────────────┤
-    ///      │          1 │ L1 Head Hash    │
-    ///      │          2 │ Output Root     │
-    ///      │          3 │ Root Claim      │
-    ///      │          4 │ L2 Block Number │
-    ///      │          5 │ Chain ID        │
-    ///      └────────────┴─────────────────┘
+    ///      ┌────────────┬────────────────────────┐
+    ///      │ Identifier │      Data              │
+    ///      ├────────────┼────────────────────────┤
+    ///      │          1 │ L1 Head Hash (bytes32) │
+    ///      │          2 │ Output Root (bytes32)  │
+    ///      │          3 │ Root Claim (bytes32)   │
+    ///      │          4 │ L2 Block Number (u64)  │
+    ///      │          5 │ Chain ID (u64)         │
+    ///      └────────────┴────────────────────────┘
     function loadLocalData(
         uint256 _ident,
         bytes32 _word,
         uint8 _size
-    ) external {
+    ) external returns (bytes32 key_) {
         // Compute the localized key from the given local identifier.
-        bytes32 key = PreimageKeyLib.localizeIdent(_ident);
+        key_ = PreimageKeyLib.localizeIdent(_ident);
 
         // Load both parts of the local data word into storage for future
         // reads.
@@ -89,18 +89,18 @@ contract PreimageOracle {
         }
 
         // Store the first part with offset 0.
-        preimagePartOk[key][0] = true;
-        preimageParts[key][0] = part1;
+        preimagePartOk[key_][0] = true;
+        preimageParts[key_][0] = part1;
 
         // If the size is greater than 24, we need to store a second part as well.
         if (_size > 24) {
             bytes32 part2 = _word << 192;
-            preimagePartOk[key][32] = true;
-            preimageParts[key][32] = part2;
+            preimagePartOk[key_][32] = true;
+            preimageParts[key_][32] = part2;
         }
 
         // Assign the length of the preimage at the localized key.
-        preimageLengths[key] = _size;
+        preimageLengths[key_] = _size;
     }
 
     /// @notice Prepares a pre-image to be read by keccak256 key, starting at
