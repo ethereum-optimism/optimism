@@ -43,16 +43,20 @@ func (p *CannonTraceProvider) Get(i uint64) (common.Hash, error) {
 	return value, nil
 }
 
-func (p *CannonTraceProvider) GetPreimage(i uint64) ([]byte, error) {
+func (p *CannonTraceProvider) GetPreimage(i uint64) ([]byte, []byte, error) {
 	proof, err := p.loadProof(i)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	value := ([]byte)(proof.StateData)
 	if len(value) == 0 {
-		return nil, errors.New("proof missing state data")
+		return nil, nil, errors.New("proof missing state data")
 	}
-	return value, nil
+	data := ([]byte)(proof.ProofData)
+	if len(data) == 0 {
+		return nil, nil, errors.New("proof missing proof data")
+	}
+	return value, data, nil
 }
 
 func (p *CannonTraceProvider) AbsolutePreState() []byte {

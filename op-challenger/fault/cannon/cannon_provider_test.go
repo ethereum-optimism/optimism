@@ -43,27 +43,31 @@ func TestGet(t *testing.T) {
 func TestGetPreimage(t *testing.T) {
 	provider := setupWithTestData(t)
 	t.Run("ExistingProof", func(t *testing.T) {
-		value, err := provider.GetPreimage(0)
+		value, proof, err := provider.GetPreimage(0)
 		require.NoError(t, err)
 		expected := common.Hex2Bytes("b8f068de604c85ea0e2acd437cdb47add074a2d70b81d018390c504b71fe26f400000000000000000000000000000000000000000000000000000000000000000000000000")
 		require.Equal(t, expected, value)
+		expectedProof := common.Hex2Bytes("08028e3c0000000000000000000000003c01000a24210b7c00200008000000008fa40004")
+		require.Equal(t, expectedProof, proof)
 	})
 
 	t.Run("ProofUnavailable", func(t *testing.T) {
-		_, err := provider.GetPreimage(7)
+		_, _, err := provider.GetPreimage(7)
 		require.ErrorIs(t, err, os.ErrNotExist)
 	})
 
 	t.Run("MissingStateData", func(t *testing.T) {
-		_, err := provider.GetPreimage(1)
+		_, _, err := provider.GetPreimage(1)
 		require.ErrorContains(t, err, "missing state data")
 	})
 
 	t.Run("IgnoreUnknownFields", func(t *testing.T) {
-		value, err := provider.GetPreimage(2)
+		value, proof, err := provider.GetPreimage(2)
 		require.NoError(t, err)
 		expected := common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
 		require.Equal(t, expected, value)
+		expectedProof := common.Hex2Bytes("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
+		require.Equal(t, expectedProof, proof)
 	})
 }
 

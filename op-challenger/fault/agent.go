@@ -135,6 +135,7 @@ func (a *Agent) step(ctx context.Context, claim Claim, game Game) error {
 		ClaimIndex: uint64(step.LeafClaim.ContractIndex),
 		IsAttack:   step.IsAttack,
 		StateData:  step.PreState,
+		Proof:      step.ProofData,
 	}
 	return a.responder.Step(ctx, callData)
 }
