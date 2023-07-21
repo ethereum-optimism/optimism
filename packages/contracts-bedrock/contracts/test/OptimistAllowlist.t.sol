@@ -142,8 +142,6 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
         assertEq(optimistAllowlist.ALLOWLIST_ATTESTOR(), alice_allowlistAttestor);
         assertEq(optimistAllowlist.COINBASE_QUEST_ATTESTOR(), sally_coinbaseQuestAttestor);
         assertEq(address(optimistAllowlist.OPTIMIST_INVITER()), address(optimistInviter));
-
-        assertEq(optimistAllowlist.version(), "1.0.0");
     }
 
     /// @notice Base case, a account without any relevant attestations should not be able to mint.
