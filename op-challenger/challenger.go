@@ -31,7 +31,7 @@ func Main(ctx context.Context, logger log.Logger, cfg *config.Config) error {
 		return fmt.Errorf("failed to bind the fault dispute game contract: %w", err)
 	}
 
-	loader := fault.NewLoader(logger, contract)
+	loader := fault.NewLoader(contract)
 	responder, err := fault.NewFaultResponder(logger, txMgr, cfg.GameAddress)
 	if err != nil {
 		return fmt.Errorf("failed to create the responder: %w", err)
@@ -45,14 +45,27 @@ func Main(ctx context.Context, logger log.Logger, cfg *config.Config) error {
 		return fmt.Errorf("failed to bind the fault contract: %w", err)
 	}
 
-	logger.Info("Fault game started")
+	logger.Info("Monitoring fault dispute game", "game", cfg.GameAddress, "agreeWithOutput", cfg.AgreeWithProposedOutput)
 
 	for {
-		logger.Info("Performing action")
-		_ = agent.Act(ctx)
-		status, _ := caller.GetGameStatus(ctx)
-		if status != 0 {
-			caller.LogGameStatus(ctx)
+		logger.Trace("Checking if actions are required", "game", cfg.GameAddress)
+		if err = agent.Act(ctx); err != nil {
+			logger.Error("Error when acting on game", "err", err)
+		}
+		if status, err := caller.GetGameStatus(ctx); err != nil {
+			logger.Warn("Unable to retrieve game status", "err", err)
+		} else if status != 0 {
+			var expectedStatus fault.GameStatus
+			if cfg.AgreeWithProposedOutput {
+				expectedStatus = fault.GameStatusChallengerWon
+			} else {
+				expectedStatus = fault.GameStatusDefenderWon
+			}
+			if expectedStatus == status {
+				logger.Info("Game won", "status", fault.GameStatusString(status))
+			} else {
+				logger.Error("Game lost", "status", fault.GameStatusString(status))
+			}
 			return nil
 		} else {
 			caller.LogGameInfo(ctx)

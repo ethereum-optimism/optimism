@@ -35,12 +35,11 @@ func (a *Agent) Act(ctx context.Context) error {
 	}
 	game, err := a.newGameFromContracts(ctx)
 	if err != nil {
-		a.log.Error("Failed to create new game", "err", err)
-		return err
+		return fmt.Errorf("create game from contracts: %w", err)
 	}
 	// Create counter claims
 	for _, claim := range game.Claims() {
-		if err := a.move(ctx, claim, game); err != nil {
+		if err := a.move(ctx, claim, game); err != nil && !errors.Is(err, ErrGameDepthReached) {
 			log.Error("Failed to move", "err", err)
 		}
 	}
@@ -57,11 +56,13 @@ func (a *Agent) Act(ctx context.Context) error {
 // and returns true if the game resolves successfully.
 func (a *Agent) tryResolve(ctx context.Context) bool {
 	if a.responder.CanResolve(ctx) {
+		a.log.Info("Resolving game")
 		err := a.responder.Resolve(ctx)
 		if err != nil {
-			return true
+			a.log.Error("Failed to resolve the game", "err", err)
+			return false
 		}
-		a.log.Error("failed to resolve the game", "err", err)
+		return true
 	}
 	return false
 }
@@ -86,8 +87,7 @@ func (a *Agent) newGameFromContracts(ctx context.Context) (Game, error) {
 func (a *Agent) move(ctx context.Context, claim Claim, game Game) error {
 	nextMove, err := a.solver.NextMove(claim, game.AgreeWithClaimLevel(claim))
 	if err != nil {
-		a.log.Warn("Failed to execute the next move", "err", err)
-		return err
+		return fmt.Errorf("execute next move: %w", err)
 	}
 	if nextMove == nil {
 		a.log.Debug("No next move")
@@ -98,7 +98,7 @@ func (a *Agent) move(ctx context.Context, claim Claim, game Game) error {
 		"value", move.Value, "trace_index", move.TraceIndex(a.maxDepth),
 		"parent_value", claim.Value, "parent_trace_index", claim.TraceIndex(a.maxDepth))
 	if game.IsDuplicate(move) {
-		log.Debug("Duplicate move")
+		log.Debug("Skipping duplicate move")
 		return nil
 	}
 	log.Info("Performing move")
@@ -113,20 +113,19 @@ func (a *Agent) step(ctx context.Context, claim Claim, game Game) error {
 
 	agreeWithClaimLevel := game.AgreeWithClaimLevel(claim)
 	if agreeWithClaimLevel {
-		a.log.Warn("Agree with leaf claim, skipping step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
+		a.log.Debug("Agree with leaf claim, skipping step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
 		return nil
 	}
 
 	if claim.Countered {
-		a.log.Info("Claim already stepped on", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
+		a.log.Debug("Step already executed against claim", "depth", claim.Depth(), "index_at_depth", claim.IndexAtDepth(), "value", claim.Value)
 		return nil
 	}
 
 	a.log.Info("Attempting step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
 	step, err := a.solver.AttemptStep(claim, agreeWithClaimLevel)
 	if err != nil {
-		a.log.Warn("Failed to get a step", "err", err)
-		return err
+		return fmt.Errorf("attempt step: %w", err)
 	}
 
 	a.log.Info("Performing step", "is_attack", step.IsAttack,
