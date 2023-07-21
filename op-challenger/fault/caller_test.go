@@ -42,7 +42,7 @@ func TestFaultCaller_GetGameStatus(t *testing.T) {
 	tests := []struct {
 		name           string
 		caller         FaultDisputeGameCaller
-		expectedStatus uint8
+		expectedStatus GameStatus
 		expectedErr    error
 	}{
 		{
@@ -50,7 +50,7 @@ func TestFaultCaller_GetGameStatus(t *testing.T) {
 			caller: &mockFaultDisputeGameCaller{
 				status: 1,
 			},
-			expectedStatus: 1,
+			expectedStatus: GameStatusChallengerWon,
 			expectedErr:    nil,
 		},
 		{

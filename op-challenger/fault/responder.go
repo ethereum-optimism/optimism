@@ -123,9 +123,9 @@ func (r *faultResponder) sendTxAndWait(ctx context.Context, txData []byte) error
 		return err
 	}
 	if receipt.Status == types.ReceiptStatusFailed {
-		r.log.Error("responder tx successfully published but reverted", "tx_hash", receipt.TxHash)
+		r.log.Error("Responder tx successfully published but reverted", "tx_hash", receipt.TxHash)
 	} else {
-		r.log.Info("responder tx successfully published", "tx_hash", receipt.TxHash)
+		r.log.Debug("Responder tx successfully published", "tx_hash", receipt.TxHash)
 	}
 	return nil
 }
