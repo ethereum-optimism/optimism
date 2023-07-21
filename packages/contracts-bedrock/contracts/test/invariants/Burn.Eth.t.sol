@@ -16,10 +16,8 @@ contract Burn_EthBurner is StdUtils {
         vm = _vm;
     }
 
-    /**
-     * @notice Takes an integer amount of eth to burn through the Burn library and
-     * updates the contract state if an incorrect amount of eth moved from the contract
-     */
+    /// @notice Takes an integer amount of eth to burn through the Burn library and
+    ///         updates the contract state if an incorrect amount of eth moved from the contract
     function burnEth(uint256 _value) external {
         uint256 preBurnvalue = bound(_value, 0, type(uint128).max);
 
@@ -59,12 +57,10 @@ contract Burn_BurnEth_Invariant is StdInvariant, Test {
         targetSelector(selector);
     }
 
-    /**
-     * @custom:invariant `eth(uint256)` always burns the exact amount of eth passed.
-     *
-     * Asserts that when `Burn.eth(uint256)` is called, it always burns the exact amount
-     * of ETH passed to the function.
-     */
+    /// @custom:invariant `eth(uint256)` always burns the exact amount of eth passed.
+    ///
+    ///                   Asserts that when `Burn.eth(uint256)` is called, it always
+    ///                   burns the exact amount of ETH passed to the function.
     function invariant_burn_eth() external {
         // ASSERTION: The amount burned should always match the amount passed exactly
         assertEq(actor.failedEthBurn(), false);
