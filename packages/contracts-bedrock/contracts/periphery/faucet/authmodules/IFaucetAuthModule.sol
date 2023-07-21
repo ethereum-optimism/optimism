@@ -3,18 +3,14 @@ pragma solidity 0.8.15;
 
 import { Faucet } from "../Faucet.sol";
 
-/**
- * @title  IFaucetAuthModule
- * @notice Interface for faucet authentication modules.
- */
+/// @title  IFaucetAuthModule
+/// @notice Interface for faucet authentication modules.
 interface IFaucetAuthModule {
-    /**
-     * @notice Verifies that the given drip parameters are valid.
-     *
-     * @param _params Drip parameters to verify.
-     * @param _id     Authentication ID to verify.
-     * @param _proof  Authentication proof to verify.
-     */
+    /// @notice Verifies that the given drip parameters are valid.
+    /// @param _params Drip parameters to verify.
+    /// @param _id     Authentication ID to verify.
+    /// @param _proof  Authentication proof to verify.
+    /// @return valid_ True if the drip parameters are valid.
     function verify(
         Faucet.DripParameters memory _params,
         bytes32 _id,

@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-
 pragma solidity ^0.8.0;
 
 // A representation of an empty/uninitialized UID.
@@ -14,18 +13,14 @@ error InvalidLength();
 error InvalidSignature();
 error NotFound();
 
-/**
- * @dev A struct representing EIP712 signature data.
- */
+/// @dev A struct representing EIP712 signature data.
 struct EIP712Signature {
     uint8 v; // The recovery ID.
     bytes32 r; // The x-coordinate of the nonce R.
     bytes32 s; // The signature data.
 }
 
-/**
- * @dev A struct representing a single attestation.
- */
+/// @dev A struct representing a single attestation.
 struct Attestation {
     bytes32 uid; // A unique identifier of the attestation.
     bytes32 schema; // The unique identifier of the schema.
@@ -42,26 +37,18 @@ struct Attestation {
 // Maximum upgrade forward-compatibility storage gap.
 uint32 constant MAX_GAP = 50;
 
-/**
- * @dev A helper function to work with unchecked iterators in loops.
- *
- * @param i The index to increment.
- *
- * @return j The incremented index.
- */
+/// @dev A helper function to work with unchecked iterators in loops.
+/// @param i The index to increment.
+/// @return j The incremented index.
 function uncheckedInc(uint256 i) pure returns (uint256 j) {
     unchecked {
         j = i + 1;
     }
 }
 
-/**
- * @dev A helper function that converts a string to a bytes32.
- *
- * @param str The string to convert.
- *
- * @return The converted bytes32.
- */
+/// @dev A helper function that converts a string to a bytes32.
+/// @param str The string to convert.
+/// @return The converted bytes32.
 function stringToBytes32(string memory str) pure returns (bytes32) {
     bytes32 result;
 
@@ -72,13 +59,9 @@ function stringToBytes32(string memory str) pure returns (bytes32) {
     return result;
 }
 
-/**
- * @dev A helper function that converts a bytes32 to a string.
- *
- * @param data The bytes32 data to convert.
- *
- * @return The converted string.
- */
+/// @dev A helper function that converts a bytes32 to a string.
+/// @param data The bytes32 data to convert.
+/// @return The converted string.
 function bytes32ToString(bytes32 data) pure returns (string memory) {
     bytes memory byteArray = new bytes(32);
 

@@ -11,6 +11,14 @@ var (
 	ErrIndexTooLarge = errors.New("index is larger than the maximum index")
 )
 
+type GameStatus uint8
+
+const (
+	GameStatusInProgress GameStatus = iota
+	GameStatusChallengerWon
+	GameStatusDefenderWon
+)
+
 // StepCallData encapsulates the data needed to perform a step.
 type StepCallData struct {
 	ClaimIndex uint64
