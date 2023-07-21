@@ -7,6 +7,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/cannon"
+	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -36,7 +38,13 @@ func Main(ctx context.Context, logger log.Logger, cfg *config.Config) error {
 	if err != nil {
 		return fmt.Errorf("failed to create the responder: %w", err)
 	}
-	trace := fault.NewAlphabetProvider(cfg.AlphabetTrace, uint64(cfg.GameDepth))
+
+	var trace fault.TraceProvider
+	if cfg.TraceType == flags.CannonTraceType {
+		trace = cannon.NewCannonTraceProvider(cfg.CannonDatadir)
+	} else if cfg.TraceType == flags.AlphabetTraceType {
+		trace = fault.NewAlphabetProvider(cfg.AlphabetTrace, uint64(cfg.GameDepth))
+	}
 
 	agent := fault.NewAgent(loader, cfg.GameDepth, trace, responder, cfg.AgreeWithProposedOutput, gameLogger)
 

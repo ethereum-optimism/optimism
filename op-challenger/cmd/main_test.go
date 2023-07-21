@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -15,6 +16,7 @@ import (
 var (
 	l1EthRpc                = "http://example.com:8545"
 	gameAddressValue        = "0xaa00000000000000000000000000000000000000"
+	cannonDatadir           = "./test_data"
 	alphabetTrace           = "abcdefghijz"
 	agreeWithProposedOutput = "true"
 	gameDepth               = "4"
@@ -37,12 +39,12 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
-	defaultCfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), alphabetTrace, true, 4)
+	defaultCfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), flags.AlphabetTraceType, alphabetTrace, cannonDatadir, true, 4)
 	require.Equal(t, defaultCfg, cfg)
 }
 
 func TestDefaultConfigIsValid(t *testing.T) {
-	cfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), alphabetTrace, true, 4)
+	cfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), flags.AlphabetTraceType, alphabetTrace, cannonDatadir, true, 4)
 	require.NoError(t, cfg.Check())
 }
 
@@ -59,15 +61,14 @@ func TestL1ETHRPCAddress(t *testing.T) {
 	})
 }
 
-func TestAlphabetTrace(t *testing.T) {
+func TestTraceType(t *testing.T) {
 	t.Run("Required", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag alphabet is required", addRequiredArgsExcept("--alphabet"))
+		verifyArgsInvalid(t, "flag trace-type is required", addRequiredArgsExcept("--trace-type"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
-		value := "abcde"
-		cfg := configForArgs(t, addRequiredArgsExcept("--alphabet", "--alphabet="+value))
-		require.Equal(t, value, cfg.AlphabetTrace)
+		cfg := configForArgs(t, addRequiredArgsExcept("--trace-type", "--trace-type="+flags.AlphabetTraceType))
+		require.Equal(t, flags.AlphabetTraceType, cfg.TraceType)
 	})
 }
 
@@ -164,7 +165,9 @@ func requiredArgs() map[string]string {
 		"--agree-with-proposed-output": agreeWithProposedOutput,
 		"--l1-eth-rpc":                 l1EthRpc,
 		"--game-address":               gameAddressValue,
+		"--trace-type":                 flags.AlphabetTraceType,
 		"--alphabet":                   alphabetTrace,
+		"--cannon-datadir":             cannonDatadir,
 	}
 }
 

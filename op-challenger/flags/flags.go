@@ -10,11 +10,20 @@ import (
 	txmgr "github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
-const envVarPrefix = "OP_CHALLENGER"
+const (
+	envVarPrefix      = "OP_CHALLENGER"
+	CannonTraceType   = "cannon"
+	AlphabetTraceType = "alphabet"
+)
 
 func prefixEnvVars(name string) []string {
 	return opservice.PrefixEnvVar(envVarPrefix, name)
 }
+
+var (
+	validTraceTypes = []string{CannonTraceType, AlphabetTraceType}
+	traceTypes      = cli.NewStringSlice(validTraceTypes...)
+)
 
 var (
 	// Required Flags
@@ -28,10 +37,11 @@ var (
 		Usage:   "Address of the Fault Game contract.",
 		EnvVars: prefixEnvVars("GAME_ADDRESS"),
 	}
-	AlphabetFlag = &cli.StringFlag{
-		Name:    "alphabet",
-		Usage:   "Alphabet Trace (temporary)",
-		EnvVars: prefixEnvVars("ALPHABET"),
+	TraceTypeFlag = &cli.StringSliceFlag{
+		Value:   traceTypes,
+		Name:    "trace-type",
+		Usage:   "The trace type.",
+		EnvVars: prefixEnvVars("TRACE_TYPE"),
 	}
 	AgreeWithProposedOutputFlag = &cli.BoolFlag{
 		Name:    "agree-with-proposed-output",
@@ -44,19 +54,32 @@ var (
 		EnvVars: prefixEnvVars("GAME_DEPTH"),
 	}
 	// Optional Flags
+	AlphabetFlag = &cli.StringFlag{
+		Name:    "alphabet",
+		Usage:   "Alphabet Trace (temporary)",
+		EnvVars: prefixEnvVars("ALPHABET"),
+	}
+	CannonDatadirFlag = &cli.StringFlag{
+		Name:    "cannon-datadir",
+		Usage:   "Cannon Data Directory",
+		EnvVars: prefixEnvVars("CANNON_DATADIR"),
+	}
 )
 
 // requiredFlags are checked by [CheckRequired]
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	DGFAddressFlag,
-	AlphabetFlag,
+	TraceTypeFlag,
 	AgreeWithProposedOutputFlag,
 	GameDepthFlag,
 }
 
 // optionalFlags is a list of unchecked cli flags
-var optionalFlags = []cli.Flag{}
+var optionalFlags = []cli.Flag{
+	AlphabetFlag,
+	CannonDatadirFlag,
+}
 
 func init() {
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
@@ -73,6 +96,18 @@ func CheckRequired(ctx *cli.Context) error {
 		if !ctx.IsSet(f.Names()[0]) {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
 		}
+	}
+	switch ctx.String(TraceTypeFlag.Name) {
+	case "[" + CannonTraceType + "]":
+		if !ctx.IsSet(CannonDatadirFlag.Name) {
+			return fmt.Errorf("flag %s is required", "cannon-datadir")
+		}
+	case "[" + AlphabetTraceType + "]":
+		if !ctx.IsSet(AlphabetFlag.Name) {
+			return fmt.Errorf("flag %s is required", "alphabet")
+		}
+	default:
+		return fmt.Errorf("invalid trace type. must be one of %v", validTraceTypes)
 	}
 	return nil
 }
