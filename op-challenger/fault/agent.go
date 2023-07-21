@@ -55,16 +55,15 @@ func (a *Agent) Act(ctx context.Context) error {
 // tryResolve resolves the game if it is in a terminal state
 // and returns true if the game resolves successfully.
 func (a *Agent) tryResolve(ctx context.Context) bool {
-	if a.responder.CanResolve(ctx) {
-		a.log.Info("Resolving game")
-		err := a.responder.Resolve(ctx)
-		if err != nil {
-			a.log.Error("Failed to resolve the game", "err", err)
-			return false
-		}
-		return true
+	if !a.responder.CanResolve(ctx) {
+		return false
 	}
-	return false
+	a.log.Info("Resolving game")
+	if err := a.responder.Resolve(ctx); err != nil {
+		a.log.Error("Failed to resolve the game", "err", err)
+		return false
+	}
+	return true
 }
 
 // newGameFromContracts initializes a new game state from the state in the contract
