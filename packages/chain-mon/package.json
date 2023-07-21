@@ -18,6 +18,7 @@
     "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json",
     "build": "tsc -p ./tsconfig.json",
     "clean": "rimraf  dist/ ./tsconfig.tsbuildinfo",
+    "preinstall": "npx only-allow pnpm",
     "lint": "pnpm lint:fix && pnpm lint:check",
     "pre-commit": "lint-staged",
     "lint:fix": "pnpm lint:check --fix",
