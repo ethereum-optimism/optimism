@@ -33,8 +33,8 @@ contract AttestationStation is Semver {
         bytes val
     );
 
-    /// @custom:semver 1.1.0
-    constructor() Semver(1, 1, 0) {}
+    /// @custom:semver 1.1.1
+    constructor() Semver(1, 1, 1) {}
 
     /// @notice Allows anyone to create an attestation.
     /// @param _about Address that the attestation is about.

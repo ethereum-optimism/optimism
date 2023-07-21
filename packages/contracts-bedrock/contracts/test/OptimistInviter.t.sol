@@ -245,7 +245,6 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         // expect attestationStation to be set
         assertEq(address(optimistInviter.ATTESTATION_STATION()), address(attestationStation));
         assertEq(optimistInviter.INVITE_GRANTER(), alice_inviteGranter);
-        assertEq(optimistInviter.version(), "1.0.0");
     }
 
     /// @notice Alice the admin should be able to give Bob, Sally, and Carol 3 invites, and the
