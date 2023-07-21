@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
@@ -49,7 +50,7 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 	require.NoError(err)
 
 	// Deploy the fault dispute game implementation
-	_, tx, _, err = bindings.DeployFaultDisputeGame(opts, client, alphabetVMAbsolutePrestateClaim, big.NewInt(alphabetGameDepth), gameDuration, alphaVMAddr)
+	_, tx, _, err = bindings.DeployFaultDisputeGame(opts, client, alphabetVMAbsolutePrestateClaim, big.NewInt(alphabetGameDepth), gameDuration, alphaVMAddr, common.Address{0xBE, 0xEF})
 	require.NoError(err)
 	faultDisputeGameAddr, err := bind.WaitDeployed(ctx, client, tx)
 	require.NoError(err)
