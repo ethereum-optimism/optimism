@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 import { Script } from "forge-std/Script.sol";
 import { stdJson } from "forge-std/StdJson.sol";
@@ -97,19 +97,19 @@ abstract contract Deployer is Script {
     function sync() public {
         Deployment[] memory deployments = _getTempDeployments();
         console.log("Syncing %s deployments", deployments.length);
+        console.log("Using deployment artifact %s", deployPath);
 
         for (uint256 i; i < deployments.length; i++) {
             address addr = deployments[i].addr;
             string memory deploymentName = deployments[i].name;
 
             string memory deployTx = _getDeployTransactionByContractAddress(addr);
-            string memory contractName = stdJson.readString(deployTx, ".contractName");
-            console.log("Syncing %s", deploymentName);
+            string memory contractName = _getContractNameFromDeployTransaction(deployTx);
+            console.log("Syncing deployment %s: contract %s", deploymentName, contractName);
 
-            string memory fqn = getFullyQualifiedName(contractName);
             string[] memory args = getDeployTransactionConstructorArguments(deployTx);
-            bytes memory code = vm.getCode(fqn);
-            bytes memory deployedCode = vm.getDeployedCode(fqn);
+            bytes memory code = _getCode(contractName);
+            bytes memory deployedCode = _getDeployedCode(contractName);
             string memory receipt = _getDeployReceiptByContractAddress(addr);
 
             string memory artifactPath = string.concat(deploymentsDir, "/", deploymentName, ".json");
@@ -119,6 +119,7 @@ abstract contract Deployer is Script {
                 numDeployments = stdJson.readUint(string(res), "$.numDeployments");
                 vm.removeFile(artifactPath);
             } catch {}
+            numDeployments++;
 
             Artifact memory artifact = Artifact({
                 abi: getAbi(contractName),
@@ -261,6 +262,36 @@ abstract contract Deployer is Script {
         return string(res);
     }
 
+    /// @notice Returns the contract name from a deploy transaction.
+    function _getContractNameFromDeployTransaction(string memory _deployTx) internal returns (string memory) {
+        return stdJson.readString(_deployTx, ".contractName");
+    }
+
+    /// @notice Wrapper for vm.getCode that handles semver in the name.
+    function _getCode(string memory _name) internal returns (bytes memory) {
+        string memory fqn = _getFullyQualifiedName(_name);
+        bytes memory code = vm.getCode(fqn);
+        return code;
+    }
+
+    /// @notice Wrapper for vm.getDeployedCode that handles semver in the name.
+    function _getDeployedCode(string memory _name) internal returns (bytes memory) {
+        string memory fqn = _getFullyQualifiedName(_name);
+        bytes memory code = vm.getDeployedCode(fqn);
+        return code;
+    }
+
+    /// @notice Removes the semantic versioning from a contract name. The semver will exist if the contract is compiled more than
+    ///         once with different versions of the compiler.
+    function _stripSemver(string memory _name) internal returns (string memory) {
+        string[] memory cmd = new string[](3);
+        cmd[0] = Executables.bash;
+        cmd[1] = "-c";
+        cmd[2] = string.concat(Executables.echo, " ", _name, " | ", Executables.sed, " -E 's/[.][0-9]+\\.[0-9]+\\.[0-9]+//g'");
+        bytes memory res = vm.ffi(cmd);
+        return string(res);
+    }
+
     /// @notice Returns the constructor arguent of a deployment transaction given a transaction json.
     function getDeployTransactionConstructorArguments(string memory _transaction) internal returns (string[] memory) {
         string[] memory cmd = new string[](3);
@@ -277,9 +308,10 @@ abstract contract Deployer is Script {
     }
 
     /// @notice Builds the fully qualified name of a contract. Assumes that the
-    ///         file name is the same as the contract name.
-    function getFullyQualifiedName(string memory _name) internal pure returns (string memory) {
-        return string.concat(_name, ".sol:", _name);
+    ///         file name is the same as the contract name but strips semver for the file name.
+    function _getFullyQualifiedName(string memory _name) internal returns (string memory) {
+        string memory sanitized = _stripSemver(_name);
+        return string.concat(sanitized, ".sol:", _name);
     }
 
     /// @notice Returns the filesystem path to the artifact path. Assumes that the name of the
@@ -290,7 +322,8 @@ abstract contract Deployer is Script {
         cmd[1] = "-c";
         cmd[2] = string.concat(Executables.forge, " config --json | ", Executables.jq, " -r .out");
         bytes memory res = vm.ffi(cmd);
-        string memory forgeArtifactPath = string.concat(vm.projectRoot(), "/", string(res), "/", _name, ".sol/", _name, ".json");
+        string memory contractName = _stripSemver(_name);
+        string memory forgeArtifactPath = string.concat(vm.projectRoot(), "/", string(res), "/", contractName, ".sol/", _name, ".json");
         return forgeArtifactPath;
     }
 

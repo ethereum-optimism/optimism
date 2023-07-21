@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 
@@ -84,17 +85,22 @@ func main() {
 	// and hold a mapping from the contract name to the contract path.
 	// Walk walks the directory deterministically, so the later instance
 	// of the contract with the same name will be used
+	re := regexp.MustCompile(`\.\d+\.\d+\.\d+`)
 	artifactPaths := make(map[string]string)
 	if err := filepath.Walk(f.ForgeArtifacts,
 		func(path string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
-			base := filepath.Base(path)
-			if strings.HasSuffix(base, ".json") {
-				name := base[:len(base)-5]
-				if _, ok := artifactPaths[name]; !ok {
-					artifactPaths[name] = path
+
+			if strings.HasSuffix(path, ".json") {
+				base := filepath.Base(path)
+				name := strings.TrimSuffix(base, ".json")
+
+				// remove the compiler version from the name
+				sanitized := re.ReplaceAllString(name, "")
+				if _, ok := artifactPaths[sanitized]; !ok {
+					artifactPaths[sanitized] = path
 				}
 			}
 			return nil
@@ -108,6 +114,7 @@ func main() {
 		artifactPath := path.Join(f.ForgeArtifacts, name+".sol", name+".json")
 		forgeArtifactData, err := os.ReadFile(artifactPath)
 		if errors.Is(err, os.ErrNotExist) {
+			log.Printf("cannot find forge-artifact for %s at standard path %s, trying %s\n", name, artifactPath, artifactPaths[name])
 			artifactPath = artifactPaths[name]
 			forgeArtifactData, err = os.ReadFile(artifactPath)
 			if errors.Is(err, os.ErrNotExist) {
