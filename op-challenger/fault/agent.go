@@ -40,13 +40,13 @@ func (a *Agent) Act(ctx context.Context) error {
 	}
 	// Create counter claims
 	for _, claim := range game.Claims() {
-		if err := a.move(claim, game); err != nil {
+		if err := a.move(ctx, claim, game); err != nil {
 			log.Error("Failed to move", "err", err)
 		}
 	}
 	// Step on all leaf claims
 	for _, claim := range game.Claims() {
-		if err := a.step(claim, game); err != nil {
+		if err := a.step(ctx, claim, game); err != nil {
 			log.Error("Failed to step", "err", err)
 		}
 	}
@@ -83,7 +83,7 @@ func (a *Agent) newGameFromContracts(ctx context.Context) (Game, error) {
 }
 
 // move determines & executes the next move given a claim
-func (a *Agent) move(claim Claim, game Game) error {
+func (a *Agent) move(ctx context.Context, claim Claim, game Game) error {
 	nextMove, err := a.solver.NextMove(claim, game.AgreeWithClaimLevel(claim))
 	if err != nil {
 		a.log.Warn("Failed to execute the next move", "err", err)
@@ -102,11 +102,11 @@ func (a *Agent) move(claim Claim, game Game) error {
 		return nil
 	}
 	log.Info("Performing move")
-	return a.responder.Respond(context.TODO(), move)
+	return a.responder.Respond(ctx, move)
 }
 
 // step determines & executes the next step against a leaf claim through the responder
-func (a *Agent) step(claim Claim, game Game) error {
+func (a *Agent) step(ctx context.Context, claim Claim, game Game) error {
 	if claim.Depth() != a.maxDepth {
 		return nil
 	}
@@ -136,5 +136,5 @@ func (a *Agent) step(claim Claim, game Game) error {
 		IsAttack:   step.IsAttack,
 		StateData:  step.PreState,
 	}
-	return a.responder.Step(context.TODO(), callData)
+	return a.responder.Step(ctx, callData)
 }
