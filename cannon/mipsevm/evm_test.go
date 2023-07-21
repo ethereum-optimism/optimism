@@ -39,17 +39,18 @@ func testContractsSetup(t require.TestingT) (*Contracts, *Addresses) {
 
 func SourceMapTracer(t *testing.T, contracts *Contracts, addrs *Addresses) vm.EVMLogger {
 	sources := bindings.Sources
+	contractsDir := "../../packages/contracts-bedrock"
 	for i, source := range sources {
 		// Add relative path to contracts directory if the source is not
 		// already relativized.
 		if !strings.HasPrefix(source, "..") {
-			sources[i] = path.Join("../../packages/contracts-bedrock", source)
+			sources[i] = path.Join(contractsDir, source)
 		}
 	}
 
-	mipsSrcMap, err := contracts.MIPS.SourceMap(append([]string{"contracts/cannon/MIPS.sol"}, sources...))
+	mipsSrcMap, err := contracts.MIPS.SourceMap(append([]string{path.Join(contractsDir, "contracts/cannon/MIPS.sol")}, sources...))
 	require.NoError(t, err)
-	oracleSrcMap, err := contracts.Oracle.SourceMap(append([]string{"contracts/cannon/PreimageOracle.sol"}, sources...))
+	oracleSrcMap, err := contracts.Oracle.SourceMap(append([]string{path.Join(contractsDir, "contracts/cannon/PreimageOracle.sol")}, sources...))
 	require.NoError(t, err)
 
 	return srcmap.NewSourceMapTracer(map[common.Address]*srcmap.SourceMap{addrs.MIPS: mipsSrcMap, addrs.Oracle: oracleSrcMap}, os.Stdout)
