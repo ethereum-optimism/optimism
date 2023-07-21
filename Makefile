@@ -12,8 +12,8 @@ build-ts: submodules
 	if [ -n "$$NVM_DIR" ]; then \
 		. $$NVM_DIR/nvm.sh && nvm use; \
 	fi
-	yarn install
-	yarn build
+	pnpm install
+	pnpm build
 .PHONY: build-ts
 
 submodules:
@@ -74,11 +74,11 @@ nuke: clean devnet-clean
 .PHONY: nuke
 
 devnet-up:
-	@bash ./ops-bedrock/devnet-up.sh
+	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up
 
 devnet-up-deploy:
-	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
+	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --deploy
 .PHONY: devnet-up-deploy
 
 devnet-down:
@@ -102,7 +102,7 @@ test-unit:
 	make -C ./op-proposer test
 	make -C ./op-batcher test
 	make -C ./op-e2e test
-	yarn test
+	pnpm test
 .PHONY: test-unit
 
 test-integration:
@@ -130,4 +130,6 @@ update-op-geth:
 .PHONY: update-op-geth
 
 bedrock-markdown-links:
-	docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback --exclude twitter.com --exclude explorer.optimism.io --exclude-mail /input/README.md "/input/specs/**/*.md"
+	docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback \
+		--exclude twitter.com --exclude explorer.optimism.io --exclude linux-mips.org \
+		--exclude-mail /input/README.md "/input/specs/**/*.md"

@@ -10,7 +10,7 @@ import (
 
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 func Priv2PeerID(r io.Reader) (string, error) {

@@ -59,49 +59,101 @@ commands:
             pip3 install -r requirements.txt
             python3 main.py "<<parameters.patterns>>"
 jobs:
-  yarn-monorepo:
+  cannon-go-lint-and-test:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: medium
+    steps:
+      - checkout
+      - check-changed:
+          patterns: cannon,packages/contracts-bedrock/contracts/cannon
+      - run:
+          name: prep Cannon results dir
+          command: mkdir -p /tmp/test-results
+      - run:
+          name: build Cannon example binaries
+          command: make elf # only compile ELF binaries with Go, we do not have MIPS GCC for creating the debug-dumps.
+          working_directory: cannon/example
+      - run:
+          name: Cannon Go lint
+          command: |
+            make lint
+          working_directory: cannon
+      - run:
+          name: Cannon Go tests
+          command: |
+            gotestsum --format=standard-verbose --junitfile=/tmp/test-results/cannon.xml \
+            -- -parallel=2 -coverpkg=github.com/ethereum-optimism/optimism/cannon/... -coverprofile=coverage.out ./...
+          working_directory: cannon
+      - run:
+          name: upload Cannon coverage
+          command: codecov --verbose --clean --flags cannon-go-tests
+      - store_test_results:
+          path: /tmp/test-results
+  cannon-build-test-vectors:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: medium
+    steps:
+      - checkout
+      - check-changed:
+          patterns: cannon/mipsevm/open_mips_tests/test
+      - run:
+          name: Build MIPS test vectors
+          command: python3 maketests.py && git diff --exit-code
+          working_directory: cannon/mipsevm/open_mips_tests
+
+  pnpm-monorepo:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: xlarge
     steps:
       - checkout
       - check-changed:
           patterns: op-bindings,op-chain-ops,packages/
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
+      # TODO remove me after ci builder updated
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      # TODO remove me after ci builder updated
+      # A github dep clones-with-immutable-args is installed via github
+      # packages installed via npm via github automatically run postpack scripts
+      # their postpack script happens to use yarn so we need it here
+      - run:
+          name: Install yarn package manager
+          command: |
+            npm i yarn@1 --global
       - run:
           name: Install dependencies
-          command: yarn install && git diff --exit-code
+          command: pnpm install --frozen-lockfile
       - save_cache:
-          name: Save Yarn Package Cache
-          key: yarn-packages-v2-{{ checksum "yarn.lock" }}
+          name: Save PNPM Package Cache
+          key: pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
           paths:
             - "node_modules"
             - "packages/chain-mon/node_modules"
             - "packages/common-ts/node_modules"
             - "packages/contracts-bedrock/node_modules"
-            - "packages/contracts-governance/node_modules"
-            - "packages/contracts-periphery/node_modules"
             - "packages/core-utils/node_modules"
-            - "packages/drippie-mon/node_modules"
-            - "packages/fault-detector/node_modules"
-            - "packages/hardhat-deploy-config/node_modules"
-            - "packages/migration-data/node_modules"
             - "packages/replica-healthcheck/node_modules"
             - "packages/sdk/node_modules"
+            - "packages/contracts-ts/node_modules"
       - run:
           name: print forge version
           command: forge --version
       - run:
           name: Build monorepo
-          command: yarn build
+          command: pnpm build
       - persist_to_workspace:
           root: "."
           paths:
-            - "packages/*/dist"
-            - "packages/*/artifacts"
+            - "packages/**/dist"
+            - "packages/contracts-bedrock/forge-artifacts"
 
   docker-build:
     environment:
@@ -144,7 +196,7 @@ jobs:
             fi
             IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
             DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
-            docker build \
+            docker build --progress plain \
             $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
             -f <<parameters.docker_file>> \
             <<parameters.docker_context>>
@@ -213,7 +265,7 @@ jobs:
             DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
             docker context create buildx-build
             docker buildx create --use buildx-build
-            docker buildx build --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
+            docker buildx build --progress plain --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
               $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
               -f <<parameters.docker_file>> \
               <<parameters.docker_context>>
@@ -268,7 +320,7 @@ jobs:
             DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
             docker context create buildx-build
             docker buildx create --use buildx-build
-            docker buildx build --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
+            docker buildx build --progress plain --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
               $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
               -f <<parameters.docker_file>> \
               <<parameters.docker_context>>
@@ -285,18 +337,32 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
-          patterns: contracts-bedrock,hardhat-deploy-config
+          patterns: contracts-bedrock
+      # TODO remove me after ci builder updated
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      # TODO remove me after ci builder updated
+      # A github dep clones-with-immutable-args is installed via github
+      # packages installed via npm via github automatically run postpack scripts
+      # their postpack script happens to use yarn so we need it here
+      - run:
+          name: Install yarn package manager
+          command: |
+            npm i yarn@1 --global
       - run:
           name: print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
-          name: generate coverage report
-          command: yarn coverage:lcov
+          name: test and generate coverage
+          command: pnpm coverage:lcov
+          no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -309,69 +375,98 @@ jobs:
   contracts-bedrock-tests:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
-          patterns: contracts-bedrock,hardhat-deploy-config
+          patterns: contracts-bedrock
+      # TODO remove me after ci builder updated
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      # TODO remove me after ci builder updated
+      # A github dep clones-with-immutable-args is installed via github
+      # packages installed via npm via github automatically run postpack scripts
+      # their postpack script happens to use yarn so we need it here
+      - run:
+          name: Install yarn package manager
+          command: |
+            npm i yarn@1 --global
       - run:
           name: print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
       - run:
           name: run tests
-          command: yarn test
+          command: pnpm test
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
+          no_output_timeout: 15m
 
   contracts-bedrock-checks:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: xlarge
     steps:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
-          patterns: contracts-bedrock,hardhat-deploy-config
+          patterns: contracts-bedrock
+      # TODO remove me after ci builder updated
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      # TODO remove me after ci builder updated
+      # A github dep clones-with-immutable-args is installed via github
+      # packages installed via npm via github automatically run postpack scripts
+      # their postpack script happens to use yarn so we need it here
+      - run:
+          name: Install yarn package manager
+          command: |
+            npm i yarn@1 --global
       - run:
           name: lint
           command: |
-            yarn lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
+            pnpm lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
           command: |
             forge --version
-            yarn gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
+            pnpm gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
+          no_output_timeout: 15m
       - run:
           name: validate deploy configs
           command: |
-            yarn validate-deploy-configs || echo "export DEPLOY_CONFIG_STATUS=1" >> "$BASH_ENV"
+            pnpm validate-deploy-configs || echo "export DEPLOY_CONFIG_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
       - run:
           name: storage snapshot
           command: |
-            yarn storage-snapshot
+            pnpm storage-snapshot
             git diff --exit-code .storage-layout || echo "export STORAGE_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: invariant docs
           command: |
-            yarn autogen:invariant-docs
+            pnpm autogen:invariant-docs
             git diff --exit-code ./invariant-docs/*.md || echo "export INVARIANT_DOCS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
@@ -409,16 +504,31 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
-          patterns: contracts-bedrock,hardhat-deploy-config
+          patterns: contracts-bedrock
+      # TODO remove me after ci builder updated
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      # TODO remove me after ci builder updated
+      # A github dep clones-with-immutable-args is installed via github
+      # packages installed via npm via github automatically run postpack scripts
+      # their postpack script happens to use yarn so we need it here
+      - run:
+          name: Install yarn package manager
+          command: |
+            npm i yarn@1 --global
       - run:
           name: slither
           command: |
-            slither --version
-            yarn slither
+            slither --version && pnpm slither || echo "export LINT_STATUS=1" >> "$BASH_ENV"
+      - run:
+          name: invariant docs
+          command: pnpm autogen:invariant-docs && git diff --exit-code ./invariant-docs/*.md
           working_directory: packages/contracts-bedrock
 
   contracts-bedrock-validate-spaces:
@@ -428,14 +538,27 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
-          patterns: contracts-bedrock,hardhat-deploy-config
+          patterns: contracts-bedrock
+      # TODO remove me after ci builder updated
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      # TODO remove me after ci builder updated
+      # A github dep clones-with-immutable-args is installed via github
+      # packages installed via npm via github automatically run postpack scripts
+      # their postpack script happens to use yarn so we need it here
+      - run:
+          name: Install yarn package manager
+          command: |
+            npm i yarn@1 --global
       - run:
           name: validate spacers
-          command: yarn validate-spacers
+          command: pnpm validate-spacers
           working_directory: packages/contracts-bedrock
 
   bedrock-echidna-build:
@@ -446,9 +569,22 @@ jobs:
       - attach_workspace: { at: "." }
       - check-changed:
           patterns: contracts-bedrock,contracts
+      # TODO remove me after ci builder updated
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      # TODO remove me after ci builder updated
+      # A github dep clones-with-immutable-args is installed via github
+      # packages installed via npm via github automatically run postpack scripts
+      # their postpack script happens to use yarn so we need it here
+      - run:
+          name: Install yarn package manager
+          command: |
+            npm i yarn@1 --global
       - run:
           name: Compile with metadata hash
-          command: yarn clean && yarn build:with-metadata
+          command: pnpm clean && pnpm build:with-metadata
           working_directory: packages/contracts-bedrock
       - persist_to_workspace:
           root: .
@@ -472,14 +608,27 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock,contracts
+      # TODO remove me after ci builder updated
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      # TODO remove me after ci builder updated
+      # A github dep clones-with-immutable-args is installed via github
+      # packages installed via npm via github automatically run postpack scripts
+      # their postpack script happens to use yarn so we need it here
+      - run:
+          name: Install yarn package manager
+          command: |
+            npm i yarn@1 --global
       - run:
           name: Echidna Fuzz <<parameters.echidna_target>>
-          command: yarn echidna:<<parameters.echidna_target>>
+          command: pnpm echidna:<<parameters.echidna_target>>
           working_directory: packages/contracts-bedrock
           no_output_timeout: 15m
 
@@ -491,11 +640,24 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock,op-bindings
+      # TODO remove me after ci builder updated
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      # TODO remove me after ci builder updated
+      # A github dep clones-with-immutable-args is installed via github
+      # packages installed via npm via github automatically run postpack scripts
+      # their postpack script happens to use yarn so we need it here
+      - run:
+          name: Install yarn package manager
+          command: |
+            npm i yarn@1 --global
       - run:
           name: check go bindings
           command: make && git diff --exit-code
@@ -520,22 +682,53 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: <<parameters.package_name>>,<<parameters.dependencies>>
+      # TODO remove me after ci builder updated
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      # TODO remove me after ci builder updated
+      # A github dep clones-with-immutable-args is installed via github
+      # packages installed via npm via github automatically run postpack scripts
+      # their postpack script happens to use yarn so we need it here
+      - run:
+          name: Install yarn package manager
+          command: |
+            npm i yarn@1 --global
       - run:
           name: Lint
-          command: yarn lint && git diff --exit-code
+          command: pnpm lint && git diff --exit-code
           working_directory: packages/<<parameters.package_name>>
       - run:
           name: Test
-          command: yarn test:coverage
+          command: pnpm test:coverage
           working_directory: packages/<<parameters.package_name>>
       - run:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
+
+  contracts-ts-tests:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore pnpm Package Cache
+          keys:
+            - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
+      - check-changed:
+          patterns: sdk,contracts-bedrock,contracts
+      - run:
+          name: Check generated and build
+          command: pnpm generate:check
+          working_directory: packages/contracts-ts
 
   sdk-next-tests:
     docker:
@@ -544,29 +737,31 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore pnpm Package Cache
+          keys:
+            - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
       - check-changed:
           patterns: sdk,contracts-bedrock,contracts
-      - restore_cache:
-          name: Restore Yarn Package Cache
-          keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
       - run:
           name: anvil-l1
           background: true
           # atm this is goerli but we should use mainnet after bedrock is live
-          command: anvil --fork-url $ANVIL_L1_FORK_URL --fork-block-number 9023108
+          command: anvil --fork-url $ANVIL_L1_FORK_URL --fork-block-number 9256679
+
       - run:
           name: anvil-l2
           background: true
           # atm this is goerli but we should use mainnet after bedrock is live
-          command: anvil --fork-url $ANVIL_L2_FORK_URL --port 9545 --fork-block-number 9504811
+          command: anvil --fork-url $ANVIL_L2_FORK_URL --port 9545 --fork-block-number 11276409
+
       - run:
           name: build
-          command: yarn build
+          command: pnpm build
           working_directory: packages/sdk
       - run:
           name: lint
-          command: yarn lint:check
+          command: pnpm lint:check
           working_directory: packages/sdk
       - run:
           name: make sure anvil l1 is up
@@ -576,7 +771,7 @@ jobs:
           command: npx wait-on tcp:9545 && cast block-number --rpc-url http://localhost:9545
       - run:
           name: test:next
-          command: yarn test:next:run
+          command: pnpm test:next:run
           no_output_timeout: 5m
           working_directory: packages/sdk
           environment:
@@ -585,7 +780,6 @@ jobs:
             VITE_E2E_RPC_URL_L1: http://localhost:8545
             VITE_E2E_RPC_URL_L2: http://localhost:9545
 
-
   bedrock-markdown:
     machine:
       image: ubuntu-2204:2022.07.1
@@ -593,21 +787,47 @@ jobs:
       - checkout
       - check-changed:
           patterns: specs/(.*)\.md$
+      # TODO remove me after ci builder updated
       - run:
-          name: yarn dev deps  # todo: what's the best way to pull in the dependencies for linting? yarn install above is using production env without dev dependencies
-          command: yarn install --production=false
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      # TODO remove me after ci builder updated
+      # A github dep clones-with-immutable-args is installed via github
+      # packages installed via npm via github automatically run postpack scripts
+      # their postpack script happens to use yarn so we need it here
+      - run:
+          name: Install yarn package manager
+          command: |
+            npm i yarn@1 --global
+      - run:
+          name: pnpm dev deps
+          command: pnpm install
       - run:
           name: specs toc
-          command: yarn lint:specs:toc && git diff --exit-code ./specs
+          command: pnpm lint:specs:toc && git diff --exit-code ./specs
       - run:
           name: markdown lint
-          command: yarn lint:specs:check
+          command: pnpm lint:specs:check
 
   bedrock-markdown-links:
     machine:
       image: ubuntu-2204:2022.07.1
     steps:
       - checkout
+      # TODO remove me after ci builder updated
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      - run:
+          name: Install node_modules
+          command: |
+            pnpm install
+      - run:
+          name: Lint check
+          command: |
+            pnpm lint:specs:check
       - run:
           name: link lint
           command: |
@@ -648,21 +868,30 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: packages
+      # TODO remove me after ci builder updated
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      # TODO remove me after ci builder updated
+      # A github dep clones-with-immutable-args is installed via github
+      # packages installed via npm via github automatically run postpack scripts
+      # their postpack script happens to use yarn so we need it here
+      - run:
+          name: Install yarn package manager
+          command: |
+            npm i yarn@1 --global
       # Note: The below needs to be manually configured whenever we
       # add a new package to CI.
       - run:
           name: Check common-ts
           command: npx depcheck
           working_directory: packages/common-ts
-      - run:
-          name: Check contracts-periphery
-          command: npx depcheck
-          working_directory: packages/contracts-periphery
       - run:
           name: Check core-utils
           command: npx depcheck
@@ -780,24 +1009,12 @@ jobs:
           working_directory: <<parameters.working_directory>>
       - when:
           condition:
-            equal: [ true, <<parameters.build>> ]
+            equal: [true, <<parameters.build>>]
           steps:
             - run:
                 name: Build
                 command: make <<parameters.binary_name>>
                 working_directory: <<parameters.working_directory>>
-
-  geth-tests:
-    docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    steps:
-      - checkout
-      - check-changed:
-          patterns: l2geth
-      - run:
-          name: Test
-          command: make test
-          working_directory: l2geth
 
   devnet:
     machine:
@@ -812,7 +1029,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: op-(.+),packages
+          patterns: op-(.+),packages,ops-bedrock
       - run:
           name: Install latest golang
           command: |
@@ -828,15 +1045,36 @@ jobs:
             source $HOME/.bashrc
             foundryup
             echo 'export PATH=$HOME/.foundry/bin:$PATH' >> $BASH_ENV
+            source $HOME/.bashrc
+            forge --version
+      - run:
+          name: Install NVM
+          command: |
+            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+            source ~/.bashrc
+            nvm --version
+      - run:
+          name: Install Node
+          command: |
+            nvm install
+            nvm use && node --version && npm --version
+      # TODO remove me after ci builder updated
+      # A github dep clones-with-immutable-args is installed via github
+      # packages installed via npm via github automatically run postpack scripts
+      # their postpack script happens to use yarn so we need it here
+      - run:
+          name: Install Package managers
+          command: |
+            npm i pnpm --global
+            npm i yarn@1 --global
       - run:
           name: Install and build
           command: |
-            yarn install
-            yarn build
+            pnpm install && pnpm build
       - when:
           condition:
             and:
-              - equal: [ true, <<parameters.deploy>> ]
+              - equal: [true, <<parameters.deploy>>]
           steps:
             - run:
                 name: Bring up the stack
@@ -844,8 +1082,8 @@ jobs:
                   make devnet-up-deploy
             - run:
                 name: Check L2 config
-                command: npx hardhat check-l2 --network devnetL1 --l2-rpc-url http://localhost:9545 --l1-rpc-url http://localhost:8545
-                working_directory: packages/contracts-bedrock
+                command: go run cmd/check-l2/main.go --l2-rpc-url http://localhost:9545 --l1-rpc-url http://localhost:8545
+                working_directory: op-chain-ops
             - run:
                 name: Deposit ERC20 through the bridge
                 command: timeout 8m npx hardhat deposit-erc20 --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
@@ -854,10 +1092,6 @@ jobs:
                 name: Deposit ETH through the bridge
                 command: timeout 8m npx hardhat deposit-eth --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
                 working_directory: packages/sdk
-            - run:
-                name: Check the status
-                command: npx hardhat check-op-node
-                working_directory: packages/contracts-bedrock
             - run:
                 name: Dump op-node logs
                 command: |
@@ -883,10 +1117,22 @@ jobs:
                 command: |
                   docker logs ops-bedrock-op-proposer-1 || echo "No logs."
                 when: on_fail
+            - run:
+                name: Log deployment artifact
+                command: |
+                  cat broadcast/Deploy.s.sol/900/run-latest.json || echo "No deployment file found"
+                when: on_fail
+                working_directory: packages/contracts-bedrock
+            - run:
+                name: Log artifacts directory
+                command: |
+                  ls -R forge-artifacts || echo "No forge artifacts found"
+                when: on_fail
+                working_directory: packages/contracts-bedrock
       - when:
           condition:
             and:
-              - equal: [ false, <<parameters.deploy>> ]
+              - equal: [false, <<parameters.deploy>>]
           steps:
             - run:
                 name: Bring up the stack
@@ -894,13 +1140,8 @@ jobs:
                   make devnet-up
             - run:
                 name: Check L2 config
-                command: |
-                  npx hardhat check-l2 \
-                    --network devnetL1 \
-                    --l2-rpc-url http://localhost:9545 \
-                    --l1-rpc-url http://localhost:8545 \
-                    --l2-output-oracle-address 0x6900000000000000000000000000000000000000
-                working_directory: packages/contracts-bedrock
+                command: go run cmd/check-l2/main.go --l2-rpc-url http://localhost:9545 --l1-rpc-url http://localhost:8545
+                working_directory: op-chain-ops
             - run:
                 name: Deposit ERC20 through the bridge
                 command: timeout 10m npx hardhat deposit-erc20 --network devnetL1
@@ -909,10 +1150,6 @@ jobs:
                 name: Deposit ETH through the bridge
                 command: timeout 10m npx hardhat deposit-eth --network devnetL1
                 working_directory: packages/sdk
-            - run:
-                name: Check the status
-                command: npx hardhat check-op-node
-                working_directory: packages/contracts-bedrock
             - run:
                 name: Dump op-node logs
                 command: |
@@ -960,7 +1197,7 @@ jobs:
       - checkout
       - unless:
           condition:
-            equal: [ "develop", << pipeline.git.branch >> ]
+            equal: ["develop", << pipeline.git.branch >>]
           steps:
             - run:
                 # Scan changed files in PRs, block on new issues only (existing issues ignored)
@@ -995,7 +1232,7 @@ jobs:
       sim:
         type: string
     machine:
-      image: ubuntu-2204:2022.07.1
+      image: ubuntu-2204:2022.10.2
       docker_layer_caching: true
       resource_class: large
     steps:
@@ -1013,21 +1250,32 @@ jobs:
       - go/mod-download
       - go/save-cache
       - run: { command: "go build ." }
+      - run: { command: "go build junit/junitformatter.go" }
       - run:
           command: |
             ./hive \
             -sim=<<parameters.sim>> \
             -sim.loglevel=5 \
-            -client=go-ethereum_v1.11.6,op-geth_optimism,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log || echo "failed."
+            -client=go-ethereum_v1.11.6,op-geth_optimism,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log
       - run:
           command: |
             tar -cvf /tmp/workspace.tgz -C /home/circleci/project /home/circleci/project/workspace
           name: "Archive workspace"
+          when: always
+      - run:
+          command: |
+            ./junitformatter /home/circleci/project/workspace/logs/*.json > /home/circleci/project/workspace/logs/junit.xml
+          when: always
       - store_artifacts:
           path: /tmp/workspace.tgz
           destination: hive-workspace.tgz
-      - run:
-          command: "! grep 'pass.*=false' /tmp/hive.log"
+          when: always
+      - store_test_results:
+          path: /home/circleci/project/workspace/logs/junit.xml
+          when: always
+      - store_artifacts:
+          path: /home/circleci/project/workspace/logs/junit.xml
+          when: always
 
   bedrock-go-tests:
     docker:
@@ -1076,86 +1324,75 @@ jobs:
 workflows:
   main:
     jobs:
-      - yarn-monorepo
+      - pnpm-monorepo
       - js-lint-test:
           name: common-ts-tests
           coverage_flag: common-ts-tests
           package_name: common-ts
           requires:
-            - yarn-monorepo
-      - js-lint-test:
-          name: contracts-tests
-          coverage_flag: contracts-tests
-          package_name: contracts
-          dependencies: hardhat-deploy-config
-          requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - js-lint-test:
           name: core-utils-tests
           coverage_flag: core-utils-tests
           package_name: core-utils
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - contracts-bedrock-tests:
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - contracts-bedrock-coverage:
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - contracts-bedrock-checks:
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - contracts-bedrock-slither:
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - contracts-bedrock-validate-spaces:
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - op-bindings-build:
           requires:
-            - yarn-monorepo
-      - js-lint-test:
-          name: contracts-periphery-tests
-          coverage_flag: contracts-periphery-tests
-          package_name: contracts-periphery
-          dependencies: "(contracts|contracts-bedrock|core-utils|hardhat-deploy-config)"
-          requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - js-lint-test:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
           package_name: chain-mon
-          dependencies: "(common-ts|contracts-periphery|core-utils|sdk)"
+          dependencies: "(common-ts|contracts-bedrock|core-utils|sdk)"
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - js-lint-test:
-          name: fault-detector-tests
-          coverage_flag: fault-detector-tests
-          package_name: fault-detector
-          dependencies: "(common-ts|contracts|core-utils|sdk)"
+          name: contracts-ts-tests
+          coverage_flag: contracts-ts-tests
+          package_name: contracts-ts
+          dependencies: '(contracts-bedrock|contracts-ts)'
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
+      - js-lint-test:
+          name: sdk-next-tests
+          coverage_flag: sdk-next-tests
+          package_name: sdk
+          dependencies: "(common-ts|contracts-bedrock|core-utils)"
+          requires:
+            - pnpm-monorepo
       - js-lint-test:
           name: replica-healthcheck-tests
           coverage_flag: replica-healthcheck-tests
           package_name: replica-healthcheck
           dependencies: "(common-ts|core-utils)"
           requires:
-            - yarn-monorepo
-      - sdk-next-tests:
-          name: sdk-next-tests
-          requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - js-lint-test:
           name: sdk-tests
           coverage_flag: sdk-tests
           package_name: sdk
-          dependencies: "(contracts|core-utils)"
+          dependencies: "(contracts-bedrock|core-utils)"
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - depcheck:
           requires:
-            - yarn-monorepo
+            - pnpm-monorepo
       - devnet:
           name: devnet (with deployed contracts)
           deploy: true
@@ -1170,12 +1407,10 @@ workflows:
           name: indexer-tests
           binary_name: indexer
           working_directory: indexer
-          dependencies: op-bindings
       - go-lint-test-build:
           name: op-heartbeat tests
           binary_name: op-heartbeat
           working_directory: op-heartbeat
-      - geth-tests
       - semgrep-scan
       - go-mod-tidy
       - fuzz-op-node
@@ -1373,14 +1608,6 @@ workflows:
           docker_target: wd-mon
           context:
             - oplabs-gcr
-      - docker-publish:
-          name: fault-detector-docker-publish
-          docker_file: ./ops/docker/Dockerfile.packages
-          docker_name: fault-detector
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_target: fault-detector
-          context:
-            - oplabs-gcr
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
@@ -1410,13 +1637,15 @@ workflows:
             - op-challenger-docker-build
       - check-generated-mocks-op-node
       - check-generated-mocks-op-service
+      - cannon-go-lint-and-test
+      - cannon-build-test-vectors
   release:
     jobs:
       - hold:
           type: approval
           filters:
             tags:
-              only: /^(fault-detector|proxyd|indexer|op-[a-z0-9\-]*)\/v.*/
+              only: /^(proxyd|indexer|ci-builder|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-release:
@@ -1483,23 +1712,6 @@ workflows:
             - oplabs-gcr-release
           requires:
             - hold
-      - docker-release:
-          name: fault-detector-docker-release
-          filters:
-            tags:
-              only: /^fault-detector\/v.*/
-            branches:
-              ignore: /.*/
-          docker_file: ./ops/docker/Dockerfile.packages
-          docker_name: fault-detector
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_target: fault-detector
-          docker_context: .
-          platforms: "linux/amd64,linux/arm64"
-          context:
-            - oplabs-gcr-release
-          requires:
-            - hold
       - docker-build:
           name: op-migrate-docker-release
           filters:
@@ -1509,6 +1721,21 @@ workflows:
               ignore: /.*/
           docker_file: op-chain-ops/Dockerfile
           docker_name: op-migrate
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+          context:
+            - oplabs-gcr-release
+          requires:
+            - hold
+      - docker-release:
+          name: op-ufm-docker-release
+          filters:
+            tags:
+              only: /^op-ufm\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: op-ufm/Dockerfile
+          docker_name: op-ufm
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
           context:
@@ -1545,10 +1772,8 @@ workflows:
             - oplabs-gcr-release
           requires:
             - hold
-  release-ci-builder:
-    jobs:
-      - docker-publish:
-          name: ci-builder-docker-publish
+      - docker-release:
+          name: ci-builder-docker-release
           filters:
             tags:
               only: /^ci-builder\/v.*/
@@ -1557,9 +1782,11 @@ workflows:
           docker_file: ./ops/docker/ci-builder/Dockerfile
           docker_name: ci-builder
           docker_tags: <<pipeline.git.revision>>,latest
-          docker_context: ./ops/docker/ci-builder
+          docker_context: .
           context:
             - oplabs-gcr
+          requires:
+            - hold
   scheduled-fpp:
     triggers:
       - schedule:
@@ -1567,7 +1794,7 @@ workflows:
           cron: "0 0,6,12,18 * * *"
           filters:
             branches:
-              only: [ "develop" ]
+              only: ["develop"]
     jobs:
       - fpp-verify:
           context:
@@ -1581,7 +1808,7 @@ workflows:
           cron: "0 0 * * *"
           filters:
             branches:
-              only: [ "develop" ]
+              only: ["develop"]
     jobs:
       - bedrock-markdown-links:
           context: slack

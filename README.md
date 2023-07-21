@@ -52,10 +52,8 @@ Refer to the Directory Structure section below to understand which packages are 
 ├── <a href="./packages">packages</a>
 │   ├── <a href="./packages/common-ts">common-ts</a>: Common tools for building apps in TypeScript
 │   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: Bedrock smart contracts.
-│   ├── <a href="./packages/contracts-periphery">contracts-periphery</a>: Peripheral contracts for Optimism
 │   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
 │   ├── <a href="./packages/chain-mon">chain-mon</a>: Chain monitoring services
-│   ├── <a href="./packages/fault-detector">fault-detector</a>: Service for detecting Sequencer faults
 │   ├── <a href="./packages/replica-healthcheck">replica-healthcheck</a>: Service for monitoring the health of a replica node
 │   └── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
 ├── <a href="./op-bindings">op-bindings</a>: Go bindings for Bedrock smart contracts.
@@ -79,14 +77,11 @@ Refer to the Directory Structure section below to understand which packages are 
 ~~ Pre-BEDROCK ~~
 ├── <a href="./packages">packages</a>
 │   ├── <a href="./packages/common-ts">common-ts</a>: Common tools for building apps in TypeScript
-│   ├── <a href="./packages/contracts-periphery">contracts-periphery</a>: Peripheral contracts for Optimism
 │   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
 │   ├── <a href="./packages/chain-mon">chain-mon</a>: Chain monitoring services
-│   ├── <a href="./packages/fault-detector">fault-detector</a>: Service for detecting Sequencer faults
 │   ├── <a href="./packages/replica-healthcheck">replica-healthcheck</a>: Service for monitoring the health of a replica node
 │   └── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
 ├── <a href="./indexer">indexer</a>: indexes and syncs transactions
-├── <a href="./l2geth">l2geth</a>: Optimism client software, a fork of <a href="https://github.com/ethereum/go-ethereum/tree/v1.9.10">geth v1.9.10</a>
 ├── <a href="./op-exporter">op-exporter</a>: A prometheus exporter to collect/serve metrics from an Optimism node
 ├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
 └── <a href="./technical-documents">technical-documents</a>: audits and post-mortem documents
@@ -139,7 +134,7 @@ See table in the **Active Branches** section above to find the right branch to t
 We use [changesets](https://github.com/changesets/changesets) to mark packages for new releases.
 When merging commits to the `develop` branch you MUST include a changeset file if your change would require that a new version of a package be released.
 
-To add a changeset, run the command `yarn changeset` in the root of this monorepo.
+To add a changeset, run the command `pnpm changeset` in the root of this monorepo.
 You will be presented with a small prompt to select the packages to be released, the scope of the release (major, minor, or patch), and the reason for the release.
 Comments within changeset files will be automatically included in the changelog of the package.
 
@@ -159,7 +154,5 @@ Please carry this process out exactly as listed to avoid `develop` and `master` 
 It's strongly recommended to avoid merging PRs into develop during an active release.
 
 ## License
-
-Code forked from [`go-ethereum`](https://github.com/ethereum/go-ethereum) under the name [`l2geth`](https://github.com/ethereum-optimism/optimism/tree/master/l2geth) is licensed under the [GNU GPLv3](https://gist.github.com/kn9ts/cbe95340d29fc1aaeaa5dd5c059d2e60) in accordance with the [original license](https://github.com/ethereum/go-ethereum/blob/master/COPYING).
 
 All other files within this repository are licensed under the [MIT License](https://github.com/ethereum-optimism/optimism/blob/master/LICENSE) unless stated otherwise.

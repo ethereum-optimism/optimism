@@ -124,6 +124,26 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.warp(oracle.computeL2Timestamp(_nextBlockNumber) + 1);
     }
 
+    /// @dev Helper function to propose an output.
+    function proposeAnotherOutput() public {
+        bytes32 proposedOutput2 = keccak256(abi.encode());
+        uint256 nextBlockNumber = oracle.nextBlockNumber();
+        uint256 nextOutputIndex = oracle.nextOutputIndex();
+        warpToProposeTime(nextBlockNumber);
+        uint256 proposedNumber = oracle.latestBlockNumber();
+
+        // Ensure the submissionInterval is enforced
+        assertEq(nextBlockNumber, proposedNumber + submissionInterval);
+
+        vm.roll(nextBlockNumber + 1);
+
+        vm.expectEmit(true, true, true, true);
+        emit OutputProposed(proposedOutput2, nextOutputIndex, nextBlockNumber, block.timestamp);
+
+        vm.prank(proposer);
+        oracle.proposeL2Output(proposedOutput2, nextBlockNumber, 0, 0);
+    }
+
     function setUp() public virtual override {
         super.setUp();
         guardian = makeAddr("guardian");

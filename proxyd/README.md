@@ -89,6 +89,52 @@ Cache use Redis and can be enabled for the following immutable methods:
 * `eth_getUncleByBlockHashAndIndex`
 * `debug_getRawReceipts` (block hash only)
 
+## Meta method `consensus_getReceipts`
+
+To support backends with different specifications in the same backend group,
+proxyd exposes a convenient method to fetch receipts abstracting away
+what specific backend will serve the request.
+
+Each backend specifies their preferred method to fetch receipts with `consensus_receipts_target` config,
+which will be translated from `consensus_getReceipts`.
+
+This method takes a `blockNumberOrHash` (i.e. `tag|qty|hash`)
+and returns the receipts for all transactions in the block.
+
+Request example
+```json
+{
+  "jsonrpc":"2.0",
+  "id": 1,
+  "params": ["0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b"]
+}
+```
+
+It currently supports translation to the following targets:
+* `debug_getRawReceipts(blockOrHash)` (default)
+* `alchemy_getTransactionReceipts(blockOrHash)`
+* `parity_getBlockReceipts(blockOrHash)`
+* `eth_getBlockReceipts(blockOrHash)`
+
+The selected target is returned in the response, in a wrapped result.
+
+Response example
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "method": "debug_getRawReceipts",
+    "result": {
+      // the actual raw result from backend
+    }
+  }
+}
+```
+
+See [op-node receipt fetcher](https://github.com/ethereum-optimism/optimism/blob/186e46a47647a51a658e699e9ff047d39444c2de/op-node/sources/receipts.go#L186-L253).
+
+
 ## Metrics
 
 See `metrics.go` for a list of all available metrics.

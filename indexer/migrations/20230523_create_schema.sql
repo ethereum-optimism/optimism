@@ -10,19 +10,7 @@ CREATE TABLE IF NOT EXISTS l1_block_headers (
 	hash        VARCHAR NOT NULL PRIMARY KEY,
 	parent_hash VARCHAR NOT NULL,
 	number      UINT256,
-	timestamp   INTEGER NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS legacy_state_batches (
-	index         INTEGER NOT NULL PRIMARY KEY,
-	root          VARCHAR NOT NULL,
-	size          INTEGER NOT NULL,
-	prev_total    INTEGER NOT NULL,
-
-    -- Finalization information. Unlike `l2_block_headers` the NOT NULL
-    -- constraint is added since the l1 block hash will be known when
-    -- when reading the output event
-	l1_block_hash VARCHAR NOT NULL REFERENCES l1_block_headers(hash)
+	timestamp   INTEGER NOT NULL CHECK (timestamp > 0)
 );
 
 CREATE TABLE IF NOT EXISTS l2_block_headers (
@@ -30,11 +18,7 @@ CREATE TABLE IF NOT EXISTS l2_block_headers (
 	hash                     VARCHAR NOT NULL PRIMARY KEY,
 	parent_hash              VARCHAR NOT NULL,
 	number                   UINT256,
-	timestamp                INTEGER NOT NULL,
-
-    -- Finalization information
-    l1_block_hash            VARCHAR REFERENCES l1_block_headers(hash),
-    legacy_state_batch_index INTEGER REFERENCES legacy_state_batches(index)
+	timestamp                INTEGER NOT NULL CHECK (timestamp > 0)
 );
 
 /** 
@@ -47,7 +31,7 @@ CREATE TABLE IF NOT EXISTS l1_contract_events (
     transaction_hash VARCHAR NOT NULL,
     event_signature  VARCHAR NOT NULL,
     log_index        INTEGER NOT NULL,
-    timestamp        INTEGER NOT NULL
+    timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
 );
 
 CREATE TABLE IF NOT EXISTS l2_contract_events (
@@ -56,7 +40,27 @@ CREATE TABLE IF NOT EXISTS l2_contract_events (
     transaction_hash VARCHAR NOT NULL,
     event_signature  VARCHAR NOT NULL,
     log_index        INTEGER NOT NULL,
-    timestamp        INTEGER NOT NULL
+    timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
+);
+
+-- Tables that index finalization markers for L2 blocks.
+
+CREATE TABLE IF NOT EXISTS legacy_state_batches (
+	index         INTEGER NOT NULL PRIMARY KEY,
+	root          VARCHAR NOT NULL,
+	size          INTEGER NOT NULL,
+	prev_total    INTEGER NOT NULL,
+
+    l1_contract_event_guid VARCHAR REFERENCES l1_contract_events(guid)
+);
+
+CREATE TABLE IF NOT EXISTS output_proposals (
+    output_root     VARCHAR NOT NULL PRIMARY KEY,
+
+    l2_output_index UINT256,
+    l2_block_number UINT256,
+
+    l1_contract_event_guid VARCHAR REFERENCES l1_contract_events(guid)
 );
 
 /**
@@ -68,15 +72,20 @@ CREATE TABLE IF NOT EXISTS deposits (
 
     -- Event causing the deposit
     initiated_l1_event_guid VARCHAR NOT NULL REFERENCES l1_contract_events(guid),
+    sent_message_nonce      UINT256 UNIQUE,
+
+    -- Finalization marker for the deposit
+    finalized_l2_event_guid VARCHAR REFERENCES l2_contract_events(guid),
 
     -- Deposit information (do we need indexes on from/to?)
 	from_address     VARCHAR NOT NULL,
+
 	to_address       VARCHAR NOT NULL,
 	l1_token_address VARCHAR NOT NULL,
 	l2_token_address VARCHAR NOT NULL,
 	amount           UINT256,
 	data             VARCHAR NOT NULL,
-    timestamp        INTEGER NOT NULL
+    timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
 );
 
 CREATE TABLE IF NOT EXISTS withdrawals (
@@ -84,6 +93,7 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 
     -- Event causing this withdrawal
     initiated_l2_event_guid VARCHAR NOT NULL REFERENCES l2_contract_events(guid),
+    sent_message_nonce      UINT256 UNIQUE,
 
     -- Multistep (bedrock) process of a withdrawal
     withdrawal_hash      VARCHAR NOT NULL,
@@ -99,5 +109,5 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 	l2_token_address VARCHAR NOT NULL,
 	amount           UINT256,
 	data             VARCHAR NOT NULL,
-    timestamp        INTEGER NOT NULL
+    timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
 );

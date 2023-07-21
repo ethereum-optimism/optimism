@@ -1,6 +1,7 @@
 package processor
 
 import (
+	"context"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
@@ -10,55 +11,96 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-const defaultLoopInterval = 5 * time.Second
+const (
+	defaultLoopInterval     = 5 * time.Second
+	defaultHeaderBufferSize = 500
+)
 
-// processFn is the the function used to process unindexed headers. In
-// the event of a failure, all database operations are not committed
-type processFn func(*database.DB, []*types.Header) error
+// ProcessFn is the the entrypoint for processing a batch of headers.
+// In the event of failure, database operations are rolled back
+type ProcessFn func(*database.DB, []*types.Header) error
 
 type processor struct {
-	fetcher *node.Fetcher
+	headerTraversal *node.HeaderTraversal
 
 	db         *database.DB
-	processFn  processFn
+	processFn  ProcessFn
 	processLog log.Logger
+
+	paused                bool
+	latestProcessedHeader *types.Header
 }
 
-// Start kicks off the processing loop
-func (p processor) Start() {
+// Start kicks off the processing loop. This is a block operation
+// unless the processor encountering an error, abrupting the loop,
+// or the supplied context is cancelled.
+func (p *processor) Start(ctx context.Context) error {
+	done := ctx.Done()
 	pollTicker := time.NewTicker(defaultLoopInterval)
+	defer pollTicker.Stop()
+
 	p.processLog.Info("starting processor...")
+	var unprocessedHeaders []*types.Header
+	for {
+		select {
+		case <-done:
+			p.processLog.Info("stopping processor")
+			return nil
 
-	// Make this loop stoppable
-	for range pollTicker.C {
-		p.processLog.Info("checking for new headers...")
+		case <-pollTicker.C:
+			if p.paused {
+				p.processLog.Warn("processor is paused...")
+				continue
+			}
 
-		headers, err := p.fetcher.NextFinalizedHeaders()
-		if err != nil {
-			p.processLog.Error("unable to query for headers", "err", err)
-			continue
-		}
+			if len(unprocessedHeaders) == 0 {
+				newHeaders, err := p.headerTraversal.NextFinalizedHeaders(defaultHeaderBufferSize)
+				if err != nil {
+					p.processLog.Error("error querying for headers", "err", err)
+					continue
+				} else if len(newHeaders) == 0 {
+					// Logged as an error since this loop should be operating at a longer interval than the provider
+					p.processLog.Error("no new headers. processor unexpectedly at head...")
+					continue
+				}
 
-		if len(headers) == 0 {
-			p.processLog.Info("no new headers. indexer must be at head...")
-			continue
-		}
+				unprocessedHeaders = newHeaders
+			} else {
+				p.processLog.Info("retrying previous batch")
+			}
 
-		batchLog := p.processLog.New("startHeight", headers[0].Number, "endHeight", headers[len(headers)-1].Number)
-		batchLog.Info("indexing batch of headers")
+			firstHeader := unprocessedHeaders[0]
+			lastHeader := unprocessedHeaders[len(unprocessedHeaders)-1]
+			batchLog := p.processLog.New("batch_start_block_number", firstHeader.Number, "batch_end_block_number", lastHeader.Number)
+			err := p.db.Transaction(func(db *database.DB) error {
+				batchLog.Info("processing batch")
+				return p.processFn(db, unprocessedHeaders)
+			})
 
-		// wrap operations within a single transaction
-		err = p.db.Transaction(func(db *database.DB) error {
-			return p.processFn(db, headers)
-		})
+			// Eventually, we want to halt the processor on any error rather than rely
+			// on this loop for retry functionality.
+			if err != nil {
+				batchLog.Warn("error processing batch. no operations committed", "err", err)
+			} else {
+				batchLog.Info("fully committed batch")
 
-		// TODO(DX-79) if processFn failed, the next poll should retry starting from this same batch of headers
-
-		if err != nil {
-			batchLog.Info("unable to index batch", "err", err)
-			panic(err)
-		} else {
-			batchLog.Info("done indexing batch")
+				unprocessedHeaders = nil
+				p.latestProcessedHeader = lastHeader
+			}
 		}
 	}
+}
+
+func (p processor) LatestProcessedHeader() *types.Header {
+	return p.latestProcessedHeader
+}
+
+// Useful ONLY for tests!
+
+func (p *processor) PauseForTest() {
+	p.paused = true
+}
+
+func (p *processor) ResumeForTest() {
+	p.paused = false
 }

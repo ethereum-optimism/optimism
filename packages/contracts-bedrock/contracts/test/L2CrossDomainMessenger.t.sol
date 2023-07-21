@@ -1,26 +1,33 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+// Testing utilities
 import { Messenger_Initializer, Reverter, ConfigurableCaller } from "./CommonTest.t.sol";
 
-import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
-import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
-import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
-import { L2CrossDomainMessenger } from "../L2/L2CrossDomainMessenger.sol";
-import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
+// Libraries
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
 import { Types } from "../libraries/Types.sol";
 
+// Target contract dependencies
+import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
+import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
+import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
+
+// Target contract
+import { L2CrossDomainMessenger } from "../L2/L2CrossDomainMessenger.sol";
+
 contract L2CrossDomainMessenger_Test is Messenger_Initializer {
-    // Receiver address for testing
+    /// @dev Receiver address for testing
     address recipient = address(0xabbaacdc);
 
+    /// @dev Tests that `messageNonce` can be decoded correctly.
     function test_messageVersion_succeeds() external {
         (, uint16 version) = Encoding.decodeVersionedNonce(L2Messenger.messageNonce());
         assertEq(version, L2Messenger.MESSAGE_VERSION());
     }
 
+    /// @dev Tests that `sendMessage` executes successfully.
     function test_sendMessage_succeeds() external {
         bytes memory xDomainCallData = Encoding.encodeCrossDomainMessage(
             L2Messenger.messageNonce(),
@@ -65,6 +72,8 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         L2Messenger.sendMessage(recipient, hex"ff", uint32(100));
     }
 
+    /// @dev Tests that `sendMessage` can be called twice and that
+    ///      the nonce increments correctly.
     function test_sendMessage_twice_succeeds() external {
         uint256 nonce = L2Messenger.messageNonce();
         L2Messenger.sendMessage(recipient, hex"aa", uint32(500_000));
@@ -73,11 +82,13 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(nonce + 2, L2Messenger.messageNonce());
     }
 
+    /// @dev Tests that `sendMessage` reverts if the recipient is the zero address.
     function test_xDomainSender_senderNotSet_reverts() external {
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L2Messenger.xDomainMessageSender();
     }
 
+    /// @dev Tests that `sendMessage` reverts if the message version is not supported.
     function test_relayMessage_v2_reverts() external {
         address target = address(0xabcd);
         address sender = address(L1Messenger);
@@ -100,6 +111,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         );
     }
 
+    /// @dev Tests that `relayMessage` executes successfully.
     function test_relayMessage_succeeds() external {
         address target = address(0xabcd);
         address sender = address(L1Messenger);
@@ -137,7 +149,8 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(L2Messenger.failedMessages(hash), false);
     }
 
-    // relayMessage: should revert if attempting to relay a message sent to an L1 system contract
+    /// @dev Tests that `relayMessage` reverts if attempting to relay
+    ///      a message sent to an L1 system contract.
     function test_relayMessage_toSystemContract_reverts() external {
         address target = address(messagePasser);
         address sender = address(L1Messenger);
@@ -156,7 +169,8 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         );
     }
 
-    // relayMessage: the xDomainMessageSender is reset to the original value
+    /// @dev Tests that `relayMessage` correctly resets the `xDomainMessageSender`
+    ///      to the original value after a message is relayed.
     function test_xDomainMessageSender_reset_succeeds() external {
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L2Messenger.xDomainMessageSender();
@@ -176,8 +190,9 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         L2Messenger.xDomainMessageSender();
     }
 
-    // relayMessage: should send a successful call to the target contract after the first message
-    // fails and ETH gets stuck, but the second message succeeds
+    /// @dev Tests that `relayMessage` is able to send a successful call
+    ///      to the target contract after the first message fails and ETH
+    ///      gets stuck, but the second message succeeds.
     function test_relayMessage_retry_succeeds() external {
         address target = address(0xabcd);
         address sender = address(L1Messenger);

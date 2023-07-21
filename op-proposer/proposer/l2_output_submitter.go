@@ -14,7 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -259,6 +259,7 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 		l.log.Error("proposer unable to get sync status", "err", err)
 		return nil, false, err
 	}
+
 	// Use either the finalized or safe head depending on the config. Finalized head is default & safer.
 	var currentBlockNumber *big.Int
 	if l.allowNonFinalized {
@@ -268,14 +269,14 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 	}
 	// Ensure that we do not submit a block in the future
 	if currentBlockNumber.Cmp(nextCheckpointBlock) < 0 {
-		l.log.Info("proposer submission interval has not elapsed", "currentBlockNumber", currentBlockNumber, "nextBlockNumber", nextCheckpointBlock)
+		l.log.Debug("proposer submission interval has not elapsed", "currentBlockNumber", currentBlockNumber, "nextBlockNumber", nextCheckpointBlock)
 		return nil, false, nil
 	}
 
-	return l.fetchOuput(ctx, nextCheckpointBlock)
+	return l.fetchOutput(ctx, nextCheckpointBlock)
 }
 
-func (l *L2OutputSubmitter) fetchOuput(ctx context.Context, block *big.Int) (*eth.OutputResponse, bool, error) {
+func (l *L2OutputSubmitter) fetchOutput(ctx context.Context, block *big.Int) (*eth.OutputResponse, bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, l.networkTimeout)
 	defer cancel()
 	output, err := l.rollupClient.OutputAtBlock(ctx, block.Uint64())
@@ -319,8 +320,41 @@ func proposeL2OutputTxData(abi *abi.ABI, output *eth.OutputResponse) ([]byte, er
 		new(big.Int).SetUint64(output.Status.CurrentL1.Number))
 }
 
+// We wait until l1head advances beyond blocknum. This is used to make sure proposal tx won't
+// immediately fail when checking the l1 blockhash. Note that EstimateGas uses "latest" state to
+// execute the transaction by default, meaning inside the call, the head block is considered
+// "pending" instead of committed. In the case l1blocknum == l1head then, blockhash(l1blocknum)
+// will produce a value of 0 within EstimateGas, and the call will fail when the contract checks
+// that l1blockhash matches blockhash(l1blocknum).
+func (l *L2OutputSubmitter) waitForL1Head(ctx context.Context, blockNum uint64) error {
+	ticker := time.NewTicker(l.pollInterval)
+	defer ticker.Stop()
+	l1head, err := l.txMgr.BlockNumber(ctx)
+	if err != nil {
+		return err
+	}
+	for l1head <= blockNum {
+		l.log.Debug("waiting for l1 head > l1blocknum1+1", "l1head", l1head, "l1blocknum", blockNum)
+		select {
+		case <-ticker.C:
+			l1head, err = l.txMgr.BlockNumber(ctx)
+			if err != nil {
+				return err
+			}
+			break
+		case <-l.done:
+			return fmt.Errorf("L2OutputSubmitter is done()")
+		}
+	}
+	return nil
+}
+
 // sendTransaction creates & sends transactions through the underlying transaction manager.
 func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.OutputResponse) error {
+	err := l.waitForL1Head(ctx, output.Status.HeadL1.Number+1)
+	if err != nil {
+		return err
+	}
 	data, err := l.ProposeL2OutputTxData(output)
 	if err != nil {
 		return err
@@ -336,7 +370,10 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 	if receipt.Status == types.ReceiptStatusFailed {
 		l.log.Error("proposer tx successfully published but reverted", "tx_hash", receipt.TxHash)
 	} else {
-		l.log.Info("proposer tx successfully published", "tx_hash", receipt.TxHash)
+		l.log.Info("proposer tx successfully published",
+			"tx_hash", receipt.TxHash,
+			"l1blocknum", output.Status.CurrentL1.Number,
+			"l1blockhash", output.Status.CurrentL1.Hash)
 	}
 	return nil
 }
@@ -359,10 +396,13 @@ func (l *L2OutputSubmitter) loop() {
 			if !shouldPropose {
 				break
 			}
-
 			cCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 			if err := l.sendTransaction(cCtx, output); err != nil {
-				l.log.Error("Failed to send proposal transaction", "err", err)
+				l.log.Error("Failed to send proposal transaction",
+					"err", err,
+					"l1blocknum", output.Status.CurrentL1.Number,
+					"l1blockhash", output.Status.CurrentL1.Hash,
+					"l1head", output.Status.HeadL1.Number)
 				cancel()
 				break
 			}

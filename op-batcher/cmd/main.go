@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-batcher/cmd/doc"
@@ -29,7 +29,7 @@ func main() {
 	app.Usage = "Batch Submitter Service"
 	app.Description = "Service for generating and submitting L2 tx batches to L1"
 	app.Action = curryMain(Version)
-	app.Commands = []cli.Command{
+	app.Commands = []*cli.Command{
 		{
 			Name:        "doc",
 			Subcommands: doc.Subcommands,

@@ -20,7 +20,7 @@ export class ECOBridgeAdapter extends StandardBridgeAdapter {
       [
         {
           inputs: [],
-          name: 'ecoAddress',
+          name: 'l1Eco',
           outputs: [
             {
               internalType: 'address',
@@ -40,7 +40,7 @@ export class ECOBridgeAdapter extends StandardBridgeAdapter {
       [
         {
           inputs: [],
-          name: 'l2EcoToken',
+          name: 'l2Eco',
           outputs: [
             {
               internalType: 'contract L2ECO',
@@ -56,8 +56,8 @@ export class ECOBridgeAdapter extends StandardBridgeAdapter {
     )
 
     const [remoteL1Token, remoteL2Token] = await Promise.all([
-      l1Bridge.ecoAddress(),
-      l2Bridge.l2EcoToken(),
+      l1Bridge.l1Eco(),
+      l2Bridge.l2Eco(),
     ])
 
     if (!hexStringEquals(remoteL1Token, toAddress(l1Token))) {

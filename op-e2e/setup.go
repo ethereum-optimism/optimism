@@ -170,6 +170,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 					EnableAdmin: true,
 				},
 				L1EpochPollInterval: time.Second * 4,
+				ConfigPersistence:   &rollupNode.DisabledConfigPersistence{},
 			},
 			"verifier": {
 				Driver: driver.Config{
@@ -178,6 +179,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 					SequencerEnabled:   false,
 				},
 				L1EpochPollInterval: time.Second * 4,
+				ConfigPersistence:   &rollupNode.DisabledConfigPersistence{},
 			},
 		},
 		Loggers: map[string]log.Logger{
@@ -239,6 +241,9 @@ type SystemConfig struct {
 
 	// Target L1 tx size for the batcher transactions
 	BatcherTargetL1TxSizeBytes uint64
+
+	// SupportL1TimeTravel determines if the L1 node supports quickly skipping forward in time
+	SupportL1TimeTravel bool
 }
 
 type System struct {
@@ -256,6 +261,13 @@ type System struct {
 	L2OutputSubmitter *l2os.L2OutputSubmitter
 	BatchSubmitter    *bss.BatchSubmitter
 	Mocknet           mocknet.Mocknet
+
+	// TimeTravelClock is nil unless SystemConfig.SupportL1TimeTravel was set to true
+	// It provides access to the clock instance used by the L1 node. Calling TimeTravelClock.AdvanceBy
+	// allows tests to quickly time travel L1 into the future.
+	// Note that this time travel may occur in a single block, creating a very large difference in the Time
+	// on sequential blocks.
+	TimeTravelClock *clock.AdvancingClock
 }
 
 func (sys *System) NodeEndpoint(name string) string {
@@ -337,6 +349,12 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		}
 	}()
 
+	c := clock.SystemClock
+	if cfg.SupportL1TimeTravel {
+		sys.TimeTravelClock = clock.NewAdvancingClock(100 * time.Millisecond)
+		c = sys.TimeTravelClock
+	}
+
 	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig)
 	if err != nil {
 		return nil, err
@@ -359,7 +377,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	}
 
 	l1Block := l1Genesis.ToBlock()
-	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block)
+	l2Genesis, err := genesis.BuildL2Genesis(cfg.DeployConfig, l1Block)
 	if err != nil {
 		return nil, err
 	}
@@ -410,7 +428,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	sys.RollupConfig = &defaultConfig
 
 	// Initialize nodes
-	l1Node, l1Backend, err := initL1Geth(&cfg, l1Genesis, cfg.GethOptions["l1"]...)
+	l1Node, l1Backend, err := initL1Geth(&cfg, l1Genesis, c, cfg.GethOptions["l1"]...)
 	if err != nil {
 		return nil, err
 	}
@@ -546,6 +564,9 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		nodeConfig := cfg.Nodes[name]
 		c := *nodeConfig // copy
 		c.Rollup = makeRollupConfig()
+		if err := c.LoadPersisted(cfg.Loggers[name]); err != nil {
+			return nil, err
+		}
 
 		if p, ok := p2pNodes[name]; ok {
 			c.P2P = p
@@ -595,6 +616,10 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		}
 	}
 
+	// Don't start batch submitter and proposer if there's no sequencer.
+	if sys.RollupNodes["sequencer"] == nil {
+		return sys, nil
+	}
 	// L2Output Submitter
 	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
 		L1EthRpc:          sys.Nodes["l1"].WSEndpoint(),

@@ -456,6 +456,10 @@ func (m *Metrics) SetPeerScores(allScores []store.PeerScores) {
 		m.PeerScores.WithLabelValues("blocksTimeInMesh").Observe(scores.Gossip.Blocks.TimeInMesh)
 		m.PeerScores.WithLabelValues("blocksMessageDeliveries").Observe(scores.Gossip.Blocks.MeshMessageDeliveries)
 		m.PeerScores.WithLabelValues("blocksInvalidMessageDeliveries").Observe(scores.Gossip.Blocks.InvalidMessageDeliveries)
+
+		m.PeerScores.WithLabelValues("reqRespValidResponses").Observe(scores.ReqResp.ValidResponses)
+		m.PeerScores.WithLabelValues("reqRespErrorResponses").Observe(scores.ReqResp.ErrorResponses)
+		m.PeerScores.WithLabelValues("reqRespRejectedPayloads").Observe(scores.ReqResp.RejectedPayloads)
 	}
 }
 
