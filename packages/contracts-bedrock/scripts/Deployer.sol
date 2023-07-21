@@ -97,6 +97,7 @@ abstract contract Deployer is Script {
     function sync() public {
         Deployment[] memory deployments = _getTempDeployments();
         console.log("Syncing %s deployments", deployments.length);
+        console.log("Using deployment artifact %s", deployPath);
 
         for (uint256 i; i < deployments.length; i++) {
             address addr = deployments[i].addr;
