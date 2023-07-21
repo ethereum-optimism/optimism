@@ -15,7 +15,7 @@ import (
 )
 
 // Main is the programmatic entry-point for running op-challenger
-func Main(logger log.Logger, cfg *config.Config) error {
+func Main(ctx context.Context, logger log.Logger, cfg *config.Config) error {
 	client, err := ethclient.Dial(cfg.L1EthRpc)
 	if err != nil {
 		return fmt.Errorf("failed to dial L1: %w", err)
@@ -49,14 +49,19 @@ func Main(logger log.Logger, cfg *config.Config) error {
 
 	for {
 		logger.Info("Performing action")
-		_ = agent.Act(context.Background())
-		status, _ := caller.GetGameStatus(context.Background())
+		_ = agent.Act(ctx)
+		status, _ := caller.GetGameStatus(ctx)
 		if status != 0 {
 			caller.LogGameStatus()
 			return nil
 		} else {
 			caller.LogGameInfo()
 		}
-		time.Sleep(300 * time.Millisecond)
+		select {
+		case <-time.After(300 * time.Millisecond):
+		// Continue
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
 }
