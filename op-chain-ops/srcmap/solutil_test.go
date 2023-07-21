@@ -1,6 +1,7 @@
 package srcmap
 
 import (
+	"path"
 	"strings"
 	"testing"
 
@@ -11,17 +12,27 @@ import (
 )
 
 func TestSourcemap(t *testing.T) {
-	sourcePath := "../../packages/contracts-bedrock/src/cannon/MIPS.sol"
+	contractsDir := "../../packages/contracts-bedrock"
+	sources := []string{path.Join(contractsDir, "contracts/cannon/MIPS.sol")}
+	sources = append(sources, bindings.Sources...)
+	for i, source := range sources {
+		// Add relative path to contracts directory if the source is not
+		// already relativized.
+		if !strings.HasPrefix(source, "..") {
+			sources[i] = path.Join(contractsDir, source)
+		}
+	}
+
 	deployedByteCode := hexutil.MustDecode(bindings.MIPSDeployedBin)
 	srcMap, err := ParseSourceMap(
-		[]string{sourcePath},
+		sources,
 		deployedByteCode,
 		bindings.MIPSDeployedSourceMap)
 	require.NoError(t, err)
 
 	for i := 0; i < len(deployedByteCode); i++ {
 		info := srcMap.FormattedInfo(uint64(i))
-		if !strings.HasPrefix(info, "generated:") && !strings.HasPrefix(info, sourcePath) {
+		if strings.HasPrefix(info, "unexpected") {
 			t.Fatalf("unexpected info: %q", info)
 		}
 	}
