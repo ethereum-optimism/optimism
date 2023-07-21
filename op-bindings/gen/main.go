@@ -12,13 +12,16 @@ import (
 	"regexp"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/ast"
 	"github.com/ethereum-optimism/optimism/op-bindings/foundry"
+	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 )
 
 type flags struct {
 	ForgeArtifacts string
+	ForgeBuildInfo string
 	Contracts      string
 	SourceMaps     string
 	OutDir         string
@@ -27,6 +30,7 @@ type flags struct {
 }
 
 type data struct {
+	SourceId          uint
 	Name              string
 	StorageLayout     string
 	DeployedBin       string
@@ -34,9 +38,17 @@ type data struct {
 	DeployedSourceMap string
 }
 
+type sourceIdData struct {
+	Package    string
+	Sources    []string
+	SourceToId map[string]uint
+	IdToSource map[uint]string
+}
+
 func main() {
 	var f flags
 	flag.StringVar(&f.ForgeArtifacts, "forge-artifacts", "", "Forge artifacts directory, to load sourcemaps from, if available")
+	flag.StringVar(&f.ForgeBuildInfo, "forge-build-info", "", "Forge build info directory, to load source IDs from, if available")
 	flag.StringVar(&f.OutDir, "out", "", "Output directory to put code in")
 	flag.StringVar(&f.Contracts, "contracts", "artifacts.json", "Path to file containing list of contracts to generate bindings for")
 	flag.StringVar(&f.SourceMaps, "source-maps", "", "Comma-separated list of contracts to generate source-maps for")
@@ -197,6 +209,80 @@ func main() {
 		outfile.Close()
 		log.Printf("wrote file %s\n", outfile.Name())
 	}
+
+	mostRecentBuildInfo, err := getMostRecentlyModifiedFile(f.ForgeBuildInfo)
+	if err != nil {
+		log.Fatalf("Error getting most recently modified build info file: %v", err)
+	}
+	buildInfoRaw, err := os.ReadFile(mostRecentBuildInfo)
+	if err != nil {
+		log.Fatalf("Error reading build info file: %v", err)
+	}
+	var buildInfo hardhat.BuildInfo
+	if err := json.Unmarshal(buildInfoRaw, &buildInfo); err != nil {
+		log.Fatalf("Error parsing build info file: %v", err)
+	}
+
+	sourceToId := make(map[string]uint)
+	idToSource := make(map[uint]string)
+	monorepoBase, err := filepath.Abs(f.MonorepoBase)
+	if err != nil {
+		log.Fatalf("Error getting absolute path of monorepo base: %v", err)
+	}
+	for k, v := range buildInfo.Output.Sources {
+		// Replace absolute monorepo base with relative path to monorepo root
+		k = strings.Replace(k, monorepoBase+"/", "../../", 1)
+		sourceToId[k] = v.Id
+		idToSource[v.Id] = k
+	}
+
+	fname := filepath.Join(f.OutDir, "source_ids.go")
+	outfile, err := os.OpenFile(
+		fname,
+		os.O_RDWR|os.O_CREATE|os.O_TRUNC,
+		0o600,
+	)
+	if err != nil {
+		log.Fatalf("error opening %s: %v\n", fname, err)
+	}
+
+	t = template.Must(template.New("source_ids").Parse(sourceIdTmpl))
+
+	d := sourceIdData{
+		Package:    f.Package,
+		SourceToId: sourceToId,
+		IdToSource: idToSource,
+	}
+	if err := t.Execute(outfile, d); err != nil {
+		log.Fatalf("error writing template %s: %v", outfile.Name(), err)
+	}
+	outfile.Close()
+	log.Printf("wrote file %s\n", outfile.Name())
+}
+
+// getMostRecentlyModifiedFile returns the path of the most recently modified file in the given directory.
+func getMostRecentlyModifiedFile(dirPath string) (string, error) {
+	var mostRecentFile string
+	var mostRecentModTime time.Time
+
+	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Check if the current path is a regular file and not a directory
+		if !info.IsDir() {
+			modTime := info.ModTime()
+			if modTime.After(mostRecentModTime) {
+				mostRecentModTime = modTime
+				mostRecentFile = path
+			}
+		}
+
+		return nil
+	})
+
+	return mostRecentFile, err
 }
 
 var tmpl = `// Code generated - DO NOT EDIT.
@@ -226,4 +312,22 @@ func init() {
 	layouts["{{.Name}}"] = {{.Name}}StorageLayout
 	deployedBytecodes["{{.Name}}"] = {{.Name}}DeployedBin
 }
+`
+
+var sourceIdTmpl = `// Code generated - DO NOT EDIT.
+// This file is a generated binding and any manual changes will be lost.
+
+package {{.Package}}
+
+var Sources = []string{
+{{range $key, $value := .SourceToId}}    "{{$key}}",
+{{end}}}
+
+var SourceToId = map[string]uint{
+{{range $key, $value := .SourceToId}}    "{{$key}}": {{$value}},
+{{end}}}
+
+var IdToSource = map[uint]string{
+{{range $key, $value := .IdToSource}}    {{$key}}: "{{$value}}",
+{{end}}}
 `
