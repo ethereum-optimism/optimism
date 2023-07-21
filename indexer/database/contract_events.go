@@ -1,6 +1,8 @@
 package database
 
 import (
+	"errors"
+
 	"gorm.io/gorm"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -46,6 +48,11 @@ type L2ContractEvent struct {
 }
 
 type ContractEventsView interface {
+	L1ContractEvent(uuid.UUID) (*L1ContractEvent, error)
+	L1ContractEventByTxLogIndex(common.Hash, uint64) (*L1ContractEvent, error)
+
+	L2ContractEvent(uuid.UUID) (*L2ContractEvent, error)
+	L2ContractEventByTxLogIndex(common.Hash, uint64) (*L2ContractEvent, error)
 }
 
 type ContractEventsDB interface {
@@ -74,9 +81,65 @@ func (db *contractEventsDB) StoreL1ContractEvents(events []*L1ContractEvent) err
 	return result.Error
 }
 
+func (db *contractEventsDB) L1ContractEvent(uuid uuid.UUID) (*L1ContractEvent, error) {
+	var l1ContractEvent L1ContractEvent
+	result := db.gorm.Where(&ContractEvent{GUID: uuid}).Take(&l1ContractEvent)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return &l1ContractEvent, nil
+}
+
+func (db *contractEventsDB) L1ContractEventByTxLogIndex(txHash common.Hash, logIndex uint64) (*L1ContractEvent, error) {
+	var l1ContractEvent L1ContractEvent
+	result := db.gorm.Where(&ContractEvent{TransactionHash: txHash, LogIndex: logIndex}).Take(&l1ContractEvent)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return &l1ContractEvent, nil
+}
+
 // L2
 
 func (db *contractEventsDB) StoreL2ContractEvents(events []*L2ContractEvent) error {
 	result := db.gorm.Create(&events)
 	return result.Error
+}
+
+func (db *contractEventsDB) L2ContractEvent(uuid uuid.UUID) (*L2ContractEvent, error) {
+	var l2ContractEvent L2ContractEvent
+	result := db.gorm.Where(&ContractEvent{GUID: uuid}).Take(&l2ContractEvent)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return &l2ContractEvent, nil
+}
+
+func (db *contractEventsDB) L2ContractEventByTxLogIndex(txHash common.Hash, logIndex uint64) (*L2ContractEvent, error) {
+	var l2ContractEvent L2ContractEvent
+	result := db.gorm.Where(&ContractEvent{TransactionHash: txHash, LogIndex: logIndex}).Take(&l2ContractEvent)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return &l2ContractEvent, nil
 }

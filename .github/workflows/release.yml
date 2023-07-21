@@ -16,7 +16,7 @@ jobs:
     if: github.repository == 'ethereum-optimism/optimism'
     # map the step outputs to job outputs
     outputs:
-      fault-detector: ${{ steps.packages.outputs.fault-detector }}
+      fault-mon: ${{ steps.packages.outputs.fault-mon }}
       balance-mon: ${{ steps.packages.outputs.drippie-mon }}
       drippie-mon: ${{ steps.packages.outputs.drippie-mon }}
       wd-mon: ${{ steps.packages.outputs.wd-mon }}
@@ -100,10 +100,10 @@ jobs:
             GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
             GITVERSION=${{ steps.build_args.outputs.GITVERSION }}
 
-  fault-detector:
-    name: Publish Fault Detector Version ${{ needs.release.outputs.fault-detector }}
+  fault-mon:
+    name: Publish fault-mon Version ${{ needs.release.outputs.fault-mon }}
     needs: release
-    if: needs.release.outputs.fault-detector != ''
+    if: needs.release.outputs.fault-mon != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -123,9 +123,9 @@ jobs:
         with:
           context: .
           file: ./ops/docker/Dockerfile.packages
-          target: fault-detector
+          target: fault-mon
           push: true
-          tags: ethereumoptimism/fault-detector:${{ needs.release.outputs.fault-detector }},ethereumoptimism/fault-detector:latest
+          tags: ethereumoptimism/fault-mon:${{ needs.release.outputs.fault-mon }},ethereumoptimism/fault-mon:latest
 
   wd-mon:
     name: Publish Withdrawal Monitor Version ${{ needs.release.outputs.wd-mon }}

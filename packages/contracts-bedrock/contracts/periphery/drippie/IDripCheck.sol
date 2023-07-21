@@ -7,12 +7,8 @@ interface IDripCheck {
     // possible to easily encode parameters on the client side. Solidity does not support generics
     // so it's not possible to do this with explicit typing.
 
-    /**
-     * @notice Checks whether a drip should be executable.
-     *
-     * @param _params Encoded parameters for the drip check.
-     *
-     * @return Whether the drip should be executed.
-     */
-    function check(bytes memory _params) external view returns (bool);
+    /// @notice Checks whether a drip should be executable.
+    /// @param _params Encoded parameters for the drip check.
+    /// @return execute_ Whether the drip should be executed.
+    function check(bytes memory _params) external view returns (bool execute_);
 }

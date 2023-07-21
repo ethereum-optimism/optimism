@@ -39,7 +39,7 @@ func L2ContractPredeploys() L2Contracts {
 	}
 }
 
-func (c L2Contracts) toSlice() []common.Address {
+func (c L2Contracts) ToSlice() []common.Address {
 	fields := reflect.VisibleFields(reflect.TypeOf(c))
 	v := reflect.ValueOf(c)
 
@@ -55,8 +55,8 @@ type L2Processor struct {
 	processor
 }
 
-func NewL2Processor(ethClient node.EthClient, db *database.DB, l2Contracts L2Contracts) (*L2Processor, error) {
-	l2ProcessLog := log.New("processor", "l2")
+func NewL2Processor(logger log.Logger, ethClient node.EthClient, db *database.DB, l2Contracts L2Contracts) (*L2Processor, error) {
+	l2ProcessLog := logger.New("processor", "l2")
 	l2ProcessLog.Info("initializing processor")
 
 	latestHeader, err := db.Blocks.LatestL2BlockHeader()
@@ -94,7 +94,7 @@ func NewL2Processor(ethClient node.EthClient, db *database.DB, l2Contracts L2Con
 func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2Contracts) ProcessFn {
 	rawEthClient := ethclient.NewClient(ethClient.RawRpcClient())
 
-	contractAddrs := l2Contracts.toSlice()
+	contractAddrs := l2Contracts.ToSlice()
 	processLog.Info("processor configured with contracts", "contracts", l2Contracts)
 	return func(db *database.DB, headers []*types.Header) error {
 		numHeaders := len(headers)
@@ -127,14 +127,15 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 
 		l2ContractEvents := make([]*database.L2ContractEvent, len(logs))
 		processedContractEvents := NewProcessedContractEvents()
-		for i, log := range logs {
+		for i := range logs {
+			log := &logs[i]
 			header, ok := l2HeaderMap[log.BlockHash]
 			if !ok {
 				processLog.Error("contract event found with associated header not in the batch", "header", header, "log_index", log.Index)
 				return errors.New("parsed log with a block hash not in this batch")
 			}
 
-			contractEvent := processedContractEvents.AddLog(&logs[i], header.Time)
+			contractEvent := processedContractEvents.AddLog(log, header.Time)
 			l2ContractEvents[i] = &database.L2ContractEvent{ContractEvent: *contractEvent}
 		}
 

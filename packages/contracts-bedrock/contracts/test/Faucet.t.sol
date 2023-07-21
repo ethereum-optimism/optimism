@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
@@ -45,9 +45,7 @@ contract Faucet_Initializer is Test {
         _initializeContracts();
     }
 
-    /**
-     * @notice Instantiates a Faucet.
-     */
+    /// @notice Instantiates a Faucet.
     function _initializeContracts() internal {
         faucet = new Faucet(faucetContractAdmin);
 
@@ -76,10 +74,7 @@ contract Faucet_Initializer is Test {
         vm.stopPrank();
     }
 
-    /**
-     * @notice Get signature as a bytes blob.
-     *
-     */
+    /// @notice Get signature as a bytes blob.
     function _getSignature(uint256 _signingPrivateKey, bytes32 _digest)
         internal
         pure
@@ -91,11 +86,9 @@ contract Faucet_Initializer is Test {
         return signature;
     }
 
-    /**
-     * @notice Signs a proof with the given private key and returns the signature using
-     *         the given EIP712 domain separator. This assumes that the issuer's address is the
-     *         corresponding public key to _issuerPrivateKey.
-     */
+    /// @notice Signs a proof with the given private key and returns the signature using
+    ///         the given EIP712 domain separator. This assumes that the issuer's address is the
+    ///         corresponding public key to _issuerPrivateKey.
     function issueProofWithEIP712Domain(
         uint256 _issuerPrivateKey,
         bytes memory _eip712Name,

@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -77,6 +78,20 @@ func (r *faultResponder) BuildTx(ctx context.Context, response Claim) ([]byte, e
 	}
 }
 
+// CanResolve determines if the resolve function on the fault dispute game contract
+// would succeed. Returns true if the game can be resolved, otherwise false.
+func (r *faultResponder) CanResolve(ctx context.Context) bool {
+	txData, err := r.buildResolveData()
+	if err != nil {
+		return false
+	}
+	_, err = r.txMgr.Call(ctx, ethereum.CallMsg{
+		To:   &r.fdgAddr,
+		Data: txData,
+	}, nil)
+	return err == nil
+}
+
 // Resolve executes a resolve transaction to resolve a fault dispute game.
 func (r *faultResponder) Resolve(ctx context.Context) error {
 	txData, err := r.buildResolveData()
@@ -108,9 +123,9 @@ func (r *faultResponder) sendTxAndWait(ctx context.Context, txData []byte) error
 		return err
 	}
 	if receipt.Status == types.ReceiptStatusFailed {
-		r.log.Error("responder tx successfully published but reverted", "tx_hash", receipt.TxHash)
+		r.log.Error("Responder tx successfully published but reverted", "tx_hash", receipt.TxHash)
 	} else {
-		r.log.Info("responder tx successfully published", "tx_hash", receipt.TxHash)
+		r.log.Debug("Responder tx successfully published", "tx_hash", receipt.TxHash)
 	}
 	return nil
 }

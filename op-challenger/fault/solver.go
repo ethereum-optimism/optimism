@@ -2,8 +2,13 @@ package fault
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
+)
+
+var (
+	ErrGameDepthReached = errors.New("game depth reached")
 )
 
 // Solver uses a [TraceProvider] to determine the moves to make in a dispute game.
@@ -54,7 +59,7 @@ func (s *Solver) handleMiddle(claim Claim) (*Claim, error) {
 		return nil, err
 	}
 	if claim.Depth() == s.gameDepth {
-		return nil, errors.New("game depth reached")
+		return nil, ErrGameDepthReached
 	}
 	if claimCorrect {
 		return s.defend(claim)
@@ -67,6 +72,7 @@ type StepData struct {
 	LeafClaim Claim
 	IsAttack  bool
 	PreState  []byte
+	ProofData []byte
 }
 
 // AttemptStep determines what step should occur for a given leaf claim.
@@ -84,6 +90,7 @@ func (s *Solver) AttemptStep(claim Claim, agreeWithClaimLevel bool) (StepData, e
 	}
 	index := claim.TraceIndex(s.gameDepth)
 	var preState []byte
+	var proofData []byte
 	// If we are attacking index 0, we provide the absolute pre-state, not an intermediate state
 	if index == 0 && !claimCorrect {
 		preState = s.AbsolutePreState()
@@ -92,7 +99,7 @@ func (s *Solver) AttemptStep(claim Claim, agreeWithClaimLevel bool) (StepData, e
 		if !claimCorrect {
 			index = index - 1
 		}
-		preState, err = s.GetPreimage(index)
+		preState, proofData, err = s.GetPreimage(index)
 		if err != nil {
 			return StepData{}, err
 		}
@@ -102,6 +109,7 @@ func (s *Solver) AttemptStep(claim Claim, agreeWithClaimLevel bool) (StepData, e
 		LeafClaim: claim,
 		IsAttack:  !claimCorrect,
 		PreState:  preState,
+		ProofData: proofData,
 	}, nil
 }
 
@@ -110,7 +118,7 @@ func (s *Solver) attack(claim Claim) (*Claim, error) {
 	position := claim.Attack()
 	value, err := s.traceAtPosition(position)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("attack claim: %w", err)
 	}
 	return &Claim{
 		ClaimData:           ClaimData{Value: value, Position: position},
@@ -124,7 +132,7 @@ func (s *Solver) defend(claim Claim) (*Claim, error) {
 	position := claim.Defend()
 	value, err := s.traceAtPosition(position)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("defend claim: %w", err)
 	}
 	return &Claim{
 		ClaimData:           ClaimData{Value: value, Position: position},

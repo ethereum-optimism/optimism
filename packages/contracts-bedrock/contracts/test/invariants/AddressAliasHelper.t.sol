@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
@@ -7,9 +8,7 @@ import { AddressAliasHelper } from "../../vendor/AddressAliasHelper.sol";
 contract AddressAliasHelper_Converter {
     bool public failedRoundtrip;
 
-    /**
-     * @dev Allows the actor to convert L1 to L2 addresses and vice versa.
-     */
+    /// @dev Allows the actor to convert L1 to L2 addresses and vice versa.
     function convertRoundTrip(address addr) external {
         // Alias our address
         address aliasedAddr = AddressAliasHelper.applyL1ToL2Alias(addr);
@@ -39,12 +38,11 @@ contract AddressAliasHelper_AddressAliasing_Invariant is StdInvariant, Test {
         targetSelector(selector);
     }
 
-    /**
-     * @custom:invariant Address aliases are always able to be undone.
-     *
-     * Asserts that an address that has been aliased with `applyL1ToL2Alias` can always
-     * be unaliased with `undoL1ToL2Alias`.
-     */
+    /// @custom:invariant Address aliases are always able to be undone.
+    ///
+    ///                   Asserts that an address that has been aliased with
+    ///                   `applyL1ToL2Alias` can always be unaliased with
+    ///                   `undoL1ToL2Alias`.
     function invariant_round_trip_aliasing() external {
         // ASSERTION: The round trip aliasing done in testRoundTrip(...) should never fail.
         assertEq(actor.failedRoundtrip(), false);

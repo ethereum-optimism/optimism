@@ -55,16 +55,17 @@ func FuzzIndexToBytes(f *testing.F) {
 func TestGetPreimage_Succeeds(t *testing.T) {
 	ap := NewAlphabetProvider("abc", 2)
 	expected := BuildAlphabetPreimage(0, "a'")
-	retrieved, err := ap.GetPreimage(uint64(0))
+	retrieved, proof, err := ap.GetPreimage(uint64(0))
 	require.NoError(t, err)
 	require.Equal(t, expected, retrieved)
+	require.Empty(t, proof)
 }
 
 // TestGetPreimage_TooLargeIndex_Fails tests the GetPreimage
 // function errors if the index is too large.
 func TestGetPreimage_TooLargeIndex_Fails(t *testing.T) {
 	ap := NewAlphabetProvider("abc", 2)
-	_, err := ap.GetPreimage(4)
+	_, _, err := ap.GetPreimage(4)
 	require.ErrorIs(t, err, ErrIndexTooLarge)
 }
 

@@ -4,6 +4,7 @@ package database
 import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 type DB struct {
@@ -19,6 +20,10 @@ func NewDB(dsn string) (*DB, error) {
 		// The indexer will explicitly manage the transaction
 		// flow processing blocks
 		SkipDefaultTransaction: true,
+
+		// We may choose to create an adapter such that the
+		// logger emits to the geth logger when on DEBUG mode
+		Logger: logger.Default.LogMode(logger.Silent),
 	})
 
 	if err != nil {
@@ -41,6 +46,15 @@ func (db *DB) Transaction(fn func(db *DB) error) error {
 	return db.gorm.Transaction(func(tx *gorm.DB) error {
 		return fn(dbFromGormTx(tx))
 	})
+}
+
+func (db *DB) Close() error {
+	sql, err := db.gorm.DB()
+	if err != nil {
+		return err
+	}
+
+	return sql.Close()
 }
 
 func dbFromGormTx(tx *gorm.DB) *DB {

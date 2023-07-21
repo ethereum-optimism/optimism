@@ -36,6 +36,8 @@
   ],
   "scripts": {
     "build": "tsup",
+    "clean": "rm -rf ./dist",
+    "preinstall": "npx only-allow pnpm",
     "generate": "wagmi generate && pnpm build && pnpm lint:fix",
     "generate:check": "pnpm generate && git diff --exit-code ./addresses.json && git diff --exit-code ./abis.json",
     "lint": "prettier --check .",

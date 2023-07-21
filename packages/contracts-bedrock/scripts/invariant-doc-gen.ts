@@ -11,8 +11,6 @@ const BASE_INVARIANTS_DIR = path.join(
 const BASE_DOCS_DIR = path.join(__dirname, '..', 'invariant-docs')
 const BASE_INVARIANT_GH_URL = '../contracts/test/invariants/'
 const NATSPEC_INV = '@custom:invariant'
-const BLOCK_COMMENT_PREFIX_REGEX = /\*(\/)?/
-const BLOCK_COMMENT_HEADER_REGEX = /\*\s(.)+/
 
 // Represents an invariant test contract
 type Contract = {
@@ -30,10 +28,8 @@ type InvariantDoc = {
 
 const writtenFiles = []
 
-/**
- * Lazy-parses all test files in the `contracts/test/invariants` directory to generate documentation
- * on all invariant tests.
- */
+// Lazy-parses all test files in the `contracts/test/invariants` directory
+// to generate documentation on all invariant tests.
 const docGen = (dir: string): void => {
   // Grab all files within the invariants test dir
   const files = fs.readdirSync(dir)
@@ -58,45 +54,36 @@ const docGen = (dir: string): void => {
     for (let i = 0; i < lines.length; i++) {
       let line = lines[i]
 
-      if (line.startsWith('/**')) {
-        // We are at the beginning of a new doc comment. Reset the `currentDoc`.
-        currentDoc = {}
-
-        // Move on to the next line
-        line = lines[++i]
-
-        // We have an invariant doc
-        if (line.startsWith(`* ${NATSPEC_INV}`)) {
-          // Assign the header of the invariant doc.
-          // TODO: Handle ambiguous case for `INVARIANT: ` prefix.
-          // TODO: Handle multi-line headers.
-          currentDoc = {
-            header: line.replace(`* ${NATSPEC_INV}`, '').trim(),
-            desc: '',
-          }
-
-          // If the header is multi-line, continue appending to the `currentDoc`'s header.
-          while (BLOCK_COMMENT_HEADER_REGEX.test((line = lines[++i]))) {
-            currentDoc.header += ` ${line
-              .replace(BLOCK_COMMENT_PREFIX_REGEX, '')
-              .trim()}`
-          }
-
-          // Process the description
-          while ((line = lines[++i]).startsWith('*')) {
-            line = line.replace(BLOCK_COMMENT_PREFIX_REGEX, '').trim()
-
-            // If the line has any contents, insert it into the desc.
-            // Otherwise, consider it a linebreak.
-            currentDoc.desc += line.length > 0 ? `${line} ` : '\n'
-          }
-
-          // Set the line number of the test
-          currentDoc.lineNo = i + 1
-
-          // Add the doc to the contract
-          contract.docs.push(currentDoc)
+      // We have an invariant doc
+      if (line.startsWith(`/// ${NATSPEC_INV}`)) {
+        // Assign the header of the invariant doc.
+        // TODO: Handle ambiguous case for `INVARIANT: ` prefix.
+        currentDoc = {
+          header: line.replace(`/// ${NATSPEC_INV}`, '').trim(),
+          desc: '',
         }
+
+        // If the header is multi-line, continue appending to the `currentDoc`'s header.
+        line = lines[++i]
+        while (line.startsWith(`///`) && line.trim() !== '///') {
+          currentDoc.header += ` ${line.replace(`///`, '').trim()}`
+          line = lines[++i]
+        }
+
+        // Process the description
+        while ((line = lines[++i]).startsWith('///')) {
+          line = line.replace('///', '').trim()
+
+          // If the line has any contents, insert it into the desc.
+          // Otherwise, consider it a linebreak.
+          currentDoc.desc += line.length > 0 ? `${line} ` : '\n'
+        }
+
+        // Set the line number of the test
+        currentDoc.lineNo = i + 1
+
+        // Add the doc to the contract
+        contract.docs.push(currentDoc)
       }
     }
 
@@ -133,9 +120,7 @@ const docGen = (dir: string): void => {
   )
 }
 
-/**
- * Generate a table of contents for all invariant docs and place it in the README.
- */
+//  Generate a table of contents for all invariant docs and place it in the README.
 const tocGen = (): void => {
   const autoTOCPrefix = '<!-- START autoTOC -->\n'
   const autoTOCPostfix = '<!-- END autoTOC -->\n'
@@ -165,9 +150,7 @@ const tocGen = (): void => {
   )
 }
 
-/**
- * Render a `Contract` object into valid markdown.
- */
+// Render a `Contract` object into valid markdown.
 const renderContractDoc = (contract: Contract, header: boolean): string => {
   const _header = header ? `# \`${contract.name}\` Invariants\n` : ''
   const docs = contract.docs

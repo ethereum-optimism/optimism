@@ -66,7 +66,9 @@ location as the entire address space is unprotected.
 ### Heap
 
 FPVM state contains a `heap` that tracks the base address of the most recent memory allocation.
-Heap pages are bump allocated at the page boundary, per `mmap` syscall. The page size is 4096.
+Heap pages are bump allocated at the page boundary, per `mmap` syscall.
+mmap-ing is purely to satisfy program runtimes that need the memory-pointer
+result of the syscall to locate free memory. The page size is 4096.
 
 The FPVM has a fixed program break at `0x40000000`. However, the FPVM is permitted to extend the
 heap beyond this limit via mmap syscalls.
@@ -105,8 +107,9 @@ The following table list summarizes the supported syscalls and their behaviors.
 | 4004 | write | uint32 fd | char *buf | uint32 count | Similar behavior as Linux/MIPS with support for unaligned writes. See [I/O](#io) for more details. |
 | 4055 | fcntl | uint32 fd | int32 cmd | | Similar behavior as Linux/MIPS. Only the `F_GETFL` (3) cmd is supported. Sets errno to `0x16` for all other commands |
 
-For all of the above syscalls, an error is indicated by setting the return register (`$v0`) to
-`0xFFFFFFFF` (-1) and `errno` (`$a3`) is set accordingly.
+For all of the above syscalls, an error is indicated by setting the return
+register (`$v0`) to `0xFFFFFFFF` (-1) and `errno` (`$a3`) is set accordingly.
+The VM must not modify any register other than `$v0` and `$a3` during syscall handling.
 For unsupported syscalls, the VM must do nothing except to zero out the syscall return (`$v0`)
 and errno (`$a3`) registers.
 
