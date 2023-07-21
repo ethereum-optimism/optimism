@@ -26,21 +26,21 @@ func NewAlphabetProvider(state string, depth uint64) *AlphabetProvider {
 }
 
 // GetPreimage returns the preimage for the given hash.
-func (ap *AlphabetProvider) GetPreimage(i uint64) ([]byte, error) {
+func (ap *AlphabetProvider) GetPreimage(i uint64) ([]byte, []byte, error) {
 	// The index cannot be larger than the maximum index as computed by the depth.
 	if i >= ap.maxLen {
-		return []byte{}, ErrIndexTooLarge
+		return nil, nil, ErrIndexTooLarge
 	}
 	// We extend the deepest hash to the maximum depth if the trace is not expansive.
 	if i >= uint64(len(ap.state)) {
 		return ap.GetPreimage(uint64(len(ap.state)) - 1)
 	}
-	return BuildAlphabetPreimage(i, ap.state[i]), nil
+	return BuildAlphabetPreimage(i, ap.state[i]), []byte{}, nil
 }
 
 // Get returns the claim value at the given index in the trace.
 func (ap *AlphabetProvider) Get(i uint64) (common.Hash, error) {
-	claimBytes, err := ap.GetPreimage(i)
+	claimBytes, _, err := ap.GetPreimage(i)
 	if err != nil {
 		return common.Hash{}, err
 	}
