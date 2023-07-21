@@ -143,6 +143,7 @@ jobs:
             - "packages/replica-healthcheck/node_modules"
             - "packages/sdk/node_modules"
             - "packages/contracts-ts/node_modules"
+            - "packages/fee-estimation/node_modules"
       - run:
           name: print forge version
           command: forge --version
@@ -711,6 +712,31 @@ jobs:
       - run:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
+
+  fee-estimation:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore pnpm Package Cache
+          keys:
+            - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
+      - install_node_modules:
+          name: Install node modules
+          command: pnpm install --frozen-lockfile --prefer-offline
+      - check-changed:
+          patterns: sdk,contracts-bedrock,contracts,contracts-ts,fee-estimation
+      - run:
+          name: Typecheck
+          command: pnpm nx typecheck
+          working_directory: packages/fee-estimation
+      - run:
+          name: Lint
+          command: pnpm nx lint
+          working_directory: packages/fee-estimation
 
   contracts-ts-tests:
     docker:
@@ -1367,6 +1393,13 @@ workflows:
           coverage_flag: contracts-ts-tests
           package_name: contracts-ts
           dependencies: '(contracts-bedrock|contracts-ts)'
+          requires:
+            - pnpm-monorepo
+      - js-lint-test:
+          name: fee-estimation
+          coverage_flag: fee-estimation-tests
+          package_name: fee-estimation
+          dependencies: '(contracts-bedrock|contracts-ts|fee-estimation|contracts-periphery)'
           requires:
             - pnpm-monorepo
       - js-lint-test:
