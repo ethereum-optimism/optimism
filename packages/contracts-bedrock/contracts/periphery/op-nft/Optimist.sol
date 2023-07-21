@@ -26,7 +26,7 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
     /// @notice Address of the OptimistAllowlist contract.
     OptimistAllowlist public immutable OPTIMIST_ALLOWLIST;
 
-    /// @custom:semver 2.0.0
+    /// @custom:semver 2.0.1
     /// @param _name               Token name.
     /// @param _symbol             Token symbol.
     /// @param _baseURIAttestor    Address of the baseURI attestor.
@@ -38,7 +38,7 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
         address _baseURIAttestor,
         AttestationStation _attestationStation,
         OptimistAllowlist _optimistAllowlist
-    ) Semver(2, 0, 0) {
+    ) Semver(2, 0, 1) {
         BASE_URI_ATTESTOR = _baseURIAttestor;
         ATTESTATION_STATION = _attestationStation;
         OPTIMIST_ALLOWLIST = _optimistAllowlist;
