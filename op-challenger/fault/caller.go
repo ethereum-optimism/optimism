@@ -44,13 +44,13 @@ func NewFaultCallerFromBindings(fdgAddr common.Address, client *ethclient.Client
 }
 
 // LogGameInfo logs the game info.
-func (fc *FaultCaller) LogGameInfo() {
-	status, err := fc.GetGameStatus(context.Background())
+func (fc *FaultCaller) LogGameInfo(ctx context.Context) {
+	status, err := fc.GetGameStatus(ctx)
 	if err != nil {
 		fc.log.Error("failed to get game status", "err", err)
 		return
 	}
-	claimLen, err := fc.GetClaimDataLength(context.Background())
+	claimLen, err := fc.GetClaimDataLength(ctx)
 	if err != nil {
 		fc.log.Error("failed to get claim count", "err", err)
 		return
@@ -66,8 +66,8 @@ func (fc *FaultCaller) GetGameStatus(ctx context.Context) (uint8, error) {
 	return fc.Status(&bind.CallOpts{Context: ctx})
 }
 
-func (fc *FaultCaller) LogGameStatus() {
-	status, err := fc.GetGameStatus(context.Background())
+func (fc *FaultCaller) LogGameStatus(ctx context.Context) {
+	status, err := fc.GetGameStatus(ctx)
 	if err != nil {
 		fc.log.Error("failed to get game status", "err", err)
 		return
@@ -80,8 +80,8 @@ func (fc *FaultCaller) GetClaimDataLength(ctx context.Context) (*big.Int, error)
 	return fc.ClaimDataLen(&bind.CallOpts{Context: ctx})
 }
 
-func (fc *FaultCaller) LogClaimDataLength() {
-	claimLen, err := fc.GetClaimDataLength(context.Background())
+func (fc *FaultCaller) LogClaimDataLength(ctx context.Context) {
+	claimLen, err := fc.GetClaimDataLength(ctx)
 	if err != nil {
 		fc.log.Error("failed to get claim count", "err", err)
 		return
