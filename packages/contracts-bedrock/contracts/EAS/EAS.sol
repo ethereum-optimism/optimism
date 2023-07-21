@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-
 pragma solidity 0.8.19;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
@@ -85,32 +84,23 @@ contract EAS is IEAS, Semver, EIP712Verifier {
     // Upgrade forward-compatibility storage gap
     uint256[MAX_GAP - 3] private __gap;
 
-    /**
-     * @dev Creates a new EAS instance.
-     */
+    /// @dev Creates a new EAS instance.
     constructor() Semver(1, 0, 0) EIP712Verifier("EAS", "1.0.0") {
     }
 
-    /**
-     * @inheritdoc IEAS
-     */
+    /// @inheritdoc IEAS
     function getSchemaRegistry() external pure returns (ISchemaRegistry) {
         return _schemaRegistry;
     }
 
-    /**
-     * @inheritdoc IEAS
-     */
+    /// @inheritdoc IEAS
     function attest(AttestationRequest calldata request) external payable returns (bytes32) {
         AttestationRequestData[] memory requests = new AttestationRequestData[](1);
         requests[0] = request.data;
-
         return _attest(request.schema, requests, msg.sender, msg.value, true).uids[0];
     }
 
-    /**
-     * @inheritdoc IEAS
-     */
+    /// @inheritdoc IEAS
     function attestByDelegation(
         DelegatedAttestationRequest calldata delegatedRequest
     ) external payable returns (bytes32) {
@@ -118,13 +108,10 @@ contract EAS is IEAS, Semver, EIP712Verifier {
 
         AttestationRequestData[] memory data = new AttestationRequestData[](1);
         data[0] = delegatedRequest.data;
-
         return _attest(delegatedRequest.schema, data, delegatedRequest.attester, msg.value, true).uids[0];
     }
 
-    /**
-     * @inheritdoc IEAS
-     */
+    /// @inheritdoc IEAS
     function multiAttest(MultiAttestationRequest[] calldata multiRequests) external payable returns (bytes32[] memory) {
         // Since a multi-attest call is going to make multiple attestations for multiple schemas, we'd need to collect
         // all the returned UIDs into a single list.
@@ -170,9 +157,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         return _mergeUIDs(totalUids, totalUidsCount);
     }
 
-    /**
-     * @inheritdoc IEAS
-     */
+    /// @inheritdoc IEAS
     function multiAttestByDelegation(
         MultiDelegatedAttestationRequest[] calldata multiDelegatedRequests
     ) external payable returns (bytes32[] memory) {
@@ -239,9 +224,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         return _mergeUIDs(totalUids, totalUidsCount);
     }
 
-    /**
-     * @inheritdoc IEAS
-     */
+    /// @inheritdoc IEAS
     function revoke(RevocationRequest calldata request) external payable {
         RevocationRequestData[] memory requests = new RevocationRequestData[](1);
         requests[0] = request.data;
@@ -249,9 +232,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         _revoke(request.schema, requests, msg.sender, msg.value, true);
     }
 
-    /**
-     * @inheritdoc IEAS
-     */
+    /// @inheritdoc IEAS
     function revokeByDelegation(DelegatedRevocationRequest calldata delegatedRequest) external payable {
         _verifyRevoke(delegatedRequest);
 
@@ -261,9 +242,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         _revoke(delegatedRequest.schema, data, delegatedRequest.revoker, msg.value, true);
     }
 
-    /**
-     * @inheritdoc IEAS
-     */
+    /// @inheritdoc IEAS
     function multiRevoke(MultiRevocationRequest[] calldata multiRequests) external payable {
         // We are keeping track of the total available ETH amount that can be sent to resolvers and will keep deducting
         // from it to verify that there isn't any attempt to send too much ETH to resolvers. Please note that unless
@@ -287,9 +266,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         }
     }
 
-    /**
-     * @inheritdoc IEAS
-     */
+    /// @inheritdoc IEAS
     function multiRevokeByDelegation(
         MultiDelegatedRevocationRequest[] calldata multiDelegatedRequests
     ) external payable {
@@ -339,31 +316,21 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         }
     }
 
-    /**
-     * @inheritdoc IEAS
-     */
+    /// @inheritdoc IEAS
     function timestamp(bytes32 data) external returns (uint64) {
         uint64 time = _time();
-
         _timestamp(data, time);
-
         return time;
     }
 
-    /**
-     * @inheritdoc IEAS
-     */
+    /// @inheritdoc IEAS
     function revokeOffchain(bytes32 data) external returns (uint64) {
         uint64 time = _time();
-
         _revokeOffchain(msg.sender, data, time);
-
         return time;
     }
 
-    /**
-     * @inheritdoc IEAS
-     */
+    /// @inheritdoc IEAS
     function multiRevokeOffchain(bytes32[] calldata data) external returns (uint64) {
         uint64 time = _time();
 
@@ -375,9 +342,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         return time;
     }
 
-    /**
-     * @inheritdoc IEAS
-     */
+    /// @inheritdoc IEAS
     function multiTimestamp(bytes32[] calldata data) external returns (uint64) {
         uint64 time = _time();
 
@@ -389,45 +354,33 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         return time;
     }
 
-    /**
-     * @inheritdoc IEAS
-     */
+    /// @inheritdoc IEAS
     function getAttestation(bytes32 uid) external view returns (Attestation memory) {
         return _db[uid];
     }
 
-    /**
-     * @inheritdoc IEAS
-     */
+    /// @inheritdoc IEAS
     function isAttestationValid(bytes32 uid) public view returns (bool) {
         return _db[uid].uid != 0;
     }
 
-    /**
-     * @inheritdoc IEAS
-     */
+    /// @inheritdoc IEAS
     function getTimestamp(bytes32 data) external view returns (uint64) {
         return _timestamps[data];
     }
 
-    /**
-     * @inheritdoc IEAS
-     */
+    /// @inheritdoc IEAS
     function getRevokeOffchain(address revoker, bytes32 data) external view returns (uint64) {
         return _revocationsOffchain[revoker][data];
     }
 
-    /**
-     * @dev Attests to a specific schema.
-     *
-     * @param schema // the unique identifier of the schema to attest to.
-     * @param data The arguments of the attestation requests.
-     * @param attester The attesting account.
-     * @param availableValue The total available ETH amount that can be sent to the resolver.
-     * @param last Whether this is the last attestations/revocations set.
-     *
-     * @return The UID of the new attestations and the total sent ETH amount.
-     */
+    /// @dev Attests to a specific schema.
+    /// @param schema // the unique identifier of the schema to attest to.
+    /// @param data The arguments of the attestation requests.
+    /// @param attester The attesting account.
+    /// @param availableValue The total available ETH amount that can be sent to the resolver.
+    /// @param last Whether this is the last attestations/revocations set.
+    /// @return The UID of the new attestations and the total sent ETH amount.
     function _attest(
         bytes32 schema,
         AttestationRequestData[] memory data,
@@ -512,17 +465,13 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         return res;
     }
 
-    /**
-     * @dev Revokes an existing attestation to a specific schema.
-     *
-     * @param schema The unique identifier of the schema to attest to.
-     * @param data The arguments of the revocation requests.
-     * @param revoker The revoking account.
-     * @param availableValue The total available ETH amount that can be sent to the resolver.
-     * @param last Whether this is the last attestations/revocations set.
-     *
-     * @return Returns the total sent ETH amount.
-     */
+    /// @dev Revokes an existing attestation to a specific schema.
+    /// @param schema The unique identifier of the schema to attest to.
+    /// @param data The arguments of the revocation requests.
+    /// @param revoker The revoking account.
+    /// @param availableValue The total available ETH amount that can be sent to the resolver.
+    /// @param last Whether this is the last attestations/revocations set.
+    /// @return Returns the total sent ETH amount.
     function _revoke(
         bytes32 schema,
         RevocationRequestData[] memory data,
@@ -581,18 +530,14 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         return _resolveAttestations(schemaRecord, attestations, values, true, availableValue, last);
     }
 
-    /**
-     * @dev Resolves a new attestation or a revocation of an existing attestation.
-     *
-     * @param schemaRecord The schema of the attestation.
-     * @param attestation The data of the attestation to make/revoke.
-     * @param value An explicit ETH amount to send to the resolver.
-     * @param isRevocation Whether to resolve an attestation or its revocation.
-     * @param availableValue The total available ETH amount that can be sent to the resolver.
-     * @param last Whether this is the last attestations/revocations set.
-     *
-     * @return Returns the total sent ETH amount.
-     */
+    /// @dev Resolves a new attestation or a revocation of an existing attestation.
+    /// @param schemaRecord The schema of the attestation.
+    /// @param attestation The data of the attestation to make/revoke.
+    /// @param value An explicit ETH amount to send to the resolver.
+    /// @param isRevocation Whether to resolve an attestation or its revocation.
+    /// @param availableValue The total available ETH amount that can be sent to the resolver.
+    /// @param last Whether this is the last attestations/revocations set.
+    /// @return Returns the total sent ETH amount.
     function _resolveAttestation(
         SchemaRecord memory schemaRecord,
         Attestation memory attestation,
@@ -641,18 +586,14 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         return value;
     }
 
-    /**
-     * @dev Resolves multiple attestations or revocations of existing attestations.
-     *
-     * @param schemaRecord The schema of the attestation.
-     * @param attestations The data of the attestations to make/revoke.
-     * @param values Explicit ETH amounts to send to the resolver.
-     * @param isRevocation Whether to resolve an attestation or its revocation.
-     * @param availableValue The total available ETH amount that can be sent to the resolver.
-     * @param last Whether this is the last attestations/revocations set.
-     *
-     * @return Returns the total sent ETH amount.
-     */
+    /// @dev Resolves multiple attestations or revocations of existing attestations.
+    /// @param schemaRecord The schema of the attestation.
+    /// @param attestations The data of the attestations to make/revoke.
+    /// @param values Explicit ETH amounts to send to the resolver.
+    /// @param isRevocation Whether to resolve an attestation or its revocation.
+    /// @param availableValue The total available ETH amount that can be sent to the resolver.
+    /// @param last Whether this is the last attestations/revocations set.
+    /// @return Returns the total sent ETH amount.
     function _resolveAttestations(
         SchemaRecord memory schemaRecord,
         Attestation[] memory attestations,
@@ -715,14 +656,10 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         return totalUsedValue;
     }
 
-    /**
-     * @dev Calculates a UID for a given attestation.
-     *
-     * @param attestation The input attestation.
-     * @param bump A bump value to use in case of a UID conflict.
-     *
-     * @return Attestation UID.
-     */
+    /// @dev Calculates a UID for a given attestation.
+    /// @param attestation The input attestation.
+    /// @param bump A bump value to use in case of a UID conflict.
+    /// @return Attestation UID.
     function _getUID(Attestation memory attestation, uint32 bump) private pure returns (bytes32) {
         return
             keccak256(
@@ -740,11 +677,8 @@ contract EAS is IEAS, Semver, EIP712Verifier {
             );
     }
 
-    /**
-     * @dev Refunds remaining ETH amount to the attester.
-     *
-     * @param remainingValue The remaining ETH amount that was not sent to the resolver.
-     */
+    /// @dev Refunds remaining ETH amount to the attester.
+    /// @param remainingValue The remaining ETH amount that was not sent to the resolver.
     function _refund(uint256 remainingValue) private {
         if (remainingValue > 0) {
             // Using a regular transfer here might revert, for some non-EOA attesters, due to exceeding of the 2300
@@ -754,12 +688,9 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         }
     }
 
-    /**
-     * @dev Timestamps the specified bytes32 data.
-     *
-     * @param data The data to timestamp.
-     * @param time The timestamp.
-     */
+    /// @dev Timestamps the specified bytes32 data.
+    /// @param data The data to timestamp.
+    /// @param time The timestamp.
     function _timestamp(bytes32 data, uint64 time) private {
         if (_timestamps[data] != 0) {
             revert AlreadyTimestamped();
@@ -770,12 +701,9 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         emit Timestamped(data, time);
     }
 
-    /**
-     * @dev Timestamps the specified bytes32 data.
-     *
-     * @param data The data to timestamp.
-     * @param time The timestamp.
-     */
+    /// @dev Timestamps the specified bytes32 data.
+    /// @param data The data to timestamp.
+    /// @param time The timestamp.
     function _revokeOffchain(address revoker, bytes32 data, uint64 time) private {
         mapping(bytes32 => uint64) storage revocations = _revocationsOffchain[revoker];
 
@@ -788,22 +716,17 @@ contract EAS is IEAS, Semver, EIP712Verifier {
         emit RevokedOffchain(revoker, data, time);
     }
 
-    /**
-     * @dev Returns the current's block timestamp. This method is overridden during tests and used to simulate the
-     * current block time.
-     */
+    /// @dev Returns the current's block timestamp.
+    ///      This method is overridden during tests and
+    ///      used to simulate the current block time.
     function _time() internal view virtual returns (uint64) {
         return uint64(block.timestamp);
     }
 
-    /**
-     * @dev Merges lists of UIDs.
-     *
-     * @param uidLists The provided lists of UIDs.
-     * @param uidsCount Total UIDs count.
-     *
-     * @return A merged and flatten list of all the UIDs.
-     */
+    /// @dev Merges lists of UIDs.
+    /// @param uidLists The provided lists of UIDs.
+    /// @param uidsCount Total UIDs count.
+    /// @return A merged and flatten list of all the UIDs.
     function _mergeUIDs(bytes32[][] memory uidLists, uint256 uidsCount) private pure returns (bytes32[] memory) {
         bytes32[] memory uids = new bytes32[](uidsCount);
 

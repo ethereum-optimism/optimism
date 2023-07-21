@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: MIT
-
 pragma solidity 0.8.19;
 
 import { Semver } from "../../universal/Semver.sol";
@@ -19,11 +18,8 @@ abstract contract SchemaResolver is ISchemaResolver, Semver {
     // The global EAS contract.
     IEAS internal immutable _eas;
 
-    /**
-     * @dev Creates a new resolver.
-     *
-     * @param eas The address of the global EAS contract.
-     */
+    /// @dev Creates a new resolver.
+    /// @param eas The address of the global EAS contract.
     constructor(IEAS eas) Semver(1, 0, 0) {
         if (address(eas) == address(0)) {
             revert InvalidEAS();
@@ -32,41 +28,31 @@ abstract contract SchemaResolver is ISchemaResolver, Semver {
         _eas = eas;
     }
 
-    /**
-     * @dev Ensures that only the EAS contract can make this call.
-     */
+    /// @dev Ensures that only the EAS contract can make this call.
     modifier onlyEAS() {
         _onlyEAS();
 
         _;
     }
 
-    /**
-     * @inheritdoc ISchemaResolver
-     */
+    /// @inheritdoc ISchemaResolver
     function isPayable() public pure virtual returns (bool) {
         return false;
     }
 
-    /**
-     * @dev ETH callback.
-     */
+    /// @dev ETH callback.
     receive() external payable virtual {
         if (!isPayable()) {
             revert NotPayable();
         }
     }
 
-    /**
-     * @inheritdoc ISchemaResolver
-     */
+    /// @inheritdoc ISchemaResolver
     function attest(Attestation calldata attestation) external payable onlyEAS returns (bool) {
         return onAttest(attestation, msg.value);
     }
 
-    /**
-     * @inheritdoc ISchemaResolver
-     */
+    /// @inheritdoc ISchemaResolver
     function multiAttest(
         Attestation[] calldata attestations,
         uint256[] calldata values
@@ -100,16 +86,12 @@ abstract contract SchemaResolver is ISchemaResolver, Semver {
         return true;
     }
 
-    /**
-     * @inheritdoc ISchemaResolver
-     */
+    /// @inheritdoc ISchemaResolver
     function revoke(Attestation calldata attestation) external payable onlyEAS returns (bool) {
         return onRevoke(attestation, msg.value);
     }
 
-    /**
-     * @inheritdoc ISchemaResolver
-     */
+    /// @inheritdoc ISchemaResolver
     function multiRevoke(
         Attestation[] calldata attestations,
         uint256[] calldata values
@@ -143,35 +125,25 @@ abstract contract SchemaResolver is ISchemaResolver, Semver {
         return true;
     }
 
-    /**
-     * @dev A resolver callback that should be implemented by child contracts.
-     *
-     * @param attestation The new attestation.
-     * @param value An explicit ETH amount that was sent to the resolver. Please note that this value is verified in
-     * both attest() and multiAttest() callbacks EAS-only callbacks and that in case of multi attestations, it'll
-     * usually hold that msg.value != value, since msg.value aggregated the sent ETH amounts for all the attestations
-     * in the batch.
-     *
-     * @return Whether the attestation is valid.
-     */
+    /// @notice A resolver callback that should be implemented by child contracts.
+    /// @param attestation The new attestation.
+    /// @param value An explicit ETH amount that was sent to the resolver. Please note that this value is verified in
+    ///        both attest() and multiAttest() callbacks EAS-only callbacks and that in case of multi attestations, it'll
+    ///        usually hold that msg.value != value, since msg.value aggregated the sent ETH amounts for all the attestations
+    ///        in the batch.
+    /// @return Whether the attestation is valid.
     function onAttest(Attestation calldata attestation, uint256 value) internal virtual returns (bool);
 
-    /**
-     * @dev Processes an attestation revocation and verifies if it can be revoked.
-     *
-     * @param attestation The existing attestation to be revoked.
-     * @param value An explicit ETH amount that was sent to the resolver. Please note that this value is verified in
-     * both revoke() and multiRevoke() callbacks EAS-only callbacks and that in case of multi attestations, it'll
-     * usually hold that msg.value != value, since msg.value aggregated the sent ETH amounts for all the attestations
-     * in the batch.
-     *
-     * @return Whether the attestation can be revoked.
-     */
+    /// @notice Processes an attestation revocation and verifies if it can be revoked.
+    /// @param attestation The existing attestation to be revoked.
+    /// @param value An explicit ETH amount that was sent to the resolver. Please note that this value is verified in
+    ///        both revoke() and multiRevoke() callbacks EAS-only callbacks and that in case of multi attestations, it'll
+    ///        usually hold that msg.value != value, since msg.value aggregated the sent ETH amounts for all the attestations
+    ///        in the batch.
+    /// @return Whether the attestation can be revoked.
     function onRevoke(Attestation calldata attestation, uint256 value) internal virtual returns (bool);
 
-    /**
-     * @dev Ensures that only the EAS contract can make this call.
-     */
+    /// @notice Ensures that only the EAS contract can make this call.
     function _onlyEAS() private view {
         if (msg.sender != address(_eas)) {
             revert AccessDenied();

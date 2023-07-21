@@ -29,6 +29,7 @@
     "slither": "./scripts/slither.sh",
     "slither:triage": "TRIAGE_MODE=1 ./scripts/slither.sh",
     "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./tsconfig.build.tsbuildinfo ./src/contract-artifacts.ts ./test-case-generator/fuzz",
+    "preinstall": "npx only-allow pnpm",
     "lint:ts:check": "eslint . --max-warnings=0",
     "lint:forge-tests:check": "ts-node scripts/forge-test-names.ts",
     "lint:contracts:check": "pnpm solhint -f table 'contracts/**/!(DisputeTypes|RLPReader|EAS|SchemaRegistry|IEAS|ISchemaRegistry|SchemaResolver|EIP712Verifier|ISchemaResolver).sol' && pnpm prettier --check 'contracts/**/!(DisputeTypes|RLPReader|EAS|SchemaRegistry|IEAS|ISchemaRegistry|SchemaResolver|EIP712Verifier|ISchemaResolver).sol' && pnpm lint:forge-tests:check",

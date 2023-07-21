@@ -36,59 +36,44 @@ abstract contract EIP712Verifier is EIP712 {
     // Upgrade forward-compatibility storage gap
     uint256[MAX_GAP - 1] private __gap;
 
-    /**
-     * @dev Creates a new EIP712Verifier instance.
-     *
-     * @param version The current major version of the signing domain
-     */
+    /// @dev Creates a new EIP712Verifier instance.
+    /// @param version The current major version of the signing domain
     constructor(string memory name, string memory version) EIP712(name, version) {
         _name = stringToBytes32(name);
     }
 
-    /**
-     * @dev Returns the domain separator used in the encoding of the signatures for attest, and revoke.
-     */
+    /// @notice Returns the domain separator used in the encoding of the signatures for attest, and revoke.
     function getDomainSeparator() external view returns (bytes32) {
         return _domainSeparatorV4();
     }
 
-    /**
-     * @dev Returns the current nonce per-account.
-     *
-     * @param account The requested account.
-     *
-     * @return The current nonce.
-     */
+    /// @notice Returns the current nonce per-account.
+    /// @param account The requested account.
+    /// @return The current nonce.
     function getNonce(address account) external view returns (uint256) {
         return _nonces[account];
     }
 
-    /**
-     * Returns the EIP712 type hash for the attest function.
-     */
+    /// @notice Returns the EIP712 type hash for the attest function.
+    /// @return The EIP712 attest function type hash.
     function getAttestTypeHash() external pure returns (bytes32) {
         return ATTEST_TYPEHASH;
     }
 
-    /**
-     * Returns the EIP712 type hash for the revoke function.
-     */
+    /// @notice Returns the EIP712 type hash for the revoke function.
+    /// @return hash_ The EIP712 revoke function type hash.
     function getRevokeTypeHash() external pure returns (bytes32) {
         return REVOKE_TYPEHASH;
     }
 
-    /**
-     * Returns the EIP712 name.
-     */
+    /// @notice Returns the EIP712 name.
+    /// @return The EIP712 name.
     function getName() external view returns (string memory) {
         return bytes32ToString(_name);
     }
 
-    /**
-     * @dev Verifies delegated attestation request.
-     *
-     * @param request The arguments of the delegated attestation request.
-     */
+    /// @notice Verifies delegated attestation request.
+    /// @param request The arguments of the delegated attestation request.
     function _verifyAttest(DelegatedAttestationRequest memory request) internal {
         AttestationRequestData memory data = request.data;
         EIP712Signature memory signature = request.signature;
@@ -118,11 +103,8 @@ abstract contract EIP712Verifier is EIP712 {
         }
     }
 
-    /**
-     * @dev Verifies delegated revocation request.
-     *
-     * @param request The arguments of the delegated revocation request.
-     */
+    /// @notice Verifies delegated revocation request.
+    /// @param request The arguments of the delegated revocation request.
     function _verifyRevoke(DelegatedRevocationRequest memory request) internal {
         RevocationRequestData memory data = request.data;
         EIP712Signature memory signature = request.signature;
