@@ -41,6 +41,11 @@ jobs:
       - name: Setup
         uses: ./.github/actions/setup
 
+      - name: Set deployment token
+        run: npm config set '//registry.npmjs.org/:_authToken' "${NPM_TOKEN}"
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       # Makes a pr to publish the changesets that when
       # merged will publish to npm
       # see https://github.com/changesets/action
