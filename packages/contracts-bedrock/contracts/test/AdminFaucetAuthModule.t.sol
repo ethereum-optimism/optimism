@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
@@ -6,41 +6,32 @@ import { AdminFaucetAuthModule } from "../periphery/faucet/authmodules/AdminFauc
 import { Faucet } from "../periphery/faucet/Faucet.sol";
 import { FaucetHelper } from "./Helpers.sol";
 
-/**
- * @title  AdminFaucetAuthModuleTest
- * @notice Tests the AdminFaucetAuthModule contract.
- */
+/// @title  AdminFaucetAuthModuleTest
+/// @notice Tests the AdminFaucetAuthModule contract.
 contract AdminFaucetAuthModuleTest is Test {
-    /**
-     * @notice The admin of the `AdminFaucetAuthModule` contract.
-     */
+    /// @notice The admin of the `AdminFaucetAuthModule` contract.
     address internal admin;
-    /**
-     * @notice Private key of the `admin`.
-     */
+
+    /// @notice Private key of the `admin`.
     uint256 internal adminKey;
-    /**
-     * @notice Not an admin of the `AdminFaucetAuthModule` contract.
-     */
+
+    /// @notice Not an admin of the `AdminFaucetAuthModule` contract.
     address internal nonAdmin;
-    /**
-     * @notice Private key of the `nonAdmin`.
-     */
+
+    /// @notice Private key of the `nonAdmin`.
     uint256 internal nonAdminKey;
-    /**
-     * @notice An instance of the `AdminFaucetAuthModule` contract.
-     */
+
+    /// @notice An instance of the `AdminFaucetAuthModule` contract.
     AdminFaucetAuthModule internal adminFam;
-    /**
-     * @notice An instance of the `FaucetHelper` contract.
-     */
+
+    /// @notice An instance of the `FaucetHelper` contract.
     FaucetHelper internal faucetHelper;
+
     string internal adminFamName = "AdminFAM";
+
     string internal adminFamVersion = "1";
 
-    /**
-     * @notice Deploy the `AdminFaucetAuthModule` contract.
-     */
+    /// @notice Deploy the `AdminFaucetAuthModule` contract.
     function setUp() external {
         adminKey = 0xB0B0B0B0;
         admin = vm.addr(adminKey);
@@ -53,10 +44,7 @@ contract AdminFaucetAuthModuleTest is Test {
         faucetHelper = new FaucetHelper();
     }
 
-    /**
-     * @notice Get signature as a bytes blob.
-     *
-     */
+    /// @notice Get signature as a bytes blob.
     function _getSignature(uint256 _signingPrivateKey, bytes32 _digest)
         internal
         pure
@@ -68,11 +56,9 @@ contract AdminFaucetAuthModuleTest is Test {
         return signature;
     }
 
-    /**
-     * @notice Signs a proof with the given private key and returns the signature using
-     *         the given EIP712 domain separator. This assumes that the issuer's address is the
-     *         corresponding public key to _issuerPrivateKey.
-     */
+    /// @notice Signs a proof with the given private key and returns the signature using
+    ///         the given EIP712 domain separator. This assumes that the issuer's address is the
+    ///        corresponding public key to _issuerPrivateKey.
     function issueProofWithEIP712Domain(
         uint256 _issuerPrivateKey,
         bytes memory _eip712Name,
@@ -101,9 +87,7 @@ contract AdminFaucetAuthModuleTest is Test {
             );
     }
 
-    /**
-     * @notice assert that verify returns true for valid proofs signed by admins.
-     */
+    /// @notice Assert that verify returns true for valid proofs signed by admins.
     function test_adminProof_verify_succeeds() external {
         bytes32 nonce = faucetHelper.consumeNonce();
         address fundsReceiver = makeAddr("fundsReceiver");
@@ -129,9 +113,7 @@ contract AdminFaucetAuthModuleTest is Test {
         );
     }
 
-    /**
-     * @notice assert that verify returns false for proofs signed by nonadmins.
-     */
+    /// @notice Assert that verify returns false for proofs signed by nonadmins.
     function test_nonAdminProof_verify_succeeds() external {
         bytes32 nonce = faucetHelper.consumeNonce();
         address fundsReceiver = makeAddr("fundsReceiver");
@@ -157,10 +139,8 @@ contract AdminFaucetAuthModuleTest is Test {
         );
     }
 
-    /**
-     * @notice assert that verify returns false for proofs where the id in the proof is different
-     * than the id in the call to verify.
-     */
+    /// @notice Assert that verify returns false for proofs where the id in the proof is different
+    ///         than the id in the call to verify.
     function test_proofWithWrongId_verify_succeeds() external {
         bytes32 nonce = faucetHelper.consumeNonce();
         address fundsReceiver = makeAddr("fundsReceiver");

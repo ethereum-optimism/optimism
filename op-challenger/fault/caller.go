@@ -19,15 +19,13 @@ type FaultDisputeGameCaller interface {
 
 type FaultCaller struct {
 	FaultDisputeGameCaller
-	log     log.Logger
-	fdgAddr common.Address
+	log log.Logger
 }
 
-func NewFaultCaller(fdgAddr common.Address, caller FaultDisputeGameCaller, log log.Logger) *FaultCaller {
+func NewFaultCaller(caller FaultDisputeGameCaller, log log.Logger) *FaultCaller {
 	return &FaultCaller{
 		caller,
 		log,
-		fdgAddr,
 	}
 }
 
@@ -39,40 +37,31 @@ func NewFaultCallerFromBindings(fdgAddr common.Address, client *ethclient.Client
 	return &FaultCaller{
 		caller,
 		log,
-		fdgAddr,
 	}, nil
 }
 
 // LogGameInfo logs the game info.
-func (fc *FaultCaller) LogGameInfo() {
-	status, err := fc.GetGameStatus(context.Background())
+func (fc *FaultCaller) LogGameInfo(ctx context.Context) {
+	status, err := fc.GetGameStatus(ctx)
 	if err != nil {
 		fc.log.Error("failed to get game status", "err", err)
 		return
 	}
-	claimLen, err := fc.GetClaimDataLength(context.Background())
+	claimLen, err := fc.GetClaimDataLength(ctx)
 	if err != nil {
 		fc.log.Error("failed to get claim count", "err", err)
 		return
 	}
-	fc.log.Info("Game info", "addr", fc.fdgAddr, "claims", claimLen, "status", GameStatusString(status))
+	fc.log.Info("Game info", "claims", claimLen, "status", GameStatusString(status))
 }
 
 // GetGameStatus returns the current game status.
 // 0: In Progress
 // 1: Challenger Won
 // 2: Defender Won
-func (fc *FaultCaller) GetGameStatus(ctx context.Context) (uint8, error) {
-	return fc.Status(&bind.CallOpts{Context: ctx})
-}
-
-func (fc *FaultCaller) LogGameStatus() {
-	status, err := fc.GetGameStatus(context.Background())
-	if err != nil {
-		fc.log.Error("failed to get game status", "err", err)
-		return
-	}
-	fc.log.Info("Game status", "status", GameStatusString(status))
+func (fc *FaultCaller) GetGameStatus(ctx context.Context) (GameStatus, error) {
+	status, err := fc.Status(&bind.CallOpts{Context: ctx})
+	return GameStatus(status), err
 }
 
 // GetClaimDataLength returns the number of claims in the game.
@@ -80,8 +69,8 @@ func (fc *FaultCaller) GetClaimDataLength(ctx context.Context) (*big.Int, error)
 	return fc.ClaimDataLen(&bind.CallOpts{Context: ctx})
 }
 
-func (fc *FaultCaller) LogClaimDataLength() {
-	claimLen, err := fc.GetClaimDataLength(context.Background())
+func (fc *FaultCaller) LogClaimDataLength(ctx context.Context) {
+	claimLen, err := fc.GetClaimDataLength(ctx)
 	if err != nil {
 		fc.log.Error("failed to get claim count", "err", err)
 		return
@@ -90,13 +79,13 @@ func (fc *FaultCaller) LogClaimDataLength() {
 }
 
 // GameStatusString returns the current game status as a string.
-func GameStatusString(status uint8) string {
+func GameStatusString(status GameStatus) string {
 	switch status {
-	case 0:
+	case GameStatusInProgress:
 		return "In Progress"
-	case 1:
+	case GameStatusChallengerWon:
 		return "Challenger Won"
-	case 2:
+	case GameStatusDefenderWon:
 		return "Defender Won"
 	default:
 		return "Unknown"

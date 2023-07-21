@@ -2,9 +2,7 @@ package processor
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
-	"math/big"
 	"reflect"
 
 	"github.com/google/uuid"
@@ -36,12 +34,17 @@ type L1Contracts struct {
 	// Remove afterwards?
 }
 
-type checkpointAbi struct {
-	l2OutputOracle             *abi.ABI
-	legacyStateCommitmentChain *abi.ABI
+func DevL1Contracts() L1Contracts {
+	return L1Contracts{
+		OptimismPortal:         common.HexToAddress("0x6900000000000000000000000000000000000000"),
+		L2OutputOracle:         common.HexToAddress("0x6900000000000000000000000000000000000001"),
+		L1CrossDomainMessenger: common.HexToAddress("0x6900000000000000000000000000000000000002"),
+		L1StandardBridge:       common.HexToAddress("0x6900000000000000000000000000000000000003"),
+		L1ERC721Bridge:         common.HexToAddress("0x6900000000000000000000000000000000000004"),
+	}
 }
 
-func (c L1Contracts) toSlice() []common.Address {
+func (c L1Contracts) ToSlice() []common.Address {
 	fields := reflect.VisibleFields(reflect.TypeOf(c))
 	v := reflect.ValueOf(c)
 
@@ -53,12 +56,17 @@ func (c L1Contracts) toSlice() []common.Address {
 	return contracts
 }
 
+type checkpointAbi struct {
+	l2OutputOracle             *abi.ABI
+	legacyStateCommitmentChain *abi.ABI
+}
+
 type L1Processor struct {
 	processor
 }
 
-func NewL1Processor(ethClient node.EthClient, db *database.DB, l1Contracts L1Contracts) (*L1Processor, error) {
-	l1ProcessLog := log.New("processor", "l1")
+func NewL1Processor(logger log.Logger, ethClient node.EthClient, db *database.DB, l1Contracts L1Contracts) (*L1Processor, error) {
+	l1ProcessLog := logger.New("processor", "l1")
 	l1ProcessLog.Info("initializing processor")
 
 	l2OutputOracleABI, err := bindings.L2OutputOracleMetaData.GetAbi()
@@ -109,14 +117,16 @@ func NewL1Processor(ethClient node.EthClient, db *database.DB, l1Contracts L1Con
 func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1Contracts, checkpointAbi checkpointAbi) ProcessFn {
 	rawEthClient := ethclient.NewClient(ethClient.RawRpcClient())
 
-	contractAddrs := l1Contracts.toSlice()
+	contractAddrs := l1Contracts.ToSlice()
 	processLog.Info("processor configured with contracts", "contracts", l1Contracts)
 
-	outputProposedEventSig := checkpointAbi.l2OutputOracle.Events["OutputProposed"].ID
-	legacyStateBatchAppendedEventSig := checkpointAbi.legacyStateCommitmentChain.Events["StateBatchAppended"].ID
+	outputProposedEventName := "OutputProposed"
+	outputProposedEventSig := checkpointAbi.l2OutputOracle.Events[outputProposedEventName].ID
+
+	legacyStateBatchAppendedEventName := "StateBatchAppended"
+	legacyStateBatchAppendedEventSig := checkpointAbi.legacyStateCommitmentChain.Events[legacyStateBatchAppendedEventName].ID
 
 	return func(db *database.DB, headers []*types.Header) error {
-		numHeaders := len(headers)
 		headerMap := make(map[common.Hash]*types.Header)
 		for _, header := range headers {
 			headerMap[header.Hash()] = header
@@ -124,7 +134,7 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 
 		/** Watch for all Optimism Contract Events **/
 
-		logFilter := ethereum.FilterQuery{FromBlock: headers[0].Number, ToBlock: headers[numHeaders-1].Number, Addresses: contractAddrs}
+		logFilter := ethereum.FilterQuery{FromBlock: headers[0].Number, ToBlock: headers[len(headers)-1].Number, Addresses: contractAddrs}
 		logs, err := rawEthClient.FilterLogs(context.Background(), logFilter) // []types.Log
 		if err != nil {
 			return err
@@ -138,41 +148,43 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 		l1ContractEvents := make([]*database.L1ContractEvent, len(logs))
 
 		processedContractEvents := NewProcessedContractEvents()
-		for i, log := range logs {
+		for i := range logs {
+			log := &logs[i]
 			header, ok := headerMap[log.BlockHash]
 			if !ok {
 				processLog.Error("contract event found with associated header not in the batch", "header", log.BlockHash, "log_index", log.Index)
 				return errors.New("parsed log with a block hash not in this batch")
 			}
 
-			contractEvent := processedContractEvents.AddLog(&logs[i], header.Time)
+			contractEvent := processedContractEvents.AddLog(log, header.Time)
 			l1HeadersOfInterest[log.BlockHash] = true
 			l1ContractEvents[i] = &database.L1ContractEvent{ContractEvent: *contractEvent}
 
 			// Track Checkpoint Events for L2
 			switch contractEvent.EventSignature {
 			case outputProposedEventSig:
-				if len(log.Topics) != 4 {
-					processLog.Error("parsed unexpected number of L2OutputOracle#OutputProposed log topics", "log_topics", log.Topics)
-					return errors.New("parsed unexpected OutputProposed event")
+				var outputProposed bindings.L2OutputOracleOutputProposed
+				err := UnpackLog(&outputProposed, log, outputProposedEventName, checkpointAbi.l2OutputOracle)
+				if err != nil {
+					return err
 				}
 
 				outputProposals = append(outputProposals, &database.OutputProposal{
-					OutputRoot:          log.Topics[1],
-					L2BlockNumber:       database.U256{Int: new(big.Int).SetBytes(log.Topics[2].Bytes())},
+					OutputRoot:          outputProposed.OutputRoot,
+					L2OutputIndex:       database.U256{Int: outputProposed.L2OutputIndex},
+					L2BlockNumber:       database.U256{Int: outputProposed.L2BlockNumber},
 					L1ContractEventGUID: contractEvent.GUID,
 				})
 
 			case legacyStateBatchAppendedEventSig:
 				var stateBatchAppended legacy_bindings.StateCommitmentChainStateBatchAppended
-				err := checkpointAbi.l2OutputOracle.UnpackIntoInterface(&stateBatchAppended, "StateBatchAppended", log.Data)
-				if err != nil || len(log.Topics) != 2 {
-					processLog.Error("unexpected StateCommitmentChain#StateBatchAppended log data or log topics", "log_topics", log.Topics, "log_data", hex.EncodeToString(log.Data), "err", err)
+				err := UnpackLog(&stateBatchAppended, log, legacyStateBatchAppendedEventName, checkpointAbi.legacyStateCommitmentChain)
+				if err != nil {
 					return err
 				}
 
 				legacyStateBatches = append(legacyStateBatches, &database.LegacyStateBatch{
-					Index:               new(big.Int).SetBytes(log.Topics[1].Bytes()).Uint64(),
+					Index:               stateBatchAppended.BatchIndex.Uint64(),
 					Root:                stateBatchAppended.BatchRoot,
 					Size:                stateBatchAppended.BatchSize.Uint64(),
 					PrevTotal:           stateBatchAppended.PrevTotalElements.Uint64(),
@@ -199,7 +211,7 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 
 		numIndexedL1Headers := len(indexedL1Headers)
 		if numIndexedL1Headers > 0 {
-			processLog.Info("saving l1 blocks with optimism logs", "size", numIndexedL1Headers, "batch_size", numHeaders)
+			processLog.Info("saving l1 blocks with optimism logs", "size", numIndexedL1Headers, "batch_size", len(headers))
 			err = db.Blocks.StoreL1BlockHeaders(indexedL1Headers)
 			if err != nil {
 				return err
@@ -296,15 +308,16 @@ func l1BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethCl
 		// Check if the L2Processor is behind or really has missed an event. We can compare against the
 		// OptimismPortal#ProvenWithdrawal on-chain mapping relative to the latest indexed L2 height
 		if withdrawal == nil {
-			bridgeAddress := l1Contracts.L1StandardBridge
-			portalAddress := l1Contracts.OptimismPortal
-			if provenWithdrawalEvent.From != bridgeAddress || provenWithdrawalEvent.To != bridgeAddress {
+
+			// This needs to be updated to read from config as well as correctly identify if the CrossDomainMessenger message is a standard
+			// bridge message. This will easier to do once we index passed messages separately which will include the right To/From fields
+			if provenWithdrawalEvent.From != common.HexToAddress("0x4200000000000000000000000000000000000007") || provenWithdrawalEvent.To != l1Contracts.L1CrossDomainMessenger {
 				// non-bridge withdrawal
 				continue
 			}
 
 			// Query for the the proven withdrawal on-chain
-			provenWithdrawal, err := OptimismPortalQueryProvenWithdrawal(rawEthClient, portalAddress, withdrawalHash)
+			provenWithdrawal, err := OptimismPortalQueryProvenWithdrawal(rawEthClient, l1Contracts.OptimismPortal, withdrawalHash)
 			if err != nil {
 				return err
 			}
@@ -349,8 +362,8 @@ func l1BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethCl
 			return err
 		}
 
-		// Since we have to prove the event on-chain first, we don't need to check if the processor is
-		// behind. we're definitely in an error state if we cannot find the withdrawal when parsing this even
+		// Since we have to prove the event on-chain first, we don't need to check if the processor is behind
+		// We're definitely in an error state if we cannot find the withdrawal when parsing this event
 		if withdrawal == nil {
 			processLog.Crit("missing indexed withdrawal for this finalization event")
 			return errors.New("missing withdrawal message")

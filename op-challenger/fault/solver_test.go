@@ -100,7 +100,7 @@ func TestNoMoveAgainstOwnLevel(t *testing.T) {
 
 func TestAttemptStep(t *testing.T) {
 	maxDepth := 3
-	canonicalProvider := NewAlphabetProvider("abcdefgh", uint64(maxDepth))
+	canonicalProvider := &alphabetWithProofProvider{NewAlphabetProvider("abcdefgh", uint64(maxDepth))}
 	solver := NewSolver(maxDepth, canonicalProvider)
 	_, _, middle, bottom := createTestClaims()
 
@@ -116,6 +116,7 @@ func TestAttemptStep(t *testing.T) {
 	require.Equal(t, bottom, step.LeafClaim)
 	require.True(t, step.IsAttack)
 	require.Equal(t, step.PreState, BuildAlphabetPreimage(3, "d"))
+	require.Equal(t, step.ProofData, []byte{3})
 
 	_, err = solver.AttemptStep(middle, false)
 	require.Error(t, err)
@@ -136,4 +137,16 @@ func TestAttempStep_AgreeWithClaimLevel_Fails(t *testing.T) {
 	step, err := solver.AttemptStep(middle, true)
 	require.Error(t, err)
 	require.Equal(t, StepData{}, step)
+}
+
+type alphabetWithProofProvider struct {
+	*AlphabetProvider
+}
+
+func (a *alphabetWithProofProvider) GetPreimage(i uint64) ([]byte, []byte, error) {
+	preimage, _, err := a.AlphabetProvider.GetPreimage(i)
+	if err != nil {
+		return nil, nil, err
+	}
+	return preimage, []byte{byte(i)}, nil
 }

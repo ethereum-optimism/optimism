@@ -1,4 +1,4 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
@@ -7,14 +7,12 @@ import { IDripCheck } from "../periphery/drippie/IDripCheck.sol";
 import { CheckTrue } from "../periphery/drippie/dripchecks/CheckTrue.sol";
 import { SimpleStorage } from "./Helpers.sol";
 
-/**
- * @title  TestDrippie
- * @notice This is a wrapper contract around Drippie used for testing.
- *         Returning an entire `Drippie.DripState` causes stack too
- *         deep errors without `--vir-ir` which causes the compile time
- *         to go up by ~4x. Each of the methods is a simple getter around
- *         parts of the `DripState`.
- */
+/// @title  TestDrippie
+/// @notice This is a wrapper contract around Drippie used for testing.
+///         Returning an entire `Drippie.DripState` causes stack too
+///         deep errors without `--vir-ir` which causes the compile time
+///         to go up by ~4x. Each of the methods is a simple getter around
+///         parts of the `DripState`.
 contract TestDrippie is Drippie {
     constructor(address owner) Drippie(owner) {}
 
@@ -47,58 +45,38 @@ contract TestDrippie is Drippie {
     }
 }
 
-/**
- * @title  Drippie_Test
- * @notice Test coverage of the Drippie contract.
- */
+/// @title  Drippie_Test
+/// @notice Test coverage of the Drippie contract.
 contract Drippie_Test is Test {
-    /**
-     * @notice Emitted when a drip is executed.
-     */
+    /// @notice Emitted when a drip is executed.
     event DripExecuted(string indexed nameref, string name, address executor, uint256 timestamp);
 
-    /**
-     * @notice Emitted when a drip's status is updated.
-     */
+    /// @notice Emitted when a drip's status is updated.
     event DripStatusUpdated(string indexed nameref, string name, Drippie.DripStatus status);
 
-    /**
-     * @notice Emitted when a drip is created.
-     */
+    /// @notice Emitted when a drip is created.
     event DripCreated(string indexed nameref, string name, Drippie.DripConfig config);
 
-    /**
-     * @notice Address of the test DripCheck. CheckTrue is deployed
-     *         here so it always returns true.
-     */
+    /// @notice Address of the test DripCheck. CheckTrue is deployed
+    ///         here so it always returns true.
     IDripCheck check;
 
-    /**
-     * @notice Address of a SimpleStorage contract. Used to test that
-     *         calls are actually made by Drippie.
-     */
+    /// @notice Address of a SimpleStorage contract. Used to test that
+    ///         calls are actually made by Drippie.
     SimpleStorage simpleStorage;
 
-    /**
-     * @notice Address of the Drippie contract.
-     */
+    /// @notice Address of the Drippie contract.
     TestDrippie drippie;
 
-    /**
-     * @notice Address of the Drippie owner
-     */
+    /// @notice Address of the Drippie owner
     address constant alice = address(0x42);
 
-    /**
-     * @notice The name of the default drip
-     */
+    /// @notice The name of the default drip
     string constant dripName = "foo";
 
-    /**
-     * @notice Set up the test suite by deploying a CheckTrue DripCheck.
-     *         This is a mock that always returns true. Alice is the owner
-     *         and also give drippie 1 ether so that it can balance transfer.
-     */
+    /// @notice Set up the test suite by deploying a CheckTrue DripCheck.
+    ///         This is a mock that always returns true. Alice is the owner
+    ///         and also give drippie 1 ether so that it can balance transfer.
     function setUp() external {
         check = IDripCheck(new CheckTrue());
         simpleStorage = new SimpleStorage();
@@ -107,12 +85,10 @@ contract Drippie_Test is Test {
         vm.deal(address(drippie), 1 ether);
     }
 
-    /**
-     * @notice Builds a default Drippie.DripConfig. Uses CheckTrue as the
-     *         dripcheck so it will always be able to do its DripActions.
-     *         Gives a dummy DripAction that does a simple transfer to
-     *         a dummy address.
-     */
+    /// @notice Builds a default Drippie.DripConfig. Uses CheckTrue as the
+    ///         dripcheck so it will always be able to do its DripActions.
+    ///         Gives a dummy DripAction that does a simple transfer to
+    ///         a dummy address.
     function _defaultConfig() internal view returns (Drippie.DripConfig memory) {
         Drippie.DripAction[] memory actions = new Drippie.DripAction[](1);
         actions[0] = Drippie.DripAction({ target: payable(address(0x44)), data: hex"", value: 1 });
@@ -127,9 +103,7 @@ contract Drippie_Test is Test {
             });
     }
 
-    /**
-     * @notice Creates a default drip using the default drip config.
-     */
+    /// @notice Creates a default drip using the default drip config.
     function _createDefaultDrip(string memory name) internal {
         address owner = drippie.owner();
         Drippie.DripConfig memory cfg = _defaultConfig();
@@ -137,18 +111,14 @@ contract Drippie_Test is Test {
         drippie.create(name, cfg);
     }
 
-    /**
-     * @notice Moves the block's timestamp forward so that it is
-     *         possible to execute a drip.
-     */
+    /// @notice Moves the block's timestamp forward so that it is
+    ///         possible to execute a drip.
     function _warpToExecutable(string memory name) internal {
         Drippie.DripConfig memory config = drippie.dripConfig(name);
         vm.warp(config.interval + drippie.dripStateLast(name));
     }
 
-    /**
-     * @notice Creates a drip and asserts that it was configured as expected.
-     */
+    /// @notice Creates a drip and asserts that it was configured as expected.
     function test_create_succeeds() external {
         Drippie.DripConfig memory cfg = _defaultConfig();
         vm.expectEmit(true, true, true, true);
@@ -185,9 +155,7 @@ contract Drippie_Test is Test {
         }
     }
 
-    /**
-     * @notice Ensures that the same drip cannot be created two times.
-     */
+    /// @notice Ensures that the same drip cannot be created two times.
     function test_create_calledTwice_reverts() external {
         vm.startPrank(drippie.owner());
         Drippie.DripConfig memory cfg = _defaultConfig();
@@ -197,9 +165,7 @@ contract Drippie_Test is Test {
         vm.stopPrank();
     }
 
-    /**
-     * @notice Ensures that only the owner of Drippie can create a drip.
-     */
+    /// @notice Ensures that only the owner of Drippie can create a drip.
     function testFuzz_owner_unauthorized_reverts(address caller) external {
         vm.assume(caller != drippie.owner());
         vm.prank(caller);
@@ -207,9 +173,7 @@ contract Drippie_Test is Test {
         drippie.create(dripName, _defaultConfig());
     }
 
-    /**
-     * @notice The owner should be able to set the status of the drip.
-     */
+    /// @notice The owner should be able to set the status of the drip.
     function test_set_status_succeeds() external {
         vm.expectEmit(true, true, true, true);
         emit DripCreated(dripName, dripName, _defaultConfig());
@@ -255,9 +219,7 @@ contract Drippie_Test is Test {
         }
     }
 
-    /**
-     * @notice The drip status cannot be set back to NONE after it is created.
-     */
+    /// @notice The drip status cannot be set back to NONE after it is created.
     function test_set_statusNone_reverts() external {
         _createDefaultDrip(dripName);
 
@@ -268,10 +230,8 @@ contract Drippie_Test is Test {
         drippie.status(dripName, Drippie.DripStatus.NONE);
     }
 
-    /**
-     * @notice The owner cannot set the status of the drip to the status that
-     *         it is already set as.
-     */
+    /// @notice The owner cannot set the status of the drip to the status that
+    ///         it is already set as.
     function test_set_statusSame_reverts() external {
         _createDefaultDrip(dripName);
 
@@ -282,10 +242,8 @@ contract Drippie_Test is Test {
         drippie.status(dripName, Drippie.DripStatus.PAUSED);
     }
 
-    /**
-     * @notice The owner should be able to archive the drip if it is in the
-     *         paused state.
-     */
+    /// @notice The owner should be able to archive the drip if it is in the
+    ///         paused state.
     function test_shouldArchive_ifPaused_succeeds() external {
         _createDefaultDrip(dripName);
 
@@ -306,10 +264,8 @@ contract Drippie_Test is Test {
         assertEq(uint256(status), uint256(Drippie.DripStatus.ARCHIVED));
     }
 
-    /**
-     * @notice The owner should not be able to archive the drip if it is in the
-     *         active state.
-     */
+    /// @notice The owner should not be able to archive the drip if it is in the
+    ///         active state.
     function test_shouldNotArchive_ifActive_reverts() external {
         _createDefaultDrip(dripName);
 
@@ -323,30 +279,24 @@ contract Drippie_Test is Test {
         drippie.status(dripName, Drippie.DripStatus.ARCHIVED);
     }
 
-    /**
-     * @notice The owner should not be allowed to pause the drip if it
-     *         has already been archived.
-     */
+    /// @notice The owner should not be allowed to pause the drip if it
+    ///         has already been archived.
     function test_shouldNotAllowPaused_ifArchived_reverts() external {
         _createDefaultDrip(dripName);
 
         _notAllowFromArchive(dripName, Drippie.DripStatus.PAUSED);
     }
 
-    /**
-     * @notice The owner should not be allowed to make the drip active again if
-     *         it has already been archived.
-     */
+    /// @notice The owner should not be allowed to make the drip active again if
+    ///         it has already been archived.
     function test_shouldNotAllowActive_ifArchived_reverts() external {
         _createDefaultDrip(dripName);
 
         _notAllowFromArchive(dripName, Drippie.DripStatus.ACTIVE);
     }
 
-    /**
-     * @notice Archive the drip and then attempt to set the status to the passed
-     *         in status.
-     */
+    /// @notice Archive the drip and then attempt to set the status to the passed
+    ///         in status.
     function _notAllowFromArchive(string memory name, Drippie.DripStatus status) internal {
         address owner = drippie.owner();
         vm.prank(owner);
@@ -358,9 +308,7 @@ contract Drippie_Test is Test {
         drippie.status(name, status);
     }
 
-    /**
-     * @notice Attempt to update a drip that does not exist.
-     */
+    /// @notice Attempt to update a drip that does not exist.
     function test_name_notExist_reverts() external {
         string memory otherName = "bar";
 
@@ -373,9 +321,7 @@ contract Drippie_Test is Test {
         drippie.status(otherName, Drippie.DripStatus.ARCHIVED);
     }
 
-    /**
-     * @notice Expect a revert when attempting to set the status when not the owner.
-     */
+    /// @notice Expect a revert when attempting to set the status when not the owner.
     function test_status_unauthorized_reverts() external {
         _createDefaultDrip(dripName);
 
@@ -383,9 +329,7 @@ contract Drippie_Test is Test {
         drippie.status(dripName, Drippie.DripStatus.ACTIVE);
     }
 
-    /**
-     * @notice The drip should execute and be able to transfer value.
-     */
+    /// @notice The drip should execute and be able to transfer value.
     function test_drip_amount_succeeds() external {
         _createDefaultDrip(dripName);
 
@@ -415,9 +359,7 @@ contract Drippie_Test is Test {
         drippie.drip(dripName);
     }
 
-    /**
-     * @notice A single DripAction should be able to make a state modifying call.
-     */
+    /// @notice A single DripAction should be able to make a state modifying call.
     function test_trigger_oneFunction_succeeds() external {
         Drippie.DripConfig memory cfg = _defaultConfig();
 
@@ -452,9 +394,7 @@ contract Drippie_Test is Test {
         assertEq(simpleStorage.get(key), value);
     }
 
-    /**
-     * @notice Multiple drip actions should be able to be triggered with the same check.
-     */
+    /// @notice Multiple drip actions should be able to be triggered with the same check.
     function test_trigger_twoFunctions_succeeds() external {
         Drippie.DripConfig memory cfg = _defaultConfig();
         Drippie.DripAction[] memory actions = new Drippie.DripAction[](2);
@@ -511,11 +451,9 @@ contract Drippie_Test is Test {
         assertEq(simpleStorage.get(keyTwo), valueTwo);
     }
 
-    /**
-     * @notice The drips can only be triggered once per interval. Attempt to
-     *         trigger the same drip multiple times in the same interval. Then
-     *         move forward to the next interval and it should trigger.
-     */
+    /// @notice The drips can only be triggered once per interval. Attempt to
+    ///         trigger the same drip multiple times in the same interval. Then
+    ///         move forward to the next interval and it should trigger.
     function test_twice_inOneInterval_reverts() external {
         _createDefaultDrip(dripName);
 
@@ -547,10 +485,8 @@ contract Drippie_Test is Test {
         drippie.drip(dripName);
     }
 
-    /**
-     * @notice It should revert if attempting to trigger a drip that does not exist.
-     *         Note that the drip was never created at the beginning of the test.
-     */
+    /// @notice It should revert if attempting to trigger a drip that does not exist.
+    ///         Note that the drip was never created at the beginning of the test.
     function test_drip_notExist_reverts() external {
         vm.prank(drippie.owner());
 
@@ -559,9 +495,7 @@ contract Drippie_Test is Test {
         drippie.drip(dripName);
     }
 
-    /**
-     * @notice The owner cannot trigger the drip when it is paused.
-     */
+    /// @notice The owner cannot trigger the drip when it is paused.
     function test_not_active_reverts() external {
         _createDefaultDrip(dripName);
 
@@ -575,9 +509,7 @@ contract Drippie_Test is Test {
         drippie.drip(dripName);
     }
 
-    /**
-     * @notice The interval must be 0 if reentrant is set on the config.
-     */
+    /// @notice The interval must be 0 if reentrant is set on the config.
     function test_reentrant_succeeds() external {
         address owner = drippie.owner();
         Drippie.DripConfig memory cfg = _defaultConfig();
@@ -594,10 +526,8 @@ contract Drippie_Test is Test {
         assertEq(_cfg.interval, 0);
     }
 
-    /**
-     * @notice A non zero interval when reentrant is true will cause a revert
-     *         when creating a drip.
-     */
+    /// @notice A non zero interval when reentrant is true will cause a revert
+    ///         when creating a drip.
     function test_drip_reentrant_reverts() external {
         address owner = drippie.owner();
         Drippie.DripConfig memory cfg = _defaultConfig();
@@ -610,10 +540,8 @@ contract Drippie_Test is Test {
         drippie.create(dripName, cfg);
     }
 
-    /**
-     * @notice If reentrant is false and the interval is 0 then it should
-     *         revert when the drip is created.
-     */
+    /// @notice If reentrant is false and the interval is 0 then it should
+    ///         revert when the drip is created.
     function test_notReentrant_zeroInterval_reverts() external {
         address owner = drippie.owner();
         Drippie.DripConfig memory cfg = _defaultConfig();
