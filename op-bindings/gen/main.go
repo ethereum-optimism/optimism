@@ -12,7 +12,6 @@ import (
 	"regexp"
 	"strings"
 	"text/template"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/ast"
 	"github.com/ethereum-optimism/optimism/op-bindings/foundry"
@@ -210,7 +209,7 @@ func main() {
 		log.Printf("wrote file %s\n", outfile.Name())
 	}
 
-	mostRecentBuildInfo, err := getMostRecentlyModifiedFile(f.ForgeBuildInfo)
+	mostRecentBuildInfo, err := getLargestInDir(f.ForgeBuildInfo)
 	if err != nil {
 		log.Fatalf("Error getting most recently modified build info file: %v", err)
 	}
@@ -260,10 +259,10 @@ func main() {
 	log.Printf("wrote file %s\n", outfile.Name())
 }
 
-// getMostRecentlyModifiedFile returns the path of the most recently modified file in the given directory.
-func getMostRecentlyModifiedFile(dirPath string) (string, error) {
-	var mostRecentFile string
-	var mostRecentModTime time.Time
+// getLargestInDir returns the path of the largest file in a directory.
+func getLargestInDir(dirPath string) (string, error) {
+	var largestFile string
+	var largestSize int64
 
 	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -272,17 +271,16 @@ func getMostRecentlyModifiedFile(dirPath string) (string, error) {
 
 		// Check if the current path is a regular file and not a directory
 		if !info.IsDir() {
-			modTime := info.ModTime()
-			if modTime.After(mostRecentModTime) {
-				mostRecentModTime = modTime
-				mostRecentFile = path
+			if info.Size() > largestSize {
+				largestFile = path
+				largestSize = info.Size()
 			}
 		}
 
 		return nil
 	})
 
-	return mostRecentFile, err
+	return largestFile, err
 }
 
 var tmpl = `// Code generated - DO NOT EDIT.
