@@ -1,7 +1,7 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-/* Testing utilities */
+// Testing utilities
 import { Test } from "forge-std/Test.sol";
 import { CallRecorder } from "./Helpers.sol";
 import { Reverter } from "./Helpers.sol";
@@ -34,12 +34,12 @@ contract Transactor_Initializer is Test {
 }
 
 contract TransactorTest is Transactor_Initializer {
-    // Tests if the owner was set correctly during deploy
+    /// @notice Tests if the owner was set correctly during deploy
     function test_constructor_succeeds() external {
         assertEq(address(alice), transactor.owner());
     }
 
-    // Tests CALL, should do a call to target
+    /// @notice Tests CALL, should do a call to target
     function test_call_succeeds() external {
         // Initialize call data
         bytes memory data = abi.encodeWithSelector(callRecorded.record.selector);
@@ -49,7 +49,7 @@ contract TransactorTest is Transactor_Initializer {
         transactor.CALL(address(callRecorded), data, 200_000 wei);
     }
 
-    // It should revert if called by non-owner
+    /// @notice It should revert if called by non-owner
     function test_call_unauthorized_reverts() external {
         // Initialize call data
         bytes memory data = abi.encodeWithSelector(callRecorded.record.selector);
@@ -59,6 +59,7 @@ contract TransactorTest is Transactor_Initializer {
         transactor.CALL(address(callRecorded), data, 200_000 wei);
     }
 
+    /// @notice Deletate call succeeds.
     function test_delegateCall_succeeds() external {
         // Initialize call data
         bytes memory data = abi.encodeWithSelector(reverter.doRevert.selector);
@@ -68,7 +69,7 @@ contract TransactorTest is Transactor_Initializer {
         transactor.DELEGATECALL(address(reverter), data);
     }
 
-    // It should revert if called by non-owner
+    /// @notice It should revert if called by non-owner
     function test_delegateCall_unauthorized_reverts() external {
         // Initialize call data
         bytes memory data = abi.encodeWithSelector(reverter.doRevert.selector);

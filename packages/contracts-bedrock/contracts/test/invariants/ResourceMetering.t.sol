@@ -45,10 +45,8 @@ contract ResourceMetering_User is StdUtils, ResourceMetering {
         return rcfg;
     }
 
-    /**
-     * @notice Takes the necessary parameters to allow us to burn arbitrary amounts of gas to test
-     *         the underlying resource metering/gas market logic
-     */
+    /// @notice Takes the necessary parameters to allow us to burn arbitrary amounts of gas to test
+    ///         the underlying resource metering/gas market logic
     function burn(uint256 _gasToBurn, bool _raiseBaseFee) public {
         // Part 1: we cache the current param values and do some basic checks on them.
         uint256 cachedPrevBaseFee = uint256(params.prevBaseFee);
@@ -169,78 +167,67 @@ contract ResourceMetering_Invariant is StdInvariant, Test {
         targetSelector(selector);
     }
 
-    /**
-     * @custom:invariant The base fee should increase if the last block used more
-     * than the target amount of gas
-     *
-     * If the last block used more than the target amount of gas (and there were no
-     * empty blocks in between), ensure this block's baseFee increased, but not by
-     * more than the max amount per block.
-     */
+    /// @custom:invariant The base fee should increase if the last block used more
+    ///                   than the target amount of gas.
+    ///
+    ///                   If the last block used more than the target amount of gas
+    ///                   (and there were no empty blocks in between), ensure this
+    ///                   block's baseFee increased, but not by more than the max amount
+    ///                   per block.
     function invariant_high_usage_raise_baseFee() external {
         assertFalse(actor.failedRaiseBaseFee());
     }
 
-    /**
-     * @custom:invariant The base fee should decrease if the last block used less
-     * than the target amount of gas
-     *
-     * If the previous block used less than the target amount of gas, the base fee should decrease,
-     * but not more than the max amount.
-     */
+    /// @custom:invariant The base fee should decrease if the last block used less
+    ///                   than the target amount of gas.
+    ///
+    ///                   If the previous block used less than the target amount of gas,
+    ///                   the base fee should decrease, but not more than the max amount.
     function invariant_low_usage_lower_baseFee() external {
         assertFalse(actor.failedLowerBaseFee());
     }
 
-    /**
-     * @custom:invariant A block's base fee should never be below `MINIMUM_BASE_FEE`
-     *
-     * This test asserts that a block's base fee can never drop below the
-     * `MINIMUM_BASE_FEE` threshold.
-     */
+    /// @custom:invariant A block's base fee should never be below `MINIMUM_BASE_FEE`.
+    ///
+    ///                   This test asserts that a block's base fee can never drop
+    ///                   below the `MINIMUM_BASE_FEE` threshold.
     function invariant_never_below_min_baseFee() external {
         assertFalse(actor.failedNeverBelowMinBaseFee());
     }
 
-    /**
-     * @custom:invariant A block can never consume more than `MAX_RESOURCE_LIMIT` gas.
-     *
-     * This test asserts that a block can never consume more than the `MAX_RESOURCE_LIMIT`
-     * gas threshold.
-     */
+    /// @custom:invariant A block can never consume more than `MAX_RESOURCE_LIMIT` gas.
+    ///
+    ///                   This test asserts that a block can never consume more than
+    ///                   the `MAX_RESOURCE_LIMIT` gas threshold.
     function invariant_never_above_max_gas_limit() external {
         assertFalse(actor.failedMaxGasPerBlock());
     }
 
-    /**
-     * @custom:invariant The base fee can never be raised more than the max base fee change.
-     *
-     * After a block consumes more gas than the target gas, the base fee cannot be raised
-     * more than the maximum amount allowed. The max base fee change (per-block) is derived
-     * as follows: `prevBaseFee / BASE_FEE_MAX_CHANGE_DENOMINATOR`
-     */
+    /// @custom:invariant The base fee can never be raised more than the max base fee change.
+    ///
+    ///                   After a block consumes more gas than the target gas, the base fee
+    ///                   cannot be raised more than the maximum amount allowed. The max base
+    ///                   fee change (per-block) is derived as follows:
+    ///                   `prevBaseFee / BASE_FEE_MAX_CHANGE_DENOMINATOR`
     function invariant_never_exceed_max_increase() external {
         assertFalse(actor.failedMaxRaiseBaseFeePerBlock());
     }
 
-    /**
-     * @custom:invariant The base fee can never be lowered more than the max base fee change.
-     *
-     * After a block consumes less than the target gas, the base fee cannot be lowered more
-     * than the maximum amount allowed. The max base fee change (per-block) is derived as
-     *follows: `prevBaseFee / BASE_FEE_MAX_CHANGE_DENOMINATOR`
-     */
+    /// @custom:invariant The base fee can never be lowered more than the max base fee change.
+    ///
+    ///                   After a block consumes less than the target gas, the base fee cannot
+    ///                   be lowered more than the maximum amount allowed. The max base fee
+    ///                   change (per-block) is derived as follows:
+    ///                   `prevBaseFee / BASE_FEE_MAX_CHANGE_DENOMINATOR`
     function invariant_never_exceed_max_decrease() external {
         assertFalse(actor.failedMaxLowerBaseFeePerBlock());
     }
 
-    /**
-     * @custom:invariant The `maxBaseFeeChange` calculation over multiple blocks can never
-     * underflow.
-     *
-     * When calculating the `maxBaseFeeChange` after multiple empty blocks, the calculation
-     * should never be allowed to underflow.
-     */
+    /// @custom:invariant The `maxBaseFeeChange` calculation over multiple blocks can never
+    ///                   underflow.
+    ///
+    ///                   When calculating the `maxBaseFeeChange` after multiple empty blocks,
+    ///                   the calculation should never be allowed to underflow.
     function invariant_never_underflow() external {
         assertFalse(actor.underflow());
     }
