@@ -140,7 +140,6 @@ jobs:
             - "packages/common-ts/node_modules"
             - "packages/contracts-bedrock/node_modules"
             - "packages/core-utils/node_modules"
-            - "packages/fault-detector/node_modules"
             - "packages/replica-healthcheck/node_modules"
             - "packages/sdk/node_modules"
             - "packages/contracts-ts/node_modules"
@@ -376,7 +375,7 @@ jobs:
   contracts-bedrock-tests:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -409,10 +408,12 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
+          no_output_timeout: 15m
 
   contracts-bedrock-checks:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: xlarge
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -448,6 +449,7 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
+          no_output_timeout: 15m
       - run:
           name: validate deploy configs
           command: |
@@ -1115,6 +1117,18 @@ jobs:
                 command: |
                   docker logs ops-bedrock-op-proposer-1 || echo "No logs."
                 when: on_fail
+            - run:
+                name: Log deployment artifact
+                command: |
+                  cat broadcast/Deploy.s.sol/900/run-latest.json || echo "No deployment file found"
+                when: on_fail
+                working_directory: packages/contracts-bedrock
+            - run:
+                name: Log artifacts directory
+                command: |
+                  ls -R forge-artifacts || echo "No forge artifacts found"
+                when: on_fail
+                working_directory: packages/contracts-bedrock
       - when:
           condition:
             and:
@@ -1346,13 +1360,6 @@ workflows:
           coverage_flag: chain-mon-tests
           package_name: chain-mon
           dependencies: "(common-ts|contracts-bedrock|core-utils|sdk)"
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
-          name: fault-detector-tests
-          coverage_flag: fault-detector-tests
-          package_name: fault-detector
-          dependencies: "(common-ts|core-utils|sdk)"
           requires:
             - pnpm-monorepo
       - js-lint-test:
@@ -1601,14 +1608,6 @@ workflows:
           docker_target: wd-mon
           context:
             - oplabs-gcr
-      - docker-publish:
-          name: fault-detector-docker-publish
-          docker_file: ./ops/docker/Dockerfile.packages
-          docker_name: fault-detector
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_target: fault-detector
-          context:
-            - oplabs-gcr
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
@@ -1646,7 +1645,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(fault-detector|proxyd|indexer|ci-builder|op-[a-z0-9\-]*)\/v.*/
+              only: /^(proxyd|indexer|ci-builder|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-release:
@@ -1707,23 +1706,6 @@ workflows:
           docker_file: op-challenger/Dockerfile
           docker_name: op-challenger
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_context: .
-          platforms: "linux/amd64,linux/arm64"
-          context:
-            - oplabs-gcr-release
-          requires:
-            - hold
-      - docker-release:
-          name: fault-detector-docker-release
-          filters:
-            tags:
-              only: /^fault-detector\/v.*/
-            branches:
-              ignore: /.*/
-          docker_file: ./ops/docker/Dockerfile.packages
-          docker_name: fault-detector
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_target: fault-detector
           docker_context: .
           platforms: "linux/amd64,linux/arm64"
           context:

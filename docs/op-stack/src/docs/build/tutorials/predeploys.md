@@ -10,11 +10,11 @@ OP Stack Hacks are not for the faint of heart. You will not be able to receive s
 :::
 
 
-OP Stack blockchains have a number of [predeployed contracts](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/src/constants.ts) that provide important functionality. 
+OP Stack blockchains have a number of [predeployed contracts](https://github.com/ethereum-optimism/optimism/blob/129032f15b76b0d2a940443a39433de931a97a44/packages/contracts-bedrock/src/constants.ts) that provide important functionality. 
 Most of those contracts are proxies that can be upgraded using the `proxyAdminOwner` which was configured when the network was initially deployed.
 
-The predeploys are controlled from a predeploy called [`ProxyAdmin`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/universal/ProxyAdmin.sol), whose address is `0x4200000000000000000000000000000000000018`. 
-The function to call is [`upgrade(address,address)`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/universal/ProxyAdmin.sol#L211-L229).
+The predeploys are controlled from a predeploy called [`ProxyAdmin`](https://github.com/ethereum-optimism/optimism/blob/129032f15b76b0d2a940443a39433de931a97a44/packages/contracts-bedrock/contracts/universal/ProxyAdmin.sol), whose address is `0x4200000000000000000000000000000000000018`. 
+The function to call is [`upgrade(address,address)`](https://github.com/ethereum-optimism/optimism/blob/129032f15b76b0d2a940443a39433de931a97a44/packages/contracts-bedrock/contracts/universal/ProxyAdmin.sol#L205-L229).
 The first parameter is the proxy to upgrade, and the second is the address of a new implementation.
 
 For example, the legacy `L1BlockNumber` contract is at `0x420...013`. 

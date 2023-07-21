@@ -45,6 +45,10 @@ type TxManager interface {
 	// NOTE: Send can be called concurrently, the nonce will be managed internally.
 	Send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error)
 
+	// Call is used to call a contract.
+	// Internally, it uses the [ethclient.Client.CallContract] method.
+	Call(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
+
 	// From returns the sending address associated with the instance of the transaction manager.
 	// It is static for a single instance of a TxManager.
 	From() common.Address
@@ -58,6 +62,9 @@ type TxManager interface {
 type ETHBackend interface {
 	// BlockNumber returns the most recent block number.
 	BlockNumber(ctx context.Context) (uint64, error)
+
+	// CallContract executes an eth_call against the provided contract.
+	CallContract(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error)
 
 	// TransactionReceipt queries the backend for a receipt associated with
 	// txHash. If lookup does not fail, but the transaction is not found,
@@ -153,6 +160,12 @@ func (m *SimpleTxManager) Send(ctx context.Context, candidate TxCandidate) (*typ
 		m.resetNonce()
 	}
 	return receipt, err
+}
+
+// Call is used to call a contract.
+// Internally, it uses the [ethclient.Client.CallContract] method.
+func (m *SimpleTxManager) Call(ctx context.Context, msg ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
+	return m.backend.CallContract(ctx, msg, blockNumber)
 }
 
 // send performs the actual transaction creation and sending.

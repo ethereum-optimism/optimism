@@ -29,25 +29,41 @@ func NewAgent(loader Loader, maxDepth int, trace TraceProvider, responder Respon
 }
 
 // Act iterates the game & performs all of the next actions.
-func (a *Agent) Act() error {
-	game, err := a.newGameFromContracts(context.Background())
+func (a *Agent) Act(ctx context.Context) error {
+	if a.tryResolve(ctx) {
+		return nil
+	}
+	game, err := a.newGameFromContracts(ctx)
 	if err != nil {
 		a.log.Error("Failed to create new game", "err", err)
 		return err
 	}
 	// Create counter claims
 	for _, claim := range game.Claims() {
-		if err := a.move(claim, game); err != nil {
+		if err := a.move(ctx, claim, game); err != nil {
 			log.Error("Failed to move", "err", err)
 		}
 	}
 	// Step on all leaf claims
 	for _, claim := range game.Claims() {
-		if err := a.step(claim, game); err != nil {
+		if err := a.step(ctx, claim, game); err != nil {
 			log.Error("Failed to step", "err", err)
 		}
 	}
 	return nil
+}
+
+// tryResolve resolves the game if it is in a terminal state
+// and returns true if the game resolves successfully.
+func (a *Agent) tryResolve(ctx context.Context) bool {
+	if a.responder.CanResolve(ctx) {
+		err := a.responder.Resolve(ctx)
+		if err != nil {
+			return true
+		}
+		a.log.Error("failed to resolve the game", "err", err)
+	}
+	return false
 }
 
 // newGameFromContracts initializes a new game state from the state in the contract
@@ -67,7 +83,7 @@ func (a *Agent) newGameFromContracts(ctx context.Context) (Game, error) {
 }
 
 // move determines & executes the next move given a claim
-func (a *Agent) move(claim Claim, game Game) error {
+func (a *Agent) move(ctx context.Context, claim Claim, game Game) error {
 	nextMove, err := a.solver.NextMove(claim, game.AgreeWithClaimLevel(claim))
 	if err != nil {
 		a.log.Warn("Failed to execute the next move", "err", err)
@@ -86,11 +102,11 @@ func (a *Agent) move(claim Claim, game Game) error {
 		return nil
 	}
 	log.Info("Performing move")
-	return a.responder.Respond(context.TODO(), move)
+	return a.responder.Respond(ctx, move)
 }
 
 // step determines & executes the next step against a leaf claim through the responder
-func (a *Agent) step(claim Claim, game Game) error {
+func (a *Agent) step(ctx context.Context, claim Claim, game Game) error {
 	if claim.Depth() != a.maxDepth {
 		return nil
 	}
@@ -119,6 +135,7 @@ func (a *Agent) step(claim Claim, game Game) error {
 		ClaimIndex: uint64(step.LeafClaim.ContractIndex),
 		IsAttack:   step.IsAttack,
 		StateData:  step.PreState,
+		Proof:      step.ProofData,
 	}
-	return a.responder.Step(context.TODO(), callData)
+	return a.responder.Step(ctx, callData)
 }

@@ -8,7 +8,6 @@ import (
 )
 
 var (
-	ErrNegativeIndex = errors.New("index cannot be negative")
 	ErrIndexTooLarge = errors.New("index is larger than the maximum index")
 )
 
@@ -20,13 +19,17 @@ type StepCallData struct {
 	Proof      []byte
 }
 
-// TraceProvider is a generic way to get a claim value at a specific
-// step in the trace.
-// Get(i) = Keccak256(GetPreimage(i))
-// AbsolutePreState is the value of the trace that transitions to the trace value at index 0
+// TraceProvider is a generic way to get a claim value at a specific step in the trace.
 type TraceProvider interface {
+	// Get returns the claim value at the requested index.
+	// Get(i) = Keccak256(GetPreimage(i))
 	Get(i uint64) (common.Hash, error)
-	GetPreimage(i uint64) ([]byte, error)
+
+	// GetPreimage returns the pre-image for a claim at the specified trace index, along
+	// with any associated proof data to assist in its verification.
+	GetPreimage(i uint64) (preimage []byte, proofData []byte, err error)
+
+	// AbsolutePreState is the pre-image value of the trace that transitions to the trace value at index 0
 	AbsolutePreState() []byte
 }
 
@@ -76,6 +79,8 @@ func (c *Claim) DefendsParent() bool {
 // Responder takes a response action & executes.
 // For full op-challenger this means executing the transaction on chain.
 type Responder interface {
+	CanResolve(ctx context.Context) bool
+	Resolve(ctx context.Context) error
 	Respond(ctx context.Context, response Claim) error
 	Step(ctx context.Context, stepData StepCallData) error
 }

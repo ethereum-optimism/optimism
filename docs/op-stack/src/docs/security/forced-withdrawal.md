@@ -60,7 +60,7 @@ The easiest way to withdraw ETH is to send it to the bridge, or the cross domain
    transferAmt = BigInt(0.01 * 1e18)
    ``` 
 
-1. Create a contract object for the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol) contract.
+1. Create a contract object for the [`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/129032f15b76b0d2a940443a39433de931a97a44/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol) contract.
 
    ```js
    optimismContracts = require("@eth-optimism/contracts-bedrock")

@@ -67,6 +67,7 @@ type StepData struct {
 	LeafClaim Claim
 	IsAttack  bool
 	PreState  []byte
+	ProofData []byte
 }
 
 // AttemptStep determines what step should occur for a given leaf claim.
@@ -84,6 +85,7 @@ func (s *Solver) AttemptStep(claim Claim, agreeWithClaimLevel bool) (StepData, e
 	}
 	index := claim.TraceIndex(s.gameDepth)
 	var preState []byte
+	var proofData []byte
 	// If we are attacking index 0, we provide the absolute pre-state, not an intermediate state
 	if index == 0 && !claimCorrect {
 		preState = s.AbsolutePreState()
@@ -92,7 +94,7 @@ func (s *Solver) AttemptStep(claim Claim, agreeWithClaimLevel bool) (StepData, e
 		if !claimCorrect {
 			index = index - 1
 		}
-		preState, err = s.GetPreimage(index)
+		preState, proofData, err = s.GetPreimage(index)
 		if err != nil {
 			return StepData{}, err
 		}
@@ -102,6 +104,7 @@ func (s *Solver) AttemptStep(claim Claim, agreeWithClaimLevel bool) (StepData, e
 		LeafClaim: claim,
 		IsAttack:  !claimCorrect,
 		PreState:  preState,
+		ProofData: proofData,
 	}, nil
 }
 

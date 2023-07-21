@@ -63,7 +63,7 @@ func run(args []string, action ConfigAction) error {
 		}
 		logger.Info("Starting fault proof program", "version", VersionWithMeta)
 
-		cfg, err := config.NewConfigFromCLI(ctx)
+		cfg, err := config.NewConfigFromCLI(logger, ctx)
 		if err != nil {
 			return err
 		}

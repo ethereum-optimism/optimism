@@ -137,6 +137,10 @@ func EncodePrivKey(priv *ecdsa.PrivateKey) hexutil.Bytes {
 	return privkey
 }
 
+func EncodePrivKeyToString(priv *ecdsa.PrivateKey) string {
+	return hexutil.Encode(EncodePrivKey(priv))
+}
+
 // Addresses computes the ethereum address of each account,
 // which can then be kept around for fast precomputed address access.
 func (s *Secrets) Addresses() *Addresses {
