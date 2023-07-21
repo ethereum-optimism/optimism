@@ -67,6 +67,9 @@ abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
         require(_safe != address(0), "Safe address undefined");
         require(_proxyAdmin != address(0), "ProxyAdminAddress undefined");
 
+        console.log("Using Safe: %s", _safe);
+        console.log("Using ProxyAdmin: %s", _proxyAdmin);
+
         vm.startBroadcast();
         bool success = _run(_safe, _proxyAdmin);
         if (success) _postCheck();
