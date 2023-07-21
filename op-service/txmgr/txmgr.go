@@ -14,13 +14,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/celestiaorg/go-cnc"
+	"cosmossdk.io/math"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	openrpc "github.com/rollkit/celestia-openrpc"
+	openrpcns "github.com/rollkit/celestia-openrpc/types/namespace"
+	"github.com/rollkit/celestia-openrpc/types/blob"
+	"github.com/rollkit/celestia-openrpc/types/share"
 
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
@@ -88,8 +92,8 @@ type SimpleTxManager struct {
 	name    string
 	chainID *big.Int
 
-	daClient  *cnc.Client
-	namespace cnc.Namespace
+	daClient  *openrpc.Client
+	namespace openrpcns.Namespace
 
 	backend ETHBackend
 	l       log.Logger
@@ -110,7 +114,7 @@ func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLI
 		return nil, err
 	}
 
-	daClient, err := cnc.NewClient(cfg.DaRpc, cnc.WithTimeout(90*time.Second))
+	daClient, err := openrpc.NewClient(context.Background(), cfg.DaRpc, cfg.AuthToken)
 	if err != nil {
 		return nil, err
 	}
@@ -123,14 +127,17 @@ func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLI
 		return nil, err
 	}
 
-	namespace := cnc.MustNewV0(nsBytes)
+	namespace, err := share.NewBlobNamespaceV0(nsBytes)
+	if err != nil {
+		return nil, err
+	}
 
 	return &SimpleTxManager{
 		chainID:   conf.ChainID,
 		name:      name,
 		cfg:       conf,
 		daClient:  daClient,
-		namespace: namespace,
+		namespace: namespace.ToAppNamespace(),
 		backend:   conf.Backend,
 		l:         l.New("service", name),
 		metr:      m,
@@ -218,7 +225,8 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 	// frame pointer to celestia, while retaining the proposer pathway that
 	// writes the state commitment data to ethereum.
 	if candidate.To.Hex() == "0xfF00000000000000000000000000000000000000" {
-		res, err := m.daClient.SubmitPFB(ctx, m.namespace, candidate.TxData, 200000, 2000000)
+		dataBlob, err := blob.NewBlobV0(m.namespace.Bytes(), candidate.TxData)
+		res, err := m.daClient.State.SubmitPayForBlob(ctx, math.NewInt(200000), 2000000, []*blob.Blob{dataBlob})
 		if err != nil {
 			m.l.Warn("unable to publish tx to celestia", "err", err)
 			return nil, err

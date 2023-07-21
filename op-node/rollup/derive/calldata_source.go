@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/rollkit/celestia-openrpc/types/share"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -147,7 +148,11 @@ func DataFromEVMTransactions(config *rollup.Config, daCfg *rollup.DAConfig, batc
 					return nil, err
 				}
 				log.Info("requesting data from celestia", "namespace", hex.EncodeToString(daCfg.Namespace.Bytes()), "height", height)
-				data, err := daCfg.Client.NamespacedData(context.Background(), daCfg.Namespace, uint64(height))
+				blobs, err := daCfg.Client.Blob.GetAll(context.Background(), uint64(height), []share.Namespace{daCfg.Namespace.Bytes()})
+				data := make([][]byte, len(blobs))
+				for i, blob := range blobs {
+					data[i] = blob.Data
+				}
 				if err != nil {
 					return nil, NewResetError(fmt.Errorf("failed to retrieve data from celestia: %w", err))
 				}

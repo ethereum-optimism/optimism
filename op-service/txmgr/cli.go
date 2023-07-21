@@ -33,6 +33,7 @@ const (
 	ReceiptQueryIntervalFlagName      = "txmgr.receipt-query-interval"
 	DaRpcFlagName                     = "da-rpc"
 	NamespaceIdFlagName               = "namespace-id"
+	AuthTokenFlagName                 = "auth-token"
 )
 
 var (
@@ -117,6 +118,12 @@ func CLIFlags(envPrefix string) []cli.Flag {
 			Value:  "000008e5f679bf7116cb",
 			EnvVar: opservice.PrefixEnvVar(envPrefix, "NAMESPACE_ID"),
 		},
+		cli.StringFlag{
+			Name:   AuthTokenFlagName,
+			Usage:  "Authentication Token of the DA layer",
+			Value:  "",
+			EnvVar: opservice.PrefixEnvVar(envPrefix, "AUTH_TOKEN"),
+		},
 	}, client.CLIFlags(envPrefix)...)
 }
 
@@ -137,6 +144,7 @@ type CLIConfig struct {
 	TxNotInMempoolTimeout     time.Duration
 	DaRpc                     string
 	NamespaceId               string
+	AuthToken                 string
 }
 
 func (m CLIConfig) Check() error {
@@ -185,6 +193,7 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		TxNotInMempoolTimeout:     ctx.GlobalDuration(TxNotInMempoolTimeoutFlagName),
 		DaRpc:                     ctx.GlobalString(DaRpcFlagName),
 		NamespaceId:               ctx.GlobalString(NamespaceIdFlagName),
+		AuthToken:               ctx.GlobalString(AuthTokenFlagName),
 	}
 }
 
@@ -278,6 +287,9 @@ type Config struct {
 
 	// NamespaceId is the id of the namespace of the Data Availability node.
 	NamespaceId string
+
+	// AuthToken is the authentication token for the Data Availability node.
+	AuthToken string
 
 	// Signer is used to sign transactions when the gas price is increased.
 	Signer opcrypto.SignerFn

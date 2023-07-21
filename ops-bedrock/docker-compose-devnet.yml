@@ -16,6 +16,7 @@ services:
     image: "ghcr.io/rollkit/local-celestia-devnet:v0.11.0-rc8"
     ports:
       - "26657:26657"
+      - "26658:26658"
       - "26659:26659"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:26659/header/1"]
@@ -83,8 +84,11 @@ services:
       --metrics.port=7300
       --pprof.enabled
       --rpc.enable-admin
-      --da-rpc=http://da:26659
+      --da-rpc=http://da:26658
       --namespace-id=000008e5f679bf7116cb
+      --auth-token=$CELESTIA_NODE_AUTH_TOKEN
+    environment:
+      OP_NODE_AUTH_TOKEN: $CELESTIA_NODE_AUTH_TOKEN
     ports:
       - "7545:8545"
       - "9003:9003"
@@ -162,7 +166,8 @@ services:
       OP_BATCHER_METRICS_ENABLED: "true"
       OP_BATCHER_RPC_ENABLE_ADMIN: "true"
       OP_BATCHER_NAMESPACE_ID: "000008e5f679bf7116cb"
-      OP_BATCHER_DA_RPC: http://da:26659
+      OP_BATCHER_DA_RPC: http://da:26658
+      OP_BATCHER_AUTH_TOKEN: $CELESTIA_NODE_AUTH_TOKEN
 
   stateviz:
     build:

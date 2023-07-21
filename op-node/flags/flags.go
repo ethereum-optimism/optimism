@@ -41,7 +41,7 @@ var (
 	DaRPC = cli.StringFlag{
 		Name:   "da-rpc",
 		Usage:  "Data Availability RPC",
-		Value:  "http://da:26659",
+		Value:  "http://da:26658",
 		EnvVar: prefixEnvVar("DA_RPC"),
 	}
 	NamespaceId = cli.StringFlag{
@@ -49,6 +49,12 @@ var (
 		Usage:  "Namespace ID for DA node",
 		Value:  "000008e5f679bf7116cb",
 		EnvVar: prefixEnvVar("NAMESPACE_ID"),
+	}
+	AuthToken = cli.StringFlag{
+		Name: "auth-token",
+		Usage: "Authentication Token for DA node",
+		Value: "",
+		EnvVar: prefixEnvVar("AUTH_TOKEN"),
 	}
 	Network = cli.StringFlag{
 		Name:   "network",
@@ -228,6 +234,7 @@ var requiredFlags = []cli.Flag{
 	RPCListenPort,
 	DaRPC,
 	NamespaceId,
+	AuthToken,
 }
 
 var optionalFlags = []cli.Flag{

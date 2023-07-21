@@ -7,12 +7,15 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"time"
 
-	"github.com/celestiaorg/go-cnc"
+	openrpc "github.com/rollkit/celestia-openrpc"
+	"github.com/rollkit/celestia-openrpc/types/share"
 )
 
 func main() {
+	if len(os.Args) < 4 {
+		panic("usage: op-celestia <namespace> <eth calldata> <auth token>")
+	}
 	data, _ := hex.DecodeString(os.Args[2])
 	buf := bytes.NewBuffer(data)
 	var height int64
@@ -27,7 +30,7 @@ func main() {
 	}
 	fmt.Printf("celestia block height: %v; tx index: %v\n", height, index)
 	fmt.Println("-----------------------------------------")
-	client, err := cnc.NewClient("http://localhost:26659", cnc.WithTimeout(30*time.Second))
+	client, err := openrpc.NewClient(context.Background(), "http://localhost:26658", os.Args[3])
 	if err != nil {
 		panic(err)
 	}
@@ -35,10 +38,14 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	namespace := cnc.MustNewV0(nsBytes)
-	namespacedData, err := client.NamespacedData(context.Background(), namespace, uint64(height))
+	namespace, err := share.NewBlobNamespaceV0(nsBytes)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("optimism block data on celestia: %x\n", namespacedData)
+
+	namespacedData, err := client.Blob.GetAll(context.Background(), uint64(height), []share.Namespace{namespace})
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("optimism block data on celestia: %x\n", namespacedData[0].Data)
 }
