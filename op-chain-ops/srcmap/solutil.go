@@ -84,6 +84,10 @@ func (s *SourceMap) Info(pc uint64) (source string, line uint32, col uint32) {
 	if instr.F < 0 {
 		return "generated", 0, 0
 	}
+	if instr.F >= int32(len(s.Sources)) {
+		source = "unknown"
+		return
+	}
 	source = s.Sources[instr.F]
 	if instr.S < 0 {
 		return

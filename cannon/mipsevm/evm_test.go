@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
 )
 
@@ -37,9 +38,18 @@ func testContractsSetup(t require.TestingT) (*Contracts, *Addresses) {
 }
 
 func SourceMapTracer(t *testing.T, contracts *Contracts, addrs *Addresses) vm.EVMLogger {
-	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{"../../packages/contracts-bedrock/contracts/cannon/MIPS.sol"})
+	sources := bindings.Sources
+	for i, source := range sources {
+		// Add relative path to contracts directory if the source is not
+		// already relativized.
+		if !strings.HasPrefix(source, "..") {
+			sources[i] = path.Join("../../packages/contracts-bedrock", source)
+		}
+	}
+
+	mipsSrcMap, err := contracts.MIPS.SourceMap(append([]string{"contracts/cannon/MIPS.sol"}, sources...))
 	require.NoError(t, err)
-	oracleSrcMap, err := contracts.Oracle.SourceMap([]string{"../../packages/contracts-bedrock/contracts/cannon/PreimageOracle.sol"})
+	oracleSrcMap, err := contracts.Oracle.SourceMap(append([]string{"contracts/cannon/PreimageOracle.sol"}, sources...))
 	require.NoError(t, err)
 
 	return srcmap.NewSourceMapTracer(map[common.Address]*srcmap.SourceMap{addrs.MIPS: mipsSrcMap, addrs.Oracle: oracleSrcMap}, os.Stdout)
