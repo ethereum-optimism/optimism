@@ -16,11 +16,9 @@ contract Burn_GasBurner is StdUtils {
         vm = _vm;
     }
 
-    /**
-     * @notice Takes an integer amount of gas to burn through the Burn library and
-     * updates the contract state if at least that amount of gas was not burned
-     * by the library
-     */
+    /// @notice Takes an integer amount of gas to burn through the Burn library and
+    ///         updates the contract state if at least that amount of gas was not burned
+    ///         by the library
     function burnGas(uint256 _value) external {
         // cap the value to the max resource limit
         uint256 MAX_RESOURCE_LIMIT = 8_000_000;
@@ -59,12 +57,10 @@ contract Burn_BurnGas_Invariant is StdInvariant, Test {
         targetSelector(selector);
     }
 
-    /**
-     * @custom:invariant `gas(uint256)` always burns at least the amount of gas passed.
-     *
-     * Asserts that when `Burn.gas(uint256)` is called, it always burns at least the amount
-     * of gas passed to the function.
-     */
+    /// @custom:invariant `gas(uint256)` always burns at least the amount of gas passed.
+    ///
+    ///                   Asserts that when `Burn.gas(uint256)` is called, it always burns
+    ///                   at least the amount of gas passed to the function.
     function invariant_burn_gas() external {
         // ASSERTION: The amount burned should always match the amount passed exactly
         assertEq(actor.failedGasBurn(), false);

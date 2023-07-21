@@ -19,15 +19,13 @@ type FaultDisputeGameCaller interface {
 
 type FaultCaller struct {
 	FaultDisputeGameCaller
-	log     log.Logger
-	fdgAddr common.Address
+	log log.Logger
 }
 
-func NewFaultCaller(fdgAddr common.Address, caller FaultDisputeGameCaller, log log.Logger) *FaultCaller {
+func NewFaultCaller(caller FaultDisputeGameCaller, log log.Logger) *FaultCaller {
 	return &FaultCaller{
 		caller,
 		log,
-		fdgAddr,
 	}
 }
 
@@ -39,7 +37,6 @@ func NewFaultCallerFromBindings(fdgAddr common.Address, client *ethclient.Client
 	return &FaultCaller{
 		caller,
 		log,
-		fdgAddr,
 	}, nil
 }
 
@@ -55,7 +52,7 @@ func (fc *FaultCaller) LogGameInfo(ctx context.Context) {
 		fc.log.Error("failed to get claim count", "err", err)
 		return
 	}
-	fc.log.Info("Game info", "addr", fc.fdgAddr, "claims", claimLen, "status", GameStatusString(status))
+	fc.log.Info("Game info", "claims", claimLen, "status", GameStatusString(status))
 }
 
 // GetGameStatus returns the current game status.

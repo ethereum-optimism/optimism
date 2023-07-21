@@ -17,8 +17,8 @@ type Agent struct {
 	log                     log.Logger
 }
 
-func NewAgent(loader Loader, maxDepth int, trace TraceProvider, responder Responder, agreeWithProposedOutput bool, log log.Logger) Agent {
-	return Agent{
+func NewAgent(loader Loader, maxDepth int, trace TraceProvider, responder Responder, agreeWithProposedOutput bool, log log.Logger) *Agent {
+	return &Agent{
 		solver:                  NewSolver(maxDepth, trace),
 		loader:                  loader,
 		responder:               responder,
