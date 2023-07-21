@@ -13,6 +13,7 @@
     "test:coverage": "echo 'No tests defined.'",
     "build": "tsc -p tsconfig.json",
     "clean": "rimraf ./dist ./tsconfig.tsbuildinfo",
+    "preinstall": "npx only-allow pnpm",
     "lint": "pnpm run lint:fix && pnpm run lint:check",
     "pre-commit": "lint-staged",
     "lint:fix": "pnpm lint:check --fix",
