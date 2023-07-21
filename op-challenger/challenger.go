@@ -52,10 +52,10 @@ func Main(ctx context.Context, logger log.Logger, cfg *config.Config) error {
 		_ = agent.Act(ctx)
 		status, _ := caller.GetGameStatus(ctx)
 		if status != 0 {
-			caller.LogGameStatus()
+			caller.LogGameStatus(ctx)
 			return nil
 		} else {
-			caller.LogGameInfo()
+			caller.LogGameInfo(ctx)
 		}
 		select {
 		case <-time.After(300 * time.Millisecond):
