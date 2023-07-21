@@ -3,7 +3,6 @@ package disputegame
 import (
 	"context"
 	"fmt"
-	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -16,13 +15,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client/utils"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 )
 
 const faultGameType uint8 = 0
 const alphabetGameDepth = 4
+const lastAlphabetTraceIndex = 1<<alphabetGameDepth - 1
 
 type Status uint8
 
@@ -33,7 +33,9 @@ const (
 )
 
 var alphaExtraData = common.Hex2Bytes("1000000000000000000000000000000000000000000000000000000000000000")
-var alphabetVMAbsolutePrestate = uint256.NewInt(96).Bytes32()
+var alphabetVMAbsolutePrestate = common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060")
+var alphabetVMAbsolutePrestateClaim = crypto.Keccak256Hash(alphabetVMAbsolutePrestate)
+var CorrectAlphabet = "abcdefghijklmnop"
 
 type FactoryHelper struct {
 	t       *testing.T
@@ -62,10 +64,10 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, client *ethclient.Clien
 }
 
 func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet string) *FaultGameHelper {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
 	trace := fault.NewAlphabetProvider(claimedAlphabet, 4)
-	rootClaim, err := trace.Get(uint64(math.Pow(2, alphabetGameDepth)) - 1)
+	rootClaim, err := trace.Get(lastAlphabetTraceIndex)
 	h.require.NoError(err)
 	tx, err := h.factory.Create(h.opts, faultGameType, rootClaim, alphaExtraData)
 	h.require.NoError(err)
@@ -82,6 +84,7 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 		client:          h.client,
 		opts:            h.opts,
 		game:            game,
+		maxDepth:        alphabetGameDepth,
 		addr:            createdEvent.DisputeProxy,
 		claimedAlphabet: claimedAlphabet,
 	}
@@ -93,6 +96,7 @@ type FaultGameHelper struct {
 	client          *ethclient.Client
 	opts            *bind.TransactOpts
 	game            *bindings.FaultDisputeGame
+	maxDepth        int
 	addr            common.Address
 	claimedAlphabet string
 }
@@ -109,11 +113,15 @@ func (g *FaultGameHelper) StartChallenger(ctx context.Context, l1Endpoint string
 		},
 	}
 	opts = append(opts, options...)
-	return challenger.NewChallenger(g.t, ctx, l1Endpoint, name, opts...)
+	c := challenger.NewChallenger(g.t, ctx, l1Endpoint, name, opts...)
+	g.t.Cleanup(func() {
+		_ = c.Close()
+	})
+	return c
 }
 
 func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
 	err := utils.WaitFor(ctx, 1*time.Second, func() (bool, error) {
 		actual, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
@@ -126,8 +134,46 @@ func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
 	g.require.NoError(err)
 }
 
+type ContractClaim struct {
+	ParentIndex uint32
+	Countered   bool
+	Claim       [32]byte
+	Position    *big.Int
+	Clock       *big.Int
+}
+
+func (g *FaultGameHelper) WaitForClaim(ctx context.Context, predicate func(claim ContractClaim) bool) {
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancel()
+	err := utils.WaitFor(ctx, 1*time.Second, func() (bool, error) {
+		count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
+		if err != nil {
+			return false, fmt.Errorf("retrieve number of claims: %w", err)
+		}
+		// Search backwards because the new claims are at the end and more likely the ones we want.
+		for i := count.Int64() - 1; i >= 0; i-- {
+			claimData, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(i))
+			if err != nil {
+				return false, fmt.Errorf("retrieve claim %v: %w", i, err)
+			}
+			if predicate(claimData) {
+				return true, nil
+			}
+		}
+		return false, nil
+	})
+	g.require.NoError(err)
+}
+
+func (g *FaultGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered bool) {
+	g.WaitForClaim(ctx, func(claim ContractClaim) bool {
+		pos := fault.NewPositionFromGIndex(claim.Position.Uint64())
+		return pos.Depth() == g.maxDepth && claim.Countered == countered
+	})
+}
+
 func (g *FaultGameHelper) Resolve(ctx context.Context) {
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
 	tx, err := g.game.Resolve(g.opts)
 	g.require.NoError(err)

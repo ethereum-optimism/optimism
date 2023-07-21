@@ -43,13 +43,13 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 
 	// Now setup the fault dispute game type
 	// Start by deploying the AlphabetVM
-	_, tx, _, err = bindings.DeployAlphabetVM(opts, client, alphabetVMAbsolutePrestate)
+	_, tx, _, err = bindings.DeployAlphabetVM(opts, client, alphabetVMAbsolutePrestateClaim)
 	require.NoError(err)
 	alphaVMAddr, err := bind.WaitDeployed(ctx, client, tx)
 	require.NoError(err)
 
 	// Deploy the fault dispute game implementation
-	_, tx, _, err = bindings.DeployFaultDisputeGame(opts, client, alphabetVMAbsolutePrestate, big.NewInt(alphabetGameDepth), gameDuration, alphaVMAddr)
+	_, tx, _, err = bindings.DeployFaultDisputeGame(opts, client, alphabetVMAbsolutePrestateClaim, big.NewInt(alphabetGameDepth), gameDuration, alphaVMAddr)
 	require.NoError(err)
 	faultDisputeGameAddr, err := bind.WaitDeployed(ctx, client, tx)
 	require.NoError(err)

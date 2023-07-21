@@ -48,9 +48,7 @@ func (ap *AlphabetProvider) Get(i uint64) (common.Hash, error) {
 }
 
 func (ap *AlphabetProvider) AbsolutePreState() []byte {
-	out := make([]byte, 32)
-	out[31] = 96 // ascii character 96 is "`"
-	return out
+	return common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060")
 }
 
 // BuildAlphabetPreimage constructs the claim bytes for the index and state item.
