@@ -717,18 +717,6 @@ jobs:
           command: make fuzz
           working_directory: op-chain-ops
 
-  fuzz-cannon:
-    docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    steps:
-      - checkout
-      - check-changed:
-          patterns: cannon,packages/contracts-bedrock/contracts/cannon
-      - run:
-          name: Fuzz
-          command: make fuzz
-          working_directory: cannon
-
   depcheck:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
@@ -1231,6 +1219,11 @@ workflows:
       - depcheck:
           requires:
             - pnpm-monorepo
+      - op-chain-ops-tests:
+          name: op-chain-ops-tests
+          module: op-chain-ops
+          requires:
+            - pnpm-monorepo
       - devnet:
           name: devnet (with deployed contracts)
           deploy: true
@@ -1294,9 +1287,6 @@ workflows:
       - go-test:
           name: op-bindings-tests
           module: op-bindings
-      - go-test:
-          name: op-chain-ops-tests
-          module: op-chain-ops
       - go-test:
           name: op-node-tests
           module: op-node
