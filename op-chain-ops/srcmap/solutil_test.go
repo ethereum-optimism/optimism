@@ -32,7 +32,7 @@ func TestSourcemap(t *testing.T) {
 
 	for i := 0; i < len(deployedByteCode); i++ {
 		info := srcMap.FormattedInfo(uint64(i))
-		if strings.HasPrefix(info, "unexpected") {
+		if strings.HasPrefix(info, "unknown") {
 			t.Fatalf("unexpected info: %q", info)
 		}
 	}
