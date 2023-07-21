@@ -1325,7 +1325,6 @@ workflows:
             - op-service-lint
             - op-batcher-tests
             - op-bindings-tests
-            - op-chain-ops-tests
             - op-node-tests
             - op-proposer-tests
             - op-challenger-tests
