@@ -61,6 +61,7 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 			}
 			db.CreateAccount(codeAddr)
 			db.SetState(addr, ImplementationSlot, codeAddr.Hash())
+			log.Info("Set proxy", "name", name, "address", addr, "implementation", codeAddr)
 		} else {
 			db.DeleteState(addr, AdminSlot)
 		}

@@ -3,14 +3,14 @@
 /packages/contracts             @ethereum-optimism/contract-reviewers
 /packages/contracts-bedrock     @ethereum-optimism/contract-reviewers
 /packages/core-utils            @ethereum-optimism/legacy-reviewers
-/packages/chain-mon             @smartcontracts
-/packages/fault-detector        @ethereum-optimism/devxpod
+/packages/chain-mon             @ethereum-optimism/devxpod
 /packages/replica-healthcheck   @ethereum-optimism/legacy-reviewers
 /packages/sdk                   @ethereum-optimism/devxpod
 /packages/atst                  @ethereum-optimism/devxpod
 
 # Bedrock codebases
 /bedrock-devnet @ethereum-optimism/go-reviewers
+/cannon         @ethereum-optimism/go-reviewers
 /op-batcher     @ethereum-optimism/go-reviewers
 /op-chain-ops   @ethereum-optimism/go-reviewers
 /op-e2e         @ethereum-optimism/go-reviewers
@@ -35,3 +35,11 @@
 /infra            @ethereum-optimism/infra-reviewers
 /specs            @ethereum-optimism/contract-reviewers @ethereum-optimism/go-reviewers
 /endpoint-monitor @ethereum-optimism/infra-reviewers
+
+# Don't add owners if only package.json is updated
+/packages/*/package.json 
+/*/package.json 
+
+# JavaScript Releases
+/packages/*/CHANGELOG.md @ethereum-optimism/release-managers
+/*/CHANGELOG.md          @ethereum-optimism/release-managers

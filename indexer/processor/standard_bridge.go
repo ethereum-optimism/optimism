@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
@@ -14,7 +15,7 @@ import (
 )
 
 var (
-	ethAddress = common.HexToAddress("0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000")
+	EthAddress = common.HexToAddress("0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000")
 )
 
 type StandardBridgeInitiatedEvent struct {
@@ -131,7 +132,7 @@ func _standardBridgeInitiatedEvents[BridgeEvent bindings.L1StandardBridgeETHBrid
 			// represent eth bridge as an erc20
 			erc20BridgeData = &bindings.L1StandardBridgeERC20BridgeInitiated{
 				// Represent ETH using the hardcoded address
-				LocalToken: ethAddress, RemoteToken: ethAddress,
+				LocalToken: EthAddress, RemoteToken: EthAddress,
 				// Bridge data
 				From: ethBridgeData.From, To: ethBridgeData.To, Amount: ethBridgeData.Amount, ExtraData: ethBridgeData.ExtraData,
 			}
@@ -170,8 +171,14 @@ func _standardBridgeFinalizedEvents[BridgeEvent bindings.L1StandardBridgeETHBrid
 		return nil, err
 	}
 
+	optimismPortalAbi, err := bindings.OptimismPortalMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+
 	relayedMessageEventAbi := l1CrossDomainMessengerABI.Events["RelayedMessage"]
 	relayMessageMethodAbi := l1CrossDomainMessengerABI.Methods["relayMessage"]
+	finalizeWithdrawalTransactionMethodAbi := optimismPortalAbi.Methods["finalizeWithdrawalTransaction"]
 
 	var bridgeData BridgeEvent
 	var eventName string
@@ -201,27 +208,52 @@ func _standardBridgeFinalizedEvents[BridgeEvent bindings.L1StandardBridgeETHBrid
 			return nil, errors.New("unexpected bridge event ordering")
 		}
 
-		// There's no way to extract the nonce on the relayed message event. we can extract
-		// the nonce by unpacking the transaction input for the `relayMessage` transaction
+		// There's no way to extract the nonce on the relayed message event. we can extract the nonce by
+		// by unpacking the transaction input for the `relayMessage` transaction. Since bedrock has OptimismPortal
+		// as on L1 as an intermediary for finalization, we have to check both scenarios
 		tx, isPending, err := rawEthClient.TransactionByHash(context.Background(), relayedMsgLog.TxHash)
 		if err != nil || isPending {
 			return nil, errors.New("unable to query relayMessage tx for bridge finalization event")
 		}
 
-		txData := tx.Data()
-		if !bytes.Equal(txData[:4], relayMessageMethodAbi.ID) {
-			return nil, errors.New("bridge finalization event does not match relayMessage tx invocation")
+		// If this is a finalization step with the optimism portal, the calldata for relayMessage invocation can be
+		// extracted from the withdrawal transaction.
+
+		// NOTE: the L2CrossDomainMessenger nonce may not match the L2ToL1MessagePasser nonce, hence the additional
+		// layer of decoding vs reading the nocne of the withdrawal transaction. Both nonces have a similar but
+		// different lifeycle that might not match (i.e L2ToL1MessagePasser can be invoced directly)
+		var relayMsgCallData []byte
+		switch {
+		case bytes.Equal(tx.Data()[:4], relayMessageMethodAbi.ID):
+			relayMsgCallData = tx.Data()[4:]
+		case bytes.Equal(tx.Data()[:4], finalizeWithdrawalTransactionMethodAbi.ID):
+			data, err := finalizeWithdrawalTransactionMethodAbi.Inputs.Unpack(tx.Data()[4:])
+			if err != nil {
+				return nil, err
+			}
+
+			finalizeWithdrawTransactionInput := new(struct {
+				Tx bindings.TypesWithdrawalTransaction
+			})
+			err = finalizeWithdrawalTransactionMethodAbi.Inputs.Copy(finalizeWithdrawTransactionInput, data)
+			if err != nil {
+				return nil, fmt.Errorf("unable extract withdrawal tx input from finalizeWithdrawalTransaction calldata: %w", err)
+			} else if !bytes.Equal(finalizeWithdrawTransactionInput.Tx.Data[:4], relayMessageMethodAbi.ID) {
+				return nil, errors.New("finalizeWithdrawalTransaction calldata does not match relayMessage invocation")
+			}
+			relayMsgCallData = finalizeWithdrawTransactionInput.Tx.Data[4:]
+		default:
+			return nil, errors.New("bridge finalization event does not correlate with a relayMessage tx invocation")
 		}
 
 		inputsMap := make(map[string]interface{})
-		err = relayMessageMethodAbi.Inputs.UnpackIntoMap(inputsMap, txData[4:])
+		err = relayMessageMethodAbi.Inputs.UnpackIntoMap(inputsMap, relayMsgCallData)
 		if err != nil {
 			return nil, err
 		}
-
 		nonce, ok := inputsMap["_nonce"].(*big.Int)
 		if !ok {
-			return nil, errors.New("unable to extract `_nonce` parameter from relayMessage transaction")
+			return nil, errors.New("unable to extract `_nonce` parameter from relayMessage calldata")
 		}
 
 		var erc20BridgeData *bindings.L1StandardBridgeERC20BridgeFinalized
@@ -230,7 +262,7 @@ func _standardBridgeFinalizedEvents[BridgeEvent bindings.L1StandardBridgeETHBrid
 			ethBridgeData := any(bridgeData).(bindings.L1StandardBridgeETHBridgeFinalized)
 			erc20BridgeData = &bindings.L1StandardBridgeERC20BridgeFinalized{
 				// Represent ETH using the hardcoded address
-				LocalToken: ethAddress, RemoteToken: ethAddress,
+				LocalToken: EthAddress, RemoteToken: EthAddress,
 				// Bridge data
 				From: ethBridgeData.From, To: ethBridgeData.To, Amount: ethBridgeData.Amount, ExtraData: ethBridgeData.ExtraData,
 			}

@@ -29,8 +29,11 @@ func NewAgent(loader Loader, maxDepth int, trace TraceProvider, responder Respon
 }
 
 // Act iterates the game & performs all of the next actions.
-func (a *Agent) Act() error {
-	game, err := a.newGameFromContracts(context.Background())
+func (a *Agent) Act(ctx context.Context) error {
+	if a.tryResolve(ctx) {
+		return nil
+	}
+	game, err := a.newGameFromContracts(ctx)
 	if err != nil {
 		a.log.Error("Failed to create new game", "err", err)
 		return err
@@ -48,6 +51,19 @@ func (a *Agent) Act() error {
 		}
 	}
 	return nil
+}
+
+// tryResolve resolves the game if it is in a terminal state
+// and returns true if the game resolves successfully.
+func (a *Agent) tryResolve(ctx context.Context) bool {
+	if a.responder.CanResolve(ctx) {
+		err := a.responder.Resolve(ctx)
+		if err != nil {
+			return true
+		}
+		a.log.Error("failed to resolve the game", "err", err)
+	}
+	return false
 }
 
 // newGameFromContracts initializes a new game state from the state in the contract
@@ -95,7 +111,8 @@ func (a *Agent) step(claim Claim, game Game) error {
 		return nil
 	}
 
-	if game.AgreeWithClaimLevel(claim) {
+	agreeWithClaimLevel := game.AgreeWithClaimLevel(claim)
+	if agreeWithClaimLevel {
 		a.log.Warn("Agree with leaf claim, skipping step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
 		return nil
 	}
@@ -106,7 +123,7 @@ func (a *Agent) step(claim Claim, game Game) error {
 	}
 
 	a.log.Info("Attempting step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
-	step, err := a.solver.AttemptStep(claim)
+	step, err := a.solver.AttemptStep(claim, agreeWithClaimLevel)
 	if err != nil {
 		a.log.Warn("Failed to get a step", "err", err)
 		return err

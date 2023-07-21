@@ -4,6 +4,8 @@ import (
 	"os"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // Config represents the `indexer.toml` file used to configure the indexer
@@ -13,6 +15,7 @@ type Config struct {
 	DB      DBConfig
 	API     APIConfig
 	Metrics MetricsConfig
+	Logger  log.Logger `toml:"-"`
 }
 
 // ChainConfig configures of the chain being indexed
@@ -31,6 +34,7 @@ type RPCsConfig struct {
 type DBConfig struct {
 	Host     string
 	Port     int
+	Name     string
 	User     string
 	Password string
 }

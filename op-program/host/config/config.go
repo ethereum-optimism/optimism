@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/urfave/cli/v2"
 )
@@ -110,11 +111,11 @@ func NewConfig(rollupCfg *rollup.Config, l2Genesis *params.ChainConfig, l1Head c
 	}
 }
 
-func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
+func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	if err := flags.CheckRequired(ctx); err != nil {
 		return nil, err
 	}
-	rollupCfg, err := opnode.NewRollupConfig(ctx)
+	rollupCfg, err := opnode.NewRollupConfig(log, ctx)
 	if err != nil {
 		return nil, err
 	}

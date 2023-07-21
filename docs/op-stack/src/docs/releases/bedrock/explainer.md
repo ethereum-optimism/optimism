@@ -108,7 +108,7 @@ A **deposited transaction** is the transaction on the rollup that is made as a p
 
 Bedrock defines a **deposit contract** that is available on the L1: it is a smart contract that L1 accounts and contracts can interact with to write to the L2. [Deposited transactions](#arbitrary-message-passing-from-l1) on the L2 are derived from the values in the event(s) emitted by this [deposit](#deposits) contract, which include expected parameters such as from, to, and data.
 
-For full details, see the [deposit contract](https://github.com/ethereum-optimism/optimism/blob/develop/specs/deposits.md#deposit-contract) section of the protocol specifications.
+For full details, see the [deposit contract](https://github.com/ethereum-optimism/optimism/blob/d69cb12f6dcbe3d5355beca8997fbac611b7fe37/specs/deposits.md#deposit-contract) section of the protocol specifications.
 
 #### Purchasing guaranteed L2 gas on L1
 
@@ -116,19 +116,19 @@ Bedrock also specifies a gas burn mechanism and a fee market for [deposits](#dep
 
 The gas provided to [deposited transactions](#arbitrary-message-passing-from-l1) is sometimes called "guaranteed gas." Guaranteed gas is unique in that it is paid for by burning gas on L1 and is therefore not refundable.The total amount of L1 gas that must be burned per unit of guaranteed L2 gas requested depends on the price of L2 gas reported by a EIP-1559 style fee mechanism. Furthermore, users receive a dynamic gas stipend based on the amount of L1 gas spent to compute updates to the fee mechanism.
 
-For a deeper explanation, read the [deposits section](https://github.com/ethereum-optimism/optimism/blob/develop/specs/deposits.md#deposits) of the protocol specifications.
+For a deeper explanation, read the [deposits section](https://github.com/ethereum-optimism/optimism/blob/d69cb12f6dcbe3d5355beca8997fbac611b7fe37/specs/deposits.md#deposits) of the protocol specifications.
 
 ### Withdrawals
 
 **Withdrawals** are cross-domain transactions that are initiated on L2 and finalized by a transaction executed on L1. Notably, withdrawals may be used by an L2 account to call an L1 contract, or to transfer ETH from an L2 account to an L1 account.
 
-Withdrawals are initiated on L2 via a call to the **Message Passer** predeploy contract, which records the important properties of the message in its storage. Withdrawals are finalized on L1 via a call to the [OptimismPortal](https://github.com/ethereum-optimism/optimism/blob/develop/specs/withdrawals.md#the-optimism-portal-contract) contract, which proves the inclusion of this withdrawal message. In this way, withdrawals are different from [deposits](#deposits). Instead of relying on [block derivation](#block-derivation), withdrawal transactions must use smart contracts on L1 for finalization.
+Withdrawals are initiated on L2 via a call to the **Message Passer** predeploy contract, which records the important properties of the message in its storage. Withdrawals are finalized on L1 via a call to the [OptimismPortal](https://github.com/ethereum-optimism/optimism/blob/d69cb12f6dcbe3d5355beca8997fbac611b7fe37/specs/withdrawals.md#the-optimism-portal-contract) contract, which proves the inclusion of this withdrawal message. In this way, withdrawals are different from [deposits](#deposits). Instead of relying on [block derivation](#block-derivation), withdrawal transactions must use smart contracts on L1 for finalization.
 
 #### Two-step withdrawals
 
 Withdrawal proof validation bugs have been the root cause of many of the biggest bridge hacks of the last few years. The Bedrock release introduces an additional step in the withdrawals’ process of prior versions meant to provide an extra layer of defense against these types of bugs. In the two-step withdrawal process, a Merkle proof corresponding to the withdrawal must be submitted 7 days before the withdrawal can be finalized..  This new safety mechanism gives monitoring tools a full  7 days to find and detect invalid withdrawal proofs . If the [withdrawal](#withdrawals) proof is found to be invalid, a contract fix can be deployed before funds are lost. This dramatically reduces the risk of a bridge compromise.
 
-For full details, see the [withdrawals](https://github.com/ethereum-optimism/optimism/blob/develop/specs/withdrawals.md) section of the protocol specification.
+For full details, see the [withdrawals](https://github.com/ethereum-optimism/optimism/blob/d69cb12f6dcbe3d5355beca8997fbac611b7fe37/specs/withdrawals.md) section of the protocol specification.
 
 ### Batches
 
@@ -136,7 +136,7 @@ In Bedrock, a wire format is defined for messaging between the L1 and L2 (i.e., 
 
 #### Optimized data compression
 
-To optimize data compression, lists of L2 transactions called **sequencer batches** are organized into groups of objects called **channels**, each of which have a maximum size that is defined in a [configurable parameter](https://github.com/ethereum-optimism/optimism/blob/develop/specs/derivation.md#channel-format) that will initially be set to ~9.5Mb. These [channels](#optimized-data-compression) are expected to be compressed using a compression function and submitted to the L1.
+To optimize data compression, lists of L2 transactions called **sequencer batches** are organized into groups of objects called **channels**, each of which have a maximum size that is defined in a [configurable parameter](https://github.com/ethereum-optimism/optimism/blob/d69cb12f6dcbe3d5355beca8997fbac611b7fe37/specs/derivation.md#channel-format) that will initially be set to ~9.5Mb. These [channels](#optimized-data-compression) are expected to be compressed using a compression function and submitted to the L1.
 
 #### Parallelized batch submission
 
@@ -150,7 +150,7 @@ Batches are still subject to validity checks (i.e. they have to be encoded corre
 
 > Note: Ethereum will soon upgrade to include [EIP-4844](https://eip4844.com/), which introduces a separate fee market for writing data and an increased cap of the amount of data the Ethereum protocol is willing to store. This change is expected to further decrease the costs associated with posting data to an L1.
 
-For a deeper explanation, read [the wire format specifications](https://github.com/ethereum-optimism/optimism/blob/develop/specs/derivation.md#overview).
+For a deeper explanation, read [the wire format specifications](https://github.com/ethereum-optimism/optimism/blob/d69cb12f6dcbe3d5355beca8997fbac611b7fe37/specs/derivation.md#overview).
 
 ### Block Derivation
 
@@ -189,8 +189,8 @@ The [canonical L2 chain](#protocol) can be processed from scratch by starting wi
 | Read from L1 | Epochs are defined by L1 blocks. Contained within an L2 block is data pertaining to [batcher transactions](#minimized-usage-of-ethereum-gas) or [deposits](#deposits) which must be included in the [canonical L2 chain](#protocol) |
 | Buffer and decode into [channels](#optimized-data-compression) | The data from L1 blocks contains unordered [channel frames](#parallelized-batch-submission), which must all be collected before reconstructing them into channels. |
 | Decompress [channels](#optimized-data-compression) into [batches](#optimized-data-compression) | Since [channels](#optimized-data-compression) are [compressed](#optimized-data-compression) to minimize data fee costs on the L1, they must be decompressed. |
-| Queue [batches](#optimized-data-compression) into sequential order | With the latest information from L1, [batches](#optimized-data-compression) can be validated and processed sequentially. There are some nuances to what the correct ordering is in relation to [epochs](#guaranteed-inclusion-of-deposits) and timestamps from L2, see the full specification [here](https://github.com/ethereum-optimism/optimism/blob/develop/specs/derivation.md#batch-queue). |
-| Interpret as L2 blocks | At this point, the correct ordering of [batches](#optimized-data-compression) can be determined.<br><br>Following this, the [execution client](#execution-client) can interpret them into L2 blocks. For implementation details pertaining to [execution clients](#execution-client), see the [engine queue](https://github.com/ethereum-optimism/optimism/blob/develop/specs/derivation.md#engine-queue) section of the protocol specifications. |
+| Queue [batches](#optimized-data-compression) into sequential order | With the latest information from L1, [batches](#optimized-data-compression) can be validated and processed sequentially. There are some nuances to what the correct ordering is in relation to [epochs](#guaranteed-inclusion-of-deposits) and timestamps from L2, see the full specification [here](https://github.com/ethereum-optimism/optimism/blob/d69cb12f6dcbe3d5355beca8997fbac611b7fe37/specs/derivation.md#batch-queue). |
+| Interpret as L2 blocks | At this point, the correct ordering of [batches](#optimized-data-compression) can be determined.<br><br>Following this, the [execution client](#execution-client) can interpret them into L2 blocks. For implementation details pertaining to [execution clients](#execution-client), see the [engine queue](https://github.com/ethereum-optimism/optimism/blob/d69cb12f6dcbe3d5355beca8997fbac611b7fe37/specs/derivation.md#engine-queue) section of the protocol specifications. |
 
 ### Fault Proofs
 
@@ -200,7 +200,7 @@ In Bedrock, outputs are hashed in a tree-structured form which minimizes the cos
 
 Future upgrades of the OP Stack codebase should include a specification for a variation of a fault proof with bonding included to create incentives for proposers to propose correct output roots.
 
-For full details, read the [L2 Output Root Proposals section](https://github.com/ethereum-optimism/optimism/blob/develop/specs/proposals.md#l2-output-root-proposals-specification) of the protocol specifications.
+For full details, read the [L2 Output Root Proposals section](https://github.com/ethereum-optimism/optimism/blob/d69cb12f6dcbe3d5355beca8997fbac611b7fe37/specs/proposals.md#l2-output-root-proposals-specification) of the protocol specifications.
 
 ## Implementation
 
@@ -216,7 +216,7 @@ There are two fundamental reasons for having any diff at all: handling deposited
 
 #### Handling deposited transactions
 
-To represent [deposited transactions](#arbitrary-message-passing-from-l1) in the rollup, there is an additional transaction type introduced. The [execution client](#execution-client) implements this [new transaction type](https://github.com/ethereum-optimism/optimism/blob/develop/specs/%5Bdeposits%5D(#deposits).md%23the-deposited-transaction-type) according to the [EIP-2718 typed transactions](https://eips.ethereum.org/EIPS/eip-2718) standard.
+To represent [deposited transactions](#arbitrary-message-passing-from-l1) in the rollup, there is an additional transaction type introduced. The [execution client](#execution-client) implements this [new transaction type](https://github.com/ethereum-optimism/optimism/blob/7f5b9ea7bf6dce12dbf709c27c25ee1681df7f7e/specs/deposits.md#the-deposited-transaction-type) according to the [EIP-2718 typed transactions](https://eips.ethereum.org/EIPS/eip-2718) standard.
 
 #### Charging transaction fees
 
@@ -230,7 +230,7 @@ The cost of operating a sequencer is computed using the same gas table as Ethere
 
 Data availability costs are associated with writing [batcher transactions](#minimized-usage-of-ethereum-gas) to the L1. These fees are intended to cover the cost that sequencers need to pay to submit [batcher transactions](#minimized-usage-of-ethereum-gas) to the L1.
 
-In Bedrock, the data availability portion of the fee is determined based on information in a system contract on the rollup called a [GasPriceOracle](https://github.com/ethereum-optimism/optimism/blob/develop/specs/predeploys.md#gaspriceoracle). This contract is updated during [block derivation](#block-derivation) from the gas pricing information retrieved from the L1 block attributes that get inserted at the beginning of every [epoch](#guaranteed-inclusion-of-deposits).
+In Bedrock, the data availability portion of the fee is determined based on information in a system contract on the rollup called a [GasPriceOracle](https://github.com/ethereum-optimism/optimism/blob/d69cb12f6dcbe3d5355beca8997fbac611b7fe37/specs/predeploys.md#gaspriceoracle). This contract is updated during [block derivation](#block-derivation) from the gas pricing information retrieved from the L1 block attributes that get inserted at the beginning of every [epoch](#guaranteed-inclusion-of-deposits).
 
 Bedrock specifies that both of these fees are added up into a single `gasPrice` field when using the JSON-RPC.
 
@@ -246,7 +246,7 @@ The multiple uses of a rollup node are outlined below.
 
 The simplest mode of running a [rollup node](#rollup-node) is to only follow the [canonical L2 chain](#protocol). In this mode, the [rollup node](#rollup-node) has no peers and is strictly used to read data from the L1 and to interpret it according to [block derivation](#block-derivation) protocol rules.
 
-One purpose of this kind of node is to verify that any output roots shared by other nodes or posted on the L1 are correct according to protocol definition. Additionally, proposers intending to submit output roots to the L1 themselves can generate the output roots they need using the [optimism_outputAtBlock](https://github.com/ethereum-optimism/optimism/blob/develop/specs/rollup-node.md#l2-output-rpc-method) of the node which returns a 32-byte hash corresponding to the L2 output root.
+One purpose of this kind of node is to verify that any output roots shared by other nodes or posted on the L1 are correct according to protocol definition. Additionally, proposers intending to submit output roots to the L1 themselves can generate the output roots they need using the [optimism_outputAtBlock](https://github.com/ethereum-optimism/optimism/blob/d69cb12f6dcbe3d5355beca8997fbac611b7fe37/specs/rollup-node.md#l2-output-rpc-method) of the node which returns a 32-byte hash corresponding to the L2 output root.
 
 For this purpose, nodes should only need to follow the finalized head. The term ["finalized"](https://ethereum.org/en/developers/docs/consensus-mechanisms/pos/#finality) refers to the Ethereum proof-of-stake consensus (i.e. canonical and practically irreversible) — the finalized L2 head is the head of the [canonical L2 chain](#protocol) that is derived only from finalized L1 blocks.
 
@@ -257,7 +257,7 @@ The most common way to use a [rollup node](#rollup-node) is to participate in a 
 Nodes participating in the network may make use of the safe and unsafe heads of the L2 they're syncing.
 
 - The **safe L2 head** represents the rollup that can be constructed where every block up to and including the head can be fully derived from the reference L1 chain, before L1 has necessarily finalized (i.e., a re-org may occur on L1 still).
-- The **unsafe L2 head** includes [unsafe blocks](https://github.com/ethereum-optimism/optimism/blob/develop/specs/glossary.md#unsafe-l2-block) that have not yet been derived from L1. These blocks either come from operating the [rollup node](#rollup-node) as a sequencer or from [unsafe sync](https://github.com/ethereum-optimism/optimism/blob/develop/specs/glossary.md#unsafe-sync) with the sequencer. This is also known as the "latest" head. The safe L2 head is always chosen over the unsafe L2 head in cases of disagreements. When disagreements occur, the unsafe portion of the chain will reorg.
+- The **unsafe L2 head** includes [unsafe blocks](https://github.com/ethereum-optimism/optimism/blob/d69cb12f6dcbe3d5355beca8997fbac611b7fe37/specs/glossary.md#unsafe-l2-block) that have not yet been derived from L1. These blocks either come from operating the [rollup node](#rollup-node) as a sequencer or from [unsafe sync](https://github.com/ethereum-optimism/optimism/blob/d69cb12f6dcbe3d5355beca8997fbac611b7fe37/specs/glossary.md#unsafe-sync) with the sequencer. This is also known as the "latest" head. The safe L2 head is always chosen over the unsafe L2 head in cases of disagreements. When disagreements occur, the unsafe portion of the chain will reorg.
 
 For most purposes, nodes in the L2 network will refer to the unsafe L2 head for end-user applications.
 
@@ -269,15 +269,15 @@ The sequencer is also responsible for posting batches to L1 for other nodes in t
 
 ### Batcher
 
-The role of a sequencer is to produce [batches](#batches). To do this, a sequencer can run [rollup nodes](#rollup-node) and have separate processes which perform [batching](#batches) by reading from a trusted [rollup node](#rollup-node) they run. This warrants an additional component of the OP Stack called a [batcher](https://github.com/ethereum-optimism/optimism/blob/develop/specs/glossary.md#batcher) that reads transaction data from a [rollup node](#rollup-node) and interprets it into [batcher transactions](#minimized-usage-of-ethereum-gas) to be written to the L1. The batcher component is responsible for reading the unsafe L2 head of a [rollup node](#rollup-node) run by a sequencer, creating batcher transactions, and writing them to the L1.
+The role of a sequencer is to produce [batches](#batches). To do this, a sequencer can run [rollup nodes](#rollup-node) and have separate processes which perform [batching](#batches) by reading from a trusted [rollup node](#rollup-node) they run. This warrants an additional component of the OP Stack called a [batcher](https://github.com/ethereum-optimism/optimism/blob/d69cb12f6dcbe3d5355beca8997fbac611b7fe37/specs/glossary.md#batcher) that reads transaction data from a [rollup node](#rollup-node) and interprets it into [batcher transactions](#minimized-usage-of-ethereum-gas) to be written to the L1. The batcher component is responsible for reading the unsafe L2 head of a [rollup node](#rollup-node) run by a sequencer, creating batcher transactions, and writing them to the L1.
 
 ### Standard Bridge Contracts
 
-Bedrock also includes a pair of bridge contracts used for the most common kinds of [deposits](#deposits) called the [standard bridges](https://github.com/ethereum-optimism/optimism/blob/develop/specs/bridges.md#standard-bridges). These contracts wrap the [deposit](#deposits) and [withdrawal](#withdrawals) contracts to provide simple interfaces for [depositing](#deposits) and [withdrawing](#withdrawals) ETH and ERC-20 tokens.
+Bedrock also includes a pair of bridge contracts used for the most common kinds of [deposits](#deposits) called the [standard bridges](https://github.com/ethereum-optimism/optimism/blob/d69cb12f6dcbe3d5355beca8997fbac611b7fe37/specs/bridges.md#standard-bridges). These contracts wrap the [deposit](#deposits) and [withdrawal](#withdrawals) contracts to provide simple interfaces for [depositing](#deposits) and [withdrawing](#withdrawals) ETH and ERC-20 tokens.
 
 These bridges are designed to involve a native token on one side of the bridge, and a wrapped token on the other side that can manage minting and burning. Bridging a native token involves locking the native token in a contract and then minting an equivalent amount of mintable token on the other side of the bridge.
 
-For full details, see the [standard bridge](https://github.com/ethereum-optimism/optimism/blob/develop/specs/bridges.md#standard-bridges) section of the protocol specifications.
+For full details, see the [standard bridge](https://github.com/ethereum-optimism/optimism/blob/d69cb12f6dcbe3d5355beca8997fbac611b7fe37/specs/bridges.md#standard-bridges) section of the protocol specifications.
 
 ### Cannon
 
@@ -287,7 +287,7 @@ Although fault proof construction and verification is implemented in the [Cannon
 
 ### Protocol Specification
 
-The protocol specification defines the technical details of the OP Stack codebase. It is the most up-to-date source of truth for the inner workings of the protocol. The protocol specification is located in the ethereum-optimism [monorepo](https://github.com/ethereum-optimism/optimism/blob/develop/specs/README.md).
+The protocol specification defines the technical details of the OP Stack codebase. It is the most up-to-date source of truth for the inner workings of the protocol. The protocol specification is located in the ethereum-optimism [monorepo](https://github.com/ethereum-optimism/optimism/blob/d69cb12f6dcbe3d5355beca8997fbac611b7fe37/specs/README.md).
 
 ### Bedrock Differences
 

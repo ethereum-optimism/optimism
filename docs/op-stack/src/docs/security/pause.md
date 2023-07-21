@@ -13,8 +13,8 @@ An OP Stack chain does not have to specify a usable `GUARDIAN` address if it doe
 
 ## Who can do it?
 
-[`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol) has an immutable `GUARDIAN`. 
-That address can call [`pause`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L166-L170) and [`unpause`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L175-L179).
+[`OptimismPortal`](https://github.com/ethereum-optimism/optimism/blob/129032f15b76b0d2a940443a39433de931a97a44/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol) has an immutable `GUARDIAN`. 
+That address can call [`pause`](https://github.com/ethereum-optimism/optimism/blob/129032f15b76b0d2a940443a39433de931a97a44/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L171-L178) and [`unpause`](https://github.com/ethereum-optimism/optimism/blob/129032f15b76b0d2a940443a39433de931a97a44/packages/contracts-bedrock/contracts/L1/OptimismPortal.sol#L180-L187).
 
 
 ### Changing the guardian
@@ -23,7 +23,7 @@ The guardian created by the setup script is the admin account.
 This is sufficient for testing, but for a production system you would want the guardian to be a multisig with trusted security council.
 
 The `GUARDIAN` variable is immutable, but the `OptimismPortal` contract sits behind a proxy, so the `GUARDIAN` can be modified by changing the `OptimismPortal` proxy to point to a new implementation contract.
-You do this using the L1 [`ProxyAdmin`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/universal/ProxyAdmin.sol) contract.
+You do this using the L1 [`ProxyAdmin`](https://github.com/ethereum-optimism/optimism/blob/129032f15b76b0d2a940443a39433de931a97a44/packages/contracts-bedrock/contracts/universal/ProxyAdmin.sol) contract.
 
 <!--
 ## Seeing it in action

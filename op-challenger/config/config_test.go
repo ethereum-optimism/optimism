@@ -13,10 +13,11 @@ var (
 	validGameAddress        = common.HexToAddress("0x7bdd3b028C4796eF0EAf07d11394d0d9d8c24139")
 	validAlphabetTrace      = "abcdefgh"
 	agreeWithProposedOutput = true
+	gameDepth               = 4
 )
 
 func validConfig() Config {
-	cfg := NewConfig(validL1EthRpc, validGameAddress, validAlphabetTrace, agreeWithProposedOutput)
+	cfg := NewConfig(validL1EthRpc, validGameAddress, validAlphabetTrace, agreeWithProposedOutput, gameDepth)
 	return cfg
 }
 

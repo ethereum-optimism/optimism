@@ -1,5 +1,17 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.16.0
+
+### Minor Changes
+
+- [#6206](https://github.com/ethereum-optimism/optimism/pull/6206) [`72d184854`](https://github.com/ethereum-optimism/optimism/commit/72d184854ebad8b2025641f126ed76573b1f0ac3) Thanks [@tynes](https://github.com/tynes)! - Migrate contracts periphery into bedrock
+
+### Patch Changes
+
+- [#6164](https://github.com/ethereum-optimism/optimism/pull/6164) [`c11039060`](https://github.com/ethereum-optimism/optimism/commit/c11039060bc037a88916c2cba602687b6d69ad1a) Thanks [@pengin7384](https://github.com/pengin7384)! - fix typo
+
+- [#6198](https://github.com/ethereum-optimism/optimism/pull/6198) [`77da6edc6`](https://github.com/ethereum-optimism/optimism/commit/77da6edc643e0b5e39f7b6bb41c3c7ead418a876) Thanks [@tremarkley](https://github.com/tremarkley)! - Delete dead typescript https://github.com/ethereum-optimism/optimism/pull/6148.
+
 ## 0.15.0
 
 ### Minor Changes
