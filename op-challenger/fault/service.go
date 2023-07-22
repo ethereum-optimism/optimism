@@ -17,6 +17,9 @@ import (
 type Service interface {
 	// MonitorGame monitors the fault dispute game and attempts to progress it.
 	MonitorGame(context.Context) error
+
+	// Act attempts to progress the fault dispute game once.
+	Act(context.Context) error
 }
 
 type service struct {
@@ -70,4 +73,14 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 // MonitorGame monitors the fault dispute game and attempts to progress it.
 func (s *service) MonitorGame(ctx context.Context) error {
 	return MonitorGame(ctx, s.logger, s.agreeWithProposedOutput, s.agent, s.caller)
+}
+
+// Act attempts to progress the fault dispute game once.
+func (s *service) Act(ctx context.Context) error {
+	s.logger.Trace("Checking if actions are required")
+	if err := s.agent.Act(ctx); err != nil {
+		s.logger.Error("Error when acting on game", "err", err)
+	}
+	s.caller.LogGameInfo(ctx)
+	return nil
 }

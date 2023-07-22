@@ -26,6 +26,7 @@ type Config struct {
 	AlphabetTrace           string         // String for the AlphabetTraceProvider
 	AgreeWithProposedOutput bool           // Temporary config if we agree or disagree with the posted output
 	GameDepth               int            // Depth of the game tree
+	OneShot                 bool           // Exit after a single Agent Action
 
 	TxMgrConfig txmgr.CLIConfig
 }
@@ -82,6 +83,8 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 		AlphabetTrace:           ctx.String(flags.AlphabetFlag.Name),
 		AgreeWithProposedOutput: ctx.Bool(flags.AgreeWithProposedOutputFlag.Name),
 		GameDepth:               ctx.Int(flags.GameDepthFlag.Name),
-		TxMgrConfig:             txMgrConfig,
+		// Optional Flags
+		OneShot:     ctx.Bool(flags.OneShotFlag.Name),
+		TxMgrConfig: txMgrConfig,
 	}, nil
 }

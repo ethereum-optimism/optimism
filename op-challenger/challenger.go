@@ -16,5 +16,9 @@ func Main(ctx context.Context, logger log.Logger, cfg *config.Config) error {
 		return fmt.Errorf("failed to create the fault service: %w", err)
 	}
 
+	if cfg.OneShot {
+		return service.Act(ctx)
+	}
+
 	return service.MonitorGame(ctx)
 }

@@ -44,6 +44,11 @@ var (
 		EnvVars: prefixEnvVars("GAME_DEPTH"),
 	}
 	// Optional Flags
+	OneShotFlag = &cli.BoolFlag{
+		Name:    "one-shot",
+		Usage:   "Exit a single Agent Action in the Challenger.",
+		EnvVars: prefixEnvVars("ONE_SHOT"),
+	}
 )
 
 // requiredFlags are checked by [CheckRequired]
@@ -56,7 +61,9 @@ var requiredFlags = []cli.Flag{
 }
 
 // optionalFlags is a list of unchecked cli flags
-var optionalFlags = []cli.Flag{}
+var optionalFlags = []cli.Flag{
+	OneShotFlag,
+}
 
 func init() {
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
