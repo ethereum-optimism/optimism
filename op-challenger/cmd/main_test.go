@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/flags"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -39,12 +39,12 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
-	defaultCfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), flags.AlphabetTraceType, alphabetTrace, cannonDatadir, true, 4)
+	defaultCfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), fault.TraceTypeAlphabet, alphabetTrace, cannonDatadir, true, 4)
 	require.Equal(t, defaultCfg, cfg)
 }
 
 func TestDefaultConfigIsValid(t *testing.T) {
-	cfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), flags.AlphabetTraceType, alphabetTrace, cannonDatadir, true, 4)
+	cfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), fault.TraceTypeAlphabet, alphabetTrace, cannonDatadir, true, 4)
 	require.NoError(t, cfg.Check())
 }
 
@@ -66,9 +66,16 @@ func TestTraceType(t *testing.T) {
 		verifyArgsInvalid(t, "flag trace-type is required", addRequiredArgsExcept("--trace-type"))
 	})
 
-	t.Run("Valid", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgsExcept("--trace-type", "--trace-type="+flags.AlphabetTraceType))
-		require.Equal(t, flags.AlphabetTraceType, cfg.TraceType)
+	for _, traceType := range fault.TraceTypes {
+		traceType := traceType
+		t.Run("Valid_"+traceType.String(), func(t *testing.T) {
+			cfg := configForArgs(t, addRequiredArgsExcept("--trace-type", "--trace-type", traceType.String()))
+			require.Equal(t, traceType, cfg.TraceType)
+		})
+	}
+
+	t.Run("Invalid", func(t *testing.T) {
+		verifyArgsInvalid(t, "unknown trace type: \"foo\"", addRequiredArgsExcept("--trace-type", "--trace-type=foo"))
 	})
 }
 
@@ -165,7 +172,7 @@ func requiredArgs() map[string]string {
 		"--agree-with-proposed-output": agreeWithProposedOutput,
 		"--l1-eth-rpc":                 l1EthRpc,
 		"--game-address":               gameAddressValue,
-		"--trace-type":                 flags.AlphabetTraceType,
+		"--trace-type":                 fault.TraceTypeAlphabet.String(),
 		"--alphabet":                   alphabetTrace,
 		"--cannon-datadir":             cannonDatadir,
 	}

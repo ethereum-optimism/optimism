@@ -3,6 +3,7 @@ package fault
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -18,6 +19,36 @@ const (
 	GameStatusChallengerWon
 	GameStatusDefenderWon
 )
+
+type TraceType string
+
+const (
+	TraceTypeAlphabet TraceType = "alphabet"
+	TraceTypeCannon   TraceType = "cannon"
+)
+
+var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon}
+
+func (t TraceType) String() string {
+	return string(t)
+}
+
+func (t *TraceType) Set(value string) error {
+	if !ValidTraceType(TraceType(value)) {
+		return fmt.Errorf("unknown trace type: %q", value)
+	}
+	*t = TraceType(value)
+	return nil
+}
+
+func ValidTraceType(value TraceType) bool {
+	for _, t := range TraceTypes {
+		if t == value {
+			return true
+		}
+	}
+	return false
+}
 
 // StepCallData encapsulates the data needed to perform a step.
 type StepCallData struct {

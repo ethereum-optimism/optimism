@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/cannon"
-	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -40,10 +39,13 @@ func Main(ctx context.Context, logger log.Logger, cfg *config.Config) error {
 	}
 
 	var trace fault.TraceProvider
-	if cfg.TraceType == flags.CannonTraceType {
+	switch cfg.TraceType {
+	case fault.TraceTypeCannon:
 		trace = cannon.NewCannonTraceProvider(cfg.CannonDatadir)
-	} else if cfg.TraceType == flags.AlphabetTraceType {
+	case fault.TraceTypeAlphabet:
 		trace = fault.NewAlphabetProvider(cfg.AlphabetTrace, uint64(cfg.GameDepth))
+	default:
+		return fmt.Errorf("unsupported trace type: %v", cfg.TraceType)
 	}
 
 	agent := fault.NewAgent(loader, cfg.GameDepth, trace, responder, cfg.AgreeWithProposedOutput, gameLogger)
