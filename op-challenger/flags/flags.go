@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/fault"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	"github.com/urfave/cli/v2"
 
@@ -21,6 +20,36 @@ func prefixEnvVars(name string) []string {
 	return opservice.PrefixEnvVar(envVarPrefix, name)
 }
 
+type TraceType string
+
+const (
+	TraceTypeAlphabet TraceType = "alphabet"
+	TraceTypeCannon   TraceType = "cannon"
+)
+
+var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon}
+
+func (t TraceType) String() string {
+	return string(t)
+}
+
+func (t *TraceType) Set(value string) error {
+	if !ValidTraceType(TraceType(value)) {
+		return fmt.Errorf("unknown trace type: %q", value)
+	}
+	*t = TraceType(value)
+	return nil
+}
+
+func ValidTraceType(value TraceType) bool {
+	for _, t := range TraceTypes {
+		if t == value {
+			return true
+		}
+	}
+	return false
+}
+
 var (
 	// Required Flags
 	L1EthRpcFlag = &cli.StringFlag{
@@ -35,10 +64,10 @@ var (
 	}
 	TraceTypeFlag = &cli.GenericFlag{
 		Name:    "trace-type",
-		Usage:   "The trace type. Valid options: " + openum.EnumString(fault.TraceTypes),
+		Usage:   "The trace type. Valid options: " + openum.EnumString(TraceTypes),
 		EnvVars: prefixEnvVars("TRACE_TYPE"),
-		Value: func() *fault.TraceType {
-			out := fault.TraceType("") // No default value
+		Value: func() *TraceType {
+			out := TraceType("") // No default value
 			return &out
 		}(),
 	}
@@ -96,18 +125,18 @@ func CheckRequired(ctx *cli.Context) error {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
 		}
 	}
-	gameType := fault.TraceType(strings.ToLower(ctx.String(TraceTypeFlag.Name)))
+	gameType := TraceType(strings.ToLower(ctx.String(TraceTypeFlag.Name)))
 	switch gameType {
-	case fault.TraceTypeCannon:
+	case TraceTypeCannon:
 		if !ctx.IsSet(CannonDatadirFlag.Name) {
 			return fmt.Errorf("flag %s is required", "cannon-datadir")
 		}
-	case fault.TraceTypeAlphabet:
+	case TraceTypeAlphabet:
 		if !ctx.IsSet(AlphabetFlag.Name) {
 			return fmt.Errorf("flag %s is required", "alphabet")
 		}
 	default:
-		return fmt.Errorf("invalid trace type. must be one of %v", fault.TraceTypes)
+		return fmt.Errorf("invalid trace type. must be one of %v", TraceTypes)
 	}
 	return nil
 }

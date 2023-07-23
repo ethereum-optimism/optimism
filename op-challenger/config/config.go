@@ -4,7 +4,6 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/fault"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
 
@@ -30,7 +29,7 @@ type Config struct {
 	AgreeWithProposedOutput bool           // Temporary config if we agree or disagree with the posted output
 	GameDepth               int            // Depth of the game tree
 
-	TraceType     fault.TraceType // Type of trace
+	TraceType     flags.TraceType // Type of trace
 	AlphabetTrace string          // String for the AlphabetTraceProvider
 	CannonDatadir string          // Cannon Data Directory for the CannonTraceProvider
 
@@ -40,7 +39,7 @@ type Config struct {
 func NewConfig(
 	l1EthRpc string,
 	gameAddress common.Address,
-	traceType fault.TraceType,
+	traceType flags.TraceType,
 	alphabetTrace string,
 	cannonDatadir string,
 	agreeWithProposedOutput bool,
@@ -71,10 +70,10 @@ func (c Config) Check() error {
 	if c.TraceType == "" {
 		return ErrMissingTraceType
 	}
-	if c.TraceType == fault.TraceTypeCannon && c.CannonDatadir == "" {
+	if c.TraceType == flags.TraceTypeCannon && c.CannonDatadir == "" {
 		return ErrMissingCannonDatadir
 	}
-	if c.TraceType == fault.TraceTypeAlphabet && c.AlphabetTrace == "" {
+	if c.TraceType == flags.TraceTypeAlphabet && c.AlphabetTrace == "" {
 		return ErrMissingAlphabetTrace
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {
@@ -95,7 +94,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 
 	txMgrConfig := txmgr.ReadCLIConfig(ctx)
 
-	traceTypeFlag := fault.TraceType(strings.ToLower(ctx.String(flags.TraceTypeFlag.Name)))
+	traceTypeFlag := flags.TraceType(strings.ToLower(ctx.String(flags.TraceTypeFlag.Name)))
 
 	return &Config{
 		// Required Flags

@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/fault"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
@@ -77,5 +76,3 @@ func (p *CannonTraceProvider) loadProof(i uint64) (*proofData, error) {
 	}
 	return &proof, nil
 }
-
-var _ fault.TraceProvider = (*CannonTraceProvider)(nil)
