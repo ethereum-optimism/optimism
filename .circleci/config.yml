@@ -808,10 +808,19 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: op-(.+),contracts-bedrock,contracts
+          patterns: op-(.+),contracts-bedrock
       - run:
           name: prep results dir
           command: mkdir -p /tmp/test-results
+      - run:
+          name: install geth
+          command: make install-geth
+      - run:
+          name: git submodules
+          command: git submodule update --init --recursive
+      - run:
+          name: generate L1 state
+          command: make devnet-allocs
       - run:
           name: run tests
           command: |
@@ -843,7 +852,6 @@ jobs:
         default: this-package-does-not-exist
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-      - image: cimg/postgres:14.1
     steps:
       - checkout
       - check-changed:
@@ -858,7 +866,7 @@ jobs:
           name: Test
           command: |
             mkdir -p /test-results
-            DB_USER=postgres gotestsum --junitfile /test-results/tests.xml
+            gotestsum --junitfile /test-results/tests.xml
           working_directory: <<parameters.working_directory>>
       - when:
           condition:
@@ -869,14 +877,43 @@ jobs:
                 command: make <<parameters.binary_name>>
                 working_directory: <<parameters.working_directory>>
 
+  indexer-tests:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+      - image: cimg/postgres:14.1
+    steps:
+      - checkout
+      - check-changed:
+          patterns: indexer
+      - run:
+          name: Lint
+          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 2m -e "errors.As" -e "errors.Is" ./...
+          working_directory: indexer
+      - run:
+          name: install geth
+          command: make install-geth
+      - run:
+          name: git submodules
+          command: git submodule update --init --recursive
+      - run:
+          name: generate L1 state
+          command: make devnet-allocs
+      - store_test_results:
+          path: /test-results
+      - run:
+          name: Test
+          command: |
+            mkdir -p /test-results
+            DB_USER=postgres gotestsum --junitfile /test-results/tests.xml
+          working_directory: indexer
+      - run:
+          name: Build
+          command: make indexer
+          working_directory: indexer
+
   devnet:
     machine:
       image: ubuntu-2204:2022.10.2
-    parameters:
-      deploy:
-        description: Deploy contracts
-        default: false
-        type: boolean
     environment:
       DOCKER_BUILDKIT: 1
     steps:
@@ -886,9 +923,9 @@ jobs:
       - run:
           name: Install latest golang
           command: |
-            wget https://go.dev/dl/go1.19.linux-amd64.tar.gz
+            wget https://go.dev/dl/go1.20.linux-amd64.tar.gz
             sudo rm -rf /usr/local/go
-            sudo tar -C /usr/local -xzf go1.19.linux-amd64.tar.gz
+            sudo tar -C /usr/local -xzf go1.20.linux-amd64.tar.gz
             export PATH=$PATH:/usr/local/go/bin
             go version
       - run:
@@ -901,6 +938,9 @@ jobs:
             source $HOME/.bashrc
             forge --version
       - run:
+          name: install geth
+          command: make install-geth
+      - run:
           name: Install NVM
           command: |
             curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
@@ -911,123 +951,69 @@ jobs:
           command: |
             nvm install
             nvm use && node --version && npm --version
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
       - run:
-          name: Install Package managers
+          name: Install pnpm
           command: |
             npm i pnpm --global
-            npm i yarn@1 --global
+      - run:
+          name: git submodules
+          command: git submodule update --init --recursive
       - run:
           name: Install and build
           command: |
             pnpm install && pnpm build
-      - when:
-          condition:
-            and:
-              - equal: [true, <<parameters.deploy>>]
-          steps:
-            - run:
-                name: Bring up the stack
-                command: |
-                  make devnet-up-deploy
-            - run:
-                name: Check L2 config
-                command: go run cmd/check-l2/main.go --l2-rpc-url http://localhost:9545 --l1-rpc-url http://localhost:8545
-                working_directory: op-chain-ops
-            - run:
-                name: Deposit ERC20 through the bridge
-                command: timeout 8m npx hardhat deposit-erc20 --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
-                working_directory: packages/sdk
-            - run:
-                name: Deposit ETH through the bridge
-                command: timeout 8m npx hardhat deposit-eth --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
-                working_directory: packages/sdk
-            - run:
-                name: Dump op-node logs
-                command: |
-                  docker logs ops-bedrock-op-node-1 || echo "No logs."
-                when: on_fail
-            - run:
-                name: Dump op-geth logs
-                command: |
-                  docker logs ops-bedrock-l2-1 || echo "No logs."
-                when: on_fail
-            - run:
-                name: Dump l1 logs
-                command: |
-                  docker logs ops-bedrock-l1-1 || echo "No logs."
-                when: on_fail
-            - run:
-                name: Dump op-batcher logs
-                command: |
-                  docker logs ops-bedrock-op-batcher-1 || echo "No logs."
-                when: on_fail
-            - run:
-                name: Dump op-proposer logs
-                command: |
-                  docker logs ops-bedrock-op-proposer-1 || echo "No logs."
-                when: on_fail
-            - run:
-                name: Log deployment artifact
-                command: |
-                  cat broadcast/Deploy.s.sol/900/run-latest.json || echo "No deployment file found"
-                when: on_fail
-                working_directory: packages/contracts-bedrock
-            - run:
-                name: Log artifacts directory
-                command: |
-                  ls -R forge-artifacts || echo "No forge artifacts found"
-                when: on_fail
-                working_directory: packages/contracts-bedrock
-      - when:
-          condition:
-            and:
-              - equal: [false, <<parameters.deploy>>]
-          steps:
-            - run:
-                name: Bring up the stack
-                command: |
-                  make devnet-up
-            - run:
-                name: Check L2 config
-                command: go run cmd/check-l2/main.go --l2-rpc-url http://localhost:9545 --l1-rpc-url http://localhost:8545
-                working_directory: op-chain-ops
-            - run:
-                name: Deposit ERC20 through the bridge
-                command: timeout 10m npx hardhat deposit-erc20 --network devnetL1
-                working_directory: packages/sdk
-            - run:
-                name: Deposit ETH through the bridge
-                command: timeout 10m npx hardhat deposit-eth --network devnetL1
-                working_directory: packages/sdk
-            - run:
-                name: Dump op-node logs
-                command: |
-                  docker logs ops-bedrock-op-node-1 || echo "No logs."
-                when: on_fail
-            - run:
-                name: Dump op-geth logs
-                command: |
-                  docker logs ops-bedrock-l2-1 || echo "No logs."
-                when: on_fail
-            - run:
-                name: Dump l1 logs
-                command: |
-                  docker logs ops-bedrock-l1-1 || echo "No logs."
-                when: on_fail
-            - run:
-                name: Dump op-batcher logs
-                command: |
-                  docker logs ops-bedrock-op-batcher-1 || echo "No logs."
-                when: on_fail
-            - run:
-                name: Dump op-proposer logs
-                command: |
-                  docker logs ops-bedrock-op-proposer-1 || echo "No logs."
-                when: on_fail
+      - run:
+          name: Bring up the stack
+          command: make devnet-up
+      - run:
+          name: Check L2 config
+          command: go run cmd/check-l2/main.go --l2-rpc-url http://localhost:9545 --l1-rpc-url http://localhost:8545
+          working_directory: op-chain-ops
+      - run:
+          name: Deposit ERC20 through the bridge
+          command: timeout 8m npx hardhat deposit-erc20 --network devnetL1 --l1-contracts-json-path ../../.devnet/addresses.json
+          working_directory: packages/sdk
+      - run:
+          name: Deposit ETH through the bridge
+          command: timeout 8m npx hardhat deposit-eth --network devnetL1 --l1-contracts-json-path ../../.devnet/addresses.json
+          working_directory: packages/sdk
+      - run:
+          name: Dump op-node logs
+          command: |
+            docker logs ops-bedrock-op-node-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump op-geth logs
+          command: |
+            docker logs ops-bedrock-l2-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump l1 logs
+          command: |
+            docker logs ops-bedrock-l1-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump op-batcher logs
+          command: |
+            docker logs ops-bedrock-op-batcher-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump op-proposer logs
+          command: |
+            docker logs ops-bedrock-op-proposer-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Log deployment artifact
+          command: |
+            cat broadcast/Deploy.s.sol/900/run-latest.json || echo "No deployment file found"
+          when: on_fail
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Log artifacts directory
+          command: |
+            ls -R forge-artifacts || echo "No forge artifacts found"
+          when: on_fail
+          working_directory: packages/contracts-bedrock
 
   semgrep-scan:
     parameters:
@@ -1231,20 +1217,12 @@ workflows:
       - depcheck:
           requires:
             - pnpm-monorepo
-      - devnet:
-          name: devnet (with deployed contracts)
-          deploy: true
-      - devnet:
-          name: devnet (with genesis contracts)
-          deploy: false
+      - devnet
       - go-lint-test-build:
           name: proxyd-tests
           binary_name: proxyd
           working_directory: proxyd
-      - go-lint-test-build:
-          name: indexer-tests
-          binary_name: indexer
-          working_directory: indexer
+      - indexer-tests
       - go-lint-test-build:
           name: op-heartbeat tests
           binary_name: op-heartbeat

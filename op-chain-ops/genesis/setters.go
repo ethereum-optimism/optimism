@@ -16,17 +16,11 @@ import (
 // FundDevAccounts will fund each of the development accounts.
 func FundDevAccounts(db vm.StateDB) {
 	for _, account := range DevAccounts {
-		db.CreateAccount(account)
+		if !db.Exist(account) {
+			db.CreateAccount(account)
+		}
 		db.AddBalance(account, devBalance)
 	}
-}
-
-// SetL1Proxies will set each of the proxies in the state. It requires
-// a Proxy and ProxyAdmin deployment present so that the Proxy bytecode
-// can be set in state and the ProxyAdmin can be set as the admin of the
-// Proxy.
-func SetL1Proxies(db vm.StateDB, proxyAdminAddr common.Address) error {
-	return setProxies(db, proxyAdminAddr, bigL1PredeployNamespace, 2048)
 }
 
 func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int, count uint64) error {

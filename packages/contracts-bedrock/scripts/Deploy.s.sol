@@ -246,7 +246,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the DisputeGameFactoryProxy
     function deployDisputeGameFactoryProxy() broadcast() public returns (address) {
-        if (block.chainid == 900) {
+        if (block.chainid == 901 || block.chainid == 1337) {
             address proxyAdmin = mustGetAddress("ProxyAdmin");
             Proxy proxy = new Proxy({
                 _admin: proxyAdmin
@@ -347,7 +347,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the DisputeGameFactory
     function deployDisputeGameFactory() broadcast() public returns (address) {
-        if (block.chainid == 900) {
+        if (block.chainid == 901 || block.chainid == 1337) {
             DisputeGameFactory factory = new DisputeGameFactory();
             save("DisputeGameFactory", address(factory));
             console.log("DisputeGameFactory deployed at %s", address(factory));
@@ -442,7 +442,7 @@ contract Deploy is Deployer {
 
     /// @notice Initialize the DisputeGameFactory
     function initializeDisputeGameFactory() broadcast() public {
-        if (block.chainid == 900) {
+        if (block.chainid == 901 || block.chainid == 1337) {
             ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
             address disputeGameFactoryProxy = mustGetAddress("DisputeGameFactoryProxy");
             address disputeGameFactory = mustGetAddress("DisputeGameFactory");
@@ -676,7 +676,7 @@ contract Deploy is Deployer {
 
     /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
     function transferDisputeGameFactoryOwnership() broadcast() public {
-        if (block.chainid == 900) {
+        if (block.chainid == 901 || block.chainid == 1337) {
             DisputeGameFactory disputeGameFactory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
             address owner = disputeGameFactory.owner();
             address finalSystemOwner = cfg.finalSystemOwner();
@@ -689,7 +689,7 @@ contract Deploy is Deployer {
 
     /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
     function setFaultGameImplementation() broadcast() public {
-        if (block.chainid == 900) {
+        if (block.chainid == 901 || block.chainid == 1337) {
             DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
             Claim absolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
             IBigStepper faultVm = IBigStepper(new AlphabetVM(absolutePrestate));

@@ -71,19 +71,21 @@ abstract contract Deployer is Script {
 
         deploymentContext = _getDeploymentContext();
         string memory deployFile = vm.envOr("DEPLOY_FILE", string("run-latest.json"));
-        deployPath = string.concat(root, "/broadcast/", deployScript, ".s.sol/", vm.toString(block.chainid), "/", deployFile);
+        uint256 chainId = vm.envOr("CHAIN_ID", block.chainid);
+        deployPath = string.concat(root, "/broadcast/", deployScript, ".s.sol/", vm.toString(chainId), "/", deployFile);
 
         deploymentsDir = string.concat(root, "/deployments/", deploymentContext);
         try vm.createDir(deploymentsDir, true) {} catch (bytes memory) {}
 
         string memory chainIdPath = string.concat(deploymentsDir, "/.chainId");
-        try vm.readFile(chainIdPath) returns (string memory chainid) {
-            uint256 chainId = vm.parseUint(chainid);
-            require(chainId == block.chainid, "Misconfigured networks");
+        try vm.readFile(chainIdPath) returns (string memory localChainId) {
+            if (vm.envOr("STRICT_DEPLOYMENT", true)) {
+                require(vm.parseUint(localChainId) == chainId, "Misconfigured networks");
+            }
         } catch {
-            vm.writeFile(chainIdPath, vm.toString(block.chainid));
+            vm.writeFile(chainIdPath, vm.toString(chainId));
         }
-        console.log("Connected to network with chainid %s", block.chainid);
+        console.log("Connected to network with chainid %s", chainId);
 
         tempDeploymentsPath = string.concat(deploymentsDir, "/.deploy");
         try vm.readFile(tempDeploymentsPath) returns (string memory) {} catch {
@@ -432,7 +434,7 @@ abstract contract Deployer is Script {
             return context;
         }
 
-        uint256 chainid = block.chainid;
+        uint256 chainid = vm.envOr("CHAIN_ID", block.chainid);
         if (chainid == 1) {
             return "mainnet";
         }  else if (chainid == 5) {
@@ -441,7 +443,7 @@ abstract contract Deployer is Script {
             return "optimism-goerli";
         } else if (chainid == 10) {
             return "optimism-mainnet";
-        } else if (chainid == 900) {
+        } else if (chainid == 901 || chainid == 1337) {
             return "devnetL1";
         } else if (chainid == 31337) {
             return "hardhat";
