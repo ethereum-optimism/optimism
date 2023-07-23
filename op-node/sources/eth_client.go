@@ -403,6 +403,11 @@ func (s *EthClient) GetStorageAt(ctx context.Context, address common.Address, st
 // ReadStorageAt is a convenience method to read a single storage value at the given slot in the given account.
 // The storage slot value is verified against the state-root of the given block if we do not trust the RPC provider, or directly retrieved without proof if we do trust the RPC.
 func (s *EthClient) ReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash) (common.Hash, error) {
+	// TODO: temp
+	if true {
+		return s.GetStorageAt(ctx, address, storageSlot, blockHash.String())
+	}
+
 	if s.trustRPC {
 		return s.GetStorageAt(ctx, address, storageSlot, blockHash.String())
 	}

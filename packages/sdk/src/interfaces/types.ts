@@ -16,7 +16,7 @@ export enum L1ChainID {
   MAINNET = 1,
   GOERLI = 5,
   HARDHAT_LOCAL = 31337,
-  BEDROCK_LOCAL_DEVNET = 900,
+  BEDROCK_LOCAL_DEVNET = 901,
 }
 
 /**
