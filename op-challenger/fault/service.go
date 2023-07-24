@@ -6,6 +6,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/cannon"
+	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -50,7 +52,15 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
 
-	trace := NewAlphabetProvider(cfg.AlphabetTrace, uint64(cfg.GameDepth))
+	var trace TraceProvider
+	switch cfg.TraceType {
+	case flags.TraceTypeCannon:
+		trace = cannon.NewCannonTraceProvider(cfg.CannonDatadir)
+	case flags.TraceTypeAlphabet:
+		trace = NewAlphabetProvider(cfg.AlphabetTrace, uint64(cfg.GameDepth))
+	default:
+		return nil, fmt.Errorf("unsupported trace type: %v", cfg.TraceType)
+	}
 
 	agent := NewAgent(loader, cfg.GameDepth, trace, responder, cfg.AgreeWithProposedOutput, gameLogger)
 

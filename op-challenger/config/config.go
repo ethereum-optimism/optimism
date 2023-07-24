@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/urfave/cli/v2"
@@ -12,9 +13,11 @@ import (
 )
 
 var (
+	ErrMissingTraceType     = errors.New("missing trace type")
+	ErrMissingCannonDatadir = errors.New("missing cannon datadir")
+	ErrMissingAlphabetTrace = errors.New("missing alphabet trace")
 	ErrMissingL1EthRPC      = errors.New("missing l1 eth rpc url")
 	ErrMissingGameAddress   = errors.New("missing game address")
-	ErrMissingAlphabetTrace = errors.New("missing alphabet trace")
 )
 
 // Config is a well typed config that is parsed from the CLI params.
@@ -23,27 +26,37 @@ var (
 type Config struct {
 	L1EthRpc                string         // L1 RPC Url
 	GameAddress             common.Address // Address of the fault game
-	AlphabetTrace           string         // String for the AlphabetTraceProvider
 	AgreeWithProposedOutput bool           // Temporary config if we agree or disagree with the posted output
 	GameDepth               int            // Depth of the game tree
+
+	TraceType     flags.TraceType // Type of trace
+	AlphabetTrace string          // String for the AlphabetTraceProvider
+	CannonDatadir string          // Cannon Data Directory for the CannonTraceProvider
 
 	TxMgrConfig txmgr.CLIConfig
 }
 
 func NewConfig(
 	l1EthRpc string,
-	GameAddress common.Address,
-	AlphabetTrace string,
-	AgreeWithProposedOutput bool,
-	GameDepth int,
+	gameAddress common.Address,
+	traceType flags.TraceType,
+	alphabetTrace string,
+	cannonDatadir string,
+	agreeWithProposedOutput bool,
+	gameDepth int,
 ) Config {
 	return Config{
-		L1EthRpc:                l1EthRpc,
-		GameAddress:             GameAddress,
-		AlphabetTrace:           AlphabetTrace,
-		TxMgrConfig:             txmgr.NewCLIConfig(l1EthRpc),
-		AgreeWithProposedOutput: AgreeWithProposedOutput,
-		GameDepth:               GameDepth,
+		L1EthRpc:    l1EthRpc,
+		GameAddress: gameAddress,
+
+		AgreeWithProposedOutput: agreeWithProposedOutput,
+		GameDepth:               gameDepth,
+
+		TraceType:     traceType,
+		AlphabetTrace: alphabetTrace,
+		CannonDatadir: cannonDatadir,
+
+		TxMgrConfig: txmgr.NewCLIConfig(l1EthRpc),
 	}
 }
 
@@ -54,7 +67,13 @@ func (c Config) Check() error {
 	if c.GameAddress == (common.Address{}) {
 		return ErrMissingGameAddress
 	}
-	if c.AlphabetTrace == "" {
+	if c.TraceType == "" {
+		return ErrMissingTraceType
+	}
+	if c.TraceType == flags.TraceTypeCannon && c.CannonDatadir == "" {
+		return ErrMissingCannonDatadir
+	}
+	if c.TraceType == flags.TraceTypeAlphabet && c.AlphabetTrace == "" {
 		return ErrMissingAlphabetTrace
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {
@@ -75,11 +94,15 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 
 	txMgrConfig := txmgr.ReadCLIConfig(ctx)
 
+	traceTypeFlag := flags.TraceType(strings.ToLower(ctx.String(flags.TraceTypeFlag.Name)))
+
 	return &Config{
 		// Required Flags
 		L1EthRpc:                ctx.String(flags.L1EthRpcFlag.Name),
+		TraceType:               traceTypeFlag,
 		GameAddress:             dgfAddress,
 		AlphabetTrace:           ctx.String(flags.AlphabetFlag.Name),
+		CannonDatadir:           ctx.String(flags.CannonDatadirFlag.Name),
 		AgreeWithProposedOutput: ctx.Bool(flags.AgreeWithProposedOutputFlag.Name),
 		GameDepth:               ctx.Int(flags.GameDepthFlag.Name),
 		TxMgrConfig:             txMgrConfig,

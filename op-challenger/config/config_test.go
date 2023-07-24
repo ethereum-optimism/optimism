@@ -3,6 +3,7 @@ package config
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -12,47 +13,58 @@ var (
 	validL1EthRpc           = "http://localhost:8545"
 	validGameAddress        = common.HexToAddress("0x7bdd3b028C4796eF0EAf07d11394d0d9d8c24139")
 	validAlphabetTrace      = "abcdefgh"
+	validCannonDatadir      = "/tmp/cannon"
 	agreeWithProposedOutput = true
 	gameDepth               = 4
 )
 
-func validConfig() Config {
-	cfg := NewConfig(validL1EthRpc, validGameAddress, validAlphabetTrace, agreeWithProposedOutput, gameDepth)
+func validConfig(traceType flags.TraceType) Config {
+	cfg := NewConfig(validL1EthRpc, validGameAddress, traceType, validAlphabetTrace, validCannonDatadir, agreeWithProposedOutput, gameDepth)
 	return cfg
 }
 
 // TestValidConfigIsValid checks that the config provided by validConfig is actually valid
 func TestValidConfigIsValid(t *testing.T) {
-	err := validConfig().Check()
+	err := validConfig(flags.TraceTypeCannon).Check()
 	require.NoError(t, err)
 }
 
 func TestTxMgrConfig(t *testing.T) {
 	t.Run("Invalid", func(t *testing.T) {
-		config := validConfig()
+		config := validConfig(flags.TraceTypeCannon)
 		config.TxMgrConfig = txmgr.CLIConfig{}
-		err := config.Check()
-		require.Equal(t, err.Error(), "must provide a L1 RPC url")
+		require.Equal(t, config.Check().Error(), "must provide a L1 RPC url")
 	})
 }
 
 func TestL1EthRpcRequired(t *testing.T) {
-	config := validConfig()
+	config := validConfig(flags.TraceTypeCannon)
 	config.L1EthRpc = ""
-	err := config.Check()
-	require.ErrorIs(t, err, ErrMissingL1EthRPC)
+	require.ErrorIs(t, config.Check(), ErrMissingL1EthRPC)
+	config.L1EthRpc = validL1EthRpc
+	require.NoError(t, config.Check())
 }
 
 func TestGameAddressRequired(t *testing.T) {
-	config := validConfig()
+	config := validConfig(flags.TraceTypeCannon)
 	config.GameAddress = common.Address{}
-	err := config.Check()
-	require.ErrorIs(t, err, ErrMissingGameAddress)
+	require.ErrorIs(t, config.Check(), ErrMissingGameAddress)
+	config.GameAddress = validGameAddress
+	require.NoError(t, config.Check())
 }
 
 func TestAlphabetTraceRequired(t *testing.T) {
-	config := validConfig()
+	config := validConfig(flags.TraceTypeAlphabet)
 	config.AlphabetTrace = ""
-	err := config.Check()
-	require.ErrorIs(t, err, ErrMissingAlphabetTrace)
+	require.ErrorIs(t, config.Check(), ErrMissingAlphabetTrace)
+	config.AlphabetTrace = validAlphabetTrace
+	require.NoError(t, config.Check())
+}
+
+func TestCannonTraceRequired(t *testing.T) {
+	config := validConfig(flags.TraceTypeCannon)
+	config.CannonDatadir = ""
+	require.ErrorIs(t, config.Check(), ErrMissingCannonDatadir)
+	config.CannonDatadir = validCannonDatadir
+	require.NoError(t, config.Check())
 }
