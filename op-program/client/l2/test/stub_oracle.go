@@ -17,9 +17,9 @@ type stateOracle interface {
 }
 
 type StubBlockOracle struct {
-	t         *testing.T
-	Blocks    map[common.Hash]*types.Block
-	L2Outputs map[common.Hash]eth.Output
+	t       *testing.T
+	Blocks  map[common.Hash]*types.Block
+	Outputs map[common.Hash]eth.Output
 	stateOracle
 }
 
@@ -28,18 +28,25 @@ func NewStubOracle(t *testing.T) (*StubBlockOracle, *StubStateOracle) {
 	blockOracle := StubBlockOracle{
 		t:           t,
 		Blocks:      make(map[common.Hash]*types.Block),
+		Outputs:     make(map[common.Hash]eth.Output),
 		stateOracle: stateOracle,
 	}
 	return &blockOracle, stateOracle
 }
 
-func NewStubOracleWithBlocks(t *testing.T, chain []*types.Block, db ethdb.Database) *StubBlockOracle {
+func NewStubOracleWithBlocks(t *testing.T, chain []*types.Block, outputs []eth.Output, db ethdb.Database) *StubBlockOracle {
 	blocks := make(map[common.Hash]*types.Block, len(chain))
 	for _, block := range chain {
 		blocks[block.Hash()] = block
 	}
+	o := make(map[common.Hash]eth.Output, len(outputs))
+	for _, output := range outputs {
+		o[common.Hash(eth.OutputRoot(output))] = output
+	}
 	return &StubBlockOracle{
+		t:           t,
 		Blocks:      blocks,
+		Outputs:     o,
 		stateOracle: &KvStateOracle{t: t, Source: db},
 	}
 }
@@ -53,7 +60,7 @@ func (o StubBlockOracle) BlockByHash(blockHash common.Hash) *types.Block {
 }
 
 func (o StubBlockOracle) L2OutputByRoot(root common.Hash) eth.Output {
-	output, ok := o.L2Outputs[root]
+	output, ok := o.Outputs[root]
 	if !ok {
 		o.t.Fatalf("requested unknown output root %s", root)
 	}

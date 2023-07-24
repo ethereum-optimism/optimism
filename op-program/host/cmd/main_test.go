@@ -23,9 +23,8 @@ var (
 	l2OutputRoot       = common.HexToHash("0x444444").Hex()
 	l2ClaimBlockNumber = uint64(1203)
 	// Note: This is actually the L1 goerli genesis config. Just using it as an arbitrary, valid genesis config
-	l2Genesis             = core.DefaultGoerliGenesisBlock()
-	l2GenesisConfig       = l2Genesis.Config
-	l2OutputOracleAddress = common.HexToAddress("0x1234567890123456789012345678901234567890").Hex()
+	l2Genesis       = core.DefaultGoerliGenesisBlock()
+	l2GenesisConfig = l2Genesis.Config
 )
 
 func TestLogLevel(t *testing.T) {
@@ -124,18 +123,33 @@ func TestL2Genesis(t *testing.T) {
 	})
 }
 
-func TestL2OutputRoot(t *testing.T) {
+func TestL2Head(t *testing.T) {
 	t.Run("Required", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag l2.outputroot is required", addRequiredArgsExcept("--l2.head"))
+		verifyArgsInvalid(t, "flag l2.head is required", addRequiredArgsExcept("--l2.head"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
-		cfg := configForArgs(t, replaceRequiredArg("--l2.outputroot", l2HeadValue))
-		require.Equal(t, common.HexToHash(l2HeadValue), cfg.L2OutputRoot)
+		cfg := configForArgs(t, replaceRequiredArg("--l2.head", l2HeadValue))
+		require.Equal(t, common.HexToHash(l2HeadValue), cfg.L2Head)
 	})
 
 	t.Run("Invalid", func(t *testing.T) {
 		verifyArgsInvalid(t, config.ErrInvalidL2Head.Error(), replaceRequiredArg("--l2.head", "something"))
+	})
+}
+
+func TestL2OutputRoot(t *testing.T) {
+	t.Run("Required", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag l2.outputroot is required", addRequiredArgsExcept("--l2.outputroot"))
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		cfg := configForArgs(t, replaceRequiredArg("--l2.outputroot", l2OutputRoot))
+		require.Equal(t, common.HexToHash(l2OutputRoot), cfg.L2OutputRoot)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		verifyArgsInvalid(t, config.ErrInvalidL2OutputRoot.Error(), replaceRequiredArg("--l2.outputroot", "something"))
 	})
 }
 
@@ -310,6 +324,7 @@ func requiredArgs() map[string]string {
 		"--network":        "goerli",
 		"--l1.head":        l1HeadValue,
 		"--l2.head":        l2HeadValue,
+		"--l2.outputroot":  l2OutputRoot,
 		"--l2.claim":       l2ClaimValue,
 		"--l2.blocknumber": strconv.FormatUint(l2ClaimBlockNumber, 10),
 	}

@@ -43,7 +43,7 @@ type Config struct {
 	L1RPCKind  sources.RPCProviderKind
 
 	// L2Head is the l2 block hash contained in the L2 Output referenced by the L2OutputRoot
-	// TODO(inphi): This can be made optional with hardcoded rollup configs and output oracle addresses
+	// TODO(inphi): This can be made optional with hardcoded rollup configs and output oracle addresses by searching the oracle for the l2 output root
 	L2Head common.Hash
 	// L2OutputRoot is the agreed L2 output root to start derivation from
 	L2OutputRoot common.Hash
@@ -73,6 +73,9 @@ func (c *Config) Check() error {
 	}
 	if c.L1Head == (common.Hash{}) {
 		return ErrInvalidL1Head
+	}
+	if c.L2Head == (common.Hash{}) {
+		return ErrInvalidL2Head
 	}
 	if c.L2OutputRoot == (common.Hash{}) {
 		return ErrInvalidL2OutputRoot
@@ -136,7 +139,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	if l2Head == (common.Hash{}) {
 		return nil, ErrInvalidL2Head
 	}
-	l2OutputRoot := common.HexToHash(ctx.String(flags.L2Head.Name))
+	l2OutputRoot := common.HexToHash(ctx.String(flags.L2OutputRoot.Name))
 	if l2OutputRoot == (common.Hash{}) {
 		return nil, ErrInvalidL2OutputRoot
 	}
