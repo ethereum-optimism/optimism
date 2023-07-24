@@ -85,7 +85,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
     uint256[MAX_GAP - 3] private __gap;
 
     /// @dev Creates a new EAS instance.
-    constructor() Semver(1, 0, 0) EIP712Verifier("EAS", "1.0.0") {
+    constructor() Semver(1, 0, 1) EIP712Verifier("EAS", "1.0.1") {
     }
 
     /// @inheritdoc IEAS

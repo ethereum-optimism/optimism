@@ -5,8 +5,18 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+// Responder takes a response action & executes.
+// For full op-challenger this means executing the transaction on chain.
+type Responder interface {
+	CanResolve(ctx context.Context) bool
+	Resolve(ctx context.Context) error
+	Respond(ctx context.Context, response types.Claim) error
+	Step(ctx context.Context, stepData types.StepCallData) error
+}
 
 type Agent struct {
 	solver                  *Solver
@@ -17,7 +27,7 @@ type Agent struct {
 	log                     log.Logger
 }
 
-func NewAgent(loader Loader, maxDepth int, trace TraceProvider, responder Responder, agreeWithProposedOutput bool, log log.Logger) *Agent {
+func NewAgent(loader Loader, maxDepth int, trace types.TraceProvider, responder Responder, agreeWithProposedOutput bool, log log.Logger) *Agent {
 	return &Agent{
 		solver:                  NewSolver(maxDepth, trace),
 		loader:                  loader,
@@ -55,20 +65,19 @@ func (a *Agent) Act(ctx context.Context) error {
 // tryResolve resolves the game if it is in a terminal state
 // and returns true if the game resolves successfully.
 func (a *Agent) tryResolve(ctx context.Context) bool {
-	if a.responder.CanResolve(ctx) {
-		a.log.Info("Resolving game")
-		err := a.responder.Resolve(ctx)
-		if err != nil {
-			a.log.Error("Failed to resolve the game", "err", err)
-			return false
-		}
-		return true
+	if !a.responder.CanResolve(ctx) {
+		return false
 	}
-	return false
+	a.log.Info("Resolving game")
+	if err := a.responder.Resolve(ctx); err != nil {
+		a.log.Error("Failed to resolve the game", "err", err)
+		return false
+	}
+	return true
 }
 
 // newGameFromContracts initializes a new game state from the state in the contract
-func (a *Agent) newGameFromContracts(ctx context.Context) (Game, error) {
+func (a *Agent) newGameFromContracts(ctx context.Context) (types.Game, error) {
 	claims, err := a.loader.FetchClaims(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch claims: %w", err)
@@ -76,7 +85,7 @@ func (a *Agent) newGameFromContracts(ctx context.Context) (Game, error) {
 	if len(claims) == 0 {
 		return nil, errors.New("no claims")
 	}
-	game := NewGameState(a.agreeWithProposedOutput, claims[0], uint64(a.maxDepth))
+	game := types.NewGameState(a.agreeWithProposedOutput, claims[0], uint64(a.maxDepth))
 	if err := game.PutAll(claims[1:]); err != nil {
 		return nil, fmt.Errorf("failed to load claims into the local state: %w", err)
 	}
@@ -84,7 +93,7 @@ func (a *Agent) newGameFromContracts(ctx context.Context) (Game, error) {
 }
 
 // move determines & executes the next move given a claim
-func (a *Agent) move(ctx context.Context, claim Claim, game Game) error {
+func (a *Agent) move(ctx context.Context, claim types.Claim, game types.Game) error {
 	nextMove, err := a.solver.NextMove(claim, game.AgreeWithClaimLevel(claim))
 	if err != nil {
 		return fmt.Errorf("execute next move: %w", err)
@@ -106,7 +115,7 @@ func (a *Agent) move(ctx context.Context, claim Claim, game Game) error {
 }
 
 // step determines & executes the next step against a leaf claim through the responder
-func (a *Agent) step(ctx context.Context, claim Claim, game Game) error {
+func (a *Agent) step(ctx context.Context, claim types.Claim, game types.Game) error {
 	if claim.Depth() != a.maxDepth {
 		return nil
 	}
@@ -130,7 +139,7 @@ func (a *Agent) step(ctx context.Context, claim Claim, game Game) error {
 
 	a.log.Info("Performing step", "is_attack", step.IsAttack,
 		"depth", step.LeafClaim.Depth(), "index_at_depth", step.LeafClaim.IndexAtDepth(), "value", step.LeafClaim.Value)
-	callData := StepCallData{
+	callData := types.StepCallData{
 		ClaimIndex: uint64(step.LeafClaim.ContractIndex),
 		IsAttack:   step.IsAttack,
 		StateData:  step.PreState,

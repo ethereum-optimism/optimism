@@ -1,152 +1,191 @@
 package fault
 
 import (
+	"fmt"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/stretchr/testify/require"
 )
 
-func alphabetClaim(index uint64, letter string) common.Hash {
-	return crypto.Keccak256Hash(BuildAlphabetPreimage(index, letter))
-}
-
-// TestSolver_NextMove_Opponent tests the [Solver] NextMove function
-// with an [fault.AlphabetProvider] as the [TraceProvider].
-func TestSolver_NextMove_Opponent(t *testing.T) {
-	// Construct the solver.
-	maxDepth := 3
-	canonicalProvider := NewAlphabetProvider("abcdefgh", uint64(maxDepth))
-	solver := NewSolver(maxDepth, canonicalProvider)
-
-	// The following claims are created using the state: "abcdexyz".
-	// The responses are the responses we expect from the solver.
-	indices := []struct {
-		claim    Claim
-		response ClaimData
+func TestNextMove(t *testing.T) {
+	maxDepth := 4
+	builder := NewClaimBuilder(t, maxDepth)
+	tests := []struct {
+		name           string
+		claim          types.Claim
+		agreeWithLevel bool
+		expectedErr    error
+		expectedMove   func(claim types.Claim, correct bool) types.Claim
 	}{
 		{
-			Claim{
-				ClaimData: ClaimData{
-					Value:    alphabetClaim(7, "z"),
-					Position: NewPosition(0, 0),
-				},
-				// Root claim has no parent
-			},
-			ClaimData{
-				Value:    alphabetClaim(3, "d"),
-				Position: NewPosition(1, 0),
-			},
+			name:           "AgreeWithLevel_CorrectRoot",
+			claim:          builder.CreateRootClaim(true),
+			agreeWithLevel: true,
 		},
 		{
-			Claim{
-				ClaimData: ClaimData{
-					Value:    alphabetClaim(3, "d"),
-					Position: NewPosition(1, 0),
-				},
-				Parent: ClaimData{
-					Value:    alphabetClaim(7, "h"),
-					Position: NewPosition(0, 0),
-				},
-			},
-			ClaimData{
-				Value:    alphabetClaim(5, "f"),
-				Position: NewPosition(2, 2),
-			},
+			name:           "AgreeWithLevel_IncorrectRoot",
+			claim:          builder.CreateRootClaim(false),
+			agreeWithLevel: true,
 		},
 		{
-			Claim{
-				ClaimData: ClaimData{
-					Value:    alphabetClaim(5, "x"),
-					Position: NewPosition(2, 2),
-				},
-				Parent: ClaimData{
-					Value:    alphabetClaim(7, "h"),
-					Position: NewPosition(1, 1),
-				},
-			},
-			ClaimData{
-				Value:    alphabetClaim(4, "e"),
-				Position: NewPosition(3, 4),
-			},
+			name:           "AgreeWithLevel_EvenDepth",
+			claim:          builder.Seq(false).Attack(false).Get(),
+			agreeWithLevel: true,
+		},
+		{
+			name:           "AgreeWithLevel_OddDepth",
+			claim:          builder.Seq(false).Attack(false).Defend(false).Get(),
+			agreeWithLevel: true,
+		},
+		{
+			name:  "Root_CorrectValue",
+			claim: builder.CreateRootClaim(true),
+		},
+		{
+			name:         "Root_IncorrectValue",
+			claim:        builder.CreateRootClaim(false),
+			expectedMove: builder.AttackClaim,
+		},
+		{
+			name:         "NonRoot_AgreeWithParentAndClaim",
+			claim:        builder.Seq(true).Attack(true).Get(),
+			expectedMove: builder.DefendClaim,
+		},
+		{
+			name:         "NonRoot_AgreeWithParentDisagreeWithClaim",
+			claim:        builder.Seq(true).Attack(false).Get(),
+			expectedMove: builder.AttackClaim,
+		},
+		{
+			name:         "NonRoot_DisagreeWithParentAgreeWithClaim",
+			claim:        builder.Seq(false).Attack(true).Get(),
+			expectedMove: builder.DefendClaim,
+		},
+		{
+			name:         "NonRoot_DisagreeWithParentAndClaim",
+			claim:        builder.Seq(false).Attack(false).Get(),
+			expectedMove: builder.AttackClaim,
+		},
+		{
+			name:        "ErrorWhenClaimIsLeaf_Correct",
+			claim:       builder.CreateLeafClaim(4, true),
+			expectedErr: ErrGameDepthReached,
+		},
+		{
+			name:        "ErrorWhenClaimIsLeaf_Incorrect",
+			claim:       builder.CreateLeafClaim(6, false),
+			expectedErr: ErrGameDepthReached,
 		},
 	}
-
-	for _, test := range indices {
-		res, err := solver.NextMove(test.claim, false)
-		require.NoError(t, err)
-		require.Equal(t, test.response, res.ClaimData)
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			solver := NewSolver(maxDepth, builder.CorrectTraceProvider())
+			move, err := solver.NextMove(test.claim, test.agreeWithLevel)
+			if test.expectedErr == nil {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, test.expectedErr)
+			}
+			if test.expectedMove == nil {
+				require.Nil(t, move)
+			} else {
+				expected := test.expectedMove(test.claim, true)
+				require.Equal(t, &expected, move)
+			}
+		})
 	}
-}
-
-func TestNoMoveAgainstOwnLevel(t *testing.T) {
-	maxDepth := 3
-	mallory := NewAlphabetProvider("abcdepqr", uint64(maxDepth))
-	solver := NewSolver(maxDepth, mallory)
-
-	claim := Claim{
-		ClaimData: ClaimData{
-			Value:    alphabetClaim(7, "z"),
-			Position: NewPosition(0, 0),
-		},
-		// Root claim has no parent
-	}
-
-	move, err := solver.NextMove(claim, true)
-	require.Nil(t, move)
-	require.Nil(t, err)
 }
 
 func TestAttemptStep(t *testing.T) {
 	maxDepth := 3
-	canonicalProvider := &alphabetWithProofProvider{NewAlphabetProvider("abcdefgh", uint64(maxDepth))}
-	solver := NewSolver(maxDepth, canonicalProvider)
-	_, _, middle, bottom := createTestClaims()
+	builder := NewClaimBuilder(t, maxDepth)
+	solver := NewSolver(maxDepth, builder.CorrectTraceProvider())
 
-	zero := Claim{
-		ClaimData: ClaimData{
-			// Zero value is a purposely disagree with claim value "a"
-			Position: NewPosition(3, 0),
+	// Last accessible leaf is the second last trace index
+	// The root node is used for the last trace index and can only be attacked.
+	lastLeafTraceIndex := uint64(1<<maxDepth - 2)
+
+	tests := []struct {
+		name            string
+		claim           types.Claim
+		agreeWithLevel  bool
+		expectedErr     error
+		expectAttack    bool
+		expectPreState  []byte
+		expectProofData []byte
+	}{
+		{
+			name:            "AttackFirstTraceIndex",
+			claim:           builder.CreateLeafClaim(0, false),
+			expectAttack:    true,
+			expectPreState:  builder.CorrectTraceProvider().AbsolutePreState(),
+			expectProofData: nil,
+		},
+		{
+			name:            "DefendFirstTraceIndex",
+			claim:           builder.CreateLeafClaim(0, true),
+			expectAttack:    false,
+			expectPreState:  builder.CorrectPreState(0),
+			expectProofData: builder.CorrectProofData(0),
+		},
+		{
+			name:            "AttackMiddleTraceIndex",
+			claim:           builder.CreateLeafClaim(4, false),
+			expectAttack:    true,
+			expectPreState:  builder.CorrectPreState(3),
+			expectProofData: builder.CorrectProofData(3),
+		},
+		{
+			name:            "DefendMiddleTraceIndex",
+			claim:           builder.CreateLeafClaim(4, true),
+			expectAttack:    false,
+			expectPreState:  builder.CorrectPreState(4),
+			expectProofData: builder.CorrectProofData(4),
+		},
+		{
+			name:            "AttackLastTraceIndex",
+			claim:           builder.CreateLeafClaim(lastLeafTraceIndex, false),
+			expectAttack:    true,
+			expectPreState:  builder.CorrectPreState(lastLeafTraceIndex - 1),
+			expectProofData: builder.CorrectProofData(lastLeafTraceIndex - 1),
+		},
+		{
+			name:            "DefendLastTraceIndex",
+			claim:           builder.CreateLeafClaim(lastLeafTraceIndex, true),
+			expectAttack:    false,
+			expectPreState:  builder.CorrectPreState(lastLeafTraceIndex),
+			expectProofData: builder.CorrectProofData(lastLeafTraceIndex),
+		},
+		{
+			name:        "CannotStepNonLeaf",
+			claim:       builder.Seq(false).Attack(false).Get(),
+			expectedErr: ErrStepNonLeafNode,
+		},
+		{
+			name:           "CannotStepAgreedNode",
+			claim:          builder.Seq(false).Attack(false).Get(),
+			agreeWithLevel: true,
+			expectedErr:    ErrStepNonLeafNode,
 		},
 	}
 
-	step, err := solver.AttemptStep(bottom, false)
-	require.NoError(t, err)
-	require.Equal(t, bottom, step.LeafClaim)
-	require.True(t, step.IsAttack)
-	require.Equal(t, step.PreState, BuildAlphabetPreimage(3, "d"))
-	require.Equal(t, step.ProofData, []byte{3})
-
-	_, err = solver.AttemptStep(middle, false)
-	require.Error(t, err)
-
-	step, err = solver.AttemptStep(zero, false)
-	require.NoError(t, err)
-	require.Equal(t, zero, step.LeafClaim)
-	require.True(t, step.IsAttack)
-	require.Equal(t, canonicalProvider.AbsolutePreState(), step.PreState)
-}
-
-func TestAttempStep_AgreeWithClaimLevel_Fails(t *testing.T) {
-	maxDepth := 3
-	canonicalProvider := NewAlphabetProvider("abcdefgh", uint64(maxDepth))
-	solver := NewSolver(maxDepth, canonicalProvider)
-	_, _, middle, _ := createTestClaims()
-
-	step, err := solver.AttemptStep(middle, true)
-	require.Error(t, err)
-	require.Equal(t, StepData{}, step)
-}
-
-type alphabetWithProofProvider struct {
-	*AlphabetProvider
-}
-
-func (a *alphabetWithProofProvider) GetPreimage(i uint64) ([]byte, []byte, error) {
-	preimage, _, err := a.AlphabetProvider.GetPreimage(i)
-	if err != nil {
-		return nil, nil, err
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			fmt.Printf("%v\n", test.claim.Position.TraceIndex(maxDepth))
+			step, err := solver.AttemptStep(test.claim, test.agreeWithLevel)
+			if test.expectedErr == nil {
+				require.NoError(t, err)
+				require.Equal(t, test.claim, step.LeafClaim)
+				require.Equal(t, test.expectAttack, step.IsAttack)
+				require.Equal(t, test.expectPreState, step.PreState)
+				require.Equal(t, test.expectProofData, step.ProofData)
+			} else {
+				require.ErrorIs(t, err, test.expectedErr)
+				require.Equal(t, StepData{}, step)
+			}
+		})
 	}
-	return preimage, []byte{byte(i)}, nil
 }

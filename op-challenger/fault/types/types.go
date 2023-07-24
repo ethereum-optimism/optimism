@@ -1,7 +1,6 @@
-package fault
+package types
 
 import (
-	"context"
 	"errors"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -82,13 +81,4 @@ func (c *Claim) IsRoot() bool {
 // parent. It returns false if the claim is an attack (i.e. goes left) of the parent.
 func (c *Claim) DefendsParent() bool {
 	return (c.IndexAtDepth() >> 1) != c.Parent.IndexAtDepth()
-}
-
-// Responder takes a response action & executes.
-// For full op-challenger this means executing the transaction on chain.
-type Responder interface {
-	CanResolve(ctx context.Context) bool
-	Resolve(ctx context.Context) error
-	Respond(ctx context.Context, response Claim) error
-	Step(ctx context.Context, stepData StepCallData) error
 }

@@ -22,7 +22,7 @@ contract SchemaRegistry is ISchemaRegistry, Semver {
     uint256[MAX_GAP - 1] private __gap;
 
     /// @dev Creates a new SchemaRegistry instance.
-    constructor() Semver(1, 0, 0) {}
+    constructor() Semver(1, 0, 1) {}
 
     /// @inheritdoc ISchemaRegistry
     function register(string calldata schema, ISchemaResolver resolver, bool revocable) external returns (bytes32) {

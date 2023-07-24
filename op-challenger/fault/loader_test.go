@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/stretchr/testify/require"
 )
@@ -94,41 +95,41 @@ func TestLoader_FetchClaims_Succeeds(t *testing.T) {
 	loader := NewLoader(mockClaimFetcher)
 	claims, err := loader.FetchClaims(context.Background())
 	require.NoError(t, err)
-	require.ElementsMatch(t, []Claim{
+	require.ElementsMatch(t, []types.Claim{
 		{
-			ClaimData: ClaimData{
+			ClaimData: types.ClaimData{
 				Value:    expectedClaims[0].Claim,
-				Position: NewPositionFromGIndex(expectedClaims[0].Position.Uint64()),
+				Position: types.NewPositionFromGIndex(expectedClaims[0].Position.Uint64()),
 			},
-			Parent: ClaimData{
+			Parent: types.ClaimData{
 				Value:    expectedClaims[0].Claim,
-				Position: NewPositionFromGIndex(expectedClaims[0].Position.Uint64()),
+				Position: types.NewPositionFromGIndex(expectedClaims[0].Position.Uint64()),
 			},
 			Countered:     false,
 			Clock:         uint64(0),
 			ContractIndex: 0,
 		},
 		{
-			ClaimData: ClaimData{
+			ClaimData: types.ClaimData{
 				Value:    expectedClaims[1].Claim,
-				Position: NewPositionFromGIndex(expectedClaims[1].Position.Uint64()),
+				Position: types.NewPositionFromGIndex(expectedClaims[1].Position.Uint64()),
 			},
-			Parent: ClaimData{
+			Parent: types.ClaimData{
 				Value:    expectedClaims[0].Claim,
-				Position: NewPositionFromGIndex(expectedClaims[1].Position.Uint64()),
+				Position: types.NewPositionFromGIndex(expectedClaims[1].Position.Uint64()),
 			},
 			Countered:     false,
 			Clock:         uint64(0),
 			ContractIndex: 1,
 		},
 		{
-			ClaimData: ClaimData{
+			ClaimData: types.ClaimData{
 				Value:    expectedClaims[2].Claim,
-				Position: NewPositionFromGIndex(expectedClaims[2].Position.Uint64()),
+				Position: types.NewPositionFromGIndex(expectedClaims[2].Position.Uint64()),
 			},
-			Parent: ClaimData{
+			Parent: types.ClaimData{
 				Value:    expectedClaims[0].Claim,
-				Position: NewPositionFromGIndex(expectedClaims[2].Position.Uint64()),
+				Position: types.NewPositionFromGIndex(expectedClaims[2].Position.Uint64()),
 			},
 			Countered:     false,
 			Clock:         uint64(0),

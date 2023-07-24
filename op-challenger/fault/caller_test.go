@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +41,7 @@ func TestFaultCaller_GetGameStatus(t *testing.T) {
 	tests := []struct {
 		name           string
 		caller         FaultDisputeGameCaller
-		expectedStatus GameStatus
+		expectedStatus types.GameStatus
 		expectedErr    error
 	}{
 		{
@@ -48,7 +49,7 @@ func TestFaultCaller_GetGameStatus(t *testing.T) {
 			caller: &mockFaultDisputeGameCaller{
 				status: 1,
 			},
-			expectedStatus: GameStatusChallengerWon,
+			expectedStatus: types.GameStatusChallengerWon,
 			expectedErr:    nil,
 		},
 		{
