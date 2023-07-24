@@ -59,7 +59,7 @@ func (o StubBlockOracle) BlockByHash(blockHash common.Hash) *types.Block {
 	return block
 }
 
-func (o StubBlockOracle) L2OutputByRoot(root common.Hash) eth.Output {
+func (o StubBlockOracle) OutputByRoot(root common.Hash) eth.Output {
 	output, ok := o.Outputs[root]
 	if !ok {
 		o.t.Fatalf("requested unknown output root %s", root)

@@ -229,13 +229,13 @@ func (m *MockL2Source) ExpectCodeByHash(hash common.Hash, code []byte, err error
 	m.Mock.On("CodeByHash", hash).Once().Return(code, &err)
 }
 
-func (m *MockL2Source) L2OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error) {
-	out := m.Mock.MethodCalled("L2OutputByRoot", root)
+func (m *MockL2Source) OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error) {
+	out := m.Mock.MethodCalled("OutputByRoot", root)
 	return out[0].(eth.Output), *out[1].(*error)
 }
 
-func (m *MockL2Source) ExpectL2OutputByRoot(root common.Hash, output eth.Output, err error) {
-	m.Mock.On("L2OutputByRoot", root).Once().Return(output, &err)
+func (m *MockL2Source) ExpectOutputByRoot(root common.Hash, output eth.Output, err error) {
+	m.Mock.On("OutputByRoot", root).Once().Return(output, &err)
 }
 
 var _ L2Source = (*MockL2Source)(nil)

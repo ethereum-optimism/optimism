@@ -41,7 +41,7 @@ type OracleBackedL2Chain struct {
 var _ engineapi.EngineBackend = (*OracleBackedL2Chain)(nil)
 
 func NewOracleBackedL2Chain(logger log.Logger, oracle Oracle, chainCfg *params.ChainConfig, l2OutputRoot common.Hash) (*OracleBackedL2Chain, error) {
-	output := oracle.L2OutputByRoot(l2OutputRoot)
+	output := oracle.OutputByRoot(l2OutputRoot)
 	outputV0, ok := output.(*eth.OutputV0)
 	if !ok {
 		return nil, fmt.Errorf("unsupported L2 output version: %d", output.Version())

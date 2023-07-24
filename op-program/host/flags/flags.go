@@ -47,12 +47,12 @@ var (
 	}
 	L2Head = &cli.StringFlag{
 		Name:    "l2.head",
-		Usage:   "Hash of the agreed L2 block to start derivation from",
+		Usage:   "Hash of the L2 block at l2.outputroot",
 		EnvVars: prefixEnvVars("L2_HEAD"),
 	}
 	L2OutputRoot = &cli.StringFlag{
 		Name:    "l2.outputroot",
-		Usage:   "L2 Output Root at l2.head",
+		Usage:   "Agreed L2 Output Root to start derivation from",
 		EnvVars: prefixEnvVars("L2_OUTPUT_ROOT"),
 	}
 	L2Claim = &cli.StringFlag{

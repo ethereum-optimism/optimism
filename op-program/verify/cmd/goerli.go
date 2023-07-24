@@ -110,7 +110,7 @@ func Run(l1RpcUrl string, l2RpcUrl string, l2OracleAddr common.Address) error {
 		return fmt.Errorf("retrieve agreed output: %w", err)
 	}
 	if agreedOutput.OutputRoot == output.OutputRoot {
-		// TODO(inphi): Don't return here but keep searching preceeding blocks for a different output
+		// TODO(inphi): Don't return here but keep searching preceding blocks for a different output
 		return fmt.Errorf("agreed output is the same as the output claim")
 	}
 

@@ -17,6 +17,7 @@ import (
 type L2Client struct {
 	*sources.L2Client
 
+	// l2Head is the L2 block hash that we use to fetch L2 output
 	l2Head common.Hash
 }
 
@@ -36,7 +37,7 @@ func NewL2Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 	}, nil
 }
 
-func (s *L2Client) L2OutputByRoot(ctx context.Context, l2OutputRoot common.Hash) (eth.Output, error) {
+func (s *L2Client) OutputByRoot(ctx context.Context, l2OutputRoot common.Hash) (eth.Output, error) {
 	output, err := s.outputAtBlock(ctx, s.l2Head)
 	if err != nil {
 		return nil, err
