@@ -74,31 +74,34 @@ contract PreimageOracle {
     function loadLocalData(
         uint256 _ident,
         bytes32 _word,
-        uint8 _size
+        uint256 _size,
+        uint256 _partOffset
     ) external returns (bytes32 key_) {
         // Compute the localized key from the given local identifier.
         key_ = PreimageKeyLib.localizeIdent(_ident);
 
-        // Load both parts of the local data word into storage for future
-        // reads.
-        bytes32 part1;
+        // Revert if the given part offset is not within bounds.
+        if (_partOffset > _size + 8 || _size > 32) {
+            revert("part offset must be within bounds");
+        }
+
+        // Prepare the local data part at the given offset
+        bytes32 part;
         assembly {
-            // The first part is prepended with an 8 byte length prefix and contains
-            // the first 24 bytes of the passed word.
-            part1 := or(shl(192, _size), shr(64, _word))
+            // Clean the memory in [0x20, 0x40)
+            mstore(0x20, 0x00)
+
+            // Store the full local data in scratch space.
+            mstore(0x00, shl(192, _size))
+            mstore(0x08, _word)
+
+            // Prepare the local data part at the requested offset.
+            part := mload(_partOffset)
         }
 
-        // Store the first part with offset 0.
-        preimagePartOk[key_][0] = true;
-        preimageParts[key_][0] = part1;
-
-        // If the size is greater than 24, we need to store a second part as well.
-        if (_size > 24) {
-            bytes32 part2 = _word << 192;
-            preimagePartOk[key_][32] = true;
-            preimageParts[key_][32] = part2;
-        }
-
+        // Store the first part with `_partOffset`.
+        preimagePartOk[key_][_partOffset] = true;
+        preimageParts[key_][_partOffset] = part;
         // Assign the length of the preimage at the localized key.
         preimageLengths[key_] = _size;
     }
