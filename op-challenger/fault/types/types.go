@@ -1,13 +1,7 @@
 package types
 
 import (
-	"errors"
-
 	"github.com/ethereum/go-ethereum/common"
-)
-
-var (
-	ErrIndexTooLarge = errors.New("index is larger than the maximum index")
 )
 
 type GameStatus uint8
