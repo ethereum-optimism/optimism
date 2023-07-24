@@ -6,8 +6,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
 )
+
+func alphabetClaim(index uint64, letter string) common.Hash {
+	return crypto.Keccak256Hash(BuildAlphabetPreimage(index, letter))
+}
 
 // TestAlphabetProvider_Get_ClaimsByTraceIndex tests the [fault.AlphabetProvider] Get function.
 func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
