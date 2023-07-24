@@ -42,6 +42,7 @@ interface IPreimageOracle {
     function loadLocalData(
         uint256 _ident,
         bytes32 _word,
-        uint8 _size
+        uint256 _size,
+        uint256 _partOffset
     ) external returns (bytes32 key_);
 }

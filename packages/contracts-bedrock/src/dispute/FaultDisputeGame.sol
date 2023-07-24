@@ -252,34 +252,34 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     }
 
     /// @inheritdoc IFaultDisputeGame
-    function addLocalData(uint256 _ident) external {
+    function addLocalData(uint256 _ident, uint256 _partOffset) external {
         // INVARIANT: Local data can only be added if the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
         IPreimageOracle oracle = VM.oracle();
         if (_ident == 1) {
             // Load the L1 head hash into the game's local context in the preimage oracle.
-            oracle.loadLocalData(_ident, Hash.unwrap(l1Head), 32);
+            oracle.loadLocalData(_ident, Hash.unwrap(l1Head), 32, _partOffset);
         } else if (_ident == 2) {
             // Load the earliest output root that commits to the passed L2 block number
             // into the game's local context in the preimage oracle.
             Types.OutputProposal memory proposal = L2_OUTPUT_ORACLE.getL2OutputAfter(
                 l2BlockNumber()
             );
-            oracle.loadLocalData(_ident, proposal.outputRoot, 32);
+            oracle.loadLocalData(_ident, proposal.outputRoot, 32, _partOffset);
         } else if (_ident == 3) {
             // Load the root claim into the game's local context in the preimage oracle.
-            oracle.loadLocalData(_ident, Claim.unwrap(rootClaim()), 32);
+            oracle.loadLocalData(_ident, Claim.unwrap(rootClaim()), 32, _partOffset);
         } else if (_ident == 4) {
             // Load the L2 block number into the game's local context in the preimage oracle.
             // The L2 block number is stored as a big-endian uint64 in the upper 8 bytes of the
             // passed word.
-            oracle.loadLocalData(_ident, bytes32(l2BlockNumber() << 192), 8);
+            oracle.loadLocalData(_ident, bytes32(l2BlockNumber() << 192), 8, _partOffset);
         } else if (_ident == 5) {
             // Load the chain ID into the game's local context in the preimage oracle.
             // The chain ID is stored as a big-endian uint64 in the upper 8 bytes of the
             // passed word.
-            oracle.loadLocalData(_ident, bytes32(block.chainid << 192), 8);
+            oracle.loadLocalData(_ident, bytes32(block.chainid << 192), 8, _partOffset);
         }
     }
 

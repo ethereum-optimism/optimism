@@ -29,17 +29,18 @@ contract PreimageOracle_Test is Test {
         uint256 ident = 1;
         bytes32 word = bytes32(uint256(0xdeadbeef) << 224);
         uint8 size = 4;
+        uint8 partOffset = 0;
 
         // Load the local data into the preimage oracle under the test contract's context.
-        bytes32 contextKey = oracle.loadLocalData(ident, word, size);
+        bytes32 contextKey = oracle.loadLocalData(ident, word, size, partOffset);
 
         // Validate that the pre-image part is set
-        bool ok = oracle.preimagePartOk(contextKey, 0);
+        bool ok = oracle.preimagePartOk(contextKey, partOffset);
         assertTrue(ok);
 
         // Validate the local data part
         bytes32 expectedPart = 0x0000000000000004deadbeef0000000000000000000000000000000000000000;
-        assertEq(oracle.preimageParts(contextKey, 0), expectedPart);
+        assertEq(oracle.preimageParts(contextKey, partOffset), expectedPart);
 
         // Validate the local data length
         uint256 length = oracle.preimageLengths(contextKey);
@@ -50,32 +51,31 @@ contract PreimageOracle_Test is Test {
     function testFuzz_loadLocalData_varyingLength_succeeds(
         uint256 ident,
         bytes32 word,
-        uint256 size
+        uint256 size,
+        uint256 partOffset
     ) public {
         // Bound the size to [0, 32]
         size = bound(size, 0, 32);
+        // Bound the part offset to [0, size + 8]
+        partOffset = bound(partOffset, 0, size + 8);
 
         // Load the local data into the preimage oracle under the test contract's context.
-        bytes32 contextKey = oracle.loadLocalData(ident, word, uint8(size));
+        bytes32 contextKey = oracle.loadLocalData(ident, word, uint8(size), uint8(partOffset));
 
         // Validate that the first local data part is set
-        bool ok = oracle.preimagePartOk(contextKey, 0);
+        bool ok = oracle.preimagePartOk(contextKey, partOffset);
         assertTrue(ok);
         // Validate the first local data part
-        bytes32 expectedPart1 = bytes32((size << 192) | (uint256(word) >> 64));
-        assertEq(oracle.preimageParts(contextKey, 0), expectedPart1);
+        bytes32 expectedPart;
+        assembly {
+            mstore(0x20, 0x00)
 
-        // If the size is > 24, validate the second part. Otherwise, ensure
-        // that the second part is not set.
-        ok = oracle.preimagePartOk(contextKey, 32);
-        if (size > 24) {
-            assertTrue(ok);
-            // Validate the second local data part
-            bytes32 expectedPart2 = word << 192;
-            assertEq(oracle.preimageParts(contextKey, 32), expectedPart2);
-        } else {
-            assertFalse(ok);
+            mstore(0x00, shl(192, size))
+            mstore(0x08, word)
+
+            expectedPart := mload(partOffset)
         }
+        assertEq(oracle.preimageParts(contextKey, partOffset), expectedPart);
 
         // Validate the local data length
         uint256 length = oracle.preimageLengths(contextKey);
