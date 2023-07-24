@@ -189,3 +189,39 @@ func TestAttemptStep(t *testing.T) {
 		})
 	}
 }
+
+func createTestClaims() (types.Claim, types.Claim, types.Claim, types.Claim) {
+	// root & middle are from the trace "abcdexyz"
+	// top & bottom are from the trace  "abcdefgh"
+	root := types.Claim{
+		ClaimData: types.ClaimData{
+			Value:    common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000077a"),
+			Position: types.NewPosition(0, 0),
+		},
+		// Root claim has no parent
+	}
+	top := types.Claim{
+		ClaimData: types.ClaimData{
+			Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000364"),
+			Position: types.NewPosition(1, 0),
+		},
+		Parent: root.ClaimData,
+	}
+	middle := types.Claim{
+		ClaimData: types.ClaimData{
+			Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000578"),
+			Position: types.NewPosition(2, 2),
+		},
+		Parent: top.ClaimData,
+	}
+
+	bottom := types.Claim{
+		ClaimData: types.ClaimData{
+			Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000465"),
+			Position: types.NewPosition(3, 4),
+		},
+		Parent: middle.ClaimData,
+	}
+
+	return root, top, middle, bottom
+}
