@@ -6,9 +6,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
 )
 
+func NewFullAlphabetProvider(t *testing.T, maxDepth int) *alphabetWithProofProvider {
+	return &alphabetWithProofProvider{alphabet.NewAlphabetProvider("abcdefghijklmnopqrstuvwxyz", uint64(maxDepth))}
+}
+
 func NewAlphabetClaimBuilder(t *testing.T, maxDepth int) *ClaimBuilder {
-	alphabetProvider := &alphabetWithProofProvider{alphabet.NewAlphabetProvider("abcdefghijklmnopqrstuvwxyz", uint64(maxDepth))}
-	return NewClaimBuilder(t, maxDepth, alphabetProvider)
+	return NewClaimBuilder(t, maxDepth, NewFullAlphabetProvider(t, maxDepth))
 }
 
 type alphabetWithProofProvider struct {

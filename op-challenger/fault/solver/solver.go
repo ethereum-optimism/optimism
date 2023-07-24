@@ -2,7 +2,6 @@ package solver
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 )
@@ -12,16 +11,16 @@ var (
 	ErrStepAgreedClaim = errors.New("cannot step on claims we agree with")
 )
 
-// Solver uses a [VerboseProvider] to determine the moves to make in a dispute game.
+// Solver uses a [ProviderWrapper] to determine the moves to make in a dispute game.
 type Solver struct {
-	provider  VerboseProvider
+	provider  ProviderWrapper
 	gameDepth int
 }
 
 // NewSolver creates a new [Solver] using the provided [TraceProvider].
 func NewSolver(gameDepth int, traceProvider types.TraceProvider) *Solver {
 	return &Solver{
-		provider:  NewSolverProvider(traceProvider),
+		provider:  NewProviderWrapper(traceProvider),
 		gameDepth: gameDepth,
 	}
 }
@@ -39,9 +38,9 @@ func (s *Solver) NextMove(claim types.Claim, agreeWithClaimLevel bool) (*types.C
 		return nil, err
 	}
 	if agree {
-		return s.defend(claim)
+		return s.provider.Defend(claim, s.gameDepth)
 	} else {
-		return s.attack(claim)
+		return s.provider.Attack(claim, s.gameDepth)
 	}
 }
 
@@ -88,25 +87,4 @@ func (s *Solver) AttemptStep(claim types.Claim, agreeWithClaimLevel bool) (StepD
 		PreState:  preState,
 		ProofData: proofData,
 	}, nil
-}
-
-// attack returns a response that attacks the claim.
-func (s *Solver) attack(claim types.Claim) (*types.Claim, error) {
-	counter, err := s.provider.CounterClaim(claim, claim.Attack(), s.gameDepth)
-	if err != nil {
-		return nil, fmt.Errorf("attack claim: %w", err)
-	}
-	return counter, nil
-}
-
-// defend returns a response that defends the claim.
-func (s *Solver) defend(claim types.Claim) (*types.Claim, error) {
-	if claim.IsRoot() {
-		return nil, nil
-	}
-	counter, err := s.provider.CounterClaim(claim, claim.Defend(), s.gameDepth)
-	if err != nil {
-		return nil, fmt.Errorf("defend claim: %w", err)
-	}
-	return counter, nil
 }
