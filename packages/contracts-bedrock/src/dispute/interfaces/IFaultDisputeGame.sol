@@ -55,7 +55,8 @@ interface IFaultDisputeGame is IDisputeGame {
 
     /// @notice Posts the requested local data to the VM's `PreimageOralce`.
     /// @param _ident The local identifier of the data to post.
-    function addLocalData(uint256 _ident) external;
+    /// @param _partOffset The offset of the data to post.
+    function addLocalData(uint256 _ident, uint256 _partOffset) external;
 
     /// @notice Returns the L1 block hash at the time of the game's creation.
     function l1Head() external view returns (Hash l1Head_);
