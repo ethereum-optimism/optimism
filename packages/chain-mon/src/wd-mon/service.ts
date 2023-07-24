@@ -30,7 +30,7 @@ type Metrics = {
 type State = {
   messenger: CrossChainMessenger
   highestUncheckedBlockNumber: number
-  finalizationWindow: number
+  faultProofWindow: number
   forgeryDetected: boolean
 }
 
@@ -109,10 +109,18 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
     // Not detected by default.
     this.state.forgeryDetected = false
 
-    // For now we'll just start take it from the env or the tip of the chain
+    this.state.faultProofWindow =
+      await this.state.messenger.getChallengePeriodSeconds()
+    this.logger.info(
+      `fault proof window is ${this.state.faultProofWindow} seconds`
+    )
+
+    // Set the start block number.
     if (this.options.startBlockNumber === -1) {
+      // We default to starting from the earliest block still in the fault proof window.
+      const l1BlockNumber = await this.options.l1RpcProvider.getBlockNumber()
       this.state.highestUncheckedBlockNumber =
-        await this.options.l1RpcProvider.getBlockNumber()
+        l1BlockNumber - this.state.faultProofWindow / 12
     } else {
       this.state.highestUncheckedBlockNumber = this.options.startBlockNumber
     }
