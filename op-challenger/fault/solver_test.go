@@ -3,6 +3,7 @@ package fault
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
@@ -23,52 +24,52 @@ func TestSolver_NextMove_Opponent(t *testing.T) {
 	// The following claims are created using the state: "abcdexyz".
 	// The responses are the responses we expect from the solver.
 	indices := []struct {
-		claim    Claim
-		response ClaimData
+		claim    types.Claim
+		response types.ClaimData
 	}{
 		{
-			Claim{
-				ClaimData: ClaimData{
+			types.Claim{
+				ClaimData: types.ClaimData{
 					Value:    alphabetClaim(7, "z"),
-					Position: NewPosition(0, 0),
+					Position: types.NewPosition(0, 0),
 				},
 				// Root claim has no parent
 			},
-			ClaimData{
+			types.ClaimData{
 				Value:    alphabetClaim(3, "d"),
-				Position: NewPosition(1, 0),
+				Position: types.NewPosition(1, 0),
 			},
 		},
 		{
-			Claim{
-				ClaimData: ClaimData{
+			types.Claim{
+				ClaimData: types.ClaimData{
 					Value:    alphabetClaim(3, "d"),
-					Position: NewPosition(1, 0),
+					Position: types.NewPosition(1, 0),
 				},
-				Parent: ClaimData{
+				Parent: types.ClaimData{
 					Value:    alphabetClaim(7, "h"),
-					Position: NewPosition(0, 0),
+					Position: types.NewPosition(0, 0),
 				},
 			},
-			ClaimData{
+			types.ClaimData{
 				Value:    alphabetClaim(5, "f"),
-				Position: NewPosition(2, 2),
+				Position: types.NewPosition(2, 2),
 			},
 		},
 		{
-			Claim{
-				ClaimData: ClaimData{
+			types.Claim{
+				ClaimData: types.ClaimData{
 					Value:    alphabetClaim(5, "x"),
-					Position: NewPosition(2, 2),
+					Position: types.NewPosition(2, 2),
 				},
-				Parent: ClaimData{
+				Parent: types.ClaimData{
 					Value:    alphabetClaim(7, "h"),
-					Position: NewPosition(1, 1),
+					Position: types.NewPosition(1, 1),
 				},
 			},
-			ClaimData{
+			types.ClaimData{
 				Value:    alphabetClaim(4, "e"),
-				Position: NewPosition(3, 4),
+				Position: types.NewPosition(3, 4),
 			},
 		},
 	}
@@ -85,10 +86,10 @@ func TestNoMoveAgainstOwnLevel(t *testing.T) {
 	mallory := NewAlphabetProvider("abcdepqr", uint64(maxDepth))
 	solver := NewSolver(maxDepth, mallory)
 
-	claim := Claim{
-		ClaimData: ClaimData{
+	claim := types.Claim{
+		ClaimData: types.ClaimData{
 			Value:    alphabetClaim(7, "z"),
-			Position: NewPosition(0, 0),
+			Position: types.NewPosition(0, 0),
 		},
 		// Root claim has no parent
 	}
@@ -104,10 +105,10 @@ func TestAttemptStep(t *testing.T) {
 	solver := NewSolver(maxDepth, canonicalProvider)
 	_, _, middle, bottom := createTestClaims()
 
-	zero := Claim{
-		ClaimData: ClaimData{
+	zero := types.Claim{
+		ClaimData: types.ClaimData{
 			// Zero value is a purposely disagree with claim value "a"
-			Position: NewPosition(3, 0),
+			Position: types.NewPosition(3, 0),
 		},
 	}
 
@@ -149,4 +150,40 @@ func (a *alphabetWithProofProvider) GetPreimage(i uint64) ([]byte, []byte, error
 		return nil, nil, err
 	}
 	return preimage, []byte{byte(i)}, nil
+}
+
+func createTestClaims() (types.Claim, types.Claim, types.Claim, types.Claim) {
+	// root & middle are from the trace "abcdexyz"
+	// top & bottom are from the trace  "abcdefgh"
+	root := types.Claim{
+		ClaimData: types.ClaimData{
+			Value:    common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000077a"),
+			Position: types.NewPosition(0, 0),
+		},
+		// Root claim has no parent
+	}
+	top := types.Claim{
+		ClaimData: types.ClaimData{
+			Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000364"),
+			Position: types.NewPosition(1, 0),
+		},
+		Parent: root.ClaimData,
+	}
+	middle := types.Claim{
+		ClaimData: types.ClaimData{
+			Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000578"),
+			Position: types.NewPosition(2, 2),
+		},
+		Parent: top.ClaimData,
+	}
+
+	bottom := types.Claim{
+		ClaimData: types.ClaimData{
+			Value:    common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000465"),
+			Position: types.NewPosition(3, 4),
+		},
+		Parent: middle.ClaimData,
+	}
+
+	return root, top, middle, bottom
 }

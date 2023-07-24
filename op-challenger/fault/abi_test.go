@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
@@ -81,7 +82,7 @@ func TestBuildFaultStepData(t *testing.T) {
 
 	responder, _ := newTestFaultResponder(t, false)
 
-	data, err := responder.buildStepTxData(StepCallData{
+	data, err := responder.buildStepTxData(types.StepCallData{
 		ClaimIndex: 2,
 		IsAttack:   false,
 		StateData:  []byte{0x01},

@@ -1,4 +1,4 @@
-package fault
+package types
 
 import (
 	"errors"
@@ -26,7 +26,7 @@ type Game interface {
 	// IsDuplicate returns true if the provided [Claim] already exists in the game state.
 	IsDuplicate(claim Claim) bool
 
-	// AgreeWithLevel returns if the game state agrees with the provided claim level.
+	// AgreeWithClaimLevel returns if the game state agrees with the provided claim level.
 	AgreeWithClaimLevel(claim Claim) bool
 }
 
