@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	types2 "github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
@@ -107,14 +108,14 @@ func TestResponder_Resolve_Success(t *testing.T) {
 // bubbles up the error returned by the [txmgr.Send] method.
 func TestResponder_Respond_SendFails(t *testing.T) {
 	responder, mockTxMgr := newTestFaultResponder(t, true)
-	err := responder.Respond(context.Background(), Claim{
-		ClaimData: ClaimData{
+	err := responder.Respond(context.Background(), types2.Claim{
+		ClaimData: types2.ClaimData{
 			Value:    common.Hash{0x01},
-			Position: NewPositionFromGIndex(2),
+			Position: types2.NewPositionFromGIndex(2),
 		},
-		Parent: ClaimData{
+		Parent: types2.ClaimData{
 			Value:    common.Hash{0x02},
-			Position: NewPositionFromGIndex(1),
+			Position: types2.NewPositionFromGIndex(1),
 		},
 		ContractIndex:       0,
 		ParentContractIndex: 0,
@@ -127,14 +128,14 @@ func TestResponder_Respond_SendFails(t *testing.T) {
 // succeeds when the tx candidate is successfully sent through the txmgr.
 func TestResponder_Respond_Success(t *testing.T) {
 	responder, mockTxMgr := newTestFaultResponder(t, false)
-	err := responder.Respond(context.Background(), Claim{
-		ClaimData: ClaimData{
+	err := responder.Respond(context.Background(), types2.Claim{
+		ClaimData: types2.ClaimData{
 			Value:    common.Hash{0x01},
-			Position: NewPositionFromGIndex(2),
+			Position: types2.NewPositionFromGIndex(2),
 		},
-		Parent: ClaimData{
+		Parent: types2.ClaimData{
 			Value:    common.Hash{0x02},
-			Position: NewPositionFromGIndex(1),
+			Position: types2.NewPositionFromGIndex(1),
 		},
 		ContractIndex:       0,
 		ParentContractIndex: 0,
@@ -147,14 +148,14 @@ func TestResponder_Respond_Success(t *testing.T) {
 // returns a tx candidate with the correct data for an attack tx.
 func TestResponder_BuildTx_Attack(t *testing.T) {
 	responder, _ := newTestFaultResponder(t, false)
-	responseClaim := Claim{
-		ClaimData: ClaimData{
+	responseClaim := types2.Claim{
+		ClaimData: types2.ClaimData{
 			Value:    common.Hash{0x01},
-			Position: NewPositionFromGIndex(2),
+			Position: types2.NewPositionFromGIndex(2),
 		},
-		Parent: ClaimData{
+		Parent: types2.ClaimData{
 			Value:    common.Hash{0x02},
-			Position: NewPositionFromGIndex(1),
+			Position: types2.NewPositionFromGIndex(1),
 		},
 		ContractIndex:       0,
 		ParentContractIndex: 7,
@@ -178,14 +179,14 @@ func TestResponder_BuildTx_Attack(t *testing.T) {
 // returns a tx candidate with the correct data for a defend tx.
 func TestResponder_BuildTx_Defend(t *testing.T) {
 	responder, _ := newTestFaultResponder(t, false)
-	responseClaim := Claim{
-		ClaimData: ClaimData{
+	responseClaim := types2.Claim{
+		ClaimData: types2.ClaimData{
 			Value:    common.Hash{0x01},
-			Position: NewPositionFromGIndex(3),
+			Position: types2.NewPositionFromGIndex(3),
 		},
-		Parent: ClaimData{
+		Parent: types2.ClaimData{
 			Value:    common.Hash{0x02},
-			Position: NewPositionFromGIndex(6),
+			Position: types2.NewPositionFromGIndex(6),
 		},
 		ContractIndex:       0,
 		ParentContractIndex: 7,

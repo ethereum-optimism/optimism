@@ -4,11 +4,12 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-var _ TraceProvider = (*AlphabetProvider)(nil)
+var _ types.TraceProvider = (*AlphabetProvider)(nil)
 
 // AlphabetProvider is a [TraceProvider] that provides claims for specific
 // indices in the given trace.
@@ -29,7 +30,7 @@ func NewAlphabetProvider(state string, depth uint64) *AlphabetProvider {
 func (ap *AlphabetProvider) GetPreimage(i uint64) ([]byte, []byte, error) {
 	// The index cannot be larger than the maximum index as computed by the depth.
 	if i >= ap.maxLen {
-		return nil, nil, ErrIndexTooLarge
+		return nil, nil, types.ErrIndexTooLarge
 	}
 	// We extend the deepest hash to the maximum depth if the trace is not expansive.
 	if i >= uint64(len(ap.state)) {

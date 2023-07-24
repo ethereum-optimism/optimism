@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	"github.com/urfave/cli/v2"
 
@@ -20,36 +21,6 @@ func prefixEnvVars(name string) []string {
 	return opservice.PrefixEnvVar(envVarPrefix, name)
 }
 
-type TraceType string
-
-const (
-	TraceTypeAlphabet TraceType = "alphabet"
-	TraceTypeCannon   TraceType = "cannon"
-)
-
-var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon}
-
-func (t TraceType) String() string {
-	return string(t)
-}
-
-func (t *TraceType) Set(value string) error {
-	if !ValidTraceType(TraceType(value)) {
-		return fmt.Errorf("unknown trace type: %q", value)
-	}
-	*t = TraceType(value)
-	return nil
-}
-
-func ValidTraceType(value TraceType) bool {
-	for _, t := range TraceTypes {
-		if t == value {
-			return true
-		}
-	}
-	return false
-}
-
 var (
 	// Required Flags
 	L1EthRpcFlag = &cli.StringFlag{
@@ -64,10 +35,10 @@ var (
 	}
 	TraceTypeFlag = &cli.GenericFlag{
 		Name:    "trace-type",
-		Usage:   "The trace type. Valid options: " + openum.EnumString(TraceTypes),
+		Usage:   "The trace type. Valid options: " + openum.EnumString(config.TraceTypes),
 		EnvVars: prefixEnvVars("TRACE_TYPE"),
-		Value: func() *TraceType {
-			out := TraceType("") // No default value
+		Value: func() *config.TraceType {
+			out := config.TraceType("") // No default value
 			return &out
 		}(),
 	}
@@ -125,18 +96,45 @@ func CheckRequired(ctx *cli.Context) error {
 			return fmt.Errorf("flag %s is required", f.Names()[0])
 		}
 	}
-	gameType := TraceType(strings.ToLower(ctx.String(TraceTypeFlag.Name)))
+	gameType := config.TraceType(strings.ToLower(ctx.String(TraceTypeFlag.Name)))
 	switch gameType {
-	case TraceTypeCannon:
+	case config.TraceTypeCannon:
 		if !ctx.IsSet(CannonDatadirFlag.Name) {
 			return fmt.Errorf("flag %s is required", "cannon-datadir")
 		}
-	case TraceTypeAlphabet:
+	case config.TraceTypeAlphabet:
 		if !ctx.IsSet(AlphabetFlag.Name) {
 			return fmt.Errorf("flag %s is required", "alphabet")
 		}
 	default:
-		return fmt.Errorf("invalid trace type. must be one of %v", TraceTypes)
+		return fmt.Errorf("invalid trace type. must be one of %v", config.TraceTypes)
 	}
 	return nil
+}
+
+// NewConfigFromCLI parses the Config from the provided flags or environment variables.
+func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
+	if err := CheckRequired(ctx); err != nil {
+		return nil, err
+	}
+	dgfAddress, err := opservice.ParseAddress(ctx.String(DGFAddressFlag.Name))
+	if err != nil {
+		return nil, err
+	}
+
+	txMgrConfig := txmgr.ReadCLIConfig(ctx)
+
+	traceTypeFlag := config.TraceType(strings.ToLower(ctx.String(TraceTypeFlag.Name)))
+
+	return &config.Config{
+		// Required Flags
+		L1EthRpc:                ctx.String(L1EthRpcFlag.Name),
+		TraceType:               traceTypeFlag,
+		GameAddress:             dgfAddress,
+		AlphabetTrace:           ctx.String(AlphabetFlag.Name),
+		CannonDatadir:           ctx.String(CannonDatadirFlag.Name),
+		AgreeWithProposedOutput: ctx.Bool(AgreeWithProposedOutputFlag.Name),
+		GameDepth:               ctx.Int(GameDepthFlag.Name),
+		TxMgrConfig:             txMgrConfig,
+	}, nil
 }
