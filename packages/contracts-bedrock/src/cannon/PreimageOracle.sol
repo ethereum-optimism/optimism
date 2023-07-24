@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
 import { PreimageKeyLib } from "./PreimageKeyLib.sol";
+import "./libraries/CannonErrors.sol";
 
 /// @title PreimageOracle
 /// @notice A contract for storing permissioned pre-images.
@@ -62,7 +63,7 @@ contract PreimageOracle is IPreimageOracle {
 
         // Revert if the given part offset is not within bounds.
         if (_partOffset > _size + 8 || _size > 32) {
-            revert("part offset must be within bounds");
+            revert PartOffsetOOB();
         }
 
         // Prepare the local data part at the given offset
@@ -97,7 +98,10 @@ contract PreimageOracle is IPreimageOracle {
 
             // revert if part offset > size+8 (i.e. parts must be within bounds)
             if gt(_partOffset, add(size, 8)) {
-                revert(0, 0)
+                // Store "PartOffsetOOB()"
+                mstore(0, 0xfe254987)
+                // Revert with "PartOffsetOOB()"
+                revert(0x1c, 4)
             }
             // we leave solidity slots 0x40 and 0x60 untouched,
             // and everything after as scratch-memory.
