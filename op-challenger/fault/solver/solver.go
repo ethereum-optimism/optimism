@@ -1,4 +1,4 @@
-package fault
+package solver
 
 import (
 	"errors"
@@ -9,9 +9,8 @@ import (
 )
 
 var (
-	ErrGameDepthReached = errors.New("game depth reached")
-	ErrStepNonLeafNode  = errors.New("cannot step on non-leaf claims")
-	ErrStepAgreedClaim  = errors.New("cannot step on claims we agree with")
+	ErrStepNonLeafNode = errors.New("cannot step on non-leaf claims")
+	ErrStepAgreedClaim = errors.New("cannot step on claims we agree with")
 )
 
 // Solver uses a [TraceProvider] to determine the moves to make in a dispute game.
@@ -62,7 +61,7 @@ func (s *Solver) handleMiddle(claim types.Claim) (*types.Claim, error) {
 		return nil, err
 	}
 	if claim.Depth() == s.gameDepth {
-		return nil, ErrGameDepthReached
+		return nil, types.ErrGameDepthReached
 	}
 	if claimCorrect {
 		return s.defend(claim)

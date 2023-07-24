@@ -4,6 +4,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+<<<<<<< HEAD
+=======
+var (
+	ErrIndexTooLarge    = errors.New("index is larger than the maximum index")
+	ErrGameDepthReached = errors.New("game depth reached")
+)
+
+>>>>>>> 99df402dd (Solver module)
 type GameStatus uint8
 
 const (

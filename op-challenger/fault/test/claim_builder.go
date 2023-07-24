@@ -1,4 +1,4 @@
-package fault
+package test
 
 import (
 	"math/big"
@@ -17,11 +17,16 @@ type ClaimBuilder struct {
 	correct  types.TraceProvider
 }
 
-func NewClaimBuilder(t *testing.T, maxDepth int) *ClaimBuilder {
+// NewClaimBuilder creates a new [ClaimBuilder].
+func NewClaimBuilder(t *testing.T, maxDepth int, provider types.TraceProvider) *ClaimBuilder {
 	return &ClaimBuilder{
 		require:  require.New(t),
 		maxDepth: maxDepth,
+<<<<<<< HEAD:op-challenger/fault/claimbuilder_test.go
 		correct:  &alphabetWithProofProvider{alphabet.NewAlphabetProvider("abcdefghijklmnopqrstuvwxyz", uint64(maxDepth))},
+=======
+		correct:  provider,
+>>>>>>> 99df402dd (Solver module):op-challenger/fault/test/claim_builder.go
 	}
 }
 
@@ -109,6 +114,7 @@ func (c *ClaimBuilder) DefendClaim(claim types.Claim, correct bool) types.Claim 
 		Parent: claim.ClaimData,
 	}
 }
+<<<<<<< HEAD:op-challenger/fault/claimbuilder_test.go
 
 type SequenceBuilder struct {
 	builder   *ClaimBuilder
@@ -157,3 +163,5 @@ func (a *alphabetWithProofProvider) GetPreimage(i uint64) ([]byte, []byte, error
 	}
 	return preimage, []byte{byte(i)}, nil
 }
+=======
+>>>>>>> 99df402dd (Solver module):op-challenger/fault/test/claim_builder.go
