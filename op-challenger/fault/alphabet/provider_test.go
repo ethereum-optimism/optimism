@@ -1,10 +1,9 @@
-package fault
+package alphabet
 
 import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/require"
@@ -72,7 +71,7 @@ func TestGetPreimage_Succeeds(t *testing.T) {
 func TestGetPreimage_TooLargeIndex_Fails(t *testing.T) {
 	ap := NewAlphabetProvider("abc", 2)
 	_, _, err := ap.GetPreimage(4)
-	require.ErrorIs(t, err, types.ErrIndexTooLarge)
+	require.ErrorIs(t, err, ErrIndexTooLarge)
 }
 
 // TestGet_Succeeds tests the Get function.
@@ -89,7 +88,7 @@ func TestGet_Succeeds(t *testing.T) {
 func TestGet_IndexTooLarge(t *testing.T) {
 	ap := NewAlphabetProvider("abc", 2)
 	_, err := ap.Get(4)
-	require.ErrorIs(t, err, types.ErrIndexTooLarge)
+	require.ErrorIs(t, err, ErrIndexTooLarge)
 }
 
 // TestGet_Extends tests the Get function with an index that is larger
