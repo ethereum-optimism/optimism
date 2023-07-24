@@ -11,21 +11,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 type L2Client struct {
 	*sources.L2Client
 
-	l2Head                common.Hash
-	l2OutputOracleAddress common.Address
+	l2Head common.Hash
 }
-
-var (
-	L2OutputEventABI     = "OutputProposed(bytes32,uint256,uint256,uint256)"
-	L2OutputEventABIHash = crypto.Keccak256Hash([]byte(L2OutputEventABI))
-)
 
 type L2ClientConfig struct {
 	*sources.L2ClientConfig
