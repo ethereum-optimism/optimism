@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault"
+	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-service/client/utils"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -106,6 +107,7 @@ func (g *FaultGameHelper) StartChallenger(ctx context.Context, l1Endpoint string
 		func(c *config.Config) {
 			c.GameAddress = g.addr
 			c.GameDepth = alphabetGameDepth
+			c.TraceType = flags.TraceTypeAlphabet
 			// By default the challenger agrees with the root claim (thus disagrees with the proposed output)
 			// This can be overridden by passing in options
 			c.AlphabetTrace = g.claimedAlphabet

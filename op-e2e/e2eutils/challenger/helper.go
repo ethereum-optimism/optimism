@@ -38,6 +38,7 @@ func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name st
 		option(cfg)
 	}
 	require.NotEmpty(t, cfg.TxMgrConfig.PrivateKey, "Missing private key for TxMgrConfig")
+	require.NoError(t, cfg.Check(), "op-challenger config should be valid")
 
 	errCh := make(chan error, 1)
 	ctx, cancel := context.WithCancel(ctx)
