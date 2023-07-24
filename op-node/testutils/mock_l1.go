@@ -37,12 +37,3 @@ func (m *MockL1Source) L1BlockRefByHash(ctx context.Context, hash common.Hash) (
 func (m *MockL1Source) ExpectL1BlockRefByHash(hash common.Hash, ref eth.L1BlockRef, err error) {
 	m.Mock.On("L1BlockRefByHash", hash).Once().Return(ref, &err)
 }
-
-func (m *MockL1Source) L2OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error) {
-	out := m.Mock.MethodCalled("L2OutputByRoot", root)
-	return out[0].(eth.Output), *out[1].(*error)
-}
-
-func (m *MockL1Source) ExpectL2OutputByRoot(root common.Hash, output eth.Output, err error) {
-	m.Mock.On("L2OutputByRoot", root).Once().Return(output, &err)
-}

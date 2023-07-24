@@ -23,13 +23,13 @@ type L1Source interface {
 	InfoByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, error)
 	InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error)
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
-	L2OutputByRoot(ctx context.Context, l2OutputRoot common.Hash) (eth.Output, error)
 }
 
 type L2Source interface {
 	InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error)
 	NodeByHash(ctx context.Context, hash common.Hash) ([]byte, error)
 	CodeByHash(ctx context.Context, hash common.Hash) ([]byte, error)
+	L2OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error)
 }
 
 type Prefetcher struct {
@@ -100,7 +100,7 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 		}
 		return p.storeReceipts(receipts)
 	case l1.HintL2Output:
-		output, err := p.l1Fetcher.L2OutputByRoot(ctx, hash)
+		output, err := p.l2Fetcher.L2OutputByRoot(ctx, hash)
 		if err != nil {
 			return fmt.Errorf("failed to fetch L2 output root %s: %w", hash, err)
 		}

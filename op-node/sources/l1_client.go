@@ -115,10 +115,3 @@ func (s *L1Client) L1BlockRefByHash(ctx context.Context, hash common.Hash) (eth.
 	s.l1BlockRefsCache.Add(ref.Hash, ref)
 	return ref, nil
 }
-
-func (s *L1Client) L2OutputByRoot(ctx context.Context, l2OutputRoot common.Hash) (eth.Output, error) {
-	// TODO(inphi): Fetch Output from preset. Or directly from the oracle
-	//return s.OutputByRoot(ctx, l2OutputRoot)
-	var output eth.Output
-	return output, nil
-}

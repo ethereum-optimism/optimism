@@ -120,7 +120,6 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*et
 		return nil, fmt.Errorf("invalid withdrawal root hash, state root was %s: %w", head.Root(), err)
 	}
 
-	var l2OutputRootVersion eth.Bytes32 // it's zero for now
 	l2OutputRoot, err := rollup.ComputeL2OutputRootV0(head, proof.StorageHash)
 	if err != nil {
 		n.log.Error("Error computing L2 output root, nil ptr passed to hashing function")
@@ -128,7 +127,7 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*et
 	}
 
 	return &eth.OutputResponse{
-		Version:               l2OutputRootVersion,
+		Version:               eth.OutputVersionV0,
 		OutputRoot:            l2OutputRoot,
 		BlockRef:              ref,
 		WithdrawalStorageRoot: proof.StorageHash,

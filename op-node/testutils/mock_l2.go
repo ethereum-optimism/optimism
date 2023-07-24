@@ -43,3 +43,12 @@ func (m *MockL2Client) SystemConfigByL2Hash(ctx context.Context, hash common.Has
 func (m *MockL2Client) ExpectSystemConfigByL2Hash(hash common.Hash, cfg eth.SystemConfig, err error) {
 	m.Mock.On("SystemConfigByL2Hash", hash).Once().Return(cfg, &err)
 }
+
+func (m *MockL2Client) L2OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error) {
+	out := m.Mock.MethodCalled("L2OutputByRoot", root)
+	return out[0].(eth.Output), *out[1].(*error)
+}
+
+func (m *MockL2Client) ExpectL2OutputByRoot(root common.Hash, output eth.Output, err error) {
+	m.Mock.On("L2OutputByRoot", root).Once().Return(output, &err)
+}
