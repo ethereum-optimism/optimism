@@ -79,7 +79,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         optimismPortalAddress: {
           validator: validators.str,
           default: ethers.constants.AddressZero,
-          desc: '[Custom OP Chains] Deployed OptimismPortal contract address. Used to retrieve necessary info for ouput verification ',
+          desc: '[Custom OP Chains] Deployed OptimismPortal contract address. Used to retrieve necessary info for output verification ',
           public: true,
         },
       },
