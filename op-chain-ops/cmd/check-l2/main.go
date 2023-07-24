@@ -103,13 +103,13 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 			if err != nil {
 				return err
 			}
-			log.Info(name, "implementation", impl.Hex())
+			log.Info("checking contract", "name", name, "implementation", impl.Hex())
 			standardImpl, err := genesis.AddressToCodeNamespace(p)
 			if err != nil {
 				return err
 			}
 			if impl != standardImpl {
-				log.Warn("%s does not have the standard implementation", name)
+				log.Warn("contract does not have the standard implementation", "name", name)
 			}
 			implCode, err := client.CodeAt(context.Background(), impl, nil)
 			if err != nil {
