@@ -10,11 +10,13 @@ import (
 
 var (
 	ErrGameDepthReached = errors.New("game depth reached")
+	ErrStepNonLeafNode  = errors.New("cannot step on non-leaf claims")
+	ErrStepAgreedClaim  = errors.New("cannot step on claims we agree with")
 )
 
 // Solver uses a [TraceProvider] to determine the moves to make in a dispute game.
 type Solver struct {
-	types.TraceProvider
+	trace     types.TraceProvider
 	gameDepth int
 }
 
@@ -80,10 +82,10 @@ type StepData struct {
 // An error will be returned if the claim is not at the max depth.
 func (s *Solver) AttemptStep(claim types.Claim, agreeWithClaimLevel bool) (StepData, error) {
 	if claim.Depth() != s.gameDepth {
-		return StepData{}, errors.New("cannot step on non-leaf claims")
+		return StepData{}, ErrStepNonLeafNode
 	}
 	if agreeWithClaimLevel {
-		return StepData{}, errors.New("cannot step on claims we agree with")
+		return StepData{}, ErrStepAgreedClaim
 	}
 	claimCorrect, err := s.agreeWithClaim(claim.ClaimData)
 	if err != nil {
@@ -94,13 +96,13 @@ func (s *Solver) AttemptStep(claim types.Claim, agreeWithClaimLevel bool) (StepD
 	var proofData []byte
 	// If we are attacking index 0, we provide the absolute pre-state, not an intermediate state
 	if index == 0 && !claimCorrect {
-		preState = s.AbsolutePreState()
+		preState = s.trace.AbsolutePreState()
 	} else {
 		// If attacking, get the state just before, other get the state after
 		if !claimCorrect {
 			index = index - 1
 		}
-		preState, proofData, err = s.GetPreimage(index)
+		preState, proofData, err = s.trace.GetPreimage(index)
 		if err != nil {
 			return StepData{}, err
 		}
@@ -151,6 +153,6 @@ func (s *Solver) agreeWithClaim(claim types.ClaimData) (bool, error) {
 // traceAtPosition returns the [common.Hash] from internal [TraceProvider] at the given [Position].
 func (s *Solver) traceAtPosition(p types.Position) (common.Hash, error) {
 	index := p.TraceIndex(s.gameDepth)
-	hash, err := s.Get(index)
+	hash, err := s.trace.Get(index)
 	return hash, err
 }
