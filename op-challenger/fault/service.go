@@ -55,7 +55,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 	var trace TraceProvider
 	switch cfg.TraceType {
 	case flags.TraceTypeCannon:
-		trace = cannon.NewCannonTraceProvider(cfg.CannonDatadir)
+		trace = cannon.NewCannonTraceProvider(logger, cfg.CannonDatadir)
 	case flags.TraceTypeAlphabet:
 		trace = NewAlphabetProvider(cfg.AlphabetTrace, uint64(cfg.GameDepth))
 	default:
