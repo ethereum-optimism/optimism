@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -59,9 +60,9 @@ func (fc *FaultCaller) LogGameInfo(ctx context.Context) {
 // 0: In Progress
 // 1: Challenger Won
 // 2: Defender Won
-func (fc *FaultCaller) GetGameStatus(ctx context.Context) (GameStatus, error) {
+func (fc *FaultCaller) GetGameStatus(ctx context.Context) (types.GameStatus, error) {
 	status, err := fc.Status(&bind.CallOpts{Context: ctx})
-	return GameStatus(status), err
+	return types.GameStatus(status), err
 }
 
 // GetClaimDataLength returns the number of claims in the game.
@@ -79,13 +80,13 @@ func (fc *FaultCaller) LogClaimDataLength(ctx context.Context) {
 }
 
 // GameStatusString returns the current game status as a string.
-func GameStatusString(status GameStatus) string {
+func GameStatusString(status types.GameStatus) string {
 	switch status {
-	case GameStatusInProgress:
+	case types.GameStatusInProgress:
 		return "In Progress"
-	case GameStatusChallengerWon:
+	case types.GameStatusChallengerWon:
 		return "Challenger Won"
-	case GameStatusDefenderWon:
+	case types.GameStatusDefenderWon:
 		return "Defender Won"
 	default:
 		return "Unknown"

@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/flags"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-service/client/utils"
@@ -169,7 +170,7 @@ func (g *FaultGameHelper) WaitForClaim(ctx context.Context, predicate func(claim
 
 func (g *FaultGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered bool) {
 	g.WaitForClaim(ctx, func(claim ContractClaim) bool {
-		pos := fault.NewPositionFromGIndex(claim.Position.Uint64())
+		pos := types.NewPositionFromGIndex(claim.Position.Uint64())
 		return pos.Depth() == g.maxDepth && claim.Countered == countered
 	})
 }

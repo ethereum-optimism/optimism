@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	types2 "github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
 	"github.com/ethereum/go-ethereum"
@@ -62,7 +63,7 @@ func (r *faultResponder) buildResolveData() ([]byte, error) {
 }
 
 // BuildTx builds the transaction for the [faultResponder].
-func (r *faultResponder) BuildTx(ctx context.Context, response Claim) ([]byte, error) {
+func (r *faultResponder) BuildTx(ctx context.Context, response types2.Claim) ([]byte, error) {
 	if response.DefendsParent() {
 		txData, err := r.buildFaultDefendData(response.ParentContractIndex, response.ValueBytes())
 		if err != nil {
@@ -103,7 +104,7 @@ func (r *faultResponder) Resolve(ctx context.Context) error {
 }
 
 // Respond takes a [Claim] and executes the response action.
-func (r *faultResponder) Respond(ctx context.Context, response Claim) error {
+func (r *faultResponder) Respond(ctx context.Context, response types2.Claim) error {
 	txData, err := r.BuildTx(ctx, response)
 	if err != nil {
 		return err
@@ -131,7 +132,7 @@ func (r *faultResponder) sendTxAndWait(ctx context.Context, txData []byte) error
 }
 
 // buildStepTxData creates the transaction data for the step function.
-func (r *faultResponder) buildStepTxData(stepData StepCallData) ([]byte, error) {
+func (r *faultResponder) buildStepTxData(stepData types2.StepCallData) ([]byte, error) {
 	return r.fdgAbi.Pack(
 		"step",
 		big.NewInt(int64(stepData.ClaimIndex)),
@@ -142,7 +143,7 @@ func (r *faultResponder) buildStepTxData(stepData StepCallData) ([]byte, error) 
 }
 
 // Step accepts step data and executes the step on the fault dispute game contract.
-func (r *faultResponder) Step(ctx context.Context, stepData StepCallData) error {
+func (r *faultResponder) Step(ctx context.Context, stepData types2.StepCallData) error {
 	txData, err := r.buildStepTxData(stepData)
 	if err != nil {
 		return err
