@@ -1,27 +1,30 @@
-# Legacy codebases
+# Packages
+/packages/chain-mon             @ethereum-optimism/devxpod
 /packages/common-ts             @ethereum-optimism/typescript-reviewers
-/packages/contracts             @ethereum-optimism/contract-reviewers
 /packages/contracts-bedrock     @ethereum-optimism/contract-reviewers
 /packages/core-utils            @ethereum-optimism/legacy-reviewers
-/packages/chain-mon             @ethereum-optimism/devxpod
 /packages/replica-healthcheck   @ethereum-optimism/legacy-reviewers
 /packages/sdk                   @ethereum-optimism/devxpod
-/packages/atst                  @ethereum-optimism/devxpod
 
 # Bedrock codebases
 /bedrock-devnet @ethereum-optimism/go-reviewers
 /cannon         @ethereum-optimism/go-reviewers
 /op-batcher     @ethereum-optimism/go-reviewers
+/op-bootnode    @ethereum-optimism/go-reviewers
 /op-chain-ops   @ethereum-optimism/go-reviewers
+/op-challenger  @ethereum-optimism/go-reviewers
 /op-e2e         @ethereum-optimism/go-reviewers
+/op-exporter    @ethereum-optimism/go-reviewers
+/op-heartbeat   @ethereum-optimism/go-reviewers
 /op-node        @ethereum-optimism/go-reviewers
 /op-node/rollup @protolambda @trianglesphere
-/op-proposer    @ethereum-optimism/go-reviewers
-/op-bootnode    @ethereum-optimism/go-reviewers
+/op-preimage    @ethereum-optimism/go-reviewers
 /op-program     @ethereum-optimism/go-reviewers
+/op-proposer    @ethereum-optimism/go-reviewers
 /op-service     @ethereum-optimism/go-reviewers
+/op-signer      @ethereum-optimism/go-reviewers
+/op-wheel       @ethereum-optimism/go-reviewers
 /ops-bedrock    @ethereum-optimism/go-reviewers
-
 
 # Ops
 /.circleci    @ethereum-optimism/infra-reviewers
@@ -37,8 +40,8 @@
 /endpoint-monitor @ethereum-optimism/infra-reviewers
 
 # Don't add owners if only package.json is updated
-/packages/*/package.json 
-/*/package.json 
+/packages/*/package.json
+/*/package.json
 
 # JavaScript Releases
 /packages/*/CHANGELOG.md @ethereum-optimism/release-managers
