@@ -16,7 +16,7 @@ var (
 
 // Solver uses a [TraceProvider] to determine the moves to make in a dispute game.
 type Solver struct {
-	types.TraceProvider
+	trace     types.TraceProvider
 	gameDepth int
 }
 
