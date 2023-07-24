@@ -16,7 +16,7 @@ services:
     user: root
     platform: "${PLATFORM}"
     image: "ghcr.io/celestiaorg/celestia-node:v0.11.0-rc8"
-    command: celestia light start --core.ip consensus-full-arabica-9.celestia-arabica.com --p2p.network arabica
+    command: celestia light start --core.ip consensus-full-arabica-9.celestia-arabica.com --p2p.network arabica --log.level debug
     environment:
       - NODE_TYPE=light
       - P2P_NETWORK=arabica
