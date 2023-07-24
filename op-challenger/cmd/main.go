@@ -60,7 +60,7 @@ func run(args []string, action ConfigAction) error {
 		}
 		logger.Info("Starting op-challenger", "version", VersionWithMeta)
 
-		cfg, err := config.NewConfigFromCLI(ctx)
+		cfg, err := flags.NewConfigFromCLI(ctx)
 		if err != nil {
 			return err
 		}
