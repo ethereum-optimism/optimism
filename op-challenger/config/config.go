@@ -29,6 +29,7 @@ func (t TraceType) String() string {
 	return string(t)
 }
 
+// Set implements the Set method required by the [cli.Generic] interface.
 func (t *TraceType) Set(value string) error {
 	if !ValidTraceType(TraceType(value)) {
 		return fmt.Errorf("unknown trace type: %q", value)
