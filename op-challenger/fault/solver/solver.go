@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 var (
@@ -13,17 +12,17 @@ var (
 	ErrStepAgreedClaim = errors.New("cannot step on claims we agree with")
 )
 
-// Solver uses a [TraceProvider] to determine the moves to make in a dispute game.
+// Solver uses a [VerboseProvider] to determine the moves to make in a dispute game.
 type Solver struct {
-	trace     types.TraceProvider
+	provider  VerboseProvider
 	gameDepth int
 }
 
 // NewSolver creates a new [Solver] using the provided [TraceProvider].
 func NewSolver(gameDepth int, traceProvider types.TraceProvider) *Solver {
 	return &Solver{
-		traceProvider,
-		gameDepth,
+		provider:  NewSolverProvider(traceProvider),
+		gameDepth: gameDepth,
 	}
 }
 
@@ -41,7 +40,7 @@ func (s *Solver) NextMove(claim types.Claim, agreeWithClaimLevel bool) (*types.C
 }
 
 func (s *Solver) handleRoot(claim types.Claim) (*types.Claim, error) {
-	agree, err := s.agreeWithClaim(claim.ClaimData)
+	agree, err := s.provider.AgreeWithClaim(claim.ClaimData, s.gameDepth)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +55,7 @@ func (s *Solver) handleRoot(claim types.Claim) (*types.Claim, error) {
 }
 
 func (s *Solver) handleMiddle(claim types.Claim) (*types.Claim, error) {
-	claimCorrect, err := s.agreeWithClaim(claim.ClaimData)
+	claimCorrect, err := s.provider.AgreeWithClaim(claim.ClaimData, s.gameDepth)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +85,7 @@ func (s *Solver) AttemptStep(claim types.Claim, agreeWithClaimLevel bool) (StepD
 	if agreeWithClaimLevel {
 		return StepData{}, ErrStepAgreedClaim
 	}
-	claimCorrect, err := s.agreeWithClaim(claim.ClaimData)
+	claimCorrect, err := s.provider.AgreeWithClaim(claim.ClaimData, s.gameDepth)
 	if err != nil {
 		return StepData{}, err
 	}
@@ -95,13 +94,13 @@ func (s *Solver) AttemptStep(claim types.Claim, agreeWithClaimLevel bool) (StepD
 	var proofData []byte
 	// If we are attacking index 0, we provide the absolute pre-state, not an intermediate state
 	if index == 0 && !claimCorrect {
-		preState = s.trace.AbsolutePreState()
+		preState = s.provider.AbsolutePreState()
 	} else {
 		// If attacking, get the state just before, other get the state after
 		if !claimCorrect {
 			index = index - 1
 		}
-		preState, proofData, err = s.trace.GetPreimage(index)
+		preState, proofData, err = s.provider.GetPreimage(index)
 		if err != nil {
 			return StepData{}, err
 		}
@@ -117,41 +116,19 @@ func (s *Solver) AttemptStep(claim types.Claim, agreeWithClaimLevel bool) (StepD
 
 // attack returns a response that attacks the claim.
 func (s *Solver) attack(claim types.Claim) (*types.Claim, error) {
-	position := claim.Attack()
-	value, err := s.traceAtPosition(position)
+	counter, err := s.provider.CounterClaim(claim, claim.Attack(), s.gameDepth)
 	if err != nil {
 		return nil, fmt.Errorf("attack claim: %w", err)
 	}
-	return &types.Claim{
-		ClaimData:           types.ClaimData{Value: value, Position: position},
-		Parent:              claim.ClaimData,
-		ParentContractIndex: claim.ContractIndex,
-	}, nil
+	return counter, nil
+
 }
 
 // defend returns a response that defends the claim.
 func (s *Solver) defend(claim types.Claim) (*types.Claim, error) {
-	position := claim.Defend()
-	value, err := s.traceAtPosition(position)
+	counter, err := s.provider.CounterClaim(claim, claim.Defend(), s.gameDepth)
 	if err != nil {
 		return nil, fmt.Errorf("defend claim: %w", err)
 	}
-	return &types.Claim{
-		ClaimData:           types.ClaimData{Value: value, Position: position},
-		Parent:              claim.ClaimData,
-		ParentContractIndex: claim.ContractIndex,
-	}, nil
-}
-
-// agreeWithClaim returns true if the claim is correct according to the internal [TraceProvider].
-func (s *Solver) agreeWithClaim(claim types.ClaimData) (bool, error) {
-	ourValue, err := s.traceAtPosition(claim.Position)
-	return ourValue == claim.Value, err
-}
-
-// traceAtPosition returns the [common.Hash] from internal [TraceProvider] at the given [Position].
-func (s *Solver) traceAtPosition(p types.Position) (common.Hash, error) {
-	index := p.TraceIndex(s.gameDepth)
-	hash, err := s.trace.Get(index)
-	return hash, err
+	return counter, nil
 }
