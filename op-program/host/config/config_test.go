@@ -16,6 +16,7 @@ var (
 	validL1Head          = common.Hash{0xaa}
 	validL2Head          = common.Hash{0xbb}
 	validL2Claim         = common.Hash{0xcc}
+	validL2OutputRoot    = common.Hash{0xdd}
 	validL2ClaimBlockNum = uint64(15)
 )
 
@@ -151,7 +152,7 @@ func TestRejectExecAndServerMode(t *testing.T) {
 }
 
 func validConfig() *Config {
-	cfg := NewConfig(validRollupConfig, validL2Genesis, validL1Head, validL2Head, validL2Claim, validL2ClaimBlockNum)
+	cfg := NewConfig(validRollupConfig, validL2Genesis, validL1Head, validL2Head, validL2OutputRoot, validL2Claim, validL2ClaimBlockNum)
 	cfg.DataDir = "/tmp/configTest"
 	return cfg
 }

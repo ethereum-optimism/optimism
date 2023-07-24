@@ -12,21 +12,24 @@ const cacheSize = 2000
 
 // CachingOracle is an implementation of Oracle that delegates to another implementation, adding caching of all results
 type CachingOracle struct {
-	oracle Oracle
-	blocks *simplelru.LRU[common.Hash, eth.BlockInfo]
-	txs    *simplelru.LRU[common.Hash, types.Transactions]
-	rcpts  *simplelru.LRU[common.Hash, types.Receipts]
+	oracle  Oracle
+	blocks  *simplelru.LRU[common.Hash, eth.BlockInfo]
+	txs     *simplelru.LRU[common.Hash, types.Transactions]
+	rcpts   *simplelru.LRU[common.Hash, types.Receipts]
+	outputs *simplelru.LRU[common.Hash, eth.Output]
 }
 
 func NewCachingOracle(oracle Oracle) *CachingOracle {
 	blockLRU, _ := simplelru.NewLRU[common.Hash, eth.BlockInfo](cacheSize, nil)
 	txsLRU, _ := simplelru.NewLRU[common.Hash, types.Transactions](cacheSize, nil)
 	rcptsLRU, _ := simplelru.NewLRU[common.Hash, types.Receipts](cacheSize, nil)
+	outputsLRU, _ := simplelru.NewLRU[common.Hash, eth.Output](cacheSize, nil)
 	return &CachingOracle{
-		oracle: oracle,
-		blocks: blockLRU,
-		txs:    txsLRU,
-		rcpts:  rcptsLRU,
+		oracle:  oracle,
+		blocks:  blockLRU,
+		txs:     txsLRU,
+		rcpts:   rcptsLRU,
+		outputs: outputsLRU,
 	}
 }
 
@@ -60,4 +63,14 @@ func (o *CachingOracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInf
 	o.blocks.Add(blockHash, block)
 	o.rcpts.Add(blockHash, rcpts)
 	return block, rcpts
+}
+
+func (o *CachingOracle) L2OutputByRoot(l2OutputRoot common.Hash) eth.Output {
+	output, ok := o.outputs.Get(l2OutputRoot)
+	if ok {
+		return output
+	}
+	output = o.oracle.L2OutputByRoot(l2OutputRoot)
+	o.outputs.Add(l2OutputRoot, output)
+	return output
 }

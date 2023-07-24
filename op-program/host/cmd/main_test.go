@@ -20,10 +20,12 @@ var (
 	l1HeadValue        = common.HexToHash("0x111111").Hex()
 	l2HeadValue        = common.HexToHash("0x222222").Hex()
 	l2ClaimValue       = common.HexToHash("0x333333").Hex()
+	l2OutputRoot       = common.HexToHash("0x444444").Hex()
 	l2ClaimBlockNumber = uint64(1203)
 	// Note: This is actually the L1 goerli genesis config. Just using it as an arbitrary, valid genesis config
-	l2Genesis       = core.DefaultGoerliGenesisBlock()
-	l2GenesisConfig = l2Genesis.Config
+	l2Genesis             = core.DefaultGoerliGenesisBlock()
+	l2GenesisConfig       = l2Genesis.Config
+	l2OutputOracleAddress = common.HexToAddress("0x1234567890123456789012345678901234567890").Hex()
 )
 
 func TestLogLevel(t *testing.T) {
@@ -48,6 +50,7 @@ func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 		config.OPGoerliChainConfig,
 		common.HexToHash(l1HeadValue),
 		common.HexToHash(l2HeadValue),
+		common.HexToHash(l2OutputRoot),
 		common.HexToHash(l2ClaimValue),
 		l2ClaimBlockNumber)
 	require.Equal(t, defaultCfg, cfg)
@@ -121,14 +124,14 @@ func TestL2Genesis(t *testing.T) {
 	})
 }
 
-func TestL2Head(t *testing.T) {
+func TestL2OutputRoot(t *testing.T) {
 	t.Run("Required", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag l2.head is required", addRequiredArgsExcept("--l2.head"))
+		verifyArgsInvalid(t, "flag l2.outputroot is required", addRequiredArgsExcept("--l2.head"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
-		cfg := configForArgs(t, replaceRequiredArg("--l2.head", l2HeadValue))
-		require.Equal(t, common.HexToHash(l2HeadValue), cfg.L2Head)
+		cfg := configForArgs(t, replaceRequiredArg("--l2.outputroot", l2HeadValue))
+		require.Equal(t, common.HexToHash(l2HeadValue), cfg.L2OutputRoot)
 	})
 
 	t.Run("Invalid", func(t *testing.T) {

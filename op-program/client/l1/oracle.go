@@ -21,6 +21,9 @@ type Oracle interface {
 
 	// ReceiptsByBlockHash retrieves the receipts from the block with the given hash.
 	ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInfo, types.Receipts)
+
+	// L2OutputByRoot retrieves the L2 output for the given L2 output root.
+	L2OutputByRoot(l2OutputRoot common.Hash) eth.Output
 }
 
 // PreimageOracle implements Oracle using by interfacing with the pure preimage.Oracle
@@ -85,4 +88,14 @@ func (p *PreimageOracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockIn
 	}
 
 	return info, receipts
+}
+
+func (p *PreimageOracle) L2OutputByRoot(l2OutputRoot common.Hash) eth.Output {
+	p.hint.Hint(L2OutputHint(l2OutputRoot))
+	data := p.oracle.Get(preimage.Keccak256Key(l2OutputRoot))
+	output, err := eth.UnmarshalOutput(data)
+	if err != nil {
+		panic(fmt.Errorf("invalidd L2 output data for root %s: %w", l2OutputRoot, err))
+	}
+	return output
 }

@@ -73,6 +73,20 @@ func (s *RetryingL1Source) FetchReceipts(ctx context.Context, blockHash common.H
 	return info, rcpts, err
 }
 
+func (s *RetryingL1Source) L2OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error) {
+	var output eth.Output
+	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() error {
+		o, err := s.source.L2OutputByRoot(ctx, root)
+		if err != nil {
+			s.logger.Warn("Failed to fetch l2 output", "root", root, "err", err)
+			return err
+		}
+		output = o
+		return nil
+	})
+	return output, err
+}
+
 var _ L1Source = (*RetryingL1Source)(nil)
 
 type RetryingL2Source struct {

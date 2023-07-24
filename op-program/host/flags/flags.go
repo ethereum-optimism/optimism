@@ -50,6 +50,11 @@ var (
 		Usage:   "Hash of the agreed L2 block to start derivation from",
 		EnvVars: prefixEnvVars("L2_HEAD"),
 	}
+	L2OutputRoot = &cli.StringFlag{
+		Name:    "l2.outputroot",
+		Usage:   "L2 Output Root at l2.head",
+		EnvVars: prefixEnvVars("L2_OUTPUT_ROOT"),
+	}
 	L2Claim = &cli.StringFlag{
 		Name:    "l2.claim",
 		Usage:   "Claimed L2 output root to validate",
@@ -103,6 +108,7 @@ var Flags []cli.Flag
 var requiredFlags = []cli.Flag{
 	L1Head,
 	L2Head,
+	L2OutputRoot,
 	L2Claim,
 	L2BlockNumber,
 }

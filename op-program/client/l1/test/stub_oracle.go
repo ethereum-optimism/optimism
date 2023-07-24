@@ -19,14 +19,18 @@ type StubOracle struct {
 
 	// Rcpts maps Block hash to receipts
 	Rcpts map[common.Hash]types.Receipts
+
+	// L2Outputs maps L2 output roots to L2 outputs
+	L2Outputs map[common.Hash]eth.Output
 }
 
 func NewStubOracle(t *testing.T) *StubOracle {
 	return &StubOracle{
-		t:      t,
-		Blocks: make(map[common.Hash]eth.BlockInfo),
-		Txs:    make(map[common.Hash]types.Transactions),
-		Rcpts:  make(map[common.Hash]types.Receipts),
+		t:         t,
+		Blocks:    make(map[common.Hash]eth.BlockInfo),
+		Txs:       make(map[common.Hash]types.Transactions),
+		Rcpts:     make(map[common.Hash]types.Receipts),
+		L2Outputs: make(map[common.Hash]eth.Output),
 	}
 }
 func (o StubOracle) HeaderByBlockHash(blockHash common.Hash) eth.BlockInfo {
@@ -51,4 +55,12 @@ func (o StubOracle) ReceiptsByBlockHash(blockHash common.Hash) (eth.BlockInfo, t
 		o.t.Fatalf("unknown rcpts %s", blockHash)
 	}
 	return o.HeaderByBlockHash(blockHash), rcpts
+}
+
+func (o StubOracle) L2OutputByRoot(l2OutputRoot common.Hash) eth.Output {
+	output, ok := o.L2Outputs[l2OutputRoot]
+	if !ok {
+		o.t.Fatalf("unknown output %s", l2OutputRoot)
+	}
+	return output
 }

@@ -10,6 +10,7 @@ const (
 	HintL1BlockHeader  = "l1-block-header"
 	HintL1Transactions = "l1-transactions"
 	HintL1Receipts     = "l1-receipts"
+	HintL2Output       = "l1-l2-output"
 )
 
 type BlockHeaderHint common.Hash
@@ -34,4 +35,12 @@ var _ preimage.Hint = ReceiptsHint{}
 
 func (l ReceiptsHint) Hint() string {
 	return HintL1Receipts + " " + (common.Hash)(l).String()
+}
+
+type L2OutputHint common.Hash
+
+var _ preimage.Hint = L2OutputHint{}
+
+func (l L2OutputHint) Hint() string {
+	return HintL2Output + " " + (common.Hash)(l).String()
 }
