@@ -1,16 +1,18 @@
-package fault
+package solver_test
 
 import (
 	"fmt"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/solver"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/test"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNextMove(t *testing.T) {
 	maxDepth := 4
-	builder := NewClaimBuilder(t, maxDepth)
+	builder := test.NewAlphabetClaimBuilder(t, maxDepth)
 	tests := []struct {
 		name           string
 		claim          types.Claim
@@ -70,18 +72,18 @@ func TestNextMove(t *testing.T) {
 		{
 			name:        "ErrorWhenClaimIsLeaf_Correct",
 			claim:       builder.CreateLeafClaim(4, true),
-			expectedErr: ErrGameDepthReached,
+			expectedErr: types.ErrGameDepthReached,
 		},
 		{
 			name:        "ErrorWhenClaimIsLeaf_Incorrect",
 			claim:       builder.CreateLeafClaim(6, false),
-			expectedErr: ErrGameDepthReached,
+			expectedErr: types.ErrGameDepthReached,
 		},
 	}
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			solver := NewSolver(maxDepth, builder.CorrectTraceProvider())
+			solver := solver.NewSolver(maxDepth, builder.CorrectTraceProvider())
 			move, err := solver.NextMove(test.claim, test.agreeWithLevel)
 			if test.expectedErr == nil {
 				require.NoError(t, err)
@@ -100,8 +102,8 @@ func TestNextMove(t *testing.T) {
 
 func TestAttemptStep(t *testing.T) {
 	maxDepth := 3
-	builder := NewClaimBuilder(t, maxDepth)
-	solver := NewSolver(maxDepth, builder.CorrectTraceProvider())
+	builder := test.NewAlphabetClaimBuilder(t, maxDepth)
+	alphabetSolver := solver.NewSolver(maxDepth, builder.CorrectTraceProvider())
 
 	// Last accessible leaf is the second last trace index
 	// The root node is used for the last trace index and can only be attacked.
@@ -161,13 +163,13 @@ func TestAttemptStep(t *testing.T) {
 		{
 			name:        "CannotStepNonLeaf",
 			claim:       builder.Seq(false).Attack(false).Get(),
-			expectedErr: ErrStepNonLeafNode,
+			expectedErr: solver.ErrStepNonLeafNode,
 		},
 		{
 			name:           "CannotStepAgreedNode",
 			claim:          builder.Seq(false).Attack(false).Get(),
 			agreeWithLevel: true,
-			expectedErr:    ErrStepNonLeafNode,
+			expectedErr:    solver.ErrStepNonLeafNode,
 		},
 	}
 
@@ -175,7 +177,7 @@ func TestAttemptStep(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			fmt.Printf("%v\n", test.claim.Position.TraceIndex(maxDepth))
-			step, err := solver.AttemptStep(test.claim, test.agreeWithLevel)
+			step, err := alphabetSolver.AttemptStep(test.claim, test.agreeWithLevel)
 			if test.expectedErr == nil {
 				require.NoError(t, err)
 				require.Equal(t, test.claim, step.LeafClaim)
@@ -184,7 +186,7 @@ func TestAttemptStep(t *testing.T) {
 				require.Equal(t, test.expectProofData, step.ProofData)
 			} else {
 				require.ErrorIs(t, err, test.expectedErr)
-				require.Equal(t, StepData{}, step)
+				require.Equal(t, solver.StepData{}, step)
 			}
 		})
 	}

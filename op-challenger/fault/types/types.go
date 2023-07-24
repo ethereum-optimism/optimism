@@ -1,7 +1,13 @@
 package types
 
 import (
+	"errors"
+
 	"github.com/ethereum/go-ethereum/common"
+)
+
+var (
+	ErrGameDepthReached = errors.New("game depth reached")
 )
 
 type GameStatus uint8
