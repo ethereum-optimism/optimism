@@ -3,6 +3,7 @@ package test
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -16,8 +17,9 @@ type stateOracle interface {
 }
 
 type StubBlockOracle struct {
-	t      *testing.T
-	Blocks map[common.Hash]*types.Block
+	t         *testing.T
+	Blocks    map[common.Hash]*types.Block
+	L2Outputs map[common.Hash]eth.Output
 	stateOracle
 }
 
@@ -48,6 +50,14 @@ func (o StubBlockOracle) BlockByHash(blockHash common.Hash) *types.Block {
 		o.t.Fatalf("requested unknown block %s", blockHash)
 	}
 	return block
+}
+
+func (o StubBlockOracle) L2OutputByRoot(root common.Hash) eth.Output {
+	output, ok := o.L2Outputs[root]
+	if !ok {
+		o.t.Fatalf("requested unknown output root %s", root)
+	}
+	return output
 }
 
 // KvStateOracle loads data from a source ethdb.KeyValueStore

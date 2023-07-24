@@ -99,12 +99,6 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 			return fmt.Errorf("failed to fetch L1 block %s receipts: %w", hash, err)
 		}
 		return p.storeReceipts(receipts)
-	case l1.HintL2Output:
-		output, err := p.l2Fetcher.L2OutputByRoot(ctx, hash)
-		if err != nil {
-			return fmt.Errorf("failed to fetch L2 output root %s: %w", hash, err)
-		}
-		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), output.Marshal())
 	case l2.HintL2BlockHeader:
 		header, txs, err := p.l2Fetcher.InfoAndTxsByHash(ctx, hash)
 		if err != nil {
@@ -131,6 +125,12 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 			return fmt.Errorf("failed to fetch L2 contract code %s: %w", hash, err)
 		}
 		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), code)
+	case l2.HintL2Output:
+		output, err := p.l2Fetcher.L2OutputByRoot(ctx, hash)
+		if err != nil {
+			return fmt.Errorf("failed to fetch L2 output root %s: %w", hash, err)
+		}
+		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), output.Marshal())
 	}
 	return fmt.Errorf("unknown hint type: %v", hintType)
 }

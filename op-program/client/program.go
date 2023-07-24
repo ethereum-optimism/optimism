@@ -64,16 +64,7 @@ func RunProgram(logger log.Logger, preimageOracle io.ReadWriter, preimageHinter 
 // runDerivation executes the L2 state transition, given a minimal interface to retrieve data.
 func runDerivation(logger log.Logger, cfg *rollup.Config, l2Cfg *params.ChainConfig, l1Head common.Hash, l2OutputRoot common.Hash, l2Claim common.Hash, l2ClaimBlockNum uint64, l1Oracle l1.Oracle, l2Oracle l2.Oracle) error {
 	l1Source := l1.NewOracleL1Client(logger, l1Oracle, l1Head)
-	output, err := l1Source.L2OutputByRoot(context.Background(), l2OutputRoot)
-	if err != nil {
-		return fmt.Errorf("failed to find L2 output for %s: %w", l2OutputRoot, err)
-	}
-	outputV0, ok := output.(*eth.OutputV0)
-	if !ok {
-		return fmt.Errorf("unsupported L2 output version: %d", output.Version())
-	}
-	l2Head := outputV0.BlockHash
-	engineBackend, err := l2.NewOracleBackedL2Chain(logger, l2Oracle, l2Cfg, l2Head)
+	engineBackend, err := l2.NewOracleBackedL2Chain(logger, l2Oracle, l2Cfg, l2OutputRoot)
 	if err != nil {
 		return fmt.Errorf("failed to create oracle-backed L2 chain: %w", err)
 	}
