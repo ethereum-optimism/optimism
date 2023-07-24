@@ -4,6 +4,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ func NewClaimBuilder(t *testing.T, maxDepth int) *ClaimBuilder {
 	return &ClaimBuilder{
 		require:  require.New(t),
 		maxDepth: maxDepth,
-		correct:  &alphabetWithProofProvider{NewAlphabetProvider("abcdefghijklmnopqrstuvwxyz", uint64(maxDepth))},
+		correct:  &alphabetWithProofProvider{alphabet.NewAlphabetProvider("abcdefghijklmnopqrstuvwxyz", uint64(maxDepth))},
 	}
 }
 
@@ -146,7 +147,7 @@ func (s *SequenceBuilder) Get() types.Claim {
 }
 
 type alphabetWithProofProvider struct {
-	*AlphabetProvider
+	*alphabet.AlphabetProvider
 }
 
 func (a *alphabetWithProofProvider) GetPreimage(i uint64) ([]byte, []byte, error) {

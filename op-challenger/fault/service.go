@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -57,7 +58,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 	case config.TraceTypeCannon:
 		trace = cannon.NewCannonTraceProvider(logger, cfg.CannonDatadir)
 	case config.TraceTypeAlphabet:
-		trace = NewAlphabetProvider(cfg.AlphabetTrace, uint64(cfg.GameDepth))
+		trace = alphabet.NewAlphabetProvider(cfg.AlphabetTrace, uint64(cfg.GameDepth))
 	default:
 		return nil, fmt.Errorf("unsupported trace type: %v", cfg.TraceType)
 	}

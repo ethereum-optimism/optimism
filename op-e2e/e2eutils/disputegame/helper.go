@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/fault"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-service/client/utils"
@@ -67,7 +67,7 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, client *ethclient.Clien
 func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet string) *FaultGameHelper {
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
-	trace := fault.NewAlphabetProvider(claimedAlphabet, 4)
+	trace := alphabet.NewAlphabetProvider(claimedAlphabet, 4)
 	rootClaim, err := trace.Get(lastAlphabetTraceIndex)
 	h.require.NoError(err)
 	tx, err := h.factory.Create(h.opts, faultGameType, rootClaim, alphaExtraData)
