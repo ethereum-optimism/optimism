@@ -3,16 +3,16 @@ package test
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/fault"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
 )
 
 func NewAlphabetClaimBuilder(t *testing.T, maxDepth int) *ClaimBuilder {
-	alphabetProvider := &alphabetWithProofProvider{fault.NewAlphabetProvider("abcdefghijklmnopqrstuvwxyz", uint64(maxDepth))}
+	alphabetProvider := &alphabetWithProofProvider{alphabet.NewAlphabetProvider("abcdefghijklmnopqrstuvwxyz", uint64(maxDepth))}
 	return NewClaimBuilder(t, maxDepth, alphabetProvider)
 }
 
 type alphabetWithProofProvider struct {
-	*fault.AlphabetProvider
+	*alphabet.AlphabetProvider
 }
 
 func (a *alphabetWithProofProvider) GetPreimage(i uint64) ([]byte, []byte, error) {

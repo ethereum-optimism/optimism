@@ -4,7 +4,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
@@ -22,11 +21,7 @@ func NewClaimBuilder(t *testing.T, maxDepth int, provider types.TraceProvider) *
 	return &ClaimBuilder{
 		require:  require.New(t),
 		maxDepth: maxDepth,
-<<<<<<< HEAD:op-challenger/fault/claimbuilder_test.go
-		correct:  &alphabetWithProofProvider{alphabet.NewAlphabetProvider("abcdefghijklmnopqrstuvwxyz", uint64(maxDepth))},
-=======
 		correct:  provider,
->>>>>>> 99df402dd (Solver module):op-challenger/fault/test/claim_builder.go
 	}
 }
 
@@ -114,54 +109,3 @@ func (c *ClaimBuilder) DefendClaim(claim types.Claim, correct bool) types.Claim 
 		Parent: claim.ClaimData,
 	}
 }
-<<<<<<< HEAD:op-challenger/fault/claimbuilder_test.go
-
-type SequenceBuilder struct {
-	builder   *ClaimBuilder
-	lastClaim types.Claim
-}
-
-// Seq starts building a claim by following a sequence of attack and defend moves from the root
-// The returned SequenceBuilder can be used to add additional moves. e.g:
-// claim := Seq(true).Attack(false).Attack(true).Defend(true).Get()
-func (c *ClaimBuilder) Seq(rootCorrect bool) *SequenceBuilder {
-	claim := c.CreateRootClaim(rootCorrect)
-	return &SequenceBuilder{
-		builder:   c,
-		lastClaim: claim,
-	}
-}
-
-func (s *SequenceBuilder) Attack(correct bool) *SequenceBuilder {
-	claim := s.builder.AttackClaim(s.lastClaim, correct)
-	return &SequenceBuilder{
-		builder:   s.builder,
-		lastClaim: claim,
-	}
-}
-
-func (s *SequenceBuilder) Defend(correct bool) *SequenceBuilder {
-	claim := s.builder.DefendClaim(s.lastClaim, correct)
-	return &SequenceBuilder{
-		builder:   s.builder,
-		lastClaim: claim,
-	}
-}
-
-func (s *SequenceBuilder) Get() types.Claim {
-	return s.lastClaim
-}
-
-type alphabetWithProofProvider struct {
-	*alphabet.AlphabetProvider
-}
-
-func (a *alphabetWithProofProvider) GetPreimage(i uint64) ([]byte, []byte, error) {
-	preimage, _, err := a.AlphabetProvider.GetPreimage(i)
-	if err != nil {
-		return nil, nil, err
-	}
-	return preimage, []byte{byte(i)}, nil
-}
-=======
->>>>>>> 99df402dd (Solver module):op-challenger/fault/test/claim_builder.go
