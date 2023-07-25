@@ -27,6 +27,10 @@ fi
 if [ ! -d "$GETH_CHAINDATA_DIR" ]; then
 	echo "$GETH_CHAINDATA_DIR missing, running init"
 	echo "Initializing genesis."
+	# Handle setting the clique config in the extra data
+	EXTRA_DATA="$BLOCK_SIGNER_ADDRESS""0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+	jq -r --arg extraData "$EXTRA_DATA" '.extraData |= $extraData' | tee $GENESIS_FILE_PATH
+
 	geth --verbosity="$VERBOSITY" init \
 		--datadir="$GETH_DATA_DIR" \
 		"$GENESIS_FILE_PATH"
