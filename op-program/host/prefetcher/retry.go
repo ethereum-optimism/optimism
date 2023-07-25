@@ -29,14 +29,14 @@ func NewRetryingL1Source(logger log.Logger, source L1Source) *RetryingL1Source {
 
 func (s *RetryingL1Source) InfoByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, error) {
 	var info eth.BlockInfo
-	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() error {
+	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() (any, error) {
 		res, err := s.source.InfoByHash(ctx, blockHash)
 		if err != nil {
 			s.logger.Warn("Failed to retrieve info", "hash", blockHash, "err", err)
-			return err
+			return nil, err
 		}
 		info = res
-		return nil
+		return nil, nil
 	})
 	return info, err
 }
@@ -44,15 +44,15 @@ func (s *RetryingL1Source) InfoByHash(ctx context.Context, blockHash common.Hash
 func (s *RetryingL1Source) InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error) {
 	var info eth.BlockInfo
 	var txs types.Transactions
-	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() error {
+	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() (any, error) {
 		i, t, err := s.source.InfoAndTxsByHash(ctx, blockHash)
 		if err != nil {
 			s.logger.Warn("Failed to retrieve l1 info and txs", "hash", blockHash, "err", err)
-			return err
+			return nil, err
 		}
 		info = i
 		txs = t
-		return nil
+		return nil, nil
 	})
 	return info, txs, err
 }
@@ -60,15 +60,15 @@ func (s *RetryingL1Source) InfoAndTxsByHash(ctx context.Context, blockHash commo
 func (s *RetryingL1Source) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
 	var info eth.BlockInfo
 	var rcpts types.Receipts
-	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() error {
+	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() (any, error) {
 		i, r, err := s.source.FetchReceipts(ctx, blockHash)
 		if err != nil {
 			s.logger.Warn("Failed to fetch receipts", "hash", blockHash, "err", err)
-			return err
+			return nil, err
 		}
 		info = i
 		rcpts = r
-		return nil
+		return nil, nil
 	})
 	return info, rcpts, err
 }
@@ -84,43 +84,43 @@ type RetryingL2Source struct {
 func (s *RetryingL2Source) InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error) {
 	var info eth.BlockInfo
 	var txs types.Transactions
-	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() error {
+	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() (any, error) {
 		i, t, err := s.source.InfoAndTxsByHash(ctx, blockHash)
 		if err != nil {
 			s.logger.Warn("Failed to retrieve l2 info and txs", "hash", blockHash, "err", err)
-			return err
+			return nil, err
 		}
 		info = i
 		txs = t
-		return nil
+		return nil, nil
 	})
 	return info, txs, err
 }
 
 func (s *RetryingL2Source) NodeByHash(ctx context.Context, hash common.Hash) ([]byte, error) {
 	var node []byte
-	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() error {
+	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() (any, error) {
 		n, err := s.source.NodeByHash(ctx, hash)
 		if err != nil {
 			s.logger.Warn("Failed to retrieve node", "hash", hash, "err", err)
-			return err
+			return nil, err
 		}
 		node = n
-		return nil
+		return nil, nil
 	})
 	return node, err
 }
 
 func (s *RetryingL2Source) CodeByHash(ctx context.Context, hash common.Hash) ([]byte, error) {
 	var code []byte
-	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() error {
+	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() (any, error) {
 		c, err := s.source.CodeByHash(ctx, hash)
 		if err != nil {
 			s.logger.Warn("Failed to retrieve code", "hash", hash, "err", err)
-			return err
+			return nil, err
 		}
 		code = c
-		return nil
+		return nil, nil
 	})
 	return code, err
 }

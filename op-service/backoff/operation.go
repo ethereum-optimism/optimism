@@ -8,7 +8,7 @@ import (
 
 // Operation represents an operation that will be retried
 // based on some backoff strategy if it fails.
-type Operation func() error
+type Operation[T any] func() (T, error)
 
 // ErrFailedPermanently is an error raised by Do when the
 // underlying Operation has been retried maxAttempts times.
@@ -24,13 +24,37 @@ func (e *ErrFailedPermanently) Error() string {
 // Do performs the provided Operation up to maxAttempts times
 // with delays in between each retry according to the provided
 // Strategy.
-func Do(maxAttempts int, strategy Strategy, op Operation) error {
+func Do[T any](maxAttempts int, strategy Strategy, op Operation[T]) error {
 	return DoCtx(context.Background(), maxAttempts, strategy, op)
 }
 
-func DoCtx(ctx context.Context, maxAttempts int, strategy Strategy, op Operation) error {
+// DoResult performs the provided Operation up to maxAttempts times
+// with delays in between each retry according to the provided
+// Strategy. It returns the result of the operation if it succeeds,
+// or an error if it fails permanently.
+func DoResult[T any](maxAttempts int, strategy Strategy, op Operation[T]) (T, error) {
+	return DoResultCtx(context.Background(), maxAttempts, strategy, op)
+}
+
+// DoCtx executes the provided Operation and throws away
+// the result, returning just the error. As opposed to [Do],
+// this function allows the caller to provide a context.
+func DoCtx[T interface{}](ctx context.Context, maxAttempts int, strategy Strategy, op Operation[T]) error {
+	_, err := doCtx(ctx, maxAttempts, strategy, op)
+	return err
+}
+
+// DoResultCtx executes the provided Operation and throws away
+// the result, returning just the error. As opposed to [DoResult],
+// this function allows the caller to provide a context.
+func DoResultCtx[T interface{}](ctx context.Context, maxAttempts int, strategy Strategy, op Operation[T]) (T, error) {
+	return doCtx(ctx, maxAttempts, strategy, op)
+}
+
+func doCtx[T interface{}](ctx context.Context, maxAttempts int, strategy Strategy, op Operation[T]) (T, error) {
+	var emptyClient T
 	if maxAttempts < 1 {
-		return fmt.Errorf("need at least 1 attempt to run op, but have %d max attempts", maxAttempts)
+		return emptyClient, fmt.Errorf("need at least 1 attempt to run op, but have %d max attempts", maxAttempts)
 	}
 	var attempt int
 
@@ -43,22 +67,20 @@ func DoCtx(ctx context.Context, maxAttempts int, strategy Strategy, op Operation
 	for {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			return emptyClient, ctx.Err()
 		case <-reattemptCh:
 			attempt++
-			err := op()
+			t, err := op()
 			if err == nil {
-				return nil
+				return t, nil
 			}
-
 			if attempt == maxAttempts {
-				return &ErrFailedPermanently{
+				return emptyClient, &ErrFailedPermanently{
 					attempts: maxAttempts,
 					LastErr:  err,
 				}
 			}
 			time.AfterFunc(strategy.Duration(attempt-1), doReattempt)
 		}
-
 	}
 }
