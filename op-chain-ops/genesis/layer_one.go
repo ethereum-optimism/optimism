@@ -120,7 +120,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 	gasLimit := uint64(config.L2GenesisBlockGasLimit)
 	if gasLimit == 0 {
-		gasLimit = defaultL2GasLimit
+		gasLimit = defaultGasLimit
 	}
 
 	data, err = sysCfgABI.Pack(
@@ -298,7 +298,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 	}
 	gasLimit := uint64(config.L2GenesisBlockGasLimit)
 	if gasLimit == 0 {
-		gasLimit = defaultL2GasLimit
+		gasLimit = defaultGasLimit
 	}
 
 	constructors = append(constructors, []deployer.Constructor{
