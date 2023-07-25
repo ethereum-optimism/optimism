@@ -4,11 +4,12 @@ import (
 	"context"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 type GameInfo interface {
-	GetGameStatus(context.Context) (GameStatus, error)
+	GetGameStatus(context.Context) (types.GameStatus, error)
 	LogGameInfo(ctx context.Context)
 }
 
@@ -43,11 +44,11 @@ func progressGame(ctx context.Context, logger log.Logger, agreeWithProposedOutpu
 	if status, err := caller.GetGameStatus(ctx); err != nil {
 		logger.Warn("Unable to retrieve game status", "err", err)
 	} else if status != 0 {
-		var expectedStatus GameStatus
+		var expectedStatus types.GameStatus
 		if agreeWithProposedOutput {
-			expectedStatus = GameStatusChallengerWon
+			expectedStatus = types.GameStatusChallengerWon
 		} else {
-			expectedStatus = GameStatusDefenderWon
+			expectedStatus = types.GameStatusDefenderWon
 		}
 		if expectedStatus == status {
 			logger.Info("Game won", "status", GameStatusString(status))

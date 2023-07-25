@@ -10,8 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-challenger/fault"
-	"github.com/ethereum-optimism/optimism/op-challenger/flags"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-service/client/utils"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -67,13 +67,13 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, client *ethclient.Clien
 func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet string) *FaultGameHelper {
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
-	trace := fault.NewAlphabetProvider(claimedAlphabet, 4)
+	trace := alphabet.NewAlphabetProvider(claimedAlphabet, 4)
 	rootClaim, err := trace.Get(lastAlphabetTraceIndex)
-	h.require.NoError(err)
+	h.require.NoError(err, "get root claim")
 	tx, err := h.factory.Create(h.opts, faultGameType, rootClaim, alphaExtraData)
-	h.require.NoError(err)
+	h.require.NoError(err, "create fault dispute game")
 	rcpt, err := utils.WaitReceiptOK(ctx, h.client, tx.Hash())
-	h.require.NoError(err)
+	h.require.NoError(err, "wait for create fault dispute game receipt to be OK")
 	h.require.Len(rcpt.Logs, 1, "should have emitted a single DisputeGameCreated event")
 	createdEvent, err := h.factory.ParseDisputeGameCreated(*rcpt.Logs[0])
 	h.require.NoError(err)
@@ -107,7 +107,7 @@ func (g *FaultGameHelper) StartChallenger(ctx context.Context, l1Endpoint string
 		func(c *config.Config) {
 			c.GameAddress = g.addr
 			c.GameDepth = alphabetGameDepth
-			c.TraceType = flags.TraceTypeAlphabet
+			c.TraceType = config.TraceTypeAlphabet
 			// By default the challenger agrees with the root claim (thus disagrees with the proposed output)
 			// This can be overridden by passing in options
 			c.AlphabetTrace = g.claimedAlphabet
@@ -169,7 +169,7 @@ func (g *FaultGameHelper) WaitForClaim(ctx context.Context, predicate func(claim
 
 func (g *FaultGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered bool) {
 	g.WaitForClaim(ctx, func(claim ContractClaim) bool {
-		pos := fault.NewPositionFromGIndex(claim.Position.Uint64())
+		pos := types.NewPositionFromGIndex(claim.Position.Uint64())
 		return pos.Depth() == g.maxDepth && claim.Countered == countered
 	})
 }

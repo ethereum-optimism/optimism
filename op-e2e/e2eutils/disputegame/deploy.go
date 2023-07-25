@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
+	"github.com/ethereum-optimism/optimism/op-service/client/utils"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
@@ -55,7 +56,11 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 	require.NoError(err)
 
 	// Set the fault game type implementation
-	_, err = factory.SetImplementation(opts, faultGameType, faultDisputeGameAddr)
+	tx, err = factory.SetImplementation(opts, faultGameType, faultDisputeGameAddr)
 	require.NoError(err)
+
+	_, err = utils.WaitReceiptOK(ctx, client, tx.Hash())
+	require.NoError(err, "wait for final transaction to be included and OK")
+
 	return factory
 }

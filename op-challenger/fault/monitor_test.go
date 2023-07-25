@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -43,7 +44,7 @@ func TestProgressGame_LogErrorFromAct(t *testing.T) {
 func TestProgressGame_LogErrorWhenGameLost(t *testing.T) {
 	tests := []struct {
 		name            string
-		status          GameStatus
+		status          types.GameStatus
 		agreeWithOutput bool
 		logLevel        log.Lvl
 		logMsg          string
@@ -51,7 +52,7 @@ func TestProgressGame_LogErrorWhenGameLost(t *testing.T) {
 	}{
 		{
 			name:            "GameLostAsDefender",
-			status:          GameStatusChallengerWon,
+			status:          types.GameStatusChallengerWon,
 			agreeWithOutput: false,
 			logLevel:        log.LvlError,
 			logMsg:          "Game lost",
@@ -59,7 +60,7 @@ func TestProgressGame_LogErrorWhenGameLost(t *testing.T) {
 		},
 		{
 			name:            "GameLostAsChallenger",
-			status:          GameStatusDefenderWon,
+			status:          types.GameStatusDefenderWon,
 			agreeWithOutput: true,
 			logLevel:        log.LvlError,
 			logMsg:          "Game lost",
@@ -67,7 +68,7 @@ func TestProgressGame_LogErrorWhenGameLost(t *testing.T) {
 		},
 		{
 			name:            "GameWonAsDefender",
-			status:          GameStatusDefenderWon,
+			status:          types.GameStatusDefenderWon,
 			agreeWithOutput: false,
 			logLevel:        log.LvlInfo,
 			logMsg:          "Game won",
@@ -75,7 +76,7 @@ func TestProgressGame_LogErrorWhenGameLost(t *testing.T) {
 		},
 		{
 			name:            "GameWonAsChallenger",
-			status:          GameStatusChallengerWon,
+			status:          types.GameStatusChallengerWon,
 			agreeWithOutput: true,
 			logLevel:        log.LvlInfo,
 			logMsg:          "Game won",
@@ -120,12 +121,12 @@ func (a *stubActor) Act(ctx context.Context) error {
 }
 
 type stubGameInfo struct {
-	status   GameStatus
+	status   types.GameStatus
 	err      error
 	logCount int
 }
 
-func (s *stubGameInfo) GetGameStatus(ctx context.Context) (GameStatus, error) {
+func (s *stubGameInfo) GetGameStatus(ctx context.Context) (types.GameStatus, error) {
 	return s.status, s.err
 }
 

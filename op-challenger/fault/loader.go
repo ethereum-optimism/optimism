@@ -4,6 +4,7 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 )
 
@@ -22,7 +23,7 @@ type ClaimFetcher interface {
 
 // Loader is a minimal interface for loading onchain [Claim] data.
 type Loader interface {
-	FetchClaims(ctx context.Context) ([]Claim, error)
+	FetchClaims(ctx context.Context) ([]types.Claim, error)
 }
 
 // loader pulls in fault dispute game claim data periodically and over subscriptions.
@@ -38,20 +39,20 @@ func NewLoader(claimFetcher ClaimFetcher) *loader {
 }
 
 // fetchClaim fetches a single [Claim] with a hydrated parent.
-func (l *loader) fetchClaim(ctx context.Context, arrIndex uint64) (Claim, error) {
+func (l *loader) fetchClaim(ctx context.Context, arrIndex uint64) (types.Claim, error) {
 	callOpts := bind.CallOpts{
 		Context: ctx,
 	}
 
 	fetchedClaim, err := l.claimFetcher.ClaimData(&callOpts, new(big.Int).SetUint64(arrIndex))
 	if err != nil {
-		return Claim{}, err
+		return types.Claim{}, err
 	}
 
-	claim := Claim{
-		ClaimData: ClaimData{
+	claim := types.Claim{
+		ClaimData: types.ClaimData{
 			Value:    fetchedClaim.Claim,
-			Position: NewPositionFromGIndex(fetchedClaim.Position.Uint64()),
+			Position: types.NewPositionFromGIndex(fetchedClaim.Position.Uint64()),
 		},
 		Countered:           fetchedClaim.Countered,
 		Clock:               fetchedClaim.Clock.Uint64(),
@@ -63,11 +64,11 @@ func (l *loader) fetchClaim(ctx context.Context, arrIndex uint64) (Claim, error)
 		parentIndex := uint64(fetchedClaim.ParentIndex)
 		parentClaim, err := l.claimFetcher.ClaimData(&callOpts, new(big.Int).SetUint64(parentIndex))
 		if err != nil {
-			return Claim{}, err
+			return types.Claim{}, err
 		}
-		claim.Parent = ClaimData{
+		claim.Parent = types.ClaimData{
 			Value:    parentClaim.Claim,
-			Position: NewPositionFromGIndex(parentClaim.Position.Uint64()),
+			Position: types.NewPositionFromGIndex(parentClaim.Position.Uint64()),
 		}
 	}
 
@@ -75,7 +76,7 @@ func (l *loader) fetchClaim(ctx context.Context, arrIndex uint64) (Claim, error)
 }
 
 // FetchClaims fetches all claims from the fault dispute game.
-func (l *loader) FetchClaims(ctx context.Context) ([]Claim, error) {
+func (l *loader) FetchClaims(ctx context.Context) ([]types.Claim, error) {
 	// Get the current claim count.
 	claimCount, err := l.claimFetcher.ClaimDataLen(&bind.CallOpts{
 		Context: ctx,
@@ -85,7 +86,7 @@ func (l *loader) FetchClaims(ctx context.Context) ([]Claim, error) {
 	}
 
 	// Fetch each claim and build a list.
-	claimList := make([]Claim, claimCount.Uint64())
+	claimList := make([]types.Claim, claimCount.Uint64())
 	for i := uint64(0); i < claimCount.Uint64(); i++ {
 		claim, err := l.fetchClaim(ctx, i)
 		if err != nil {

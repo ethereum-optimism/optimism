@@ -6,7 +6,7 @@ import subprocess
 import os
 
 
-GETH_VERSION='v1.11.2'
+GETH_VERSION='v1.12.0'
 
 
 def main():
