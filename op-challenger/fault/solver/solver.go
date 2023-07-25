@@ -32,38 +32,14 @@ func (s *Solver) NextMove(claim types.Claim, agreeWithClaimLevel bool) (*types.C
 	if agreeWithClaimLevel {
 		return nil, nil
 	}
-
-	// Special case of the root claim
-	if claim.IsRoot() {
-		return s.handleRoot(claim)
+	if claim.Depth() == s.gameDepth {
+		return nil, types.ErrGameDepthReached
 	}
-	return s.handleMiddle(claim)
-}
-
-func (s *Solver) handleRoot(claim types.Claim) (*types.Claim, error) {
 	agree, err := s.agreeWithClaim(claim.ClaimData)
 	if err != nil {
 		return nil, err
 	}
-	// Attack the root claim if we do not agree with it
-	// Note: We always disagree with the claim level at this point,
-	// so if we agree with claim maybe we should also attack?
-	if !agree {
-		return s.attack(claim)
-	} else {
-		return nil, nil
-	}
-}
-
-func (s *Solver) handleMiddle(claim types.Claim) (*types.Claim, error) {
-	claimCorrect, err := s.agreeWithClaim(claim.ClaimData)
-	if err != nil {
-		return nil, err
-	}
-	if claim.Depth() == s.gameDepth {
-		return nil, types.ErrGameDepthReached
-	}
-	if claimCorrect {
+	if agree {
 		return s.defend(claim)
 	} else {
 		return s.attack(claim)
@@ -131,6 +107,9 @@ func (s *Solver) attack(claim types.Claim) (*types.Claim, error) {
 
 // defend returns a response that defends the claim.
 func (s *Solver) defend(claim types.Claim) (*types.Claim, error) {
+	if claim.IsRoot() {
+		return nil, nil
+	}
 	position := claim.Defend()
 	value, err := s.traceAtPosition(position)
 	if err != nil {
