@@ -40,9 +40,9 @@ type Deployment struct {
 
 type Deployer func(*backends.SimulatedBackend, *bind.TransactOpts, Constructor) (*types.Transaction, error)
 
-// NewBackend returns a SimulatedBackend suitable for L1. It has
+// NewL1Backend returns a SimulatedBackend suitable for L1. It has
 // the latest L1 hardforks enabled.
-func NewBackend() *backends.SimulatedBackend {
+func NewL1Backend() *backends.SimulatedBackend {
 	return NewBackendWithGenesisTimestamp(0, true)
 }
 
