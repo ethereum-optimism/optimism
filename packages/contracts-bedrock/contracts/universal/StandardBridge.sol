@@ -22,9 +22,11 @@ abstract contract StandardBridge {
     uint32 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 200_000;
 
     /// @notice Messenger contract on this domain.
+    /// @custom:network-specific-config
     CrossDomainMessenger public immutable MESSENGER;
 
     /// @notice Corresponding bridge on the other domain.
+    /// @custom:network-specific-config
     StandardBridge public immutable OTHER_BRIDGE;
 
     /// @custom:legacy

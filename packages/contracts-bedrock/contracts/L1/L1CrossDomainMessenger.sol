@@ -13,13 +13,14 @@ import { Semver } from "../universal/Semver.sol";
 ///         interface instead of interacting with lower-level contracts directly.
 contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
     /// @notice Address of the OptimismPortal.
+    /// @custom:network-specific-config
     OptimismPortal public immutable PORTAL;
 
-    /// @custom:semver 1.4.1
+    /// @custom:semver 1.4.2
     /// @notice Constructs the L1CrossDomainMessenger contract.
     /// @param _portal Address of the OptimismPortal contract on this network.
     constructor(OptimismPortal _portal)
-        Semver(1, 4, 1)
+        Semver(1, 4, 2)
         CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
     {
         PORTAL = _portal;

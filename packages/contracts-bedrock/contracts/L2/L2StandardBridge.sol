@@ -50,11 +50,11 @@ contract L2StandardBridge is StandardBridge, Semver {
         bytes extraData
     );
 
-    /// @custom:semver 1.1.1
+    /// @custom:semver 1.1.2
     /// @notice Constructs the L2StandardBridge contract.
     /// @param _otherBridge Address of the L1StandardBridge.
     constructor(address payable _otherBridge)
-        Semver(1, 1, 1)
+        Semver(1, 1, 2)
         StandardBridge(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge)
     {}
 

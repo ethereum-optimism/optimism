@@ -20,9 +20,11 @@ contract L2OutputOracle is Initializable, Semver {
     uint256 public immutable L2_BLOCK_TIME;
 
     /// @notice The address of the challenger. Can be updated via upgrade.
+    /// @custom:network-specific-config
     address public immutable CHALLENGER;
 
     /// @notice The address of the proposer. Can be updated via upgrade.
+    /// @custom:network-specific-config
     address public immutable PROPOSER;
 
     /// @notice The minimum time (in seconds) that must elapse before a withdrawal can be finalized.
@@ -54,7 +56,7 @@ contract L2OutputOracle is Initializable, Semver {
     /// @param newNextOutputIndex  Next L2 output index after the deletion.
     event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
 
-    /// @custom:semver 1.3.1
+    /// @custom:semver 1.3.2
     /// @notice Constructs the L2OutputOracle contract.
     /// @param _submissionInterval  Interval in blocks at which checkpoints must be submitted.
     /// @param _l2BlockTime         The time per L2 block, in seconds.
@@ -70,7 +72,7 @@ contract L2OutputOracle is Initializable, Semver {
         address _proposer,
         address _challenger,
         uint256 _finalizationPeriodSeconds
-    ) Semver(1, 3, 1) {
+    ) Semver(1, 3, 2) {
         require(_l2BlockTime > 0, "L2OutputOracle: L2 block time must be greater than 0");
         require(
             _submissionInterval > 0,

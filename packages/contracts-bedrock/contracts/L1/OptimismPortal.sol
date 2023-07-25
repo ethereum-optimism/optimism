@@ -36,12 +36,15 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
 
     /// @notice Address of the L2OutputOracle contract.
+    /// @custom:network-specific-config
     L2OutputOracle public immutable L2_ORACLE;
 
     /// @notice Address of the SystemConfig contract.
+    /// @custom:network-specific-config
     SystemConfig public immutable SYSTEM_CONFIG;
 
     /// @notice Address that has the ability to pause and unpause withdrawals.
+    /// @custom:network-specific-config
     address public immutable GUARDIAN;
 
     /// @notice Address of the L2 account which initiated a withdrawal in this transaction.
@@ -103,7 +106,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         _;
     }
 
-    /// @custom:semver 1.7.2
+    /// @custom:semver 1.7.3
     /// @notice Constructs the OptimismPortal contract.
     /// @param _l2Oracle Address of the L2OutputOracle contract.
     /// @param _guardian Address that can pause withdrawals.
@@ -114,7 +117,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         address _guardian,
         bool _paused,
         SystemConfig _config
-    ) Semver(1, 7, 2) {
+    ) Semver(1, 7, 3) {
         L2_ORACLE = _l2Oracle;
         GUARDIAN = _guardian;
         SYSTEM_CONFIG = _config;

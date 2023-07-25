@@ -8,9 +8,11 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 /// @notice ERC721Bridge is a base contract for the L1 and L2 ERC721 bridges.
 abstract contract ERC721Bridge {
     /// @notice Messenger contract on this domain.
+    /// @custom:network-specific-config
     CrossDomainMessenger public immutable MESSENGER;
 
     /// @notice Address of the bridge on the other network.
+    /// @custom:network-specific-config
     address public immutable OTHER_BRIDGE;
 
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.

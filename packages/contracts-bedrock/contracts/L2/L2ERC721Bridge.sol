@@ -17,12 +17,12 @@ import { Semver } from "../universal/Semver.sol";
 ///         wait for the one-week challenge period to elapse before their Optimism-native NFT
 ///         can be refunded on L2.
 contract L2ERC721Bridge is ERC721Bridge, Semver {
-    /// @custom:semver 1.1.1
+    /// @custom:semver 1.1.2
     /// @notice Constructs the L2ERC721Bridge contract.
     /// @param _messenger   Address of the CrossDomainMessenger on this network.
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
     constructor(address _messenger, address _otherBridge)
-        Semver(1, 1, 1)
+        Semver(1, 1, 2)
         ERC721Bridge(_messenger, _otherBridge)
     {}
 

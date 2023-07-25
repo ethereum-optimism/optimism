@@ -115,6 +115,7 @@ abstract contract CrossDomainMessenger is
     uint64 public constant RELAY_GAS_CHECK_BUFFER = 5_000;
 
     /// @notice Address of the paired CrossDomainMessenger contract on the other chain.
+    /// @custom:network-specific-config
     address public immutable OTHER_MESSENGER;
 
     /// @notice Mapping of message hashes to boolean receipt values. Note that a message will only
