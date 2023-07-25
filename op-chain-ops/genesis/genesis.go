@@ -127,6 +127,7 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		LondonBlock:         big.NewInt(0),
 		ArrowGlacierBlock:   big.NewInt(0),
 		GrayGlacierBlock:    big.NewInt(0),
+		ShanghaiTime:        u64ptr(0),
 	}
 
 	if config.CliqueSignerAddress != (common.Address{}) {
@@ -179,4 +180,8 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		BaseFee:    baseFee.ToInt(),
 		Alloc:      map[common.Address]core.GenesisAccount{},
 	}, nil
+}
+
+func u64ptr(n uint64) *uint64 {
+	return &n
 }
