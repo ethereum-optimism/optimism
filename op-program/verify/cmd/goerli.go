@@ -100,19 +100,31 @@ func Run(l1RpcUrl string, l2RpcUrl string, l2OracleAddr common.Address) error {
 	if err != nil {
 		return fmt.Errorf("retrieve agreed l2 block: %w", err)
 	}
-	l2Head := l2AgreedBlock.Hash()
 	agreedOutputIndex, err := outputOracle.GetL2OutputIndexAfter(callOpts, l2AgreedBlock.Number())
 	if err != nil {
 		return fmt.Errorf("failed to output index after agreed block")
 	}
-	agreedOutput, err := outputOracle.GetL2Output(callOpts, agreedOutputIndex)
+	// Find an output that differs from what is being claimed
+	var agreedOutput bindings.TypesOutputProposal
+	for {
+		agreedOutput, err = outputOracle.GetL2Output(callOpts, agreedOutputIndex)
+		if err != nil {
+			return fmt.Errorf("retrieve agreed output: %w", err)
+		}
+		if agreedOutput.OutputRoot != output.OutputRoot {
+			break
+		}
+		fmt.Printf("Output at %d equals output at finalized block. Continuing search...\n", agreedBlockNumber)
+		agreedOutputIndex.Sub(agreedOutputIndex, big.NewInt(1))
+		if agreedOutputIndex.Int64() < 0 {
+			return fmt.Errorf("failed to find an output different from finalized block output")
+		}
+	}
+	l2BlockAtOutput, err := l2Client.BlockByNumber(ctx, agreedOutput.L2BlockNumber)
 	if err != nil {
-		return fmt.Errorf("retrieve agreed output: %w", err)
+		return fmt.Errorf("retrieve agreed block: %w", err)
 	}
-	if agreedOutput.OutputRoot == output.OutputRoot {
-		// TODO(inphi): Don't return here but keep searching preceding blocks for a different output
-		return fmt.Errorf("agreed output is the same as the output claim")
-	}
+	l2Head := l2BlockAtOutput.Hash()
 
 	temp, err := os.MkdirTemp("", "oracledata")
 	if err != nil {
