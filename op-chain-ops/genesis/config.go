@@ -7,7 +7,6 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
-	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
