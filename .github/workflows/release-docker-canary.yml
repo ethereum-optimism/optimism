@@ -19,7 +19,7 @@ jobs:
       balance-mon: ${{ steps.packages.outputs.balance-mon }}
       drippie-mon: ${{ steps.packages.outputs.drippie-mon }}
       wd-mon: ${{ steps.packages.outputs.wd-mon }}
-      replica-healthcheck: ${{ steps.packages.outputs.replica-healthcheck }}
+      replica-mon: ${{ steps.packages.outputs.replica-mon }}
       canary-docker-tag: ${{ steps.docker-image-name.outputs.canary-docker-tag }}
       op-exporter: ${{ steps.packages.outputs.op-exporter }}
       endpoint-monitor: ${{ steps.packages.outputs.endpoint-monitor }}
@@ -151,10 +151,10 @@ jobs:
           push: true
           tags: ethereumoptimism/wd-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
-  replica-healthcheck:
-    name: Publish Replica Healthcheck Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+  replica-mon:
+    name: Publish replica-mon Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
     needs: canary-publish
-    if: needs.canary-publish.outputs.replica-healthcheck != ''
+    if: needs.canary-publish.outputs.replica-mon != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -174,9 +174,9 @@ jobs:
         with:
           context: .
           file: ./ops/docker/Dockerfile.packages
-          target: replica-healthcheck
+          target: replica-mon
           push: true
-          tags: ethereumoptimism/replica-healthcheck:${{ needs.canary-publish.outputs.canary-docker-tag }}
+          tags: ethereumoptimism/replica-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   op-exporter:
     name: Publish op-exporter Version ${{ needs.canary-publish.outputs.canary-docker-tag }}

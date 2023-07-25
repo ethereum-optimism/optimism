@@ -23,11 +23,11 @@ Copy `.env.example` into a new file named `.env`, then set the environment varia
 You can view a list of all environment variables and descriptions for each via:
 
 ```
-pnpm start --help
+pnpm start:replica-mon --help
 ```
 
-Once your environment variables have been set, run the relayer via:
+Once your environment variables have been set, run the healthcheck service via:
 
 ```
-pnpm start
+pnpm start:replica-mon
 ```

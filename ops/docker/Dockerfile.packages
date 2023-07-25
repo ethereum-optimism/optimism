@@ -79,9 +79,9 @@ RUN git submodule update --init --recursive
 
 RUN pnpm build
 
-FROM base as replica-healthcheck
-WORKDIR /opt/optimism/packages/replica-healthcheck
-ENTRYPOINT ["pnpm", "run", "start"]
+FROM base as replica-mon
+WORKDIR /opt/optimism/packages/chain-mon
+ENTRYPOINT ["pnpm", "run", "start:replica-mon"]
 
 FROM base as balance-mon
 WORKDIR /opt/optimism/packages/chain-mon
