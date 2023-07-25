@@ -6,14 +6,13 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
 var (
-	testAddr = common.HexToAddress("0x1234567890123456789012345678901234567890")
-	errMock  = errors.New("mock error")
+	errMock = errors.New("mock error")
 )
 
 type mockFaultDisputeGameCaller struct {
@@ -42,7 +41,7 @@ func TestFaultCaller_GetGameStatus(t *testing.T) {
 	tests := []struct {
 		name           string
 		caller         FaultDisputeGameCaller
-		expectedStatus uint8
+		expectedStatus types.GameStatus
 		expectedErr    error
 	}{
 		{
@@ -50,7 +49,7 @@ func TestFaultCaller_GetGameStatus(t *testing.T) {
 			caller: &mockFaultDisputeGameCaller{
 				status: 1,
 			},
-			expectedStatus: 1,
+			expectedStatus: types.GameStatusChallengerWon,
 			expectedErr:    nil,
 		},
 		{
@@ -65,7 +64,7 @@ func TestFaultCaller_GetGameStatus(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			fc := NewFaultCaller(testAddr, test.caller, nil)
+			fc := NewFaultCaller(test.caller, nil)
 			status, err := fc.GetGameStatus(context.Background())
 			require.Equal(t, test.expectedStatus, status)
 			require.Equal(t, test.expectedErr, err)
@@ -100,7 +99,7 @@ func TestFaultCaller_GetClaimDataLength(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			fc := NewFaultCaller(testAddr, test.caller, nil)
+			fc := NewFaultCaller(test.caller, nil)
 			claimDataLen, err := fc.GetClaimDataLength(context.Background())
 			require.Equal(t, test.expectedClaimDataLen, claimDataLen)
 			require.Equal(t, test.expectedErr, err)

@@ -671,6 +671,10 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 		}
 	}
 
+	// Don't start batch submitter and proposer if there's no sequencer.
+	if sys.RollupNodes["sequencer"] == nil {
+		return sys, nil
+	}
 	// L2Output Submitter
 	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
 		L1EthRpc:          sys.EthInstances["l1"].WSEndpoint(),

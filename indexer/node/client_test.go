@@ -31,6 +31,11 @@ func (m *MockEthClient) BlockHeaderByHash(hash common.Hash) (*types.Header, erro
 	return args.Get(0).(*types.Header), args.Error(1)
 }
 
+func (m *MockEthClient) StorageHash(address common.Address, blockNumber *big.Int) (common.Hash, error) {
+	args := m.Called(address, blockNumber)
+	return args.Get(0).(common.Hash), args.Error(1)
+}
+
 func (m *MockEthClient) RawRpcClient() *rpc.Client {
 	args := m.Called()
 	return args.Get(0).(*rpc.Client)

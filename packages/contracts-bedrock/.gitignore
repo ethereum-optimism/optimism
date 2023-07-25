@@ -19,3 +19,4 @@ deployments/hardhat
 .envrc
 !.envrc.example
 deployments/getting-started
+deployments/*/.deploy

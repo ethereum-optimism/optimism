@@ -19,7 +19,7 @@ The OP Stack is a decentralized development stack that powers Optimism. Componen
 
 The security model of an OP Stack based blockchain depends on the modules used for its components. Because of the flexibility provided by OP Stack, it is always possible to set up an insecure blockchain using OP Stack components. **The goal of the OP Stack is to provide safe defaults.**
 
-Please also keep in mind that just like any other system, **the OP Stack may contain unknown bugs** that could lead to the loss of some or all of the assets held within an OP Stack based system. [Many components of the OP Stack codebase have been audited](https://github.com/ethereum-optimism/optimism/tree/develop/technical-documents/security-reviews) but **audits are not a stamp of approval** and **a completed audit does not mean that the audited codebase is free of bugs.** It’s important to understand that using the OP Stack inherently exposes you to the risk of bugs within the OP Stack codebase.
+Please also keep in mind that just like any other system, **the OP Stack may contain unknown bugs** that could lead to the loss of some or all of the assets held within an OP Stack based system. [Many components of the OP Stack codebase have been audited](https://github.com/ethereum-optimism/optimism/tree/129032f15b76b0d2a940443a39433de931a97a44/technical-documents/security-reviews) but **audits are not a stamp of approval** and **a completed audit does not mean that the audited codebase is free of bugs.** It’s important to understand that using the OP Stack inherently exposes you to the risk of bugs within the OP Stack codebase.
 
 ### Is the OP Stack safe to modify?
 

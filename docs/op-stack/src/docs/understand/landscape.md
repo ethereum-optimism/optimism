@@ -35,8 +35,8 @@ The Data Availability Layer defines where the raw inputs to an OP Stack based ch
 
 Ethereum DA is currently the most widely used Data Availability module for the OP Stack. When using the Ethereum DA module, source data can be derived from any piece of information accessible on the Ethereum blockchain. This includes Ethereum calldata, events, and 4844 data blobs.
 
-- [Specifications](https://github.com/ethereum-optimism/optimism/blob/develop/specs/derivation.md#batch-submission-wire-format)
-- [Source code](https://github.com/ethereum-optimism/optimism/tree/develop/op-batcher)
+- [Specifications](https://github.com/ethereum-optimism/optimism/blob/129032f15b76b0d2a940443a39433de931a97a44/specs/derivation.md#batch-submission-wire-format)
+- [Source code](https://github.com/ethereum-optimism/optimism/tree/129032f15b76b0d2a940443a39433de931a97a44/op-batcher)
 
 ### Sequencing
 
@@ -58,8 +58,8 @@ The Derivation Layer defines how the raw data in the Data Availability Layer is 
 
 The Rollup module derives Engine API inputs from Ethereum block data, Sequencer transaction batches, Deposited transaction events, and more.
 
-- [Specifications](https://github.com/ethereum-optimism/optimism/blob/develop/specs/derivation.md#l2-chain-derivation-pipeline)
-- [Source code](https://github.com/ethereum-optimism/optimism/tree/develop/op-node)
+- [Specifications](https://github.com/ethereum-optimism/optimism/blob/129032f15b76b0d2a940443a39433de931a97a44/specs/derivation.md#l2-chain-derivation-pipeline)
+- [Source code](https://github.com/ethereum-optimism/optimism/tree/129032f15b76b0d2a940443a39433de931a97a44/op-node)
 
 #### Indexer (proposed)
 
@@ -73,8 +73,8 @@ The Execution Layer defines the structure of state within an OP Stack system and
 
 The EVM is an Execution Layer module that uses the same state representation and state transition function as the Ethereum Virtual Machine. The EVM module in the Ethereum Rollup configuration of the OP Stack is a [lightly modified](https://op-geth.optimism.io/) version of the EVM that adds support for L2 transactions initiated on Ethereum and adds an extra L1 Data Fee to each transaction to account for the cost of publishing transactions to Ethereum.
 
-- [Specifications](https://github.com/ethereum-optimism/optimism/blob/develop/specs/exec-engine.md) (where it differs from [geth](https://geth.ethereum.org/))
-- [Source code](https://github.com/ethereum-optimism/op-geth)
+- [Specifications](https://github.com/ethereum-optimism/optimism/blob/129032f15b76b0d2a940443a39433de931a97a44/specs/exec-engine.md) (where it differs from [geth](https://geth.ethereum.org/))
+- [Source code](https://github.com/ethereum-optimism/op-geth/tree/09ade3df6d1d3a4f8f308553825348be132bc960)
 
 ### Settlement Layer
 
@@ -89,8 +89,8 @@ Once a transaction is published and finalized on the corresponding Data Availabi
 
 An Attestation-based Fault Proof mechanism uses an optimistic protocol to establish a view of an OP Stack chain. In optimistic settlement mechanisms generally, **Proposer** entities can propose what they believe to be the current valid state of the OP Stack chain. If these proposals are not invalidated within a certain period of time (the “challenge period”), then the proposals are assumed by the mechanism to be correct. In the Attestation Proof mechanism in particular, a proposal can be invalidated if some threshold of pre-defined parties provide attestations to a valid state that is different than the state in the proposal. This places a trust assumption on the honesty of at least a threshold number of the pre-defined participants.
 
-- [Specifications](https://github.com/ethereum-optimism/optimism/blob/develop/specs/withdrawals.md) (called [withdrawal transactions](https://community.optimism.io/docs/developers/bridge/messaging/#))
-- [Source code](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/contracts)
+- [Specifications](https://github.com/ethereum-optimism/optimism/blob/129032f15b76b0d2a940443a39433de931a97a44/specs/withdrawals.md) (called [withdrawal transactions](https://community.optimism.io/docs/developers/bridge/messaging/#))
+- [Source code](https://github.com/ethereum-optimism/optimism/tree/129032f15b76b0d2a940443a39433de931a97a44/packages/contracts-bedrock/contracts)
 
 #### Fault Proof Optimistic Settlement (proposed)
 

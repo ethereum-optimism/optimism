@@ -19,10 +19,6 @@
     {
       "directory": "packages/chain-mon",
       "changeProcessCWD": true
-    },
-    {
-      "directory": "packages/fault-detector",
-      "changeProcessCWD": true
     }
   ],
   "eslint.nodePath": "./node_modules/eslint/bin/",

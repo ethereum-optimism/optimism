@@ -80,7 +80,8 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		return nil, err
 	}
 
-	backend := deployer.NewBackendWithGenesisTimestamp(uint64(config.L1GenesisBlockTimestamp))
+	// Enable shanghai
+	backend := deployer.NewBackendWithGenesisTimestamp(uint64(config.L1GenesisBlockTimestamp), true)
 
 	deployments, err := deployL1Contracts(config, backend)
 	if err != nil {
@@ -124,7 +125,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 	gasLimit := uint64(config.L2GenesisBlockGasLimit)
 	if gasLimit == 0 {
-		gasLimit = defaultL2GasLimit
+		gasLimit = defaultGasLimit
 	}
 
 	data, err = sysCfgABI.Pack(
@@ -328,7 +329,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 	}
 	gasLimit := uint64(config.L2GenesisBlockGasLimit)
 	if gasLimit == 0 {
-		gasLimit = defaultL2GasLimit
+		gasLimit = defaultGasLimit
 	}
 
 	constructors = append(constructors, []deployer.Constructor{

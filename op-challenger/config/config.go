@@ -2,20 +2,53 @@ package config
 
 import (
 	"errors"
+	"fmt"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/urfave/cli/v2"
-
-	"github.com/ethereum-optimism/optimism/op-challenger/flags"
-	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 var (
-	ErrMissingL1EthRPC      = errors.New("missing l1 eth rpc url")
-	ErrMissingGameAddress   = errors.New("missing game address")
-	ErrMissingAlphabetTrace = errors.New("missing alphabet trace")
+	ErrMissingTraceType              = errors.New("missing trace type")
+	ErrMissingCannonDatadir          = errors.New("missing cannon datadir")
+	ErrMissingCannonL2               = errors.New("missing cannon L2")
+	ErrMissingCannonBin              = errors.New("missing cannon bin")
+	ErrMissingCannonAbsolutePreState = errors.New("missing cannon absolute pre-state")
+	ErrMissingAlphabetTrace          = errors.New("missing alphabet trace")
+	ErrMissingL1EthRPC               = errors.New("missing l1 eth rpc url")
+	ErrMissingGameAddress            = errors.New("missing game address")
 )
+
+type TraceType string
+
+const (
+	TraceTypeAlphabet TraceType = "alphabet"
+	TraceTypeCannon   TraceType = "cannon"
+)
+
+var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon}
+
+func (t TraceType) String() string {
+	return string(t)
+}
+
+// Set implements the Set method required by the [cli.Generic] interface.
+func (t *TraceType) Set(value string) error {
+	if !ValidTraceType(TraceType(value)) {
+		return fmt.Errorf("unknown trace type: %q", value)
+	}
+	*t = TraceType(value)
+	return nil
+}
+
+func ValidTraceType(value TraceType) bool {
+	for _, t := range TraceTypes {
+		if t == value {
+			return true
+		}
+	}
+	return false
+}
 
 // Config is a well typed config that is parsed from the CLI params.
 // This also contains config options for auxiliary services.
@@ -23,27 +56,40 @@ var (
 type Config struct {
 	L1EthRpc                string         // L1 RPC Url
 	GameAddress             common.Address // Address of the fault game
-	AlphabetTrace           string         // String for the AlphabetTraceProvider
 	AgreeWithProposedOutput bool           // Temporary config if we agree or disagree with the posted output
 	GameDepth               int            // Depth of the game tree
+
+	TraceType TraceType // Type of trace
+
+	// Specific to the alphabet trace provider
+	AlphabetTrace string // String for the AlphabetTraceProvider
+
+	// Specific to the cannon trace provider
+	CannonBin              string // Path to the cannon executable to run when generating trace data
+	CannonAbsolutePreState string // File to load the absolute pre-state for Cannon traces from
+	CannonDatadir          string // Cannon Data Directory
+	CannonL2               string // L2 RPC Url
 
 	TxMgrConfig txmgr.CLIConfig
 }
 
 func NewConfig(
 	l1EthRpc string,
-	GameAddress common.Address,
-	AlphabetTrace string,
-	AgreeWithProposedOutput bool,
-	GameDepth int,
+	gameAddress common.Address,
+	traceType TraceType,
+	agreeWithProposedOutput bool,
+	gameDepth int,
 ) Config {
 	return Config{
-		L1EthRpc:                l1EthRpc,
-		GameAddress:             GameAddress,
-		AlphabetTrace:           AlphabetTrace,
-		TxMgrConfig:             txmgr.NewCLIConfig(l1EthRpc),
-		AgreeWithProposedOutput: AgreeWithProposedOutput,
-		GameDepth:               GameDepth,
+		L1EthRpc:    l1EthRpc,
+		GameAddress: gameAddress,
+
+		AgreeWithProposedOutput: agreeWithProposedOutput,
+		GameDepth:               gameDepth,
+
+		TraceType: traceType,
+
+		TxMgrConfig: txmgr.NewCLIConfig(l1EthRpc),
 	}
 }
 
@@ -54,34 +100,28 @@ func (c Config) Check() error {
 	if c.GameAddress == (common.Address{}) {
 		return ErrMissingGameAddress
 	}
-	if c.AlphabetTrace == "" {
+	if c.TraceType == "" {
+		return ErrMissingTraceType
+	}
+	if c.TraceType == TraceTypeCannon {
+		if c.CannonBin == "" {
+			return ErrMissingCannonBin
+		}
+		if c.CannonAbsolutePreState == "" {
+			return ErrMissingCannonAbsolutePreState
+		}
+		if c.CannonDatadir == "" {
+			return ErrMissingCannonDatadir
+		}
+		if c.CannonL2 == "" {
+			return ErrMissingCannonL2
+		}
+	}
+	if c.TraceType == TraceTypeAlphabet && c.AlphabetTrace == "" {
 		return ErrMissingAlphabetTrace
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {
 		return err
 	}
 	return nil
-}
-
-// NewConfigFromCLI parses the Config from the provided flags or environment variables.
-func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
-	if err := flags.CheckRequired(ctx); err != nil {
-		return nil, err
-	}
-	dgfAddress, err := opservice.ParseAddress(ctx.String(flags.DGFAddressFlag.Name))
-	if err != nil {
-		return nil, err
-	}
-
-	txMgrConfig := txmgr.ReadCLIConfig(ctx)
-
-	return &Config{
-		// Required Flags
-		L1EthRpc:                ctx.String(flags.L1EthRpcFlag.Name),
-		GameAddress:             dgfAddress,
-		AlphabetTrace:           ctx.String(flags.AlphabetFlag.Name),
-		AgreeWithProposedOutput: ctx.Bool(flags.AgreeWithProposedOutputFlag.Name),
-		GameDepth:               ctx.Int(flags.GameDepthFlag.Name),
-		TxMgrConfig:             txMgrConfig,
-	}, nil
 }

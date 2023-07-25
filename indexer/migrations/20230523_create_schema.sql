@@ -56,6 +56,8 @@ CREATE TABLE IF NOT EXISTS legacy_state_batches (
 
 CREATE TABLE IF NOT EXISTS output_proposals (
     output_root     VARCHAR NOT NULL PRIMARY KEY,
+
+    l2_output_index UINT256,
     l2_block_number UINT256,
 
     l1_contract_event_guid VARCHAR REFERENCES l1_contract_events(guid)

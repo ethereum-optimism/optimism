@@ -103,6 +103,7 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
       l2SignerOrProvider: this.options.l2RpcProvider,
       l1ChainId: await getChainId(this.options.l1RpcProvider),
       l2ChainId: await getChainId(this.options.l2RpcProvider),
+      bedrock: true,
     })
 
     // Not detected by default.

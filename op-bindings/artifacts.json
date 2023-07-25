@@ -28,10 +28,13 @@
   "L1BlockNumber",
   "DisputeGameFactory",
   "FaultDisputeGame",
+  "AlphabetVM",
   "StandardBridge",
   "CrossDomainMessenger",
   "MIPS",
   "PreimageOracle",
+  "EAS",
+  "SchemaRegistry",
   "BOBA",
   "BobaTuringCredit",
   "GovernanceToken"

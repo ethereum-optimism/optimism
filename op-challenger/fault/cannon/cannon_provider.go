@@ -7,12 +7,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/fault"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 )
 
-const proofsDir = "proofs"
+const (
+	proofsDir = "proofs"
+)
 
 type proofData struct {
 	ClaimValue hexutil.Bytes `json:"post"`
@@ -20,13 +22,20 @@ type proofData struct {
 	ProofData  hexutil.Bytes `json:"proof-data"`
 }
 
-type CannonTraceProvider struct {
-	dir string
+type Executor interface {
+	// GenerateProof executes cannon to generate a proof at the specified trace index in dataDir.
+	GenerateProof(dataDir string, proofAt uint64) error
 }
 
-func NewCannonTraceProvider(dataDir string) *CannonTraceProvider {
+type CannonTraceProvider struct {
+	dir      string
+	executor Executor
+}
+
+func NewCannonTraceProvider(logger log.Logger, dataDir string) *CannonTraceProvider {
 	return &CannonTraceProvider{
-		dir: dataDir,
+		dir:      dataDir,
+		executor: newExecutor(logger),
 	}
 }
 
@@ -43,16 +52,20 @@ func (p *CannonTraceProvider) Get(i uint64) (common.Hash, error) {
 	return value, nil
 }
 
-func (p *CannonTraceProvider) GetPreimage(i uint64) ([]byte, error) {
+func (p *CannonTraceProvider) GetPreimage(i uint64) ([]byte, []byte, error) {
 	proof, err := p.loadProof(i)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	value := ([]byte)(proof.StateData)
 	if len(value) == 0 {
-		return nil, errors.New("proof missing state data")
+		return nil, nil, errors.New("proof missing state data")
 	}
-	return value, nil
+	data := ([]byte)(proof.ProofData)
+	if len(data) == 0 {
+		return nil, nil, errors.New("proof missing proof data")
+	}
+	return value, data, nil
 }
 
 func (p *CannonTraceProvider) AbsolutePreState() []byte {
@@ -62,6 +75,13 @@ func (p *CannonTraceProvider) AbsolutePreState() []byte {
 func (p *CannonTraceProvider) loadProof(i uint64) (*proofData, error) {
 	path := filepath.Join(p.dir, proofsDir, fmt.Sprintf("%d.json", i))
 	file, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		if err := p.executor.GenerateProof(p.dir, i); err != nil {
+			return nil, fmt.Errorf("generate cannon trace with proof at %v: %w", i, err)
+		}
+		// Try opening the file again now and it should exist.
+		file, err = os.Open(path)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot open proof file (%v): %w", path, err)
 	}
@@ -73,5 +93,3 @@ func (p *CannonTraceProvider) loadProof(i uint64) (*proofData, error) {
 	}
 	return &proof, nil
 }
-
-var _ fault.TraceProvider = (*CannonTraceProvider)(nil)

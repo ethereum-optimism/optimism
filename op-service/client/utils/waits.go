@@ -59,6 +59,14 @@ func WaitBlock(ctx context.Context, client *ethclient.Client, n uint64) error {
 	return nil
 }
 
+func WaitNextBlock(ctx context.Context, client *ethclient.Client) error {
+	current, err := client.BlockNumber(ctx)
+	if err != nil {
+		return fmt.Errorf("get starting block number: %w", err)
+	}
+	return WaitBlock(ctx, client, current+1)
+}
+
 func WaitFor(ctx context.Context, rate time.Duration, cb func() (bool, error)) error {
 	tick := time.NewTicker(rate)
 	defer tick.Stop()

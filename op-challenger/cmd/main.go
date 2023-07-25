@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -41,7 +42,7 @@ func main() {
 	}
 }
 
-type ConfigAction func(log log.Logger, config *config.Config) error
+type ConfigAction func(ctx context.Context, log log.Logger, config *config.Config) error
 
 func run(args []string, action ConfigAction) error {
 	oplog.SetupDefaults()
@@ -59,11 +60,11 @@ func run(args []string, action ConfigAction) error {
 		}
 		logger.Info("Starting op-challenger", "version", VersionWithMeta)
 
-		cfg, err := config.NewConfigFromCLI(ctx)
+		cfg, err := flags.NewConfigFromCLI(ctx)
 		if err != nil {
 			return err
 		}
-		return action(logger, cfg)
+		return action(ctx.Context, logger, cfg)
 	}
 	return app.Run(args)
 }

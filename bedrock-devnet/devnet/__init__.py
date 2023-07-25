@@ -238,22 +238,22 @@ def wait_for_rpc_server(url):
             time.sleep(1)
 
 def devnet_test(paths):
-    if not os.path.exists(paths.sdk_addresses_json_path):
-        raise Exception("could not locate sdk addresses json, ensure you brought up the devnet in deploy mode, e.g. 'make devnet-up-deploy'")
     # Check the L2 config
     run_command(
         ['go', 'run', 'cmd/check-l2/main.go', '--l2-rpc-url', 'http://localhost:9545', '--l1-rpc-url', 'http://localhost:8545'],
         cwd=paths.ops_chain_ops,
     )
 
+    l1_contracts_path = ['--l1-contracts-json-path', paths.sdk_addresses_json_path] if os.path.exists(paths.sdk_addresses_json_path) else []
+
     run_command(
-         ['npx', 'hardhat',  'deposit-erc20', '--network',  'devnetL1', '--l1-contracts-json-path', paths.sdk_addresses_json_path],
+         ['npx', 'hardhat',  'deposit-erc20', '--network',  'devnetL1'] + l1_contracts_path,
          cwd=paths.sdk_dir,
          timeout=8*60,
     )
 
     run_command(
-         ['npx', 'hardhat',  'deposit-eth', '--network',  'devnetL1', '--l1-contracts-json-path', paths.sdk_addresses_json_path],
+         ['npx', 'hardhat',  'deposit-eth', '--network',  'devnetL1'] + l1_contracts_path,
          cwd=paths.sdk_dir,
          timeout=8*60,
     )

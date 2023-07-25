@@ -178,7 +178,7 @@ The `cast wallet new` tool is *not* designed for production deployments. If you 
 
 ## Configure your network
 
-Once you’ve built both repositories, you’ll need head back to the Optimism Monorepo to set up the configuration for your chain. Currently, chain configuration lives inside of the [`contracts-bedrock`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock) package.
+Once you’ve built both repositories, you’ll need head back to the Optimism Monorepo to set up the configuration for your chain. Currently, chain configuration lives inside of the [`contracts-bedrock`](https://github.com/ethereum-optimism/optimism/tree/129032f15b76b0d2a940443a39433de931a97a44/packages/contracts-bedrock) package.
 
 1. Enter the Optimism Monorepo:
 
@@ -226,7 +226,7 @@ Once you’ve built both repositories, you’ll need head back to the Optimism M
     timestamp            1676253324
     ```
 
-1. Fill out the remainder of the pre-populated config file found at [`deploy-config/getting-started.json`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/deploy-config/getting-started.json). Use the default values in the config file and make following modifications:
+1. Fill out the remainder of the pre-populated config file found at [`deploy-config/getting-started.json`](https://github.com/ethereum-optimism/optimism/blob/129032f15b76b0d2a940443a39433de931a97a44/packages/contracts-bedrock/deploy-config/getting-started.json). Use the default values in the config file and make following modifications:
 
     - Replace `"ADMIN"` with the address of the Admin account you generated earlier.
     - Replace `"PROPOSER"` with the address of the Proposer account you generated earlier.

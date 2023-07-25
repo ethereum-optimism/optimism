@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
 import { L2OutputOracle_Initializer } from "../CommonTest.t.sol";
@@ -13,9 +14,7 @@ contract L2OutputOracle_Proposer {
         vm = _vm;
     }
 
-    /**
-     * @dev Allows the actor to propose an L2 output to the `L2OutputOracle`
-     */
+    /// @dev Allows the actor to propose an L2 output to the `L2OutputOracle`
     function proposeL2Output(
         bytes32 _outputRoot,
         uint256 _l2BlockNumber,
@@ -49,13 +48,11 @@ contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is L2OutputOracle_In
         targetSelector(selector);
     }
 
-    /**
-     * @custom:invariant The block number of the output root proposals should monotonically
-     * increase.
-     *
-     * When a new output is submitted, it should never be allowed to correspond to a block
-     * number that is less than the current output.
-     */
+    /// @custom:invariant The block number of the output root proposals should monotonically
+    ///                   increase.
+    ///
+    ///                   When a new output is submitted, it should never be allowed to
+    ///                   correspond to a block number that is less than the current output.
     function invariant_monotonicBlockNumIncrease() external {
         // Assert that the block number of proposals must monotonically increase.
         assertTrue(oracle.nextBlockNumber() >= oracle.latestBlockNumber());
