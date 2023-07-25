@@ -77,7 +77,6 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 
 		L1BlockTime:                 tp.L1BlockTime,
 		L1GenesisBlockNonce:         0,
-		CliqueSignerAddress:         common.Address{}, // proof of stake, no clique
 		L1GenesisBlockTimestamp:     hexutil.Uint64(time.Now().Unix()),
 		L1GenesisBlockGasLimit:      30_000_000,
 		L1GenesisBlockDifficulty:    uint64ToBig(1),
@@ -284,7 +283,6 @@ func ForkedDeployConfig(t require.TestingT, mnemonicCfg *MnemonicConfig, startBl
 		L2GenesisBlockBaseFeePerGas: uint64ToBig(0x3B9ACA00),
 		L2GenesisBlockDifficulty:    uint64ToBig(0),
 		L1BlockTime:                 12,
-		CliqueSignerAddress:         addrs.CliqueSigner,
 		FinalizationPeriodSeconds:   2,
 		DeploymentWaitConfirmations: 1,
 		EIP1559Elasticity:           10,

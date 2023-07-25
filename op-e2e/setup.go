@@ -102,7 +102,6 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 
 		L1BlockTime:                 2,
 		L1GenesisBlockNonce:         4660,
-		CliqueSignerAddress:         common.Address{}, // op-e2e used to run Clique, but now uses fake Proof of Stake.
 		L1GenesisBlockTimestamp:     hexutil.Uint64(time.Now().Unix()),
 		L1GenesisBlockGasLimit:      30_000_000,
 		L1GenesisBlockDifficulty:    uint642big(1),

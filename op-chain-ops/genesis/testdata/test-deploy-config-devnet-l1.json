@@ -18,7 +18,6 @@
   "l2OutputOracleChallenger": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
 
   "l1BlockTime": 15,
-  "cliqueSignerAddress": "0xca062b0fd91172d89bcd4bb084ac4e21972cc467",
 
   "baseFeeVaultRecipient": "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
   "l1FeeVaultRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
