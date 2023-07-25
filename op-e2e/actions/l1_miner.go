@@ -73,7 +73,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 				header.GasLimit = parent.GasLimit * s.l1Cfg.Config.ElasticityMultiplier()
 			}
 		}
-		if s.l1Cfg.Config.IsShanghai(header.Time) {
+		if s.l1Cfg.Config.IsShanghai(header.Number, header.Time) {
 			header.WithdrawalsHash = &types.EmptyWithdrawalsHash
 		}
 
@@ -146,7 +146,7 @@ func (s *L1Miner) ActL1EndBlock(t Testing) {
 	s.l1BuildingHeader.GasUsed = s.l1BuildingHeader.GasLimit - uint64(*s.l1GasPool)
 	s.l1BuildingHeader.Root = s.l1BuildingState.IntermediateRoot(s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number))
 	block := types.NewBlock(s.l1BuildingHeader, s.l1Transactions, nil, s.l1Receipts, trie.NewStackTrie(nil))
-	if s.l1Cfg.Config.IsShanghai(s.l1BuildingHeader.Time) {
+	if s.l1Cfg.Config.IsShanghai(s.l1BuildingHeader.Number, s.l1BuildingHeader.Time) {
 		block = block.WithWithdrawals(make([]*types.Withdrawal, 0))
 	}
 

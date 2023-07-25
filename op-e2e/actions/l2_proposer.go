@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -102,7 +103,7 @@ func (p *L2Proposer) sendTx(t Testing, data []byte) {
 	nonce, err := p.l1.NonceAt(t.Ctx(), p.address, nil)
 	require.NoError(t, err)
 
-	gasLimit, err := p.l1.EstimateGas(t.Ctx(), ethereum.CallMsg{
+	gasLimit, err := estimateGasPending(t.Ctx(), p.l1, ethereum.CallMsg{
 		From:      p.address,
 		To:        &p.contractAddr,
 		GasFeeCap: gasFeeCap,
@@ -128,6 +129,39 @@ func (p *L2Proposer) sendTx(t Testing, data []byte) {
 	require.NoError(t, err, "need to send tx")
 
 	p.lastTx = tx.Hash()
+}
+
+// estimateGasPending calls eth_estimateGas specifying the pending block. This is required for transactions from the
+// proposer because they include a reference to the latest block which isn't available via `BLOCKHASH` if `latest` is
+// used. In production code, the proposer waits until another L1 block is published but in e2e tests no new L1 blocks
+// will be created so pending must be used.
+func estimateGasPending(ctx context.Context, ec *ethclient.Client, msg ethereum.CallMsg) (uint64, error) {
+	var hex hexutil.Uint64
+	err := ec.Client().CallContext(ctx, &hex, "eth_estimateGas", toCallArg(msg), "pending")
+	if err != nil {
+		return 0, err
+	}
+	return uint64(hex), nil
+}
+
+func toCallArg(msg ethereum.CallMsg) interface{} {
+	arg := map[string]interface{}{
+		"from": msg.From,
+		"to":   msg.To,
+	}
+	if len(msg.Data) > 0 {
+		arg["data"] = hexutil.Bytes(msg.Data)
+	}
+	if msg.Value != nil {
+		arg["value"] = (*hexutil.Big)(msg.Value)
+	}
+	if msg.Gas != 0 {
+		arg["gas"] = hexutil.Uint64(msg.Gas)
+	}
+	if msg.GasPrice != nil {
+		arg["gasPrice"] = (*hexutil.Big)(msg.GasPrice)
+	}
+	return arg
 }
 
 func (p *L2Proposer) CanPropose(t Testing) bool {
