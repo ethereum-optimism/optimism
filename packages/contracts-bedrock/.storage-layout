@@ -63,6 +63,9 @@
 | finalizedWithdrawals | mapping(bytes32 => bool)                                   | 51   | 0      | 32    | src/L1/OptimismPortal.sol:OptimismPortal |
 | provenWithdrawals    | mapping(bytes32 => struct OptimismPortal.ProvenWithdrawal) | 52   | 0      | 32    | src/L1/OptimismPortal.sol:OptimismPortal |
 | paused               | bool                                                       | 53   | 0      | 1     | src/L1/OptimismPortal.sol:OptimismPortal |
+| L2_ORACLE            | contract L2OutputOracle                                    | 53   | 1      | 20    | src/L1/OptimismPortal.sol:OptimismPortal |
+| SYSTEM_CONFIG        | contract SystemConfig                                      | 54   | 0      | 20    | src/L1/OptimismPortal.sol:OptimismPortal |
+| GUARDIAN             | address                                                    | 55   | 0      | 20    | src/L1/OptimismPortal.sol:OptimismPortal |
 
 =======================
 ➡ src/L1/SystemConfig.sol:SystemConfig

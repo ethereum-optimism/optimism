@@ -35,15 +35,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /// @notice The L2 gas limit set when eth is deposited using the receive() function.
     uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
 
-    /// @notice Address of the L2OutputOracle contract.
-    L2OutputOracle public immutable L2_ORACLE;
-
-    /// @notice Address of the SystemConfig contract.
-    SystemConfig public immutable SYSTEM_CONFIG;
-
-    /// @notice Address that has the ability to pause and unpause withdrawals.
-    address public immutable GUARDIAN;
-
     /// @notice Address of the L2 account which initiated a withdrawal in this transaction.
     ///         If the of this variable is the default L2 sender address, then we are NOT inside of
     ///         a call to finalizeWithdrawalTransaction.
@@ -59,6 +50,15 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     ///         When set to true, withdrawals are paused.
     ///         This may be removed in the future.
     bool public paused;
+
+    /// @notice Address of the L2OutputOracle contract.
+    L2OutputOracle public L2_ORACLE;
+
+    /// @notice Address of the SystemConfig contract.
+    SystemConfig public SYSTEM_CONFIG;
+
+    /// @notice Address that has the ability to pause and unpause withdrawals.
+    address public GUARDIAN;
 
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
@@ -105,25 +105,25 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
     /// @custom:semver 1.7.2
     /// @notice Constructs the OptimismPortal contract.
-    /// @param _l2Oracle Address of the L2OutputOracle contract.
-    /// @param _guardian Address that can pause withdrawals.
-    /// @param _paused Sets the contract's pausability state.
-    /// @param _config Address of the SystemConfig contract.
-    constructor(
-        L2OutputOracle _l2Oracle,
-        address _guardian,
-        bool _paused,
-        SystemConfig _config
-    ) Semver(1, 7, 2) {
-        L2_ORACLE = _l2Oracle;
-        GUARDIAN = _guardian;
-        SYSTEM_CONFIG = _config;
-        initialize(_paused);
+    constructor() Semver(1, 7, 2) {
+        initialize({
+            _l2Oracle: L2OutputOracle(address(0)),
+            _guardian: address(0),
+            _systemConfig: SystemConfig(address(0)),
+            _paused: true
+        });
     }
 
     /// @notice Initializer.
-    function initialize(bool _paused) public initializer {
+    /// @param _l2Oracle Address of the L2OutputOracle contract.
+    /// @param _guardian Address that can pause withdrawals.
+    /// @param _paused Sets the contract's pausability state.
+    /// @param _systemConfig Address of the SystemConfig contract.
+    function initialize(L2OutputOracle _l2Oracle, address _guardian, SystemConfig _systemConfig, bool _paused) public reinitializer(2) {
         l2Sender = Constants.DEFAULT_L2_SENDER;
+        L2_ORACLE = _l2Oracle;
+        SYSTEM_CONFIG = _systemConfig;
+        GUARDIAN = _guardian;
         paused = _paused;
         __ResourceMetering_init();
     }

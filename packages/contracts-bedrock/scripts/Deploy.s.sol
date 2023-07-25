@@ -292,24 +292,11 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismPortal
     function deployOptimismPortal() broadcast() public returns (address) {
-        address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
-        address systemConfigProxy = mustGetAddress("SystemConfigProxy");
+        OptimismPortal portal = new OptimismPortal();
 
-        address guardian = cfg.portalGuardian();
-        if (guardian.code.length == 0) {
-            console.log("Portal guardian has no code: %s", guardian);
-        }
-
-        OptimismPortal portal = new OptimismPortal({
-            _l2Oracle: L2OutputOracle(l2OutputOracleProxy),
-            _guardian: guardian,
-            _paused: true,
-            _config: SystemConfig(systemConfigProxy)
-        });
-
-        require(address(portal.L2_ORACLE()) == l2OutputOracleProxy);
-        require(portal.GUARDIAN() == guardian);
-        require(address(portal.SYSTEM_CONFIG()) == systemConfigProxy);
+        require(address(portal.L2_ORACLE()) == address(0));
+        require(portal.GUARDIAN() == address(0));
+        require(address(portal.SYSTEM_CONFIG()) == address(0));
         require(portal.paused() == true);
 
         save("OptimismPortal", address(portal));
@@ -681,10 +668,23 @@ contract Deploy is Deployer {
         address l2OutputOracleProxy = mustGetAddress("L2OutputOracleProxy");
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
 
+        address guardian = cfg.portalGuardian();
+        if (guardian.code.length == 0) {
+            console.log("Portal guardian has no code: %s", guardian);
+        }
+
         proxyAdmin.upgradeAndCall({
             _proxy: payable(optimismPortalProxy),
             _implementation: optimismPortal,
-            _data: abi.encodeCall(OptimismPortal.initialize, (false))
+            _data: abi.encodeCall(
+                OptimismPortal.initialize,
+                (
+                    L2OutputOracle(l2OutputOracleProxy),
+                    guardian,
+                    SystemConfig(systemConfigProxy),
+                    false
+                )
+            )
         });
 
         OptimismPortal portal = OptimismPortal(payable(optimismPortalProxy));

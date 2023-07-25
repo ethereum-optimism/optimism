@@ -14,6 +14,7 @@ import { Proxy } from "../src/universal/Proxy.sol";
 import { ResourceMetering } from "../src/L1/ResourceMetering.sol";
 import { AddressAliasHelper } from "../src/vendor/AddressAliasHelper.sol";
 import { L2OutputOracle } from "../src/L1/L2OutputOracle.sol";
+import { SystemConfig } from "../src/L1/SystemConfig.sol";
 
 // Target contract
 import { OptimismPortal } from "../src/L1/OptimismPortal.sol";
@@ -1121,13 +1122,23 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
     /// @dev Tests that the proxy cannot be initialized twice.
     function test_initialize_cannotInitProxy_reverts() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        OptimismPortal(payable(proxy)).initialize(false);
+        OptimismPortal(payable(proxy)).initialize({
+            _l2Oracle: L2OutputOracle(address(0)),
+            _systemConfig: SystemConfig(address(0)),
+            _guardian: address(0),
+            _paused: false
+        });
     }
 
     /// @dev Tests that the implementation cannot be initialized twice.
     function test_initialize_cannotInitImpl_reverts() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        OptimismPortal(opImpl).initialize(false);
+        OptimismPortal(opImpl).initialize({
+            _l2Oracle: L2OutputOracle(address(0)),
+            _systemConfig: SystemConfig(address(0)),
+            _guardian: address(0),
+            _paused: false
+        });
     }
 
     /// @dev Tests that the proxy can be upgraded.
@@ -1138,9 +1149,11 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
 
         NextImpl nextImpl = new NextImpl();
         vm.startPrank(multisig);
+        // The value passed to the initialize must be larger than the last value
+        // that initialize was called with.
         proxy.upgradeToAndCall(
             address(nextImpl),
-            abi.encodeWithSelector(NextImpl.initialize.selector)
+            abi.encodeWithSelector(NextImpl.initialize.selector, 3)
         );
         assertEq(proxy.implementation(), address(nextImpl));
 
