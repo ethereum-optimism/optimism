@@ -105,6 +105,15 @@ contract PreimageOracle_Test is Test {
     }
 
     /// @notice Tests that a pre-image cannot be set with an out-of-bounds offset.
+    function test_loadLocalData_outOfBoundsOffset_reverts() public {
+        bytes32 preimage = bytes32(uint256(0xdeadbeef));
+        uint256 offset = preimage.length + 9;
+
+        vm.expectRevert();
+        oracle.loadLocalData(1, preimage, 32, offset);
+    }
+
+    /// @notice Tests that a pre-image cannot be set with an out-of-bounds offset.
     function test_loadKeccak256PreimagePart_outOfBoundsOffset_reverts() public {
         bytes memory preimage = hex"deadbeef";
         uint256 offset = preimage.length + 9;
