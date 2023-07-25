@@ -44,11 +44,11 @@ func (m *MockL2Client) ExpectSystemConfigByL2Hash(hash common.Hash, cfg eth.Syst
 	m.Mock.On("SystemConfigByL2Hash", hash).Once().Return(cfg, &err)
 }
 
-func (m *MockL2Client) OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error) {
-	out := m.Mock.MethodCalled("OutputByRoot", root)
-	return out[0].(eth.Output), *out[1].(*error)
+func (m *MockL2Client) OutputV0AtBlock(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error) {
+	out := m.Mock.MethodCalled("OutputV0AtBlock", blockHash)
+	return out[0].(*eth.OutputV0), *out[1].(*error)
 }
 
-func (m *MockL2Client) ExpectOutputByRoot(root common.Hash, output eth.Output, err error) {
-	m.Mock.On("OutputByRoot", root).Once().Return(output, &err)
+func (m *MockL2Client) ExpectOutputV0AtBlock(blockHash common.Hash, output *eth.OutputV0, err error) {
+	m.Mock.On("OutputV0AtBlock", blockHash).Once().Return(output, &err)
 }
