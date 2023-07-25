@@ -18,11 +18,7 @@ contract PreimageOracle {
     /// @param _offset The offset of the pre-image to read.
     /// @return dat_ The pre-image data.
     /// @return datLen_ The length of the pre-image data.
-    function readPreimage(bytes32 _key, uint256 _offset)
-        external
-        view
-        returns (bytes32 dat_, uint256 datLen_)
-    {
+    function readPreimage(bytes32 _key, uint256 _offset) external view returns (bytes32 dat_, uint256 datLen_) {
         require(preimagePartOk[_key][_offset], "pre-image must exist");
 
         // Calculate the length of the pre-image data
@@ -42,12 +38,7 @@ contract PreimageOracle {
     // and restrict local pre-image insertion to the dispute-managing contract.
     // For now we permit anyone to write any pre-image unchecked, to make testing easy.
     // This method is DANGEROUS. And NOT FOR PRODUCTION.
-    function cheat(
-        uint256 partOffset,
-        bytes32 key,
-        bytes32 part,
-        uint256 size
-    ) external {
+    function cheat(uint256 partOffset, bytes32 key, bytes32 part, uint256 size) external {
         preimagePartOk[key][partOffset] = true;
         preimageParts[key][partOffset] = part;
         preimageLengths[key] = size;
@@ -93,9 +84,7 @@ contract PreimageOracle {
             size := calldataload(0x44)
 
             // revert if part offset > size+8 (i.e. parts must be within bounds)
-            if gt(_partOffset, add(size, 8)) {
-                revert(0, 0)
-            }
+            if gt(_partOffset, add(size, 8)) { revert(0, 0) }
             // we leave solidity slots 0x40 and 0x60 untouched,
             // and everything after as scratch-memory.
             let ptr := 0x80

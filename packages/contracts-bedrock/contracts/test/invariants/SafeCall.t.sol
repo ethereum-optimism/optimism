@@ -80,12 +80,7 @@ contract SafeCaller_Actor is StdUtils {
         FAILS = _fails;
     }
 
-    function performSafeCallMinGas(
-        uint64 gas,
-        uint64 minGas,
-        address to,
-        uint8 value
-    ) external {
+    function performSafeCallMinGas(uint64 gas, uint64 minGas, address to, uint8 value) external {
         // Only send to EOAs - we exclude the console as it has no code but reverts when called
         // with a selector that doesn't exist due to the foundry hook.
         vm.assume(to.code.length == 0 && to != 0x000000000000000000636F6e736F6c652e6c6f67);
@@ -108,11 +103,7 @@ contract SafeCaller_Actor is StdUtils {
             msg.sender,
             gas,
             value,
-            abi.encodeWithSelector(
-                SafeCall_Succeeds_Invariants.performSafeCallMinGas.selector,
-                to,
-                minGas
-            )
+            abi.encodeWithSelector(SafeCall_Succeeds_Invariants.performSafeCallMinGas.selector, to, minGas)
         );
 
         if (success && FAILS) numCalls++;

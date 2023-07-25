@@ -14,7 +14,7 @@ import { SimpleStorage } from "./Helpers.sol";
 ///         to go up by ~4x. Each of the methods is a simple getter around
 ///         parts of the `DripState`.
 contract TestDrippie is Drippie {
-    constructor(address owner) Drippie(owner) {}
+    constructor(address owner) Drippie(owner) { }
 
     function dripStatus(string memory name) external view returns (Drippie.DripStatus) {
         return drips[name].status;
@@ -28,11 +28,7 @@ contract TestDrippie is Drippie {
         return drips[name].config;
     }
 
-    function dripConfigActions(string memory name)
-        external
-        view
-        returns (Drippie.DripAction[] memory)
-    {
+    function dripConfigActions(string memory name) external view returns (Drippie.DripAction[] memory) {
         return drips[name].config.actions;
     }
 
@@ -93,14 +89,13 @@ contract Drippie_Test is Test {
         Drippie.DripAction[] memory actions = new Drippie.DripAction[](1);
         actions[0] = Drippie.DripAction({ target: payable(address(0x44)), data: hex"", value: 1 });
 
-        return
-            Drippie.DripConfig({
-                interval: 100,
-                dripcheck: check,
-                reentrant: false,
-                checkparams: hex"",
-                actions: actions
-            });
+        return Drippie.DripConfig({
+            interval: 100,
+            dripcheck: check,
+            reentrant: false,
+            checkparams: hex"",
+            actions: actions
+        });
     }
 
     /// @notice Creates a default drip using the default drip config.
@@ -189,11 +184,7 @@ contract Drippie_Test is Test {
         vm.prank(owner);
 
         vm.expectEmit(true, true, true, true);
-        emit DripStatusUpdated({
-            nameref: dripName,
-            name: dripName,
-            status: Drippie.DripStatus.ACTIVE
-        });
+        emit DripStatusUpdated({ nameref: dripName, name: dripName, status: Drippie.DripStatus.ACTIVE });
 
         drippie.status(dripName, Drippie.DripStatus.ACTIVE);
 
@@ -205,11 +196,7 @@ contract Drippie_Test is Test {
         vm.prank(owner);
 
         vm.expectEmit(true, true, true, true);
-        emit DripStatusUpdated({
-            nameref: dripName,
-            name: dripName,
-            status: Drippie.DripStatus.PAUSED
-        });
+        emit DripStatusUpdated({ nameref: dripName, name: dripName, status: Drippie.DripStatus.PAUSED });
 
         drippie.status(dripName, Drippie.DripStatus.PAUSED);
 
@@ -252,11 +239,7 @@ contract Drippie_Test is Test {
         vm.prank(owner);
 
         vm.expectEmit(true, true, true, true);
-        emit DripStatusUpdated({
-            nameref: dripName,
-            name: dripName,
-            status: Drippie.DripStatus.ARCHIVED
-        });
+        emit DripStatusUpdated({ nameref: dripName, name: dripName, status: Drippie.DripStatus.ARCHIVED });
 
         drippie.status(dripName, Drippie.DripStatus.ARCHIVED);
 
@@ -339,20 +322,12 @@ contract Drippie_Test is Test {
         _warpToExecutable(dripName);
 
         vm.expectEmit(true, true, true, true);
-        emit DripExecuted({
-            nameref: dripName,
-            name: dripName,
-            executor: address(this),
-            timestamp: block.timestamp
-        });
+        emit DripExecuted({ nameref: dripName, name: dripName, executor: address(this), timestamp: block.timestamp });
 
         Drippie.DripAction[] memory actions = drippie.dripConfigActions(dripName);
         assertEq(actions.length, 1);
 
-        vm.expectCall(
-            drippie.dripConfigCheckAddress(dripName),
-            drippie.dripConfigCheckParams(dripName)
-        );
+        vm.expectCall(drippie.dripConfigCheckAddress(dripName), drippie.dripConfigCheckParams(dripName));
 
         vm.expectCall(actions[0].target, actions[0].value, actions[0].data);
 
@@ -381,11 +356,7 @@ contract Drippie_Test is Test {
         vm.prank(drippie.owner());
         drippie.status(dripName, Drippie.DripStatus.ACTIVE);
 
-        vm.expectCall(
-            address(simpleStorage),
-            0,
-            abi.encodeWithSelector(SimpleStorage.set.selector, key, value)
-        );
+        vm.expectCall(address(simpleStorage), 0, abi.encodeWithSelector(SimpleStorage.set.selector, key, value));
 
         vm.expectEmit(true, true, true, true, address(drippie));
         emit DripExecuted(dripName, dripName, address(this), block.timestamp);
@@ -425,22 +396,11 @@ contract Drippie_Test is Test {
         vm.prank(drippie.owner());
         drippie.status(dripName, Drippie.DripStatus.ACTIVE);
 
-        vm.expectCall(
-            drippie.dripConfigCheckAddress(dripName),
-            drippie.dripConfigCheckParams(dripName)
-        );
+        vm.expectCall(drippie.dripConfigCheckAddress(dripName), drippie.dripConfigCheckParams(dripName));
 
-        vm.expectCall(
-            address(simpleStorage),
-            0,
-            abi.encodeWithSelector(SimpleStorage.set.selector, keyOne, valueOne)
-        );
+        vm.expectCall(address(simpleStorage), 0, abi.encodeWithSelector(SimpleStorage.set.selector, keyOne, valueOne));
 
-        vm.expectCall(
-            address(simpleStorage),
-            0,
-            abi.encodeWithSelector(SimpleStorage.set.selector, keyTwo, valueTwo)
-        );
+        vm.expectCall(address(simpleStorage), 0, abi.encodeWithSelector(SimpleStorage.set.selector, keyTwo, valueTwo));
 
         vm.expectEmit(true, true, true, true, address(drippie));
         emit DripExecuted(dripName, dripName, address(this), block.timestamp);
@@ -475,12 +435,7 @@ contract Drippie_Test is Test {
         _warpToExecutable(dripName);
 
         vm.expectEmit(true, true, true, true, address(drippie));
-        emit DripExecuted({
-            nameref: dripName,
-            name: dripName,
-            executor: address(this),
-            timestamp: block.timestamp
-        });
+        emit DripExecuted({ nameref: dripName, name: dripName, executor: address(this), timestamp: block.timestamp });
 
         drippie.drip(dripName);
     }

@@ -48,8 +48,8 @@ contract Bytes_slice_Test is Test {
     ///         in memory. In this case, we test that a 2 byte slice between the 32nd byte of the
     ///         first word and the 1st byte of the second word is correct.
     function test_slice_acrossWords_works() public {
-        bytes
-            memory input = hex"00000000000000000000000000000000000000000000000000000000000000112200000000000000000000000000000000000000000000000000000000000000";
+        bytes memory input =
+            hex"00000000000000000000000000000000000000000000000000000000000000112200000000000000000000000000000000000000000000000000000000000000";
 
         assertEq(Bytes.slice(input, 31, 2), hex"1122");
     }
@@ -58,21 +58,16 @@ contract Bytes_slice_Test is Test {
     ///         words in memory. In this case, we test that a 34 byte slice between 3 separate words
     ///        returns the correct result.
     function test_slice_acrossMultipleWords_works() public {
-        bytes
-            memory input = hex"000000000000000000000000000000000000000000000000000000000000001122FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF1100000000000000000000000000000000000000000000000000000000000000";
-        bytes
-            memory expected = hex"1122FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF11";
+        bytes memory input =
+            hex"000000000000000000000000000000000000000000000000000000000000001122FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF1100000000000000000000000000000000000000000000000000000000000000";
+        bytes memory expected = hex"1122FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF11";
 
         assertEq(Bytes.slice(input, 31, 34), expected);
     }
 
     /// @notice Tests that the `slice` function correctly updates the free memory pointer depending
     ///         on the length of the slice.
-    function testFuzz_slice_memorySafety_succeeds(
-        bytes memory _input,
-        uint256 _start,
-        uint256 _length
-    ) public {
+    function testFuzz_slice_memorySafety_succeeds(bytes memory _input, uint256 _start, uint256 _length) public {
         // The start should never be more than the length of the input bytes array - 1
         vm.assume(_start < _input.length);
         // The length should never be more than the length of the input bytes array - the starting
@@ -125,11 +120,7 @@ contract Bytes_slice_Test is Test {
 contract Bytes_slice_TestFail is Test {
     /// @notice Tests that, when given an input bytes array of length `n`, the `slice` function will
     ///         always revert if `_start + _length > n`.
-    function testFuzz_slice_outOfBounds_reverts(
-        bytes memory _input,
-        uint256 _start,
-        uint256 _length
-    ) public {
+    function testFuzz_slice_outOfBounds_reverts(bytes memory _input, uint256 _start, uint256 _length) public {
         // We want a valid start index and a length that will not overflow.
         vm.assume(_start < _input.length && _length < type(uint256).max - 31);
         // But, we want an invalid slice length.
@@ -141,11 +132,7 @@ contract Bytes_slice_TestFail is Test {
 
     /// @notice Tests that, when given a length `n` that is greater than `type(uint256).max - 31`,
     ///         the `slice` function reverts.
-    function testFuzz_slice_lengthOverflows_reverts(
-        bytes memory _input,
-        uint256 _start,
-        uint256 _length
-    ) public {
+    function testFuzz_slice_lengthOverflows_reverts(bytes memory _input, uint256 _start, uint256 _length) public {
         // Ensure that the `_length` will overflow if a number >= 31 is added to it.
         vm.assume(_length > type(uint256).max - 31);
 
@@ -155,11 +142,7 @@ contract Bytes_slice_TestFail is Test {
 
     /// @notice Tests that, when given a start index `n` that is greater than
     ///         `type(uint256).max - n`, the `slice` function reverts.
-    function testFuzz_slice_rangeOverflows_reverts(
-        bytes memory _input,
-        uint256 _start,
-        uint256 _length
-    ) public {
+    function testFuzz_slice_rangeOverflows_reverts(bytes memory _input, uint256 _start, uint256 _length) public {
         // Ensure that `_length` is a realistic length of a slice. This is to make sure
         // we revert on the correct require statement.
         vm.assume(_length < _input.length);
@@ -188,10 +171,10 @@ contract Bytes_toNibbles_Test is Test {
     ///         of 256 nibbles corresponding to the input data. This test exists to ensure that,
     ///         given a large input, the `toNibbles` function works as expected.
     function test_toNibbles_expectedResult128Bytes_works() public {
-        bytes
-            memory input = hex"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f";
-        bytes
-            memory expected = hex"0000000100020003000400050006000700080009000a000b000c000d000e000f0100010101020103010401050106010701080109010a010b010c010d010e010f0200020102020203020402050206020702080209020a020b020c020d020e020f0300030103020303030403050306030703080309030a030b030c030d030e030f0400040104020403040404050406040704080409040a040b040c040d040e040f0500050105020503050405050506050705080509050a050b050c050d050e050f0600060106020603060406050606060706080609060a060b060c060d060e060f0700070107020703070407050706070707080709070a070b070c070d070e070f";
+        bytes memory input =
+            hex"000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f";
+        bytes memory expected =
+            hex"0000000100020003000400050006000700080009000a000b000c000d000e000f0100010101020103010401050106010701080109010a010b010c010d010e010f0200020102020203020402050206020702080209020a020b020c020d020e020f0300030103020303030403050306030703080309030a030b030c030d030e030f0400040104020403040404050406040704080409040a040b040c040d040e040f0500050105020503050405050506050705080509050a050b050c050d050e050f0600060106020603060406050606060706080609060a060b060c060d060e060f0700070107020703070407050706070707080709070a070b070c070d070e070f";
         bytes memory actual = Bytes.toNibbles(input);
 
         assertEq(input.length * 2, actual.length);
@@ -265,13 +248,14 @@ contract Bytes_equal_Test is Test {
     function manualEq(bytes memory _a, bytes memory _b) internal pure returns (bool) {
         bool _eq;
         assembly {
-            _eq := and(
-                // Check if the contents of the two bytes arrays are equal in memory.
-                eq(keccak256(add(0x20, _a), mload(_a)), keccak256(add(0x20, _b), mload(_b))),
-                // Check if the length of the two bytes arrays are equal in memory.
-                // This is redundant given the above check, but included for completeness.
-                eq(mload(_a), mload(_b))
-            )
+            _eq :=
+                and(
+                    // Check if the contents of the two bytes arrays are equal in memory.
+                    eq(keccak256(add(0x20, _a), mload(_a)), keccak256(add(0x20, _b), mload(_b))),
+                    // Check if the length of the two bytes arrays are equal in memory.
+                    // This is redundant given the above check, but included for completeness.
+                    eq(mload(_a), mload(_b))
+                )
         }
         return _eq;
     }

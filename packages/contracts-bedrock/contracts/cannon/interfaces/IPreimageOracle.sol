@@ -9,10 +9,7 @@ interface IPreimageOracle {
     /// @param _offset The offset of the preimage to read.
     /// @return dat_ The preimage data.
     /// @return datLen_ The length of the preimage data.
-    function readPreimage(bytes32 _key, uint256 _offset)
-        external
-        view
-        returns (bytes32 dat_, uint256 datLen_);
+    function readPreimage(bytes32 _key, uint256 _offset) external view returns (bytes32 dat_, uint256 datLen_);
 
     /// @notice Computes and returns the key for a pre-image.
     /// @param _preimage The pre-image.

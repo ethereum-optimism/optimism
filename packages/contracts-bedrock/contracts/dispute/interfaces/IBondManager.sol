@@ -30,11 +30,7 @@ interface IBondManager {
     /// @param _bondOwner is the address that owns the bond.
     /// @param _minClaimHold is the minimum amount of time the owner
     ///        must wait before reclaiming their bond.
-    function post(
-        bytes32 _bondId,
-        address _bondOwner,
-        uint128 _minClaimHold
-    ) external payable;
+    function post(bytes32 _bondId, address _bondOwner, uint128 _minClaimHold) external payable;
 
     /// @notice Seizes the bond with the given id.
     /// @dev This function will revert if there is no bond at the given id.

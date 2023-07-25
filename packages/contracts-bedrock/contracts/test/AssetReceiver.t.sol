@@ -19,18 +19,8 @@ contract AssetReceiver_Initializer is Test {
 
     event ReceivedETH(address indexed from, uint256 amount);
     event WithdrewETH(address indexed withdrawer, address indexed recipient, uint256 amount);
-    event WithdrewERC20(
-        address indexed withdrawer,
-        address indexed recipient,
-        address indexed asset,
-        uint256 amount
-    );
-    event WithdrewERC721(
-        address indexed withdrawer,
-        address indexed recipient,
-        address indexed asset,
-        uint256 id
-    );
+    event WithdrewERC20(address indexed withdrawer, address indexed recipient, address indexed asset, uint256 amount);
+    event WithdrewERC721(address indexed withdrawer, address indexed recipient, address indexed asset, uint256 id);
 
     function setUp() public {
         // Deploy ERC20 and ERC721 tokens
@@ -67,7 +57,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         emit ReceivedETH(alice, 100);
         // Send funds
         vm.prank(alice);
-        (bool success, ) = address(assetReceiver).call{ value: 100 }(hex"");
+        (bool success,) = address(assetReceiver).call{ value: 100 }(hex"");
 
         // Compare balance after the tx sent
         assertTrue(success);

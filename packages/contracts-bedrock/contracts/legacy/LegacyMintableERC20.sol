@@ -29,7 +29,9 @@ contract LegacyMintableERC20 is ILegacyMintableERC20, ERC20 {
         address _l1Token,
         string memory _name,
         string memory _symbol
-    ) ERC20(_name, _symbol) {
+    )
+        ERC20(_name, _symbol)
+    {
         l1Token = _l1Token;
         l2Bridge = _l2Bridge;
     }
@@ -43,9 +45,8 @@ contract LegacyMintableERC20 is ILegacyMintableERC20, ERC20 {
     /// @notice EIP165 implementation.
     function supportsInterface(bytes4 _interfaceId) public pure returns (bool) {
         bytes4 firstSupportedInterface = bytes4(keccak256("supportsInterface(bytes4)")); // ERC165
-        bytes4 secondSupportedInterface = ILegacyMintableERC20.l1Token.selector ^
-            ILegacyMintableERC20.mint.selector ^
-            ILegacyMintableERC20.burn.selector;
+        bytes4 secondSupportedInterface = ILegacyMintableERC20.l1Token.selector ^ ILegacyMintableERC20.mint.selector
+            ^ ILegacyMintableERC20.burn.selector;
         return _interfaceId == firstSupportedInterface || _interfaceId == secondSupportedInterface;
     }
 

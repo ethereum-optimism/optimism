@@ -31,10 +31,7 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
         // that can modify the gas limit within the SystemConfig.
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = config.setGasLimit.selector;
-        FuzzSelector memory selector = FuzzSelector({
-            addr: address(config),
-            selectors: selectors
-        });
+        FuzzSelector memory selector = FuzzSelector({ addr: address(config), selectors: selectors });
         targetSelector(selector);
     }
 

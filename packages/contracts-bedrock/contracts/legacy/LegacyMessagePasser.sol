@@ -14,7 +14,7 @@ contract LegacyMessagePasser is Semver {
     mapping(bytes32 => bool) public sentMessages;
 
     /// @custom:semver 1.0.1
-    constructor() Semver(1, 0, 1) {}
+    constructor() Semver(1, 0, 1) { }
 
     /// @notice Passes a message to L1.
     /// @param _message Message to pass to L1.

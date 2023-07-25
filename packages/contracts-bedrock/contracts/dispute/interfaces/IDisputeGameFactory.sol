@@ -12,11 +12,7 @@ interface IDisputeGameFactory {
     /// @param disputeProxy The address of the dispute game proxy
     /// @param gameType The type of the dispute game proxy's implementation
     /// @param rootClaim The root claim of the dispute game
-    event DisputeGameCreated(
-        address indexed disputeProxy,
-        GameType indexed gameType,
-        Claim indexed rootClaim
-    );
+    event DisputeGameCreated(address indexed disputeProxy, GameType indexed gameType, Claim indexed rootClaim);
 
     /// @notice Emitted when a new game implementation added to the factory
     /// @param impl The implementation contract for the given `GameType`.
@@ -40,7 +36,10 @@ interface IDisputeGameFactory {
         GameType gameType,
         Claim rootClaim,
         bytes calldata extraData
-    ) external view returns (IDisputeGame _proxy, uint256 _timestamp);
+    )
+        external
+        view
+        returns (IDisputeGame _proxy, uint256 _timestamp);
 
     /// @notice `gameAtIndex` returns the dispute game contract address and its creation timestamp
     ///          at the given index. Each created dispute game increments the underlying index.
@@ -48,10 +47,7 @@ interface IDisputeGameFactory {
     /// @return _proxy The clone of the `DisputeGame` created with the given parameters.
     ///         Returns `address(0)` if nonexistent.
     /// @return _timestamp The timestamp of the creation of the dispute game.
-    function gameAtIndex(uint256 _index)
-        external
-        view
-        returns (IDisputeGame _proxy, uint256 _timestamp);
+    function gameAtIndex(uint256 _index) external view returns (IDisputeGame _proxy, uint256 _timestamp);
 
     /// @notice `gameImpls` is a mapping that maps `GameType`s to their respective
     ///         `IDisputeGame` implementations.
@@ -69,7 +65,9 @@ interface IDisputeGameFactory {
         GameType gameType,
         Claim rootClaim,
         bytes calldata extraData
-    ) external returns (IDisputeGame proxy);
+    )
+        external
+        returns (IDisputeGame proxy);
 
     /// @notice Sets the implementation contract for a specific `GameType`.
     /// @dev May only be called by the `owner`.
@@ -88,5 +86,8 @@ interface IDisputeGameFactory {
         GameType gameType,
         Claim rootClaim,
         bytes memory extraData
-    ) external pure returns (Hash _uuid);
+    )
+        external
+        pure
+        returns (Hash _uuid);
 }

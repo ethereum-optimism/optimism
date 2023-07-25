@@ -46,12 +46,7 @@ interface IFaultDisputeGame is IDisputeGame {
     ///        the move is a defense. If the step is an attack on the first instruction, it is
     ///        the absolute prestate of the fault proof VM.
     /// @param _proof Proof to access memory leaf nodes in the VM.
-    function step(
-        uint256 _claimIndex,
-        bool _isAttack,
-        bytes calldata _stateData,
-        bytes calldata _proof
-    ) external;
+    function step(uint256 _claimIndex, bool _isAttack, bytes calldata _stateData, bytes calldata _proof) external;
 
     /// @notice The l2BlockNumber that the `rootClaim` commits to. The trace being bisected within
     ///         the game is from `l2BlockNumber - 1` -> `l2BlockNumber`.

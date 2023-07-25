@@ -18,5 +18,8 @@ contract BaseFeeVault is FeeVault, Semver {
         address _recipient,
         uint256 _minWithdrawalAmount,
         WithdrawalNetwork _withdrawalNetwork
-    ) FeeVault(_recipient, _minWithdrawalAmount, _withdrawalNetwork) Semver(1, 2, 1) {}
+    )
+        FeeVault(_recipient, _minWithdrawalAmount, _withdrawalNetwork)
+        Semver(1, 2, 1)
+    { }
 }

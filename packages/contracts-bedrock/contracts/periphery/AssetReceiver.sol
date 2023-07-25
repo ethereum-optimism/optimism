@@ -25,27 +25,17 @@ contract AssetReceiver is Transactor {
     /// @param recipient  Address that received the withdrawal.
     /// @param asset      Address of the token being withdrawn.
     /// @param amount     ERC20 amount withdrawn.
-    event WithdrewERC20(
-        address indexed withdrawer,
-        address indexed recipient,
-        address indexed asset,
-        uint256 amount
-    );
+    event WithdrewERC20(address indexed withdrawer, address indexed recipient, address indexed asset, uint256 amount);
 
     /// @notice Emitted when ERC20 tokens are withdrawn from this address.
     /// @param withdrawer Address that triggered the withdrawal.
     /// @param recipient  Address that received the withdrawal.
     /// @param asset      Address of the token being withdrawn.
     /// @param id         Token ID being withdrawn.
-    event WithdrewERC721(
-        address indexed withdrawer,
-        address indexed recipient,
-        address indexed asset,
-        uint256 id
-    );
+    event WithdrewERC721(address indexed withdrawer, address indexed recipient, address indexed asset, uint256 id);
 
     /// @param _owner Initial contract owner.
-    constructor(address _owner) Transactor(_owner) {}
+    constructor(address _owner) Transactor(_owner) { }
 
     /// @notice Make sure we can receive ETH.
     receive() external payable {
@@ -63,7 +53,7 @@ contract AssetReceiver is Transactor {
     /// @param _amount Amount of ETH to withdraw.
     function withdrawETH(address payable _to, uint256 _amount) public onlyOwner {
         // slither-disable-next-line reentrancy-unlimited-gas
-        (bool success, ) = _to.call{ value: _amount }("");
+        (bool success,) = _to.call{ value: _amount }("");
         emit WithdrewETH(msg.sender, _to, _amount);
     }
 
@@ -78,11 +68,7 @@ contract AssetReceiver is Transactor {
     /// @param _asset  ERC20 token to withdraw.
     /// @param _to     Address to receive the ERC20 balance.
     /// @param _amount Amount of ERC20 to withdraw.
-    function withdrawERC20(
-        ERC20 _asset,
-        address _to,
-        uint256 _amount
-    ) public onlyOwner {
+    function withdrawERC20(ERC20 _asset, address _to, uint256 _amount) public onlyOwner {
         // slither-disable-next-line unchecked-transfer
         _asset.transfer(_to, _amount);
         // slither-disable-next-line reentrancy-events
@@ -93,11 +79,7 @@ contract AssetReceiver is Transactor {
     /// @param _asset ERC721 token to withdraw.
     /// @param _to    Address to receive the ERC721 token.
     /// @param _id    Token ID of the ERC721 token to withdraw.
-    function withdrawERC721(
-        ERC721 _asset,
-        address _to,
-        uint256 _id
-    ) external onlyOwner {
+    function withdrawERC721(ERC721 _asset, address _to, uint256 _id) external onlyOwner {
         _asset.transferFrom(address(this), _to, _id);
         // slither-disable-next-line reentrancy-events
         emit WithdrewERC721(msg.sender, _to, address(_asset), _id);

@@ -49,18 +49,14 @@ abstract contract FeeVault {
     /// @param _recipient           Wallet that will receive the fees.
     /// @param _minWithdrawalAmount Minimum balance for withdrawals.
     /// @param _withdrawalNetwork   Network which the recipient will receive fees on.
-    constructor(
-        address _recipient,
-        uint256 _minWithdrawalAmount,
-        WithdrawalNetwork _withdrawalNetwork
-    ) {
+    constructor(address _recipient, uint256 _minWithdrawalAmount, WithdrawalNetwork _withdrawalNetwork) {
         RECIPIENT = _recipient;
         MIN_WITHDRAWAL_AMOUNT = _minWithdrawalAmount;
         WITHDRAWAL_NETWORK = _withdrawalNetwork;
     }
 
     /// @notice Allow the contract to receive ETH.
-    receive() external payable {}
+    receive() external payable { }
 
     /// @notice Triggers a withdrawal of funds to the fee wallet on L1 or L2.
     function withdraw() external {
@@ -79,9 +75,7 @@ abstract contract FeeVault {
             SafeCall.send(RECIPIENT, gasleft(), value);
         } else {
             L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).bridgeETHTo{ value: value }(
-                RECIPIENT,
-                WITHDRAWAL_MIN_GAS,
-                bytes("")
+                RECIPIENT, WITHDRAWAL_MIN_GAS, bytes("")
             );
         }
     }

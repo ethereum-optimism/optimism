@@ -1,3 +1,5 @@
-hardhat.config.ts
-scripts
-test
+node_modules
+invariant-docs
+.envrc
+slither.db.json
+slither.config.json
