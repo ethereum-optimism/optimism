@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -169,86 +170,19 @@ type DeployConfig struct {
 	FundDevAccounts bool `json:"fundDevAccounts"`
 }
 
-// Copy will deeply copy the DeployConfig
+// Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
+// which makes it easier to maintain, we do not need efficiency in this case.
 func (d *DeployConfig) Copy() *DeployConfig {
+	raw, err := json.Marshal(d)
+	if err != nil {
+		panic(err)
+	}
+
 	cpy := DeployConfig{}
-	if d.L1StartingBlockTag != nil {
-		tag := *d.L1StartingBlockTag
-		cpy.L1StartingBlockTag = &tag
+	if err = json.Unmarshal(raw, &cpy); err != nil {
+		panic(err)
 	}
-	cpy.L1ChainID = d.L1ChainID
-	cpy.L2ChainID = d.L2ChainID
-	cpy.L2BlockTime = d.L2BlockTime
-	cpy.FinalizationPeriodSeconds = d.FinalizationPeriodSeconds
-	cpy.MaxSequencerDrift = d.MaxSequencerDrift
-	cpy.SequencerWindowSize = d.SequencerWindowSize
-	cpy.ChannelTimeout = d.ChannelTimeout
-	cpy.P2PSequencerAddress = common.BytesToAddress(d.P2PSequencerAddress.Bytes())
-	cpy.BatchInboxAddress = common.BytesToAddress(d.BatchInboxAddress.Bytes())
-	cpy.BatchSenderAddress = common.BytesToAddress(d.BatchSenderAddress.Bytes())
-	cpy.L2OutputOracleSubmissionInterval = d.L2OutputOracleSubmissionInterval
-	cpy.L2OutputOracleStartingTimestamp = d.L2OutputOracleStartingTimestamp
-	cpy.L2OutputOracleStartingBlockNumber = d.L2OutputOracleStartingBlockNumber
-	cpy.L2OutputOracleProposer = common.BytesToAddress(d.L2OutputOracleProposer.Bytes())
-	cpy.L2OutputOracleChallenger = common.BytesToAddress(d.L2OutputOracleChallenger.Bytes())
-	cpy.L1BlockTime = d.L1BlockTime
-	cpy.L1GenesisBlockTimestamp = d.L1GenesisBlockTimestamp
-	cpy.L1GenesisBlockNonce = d.L1GenesisBlockNonce
-	cpy.CliqueSignerAddress = common.BytesToAddress(d.CliqueSignerAddress.Bytes())
-	cpy.L1GenesisBlockGasLimit = d.L1GenesisBlockGasLimit
-	if d.L1GenesisBlockDifficulty != nil {
-		cpy.L1GenesisBlockDifficulty = (*hexutil.Big)(new(big.Int).Set(d.L1GenesisBlockDifficulty.ToInt()))
-	}
-	cpy.L1GenesisBlockMixHash = common.BytesToHash(d.L1GenesisBlockMixHash.Bytes())
-	cpy.L1GenesisBlockCoinbase = common.BytesToAddress(d.L1GenesisBlockCoinbase.Bytes())
-	cpy.L1GenesisBlockNumber = d.L1GenesisBlockNumber
-	cpy.L1GenesisBlockGasUsed = d.L1GenesisBlockGasUsed
-	cpy.L1GenesisBlockParentHash = common.BytesToHash(d.L1GenesisBlockParentHash.Bytes())
-	if d.L1GenesisBlockBaseFeePerGas != nil {
-		cpy.L1GenesisBlockBaseFeePerGas = (*hexutil.Big)(new(big.Int).Set(d.L1GenesisBlockBaseFeePerGas.ToInt()))
-	}
-	cpy.L2GenesisBlockNonce = d.L2GenesisBlockNonce
-	cpy.L2GenesisBlockGasLimit = d.L2GenesisBlockGasLimit
-	if d.L2GenesisBlockDifficulty != nil {
-		cpy.L2GenesisBlockDifficulty = (*hexutil.Big)(new(big.Int).Set(d.L2GenesisBlockDifficulty.ToInt()))
-	}
-	cpy.L2GenesisBlockMixHash = common.BytesToHash(d.L2GenesisBlockMixHash.Bytes())
-	cpy.L2GenesisBlockNumber = d.L2GenesisBlockNumber
-	cpy.L2GenesisBlockGasUsed = d.L2GenesisBlockGasUsed
-	cpy.L2GenesisBlockParentHash = common.BytesToHash(d.L2GenesisBlockParentHash.Bytes())
-	cpy.L2GenesisBlockBaseFeePerGas = (*hexutil.Big)(new(big.Int).Set(d.L2GenesisBlockBaseFeePerGas.ToInt()))
-	if d.L2GenesisRegolithTimeOffset != nil {
-		offset := *d.L2GenesisRegolithTimeOffset
-		cpy.L2GenesisRegolithTimeOffset = &offset
-	}
-	cpy.L2GenesisBlockExtraData = common.CopyBytes(d.L2GenesisBlockExtraData)
-	cpy.ProxyAdminOwner = common.BytesToAddress(d.ProxyAdminOwner.Bytes())
-	cpy.FinalSystemOwner = common.BytesToAddress(d.FinalSystemOwner.Bytes())
-	cpy.PortalGuardian = common.BytesToAddress(d.PortalGuardian.Bytes())
-	cpy.BaseFeeVaultRecipient = common.BytesToAddress(d.BaseFeeVaultRecipient.Bytes())
-	cpy.L1FeeVaultRecipient = common.BytesToAddress(d.L1FeeVaultRecipient.Bytes())
-	cpy.SequencerFeeVaultRecipient = common.BytesToAddress(d.SequencerFeeVaultRecipient.Bytes())
-	cpy.BaseFeeVaultMinimumWithdrawalAmount = (*hexutil.Big)(new(big.Int).Set(d.BaseFeeVaultMinimumWithdrawalAmount.ToInt()))
-	cpy.L1FeeVaultMinimumWithdrawalAmount = (*hexutil.Big)(new(big.Int).Set(d.L1FeeVaultMinimumWithdrawalAmount.ToInt()))
-	cpy.SequencerFeeVaultMinimumWithdrawalAmount = (*hexutil.Big)(new(big.Int).Set(d.SequencerFeeVaultMinimumWithdrawalAmount.ToInt()))
-	cpy.BaseFeeVaultWithdrawalNetwork = d.BaseFeeVaultWithdrawalNetwork
-	cpy.L1FeeVaultWithdrawalNetwork = d.L1FeeVaultWithdrawalNetwork
-	cpy.SequencerFeeVaultWithdrawalNetwork = d.SequencerFeeVaultWithdrawalNetwork
-	cpy.L1StandardBridgeProxy = common.BytesToAddress(d.L1StandardBridgeProxy.Bytes())
-	cpy.L1CrossDomainMessengerProxy = common.BytesToAddress(d.L1CrossDomainMessengerProxy.Bytes())
-	cpy.L1ERC721BridgeProxy = common.BytesToAddress(d.L1ERC721BridgeProxy.Bytes())
-	cpy.SystemConfigProxy = common.BytesToAddress(d.SystemConfigProxy.Bytes())
-	cpy.OptimismPortalProxy = common.BytesToAddress(d.OptimismPortalProxy.Bytes())
-	cpy.GasPriceOracleOverhead = d.GasPriceOracleOverhead
-	cpy.GasPriceOracleScalar = d.GasPriceOracleScalar
-	cpy.EnableGovernance = d.EnableGovernance
-	cpy.GovernanceTokenSymbol = d.GovernanceTokenSymbol
-	cpy.GovernanceTokenName = d.GovernanceTokenName
-	cpy.GovernanceTokenOwner = common.BytesToAddress(d.GovernanceTokenOwner.Bytes())
-	cpy.EIP1559Elasticity = d.EIP1559Elasticity
-	cpy.EIP1559Denominator = d.EIP1559Denominator
-	cpy.FundDevAccounts = d.FundDevAccounts
-	cpy.DeploymentWaitConfirmations = d.DeploymentWaitConfirmations
+
 	return &cpy
 }
 
