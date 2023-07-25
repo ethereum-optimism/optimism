@@ -45,8 +45,7 @@ func (m *MockL2Client) ExpectSystemConfigByL2Hash(hash common.Hash, cfg eth.Syst
 }
 
 func (m *MockL2Client) OutputV0AtBlock(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error) {
-	out := m.Mock.MethodCalled("OutputV0AtBlock", blockHash)
-	return out[0].(*eth.OutputV0), *out[1].(*error)
+	return m.Mock.MethodCalled("OutputV0AtBlock", blockHash).Get(0).(*eth.OutputV0), nil
 }
 
 func (m *MockL2Client) ExpectOutputV0AtBlock(blockHash common.Hash, output *eth.OutputV0, err error) {
