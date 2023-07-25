@@ -1,6 +1,7 @@
 package types
 
 import (
+	"context"
 	"errors"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -26,11 +27,43 @@ type StepCallData struct {
 	Proof      []byte
 }
 
+// PreimageOracleData encapsulates the preimage oracle data
+// to load into the onchain oracle.
+type PreimageOracleData struct {
+	IsLocal    bool
+	OracleKey  []byte
+	OracleData []byte
+}
+
+// NewPreimageOracleData creates a new [PreimageOracleData] instance.
+func NewPreimageOracleData(key []byte, data []byte) PreimageOracleData {
+	return PreimageOracleData{
+		IsLocal:    key[0] == byte(1),
+		OracleKey:  key,
+		OracleData: data,
+	}
+}
+
+// Responder takes a response action & executes.
+// For full op-challenger this means executing the transaction on chain.
+type Responder interface {
+	CanResolve(ctx context.Context) bool
+	Resolve(ctx context.Context) error
+	Respond(ctx context.Context, response Claim) error
+	Step(ctx context.Context, stepData StepCallData) error
+	LoadOracleData(ctx context.Context, data PreimageOracleData) error
+}
+
 // TraceProvider is a generic way to get a claim value at a specific step in the trace.
 type TraceProvider interface {
 	// Get returns the claim value at the requested index.
 	// Get(i) = Keccak256(GetPreimage(i))
 	Get(i uint64) (common.Hash, error)
+
+	// GetOracleData returns both the key and pre-image data that can be used to submit
+	// to the pre-image oracle and the dispute game contract. This function accepts a
+	// trace index for which the provider returns needed preimage data.
+	GetOracleData(i uint64) (oracleKey []byte, oracleData []byte, err error)
 
 	// GetPreimage returns the pre-image for a claim at the specified trace index, along
 	// with any associated proof data to assist in its verification.

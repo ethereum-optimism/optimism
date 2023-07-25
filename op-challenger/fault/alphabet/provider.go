@@ -28,6 +28,12 @@ func NewAlphabetProvider(state string, depth uint64) *AlphabetProvider {
 	}
 }
 
+// GetOracleData should not return any preimage oracle data for the alphabet provider.
+func (p *AlphabetProvider) GetOracleData(i uint64) ([]byte, []byte, error) {
+	none := []byte{}
+	return none, none, nil
+}
+
 // GetPreimage returns the preimage for the given hash.
 func (ap *AlphabetProvider) GetPreimage(i uint64) ([]byte, []byte, error) {
 	// The index cannot be larger than the maximum index as computed by the depth.

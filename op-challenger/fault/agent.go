@@ -10,25 +10,16 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// Responder takes a response action & executes.
-// For full op-challenger this means executing the transaction on chain.
-type Responder interface {
-	CanResolve(ctx context.Context) bool
-	Resolve(ctx context.Context) error
-	Respond(ctx context.Context, response types.Claim) error
-	Step(ctx context.Context, stepData types.StepCallData) error
-}
-
 type Agent struct {
 	solver                  *solver.Solver
 	loader                  Loader
-	responder               Responder
+	responder               types.Responder
 	maxDepth                int
 	agreeWithProposedOutput bool
 	log                     log.Logger
 }
 
-func NewAgent(loader Loader, maxDepth int, trace types.TraceProvider, responder Responder, agreeWithProposedOutput bool, log log.Logger) *Agent {
+func NewAgent(loader Loader, maxDepth int, trace types.TraceProvider, responder types.Responder, agreeWithProposedOutput bool, log log.Logger) *Agent {
 	return &Agent{
 		solver:                  solver.NewSolver(maxDepth, trace),
 		loader:                  loader,
@@ -131,6 +122,18 @@ func (a *Agent) step(ctx context.Context, claim types.Claim, game types.Game) er
 		a.log.Debug("Step already executed against claim", "depth", claim.Depth(), "index_at_depth", claim.IndexAtDepth(), "value", claim.Value)
 		return nil
 	}
+
+	// Uncomment these lines once the oracle loading is ready.
+	// oracleData, err := a.solver.OracleData(claim)
+	// if err != nil {
+	// 	a.log.Debug("Failed to get oracle data", "err", err)
+	// 	return nil
+	// }
+	//
+	// a.log.Info("Loading oracle data", "oracleKey", oracleData.OracleKey, "oracleData", oracleData.OracleData)
+	// if a.responder.LoadOracleData(ctx, oracleData) != nil {
+	// 	return fmt.Errorf("load oracle data: %w", err)
+	// }
 
 	a.log.Info("Attempting step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
 	step, err := a.solver.AttemptStep(claim, agreeWithClaimLevel)

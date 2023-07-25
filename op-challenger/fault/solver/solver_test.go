@@ -100,6 +100,64 @@ func TestNextMove(t *testing.T) {
 	}
 }
 
+func TestOracleData(t *testing.T) {
+	maxDepth := 4
+	builder := test.NewAlphabetClaimBuilder(t, maxDepth)
+	tests := []struct {
+		name        string
+		claim       types.Claim
+		isLocal     bool
+		key         []byte
+		data        []byte
+		expectedErr error
+	}{
+		{
+			name: "Local_OracleData",
+			// this will be a leaf claim at trace index 1, so the key and data will be []byte{byte(1)}
+			claim:       builder.Seq(false).Attack(false).Attack(true).Attack(true).Get(),
+			isLocal:     true,
+			key:         []byte{0x01},
+			data:        []byte{0x01},
+			expectedErr: nil,
+		},
+		{
+			name:        "NonLocal_OracleData",
+			claim:       builder.Seq(false).Attack(false).Get(),
+			isLocal:     false,
+			key:         []byte{0x07},
+			data:        []byte{0x07},
+			expectedErr: nil,
+		},
+		{
+			name:        "OracleData_ProviderError",
+			claim:       builder.Seq(false).Attack(false).Get(),
+			isLocal:     false,
+			key:         []byte{0x01},
+			data:        []byte{0x01},
+			expectedErr: fmt.Errorf("provider error"),
+		},
+	}
+	for _, tableTest := range tests {
+		t.Run(tableTest.name, func(t *testing.T) {
+			alphabetProvider := test.NewAlphabetWithProofProvider(t, maxDepth, tableTest.expectedErr)
+			builder = test.NewClaimBuilder(t, maxDepth, alphabetProvider)
+			solver := solver.NewSolver(maxDepth, builder.CorrectTraceProvider())
+			data, err := solver.OracleData(tableTest.claim)
+			if tableTest.expectedErr == nil {
+				require.NoError(t, err)
+				require.Equal(t, tableTest.isLocal, data.IsLocal)
+				require.Equal(t, tableTest.key, data.OracleKey)
+				require.Equal(t, tableTest.data, data.OracleData)
+			} else {
+				require.ErrorIs(t, err, tableTest.expectedErr)
+				require.False(t, data.IsLocal)
+				require.Nil(t, data.OracleKey)
+				require.Nil(t, data.OracleData)
+			}
+		})
+	}
+}
+
 func TestAttemptStep(t *testing.T) {
 	maxDepth := 3
 	builder := test.NewAlphabetClaimBuilder(t, maxDepth)

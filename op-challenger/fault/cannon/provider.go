@@ -17,9 +17,11 @@ const (
 )
 
 type proofData struct {
-	ClaimValue hexutil.Bytes `json:"post"`
-	StateData  hexutil.Bytes `json:"state-data"`
-	ProofData  hexutil.Bytes `json:"proof-data"`
+	ClaimValue  hexutil.Bytes `json:"post"`
+	StateData   hexutil.Bytes `json:"state-data"`
+	ProofData   hexutil.Bytes `json:"proof-data"`
+	OracleKey   hexutil.Bytes `json:"oracle-key,omitempty"`
+	OracleValue hexutil.Bytes `json:"oracle-value,omitempty"`
 }
 
 type Executor interface {
@@ -50,6 +52,14 @@ func (p *CannonTraceProvider) Get(i uint64) (common.Hash, error) {
 		return common.Hash{}, errors.New("proof missing post hash")
 	}
 	return value, nil
+}
+
+func (p *CannonTraceProvider) GetOracleData(i uint64) ([]byte, []byte, error) {
+	proof, err := p.loadProof(i)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proof.OracleKey, proof.OracleValue, nil
 }
 
 func (p *CannonTraceProvider) GetPreimage(i uint64) ([]byte, []byte, error) {

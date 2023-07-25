@@ -46,6 +46,17 @@ func (s *Solver) NextMove(claim types.Claim, agreeWithClaimLevel bool) (*types.C
 	}
 }
 
+// OracleData returns the pre-image data to populate the oracle with
+// if any exists.
+func (s *Solver) OracleData(claim types.Claim) (types.PreimageOracleData, error) {
+	index := claim.TraceIndex(s.gameDepth)
+	key, data, err := s.trace.GetOracleData(index)
+	if err != nil {
+		return types.PreimageOracleData{}, err
+	}
+	return types.NewPreimageOracleData(key, data), nil
+}
+
 type StepData struct {
 	LeafClaim types.Claim
 	IsAttack  bool
