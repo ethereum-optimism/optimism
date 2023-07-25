@@ -55,10 +55,13 @@ func (wit *StepWitness) EncodePreimageOracleInput() ([]byte, error) {
 		var input []byte
 		input = append(input, LoadLocalDataBytes4...)
 		input = append(input, wit.PreimageKey[:]...)
+
+		preimagePart := wit.PreimageValue[wit.PreimageOffset:]
 		var tmp [32]byte
-		copy(tmp[:], wit.PreimageValue[8:])
+		copy(tmp[:], preimagePart)
 		input = append(input, tmp[:]...)
-		input = append(input, uint32ToBytes32(uint32(len(wit.PreimageValue))-8)...)
+		input = append(input, uint32ToBytes32(32)...)
+		input = append(input, uint32ToBytes32(wit.PreimageOffset)...)
 		// Note: we can pad calldata to 32 byte multiple, but don't strictly have to
 		return input, nil
 	case preimage.Keccak256KeyType:
