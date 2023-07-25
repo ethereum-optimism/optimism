@@ -56,6 +56,13 @@ func TestL2HeadRequired(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidL2Head)
 }
 
+func TestL2OutputRootRequired(t *testing.T) {
+	config := validConfig()
+	config.L2OutputRoot = common.Hash{}
+	err := config.Check()
+	require.ErrorIs(t, err, ErrInvalidL2OutputRoot)
+}
+
 func TestL2ClaimRequired(t *testing.T) {
 	config := validConfig()
 	config.L2Claim = common.Hash{}
