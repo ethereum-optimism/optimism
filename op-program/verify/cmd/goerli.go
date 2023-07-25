@@ -114,7 +114,7 @@ func Run(l1RpcUrl string, l2RpcUrl string, l2OracleAddr common.Address) error {
 		if agreedOutput.OutputRoot != output.OutputRoot {
 			break
 		}
-		fmt.Printf("Output at %d equals output at finalized block. Continuing search...\n", agreedBlockNumber)
+		fmt.Printf("Output at %v equals output at finalized block. Continuing search...\n", agreedOutput.L2BlockNumber)
 		agreedOutputIndex.Sub(agreedOutputIndex, big.NewInt(1))
 		if agreedOutputIndex.Int64() < 0 {
 			return fmt.Errorf("failed to find an output different from finalized block output")
