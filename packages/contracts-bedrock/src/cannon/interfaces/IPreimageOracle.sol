@@ -14,10 +14,11 @@ interface IPreimageOracle {
         view
         returns (bytes32 dat_, uint256 datLen_);
 
-    /// @notice Loads a word of local data into the preimage oracle in two separate parts.
+    /// @notice Loads of local data part into the preimage oracle.
     /// @param _ident The identifier of the local data.
     /// @param _word The local data word.
     /// @param _size The number of bytes in `_word` to load.
+    /// @param _partOffset The offset of the local data part to write to the oracle.
     /// @dev The local data parts are loaded into the preimage oracle under the context
     ///      of the caller - no other account can write to the caller's context
     ///      specific data.
