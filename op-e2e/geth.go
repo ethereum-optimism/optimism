@@ -170,14 +170,11 @@ func initL2Geth(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath 
 		Genesis:   genesis,
 		Miner: miner.Config{
 			Etherbase:         common.Address{},
-			Notify:            nil,
-			NotifyFull:        false,
 			ExtraData:         nil,
 			GasFloor:          0,
 			GasCeil:           0,
 			GasPrice:          nil,
 			Recommit:          0,
-			Noverify:          false,
 			NewPayloadTimeout: 0,
 		},
 	}
