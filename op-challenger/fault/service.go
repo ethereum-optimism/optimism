@@ -3,15 +3,17 @@ package fault
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
+	"github.com/ethereum-optimism/optimism/op-service/backoff"
+	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -31,7 +33,11 @@ type service struct {
 
 // NewService creates a new Service.
 func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*service, error) {
-	client, err := ethclient.Dial(cfg.L1EthRpc)
+	// These hard-coded values will need to be moved into the config.
+	maxRetries := 5
+	retryInterval := time.Second * 5
+	backoffInterval := time.Second * 5
+	client, err := client.DialEthClientWithRetry(ctx, cfg.L1EthRpc, backoff.Fixed(backoffInterval), maxRetries, retryInterval)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial L1: %w", err)
 	}
