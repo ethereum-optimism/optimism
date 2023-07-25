@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/test"
 	"github.com/ethereum/go-ethereum/common"
@@ -65,4 +66,23 @@ func TestCodeByHash(t *testing.T) {
 	delete(stateStub.Code, hash)
 	actual = oracle.CodeByHash(hash)
 	require.Equal(t, node, actual)
+}
+
+func TestOutputByRoot(t *testing.T) {
+	stub, _ := test.NewStubOracle(t)
+	oracle := NewCachingOracle(stub)
+
+	rng := rand.New(rand.NewSource(1))
+	output := testutils.RandomOutputV0(rng)
+
+	// Initial call retrieves from the stub
+	root := common.Hash(eth.OutputRoot(output))
+	stub.Outputs[root] = output
+	actual := oracle.OutputByRoot(root)
+	require.Equal(t, output, actual)
+
+	// Later calls should retrieve from cache
+	delete(stub.Outputs, root)
+	actual = oracle.OutputByRoot(root)
+	require.Equal(t, output, actual)
 }
