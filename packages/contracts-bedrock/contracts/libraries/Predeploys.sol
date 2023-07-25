@@ -71,4 +71,10 @@ library Predeploys {
 
     /// @notice Address of the GovernanceToken predeploy.
     address internal constant GOVERNANCE_TOKEN = 0x4200000000000000000000000000000000000042;
+
+    /// @notice Address of the SchemaRegistry predeploy.
+    address internal constant SCHEMA_REGISTRY = 0x4200000000000000000000000000000000000020;
+
+    /// @notice Address of the EAS predeploy.
+    address internal constant EAS = 0x4200000000000000000000000000000000000021;
 }

@@ -52,9 +52,24 @@ abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
     //                        Core Logic                          //
     ////////////////////////////////////////////////////////////////
 
+    function run() public returns (bool) {
+        address safe;
+        address proxyAdmin;
+        if (block.chainid == OP_GOERLI) {
+            safe = 0xE534ccA2753aCFbcDBCeB2291F596fc60495257e;
+            proxyAdmin = 0x4200000000000000000000000000000000000018;
+        }
+        return run(safe, proxyAdmin);
+    }
 
     /// @notice The entrypoint to this script.
     function run(address _safe, address _proxyAdmin) public returns (bool) {
+        require(_safe != address(0), "Safe address undefined");
+        require(_proxyAdmin != address(0), "ProxyAdminAddress undefined");
+
+        console.log("Using Safe: %s", _safe);
+        console.log("Using ProxyAdmin: %s", _proxyAdmin);
+
         vm.startBroadcast();
         bool success = _run(_safe, _proxyAdmin);
         if (success) _postCheck();

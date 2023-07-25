@@ -11,10 +11,9 @@ contract Hash_CrossDomainHasher {
     bool public failedCrossDomainHashV0;
     bool public failedCrossDomainHashV1;
 
-    /**
-     * @notice Takes the necessary parameters to perform a cross domain hash with a randomly
-     * generated version. Only schema versions 0 and 1 are supported and all others should revert.
-     */
+    /// @notice Takes the necessary parameters to perform a cross domain hash with a randomly
+    ///         generated version. Only schema versions 0 and 1 are supported and all others
+    ///         should revert.
     function hashCrossDomainMessageHighVersion(
         uint16 _version,
         uint240 _nonce,
@@ -37,10 +36,9 @@ contract Hash_CrossDomainHasher {
         }
     }
 
-    /**
-     * @notice Takes the necessary parameters to perform a cross domain hash using the v0 schema
-     * and compares the output of a call to the unversioned function to the v0 function directly
-     */
+    /// @notice Takes the necessary parameters to perform a cross domain hash using the v0 schema
+    ///         and compares the output of a call to the unversioned function to the v0 function
+    ///         directly.
     function hashCrossDomainMessageV0(
         uint240 _nonce,
         address _sender,
@@ -75,10 +73,9 @@ contract Hash_CrossDomainHasher {
         }
     }
 
-    /**
-     * @notice Takes the necessary parameters to perform a cross domain hash using the v1 schema
-     * and compares the output of a call to the unversioned function to the v1 function directly
-     */
+    /// @notice Takes the necessary parameters to perform a cross domain hash using the v1 schema
+    ///         and compares the output of a call to the unversioned function to the v1 function
+    ///         directly.
     function hashCrossDomainMessageV1(
         uint240 _nonce,
         address _sender,
@@ -133,36 +130,31 @@ contract Hashing_Invariant is StdInvariant, Test {
         targetSelector(selector);
     }
 
-    /**
-     * @custom:invariant `hashCrossDomainMessage` reverts if `version` is > `1`.
-     *
-     * The `hashCrossDomainMessage` function should always revert if the `version` passed is > `1`.
-     */
+    /// @custom:invariant `hashCrossDomainMessage` reverts if `version` is > `1`.
+    ///
+    ///                   The `hashCrossDomainMessage` function should always revert if
+    ///                   the `version` passed is > `1`.
     function invariant_hash_xdomain_msg_high_version() external {
         // ASSERTION: The round trip aliasing done in testRoundTrip(...) should never fail.
         assertFalse(actor.failedCrossDomainHashHighVersion());
     }
 
-    /**
-     * @custom:invariant `version` = `0`: `hashCrossDomainMessage` and `hashCrossDomainMessageV0`
-     * are equivalent.
-     *
-     * If the version passed is 0, `hashCrossDomainMessage` and `hashCrossDomainMessageV0` should be
-     * equivalent.
-     */
+    /// @custom:invariant `version` = `0`: `hashCrossDomainMessage` and `hashCrossDomainMessageV0`
+    ///                   are equivalent.
+    ///
+    ///                   If the version passed is 0, `hashCrossDomainMessage` and
+    ///                   `hashCrossDomainMessageV0` should be equivalent.
     function invariant_hash_xdomain_msg_0() external {
         // ASSERTION: A call to hashCrossDomainMessage and hashCrossDomainMessageV0
         // should always match when the version passed is 0
         assertFalse(actor.failedCrossDomainHashV0());
     }
 
-    /**
-     * @custom:invariant `version` = `1`: `hashCrossDomainMessage` and `hashCrossDomainMessageV1`
-     * are equivalent.
-     *
-     * If the version passed is 1, `hashCrossDomainMessage` and `hashCrossDomainMessageV1` should be
-     * equivalent.
-     */
+    /// @custom:invariant `version` = `1`: `hashCrossDomainMessage` and `hashCrossDomainMessageV1`
+    ///                   are equivalent.
+    ///
+    ///                   If the version passed is 1, `hashCrossDomainMessage` and
+    ///                   `hashCrossDomainMessageV1` should be equivalent.
     function invariant_hash_xdomain_msg_1() external {
         // ASSERTION: A call to hashCrossDomainMessage and hashCrossDomainMessageV1
         // should always match when the version passed is 1

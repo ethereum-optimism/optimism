@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
@@ -44,14 +44,18 @@ contract DeployConfig is Script {
     uint256 public gasPriceOracleScalar;
     uint256 public eip1559Denominator;
     uint256 public eip1559Elasticity;
-    uint256 public l2GenesisRegolithTimeOffset;
     uint256 public faultGameAbsolutePrestate;
     uint256 public faultGameMaxDepth;
     uint256 public faultGameMaxDuration;
 
     constructor(string memory _path) {
         console.log("DeployConfig: reading file %s", _path);
-        _json = vm.readFile(_path);
+        try vm.readFile(_path) returns (string memory data) {
+            _json = data;
+        } catch {
+            console.log("Warning: unable to read config. Do not deploy unless you are not using config.");
+            return;
+        }
 
         finalSystemOwner = stdJson.readAddress(_json, "$.finalSystemOwner");
         controller = stdJson.readAddress(_json, "$.controller");
@@ -84,7 +88,6 @@ contract DeployConfig is Script {
         gasPriceOracleScalar = stdJson.readUint(_json, "$.gasPriceOracleScalar");
         eip1559Denominator = stdJson.readUint(_json, "$.eip1559Denominator");
         eip1559Elasticity = stdJson.readUint(_json, "$.eip1559Elasticity");
-        l2GenesisRegolithTimeOffset = stdJson.readUint(_json, "$.l2GenesisRegolithTimeOffset");
 
         if (block.chainid == 900) {
             faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");

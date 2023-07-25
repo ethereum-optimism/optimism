@@ -9,11 +9,9 @@ contract Encoding_Converter {
     bool public failedRoundtripAToB;
     bool public failedRoundtripBToA;
 
-    /**
-     * @notice Takes a pair of integers to be encoded into a versioned nonce with the
-     *         Encoding library and then decoded and updates the test contract's state
-     *         indicating if the round trip encoding failed.
-     */
+    /// @notice Takes a pair of integers to be encoded into a versioned nonce with the
+    ///         Encoding library and then decoded and updates the test contract's state
+    ///         indicating if the round trip encoding failed.
     function convertRoundTripAToB(uint240 _nonce, uint16 _version) external {
         // Encode the nonce and version
         uint256 encodedVersionedNonce = Encoding.encodeVersionedNonce(_nonce, _version);
@@ -30,11 +28,9 @@ contract Encoding_Converter {
         }
     }
 
-    /**
-     * @notice Takes an integer representing a packed version and nonce and attempts
-     *         to decode them using the Encoding library before re-encoding and updates
-     *         the test contract's state indicating if the round trip encoding failed.
-     */
+    /// @notice Takes an integer representing a packed version and nonce and attempts
+    ///         to decode them using the Encoding library before re-encoding and updates
+    ///         the test contract's state indicating if the round trip encoding failed.
     function convertRoundTripBToA(uint256 _versionedNonce) external {
         // Decode the nonce and version
         uint240 decodedNonce;
@@ -68,22 +64,19 @@ contract Encoding_Invariant is StdInvariant, Test {
         targetSelector(selector);
     }
 
-    /**
-     * @custom:invariant `convertRoundTripAToB` never fails.
-     *
-     * Asserts that a raw versioned nonce can be encoded / decoded to reach the same raw value.
-     */
+    /// @custom:invariant `convertRoundTripAToB` never fails.
+    ///
+    ///                   Asserts that a raw versioned nonce can be encoded / decoded
+    ///                   to reach the same raw value.
     function invariant_round_trip_encoding_AToB() external {
         // ASSERTION: The round trip encoding done in testRoundTripAToB(...)
         assertEq(actor.failedRoundtripAToB(), false);
     }
 
-    /**
-     * @custom:invariant `convertRoundTripBToA` never fails.
-     *
-     * Asserts that an encoded versioned nonce can always be decoded / re-encoded to reach
-     * the same encoded value.
-     */
+    /// @custom:invariant `convertRoundTripBToA` never fails.
+    ///
+    ///                   Asserts that an encoded versioned nonce can always be decoded /
+    ///                   re-encoded to reach the same encoded value.
     function invariant_round_trip_encoding_BToA() external {
         // ASSERTION: The round trip encoding done in testRoundTripBToA should never
         // fail.

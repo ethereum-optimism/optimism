@@ -231,6 +231,11 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		SystemConfigProxy:           predeploys.DevSystemConfigAddr,
 	}
 
+	// Sanity check that the config is correct
+	require.Equal(t, deployParams.Secrets.Addresses().Batcher, deployParams.DeployConfig.BatchSenderAddress)
+	require.Equal(t, deployParams.Secrets.Addresses().SequencerP2P, deployParams.DeployConfig.P2PSequencerAddress)
+	require.Equal(t, deployParams.Secrets.Addresses().Proposer, deployParams.DeployConfig.L2OutputOracleProposer)
+
 	return &SetupData{
 		L1Cfg:         l1Genesis,
 		L2Cfg:         l2Genesis,

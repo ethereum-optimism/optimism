@@ -48,9 +48,11 @@ type Deposit struct {
 	TokenPair TokenPair   `gorm:"embedded"`
 }
 
-type DepositWithTransactionHash struct {
+type DepositWithTransactionHashes struct {
 	Deposit           Deposit     `gorm:"embedded"`
 	L1TransactionHash common.Hash `gorm:"serializer:json"`
+
+	FinalizedL2TransactionHash common.Hash `gorm:"serializer:json"`
 }
 
 type Withdrawal struct {
@@ -77,12 +79,12 @@ type WithdrawalWithTransactionHashes struct {
 	Withdrawal        Withdrawal  `gorm:"embedded"`
 	L2TransactionHash common.Hash `gorm:"serializer:json"`
 
-	ProvenL1TransactionHash    *common.Hash `gorm:"serializer:json"`
-	FinalizedL1TransactionHash *common.Hash `gorm:"serializer:json"`
+	ProvenL1TransactionHash    common.Hash `gorm:"serializer:json"`
+	FinalizedL1TransactionHash common.Hash `gorm:"serializer:json"`
 }
 
 type BridgeView interface {
-	DepositsByAddress(address common.Address) ([]*DepositWithTransactionHash, error)
+	DepositsByAddress(address common.Address) ([]*DepositWithTransactionHashes, error)
 	DepositByMessageNonce(*big.Int) (*Deposit, error)
 	LatestDepositMessageNonce() (*big.Int, error)
 
@@ -122,14 +124,16 @@ func (db *bridgeDB) StoreDeposits(deposits []*Deposit) error {
 	return result.Error
 }
 
-func (db *bridgeDB) DepositsByAddress(address common.Address) ([]*DepositWithTransactionHash, error) {
-	depositsQuery := db.gorm.Table("deposits").Select("deposits.*, l1_contract_events.transaction_hash AS l1_transaction_hash")
-	eventsJoinQuery := depositsQuery.Joins("LEFT JOIN l1_contract_events ON deposits.initiated_l1_event_guid = l1_contract_events.guid")
+func (db *bridgeDB) DepositsByAddress(address common.Address) ([]*DepositWithTransactionHashes, error) {
+	depositsQuery := db.gorm.Table("deposits").Select("deposits.*, l1_contract_events.transaction_hash AS l1_transaction_hash, l2_contract_events.transaction_hash AS finalized_l2_transaction_hash")
+
+	initiatedJoinQuery := depositsQuery.Joins("LEFT JOIN l1_contract_events ON deposits.initiated_l1_event_guid = l1_contract_events.guid")
+	finalizedJoinQuery := initiatedJoinQuery.Joins("LEFT JOIN l2_contract_events ON deposits.finalized_l2_event_guid = l2_contract_events.guid")
 
 	// add in cursoring options
-	filteredQuery := eventsJoinQuery.Where(&Transaction{FromAddress: address}).Order("deposits.timestamp DESC").Limit(100)
+	filteredQuery := finalizedJoinQuery.Where(&Transaction{FromAddress: address}).Order("deposits.timestamp DESC").Limit(100)
 
-	deposits := make([]*DepositWithTransactionHash, 100)
+	deposits := make([]*DepositWithTransactionHashes, 100)
 	result := filteredQuery.Scan(&deposits)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -144,7 +148,7 @@ func (db *bridgeDB) DepositsByAddress(address common.Address) ([]*DepositWithTra
 
 func (db *bridgeDB) DepositByMessageNonce(nonce *big.Int) (*Deposit, error) {
 	var deposit Deposit
-	result := db.gorm.First(&deposit, "sent_message_nonce = ?", U256{Int: nonce})
+	result := db.gorm.Where(&Deposit{SentMessageNonce: U256{Int: nonce}}).Take(&deposit)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -172,7 +176,7 @@ func (db *bridgeDB) LatestDepositMessageNonce() (*big.Int, error) {
 
 func (db *bridgeDB) MarkFinalizedDepositEvent(guid, finalizationEventGUID uuid.UUID) error {
 	var deposit Deposit
-	result := db.gorm.First(&deposit, "guid = ?", guid)
+	result := db.gorm.Where(&Deposit{GUID: guid}).Take(&deposit)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -191,7 +195,7 @@ func (db *bridgeDB) StoreWithdrawals(withdrawals []*Withdrawal) error {
 
 func (db *bridgeDB) MarkProvenWithdrawalEvent(guid, provenL1EventGuid uuid.UUID) error {
 	var withdrawal Withdrawal
-	result := db.gorm.First(&withdrawal, "guid = ?", guid)
+	result := db.gorm.Where(&Withdrawal{GUID: guid}).Take(&withdrawal)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -203,7 +207,7 @@ func (db *bridgeDB) MarkProvenWithdrawalEvent(guid, provenL1EventGuid uuid.UUID)
 
 func (db *bridgeDB) MarkFinalizedWithdrawalEvent(guid, finalizedL1EventGuid uuid.UUID) error {
 	var withdrawal Withdrawal
-	result := db.gorm.First(&withdrawal, "guid = ?", guid)
+	result := db.gorm.Where(&Withdrawal{GUID: guid}).Take(&withdrawal)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -242,7 +246,7 @@ func (db *bridgeDB) WithdrawalsByAddress(address common.Address) ([]*WithdrawalW
 
 func (db *bridgeDB) WithdrawalByMessageNonce(nonce *big.Int) (*Withdrawal, error) {
 	var withdrawal Withdrawal
-	result := db.gorm.First(&withdrawal, "sent_message_nonce = ?", U256{Int: nonce})
+	result := db.gorm.Where(&Withdrawal{SentMessageNonce: U256{Int: nonce}}).Take(&withdrawal)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -256,7 +260,7 @@ func (db *bridgeDB) WithdrawalByMessageNonce(nonce *big.Int) (*Withdrawal, error
 
 func (db *bridgeDB) WithdrawalByHash(hash common.Hash) (*Withdrawal, error) {
 	var withdrawal Withdrawal
-	result := db.gorm.First(&withdrawal, "withdrawal_hash = ?", hash.String())
+	result := db.gorm.Where(&Withdrawal{WithdrawalHash: hash}).Take(&withdrawal)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil

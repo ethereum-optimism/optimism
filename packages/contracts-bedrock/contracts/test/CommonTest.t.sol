@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-/* Testing utilities */
+// Testing utilities
 import { Test, StdUtils } from "forge-std/Test.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
@@ -766,9 +766,7 @@ contract ConfigurableCaller {
 
     event WhatHappened(bool success, bytes returndata);
 
-    /**
-     * @notice Call the configured target with the configured payload OR revert.
-     */
+    /// @notice Call the configured target with the configured payload OR revert.
     function call() external {
         if (doRevert) {
             revert("ConfigurableCaller: revert");
@@ -787,31 +785,23 @@ contract ConfigurableCaller {
         }
     }
 
-    /**
-     * @notice Set whether or not to have `call` revert.
-     */
+    /// @notice Set whether or not to have `call` revert.
     function setDoRevert(bool _doRevert) external {
         doRevert = _doRevert;
     }
 
-    /**
-     * @notice Set the target for the call made in `call`.
-     */
+    /// @notice Set the target for the call made in `call`.
     function setTarget(address _target) external {
         target = _target;
     }
 
-    /**
-     * @notice Set the payload for the call made in `call`.
-     */
+    /// @notice Set the payload for the call made in `call`.
     function setPayload(bytes calldata _payload) external {
         payload = _payload;
     }
 
-    /**
-     * @notice Fallback function that reverts if `doRevert` is true.
-     *         Otherwise, it does nothing.
-     */
+    /// @notice Fallback function that reverts if `doRevert` is true.
+    ///        Otherwise, it does nothing.
     fallback() external {
         if (doRevert) {
             revert("ConfigurableCaller: revert");
