@@ -109,7 +109,7 @@ func (s *L1Miner) ActL1IncludeTx(from common.Address) Action {
 func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) {
 	from, err := s.l1Signer.Sender(tx)
 	require.NoError(t, err)
-	s.log.Info("including tx", "nonce", tx.Nonce(), "from", from)
+	s.log.Info("including tx", "nonce", tx.Nonce(), "from", from, "to", tx.To())
 	if tx.Gas() > s.l1BuildingHeader.GasLimit {
 		t.Fatalf("tx consumes %d gas, more than available in L1 block %d", tx.Gas(), s.l1BuildingHeader.GasLimit)
 	}

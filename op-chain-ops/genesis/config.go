@@ -169,6 +169,22 @@ type DeployConfig struct {
 	FundDevAccounts bool `json:"fundDevAccounts"`
 }
 
+// Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
+// which makes it easier to maintain, we do not need efficiency in this case.
+func (d *DeployConfig) Copy() *DeployConfig {
+	raw, err := json.Marshal(d)
+	if err != nil {
+		panic(err)
+	}
+
+	cpy := DeployConfig{}
+	if err = json.Unmarshal(raw, &cpy); err != nil {
+		panic(err)
+	}
+
+	return &cpy
+}
+
 // Check will ensure that the config is sane and return an error when it is not
 func (d *DeployConfig) Check() error {
 	if d.L1StartingBlockTag == nil {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -16,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer"
@@ -32,6 +34,7 @@ type L2Proposer struct {
 	log          log.Logger
 	l1           *ethclient.Client
 	driver       *proposer.L2OutputSubmitter
+	contract     *bindings.L2OutputOracleCaller
 	address      common.Address
 	privKey      *ecdsa.PrivateKey
 	contractAddr common.Address
@@ -56,7 +59,6 @@ func (f fakeTxMgr) Send(_ context.Context, _ txmgr.TxCandidate) (*types.Receipt,
 }
 
 func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, rollupCl *sources.RollupClient) *L2Proposer {
-
 	proposerCfg := proposer.Config{
 		L2OutputOracleAddr: cfg.OutputOracleAddr,
 		PollInterval:       time.Second,
@@ -70,12 +72,20 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 
 	dr, err := proposer.NewL2OutputSubmitter(proposerCfg, log, metrics.NoopMetrics)
 	require.NoError(t, err)
+	contract, err := bindings.NewL2OutputOracleCaller(cfg.OutputOracleAddr, l1)
+	require.NoError(t, err)
+
+	address := crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey)
+	proposer, err := contract.PROPOSER(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, proposer, address, "PROPOSER must be the proposer's address")
 
 	return &L2Proposer{
 		log:          log,
 		l1:           l1,
 		driver:       dr,
-		address:      crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey),
+		contract:     contract,
+		address:      address,
 		privKey:      cfg.ProposerKey,
 		contractAddr: cfg.OutputOracleAddr,
 	}
