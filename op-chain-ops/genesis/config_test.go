@@ -48,3 +48,19 @@ func TestRegolithTimeAsOffset(t *testing.T) {
 	config := &DeployConfig{L2GenesisRegolithTimeOffset: &regolithOffset}
 	require.Equal(t, uint64(1500+5000), *config.RegolithTime(5000))
 }
+
+// TestCopy will copy a DeployConfig and ensure that the copy is equal to the original.
+func TestCopy(t *testing.T) {
+	b, err := os.ReadFile("testdata/test-deploy-config-full.json")
+	require.NoError(t, err)
+
+	decoded := new(DeployConfig)
+	require.NoError(t, json.NewDecoder(bytes.NewReader(b)).Decode(decoded))
+
+	cpy := decoded.Copy()
+	require.EqualValues(t, decoded, cpy)
+
+	offset := hexutil.Uint64(100)
+	cpy.L2GenesisRegolithTimeOffset = &offset
+	require.NotEqual(t, decoded, cpy)
+}
