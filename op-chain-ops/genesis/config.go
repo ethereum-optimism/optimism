@@ -457,6 +457,44 @@ func NewDeployConfigWithNetwork(network, path string) (*DeployConfig, error) {
 	return NewDeployConfig(deployConfig)
 }
 
+// L1Deployments represents a set of L1 contracts that are deployed.
+type L1Deployments struct {
+	AddressManager                    common.Address `json:"AddressManager"`
+	DisputeGameFactory                common.Address `json:"DisputeGameFactory"`
+	DisputeGameFactoryProxy           common.Address `json:"DisputeGameFactoryProxy"`
+	L1CrossDomainMessenger            common.Address `json:"L1CrossDomainMessenger"`
+	L1CrossDomainMessengerProxy       common.Address `json:"L1CrossDomainMessengerProxy"`
+	L1ERC721Bridge                    common.Address `json:"L1ERC721Bridge"`
+	L1ERC721BridgeProxy               common.Address `json:"L1ERC721BridgeProxy"`
+	L1StandardBridge                  common.Address `json:"L1StandardBridge"`
+	L1StandardBridgeProxy             common.Address `json:"L1StandardBridgeProxy"`
+	L2OutputOracle                    common.Address `json:"L2OutputOracle"`
+	L2OutputOracleProxy               common.Address `json:"L2OutputOracleProxy"`
+	OptimismMintableERC20Factory      common.Address `json:"OptimismMintableERC20Factory"`
+	OptimismMintableERC20FactoryProxy common.Address `json:"OptimismMintableERC20FactoryProxy"`
+	OptimismPortal                    common.Address `json:"OptimismPortal"`
+	OptimismPortalProxy               common.Address `json:"OptimismPortalProxy"`
+	ProxyAdmin                        common.Address `json:"ProxyAdmin"`
+	SystemConfig                      common.Address `json:"SystemConfig"`
+	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
+}
+
+// NewL1Deployments will create a new L1Deployments from a JSON file on disk
+// at the given path.
+func NewL1Deployments(path string) (*L1Deployments, error) {
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("L1 deployments at %s not found: %w", path, err)
+	}
+
+	var deployments L1Deployments
+	if err := json.Unmarshal(file, &deployments); err != nil {
+		return nil, fmt.Errorf("cannot unmarshal L1 deployements: %w", err)
+	}
+
+	return &deployments, nil
+}
+
 // NewL2ImmutableConfig will create an ImmutableConfig given an instance of a
 // DeployConfig and a block.
 func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.ImmutableConfig, error) {

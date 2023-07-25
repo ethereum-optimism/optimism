@@ -64,3 +64,29 @@ func TestCopy(t *testing.T) {
 	cpy.L2GenesisRegolithTimeOffset = &offset
 	require.NotEqual(t, decoded, cpy)
 }
+
+// TestL1Deployments ensures that NewL1Deployments can read a JSON file
+// from disk and deserialize all of the key/value pairs correctly.
+func TestL1Deployments(t *testing.T) {
+	deployments, err := NewL1Deployments("testdata/l1-deployments.json")
+	require.NoError(t, err)
+
+	require.NotEqual(t, deployments.AddressManager, common.Address{})
+	require.NotEqual(t, deployments.DisputeGameFactory, common.Address{})
+	require.NotEqual(t, deployments.DisputeGameFactoryProxy, common.Address{})
+	require.NotEqual(t, deployments.L1CrossDomainMessenger, common.Address{})
+	require.NotEqual(t, deployments.L1CrossDomainMessengerProxy, common.Address{})
+	require.NotEqual(t, deployments.L1ERC721Bridge, common.Address{})
+	require.NotEqual(t, deployments.L1ERC721BridgeProxy, common.Address{})
+	require.NotEqual(t, deployments.L1StandardBridge, common.Address{})
+	require.NotEqual(t, deployments.L1StandardBridgeProxy, common.Address{})
+	require.NotEqual(t, deployments.L2OutputOracle, common.Address{})
+	require.NotEqual(t, deployments.L2OutputOracleProxy, common.Address{})
+	require.NotEqual(t, deployments.OptimismMintableERC20Factory, common.Address{})
+	require.NotEqual(t, deployments.OptimismMintableERC20FactoryProxy, common.Address{})
+	require.NotEqual(t, deployments.OptimismPortal, common.Address{})
+	require.NotEqual(t, deployments.OptimismPortalProxy, common.Address{})
+	require.NotEqual(t, deployments.ProxyAdmin, common.Address{})
+	require.NotEqual(t, deployments.SystemConfig, common.Address{})
+	require.NotEqual(t, deployments.SystemConfigProxy, common.Address{})
+}
