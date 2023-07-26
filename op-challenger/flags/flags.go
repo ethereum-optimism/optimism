@@ -83,6 +83,12 @@ var (
 		Usage:   "L2 Address of L2 JSON-RPC endpoint to use (eth and debug namespace required)  (cannon trace type only)",
 		EnvVars: prefixEnvVars("CANNON_L2"),
 	}
+	CannonSnapshotFreqFlag = &cli.UintFlag{
+		Name:    "cannon-snapshot-freq",
+		Usage:   "Frequency of cannon snapshots to generate in VM steps (cannon trace type only)",
+		EnvVars: prefixEnvVars("CANNON_SNAPSHOT_FREQ"),
+		Value:   config.DefaultCannonSnapshotFreq,
+	}
 )
 
 // requiredFlags are checked by [CheckRequired]
@@ -102,6 +108,7 @@ var optionalFlags = []cli.Flag{
 	CannonPreStateFlag,
 	CannonDatadirFlag,
 	CannonL2Flag,
+	CannonSnapshotFreqFlag,
 }
 
 func init() {
@@ -173,6 +180,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		CannonAbsolutePreState:  ctx.String(CannonPreStateFlag.Name),
 		CannonDatadir:           ctx.String(CannonDatadirFlag.Name),
 		CannonL2:                ctx.String(CannonL2Flag.Name),
+		CannonSnapshotFreq:      ctx.Uint(CannonSnapshotFreqFlag.Name),
 		AgreeWithProposedOutput: ctx.Bool(AgreeWithProposedOutputFlag.Name),
 		GameDepth:               ctx.Int(GameDepthFlag.Name),
 		TxMgrConfig:             txMgrConfig,

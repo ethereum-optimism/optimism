@@ -102,3 +102,11 @@ func TestCannonL2Required(t *testing.T) {
 	config.CannonL2 = ""
 	require.ErrorIs(t, config.Check(), ErrMissingCannonL2)
 }
+
+func TestCannonSnapshotFreq(t *testing.T) {
+	t.Run("MustNotBeZero", func(t *testing.T) {
+		cfg := validConfig(TraceTypeCannon)
+		cfg.CannonSnapshotFreq = 0
+		require.ErrorIs(t, cfg.Check(), ErrMissingCannonSnapshotFreq)
+	})
+}

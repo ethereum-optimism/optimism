@@ -214,6 +214,18 @@ func TestCannonL2(t *testing.T) {
 	})
 }
 
+func TestCannonSnapshotFreq(t *testing.T) {
+	t.Run("UsesDefault", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon))
+		require.Equal(t, config.DefaultCannonSnapshotFreq, cfg.CannonSnapshotFreq)
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon, "--cannon-snapshot-freq=1234"))
+		require.Equal(t, uint(1234), cfg.CannonSnapshotFreq)
+	})
+}
+
 func verifyArgsInvalid(t *testing.T, messageContains string, cliArgs []string) {
 	_, _, err := runWithArgs(cliArgs)
 	require.ErrorContains(t, err, messageContains)
