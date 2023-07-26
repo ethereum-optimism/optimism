@@ -73,6 +73,10 @@ RUN pnpm install --frozen-lockfile
 
 COPY ./packages ./packages
 
+COPY .git/ ./.git
+COPY .gitmodules ./.gitmodules
+RUN git submodule update --init --recursive
+
 RUN pnpm build
 
 FROM base as replica-healthcheck

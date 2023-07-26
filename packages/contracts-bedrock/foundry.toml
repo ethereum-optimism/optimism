@@ -5,12 +5,12 @@ optimizer = true
 optimizer_runs = 999999
 
 remappings = [
-  '@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/',
-  '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/',
-  '@rari-capital/solmate/=node_modules/@rari-capital/solmate',
-  "@cwia/=node_modules/clones-with-immutable-args/src",
-  'forge-std/=node_modules/forge-std/src',
-  'ds-test/=node_modules/ds-test/src'
+  '@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts',
+  '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts',
+  '@rari-capital/solmate/=lib/solmate',
+  "@cwia/=lib/clones-with-immutable-args/src",
+  'forge-std/=lib/forge-std/src',
+  'ds-test/=lib/ds-test/src'
 ]
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
 bytecode_hash = 'none'
@@ -18,8 +18,6 @@ build_info = true
 build_info_path = 'artifacts/build-info'
 ffi = true
 fuzz_runs = 16
-# PNPM symlinks all node_modules from the monorepo root
-allow_paths = ["../../node_modules", "./**"]
 
 fs_permissions = [
   { 'access'='read-write', 'path'='./.resource-metering.csv' },
@@ -27,6 +25,7 @@ fs_permissions = [
   { 'access'='read', 'path'='./deploy-config/' },
   { 'access'='read', 'path'='./broadcast/' },
   { access = 'read', path = './forge-artifacts/' },
+  { 'access'='write', 'path'='./semver-lock.json' },
 ]
 
 [profile.ci]
