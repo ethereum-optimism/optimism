@@ -13,6 +13,7 @@ var (
 	ErrMissingCannonDatadir          = errors.New("missing cannon datadir")
 	ErrMissingCannonL2               = errors.New("missing cannon L2")
 	ErrMissingCannonBin              = errors.New("missing cannon bin")
+	ErrMissingCannonServer           = errors.New("missing cannon server")
 	ErrMissingCannonAbsolutePreState = errors.New("missing cannon absolute pre-state")
 	ErrMissingAlphabetTrace          = errors.New("missing alphabet trace")
 	ErrMissingL1EthRPC               = errors.New("missing l1 eth rpc url")
@@ -66,6 +67,7 @@ type Config struct {
 
 	// Specific to the cannon trace provider
 	CannonBin              string // Path to the cannon executable to run when generating trace data
+	CannonServer           string // Path to the op-program executable that provides the pre-image oracle server
 	CannonAbsolutePreState string // File to load the absolute pre-state for Cannon traces from
 	CannonDatadir          string // Cannon Data Directory
 	CannonL2               string // L2 RPC Url
@@ -106,6 +108,9 @@ func (c Config) Check() error {
 	if c.TraceType == TraceTypeCannon {
 		if c.CannonBin == "" {
 			return ErrMissingCannonBin
+		}
+		if c.CannonServer == "" {
+			return ErrMissingCannonServer
 		}
 		if c.CannonAbsolutePreState == "" {
 			return ErrMissingCannonAbsolutePreState

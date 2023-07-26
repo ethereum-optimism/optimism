@@ -63,6 +63,11 @@ var (
 		Usage:   "Path to cannon executable to use when generating trace data (cannon trace type only)",
 		EnvVars: prefixEnvVars("CANNON_BIN"),
 	}
+	CannonServerFlag = &cli.StringFlag{
+		Name:    "cannon-server",
+		Usage:   "Path to executable to use as pre-image oracle server when generating trace data (cannon trace type only)",
+		EnvVars: prefixEnvVars("CANNON_SERVER"),
+	}
 	CannonPreStateFlag = &cli.StringFlag{
 		Name:    "cannon-prestate",
 		Usage:   "Path to absolute prestate to use when generating trace data (cannon trace type only)",
@@ -93,6 +98,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	AlphabetFlag,
 	CannonBinFlag,
+	CannonServerFlag,
 	CannonPreStateFlag,
 	CannonDatadirFlag,
 	CannonL2Flag,
@@ -119,6 +125,9 @@ func CheckRequired(ctx *cli.Context) error {
 	case config.TraceTypeCannon:
 		if !ctx.IsSet(CannonBinFlag.Name) {
 			return fmt.Errorf("flag %s is required", CannonBinFlag.Name)
+		}
+		if !ctx.IsSet(CannonServerFlag.Name) {
+			return fmt.Errorf("flag %s is required", CannonServerFlag.Name)
 		}
 		if !ctx.IsSet(CannonPreStateFlag.Name) {
 			return fmt.Errorf("flag %s is required", CannonPreStateFlag.Name)
@@ -160,6 +169,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		GameAddress:             dgfAddress,
 		AlphabetTrace:           ctx.String(AlphabetFlag.Name),
 		CannonBin:               ctx.String(CannonBinFlag.Name),
+		CannonServer:            ctx.String(CannonServerFlag.Name),
 		CannonAbsolutePreState:  ctx.String(CannonPreStateFlag.Name),
 		CannonDatadir:           ctx.String(CannonDatadirFlag.Name),
 		CannonL2:                ctx.String(CannonL2Flag.Name),
