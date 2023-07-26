@@ -70,9 +70,40 @@ var Goerli = rollup.Config{
 	RegolithTime:           u64Ptr(1679079600),
 }
 
+var Sepolia = rollup.Config{
+	Genesis: rollup.Genesis{
+		L1: eth.BlockID{
+			Hash:   common.HexToHash("0x4b29002c963e450d79b5acec0649654f9b806cc5b2fe3dfafac2e5379bea1653"),
+			Number: 3969582,
+		},
+		L2: eth.BlockID{
+			Hash:   common.HexToHash("0x96c6b5aa7836051bdef7527cc935a9837edfe16aba735259e54af407bb41dd84"),
+			Number: 0,
+		},
+		L2Time: 1690397376,
+		SystemConfig: eth.SystemConfig{
+			BatcherAddr: common.HexToAddress("0x7431310e026b69bfc676c0013e12a1a11411eec9"),
+			Overhead:    eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000000bc")),
+			Scalar:      eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000a6fe0")),
+			GasLimit:    30000000,
+		},
+	},
+	BlockTime:              2,
+	MaxSequencerDrift:      600,
+	SeqWindowSize:          3600,
+	ChannelTimeout:         300,
+	L1ChainID:              big.NewInt(11155111),
+	L2ChainID:              big.NewInt(11155420),
+	BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000011155420"),
+	DepositContractAddress: common.HexToAddress("0xb31e909cb6f7e873891e146967759f0140f420a8"),
+	L1SystemConfigAddress:  common.HexToAddress("0xc6a8e082fd9124e6175791086f448d61d95ca4a2"),
+	RegolithTime:           u64Ptr(0),
+}
+
 var NetworksByName = map[string]rollup.Config{
 	"goerli":  Goerli,
 	"mainnet": Mainnet,
+	"sepolia": Sepolia,
 }
 
 var L2ChainIDToNetworkName = func() map[string]string {
