@@ -39,7 +39,6 @@
     "lint:fix": "pnpm lint:contracts:fix && pnpm lint:ts:fix",
     "lint": "pnpm lint:fix && pnpm lint:check"
   },
-  "dependencies": {},
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^5.60.1",
     "@typescript-eslint/parser": "^5.60.1",
