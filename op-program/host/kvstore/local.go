@@ -22,6 +22,7 @@ var (
 	l2OutputRootKey       = client.L2OutputRootLocalIndex.PreimageKey()
 	l2ClaimKey            = client.L2ClaimLocalIndex.PreimageKey()
 	l2ClaimBlockNumberKey = client.L2ClaimBlockNumberLocalIndex.PreimageKey()
+	l2ChainIDKey          = client.L2ChainIDLocalIndex.PreimageKey()
 	l2ChainConfigKey      = client.L2ChainConfigLocalIndex.PreimageKey()
 	rollupKey             = client.RollupConfigLocalIndex.PreimageKey()
 )
@@ -36,6 +37,8 @@ func (s *LocalPreimageSource) Get(key common.Hash) ([]byte, error) {
 		return s.config.L2Claim.Bytes(), nil
 	case l2ClaimBlockNumberKey:
 		return binary.BigEndian.AppendUint64(nil, s.config.L2ClaimBlockNumber), nil
+	case l2ChainIDKey:
+		return binary.BigEndian.AppendUint64(nil, client.CustomChainIDIndicator), nil
 	case l2ChainConfigKey:
 		return json.Marshal(s.config.L2ChainConfig)
 	case rollupKey:
