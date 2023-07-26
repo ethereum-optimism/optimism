@@ -447,7 +447,7 @@ abstract contract Deployer is Script {
             return "hardhat";
         } else if (chainid == 11155111) {
             return "sepolia";
-        } else if (chainid == 69) {
+        } else if (chainid == 11155420) {
             return "optimism-sepolia";
         } else {
             return vm.toString(chainid);
