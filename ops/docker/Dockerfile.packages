@@ -17,7 +17,7 @@ FROM alpine:3.16 as manifests
 RUN apk add coreutils
 
 WORKDIR /tmp
-COPY pnpm-lock.yaml pnpm-workspace.yaml .nvmrc package.json ./src/ .gitmodules
+COPY pnpm-lock.yaml pnpm-workspace.yaml .nvmrc package.json ./src/
 COPY packages src/packages/
 RUN mkdir manifests && \
   cd src && \
@@ -72,6 +72,10 @@ COPY *.json ./
 RUN pnpm install --frozen-lockfile
 
 COPY ./packages ./packages
+
+COPY .git/ ./.git
+COPY .gitmodules ./.gitmodules
+RUN git submodule update --init --recursive
 
 RUN pnpm build
 
