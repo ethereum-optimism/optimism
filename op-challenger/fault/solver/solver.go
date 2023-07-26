@@ -47,10 +47,11 @@ func (s *Solver) NextMove(claim types.Claim, agreeWithClaimLevel bool) (*types.C
 }
 
 type StepData struct {
-	LeafClaim types.Claim
-	IsAttack  bool
-	PreState  []byte
-	ProofData []byte
+	LeafClaim  types.Claim
+	IsAttack   bool
+	PreState   []byte
+	ProofData  []byte
+	OracleData types.PreimageOracleData
 }
 
 // AttemptStep determines what step should occur for a given leaf claim.
@@ -83,11 +84,17 @@ func (s *Solver) AttemptStep(claim types.Claim, agreeWithClaimLevel bool) (StepD
 		}
 	}
 
+	oracleData, err := s.trace.GetOracleData(index)
+	if err != nil {
+		return StepData{}, err
+	}
+
 	return StepData{
-		LeafClaim: claim,
-		IsAttack:  !claimCorrect,
-		PreState:  preState,
-		ProofData: proofData,
+		LeafClaim:  claim,
+		IsAttack:   !claimCorrect,
+		PreState:   preState,
+		ProofData:  proofData,
+		OracleData: *oracleData,
 	}, nil
 }
 
