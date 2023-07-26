@@ -1,3 +1,6 @@
 [submodule "packages/contracts-bedrock/lib/openzeppelin-contracts-upgradeable"]
 	path = packages/contracts-bedrock/lib/openzeppelin-contracts-upgradeable
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable
+[submodule "packages/contracts-bedrock/lib/openzeppelin-contracts"]
+	path = packages/contracts-bedrock/lib/openzeppelin-contracts
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
