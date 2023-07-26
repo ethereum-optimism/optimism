@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -18,9 +19,11 @@ const (
 )
 
 type proofData struct {
-	ClaimValue hexutil.Bytes `json:"post"`
-	StateData  hexutil.Bytes `json:"state-data"`
-	ProofData  hexutil.Bytes `json:"proof-data"`
+	ClaimValue  hexutil.Bytes `json:"post"`
+	StateData   hexutil.Bytes `json:"state-data"`
+	ProofData   hexutil.Bytes `json:"proof-data"`
+	OracleKey   hexutil.Bytes `json:"oracle-key,omitempty"`
+	OracleValue hexutil.Bytes `json:"oracle-value,omitempty"`
 }
 
 type ProofGenerator interface {
@@ -38,6 +41,15 @@ func NewCannonTraceProvider(logger log.Logger, cfg *config.Config) *CannonTraceP
 		dir:       cfg.CannonDatadir,
 		generator: NewExecutor(logger, cfg),
 	}
+}
+
+func (p *CannonTraceProvider) GetOracleData(i uint64) (*types.PreimageOracleData, error) {
+	proof, err := p.loadProof(i)
+	if err != nil {
+		return nil, err
+	}
+	data := types.NewPreimageOracleData(proof.OracleKey, proof.OracleValue)
+	return &data, nil
 }
 
 func (p *CannonTraceProvider) Get(i uint64) (common.Hash, error) {
