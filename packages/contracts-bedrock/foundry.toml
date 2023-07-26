@@ -27,6 +27,7 @@ fs_permissions = [
   { 'access'='read', 'path'='./deploy-config/' },
   { 'access'='read', 'path'='./broadcast/' },
   { access = 'read', path = './forge-artifacts/' },
+  { 'access'='write', 'path'='./semver-lock.json' },
 ]
 
 [profile.ci]
