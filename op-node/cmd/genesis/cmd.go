@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -132,10 +133,6 @@ var Subcommands = cli.Commands{
 			if err := config.GetDeployedAddresses(hh); err != nil {
 				return err
 			}
-			// Sanity check the config
-			if err := config.Check(); err != nil {
-				return err
-			}
 
 			client, err := ethclient.Dial(ctx.String("l1-rpc"))
 			if err != nil {
@@ -145,6 +142,8 @@ var Subcommands = cli.Commands{
 			var l1StartBlock *types.Block
 			if config.L1StartingBlockTag == nil {
 				l1StartBlock, err = client.BlockByNumber(context.Background(), nil)
+				tag := rpc.BlockNumberOrHashWithHash(l1StartBlock.Hash(), true)
+				config.L1StartingBlockTag = (*genesis.MarshalableRPCBlockNumberOrHash)(&tag)
 			} else if config.L1StartingBlockTag.BlockHash != nil {
 				l1StartBlock, err = client.BlockByHash(context.Background(), *config.L1StartingBlockTag.BlockHash)
 			} else if config.L1StartingBlockTag.BlockNumber != nil {
@@ -153,6 +152,13 @@ var Subcommands = cli.Commands{
 			if err != nil {
 				return fmt.Errorf("error getting l1 start block: %w", err)
 			}
+
+			// Sanity check the config. Do this after filling in the L1StartingBlockTag
+			// if it is not defined.
+			if err := config.Check(); err != nil {
+				return err
+			}
+
 			log.Info("Using L1 Start Block", "number", l1StartBlock.Number(), "hash", l1StartBlock.Hash().Hex())
 
 			// Build the developer L2 genesis block
