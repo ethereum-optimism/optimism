@@ -17,7 +17,7 @@ FROM alpine:3.16 as manifests
 RUN apk add coreutils
 
 WORKDIR /tmp
-COPY pnpm-lock.yaml pnpm-workspace.yaml .nvmrc package.json ./src/
+COPY pnpm-lock.yaml pnpm-workspace.yaml .nvmrc package.json ./src/ .gitmodules
 COPY packages src/packages/
 RUN mkdir manifests && \
   cd src && \
