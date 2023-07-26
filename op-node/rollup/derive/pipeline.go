@@ -2,6 +2,7 @@ package derive
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -205,7 +206,7 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 	if err := dp.eng.Step(ctx); err == io.EOF {
 		// If every stage has returned io.EOF, try to advance the L1 Origin
 		return dp.traversal.AdvanceL1Block(ctx)
-	} else if err == EngineP2PSyncing {
+	} else if errors.Is(err, EngineP2PSyncing) {
 		return err
 	} else if err != nil {
 		return fmt.Errorf("engine stage failed: %w", err)
