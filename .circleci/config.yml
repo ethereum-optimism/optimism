@@ -464,6 +464,12 @@ jobs:
             git diff --exit-code .storage-layout || echo "export STORAGE_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
+          name: semver lock
+          command: |
+            pnpm semver-lock
+            git diff --exit-code semver-lock.json || echo "export SEMVER_LOCK_STATUS=1" >> "$BASH_ENV"
+          working_directory: packages/contracts-bedrock
+      - run:
           name: invariant docs
           command: |
             pnpm autogen:invariant-docs
@@ -490,6 +496,10 @@ jobs:
             fi
             if [[ "$INVARIANT_DOCS_STATUS" -ne 0 ]]; then
               echo "Invariant docs failed, see job output for details."
+              FAILED=1
+            fi
+            if [[ "$SEMVER_LOCK_STATUS" -ne 0 ]]; then
+              echo "Semver lock failed, see job output for details."
               FAILED=1
             fi
             if [[ "$FAILED" -ne 0 ]]; then
