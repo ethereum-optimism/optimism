@@ -128,12 +128,12 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		SequencerFeeVaultRecipient:               common.Address{19: 1},
 		BaseFeeVaultRecipient:                    common.Address{19: 2},
 		L1FeeVaultRecipient:                      common.Address{19: 3},
-		BaseFeeVaultMinimumWithdrawalAmount:      uint642big(1000_000_000), // 1 gwei
-		L1FeeVaultMinimumWithdrawalAmount:        uint642big(1000_000_000), // 1 gwei
-		SequencerFeeVaultMinimumWithdrawalAmount: uint642big(1000_000_000), // 1 gwei
-		BaseFeeVaultWithdrawalNetwork:            uint8(1),                 // L2 withdrawal network
-		L1FeeVaultWithdrawalNetwork:              uint8(1),                 // L2 withdrawal network
-		SequencerFeeVaultWithdrawalNetwork:       uint8(1),                 // L2 withdrawal network
+		BaseFeeVaultMinimumWithdrawalAmount:      uint642big(1000_000_000),           // 1 gwei
+		L1FeeVaultMinimumWithdrawalAmount:        uint642big(1000_000_000),           // 1 gwei
+		SequencerFeeVaultMinimumWithdrawalAmount: uint642big(1000_000_000),           // 1 gwei
+		BaseFeeVaultWithdrawalNetwork:            genesis.WithdrawalNetwork("local"), // L2 withdrawal network
+		L1FeeVaultWithdrawalNetwork:              genesis.WithdrawalNetwork("local"), // L2 withdrawal network
+		SequencerFeeVaultWithdrawalNetwork:       genesis.WithdrawalNetwork("local"), // L2 withdrawal network
 
 		DeploymentWaitConfirmations: 1,
 

@@ -27,9 +27,9 @@
   "baseFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "l1FeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
   "sequencerFeeVaultMinimumWithdrawalAmount": "0x8ac7230489e80000",
-  "baseFeeVaultWithdrawalNetwork": 0,
-  "l1FeeVaultWithdrawalNetwork": 0,
-  "sequencerFeeVaultWithdrawalNetwork": 0,
+  "baseFeeVaultWithdrawalNetwork": "local",
+  "l1FeeVaultWithdrawalNetwork": "local",
+  "sequencerFeeVaultWithdrawalNetwork": "local",
 
   "l1ERC721BridgeProxy": "0xff000000000000000000000000000000000000ff",
   "l1StandardBridgeProxy": "0xff000000000000000000000000000000000000fd",
