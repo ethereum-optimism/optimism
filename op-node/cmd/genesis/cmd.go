@@ -3,6 +3,7 @@ package genesis
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -92,11 +93,11 @@ var Subcommands = cli.Commands{
 			},
 			&cli.StringFlag{
 				Name:  "deploy-config",
-				Usage: "Path to hardhat deploy config file",
+				Usage: "Path to deploy config file",
 			},
 			&cli.StringFlag{
 				Name:  "deployment-dir",
-				Usage: "Path to deployment directory",
+				Usage: "Path to network deployment directory",
 			},
 			&cli.StringFlag{
 				Name:  "outfile.l2",
@@ -115,7 +116,13 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			depPath, network := filepath.Split(ctx.String("deployment-dir"))
+			deployDir := ctx.String("deployment-dir")
+			if deployDir == "" {
+				return errors.New("Must specify --deployment-dir")
+			}
+
+			log.Info("Deployment directory", "path", deployDir)
+			depPath, network := filepath.Split(deployDir)
 			hh, err := hardhat.New(network, nil, []string{depPath})
 			if err != nil {
 				return err
