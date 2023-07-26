@@ -24,7 +24,7 @@
     "coverage:lcov": "pnpm build:differential && pnpm build:fuzz && forge coverage --report lcov",
     "gas-snapshot": "pnpm build:differential && pnpm build:fuzz && forge snapshot --no-match-test 'testDiff|testFuzz|invariant|generateArtifact'",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
-    "semver-lock": "forge script scripts/CheckSemver.s.sol",
+    "semver-lock": "forge script scripts/SemverLock.s.sol",
     "validate-deploy-configs": "./scripts/validate-deploy-configs.sh",
     "validate-spacers": "forge build && npx ts-node scripts/validate-spacers.ts",
     "slither": "./scripts/slither.sh",

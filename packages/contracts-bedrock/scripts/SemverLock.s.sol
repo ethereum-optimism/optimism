@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { Script } from "forge-std/Script.sol";
 import { console2 as console } from "forge-std/console2.sol";
 
-contract CheckSemver is Script {
+contract SemverLock is Script {
     function run() public {
         // First, find all contracts with a Semver inheritance.
         string[] memory commands = new string[](3);
@@ -38,5 +38,6 @@ contract CheckSemver is Script {
 
         // Write the semver lockfile.
         vm.writeJson(out, "semver-lock.json");
+        console.logString("Wrote semver lock file to \"semver-lock.json\".");
     }
 }
