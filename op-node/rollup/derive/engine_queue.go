@@ -448,7 +448,7 @@ func (eq *EngineQueue) tryUpdateEngine(ctx context.Context) error {
 // checkNewPayloadStatus checks returned status of engine_newPayloadV1 request for next unsafe payload.
 // It returns true if the status is acceptable.
 func (eq *EngineQueue) checkNewPayloadStatus(status eth.ExecutePayloadStatus) bool {
-	if eq.syncCfg.EngineP2PEnabled {
+	if eq.syncCfg.EngineSync {
 		// Allow SYNCING and ACCEPTED if engine P2P sync is enabled
 		return status == eth.ExecutionValid || status == eth.ExecutionSyncing || status == eth.ExecutionAccepted
 	}
@@ -458,7 +458,7 @@ func (eq *EngineQueue) checkNewPayloadStatus(status eth.ExecutePayloadStatus) bo
 // checkForkchoiceUpdatedStatus checks returned status of engine_forkchoiceUpdatedV1 request for next unsafe payload.
 // It returns true if the status is acceptable.
 func (eq *EngineQueue) checkForkchoiceUpdatedStatus(status eth.ExecutePayloadStatus) bool {
-	if eq.syncCfg.EngineP2PEnabled {
+	if eq.syncCfg.EngineSync {
 		// Allow SYNCING if engine P2P sync is enabled
 		return status == eth.ExecutionValid || status == eth.ExecutionSyncing
 	}
@@ -475,7 +475,7 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 	}
 
 	// Ensure that the unsafe payload builds upon the current unsafe head
-	if !eq.syncCfg.EngineP2PEnabled && first.ParentHash != eq.unsafeHead.Hash {
+	if !eq.syncCfg.EngineSync && first.ParentHash != eq.unsafeHead.Hash {
 		if uint64(first.BlockNumber) == eq.unsafeHead.Number+1 {
 			eq.log.Info("skipping unsafe payload, since it does not build onto the existing unsafe chain", "safe", eq.safeHead.ID(), "unsafe", first.ID(), "payload", first.ID())
 			eq.unsafePayloads.Pop()

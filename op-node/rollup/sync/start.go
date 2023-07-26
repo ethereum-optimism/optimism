@@ -212,7 +212,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 			return result, nil
 		}
 
-		if syncCfg.SkipSanityCheck && highestL2WithCanonicalL1Origin.Hash == n.Hash {
+		if syncCfg.SkipSyncStartCheck && highestL2WithCanonicalL1Origin.Hash == n.Hash {
 			lgr.Info("Found highest L2 block with canonical L1 origin. Skip further sanity check and jump to the safe head")
 			n = result.Safe
 			continue
