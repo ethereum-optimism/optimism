@@ -2,6 +2,7 @@ package fault
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -77,6 +78,52 @@ func (r *faultResponder) BuildTx(ctx context.Context, response types.Claim) ([]b
 		}
 		return txData, nil
 	}
+}
+
+// PopulateOracleData uploads the preimage oracle data into the onchain preimage oracle contract.
+func (r *faultResponder) PopulateOracleData(ctx context.Context, data types.PreimageOracleData) error {
+	var txData []byte
+	var err error
+	if data.IsLocal {
+		txData, err = r.buildLocalOracleData(data)
+		if err != nil {
+			return fmt.Errorf("local oracle tx data build: %w", err)
+		}
+	} else {
+		txData, err = r.buildGlobalOracleData(data)
+		if err != nil {
+			return fmt.Errorf("global oracle tx data build: %w", err)
+		}
+	}
+	return r.sendTxAndWait(ctx, txData)
+}
+
+// buildLocalOracleData takes the local preimage key and data
+// and creates tx data to load the key, data pair into the
+// PreimageOracle contract from the FaultDisputeGame contract call.
+//
+// Encoded call to: addLocalData(uint256 _ident, uint256 _partOffset) external
+func (r *faultResponder) buildLocalOracleData(data types.PreimageOracleData) ([]byte, error) {
+	// return r.fdgAbi.Pack(
+	// 	"addLocalData",
+	//  data.OracleKey,
+	// 	big.NewInt(0),
+	// )
+	panic("not implemented")
+}
+
+// buildGlobalOracleData takes the global preimage key and data
+// and creates tx data to load the key, data pair into the
+// PreimageOracle contract.
+//
+// Encoded call to: loadKeccak256PreimagePart(uint256 _partOffset, bytes calldata _preimage) external
+func (r *faultResponder) buildGlobalOracleData(data types.PreimageOracleData) ([]byte, error) {
+	// return r.oracleAbi.Pack(
+	// 	"loadKeccak256PreimagePart",
+	// 	big.NewInt(0),
+	// 	data.OracleData,
+	// )
+	panic("not implemented")
 }
 
 // CanResolve determines if the resolve function on the fault dispute game contract

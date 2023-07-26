@@ -17,6 +17,7 @@ type Responder interface {
 	Resolve(ctx context.Context) error
 	Respond(ctx context.Context, response types.Claim) error
 	Step(ctx context.Context, stepData types.StepCallData) error
+	PopulateOracleData(ctx context.Context, data types.PreimageOracleData) error
 }
 
 type Agent struct {
@@ -131,6 +132,18 @@ func (a *Agent) step(ctx context.Context, claim types.Claim, game types.Game) er
 		a.log.Debug("Step already executed against claim", "depth", claim.Depth(), "index_at_depth", claim.IndexAtDepth(), "value", claim.Value)
 		return nil
 	}
+
+	// Uncomment these lines once the oracle loading is ready.
+	// oracleData, err := a.solver.OracleData(claim)
+	// if err != nil {
+	// 	a.log.Debug("Failed to get oracle data", "err", err)
+	// 	return nil
+	// }
+	//
+	// a.log.Info("Loading oracle data", "oracleKey", oracleData.OracleKey, "oracleData", oracleData.OracleData)
+	// if a.responder.LoadOracleData(ctx, oracleData) != nil {
+	// 	return fmt.Errorf("load oracle data: %w", err)
+	// }
 
 	a.log.Info("Attempting step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
 	step, err := a.solver.AttemptStep(ctx, claim, agreeWithClaimLevel)
