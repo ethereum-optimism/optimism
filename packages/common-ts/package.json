@@ -56,7 +56,7 @@
     "@ethersproject/abstract-signer": "^5.7.0",
     "@types/express": "^4.17.13",
     "@types/morgan": "^1.9.3",
-    "@types/pino": "^6.3.6",
+    "@types/pino": "^7.0.5",
     "@types/pino-multi-stream": "^5.1.1",
     "chai": "^4.3.4",
     "supertest": "^6.1.4"
