@@ -4,8 +4,8 @@ pragma abicoder v2;
 
 import { Test } from "forge-std/Test.sol";
 
-import { PreimageOracle } from "../cannon/PreimageOracle.sol";
-import { PreimageKeyLib } from "../cannon/PreimageKeyLib.sol";
+import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
+import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
 
 contract PreimageOracle_Test is Test {
     PreimageOracle oracle;
