@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	legacy_bindings "github.com/ethereum-optimism/optimism/op-bindings/legacy-bindings"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -57,8 +56,7 @@ func (c L1Contracts) ToSlice() []common.Address {
 }
 
 type checkpointAbi struct {
-	l2OutputOracle             *abi.ABI
-	legacyStateCommitmentChain *abi.ABI
+	l2OutputOracle *abi.ABI
 }
 
 type L1Processor struct {
@@ -74,12 +72,7 @@ func NewL1Processor(logger log.Logger, ethClient node.EthClient, db *database.DB
 		l1ProcessLog.Error("unable to generate L2OutputOracle ABI", "err", err)
 		return nil, err
 	}
-	legacyStateCommitmentChainABI, err := legacy_bindings.StateCommitmentChainMetaData.GetAbi()
-	if err != nil {
-		l1ProcessLog.Error("unable to generate legacy StateCommitmentChain ABI", "err", err)
-		return nil, err
-	}
-	checkpointAbi := checkpointAbi{l2OutputOracle: l2OutputOracleABI, legacyStateCommitmentChain: legacyStateCommitmentChainABI}
+	checkpointAbi := checkpointAbi{l2OutputOracle: l2OutputOracleABI}
 
 	latestHeader, err := db.Blocks.LatestL1BlockHeader()
 	if err != nil {
@@ -122,9 +115,6 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 
 	outputProposedEventName := "OutputProposed"
 	outputProposedEventSig := checkpointAbi.l2OutputOracle.Events[outputProposedEventName].ID
-
-	legacyStateBatchAppendedEventName := "StateBatchAppended"
-	legacyStateBatchAppendedEventSig := checkpointAbi.legacyStateCommitmentChain.Events[legacyStateBatchAppendedEventName].ID
 
 	return func(db *database.DB, headers []*types.Header) error {
 		headerMap := make(map[common.Hash]*types.Header)
@@ -173,21 +163,6 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 					OutputRoot:          outputProposed.OutputRoot,
 					L2OutputIndex:       database.U256{Int: outputProposed.L2OutputIndex},
 					L2BlockNumber:       database.U256{Int: outputProposed.L2BlockNumber},
-					L1ContractEventGUID: contractEvent.GUID,
-				})
-
-			case legacyStateBatchAppendedEventSig:
-				var stateBatchAppended legacy_bindings.StateCommitmentChainStateBatchAppended
-				err := UnpackLog(&stateBatchAppended, log, legacyStateBatchAppendedEventName, checkpointAbi.legacyStateCommitmentChain)
-				if err != nil {
-					return err
-				}
-
-				legacyStateBatches = append(legacyStateBatches, &database.LegacyStateBatch{
-					Index:               stateBatchAppended.BatchIndex.Uint64(),
-					Root:                stateBatchAppended.BatchRoot,
-					Size:                stateBatchAppended.BatchSize.Uint64(),
-					PrevTotal:           stateBatchAppended.PrevTotalElements.Uint64(),
 					L1ContractEventGUID: contractEvent.GUID,
 				})
 			}

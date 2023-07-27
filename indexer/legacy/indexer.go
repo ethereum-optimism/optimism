@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/services"
-	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/indexer/metrics"
 	"github.com/ethereum-optimism/optimism/indexer/server"
@@ -142,16 +141,11 @@ func NewIndexer(cfg Config) (*Indexer, error) {
 		return nil, err
 	}
 
-	var addrManager services.AddressManager
-	if cfg.Bedrock {
-		addrManager, err = services.NewBedrockAddresses(
-			l1Client,
-			cfg.BedrockL1StandardBridgeAddress,
-			cfg.BedrockOptimismPortalAddress,
-		)
-	} else {
-		addrManager, err = services.NewLegacyAddresses(l1Client, common.HexToAddress(cfg.L1AddressManagerAddress))
-	}
+	addrManager, err := services.NewBedrockAddresses(
+		l1Client,
+		cfg.BedrockL1StandardBridgeAddress,
+		cfg.BedrockOptimismPortalAddress,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +161,6 @@ func NewIndexer(cfg Config) (*Indexer, error) {
 		ConfDepth:          cfg.L1ConfDepth,
 		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
 		StartBlockNumber:   cfg.L1StartBlockNumber,
-		Bedrock:            cfg.Bedrock,
 	})
 	if err != nil {
 		return nil, err
@@ -182,7 +175,6 @@ func NewIndexer(cfg Config) (*Indexer, error) {
 		ConfDepth:          cfg.L2ConfDepth,
 		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
 		StartBlockNumber:   uint64(0),
-		Bedrock:            cfg.Bedrock,
 	})
 	if err != nil {
 		return nil, err

@@ -16,38 +16,43 @@ from devnet.genesis import GENESIS_TMPL
 pjoin = os.path.join
 
 parser = argparse.ArgumentParser(description='Bedrock devnet launcher')
-parser.add_argument('--monorepo-dir', help='Directory of the monorepo', default=os.getcwd())
-parser.add_argument('--deploy', help='Whether the contracts should be predeployed or deployed', type=bool, action=argparse.BooleanOptionalAction)
+parser.add_argument(
+    '--monorepo-dir', help='Directory of the monorepo', default=os.getcwd())
+parser.add_argument('--deploy', help='Whether the contracts should be predeployed or deployed',
+                    type=bool, action=argparse.BooleanOptionalAction)
 
 log = logging.getLogger()
+
 
 class Bunch:
     def __init__(self, **kwds):
         self.__dict__.update(kwds)
+
 
 def main():
     args = parser.parse_args()
 
     monorepo_dir = os.path.abspath(args.monorepo_dir)
     devnet_dir = pjoin(monorepo_dir, '.devnet')
-    contracts_bedrock_dir = pjoin(monorepo_dir, 'packages', 'contracts-bedrock')
+    contracts_bedrock_dir = pjoin(
+        monorepo_dir, 'packages', 'contracts-bedrock')
     deployment_dir = pjoin(contracts_bedrock_dir, 'deployments', 'devnetL1')
     op_node_dir = pjoin(args.monorepo_dir, 'op-node')
-    ops_bedrock_dir=pjoin(monorepo_dir, 'ops-bedrock')
+    ops_bedrock_dir = pjoin(monorepo_dir, 'ops-bedrock')
 
     paths = Bunch(
-      mono_repo_dir=monorepo_dir,
-      devnet_dir=devnet_dir,
-      contracts_bedrock_dir=contracts_bedrock_dir,
-      deployment_dir=deployment_dir,
-      deploy_config_dir=pjoin(contracts_bedrock_dir, 'deploy-config'),
-      op_node_dir=op_node_dir,
-      ops_bedrock_dir=ops_bedrock_dir,
-      genesis_l1_path=pjoin(devnet_dir, 'genesis-l1.json'),
-      genesis_l2_path=pjoin(devnet_dir, 'genesis-l2.json'),
-      addresses_json_path=pjoin(devnet_dir, 'addresses.json'),
-      sdk_addresses_json_path=pjoin(devnet_dir, 'sdk-addresses.json'),
-      rollup_config_path=pjoin(devnet_dir, 'rollup.json')
+        mono_repo_dir=monorepo_dir,
+        devnet_dir=devnet_dir,
+        contracts_bedrock_dir=contracts_bedrock_dir,
+        deployment_dir=deployment_dir,
+        deploy_config_dir=pjoin(contracts_bedrock_dir, 'deploy-config'),
+        op_node_dir=op_node_dir,
+        ops_bedrock_dir=ops_bedrock_dir,
+        genesis_l1_path=pjoin(devnet_dir, 'genesis-l1.json'),
+        genesis_l2_path=pjoin(devnet_dir, 'genesis-l2.json'),
+        addresses_json_path=pjoin(devnet_dir, 'addresses.json'),
+        sdk_addresses_json_path=pjoin(devnet_dir, 'sdk-addresses.json'),
+        rollup_config_path=pjoin(devnet_dir, 'rollup.json')
     )
 
     os.makedirs(devnet_dir, exist_ok=True)
@@ -57,13 +62,15 @@ def main():
     })
 
     if args.deploy:
-      log.info('Devnet with upcoming smart contract deployments')
-      devnet_deploy(paths)
+        log.info('Devnet with upcoming smart contract deployments')
+        devnet_deploy(paths)
     else:
-      log.info('Devnet with smart contracts pre-deployed')
-      devnet_prestate(paths)
+        log.info('Devnet with smart contracts pre-deployed')
+        devnet_prestate(paths)
 
 # Bring up the devnet where the L1 contracts are in the genesis state
+
+
 def devnet_prestate(paths):
     date = datetime.datetime.utcnow()
     utc_time = hex(calendar.timegm(date.utctimetuple()))
@@ -85,7 +92,8 @@ def devnet_prestate(paths):
         outfile_l2 = paths.genesis_l2_path
         outfile_rollup = paths.rollup_config_path
 
-        run_command(['go', 'run', 'cmd/main.go', 'genesis', 'devnet', '--deploy-config', temp_deploy_config, '--outfile.l1', outfile_l1, '--outfile.l2', outfile_l2, '--outfile.rollup', outfile_rollup], cwd=paths.op_node_dir)
+        run_command(['go', 'run', 'cmd/main.go', 'genesis', 'devnet', '--deploy-config', temp_deploy_config, '--outfile.l1',
+                    outfile_l1, '--outfile.l2', outfile_l2, '--outfile.rollup', outfile_rollup], cwd=paths.op_node_dir)
         write_json(done_file, {})
 
     log.info('Bringing up L1.')
@@ -109,6 +117,8 @@ def devnet_prestate(paths):
     })
 
 # Bring up the devnet where the contracts are deployed to L1
+
+
 def devnet_deploy(paths):
     if os.path.exists(paths.genesis_l1_path):
         log.info('L1 genesis already generated.')
@@ -124,7 +134,8 @@ def devnet_deploy(paths):
     wait_for_rpc_server('127.0.0.1:8545')
 
     log.info('Generating network config.')
-    devnet_cfg_orig = pjoin(paths.contracts_bedrock_dir, 'deploy-config', 'devnetL1.json')
+    devnet_cfg_orig = pjoin(paths.contracts_bedrock_dir,
+                            'deploy-config', 'devnetL1.json')
     devnet_cfg_backup = pjoin(paths.devnet_dir, 'devnetL1.json.bak')
     shutil.copy(devnet_cfg_orig, devnet_cfg_backup)
     deploy_config = read_json(devnet_cfg_orig)
@@ -160,8 +171,6 @@ def devnet_deploy(paths):
         sdk_addresses = {}
         sdk_addresses.update({
             'AddressManager': '0x0000000000000000000000000000000000000000',
-            'StateCommitmentChain': '0x0000000000000000000000000000000000000000',
-            'CanonicalTransactionChain': '0x0000000000000000000000000000000000000000',
             'BondManager': '0x0000000000000000000000000000000000000000',
         })
 

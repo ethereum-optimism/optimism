@@ -119,10 +119,8 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       // Unused contracts
       AddressManager: ethers.constants.AddressZero,
       BondManager: ethers.constants.AddressZero,
-      CanonicalTransactionChain: ethers.constants.AddressZero,
       L1CrossDomainMessenger: ethers.constants.AddressZero,
       L1StandardBridge: ethers.constants.AddressZero,
-      StateCommitmentChain: ethers.constants.AddressZero,
     }
 
     const knownChainId = L2ChainID[l2ChainId] !== undefined
@@ -180,7 +178,6 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       l2SignerOrProvider: this.options.l2RpcProvider,
       l1ChainId,
       l2ChainId,
-      bedrock: true,
       contracts: { l1: await this.getOEL1Contracts(l2ChainId) },
     })
 

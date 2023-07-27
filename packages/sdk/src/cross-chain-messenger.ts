@@ -16,11 +16,7 @@ import {
 } from 'ethers'
 import {
   sleep,
-  remove0x,
-  toHexString,
   toRpcHexString,
-  hashCrossDomainMessage,
-  encodeCrossDomainMessageV0,
   encodeCrossDomainMessageV1,
   BedrockOutputData,
   BedrockCrossChainMessageProof,
@@ -30,8 +26,7 @@ import {
   hashCrossDomainMessagev0,
   hashCrossDomainMessagev1,
 } from '@eth-optimism/core-utils'
-import { getContractInterface, predeploys } from '@eth-optimism/contracts'
-import * as rlp from 'rlp'
+import { predeploys } from '@eth-optimism/contracts'
 
 import {
   OEContracts,
@@ -44,7 +39,6 @@ import {
   SignerOrProviderLike,
   CrossChainMessage,
   CrossChainMessageRequest,
-  CrossChainMessageProof,
   MessageDirection,
   MessageStatus,
   TokenBridgeMessage,
@@ -52,8 +46,6 @@ import {
   MessageReceiptStatus,
   BridgeAdapterData,
   BridgeAdapters,
-  StateRoot,
-  StateRootBatch,
   IBridgeAdapter,
   ProvenWithdrawal,
   LowLevelMessage,
@@ -65,7 +57,6 @@ import {
   DeepPartial,
   getAllOEContracts,
   getBridgeAdapters,
-  makeMerkleTreeProof,
   makeStateTrieProof,
   hashLowLevelMessage,
   migratedWithdrawalGasLimit,
@@ -116,11 +107,6 @@ export class CrossChainMessenger {
   public l1BlockTimeSeconds: number
 
   /**
-   * Whether or not Bedrock compatibility is enabled.
-   */
-  public bedrock: boolean
-
-  /**
    * Creates a new CrossChainProvider instance.
    *
    * @param opts Options for the provider.
@@ -143,10 +129,7 @@ export class CrossChainMessenger {
     l1BlockTimeSeconds?: NumberLike
     contracts?: DeepPartial<OEContractsLike>
     bridges?: BridgeAdapterData
-    bedrock?: boolean
   }) {
-    this.bedrock = opts.bedrock ?? true
-
     this.l1SignerOrProvider = toSignerOrProvider(opts.l1SignerOrProvider)
     this.l2SignerOrProvider = toSignerOrProvider(opts.l2SignerOrProvider)
 
@@ -677,48 +660,33 @@ export class CrossChainMessenger {
       }
     } else {
       if (receipt === null) {
-        let timestamp: number
-        if (this.bedrock) {
-          const output = await this.getMessageBedrockOutput(
-            resolved,
-            messageIndex
-          )
-          if (output === null) {
-            return MessageStatus.STATE_ROOT_NOT_PUBLISHED
-          }
-
-          // Convert the message to the low level message that was proven.
-          const withdrawal = await this.toLowLevelMessage(
-            resolved,
-            messageIndex
-          )
-
-          // Attempt to fetch the proven withdrawal.
-          const provenWithdrawal =
-            await this.contracts.l1.OptimismPortal.provenWithdrawals(
-              hashLowLevelMessage(withdrawal)
-            )
-          // If the withdrawal hash has not been proven on L1,
-          // return `READY_TO_PROVE`
-          if (provenWithdrawal.timestamp.eq(BigNumber.from(0))) {
-            return MessageStatus.READY_TO_PROVE
-          }
-
-          // Set the timestamp to the provenWithdrawal's timestamp
-          timestamp = provenWithdrawal.timestamp.toNumber()
-        } else {
-          const stateRoot = await this.getMessageStateRoot(
-            resolved,
-            messageIndex
-          )
-          if (stateRoot === null) {
-            return MessageStatus.STATE_ROOT_NOT_PUBLISHED
-          }
-
-          const bn = stateRoot.batch.blockNumber
-          const block = await this.l1Provider.getBlock(bn)
-          timestamp = block.timestamp
+        const output = await this.getMessageBedrockOutput(
+          resolved,
+          messageIndex
+        )
+        if (output === null) {
+          return MessageStatus.STATE_ROOT_NOT_PUBLISHED
         }
+
+        // Convert the message to the low level message that was proven.
+        const withdrawal = await this.toLowLevelMessage(
+          resolved,
+          messageIndex
+        )
+
+        // Attempt to fetch the proven withdrawal.
+        const provenWithdrawal =
+          await this.contracts.l1.OptimismPortal.provenWithdrawals(
+            hashLowLevelMessage(withdrawal)
+          )
+        // If the withdrawal hash has not been proven on L1,
+        // return `READY_TO_PROVE`
+        if (provenWithdrawal.timestamp.eq(BigNumber.from(0))) {
+          return MessageStatus.READY_TO_PROVE
+        }
+
+        // Set the timestamp to the provenWithdrawal's timestamp
+        const timestamp = provenWithdrawal.timestamp.toNumber()
 
         const challengePeriod = await this.getChallengePeriodSeconds()
         const latestBlock = await this.l1Provider.getBlock('latest')
@@ -1037,108 +1005,22 @@ export class CrossChainMessenger {
   }
 
   /**
-   * Returns the estimated amount of time before the message can be executed. When this is a
-   * message being sent to L1, this will return the estimated time until the message will complete
-   * its challenge period. When this is a message being sent to L2, this will return the estimated
-   * amount of time until the message will be picked up and executed on L2.
+   * Queries the current finalization period in seconds from the L2OutputOracle.
    *
-   * @param message Message to estimate the time remaining for.
-   * @param messageIndex The index of the message, if multiple exist from multicall
-   * @param opts.fromBlockOrBlockHash The start block to use for the query filter on the RECEIVING chain
-   * @param opts.toBlockOrBlockHash The end block to use for the query filter on the RECEIVING chain
-   * @returns Estimated amount of time remaining (in seconds) before the message can be executed.
-   */
-  public async estimateMessageWaitTimeSeconds(
-    message: MessageLike,
-    // consider making this an options object next breaking release
-    messageIndex = 0,
-    fromBlockOrBlockHash?: BlockTag,
-    toBlockOrBlockHash?: BlockTag
-  ): Promise<number> {
-    const resolved = await this.toCrossChainMessage(message, messageIndex)
-    const status = await this.getMessageStatus(
-      resolved,
-      messageIndex,
-      fromBlockOrBlockHash,
-      toBlockOrBlockHash
-    )
-    if (resolved.direction === MessageDirection.L1_TO_L2) {
-      if (
-        status === MessageStatus.RELAYED ||
-        status === MessageStatus.FAILED_L1_TO_L2_MESSAGE
-      ) {
-        // Transactions that are relayed or failed are considered completed, so the wait time is 0.
-        return 0
-      } else {
-        // Otherwise we need to estimate the number of blocks left until the transaction will be
-        // considered confirmed by the Layer 2 system. Then we multiply this by the estimated
-        // average L1 block time.
-        const receipt = await this.l1Provider.getTransactionReceipt(
-          resolved.transactionHash
-        )
-        const blocksLeft = Math.max(
-          this.depositConfirmationBlocks - receipt.confirmations,
-          0
-        )
-        return blocksLeft * this.l1BlockTimeSeconds
-      }
-    } else {
-      if (
-        status === MessageStatus.RELAYED ||
-        status === MessageStatus.READY_FOR_RELAY
-      ) {
-        // Transactions that are relayed or ready for relay are considered complete.
-        return 0
-      } else if (status === MessageStatus.STATE_ROOT_NOT_PUBLISHED) {
-        // If the state root hasn't been published yet, just assume it'll be published relatively
-        // quickly and return the challenge period for now. In the future we could use more
-        // advanced techniques to figure out average time between transaction execution and
-        // state root publication.
-        return this.getChallengePeriodSeconds()
-      } else if (status === MessageStatus.IN_CHALLENGE_PERIOD) {
-        // If the message is still within the challenge period, then we need to estimate exactly
-        // the amount of time left until the challenge period expires. The challenge period starts
-        // when the state root is published.
-        const stateRoot = await this.getMessageStateRoot(resolved, messageIndex)
-        const challengePeriod = await this.getChallengePeriodSeconds()
-        const targetBlock = await this.l1Provider.getBlock(
-          stateRoot.batch.blockNumber
-        )
-        const latestBlock = await this.l1Provider.getBlock('latest')
-        return Math.max(
-          challengePeriod - (latestBlock.timestamp - targetBlock.timestamp),
-          0
-        )
-      } else {
-        // Should not happen
-        throw new Error(`unexpected message status`)
-      }
-    }
-  }
-
-  /**
-   * Queries the current challenge period in seconds from the StateCommitmentChain.
-   *
-   * @returns Current challenge period in seconds.
+   * @returns Current finalization period in seconds.
    */
   public async getChallengePeriodSeconds(): Promise<number> {
-    if (!this.bedrock) {
-      return (
-        await this.contracts.l1.StateCommitmentChain.FRAUD_PROOF_WINDOW()
-      ).toNumber()
-    }
-
     const oracleVersion = await this.contracts.l1.L2OutputOracle.version()
     const challengePeriod =
       oracleVersion === '1.0.0'
         ? // The ABI in the SDK does not contain FINALIZATION_PERIOD_SECONDS
-          // in OptimismPortal, so making an explicit call instead.
-          BigNumber.from(
-            await this.contracts.l1.OptimismPortal.provider.call({
-              to: this.contracts.l1.OptimismPortal.address,
-              data: '0xf4daa291', // FINALIZATION_PERIOD_SECONDS
-            })
-          )
+        // in OptimismPortal, so making an explicit call instead.
+        BigNumber.from(
+          await this.contracts.l1.OptimismPortal.provider.call({
+            to: this.contracts.l1.OptimismPortal.address,
+            data: '0xf4daa291', // FINALIZATION_PERIOD_SECONDS
+          })
+        )
         : await this.contracts.l1.L2OutputOracle.FINALIZATION_PERIOD_SECONDS()
     return challengePeriod.toNumber()
   }
@@ -1147,18 +1029,11 @@ export class CrossChainMessenger {
    * Queries the OptimismPortal contract's `provenWithdrawals` mapping
    * for a ProvenWithdrawal that matches the passed withdrawalHash
    *
-   * @bedrock
-   * Note: This function is bedrock-specific.
-   *
    * @returns A ProvenWithdrawal object
    */
   public async getProvenWithdrawal(
     withdrawalHash: string
   ): Promise<ProvenWithdrawal> {
-    if (!this.bedrock) {
-      throw new Error('message proving only applies after the bedrock upgrade')
-    }
-
     return this.contracts.l1.OptimismPortal.provenWithdrawals(withdrawalHash)
   }
 
@@ -1210,255 +1085,6 @@ export class CrossChainMessenger {
       l1Timestamp: proposal.timestamp.toNumber(),
       l2BlockNumber: proposal.l2BlockNumber.toNumber(),
       l2OutputIndex: l2OutputIndex.toNumber(),
-    }
-  }
-
-  /**
-   * Returns the state root that corresponds to a given message. This is the state root for the
-   * block in which the transaction was included, as published to the StateCommitmentChain. If the
-   * state root for the given message has not been published yet, this function returns null.
-   *
-   * @param message Message to find a state root for.
-   * @param messageIndex The index of the message, if multiple exist from multicall
-   * @returns State root for the block in which the message was created.
-   */
-  public async getMessageStateRoot(
-    message: MessageLike,
-    messageIndex = 0
-  ): Promise<StateRoot | null> {
-    const resolved = await this.toCrossChainMessage(message, messageIndex)
-
-    // State roots are only a thing for L2 to L1 messages.
-    if (resolved.direction === MessageDirection.L1_TO_L2) {
-      throw new Error(`cannot get a state root for an L1 to L2 message`)
-    }
-
-    // We need the block number of the transaction that triggered the message so we can look up the
-    // state root batch that corresponds to that block number.
-    const messageTxReceipt = await this.l2Provider.getTransactionReceipt(
-      resolved.transactionHash
-    )
-
-    // Every block has exactly one transaction in it. Since there's a genesis block, the
-    // transaction index will always be one less than the block number.
-    const messageTxIndex = messageTxReceipt.blockNumber - 1
-
-    // Pull down the state root batch, we'll try to pick out the specific state root that
-    // corresponds to our message.
-    const stateRootBatch = await this.getStateRootBatchByTransactionIndex(
-      messageTxIndex
-    )
-
-    // No state root batch, no state root.
-    if (stateRootBatch === null) {
-      return null
-    }
-
-    // We have a state root batch, now we need to find the specific state root for our transaction.
-    // First we need to figure out the index of the state root within the batch we found. This is
-    // going to be the original transaction index offset by the total number of previous state
-    // roots.
-    const indexInBatch =
-      messageTxIndex - stateRootBatch.header.prevTotalElements.toNumber()
-
-    // Just a sanity check.
-    if (stateRootBatch.stateRoots.length <= indexInBatch) {
-      // Should never happen!
-      throw new Error(`state root does not exist in batch`)
-    }
-
-    return {
-      stateRoot: stateRootBatch.stateRoots[indexInBatch],
-      stateRootIndexInBatch: indexInBatch,
-      batch: stateRootBatch,
-    }
-  }
-
-  /**
-   * Returns the StateBatchAppended event that was emitted when the batch with a given index was
-   * created. Returns null if no such event exists (the batch has not been submitted).
-   *
-   * @param batchIndex Index of the batch to find an event for.
-   * @returns StateBatchAppended event for the batch, or null if no such batch exists.
-   */
-  public async getStateBatchAppendedEventByBatchIndex(
-    batchIndex: number
-  ): Promise<ethers.Event | null> {
-    const events = await this.contracts.l1.StateCommitmentChain.queryFilter(
-      this.contracts.l1.StateCommitmentChain.filters.StateBatchAppended(
-        batchIndex
-      )
-    )
-
-    if (events.length === 0) {
-      return null
-    } else if (events.length > 1) {
-      // Should never happen!
-      throw new Error(`found more than one StateBatchAppended event`)
-    } else {
-      return events[0]
-    }
-  }
-
-  /**
-   * Returns the StateBatchAppended event for the batch that includes the transaction with the
-   * given index. Returns null if no such event exists.
-   *
-   * @param transactionIndex Index of the L2 transaction to find an event for.
-   * @returns StateBatchAppended event for the batch that includes the given transaction by index.
-   */
-  public async getStateBatchAppendedEventByTransactionIndex(
-    transactionIndex: number
-  ): Promise<ethers.Event | null> {
-    const isEventHi = (event: ethers.Event, index: number) => {
-      const prevTotalElements = event.args._prevTotalElements.toNumber()
-      return index < prevTotalElements
-    }
-
-    const isEventLo = (event: ethers.Event, index: number) => {
-      const prevTotalElements = event.args._prevTotalElements.toNumber()
-      const batchSize = event.args._batchSize.toNumber()
-      return index >= prevTotalElements + batchSize
-    }
-
-    const totalBatches: ethers.BigNumber =
-      await this.contracts.l1.StateCommitmentChain.getTotalBatches()
-    if (totalBatches.eq(0)) {
-      return null
-    }
-
-    let lowerBound = 0
-    let upperBound = totalBatches.toNumber() - 1
-    let batchEvent: ethers.Event | null =
-      await this.getStateBatchAppendedEventByBatchIndex(upperBound)
-
-    // Only happens when no batches have been submitted yet.
-    if (batchEvent === null) {
-      return null
-    }
-
-    if (isEventLo(batchEvent, transactionIndex)) {
-      // Upper bound is too low, means this transaction doesn't have a corresponding state batch yet.
-      return null
-    } else if (!isEventHi(batchEvent, transactionIndex)) {
-      // Upper bound is not too low and also not too high. This means the upper bound event is the
-      // one we're looking for! Return it.
-      return batchEvent
-    }
-
-    // Binary search to find the right event. The above checks will guarantee that the event does
-    // exist and that we'll find it during this search.
-    while (lowerBound < upperBound) {
-      const middleOfBounds = Math.floor((lowerBound + upperBound) / 2)
-      batchEvent = await this.getStateBatchAppendedEventByBatchIndex(
-        middleOfBounds
-      )
-
-      if (isEventHi(batchEvent, transactionIndex)) {
-        upperBound = middleOfBounds
-      } else if (isEventLo(batchEvent, transactionIndex)) {
-        lowerBound = middleOfBounds
-      } else {
-        break
-      }
-    }
-
-    return batchEvent
-  }
-
-  /**
-   * Returns information about the state root batch that included the state root for the given
-   * transaction by index. Returns null if no such state root has been published yet.
-   *
-   * @param transactionIndex Index of the L2 transaction to find a state root batch for.
-   * @returns State root batch for the given transaction index, or null if none exists yet.
-   */
-  public async getStateRootBatchByTransactionIndex(
-    transactionIndex: number
-  ): Promise<StateRootBatch | null> {
-    const stateBatchAppendedEvent =
-      await this.getStateBatchAppendedEventByTransactionIndex(transactionIndex)
-    if (stateBatchAppendedEvent === null) {
-      return null
-    }
-
-    const stateBatchTransaction = await stateBatchAppendedEvent.getTransaction()
-    const [stateRoots] =
-      this.contracts.l1.StateCommitmentChain.interface.decodeFunctionData(
-        'appendStateBatch',
-        stateBatchTransaction.data
-      )
-
-    return {
-      blockNumber: stateBatchAppendedEvent.blockNumber,
-      stateRoots,
-      header: {
-        batchIndex: stateBatchAppendedEvent.args._batchIndex,
-        batchRoot: stateBatchAppendedEvent.args._batchRoot,
-        batchSize: stateBatchAppendedEvent.args._batchSize,
-        prevTotalElements: stateBatchAppendedEvent.args._prevTotalElements,
-        extraData: stateBatchAppendedEvent.args._extraData,
-      },
-    }
-  }
-
-  /**
-   * Generates the proof required to finalize an L2 to L1 message.
-   *
-   * @param message Message to generate a proof for.
-   * @param messageIndex The index of the message, if multiple exist from multicall
-   * @returns Proof that can be used to finalize the message.
-   */
-  public async getMessageProof(
-    message: MessageLike,
-    messageIndex = 0
-  ): Promise<CrossChainMessageProof> {
-    const resolved = await this.toCrossChainMessage(message, messageIndex)
-    if (resolved.direction === MessageDirection.L1_TO_L2) {
-      throw new Error(`can only generate proofs for L2 to L1 messages`)
-    }
-
-    const stateRoot = await this.getMessageStateRoot(resolved, messageIndex)
-    if (stateRoot === null) {
-      throw new Error(`state root for message not yet published`)
-    }
-
-    // We need to calculate the specific storage slot that demonstrates that this message was
-    // actually included in the L2 chain. The following calculation is based on the fact that
-    // messages are stored in the following mapping on L2:
-    // https://github.com/ethereum-optimism/optimism/blob/c84d3450225306abbb39b4e7d6d82424341df2be/packages/contracts/contracts/L2/predeploys/OVM_L2ToL1MessagePasser.sol#L23
-    // You can read more about how Solidity storage slots are computed for mappings here:
-    // https://docs.soliditylang.org/en/v0.8.4/internals/layout_in_storage.html#mappings-and-dynamic-arrays
-    const messageSlot = ethers.utils.keccak256(
-      ethers.utils.keccak256(
-        encodeCrossDomainMessageV0(
-          resolved.target,
-          resolved.sender,
-          resolved.message,
-          resolved.messageNonce
-        ) + remove0x(this.contracts.l2.L2CrossDomainMessenger.address)
-      ) + '00'.repeat(32)
-    )
-
-    const stateTrieProof = await makeStateTrieProof(
-      this.l2Provider as ethers.providers.JsonRpcProvider,
-      resolved.blockNumber,
-      this.contracts.l2.OVM_L2ToL1MessagePasser.address,
-      messageSlot
-    )
-
-    return {
-      stateRoot: stateRoot.stateRoot,
-      stateRootBatchHeader: stateRoot.batch.header,
-      stateRootProof: {
-        index: stateRoot.stateRootIndexInBatch,
-        siblings: makeMerkleTreeProof(
-          stateRoot.batch.stateRoots,
-          stateRoot.stateRootIndexInBatch
-        ),
-      },
-      stateTrieWitness: toHexString(rlp.encode(stateTrieProof.accountProof)),
-      storageTrieWitness: toHexString(rlp.encode(stateTrieProof.storageProof)),
     }
   }
 
@@ -1854,34 +1480,17 @@ export class CrossChainMessenger {
         throw new Error(`cannot resend L2 to L1 message`)
       }
 
-      if (this.bedrock) {
-        return this.populateTransaction.finalizeMessage(
-          resolved,
-          {
-            ...(opts || {}),
-            overrides: {
-              ...opts?.overrides,
-              gasLimit: messageGasLimit,
-            },
+      return this.populateTransaction.finalizeMessage(
+        resolved,
+        {
+          ...(opts || {}),
+          overrides: {
+            ...opts?.overrides,
+            gasLimit: messageGasLimit,
           },
-          messageIndex
-        )
-      } else {
-        const legacyL1XDM = new ethers.Contract(
-          this.contracts.l1.L1CrossDomainMessenger.address,
-          getContractInterface('L1CrossDomainMessenger'),
-          this.l1SignerOrProvider
-        )
-        return legacyL1XDM.populateTransaction.replayMessage(
-          resolved.target,
-          resolved.sender,
-          resolved.message,
-          resolved.messageNonce,
-          resolved.minGasLimit,
-          messageGasLimit,
-          opts?.overrides || {}
-        )
-      }
+        },
+        messageIndex
+      )
     },
 
     /**
@@ -1904,12 +1513,6 @@ export class CrossChainMessenger {
       const resolved = await this.toCrossChainMessage(message, messageIndex)
       if (resolved.direction === MessageDirection.L1_TO_L2) {
         throw new Error('cannot finalize L1 to L2 message')
-      }
-
-      if (!this.bedrock) {
-        throw new Error(
-          'message proving only applies after the bedrock upgrade'
-        )
       }
 
       const withdrawal = await this.toLowLevelMessage(resolved, messageIndex)
@@ -1963,38 +1566,18 @@ export class CrossChainMessenger {
         throw new Error(`cannot finalize L1 to L2 message`)
       }
 
-      if (this.bedrock) {
-        const withdrawal = await this.toLowLevelMessage(resolved, messageIndex)
-        return this.contracts.l1.OptimismPortal.populateTransaction.finalizeWithdrawalTransaction(
-          [
-            withdrawal.messageNonce,
-            withdrawal.sender,
-            withdrawal.target,
-            withdrawal.value,
-            withdrawal.minGasLimit,
-            withdrawal.message,
-          ],
-          opts?.overrides || {}
-        )
-      } else {
-        // L1CrossDomainMessenger relayMessage is the only method that isn't fully backwards
-        // compatible, so we need to use the legacy interface. When we fully upgrade to Bedrock we
-        // should be able to remove this code.
-        const proof = await this.getMessageProof(resolved, messageIndex)
-        const legacyL1XDM = new ethers.Contract(
-          this.contracts.l1.L1CrossDomainMessenger.address,
-          getContractInterface('L1CrossDomainMessenger'),
-          this.l1SignerOrProvider
-        )
-        return legacyL1XDM.populateTransaction.relayMessage(
-          resolved.target,
-          resolved.sender,
-          resolved.message,
-          resolved.messageNonce,
-          proof,
-          opts?.overrides || {}
-        )
-      }
+      const withdrawal = await this.toLowLevelMessage(resolved, messageIndex)
+      return this.contracts.l1.OptimismPortal.populateTransaction.finalizeWithdrawalTransaction(
+        [
+          withdrawal.messageNonce,
+          withdrawal.sender,
+          withdrawal.target,
+          withdrawal.value,
+          withdrawal.minGasLimit,
+          withdrawal.message,
+        ],
+        opts?.overrides || {}
+      )
     },
 
     /**

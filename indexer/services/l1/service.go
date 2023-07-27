@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/metrics"
 	"github.com/ethereum-optimism/optimism/indexer/services"
 	"github.com/ethereum-optimism/optimism/indexer/services/query"
-	legacy_bindings "github.com/ethereum-optimism/optimism/op-bindings/legacy-bindings"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum-optimism/optimism/indexer/server"
@@ -68,7 +67,6 @@ type Service struct {
 
 	bridges        map[string]bridge.Bridge
 	portal         *bridge.Portal
-	batchScanner   *legacy_bindings.StateCommitmentChainFilterer
 	latestHeader   uint64
 	headerSelector *ConfirmedHeaderSelector
 	l1Client       *ethclient.Client
@@ -107,17 +105,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, err
 	}
 
-	var portal *bridge.Portal
-	var batchScanner *legacy_bindings.StateCommitmentChainFilterer
-	if cfg.Bedrock {
-		portal = bridge.NewPortal(cfg.AddressManager)
-	} else {
-		batchScanner, err = bridge.StateCommitmentChainScanner(cfg.L1Client, cfg.AddressManager)
-		if err != nil {
-			cancel()
-			return nil, err
-		}
-	}
+	portal := bridge.NewPortal(cfg.AddressManager)
 
 	logger.Info("Scanning bridges for deposits", "bridges", bridges)
 
@@ -137,7 +125,6 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		cancel:         cancel,
 		portal:         portal,
 		bridges:        bridges,
-		batchScanner:   batchScanner,
 		headerSelector: confirmedHeaderSelector,
 		metrics:        cfg.Metrics,
 		tokenCache: map[common.Address]*db.Token{
@@ -269,27 +256,22 @@ func (s *Service) Update(newHeader *types.Header) error {
 		}(bridgeImpl)
 	}
 
-	if s.isBedrock {
-		go func() {
-			provenWithdrawals, err := s.portal.GetProvenWithdrawalsByBlockRange(s.ctx, startHeight, endHeight)
-			if err != nil {
-				errCh <- err
-				return
-			}
-			provenWithdrawalsCh <- provenWithdrawals
-		}()
-		go func() {
-			finalizedWithdrawals, err := s.portal.GetFinalizedWithdrawalsByBlockRange(s.ctx, startHeight, endHeight)
-			if err != nil {
-				errCh <- err
-				return
-			}
-			finalizedWithdrawalsCh <- finalizedWithdrawals
-		}()
-	} else {
-		provenWithdrawalsCh <- make(bridge.ProvenWithdrawalsMap)
-		finalizedWithdrawalsCh <- make(bridge.FinalizedWithdrawalsMap)
-	}
+	go func() {
+		provenWithdrawals, err := s.portal.GetProvenWithdrawalsByBlockRange(s.ctx, startHeight, endHeight)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		provenWithdrawalsCh <- provenWithdrawals
+	}()
+	go func() {
+		finalizedWithdrawals, err := s.portal.GetFinalizedWithdrawalsByBlockRange(s.ctx, startHeight, endHeight)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		finalizedWithdrawalsCh <- finalizedWithdrawals
+	}()
 
 	var receives int
 	for {
@@ -317,26 +299,16 @@ func (s *Service) Update(newHeader *types.Header) error {
 	provenWithdrawalsByBlockHash := <-provenWithdrawalsCh
 	finalizedWithdrawalsByBlockHash := <-finalizedWithdrawalsCh
 
-	var stateBatches map[common.Hash][]db.StateBatch
-	if !s.isBedrock {
-		stateBatches, err = QueryStateBatches(s.batchScanner, startHeight, endHeight, s.ctx)
-		if err != nil {
-			logger.Error("Error querying state batches", "err", err)
-			return err
-		}
-	}
-
 	for i, header := range headers {
 		blockHash := header.Hash
 		number := header.Number.Uint64()
 		deposits := depositsByBlockHash[blockHash]
-		batches := stateBatches[blockHash]
 		provenWds := provenWithdrawalsByBlockHash[blockHash]
 		finalizedWds := finalizedWithdrawalsByBlockHash[blockHash]
 
 		// Always record block data in the last block
 		// in the list of headers
-		if len(deposits) == 0 && len(batches) == 0 && len(provenWds) == 0 && len(finalizedWds) == 0 && i != len(headers)-1 {
+		if len(deposits) == 0 && len(provenWds) == 0 && len(finalizedWds) == 0 && i != len(headers)-1 {
 			continue
 		}
 
@@ -360,18 +332,6 @@ func (s *Service) Update(newHeader *types.Header) error {
 			)
 			return err
 		}
-
-		err = s.cfg.DB.AddStateBatch(batches)
-		if err != nil {
-			logger.Error(
-				"Unable to import state append batch",
-				"block", number,
-				"hash", blockHash, "err", err,
-				"block", block,
-			)
-			return err
-		}
-		s.metrics.RecordStateBatches(len(batches))
 
 		logger.Debug("Imported ",
 			"block", number, "hash", blockHash, "deposits", len(block.Deposits))

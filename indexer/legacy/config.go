@@ -96,9 +96,6 @@ type Config struct {
 	// DisableIndexer enables/disables the indexer.
 	DisableIndexer bool
 
-	// Bedrock enabled Bedrock indexing.
-	Bedrock bool
-
 	BedrockL1StandardBridgeAddress common.Address
 
 	BedrockOptimismPortalAddress common.Address
@@ -119,7 +116,6 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		DBPassword:              ctx.GlobalString(flags.DBPasswordFlag.Name),
 		DBName:                  ctx.GlobalString(flags.DBNameFlag.Name),
 		/* Optional Flags */
-		Bedrock:                        ctx.GlobalBool(flags.BedrockFlag.Name),
 		BedrockL1StandardBridgeAddress: common.HexToAddress(ctx.GlobalString(flags.BedrockL1StandardBridgeAddress.Name)),
 		BedrockOptimismPortalAddress:   common.HexToAddress(ctx.GlobalString(flags.BedrockOptimismPortalAddress.Name)),
 		DisableIndexer:                 ctx.GlobalBool(flags.DisableIndexer.Name),
@@ -157,7 +153,7 @@ func ValidateConfig(cfg *Config) error {
 		return err
 	}
 
-	if cfg.Bedrock && (cfg.BedrockL1StandardBridgeAddress == common.Address{} || cfg.BedrockOptimismPortalAddress == common.Address{}) {
+	if (cfg.BedrockL1StandardBridgeAddress == common.Address{}) || (cfg.BedrockOptimismPortalAddress == common.Address{}) {
 		return errors.New("must specify l1 standard bridge and optimism portal addresses in bedrock mode")
 	}
 

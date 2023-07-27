@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/db"
 	"github.com/ethereum-optimism/optimism/indexer/services"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	legacy_bindings "github.com/ethereum-optimism/optimism/op-bindings/legacy-bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -88,13 +87,4 @@ func BridgesByChainID(chainID *big.Int, client bind.ContractBackend, addrs servi
 		}
 	}
 	return bridges, nil
-}
-
-func StateCommitmentChainScanner(client bind.ContractFilterer, addrs services.AddressManager) (*legacy_bindings.StateCommitmentChainFilterer, error) {
-	sccAddr, _ := addrs.StateCommitmentChain()
-	filter, err := legacy_bindings.NewStateCommitmentChainFilterer(sccAddr, client)
-	if err != nil {
-		return nil, err
-	}
-	return filter, nil
 }

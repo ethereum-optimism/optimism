@@ -188,7 +188,6 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
       l2SignerOrProvider: l2Signer,
       l1ChainId: await signer.getChainId(),
       l2ChainId,
-      bedrock: true,
       contracts: contractAddrs,
     })
 

@@ -74,7 +74,6 @@ func TestBedrockIndexer(t *testing.T) {
 		RESTHostname:                   "127.0.0.1",
 		RESTPort:                       7980,
 		DisableIndexer:                 false,
-		Bedrock:                        true,
 		BedrockL1StandardBridgeAddress: cfg.DeployConfig.L1StandardBridgeProxy,
 		BedrockOptimismPortalAddress:   cfg.DeployConfig.OptimismPortalProxy,
 	}

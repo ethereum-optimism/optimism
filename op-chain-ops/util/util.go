@@ -89,12 +89,10 @@ var ClientsFlags = []cli.Flag{
 // Addresses represents the address values of various contracts. The values can
 // be easily populated via a [cli.Context].
 type Addresses struct {
-	AddressManager            common.Address
-	OptimismPortal            common.Address
-	L1StandardBridge          common.Address
-	L1CrossDomainMessenger    common.Address
-	CanonicalTransactionChain common.Address
-	StateCommitmentChain      common.Address
+	AddressManager         common.Address
+	OptimismPortal         common.Address
+	L1StandardBridge       common.Address
+	L1CrossDomainMessenger common.Address
 }
 
 // AddressesFlags represent the flags associated with address parsing.
@@ -119,16 +117,6 @@ var AddressesFlags = []cli.Flag{
 		Usage:   "L1CrossDomainMessenger address",
 		EnvVars: []string{"L1_CROSSDOMAIN_MESSENGER_ADDRESS"},
 	},
-	&cli.StringFlag{
-		Name:    "canonical-transaction-chain-address",
-		Usage:   "CanonicalTransactionChain address",
-		EnvVars: []string{"CANONICAL_TRANSACTION_CHAIN_ADDRESS"},
-	},
-	&cli.StringFlag{
-		Name:    "state-commitment-chain-address",
-		Usage:   "StateCommitmentChain address",
-		EnvVars: []string{"STATE_COMMITMENT_CHAIN_ADDRESS"},
-	},
 }
 
 // NewAddresses populates an Addresses struct given a [cli.Context].
@@ -150,14 +138,6 @@ func NewAddresses(ctx *cli.Context) (*Addresses, error) {
 		return nil, err
 	}
 	addresses.L1CrossDomainMessenger, err = parseAddress(ctx, "l1-crossdomain-messenger-address")
-	if err != nil {
-		return nil, err
-	}
-	addresses.CanonicalTransactionChain, err = parseAddress(ctx, "canonical-transaction-chain-address")
-	if err != nil {
-		return nil, err
-	}
-	addresses.StateCommitmentChain, err = parseAddress(ctx, "state-commitment-chain-address")
 	if err != nil {
 		return nil, err
 	}

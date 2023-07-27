@@ -70,7 +70,6 @@ describe('ECO token', () => {
       l2SignerOrProvider: l2Provider,
       l1ChainId: 5,
       l2ChainId: 420,
-      bedrock: true,
       bridges: BRIDGE_ADAPTER_DATA[L2ChainID.OPTIMISM_GOERLI],
     })
 
@@ -105,7 +104,6 @@ describe('ECO token', () => {
       l2SignerOrProvider: l2EcoWhaleSigner,
       l1ChainId: 5,
       l2ChainId: 420,
-      bedrock: true,
       bridges: BRIDGE_ADAPTER_DATA[L2ChainID.OPTIMISM_GOERLI],
     })
 

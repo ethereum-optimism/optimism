@@ -7,9 +7,6 @@ pragma solidity ^0.8.9;
 // separate pull request.
 
 interface ICrossDomainMessenger {
-    /**********
-     * Events *
-     **********/
 
     event SentMessage(
         address indexed target,
@@ -21,22 +18,12 @@ interface ICrossDomainMessenger {
     event RelayedMessage(bytes32 indexed msgHash);
     event FailedRelayedMessage(bytes32 indexed msgHash);
 
-    /*************
-     * Variables *
-     *************/
-
     function xDomainMessageSender() external view returns (address);
 
-    /********************
-     * Public Functions *
-     ********************/
-
-    /**
-     * Sends a cross domain message to the target messenger.
-     * @param _target Target contract address.
-     * @param _message Message to send to the target.
-     * @param _gasLimit Gas limit for the provided message.
-     */
+    /// @notice Sends a cross domain message to the target messenger.
+    /// @param _target Target contract address.
+    /// @param _message Message to send to the target.
+    /// @param _gasLimit Gas limit for the provided message.
     function sendMessage(
         address _target,
         bytes calldata _message,

@@ -42,8 +42,6 @@ export interface OEL1Contracts {
   AddressManager: Contract
   L1CrossDomainMessenger: Contract
   L1StandardBridge: Contract
-  StateCommitmentChain: Contract
-  CanonicalTransactionChain: Contract
   BondManager: Contract
   // Bedrock
   OptimismPortal: Contract

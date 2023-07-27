@@ -135,8 +135,6 @@ task('deposit-eth', 'Deposits ether to L2.')
           AddressManager: Deployment__AddressManager.address,
           L1CrossDomainMessenger: Deployment__L1CrossDomainMessenger.address,
           L1StandardBridge: Deployment__L1StandardBridge.address,
-          StateCommitmentChain: ethers.constants.AddressZero,
-          CanonicalTransactionChain: ethers.constants.AddressZero,
           BondManager: ethers.constants.AddressZero,
           OptimismPortal: Deployment__OptimismPortal.address,
           L2OutputOracle: Deployment__L2OutputOracle.address,
@@ -183,7 +181,6 @@ task('deposit-eth', 'Deposits ether to L2.')
       l2SignerOrProvider: l2Signer,
       l1ChainId: await signer.getChainId(),
       l2ChainId,
-      bedrock: true,
       contracts: contractAddrs,
     })
 

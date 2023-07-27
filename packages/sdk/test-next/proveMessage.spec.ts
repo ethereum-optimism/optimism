@@ -61,7 +61,6 @@ const crossChainMessenger = new CrossChainMessenger({
   l2SignerOrProvider: l2Provider,
   l1ChainId: 5,
   l2ChainId: 420,
-  bedrock: true,
 })
 
 describe('prove message', () => {

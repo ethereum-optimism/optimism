@@ -36,18 +36,6 @@ const l1CrossDomainMessengerAddresses = {
   goerli: l1CrossDomainMessengerArtifactGoerli.address,
 }
 
-// legacy
-const stateCommitmentChainAddresses = {
-  mainnet: '0xBe5dAb4A2e9cd0F27300dB4aB94BeE3A233AEB19',
-  goerli: '0x9c945aC97Baf48cB784AbBB61399beB71aF7A378',
-}
-
-// legacy
-const canonicalTransactionChainAddresses = {
-  mainnet: '0x5E4e65926BA27467555EB562121fac00D24E9dD2',
-  goerli: '0x607F755149cFEB3a14E1Dc3A4E2450Cde7dfb04D',
-}
-
 import {
   L1ChainID,
   L2ChainID,
@@ -114,8 +102,6 @@ const getL1ContractsByNetworkName = (network: string): OEL1ContractsLike => {
     AddressManager: addressManagerAddresses[network],
     L1CrossDomainMessenger: l1CrossDomainMessengerAddresses[network],
     L1StandardBridge: l1StandardBridgeAddresses[network],
-    StateCommitmentChain: stateCommitmentChainAddresses[network],
-    CanonicalTransactionChain: canonicalTransactionChainAddresses[network],
     BondManager: ethers.constants.AddressZero,
     OptimismPortal: portalAddresses[network],
     L2OutputOracle: l2OutputOracleAddresses[network],
@@ -144,10 +130,6 @@ export const CONTRACT_ADDRESSES: {
       L1CrossDomainMessenger:
         '0x8A791620dd6260079BF849Dc5567aDC3F2FdC318' as const,
       L1StandardBridge: '0x610178dA211FEF7D417bC0e6FeD39F05609AD788' as const,
-      StateCommitmentChain:
-        '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9' as const,
-      CanonicalTransactionChain:
-        '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as const,
       BondManager: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707' as const,
       // FIXME
       OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
@@ -161,10 +143,6 @@ export const CONTRACT_ADDRESSES: {
       L1CrossDomainMessenger:
         '0x8A791620dd6260079BF849Dc5567aDC3F2FdC318' as const,
       L1StandardBridge: '0x610178dA211FEF7D417bC0e6FeD39F05609AD788' as const,
-      StateCommitmentChain:
-        '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9' as const,
-      CanonicalTransactionChain:
-        '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as const,
       BondManager: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707' as const,
       OptimismPortal: '0x0000000000000000000000000000000000000000' as const,
       L2OutputOracle: '0x0000000000000000000000000000000000000000' as const,
@@ -177,10 +155,6 @@ export const CONTRACT_ADDRESSES: {
       L1CrossDomainMessenger:
         '0x6900000000000000000000000000000000000002' as const,
       L1StandardBridge: '0x6900000000000000000000000000000000000003' as const,
-      StateCommitmentChain:
-        '0x0000000000000000000000000000000000000000' as const,
-      CanonicalTransactionChain:
-        '0x0000000000000000000000000000000000000000' as const,
       BondManager: '0x0000000000000000000000000000000000000000' as const,
       OptimismPortal: '0x6900000000000000000000000000000000000001' as const,
       L2OutputOracle: '0x6900000000000000000000000000000000000000' as const,
@@ -193,10 +167,6 @@ export const CONTRACT_ADDRESSES: {
       L1CrossDomainMessenger:
         '0x838a6DC4E37CA45D4Ef05bb776bf05eEf50798De' as const,
       L1StandardBridge: '0xFf94B6C486350aD92561Ba09bad3a59df764Da92' as const,
-      StateCommitmentChain:
-        '0x0000000000000000000000000000000000000000' as const,
-      CanonicalTransactionChain:
-        '0x0000000000000000000000000000000000000000' as const,
       BondManager: '0x0000000000000000000000000000000000000000' as const,
       OptimismPortal: '0xA581Ca3353DB73115C4625FFC7aDF5dB379434A8' as const,
       L2OutputOracle: '0x3A234299a14De50027eA65dCdf1c0DaC729e04A6' as const,
@@ -209,10 +179,6 @@ export const CONTRACT_ADDRESSES: {
       L1CrossDomainMessenger:
         '0x8e5693140eA606bcEB98761d9beB1BC87383706D' as const,
       L1StandardBridge: '0xfA6D8Ee5BE770F84FC001D098C4bD604Fe01284a' as const,
-      StateCommitmentChain:
-        '0x0000000000000000000000000000000000000000' as const,
-      CanonicalTransactionChain:
-        '0x0000000000000000000000000000000000000000' as const,
       BondManager: '0x0000000000000000000000000000000000000000' as const,
       OptimismPortal: '0xe93c8cD0D409341205A592f8c4Ac1A5fe5585cfA' as const,
       L2OutputOracle: '0x2A35891ff30313CcFa6CE88dcf3858bb075A2298' as const,
@@ -225,10 +191,6 @@ export const CONTRACT_ADDRESSES: {
       L1CrossDomainMessenger:
         '0x866E82a600A1414e583f7F13623F1aC5d58b0Afa' as const,
       L1StandardBridge: '0x3154Cf16ccdb4C6d922629664174b904d80F2C35' as const,
-      StateCommitmentChain:
-        '0x0000000000000000000000000000000000000000' as const,
-      CanonicalTransactionChain:
-        '0x0000000000000000000000000000000000000000' as const,
       BondManager: '0x0000000000000000000000000000000000000000' as const,
       OptimismPortal: '0x49048044D57e1C92A77f79988d21Fa8fAF74E97e' as const,
       L2OutputOracle: '0x56315b90c40730925ec5485cf004d835058518A0' as const,
@@ -242,10 +204,6 @@ export const CONTRACT_ADDRESSES: {
       L1CrossDomainMessenger:
         '0xD87342e16352D33170557A7dA1e5fB966a60FafC' as const,
       L1StandardBridge: '0x7CC09AC2452D6555d5e0C213Ab9E2d44eFbFc956' as const,
-      StateCommitmentChain:
-        '0x0000000000000000000000000000000000000000' as const,
-      CanonicalTransactionChain:
-        '0x0000000000000000000000000000000000000000' as const,
       BondManager: '0x0000000000000000000000000000000000000000' as const,
       OptimismPortal: '0xDb9F51790365e7dc196e7D072728df39Be958ACe' as const,
       L2OutputOracle: '0xdD292C9eEd00f6A32Ff5245d0BCd7f2a15f24e00' as const,
@@ -258,10 +216,6 @@ export const CONTRACT_ADDRESSES: {
       L1CrossDomainMessenger:
         '0xdC40a14d9abd6F410226f1E6de71aE03441ca506' as const,
       L1StandardBridge: '0x3e2Ea9B92B7E48A52296fD261dc26fd995284631' as const,
-      StateCommitmentChain:
-        '0x0000000000000000000000000000000000000000' as const,
-      CanonicalTransactionChain:
-        '0x0000000000000000000000000000000000000000' as const,
       BondManager: '0x0000000000000000000000000000000000000000' as const,
       OptimismPortal: '0x1a0ad011913A150f69f6A19DF447A0CfD9551054' as const,
       L2OutputOracle: '0x9E6204F750cD866b299594e2aC9eA824E2e5f95c' as const,
