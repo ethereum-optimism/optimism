@@ -68,7 +68,6 @@ abstract contract ERC721Bridge is Initializable {
     // @notice Initializes the contract.
     /// @param _messenger   Address of the CrossDomainMessenger on this network.
     function __ERC721Bridge_init(CrossDomainMessenger _messenger) internal onlyInitializing {
-        require(address(_messenger) != address(0), "ERC721Bridge: messenger cannot be address(0)");
         MESSENGER = _messenger;
     }
 

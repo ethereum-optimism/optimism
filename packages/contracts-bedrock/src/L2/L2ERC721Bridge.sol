@@ -5,6 +5,7 @@ import { ERC721Bridge } from "../universal/ERC721Bridge.sol";
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
 import { IOptimismMintableERC721 } from "../universal/IOptimismMintableERC721.sol";
+import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 import { Semver } from "../universal/Semver.sol";
 
 /// @title L2ERC721Bridge
@@ -25,13 +26,13 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
         ERC721Bridge(_otherBridge)
     {
         initialize({
-            _messenger: address(0)
+            _messenger: CrossDomainMessenger(address(0))
         });
     }
 
     /// @notice Initializes the contract.
     /// @param _messenger   Address of the CrossDomainMessenger on this network.
-    function initialize(address _messenger) public reinitializer(1) {
+    function initialize(CrossDomainMessenger _messenger) public reinitializer(1) {
         __ERC721Bridge_init(_messenger);
     }
 

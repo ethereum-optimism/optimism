@@ -29,6 +29,7 @@ import { ResolvedDelegateProxy } from "../src/legacy/ResolvedDelegateProxy.sol";
 import { AddressManager } from "../src/legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "../src/legacy/L1ChugSplashProxy.sol";
 import { IL1ChugSplashDeployer } from "../src/legacy/L1ChugSplashProxy.sol";
+import { CrossDomainMessenger } from "../src/universal/CrossDomainMessenger.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { LegacyMintableERC20 } from "../src/legacy/LegacyMintableERC20.sol";
 import { SystemConfig } from "../src/L1/SystemConfig.sol";
@@ -507,7 +508,7 @@ contract ERC721Bridge_Initializer is Messenger_Initializer {
             address(l1BridgeImpl),
             abi.encodeCall(
                 L1ERC721Bridge.initialize,
-                address(L1Messenger)
+                (CrossDomainMessenger(L1Messenger))
             )
         );
 
@@ -516,14 +517,17 @@ contract ERC721Bridge_Initializer is Messenger_Initializer {
         // Deploy the implementation for the L2ERC721Bridge and etch it into the predeploy address.
         L2ERC721Bridge l2BridgeImpl = new L2ERC721Bridge(address(L1Bridge));
         Proxy l2BridgeProxy = new Proxy(multisig);
-        vm.etch(Predeploys.L2_ERC721_BRIDGE, l2BridgeProxy.code);
-        // set the storage slot for admin and implementation
+        vm.etch(Predeploys.L2_ERC721_BRIDGE, address(l2BridgeProxy).code);
 
-        bytes32 IMPLEMENTATION_KEY = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+        // set the storage slot for admin
         bytes32 OWNER_KEY = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+        vm.store(Predeploys.L2_ERC721_BRIDGE, OWNER_KEY, bytes32(uint256(uint160(multisig))));
 
-        vm.store(Predeploys.L2_ERC721_BRIDGE, IMPLEMENTATION_KEY, address(l2BridgeProxy));
-        vm.store(Predeploys.L2_ERC721_BRIDGE, OWNER_KEY, multisig);
+        vm.prank(multisig);
+        Proxy(payable(Predeploys.L2_ERC721_BRIDGE)).upgradeToAndCall(
+            address(l2BridgeImpl),
+            abi.encodeCall(L2ERC721Bridge.initialize, (L2Messenger))
+        );
 
         // Set up a reference to the L2ERC721Bridge.
         L2Bridge = L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
