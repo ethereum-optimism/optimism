@@ -20,6 +20,7 @@ import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 /// @dev https://github.com/golang/go/blob/master/src/syscall/zerrors_linux_mips.go
 ///      MIPS linux kernel errors used by Go runtime
 contract MIPS {
+
     /// @notice Stores the VM state.
     ///         Total state size: 32 + 32 + 6 * 4 + 1 + 1 + 8 + 32 * 4 = 226 bytes
     ///         If nextPC != pc + 4, then the VM is executing a branch/jump delay slot.
@@ -836,11 +837,11 @@ contract MIPS {
                     }
                     // slt: Set to 1 if less than
                     else if (func == 0x2a) {
-                      return int32(rs) < int32(rt) ? 1 : 0;
+                        return int32(rs) < int32(rt) ? 1 : 0;
                     }
                     // sltu: Set to 1 if less than unsigned
                     else if (func == 0x2B) {
-                      return rs<rt ? 1 : 0;
+                        return rs<rt ? 1 : 0;
                     }
                 }
                 // lui: Load Upper Immediate
