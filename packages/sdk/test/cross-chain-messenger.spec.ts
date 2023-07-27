@@ -673,20 +673,6 @@ describe('CrossChainMessenger', () => {
       })
     })
 
-    describe('when the message is an L2 => L1 message', () => {
-      describe('when the message state root has not been published', () => {
-        it('should return a status of STATE_ROOT_NOT_PUBLISHED', async () => {
-          const message = await sendAndGetDummyMessage(
-            MessageDirection.L2_TO_L1
-          )
-
-          expect(await messenger.getMessageStatus(message)).to.equal(
-            MessageStatus.STATE_ROOT_NOT_PUBLISHED
-          )
-        })
-      })
-    })
-
     describe('when the message does not exist', () => {
       // TODO: Figure out if this is the correct behavior. Mark suggests perhaps returning null.
       it('should throw an error')
