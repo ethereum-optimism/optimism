@@ -58,11 +58,12 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 	if err != nil {
 		return fmt.Errorf("find starting snapshot: %w", err)
 	}
-	proofIndexStr := strconv.FormatUint(i, 10)
 	args := []string{
+		"run",
 		"--input", start,
-		"--proof-at", proofIndexStr,
-		"--proof-fmt", filepath.Join(dir, proofsDir, proofIndexStr+".json"),
+		"--proof-at", "=" + strconv.FormatUint(i, 10),
+		"--stop-at", "=" + strconv.FormatUint(i+1, 10),
+		"--proof-fmt", filepath.Join(dir, proofsDir, "%d.json"),
 		"--snapshot-at", "%" + strconv.FormatUint(uint64(e.snapshotFreq), 10),
 		"--snapshot-fmt", filepath.Join(e.dataDir, snapsDir, "%d.json"),
 		"--",

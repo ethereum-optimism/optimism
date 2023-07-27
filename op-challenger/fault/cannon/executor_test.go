@@ -32,10 +32,12 @@ func TestGenerateProof(t *testing.T) {
 		return input, nil
 	}
 	var binary string
+	var subcommand string
 	args := make(map[string]string)
 	executor.cmdExecutor = func(ctx context.Context, l log.Logger, b string, a ...string) error {
 		binary = b
-		for i := 0; i < len(a); i += 2 {
+		subcommand = a[0]
+		for i := 1; i < len(a); i += 2 {
 			args[a[i]] = a[i+1]
 		}
 		return nil
@@ -43,15 +45,17 @@ func TestGenerateProof(t *testing.T) {
 	err := executor.GenerateProof(context.Background(), cfg.CannonDatadir, 150_000_000)
 	require.NoError(t, err)
 	require.Equal(t, cfg.CannonBin, binary)
-	require.Contains(t, args, "--input", input)
-	require.Contains(t, args, "--proof-at", "150000000")
-	require.Contains(t, args, "--snapshot-at", "%500")
-	require.Contains(t, args, "--", cfg.CannonServer)
-	require.Contains(t, args, "--l1", cfg.L1EthRpc)
-	require.Contains(t, args, "--l2", cfg.CannonL2)
-	require.Contains(t, args, "--datadir", filepath.Join(cfg.CannonDatadir, preimagesDir))
-	require.Contains(t, args, "--proof-fmt", filepath.Join(cfg.CannonDatadir, "150000000.json"))
-	require.Contains(t, args, "--snapshot-fmt", filepath.Join(cfg.CannonDatadir, snapsDir, "%d.json"))
+	require.Equal(t, "run", subcommand)
+	require.Equal(t, input, args["--input"])
+	require.Equal(t, "=150000000", args["--proof-at"])
+	require.Equal(t, "=150000001", args["--stop-at"])
+	require.Equal(t, "%500", args["--snapshot-at"])
+	require.Equal(t, cfg.CannonServer, args["--"])
+	require.Equal(t, cfg.L1EthRpc, args["--l1"])
+	require.Equal(t, cfg.CannonL2, args["--l2"])
+	require.Equal(t, filepath.Join(cfg.CannonDatadir, preimagesDir), args["--datadir"])
+	require.Equal(t, filepath.Join(cfg.CannonDatadir, proofsDir, "%d.json"), args["--proof-fmt"])
+	require.Equal(t, filepath.Join(cfg.CannonDatadir, snapsDir, "%d.json"), args["--snapshot-fmt"])
 }
 
 func TestRunCmdLogsOutput(t *testing.T) {
