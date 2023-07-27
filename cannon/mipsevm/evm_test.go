@@ -19,7 +19,6 @@ import (
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/srcmap"
 )
 
@@ -38,19 +37,12 @@ func testContractsSetup(t require.TestingT) (*Contracts, *Addresses) {
 }
 
 func SourceMapTracer(t *testing.T, contracts *Contracts, addrs *Addresses) vm.EVMLogger {
-	sources := bindings.Sources
-	contractsDir := "../../packages/contracts-bedrock"
-	for i, source := range sources {
-		// Add relative path to contracts directory if the source is not
-		// already relativized.
-		if !strings.HasPrefix(source, "..") {
-			sources[i] = path.Join(contractsDir, source)
-		}
-	}
+	t.Fatal("TODO(clabby): The source map tracer is disabled until source IDs have been added to foundry artifacts.")
 
-	mipsSrcMap, err := contracts.MIPS.SourceMap(append([]string{path.Join(contractsDir, "src/cannon/MIPS.sol")}, sources...))
+	contractsDir := "../../packages/contracts-bedrock"
+	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{path.Join(contractsDir, "src/cannon/MIPS.sol")})
 	require.NoError(t, err)
-	oracleSrcMap, err := contracts.Oracle.SourceMap(append([]string{path.Join(contractsDir, "src/cannon/PreimageOracle.sol")}, sources...))
+	oracleSrcMap, err := contracts.Oracle.SourceMap([]string{path.Join(contractsDir, "src/cannon/PreimageOracle.sol")})
 	require.NoError(t, err)
 
 	return srcmap.NewSourceMapTracer(map[common.Address]*srcmap.SourceMap{addrs.MIPS: mipsSrcMap, addrs.Oracle: oracleSrcMap}, os.Stdout)

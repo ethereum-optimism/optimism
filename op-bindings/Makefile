@@ -12,14 +12,13 @@ version:
 
 compile:
 	cd $(contracts-dir) && \
-		pnpm build --build-info
+		pnpm build
 
 bindings: compile bindings-build
 
 bindings-build:
 	go run ./gen/main.go \
 		-forge-artifacts $(contracts-dir)/forge-artifacts \
-		-forge-build-info $(contracts-dir)/artifacts/build-info \
 		-out ./bindings \
 		-contracts ./artifacts.json \
 		-source-maps MIPS,PreimageOracle \
