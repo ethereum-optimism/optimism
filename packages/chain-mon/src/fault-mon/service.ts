@@ -25,20 +25,17 @@ import { Contract, ethers } from 'ethers'
 import dateformat from 'dateformat'
 
 import { version } from '../../package.json'
-import {
-  findFirstUnfinalizedStateBatchIndex,
-  findOutputForIndex,
-} from './helpers'
+import { findFirstUnfinalizedOutputIndex, findOutputForIndex } from './helpers'
 
 type Options = {
   l1RpcProvider: Provider
   l2RpcProvider: Provider
-  startBatchIndex: number
+  startOutputIndex: number
   optimismPortalAddress?: string
 }
 
 type Metrics = {
-  highestBatchIndex: Gauge
+  highestOutputIndex: Gauge
   isCurrentlyMismatched: Gauge
   nodeConnectionFailures: Gauge
 }
@@ -47,7 +44,7 @@ type State = {
   faultProofWindow: number
   outputOracle: Contract
   messenger: CrossChainMessenger
-  currentBatchIndex: number
+  currentOutputIndex: number
   diverged: boolean
 }
 
@@ -70,7 +67,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
           validator: validators.provider,
           desc: 'Provider for interacting with L2',
         },
-        startBatchIndex: {
+        startOutputIndex: {
           validator: validators.num,
           default: -1,
           desc: 'The L2 height to start from',
@@ -84,9 +81,9 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         },
       },
       metricsSpec: {
-        highestBatchIndex: {
+        highestOutputIndex: {
           type: Gauge,
-          desc: 'Highest batch indices (checked and known)',
+          desc: 'Highest output indices (checked and known)',
           labels: ['type'],
         },
         isCurrentlyMismatched: {
@@ -200,30 +197,32 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     this.state.outputOracle = this.state.messenger.contracts.l1.L2OutputOracle
 
     // Figure out where to start syncing from.
-    if (this.options.startBatchIndex === -1) {
-      this.logger.info('finding appropriate starting unfinalized batch')
-      const firstUnfinalized = await findFirstUnfinalizedStateBatchIndex(
+    if (this.options.startOutputIndex === -1) {
+      this.logger.info('finding appropriate starting unfinalized output')
+      const firstUnfinalized = await findFirstUnfinalizedOutputIndex(
         this.state.outputOracle,
         this.state.faultProofWindow,
         this.logger
       )
 
-      // We may not have an unfinalized batches in the case where no batches have been submitted
+      // We may not have an unfinalized outputs in the case where no outputs have been submitted
       // for the entire duration of the FAULTPROOFWINDOW. We generally do not expect this to happen on mainnet,
       // but it happens often on testnets because the FAULTPROOFWINDOW is very short.
       if (firstUnfinalized === undefined) {
-        this.logger.info('no unfinalized batches found. skipping all batches.')
-        const totalBatches = await this.state.outputOracle.nextOutputIndex()
-        this.state.currentBatchIndex = totalBatches.toNumber() - 1
+        this.logger.info(
+          'no unfinalized outputes found. skipping all outputes.'
+        )
+        const totalOutputes = await this.state.outputOracle.nextOutputIndex()
+        this.state.currentOutputIndex = totalOutputes.toNumber() - 1
       } else {
-        this.state.currentBatchIndex = firstUnfinalized
+        this.state.currentOutputIndex = firstUnfinalized
       }
     } else {
-      this.state.currentBatchIndex = this.options.startBatchIndex
+      this.state.currentOutputIndex = this.options.startOutputIndex
     }
 
-    this.logger.info('starting batch', {
-      batchIndex: this.state.currentBatchIndex,
+    this.logger.info('starting output', {
+      outputIndex: this.state.currentOutputIndex,
     })
 
     // Set the initial metrics.
@@ -241,12 +240,12 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
   async main(): Promise<void> {
     const startMs = Date.now()
 
-    let latestBatchIndex: number
+    let latestOutputIndex: number
     try {
-      const totalBatches = await this.state.outputOracle.nextOutputIndex()
-      latestBatchIndex = totalBatches.toNumber() - 1
+      const totalOutputes = await this.state.outputOracle.nextOutputIndex()
+      latestOutputIndex = totalOutputes.toNumber() - 1
     } catch (err) {
-      this.logger.error('failed to query total # of batches', {
+      this.logger.error('failed to query total # of outputes', {
         error: err,
         node: 'l1',
         section: 'nextOutputIndex',
@@ -259,34 +258,34 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       return
     }
 
-    if (this.state.currentBatchIndex > latestBatchIndex) {
-      this.logger.info('batch index is ahead of the oracle. waiting...', {
-        batchIndex: this.state.currentBatchIndex,
-        latestBatchIndex,
+    if (this.state.currentOutputIndex > latestOutputIndex) {
+      this.logger.info('output index is ahead of the oracle. waiting...', {
+        outputIndex: this.state.currentOutputIndex,
+        latestOutputIndex,
       })
       await sleep(15000)
       return
     }
 
-    this.metrics.highestBatchIndex.set({ type: 'known' }, latestBatchIndex)
-    this.logger.info('checking batch', {
-      batchIndex: this.state.currentBatchIndex,
-      latestBatchIndex,
+    this.metrics.highestOutputIndex.set({ type: 'known' }, latestOutputIndex)
+    this.logger.info('checking output', {
+      outputIndex: this.state.currentOutputIndex,
+      latestOutputIndex,
     })
 
     let outputData: BedrockOutputData
     try {
       outputData = await findOutputForIndex(
         this.state.outputOracle,
-        this.state.currentBatchIndex,
+        this.state.currentOutputIndex,
         this.logger
       )
     } catch (err) {
-      this.logger.error('failed to fetch output associated with batch', {
+      this.logger.error('failed to fetch output associated with output', {
         error: err,
         node: 'l1',
         section: 'findOutputForIndex',
-        batchIndex: this.state.currentBatchIndex,
+        outputIndex: this.state.currentOutputIndex,
       })
       this.metrics.nodeConnectionFailures.inc({
         layer: 'l1',
@@ -397,20 +396,20 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
 
     const elapsedMs = Date.now() - startMs
 
-    // Mark the current batch index as checked
-    this.logger.info('checked batch ok', {
-      batchIndex: this.state.currentBatchIndex,
+    // Mark the current output index as checked
+    this.logger.info('checked output ok', {
+      outputIndex: this.state.currentOutputIndex,
       timeMs: elapsedMs,
     })
-    this.metrics.highestBatchIndex.set(
+    this.metrics.highestOutputIndex.set(
       { type: 'checked' },
-      this.state.currentBatchIndex
+      this.state.currentOutputIndex
     )
 
     // If we got through the above without throwing an error, we should be
-    // fine to reset and move onto the next batch
+    // fine to reset and move onto the next output
     this.state.diverged = false
-    this.state.currentBatchIndex++
+    this.state.currentOutputIndex++
     this.metrics.isCurrentlyMismatched.set(0)
   }
 }
