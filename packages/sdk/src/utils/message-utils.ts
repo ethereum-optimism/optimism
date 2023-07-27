@@ -1,18 +1,16 @@
 import { hashWithdrawal } from '@eth-optimism/core-utils'
-import { BigNumber, utils, ethers } from 'ethers'
+import { ethers } from 'ethers'
 
 import { LowLevelMessage } from '../interfaces'
 
-const { hexDataLength } = utils
-
 // Constants used by `CrossDomainMessenger.baseGas`
-const RELAY_CONSTANT_OVERHEAD = BigNumber.from(200_000)
-const RELAY_PER_BYTE_DATA_COST = BigNumber.from(16)
-const MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR = BigNumber.from(64)
-const MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR = BigNumber.from(63)
-const RELAY_CALL_OVERHEAD = BigNumber.from(40_000)
-const RELAY_RESERVED_GAS = BigNumber.from(40_000)
-const RELAY_GAS_CHECK_BUFFER = BigNumber.from(5_000)
+const RELAY_CONSTANT_OVERHEAD = BigInt(200_000)
+const RELAY_PER_BYTE_DATA_COST = BigInt(16)
+const MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR = BigInt(64)
+const MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR = BigInt(63)
+const RELAY_CALL_OVERHEAD = BigInt(40_000)
+const RELAY_RESERVED_GAS = BigInt(40_000)
+const RELAY_GAS_CHECK_BUFFER = BigInt(5_000)
 
 /**
  * Utility for hashing a LowLevelMessage object.
@@ -40,11 +38,11 @@ export const hashLowLevelMessage = (message: LowLevelMessage): string => {
  * @returns Hash of the given message hash.
  */
 export const hashMessageHash = (messageHash: string): string => {
-  const data = ethers.utils.defaultAbiCoder.encode(
+  const data = ethers.AbiCoder.defaultAbiCoder().encode(
     ['bytes32', 'uint256'],
-    [messageHash, ethers.constants.HashZero]
+    [messageHash, ethers.ZeroHash]
   )
-  return ethers.utils.keccak256(data)
+  return ethers.keccak256(data)
 }
 
 /**
@@ -53,40 +51,36 @@ export const hashMessageHash = (messageHash: string): string => {
 export const migratedWithdrawalGasLimit = (
   data: string,
   chainID: number
-): BigNumber => {
+): BigInt => {
   // Compute the gas limit and cap at 25 million
-  const dataCost = BigNumber.from(hexDataLength(data)).mul(
-    RELAY_PER_BYTE_DATA_COST
-  )
-  let overhead: BigNumber
+  const dataCost = BigInt(ethers.dataLength(data)) * RELAY_PER_BYTE_DATA_COST
+
+  let overhead: BigInt
   if (chainID === 420) {
-    overhead = BigNumber.from(200_000)
+    overhead = BigInt(200_000)
   } else {
     // Dynamic overhead (EIP-150)
     // We use a constant 1 million gas limit due to the overhead of simulating all migrated withdrawal
     // transactions during the migration. This is a conservative estimate, and if a withdrawal
     // uses more than the minimum gas limit, it will fail and need to be replayed with a higher
     // gas limit.
-    const dynamicOverhead = MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR.mul(
-      1_000_000
-    ).div(MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR)
+    const dynamicOverhead = MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR * BigInt(1_000_000) / MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR
 
     // Constant overhead
-    overhead = RELAY_CONSTANT_OVERHEAD.add(dynamicOverhead)
-      .add(RELAY_CALL_OVERHEAD)
+    overhead = RELAY_CONSTANT_OVERHEAD + dynamicOverhead + RELAY_CALL_OVERHEAD
       // Gas reserved for the worst-case cost of 3/5 of the `CALL` opcode's dynamic gas
       // factors. (Conservative)
       // Relay reserved gas (to ensure execution of `relayMessage` completes after the
       // subcontext finishes executing) (Conservative)
-      .add(RELAY_RESERVED_GAS)
+      + RELAY_RESERVED_GAS
       // Gas reserved for the execution between the `hasMinGas` check and the `CALL`
       // opcode. (Conservative)
-      .add(RELAY_GAS_CHECK_BUFFER)
+      + RELAY_GAS_CHECK_BUFFER
   }
 
-  let minGasLimit = dataCost.add(overhead)
-  if (minGasLimit.gt(25_000_000)) {
-    minGasLimit = BigNumber.from(25_000_000)
+  let minGasLimit = BigInt(Number(dataCost) + Number(overhead))
+  if (minGasLimit > 25_000_000) {
+    minGasLimit = BigInt(25_000_000)
   }
   return minGasLimit
 }

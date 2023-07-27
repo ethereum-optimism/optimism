@@ -1,10 +1,10 @@
 import {
+  Contract,
+  Signer,
   Provider,
   TransactionReceipt,
   TransactionResponse,
-} from '@ethersproject/abstract-provider'
-import { Signer } from '@ethersproject/abstract-signer'
-import { Contract, BigNumber } from 'ethers'
+} from 'ethers'
 
 import { CrossChainMessenger } from '../cross-chain-messenger'
 import { IBridgeAdapter } from './bridge-adapter'
@@ -189,9 +189,9 @@ export interface CoreCrossChainMessage {
   sender: string
   target: string
   message: string
-  messageNonce: BigNumber
-  value: BigNumber
-  minGasLimit: BigNumber
+  messageNonce: BigInt
+  value: BigInt
+  minGasLimit: BigInt
 }
 
 /**
@@ -221,7 +221,7 @@ export interface TokenBridgeMessage {
   to: string
   l1Token: string
   l2Token: string
-  amount: BigNumber
+  amount: BigInt
   data: string
   logIndex: number
   blockNumber: number
@@ -257,18 +257,18 @@ export interface MessageReceipt {
  */
 export interface ProvenWithdrawal {
   outputRoot: string
-  timestamp: BigNumber
-  l2BlockNumber: BigNumber
+  timestamp: BigInt
+  l2BlockNumber: BigInt
 }
 
 /**
  * Header for a state root batch.
  */
 export interface StateRootBatchHeader {
-  batchIndex: BigNumber
+  batchIndex: BigInt
   batchRoot: string
-  batchSize: BigNumber
-  prevTotalElements: BigNumber
+  batchSize: BigInt
+  prevTotalElements: BigInt
   extraData: string
 }
 
@@ -349,4 +349,4 @@ export type AddressLike = string | Contract
 /**
  * Stuff that can be coerced into a number.
  */
-export type NumberLike = string | number | BigNumber
+export type NumberLike = string | number | BigInt

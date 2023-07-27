@@ -1,4 +1,4 @@
-import { getContractInterface, predeploys } from '@eth-optimism/contracts'
+import { predeploys } from '@eth-optimism/core-utils'
 import { ethers, Contract } from 'ethers'
 import l1StandardBridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L1StandardBridge.sol/L1StandardBridge.json'
 import l2StandardBridge from '@eth-optimism/contracts-bedrock/forge-artifacts/L2StandardBridge.sol/L2StandardBridge.json'
@@ -45,7 +45,7 @@ const NAME_REMAPPING = {
   BedrockMessagePasser: 'L2ToL1MessagePasser' as const,
 }
 
-const getContractInterfaceBedrock = (name: string): ethers.utils.Interface => {
+export const getContractInterface = (name: string): ethers.Interface => {
   let artifact: any = ''
   switch (name) {
     case 'Lib_AddressManager':
@@ -92,10 +92,11 @@ const getContractInterfaceBedrock = (name: string): ethers.utils.Interface => {
       artifact = l2ToL1MessagePasser
       break
     case 'GasPriceOracle':
+    case 'OVM_GasPriceOracle':
       artifact = gasPriceOracle
       break
   }
-  return new ethers.utils.Interface(artifact.abi)
+  return new ethers.Interface(artifact.abi)
 }
 
 /**
@@ -116,7 +117,7 @@ export const getOEContract = (
   l2ChainId: number,
   opts: {
     address?: AddressLike
-    signerOrProvider?: ethers.Signer | ethers.providers.Provider
+    signerOrProvider?: ethers.Signer | ethers.Provider
   } = {}
 ): Contract => {
   const addresses = CONTRACT_ADDRESSES[l2ChainId]
@@ -129,17 +130,17 @@ export const getOEContract = (
   // Bedrock interfaces are backwards compatible. We can prefer Bedrock interfaces over legacy
   // interfaces if they exist.
   const name = NAME_REMAPPING[contractName] || contractName
-  let iface: ethers.utils.Interface
-  try {
-    iface = getContractInterfaceBedrock(name)
-  } catch (err) {
-    iface = getContractInterface(name)
+  let iface = getContractInterface(name)
+
+  let addr: string
+  if (typeof opts.address === 'string') {
+    addr = opts.address
+  } else {
+    addr = opts.address.target as string
   }
 
   return new Contract(
-    toAddress(
-      opts.address || addresses.l1[contractName] || addresses.l2[contractName]
-    ),
+    addr || addresses.l1[contractName] || addresses.l2[contractName],
     iface,
     opts.signerOrProvider
   )
@@ -162,8 +163,8 @@ export const getOEContract = (
 export const getAllOEContracts = (
   l2ChainId: number,
   opts: {
-    l1SignerOrProvider?: ethers.Signer | ethers.providers.Provider
-    l2SignerOrProvider?: ethers.Signer | ethers.providers.Provider
+    l1SignerOrProvider?: ethers.Signer | ethers.Provider
+    l2SignerOrProvider?: ethers.Signer | ethers.Provider
     overrides?: DeepPartial<OEContractsLike>
   } = {}
 ): OEContracts => {
@@ -233,21 +234,21 @@ export const getBridgeAdapters = (
   const adapterData: BridgeAdapterData = {
     ...(CONTRACT_ADDRESSES[l2ChainId] || opts?.contracts?.l1?.L1StandardBridge
       ? {
-          Standard: {
-            Adapter: StandardBridgeAdapter,
-            l1Bridge:
-              opts?.contracts?.l1?.L1StandardBridge ||
-              CONTRACT_ADDRESSES[l2ChainId].l1.L1StandardBridge,
-            l2Bridge: predeploys.L2StandardBridge,
-          },
-          ETH: {
-            Adapter: ETHBridgeAdapter,
-            l1Bridge:
-              opts?.contracts?.l1?.L1StandardBridge ||
-              CONTRACT_ADDRESSES[l2ChainId].l1.L1StandardBridge,
-            l2Bridge: predeploys.L2StandardBridge,
-          },
-        }
+        Standard: {
+          Adapter: StandardBridgeAdapter,
+          l1Bridge:
+            opts?.contracts?.l1?.L1StandardBridge ||
+            CONTRACT_ADDRESSES[l2ChainId].l1.L1StandardBridge,
+          l2Bridge: predeploys.L2StandardBridge,
+        },
+        ETH: {
+          Adapter: ETHBridgeAdapter,
+          l1Bridge:
+            opts?.contracts?.l1?.L1StandardBridge ||
+            CONTRACT_ADDRESSES[l2ChainId].l1.L1StandardBridge,
+          l2Bridge: predeploys.L2StandardBridge,
+        },
+      }
       : {}),
     ...(BRIDGE_ADAPTER_DATA[l2ChainId] || {}),
     ...(opts?.overrides || {}),

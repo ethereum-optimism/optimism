@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { ethers, Overrides, BigNumber } from 'ethers'
-import { TransactionRequest, BlockTag } from '@ethersproject/abstract-provider'
-import { predeploys } from '@eth-optimism/contracts'
+import { ethers, Overrides, TransactionRequest, BlockTag, EventLog } from 'ethers'
+import { predeploys } from '@eth-optimism/core-utils'
 import { hexStringEquals } from '@eth-optimism/core-utils'
 
 import {
@@ -21,7 +20,7 @@ export class ETHBridgeAdapter extends StandardBridgeAdapter {
     l1Token: AddressLike,
     l2Token: AddressLike,
     signer: ethers.Signer
-  ): Promise<BigNumber> {
+  ): Promise<BigInt> {
     throw new Error(`approval not necessary for ETH bridge`)
   }
 
@@ -39,16 +38,16 @@ export class ETHBridgeAdapter extends StandardBridgeAdapter {
     )
 
     return events
-      .map((event) => {
+      .map((event: EventLog) => {
         return {
           direction: MessageDirection.L1_TO_L2,
           from: event.args.from,
           to: event.args.to,
-          l1Token: ethers.constants.AddressZero,
-          l2Token: predeploys.OVM_ETH,
+          l1Token: ethers.ZeroAddress,
+          l2Token: predeploys.LegacyERC20ETH,
           amount: event.args.amount,
           data: event.args.extraData,
-          logIndex: event.logIndex,
+          logIndex: event.index,
           blockNumber: event.blockNumber,
           transactionHash: event.transactionHash,
         }
@@ -73,14 +72,14 @@ export class ETHBridgeAdapter extends StandardBridgeAdapter {
     )
 
     return events
-      .filter((event) => {
+      .filter((event: EventLog) => {
         // Only find ETH withdrawals.
         return (
-          hexStringEquals(event.args.l1Token, ethers.constants.AddressZero) &&
-          hexStringEquals(event.args.l2Token, predeploys.OVM_ETH)
+          hexStringEquals(event.args.l1Token, ethers.ZeroAddress) &&
+          hexStringEquals(event.args.l2Token, predeploys.LegacyERC20ETH)
         )
       })
-      .map((event) => {
+      .map((event: EventLog) => {
         return {
           direction: MessageDirection.L2_TO_L1,
           from: event.args.from,
@@ -89,7 +88,7 @@ export class ETHBridgeAdapter extends StandardBridgeAdapter {
           l2Token: event.args.l2Token,
           amount: event.args.amount,
           data: event.args.extraData,
-          logIndex: event.logIndex,
+          logIndex: event.index,
           blockNumber: event.blockNumber,
           transactionHash: event.transactionHash,
         }
@@ -106,8 +105,8 @@ export class ETHBridgeAdapter extends StandardBridgeAdapter {
   ): Promise<boolean> {
     // Only support ETH deposits and withdrawals.
     return (
-      hexStringEquals(toAddress(l1Token), ethers.constants.AddressZero) &&
-      hexStringEquals(toAddress(l2Token), predeploys.OVM_ETH)
+      hexStringEquals(await toAddress(l1Token), ethers.ZeroAddress) &&
+      hexStringEquals(await toAddress(l2Token), predeploys.LegacyERC20ETH)
     )
   }
 
@@ -138,7 +137,7 @@ export class ETHBridgeAdapter extends StandardBridgeAdapter {
       }
 
       if (opts?.recipient === undefined) {
-        return this.l1Bridge.populateTransaction.depositETH(
+        return this.l1Bridge.depositETH.populateTransaction(
           opts?.l2GasLimit || 200_000, // Default to 200k gas limit.
           '0x', // No data.
           {
@@ -147,7 +146,7 @@ export class ETHBridgeAdapter extends StandardBridgeAdapter {
           }
         )
       } else {
-        return this.l1Bridge.populateTransaction.depositETHTo(
+        return this.l1Bridge.depositETHTo.populateTransaction(
           toAddress(opts.recipient),
           opts?.l2GasLimit || 200_000, // Default to 200k gas limit.
           '0x', // No data.
@@ -173,7 +172,7 @@ export class ETHBridgeAdapter extends StandardBridgeAdapter {
       }
 
       if (opts?.recipient === undefined) {
-        return this.l2Bridge.populateTransaction.withdraw(
+        return this.l2Bridge.withdraw.populateTransaction(
           toAddress(l2Token),
           amount,
           0, // L1 gas not required.
@@ -184,7 +183,7 @@ export class ETHBridgeAdapter extends StandardBridgeAdapter {
           }
         )
       } else {
-        return this.l2Bridge.populateTransaction.withdrawTo(
+        return this.l2Bridge.withdrawTo.populateTransaction(
           toAddress(l2Token),
           toAddress(opts.recipient),
           amount,

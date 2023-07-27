@@ -1,11 +1,4 @@
-import {
-  Provider,
-  TransactionReceipt,
-  TransactionResponse,
-} from '@ethersproject/abstract-provider'
-import { Signer } from '@ethersproject/abstract-signer'
-import { ethers, BigNumber } from 'ethers'
-
+import { ethers, Provider, Signer, TransactionReceipt, TransactionResponse } from 'ethers'
 import { assert } from './assert'
 import {
   SignerOrProviderLike,
@@ -26,14 +19,9 @@ export const toSignerOrProvider = (
   signerOrProvider: SignerOrProviderLike
 ): Signer | Provider => {
   if (typeof signerOrProvider === 'string') {
-    return new ethers.providers.JsonRpcProvider(signerOrProvider)
-  } else if (Provider.isProvider(signerOrProvider)) {
-    return signerOrProvider
-  } else if (Signer.isSigner(signerOrProvider)) {
-    return signerOrProvider
-  } else {
-    throw new Error('Invalid provider')
+    return new ethers.JsonRpcProvider(signerOrProvider)
   }
+  return signerOrProvider
 }
 
 /**
@@ -45,12 +33,9 @@ export const toSignerOrProvider = (
  */
 export const toProvider = (provider: ProviderLike): Provider => {
   if (typeof provider === 'string') {
-    return new ethers.providers.JsonRpcProvider(provider)
-  } else if (Provider.isProvider(provider)) {
-    return provider
-  } else {
-    throw new Error('Invalid provider')
+    return new ethers.JsonRpcProvider(provider)
   }
+  return provider
 }
 
 /**
@@ -62,12 +47,12 @@ export const toProvider = (provider: ProviderLike): Provider => {
 export const toTransactionHash = (transaction: TransactionLike): string => {
   if (typeof transaction === 'string') {
     assert(
-      ethers.utils.isHexString(transaction, 32),
+      ethers.isHexString(transaction, 32),
       'Invalid transaction hash'
     )
     return transaction
-  } else if ((transaction as TransactionReceipt).transactionHash) {
-    return (transaction as TransactionReceipt).transactionHash
+  } else if ((transaction as TransactionReceipt).hash) {
+    return (transaction as TransactionReceipt).hash
   } else if ((transaction as TransactionResponse).hash) {
     return (transaction as TransactionResponse).hash
   } else {
@@ -81,8 +66,8 @@ export const toTransactionHash = (transaction: TransactionLike): string => {
  * @param num Number-like to convert into a BigNumber.
  * @returns Number-like as a BigNumber.
  */
-export const toBigNumber = (num: NumberLike): BigNumber => {
-  return ethers.BigNumber.from(num)
+export const toBigNumber = (num: NumberLike): BigInt => {
+  return BigInt(Number(num))
 }
 
 /**
@@ -92,7 +77,7 @@ export const toBigNumber = (num: NumberLike): BigNumber => {
  * @returns Number-like as a number.
  */
 export const toNumber = (num: NumberLike): number => {
-  return toBigNumber(num).toNumber()
+  return Number(toBigNumber(num))
 }
 
 /**
@@ -101,12 +86,12 @@ export const toNumber = (num: NumberLike): number => {
  * @param addr Address-like to convert into an address.
  * @returns Address-like as an address.
  */
-export const toAddress = (addr: AddressLike): string => {
+export const toAddress = async (addr: AddressLike): Promise<string> => {
   if (typeof addr === 'string') {
-    assert(ethers.utils.isAddress(addr), 'Invalid address')
-    return ethers.utils.getAddress(addr)
+    assert(ethers.isAddress(addr), 'Invalid address')
+    return ethers.getAddress(addr)
   } else {
-    assert(ethers.utils.isAddress(addr.address), 'Invalid address')
-    return ethers.utils.getAddress(addr.address)
+    assert(ethers.isAddress(addr.address), 'Invalid address')
+    return ethers.getAddress(await addr.getAddress())
   }
 }

@@ -17,10 +17,23 @@ const nonceMask = BigNumber.from(
  * @param version
  */
 export const encodeVersionedNonce = (
-  nonce: BigNumber,
-  version: BigNumber
+  nonce: BigNumber | BigInt,
+  version: BigNumber | BigInt
 ): BigNumber => {
+  if (!BigNumber.isBigNumber(nonce)) {
+    nonce = BigNumber.from(Number(nonce))
+  }
+  if (!BigNumber.isBigNumber(version)) {
+    version = BigNumber.from(Number(version))
+  }
   return version.or(nonce.shl(240))
+}
+
+export const encodeVersionedNonceBigInt = (
+  nonce: BigNumber | BigInt,
+  version: BigNumber | BigInt
+): BigInt => {
+  return BigInt(encodeVersionedNonce(nonce, version).toNumber())
 }
 
 /**
@@ -32,14 +45,30 @@ export const encodeVersionedNonce = (
  * @param nonce
  */
 export const decodeVersionedNonce = (
-  nonce: BigNumber
+  nonce: BigNumber | BigInt
 ): {
   version: BigNumber
   nonce: BigNumber
 } => {
+  if (!BigNumber.isBigNumber(nonce)) {
+    nonce = BigNumber.from(Number(nonce))
+  }
   return {
     version: nonce.shr(240),
     nonce: nonce.and(nonceMask),
+  }
+}
+
+export const decodeVersionedNonceBigInt = (
+  nonce: BigNumber | BigInt
+): {
+  version: BigInt
+  nonce: BigInt
+} => {
+  const data = decodeVersionedNonce(nonce)
+  return {
+    version: BigInt(data.version.toNumber()),
+    nonce: BigInt(data.nonce.toNumber()),
   }
 }
 
@@ -57,8 +86,11 @@ export const encodeCrossDomainMessageV0 = (
   target: string,
   sender: string,
   data: string,
-  nonce: BigNumber
+  nonce: BigNumber | BigInt
 ) => {
+  if (!BigNumber.isBigNumber(nonce)) {
+    nonce = BigNumber.from(Number(nonce))
+  }
   return iface.encodeFunctionData(
     'relayMessage(address,address,bytes,uint256)',
     [target, sender, data, nonce]
@@ -77,11 +109,11 @@ export const encodeCrossDomainMessageV0 = (
  * @param data      The data passed along with the cross domain message
  */
 export const encodeCrossDomainMessageV1 = (
-  nonce: BigNumber,
+  nonce: BigNumber | BigInt,
   sender: string,
   target: string,
-  value: BigNumberish,
-  gasLimit: BigNumberish,
+  value: BigNumberish | BigInt,
+  gasLimit: BigNumberish | BigInt,
   data: string
 ) => {
   return iface.encodeFunctionData(
@@ -102,13 +134,23 @@ export const encodeCrossDomainMessageV1 = (
  * @param data      The data passed along with the cross domain message
  */
 export const encodeCrossDomainMessage = (
-  nonce: BigNumber,
+  nonce: BigNumber | BigInt,
   sender: string,
   target: string,
-  value: BigNumber,
-  gasLimit: BigNumber,
+  value: BigNumber | BigInt,
+  gasLimit: BigNumber | BigInt,
   data: string
 ) => {
+  if (!BigNumber.isBigNumber(nonce)) {
+    nonce = BigNumber.from(Number(nonce))
+  }
+  if (!BigNumber.isBigNumber(value)) {
+    value = BigNumber.from(Number(value))
+  }
+  if (!BigNumber.isBigNumber(gasLimit)) {
+    gasLimit = BigNumber.from(Number(gasLimit))
+  }
+
   const { version } = decodeVersionedNonce(nonce)
   if (version.eq(0)) {
     return encodeCrossDomainMessageV0(target, sender, data, nonce)

@@ -3,9 +3,7 @@ import {
   TransactionRequest,
   TransactionResponse,
   Block,
-  BlockWithTransactions,
-} from '@ethersproject/abstract-provider'
-import { BigNumber } from 'ethers'
+} from 'ethers'
 
 /**
  * JSON transaction representation when returned by L2Geth nodes. This is simply an extension to
@@ -31,9 +29,8 @@ export interface L2Block extends Block {
  * JSON block representation when returned by L2Geth nodes. Just a normal block but with
  * L2Transaction objects instead of the standard transaction response object.
  */
-export interface L2BlockWithTransactions extends BlockWithTransactions {
+export interface L2BlockWithTransactions extends Block {
   stateRoot: string
-  transactions: [L2Transaction]
 }
 
 /**
@@ -46,7 +43,7 @@ export type L2Provider<TProvider extends Provider> = TProvider & {
    *
    * @returns Current L1 data gas price in wei.
    */
-  getL1GasPrice(): Promise<BigNumber>
+  getL1GasPrice(): Promise<BigInt>
 
   /**
    * Estimates the L1 (data) gas required for a transaction.
@@ -54,7 +51,7 @@ export type L2Provider<TProvider extends Provider> = TProvider & {
    * @param tx Transaction to estimate L1 gas for.
    * @returns Estimated L1 gas.
    */
-  estimateL1Gas(tx: TransactionRequest): Promise<BigNumber>
+  estimateL1Gas(tx: TransactionRequest): Promise<BigInt>
 
   /**
    * Estimates the L1 (data) gas cost for a transaction in wei by multiplying the estimated L1 gas
@@ -63,7 +60,7 @@ export type L2Provider<TProvider extends Provider> = TProvider & {
    * @param tx Transaction to estimate L1 gas cost for.
    * @returns Estimated L1 gas cost.
    */
-  estimateL1GasCost(tx: TransactionRequest): Promise<BigNumber>
+  estimateL1GasCost(tx: TransactionRequest): Promise<BigInt>
 
   /**
    * Estimates the L2 (execution) gas cost for a transaction in wei by multiplying the estimated L1
@@ -73,7 +70,7 @@ export type L2Provider<TProvider extends Provider> = TProvider & {
    * @param tx Transaction to estimate L2 gas cost for.
    * @returns Estimated L2 gas cost.
    */
-  estimateL2GasCost(tx: TransactionRequest): Promise<BigNumber>
+  estimateL2GasCost(tx: TransactionRequest): Promise<BigInt>
 
   /**
    * Estimates the total gas cost for a transaction in wei by adding the estimated the L1 gas cost
@@ -82,7 +79,7 @@ export type L2Provider<TProvider extends Provider> = TProvider & {
    * @param tx Transaction to estimate total gas cost for.
    * @returns Estimated total gas cost.
    */
-  estimateTotalGasCost(tx: TransactionRequest): Promise<BigNumber>
+  estimateTotalGasCost(tx: TransactionRequest): Promise<BigInt>
 
   /**
    * Internal property to determine if a provider is a L2Provider

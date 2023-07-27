@@ -57,13 +57,23 @@ export type L2OutputOracleParameters = {
  * @param data      The data passed along with the cross domain message
  */
 export const hashCrossDomainMessage = (
-  nonce: BigNumber,
+  nonce: BigNumber | BigInt,
   sender: string,
   target: string,
-  value: BigNumber,
-  gasLimit: BigNumber,
+  value: BigNumber | BigInt,
+  gasLimit: BigNumber | BigInt,
   message: string
 ) => {
+  if (!BigNumber.isBigNumber(nonce)) {
+    nonce = BigNumber.from(Number(nonce))
+  }
+  if (!BigNumber.isBigNumber(value)) {
+    value = BigNumber.from(Number(value))
+  }
+  if (!BigNumber.isBigNumber(gasLimit)) {
+    gasLimit = BigNumber.from(Number(gasLimit))
+  }
+
   const { version } = decodeVersionedNonce(nonce)
   if (version.eq(0)) {
     return hashCrossDomainMessagev0(target, sender, message, nonce)
@@ -92,7 +102,7 @@ export const hashCrossDomainMessagev0 = (
   target: string,
   sender: string,
   message: string,
-  nonce: BigNumber
+  nonce: BigNumber | BigInt
 ) => {
   return keccak256(encodeCrossDomainMessageV0(target, sender, message, nonce))
 }
@@ -108,11 +118,11 @@ export const hashCrossDomainMessagev0 = (
  * @param message      The message passed along with the cross domain message
  */
 export const hashCrossDomainMessagev1 = (
-  nonce: BigNumber,
+  nonce: BigNumber | BigInt,
   sender: string,
   target: string,
-  value: BigNumberish,
-  gasLimit: BigNumberish,
+  value: BigNumberish | BigInt,
+  gasLimit: BigNumberish | BigInt,
   message: string
 ) => {
   return keccak256(
@@ -131,11 +141,11 @@ export const hashCrossDomainMessagev1 = (
  * @param message      The message passed along with the cross domain message
  */
 export const hashWithdrawal = (
-  nonce: BigNumber,
+  nonce: BigNumber | BigInt,
   sender: string,
   target: string,
-  value: BigNumber,
-  gasLimit: BigNumber,
+  value: BigNumber | BigInt,
+  gasLimit: BigNumber | BigInt,
   message: string
 ): string => {
   const types = ['uint256', 'address', 'address', 'uint256', 'uint256', 'bytes']

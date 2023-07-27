@@ -116,7 +116,7 @@ const getL1ContractsByNetworkName = (network: string): OEL1ContractsLike => {
     L1StandardBridge: l1StandardBridgeAddresses[network],
     StateCommitmentChain: stateCommitmentChainAddresses[network],
     CanonicalTransactionChain: canonicalTransactionChainAddresses[network],
-    BondManager: ethers.constants.AddressZero,
+    BondManager: ethers.ZeroAddress,
     OptimismPortal: portalAddresses[network],
     L2OutputOracle: l2OutputOracleAddresses[network],
   }

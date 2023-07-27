@@ -1,16 +1,11 @@
 import {
   Contract,
-  Overrides,
   Signer,
-  BigNumber,
-  CallOverrides,
-  PayableOverrides,
-} from 'ethers'
-import {
+  Overrides,
   TransactionRequest,
   TransactionResponse,
   BlockTag,
-} from '@ethersproject/abstract-provider'
+} from 'ethers'
 
 import { NumberLike, AddressLike, TokenBridgeMessage } from './types'
 import { CrossChainMessenger } from '../cross-chain-messenger'
@@ -97,7 +92,7 @@ export interface IBridgeAdapter {
     l1Token: AddressLike,
     l2Token: AddressLike,
     signer: Signer
-  ): Promise<BigNumber>
+  ): Promise<BigInt>
 
   /**
    * Approves a deposit into the L2 chain.
@@ -211,7 +206,7 @@ export interface IBridgeAdapter {
       opts?: {
         recipient?: AddressLike
         l2GasLimit?: NumberLike
-        overrides?: PayableOverrides
+        overrides?: Overrides
       }
     ): Promise<TransactionRequest>
 
@@ -257,9 +252,9 @@ export interface IBridgeAdapter {
       l2Token: AddressLike,
       amount: NumberLike,
       opts?: {
-        overrides?: CallOverrides
+        overrides?: Overrides
       }
-    ): Promise<BigNumber>
+    ): Promise<BigInt>
 
     /**
      * Estimates gas required to deposit some tokens into the L2 chain.
@@ -280,9 +275,9 @@ export interface IBridgeAdapter {
       opts?: {
         recipient?: AddressLike
         l2GasLimit?: NumberLike
-        overrides?: CallOverrides
+        overrides?: Overrides
       }
-    ): Promise<BigNumber>
+    ): Promise<BigInt>
 
     /**
      * Estimates gas required to withdraw some tokens back to the L1 chain.
@@ -301,8 +296,8 @@ export interface IBridgeAdapter {
       amount: NumberLike,
       opts?: {
         recipient?: AddressLike
-        overrides?: CallOverrides
+        overrides?: Overrides
       }
-    ): Promise<BigNumber>
+    ): Promise<BigInt>
   }
 }

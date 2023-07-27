@@ -1,7 +1,6 @@
-import { Provider, TransactionRequest } from '@ethersproject/abstract-provider'
-import { serialize } from '@ethersproject/transactions'
-import { Contract, BigNumber } from 'ethers'
-import { predeploys, getContractInterface } from '@eth-optimism/contracts'
+import { Provider, Transaction, TransactionRequest, Contract } from 'ethers'
+import { getContractInterface } from './utils/contracts'
+import { predeploys } from '@eth-optimism/core-utils'
 import cloneDeep from 'lodash/cloneDeep'
 
 import { assert } from './utils/assert'
@@ -39,7 +38,7 @@ const getNonceForTx = async (
  */
 const connectGasPriceOracle = (provider: ProviderLike): Contract => {
   return new Contract(
-    predeploys.OVM_GasPriceOracle,
+    predeploys.GasPriceOracle,
     getContractInterface('OVM_GasPriceOracle'),
     toProvider(provider)
   )
@@ -53,7 +52,7 @@ const connectGasPriceOracle = (provider: ProviderLike): Contract => {
  */
 export const getL1GasPrice = async (
   l2Provider: ProviderLike
-): Promise<BigNumber> => {
+): Promise<BigInt> => {
   const gpo = connectGasPriceOracle(l2Provider)
   return gpo.l1BaseFee()
 }
@@ -68,17 +67,17 @@ export const getL1GasPrice = async (
 export const estimateL1Gas = async (
   l2Provider: ProviderLike,
   tx: TransactionRequest
-): Promise<BigNumber> => {
+): Promise<BigInt> => {
   const gpo = connectGasPriceOracle(l2Provider)
   return gpo.getL1GasUsed(
-    serialize({
+    Transaction.from({
       data: tx.data,
-      to: tx.to,
+      to: tx.to as string,
       gasPrice: tx.gasPrice,
       type: tx.type,
       gasLimit: tx.gasLimit,
       nonce: await getNonceForTx(l2Provider, tx),
-    })
+    }).serialized
   )
 }
 
@@ -92,17 +91,17 @@ export const estimateL1Gas = async (
 export const estimateL1GasCost = async (
   l2Provider: ProviderLike,
   tx: TransactionRequest
-): Promise<BigNumber> => {
+): Promise<BigInt> => {
   const gpo = connectGasPriceOracle(l2Provider)
   return gpo.getL1Fee(
-    serialize({
+    Transaction.from({
       data: tx.data,
-      to: tx.to,
+      to: tx.to as string,
       gasPrice: tx.gasPrice,
       type: tx.type,
       gasLimit: tx.gasLimit,
       nonce: await getNonceForTx(l2Provider, tx),
-    })
+    }).serialized
   )
 }
 
@@ -116,11 +115,12 @@ export const estimateL1GasCost = async (
 export const estimateL2GasCost = async (
   l2Provider: ProviderLike,
   tx: TransactionRequest
-): Promise<BigNumber> => {
+): Promise<BigInt> => {
   const parsed = toProvider(l2Provider)
-  const l2GasPrice = await parsed.getGasPrice()
+  const feeData = await parsed.getFeeData()
+  const l2GasPrice = feeData.gasPrice
   const l2GasCost = await parsed.estimateGas(tx)
-  return l2GasPrice.mul(l2GasCost)
+  return l2GasPrice * l2GasCost
 }
 
 /**
@@ -133,10 +133,10 @@ export const estimateL2GasCost = async (
 export const estimateTotalGasCost = async (
   l2Provider: ProviderLike,
   tx: TransactionRequest
-): Promise<BigNumber> => {
+): Promise<BigInt> => {
   const l1GasCost = await estimateL1GasCost(l2Provider, tx)
   const l2GasCost = await estimateL2GasCost(l2Provider, tx)
-  return l1GasCost.add(l2GasCost)
+  return BigInt(Number(l1GasCost) + Number(l2GasCost))
 }
 
 /**

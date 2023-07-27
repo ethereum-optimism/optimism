@@ -16,7 +16,7 @@ export class DAIBridgeAdapter extends StandardBridgeAdapter {
   ): Promise<boolean> {
     // Just need access to this ABI for this one function.
     const l1Bridge = new Contract(
-      this.l1Bridge.address,
+      await this.l1Bridge.getAddress(),
       [
         {
           inputs: [],
@@ -49,12 +49,12 @@ export class DAIBridgeAdapter extends StandardBridgeAdapter {
     )
 
     const allowedL1Token = await l1Bridge.l1Token()
-    if (!hexStringEquals(allowedL1Token, toAddress(l1Token))) {
+    if (!hexStringEquals(allowedL1Token, await toAddress(l1Token))) {
       return false
     }
 
     const allowedL2Token = await l1Bridge.l2Token()
-    if (!hexStringEquals(allowedL2Token, toAddress(l2Token))) {
+    if (!hexStringEquals(allowedL2Token, await toAddress(l2Token))) {
       return false
     }
 

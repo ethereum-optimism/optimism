@@ -16,7 +16,7 @@ export class ECOBridgeAdapter extends StandardBridgeAdapter {
     l2Token: AddressLike
   ): Promise<boolean> {
     const l1Bridge = new Contract(
-      this.l1Bridge.address,
+      await this.l1Bridge.getAddress(),
       [
         {
           inputs: [],
@@ -36,7 +36,7 @@ export class ECOBridgeAdapter extends StandardBridgeAdapter {
     )
 
     const l2Bridge = new Contract(
-      this.l2Bridge.address,
+      await this.l2Bridge.getAddress(),
       [
         {
           inputs: [],
@@ -60,11 +60,11 @@ export class ECOBridgeAdapter extends StandardBridgeAdapter {
       l2Bridge.l2Eco(),
     ])
 
-    if (!hexStringEquals(remoteL1Token, toAddress(l1Token))) {
+    if (!hexStringEquals(remoteL1Token, await toAddress(l1Token))) {
       return false
     }
 
-    if (!hexStringEquals(remoteL2Token, toAddress(l2Token))) {
+    if (!hexStringEquals(remoteL2Token, await toAddress(l2Token))) {
       return false
     }
 

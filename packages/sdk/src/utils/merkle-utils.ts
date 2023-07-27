@@ -1,5 +1,5 @@
 /* Imports: External */
-import { ethers, BigNumber } from 'ethers'
+import { ethers } from 'ethers'
 import {
   fromHexString,
   toHexString,
@@ -27,14 +27,14 @@ export const makeMerkleTreeProof = (
     if (i < leaves.length) {
       parsedLeaves.push(leaves[i])
     } else {
-      parsedLeaves.push(ethers.utils.keccak256('0x' + '00'.repeat(32)))
+      parsedLeaves.push(ethers.keccak256('0x' + '00'.repeat(32)))
     }
   }
 
   // merkletreejs prefers things to be Buffers.
   const bufLeaves = parsedLeaves.map(fromHexString)
   const tree = new MerkleTree(bufLeaves, (el: Buffer | string): Buffer => {
-    return fromHexString(ethers.utils.keccak256(el))
+    return fromHexString(ethers.keccak256(el))
   })
 
   const proof = tree.getProof(bufLeaves[index], index).map((element: any) => {
@@ -54,14 +54,14 @@ export const makeMerkleTreeProof = (
  * @returns Account proof and storage proof.
  */
 export const makeStateTrieProof = async (
-  provider: ethers.providers.JsonRpcProvider,
+  provider: ethers.JsonRpcProvider,
   blockNumber: number,
   address: string,
   slot: string
 ): Promise<{
   accountProof: string[]
   storageProof: string[]
-  storageValue: BigNumber
+  storageValue: BigInt
   storageRoot: string
 }> => {
   const proof = await provider.send('eth_getProof', [
@@ -73,7 +73,7 @@ export const makeStateTrieProof = async (
   return {
     accountProof: proof.accountProof,
     storageProof: proof.storageProof[0].proof,
-    storageValue: BigNumber.from(proof.storageProof[0].value),
+    storageValue: BigInt(proof.storageProof[0].value),
     storageRoot: proof.storageHash,
   }
 }
