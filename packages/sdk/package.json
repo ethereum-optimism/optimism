@@ -59,7 +59,7 @@
     "@eth-optimism/core-utils": "0.12.2",
     "@eth-optimism/contracts-bedrock": "0.16.0",
     "lodash": "^4.17.21",
-    "merkletreejs": "^0.2.27",
+    "merkletreejs": "^0.3.10",
     "rlp": "^2.2.7"
   },
   "peerDependencies": {
