@@ -3,32 +3,23 @@ pragma solidity 0.8.15;
 
 import { IFaucetAuthModule } from "./authmodules/IFaucetAuthModule.sol";
 
-/**
- * @title  SafeSend
- * @notice Sends ETH to a recipient account without triggering any code.
- */
+/// @title  SafeSend
+/// @notice Sends ETH to a recipient account without triggering any code.
 contract SafeSend {
-    /**
-     * @param _recipient Account to send ETH to.
-     */
+    /// @param _recipient Account to send ETH to.
     constructor(address payable _recipient) payable {
         selfdestruct(_recipient);
     }
 }
 
-/**
- * @title  Faucet
- * @notice Faucet contract that drips ETH to users.
- */
+/// @title  Faucet
+/// @notice Faucet contract that drips ETH to users.
 contract Faucet {
-    /**
-     * @notice Emitted on each drip.
-     *
-     * @param authModule The type of authentication that was used for verifying the drip.
-     * @param userId     The id of the user that requested the drip.
-     * @param amount     The amount of funds sent.
-     * @param recipient  The recipient of the drip.
-     */
+    /// @notice Emitted on each drip.
+    /// @param authModule The type of authentication that was used for verifying the drip.
+    /// @param userId     The id of the user that requested the drip.
+    /// @param amount     The amount of funds sent.
+    /// @param recipient  The recipient of the drip.
     event Drip(
         string indexed authModule,
         bytes32 indexed userId,
@@ -36,26 +27,20 @@ contract Faucet {
         address indexed recipient
     );
 
-    /**
-     * @notice Parameters for a drip.
-     */
+    /// @notice Parameters for a drip.
     struct DripParameters {
         address payable recipient;
         bytes32 nonce;
     }
 
-    /**
-     * @notice Parameters for authentication.
-     */
+    /// @notice Parameters for authentication.
     struct AuthParameters {
         IFaucetAuthModule module;
         bytes32 id;
         bytes proof;
     }
 
-    /**
-     * @notice Configuration for an authentication module.
-     */
+    /// @notice Configuration for an authentication module.
     struct ModuleConfig {
         string name;
         bool enabled;
@@ -63,74 +48,51 @@ contract Faucet {
         uint256 amount;
     }
 
-    /**
-     * @notice Admin address that can configure the faucet.
-     */
+    /// @notice Admin address that can configure the faucet.
     address public immutable ADMIN;
 
-    /**
-     * @notice Mapping of authentication modules to their configurations.
-     */
+    /// @notice Mapping of authentication modules to their configurations.
     mapping(IFaucetAuthModule => ModuleConfig) public modules;
 
-    /**
-     * @notice Mapping of authentication IDs to the next timestamp at which they can be used.
-     */
+    /// @notice Mapping of authentication IDs to the next timestamp at which they can be used.
     mapping(IFaucetAuthModule => mapping(bytes32 => uint256)) public timeouts;
 
-    /**
-     * @notice Maps from id to nonces to whether or not they have been used.
-     */
+    /// @notice Maps from id to nonces to whether or not they have been used.
     mapping(bytes32 => mapping(bytes32 => bool)) public nonces;
 
-    /**
-     * @notice Modifier that makes a function admin priviledged.
-     */
+    /// @notice Modifier that makes a function admin priviledged.
     modifier priviledged() {
         require(msg.sender == ADMIN, "Faucet: function can only be called by admin");
         _;
     }
 
-    /**
-     * @param _admin Admin address that can configure the faucet.
-     */
+    /// @param _admin Admin address that can configure the faucet.
     constructor(address _admin) {
         ADMIN = _admin;
     }
 
-    /**
-     * @notice Allows users to donate ETH to this contract.
-     */
+    /// @notice Allows users to donate ETH to this contract.
     receive() external payable {
         // Thank you!
     }
 
-    /**
-     * @notice Allows the admin to withdraw funds.
-     *
-     * @param _recipient Address to receive the funds.
-     * @param _amount    Amount of ETH in wei to withdraw.
-     */
+    /// @notice Allows the admin to withdraw funds.
+    /// @param _recipient Address to receive the funds.
+    /// @param _amount    Amount of ETH in wei to withdraw.
     function withdraw(address payable _recipient, uint256 _amount) public priviledged {
         new SafeSend{ value: _amount }(_recipient);
     }
 
-    /**
-     * @notice Allows the admin to configure an authentication module.
-     *
-     * @param _module Authentication module to configure.
-     * @param _config Configuration to set for the module.
-     */
+    /// @notice Allows the admin to configure an authentication module.
+    /// @param _module Authentication module to configure.
+    /// @param _config Configuration to set for the module.
     function configure(IFaucetAuthModule _module, ModuleConfig memory _config) public priviledged {
         modules[_module] = _config;
     }
 
-    /**
-     * @notice Drips ETH to a recipient account.
-     *
-     * @param _params Drip parameters.
-     * @param _auth   Authentication parameters.
-     */
+    /// @notice Drips ETH to a recipient account.
+    /// @param _params Drip parameters.
+    /// @param _auth   Authentication parameters.
     function drip(DripParameters memory _params, AuthParameters memory _auth) public {
         // Grab the module config once.
         ModuleConfig memory config = modules[_auth.module];

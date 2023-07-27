@@ -1,7 +1,7 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-/* Testing utilities */
+// Testing utilities
 import { Test } from "forge-std/Test.sol";
 import { AttestationStation } from "../periphery/op-nft/AttestationStation.sol";
 import { OptimistAllowlist } from "../periphery/op-nft/OptimistAllowlist.sol";
@@ -106,10 +106,7 @@ contract OptimistAllowlist_Initializer is Test {
         optimistInviter.claimInvite(claimer, claimableInvite, signature);
     }
 
-    /**
-     * @notice Get signature as a bytes blob, since SignatureChecker takes arbitrary signature blobs.
-     *
-     */
+    /// @notice Get signature as a bytes blob, since SignatureChecker takes arbitrary signature blobs.
     function _getSignature(uint256 _signingPrivateKey, bytes32 _digest)
         internal
         pure
@@ -145,46 +142,34 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
         assertEq(optimistAllowlist.ALLOWLIST_ATTESTOR(), alice_allowlistAttestor);
         assertEq(optimistAllowlist.COINBASE_QUEST_ATTESTOR(), sally_coinbaseQuestAttestor);
         assertEq(address(optimistAllowlist.OPTIMIST_INVITER()), address(optimistInviter));
-
-        assertEq(optimistAllowlist.version(), "1.0.0");
     }
 
-    /**
-     * @notice Base case, a account without any relevant attestations should not be able to mint.
-     */
+    /// @notice Base case, a account without any relevant attestations should not be able to mint.
     function test_isAllowedToMint_withoutAnyAttestations_fails() external {
         assertFalse(optimistAllowlist.isAllowedToMint(bob));
     }
 
-    /**
-     * @notice After receiving a valid allowlist attestation, the account should be able to mint.
-     */
+    /// @notice After receiving a valid allowlist attestation, the account should be able to mint.
     function test_isAllowedToMint_fromAllowlistAttestor_succeeds() external {
         attestAllowlist(bob);
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
     }
 
-    /**
-     * @notice After receiving a valid attestation from the Coinbase Quest attestor,
-     *         the account should be able to mint.
-     */
+    /// @notice After receiving a valid attestation from the Coinbase Quest attestor,
+    ///         the account should be able to mint.
     function test_isAllowedToMint_fromCoinbaseQuestAttestor_succeeds() external {
         attestCoinbaseQuest(bob);
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
     }
 
-    /**
-     * @notice Account that received an attestation from the OptimistInviter contract by going
-     *         through the claim invite flow should be able to mint.
-     */
+    /// @notice Account that received an attestation from the OptimistInviter contract by going
+    ///         through the claim invite flow should be able to mint.
     function test_isAllowedToMint_fromInvite_succeeds() external {
         inviteAndClaim(bob);
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
     }
 
-    /**
-     * @notice Attestation from the wrong allowlist attestor should not allow minting.
-     */
+    /// @notice Attestation from the wrong allowlist attestor should not allow minting.
     function test_isAllowedToMint_fromWrongAllowlistAttestor_fails() external {
         // Ted is not the allowlist attestor
         vm.prank(ted);
@@ -196,9 +181,7 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
         assertFalse(optimistAllowlist.isAllowedToMint(bob));
     }
 
-    /**
-     * @notice Coinbase quest attestation from wrong attestor should not allow minting.
-     */
+    /// @notice Coinbase quest attestation from wrong attestor should not allow minting.
     function test_isAllowedToMint_fromWrongCoinbaseQuestAttestor_fails() external {
         // Ted is not the coinbase quest attestor
         vm.prank(ted);
@@ -210,10 +193,8 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
         assertFalse(optimistAllowlist.isAllowedToMint(bob));
     }
 
-    /**
-     * @notice Claiming an invite on the non-official OptimistInviter contract should not allow
-     *         minting.
-     */
+    /// @notice Claiming an invite on the non-official OptimistInviter contract should not allow
+    ///          minting.
     function test_isAllowedToMint_fromWrongOptimistInviter_fails() external {
         vm.prank(ted);
         attestationStation.attest(
@@ -224,9 +205,7 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
         assertFalse(optimistAllowlist.isAllowedToMint(bob));
     }
 
-    /**
-     * @notice Having multiple signals, even if one is invalid, should still allow minting.
-     */
+    /// @notice Having multiple signals, even if one is invalid, should still allow minting.
     function test_isAllowedToMint_withMultipleAttestations_succeeds() external {
         attestAllowlist(bob);
         attestCoinbaseQuest(bob);
@@ -246,9 +225,7 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
     }
 
-    /**
-     * @notice Having falsy attestation value should not allow minting.
-     */
+    /// @notice Having falsy attestation value should not allow minting.
     function test_isAllowedToMint_fromAllowlistAttestorWithFalsyValue_fails() external {
         // First sends correct attestation
         attestAllowlist(bob);
@@ -264,9 +241,7 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
         assertFalse(optimistAllowlist.isAllowedToMint(bob));
     }
 
-    /**
-     * @notice Having falsy attestation value from Coinbase attestor should not allow minting.
-     */
+    /// @notice Having falsy attestation value from Coinbase attestor should not allow minting.
     function test_isAllowedToMint_fromCoinbaseQuestAttestorWithFalsyValue_fails() external {
         // First sends correct attestation
         attestAllowlist(bob);

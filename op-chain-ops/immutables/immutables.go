@@ -144,6 +144,12 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 		{
 			Name: "LegacyERC20ETH",
 		},
+		{
+			Name: "EAS",
+		},
+		{
+			Name: "SchemaRegistry",
+		},
 	}
 	return BuildL2(deployments)
 }
@@ -152,7 +158,7 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 // can be properly set. The bytecode returned in the results is suitable to be
 // inserted into the state via state surgery.
 func BuildL2(constructors []deployer.Constructor) (DeploymentResults, error) {
-	deployments, err := deployer.Deploy(deployer.NewBackend(), constructors, l2Deployer)
+	deployments, err := deployer.Deploy(deployer.NewL2Backend(), constructors, l2Deployer)
 	if err != nil {
 		return nil, err
 	}
@@ -239,6 +245,10 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployOptimismMintableERC721Factory(opts, backend, bridge, remoteChainId)
 	case "LegacyERC20ETH":
 		_, tx, _, err = bindings.DeployLegacyERC20ETH(opts, backend)
+	case "EAS":
+		_, tx, _, err = bindings.DeployEAS(opts, backend)
+	case "SchemaRegistry":
+		_, tx, _, err = bindings.DeploySchemaRegistry(opts, backend)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

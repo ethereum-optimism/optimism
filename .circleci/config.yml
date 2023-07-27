@@ -140,9 +140,9 @@ jobs:
             - "packages/common-ts/node_modules"
             - "packages/contracts-bedrock/node_modules"
             - "packages/core-utils/node_modules"
-            - "packages/fault-detector/node_modules"
             - "packages/replica-healthcheck/node_modules"
             - "packages/sdk/node_modules"
+            - "packages/contracts-ts/node_modules"
       - run:
           name: print forge version
           command: forge --version
@@ -196,7 +196,7 @@ jobs:
             fi
             IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
             DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
-            docker build \
+            docker build --progress plain \
             $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
             -f <<parameters.docker_file>> \
             <<parameters.docker_context>>
@@ -265,7 +265,7 @@ jobs:
             DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
             docker context create buildx-build
             docker buildx create --use buildx-build
-            docker buildx build --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
+            docker buildx build --progress plain --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
               $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
               -f <<parameters.docker_file>> \
               <<parameters.docker_context>>
@@ -320,7 +320,7 @@ jobs:
             DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
             docker context create buildx-build
             docker buildx create --use buildx-build
-            docker buildx build --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
+            docker buildx build --progress plain --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
               $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
               -f <<parameters.docker_file>> \
               <<parameters.docker_context>>
@@ -335,26 +335,8 @@ jobs:
     resource_class: large
     steps:
       - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
       - run:
           name: print forge version
           command: forge --version
@@ -375,29 +357,11 @@ jobs:
   contracts-bedrock-tests:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
       - run:
           name: print forge version
           command: forge --version
@@ -408,32 +372,24 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
+          no_output_timeout: 15m
 
   contracts-bedrock-checks:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: xlarge
     steps:
       - checkout
-      - attach_workspace: { at: "." }
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock
-      # TODO remove me after ci builder updated
       - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
+          name: build contracts
+          command: pnpm build
+          working_directory: packages/contracts-bedrock
       - run:
           name: lint
           command: |
@@ -447,6 +403,7 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
+          no_output_timeout: 15m
       - run:
           name: validate deploy configs
           command: |
@@ -459,6 +416,12 @@ jobs:
           command: |
             pnpm storage-snapshot
             git diff --exit-code .storage-layout || echo "export STORAGE_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: semver lock
+          command: |
+            pnpm semver-lock
+            git diff --exit-code semver-lock.json || echo "export SEMVER_LOCK_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: invariant docs
@@ -489,6 +452,10 @@ jobs:
               echo "Invariant docs failed, see job output for details."
               FAILED=1
             fi
+            if [[ "$SEMVER_LOCK_STATUS" -ne 0 ]]; then
+              echo "Semver lock failed, see job output for details."
+              FAILED=1
+            fi
             if [[ "$FAILED" -ne 0 ]]; then
               exit 1
             fi
@@ -499,34 +466,12 @@ jobs:
     resource_class: large
     steps:
       - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
       - run:
           name: slither
           command: |
-            slither --version && pnpm slither || echo "export LINT_STATUS=1" >> "$BASH_ENV"
-      - run:
-          name: invariant docs
-          command: pnpm autogen:invariant-docs && git diff --exit-code ./invariant-docs/*.md
-          working_directory: packages/contracts-bedrock
+            slither --version && pnpm slither || echo "Slither failed"
 
   contracts-bedrock-validate-spaces:
     docker:
@@ -540,19 +485,6 @@ jobs:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
       - run:
           name: validate spacers
           command: pnpm validate-spacers
@@ -565,7 +497,7 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - check-changed:
-          patterns: contracts-bedrock,contracts
+          patterns: contracts-bedrock
       # TODO remove me after ci builder updated
       - run:
           name: Install pnpm package manager
@@ -609,20 +541,7 @@ jobs:
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
-          patterns: contracts-bedrock,contracts
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
+          patterns: contracts-bedrock
       - run:
           name: Echidna Fuzz <<parameters.echidna_target>>
           command: pnpm echidna:<<parameters.echidna_target>>
@@ -708,6 +627,24 @@ jobs:
       - run:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
+
+  contracts-ts-tests:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore pnpm Package Cache
+          keys:
+            - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
+      - check-changed:
+          patterns: sdk,contracts-bedrock,contracts
+      - run:
+          name: Check generated and build
+          command: pnpm generate:check
+          working_directory: packages/contracts-ts
 
   sdk-next-tests:
     docker:
@@ -839,6 +776,18 @@ jobs:
           name: Fuzz
           command: make fuzz
           working_directory: op-chain-ops
+
+  fuzz-cannon:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - check-changed:
+          patterns: cannon,packages/contracts-bedrock/contracts/cannon
+      - run:
+          name: Fuzz
+          command: make fuzz
+          working_directory: cannon
 
   depcheck:
     docker:
@@ -1096,6 +1045,18 @@ jobs:
                 command: |
                   docker logs ops-bedrock-op-proposer-1 || echo "No logs."
                 when: on_fail
+            - run:
+                name: Log deployment artifact
+                command: |
+                  cat broadcast/Deploy.s.sol/900/run-latest.json || echo "No deployment file found"
+                when: on_fail
+                working_directory: packages/contracts-bedrock
+            - run:
+                name: Log artifacts directory
+                command: |
+                  ls -R forge-artifacts || echo "No forge artifacts found"
+                when: on_fail
+                working_directory: packages/contracts-bedrock
       - when:
           condition:
             and:
@@ -1304,18 +1265,12 @@ workflows:
           package_name: core-utils
           requires:
             - pnpm-monorepo
-      - contracts-bedrock-tests:
-          requires:
-            - pnpm-monorepo
-      - contracts-bedrock-coverage:
-          requires:
-            - pnpm-monorepo
+      - contracts-bedrock-tests
+      - contracts-bedrock-coverage
       - contracts-bedrock-checks:
           requires:
             - pnpm-monorepo
-      - contracts-bedrock-slither:
-          requires:
-            - pnpm-monorepo
+      - contracts-bedrock-slither
       - contracts-bedrock-validate-spaces:
           requires:
             - pnpm-monorepo
@@ -1330,10 +1285,10 @@ workflows:
           requires:
             - pnpm-monorepo
       - js-lint-test:
-          name: fault-detector-tests
-          coverage_flag: fault-detector-tests
-          package_name: fault-detector
-          dependencies: "(common-ts|core-utils|sdk)"
+          name: contracts-ts-tests
+          coverage_flag: contracts-ts-tests
+          package_name: contracts-ts
+          dependencies: '(contracts-bedrock|contracts-ts)'
           requires:
             - pnpm-monorepo
       - js-lint-test:
@@ -1374,7 +1329,6 @@ workflows:
           name: indexer-tests
           binary_name: indexer
           working_directory: indexer
-          dependencies: op-bindings
       - go-lint-test-build:
           name: op-heartbeat tests
           binary_name: op-heartbeat
@@ -1383,6 +1337,7 @@ workflows:
       - go-mod-tidy
       - fuzz-op-node
       - fuzz-op-chain-ops
+      - fuzz-cannon
       - bedrock-markdown
       - go-lint:
           name: op-batcher-lint
@@ -1576,14 +1531,6 @@ workflows:
           docker_target: wd-mon
           context:
             - oplabs-gcr
-      - docker-publish:
-          name: fault-detector-docker-publish
-          docker_file: ./ops/docker/Dockerfile.packages
-          docker_name: fault-detector
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_target: fault-detector
-          context:
-            - oplabs-gcr
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
@@ -1621,7 +1568,7 @@ workflows:
           type: approval
           filters:
             tags:
-              only: /^(fault-detector|proxyd|indexer|ci-builder|op-[a-z0-9\-]*)\/v.*/
+              only: /^(proxyd|indexer|ci-builder|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-release:
@@ -1688,23 +1635,6 @@ workflows:
             - oplabs-gcr-release
           requires:
             - hold
-      - docker-release:
-          name: fault-detector-docker-release
-          filters:
-            tags:
-              only: /^fault-detector\/v.*/
-            branches:
-              ignore: /.*/
-          docker_file: ./ops/docker/Dockerfile.packages
-          docker_name: fault-detector
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_target: fault-detector
-          docker_context: .
-          platforms: "linux/amd64,linux/arm64"
-          context:
-            - oplabs-gcr-release
-          requires:
-            - hold
       - docker-build:
           name: op-migrate-docker-release
           filters:
@@ -1714,6 +1644,21 @@ workflows:
               ignore: /.*/
           docker_file: op-chain-ops/Dockerfile
           docker_name: op-migrate
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+          context:
+            - oplabs-gcr-release
+          requires:
+            - hold
+      - docker-release:
+          name: op-ufm-docker-release
+          filters:
+            tags:
+              only: /^op-ufm\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: op-ufm/Dockerfile
+          docker_name: op-ufm
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
           context:

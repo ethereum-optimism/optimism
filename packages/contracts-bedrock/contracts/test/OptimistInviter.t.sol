@@ -1,7 +1,7 @@
-//SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-/* Testing utilities */
+// Testing utilities
 import { Test } from "forge-std/Test.sol";
 import { AttestationStation } from "../periphery/op-nft/AttestationStation.sol";
 import { OptimistInviter } from "../periphery/op-nft/OptimistInviter.sol";
@@ -69,9 +69,7 @@ contract OptimistInviter_Initializer is Test {
         _initializeContracts();
     }
 
-    /**
-     * @notice Instantiates an AttestationStation, and an OptimistInviter.
-     */
+    /// @notice Instantiates an AttestationStation, and an OptimistInviter.
     function _initializeContracts() internal {
         attestationStation = new AttestationStation();
 
@@ -88,16 +86,12 @@ contract OptimistInviter_Initializer is Test {
         vm.warp(optimistInviter.MIN_COMMITMENT_PERIOD() + block.timestamp);
     }
 
-    /**
-     * @notice Returns a user's current invite count, as stored in the AttestationStation.
-     */
+    /// @notice Returns a user's current invite count, as stored in the AttestationStation.
     function _getInviteCount(address _issuer) internal view returns (uint256) {
         return optimistInviter.inviteCounts(_issuer);
     }
 
-    /**
-     * @notice Returns true if claimer has the proper attestation from OptimistInviter to mint.
-     */
+    /// @notice Returns true if claimer has the proper attestation from OptimistInviter to mint.
     function _hasMintAttestation(address _claimer) internal view returns (bool) {
         bytes memory attestation = attestationStation.attestations(
             address(optimistInviter),
@@ -107,10 +101,7 @@ contract OptimistInviter_Initializer is Test {
         return attestation.length > 0;
     }
 
-    /**
-     * @notice Get signature as a bytes blob, since SignatureChecker takes arbitrary signature blobs.
-     *
-     */
+    /// @notice Get signature as a bytes blob, since SignatureChecker takes arbitrary signature blobs.
     function _getSignature(uint256 _signingPrivateKey, bytes32 _digest)
         internal
         pure
@@ -122,10 +113,8 @@ contract OptimistInviter_Initializer is Test {
         return signature;
     }
 
-    /**
-     * @notice Signs a claimable invite with the given private key and returns the signature using
-     *         correct EIP712 domain separator.
-     */
+    /// @notice Signs a claimable invite with the given private key and returns the signature using
+    ///         correct EIP712 domain separator.
     function _issueInviteAs(uint256 _privateKey)
         internal
         returns (OptimistInviter.ClaimableInvite memory, bytes memory)
@@ -140,11 +129,9 @@ contract OptimistInviter_Initializer is Test {
             );
     }
 
-    /**
-     * @notice Signs a claimable invite with the given private key and returns the signature using
-     *         the given EIP712 domain separator. This assumes that the issuer's address is the
-     *         corresponding public key to _issuerPrivateKey.
-     */
+    /// @notice Signs a claimable invite with the given private key and returns the signature using
+    ///         the given EIP712 domain separator. This assumes that the issuer's address is the
+    ///         corresponding public key to _issuerPrivateKey.
     function _issueInviteWithEIP712Domain(
         uint256 _issuerPrivateKey,
         bytes memory _eip712Name,
@@ -170,9 +157,7 @@ contract OptimistInviter_Initializer is Test {
         );
     }
 
-    /**
-     * @notice Commits a signature and claimer address to the OptimistInviter contract.
-     */
+    /// @notice Commits a signature and claimer address to the OptimistInviter contract.
     function _commitInviteAs(address _as, bytes memory _signature) internal {
         vm.prank(_as);
         bytes32 hashedSignature = keccak256(abi.encode(_as, _signature));
@@ -182,11 +167,9 @@ contract OptimistInviter_Initializer is Test {
         assertEq(optimistInviter.commitmentTimestamps(hashedSignature), block.timestamp);
     }
 
-    /**
-     * @notice Signs a claimable invite with the given private key. The claimer commits then claims
-     *         the invite. Checks that all expected events are emitted and that state is updated
-     *         correctly. Returns the signature and invite for use in tests.
-     */
+    /// @notice Signs a claimable invite with the given private key. The claimer commits then claims
+    ///         the invite. Checks that all expected events are emitted and that state is updated
+    ///         correctly. Returns the signature and invite for use in tests.
     function _issueThenClaimShouldSucceed(uint256 _issuerPrivateKey, address _claimer)
         internal
         returns (OptimistInviter.ClaimableInvite memory, bytes memory)
@@ -236,10 +219,8 @@ contract OptimistInviter_Initializer is Test {
         return (claimableInvite, signature);
     }
 
-    /**
-     * @notice Issues 3 invites to the given address. Checks that all expected events are emitted
-     *         and that state is updated correctly.
-     */
+    /// @notice Issues 3 invites to the given address. Checks that all expected events are emitted
+    ///         and that state is updated correctly.
     function _grantInvitesTo(address _to) internal {
         address[] memory addresses = new address[](1);
         addresses[0] = _to;
@@ -264,14 +245,11 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         // expect attestationStation to be set
         assertEq(address(optimistInviter.ATTESTATION_STATION()), address(attestationStation));
         assertEq(optimistInviter.INVITE_GRANTER(), alice_inviteGranter);
-        assertEq(optimistInviter.version(), "1.0.0");
     }
 
-    /**
-     * @notice Alice the admin should be able to give Bob, Sally, and Carol 3 invites, and the
-     *      OptimistInviter contract should increment invite counts on inviteCounts and issue
-     *      'optimist.can-invite' attestations.
-     */
+    /// @notice Alice the admin should be able to give Bob, Sally, and Carol 3 invites, and the
+    ///         OptimistInviter contract should increment invite counts on inviteCounts and issue
+    ///         'optimist.can-invite' attestations.
     function test_grantInvites_adminAddingInvites_succeeds() external {
         address[] memory addresses = new address[](3);
         addresses[0] = bob;
@@ -310,9 +288,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         assertEq(_getInviteCount(address(carolERC1271Wallet)), 3);
     }
 
-    /**
-     * @notice Bob, who is not the invite granter, should not be able to issue invites.
-     */
+    /// @notice Bob, who is not the invite granter, should not be able to issue invites.
     function test_grantInvites_nonAdminAddingInvites_reverts() external {
         address[] memory addresses = new address[](2);
         addresses[0] = bob;
@@ -323,9 +299,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         optimistInviter.setInviteCounts(addresses, 3);
     }
 
-    /**
-     * @notice Sally should be able to commit an invite given by by Bob.
-     */
+    /// @notice Sally should be able to commit an invite given by by Bob.
     function test_commitInvite_committingForYourself_succeeds() external {
         _grantInvitesTo(bob);
         (, bytes memory signature) = _issueInviteAs(bobPrivateKey);
@@ -337,9 +311,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         assertEq(optimistInviter.commitmentTimestamps(hashedSignature), block.timestamp);
     }
 
-    /**
-     * @notice Sally should be able to Bob's for a different claimer, Eve.
-     */
+    /// @notice Sally should be able to Bob's for a different claimer, Eve.
     function test_commitInvite_committingForSomeoneElse_succeeds() external {
         _grantInvitesTo(bob);
         (, bytes memory signature) = _issueInviteAs(bobPrivateKey);
@@ -351,9 +323,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         assertEq(optimistInviter.commitmentTimestamps(hashedSignature), block.timestamp);
     }
 
-    /**
-     * @notice Attempting to commit the same hash twice should revert. This prevents griefing.
-     */
+    /// @notice Attempting to commit the same hash twice should revert. This prevents griefing.
     function test_commitInvite_committingSameHashTwice_reverts() external {
         _grantInvitesTo(bob);
         (, bytes memory signature) = _issueInviteAs(bobPrivateKey);
@@ -368,18 +338,14 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         optimistInviter.commitInvite(hashedSignature);
     }
 
-    /**
-     * @notice Bob issues signature, and Sally claims the invite. Bob's invite count should be
-     *         decremented, and Sally should be able to mint.
-     */
+    /// @notice Bob issues signature, and Sally claims the invite. Bob's invite count should be
+    ///         decremented, and Sally should be able to mint.
     function test_claimInvite_succeeds() external {
         _grantInvitesTo(bob);
         _issueThenClaimShouldSucceed(bobPrivateKey, sally);
     }
 
-    /**
-     * @notice Bob issues signature, and Ted commits the invite for Sally. Eve claims for Sally.
-     */
+    /// @notice Bob issues signature, and Ted commits the invite for Sally. Eve claims for Sally.
     function test_claimInvite_claimForSomeoneElse_succeeds() external {
         _grantInvitesTo(bob);
         (
@@ -428,9 +394,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         optimistInviter.claimInvite(sally, claimableInvite, signature);
     }
 
-    /**
-     * @notice Signature issued for previous versions of the contract should fail.
-     */
+    /// @notice Signature issued for previous versions of the contract should fail.
     function test_claimInvite_usingSignatureIssuedForDifferentVersion_reverts() external {
         _grantInvitesTo(bob);
         (
@@ -452,10 +416,8 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         optimistInviter.claimInvite(sally, claimableInvite, signature);
     }
 
-    /**
-     * @notice Replay attack for signature issued for contract on different chain (ie. mainnet)
-     *         should fail.
-     */
+    /// @notice Replay attack for signature issued for contract on different chain (ie. mainnet)
+    ///         should fail.
     function test_claimInvite_usingSignatureIssuedForDifferentChain_reverts() external {
         _grantInvitesTo(bob);
         (
@@ -477,10 +439,8 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         optimistInviter.claimInvite(sally, claimableInvite, signature);
     }
 
-    /**
-     * @notice Replay attack for signature issued for instantiation of the OptimistInviter contract
-     *         on a different address should fail.
-     */
+    /// @notice Replay attack for signature issued for instantiation of the OptimistInviter contract
+    ///         on a different address should fail.
     function test_claimInvite_usingSignatureIssuedForDifferentContract_reverts() external {
         _grantInvitesTo(bob);
         (
@@ -502,9 +462,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         optimistInviter.claimInvite(sally, claimableInvite, signature);
     }
 
-    /**
-     * @notice Attempting to claim again using the same signature again should fail.
-     */
+    /// @notice Attempting to claim again using the same signature again should fail.
     function test_claimInvite_replayingUsedNonce_reverts() external {
         _grantInvitesTo(bob);
 
@@ -527,11 +485,9 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         optimistInviter.claimInvite(carol, claimableInvite, signature);
     }
 
-    /**
-     * @notice Issuing signatures through a contract that implements ERC1271 should succeed (ie.
-     *         Gnosis Safe or other smart contract wallets). Carol is using a ERC1271 contract
-     *         wallet that is simply backed by her private key.
-     */
+    /// @notice Issuing signatures through a contract that implements ERC1271 should succeed (ie.
+    ///         Gnosis Safe or other smart contract wallets). Carol is using a ERC1271 contract
+    ///         wallet that is simply backed by her private key.
     function test_claimInvite_usingERC1271Wallet_succeeds() external {
         _grantInvitesTo(address(carolERC1271Wallet));
 
@@ -560,10 +516,8 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         assertEq(_getInviteCount(address(carolERC1271Wallet)), 2);
     }
 
-    /**
-     * @notice Claimer must commit the signature before claiming the invite. Sally attempts to
-     *         claim the Bob's invite without committing the signature first.
-     */
+    /// @notice Claimer must commit the signature before claiming the invite. Sally attempts to
+    ///         claim the Bob's invite without committing the signature first.
     function test_claimInvite_withoutCommittingHash_reverts() external {
         _grantInvitesTo(bob);
         (
@@ -576,9 +530,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         optimistInviter.claimInvite(sally, claimableInvite, signature);
     }
 
-    /**
-     * @notice Using a signature that doesn't correspond to the claimable invite should fail.
-     */
+    /// @notice Using a signature that doesn't correspond to the claimable invite should fail.
     function test_claimInvite_withIncorrectSignature_reverts() external {
         _grantInvitesTo(carol);
         _grantInvitesTo(bob);
@@ -598,10 +550,8 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         optimistInviter.claimInvite(sally, bobClaimableInvite, carolSignature);
     }
 
-    /**
-     * @notice Attempting to use a signature from a issuer who never was granted invites should
-     *         fail.
-     */
+    /// @notice Attempting to use a signature from a issuer who never was granted invites should
+    ///         fail.
     function test_claimInvite_whenIssuerNeverReceivedInvites_reverts() external {
         // Bob was never granted any invites, but issues an invite for Eve
         (
@@ -617,13 +567,10 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         optimistInviter.claimInvite(sally, claimableInvite, signature);
     }
 
-    /**
-     * @notice Attempting to use a signature from a issuer who has no more invites should fail.
-     *         Bob has 3 invites, but issues 4 invites for Sally, Carol, Ted, and Eve. Only the
-     *         first 3 invites should be claimable. The last claimer, Eve, should not be able to
-     *         claim the invite.
-     *
-     */
+    /// @notice Attempting to use a signature from a issuer who has no more invites should fail.
+    ///         Bob has 3 invites, but issues 4 invites for Sally, Carol, Ted, and Eve. Only the
+    ///         first 3 invites should be claimable. The last claimer, Eve, should not be able to
+    ///         claim the invite.
     function test_claimInvite_whenIssuerHasNoInvitesLeft_reverts() external {
         _grantInvitesTo(bob);
 

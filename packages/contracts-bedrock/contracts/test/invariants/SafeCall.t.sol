@@ -23,13 +23,11 @@ contract SafeCall_Succeeds_Invariants is Test {
         vm.deal(address(actor), type(uint128).max);
     }
 
-    /**
-     * @custom:invariant If `callWithMinGas` performs a call, then it must always
-     * provide at least the specified minimum gas limit to the subcontext.
-     *
-     * If the check for remaining gas in `SafeCall.callWithMinGas` passes, the
-     * subcontext of the call below it must be provided at least `minGas` gas.
-     */
+    /// @custom:invariant If `callWithMinGas` performs a call, then it must always
+    ///                   provide at least the specified minimum gas limit to the subcontext.
+    ///
+    ///                   If the check for remaining gas in `SafeCall.callWithMinGas` passes, the
+    ///                   subcontext of the call below it must be provided at least `minGas` gas.
     function invariant_callWithMinGas_alwaysForwardsMinGas_succeeds() public {
         assertEq(actor.numCalls(), 0, "no failed calls allowed");
     }
@@ -56,14 +54,12 @@ contract SafeCall_Fails_Invariants is Test {
         vm.deal(address(actor), type(uint128).max);
     }
 
-    /**
-     * @custom:invariant `callWithMinGas` reverts if there is not enough gas to pass
-     * to the subcontext.
-     *
-     * If there is not enough gas in the callframe to ensure that `callWithMinGas`
-     * can provide the specified minimum gas limit to the subcontext of the call,
-     * then `callWithMinGas` must revert.
-     */
+    /// @custom:invariant `callWithMinGas` reverts if there is not enough gas to pass
+    ///                   to the subcontext.
+    ///
+    ///                   If there is not enough gas in the callframe to ensure that
+    ///                   `callWithMinGas` can provide the specified minimum gas limit
+    ///                   to the subcontext of the call, then `callWithMinGas` must revert.
     function invariant_callWithMinGas_neverForwardsMinGas_reverts() public {
         assertEq(actor.numCalls(), 0, "no successful calls allowed");
     }

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
@@ -37,10 +38,8 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
         targetSelector(selector);
     }
 
-    /**
-     * @custom:invariant The gas limit of the `SystemConfig` contract can never be lower
-     * than the hard-coded lower bound.
-     */
+    /// @custom:invariant The gas limit of the `SystemConfig` contract can never be lower
+    ///                   than the hard-coded lower bound.
     function invariant_gasLimitLowerBound() external {
         assertTrue(config.gasLimit() >= config.minimumGasLimit());
     }

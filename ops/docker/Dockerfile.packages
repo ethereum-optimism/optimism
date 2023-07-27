@@ -73,12 +73,11 @@ RUN pnpm install --frozen-lockfile
 
 COPY ./packages ./packages
 
-RUN pnpm build
+COPY .git/ ./.git
+COPY .gitmodules ./.gitmodules
+RUN git submodule update --init --recursive
 
-FROM base as fault-detector
-WORKDIR /opt/optimism/packages/fault-detector
-COPY ./ops/scripts/detector.sh .
-CMD ["pnpm", "run", "start"]
+RUN pnpm build
 
 FROM base as replica-healthcheck
 WORKDIR /opt/optimism/packages/replica-healthcheck
@@ -92,7 +91,6 @@ FROM base as drippie-mon
 WORKDIR /opt/optimism/packages/chain-mon
 ENTRYPOINT ["pnpm", "run", "start:drippie-mon"]
 
-
 FROM base as wd-mon
 WORKDIR /opt/optimism/packages/chain-mon
 ENTRYPOINT ["pnpm", "run", "start:wd-mon"]
@@ -100,3 +98,7 @@ ENTRYPOINT ["pnpm", "run", "start:wd-mon"]
 FROM base as wallet-mon
 WORKDIR /opt/optimism/packages/chain-mon
 ENTRYPOINT ["pnpm", "run", "start:wallet-mon"]
+
+from base as fault-mon
+WORKDIR /opt/optimism/packages/chain-mon
+ENTRYPOINT ["pnpm", "run", "start:fault-mon"]

@@ -2,6 +2,7 @@ package solc
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 )
@@ -36,7 +37,8 @@ type CompilerOutput struct {
 
 type CompilerOutputContracts map[string]CompilerOutputContract
 
-// TODO(tynes): ignoring devdoc and userdoc for now
+// CompilerOutputContract represents the solc compiler output for a contract.
+// Ignoring some fields such as devdoc and userdoc.
 type CompilerOutputContract struct {
 	Abi           abi.ABI           `json:"abi"`
 	Evm           CompilerOutputEvm `json:"evm"`
@@ -44,9 +46,22 @@ type CompilerOutputContract struct {
 	StorageLayout StorageLayout     `json:"storageLayout"`
 }
 
+// StorageLayout represents the solc compilers output storage layout for
+// a contract.
 type StorageLayout struct {
 	Storage []StorageLayoutEntry         `json:"storage"`
 	Types   map[string]StorageLayoutType `json:"types"`
+}
+
+// GetStorageLayoutEntry returns the StorageLayoutEntry where the label matches
+// the provided name.
+func (s *StorageLayout) GetStorageLayoutEntry(name string) (StorageLayoutEntry, error) {
+	for _, entry := range s.Storage {
+		if entry.Label == name {
+			return entry, nil
+		}
+	}
+	return StorageLayoutEntry{}, fmt.Errorf("%s not found", name)
 }
 
 type StorageLayoutEntry struct {

@@ -130,4 +130,6 @@ update-op-geth:
 .PHONY: update-op-geth
 
 bedrock-markdown-links:
-	docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback --exclude twitter.com --exclude explorer.optimism.io --exclude-mail /input/README.md "/input/specs/**/*.md"
+	docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback \
+		--exclude twitter.com --exclude explorer.optimism.io --exclude linux-mips.org \
+		--exclude-mail /input/README.md "/input/specs/**/*.md"

@@ -3,6 +3,7 @@ package node
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -29,6 +30,8 @@ type EthClient interface {
 	BlockHeadersByRange(*big.Int, *big.Int) ([]*types.Header, error)
 	BlockHeaderByHash(common.Hash) (*types.Header, error)
 
+	StorageHash(common.Address, *big.Int) (common.Hash, error)
+
 	RawRpcClient() *rpc.Client
 }
 
@@ -36,7 +39,7 @@ type client struct {
 	rpcClient *rpc.Client
 }
 
-func NewEthClient(rpcUrl string) (EthClient, error) {
+func DialEthClient(rpcUrl string) (EthClient, error) {
 	ctxwt, cancel := context.WithTimeout(context.Background(), defaultDialTimeout)
 	defer cancel()
 
@@ -47,6 +50,10 @@ func NewEthClient(rpcUrl string) (EthClient, error) {
 
 	client := &client{rpcClient: rpcClient}
 	return client, nil
+}
+
+func NewEthClient(rpcClient *rpc.Client) EthClient {
+	return &client{rpcClient}
 }
 
 func (c *client) RawRpcClient() *rpc.Client {
@@ -136,15 +143,33 @@ func (c *client) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]*types.
 	return headers, nil
 }
 
+// StorageHash returns the sha3 of the storage root for the specified account
+func (c *client) StorageHash(address common.Address, blockNumber *big.Int) (common.Hash, error) {
+	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
+	defer cancel()
+
+	proof := struct{ StorageHash common.Hash }{}
+	err := c.rpcClient.CallContext(ctxwt, &proof, "eth_getProof", address, nil, toBlockNumArg(blockNumber))
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	return proof.StorageHash, nil
+}
+
 func toBlockNumArg(number *big.Int) string {
 	if number == nil {
 		return "latest"
+	} else if number.Sign() >= 0 {
+		return hexutil.EncodeBig(number)
 	}
 
-	pending := big.NewInt(-1)
-	if number.Cmp(pending) == 0 {
-		return "pending"
+	// It's negative.
+	if number.IsInt64() {
+		tag, _ := rpc.BlockNumber(number.Int64()).MarshalText()
+		return string(tag)
 	}
 
-	return hexutil.EncodeBig(number)
+	// It's negative and large, which is invalid.
+	return fmt.Sprintf("<invalid %d>", number)
 }

@@ -29,6 +29,43 @@ func (t task) fire(now time.Time) bool {
 	return false
 }
 
+type timer struct {
+	f       func()
+	ch      chan time.Time
+	due     time.Time
+	stopped bool
+	run     bool
+	sync.Mutex
+}
+
+func (t *timer) isDue(now time.Time) bool {
+	t.Lock()
+	defer t.Unlock()
+	return !t.due.After(now)
+}
+
+func (t *timer) fire(now time.Time) bool {
+	t.Lock()
+	defer t.Unlock()
+	if !t.stopped {
+		t.f()
+		t.run = true
+	}
+	return false
+}
+
+func (t *timer) Ch() <-chan time.Time {
+	return t.ch
+}
+
+func (t *timer) Stop() bool {
+	t.Lock()
+	defer t.Unlock()
+	r := !t.stopped && !t.run
+	t.stopped = true
+	return r
+}
+
 type ticker struct {
 	c       Clock
 	ch      chan time.Time
@@ -70,8 +107,12 @@ func (t *ticker) fire(now time.Time) bool {
 	if t.stopped {
 		return false
 	}
-	t.ch <- now
-	t.nextDue = now.Add(t.period)
+	// Publish without blocking and only update due time if we publish successfully
+	select {
+	case t.ch <- now:
+		t.nextDue = now.Add(t.period)
+	default:
+	}
 	return true
 }
 
@@ -110,6 +151,18 @@ func (s *DeterministicClock) After(d time.Duration) <-chan time.Time {
 	return ch
 }
 
+func (s *DeterministicClock) AfterFunc(d time.Duration, f func()) Timer {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	timer := &timer{f: f, due: s.now.Add(d)}
+	if d.Nanoseconds() == 0 {
+		timer.fire(s.now)
+	} else {
+		s.addPending(timer)
+	}
+	return timer
+}
+
 func (s *DeterministicClock) NewTicker(d time.Duration) Ticker {
 	if d <= 0 {
 		panic("Continuously firing tickers are a really bad idea")
@@ -122,6 +175,21 @@ func (s *DeterministicClock) NewTicker(d time.Duration) Ticker {
 		ch:      ch,
 		nextDue: s.now.Add(d),
 		period:  d,
+	}
+	s.addPending(t)
+	return t
+}
+
+func (s *DeterministicClock) NewTimer(d time.Duration) Timer {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	ch := make(chan time.Time, 1)
+	t := &timer{
+		f: func() {
+			ch <- s.now
+		},
+		ch:  ch,
+		due: s.now.Add(d),
 	}
 	s.addPending(t)
 	return t

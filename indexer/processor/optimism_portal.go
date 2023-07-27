@@ -30,11 +30,20 @@ func OptimismPortalWithdrawalProvenEvents(events *ProcessedContractEvents) ([]Op
 		return nil, err
 	}
 
-	processedWithdrawalProvenEvents := events.eventsBySignature[optimismPortalAbi.Events["WithdrawalProven"].ID]
+	eventName := "WithdrawalProven"
+
+	processedWithdrawalProvenEvents := events.eventsBySignature[optimismPortalAbi.Events[eventName].ID]
 	provenEvents := make([]OptimismPortalWithdrawalProvenEvent, len(processedWithdrawalProvenEvents))
 	for i, provenEvent := range processedWithdrawalProvenEvents {
+		log := events.eventLog[provenEvent.GUID]
 
-		provenEvents[i] = OptimismPortalWithdrawalProvenEvent{nil, provenEvent}
+		var withdrawalProven bindings.OptimismPortalWithdrawalProven
+		err := UnpackLog(&withdrawalProven, log, eventName, optimismPortalAbi)
+		if err != nil {
+			return nil, err
+		}
+
+		provenEvents[i] = OptimismPortalWithdrawalProvenEvent{&withdrawalProven, provenEvent}
 	}
 
 	return provenEvents, nil

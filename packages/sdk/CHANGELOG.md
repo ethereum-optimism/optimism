@@ -1,5 +1,29 @@
 # @eth-optimism/sdk
 
+## 3.1.0
+
+### Minor Changes
+
+- [#6053](https://github.com/ethereum-optimism/optimism/pull/6053) [`ff577455f`](https://github.com/ethereum-optimism/optimism/commit/ff577455f196b5f5b8a889339b845561ca6c538a) Thanks [@roninjin10](https://github.com/roninjin10)! - Add support for claiming multicall3 withdrawals
+
+- [#6042](https://github.com/ethereum-optimism/optimism/pull/6042) [`89ca741a6`](https://github.com/ethereum-optimism/optimism/commit/89ca741a63c5e07f9d691bb6f7a89f7718fc49ca) Thanks [@roninjin10](https://github.com/roninjin10)! - Fixes issue with legacy withdrawal message status detection
+
+- [#6332](https://github.com/ethereum-optimism/optimism/pull/6332) [`639163253`](https://github.com/ethereum-optimism/optimism/commit/639163253a5e2128f1c21c446b68d358d38cbd30) Thanks [@wilsoncusack](https://github.com/wilsoncusack)! - Added to and from block filters to several methods in CrossChainMessenger
+
+### Patch Changes
+
+- [#6254](https://github.com/ethereum-optimism/optimism/pull/6254) [`a666c4f20`](https://github.com/ethereum-optimism/optimism/commit/a666c4f2082253abbb68c0678e5a0a1ed0c00f4b) Thanks [@roninjin10](https://github.com/roninjin10)! - Fixed missing indexes for multicall support
+
+- [#6164](https://github.com/ethereum-optimism/optimism/pull/6164) [`c11039060`](https://github.com/ethereum-optimism/optimism/commit/c11039060bc037a88916c2cba602687b6d69ad1a) Thanks [@pengin7384](https://github.com/pengin7384)! - fix typo
+
+- [#6198](https://github.com/ethereum-optimism/optimism/pull/6198) [`77da6edc6`](https://github.com/ethereum-optimism/optimism/commit/77da6edc643e0b5e39f7b6bb41c3c7ead418a876) Thanks [@tremarkley](https://github.com/tremarkley)! - Delete dead typescript https://github.com/ethereum-optimism/optimism/pull/6148.
+
+- [#6182](https://github.com/ethereum-optimism/optimism/pull/6182) [`3f13fd0bb`](https://github.com/ethereum-optimism/optimism/commit/3f13fd0bbea051a4550f1df6def1a53a616aa6f6) Thanks [@tremarkley](https://github.com/tremarkley)! - Update the addresses of the bridges on optimism and optimism goerli for the ECO bridge adapter
+
+- Updated dependencies [[`c11039060`](https://github.com/ethereum-optimism/optimism/commit/c11039060bc037a88916c2cba602687b6d69ad1a), [`72d184854`](https://github.com/ethereum-optimism/optimism/commit/72d184854ebad8b2025641f126ed76573b1f0ac3), [`77da6edc6`](https://github.com/ethereum-optimism/optimism/commit/77da6edc643e0b5e39f7b6bb41c3c7ead418a876)]:
+  - @eth-optimism/contracts-bedrock@0.16.0
+  - @eth-optimism/core-utils@0.12.2
+
 ## 3.0.0
 
 ### Major Changes
