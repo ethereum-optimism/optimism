@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
@@ -24,15 +25,15 @@ type alphabetWithProofProvider struct {
 	OracleError error
 }
 
-func (a *alphabetWithProofProvider) GetPreimage(i uint64) ([]byte, []byte, error) {
-	preimage, _, err := a.AlphabetProvider.GetPreimage(i)
+func (a *alphabetWithProofProvider) GetPreimage(ctx context.Context, i uint64) ([]byte, []byte, error) {
+	preimage, _, err := a.AlphabetProvider.GetPreimage(ctx, i)
 	if err != nil {
 		return nil, nil, err
 	}
 	return preimage, []byte{byte(i)}, nil
 }
 
-func (a *alphabetWithProofProvider) GetOracleData(i uint64) (*types.PreimageOracleData, error) {
+func (a *alphabetWithProofProvider) GetOracleData(ctx context.Context, i uint64) (*types.PreimageOracleData, error) {
 	if a.OracleError != nil {
 		return &types.PreimageOracleData{}, a.OracleError
 	}
