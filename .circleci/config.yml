@@ -717,6 +717,44 @@ jobs:
           command: make fuzz
           working_directory: op-chain-ops
 
+  op-chain-ops-tests:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: xlarge
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore PNPM Package Cache
+          keys:
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
+      - run:
+          name: prep results dir
+          command: mkdir -p /tmp/test-results
+      - run:
+          name: run tests
+          command: |
+            gotestsum --format=standard-verbose --junitfile=/tmp/test-results/op-chain-ops.xml \
+            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
+          working_directory: op-chain-ops
+      - run:
+          name: upload coverage
+          command: codecov --verbose --clean --flags bedrock-go-tests
+      - store_test_results:
+          path: /tmp/test-results
+
+  fuzz-cannon:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - check-changed:
+          patterns: cannon,packages/contracts-bedrock/contracts/cannon
+      - run:
+          name: Fuzz
+          command: make fuzz
+          working_directory: cannon
+
   depcheck:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
@@ -1221,7 +1259,6 @@ workflows:
             - pnpm-monorepo
       - op-chain-ops-tests:
           name: op-chain-ops-tests
-          module: op-chain-ops
           requires:
             - pnpm-monorepo
       - devnet:

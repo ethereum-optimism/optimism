@@ -5,6 +5,7 @@ import { Test } from "forge-std/Test.sol";
 
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
 import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
+import "src/cannon/libraries/CannonErrors.sol";
 
 contract PreimageOracle_Test is Test {
     PreimageOracle oracle;

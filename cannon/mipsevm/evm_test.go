@@ -48,9 +48,9 @@ func SourceMapTracer(t *testing.T, contracts *Contracts, addrs *Addresses) vm.EV
 		}
 	}
 
-	mipsSrcMap, err := contracts.MIPS.SourceMap(append([]string{path.Join(contractsDir, "contracts/cannon/MIPS.sol")}, sources...))
+	mipsSrcMap, err := contracts.MIPS.SourceMap(append([]string{path.Join(contractsDir, "src/cannon/MIPS.sol")}, sources...))
 	require.NoError(t, err)
-	oracleSrcMap, err := contracts.Oracle.SourceMap(append([]string{path.Join(contractsDir, "contracts/cannon/PreimageOracle.sol")}, sources...))
+	oracleSrcMap, err := contracts.Oracle.SourceMap(append([]string{path.Join(contractsDir, "src/cannon/PreimageOracle.sol")}, sources...))
 	require.NoError(t, err)
 
 	return srcmap.NewSourceMapTracer(map[common.Address]*srcmap.SourceMap{addrs.MIPS: mipsSrcMap, addrs.Oracle: oracleSrcMap}, os.Stdout)

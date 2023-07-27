@@ -13,7 +13,7 @@ import (
 
 func TestSourcemap(t *testing.T) {
 	contractsDir := "../../packages/contracts-bedrock"
-	sources := []string{path.Join(contractsDir, "contracts/cannon/MIPS.sol")}
+	sources := []string{path.Join(contractsDir, "src/cannon/MIPS.sol")}
 	sources = append(sources, bindings.Sources...)
 	for i, source := range sources {
 		// Add relative path to contracts directory if the source is not
