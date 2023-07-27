@@ -80,8 +80,12 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 
 func runCmd(ctx context.Context, l log.Logger, binary string, args ...string) error {
 	cmd := exec.CommandContext(ctx, binary, args...)
-	cmd.Stdout = oplog.NewWriter(l, log.LvlInfo)
-	cmd.Stderr = oplog.NewWriter(l, log.LvlError)
+	stdOut := oplog.NewWriter(l, log.LvlInfo)
+	defer stdOut.Close()
+	stdErr := oplog.NewWriter(l, log.LvlError)
+	defer stdErr.Close()
+	cmd.Stdout = stdOut
+	cmd.Stderr = stdErr
 	return cmd.Run()
 }
 

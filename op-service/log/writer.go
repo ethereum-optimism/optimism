@@ -50,3 +50,13 @@ func (w *Writer) Write(b []byte) (int, error) {
 	}
 	return len(b), nil
 }
+
+func (w *Writer) Close() error {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	if len(w.pending) > 0 {
+		w.log(string(w.pending))
+		w.pending = nil
+	}
+	return nil
+}
