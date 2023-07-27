@@ -2,12 +2,13 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { Messenger_Initializer } from "./CommonTest.t.sol";
+import { ERC721Bridge_Initializer } from "./CommonTest.t.sol";
 
 // Target contract dependencies
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import { L1ERC721Bridge } from "../src/L1/L1ERC721Bridge.sol";
 import { OptimismMintableERC721 } from "../src/universal/OptimismMintableERC721.sol";
+import { Proxy } from "../src/universal/Proxy.sol";
 
 // Target contract
 import { L2ERC721Bridge } from "../src/L2/L2ERC721Bridge.sol";
@@ -30,7 +31,7 @@ contract TestMintableERC721 is OptimismMintableERC721 {
     }
 }
 
-contract L2ERC721Bridge_Test is Messenger_Initializer {
+contract L2ERC721Bridge_Test is ERC721Bridge_Initializer {
     TestMintableERC721 internal localToken;
     TestERC721 internal remoteToken;
     L2ERC721Bridge internal bridge;
@@ -59,13 +60,8 @@ contract L2ERC721Bridge_Test is Messenger_Initializer {
     function setUp() public override {
         super.setUp();
 
-        // Create necessary contracts.
-        bridge = new L2ERC721Bridge(address(L2Messenger), otherBridge);
         remoteToken = new TestERC721();
         localToken = new TestMintableERC721(address(bridge), address(remoteToken));
-
-        // Label the bridge so we get nice traces.
-        vm.label(address(bridge), "L2ERC721Bridge");
 
         // Mint alice a token.
         localToken.mint(alice, tokenId);
