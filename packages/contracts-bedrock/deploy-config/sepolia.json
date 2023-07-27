@@ -1,7 +1,7 @@
 {
   "finalSystemOwner": "0xfd1D2e729aE8eEe2E146c033bf4400fE75284301",
   "portalGuardian": "0xfd1D2e729aE8eEe2E146c033bf4400fE75284301",
-  "l1StartingBlockTag": "0x4b29002c963e450d79b5acec0649654f9b806cc5b2fe3dfafac2e5379bea1653",
+  "l1StartingBlockTag": "0x70e5634d09793b1cfaa7d0a2a5d3289a3b2308de1e82f682b4f817fc670f9797",
   "l1ChainID": 11155111,
   "l2ChainID": 11155420,
   "l2BlockTime": 2,
