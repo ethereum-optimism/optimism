@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/require"
-	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
 // TestConcurrentWSPanic tests for a panic in the websocket proxy
@@ -306,7 +305,8 @@ func TestWSClientExceedReadLimit(t *testing.T) {
 		t.Fatalf("backend should not get the large message")
 	})
 
-	clientReq := "{\"id\": 1, \"method\": \"eth_subscribe\", \"params\": [\"" + strings.Repeat("barf", 256*opt.KiB+1) + "\"]}"
+	payload := strings.Repeat("barf", 1024*1024)
+	clientReq := "{\"id\": 1, \"method\": \"eth_subscribe\", \"params\": [\"" + payload + "\"]}"
 	err = client.WriteMessage(
 		websocket.TextMessage,
 		[]byte(clientReq),
