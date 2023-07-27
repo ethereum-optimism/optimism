@@ -153,7 +153,7 @@ func TestE2EBridge(t *testing.T) {
 		// (2) Test Withdrawal Proven
 
 		// prove & wait for processor catchup
-		withdrawParams, proveReceipt := op_e2e.ProveWithdrawal(t, *testSuite.OpCfg, l1Client, testSuite.OpSys.Nodes["sequencer"], testSuite.OpCfg.Secrets.Alice, withdrawalReceipt)
+		withdrawParams, proveReceipt := op_e2e.ProveWithdrawal(t, *testSuite.OpCfg, l1Client, testSuite.OpSys.EthInstances["sequencer"], testSuite.OpCfg.Secrets.Alice, withdrawalReceipt)
 		require.NoError(t, utils.WaitFor(testCtx, 500*time.Millisecond, func() (bool, error) {
 			l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
 			return l1Header != nil && l1Header.Number.Uint64() >= proveReceipt.BlockNumber.Uint64(), nil
