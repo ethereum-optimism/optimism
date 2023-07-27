@@ -60,7 +60,7 @@
     "@eth-optimism/contracts-bedrock": "0.16.0",
     "lodash": "^4.17.21",
     "merkletreejs": "^0.2.27",
-    "rlp": "^2.2.7"
+    "rlp": "^3.0.0"
   },
   "peerDependencies": {
     "ethers": "^5"
