@@ -4,6 +4,10 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	goast "go/ast"
+	"go/format"
+	"go/parser"
+	"go/token"
 	"log"
 	"os"
 	"os/exec"
@@ -15,6 +19,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/ast"
 	"github.com/ethereum-optimism/optimism/op-bindings/foundry"
+	"golang.org/x/tools/go/ast/astutil"
 )
 
 type flags struct {
@@ -160,6 +165,41 @@ func main() {
 			log.Fatalf("error running abigen: %v\n", err)
 		}
 
+		// XXX(jky) This is an absolutely horrible hack, and we should really
+		// figure out a way to make the generation right.  But, it would require
+		// modifying contracts, or the generation scheme, and I'm wary of
+		// creating conflicts and churn, so this is a benign way to handle
+		// things.
+		if filepath.Base(outFile) == "boba.go" {
+			fSet := token.NewFileSet()
+			file, err := parser.ParseFile(fSet, outFile, nil, parser.ParseComments)
+			if err != nil {
+				log.Fatalf("could not open %s for rewriting: %s", outFile, err)
+			}
+			astutil.Apply(file, nil, func(c *astutil.Cursor) bool {
+				n := c.Node()
+				switch x := n.(type) {
+				case *goast.GenDecl:
+					if x.Tok == token.TYPE {
+						spec := x.Specs[0].(*goast.TypeSpec)
+						if spec.Name.Name == "ERC20VotesCheckpoint" {
+							c.Delete()
+							return false
+						}
+					}
+				}
+
+				return true
+			})
+			out, err := os.Create(outFile)
+			if err != nil {
+				log.Fatalf("could not truncate for rewrite: %s", err)
+			}
+			defer out.Close()
+			if err := format.Node(out, fSet, file); err != nil {
+				log.Fatalf("could not rewrite: %s", err)
+			}
+		}
 		storage := artifact.StorageLayout
 		canonicalStorage := ast.CanonicalizeASTIDs(&storage, f.MonorepoBase)
 		ser, err := json.Marshal(canonicalStorage)

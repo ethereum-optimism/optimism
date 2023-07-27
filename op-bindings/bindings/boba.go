@@ -29,10 +29,6 @@ var (
 )
 
 // ERC20VotesCheckpoint is an auto generated low-level Go binding around an user-defined struct.
-type ERC20VotesCheckpoint struct {
-	FromBlock uint32
-	Votes     *big.Int
-}
 
 // BOBAMetaData contains all meta data concerning the BOBA contract.
 var BOBAMetaData = &bind.MetaData{
