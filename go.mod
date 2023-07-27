@@ -10,7 +10,7 @@ require (
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
 	github.com/ethereum/go-ethereum v1.12.0
 	github.com/fsnotify/fsnotify v1.6.0
-	github.com/go-chi/chi/v5 v5.0.0
+	github.com/go-chi/chi/v5 v5.0.10
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb
 	github.com/google/go-cmp v0.5.9
 	github.com/google/gofuzz v1.2.1-0.20220503160820-4a35382e8fc8
@@ -19,7 +19,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
 	github.com/hashicorp/golang-lru/v2 v2.0.1
-	github.com/holiman/uint256 v1.2.2-0.20230321075855-87b91420868c
+	github.com/holiman/uint256 v1.2.3
 	github.com/ipfs/go-datastore v0.6.0
 	github.com/ipfs/go-ds-leveldb v0.5.0
 	github.com/jackc/pgtype v1.14.0
@@ -28,7 +28,7 @@ require (
 	github.com/libp2p/go-libp2p v0.25.1
 	github.com/libp2p/go-libp2p-pubsub v0.9.3
 	github.com/libp2p/go-libp2p-testing v0.12.0
-	github.com/mattn/go-isatty v0.0.17
+	github.com/mattn/go-isatty v0.0.19
 	github.com/multiformats/go-base32 v0.1.0
 	github.com/multiformats/go-multiaddr v0.10.1
 	github.com/multiformats/go-multiaddr-dns v0.3.1
