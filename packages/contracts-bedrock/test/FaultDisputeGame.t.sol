@@ -4,15 +4,15 @@ pragma solidity ^0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { Vm } from "forge-std/Vm.sol";
 import { DisputeGameFactory_Init } from "./DisputeGameFactory.t.sol";
-import { DisputeGameFactory } from "../dispute/DisputeGameFactory.sol";
-import { FaultDisputeGame } from "../dispute/FaultDisputeGame.sol";
-import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
+import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
+import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
+import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 
-import "../libraries/DisputeTypes.sol";
-import "../libraries/DisputeErrors.sol";
-import { LibClock } from "../dispute/lib/LibClock.sol";
-import { LibPosition } from "../dispute/lib/LibPosition.sol";
-import { IBigStepper, IPreimageOracle } from "../dispute/interfaces/IBigStepper.sol";
+import "src/libraries/DisputeTypes.sol";
+import "src/libraries/DisputeErrors.sol";
+import { LibClock } from "src/dispute/lib/LibClock.sol";
+import { LibPosition } from "src/dispute/lib/LibPosition.sol";
+import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 
 contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     /// @dev The extra data passed to the game for initialization.
