@@ -1,3 +1,0 @@
----
-C-Protocol-Critical:
-  - 'packages/contracts-bedrock/**/*.sol'

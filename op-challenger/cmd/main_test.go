@@ -16,6 +16,7 @@ var (
 	l1EthRpc                = "http://example.com:8545"
 	gameAddressValue        = "0xaa00000000000000000000000000000000000000"
 	cannonBin               = "./bin/cannon"
+	cannonServer            = "./bin/op-program"
 	cannonPreState          = "./pre.json"
 	cannonDatadir           = "./test_data"
 	cannonL2                = "http://example.com:9545"
@@ -153,6 +154,21 @@ func TestCannonBin(t *testing.T) {
 	})
 }
 
+func TestCannonServer(t *testing.T) {
+	t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+		configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--cannon-server"))
+	})
+
+	t.Run("Required", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag cannon-server is required", addRequiredArgsExcept(config.TraceTypeCannon, "--cannon-server"))
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeCannon, "--cannon-server", "--cannon-server=./op-program"))
+		require.Equal(t, "./op-program", cfg.CannonServer)
+	})
+}
+
 func TestCannonAbsolutePrestate(t *testing.T) {
 	t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
 		configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--cannon-prestate"))
@@ -195,6 +211,18 @@ func TestCannonL2(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon))
 		require.Equal(t, cannonL2, cfg.CannonL2)
+	})
+}
+
+func TestCannonSnapshotFreq(t *testing.T) {
+	t.Run("UsesDefault", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon))
+		require.Equal(t, config.DefaultCannonSnapshotFreq, cfg.CannonSnapshotFreq)
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon, "--cannon-snapshot-freq=1234"))
+		require.Equal(t, uint(1234), cfg.CannonSnapshotFreq)
 	})
 }
 
@@ -246,6 +274,7 @@ func requiredArgs(traceType config.TraceType) map[string]string {
 		args["--alphabet"] = alphabetTrace
 	case config.TraceTypeCannon:
 		args["--cannon-bin"] = cannonBin
+		args["--cannon-server"] = cannonServer
 		args["--cannon-prestate"] = cannonPreState
 		args["--cannon-datadir"] = cannonDatadir
 		args["--cannon-l2"] = cannonL2

@@ -1,10 +1,12 @@
 package alphabet
 
 import (
+	"context"
 	"errors"
 	"math/big"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -28,29 +30,34 @@ func NewAlphabetProvider(state string, depth uint64) *AlphabetProvider {
 	}
 }
 
+// GetOracleData should not return any preimage oracle data for the alphabet provider.
+func (p *AlphabetProvider) GetOracleData(ctx context.Context, i uint64) (*types.PreimageOracleData, error) {
+	return &types.PreimageOracleData{}, nil
+}
+
 // GetPreimage returns the preimage for the given hash.
-func (ap *AlphabetProvider) GetPreimage(i uint64) ([]byte, []byte, error) {
+func (ap *AlphabetProvider) GetPreimage(ctx context.Context, i uint64) ([]byte, []byte, error) {
 	// The index cannot be larger than the maximum index as computed by the depth.
 	if i >= ap.maxLen {
 		return nil, nil, ErrIndexTooLarge
 	}
 	// We extend the deepest hash to the maximum depth if the trace is not expansive.
 	if i >= uint64(len(ap.state)) {
-		return ap.GetPreimage(uint64(len(ap.state)) - 1)
+		return ap.GetPreimage(ctx, uint64(len(ap.state))-1)
 	}
 	return BuildAlphabetPreimage(i, ap.state[i]), []byte{}, nil
 }
 
 // Get returns the claim value at the given index in the trace.
-func (ap *AlphabetProvider) Get(i uint64) (common.Hash, error) {
-	claimBytes, _, err := ap.GetPreimage(i)
+func (ap *AlphabetProvider) Get(ctx context.Context, i uint64) (common.Hash, error) {
+	claimBytes, _, err := ap.GetPreimage(ctx, i)
 	if err != nil {
 		return common.Hash{}, err
 	}
 	return crypto.Keccak256Hash(claimBytes), nil
 }
 
-func (ap *AlphabetProvider) AbsolutePreState() []byte {
+func (ap *AlphabetProvider) AbsolutePreState(ctx context.Context) []byte {
 	return common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060")
 }
 

@@ -11,6 +11,14 @@ type CapturingHandler struct {
 	Logs     []*log.Record
 }
 
+func Capture(l log.Logger) *CapturingHandler {
+	handler := &CapturingHandler{
+		Delegate: l.GetHandler(),
+	}
+	l.SetHandler(handler)
+	return handler
+}
+
 func (c *CapturingHandler) Log(r *log.Record) error {
 	c.Logs = append(c.Logs, r)
 	if c.Delegate != nil {
