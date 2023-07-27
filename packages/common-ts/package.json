@@ -38,7 +38,7 @@
     "@sentry/node": "^6.3.1",
     "bcfg": "^0.1.7",
     "body-parser": "^1.20.0",
-    "commander": "^9.0.0",
+    "commander": "^11.0.0",
     "dotenv": "^16.0.0",
     "envalid": "^7.2.2",
     "ethers": "^5.7.0",
