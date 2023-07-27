@@ -884,13 +884,6 @@ func (w *WSProxier) Proxy(ctx context.Context) error {
 
 func (w *WSProxier) clientPump(ctx context.Context, errC chan error) {
 	for {
-		err := w.clientConn.SetReadDeadline(time.Now().Add(w.readTimeout))
-		if err != nil {
-			log.Error("ws client read timeout", "err", err)
-			errC <- err
-			return
-		}
-
 		// Block until we get a message.
 		msgType, msg, err := w.clientConn.ReadMessage()
 		if err != nil {
@@ -974,13 +967,6 @@ func (w *WSProxier) clientPump(ctx context.Context, errC chan error) {
 
 func (w *WSProxier) backendPump(ctx context.Context, errC chan error) {
 	for {
-		err := w.backendConn.SetReadDeadline(time.Now().Add(w.readTimeout))
-		if err != nil {
-			log.Error("ws backend read timeout", "err", err)
-			errC <- err
-			return
-		}
-
 		// Block until we get a message.
 		msgType, msg, err := w.backendConn.ReadMessage()
 		if err != nil {
@@ -1085,7 +1071,7 @@ func (w *WSProxier) writeBackendConn(msgType int, msg []byte) error {
 		log.Error("ws backend write timeout", "err", err)
 		return err
 	}
-	err := w.writeBackendConn(msgType, msg)
+	err := w.backendConn.WriteMessage(msgType, msg)
 	return err
 }
 
