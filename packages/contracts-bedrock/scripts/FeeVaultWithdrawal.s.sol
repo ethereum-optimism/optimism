@@ -3,8 +3,8 @@ pragma solidity 0.8.15;
 
 import { console } from "forge-std/console.sol";
 import { Script } from "forge-std/Script.sol";
-import { Predeploys } from "../contracts/libraries/Predeploys.sol";
-import { FeeVault } from "../contracts/universal/FeeVault.sol";
+import { Predeploys } from "../src/libraries/Predeploys.sol";
+import { FeeVault } from "../src/universal/FeeVault.sol";
 import { IMulticall3 } from "forge-std/interfaces/IMulticall3.sol";
 
 /// @title FeeVaultWithdrawal

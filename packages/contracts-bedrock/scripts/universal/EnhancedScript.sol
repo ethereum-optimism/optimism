@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import { console } from "forge-std/console.sol";
 import { Script } from "forge-std/Script.sol";
-import { Semver } from "../../contracts/universal/Semver.sol";
+import { Semver } from "../../src/universal/Semver.sol";
 
 /// @title EnhancedScript
 /// @notice Enhances forge-std' Script.sol with some additional application-specific functionality.
