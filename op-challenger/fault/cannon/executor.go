@@ -11,6 +11,7 @@ import (
 	"strconv"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -22,7 +23,7 @@ const (
 var snapshotNameRegexp = regexp.MustCompile(`^[0-9]+\.json$`)
 
 type snapshotSelect func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error)
-type cmdExecutor func(ctx context.Context, binary string, args ...string) error
+type cmdExecutor func(ctx context.Context, l log.Logger, binary string, args ...string) error
 
 type Executor struct {
 	logger           log.Logger
@@ -72,15 +73,14 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 		// TODO(CLI-4240): Pass local game inputs (l1.head, l2.head, l2.claim etc)
 	}
 
-	e.logger.Info("Generating trace", "idx", i, "cmd", e.cannon, "args", args)
-	return e.cmdExecutor(ctx, e.cannon, args...)
+	e.logger.Info("Generating trace", "proof", i, "cmd", e.cannon, "args", args)
+	return e.cmdExecutor(ctx, e.logger.New("proof", i), e.cannon, args...)
 }
 
-func runCmd(ctx context.Context, binary string, args ...string) error {
+func runCmd(ctx context.Context, l log.Logger, binary string, args ...string) error {
 	cmd := exec.CommandContext(ctx, binary, args...)
-	// TODO(CLI-4242): Provide context about what the generation is for in logs
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.Stdout = oplog.NewWriter(l, log.LvlInfo)
+	cmd.Stderr = oplog.NewWriter(l, log.LvlError)
 	return cmd.Run()
 }
 

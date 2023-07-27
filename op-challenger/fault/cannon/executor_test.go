@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
@@ -32,7 +33,7 @@ func TestGenerateProof(t *testing.T) {
 	}
 	var binary string
 	args := make(map[string]string)
-	executor.cmdExecutor = func(ctx context.Context, b string, a ...string) error {
+	executor.cmdExecutor = func(ctx context.Context, l log.Logger, b string, a ...string) error {
 		binary = b
 		for i := 0; i < len(a); i += 2 {
 			args[a[i]] = a[i+1]
@@ -51,6 +52,20 @@ func TestGenerateProof(t *testing.T) {
 	require.Contains(t, args, "--datadir", filepath.Join(cfg.CannonDatadir, preimagesDir))
 	require.Contains(t, args, "--proof-fmt", filepath.Join(cfg.CannonDatadir, "150000000.json"))
 	require.Contains(t, args, "--snapshot-fmt", filepath.Join(cfg.CannonDatadir, snapsDir, "%d.json"))
+}
+
+func TestRunCmdLogsOutput(t *testing.T) {
+	bin := "/bin/echo"
+	if _, err := os.Stat(bin); err != nil {
+		t.Skip(bin, " not available", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	logger := testlog.Logger(t, log.LvlInfo)
+	logs := testlog.Capture(logger)
+	err := runCmd(ctx, logger, bin, "Hello World")
+	require.NoError(t, err)
+	require.NotNil(t, logs.FindLog(log.LvlInfo, "Hello World"))
 }
 
 func TestFindStartingSnapshot(t *testing.T) {
