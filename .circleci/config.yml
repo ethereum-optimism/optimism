@@ -110,7 +110,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: op-bindings,op-chain-ops,packages/
+          patterns: op-chain-ops,packages/
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
@@ -554,26 +554,6 @@ jobs:
     resource_class: medium
     steps:
       - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      - check-changed:
-          patterns: contracts-bedrock,op-bindings
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
       - run:
           name: check go bindings
           command: make && git diff --exit-code
@@ -1274,9 +1254,7 @@ workflows:
       - contracts-bedrock-validate-spaces:
           requires:
             - pnpm-monorepo
-      - op-bindings-build:
-          requires:
-            - pnpm-monorepo
+      - op-bindings-build
       - js-lint-test:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
