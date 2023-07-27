@@ -6,11 +6,11 @@ import { SafeBuilder } from "../universal/SafeBuilder.sol";
 import { IMulticall3 } from "forge-std/interfaces/IMulticall3.sol";
 import { IGnosisSafe, Enum } from "../interfaces/IGnosisSafe.sol";
 import { LibSort } from "../libraries/LibSort.sol";
-import { ProxyAdmin } from "../../contracts/universal/ProxyAdmin.sol";
-import { Constants } from "../../contracts/libraries/Constants.sol";
-import { SystemConfig } from "../../contracts/L1/SystemConfig.sol";
-import { ResourceMetering } from "../../contracts/L1/ResourceMetering.sol";
-import { Semver } from "../../contracts/universal/Semver.sol";
+import { ProxyAdmin } from "../../src/universal/ProxyAdmin.sol";
+import { Constants } from "../../src/libraries/Constants.sol";
+import { SystemConfig } from "../../src/L1/SystemConfig.sol";
+import { ResourceMetering } from "../../src/L1/ResourceMetering.sol";
+import { Semver } from "../../src/universal/Semver.sol";
 
 /// @title PostSherlockL1
 /// @notice Upgrade script for upgrading the L1 contracts after the sherlock audit.

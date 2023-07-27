@@ -9,7 +9,7 @@ const BASE_INVARIANTS_DIR = path.join(
   'invariants'
 )
 const BASE_DOCS_DIR = path.join(__dirname, '..', 'invariant-docs')
-const BASE_INVARIANT_GH_URL = '../contracts/test/invariants/'
+const BASE_INVARIANT_GH_URL = '../test/invariants/'
 const NATSPEC_INV = '@custom:invariant'
 
 // Represents an invariant test contract
@@ -111,8 +111,7 @@ const docGen = (dir: string): void => {
   }
 
   console.log(
-    `Generated invariant test documentation for:\n - ${
-      docs.length
+    `Generated invariant test documentation for:\n - ${docs.length
     } contracts\n - ${docs.reduce(
       (acc: number, contract: Contract) => acc + contract.docs.length,
       0
