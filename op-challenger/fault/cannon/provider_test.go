@@ -48,6 +48,40 @@ func TestGet(t *testing.T) {
 	})
 }
 
+func TestGetOracleData(t *testing.T) {
+	dataDir := setupTestData(t)
+	t.Run("ExistingProof", func(t *testing.T) {
+		provider, generator := setupWithTestData(dataDir)
+		oracleData, err := provider.GetOracleData(420)
+		require.NoError(t, err)
+		require.False(t, oracleData.IsLocal)
+		expectedKey := common.Hex2Bytes("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+		require.Equal(t, expectedKey, oracleData.OracleKey)
+		expectedData := common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+		require.Equal(t, expectedData, oracleData.OracleData)
+		require.Empty(t, generator.generated)
+	})
+
+	t.Run("ProofUnavailable", func(t *testing.T) {
+		provider, generator := setupWithTestData(dataDir)
+		_, err := provider.GetOracleData(7)
+		require.ErrorIs(t, err, os.ErrNotExist)
+		require.Contains(t, generator.generated, 7, "should have tried to generate the proof")
+	})
+
+	t.Run("IgnoreUnknownFields", func(t *testing.T) {
+		provider, generator := setupWithTestData(dataDir)
+		oracleData, err := provider.GetOracleData(421)
+		require.NoError(t, err)
+		require.False(t, oracleData.IsLocal)
+		expectedKey := common.Hex2Bytes("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
+		require.Equal(t, expectedKey, oracleData.OracleKey)
+		expectedData := common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+		require.Equal(t, expectedData, oracleData.OracleData)
+		require.Empty(t, generator.generated)
+	})
+}
+
 func TestGetPreimage(t *testing.T) {
 	dataDir := setupTestData(t)
 	t.Run("ExistingProof", func(t *testing.T) {
