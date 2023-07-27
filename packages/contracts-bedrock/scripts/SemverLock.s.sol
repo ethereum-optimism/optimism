@@ -10,7 +10,7 @@ contract SemverLock is Script {
         string[] memory commands = new string[](3);
         commands[0] = "bash";
         commands[1] = "-c";
-        commands[2] = "grep -rl '@custom:semver' contracts | jq -Rs 'split(\"\\n\") | map(select(length > 0))'";
+        commands[2] = "grep -rl '@custom:semver' src | jq -Rs 'split(\"\\n\") | map(select(length > 0))'";
         string memory rawFiles = string(vm.ffi(commands));
 
         string[] memory files = vm.parseJsonStringArray(rawFiles, "");

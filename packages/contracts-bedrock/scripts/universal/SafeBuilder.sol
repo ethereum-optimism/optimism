@@ -8,7 +8,7 @@ import { LibSort } from "../libraries/LibSort.sol";
 import { IGnosisSafe, Enum } from "../interfaces/IGnosisSafe.sol";
 import { EnhancedScript } from "../universal/EnhancedScript.sol";
 import { GlobalConstants } from "../universal/GlobalConstants.sol";
-import { ProxyAdmin } from "../../contracts/universal/ProxyAdmin.sol";
+import { ProxyAdmin } from "../../src/universal/ProxyAdmin.sol";
 
 /// @title SafeBuilder
 /// @notice Builds SafeTransactions

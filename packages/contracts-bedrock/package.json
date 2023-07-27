@@ -6,7 +6,7 @@
   "files": [
     "forge-artifacts/**/*.json",
     "deployments/**/*.json",
-    "contracts/**/*.sol"
+    "src/**/*.sol"
   ],
   "scripts": {
     "bindings": "pnpm bindings:ts && pnpm bindings:go",
@@ -33,10 +33,10 @@
     "preinstall": "npx only-allow pnpm",
     "lint:ts:check": "eslint . --max-warnings=0",
     "lint:forge-tests:check": "ts-node scripts/forge-test-names.ts",
-    "lint:contracts:check": "pnpm solhint -f table 'contracts/**/!(DisputeTypes|RLPReader|EAS|SchemaRegistry|IEAS|ISchemaRegistry|SchemaResolver|EIP712Verifier|ISchemaResolver).sol' && pnpm prettier --check 'contracts/**/!(DisputeTypes|RLPReader|EAS|SchemaRegistry|IEAS|ISchemaRegistry|SchemaResolver|EIP712Verifier|ISchemaResolver).sol' && pnpm lint:forge-tests:check",
+    "lint:contracts:check": "pnpm solhint -f table 'src/**/!(WETH9|DisputeTypes|MIPS|RLPReader|EAS|SchemaRegistry|IEAS|ISchemaRegistry|SchemaResolver|EIP712Verifier|ISchemaResolver).sol' && pnpm prettier --check 'src/**/!(WETH9|DisputeTypes|MIPS|RLPReader|EAS|SchemaRegistry|IEAS|ISchemaRegistry|SchemaResolver|EIP712Verifier|ISchemaResolver).sol' && pnpm lint:forge-tests:check",
     "lint:check": "pnpm lint:contracts:check && pnpm lint:ts:check",
     "lint:ts:fix": "eslint --fix .",
-    "lint:contracts:fix": "pnpm solhint --fix 'contracts/**/!(DisputeTypes|RLPReader|EAS|SchemaRegistry|IEAS|ISchemaRegistry|SchemaResolver|EIP712Verifier|ISchemaResolver).sol' && pnpm prettier --write 'contracts/**/!(DisputeTypes|RLPReader|EAS|SchemaRegistry|IEAS|ISchemaRegistry|SchemaResolver|EIP712Verifier|ISchemaResolver).sol'",
+    "lint:contracts:fix": "pnpm solhint --fix 'src/**/!(WETH9|DisputeTypes|MIPS|RLPReader|EAS|SchemaRegistry|IEAS|ISchemaRegistry|SchemaResolver|EIP712Verifier|ISchemaResolver).sol' && pnpm prettier --write 'src/**/!(WETH9|DisputeTypes|MIPS|RLPReader|EAS|SchemaRegistry|IEAS|ISchemaRegistry|SchemaResolver|EIP712Verifier|ISchemaResolver).sol'",
     "lint:fix": "pnpm lint:contracts:fix && pnpm lint:ts:fix",
     "lint": "pnpm lint:fix && pnpm lint:check"
   },
