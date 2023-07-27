@@ -1,6 +1,7 @@
 package solver_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -84,7 +85,7 @@ func TestNextMove(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			solver := solver.NewSolver(maxDepth, builder.CorrectTraceProvider())
-			move, err := solver.NextMove(test.claim, test.agreeWithLevel)
+			move, err := solver.NextMove(context.Background(), test.claim, test.agreeWithLevel)
 			if test.expectedErr == nil {
 				require.NoError(t, err)
 			} else {
@@ -110,6 +111,8 @@ func TestAttemptStep(t *testing.T) {
 
 	errProvider := errors.New("provider error")
 
+	ctx := context.Background()
+
 	tests := []struct {
 		name               string
 		claim              types.Claim
@@ -126,7 +129,7 @@ func TestAttemptStep(t *testing.T) {
 			name:               "AttackFirstTraceIndex",
 			claim:              builder.CreateLeafClaim(0, false),
 			expectAttack:       true,
-			expectPreState:     builder.CorrectTraceProvider().AbsolutePreState(),
+			expectPreState:     builder.CorrectTraceProvider().AbsolutePreState(ctx),
 			expectProofData:    nil,
 			expectedOracleKey:  []byte{byte(0)},
 			expectedOracleData: []byte{byte(0)},
@@ -222,7 +225,7 @@ func TestAttemptStep(t *testing.T) {
 			}
 			builder = test.NewClaimBuilder(t, maxDepth, alphabetProvider)
 			alphabetSolver := solver.NewSolver(maxDepth, builder.CorrectTraceProvider())
-			step, err := alphabetSolver.AttemptStep(tableTest.claim, tableTest.agreeWithLevel)
+			step, err := alphabetSolver.AttemptStep(ctx, tableTest.claim, tableTest.agreeWithLevel)
 			if tableTest.expectedErr == nil {
 				require.NoError(t, err)
 				require.Equal(t, tableTest.claim, step.LeafClaim)

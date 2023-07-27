@@ -1,6 +1,7 @@
 package cannon
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -42,7 +43,7 @@ func NewExecutor(logger log.Logger, cfg *config.Config) *Executor {
 	}
 }
 
-func (e *Executor) GenerateProof(dir string, i uint64) error {
+func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) error {
 	start, err := e.selectSnapshot(e.logger, filepath.Join(e.dataDir, snapsDir), e.absolutePreState, i)
 	if err != nil {
 		return fmt.Errorf("find starting snapshot: %w", err)
