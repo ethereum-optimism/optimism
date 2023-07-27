@@ -12,15 +12,12 @@ import (
 )
 
 func TestSourcemap(t *testing.T) {
+	t.Skip("TODO(clabby): This test is disabled until source IDs have been added to foundry artifacts.")
+
 	contractsDir := "../../packages/contracts-bedrock"
 	sources := []string{path.Join(contractsDir, "src/cannon/MIPS.sol")}
-	sources = append(sources, bindings.Sources...)
 	for i, source := range sources {
-		// Add relative path to contracts directory if the source is not
-		// already relativized.
-		if !strings.HasPrefix(source, "..") {
-			sources[i] = path.Join(contractsDir, source)
-		}
+		sources[i] = path.Join(contractsDir, source)
 	}
 
 	deployedByteCode := hexutil.MustDecode(bindings.MIPSDeployedBin)
