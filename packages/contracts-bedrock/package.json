@@ -24,6 +24,7 @@
     "coverage:lcov": "pnpm build:differential && pnpm build:fuzz && forge coverage --report lcov",
     "gas-snapshot": "pnpm build:differential && pnpm build:fuzz && forge snapshot --no-match-test 'testDiff|testFuzz|invariant|generateArtifact'",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
+    "semver-lock": "forge script scripts/SemverLock.s.sol",
     "validate-deploy-configs": "./scripts/validate-deploy-configs.sh",
     "validate-spacers": "forge build && npx ts-node scripts/validate-spacers.ts",
     "slither": "./scripts/slither.sh",
@@ -39,17 +40,9 @@
     "lint:fix": "pnpm lint:contracts:fix && pnpm lint:ts:fix",
     "lint": "pnpm lint:fix && pnpm lint:check"
   },
-  "dependencies": {
-    "@openzeppelin/contracts": "4.7.3",
-    "@openzeppelin/contracts-upgradeable": "4.7.3",
-    "@rari-capital/solmate": "github:transmissions11/solmate#8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
-    "clones-with-immutable-args": "github:Saw-mon-and-Natalie/clones-with-immutable-args#105efee1b9127ed7f6fedf139e1fc796ce8791f2"
-  },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^5.60.1",
     "@typescript-eslint/parser": "^5.60.1",
-    "ds-test": "github:dapphub/ds-test#c9ce3f25bde29fc5eb9901842bf02850dfd2d084",
-    "forge-std": "github:foundry-rs/forge-std#e8a047e3f40f13fa37af6fe14e6e06283d9a060e",
     "solhint": "^3.4.1",
     "solhint-plugin-prettier": "^0.0.5",
     "ts-node": "^10.9.1",

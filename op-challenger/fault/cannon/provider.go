@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
@@ -17,26 +19,37 @@ const (
 )
 
 type proofData struct {
-	ClaimValue hexutil.Bytes `json:"post"`
-	StateData  hexutil.Bytes `json:"state-data"`
-	ProofData  hexutil.Bytes `json:"proof-data"`
+	ClaimValue  hexutil.Bytes `json:"post"`
+	StateData   hexutil.Bytes `json:"state-data"`
+	ProofData   hexutil.Bytes `json:"proof-data"`
+	OracleKey   hexutil.Bytes `json:"oracle-key,omitempty"`
+	OracleValue hexutil.Bytes `json:"oracle-value,omitempty"`
 }
 
-type Executor interface {
+type ProofGenerator interface {
 	// GenerateProof executes cannon to generate a proof at the specified trace index in dataDir.
 	GenerateProof(dataDir string, proofAt uint64) error
 }
 
 type CannonTraceProvider struct {
-	dir      string
-	executor Executor
+	dir       string
+	generator ProofGenerator
 }
 
-func NewCannonTraceProvider(logger log.Logger, dataDir string) *CannonTraceProvider {
+func NewCannonTraceProvider(logger log.Logger, cfg *config.Config) *CannonTraceProvider {
 	return &CannonTraceProvider{
-		dir:      dataDir,
-		executor: newExecutor(logger),
+		dir:       cfg.CannonDatadir,
+		generator: NewExecutor(logger, cfg),
 	}
+}
+
+func (p *CannonTraceProvider) GetOracleData(i uint64) (*types.PreimageOracleData, error) {
+	proof, err := p.loadProof(i)
+	if err != nil {
+		return nil, err
+	}
+	data := types.NewPreimageOracleData(proof.OracleKey, proof.OracleValue)
+	return &data, nil
 }
 
 func (p *CannonTraceProvider) Get(i uint64) (common.Hash, error) {
@@ -76,7 +89,7 @@ func (p *CannonTraceProvider) loadProof(i uint64) (*proofData, error) {
 	path := filepath.Join(p.dir, proofsDir, fmt.Sprintf("%d.json", i))
 	file, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
-		if err := p.executor.GenerateProof(p.dir, i); err != nil {
+		if err := p.generator.GenerateProof(p.dir, i); err != nil {
 			return nil, fmt.Errorf("generate cannon trace with proof at %v: %w", i, err)
 		}
 		// Try opening the file again now and it should exist.

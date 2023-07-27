@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -26,6 +27,11 @@ func NewAlphabetProvider(state string, depth uint64) *AlphabetProvider {
 		state:  strings.Split(state, ""),
 		maxLen: uint64(1 << depth),
 	}
+}
+
+// GetOracleData should not return any preimage oracle data for the alphabet provider.
+func (p *AlphabetProvider) GetOracleData(i uint64) (*types.PreimageOracleData, error) {
+	return &types.PreimageOracleData{}, nil
 }
 
 // GetPreimage returns the preimage for the given hash.
