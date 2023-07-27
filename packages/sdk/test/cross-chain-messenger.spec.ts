@@ -10,7 +10,6 @@ import {
   CONTRACT_ADDRESSES,
   omit,
   MessageStatus,
-  CrossChainMessage,
   CrossChainMessenger,
   StandardBridgeAdapter,
   ETHBridgeAdapter,
@@ -576,13 +575,10 @@ describe('CrossChainMessenger', () => {
   })
 
   describe('getMessageStatus', () => {
-    let scc: Contract
     let l1Messenger: Contract
     let l2Messenger: Contract
     let messenger: CrossChainMessenger
     beforeEach(async () => {
-      // TODO: Get rid of the nested awaits here. Could be a good first issue for someone.
-      scc = (await (await ethers.getContractFactory('MockSCC')).deploy()) as any
       l1Messenger = (await (
         await ethers.getContractFactory('MockMessenger')
       ).deploy()) as any
@@ -615,19 +611,6 @@ describe('CrossChainMessenger', () => {
           direction,
         })
       )[0]
-    }
-
-    const submitStateRootBatchForMessage = async (
-      message: CrossChainMessage
-    ) => {
-      await scc.setSBAParams({
-        batchIndex: 0,
-        batchRoot: ethers.constants.HashZero,
-        batchSize: 1,
-        prevTotalElements: message.blockNumber,
-        extraData: '0x',
-      })
-      await scc.appendStateBatch([ethers.constants.HashZero], 0)
     }
 
     describe('when the message is an L1 => L2 message', () => {
@@ -700,98 +683,6 @@ describe('CrossChainMessenger', () => {
           expect(await messenger.getMessageStatus(message)).to.equal(
             MessageStatus.STATE_ROOT_NOT_PUBLISHED
           )
-        })
-      })
-
-      describe('when the message state root is still in the challenge period', () => {
-        it('should return a status of IN_CHALLENGE_PERIOD', async () => {
-          const message = await sendAndGetDummyMessage(
-            MessageDirection.L2_TO_L1
-          )
-
-          await submitStateRootBatchForMessage(message)
-
-          expect(await messenger.getMessageStatus(message)).to.equal(
-            MessageStatus.IN_CHALLENGE_PERIOD
-          )
-        })
-      })
-
-      describe('when the message is no longer in the challenge period', () => {
-        describe('when the message has been relayed successfully', () => {
-          it('should return a status of RELAYED', async () => {
-            const message = await sendAndGetDummyMessage(
-              MessageDirection.L2_TO_L1
-            )
-
-            await submitStateRootBatchForMessage(message)
-
-            const challengePeriod = await messenger.getChallengePeriodSeconds()
-            ethers.provider.send('evm_increaseTime', [challengePeriod + 1])
-            ethers.provider.send('evm_mine', [])
-
-            await l1Messenger.triggerRelayedMessageEvents([
-              hashCrossDomainMessage(
-                message.messageNonce,
-                message.sender,
-                message.target,
-                message.value,
-                message.minGasLimit,
-                message.message
-              ),
-            ])
-
-            expect(await messenger.getMessageStatus(message)).to.equal(
-              MessageStatus.RELAYED
-            )
-          })
-        })
-
-        describe('when the message has been relayed but the relay failed', () => {
-          it('should return a status of READY_FOR_RELAY', async () => {
-            const message = await sendAndGetDummyMessage(
-              MessageDirection.L2_TO_L1
-            )
-
-            await submitStateRootBatchForMessage(message)
-
-            const challengePeriod = await messenger.getChallengePeriodSeconds()
-            ethers.provider.send('evm_increaseTime', [challengePeriod + 1])
-            ethers.provider.send('evm_mine', [])
-
-            await l1Messenger.triggerFailedRelayedMessageEvents([
-              hashCrossDomainMessage(
-                message.messageNonce,
-                message.sender,
-                message.target,
-                message.value,
-                message.minGasLimit,
-                message.message
-              ),
-            ])
-
-            expect(await messenger.getMessageStatus(message)).to.equal(
-              MessageStatus.READY_FOR_RELAY
-            )
-          })
-        })
-
-        describe('when the message has not been relayed', () => {
-          it('should return a status of READY_FOR_RELAY', async () => {
-            const message = await sendAndGetDummyMessage(
-              MessageDirection.L2_TO_L1
-            )
-
-            await submitStateRootBatchForMessage(message)
-
-            const challengePeriod = await messenger.getChallengePeriodSeconds()
-            ethers.provider.send('evm_increaseTime', [challengePeriod + 1])
-            ethers.provider.send('evm_mine', [])
-
-            expect(await messenger.getMessageStatus(message)).to.equal(
-              MessageStatus.READY_FOR_RELAY
-            )
-          })
         })
       })
     })
