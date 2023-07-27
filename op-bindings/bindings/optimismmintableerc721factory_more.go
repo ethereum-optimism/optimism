@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 )
 
-const OptimismMintableERC721FactoryStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"contracts/universal/OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory\",\"label\":\"isOptimismMintableERC721\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_mapping(t_address,t_bool)\"}],\"types\":{\"t_address\":{\"encoding\":\"inplace\",\"label\":\"address\",\"numberOfBytes\":\"20\"},\"t_bool\":{\"encoding\":\"inplace\",\"label\":\"bool\",\"numberOfBytes\":\"1\"},\"t_mapping(t_address,t_bool)\":{\"encoding\":\"mapping\",\"label\":\"mapping(address =\u003e bool)\",\"numberOfBytes\":\"32\",\"key\":\"t_address\",\"value\":\"t_bool\"}}}"
+const OptimismMintableERC721FactoryStorageLayoutJSON = "{\"storage\":[{\"astId\":1000,\"contract\":\"src/universal/OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory\",\"label\":\"isOptimismMintableERC721\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_mapping(t_address,t_bool)\"}],\"types\":{\"t_address\":{\"encoding\":\"inplace\",\"label\":\"address\",\"numberOfBytes\":\"20\"},\"t_bool\":{\"encoding\":\"inplace\",\"label\":\"bool\",\"numberOfBytes\":\"1\"},\"t_mapping(t_address,t_bool)\":{\"encoding\":\"mapping\",\"label\":\"mapping(address =\u003e bool)\",\"numberOfBytes\":\"32\",\"key\":\"t_address\",\"value\":\"t_bool\"}}}"
 
 var OptimismMintableERC721FactoryStorageLayout = new(solc.StorageLayout)
 

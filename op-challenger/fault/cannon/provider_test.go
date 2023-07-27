@@ -1,6 +1,7 @@
 package cannon
 
 import (
+	"context"
 	"embed"
 	_ "embed"
 	"os"
@@ -18,7 +19,7 @@ func TestGet(t *testing.T) {
 	dataDir := setupTestData(t)
 	t.Run("ExistingProof", func(t *testing.T) {
 		provider, generator := setupWithTestData(dataDir)
-		value, err := provider.Get(0)
+		value, err := provider.Get(context.Background(), 0)
 		require.NoError(t, err)
 		require.Equal(t, common.HexToHash("0x45fd9aa59768331c726e719e76aa343e73123af888804604785ae19506e65e87"), value)
 		require.Empty(t, generator.generated)
@@ -26,21 +27,21 @@ func TestGet(t *testing.T) {
 
 	t.Run("ProofUnavailable", func(t *testing.T) {
 		provider, generator := setupWithTestData(dataDir)
-		_, err := provider.Get(7)
+		_, err := provider.Get(context.Background(), 7)
 		require.ErrorIs(t, err, os.ErrNotExist)
 		require.Contains(t, generator.generated, 7, "should have tried to generate the proof")
 	})
 
 	t.Run("MissingPostHash", func(t *testing.T) {
 		provider, generator := setupWithTestData(dataDir)
-		_, err := provider.Get(1)
+		_, err := provider.Get(context.Background(), 1)
 		require.ErrorContains(t, err, "missing post hash")
 		require.Empty(t, generator.generated)
 	})
 
 	t.Run("IgnoreUnknownFields", func(t *testing.T) {
 		provider, generator := setupWithTestData(dataDir)
-		value, err := provider.Get(2)
+		value, err := provider.Get(context.Background(), 2)
 		require.NoError(t, err)
 		expected := common.HexToHash("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 		require.Equal(t, expected, value)
@@ -52,7 +53,7 @@ func TestGetOracleData(t *testing.T) {
 	dataDir := setupTestData(t)
 	t.Run("ExistingProof", func(t *testing.T) {
 		provider, generator := setupWithTestData(dataDir)
-		oracleData, err := provider.GetOracleData(420)
+		oracleData, err := provider.GetOracleData(context.Background(), 420)
 		require.NoError(t, err)
 		require.False(t, oracleData.IsLocal)
 		expectedKey := common.Hex2Bytes("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
@@ -64,14 +65,14 @@ func TestGetOracleData(t *testing.T) {
 
 	t.Run("ProofUnavailable", func(t *testing.T) {
 		provider, generator := setupWithTestData(dataDir)
-		_, err := provider.GetOracleData(7)
+		_, err := provider.GetOracleData(context.Background(), 7)
 		require.ErrorIs(t, err, os.ErrNotExist)
 		require.Contains(t, generator.generated, 7, "should have tried to generate the proof")
 	})
 
 	t.Run("IgnoreUnknownFields", func(t *testing.T) {
 		provider, generator := setupWithTestData(dataDir)
-		oracleData, err := provider.GetOracleData(421)
+		oracleData, err := provider.GetOracleData(context.Background(), 421)
 		require.NoError(t, err)
 		require.False(t, oracleData.IsLocal)
 		expectedKey := common.Hex2Bytes("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
@@ -86,7 +87,7 @@ func TestGetPreimage(t *testing.T) {
 	dataDir := setupTestData(t)
 	t.Run("ExistingProof", func(t *testing.T) {
 		provider, generator := setupWithTestData(dataDir)
-		value, proof, err := provider.GetPreimage(0)
+		value, proof, err := provider.GetPreimage(context.Background(), 0)
 		require.NoError(t, err)
 		expected := common.Hex2Bytes("b8f068de604c85ea0e2acd437cdb47add074a2d70b81d018390c504b71fe26f400000000000000000000000000000000000000000000000000000000000000000000000000")
 		require.Equal(t, expected, value)
@@ -97,21 +98,21 @@ func TestGetPreimage(t *testing.T) {
 
 	t.Run("ProofUnavailable", func(t *testing.T) {
 		provider, generator := setupWithTestData(dataDir)
-		_, _, err := provider.GetPreimage(7)
+		_, _, err := provider.GetPreimage(context.Background(), 7)
 		require.ErrorIs(t, err, os.ErrNotExist)
 		require.Contains(t, generator.generated, 7, "should have tried to generate the proof")
 	})
 
 	t.Run("MissingStateData", func(t *testing.T) {
 		provider, generator := setupWithTestData(dataDir)
-		_, _, err := provider.GetPreimage(1)
+		_, _, err := provider.GetPreimage(context.Background(), 1)
 		require.ErrorContains(t, err, "missing state data")
 		require.Empty(t, generator.generated)
 	})
 
 	t.Run("IgnoreUnknownFields", func(t *testing.T) {
 		provider, generator := setupWithTestData(dataDir)
-		value, proof, err := provider.GetPreimage(2)
+		value, proof, err := provider.GetPreimage(context.Background(), 2)
 		require.NoError(t, err)
 		expected := common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
 		require.Equal(t, expected, value)
@@ -149,7 +150,7 @@ type stubGenerator struct {
 	generated []int // Using int makes assertions easier
 }
 
-func (e *stubGenerator) GenerateProof(dir string, i uint64) error {
+func (e *stubGenerator) GenerateProof(ctx context.Context, dir string, i uint64) error {
 	e.generated = append(e.generated, int(i))
 	return nil
 }

@@ -11,7 +11,7 @@ import (
 )
 
 func TestSourcemap(t *testing.T) {
-	sourcePath := "../../packages/contracts-bedrock/contracts/cannon/MIPS.sol"
+	sourcePath := "../../packages/contracts-bedrock/src/cannon/MIPS.sol"
 	deployedByteCode := hexutil.MustDecode(bindings.MIPSDeployedBin)
 	srcMap, err := ParseSourceMap(
 		[]string{sourcePath},

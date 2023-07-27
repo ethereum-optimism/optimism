@@ -8,10 +8,10 @@ import { LibSort } from "../libraries/LibSort.sol";
 import { IGnosisSafe, Enum } from "../interfaces/IGnosisSafe.sol";
 import { SafeBuilder } from "../universal/SafeBuilder.sol";
 
-import { Types } from "../../contracts/libraries/Types.sol";
-import { FeeVault } from "../../contracts/universal/FeeVault.sol";
-import { L2OutputOracle } from "../../contracts/L1/L2OutputOracle.sol";
-import { Predeploys } from "../../contracts/libraries/Predeploys.sol";
+import { Types } from "../../src/libraries/Types.sol";
+import { FeeVault } from "../../src/universal/FeeVault.sol";
+import { L2OutputOracle } from "../../src/L1/L2OutputOracle.sol";
+import { Predeploys } from "../../src/libraries/Predeploys.sol";
 
 /// @title DeleteOutput
 /// @notice Deletes an output root from the L2OutputOracle.

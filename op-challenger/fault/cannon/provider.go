@@ -1,6 +1,7 @@
 package cannon
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,7 +29,7 @@ type proofData struct {
 
 type ProofGenerator interface {
 	// GenerateProof executes cannon to generate a proof at the specified trace index in dataDir.
-	GenerateProof(dataDir string, proofAt uint64) error
+	GenerateProof(ctx context.Context, dataDir string, proofAt uint64) error
 }
 
 type CannonTraceProvider struct {
@@ -43,8 +44,8 @@ func NewCannonTraceProvider(logger log.Logger, cfg *config.Config) *CannonTraceP
 	}
 }
 
-func (p *CannonTraceProvider) GetOracleData(i uint64) (*types.PreimageOracleData, error) {
-	proof, err := p.loadProof(i)
+func (p *CannonTraceProvider) GetOracleData(ctx context.Context, i uint64) (*types.PreimageOracleData, error) {
+	proof, err := p.loadProof(ctx, i)
 	if err != nil {
 		return nil, err
 	}
@@ -52,8 +53,8 @@ func (p *CannonTraceProvider) GetOracleData(i uint64) (*types.PreimageOracleData
 	return &data, nil
 }
 
-func (p *CannonTraceProvider) Get(i uint64) (common.Hash, error) {
-	proof, err := p.loadProof(i)
+func (p *CannonTraceProvider) Get(ctx context.Context, i uint64) (common.Hash, error) {
+	proof, err := p.loadProof(ctx, i)
 	if err != nil {
 		return common.Hash{}, err
 	}
@@ -65,8 +66,8 @@ func (p *CannonTraceProvider) Get(i uint64) (common.Hash, error) {
 	return value, nil
 }
 
-func (p *CannonTraceProvider) GetPreimage(i uint64) ([]byte, []byte, error) {
-	proof, err := p.loadProof(i)
+func (p *CannonTraceProvider) GetPreimage(ctx context.Context, i uint64) ([]byte, []byte, error) {
+	proof, err := p.loadProof(ctx, i)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -81,15 +82,15 @@ func (p *CannonTraceProvider) GetPreimage(i uint64) ([]byte, []byte, error) {
 	return value, data, nil
 }
 
-func (p *CannonTraceProvider) AbsolutePreState() []byte {
+func (p *CannonTraceProvider) AbsolutePreState(ctx context.Context) []byte {
 	panic("absolute prestate not yet supported")
 }
 
-func (p *CannonTraceProvider) loadProof(i uint64) (*proofData, error) {
+func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofData, error) {
 	path := filepath.Join(p.dir, proofsDir, fmt.Sprintf("%d.json", i))
 	file, err := os.Open(path)
 	if errors.Is(err, os.ErrNotExist) {
-		if err := p.generator.GenerateProof(p.dir, i); err != nil {
+		if err := p.generator.GenerateProof(ctx, p.dir, i); err != nil {
 			return nil, fmt.Errorf("generate cannon trace with proof at %v: %w", i, err)
 		}
 		// Try opening the file again now and it should exist.
