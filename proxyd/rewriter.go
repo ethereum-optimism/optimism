@@ -9,7 +9,9 @@ import (
 )
 
 type RewriteContext struct {
-	latest hexutil.Uint64
+	latest    hexutil.Uint64
+	safe      hexutil.Uint64
+	finalized hexutil.Uint64
 }
 
 type RewriteResult uint8
@@ -61,32 +63,38 @@ func RewriteRequest(rctx RewriteContext, req *RPCReq, res *RPCRes) (RewriteResul
 	case "eth_getLogs",
 		"eth_newFilter":
 		return rewriteRange(rctx, req, res, 0)
+	case "debug_getRawReceipts", "consensus_getReceipts":
+		return rewriteParam(rctx, req, res, 0, true)
 	case "eth_getBalance",
 		"eth_getCode",
 		"eth_getTransactionCount",
 		"eth_call":
-		return rewriteParam(rctx, req, res, 1)
+		return rewriteParam(rctx, req, res, 1, false)
 	case "eth_getStorageAt":
-		return rewriteParam(rctx, req, res, 2)
+		return rewriteParam(rctx, req, res, 2, false)
 	case "eth_getBlockTransactionCountByNumber",
 		"eth_getUncleCountByBlockNumber",
 		"eth_getBlockByNumber",
 		"eth_getTransactionByBlockNumberAndIndex",
 		"eth_getUncleByBlockNumberAndIndex":
-		return rewriteParam(rctx, req, res, 0)
+		return rewriteParam(rctx, req, res, 0, false)
 	}
 	return RewriteNone, nil
 }
 
-func rewriteParam(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int) (RewriteResult, error) {
+func rewriteParam(rctx RewriteContext, req *RPCReq, res *RPCRes, pos int, required bool) (RewriteResult, error) {
 	var p []interface{}
 	err := json.Unmarshal(req.Params, &p)
 	if err != nil {
 		return RewriteOverrideError, err
 	}
 
-	if len(p) <= pos {
+	// we assume latest if the param is missing,
+	// and we don't rewrite if there is not enough params
+	if len(p) == pos && !required {
 		p = append(p, "latest")
+	} else if len(p) <= pos {
+		return RewriteNone, nil
 	}
 
 	val, rw, err := rewriteTag(rctx, p[pos].(string))
@@ -170,12 +178,26 @@ func rewriteTag(rctx RewriteContext, current string) (string, bool, error) {
 		return "", false, err
 	}
 
-	if bnh.BlockNumber != nil && *bnh.BlockNumber == rpc.LatestBlockNumber {
+	// this is a hash, not a block
+	if bnh.BlockNumber == nil {
+		return current, false, nil
+	}
+
+	switch *bnh.BlockNumber {
+	case rpc.PendingBlockNumber,
+		rpc.EarliestBlockNumber:
+		return current, false, nil
+	case rpc.FinalizedBlockNumber:
+		return rctx.finalized.String(), true, nil
+	case rpc.SafeBlockNumber:
+		return rctx.safe.String(), true, nil
+	case rpc.LatestBlockNumber:
 		return rctx.latest.String(), true, nil
-	} else if bnh.BlockNumber != nil {
-		if hexutil.Uint64(bnh.BlockNumber.Int64()) > rctx.latest {
+	default:
+		if bnh.BlockNumber.Int64() > int64(rctx.latest) {
 			return "", false, ErrRewriteBlockOutOfRange
 		}
 	}
+
 	return current, false, nil
 }

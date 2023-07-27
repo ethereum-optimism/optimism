@@ -100,9 +100,21 @@ type peerRequest struct {
 	complete *atomic.Bool
 }
 
+type inFlightCheck struct {
+	num uint64
+
+	result chan bool
+}
+
 type SyncClientMetrics interface {
 	ClientPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration)
 	PayloadsQuarantineSize(n int)
+}
+
+type SyncPeerScorer interface {
+	onValidResponse(id peer.ID)
+	onResponseError(id peer.ID)
+	onRejectedPayload(id peer.ID)
 }
 
 // SyncClient implements a reverse chain sync with a minimal interface:
@@ -174,7 +186,8 @@ type SyncClient struct {
 
 	cfg *rollup.Config
 
-	metrics SyncClientMetrics
+	metrics   SyncClientMetrics
+	appScorer SyncPeerScorer
 
 	newStreamFn     newStreamFn
 	payloadByNumber protocol.ID
@@ -198,8 +211,9 @@ type SyncClient struct {
 	// inFlight requests are not repeated
 	inFlight map[uint64]*atomic.Bool
 
-	requests     chan rangeRequest
-	peerRequests chan peerRequest
+	requests       chan rangeRequest
+	peerRequests   chan peerRequest
+	inFlightChecks chan inFlightCheck
 
 	results chan syncResult
 
@@ -220,13 +234,14 @@ type SyncClient struct {
 	closingPeers bool
 }
 
-func NewSyncClient(log log.Logger, cfg *rollup.Config, newStream newStreamFn, rcv receivePayloadFn, metrics SyncClientMetrics) *SyncClient {
+func NewSyncClient(log log.Logger, cfg *rollup.Config, newStream newStreamFn, rcv receivePayloadFn, metrics SyncClientMetrics, appScorer SyncPeerScorer) *SyncClient {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	c := &SyncClient{
 		log:             log,
 		cfg:             cfg,
 		metrics:         metrics,
+		appScorer:       appScorer,
 		newStreamFn:     newStream,
 		payloadByNumber: PayloadByNumberProtocolID(cfg.L2ChainID),
 		peers:           make(map[peer.ID]context.CancelFunc),
@@ -235,6 +250,7 @@ func NewSyncClient(log log.Logger, cfg *rollup.Config, newStream newStreamFn, rc
 		requests:        make(chan rangeRequest), // blocking
 		peerRequests:    make(chan peerRequest, 128),
 		results:         make(chan syncResult, 128),
+		inFlightChecks:  make(chan inFlightCheck, 128),
 		globalRL:        rate.NewLimiter(globalServerBlocksRateLimit, globalServerBlocksBurst),
 		resCtx:          ctx,
 		resCancel:       cancel,
@@ -260,11 +276,11 @@ func (s *SyncClient) Start() {
 func (s *SyncClient) AddPeer(id peer.ID) {
 	s.peersLock.Lock()
 	defer s.peersLock.Unlock()
-	if _, ok := s.peers[id]; ok {
-		s.log.Warn("cannot register peer for sync duties, peer was already registered", "peer", id)
+	if s.closingPeers {
 		return
 	}
-	if s.closingPeers {
+	if _, ok := s.peers[id]; ok {
+		s.log.Warn("cannot register peer for sync duties, peer was already registered", "peer", id)
 		return
 	}
 	s.wg.Add(1)
@@ -328,10 +344,33 @@ func (s *SyncClient) mainLoop() {
 			ctx, cancel := context.WithTimeout(s.resCtx, maxResultProcessing)
 			s.onResult(ctx, res)
 			cancel()
+		case check := <-s.inFlightChecks:
+			s.log.Info("Checking in flight", "num", check.num)
+			complete, ok := s.inFlight[check.num]
+			if !ok {
+				check.result <- false
+			} else {
+				check.result <- !complete.Load()
+			}
 		case <-s.resCtx.Done():
 			s.log.Info("stopped P2P req-resp L2 block sync client")
 			return
 		}
+	}
+}
+
+func (s *SyncClient) isInFlight(ctx context.Context, num uint64) (bool, error) {
+	check := inFlightCheck{num: num, result: make(chan bool, 1)}
+	select {
+	case s.inFlightChecks <- check:
+	case <-ctx.Done():
+		return false, errors.New("context cancelled when publishing in flight check")
+	}
+	select {
+	case res := <-check.result:
+		return res, nil
+	case <-ctx.Done():
+		return false, errors.New("context cancelled while waiting for in flight check response")
 	}
 }
 
@@ -368,6 +407,7 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 		}
 
 		if _, ok := s.inFlight[num]; ok {
+			log.Debug("request still in-flight, not rescheduling sync request", "num", num)
 			continue // request still in flight
 		}
 		pr := peerRequest{num: num, complete: new(atomic.Bool)}
@@ -392,7 +432,8 @@ func (s *SyncClient) onQuarantineEvict(key common.Hash, value syncResult) {
 	s.metrics.PayloadsQuarantineSize(s.quarantine.Len())
 	if !s.trusted.Contains(key) {
 		s.log.Debug("evicting untrusted payload from quarantine", "id", value.payload.ID(), "peer", value.peer)
-		// TODO(CLI-3732): downscore peer for having provided us a bad block that never turned out to be canonical
+		// Down-score peer for having provided us a bad block that never turned out to be canonical
+		s.appScorer.onRejectedPayload(value.peer)
 	} else {
 		s.log.Debug("evicting trusted payload from quarantine", "id", value.payload.ID(), "peer", value.peer)
 	}
@@ -460,9 +501,9 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 	defer func() {
 		s.peersLock.Lock()
 		delete(s.peers, id) // clean up
+		s.log.Debug("stopped syncing loop of peer", "id", id)
 		s.wg.Done()
 		s.peersLock.Unlock()
-		s.log.Debug("stopped syncing loop of peer", "id", id)
 	}()
 
 	log := s.log.New("peer", id)
@@ -493,6 +534,7 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 				// mark as complete if there's an error: we are not sending any result and can complete immediately.
 				pr.complete.Store(true)
 				log.Warn("failed p2p sync request", "num", pr.num, "err", err)
+				s.appScorer.onResponseError(id)
 				// If we hit an error, then count it as many requests.
 				// We'd like to avoid making more requests for a while, to back off.
 				if err := rl.WaitN(ctx, clientErrRateCost); err != nil {
@@ -500,11 +542,9 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 				}
 			} else {
 				log.Debug("completed p2p sync request", "num", pr.num)
+				s.appScorer.onValidResponse(id)
 			}
 			took := time.Since(start)
-			// TODO(CLI-3732): update scores: depending on the speed of the result,
-			//  increase the p2p-sync part of the peer score
-			//  (don't allow the score to grow indefinitely only based on this factor though)
 
 			resultCode := byte(0)
 			if err != nil {

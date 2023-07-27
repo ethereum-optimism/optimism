@@ -120,10 +120,10 @@ github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6r
 github.com/bits-and-blooms/bitset v1.2.0/go.mod h1:gIdJ4wp64HaoK2YrL1Q5/N7Y16edYb8uY+O0FJTyyDA=
 github.com/bits-and-blooms/bitset v1.5.0 h1:NpE8frKRLGHIcEzkR+gZhiioW1+WbYV6fKwD6ZIpQT8=
 github.com/bits-and-blooms/bitset v1.5.0/go.mod h1:gIdJ4wp64HaoK2YrL1Q5/N7Y16edYb8uY+O0FJTyyDA=
-github.com/bobanetwork/v3-erigon v1.9.7-0.20230614130900-7f03fdcac55a h1:7PX4qEOp41MflcfZSvQCgBKYHZiGTY5wjHUs4egf/jU=
-github.com/bobanetwork/v3-erigon v1.9.7-0.20230614130900-7f03fdcac55a/go.mod h1:xPeZlJ+QPwhpnxL3yuwKxHN1YBuHjnoIhYa4UZ6JO8I=
-github.com/bobanetwork/v3-erigon-lib v0.0.0-20230531233321-6227883c25ae h1:w0ZXmiSB0GbXr0dEMwZznzHYnA2Q/9VKMjXbNHNQFmI=
-github.com/bobanetwork/v3-erigon-lib v0.0.0-20230531233321-6227883c25ae/go.mod h1:puFFYfRs9pGEQZTSKPOoKIwKZGHvdgq9poKcljD1Tks=
+github.com/bobanetwork/v3-erigon v1.9.7-0.20230628134239-242485b05d1e h1:88bJ3zxBS+DLG0mfwSaACiwBU7rjWlF0S61fVjkCfyg=
+github.com/bobanetwork/v3-erigon v1.9.7-0.20230628134239-242485b05d1e/go.mod h1:zV+Q93YYcyuixVuhqL23NBCrqCR6Y4/NnWwitYQR+Wk=
+github.com/bobanetwork/v3-erigon-lib v0.0.0-20230614223018-e4233355d8a5 h1:RtH8Lr5jGvF+tRJt0GPRpdbYjgBYG44yuKcDOvAbW8E=
+github.com/bobanetwork/v3-erigon-lib v0.0.0-20230614223018-e4233355d8a5/go.mod h1:puFFYfRs9pGEQZTSKPOoKIwKZGHvdgq9poKcljD1Tks=
 github.com/bradfitz/go-smtpd v0.0.0-20170404230938-deb6d6237625/go.mod h1:HYsPBTaaSFSlLx/70C2HPIMNZpVV8+vt/A+FMnYP11g=
 github.com/bradfitz/iter v0.0.0-20140124041915-454541ec3da2/go.mod h1:PyRFw1Lt2wKX4ZVSQ2mk+PeDa1rxyObEDlApuIsUKuo=
 github.com/bradfitz/iter v0.0.0-20190303215204-33e6a9893b0c/go.mod h1:PyRFw1Lt2wKX4ZVSQ2mk+PeDa1rxyObEDlApuIsUKuo=

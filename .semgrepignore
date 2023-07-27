@@ -18,6 +18,7 @@ tests/
 # Semgrep-action log folder
 .semgrep_logs/
 
-l2geth/
+op-bindings/bindings
+
 packages/*/node_modules
 packages/*/test

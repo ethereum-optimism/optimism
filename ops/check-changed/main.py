@@ -3,6 +3,7 @@ import os
 import re
 import subprocess
 import sys
+import json
 
 from github import Github
 
@@ -10,11 +11,14 @@ REBUILD_ALL_PATTERNS = [
     r'^\.circleci/\.*',
     r'^\.github/\.*',
     r'^package\.json',
-    r'^yarn\.lock',
     r'ops/check-changed/.*',
     r'^go\.mod',
     r'^go\.sum',
+    r'ops/check-changed/.*'
 ]
+with open("../../nx.json") as file:
+    nx_json_data = json.load(file)
+REBUILD_ALL_PATTERNS += nx_json_data["implicitDependencies"].keys()
 
 WHITELISTED_BRANCHES = {
     'master',

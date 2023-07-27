@@ -1,18 +1,16 @@
 # `Hashing` Invariants
 
 ## `hashCrossDomainMessage` reverts if `version` is > `1`.
-**Test:** [`FuzzHashing.sol#L120`](../contracts/echidna/FuzzHashing.sol#L120)
+**Test:** [`Hashing.t.sol#L137`](../contracts/test/invariants/Hashing.t.sol#L137)
 
 The `hashCrossDomainMessage` function should always revert if the `version` passed is > `1`. 
 
-
 ## `version` = `0`: `hashCrossDomainMessage` and `hashCrossDomainMessageV0` are equivalent.
-**Test:** [`FuzzHashing.sol#L132`](../contracts/echidna/FuzzHashing.sol#L132)
+**Test:** [`Hashing.t.sol#L147`](../contracts/test/invariants/Hashing.t.sol#L147)
 
 If the version passed is 0, `hashCrossDomainMessage` and `hashCrossDomainMessageV0` should be equivalent. 
 
-
 ## `version` = `1`: `hashCrossDomainMessage` and `hashCrossDomainMessageV1` are equivalent.
-**Test:** [`FuzzHashing.sol#L145`](../contracts/echidna/FuzzHashing.sol#L145)
+**Test:** [`Hashing.t.sol#L158`](../contracts/test/invariants/Hashing.t.sol#L158)
 
 If the version passed is 1, `hashCrossDomainMessage` and `hashCrossDomainMessageV1` should be equivalent. 

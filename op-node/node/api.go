@@ -28,6 +28,7 @@ type driverClient interface {
 	ResetDerivationPipeline(context.Context) error
 	StartSequencer(ctx context.Context, blockHash common.Hash) error
 	StopSequencer(context.Context) (common.Hash, error)
+	SequencerActive(context.Context) (bool, error)
 }
 
 type rpcMetrics interface {
@@ -63,6 +64,12 @@ func (n *adminAPI) StopSequencer(ctx context.Context) (common.Hash, error) {
 	recordDur := n.m.RecordRPCServerRequest("admin_stopSequencer")
 	defer recordDur()
 	return n.dr.StopSequencer(ctx)
+}
+
+func (n *adminAPI) SequencerActive(ctx context.Context) (bool, error) {
+	recordDur := n.m.RecordRPCServerRequest("admin_sequencerActive")
+	defer recordDur()
+	return n.dr.SequencerActive(ctx)
 }
 
 type nodeAPI struct {

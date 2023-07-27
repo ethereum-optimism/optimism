@@ -61,6 +61,11 @@ func (d *Driver) Step(ctx context.Context) error {
 		}
 		d.logger.Debug("Data is lacking")
 		return nil
+	} else if errors.Is(err, derive.ErrTemporary) {
+		// While most temporary errors are due to requests for external data failing which can't happen,
+		// they may also be returned due to other events like channels timing out so need to be handled
+		d.logger.Warn("Temporary error in derivation", "err", err)
+		return nil
 	} else if err != nil {
 		return fmt.Errorf("pipeline err: %w", err)
 	}

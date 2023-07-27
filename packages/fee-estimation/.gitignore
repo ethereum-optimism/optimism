@@ -1,0 +1,8 @@
+artifacts
+cache
+typechain
+.deps
+.envrc
+.env 
+/dist/
+coverage

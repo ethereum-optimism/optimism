@@ -8,20 +8,14 @@ import { IMulticall3 } from "forge-std/interfaces/IMulticall3.sol";
 import { Predeploys } from "../../contracts/libraries/Predeploys.sol";
 import { ProxyAdmin } from "../../contracts/universal/ProxyAdmin.sol";
 
-/**
- * @title PostSherlockL2
- * @notice Upgrades the L2 contracts.
- */
+/// @title PostSherlockL2
+/// @notice Upgrades the L2 contracts.
 contract PostSherlockL2 is SafeBuilder {
-    /**
-     * @notice The proxy admin predeploy on L2.
-     */
+    /// @notice The proxy admin predeploy on L2.
     ProxyAdmin constant PROXY_ADMIN = ProxyAdmin(0x4200000000000000000000000000000000000018);
 
-    /**
-     * @notice Represents a set of L2 predepploy contracts. Used to represent a set of
-     *         implementations and also a set of proxies.
-     */
+    /// @notice Represents a set of L2 predepploy contracts. Used to represent a set of
+    ///         implementations and also a set of proxies.
     struct ContractSet {
         address BaseFeeVault;
         address GasPriceOracle;
@@ -36,19 +30,13 @@ contract PostSherlockL2 is SafeBuilder {
         address OptimismMintableERC721Factory;
     }
 
-    /**
-     * @notice A mapping of chainid to a ContractSet of implementations.
-     */
+    /// @notice A mapping of chainid to a ContractSet of implementations.
     mapping(uint256 => ContractSet) internal implementations;
 
-    /**
-     * @notice A mapping of chainid to ContractSet of proxy addresses.
-     */
+    /// @notice A mapping of chainid to ContractSet of proxy addresses.
     mapping(uint256 => ContractSet) internal proxies;
 
-    /**
-     * @notice The expected versions for the contracts to be upgraded to.
-     */
+    /// @notice The expected versions for the contracts to be upgraded to.
     string constant internal BaseFeeVault_Version = "1.1.0";
     string constant internal GasPriceOracle_Version = "1.0.0";
     string constant internal L1Block_Version = "1.0.0";
@@ -61,9 +49,7 @@ contract PostSherlockL2 is SafeBuilder {
     string constant internal OptimismMintableERC20Factory_Version = "1.1.0";
     string constant internal OptimismMintableERC721Factory_Version = "1.2.0";
 
-    /**
-     * @notice Place the contract addresses in storage so they can be used when building calldata.
-     */
+    /// @notice Place the contract addresses in storage so they can be used when building calldata.
     function setUp() external {
         implementations[OP_GOERLI] = ContractSet({
             BaseFeeVault: 0x984eBeFb32A5c2862e92ce90EA0C81Ab69F026B5,
@@ -94,9 +80,7 @@ contract PostSherlockL2 is SafeBuilder {
         });
     }
 
-    /**
-     * @notice Follow up assertions to ensure that the script ran to completion.
-     */
+    /// @notice Follow up assertions to ensure that the script ran to completion.
     function _postCheck() internal override view {
         ContractSet memory prox = getProxies();
         require(_versionHash(prox.BaseFeeVault) == keccak256(bytes(BaseFeeVault_Version)), "BaseFeeVault");
@@ -126,10 +110,8 @@ contract PostSherlockL2 is SafeBuilder {
         require(PROXY_ADMIN.getProxyImplementation(prox.OptimismMintableERC721Factory).codehash == impl.OptimismMintableERC721Factory.codehash);
     }
 
-    /**
-     * @notice Test coverage of the logic. Should only run on goerli but other chains
-     *         could be added.
-     */
+    /// @notice Test coverage of the logic. Should only run on goerli but other chains
+    ///         could be added.
     function test_script_succeeds() skipWhenNotForking external {
         address _safe;
         address _proxyAdmin;
@@ -158,11 +140,9 @@ contract PostSherlockL2 is SafeBuilder {
         _postCheck();
     }
 
-    /**
-     * @notice Builds the calldata that the multisig needs to make for the upgrade to happen.
-     *         A total of 9 calls are made to the proxy admin to upgrade the implementations
-     *         of the predeploys.
-     */
+    /// @notice Builds the calldata that the multisig needs to make for the upgrade to happen.
+    ///         A total of 9 calls are made to the proxy admin to upgrade the implementations
+    ///         of the predeploys.
     function buildCalldata(address  _proxyAdmin) internal override view returns (bytes memory) {
         IMulticall3.Call3[] memory calls = new IMulticall3.Call3[](11);
 
@@ -282,18 +262,14 @@ contract PostSherlockL2 is SafeBuilder {
         return abi.encodeCall(IMulticall3.aggregate3, (calls));
     }
 
-    /**
-     * @notice Returns the ContractSet that represents the implementations for a given network.
-     */
+    /// @notice Returns the ContractSet that represents the implementations for a given network.
     function getImplementations() internal view returns (ContractSet memory) {
         ContractSet memory set = implementations[block.chainid];
         require(set.BaseFeeVault != address(0), "no implementations for this network");
         return set;
     }
 
-    /**
-     * @notice Returns the ContractSet that represents the proxies for a given network.
-     */
+    /// @notice Returns the ContractSet that represents the proxies for a given network.
     function getProxies() internal view returns (ContractSet memory) {
         ContractSet memory set = proxies[block.chainid];
         require(set.BaseFeeVault != address(0), "no proxies for this network");

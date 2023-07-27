@@ -28,7 +28,7 @@ type L1Retrieval struct {
 	datas DataIter
 }
 
-var _ ResetableStage = (*L1Retrieval)(nil)
+var _ ResettableStage = (*L1Retrieval)(nil)
 
 func NewL1Retrieval(log log.Logger, dataSrc DataAvailabilitySource, prev NextBlockProvider) *L1Retrieval {
 	return &L1Retrieval{
@@ -69,7 +69,7 @@ func (l1r *L1Retrieval) NextData(ctx context.Context) ([]byte, error) {
 	}
 }
 
-// ResetStep re-initializes the L1 Retrieval stage to block of it's `next` progress.
+// Reset re-initializes the L1 Retrieval stage to block of it's `next` progress.
 // Note that we open up the `l1r.datas` here because it is requires to maintain the
 // internal invariants that later propagate up the derivation pipeline.
 func (l1r *L1Retrieval) Reset(ctx context.Context, base eth.L1BlockRef, sysCfg eth.SystemConfig) error {

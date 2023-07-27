@@ -4,14 +4,12 @@ import (
 	"context"
 	"net"
 	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/doc"
 
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -25,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 )
 
@@ -60,7 +59,7 @@ func main() {
 	app.Usage = "Optimism Rollup Node"
 	app.Description = "The Optimism Rollup Node derives L2 block inputs from L1 data and drives an external L2 Execution Engine to build a L2 chain."
 	app.Action = RollupNodeMain
-	app.Commands = []cli.Command{
+	app.Commands = []*cli.Command{
 		{
 			Name:        "p2p",
 			Subcommands: p2p.Subcommands,
@@ -162,14 +161,7 @@ func RollupNodeMain(ctx *cli.Context) error {
 		defer pprofCancel()
 	}
 
-	interruptChannel := make(chan os.Signal, 1)
-	signal.Notify(interruptChannel, []os.Signal{
-		os.Interrupt,
-		os.Kill,
-		syscall.SIGTERM,
-		syscall.SIGQUIT,
-	}...)
-	<-interruptChannel
+	opio.BlockOnInterrupts()
 
 	return nil
 

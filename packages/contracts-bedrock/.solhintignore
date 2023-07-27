@@ -3,3 +3,6 @@ node_modules
 lib
 contracts/test/*.t.sol
 contracts/vendor/*.sol
+
+# MIPS.sol has special VM formatting, not like other contracts.
+contracts/cannon/MIPS.sol

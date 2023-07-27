@@ -4,13 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"strconv"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/gating"
+	"github.com/ethereum-optimism/optimism/op-node/p2p/monitor"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -20,15 +24,21 @@ import (
 	"github.com/libp2p/go-libp2p/core/host"
 	p2pmetrics "github.com/libp2p/go-libp2p/core/metrics"
 	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 	ma "github.com/multiformats/go-multiaddr"
+	manet "github.com/multiformats/go-multiaddr/net"
 )
 
 // NodeP2P is a p2p node, which can be used to gossip messages.
 type NodeP2P struct {
-	host    host.Host                      // p2p host (optional, may be nil)
-	gater   gating.BlockingConnectionGater // p2p gater, to ban/unban peers with, may be nil even with p2p enabled
-	scorer  Scorer                         // writes score-updates to the peerstore and keeps metrics of score changes
-	connMgr connmgr.ConnManager            // p2p conn manager, to keep a reliable number of peers, may be nil even with p2p enabled
+	host        host.Host                      // p2p host (optional, may be nil)
+	gater       gating.BlockingConnectionGater // p2p gater, to ban/unban peers with, may be nil even with p2p enabled
+	scorer      Scorer                         // writes score-updates to the peerstore and keeps metrics of score changes
+	connMgr     connmgr.ConnManager            // p2p conn manager, to keep a reliable number of peers, may be nil even with p2p enabled
+	peerMonitor *monitor.PeerMonitor           // peer monitor to disconnect bad peers, may be nil even with p2p enabled
+	store       store.ExtendedPeerstore        // peerstore of host, with extra bindings for scoring and banning
+	appScorer   ApplicationScorer
+	log         log.Logger
 	// the below components are all optional, and may be nil. They require the host to not be nil.
 	dv5Local *enode.LocalNode // p2p discovery identity
 	dv5Udp   *discover.UDPv5  // p2p discovery service
@@ -61,6 +71,8 @@ func NewNodeP2P(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.
 func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.Logger, setup SetupP2P, gossipIn GossipIn, l2Chain L2Chain, runCfg GossipRuntimeConfig, metrics metrics.Metricer) error {
 	bwc := p2pmetrics.NewBandwidthCounter()
 
+	n.log = log
+
 	var err error
 	// nil if disabled.
 	n.host, err = setup.Host(log, bwc, metrics)
@@ -78,9 +90,21 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 			n.gater = extra.ConnectionGater()
 			n.connMgr = extra.ConnectionManager()
 		}
+		eps, ok := n.host.Peerstore().(store.ExtendedPeerstore)
+		if !ok {
+			return fmt.Errorf("cannot init without extended peerstore: %w", err)
+		}
+		n.store = eps
+		scoreParams := setup.PeerScoringParams()
+
+		if scoreParams != nil {
+			n.appScorer = newPeerApplicationScorer(resourcesCtx, log, clock.SystemClock, &scoreParams.ApplicationScoring, eps, n.host.Network().Peers)
+		} else {
+			n.appScorer = &NoopApplicationScorer{}
+		}
 		// Activate the P2P req-resp sync if enabled by feature-flag.
 		if setup.ReqRespSyncEnabled() {
-			n.syncCl = NewSyncClient(log, rollupCfg, n.host.NewStream, gossipIn.OnUnsafeL2Payload, metrics)
+			n.syncCl = NewSyncClient(log, rollupCfg, n.host.NewStream, gossipIn.OnUnsafeL2Payload, metrics, n.appScorer)
 			n.host.Network().Notify(&network.NotifyBundle{
 				ConnectedF: func(nw network.Network, conn network.Conn) {
 					n.syncCl.AddPeer(conn.RemotePeer())
@@ -101,19 +125,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 				n.host.SetStreamHandler(PayloadByNumberProtocolID(rollupCfg.L2ChainID), payloadByNumber)
 			}
 		}
-		eps, ok := n.host.Peerstore().(store.ExtendedPeerstore)
-		if !ok {
-			return fmt.Errorf("cannot init without extended peerstore: %w", err)
-		}
-		n.scorer = NewScorer(rollupCfg, eps, metrics, setup.PeerBandScorer(), log)
-		n.host.Network().Notify(&network.NotifyBundle{
-			ConnectedF: func(_ network.Network, conn network.Conn) {
-				n.scorer.OnConnect(conn.RemotePeer())
-			},
-			DisconnectedF: func(_ network.Network, conn network.Conn) {
-				n.scorer.OnDisconnect(conn.RemotePeer())
-			},
-		})
+		n.scorer = NewScorer(rollupCfg, eps, metrics, n.appScorer, log)
 		// notify of any new connections/streams/etc.
 		n.host.Network().Notify(NewNetworkNotifier(log, metrics))
 		// note: the IDDelta functionality was removed from libP2P, and no longer needs to be explicitly disabled.
@@ -121,7 +133,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		if err != nil {
 			return fmt.Errorf("failed to start gossipsub router: %w", err)
 		}
-		n.gsOut, err = JoinGossip(resourcesCtx, n.host.ID(), setup.TopicScoringParams(), n.gs, log, rollupCfg, runCfg, gossipIn)
+		n.gsOut, err = JoinGossip(resourcesCtx, n.host.ID(), n.gs, log, rollupCfg, runCfg, gossipIn)
 		if err != nil {
 			return fmt.Errorf("failed to join blocks gossip topic: %w", err)
 		}
@@ -141,6 +153,12 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		if metrics != nil {
 			go metrics.RecordBandwidth(resourcesCtx, bwc)
 		}
+
+		if setup.BanPeers() {
+			n.peerMonitor = monitor.NewPeerMonitor(resourcesCtx, log, clock.SystemClock, n, setup.BanThreshold(), setup.BanDuration())
+			n.peerMonitor.Start()
+		}
+		n.appScorer.start()
 	}
 	return nil
 }
@@ -184,8 +202,53 @@ func (n *NodeP2P) ConnectionManager() connmgr.ConnManager {
 	return n.connMgr
 }
 
+func (n *NodeP2P) Peers() []peer.ID {
+	return n.host.Network().Peers()
+}
+
+func (n *NodeP2P) GetPeerScore(id peer.ID) (float64, error) {
+	return n.store.GetPeerScore(id)
+}
+
+func (n *NodeP2P) IsStatic(id peer.ID) bool {
+	return n.connMgr != nil && n.connMgr.IsProtected(id, staticPeerTag)
+}
+
+func (n *NodeP2P) BanPeer(id peer.ID, expiration time.Time) error {
+	if err := n.store.SetPeerBanExpiration(id, expiration); err != nil {
+		return fmt.Errorf("failed to set peer ban expiry: %w", err)
+	}
+	if err := n.host.Network().ClosePeer(id); err != nil {
+		return fmt.Errorf("failed to close peer connection: %w", err)
+	}
+	return nil
+}
+
+func (n *NodeP2P) BanIP(ip net.IP, expiration time.Time) error {
+	if err := n.store.SetIPBanExpiration(ip, expiration); err != nil {
+		return fmt.Errorf("failed to set IP ban expiry: %w", err)
+	}
+	// kick all peers that match this IP
+	for _, conn := range n.host.Network().Conns() {
+		addr := conn.RemoteMultiaddr()
+		remoteIP, err := manet.ToIP(addr)
+		if err != nil {
+			continue
+		}
+		if remoteIP.Equal(ip) {
+			if err := conn.Close(); err != nil {
+				n.log.Error("failed to close connection to peer with banned IP", "peer", conn.RemotePeer(), "ip", ip)
+			}
+		}
+	}
+	return nil
+}
+
 func (n *NodeP2P) Close() error {
 	var result *multierror.Error
+	if n.peerMonitor != nil {
+		n.peerMonitor.Stop()
+	}
 	if n.dv5Udp != nil {
 		n.dv5Udp.Close()
 	}
@@ -203,6 +266,9 @@ func (n *NodeP2P) Close() error {
 				result = multierror.Append(result, fmt.Errorf("failed to close p2p sync client cleanly: %w", err))
 			}
 		}
+	}
+	if n.appScorer != nil {
+		n.appScorer.stop()
 	}
 	return result.ErrorOrNil()
 }

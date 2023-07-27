@@ -45,7 +45,31 @@ func TestParseHistoricSerializationsV0(t *testing.T) {
 						IPColocationFactor: 12.34,
 						BehavioralPenalty:  56.78,
 					},
-					ReqRespSync: 123456,
+					ReqResp: ReqRespScores{},
+				},
+				LastUpdate: 1923841,
+			},
+		},
+		{
+			data: `{"peerScores":{"gossip":{"total":1234.52382,"blocks":{"timeInMesh":1234,"firstMessageDeliveries":12,"meshMessageDeliveries":34,"invalidMessageDeliveries":56},"IPColocationFactor":12.34,"behavioralPenalty":56.78},"reqResp":{"validResponses":99,"errorResponses":88,"rejectedPayloads":77}},"lastUpdate":1923841}`,
+			expected: scoreRecord{
+				PeerScores: PeerScores{
+					Gossip: GossipScores{
+						Total: 1234.52382,
+						Blocks: TopicScores{
+							TimeInMesh:               1234,
+							FirstMessageDeliveries:   12,
+							MeshMessageDeliveries:    34,
+							InvalidMessageDeliveries: 56,
+						},
+						IPColocationFactor: 12.34,
+						BehavioralPenalty:  56.78,
+					},
+					ReqResp: ReqRespScores{
+						ValidResponses:   99,
+						ErrorResponses:   88,
+						RejectedPayloads: 77,
+					},
 				},
 				LastUpdate: 1923841,
 			},
