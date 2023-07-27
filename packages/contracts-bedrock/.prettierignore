@@ -1,7 +1,5 @@
 # Deps and test files
-node_modules
 lib
-contracts/vendor/*.sol
 
 # build output
 artifacts
