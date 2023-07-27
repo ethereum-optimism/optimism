@@ -17,6 +17,7 @@ services:
       dockerfile: Dockerfile.l1
     ports:
       - "8545:8545"
+      - "8546:8546"
       - "7060:6060"
     volumes:
       - "l1_data:/db"

@@ -24,6 +24,7 @@
 
   "proxyAdminOwner": "0x62790eFcB3a5f3A5D398F95B47930A9Addd83807",
 
+  "enableGovernance": true,
   "governanceTokenName": "Optimism",
   "governanceTokenSymbol": "OP",
   "governanceTokenOwner": "0x038a8825A3C3B0c08d52Cc76E5E361953Cf6Dc76",

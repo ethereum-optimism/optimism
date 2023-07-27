@@ -46,8 +46,8 @@ func TestVerifyL2OutputRootEmptyBlockDetached(t *testing.T) {
 // - update the state root via a tx
 // - run program
 func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
-	if erigonL2Nodes {
-		t.Skip("Erigon does not support debug_dbGet which is required for this test")
+	if externalL2Nodes != "" {
+		t.Skip("debug_dbGet is a custom geth RPC which is not generally suported by other eth clients")
 	}
 	InitParallel(t)
 	ctx := context.Background()
@@ -136,9 +136,6 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 	require.NoError(t, err, "get l1 head block")
 	l1Head := l1HeadBlock.Hash()
 
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
-	defer cancel()
-
 	testFaultProofProgramScenario(t, ctx, sys, &FaultProofProgramTestScenario{
 		L1Head:             l1Head,
 		L2Head:             l2Head,
@@ -149,8 +146,8 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 }
 
 func testVerifyL2OutputRoot(t *testing.T, detached bool) {
-	if erigonL2Nodes {
-		t.Skip("Erigon does not support debug_dbGet which is required for this test")
+	if externalL2Nodes != "" {
+		t.Skip("debug_dbGet is a custom geth RPC which is not generally supported by other clients")
 	}
 	InitParallel(t)
 	ctx := context.Background()
@@ -251,7 +248,7 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 
 	// Check the FPP confirms the expected output
 	t.Log("Running fault proof in fetching mode")
-	log := testlog.Logger(t, log.LvlDebug).New("role", "fpp")
+	log := testlog.Logger(t, log.LvlInfo)
 	err := opp.FaultProofProgram(ctx, log, fppConfig)
 	require.NoError(t, err)
 
@@ -286,12 +283,10 @@ func waitForSafeHead(ctx context.Context, safeBlockNum uint64, rollupClient *sou
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 	for {
-		// fmt.Printf("JKY!!! Waiting for SyncStatus\n")
 		seqStatus, err := rollupClient.SyncStatus(ctx)
 		if err != nil {
 			return err
 		}
-		// fmt.Printf("JKY!!! Waiting for SafeL2.Number=%d >= safeBlockNum=%d\n", safeBlockNum, seqStatus.SafeL2.Number)
 		if seqStatus.SafeL2.Number >= safeBlockNum {
 			return nil
 		}

@@ -6,10 +6,13 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBuildOptimism(t *testing.T) {
+	minimumWithdrawalAmountBig, _ := big.NewInt(0).SetString("8ac7230489e80000", 16)
+	minimumWithdrawalAmount := (*hexutil.Big)(minimumWithdrawalAmountBig)
 	results, err := immutables.BuildOptimism(immutables.ImmutableConfig{
 		"L2StandardBridge": {
 			"otherBridge": common.HexToAddress("0x1234567890123456789012345678901234567890"),
@@ -26,17 +29,19 @@ func TestBuildOptimism(t *testing.T) {
 			"bridge":        common.HexToAddress("0x1234567890123456789012345678901234567890"),
 		},
 		"SequencerFeeVault": {
-			"recipient": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"recipient":               common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"minimumWithdrawalAmount": minimumWithdrawalAmount,
+			"withdrawalNetwork":       uint8(0),
 		},
 		"L1FeeVault": {
-			"recipient": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"recipient":               common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"minimumWithdrawalAmount": minimumWithdrawalAmount,
+			"withdrawalNetwork":       uint8(0),
 		},
 		"BaseFeeVault": {
-			"recipient": common.HexToAddress("0x1234567890123456789012345678901234567890"),
-		},
-		"BobaL2": {
-			"bridge":      common.HexToAddress("0x1234567890123456789012345678901234567890"),
-			"remoteToken": common.HexToAddress("0x0123456789012345678901234567890123456789"),
+			"recipient":               common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"minimumWithdrawalAmount": minimumWithdrawalAmount,
+			"withdrawalNetwork":       uint8(0),
 		},
 	})
 	require.Nil(t, err)
@@ -58,8 +63,8 @@ func TestBuildOptimism(t *testing.T) {
 		"L2ERC721Bridge":                true,
 		"OptimismMintableERC721Factory": true,
 		"LegacyERC20ETH":                true,
-		"BobaL2":                        true,
-		"BobaTuringCredit":              true,
+		"EAS":                           true,
+		"SchemaRegistry":                true,
 	}
 
 	// Only the exact contracts that we care about are being

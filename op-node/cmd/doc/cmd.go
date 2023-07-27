@@ -8,7 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/olekukonko/tablewriter"
-	"github.com/urfave/cli"
+	"github.com/urfave/cli/v2"
 )
 
 var Subcommands = cli.Commands{
@@ -16,7 +16,7 @@ var Subcommands = cli.Commands{
 		Name:  "metrics",
 		Usage: "Dumps a list of supported metrics to stdout",
 		Flags: []cli.Flag{
-			cli.StringFlag{
+			&cli.StringFlag{
 				Name:  "format",
 				Value: "markdown",
 				Usage: "Output format (json|markdown)",

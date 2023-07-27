@@ -14,14 +14,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestConfigMarshalUnmarshal(t *testing.T) {
+func TestConfigDataMarshalUnmarshal(t *testing.T) {
 	b, err := os.ReadFile("testdata/test-deploy-config-full.json")
 	require.NoError(t, err)
+
 	dec := json.NewDecoder(bytes.NewReader(b))
 	decoded := new(DeployConfig)
 	require.NoError(t, dec.Decode(decoded))
-	encoded, err := json.MarshalIndent(decoded, "", "  ")
+	require.EqualValues(t, "non-default value", string(decoded.L2GenesisBlockExtraData))
 
+	encoded, err := json.MarshalIndent(decoded, "", "  ")
 	require.NoError(t, err)
 	require.JSONEq(t, string(b), string(encoded))
 }

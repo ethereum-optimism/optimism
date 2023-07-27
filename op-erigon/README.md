@@ -30,5 +30,5 @@ confusing ways.
 Keeping this version aligned with the upstream version being tested is as
 simple as specifying the desired upstream tag or branch in the go.mod and
 running `go mod tidy` or, executing a `go get` with the appropriate version
-info.  Checks to ensure the docker image and e2e versions are aligned will be
-added to CI and the make process.
+info.  Checks to ensure the docker image and e2e versions are aligned should
+be added to CI and the make process if and when such enhancements are added.

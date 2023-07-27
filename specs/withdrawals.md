@@ -48,8 +48,6 @@ finalization.
 - [Security Considerations](#security-considerations)
   - [Key Properties of Withdrawal Verification](#key-properties-of-withdrawal-verification)
   - [Handling Successfully Verified Messages That Fail When Relayed](#handling-successfully-verified-messages-that-fail-when-relayed)
-- [Summary of Definitions](#summary-of-definitions)
-  - [Constants](#constants)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -215,16 +213,6 @@ If the execution of the relayed call fails in the `target` contract, it is unfor
 whether or not it was 'supposed' to fail, and whether or not it should be 'replayable'. For this reason, and to
 minimize complexity, we have not provided any replay functionality, this may be implemented in external utility
 contracts if desired.
-
-## Summary of Definitions
-
-### Constants
-
-| Name                  | Value     | Unit    |
-| --------------------- | --------- | ------- |
-| `FINALIZATION_PERIOD` | `604_800` | seconds |
-
-This `FINALIZATION_PERIOD` value is equivalent to 7 days.
 
 [`WithdrawalTransaction` type]: https://github.com/ethereum-optimism/optimism/blob/6c6d142d7bb95faa11066aab5d8aed7187abfe38/packages/contracts-bedrock/contracts/libraries/Types.sol#L76-L83
 [`OutputRootProof` type]: https://github.com/ethereum-optimism/optimism/blob/6c6d142d7bb95faa11066aab5d8aed7187abfe38/packages/contracts-bedrock/contracts/libraries/Types.sol#L33-L38

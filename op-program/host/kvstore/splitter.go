@@ -1,7 +1,7 @@
 package kvstore
 
 import (
-	"github.com/ethereum-optimism/optimism/op-program/preimage"
+	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -19,7 +19,7 @@ func NewPreimageSourceSplitter(local PreimageSource, global PreimageSource) *Pre
 	}
 }
 
-func (s *PreimageSourceSplitter) Get(key common.Hash) ([]byte, error) {
+func (s *PreimageSourceSplitter) Get(key [32]byte) ([]byte, error) {
 	if key[0] == byte(preimage.LocalKeyType) {
 		return s.local(key)
 	}

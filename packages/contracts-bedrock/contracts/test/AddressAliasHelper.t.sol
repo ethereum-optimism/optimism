@@ -5,9 +5,7 @@ import { Test } from "forge-std/Test.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 
 contract AddressAliasHelper_applyAndUndo_Test is Test {
-    /**
-     * @notice Tests that applying and then undoing an alias results in the original address.
-     */
+    /// @notice Tests that applying and then undoing an alias results in the original address.
     function testFuzz_applyAndUndo_succeeds(address _address) external {
         address aliased = AddressAliasHelper.applyL1ToL2Alias(_address);
         address unaliased = AddressAliasHelper.undoL1ToL2Alias(aliased);
