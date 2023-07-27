@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -13,22 +14,27 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-const snapsDir = "snapshots"
+const (
+	snapsDir     = "snapshots"
+	preimagesDir = "snapshots"
+)
 
 var snapshotNameRegexp = regexp.MustCompile(`^[0-9]+\.json$`)
 
-const snapshotFrequency = 10_000
-
 type snapshotSelect func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error)
+type cmdExecutor func(ctx context.Context, binary string, args ...string) error
 
 type Executor struct {
 	logger           log.Logger
 	l1               string
 	l2               string
 	cannon           string
+	server           string
 	absolutePreState string
 	dataDir          string
+	snapshotFreq     uint
 	selectSnapshot   snapshotSelect
+	cmdExecutor      cmdExecutor
 }
 
 func NewExecutor(logger log.Logger, cfg *config.Config) *Executor {
@@ -37,9 +43,12 @@ func NewExecutor(logger log.Logger, cfg *config.Config) *Executor {
 		l1:               cfg.L1EthRpc,
 		l2:               cfg.CannonL2,
 		cannon:           cfg.CannonBin,
+		server:           cfg.CannonServer,
 		absolutePreState: cfg.CannonAbsolutePreState,
 		dataDir:          cfg.CannonDatadir,
+		snapshotFreq:     cfg.CannonSnapshotFreq,
 		selectSnapshot:   findStartingSnapshot,
+		cmdExecutor:      runCmd,
 	}
 }
 
@@ -48,8 +57,31 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 	if err != nil {
 		return fmt.Errorf("find starting snapshot: %w", err)
 	}
-	return fmt.Errorf("please execute cannon with --input %v --proof-at %v --proof-fmt %v/%v/%%d.json --snapshot-at %%%d --snapshot-fmt '%v/%v/%%d.json",
-		start, i, dir, proofsDir, snapshotFrequency, dir, snapsDir)
+	proofIndexStr := strconv.FormatUint(i, 10)
+	args := []string{
+		"--input", start,
+		"--proof-at", proofIndexStr,
+		"--proof-fmt", filepath.Join(dir, proofsDir, proofIndexStr+".json"),
+		"--snapshot-at", "%" + strconv.FormatUint(uint64(e.snapshotFreq), 10),
+		"--snapshot-fmt", filepath.Join(e.dataDir, snapsDir, "%d.json"),
+		"--",
+		e.server,
+		"--l1", e.l1,
+		"--l2", e.l2,
+		"--datadir", filepath.Join(e.dataDir, preimagesDir),
+		// TODO(CLI-4240): Pass local game inputs (l1.head, l2.head, l2.claim etc)
+	}
+
+	e.logger.Info("Generating trace", "idx", i, "cmd", e.cannon, "args", args)
+	return e.cmdExecutor(ctx, e.cannon, args...)
+}
+
+func runCmd(ctx context.Context, binary string, args ...string) error {
+	cmd := exec.CommandContext(ctx, binary, args...)
+	// TODO(CLI-4242): Provide context about what the generation is for in logs
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
 
 // findStartingSnapshot finds the closest snapshot before the specified traceIndex in snapDir.

@@ -1,17 +1,57 @@
 package cannon
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
 const execTestCannonPrestate = "/foo/pre.json"
+
+func TestGenerateProof(t *testing.T) {
+	input := "starting.json"
+	cfg := config.NewConfig("http://localhost:8888", common.Address{0xaa}, config.TraceTypeCannon, true, 5)
+	cfg.CannonDatadir = t.TempDir()
+	cfg.CannonAbsolutePreState = "pre.json"
+	cfg.CannonBin = "./bin/cannon"
+	cfg.CannonServer = "./bin/op-program"
+	cfg.CannonL2 = "http://localhost:9999"
+	cfg.CannonSnapshotFreq = 500
+
+	executor := NewExecutor(testlog.Logger(t, log.LvlInfo), &cfg)
+	executor.selectSnapshot = func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error) {
+		return input, nil
+	}
+	var binary string
+	args := make(map[string]string)
+	executor.cmdExecutor = func(ctx context.Context, b string, a ...string) error {
+		binary = b
+		for i := 0; i < len(a); i += 2 {
+			args[a[i]] = a[i+1]
+		}
+		return nil
+	}
+	err := executor.GenerateProof(context.Background(), cfg.CannonDatadir, 150_000_000)
+	require.NoError(t, err)
+	require.Equal(t, cfg.CannonBin, binary)
+	require.Contains(t, args, "--input", input)
+	require.Contains(t, args, "--proof-at", "150000000")
+	require.Contains(t, args, "--snapshot-at", "%500")
+	require.Contains(t, args, "--", cfg.CannonServer)
+	require.Contains(t, args, "--l1", cfg.L1EthRpc)
+	require.Contains(t, args, "--l2", cfg.CannonL2)
+	require.Contains(t, args, "--datadir", filepath.Join(cfg.CannonDatadir, preimagesDir))
+	require.Contains(t, args, "--proof-fmt", filepath.Join(cfg.CannonDatadir, "150000000.json"))
+	require.Contains(t, args, "--snapshot-fmt", filepath.Join(cfg.CannonDatadir, snapsDir, "%d.json"))
+}
 
 func TestFindStartingSnapshot(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
