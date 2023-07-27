@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/common"
@@ -34,12 +35,14 @@ type ProofGenerator interface {
 
 type CannonTraceProvider struct {
 	dir       string
+	prestate  string
 	generator ProofGenerator
 }
 
 func NewTraceProvider(logger log.Logger, cfg *config.Config) *CannonTraceProvider {
 	return &CannonTraceProvider{
 		dir:       cfg.CannonDatadir,
+		prestate:  cfg.CannonAbsolutePreState,
 		generator: NewExecutor(logger, cfg),
 	}
 }
@@ -82,8 +85,19 @@ func (p *CannonTraceProvider) GetPreimage(ctx context.Context, i uint64) ([]byte
 	return value, data, nil
 }
 
-func (p *CannonTraceProvider) AbsolutePreState(ctx context.Context) []byte {
-	panic("absolute prestate not yet supported")
+func (p *CannonTraceProvider) AbsolutePreState(ctx context.Context) ([]byte, error) {
+	path := filepath.Join(p.dir, p.prestate)
+	file, err := os.Open(path)
+	if err != nil {
+		return []byte{}, fmt.Errorf("cannot open state file (%v): %w", path, err)
+	}
+	defer file.Close()
+	var state mipsevm.State
+	err = json.NewDecoder(file).Decode(&state)
+	if err != nil {
+		return []byte{}, fmt.Errorf("invalid mipsevm state (%v): %w", path, err)
+	}
+	return state.EncodeWitness(), nil
 }
 
 func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofData, error) {

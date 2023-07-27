@@ -14,6 +14,11 @@ COPY ./go.mod /app/go.mod
 COPY ./go.sum /app/go.sum
 COPY ./.git /app/.git
 
+# Copy cannon and its dependencies
+COPY ./cannon /app/cannon
+COPY ./op-preimage /app/op-preimage
+COPY ./op-chain-ops /app/op-chain-ops
+
 WORKDIR /app/op-challenger
 
 RUN go mod download
