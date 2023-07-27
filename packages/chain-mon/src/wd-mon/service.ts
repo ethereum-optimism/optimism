@@ -13,6 +13,7 @@ import { Event } from 'ethers'
 import dateformat from 'dateformat'
 
 import { version } from '../../package.json'
+import { getLastFinalizedBlock as getLastFinalizedBlock } from './helpers'
 
 type Options = {
   l1RpcProvider: Provider
@@ -117,10 +118,12 @@ export class WithdrawalMonitor extends BaseServiceV2<Options, Metrics, State> {
 
     // Set the start block number.
     if (this.options.startBlockNumber === -1) {
-      // We default to starting from the earliest block still in the fault proof window.
-      const l1BlockNumber = await this.options.l1RpcProvider.getBlockNumber()
-      this.state.highestUncheckedBlockNumber =
-        l1BlockNumber - this.state.faultProofWindow / 12
+      // We default to starting from the last finalized block.
+      this.state.highestUncheckedBlockNumber = await getLastFinalizedBlock(
+        this.options.l1RpcProvider,
+        this.state.faultProofWindow,
+        this.logger
+      )
     } else {
       this.state.highestUncheckedBlockNumber = this.options.startBlockNumber
     }
