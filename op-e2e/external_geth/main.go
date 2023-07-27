@@ -142,6 +142,7 @@ func execute(binPath string, config e2e.ExternalConfig) (*gethSession, error) {
 		"--authrpc.port", "0",
 		"--authrpc.jwtsecret", config.JWTPath,
 		"--gcmode=archive",
+		"--verbosity", strconv.FormatUint(config.Verbosity, 10),
 	)
 	sess, err := gexec.Start(cmd, os.Stdout, os.Stderr)
 	gm := gomega.NewGomega(func(msg string, _ ...int) {

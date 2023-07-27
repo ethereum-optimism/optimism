@@ -47,8 +47,8 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	flag.BoolVar(&verboseGethNodes, "gethlogs", true, "Enable logs on geth nodes")
-	flag.StringVar(&externalL2Nodes, "externalL2", "", "Enable tests with erigon")
+	flag.BoolVar(&verboseEthNodes, "ethlogs", true, "Enable debug logs on Ethereum nodes")
+	flag.StringVar(&externalL2Nodes, "externalL2", "", "Enable tests with external L2")
 	flag.Parse()
 
 	if externalL2Nodes != "" {
