@@ -37,7 +37,7 @@ require (
 	github.com/pkg/profile v1.7.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/rs/cors v1.8.2
-	github.com/stretchr/testify v1.8.1
+	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli v1.22.2
 	github.com/urfave/cli/v2 v2.25.7
 	golang.org/x/crypto v0.8.0
