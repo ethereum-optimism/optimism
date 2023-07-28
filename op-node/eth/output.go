@@ -72,7 +72,7 @@ func UnmarshalOutput(data []byte) (Output, error) {
 }
 
 func unmarshalOutputV0(data []byte) (*OutputV0, error) {
-	if len(data) < 128 {
+	if len(data) != 128 {
 		return nil, ErrInvalidOutput
 	}
 	var output OutputV0
