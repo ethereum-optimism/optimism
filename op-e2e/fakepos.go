@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/catalyst"
 	"github.com/ethereum/go-ethereum/event"
@@ -63,7 +64,7 @@ func (f *fakePoS) Start() error {
 					// We're a long way behind, let's skip some blocks...
 					newBlockTime = uint64(f.clock.Now().Unix())
 				}
-				res, err := f.engineAPI.ForkchoiceUpdatedV1(engine.ForkchoiceStateV1{
+				res, err := f.engineAPI.ForkchoiceUpdatedV2(engine.ForkchoiceStateV1{
 					HeadBlockHash:      head.Hash(),
 					SafeBlockHash:      safe.Hash(),
 					FinalizedBlockHash: finalized.Hash(),
@@ -71,6 +72,7 @@ func (f *fakePoS) Start() error {
 					Timestamp:             newBlockTime,
 					Random:                common.Hash{},
 					SuggestedFeeRecipient: head.Coinbase,
+					Withdrawals:           make([]*types.Withdrawal, 0),
 				})
 				if err != nil {
 					f.log.Error("failed to start building L1 block", "err", err)
@@ -90,17 +92,17 @@ func (f *fakePoS) Start() error {
 					tim.Stop()
 					return nil
 				}
-				payload, err := f.engineAPI.GetPayloadV1(*res.PayloadID)
+				envelope, err := f.engineAPI.GetPayloadV2(*res.PayloadID)
 				if err != nil {
 					f.log.Error("failed to finish building L1 block", "err", err)
 					continue
 				}
-				if _, err := f.engineAPI.NewPayloadV1(*payload); err != nil {
+				if _, err := f.engineAPI.NewPayloadV2(*envelope.ExecutionPayload); err != nil {
 					f.log.Error("failed to insert built L1 block", "err", err)
 					continue
 				}
-				if _, err := f.engineAPI.ForkchoiceUpdatedV1(engine.ForkchoiceStateV1{
-					HeadBlockHash:      payload.BlockHash,
+				if _, err := f.engineAPI.ForkchoiceUpdatedV2(engine.ForkchoiceStateV1{
+					HeadBlockHash:      envelope.ExecutionPayload.BlockHash,
 					SafeBlockHash:      safe.Hash(),
 					FinalizedBlockHash: finalized.Hash(),
 				}, nil); err != nil {

@@ -139,11 +139,11 @@ func ProveWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client,
 	return params, proveReceipt
 }
 
-func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, privKey *ecdsa.PrivateKey, withdrawalReceipt *types.Receipt, params withdrawals.ProvenWithdrawalParameters) *types.Receipt {
+func FinalizeWithdrawal(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, privKey *ecdsa.PrivateKey, withdrawalProofReceipt *types.Receipt, params withdrawals.ProvenWithdrawalParameters) *types.Receipt {
 	// Wait for finalization and then create the Finalized Withdrawal Transaction
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
-	err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, withdrawalReceipt.BlockNumber)
+	err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, withdrawalProofReceipt.BlockNumber)
 	require.Nil(t, err)
 
 	opts, err := bind.NewKeyedTransactorWithChainID(privKey, cfg.L1ChainIDBig())

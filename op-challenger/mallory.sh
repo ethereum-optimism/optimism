@@ -16,6 +16,7 @@ FAULT_GAME_ADDRESS="0x8daf17a20c9dba35f005b6324f493785d239719d"
 
 ./bin/op-challenger \
   --l1-eth-rpc http://localhost:8545 \
+  --trace-type="alphabet" \
   --alphabet "abcdexyz" \
   --game-address $FAULT_GAME_ADDRESS \
   --private-key $MALLORY_KEY \

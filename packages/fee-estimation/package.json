@@ -1,0 +1,46 @@
+{
+  "name": "@eth-optimism/fee-estimation",
+  "version": "0.15.1",
+  "description": "Lightweight library for doing OP-Chain gas estimation",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/optimism.git",
+    "directory": "packages/fee-estimation"
+  },
+  "homepage": "https://optimism.io",
+  "type": "module",
+  "main": "dist/estimateFees.js",
+  "module": "dist/estimateFees.mjs",
+  "types": "src/estimateFees.ts",
+  "files": [
+    "dist/",
+    "src/"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "lint": "prettier --check .",
+    "lint:fix": "prettier --write .",
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@eth-optimism/contracts-ts": "workspace:^",
+    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/react-hooks": "^8.0.1",
+    "@vitest/coverage-istanbul": "^0.33.0",
+    "abitype": "^0.9.3",
+    "isomorphic-fetch": "^3.0.0",
+    "jest-dom": "link:@types/@testing-library/jest-dom",
+    "jsdom": "^22.1.0",
+    "tsup": "^7.1.0",
+    "typescript": "^5.1.6",
+    "viem": "^1.3.1",
+    "vite": "^4.4.6",
+    "vitest": "^0.33.0"
+  },
+  "peerDependencies": {
+    "viem": "^0.3.30"
+  }
+}

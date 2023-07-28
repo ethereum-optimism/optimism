@@ -158,7 +158,7 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 // can be properly set. The bytecode returned in the results is suitable to be
 // inserted into the state via state surgery.
 func BuildL2(constructors []deployer.Constructor) (DeploymentResults, error) {
-	deployments, err := deployer.Deploy(deployer.NewBackend(), constructors, l2Deployer)
+	deployments, err := deployer.Deploy(deployer.NewL2Backend(), constructors, l2Deployer)
 	if err != nil {
 		return nil, err
 	}

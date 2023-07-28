@@ -1,22 +1,27 @@
+# Artifacts and Cache
 artifacts
 forge-artifacts
 cache
-typechain
-coverage.out
-.deps
 broadcast
-genesis.json
-src/contract-artifacts.ts
-tmp-artifacts
-deployments/mainnet-forked
-deploy-config/mainnet-forked.json
-test-case-generator/fuzz
+typechain
+
+# Metrics
+coverage.out
 .resource-metering.csv
+
+# Tests
+test-case-generator/fuzz
+
+# Scripts
 scripts/differential-testing/differential-testing
+
+# Environment Variables
+.envrc
+!.envrc.example
+
+# Deployments
 deployments/900
 deployments/901
 deployments/hardhat
-.envrc
-!.envrc.example
 deployments/getting-started
 deployments/*/.deploy

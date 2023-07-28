@@ -13,18 +13,6 @@ pull_request_rules:
         - "label!=multiple-reviewers"
         - "label!=mergify-ignore"
         - "base=develop"
-        - or:
-          - and:
-            - "label!=SR-Risk"
-            - "label!=C-Protocol-Critical"
-          - and:
-            - "label=SR-Risk"
-            - "approved-reviews-by=maurelian"
-          - and:
-            - "label=C-Protocol-Critical"
-            - or:
-              - "approved-reviews-by=tynes"
-              - "approved-reviews-by=smartcontracts"
     actions:
       queue:
         name: default
@@ -47,28 +35,6 @@ pull_request_rules:
       label:
         remove:
           - on-merge-train
-  - name: Handle security critical PRs
-    conditions:
-      - "label=SR-Risk"
-    actions:
-      request_reviews:
-        users:
-          - "maurelian"
-      comment:
-        message: |
-          Hey there @{{author}}! You flagged this PR as security critical. To make review easier, please add a comment describing
-
-          1. The risks present in this PR.
-          2. The mitigations you have added to try and reduce those risks.
-  - name: Request protocol critical reviewers
-    conditions:
-      - label=C-Protocol-Critical
-    actions:
-      request_reviews:
-        users:
-          - tynes
-          - smartcontracts
-        random_count: 1
   - name: Ask to resolve conflict
     conditions:
       - conflict

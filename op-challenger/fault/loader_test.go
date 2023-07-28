@@ -6,9 +6,8 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -91,47 +90,46 @@ func (m *mockClaimFetcher) ClaimDataLen(opts *bind.CallOpts) (*big.Int, error) {
 
 // TestLoader_FetchClaims_Succeeds tests [loader.FetchClaims].
 func TestLoader_FetchClaims_Succeeds(t *testing.T) {
-	log := testlog.Logger(t, log.LvlError)
 	mockClaimFetcher := newMockClaimFetcher()
 	expectedClaims := mockClaimFetcher.returnClaims
-	loader := NewLoader(log, mockClaimFetcher)
+	loader := NewLoader(mockClaimFetcher)
 	claims, err := loader.FetchClaims(context.Background())
 	require.NoError(t, err)
-	require.ElementsMatch(t, []Claim{
+	require.ElementsMatch(t, []types.Claim{
 		{
-			ClaimData: ClaimData{
+			ClaimData: types.ClaimData{
 				Value:    expectedClaims[0].Claim,
-				Position: NewPositionFromGIndex(expectedClaims[0].Position.Uint64()),
+				Position: types.NewPositionFromGIndex(expectedClaims[0].Position.Uint64()),
 			},
-			Parent: ClaimData{
+			Parent: types.ClaimData{
 				Value:    expectedClaims[0].Claim,
-				Position: NewPositionFromGIndex(expectedClaims[0].Position.Uint64()),
+				Position: types.NewPositionFromGIndex(expectedClaims[0].Position.Uint64()),
 			},
 			Countered:     false,
 			Clock:         uint64(0),
 			ContractIndex: 0,
 		},
 		{
-			ClaimData: ClaimData{
+			ClaimData: types.ClaimData{
 				Value:    expectedClaims[1].Claim,
-				Position: NewPositionFromGIndex(expectedClaims[1].Position.Uint64()),
+				Position: types.NewPositionFromGIndex(expectedClaims[1].Position.Uint64()),
 			},
-			Parent: ClaimData{
+			Parent: types.ClaimData{
 				Value:    expectedClaims[0].Claim,
-				Position: NewPositionFromGIndex(expectedClaims[1].Position.Uint64()),
+				Position: types.NewPositionFromGIndex(expectedClaims[1].Position.Uint64()),
 			},
 			Countered:     false,
 			Clock:         uint64(0),
 			ContractIndex: 1,
 		},
 		{
-			ClaimData: ClaimData{
+			ClaimData: types.ClaimData{
 				Value:    expectedClaims[2].Claim,
-				Position: NewPositionFromGIndex(expectedClaims[2].Position.Uint64()),
+				Position: types.NewPositionFromGIndex(expectedClaims[2].Position.Uint64()),
 			},
-			Parent: ClaimData{
+			Parent: types.ClaimData{
 				Value:    expectedClaims[0].Claim,
-				Position: NewPositionFromGIndex(expectedClaims[2].Position.Uint64()),
+				Position: types.NewPositionFromGIndex(expectedClaims[2].Position.Uint64()),
 			},
 			Countered:     false,
 			Clock:         uint64(0),
@@ -143,10 +141,9 @@ func TestLoader_FetchClaims_Succeeds(t *testing.T) {
 // TestLoader_FetchClaims_ClaimDataErrors tests [loader.FetchClaims]
 // when the claim fetcher [ClaimData] function call errors.
 func TestLoader_FetchClaims_ClaimDataErrors(t *testing.T) {
-	log := testlog.Logger(t, log.LvlError)
 	mockClaimFetcher := newMockClaimFetcher()
 	mockClaimFetcher.claimDataError = true
-	loader := NewLoader(log, mockClaimFetcher)
+	loader := NewLoader(mockClaimFetcher)
 	claims, err := loader.FetchClaims(context.Background())
 	require.ErrorIs(t, err, mockClaimDataError)
 	require.Empty(t, claims)
@@ -155,10 +152,9 @@ func TestLoader_FetchClaims_ClaimDataErrors(t *testing.T) {
 // TestLoader_FetchClaims_ClaimLenErrors tests [loader.FetchClaims]
 // when the claim fetcher [ClaimDataLen] function call errors.
 func TestLoader_FetchClaims_ClaimLenErrors(t *testing.T) {
-	log := testlog.Logger(t, log.LvlError)
 	mockClaimFetcher := newMockClaimFetcher()
 	mockClaimFetcher.claimLenError = true
-	loader := NewLoader(log, mockClaimFetcher)
+	loader := NewLoader(mockClaimFetcher)
 	claims, err := loader.FetchClaims(context.Background())
 	require.ErrorIs(t, err, mockClaimLenError)
 	require.Empty(t, claims)
