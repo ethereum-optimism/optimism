@@ -1,0 +1,75 @@
+version: 2
+updates:
+  - package-ecosystem: docker
+    directory: "/ops-bedrock"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+    labels:
+      - dependabot
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+    labels:
+      - dependabot
+
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+    labels:
+      - dependabot
+  - package-ecosystem: npm
+    directory: "/packages/chain-mon"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+    labels:
+      - dependabot
+  - package-ecosystem: npm
+    directory: "/packages/core-utils"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+    labels:
+      - dependabot
+  - package-ecosystem: npm
+    directory: "/packages/contracts-ts"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+    labels:
+      - dependabot
+  - package-ecosystem: npm
+    directory: "/packages/sdk"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+    labels:
+      - dependabot
+  - package-ecosystem: npm
+    directory: "/packages/fee-estimation"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+    labels:
+      - dependabot
+  - package-ecosystem: npm
+    directory: "/packages/common-ts"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+    labels:
+      - dependabot
+
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 10
+    labels:
+      - dependabot

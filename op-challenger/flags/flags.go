@@ -63,6 +63,11 @@ var (
 		Usage:   "Path to cannon executable to use when generating trace data (cannon trace type only)",
 		EnvVars: prefixEnvVars("CANNON_BIN"),
 	}
+	CannonServerFlag = &cli.StringFlag{
+		Name:    "cannon-server",
+		Usage:   "Path to executable to use as pre-image oracle server when generating trace data (cannon trace type only)",
+		EnvVars: prefixEnvVars("CANNON_SERVER"),
+	}
 	CannonPreStateFlag = &cli.StringFlag{
 		Name:    "cannon-prestate",
 		Usage:   "Path to absolute prestate to use when generating trace data (cannon trace type only)",
@@ -77,6 +82,12 @@ var (
 		Name:    "cannon-l2",
 		Usage:   "L2 Address of L2 JSON-RPC endpoint to use (eth and debug namespace required)  (cannon trace type only)",
 		EnvVars: prefixEnvVars("CANNON_L2"),
+	}
+	CannonSnapshotFreqFlag = &cli.UintFlag{
+		Name:    "cannon-snapshot-freq",
+		Usage:   "Frequency of cannon snapshots to generate in VM steps (cannon trace type only)",
+		EnvVars: prefixEnvVars("CANNON_SNAPSHOT_FREQ"),
+		Value:   config.DefaultCannonSnapshotFreq,
 	}
 )
 
@@ -93,9 +104,11 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	AlphabetFlag,
 	CannonBinFlag,
+	CannonServerFlag,
 	CannonPreStateFlag,
 	CannonDatadirFlag,
 	CannonL2Flag,
+	CannonSnapshotFreqFlag,
 }
 
 func init() {
@@ -119,6 +132,9 @@ func CheckRequired(ctx *cli.Context) error {
 	case config.TraceTypeCannon:
 		if !ctx.IsSet(CannonBinFlag.Name) {
 			return fmt.Errorf("flag %s is required", CannonBinFlag.Name)
+		}
+		if !ctx.IsSet(CannonServerFlag.Name) {
+			return fmt.Errorf("flag %s is required", CannonServerFlag.Name)
 		}
 		if !ctx.IsSet(CannonPreStateFlag.Name) {
 			return fmt.Errorf("flag %s is required", CannonPreStateFlag.Name)
@@ -160,9 +176,11 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		GameAddress:             dgfAddress,
 		AlphabetTrace:           ctx.String(AlphabetFlag.Name),
 		CannonBin:               ctx.String(CannonBinFlag.Name),
+		CannonServer:            ctx.String(CannonServerFlag.Name),
 		CannonAbsolutePreState:  ctx.String(CannonPreStateFlag.Name),
 		CannonDatadir:           ctx.String(CannonDatadirFlag.Name),
 		CannonL2:                ctx.String(CannonL2Flag.Name),
+		CannonSnapshotFreq:      ctx.Uint(CannonSnapshotFreqFlag.Name),
 		AgreeWithProposedOutput: ctx.Bool(AgreeWithProposedOutputFlag.Name),
 		GameDepth:               ctx.Int(GameDepthFlag.Name),
 		TxMgrConfig:             txMgrConfig,

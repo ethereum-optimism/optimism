@@ -14,7 +14,6 @@ contract DeployConfig is Script {
     string internal _json;
 
     address public finalSystemOwner;
-    address public controller;
     address public portalGuardian;
     uint256 public l1ChainID;
     uint256 public l2ChainID;
@@ -58,7 +57,6 @@ contract DeployConfig is Script {
         }
 
         finalSystemOwner = stdJson.readAddress(_json, "$.finalSystemOwner");
-        controller = stdJson.readAddress(_json, "$.controller");
         portalGuardian = stdJson.readAddress(_json, "$.portalGuardian");
         l1ChainID = stdJson.readUint(_json, "$.l1ChainID");
         l2ChainID = stdJson.readUint(_json, "$.l2ChainID");

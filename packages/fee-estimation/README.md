@@ -1,5 +1,9 @@
 # @eth-optimism/fee-estimation
 
+Tools for estimating gas on OP chains
+
+- **Tip** the [specs file](./src/estimateFees.spec.ts) has usage examples of every method in this library.
+
 ## Overview
 
 This package is designed to provide an easy way to estimate gas on OP chains.
@@ -30,26 +34,33 @@ npm install @eth-optimism/fee-estimation
 yarn add @eth-optimism/fee-estimation
 ```
 
-## Usage
-
-### Import the package
-
-```ts
-import { estimateFees } from '@eth-optimism/fee-estimation'
-```
-
 ### Basic Usage
 
 ```ts
+import {
+  estimateFees,
+} from '@eth-optimism/fee-estimation'
+import {optimistABI} from '@eth-optimism/contracts-ts'
+import {viemClient} from './viem-client'
+
+const optimistOwnerAddress =
+  '0x77194aa25a06f932c10c0f25090f3046af2c85a6' as const
+const tokenId = BigInt(optimistOwnerAddress)
+
 const fees = await estimateFees({
+  client: viemClient,
+  // If not using in viem can pass in this instead
+  /*
   client: {
     chainId: 10,
     rpcUrl: 'https://mainnet.optimism.io',
   },
-  blockNumber: BigInt(106889079),
-  account: '0xe371815c5f8a4f9acd1576879de288acd81269f1',
-  to: '0xe35f24470730f5a488da9721548c1ab0b65b53d5',
-  data: '0x5c19a95c00000000000000000000000046abfe1c972fca43766d6ad70e1c1df72f4bb4d1',
+  */
+  functionName: 'burn',
+  abi: optimistABI,
+  args: [tokenid],
+  account: optimistOwnerAddress,
+  to: '0x2335022c740d17c2837f9C884Bfe4fFdbf0A95D5',
 })
 ```
 
@@ -58,51 +69,38 @@ const fees = await estimateFees({
 ### `estimateFees` function
 
 ```ts
-estimateFees(params: EstimateFeeParams): Promise<bigint>
+estimateFees(options: OracleTransactionParameters<TAbi, TFunctionName> & GasPriceOracleOptions & Omit<EstimateGasParameters, 'data'>): Promise<bigint>
 ```
 
 #### Parameters
 
-`params`: An object with the following fields:
+`options`: An object with the following fields:
 
-- `client`: An object with `rpcUrl` and `chainId` fields, or an instance of a Viem `PublicClient`.
+- `abi`: A JSON object ABI of contract.
 
-- `blockNumber`: A BigInt representing the block number at which you want to estimate the fees.
+- `account`: A hex address of the account making the transaction.
 
-- `blockTag`: A string representing the block tag to query from.
+- `args`: Array of arguments to contract function. The types of this will be inferred from the ABI
 
-- `account`: A string representing the account making the transaction.
+- `blockNumber`(optional): A BigInt representing the block number at which you want to estimate the fees.
 
-- `to`: A string representing the recipient of the transaction.
+- `chainId`: An integer chain id.
 
-- `data`: A string representing the data being sent with the transaction. This should be a 0x-prefixed hex string.
+- `client`: An object with rpcUrl field, or an instance of a Viem PublicClient.
+
+- `functionName`: A string representing the function name for the transaction call data.
+
+- `maxFeePerGas`(optional): A BigInt representing the maximum fee per gas that the user is willing to pay.
+
+- `maxPriorityFeePerGas`(optional): A BigInt representing the maximum priority fee per gas that the user is willing to pay.
+
+- `to`: A hex address of the recipient of the transaction.
+
+- `value`(optional): A BigInt representing the value in wei sent along with the transaction.
 
 #### Returns
 
 A Promise that resolves to a BigInt representing the estimated fee in wei.
-
-## FAQ
-
-### How to encode function data?
-
-You can use our package to encode the function data. Here is an example:
-
-```ts
-import { encodeFunctionData } from '@eth-optimism/fee-estimation'
-import { optimistABI } from '@eth-optimism/contracts-ts'
-
-const data = encodeFunctionData({
-  functionName: 'burn',
-  abi: optimistABI,
-  args: [BigInt('0x77194aa25a06f932c10c0f25090f3046af2c85a6')],
-})
-```
-
-This will return a 0x-prefixed hex string that represents the encoded function data.
-
-## Testing
-
-The package provides a set of tests that you can run to verify its operation. The tests are a great resource for examples. You can find them at `./src/estimateFees.spec.ts`.
 
 ## Other methods
 
@@ -361,63 +359,3 @@ const libraryVersion = await version(paramsWithClient)
 ```
 
 ---
-
-### encodeFunctionData()
-
-Encodes function data based on a given function name and arguments.
-
-```ts
-encodeFunctionData({ functionName, abi, args }: EncodeFunctionDataParams): string;
-```
-
-#### Parameters
-
-- `{ functionName, abi, args }: EncodeFunctionDataParams` - An object containing the function name, ABI (Application Binary Interface), and arguments.
-
-#### Returns
-
-- `string` - Returns the encoded function data as a string.
-
-#### Example
-
-```ts
-const encodedData = encodeFunctionData({
-  functionName: 'burn',
-  abi: optimistABI,
-  args: [BigInt(optimistOwnerAddress)],
-})
-```
-
----
-
-### estimateFees()
-
-Estimates the fee for a transaction given the input data and the address of the sender and recipient.
-
-```ts
-estimateFees({ client, data, account, to, blockNumber }: EstimateFeesParams): Promise<bigint>;
-```
-
-#### Parameters
-
-- `{ client, data, account, to, blockNumber }: EstimateFeesParams` - An object containing the client, transaction data, sender's address, recipient's address, and block number.
-
-#### Returns
-
-- `Promise<bigint>` - Returns a promise that resolves to the estimated fee for the given transaction.
-
-#### Example
-
-```ts
-const estimateFeesParams = {
-  data: '0xd1e16f0a603acf1f8150e020434b096e408bafa429a7134fbdad2ae82a9b2b882bfcf5fe174162cf4b3d5f2ab46ff6433792fc99885d55ce0972d982583cc1e11b64b1d8d50121c0497642000000000000000000000000000000000000060a2c8052ed420000000000000000000000000000000000004234002c8052edba12222222228d8ba445958a75a0704d566bf2c84200000000000000000000000000000000000006420000000000000000000000000000000000004239965c9dab5448482cf7e002f583c812ceb53046000100000000000000000003',
-  account: '0xe371815c5f8a4f9acd1576879de288acd81269f1',
-  to: '0xe35f24470730f5a488da9721548c1ab0b65b53d5',
-}
-const estimatedFees = await estimateFees({
-  ...paramsWithClient,
-  ...estimateFeesParams,
-})
-```
-
-I hope this information is helpful!
