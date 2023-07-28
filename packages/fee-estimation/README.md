@@ -76,27 +76,27 @@ estimateFees(options: OracleTransactionParameters<TAbi, TFunctionName> & GasPric
 
 `options`: An object with the following fields:
 
-- abi: A JSON object ABI of contract.
+- `abi`: A JSON object ABI of contract.
 
-- account: A hex address of the account making the transaction.
+- `account`: A hex address of the account making the transaction.
 
-- args: Array of arguments to contract function. The types of this will be inferred from the ABI
+- `args`: Array of arguments to contract function. The types of this will be inferred from the ABI
 
-- blockNumber(optional): A BigInt representing the block number at which you want to estimate the fees.
+- `blockNumber`(optional): A BigInt representing the block number at which you want to estimate the fees.
 
-- chainId: An integer chain id.
+- `chainId`: An integer chain id.
 
-- client: An object with rpcUrl field, or an instance of a Viem PublicClient.
+- `client`: An object with rpcUrl field, or an instance of a Viem PublicClient.
 
-- functionName: A string representing the function name for the transaction call data.
+- `functionName`: A string representing the function name for the transaction call data.
 
-- maxFeePerGas(optional): A BigInt representing the maximum fee per gas that the user is willing to pay.
+- `maxFeePerGas`(optional): A BigInt representing the maximum fee per gas that the user is willing to pay.
 
-- maxPriorityFeePerGas(optional): A BigInt representing the maximum priority fee per gas that the user is willing to pay.
+- `maxPriorityFeePerGas`(optional): A BigInt representing the maximum priority fee per gas that the user is willing to pay.
 
-- to: A hex address of the recipient of the transaction.
+- `to`: A hex address of the recipient of the transaction.
 
-- value(optional): A BigInt representing the value in wei sent along with the transaction.
+- `value`(optional): A BigInt representing the value in wei sent along with the transaction.
 
 #### Returns
 
