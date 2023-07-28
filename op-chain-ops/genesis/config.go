@@ -99,7 +99,7 @@ type DeployConfig struct {
 	// L2GenesisRegolithTimeOffset is the number of seconds after genesis block that Regolith hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable regolith.
 	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
-	// Configurable extradata. Will default to []byte("BEDROCK") if left unspecified.
+	// L2GenesisBlockExtraData is configurable extradata. Will default to []byte("BEDROCK") if left unspecified.
 	L2GenesisBlockExtraData []byte `json:"l2GenesisBlockExtraData"`
 	// ProxyAdminOwner represents the owner of the ProxyAdmin predeploy on L2.
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
@@ -124,11 +124,11 @@ type DeployConfig struct {
 	// SequencerFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the SequencerFeeVault.
 	SequencerFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"sequencerFeeVaultMinimumWithdrawalAmount"`
 	// BaseFeeVaultWithdrawalNetwork represents the withdrawal network for the BaseFeeVault.
-	BaseFeeVaultWithdrawalNetwork uint8 `json:"baseFeeVaultWithdrawalNetwork"`
+	BaseFeeVaultWithdrawalNetwork WithdrawalNetwork `json:"baseFeeVaultWithdrawalNetwork"`
 	// L1FeeVaultWithdrawalNetwork represents the withdrawal network for the L1FeeVault.
-	L1FeeVaultWithdrawalNetwork uint8 `json:"l1FeeVaultWithdrawalNetwork"`
+	L1FeeVaultWithdrawalNetwork WithdrawalNetwork `json:"l1FeeVaultWithdrawalNetwork"`
 	// SequencerFeeVaultWithdrawalNetwork represents the withdrawal network for the SequencerFeeVault.
-	SequencerFeeVaultWithdrawalNetwork uint8 `json:"sequencerFeeVaultWithdrawalNetwork"`
+	SequencerFeeVaultWithdrawalNetwork WithdrawalNetwork `json:"sequencerFeeVaultWithdrawalNetwork"`
 	// L1StandardBridgeProxy represents the address of the L1StandardBridgeProxy on L1 and is used
 	// as part of building the L2 genesis state.
 	L1StandardBridgeProxy common.Address `json:"l1StandardBridgeProxy"`
@@ -167,6 +167,22 @@ type DeployConfig struct {
 	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
 	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`
+}
+
+// Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
+// which makes it easier to maintain, we do not need efficiency in this case.
+func (d *DeployConfig) Copy() *DeployConfig {
+	raw, err := json.Marshal(d)
+	if err != nil {
+		panic(err)
+	}
+
+	cpy := DeployConfig{}
+	if err = json.Unmarshal(raw, &cpy); err != nil {
+		panic(err)
+	}
+
+	return &cpy
 }
 
 // Check will ensure that the config is sane and return an error when it is not
@@ -237,13 +253,13 @@ func (d *DeployConfig) Check() error {
 	if d.SequencerFeeVaultRecipient == (common.Address{}) {
 		return fmt.Errorf("%w: SequencerFeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
 	}
-	if d.BaseFeeVaultWithdrawalNetwork >= 2 {
+	if !d.BaseFeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: BaseFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
 	}
-	if d.L1FeeVaultWithdrawalNetwork >= 2 {
+	if !d.L1FeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: L1FeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
 	}
-	if d.SequencerFeeVaultWithdrawalNetwork >= 2 {
+	if !d.SequencerFeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: SequencerFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
 	}
 	if d.GasPriceOracleOverhead == 0 {
@@ -441,6 +457,44 @@ func NewDeployConfigWithNetwork(network, path string) (*DeployConfig, error) {
 	return NewDeployConfig(deployConfig)
 }
 
+// L1Deployments represents a set of L1 contracts that are deployed.
+type L1Deployments struct {
+	AddressManager                    common.Address `json:"AddressManager"`
+	DisputeGameFactory                common.Address `json:"DisputeGameFactory"`
+	DisputeGameFactoryProxy           common.Address `json:"DisputeGameFactoryProxy"`
+	L1CrossDomainMessenger            common.Address `json:"L1CrossDomainMessenger"`
+	L1CrossDomainMessengerProxy       common.Address `json:"L1CrossDomainMessengerProxy"`
+	L1ERC721Bridge                    common.Address `json:"L1ERC721Bridge"`
+	L1ERC721BridgeProxy               common.Address `json:"L1ERC721BridgeProxy"`
+	L1StandardBridge                  common.Address `json:"L1StandardBridge"`
+	L1StandardBridgeProxy             common.Address `json:"L1StandardBridgeProxy"`
+	L2OutputOracle                    common.Address `json:"L2OutputOracle"`
+	L2OutputOracleProxy               common.Address `json:"L2OutputOracleProxy"`
+	OptimismMintableERC20Factory      common.Address `json:"OptimismMintableERC20Factory"`
+	OptimismMintableERC20FactoryProxy common.Address `json:"OptimismMintableERC20FactoryProxy"`
+	OptimismPortal                    common.Address `json:"OptimismPortal"`
+	OptimismPortalProxy               common.Address `json:"OptimismPortalProxy"`
+	ProxyAdmin                        common.Address `json:"ProxyAdmin"`
+	SystemConfig                      common.Address `json:"SystemConfig"`
+	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
+}
+
+// NewL1Deployments will create a new L1Deployments from a JSON file on disk
+// at the given path.
+func NewL1Deployments(path string) (*L1Deployments, error) {
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("L1 deployments at %s not found: %w", path, err)
+	}
+
+	var deployments L1Deployments
+	if err := json.Unmarshal(file, &deployments); err != nil {
+		return nil, fmt.Errorf("cannot unmarshal L1 deployements: %w", err)
+	}
+
+	return &deployments, nil
+}
+
 // NewL2ImmutableConfig will create an ImmutableConfig given an instance of a
 // DeployConfig and a block.
 func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.ImmutableConfig, error) {
@@ -482,17 +536,17 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 	immutable["SequencerFeeVault"] = immutables.ImmutableValues{
 		"recipient":               config.SequencerFeeVaultRecipient,
 		"minimumWithdrawalAmount": config.SequencerFeeVaultMinimumWithdrawalAmount,
-		"withdrawalNetwork":       config.SequencerFeeVaultWithdrawalNetwork,
+		"withdrawalNetwork":       config.SequencerFeeVaultWithdrawalNetwork.ToUint8(),
 	}
 	immutable["L1FeeVault"] = immutables.ImmutableValues{
 		"recipient":               config.L1FeeVaultRecipient,
 		"minimumWithdrawalAmount": config.L1FeeVaultMinimumWithdrawalAmount,
-		"withdrawalNetwork":       config.L1FeeVaultWithdrawalNetwork,
+		"withdrawalNetwork":       config.L1FeeVaultWithdrawalNetwork.ToUint8(),
 	}
 	immutable["BaseFeeVault"] = immutables.ImmutableValues{
 		"recipient":               config.BaseFeeVaultRecipient,
 		"minimumWithdrawalAmount": config.BaseFeeVaultMinimumWithdrawalAmount,
-		"withdrawalNetwork":       config.BaseFeeVaultWithdrawalNetwork,
+		"withdrawalNetwork":       config.BaseFeeVaultWithdrawalNetwork.ToUint8(),
 	}
 
 	return immutable, nil

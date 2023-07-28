@@ -14,6 +14,7 @@
     "start:drippie-mon": "ts-node ./src/drippie-mon/service.ts",
     "start:wd-mon": "ts-node ./src/wd-mon/service.ts",
     "start:fault-mon": "ts-node ./src/fault-mon/service.ts",
+    "start:replica-mon": "ts-node ./src/replica-mon/service.ts",
     "test": "hardhat test",
     "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json",
     "build": "tsc -p ./tsconfig.json",

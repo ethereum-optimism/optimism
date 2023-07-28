@@ -1,15 +1,9 @@
 import fs from 'fs'
 import path from 'path'
 
-const BASE_INVARIANTS_DIR = path.join(
-  __dirname,
-  '..',
-  'contracts',
-  'test',
-  'invariants'
-)
+const BASE_INVARIANTS_DIR = path.join(__dirname, '..', 'test', 'invariants')
 const BASE_DOCS_DIR = path.join(__dirname, '..', 'invariant-docs')
-const BASE_INVARIANT_GH_URL = '../contracts/test/invariants/'
+const BASE_INVARIANT_GH_URL = '../test/invariants/'
 const NATSPEC_INV = '@custom:invariant'
 
 // Represents an invariant test contract
@@ -28,7 +22,7 @@ type InvariantDoc = {
 
 const writtenFiles = []
 
-// Lazy-parses all test files in the `contracts/test/invariants` directory
+// Lazy-parses all test files in the `test/invariants` directory
 // to generate documentation on all invariant tests.
 const docGen = (dir: string): void => {
   // Grab all files within the invariants test dir

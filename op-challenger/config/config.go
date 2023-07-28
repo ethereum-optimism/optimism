@@ -9,11 +9,16 @@ import (
 )
 
 var (
-	ErrMissingTraceType     = errors.New("missing trace type")
-	ErrMissingCannonDatadir = errors.New("missing cannon datadir")
-	ErrMissingAlphabetTrace = errors.New("missing alphabet trace")
-	ErrMissingL1EthRPC      = errors.New("missing l1 eth rpc url")
-	ErrMissingGameAddress   = errors.New("missing game address")
+	ErrMissingTraceType              = errors.New("missing trace type")
+	ErrMissingCannonDatadir          = errors.New("missing cannon datadir")
+	ErrMissingCannonL2               = errors.New("missing cannon L2")
+	ErrMissingCannonBin              = errors.New("missing cannon bin")
+	ErrMissingCannonServer           = errors.New("missing cannon server")
+	ErrMissingCannonAbsolutePreState = errors.New("missing cannon absolute pre-state")
+	ErrMissingAlphabetTrace          = errors.New("missing alphabet trace")
+	ErrMissingL1EthRPC               = errors.New("missing l1 eth rpc url")
+	ErrMissingGameAddress            = errors.New("missing game address")
+	ErrMissingCannonSnapshotFreq     = errors.New("missing cannon snapshot freq")
 )
 
 type TraceType string
@@ -29,6 +34,7 @@ func (t TraceType) String() string {
 	return string(t)
 }
 
+// Set implements the Set method required by the [cli.Generic] interface.
 func (t *TraceType) Set(value string) error {
 	if !ValidTraceType(TraceType(value)) {
 		return fmt.Errorf("unknown trace type: %q", value)
@@ -46,6 +52,8 @@ func ValidTraceType(value TraceType) bool {
 	return false
 }
 
+const DefaultCannonSnapshotFreq = uint(10_000)
+
 // Config is a well typed config that is parsed from the CLI params.
 // This also contains config options for auxiliary services.
 // It is used to initialize the challenger.
@@ -55,9 +63,18 @@ type Config struct {
 	AgreeWithProposedOutput bool           // Temporary config if we agree or disagree with the posted output
 	GameDepth               int            // Depth of the game tree
 
-	TraceType     TraceType // Type of trace
-	AlphabetTrace string    // String for the AlphabetTraceProvider
-	CannonDatadir string    // Cannon Data Directory for the CannonTraceProvider
+	TraceType TraceType // Type of trace
+
+	// Specific to the alphabet trace provider
+	AlphabetTrace string // String for the AlphabetTraceProvider
+
+	// Specific to the cannon trace provider
+	CannonBin              string // Path to the cannon executable to run when generating trace data
+	CannonServer           string // Path to the op-program executable that provides the pre-image oracle server
+	CannonAbsolutePreState string // File to load the absolute pre-state for Cannon traces from
+	CannonDatadir          string // Cannon Data Directory
+	CannonL2               string // L2 RPC Url
+	CannonSnapshotFreq     uint   // Frequency of snapshots to create when executing cannon (in VM instructions)
 
 	TxMgrConfig txmgr.CLIConfig
 }
@@ -66,8 +83,6 @@ func NewConfig(
 	l1EthRpc string,
 	gameAddress common.Address,
 	traceType TraceType,
-	alphabetTrace string,
-	cannonDatadir string,
 	agreeWithProposedOutput bool,
 	gameDepth int,
 ) Config {
@@ -78,11 +93,11 @@ func NewConfig(
 		AgreeWithProposedOutput: agreeWithProposedOutput,
 		GameDepth:               gameDepth,
 
-		TraceType:     traceType,
-		AlphabetTrace: alphabetTrace,
-		CannonDatadir: cannonDatadir,
+		TraceType: traceType,
 
 		TxMgrConfig: txmgr.NewCLIConfig(l1EthRpc),
+
+		CannonSnapshotFreq: DefaultCannonSnapshotFreq,
 	}
 }
 
@@ -96,8 +111,25 @@ func (c Config) Check() error {
 	if c.TraceType == "" {
 		return ErrMissingTraceType
 	}
-	if c.TraceType == TraceTypeCannon && c.CannonDatadir == "" {
-		return ErrMissingCannonDatadir
+	if c.TraceType == TraceTypeCannon {
+		if c.CannonBin == "" {
+			return ErrMissingCannonBin
+		}
+		if c.CannonServer == "" {
+			return ErrMissingCannonServer
+		}
+		if c.CannonAbsolutePreState == "" {
+			return ErrMissingCannonAbsolutePreState
+		}
+		if c.CannonDatadir == "" {
+			return ErrMissingCannonDatadir
+		}
+		if c.CannonL2 == "" {
+			return ErrMissingCannonL2
+		}
+		if c.CannonSnapshotFreq == 0 {
+			return ErrMissingCannonSnapshotFreq
+		}
 	}
 	if c.TraceType == TraceTypeAlphabet && c.AlphabetTrace == "" {
 		return ErrMissingAlphabetTrace

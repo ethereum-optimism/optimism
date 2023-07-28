@@ -9,27 +9,27 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { Deployer } from "./Deployer.sol";
 import { DeployConfig } from "./DeployConfig.s.sol";
 
-import { ProxyAdmin } from "../contracts/universal/ProxyAdmin.sol";
-import { AddressManager } from "../contracts/legacy/AddressManager.sol";
-import { Proxy } from "../contracts/universal/Proxy.sol";
-import { L1StandardBridge } from "../contracts/L1/L1StandardBridge.sol";
-import { OptimismPortal } from "../contracts/L1/OptimismPortal.sol";
-import { L1ChugSplashProxy } from "../contracts/legacy/L1ChugSplashProxy.sol";
-import { ResolvedDelegateProxy } from "../contracts/legacy/ResolvedDelegateProxy.sol";
-import { L1CrossDomainMessenger } from "../contracts/L1/L1CrossDomainMessenger.sol";
-import { L2OutputOracle } from "../contracts/L1/L2OutputOracle.sol";
-import { OptimismMintableERC20Factory } from "../contracts/universal/OptimismMintableERC20Factory.sol";
-import { SystemConfig } from "../contracts/L1/SystemConfig.sol";
-import { ResourceMetering } from "../contracts/L1/ResourceMetering.sol";
-import { Constants } from "../contracts/libraries/Constants.sol";
-import { DisputeGameFactory } from "../contracts/dispute/DisputeGameFactory.sol";
-import { FaultDisputeGame } from "../contracts/dispute/FaultDisputeGame.sol";
-import { L1ERC721Bridge } from "../contracts/L1/L1ERC721Bridge.sol";
-import { Predeploys } from "../contracts/libraries/Predeploys.sol";
+import { ProxyAdmin } from "../src/universal/ProxyAdmin.sol";
+import { AddressManager } from "../src/legacy/AddressManager.sol";
+import { Proxy } from "../src/universal/Proxy.sol";
+import { L1StandardBridge } from "../src/L1/L1StandardBridge.sol";
+import { OptimismPortal } from "../src/L1/OptimismPortal.sol";
+import { L1ChugSplashProxy } from "../src/legacy/L1ChugSplashProxy.sol";
+import { ResolvedDelegateProxy } from "../src/legacy/ResolvedDelegateProxy.sol";
+import { L1CrossDomainMessenger } from "../src/L1/L1CrossDomainMessenger.sol";
+import { L2OutputOracle } from "../src/L1/L2OutputOracle.sol";
+import { OptimismMintableERC20Factory } from "../src/universal/OptimismMintableERC20Factory.sol";
+import { SystemConfig } from "../src/L1/SystemConfig.sol";
+import { ResourceMetering } from "../src/L1/ResourceMetering.sol";
+import { Constants } from "../src/libraries/Constants.sol";
+import { DisputeGameFactory } from "../src/dispute/DisputeGameFactory.sol";
+import { FaultDisputeGame } from "../src/dispute/FaultDisputeGame.sol";
+import { L1ERC721Bridge } from "../src/L1/L1ERC721Bridge.sol";
+import { Predeploys } from "../src/libraries/Predeploys.sol";
 
-import { IBigStepper } from "../contracts/dispute/interfaces/IBigStepper.sol";
-import { AlphabetVM } from "../contracts/test/FaultDisputeGame.t.sol";
-import "../contracts/libraries/DisputeTypes.sol";
+import { IBigStepper } from "../src/dispute/interfaces/IBigStepper.sol";
+import { AlphabetVM } from "../test/FaultDisputeGame.t.sol";
+import "../src/libraries/DisputeTypes.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.

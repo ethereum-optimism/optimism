@@ -21,3 +21,4 @@ eth_sendRawTransaction = "main"
 enabled = true
 interval = "1s"
 limit = 1
+allowed_chain_ids = [420]

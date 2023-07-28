@@ -52,7 +52,7 @@ var (
 	defaultNumConfirmations          = uint64(10)
 	defaultSafeAbortNonceTooLowCount = uint64(3)
 	defaultResubmissionTimeout       = 48 * time.Second
-	defaultNetworkTimeout            = 2 * time.Second
+	defaultNetworkTimeout            = 10 * time.Second
 	defaultTxSendTimeout             = 0 * time.Second
 	defaultTxNotInMempoolTimeout     = 2 * time.Minute
 	defaultReceiptQueryInterval      = 12 * time.Second

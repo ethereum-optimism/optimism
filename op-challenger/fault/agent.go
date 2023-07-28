@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/solver"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -19,7 +20,7 @@ type Responder interface {
 }
 
 type Agent struct {
-	solver                  *Solver
+	solver                  *solver.Solver
 	loader                  Loader
 	responder               Responder
 	maxDepth                int
@@ -29,7 +30,7 @@ type Agent struct {
 
 func NewAgent(loader Loader, maxDepth int, trace types.TraceProvider, responder Responder, agreeWithProposedOutput bool, log log.Logger) *Agent {
 	return &Agent{
-		solver:                  NewSolver(maxDepth, trace),
+		solver:                  solver.NewSolver(maxDepth, trace),
 		loader:                  loader,
 		responder:               responder,
 		maxDepth:                maxDepth,
@@ -49,7 +50,7 @@ func (a *Agent) Act(ctx context.Context) error {
 	}
 	// Create counter claims
 	for _, claim := range game.Claims() {
-		if err := a.move(ctx, claim, game); err != nil && !errors.Is(err, ErrGameDepthReached) {
+		if err := a.move(ctx, claim, game); err != nil && !errors.Is(err, types.ErrGameDepthReached) {
 			log.Error("Failed to move", "err", err)
 		}
 	}
@@ -94,7 +95,7 @@ func (a *Agent) newGameFromContracts(ctx context.Context) (types.Game, error) {
 
 // move determines & executes the next move given a claim
 func (a *Agent) move(ctx context.Context, claim types.Claim, game types.Game) error {
-	nextMove, err := a.solver.NextMove(claim, game.AgreeWithClaimLevel(claim))
+	nextMove, err := a.solver.NextMove(ctx, claim, game.AgreeWithClaimLevel(claim))
 	if err != nil {
 		return fmt.Errorf("execute next move: %w", err)
 	}
@@ -132,7 +133,7 @@ func (a *Agent) step(ctx context.Context, claim types.Claim, game types.Game) er
 	}
 
 	a.log.Info("Attempting step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
-	step, err := a.solver.AttemptStep(claim, agreeWithClaimLevel)
+	step, err := a.solver.AttemptStep(ctx, claim, agreeWithClaimLevel)
 	if err != nil {
 		return fmt.Errorf("attempt step: %w", err)
 	}

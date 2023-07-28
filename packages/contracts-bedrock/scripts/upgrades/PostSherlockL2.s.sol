@@ -5,8 +5,8 @@ import { console } from "forge-std/console.sol";
 import { SafeBuilder } from "../universal/SafeBuilder.sol";
 import { IGnosisSafe, Enum } from "../interfaces/IGnosisSafe.sol";
 import { IMulticall3 } from "forge-std/interfaces/IMulticall3.sol";
-import { Predeploys } from "../../contracts/libraries/Predeploys.sol";
-import { ProxyAdmin } from "../../contracts/universal/ProxyAdmin.sol";
+import { Predeploys } from "../../src/libraries/Predeploys.sol";
+import { ProxyAdmin } from "../../src/universal/ProxyAdmin.sol";
 
 /// @title PostSherlockL2
 /// @notice Upgrades the L2 contracts.
