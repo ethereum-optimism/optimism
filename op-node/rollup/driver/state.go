@@ -118,11 +118,7 @@ func (s *Driver) Start() error {
 }
 
 func (s *Driver) Close() error {
-	select {
-	case <-s.done:
-	default:
-		close(s.done)
-	}
+	s.done <- struct{}{}
 	s.wg.Wait()
 	return nil
 }
@@ -316,7 +312,6 @@ func (s *Driver) eventLoop() {
 			s.metrics.SetDerivationIdle(false)
 			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Origin(), "attempts", stepAttempts)
 			err := s.derivation.Step(context.Background())
-			s.log.Debug("MMDBG derivation.Step", "err", err)
 			stepAttempts += 1 // count as attempt by default. We reset to 0 if we are making healthy progress.
 			if err == io.EOF {
 				s.log.Debug("Derivation process went idle", "progress", s.derivation.Origin())
