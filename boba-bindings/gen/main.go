@@ -166,6 +166,24 @@ func main() {
 			log.Fatalf("error running abigen: %v\n", err)
 		}
 
+		if !strings.Contains(outFile, "boba.go") {
+			bFile, err := os.ReadFile(outFile)
+			if err != nil {
+				log.Fatalf("error reading file: %v\n", err)
+			}
+			sFile := string(bFile)
+			sFile = strings.Replace(sFile, `
+// ERC20VotesCheckpoint is an auto generated low-level Go binding around an user-defined struct.
+type ERC20VotesCheckpoint struct {
+	FromBlock uint32
+	Votes     *big.Int
+}
+`, "", -1)
+			if err := os.WriteFile(outFile, []byte(sFile), 0o600); err != nil {
+				log.Fatalf("error writing file: %v\n", err)
+			}
+		}
+
 		storage := artifact.StorageLayout
 		canonicalStorage := ast.CanonicalizeASTIDs(&storage, f.MonorepoBase)
 		ser, err := json.Marshal(canonicalStorage)
