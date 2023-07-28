@@ -10,6 +10,7 @@ import (
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/state"
 	"github.com/ledgerwatch/erigon-lib/chain"
 	"github.com/ledgerwatch/erigon-lib/common"
+	"github.com/ledgerwatch/erigon/common/hexutil"
 	"github.com/ledgerwatch/erigon/core/types"
 	"github.com/stretchr/testify/require"
 )
@@ -128,13 +129,19 @@ func TestSetImplementations(t *testing.T) {
 			"bridge":        common.HexToAddress("0x1234567890123456789012345678901234567890"),
 		},
 		"SequencerFeeVault": {
-			"recipient": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"recipient":               common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"minimumWithdrawalAmount": (*hexutil.Big)(big.NewInt(100)),
+			"withdrawalNetwork":       uint8(0),
 		},
 		"L1FeeVault": {
-			"recipient": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"recipient":               common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"minimumWithdrawalAmount": (*hexutil.Big)(big.NewInt(100)),
+			"withdrawalNetwork":       uint8(0),
 		},
 		"BaseFeeVault": {
-			"recipient": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"recipient":               common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"minimumWithdrawalAmount": (*hexutil.Big)(big.NewInt(100)),
+			"withdrawalNetwork":       uint8(0),
 		},
 		"BobaL2": {
 			"l2Bridge":  common.HexToAddress("0x1234567890123456789012345678901234567890"),

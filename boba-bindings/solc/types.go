@@ -64,6 +64,7 @@ type StorageLayoutType struct {
 	NumberOfBytes uint   `json:"numberOfBytes,string"`
 	Key           string `json:"key,omitempty"`
 	Value         string `json:"value,omitempty"`
+	Base          string `json:"base,omitempty"`
 }
 
 type CompilerOutputEvm struct {

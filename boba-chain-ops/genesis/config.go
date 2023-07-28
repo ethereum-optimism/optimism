@@ -87,6 +87,18 @@ type DeployConfig struct {
 	L1FeeVaultRecipient common.Address `json:"l1FeeVaultRecipient"`
 	// L1 recipient of fees accumulated in the SequencerFeeVault
 	SequencerFeeVaultRecipient common.Address `json:"sequencerFeeVaultRecipient"`
+	// BaseFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the BaseFeeVault.
+	BaseFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"baseFeeVaultMinimumWithdrawalAmount"`
+	// L1FeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the L1FeeVault.
+	L1FeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"l1FeeVaultMinimumWithdrawalAmount"`
+	// SequencerFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the SequencerFeeVault.
+	SequencerFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"sequencerFeeVaultMinimumWithdrawalAmount"`
+	// BaseFeeVaultWithdrawalNetwork represents the withdrawal network for the BaseFeeVault.
+	BaseFeeVaultWithdrawalNetwork uint8 `json:"baseFeeVaultWithdrawalNetwork"`
+	// L1FeeVaultWithdrawalNetwork represents the withdrawal network for the L1FeeVault.
+	L1FeeVaultWithdrawalNetwork uint8 `json:"l1FeeVaultWithdrawalNetwork"`
+	// SequencerFeeVaultWithdrawalNetwork represents the withdrawal network for the SequencerFeeVault.
+	SequencerFeeVaultWithdrawalNetwork uint8 `json:"sequencerFeeVaultWithdrawalNetwork"`
 	// L1StandardBridge proxy address on L1
 	L1StandardBridgeProxy common.Address `json:"l1StandardBridgeProxy"`
 	// L1CrossDomainMessenger proxy address on L1
@@ -411,13 +423,19 @@ func NewL2ImmutableConfig(config *DeployConfig, blockHeader *types.Header) (immu
 		"remoteChainId": new(big.Int).SetUint64(config.L1ChainID),
 	}
 	immutable["SequencerFeeVault"] = immutables.ImmutableValues{
-		"recipient": config.SequencerFeeVaultRecipient,
+		"recipient":               config.SequencerFeeVaultRecipient,
+		"minimumWithdrawalAmount": config.SequencerFeeVaultMinimumWithdrawalAmount,
+		"withdrawalNetwork":       config.SequencerFeeVaultWithdrawalNetwork,
 	}
 	immutable["L1FeeVault"] = immutables.ImmutableValues{
-		"recipient": config.L1FeeVaultRecipient,
+		"recipient":               config.L1FeeVaultRecipient,
+		"minimumWithdrawalAmount": config.L1FeeVaultMinimumWithdrawalAmount,
+		"withdrawalNetwork":       config.L1FeeVaultWithdrawalNetwork,
 	}
 	immutable["BaseFeeVault"] = immutables.ImmutableValues{
-		"recipient": config.BaseFeeVaultRecipient,
+		"recipient":               config.BaseFeeVaultRecipient,
+		"minimumWithdrawalAmount": config.BaseFeeVaultMinimumWithdrawalAmount,
+		"withdrawalNetwork":       config.BaseFeeVaultWithdrawalNetwork,
 	}
 	l1TokenAddr, err := config.GetL1BobaTokenAddress()
 	if err != nil {

@@ -32,6 +32,10 @@ func TestCanonicalize(t *testing.T) {
 			"values in storage",
 			"values-in-storage.json",
 		},
+		{
+			"custom types",
+			"custom-types.json",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -45,7 +49,7 @@ func TestCanonicalize(t *testing.T) {
 			// Run 100 times to make sure that we aren't relying
 			// on random map iteration order.
 			for i := 0; i < 100; i++ {
-				require.Equal(t, testData.Out, CanonicalizeASTIDs(testData.In))
+				require.Equal(t, testData.Out, CanonicalizeASTIDs(testData.In, ""))
 			}
 		})
 	}

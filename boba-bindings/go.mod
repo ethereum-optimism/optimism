@@ -3,6 +3,7 @@ module github.com/bobanetwork/v3-anchorage/boba-bindings
 go 1.19
 
 require (
+	github.com/ethereum/go-ethereum v1.10.25
 	github.com/ledgerwatch/erigon v1.10.16
 	github.com/ledgerwatch/erigon-lib v0.0.0-20230518195502-f2d93b959bb3
 	github.com/stretchr/testify v1.8.2
@@ -18,7 +19,6 @@ require (
 	github.com/crate-crypto/go-kzg-4844 v0.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
-	github.com/ethereum/go-ethereum v1.10.25 // indirect
 	github.com/fjl/gencodec v0.0.0-20220412091415-8bb9e558978c // indirect
 	github.com/garslo/gogen v0.0.0-20170307003452-d6ebae628c7c // indirect
 	github.com/gballet/go-verkle v0.0.0-20221121182333-31427a1f2d35 // indirect
