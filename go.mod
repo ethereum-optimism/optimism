@@ -38,7 +38,7 @@ require (
 	github.com/prometheus/client_golang v1.14.0
 	github.com/rs/cors v1.9.0
 	github.com/stretchr/testify v1.8.4
-	github.com/urfave/cli v1.22.2
+	github.com/urfave/cli v1.22.14
 	github.com/urfave/cli/v2 v2.25.7
 	golang.org/x/crypto v0.8.0
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df
