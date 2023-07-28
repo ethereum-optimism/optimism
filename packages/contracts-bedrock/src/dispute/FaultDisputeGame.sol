@@ -63,13 +63,18 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     mapping(ClaimHash => bool) internal claims;
 
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
+    /// @param _maxGameDepth The maximum depth of bisection.
+    /// @param _gameDuration The duration of the game.
+    /// @param _vm An onchain VM that performs single instruction steps on a fault proof program trace.
+    /// @param _l2oo The trusted L2OutputOracle contract.
+    /// @custom:semver 0.0.4
     constructor(
         Claim _absolutePrestate,
         uint256 _maxGameDepth,
         Duration _gameDuration,
         IBigStepper _vm,
         L2OutputOracle _l2oo
-    ) Semver(0, 0, 3) {
+    ) Semver(0, 0, 4) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
         GAME_DURATION = _gameDuration;
