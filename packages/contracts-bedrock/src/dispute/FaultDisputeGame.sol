@@ -65,7 +65,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
     /// @param _maxGameDepth The maximum depth of bisection.
     /// @param _gameDuration The duration of the game.
-    /// @param _vm An onchain VM that performs single instruction steps on a fault proof program trace.
+    /// @param _vm An onchain VM that performs single instruction steps on a fault proof program
+    ///            trace.
     /// @param _l2oo The trusted L2OutputOracle contract.
     /// @custom:semver 0.0.4
     constructor(
