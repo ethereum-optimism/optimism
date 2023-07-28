@@ -3,7 +3,6 @@
 /packages/common-ts             @ethereum-optimism/typescript-reviewers
 /packages/contracts-bedrock     @ethereum-optimism/contract-reviewers
 /packages/core-utils            @ethereum-optimism/legacy-reviewers
-/packages/replica-healthcheck   @ethereum-optimism/legacy-reviewers
 /packages/sdk                   @ethereum-optimism/devxpod
 
 # Bedrock codebases
