@@ -6,7 +6,7 @@ require (
 	github.com/BurntSushi/toml v1.3.2
 	github.com/btcsuite/btcd v0.23.3
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1
-	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0
+	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.2.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
 	github.com/ethereum/go-ethereum v1.12.0
 	github.com/fsnotify/fsnotify v1.6.0
@@ -73,7 +73,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/deckarep/golang-set/v2 v2.1.0 // indirect
-	github.com/decred/dcrd/crypto/blake256 v1.0.0 // indirect
+	github.com/decred/dcrd/crypto/blake256 v1.0.1 // indirect
 	github.com/deepmap/oapi-codegen v1.8.2 // indirect
 	github.com/docker/docker v20.10.24+incompatible // indirect
 	github.com/docker/go-units v0.5.0 // indirect
