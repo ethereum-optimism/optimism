@@ -1,9 +1,9 @@
 [profile.default]
 src = 'src'
 out = 'forge-artifacts'
+script = 'scripts'
 optimizer = true
 optimizer_runs = 999999
-script = 'scripts'
 
 remappings = [
   '@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts',
