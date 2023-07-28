@@ -7,7 +7,7 @@ typechain
 
 # Metrics
 coverage.out
-resource-metering.csv
+.resource-metering.csv
 
 # Tests
 test-case-generator/fuzz

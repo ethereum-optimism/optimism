@@ -444,22 +444,6 @@ importers:
         specifier: ^0.33.0
         version: 0.33.0(jsdom@22.1.0)
 
-  packages/replica-healthcheck:
-    dependencies:
-      '@eth-optimism/common-ts':
-        specifier: 0.8.3
-        version: link:../common-ts
-      '@eth-optimism/core-utils':
-        specifier: 0.12.2
-        version: link:../core-utils
-      '@ethersproject/abstract-provider':
-        specifier: ^5.7.0
-        version: 5.7.0
-    devDependencies:
-      ts-node:
-        specifier: ^10.9.1
-        version: 10.9.1(@types/node@12.20.55)(typescript@5.1.6)
-
   packages/sdk:
     dependencies:
       '@eth-optimism/contracts':
