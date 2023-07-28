@@ -3,6 +3,7 @@ package test
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -16,8 +17,9 @@ type stateOracle interface {
 }
 
 type StubBlockOracle struct {
-	t      *testing.T
-	Blocks map[common.Hash]*types.Block
+	t       *testing.T
+	Blocks  map[common.Hash]*types.Block
+	Outputs map[common.Hash]eth.Output
 	stateOracle
 }
 
@@ -26,18 +28,25 @@ func NewStubOracle(t *testing.T) (*StubBlockOracle, *StubStateOracle) {
 	blockOracle := StubBlockOracle{
 		t:           t,
 		Blocks:      make(map[common.Hash]*types.Block),
+		Outputs:     make(map[common.Hash]eth.Output),
 		stateOracle: stateOracle,
 	}
 	return &blockOracle, stateOracle
 }
 
-func NewStubOracleWithBlocks(t *testing.T, chain []*types.Block, db ethdb.Database) *StubBlockOracle {
+func NewStubOracleWithBlocks(t *testing.T, chain []*types.Block, outputs []eth.Output, db ethdb.Database) *StubBlockOracle {
 	blocks := make(map[common.Hash]*types.Block, len(chain))
 	for _, block := range chain {
 		blocks[block.Hash()] = block
 	}
+	o := make(map[common.Hash]eth.Output, len(outputs))
+	for _, output := range outputs {
+		o[common.Hash(eth.OutputRoot(output))] = output
+	}
 	return &StubBlockOracle{
+		t:           t,
 		Blocks:      blocks,
+		Outputs:     o,
 		stateOracle: &KvStateOracle{t: t, Source: db},
 	}
 }
@@ -48,6 +57,14 @@ func (o StubBlockOracle) BlockByHash(blockHash common.Hash) *types.Block {
 		o.t.Fatalf("requested unknown block %s", blockHash)
 	}
 	return block
+}
+
+func (o StubBlockOracle) OutputByRoot(root common.Hash) eth.Output {
+	output, ok := o.Outputs[root]
+	if !ok {
+		o.t.Fatalf("requested unknown output root %s", root)
+	}
+	return output
 }
 
 // KvStateOracle loads data from a source ethdb.KeyValueStore
