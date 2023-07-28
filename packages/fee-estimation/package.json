@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/fee-estimation",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "description": "Lightweight library for doing OP-Chain gas estimation",
   "license": "MIT",
   "repository": {
