@@ -36,7 +36,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/pkg/profile v1.7.0
 	github.com/prometheus/client_golang v1.14.0
-	github.com/rs/cors v1.8.2
+	github.com/rs/cors v1.9.0
 	github.com/stretchr/testify v1.8.4
 	github.com/urfave/cli v1.22.2
 	github.com/urfave/cli/v2 v2.25.7
