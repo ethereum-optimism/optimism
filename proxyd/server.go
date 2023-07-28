@@ -27,6 +27,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/cors"
+	"github.com/syndtr/goleveldb/leveldb/opt"
 )
 
 const (
@@ -35,7 +36,11 @@ const (
 	ContextKeyXForwardedFor     = "x_forwarded_for"
 	MaxBatchRPCCallsHardLimit   = 100
 	cacheStatusHdr              = "X-Proxyd-Cache-Status"
-	defaultServerTimeout        = time.Second * 10
+	defaultRPCTimeout           = 10 * time.Second
+	defaultBodySizeLimit        = 256 * opt.KiB
+	defaultWSHandshakeTimeout   = 10 * time.Second
+	defaultWSReadTimeout        = 2 * time.Minute
+	defaultWSWriteTimeout       = 10 * time.Second
 	maxRequestBodyLogLen        = 2000
 	defaultMaxUpstreamBatchSize = 10
 )
@@ -92,11 +97,11 @@ func NewServer(
 	}
 
 	if maxBodySize == 0 {
-		maxBodySize = math.MaxInt64
+		maxBodySize = defaultBodySizeLimit
 	}
 
 	if timeout == 0 {
-		timeout = defaultServerTimeout
+		timeout = defaultRPCTimeout
 	}
 
 	if maxUpstreamBatchSize == 0 {
@@ -170,7 +175,7 @@ func NewServer(
 		maxRequestBodyLogLen: maxRequestBodyLogLen,
 		maxBatchSize:         maxBatchSize,
 		upgrader: &websocket.Upgrader{
-			HandshakeTimeout: 5 * time.Second,
+			HandshakeTimeout: defaultWSHandshakeTimeout,
 		},
 		mainLim:                mainLim,
 		overrideLims:           overrideLims,
@@ -547,6 +552,7 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		log.Error("error upgrading client conn", "auth", GetAuthCtx(ctx), "req_id", GetReqID(ctx), "err", err)
 		return
 	}
+	clientConn.SetReadLimit(s.maxBodySize)
 
 	proxier, err := s.wsBackendGroup.ProxyWS(ctx, clientConn, s.wsMethodWhitelist)
 	if err != nil {
