@@ -64,7 +64,36 @@ var OPSepoliaChainConfig = &params.ChainConfig{
 	},
 }
 
+var OPMainnetChainConfig = &params.ChainConfig{
+	ChainID:                       big.NewInt(10),
+	HomesteadBlock:                big.NewInt(0),
+	DAOForkBlock:                  nil,
+	DAOForkSupport:                false,
+	EIP150Block:                   big.NewInt(0),
+	EIP155Block:                   big.NewInt(0),
+	EIP158Block:                   big.NewInt(0),
+	ByzantiumBlock:                big.NewInt(0),
+	ConstantinopleBlock:           big.NewInt(0),
+	PetersburgBlock:               big.NewInt(0),
+	IstanbulBlock:                 big.NewInt(0),
+	MuirGlacierBlock:              big.NewInt(0),
+	BerlinBlock:                   big.NewInt(3950000),
+	LondonBlock:                   big.NewInt(105235063),
+	ArrowGlacierBlock:             big.NewInt(105235063),
+	GrayGlacierBlock:              big.NewInt(105235063),
+	MergeNetsplitBlock:            big.NewInt(105235063),
+	BedrockBlock:                  big.NewInt(105235063),
+	RegolithTime:                  &enabledFromBedrockBlock,
+	TerminalTotalDifficulty:       big.NewInt(0),
+	TerminalTotalDifficultyPassed: true,
+	Optimism: &params.OptimismConfig{
+		EIP1559Elasticity:  6,
+		EIP1559Denominator: 50,
+	},
+}
+
 var L2ChainConfigsByName = map[string]*params.ChainConfig{
 	"goerli":  OPGoerliChainConfig,
 	"sepolia": OPSepoliaChainConfig,
+	"mainnet": OPMainnetChainConfig,
 }
