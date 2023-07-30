@@ -12,7 +12,7 @@ import (
 
 const (
 	L1HeadLocalIndex preimage.LocalIndexKey = iota + 1
-	L2OutputRootLocalIndex
+	L2HeadLocalIndex
 	L2ClaimLocalIndex
 	L2ClaimBlockNumberLocalIndex
 	L2ChainConfigLocalIndex
@@ -21,7 +21,7 @@ const (
 
 type BootInfo struct {
 	L1Head             common.Hash
-	L2OutputRoot       common.Hash
+	L2Head             common.Hash
 	L2Claim            common.Hash
 	L2ClaimBlockNumber uint64
 	L2ChainConfig      *params.ChainConfig
@@ -42,7 +42,7 @@ func NewBootstrapClient(r oracleClient) *BootstrapClient {
 
 func (br *BootstrapClient) BootInfo() *BootInfo {
 	l1Head := common.BytesToHash(br.r.Get(L1HeadLocalIndex))
-	l2OutputRoot := common.BytesToHash(br.r.Get(L2OutputRootLocalIndex))
+	l2Head := common.BytesToHash(br.r.Get(L2HeadLocalIndex))
 	l2Claim := common.BytesToHash(br.r.Get(L2ClaimLocalIndex))
 	l2ClaimBlockNumber := binary.BigEndian.Uint64(br.r.Get(L2ClaimBlockNumberLocalIndex))
 	l2ChainConfig := new(params.ChainConfig)
@@ -58,7 +58,7 @@ func (br *BootstrapClient) BootInfo() *BootInfo {
 
 	return &BootInfo{
 		L1Head:             l1Head,
-		L2OutputRoot:       l2OutputRoot,
+		L2Head:             l2Head,
 		L2Claim:            l2Claim,
 		L2ClaimBlockNumber: l2ClaimBlockNumber,
 		L2ChainConfig:      l2ChainConfig,
