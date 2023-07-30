@@ -119,8 +119,6 @@ func TestRetryingL2Source(t *testing.T) {
 		&types.Transaction{},
 	}
 	data := []byte{1, 2, 3, 4, 5}
-	output := &eth.OutputV0{}
-	wrongOutput := &eth.OutputV0{BlockHash: common.Hash{0x99}}
 
 	t.Run("InfoAndTxsByHash Success", func(t *testing.T) {
 		source, mock := createL2Source(t)
@@ -189,28 +187,6 @@ func TestRetryingL2Source(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, data, actual)
 	})
-
-	t.Run("OutputByRoot Success", func(t *testing.T) {
-		source, mock := createL2Source(t)
-		defer mock.AssertExpectations(t)
-		mock.ExpectOutputByRoot(hash, output, nil)
-
-		actualOutput, err := source.OutputByRoot(ctx, hash)
-		require.NoError(t, err)
-		require.Equal(t, output, actualOutput)
-	})
-
-	t.Run("OutputByRoot Error", func(t *testing.T) {
-		source, mock := createL2Source(t)
-		defer mock.AssertExpectations(t)
-		expectedErr := errors.New("boom")
-		mock.ExpectOutputByRoot(hash, wrongOutput, expectedErr)
-		mock.ExpectOutputByRoot(hash, output, nil)
-
-		actualOutput, err := source.OutputByRoot(ctx, hash)
-		require.NoError(t, err)
-		require.Equal(t, output, actualOutput)
-	})
 }
 
 func createL2Source(t *testing.T) (*RetryingL2Source, *MockL2Source) {
@@ -241,11 +217,6 @@ func (m *MockL2Source) CodeByHash(ctx context.Context, hash common.Hash) ([]byte
 	return out[0].([]byte), *out[1].(*error)
 }
 
-func (m *MockL2Source) OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error) {
-	out := m.Mock.MethodCalled("OutputByRoot", root)
-	return out[0].(eth.Output), *out[1].(*error)
-}
-
 func (m *MockL2Source) ExpectInfoAndTxsByHash(blockHash common.Hash, info eth.BlockInfo, txs types.Transactions, err error) {
 	m.Mock.On("InfoAndTxsByHash", blockHash).Once().Return(info, txs, &err)
 }
@@ -256,10 +227,6 @@ func (m *MockL2Source) ExpectNodeByHash(hash common.Hash, node []byte, err error
 
 func (m *MockL2Source) ExpectCodeByHash(hash common.Hash, code []byte, err error) {
 	m.Mock.On("CodeByHash", hash).Once().Return(code, &err)
-}
-
-func (m *MockL2Source) ExpectOutputByRoot(root common.Hash, output eth.Output, err error) {
-	m.Mock.On("OutputByRoot", root).Once().Return(output, &err)
 }
 
 var _ L2Source = (*MockL2Source)(nil)

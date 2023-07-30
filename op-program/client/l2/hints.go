@@ -11,7 +11,6 @@ const (
 	HintL2Transactions = "l2-transactions"
 	HintL2Code         = "l2-code"
 	HintL2StateNode    = "l2-state-node"
-	HintL2Output       = "l2-output"
 )
 
 type BlockHeaderHint common.Hash
@@ -44,12 +43,4 @@ var _ preimage.Hint = StateNodeHint{}
 
 func (l StateNodeHint) Hint() string {
 	return HintL2StateNode + " " + (common.Hash)(l).String()
-}
-
-type L2OutputHint common.Hash
-
-var _ preimage.Hint = L2OutputHint{}
-
-func (l L2OutputHint) Hint() string {
-	return HintL2Output + " " + (common.Hash)(l).String()
 }
