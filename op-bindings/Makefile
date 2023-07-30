@@ -25,6 +25,9 @@ bindings-build:
 		-package $(pkg) \
 		-monorepo-base $(monorepo-base)
 
+lint:
+	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
+
 mkdir:
 	mkdir -p $(pkg)
 
