@@ -32,6 +32,8 @@ type Oracle interface {
 
 	// BlockByHash retrieves the block with the given hash.
 	BlockByHash(blockHash common.Hash) *types.Block
+
+	OutputByRoot(root common.Hash) eth.Output
 }
 
 // PreimageOracle implements Oracle using by interfacing with the pure preimage.Oracle
@@ -84,4 +86,14 @@ func (p *PreimageOracle) NodeByHash(nodeHash common.Hash) []byte {
 func (p *PreimageOracle) CodeByHash(codeHash common.Hash) []byte {
 	p.hint.Hint(CodeHint(codeHash))
 	return p.oracle.Get(preimage.Keccak256Key(codeHash))
+}
+
+func (p *PreimageOracle) OutputByRoot(l2OutputRoot common.Hash) eth.Output {
+	p.hint.Hint(L2OutputHint(l2OutputRoot))
+	data := p.oracle.Get(preimage.Keccak256Key(l2OutputRoot))
+	output, err := eth.UnmarshalOutput(data)
+	if err != nil {
+		panic(fmt.Errorf("invalid L2 output data for root %s: %w", l2OutputRoot, err))
+	}
+	return output
 }

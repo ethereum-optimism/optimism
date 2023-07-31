@@ -286,6 +286,15 @@ type l2Client struct {
 	*testutils.MockDebugClient
 }
 
+func (m *l2Client) OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error) {
+	out := m.Mock.MethodCalled("OutputByRoot", root)
+	return out[0].(eth.Output), *out[1].(*error)
+}
+
+func (m *l2Client) ExpectOutputByRoot(root common.Hash, output eth.Output, err error) {
+	m.Mock.On("OutputByRoot", root).Once().Return(output, &err)
+}
+
 func createPrefetcher(t *testing.T) (*Prefetcher, *testutils.MockL1Source, *l2Client, kvstore.KV) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	kv := kvstore.NewMemKV()

@@ -4,12 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/version"
@@ -20,6 +18,7 @@ type l2EthClient interface {
 	// GetProof returns a proof of the account, it may return a nil result without error if the address was not found.
 	// Optionally keys of the account storage trie can be specified to include with corresponding values in the proof.
 	GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error)
+	OutputV0AtBlock(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error)
 }
 
 type driverClient interface {
@@ -99,40 +98,16 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*et
 		return nil, fmt.Errorf("failed to get L2 block ref with sync status: %w", err)
 	}
 
-	head, err := n.client.InfoByHash(ctx, ref.Hash)
+	output, err := n.client.OutputV0AtBlock(ctx, ref.Hash)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get L2 block by hash %s: %w", ref, err)
+		return nil, fmt.Errorf("failed to get L2 output at block %s: %w", ref, err)
 	}
-	if head == nil {
-		return nil, ethereum.NotFound
-	}
-
-	proof, err := n.client.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, ref.Hash.String())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get contract proof at block %s: %w", ref, err)
-	}
-	if proof == nil {
-		return nil, fmt.Errorf("proof %w", ethereum.NotFound)
-	}
-	// make sure that the proof (including storage hash) that we retrieved is correct by verifying it against the state-root
-	if err := proof.Verify(head.Root()); err != nil {
-		n.log.Error("invalid withdrawal root detected in block", "stateRoot", head.Root(), "blocknum", number, "msg", err)
-		return nil, fmt.Errorf("invalid withdrawal root hash, state root was %s: %w", head.Root(), err)
-	}
-
-	var l2OutputRootVersion eth.Bytes32 // it's zero for now
-	l2OutputRoot, err := rollup.ComputeL2OutputRootV0(head, proof.StorageHash)
-	if err != nil {
-		n.log.Error("Error computing L2 output root, nil ptr passed to hashing function")
-		return nil, err
-	}
-
 	return &eth.OutputResponse{
-		Version:               l2OutputRootVersion,
-		OutputRoot:            l2OutputRoot,
+		Version:               output.Version(),
+		OutputRoot:            eth.OutputRoot(output),
 		BlockRef:              ref,
-		WithdrawalStorageRoot: proof.StorageHash,
-		StateRoot:             head.Root(),
+		WithdrawalStorageRoot: common.Hash(output.MessagePasserStorageRoot),
+		StateRoot:             common.Hash(output.StateRoot),
 		Status:                status,
 	}, nil
 }

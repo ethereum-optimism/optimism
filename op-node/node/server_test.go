@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -84,17 +83,6 @@ func TestOutputAtBlock(t *testing.T) {
 	}
 
 	l2Client := &testutils.MockL2Client{}
-	info := &testutils.MockBlockInfo{
-		InfoHash:        header.Hash(),
-		InfoParentHash:  header.ParentHash,
-		InfoCoinbase:    header.Coinbase,
-		InfoRoot:        header.Root,
-		InfoNum:         header.Number.Uint64(),
-		InfoTime:        header.Time,
-		InfoMixDigest:   header.MixDigest,
-		InfoBaseFee:     header.BaseFee,
-		InfoReceiptRoot: header.ReceiptHash,
-	}
 	ref := eth.L2BlockRef{
 		Hash:           header.Hash(),
 		Number:         header.Number.Uint64(),
@@ -103,8 +91,12 @@ func TestOutputAtBlock(t *testing.T) {
 		L1Origin:       eth.BlockID{},
 		SequenceNumber: 0,
 	}
-	l2Client.ExpectInfoByHash(common.HexToHash("0x8512bee03061475e4b069171f7b406097184f16b22c3f5c97c0abfc49591c524"), info, nil)
-	l2Client.ExpectGetProof(predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, "0x8512bee03061475e4b069171f7b406097184f16b22c3f5c97c0abfc49591c524", &result, nil)
+	output := &eth.OutputV0{
+		StateRoot:                eth.Bytes32(header.Root),
+		BlockHash:                ref.Hash,
+		MessagePasserStorageRoot: eth.Bytes32(result.StorageHash),
+	}
+	l2Client.ExpectOutputV0AtBlock(common.HexToHash("0x8512bee03061475e4b069171f7b406097184f16b22c3f5c97c0abfc49591c524"), output, nil)
 
 	drClient := &mockDriverClient{}
 	status := randomSyncStatus(rand.New(rand.NewSource(123)))

@@ -22,6 +22,7 @@ var (
 	ErrMissingL2Genesis    = errors.New("missing l2 genesis")
 	ErrInvalidL1Head       = errors.New("invalid l1 head")
 	ErrInvalidL2Head       = errors.New("invalid l2 head")
+	ErrInvalidL2OutputRoot = errors.New("invalid l2 output root")
 	ErrL1AndL2Inconsistent = errors.New("l1 and l2 options must be specified together or both omitted")
 	ErrInvalidL2Claim      = errors.New("invalid l2 claim")
 	ErrInvalidL2ClaimBlock = errors.New("invalid l2 claim block number")
@@ -41,9 +42,12 @@ type Config struct {
 	L1TrustRPC bool
 	L1RPCKind  sources.RPCProviderKind
 
-	// L2Head is the agreed L2 block to start derivation from
+	// L2Head is the l2 block hash contained in the L2 Output referenced by the L2OutputRoot
+	// TODO(inphi): This can be made optional with hardcoded rollup configs and output oracle addresses by searching the oracle for the l2 output root
 	L2Head common.Hash
-	L2URL  string
+	// L2OutputRoot is the agreed L2 output root to start derivation from
+	L2OutputRoot common.Hash
+	L2URL        string
 	// L2Claim is the claimed L2 output root to verify
 	L2Claim common.Hash
 	// L2ClaimBlockNumber is the block number the claimed L2 output root is from
@@ -73,6 +77,9 @@ func (c *Config) Check() error {
 	if c.L2Head == (common.Hash{}) {
 		return ErrInvalidL2Head
 	}
+	if c.L2OutputRoot == (common.Hash{}) {
+		return ErrInvalidL2OutputRoot
+	}
 	if c.L2Claim == (common.Hash{}) {
 		return ErrInvalidL2Claim
 	}
@@ -99,12 +106,21 @@ func (c *Config) FetchingEnabled() bool {
 }
 
 // NewConfig creates a Config with all optional values set to the CLI default value
-func NewConfig(rollupCfg *rollup.Config, l2Genesis *params.ChainConfig, l1Head common.Hash, l2Head common.Hash, l2Claim common.Hash, l2ClaimBlockNum uint64) *Config {
+func NewConfig(
+	rollupCfg *rollup.Config,
+	l2Genesis *params.ChainConfig,
+	l1Head common.Hash,
+	l2Head common.Hash,
+	l2OutputRoot common.Hash,
+	l2Claim common.Hash,
+	l2ClaimBlockNum uint64,
+) *Config {
 	return &Config{
 		Rollup:             rollupCfg,
 		L2ChainConfig:      l2Genesis,
 		L1Head:             l1Head,
 		L2Head:             l2Head,
+		L2OutputRoot:       l2OutputRoot,
 		L2Claim:            l2Claim,
 		L2ClaimBlockNumber: l2ClaimBlockNum,
 		L1RPCKind:          sources.RPCKindBasic,
@@ -122,6 +138,10 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	l2Head := common.HexToHash(ctx.String(flags.L2Head.Name))
 	if l2Head == (common.Hash{}) {
 		return nil, ErrInvalidL2Head
+	}
+	l2OutputRoot := common.HexToHash(ctx.String(flags.L2OutputRoot.Name))
+	if l2OutputRoot == (common.Hash{}) {
+		return nil, ErrInvalidL2OutputRoot
 	}
 	l2Claim := common.HexToHash(ctx.String(flags.L2Claim.Name))
 	if l2Claim == (common.Hash{}) {
@@ -152,6 +172,7 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 		L2URL:              ctx.String(flags.L2NodeAddr.Name),
 		L2ChainConfig:      l2ChainConfig,
 		L2Head:             l2Head,
+		L2OutputRoot:       l2OutputRoot,
 		L2Claim:            l2Claim,
 		L2ClaimBlockNumber: l2ClaimBlockNum,
 		L1Head:             l1Head,

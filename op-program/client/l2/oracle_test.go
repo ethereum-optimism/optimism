@@ -122,3 +122,21 @@ func TestPreimageOracleCodeByHash(t *testing.T) {
 		})
 	}
 }
+
+func TestPreimageOracleOutputByRoot(t *testing.T) {
+	rng := rand.New(rand.NewSource(123))
+
+	for i := 0; i < 10; i++ {
+		t.Run(fmt.Sprintf("output_%d", i), func(t *testing.T) {
+			po, hints, preimages := mockPreimageOracle(t)
+			output := testutils.RandomOutputV0(rng)
+
+			h := common.Hash(eth.OutputRoot(output))
+			preimages[preimage.Keccak256Key(h).PreimageKey()] = output.Marshal()
+			hints.On("hint", L2OutputHint(h).Hint()).Once().Return()
+			gotOutput := po.OutputByRoot(h)
+			hints.AssertExpectations(t)
+			require.Equal(t, hexutil.Bytes(output.Marshal()), hexutil.Bytes(gotOutput.Marshal()), "output matches")
+		})
+	}
+}
