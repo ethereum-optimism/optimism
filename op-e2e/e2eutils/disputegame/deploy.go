@@ -51,9 +51,11 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 	require.NoError(err)
 
 	// Deploy the block hash oracle
-	_, tx, blockHashOracle, err := bindings.DeployBlockHashOracle(opts, client)
+	_, tx, _, err = bindings.DeployBlockHashOracle(opts, client)
 	require.NoError(err)
 	blockHashOracleAddr, err := bind.WaitDeployed(ctx, client, tx)
+	require.NoError(err)
+	blockHashOracle, err := bindings.NewBlockHashOracle(blockHashOracleAddr, client)
 	require.NoError(err)
 
 	// Store the genesis block hash in the oracle

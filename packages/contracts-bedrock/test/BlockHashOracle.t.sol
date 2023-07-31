@@ -24,7 +24,7 @@ contract BlockHashOracle_Test is Test {
 
     /// @notice Tests that loading a block hash for a block number outside the range of the
     ///         `BLOCKHASH` opcode fails.
-    function testFuzz_store_reverts(uint256 _blockNumber) public {
+    function testFuzz_store_oob_reverts(uint256 _blockNumber) public {
         // Fast forward another 256 blocks.
         vm.roll(block.number + 256);
         // Bound the block number to the set { 0, ..., 255 } ∪ { 512, ..., type(uint256).max }
@@ -39,7 +39,7 @@ contract BlockHashOracle_Test is Test {
 
     /// @notice Tests that the `load` function reverts if the block hash for the given block
     ///         number has not been stored.
-    function test_load_reverts() public {
+    function test_load_noBlockHash_reverts() public {
         vm.expectRevert(BlockHashNotPresent.selector);
         oracle.load(0);
     }
