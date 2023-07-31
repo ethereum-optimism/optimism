@@ -16,10 +16,7 @@ contract BlockHashOracle {
     /// @return blockHash_ The block hash for the given block number.
     function load(uint256 _blockNumber) external view returns (Hash blockHash_) {
         blockHash_ = blockHashes[_blockNumber];
-
-        if (Hash.unwrap(blockHash_) == 0) {
-            revert BlockHashNotPresent();
-        }
+        if (Hash.unwrap(blockHash_) == 0) revert BlockHashNotPresent();
     }
 
     /// @notice Stores a block hash for a given block number, assuming that the block number
@@ -27,11 +24,7 @@ contract BlockHashOracle {
     /// @param _blockNumber The block number to persist the block hash for.
     function store(uint256 _blockNumber) external {
         bytes32 blockHash = blockhash(_blockNumber);
-
-        if (blockHash == bytes32(0)) {
-            revert BlockNumberOOB();
-        }
-
+        if (blockHash == 0) revert BlockNumberOOB();
         blockHashes[_blockNumber] = Hash.wrap(blockHash);
     }
 }
