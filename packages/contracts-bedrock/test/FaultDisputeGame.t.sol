@@ -7,6 +7,7 @@ import { DisputeGameFactory_Init } from "./DisputeGameFactory.t.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { BlockHashOracle } from "src/dispute/BlockHashOracle.sol";
 
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
@@ -16,7 +17,7 @@ import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper
 
 contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     /// @dev The extra data passed to the game for initialization.
-    bytes internal constant EXTRA_DATA = abi.encode(1);
+    bytes internal constant EXTRA_DATA = abi.encode(1, 0);
     /// @dev The type of the game being tested.
     GameType internal constant GAME_TYPE = GameType.wrap(0);
 
@@ -30,13 +31,21 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     function init(Claim rootClaim, Claim absolutePrestate) public {
         super.setUp();
 
+        // Advance the block number by 1.
+        vm.roll(block.number + 1);
+
+        // Deploy a new block hash oracle and store the block hash for the genesis block.
+        BlockHashOracle blockHashOracle = new BlockHashOracle();
+        blockHashOracle.store(0);
+
         // Deploy an implementation of the fault game
         gameImpl = new FaultDisputeGame(
             absolutePrestate,
             4,
             Duration.wrap(7 days),
             new AlphabetVM(absolutePrestate),
-            L2OutputOracle(deployNoop())
+            L2OutputOracle(deployNoop()),
+            blockHashOracle
         );
         // Register the game implementation with the factory.
         factory.setImplementation(GAME_TYPE, gameImpl);

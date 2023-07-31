@@ -7,6 +7,7 @@ import { IInitializable } from "./interfaces/IInitializable.sol";
 import { IBondManager } from "./interfaces/IBondManager.sol";
 import { IBigStepper, IPreimageOracle } from "./interfaces/IBigStepper.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
+import { BlockHashOracle } from "./BlockHashOracle.sol";
 
 import { Clone } from "../libraries/Clone.sol";
 import { Types } from "../libraries/Types.sol";
@@ -41,6 +42,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @notice The trusted L2OutputOracle contract.
     L2OutputOracle public immutable L2_OUTPUT_ORACLE;
 
+    /// @notice The block hash oracle, used for loading block hashes further back
+    ///         than the `BLOCKHASH` opcode allows.
+    BlockHashOracle public immutable BLOCK_HASH_ORACLE;
+
     /// @notice The root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
@@ -68,19 +73,21 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @param _vm An onchain VM that performs single instruction steps on a fault proof program
     ///            trace.
     /// @param _l2oo The trusted L2OutputOracle contract.
-    /// @custom:semver 0.0.4
+    /// @custom:semver 0.0.5
     constructor(
         Claim _absolutePrestate,
         uint256 _maxGameDepth,
         Duration _gameDuration,
         IBigStepper _vm,
-        L2OutputOracle _l2oo
-    ) Semver(0, 0, 4) {
+        L2OutputOracle _l2oo,
+        BlockHashOracle _blockHashOracle
+    ) Semver(0, 0, 5) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
         GAME_DURATION = _gameDuration;
         VM = _vm;
         L2_OUTPUT_ORACLE = _l2oo;
+        BLOCK_HASH_ORACLE = _blockHashOracle;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -294,6 +301,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         l2BlockNumber_ = _getArgUint256(0x20);
     }
 
+    /// @inheritdoc IFaultDisputeGame
+    function l1BlockNumber() public pure returns (uint256 l1BlockNumber_) {
+        l1BlockNumber_ = _getArgUint256(0x40);
+    }
+
     ////////////////////////////////////////////////////////////////
     //                    `IDisputeGame` impl                     //
     ////////////////////////////////////////////////////////////////
@@ -384,8 +396,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
 
     /// @inheritdoc IDisputeGame
     function extraData() public pure returns (bytes memory extraData_) {
-        // The extra data starts at the second word within the cwia calldata.
-        extraData_ = _getArgDynBytes(0x20, 0x20);
+        // The extra data starts at the second word within the cwia calldata and
+        // is 64 bytes long.
+        extraData_ = _getArgDynBytes(0x20, 0x40);
     }
 
     /// @inheritdoc IDisputeGame
@@ -425,8 +438,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
             })
         );
 
-        // Set the L1 head hash at the time of the game's creation.
-        l1Head = Hash.wrap(blockhash(block.number - 1));
+        // Set the L1 head hash to the block hash of the L1 block number provided.
+        l1Head = BLOCK_HASH_ORACLE.load(_getArgUint256(0x40));
     }
 
     /// @notice Returns the length of the `claimData` array.

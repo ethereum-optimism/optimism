@@ -72,3 +72,14 @@ error AlreadyChallenged();
 /// @notice Thrown when a function that is protected by the `onlyOwner` modifier
 ///          is called from an account other than the owner.
 error NotOwner();
+
+////////////////////////////////////////////////////////////////
+//                `BlockHashOracle.sol` Errors                //
+////////////////////////////////////////////////////////////////
+
+/// @notice Thrown when a block that is out of the range of the `BLOCKHASH` opcode
+///         is attempted to be loaded.
+error BlockNumberOOB();
+
+/// @notice Thrown when a block hash is attempted to be loaded that has not been stored.
+error BlockHashNotPresent();
