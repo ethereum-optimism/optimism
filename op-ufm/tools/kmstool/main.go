@@ -60,11 +60,6 @@ func resolveAddr(ctx context.Context, client *kms.KeyManagementClient, keyName s
 		return common.Address{}, fmt.Errorf("google kms public key %q pem block %q: %v", keyName, block.Type, err)
 	}
 
-	/*wantAlg := asn1.ObjectIdentifier{1, 2, 840, 10045, 2, 1}
-	if gotAlg := info.AlgID.Algorithm; !gotAlg.Equal(wantAlg) {
-		return common.Address{}, fmt.Errorf("google kms public key %q asn.1 algorithm %s intead of %s", keyName, gotAlg, wantAlg)
-	}*/
-
 	return pubKeyAddr(info.Key.Bytes), nil
 }
 
