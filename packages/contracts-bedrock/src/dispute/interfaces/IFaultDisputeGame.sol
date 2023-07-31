@@ -63,6 +63,8 @@ interface IFaultDisputeGame is IDisputeGame {
 
     /// @notice The l2BlockNumber that the `rootClaim` commits to. The trace being bisected within
     ///         the game is from `l2BlockNumber - 1` -> `l2BlockNumber`.
-    /// @return l2BlockNumber_ The l2BlockNumber that the `rootClaim` commits to.
     function l2BlockNumber() external view returns (uint256 l2BlockNumber_);
+
+    /// @notice The l1BlockNumber that Cannon was ran from to generate the root claim.
+    function l1BlockNumber() external view returns (uint256 l1BlockNumber_);
 }
