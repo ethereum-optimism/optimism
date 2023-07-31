@@ -322,7 +322,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: contracts-bedrock
+          patterns: contracts-bedrock,op-node
       - run:
           name: print forge version
           command: forge --version
@@ -347,7 +347,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: contracts-bedrock
+          patterns: contracts-bedrock,op-node
       - run:
           name: print forge version
           command: forge --version
@@ -371,7 +371,7 @@ jobs:
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
-          patterns: contracts-bedrock
+          patterns: contracts-bedrock,op-node
       - run:
           name: build contracts
           command: pnpm build
