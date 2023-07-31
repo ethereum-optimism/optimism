@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 )
 
@@ -29,7 +30,7 @@ func TestBatcherKeyRotation(gt *testing.T) {
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)
-	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg))
+	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
 	rollupSeqCl := sequencer.RollupClient()
 
 	// the default batcher
@@ -358,7 +359,7 @@ func TestGasLimitChange(gt *testing.T) {
 	miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
 	miner.ActL1EndBlock(t)
 
-	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg))
+	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
 	verifier.ActL2PipelineFull(t)
 
 	require.Equal(t, sequencer.L2Unsafe(), verifier.L2Safe(), "verifier stays in sync, even with gaslimit changes")
