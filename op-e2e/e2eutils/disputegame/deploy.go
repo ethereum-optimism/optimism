@@ -50,8 +50,20 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 	alphaVMAddr, err := bind.WaitDeployed(ctx, client, tx)
 	require.NoError(err)
 
+	// Deploy the block hash oracle
+	_, tx, blockHashOracle, err := bindings.DeployBlockHashOracle(opts, client)
+	require.NoError(err)
+	blockHashOracleAddr, err := bind.WaitDeployed(ctx, client, tx)
+	require.NoError(err)
+
+	// Store the genesis block hash in the oracle
+	tx, err = blockHashOracle.Store(opts, big.NewInt(0))
+	require.NoError(err)
+	_, err = utils.WaitReceiptOK(ctx, client, tx.Hash())
+	require.NoError(err, "failed to store genesis block hash in oracle")
+
 	// Deploy the fault dispute game implementation
-	_, tx, _, err = bindings.DeployFaultDisputeGame(opts, client, alphabetVMAbsolutePrestateClaim, big.NewInt(alphabetGameDepth), gameDuration, alphaVMAddr, common.Address{0xBE, 0xEF})
+	_, tx, _, err = bindings.DeployFaultDisputeGame(opts, client, alphabetVMAbsolutePrestateClaim, big.NewInt(alphabetGameDepth), gameDuration, alphaVMAddr, common.Address{0xBE, 0xEF}, blockHashOracleAddr)
 	require.NoError(err)
 	faultDisputeGameAddr, err := bind.WaitDeployed(ctx, client, tx)
 	require.NoError(err)
