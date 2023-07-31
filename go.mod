@@ -46,6 +46,7 @@ require (
 	golang.org/x/sync v0.1.0
 	golang.org/x/term v0.7.0
 	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af
+	golang.org/x/tools v0.7.0
 	gorm.io/driver/postgres v1.5.2
 	gorm.io/gorm v1.25.2
 )
@@ -193,7 +194,6 @@ require (
 	golang.org/x/net v0.9.0 // indirect
 	golang.org/x/sys v0.7.0 // indirect
 	golang.org/x/text v0.9.0 // indirect
-	golang.org/x/tools v0.7.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect

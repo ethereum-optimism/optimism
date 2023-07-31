@@ -132,11 +132,15 @@ func (es *erigonSession) Close() {
 }
 
 func execute(binPath string, config e2e.ExternalConfig) (*erigonSession, error) {
+	if config.Verbosity < 3 {
+		// Note, we could manually filter the logging further, if this is
+		// really problematic.
+		return nil, fmt.Errorf("verbosity of at least 2 is required to scrape for logs")
+	}
 	cmd := exec.Command(
 		binPath,
 		"--chain", "dev",
 		"--datadir", config.DataDir,
-		"--log.console.verbosity", "dbug",
 		"--ws",
 		"--mine",
 		"--miner.gaslimit", strconv.FormatUint(config.GasCeil, 10),
@@ -153,6 +157,7 @@ func execute(binPath string, config e2e.ExternalConfig) (*erigonSession, error) 
 		"--authrpc.jwtsecret", config.JWTPath,
 		"--networkid", strconv.FormatUint(config.ChainID, 10),
 		"--torrent.port", "0", // There doesn't seem to be an obvious way to disable torrent listening
+		"--verbosity", strconv.FormatUint(config.Verbosity, 10),
 	)
 	sess, err := gexec.Start(cmd, os.Stdout, os.Stderr)
 	gm := gomega.NewGomega(func(msg string, _ ...int) {
@@ -171,7 +176,7 @@ func execute(binPath string, config e2e.ExternalConfig) (*erigonSession, error) 
 		return nil, fmt.Errorf("http endpoint never opened")
 	}
 	fmt.Fscanf(sess.Err, "%d", &httpPort)
-	gm.Eventually(sess.Err, time.Minute).Should(gbytes.Say("\\[1/15 Snapshots\\] DONE"))
+	gm.Eventually(sess.Err, time.Minute).Should(gbytes.Say("Regeneration ended"))
 	if err != nil {
 		return nil, fmt.Errorf("started did not finish in time")
 	}

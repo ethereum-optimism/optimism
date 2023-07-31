@@ -30,6 +30,7 @@ type ExternalConfig struct {
 	ChainID     uint64 `json:"chain_id"`
 	GasCeil     uint64 `json:"gas_ceil"`
 	GenesisPath string `json:"genesis_path"`
+	Verbosity   uint64 `json:"verbosity"`
 
 	// EndpointsReadyPath is the location to write the endpoint configuration file.
 	// Note, this should be written atomically by writing the JSON, then moving
@@ -116,6 +117,11 @@ func (er *ExternalRunner) Run(t *testing.T) *ExternalEthClient {
 		ChainID:            er.Genesis.Config.ChainID.Uint64(),
 		GenesisPath:        filepath.Join(workDir, "genesis.json"),
 		EndpointsReadyPath: filepath.Join(workDir, "endpoints.json"),
+		Verbosity:          3, // INFO
+	}
+
+	if verboseEthNodes {
+		config.Verbosity = 4 // DEBUG
 	}
 
 	err := os.Mkdir(config.DataDir, 0o700)

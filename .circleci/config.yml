@@ -984,14 +984,10 @@ jobs:
       - run:
           name: run tests
           command: |
-            if [ -n "<<parameters.use_external>>" ] ; then
-              export TEST_SUFFIX="_external"
-            else
-              export TEST_SUFFIX=""
-            fi
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
             # Note: -parallel must be set to match the number of cores in the resource class
+            TEST_SUFFIX="$(echo '<<parameters.use_external>>' | sed -e 's/.shim$//')" \
             OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=false OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
             --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>$TEST_SUFFIX.xml \
             -- -timeout=20m -parallel=8 --externalL2 "<<parameters.use_external>>" ./...
@@ -1498,9 +1494,19 @@ workflows:
           name: op-e2e-WS-tests-external-geth
           module: op-e2e
           use_http: "false"
-          use_external: "external_erigon/shim"
+          use_external: "external_geth/shim"
       - go-e2e-test:
           name: op-e2e-HTTP-tests-external-geth
+          module: op-e2e
+          use_http: "true"
+          use_external: "external_geth/shim"
+      - go-e2e-test:
+          name: op-e2e-WS-tests-external-erigon
+          module: op-e2e
+          use_http: "false"
+          use_external: "external_erigon/shim"
+      - go-e2e-test:
+          name: op-e2e-HTTP-tests-external-erigon
           module: op-e2e
           use_http: "true"
           use_external: "external_erigon/shim"
