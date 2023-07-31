@@ -322,7 +322,9 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
       const currentStatus = await messenger.getMessageStatus(withdraw)
       console.log(`Message status: ${MessageStatus[currentStatus]}`)
       const latest = await L2OutputOracle.latestBlockNumber()
-      console.log(`Latest L2OutputOracle commitment number: ${latest.toString()}`)
+      console.log(
+        `Latest L2OutputOracle commitment number: ${latest.toString()}`
+      )
     }, 3000)
 
     const now = Math.floor(Date.now() / 1000)

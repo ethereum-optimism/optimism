@@ -315,7 +315,9 @@ task('deposit-eth', 'Deposits ether to L2.')
       const currentStatus = await messenger.getMessageStatus(ethWithdrawReceipt)
       console.log(`Message status: ${MessageStatus[currentStatus]}`)
       const latest = await L2OutputOracle.latestBlockNumber()
-      console.log(`Latest L2OutputOracle commitment number: ${latest.toString()}`)
+      console.log(
+        `Latest L2OutputOracle commitment number: ${latest.toString()}`
+      )
     }, 3000)
 
     try {
