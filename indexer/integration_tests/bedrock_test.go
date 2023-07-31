@@ -35,7 +35,7 @@ func TestBedrockIndexer(t *testing.T) {
 
 	cfg := op_e2e.DefaultSystemConfig(t)
 	cfg.DeployConfig.FinalizationPeriodSeconds = 2
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.NoError(t, err)
 	defer sys.Close()
 
@@ -57,8 +57,8 @@ func TestBedrockIndexer(t *testing.T) {
 
 	idxrCfg := legacy.Config{
 		ChainID:                        cfg.DeployConfig.L1ChainID,
-		L1EthRpc:                       sys.Nodes["l1"].HTTPEndpoint(),
-		L2EthRpc:                       sys.Nodes["sequencer"].HTTPEndpoint(),
+		L1EthRpc:                       sys.EthInstances["l1"].HTTPEndpoint(),
+		L2EthRpc:                       sys.EthInstances["sequencer"].HTTPEndpoint(),
 		PollInterval:                   time.Second,
 		DBHost:                         dbParams.Host,
 		DBPort:                         dbParams.Port,
@@ -185,7 +185,7 @@ func TestBedrockIndexer(t *testing.T) {
 		require.NotEmpty(t, withdrawal.GUID)
 
 		// Prove our withdrawal
-		wdParams, proveReceipt := op_e2e.ProveWithdrawal(t, cfg, l1Client, sys.Nodes["sequencer"], cfg.Secrets.Alice, wdReceipt)
+		wdParams, proveReceipt := op_e2e.ProveWithdrawal(t, cfg, l1Client, sys.EthInstances["sequencer"], cfg.Secrets.Alice, wdReceipt)
 
 		wdPage = nil
 		require.NoError(t, utils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {

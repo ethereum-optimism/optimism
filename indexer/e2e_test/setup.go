@@ -45,7 +45,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	// Rollup System Configuration and Start
 	opCfg := op_e2e.DefaultSystemConfig(t)
 	opCfg.DeployConfig.FinalizationPeriodSeconds = 2
-	opSys, err := opCfg.Start()
+	opSys, err := opCfg.Start(t)
 	require.NoError(t, err)
 
 	// Indexer Configuration and Start
@@ -57,8 +57,8 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 			User: dbUser,
 		},
 		RPCs: config.RPCsConfig{
-			L1RPC: opSys.Nodes["l1"].HTTPEndpoint(),
-			L2RPC: opSys.Nodes["sequencer"].HTTPEndpoint(),
+			L1RPC: opSys.EthInstances["l1"].HTTPEndpoint(),
+			L2RPC: opSys.EthInstances["sequencer"].HTTPEndpoint(),
 		},
 		Logger: logger,
 	}
