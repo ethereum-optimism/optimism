@@ -15,7 +15,7 @@ func ComputeL2OutputRoot(proofElements *bindings.TypesOutputRootProof) (eth.Byte
 		return eth.Bytes32{}, ErrNilProof
 	}
 
-	if proofElements.Version != [32]byte{} {
+	if eth.Bytes32(proofElements.Version) != eth.OutputVersionV0 {
 		return eth.Bytes32{}, errors.New("unsupported output root version")
 	}
 	l2Output := eth.OutputV0{
