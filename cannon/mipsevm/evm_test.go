@@ -37,9 +37,12 @@ func testContractsSetup(t require.TestingT) (*Contracts, *Addresses) {
 }
 
 func SourceMapTracer(t *testing.T, contracts *Contracts, addrs *Addresses) vm.EVMLogger {
-	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{"../../packages/contracts-bedrock/contracts/cannon/MIPS.sol"})
+	t.Fatal("TODO(clabby): The source map tracer is disabled until source IDs have been added to foundry artifacts.")
+
+	contractsDir := "../../packages/contracts-bedrock"
+	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{path.Join(contractsDir, "src/cannon/MIPS.sol")})
 	require.NoError(t, err)
-	oracleSrcMap, err := contracts.Oracle.SourceMap([]string{"../../packages/contracts-bedrock/contracts/cannon/PreimageOracle.sol"})
+	oracleSrcMap, err := contracts.Oracle.SourceMap([]string{path.Join(contractsDir, "src/cannon/PreimageOracle.sol")})
 	require.NoError(t, err)
 
 	return srcmap.NewSourceMapTracer(map[common.Address]*srcmap.SourceMap{addrs.MIPS: mipsSrcMap, addrs.Oracle: oracleSrcMap}, os.Stdout)
@@ -76,7 +79,7 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness) []byte {
 		t.Logf("reading preimage key %x at offset %d", stepWitness.PreimageKey, stepWitness.PreimageOffset)
 		poInput, err := stepWitness.EncodePreimageOracleInput()
 		require.NoError(t, err, "encode preimage oracle input")
-		_, leftOverGas, err := m.env.Call(vm.AccountRef(m.addrs.Sender), m.addrs.Oracle, poInput, startingGas, big.NewInt(0))
+		_, leftOverGas, err := m.env.Call(vm.AccountRef(sender), m.addrs.Oracle, poInput, startingGas, big.NewInt(0))
 		require.NoErrorf(t, err, "evm should not fail, took %d gas", startingGas-leftOverGas)
 	}
 

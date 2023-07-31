@@ -5,9 +5,11 @@ import { IDisputeGame } from "./interfaces/IDisputeGame.sol";
 import { IFaultDisputeGame } from "./interfaces/IFaultDisputeGame.sol";
 import { IInitializable } from "./interfaces/IInitializable.sol";
 import { IBondManager } from "./interfaces/IBondManager.sol";
-import { IBigStepper } from "./interfaces/IBigStepper.sol";
+import { IBigStepper, IPreimageOracle } from "./interfaces/IBigStepper.sol";
+import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 
 import { Clone } from "../libraries/Clone.sol";
+import { Types } from "../libraries/Types.sol";
 import { Semver } from "../universal/Semver.sol";
 import { LibHashing } from "./lib/LibHashing.sol";
 import { LibPosition } from "./lib/LibPosition.sol";
@@ -33,8 +35,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @notice The duration of the game.
     Duration public immutable GAME_DURATION;
 
-    /// @notice A hypervisor that performs single instruction steps on a fault proof program trace.
+    /// @notice An onchain VM that performs single instruction steps on a fault proof program trace.
     IBigStepper public immutable VM;
+
+    /// @notice The trusted L2OutputOracle contract.
+    L2OutputOracle public immutable L2_OUTPUT_ORACLE;
 
     /// @notice The root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
@@ -48,6 +53,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @inheritdoc IDisputeGame
     IBondManager public bondManager;
 
+    /// @inheritdoc IFaultDisputeGame
+    Hash public l1Head;
+
     /// @notice An append-only array of all claims made during the dispute game.
     ClaimData[] public claimData;
 
@@ -55,16 +63,24 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     mapping(ClaimHash => bool) internal claims;
 
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
+    /// @param _maxGameDepth The maximum depth of bisection.
+    /// @param _gameDuration The duration of the game.
+    /// @param _vm An onchain VM that performs single instruction steps on a fault proof program
+    ///            trace.
+    /// @param _l2oo The trusted L2OutputOracle contract.
+    /// @custom:semver 0.0.4
     constructor(
         Claim _absolutePrestate,
         uint256 _maxGameDepth,
         Duration _gameDuration,
-        IBigStepper _vm
-    ) Semver(0, 0, 3) {
+        IBigStepper _vm,
+        L2OutputOracle _l2oo
+    ) Semver(0, 0, 4) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
         GAME_DURATION = _gameDuration;
         VM = _vm;
+        L2_OUTPUT_ORACLE = _l2oo;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -242,6 +258,38 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     }
 
     /// @inheritdoc IFaultDisputeGame
+    function addLocalData(uint256 _ident, uint256 _partOffset) external {
+        // INVARIANT: Local data can only be added if the game is currently in progress.
+        if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
+
+        IPreimageOracle oracle = VM.oracle();
+        if (_ident == 1) {
+            // Load the L1 head hash into the game's local context in the preimage oracle.
+            oracle.loadLocalData(_ident, Hash.unwrap(l1Head), 32, _partOffset);
+        } else if (_ident == 2) {
+            // Load the earliest output root that commits to the passed L2 block number
+            // into the game's local context in the preimage oracle.
+            Types.OutputProposal memory proposal = L2_OUTPUT_ORACLE.getL2OutputAfter(
+                l2BlockNumber()
+            );
+            oracle.loadLocalData(_ident, proposal.outputRoot, 32, _partOffset);
+        } else if (_ident == 3) {
+            // Load the root claim into the game's local context in the preimage oracle.
+            oracle.loadLocalData(_ident, Claim.unwrap(rootClaim()), 32, _partOffset);
+        } else if (_ident == 4) {
+            // Load the L2 block number into the game's local context in the preimage oracle.
+            // The L2 block number is stored as a big-endian uint64 in the upper 8 bytes of the
+            // passed word.
+            oracle.loadLocalData(_ident, bytes32(l2BlockNumber() << 192), 8, _partOffset);
+        } else if (_ident == 5) {
+            // Load the chain ID into the game's local context in the preimage oracle.
+            // The chain ID is stored as a big-endian uint64 in the upper 8 bytes of the
+            // passed word.
+            oracle.loadLocalData(_ident, bytes32(block.chainid << 192), 8, _partOffset);
+        }
+    }
+
+    /// @inheritdoc IFaultDisputeGame
     function l2BlockNumber() public pure returns (uint256 l2BlockNumber_) {
         l2BlockNumber_ = _getArgUint256(0x20);
     }
@@ -337,8 +385,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @inheritdoc IDisputeGame
     function extraData() public pure returns (bytes memory extraData_) {
         // The extra data starts at the second word within the cwia calldata.
-        // TODO: What data do we need to pass along to this contract from the factory?
-        //       Block hash, preimage data, etc.?
         extraData_ = _getArgDynBytes(0x20, 0x20);
     }
 
@@ -378,6 +424,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
                 countered: false
             })
         );
+
+        // Set the L1 head hash at the time of the game's creation.
+        l1Head = Hash.wrap(blockhash(block.number - 1));
     }
 
     /// @notice Returns the length of the `claimData` array.

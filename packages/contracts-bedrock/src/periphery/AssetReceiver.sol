@@ -64,6 +64,7 @@ contract AssetReceiver is Transactor {
     function withdrawETH(address payable _to, uint256 _amount) public onlyOwner {
         // slither-disable-next-line reentrancy-unlimited-gas
         (bool success, ) = _to.call{ value: _amount }("");
+        success; // Suppress warning; We ignore the low-level call result.
         emit WithdrewETH(msg.sender, _to, _amount);
     }
 

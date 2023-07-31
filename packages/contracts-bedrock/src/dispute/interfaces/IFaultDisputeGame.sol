@@ -53,6 +53,14 @@ interface IFaultDisputeGame is IDisputeGame {
         bytes calldata _proof
     ) external;
 
+    /// @notice Posts the requested local data to the VM's `PreimageOralce`.
+    /// @param _ident The local identifier of the data to post.
+    /// @param _partOffset The offset of the data to post.
+    function addLocalData(uint256 _ident, uint256 _partOffset) external;
+
+    /// @notice Returns the L1 block hash at the time of the game's creation.
+    function l1Head() external view returns (Hash l1Head_);
+
     /// @notice The l2BlockNumber that the `rootClaim` commits to. The trace being bisected within
     ///         the game is from `l2BlockNumber - 1` -> `l2BlockNumber`.
     /// @return l2BlockNumber_ The l2BlockNumber that the `rootClaim` commits to.
