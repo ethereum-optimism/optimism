@@ -38,7 +38,9 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 	require.NoError(err)
 	data, err := disputeGameFactoryAbi.Pack("initialize", deployer.TestAddress)
 	require.NoError(err)
-	_, err = proxy.UpgradeToAndCall(opts, factoryAddr, data)
+	tx, err = proxy.UpgradeToAndCall(opts, factoryAddr, data)
+	require.NoError(err)
+	_, err = utils.WaitReceiptOK(ctx, client, tx.Hash())
 	require.NoError(err)
 	factory, err := bindings.NewDisputeGameFactory(proxyAddr, client)
 	require.NoError(err)
@@ -58,22 +60,21 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 	blockHashOracle, err := bindings.NewBlockHashOracle(blockHashOracleAddr, client)
 	require.NoError(err)
 
-	// Store the genesis block hash in the oracle
-	tx, err = blockHashOracle.Store(opts, big.NewInt(0))
-	require.NoError(err)
-	_, err = utils.WaitReceiptOK(ctx, client, tx.Hash())
-	require.NoError(err, "failed to store genesis block hash in oracle")
-
 	// Deploy the fault dispute game implementation
 	_, tx, _, err = bindings.DeployFaultDisputeGame(opts, client, alphabetVMAbsolutePrestateClaim, big.NewInt(alphabetGameDepth), gameDuration, alphaVMAddr, common.Address{0xBE, 0xEF}, blockHashOracleAddr)
 	require.NoError(err)
 	faultDisputeGameAddr, err := bind.WaitDeployed(ctx, client, tx)
 	require.NoError(err)
 
+	// Store the genesis block hash in the oracle
+	tx, err = blockHashOracle.Store(opts, big.NewInt(0))
+	require.NoError(err)
+	_, err = utils.WaitReceiptOK(ctx, client, tx.Hash())
+	require.NoError(err, "failed to store genesis block hash in oracle")
+
 	// Set the fault game type implementation
 	tx, err = factory.SetImplementation(opts, faultGameType, faultDisputeGameAddr)
 	require.NoError(err)
-
 	_, err = utils.WaitReceiptOK(ctx, client, tx.Hash())
 	require.NoError(err, "wait for final transaction to be included and OK")
 
