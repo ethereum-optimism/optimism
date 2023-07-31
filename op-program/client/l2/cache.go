@@ -1,7 +1,6 @@
 package l2
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/hashicorp/golang-lru/v2/simplelru"
@@ -14,24 +13,21 @@ const nodeCacheSize = 100_000
 const codeCacheSize = 10_000
 
 type CachingOracle struct {
-	oracle  Oracle
-	blocks  *simplelru.LRU[common.Hash, *types.Block]
-	nodes   *simplelru.LRU[common.Hash, []byte]
-	codes   *simplelru.LRU[common.Hash, []byte]
-	outputs *simplelru.LRU[common.Hash, eth.Output]
+	oracle Oracle
+	blocks *simplelru.LRU[common.Hash, *types.Block]
+	nodes  *simplelru.LRU[common.Hash, []byte]
+	codes  *simplelru.LRU[common.Hash, []byte]
 }
 
 func NewCachingOracle(oracle Oracle) *CachingOracle {
 	blockLRU, _ := simplelru.NewLRU[common.Hash, *types.Block](blockCacheSize, nil)
 	nodeLRU, _ := simplelru.NewLRU[common.Hash, []byte](nodeCacheSize, nil)
 	codeLRU, _ := simplelru.NewLRU[common.Hash, []byte](codeCacheSize, nil)
-	outputLRU, _ := simplelru.NewLRU[common.Hash, eth.Output](codeCacheSize, nil)
 	return &CachingOracle{
-		oracle:  oracle,
-		blocks:  blockLRU,
-		nodes:   nodeLRU,
-		codes:   codeLRU,
-		outputs: outputLRU,
+		oracle: oracle,
+		blocks: blockLRU,
+		nodes:  nodeLRU,
+		codes:  codeLRU,
 	}
 }
 
@@ -63,14 +59,4 @@ func (o *CachingOracle) BlockByHash(blockHash common.Hash) *types.Block {
 	block = o.oracle.BlockByHash(blockHash)
 	o.blocks.Add(blockHash, block)
 	return block
-}
-
-func (o *CachingOracle) OutputByRoot(root common.Hash) eth.Output {
-	output, ok := o.outputs.Get(root)
-	if ok {
-		return output
-	}
-	output = o.oracle.OutputByRoot(root)
-	o.outputs.Add(root, output)
-	return output
 }

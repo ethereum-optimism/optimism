@@ -17,7 +17,7 @@ func TestLocalPreimageSource(t *testing.T) {
 	cfg := &config.Config{
 		Rollup:             &chaincfg.Goerli,
 		L1Head:             common.HexToHash("0x1111"),
-		L2OutputRoot:       common.HexToHash("0x2222"),
+		L2Head:             common.HexToHash("0x2222"),
 		L2Claim:            common.HexToHash("0x3333"),
 		L2ClaimBlockNumber: 1234,
 		L2ChainConfig:      params.GoerliChainConfig,
@@ -29,7 +29,7 @@ func TestLocalPreimageSource(t *testing.T) {
 		expected []byte
 	}{
 		{"L1Head", l1HeadKey, cfg.L1Head.Bytes()},
-		{"L2OutputRoot", l2OutputRootKey, cfg.L2OutputRoot.Bytes()},
+		{"L2Head", l2HeadKey, cfg.L2Head.Bytes()},
 		{"L2Claim", l2ClaimKey, cfg.L2Claim.Bytes()},
 		{"L2ClaimBlockNumber", l2ClaimBlockNumberKey, binary.BigEndian.AppendUint64(nil, cfg.L2ClaimBlockNumber)},
 		{"Rollup", rollupKey, asJson(t, cfg.Rollup)},

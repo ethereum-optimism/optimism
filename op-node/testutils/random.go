@@ -269,11 +269,3 @@ func RandomOutputResponse(rng *rand.Rand) *eth.OutputResponse {
 		},
 	}
 }
-
-func RandomOutputV0(rng *rand.Rand) *eth.OutputV0 {
-	return &eth.OutputV0{
-		StateRoot:                eth.Bytes32(RandomHash(rng)),
-		MessagePasserStorageRoot: eth.Bytes32(RandomHash(rng)),
-		BlockHash:                RandomHash(rng),
-	}
-}
