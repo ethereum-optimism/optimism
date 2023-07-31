@@ -26,4 +26,3 @@
   "src/universal/OptimismMintableERC20Factory.sol": "0x1d48aaec29c6732e5d25652a568c4f58a9606656711a14ef98c7cdd5768d9677",
   "src/universal/OptimismMintableERC721.sol": "0x72c9c204caddf5a48b6a704621363926714162c2453392b922091d80aa73924f",
   "src/universal/OptimismMintableERC721Factory.sol": "0x138d1cecb3c0daa85c73617a1c5d0956544bf65153c13dc11529a71f4b70fb3b"
-}

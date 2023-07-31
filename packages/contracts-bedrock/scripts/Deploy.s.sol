@@ -9,30 +9,28 @@ import { stdJson } from "forge-std/StdJson.sol";
 import { Deployer } from "./Deployer.sol";
 import { DeployConfig } from "./DeployConfig.s.sol";
 
-import { ProxyAdmin } from "../src/universal/ProxyAdmin.sol";
-import { AddressManager } from "../src/legacy/AddressManager.sol";
-import { Proxy } from "../src/universal/Proxy.sol";
-import { L1StandardBridge } from "../src/L1/L1StandardBridge.sol";
-import { OptimismPortal } from "../src/L1/OptimismPortal.sol";
-import { L1ChugSplashProxy } from "../src/legacy/L1ChugSplashProxy.sol";
-import { ResolvedDelegateProxy } from "../src/legacy/ResolvedDelegateProxy.sol";
-import { L1CrossDomainMessenger } from "../src/L1/L1CrossDomainMessenger.sol";
-import { L2OutputOracle } from "../src/L1/L2OutputOracle.sol";
-import { OptimismMintableERC20Factory } from "../src/universal/OptimismMintableERC20Factory.sol";
-import { SystemConfig } from "../src/L1/SystemConfig.sol";
-import { ResourceMetering } from "../src/L1/ResourceMetering.sol";
-import { Constants } from "../src/libraries/Constants.sol";
-import { DisputeGameFactory } from "../src/dispute/DisputeGameFactory.sol";
-import { FaultDisputeGame } from "../src/dispute/FaultDisputeGame.sol";
-import { PreimageOracle } from "../src/cannon/PreimageOracle.sol";
-import { MIPS } from "../src/cannon/MIPS.sol";
-import { L1ERC721Bridge } from "../src/L1/L1ERC721Bridge.sol";
-import { Predeploys } from "../src/libraries/Predeploys.sol";
-import { Chains } from "./Chains.sol";
+import { ProxyAdmin } from "src/universal/ProxyAdmin.sol";
+import { AddressManager } from "src/legacy/AddressManager.sol";
+import { Proxy } from "src/universal/Proxy.sol";
+import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
+import { OptimismPortal } from "src/L1/OptimismPortal.sol";
+import { L1ChugSplashProxy } from "src/legacy/L1ChugSplashProxy.sol";
+import { ResolvedDelegateProxy } from "src/legacy/ResolvedDelegateProxy.sol";
+import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
+import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
+import { SystemConfig } from "src/L1/SystemConfig.sol";
+import { ResourceMetering } from "src/L1/ResourceMetering.sol";
+import { Constants } from "src/libraries/Constants.sol";
+import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
+import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
+import { BlockHashOracle } from "src/dispute/BlockHashOracle.sol";
+import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
-import { IBigStepper } from "../src/dispute/interfaces/IBigStepper.sol";
+import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
 import { AlphabetVM } from "../test/FaultDisputeGame.t.sol";
-import "../src/libraries/DisputeTypes.sol";
+import "src/libraries/DisputeTypes.sol";
 
 /// @title Deploy
 /// @notice Script used to deploy a bedrock system. The entire system is deployed within the `run` function.
