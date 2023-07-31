@@ -675,6 +675,37 @@ jobs:
           command: make && git diff --exit-code
           working_directory: op-bindings
 
+  boba-bindings-build:
+    docker:
+      - image: bobanetwork/ci-builder:latest
+    resource_class: medium
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore PNPM Package Cache
+          keys:
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
+      - check-changed:
+          patterns: contracts-bedrock,boba-bindings
+      # TODO remove me after ci builder updated
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      # TODO remove me after ci builder updated
+      # A github dep clones-with-immutable-args is installed via github
+      # packages installed via npm via github automatically run postpack scripts
+      # their postpack script happens to use yarn so we need it here
+      - run:
+          name: Install yarn package manager
+          command: |
+            npm i yarn@1 --global
+      - run:
+          name: check go bindings
+          command: make && git diff --exit-code
+          working_directory: boba-bindings
+
   js-lint-test:
     parameters:
       package_name:
@@ -1361,6 +1392,9 @@ workflows:
       - op-bindings-build:
           requires:
             - pnpm-monorepo
+      - boba-bindings-build:
+          requires:
+            - pnpm-monorepo
       - js-lint-test:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
@@ -1422,6 +1456,18 @@ workflows:
       - fuzz-op-node
       - fuzz-op-chain-ops
       - bedrock-markdown
+      - go-lint:
+          name: boba-bindings-lint
+          module: boba-bindings
+      - go-lint:
+          name: boba-chain-ops-lint
+          module: boba-chain-ops
+      - go-test:
+          name: boba-bindings-tests
+          module: boba-bindings
+      - go-test:
+          name: boba-chain-ops-tests
+          module: boba-chain-ops
       - go-lint:
           name: op-batcher-lint
           module: op-batcher
@@ -1512,6 +1558,10 @@ workflows:
           use_external: "external_erigon/shim"
       - bedrock-go-tests:
           requires:
+            - boba-bindings-lint
+            - boba-chain-ops-lint
+            - boba-bindings-tests
+            - boba-chain-ops-tests
             - op-batcher-lint
             - op-bootnode-lint
             - op-bindings-lint

@@ -37,7 +37,8 @@
     "lint:ts:fix": "eslint --fix .",
     "lint:contracts:fix": "pnpm solhint --fix 'contracts/**/!(DisputeTypes|RLPReader|EAS|SchemaRegistry|IEAS|ISchemaRegistry|SchemaResolver|EIP712Verifier|ISchemaResolver).sol' && pnpm prettier --write 'contracts/**/!(DisputeTypes|RLPReader|EAS|SchemaRegistry|IEAS|ISchemaRegistry|SchemaResolver|EIP712Verifier|ISchemaResolver).sol'",
     "lint:fix": "pnpm lint:contracts:fix && pnpm lint:ts:fix",
-    "lint": "pnpm lint:fix && pnpm lint:check"
+    "lint": "pnpm lint:fix && pnpm lint:check",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@openzeppelin/contracts": "4.7.3",
@@ -53,6 +54,7 @@
     "solhint": "^3.4.1",
     "solhint-plugin-prettier": "^0.0.5",
     "ts-node": "^10.9.1",
-    "typescript": "^4.9.3"
+    "typescript": "^4.9.3",
+    "patch-package": "^6.2.2"
   }
 }
