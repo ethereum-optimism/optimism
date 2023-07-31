@@ -127,7 +127,6 @@ jobs:
             - "packages/common-ts/node_modules"
             - "packages/contracts-bedrock/node_modules"
             - "packages/core-utils/node_modules"
-            - "packages/replica-healthcheck/node_modules"
             - "packages/sdk/node_modules"
             - "packages/contracts-ts/node_modules"
       - run:
@@ -1220,13 +1219,6 @@ workflows:
           coverage_flag: sdk-next-tests
           package_name: sdk
           dependencies: "(common-ts|contracts-bedrock|core-utils)"
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
-          name: replica-healthcheck-tests
-          coverage_flag: replica-healthcheck-tests
-          package_name: replica-healthcheck
-          dependencies: "(common-ts|core-utils)"
           requires:
             - pnpm-monorepo
       - js-lint-test:

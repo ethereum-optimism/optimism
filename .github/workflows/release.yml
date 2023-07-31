@@ -20,7 +20,7 @@ jobs:
       balance-mon: ${{ steps.packages.outputs.drippie-mon }}
       drippie-mon: ${{ steps.packages.outputs.drippie-mon }}
       wd-mon: ${{ steps.packages.outputs.wd-mon }}
-      replica-healthcheck: ${{ steps.packages.outputs.replica-healthcheck }}
+      replica-mon: ${{ steps.packages.outputs.replica-mon }}
       op-exporter: ${{ steps.packages.outputs.op-exporter }}
       endpoint-monitor: ${{ steps.packages.outputs.endpoint-monitor }}
     # Permissions necessary for Changesets to push a new branch and open PRs
@@ -213,10 +213,10 @@ jobs:
           push: true
           tags: ethereumoptimism/drippie-mon:${{ needs.release.outputs.drippie-mon }},ethereumoptimism/drippie-mon:latest
 
-  replica-healthcheck:
-    name: Publish Replica Healthcheck Version ${{ needs.release.outputs.replica-healthcheck }}
+  replica-mon:
+    name: Publish Replica Healthcheck Version ${{ needs.release.outputs.replica-mon }}
     needs: release
-    if: needs.release.outputs.replica-healthcheck != ''
+    if: needs.release.outputs.replica-mon != ''
     runs-on: ubuntu-latest
 
     steps:
@@ -236,9 +236,9 @@ jobs:
         with:
           context: .
           file: ./ops/docker/Dockerfile.packages
-          target: replica-healthcheck
+          target: replica-mon
           push: true
-          tags: ethereumoptimism/replica-healthcheck:${{ needs.release.outputs.replica-healthcheck }},ethereumoptimism/replica-healthcheck:latest
+          tags: ethereumoptimism/replica-mon:${{ needs.release.outputs.replica-mon }},ethereumoptimism/replica-mon:latest
 
   endpoint-monitor:
     name: Publish endpoint-monitor Version ${{ needs.release.outputs.endpoint-monitor}}

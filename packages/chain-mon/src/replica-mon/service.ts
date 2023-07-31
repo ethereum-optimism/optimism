@@ -8,7 +8,7 @@ import {
 } from '@eth-optimism/common-ts'
 import { sleep } from '@eth-optimism/core-utils'
 
-import { version } from '../package.json'
+import { version } from '../../package.json'
 
 type HealthcheckOptions = {
   referenceRpcProvider: Provider
