@@ -180,6 +180,10 @@ func (m *InstrumentedState) handleSyscall() error {
 }
 
 func (m *InstrumentedState) handleBranch(opcode uint32, insn uint32, rtReg uint32, rs uint32) error {
+	if m.state.NextPC != m.state.PC+4 {
+		panic("branch in delay slot")
+	}
+
 	shouldBranch := false
 	if opcode == 4 || opcode == 5 { // beq/bne
 		rt := m.state.Registers[rtReg]
@@ -246,6 +250,9 @@ func (m *InstrumentedState) handleHiLo(fun uint32, rs uint32, rt uint32, storeRe
 }
 
 func (m *InstrumentedState) handleJump(linkReg uint32, dest uint32) error {
+	if m.state.NextPC != m.state.PC+4 {
+		panic("jump in delay slot")
+	}
 	prevPC := m.state.PC
 	m.state.PC = m.state.NextPC
 	m.state.NextPC = dest
