@@ -439,6 +439,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         );
 
         // Set the L1 head hash to the block hash of the L1 block number provided.
+        // This call can revert if the block hash oracle does not have information
+        // about the block number provided to it. This revert will bubble up to the
+        // DisputeGameFactory and prevent the game from being created.
         l1Head = BLOCK_HASH_ORACLE.load(_getArgUint256(0x40));
     }
 
