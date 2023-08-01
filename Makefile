@@ -1,4 +1,3 @@
-SHELL=/usr/bin/bash
 COMPOSEFLAGS=-d
 ITESTS_L2_HOST=http://localhost:9545
 BEDROCK_TAGS_REMOTE?=origin
