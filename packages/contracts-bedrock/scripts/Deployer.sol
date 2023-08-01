@@ -5,6 +5,7 @@ import { Script } from "forge-std/Script.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { Executables } from "./Executables.sol";
+import { Chains } from "./Chains.sol";
 
 /// @notice store the new deployment to be saved
 struct Deployment {
@@ -435,21 +436,21 @@ abstract contract Deployer is Script {
         }
 
         uint256 chainid = vm.envOr("CHAIN_ID", block.chainid);
-        if (chainid == 1) {
+        if (chainid == Chains.Mainnet) {
             return "mainnet";
-        }  else if (chainid == 5) {
+        }  else if (chainid == Chains.Goerli) {
             return "goerli";
-        } else if (chainid == 420) {
+        } else if (chainid == Chains.OPGoerli) {
             return "optimism-goerli";
-        } else if (chainid == 10) {
+        } else if (chainid == Chains.OPMainnet) {
             return "optimism-mainnet";
-        } else if (chainid == 901 || chainid == 1337) {
+        } else if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet) {
             return "devnetL1";
-        } else if (chainid == 31337) {
+        } else if (chainid == Chains.Hardhat) {
             return "hardhat";
-        } else if (chainid == 11155111) {
+        } else if (chainid == Chains.Sepolia) {
             return "sepolia";
-        } else if (chainid == 11155420) {
+        } else if (chainid == Chains.OPSepolia) {
             return "optimism-sepolia";
         } else {
             return vm.toString(chainid);
