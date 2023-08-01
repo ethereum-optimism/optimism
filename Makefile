@@ -78,9 +78,7 @@ devnet-up:
 .PHONY: devnet-up
 
 # alias for devnet-up
-devnet-up-deploy:
-	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
-.PHONY: devnet-up-deploy
+devnet-up-deploy: devnet-up
 
 devnet-down:
 	@(cd ./ops-bedrock && GENESIS_TIMESTAMP=$(shell date +%s) docker-compose stop)
