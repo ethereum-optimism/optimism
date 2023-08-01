@@ -73,7 +73,11 @@ nuke: clean devnet-clean
 	git clean -Xdf
 .PHONY: nuke
 
-devnet-up:
+pre-devnet-up:
+	if [[ ! -f .devnet/allocs-l1.json ]]; then make devnet-allocs; fi
+
+devnet-up: pre-devnet-up
+	if (($(shell date +%s%N --reference ./packages/contracts-bedrock) > $(shell date +%s%N --reference .devnet/allocs-l1.json))); then make devnet-allocs; fi
 	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up
 
