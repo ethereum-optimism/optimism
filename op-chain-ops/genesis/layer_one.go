@@ -74,6 +74,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployme
 			memDB.AddBalance(address, balance)
 			memDB.SetCode(address, account.Code)
 			for key, value := range account.Storage {
+				log.Info("Setting storage", "name", name, "key", key.Hex(), "value", value)
 				memDB.SetState(address, key, common.HexToHash(value))
 			}
 		}
@@ -94,6 +95,8 @@ func BuildL1DeveloperGenesis(config *DeployConfig, dump *gstate.Dump, l1Deployme
 // `block.number` is used during deployment and without specifically setting
 // the value to 0, it will cause underflow reverts for deposits in testing.
 func PostProcessL1DeveloperGenesis(stateDB *state.MemoryStateDB, deployments *L1Deployments) error {
+	log.Info("Post processing state")
+
 	if stateDB == nil {
 		return errors.New("cannot post process nil stateDB")
 	}
@@ -117,6 +120,7 @@ func PostProcessL1DeveloperGenesis(stateDB *state.MemoryStateDB, deployments *L1
 	slot := common.BigToHash(big.NewInt(int64(entry.Slot)))
 
 	stateDB.SetState(deployments.OptimismPortalProxy, slot, common.Hash{})
+	log.Info("Post process update", "address", deployments.OptimismPortalProxy, "slot", slot.Hex(), "value", common.Hash{}.Hex())
 
 	return nil
 }
