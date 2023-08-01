@@ -52,12 +52,15 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     bool public paused;
 
     /// @notice Address of the L2OutputOracle contract.
+    /// @custom:network-specific
     L2OutputOracle public L2_ORACLE;
 
     /// @notice Address of the SystemConfig contract.
+    /// @custom:network-specific
     SystemConfig public SYSTEM_CONFIG;
 
     /// @notice Address that has the ability to pause and unpause withdrawals.
+    /// @custom:network-specific
     address public GUARDIAN;
 
     /// @notice Emitted when a transaction is deposited from L1 to L2.
