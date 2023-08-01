@@ -167,7 +167,7 @@ func TestE2EBridge(t *testing.T) {
 		// (3) Test Withdrawal Finalization
 
 		// finalize & wait for processor catchup
-		finalizeReceipt := op_e2e.FinalizeWithdrawal(t, *testSuite.OpCfg, l1Client, testSuite.OpCfg.Secrets.Alice, withdrawalReceipt, withdrawParams)
+		finalizeReceipt := op_e2e.FinalizeWithdrawal(t, *testSuite.OpCfg, l1Client, testSuite.OpCfg.Secrets.Alice, proveReceipt, withdrawParams)
 		require.NoError(t, utils.WaitFor(testCtx, 500*time.Millisecond, func() (bool, error) {
 			l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
 			return l1Header != nil && l1Header.Number.Uint64() >= finalizeReceipt.BlockNumber.Uint64(), nil

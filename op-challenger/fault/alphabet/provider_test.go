@@ -1,6 +1,7 @@
 package alphabet
 
 import (
+	"context"
 	"math/big"
 	"testing"
 
@@ -39,7 +40,7 @@ func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 
 	// Execute each trace and check the alphabet provider returns the expected hash.
 	for _, trace := range traces {
-		expectedHash, err := canonicalProvider.Get(trace.traceIndex)
+		expectedHash, err := canonicalProvider.Get(context.Background(), trace.traceIndex)
 		require.NoError(t, err)
 		require.Equal(t, trace.expectedHash, expectedHash)
 	}
@@ -60,7 +61,7 @@ func FuzzIndexToBytes(f *testing.F) {
 func TestGetPreimage_Succeeds(t *testing.T) {
 	ap := NewAlphabetProvider("abc", 2)
 	expected := BuildAlphabetPreimage(0, "a'")
-	retrieved, proof, err := ap.GetPreimage(uint64(0))
+	retrieved, proof, err := ap.GetPreimage(context.Background(), uint64(0))
 	require.NoError(t, err)
 	require.Equal(t, expected, retrieved)
 	require.Empty(t, proof)
@@ -70,14 +71,14 @@ func TestGetPreimage_Succeeds(t *testing.T) {
 // function errors if the index is too large.
 func TestGetPreimage_TooLargeIndex_Fails(t *testing.T) {
 	ap := NewAlphabetProvider("abc", 2)
-	_, _, err := ap.GetPreimage(4)
+	_, _, err := ap.GetPreimage(context.Background(), 4)
 	require.ErrorIs(t, err, ErrIndexTooLarge)
 }
 
 // TestGet_Succeeds tests the Get function.
 func TestGet_Succeeds(t *testing.T) {
 	ap := NewAlphabetProvider("abc", 2)
-	claim, err := ap.Get(0)
+	claim, err := ap.Get(context.Background(), 0)
 	require.NoError(t, err)
 	expected := alphabetClaim(0, "a")
 	require.Equal(t, expected, claim)
@@ -87,7 +88,7 @@ func TestGet_Succeeds(t *testing.T) {
 // greater than the number of indices: 2^depth - 1.
 func TestGet_IndexTooLarge(t *testing.T) {
 	ap := NewAlphabetProvider("abc", 2)
-	_, err := ap.Get(4)
+	_, err := ap.Get(context.Background(), 4)
 	require.ErrorIs(t, err, ErrIndexTooLarge)
 }
 
@@ -95,7 +96,7 @@ func TestGet_IndexTooLarge(t *testing.T) {
 // than the trace, but smaller than the maximum depth.
 func TestGet_Extends(t *testing.T) {
 	ap := NewAlphabetProvider("abc", 2)
-	claim, err := ap.Get(3)
+	claim, err := ap.Get(context.Background(), 3)
 	require.NoError(t, err)
 	expected := alphabetClaim(2, "c")
 	require.Equal(t, expected, claim)
