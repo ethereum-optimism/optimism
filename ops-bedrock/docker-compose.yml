@@ -139,7 +139,9 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - "${PWD}/../.devnet/:/usr/share/nginx/html/"
+      - "${PWD}/../.devnet/:/usr/share/nginx/html/:ro"
+    security_opt:
+      - "no-new-privileges:true"
 
   stateviz:
     build:
