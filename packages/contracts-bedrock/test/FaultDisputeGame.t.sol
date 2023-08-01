@@ -7,7 +7,7 @@ import { DisputeGameFactory_Init } from "./DisputeGameFactory.t.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
-import { BlockHashOracle } from "src/dispute/BlockHashOracle.sol";
+import { BlockOracle } from "src/dispute/BlockOracle.sol";
 
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
@@ -35,8 +35,8 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         vm.roll(block.number + 1);
 
         // Deploy a new block hash oracle and store the block hash for the genesis block.
-        BlockHashOracle blockHashOracle = new BlockHashOracle();
-        blockHashOracle.store(0);
+        BlockOracle blockOracle = new BlockOracle();
+        blockOracle.store(0);
 
         // Deploy an implementation of the fault game
         gameImpl = new FaultDisputeGame(
@@ -45,7 +45,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
             Duration.wrap(7 days),
             new AlphabetVM(absolutePrestate),
             L2OutputOracle(deployNoop()),
-            blockHashOracle
+            blockOracle
         );
         // Register the game implementation with the factory.
         factory.setImplementation(GAME_TYPE, gameImpl);

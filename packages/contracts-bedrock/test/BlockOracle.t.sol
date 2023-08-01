@@ -2,16 +2,19 @@
 pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
-import { BlockHashOracle } from "src/dispute/BlockHashOracle.sol";
+import { BlockOracle } from "src/dispute/BlockOracle.sol";
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
 
-contract BlockHashOracle_Test is Test {
-    BlockHashOracle oracle;
+contract BlockOracle_Test is Test {
+    BlockOracle oracle;
 
     function setUp() public {
-        oracle = new BlockHashOracle();
+        oracle = new BlockOracle();
+        // Roll the chain forward 255 blocks.
         vm.roll(block.number + 255);
+        // Set the time to a realistic date.
+        vm.warp(1690906994);
     }
 
     /// @notice Tests that loading a block hash for a block number within the range of the
@@ -19,7 +22,11 @@ contract BlockHashOracle_Test is Test {
     function testFuzz_store_succeeds(uint256 _blockNumber) public {
         _blockNumber = bound(_blockNumber, 0, 255);
         oracle.store(_blockNumber);
-        assertEq(Hash.unwrap(oracle.load(_blockNumber)), blockhash(_blockNumber));
+
+        BlockOracle.BlockInfo memory res = oracle.load(_blockNumber);
+        assertEq(Hash.unwrap(res.hash), blockhash(_blockNumber));
+        emit log_uint(block.timestamp - ((block.number - _blockNumber) * 13));
+        assertEq(Timestamp.unwrap(res.timestamp), block.timestamp - ((block.number - _blockNumber) * 13));
     }
 
     /// @notice Tests that loading a block hash for a block number outside the range of the

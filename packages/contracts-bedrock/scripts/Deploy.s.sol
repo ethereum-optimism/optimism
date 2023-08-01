@@ -24,7 +24,7 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
-import { BlockHashOracle } from "src/dispute/BlockHashOracle.sol";
+import { BlockOracle } from "src/dispute/BlockOracle.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 
