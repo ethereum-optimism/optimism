@@ -119,7 +119,12 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /// @param _guardian Address that can pause withdrawals.
     /// @param _paused Sets the contract's pausability state.
     /// @param _systemConfig Address of the SystemConfig contract.
-    function initialize(L2OutputOracle _l2Oracle, address _guardian, SystemConfig _systemConfig, bool _paused) public reinitializer(2) {
+    function initialize(
+        L2OutputOracle _l2Oracle,
+        address _guardian,
+        SystemConfig _systemConfig,
+        bool _paused
+    ) public reinitializer(2) {
         l2Sender = Constants.DEFAULT_L2_SENDER;
         L2_ORACLE = _l2Oracle;
         SYSTEM_CONFIG = _systemConfig;
