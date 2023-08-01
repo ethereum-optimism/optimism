@@ -9,8 +9,8 @@ library Chains {
     uint256 internal constant OPGoerli = 420;
     uint256 internal constant Sepolia = 11155111;
     uint256 internal constant OPSepolia = 11155420;
-    uint256 internal constant LocalDevnet = 901;
-    uint256 internal constant OPLocalDevnet = 902;
+    uint256 internal constant LocalDevnet = 900;
+    uint256 internal constant OPLocalDevnet = 901;
     uint256 internal constant GethDevnet = 1337;
     uint256 internal constant Hardhat = 31337;
 }
