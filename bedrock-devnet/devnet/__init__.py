@@ -17,7 +17,7 @@ pjoin = os.path.join
 
 parser = argparse.ArgumentParser(description='Bedrock devnet launcher')
 parser.add_argument('--monorepo-dir', help='Directory of the monorepo', default=os.getcwd())
-parser.add_argument('--allocs', help='Path to the allocs file', type=bool, action=argparse.BooleanOptionalAction)
+parser.add_argument('--allocs', help='Only create the allocs and exit', type=bool, action=argparse.BooleanOptionalAction)
 
 log = logging.getLogger()
 
