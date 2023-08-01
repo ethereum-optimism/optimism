@@ -7,7 +7,7 @@ import { IInitializable } from "./interfaces/IInitializable.sol";
 import { IBondManager } from "./interfaces/IBondManager.sol";
 import { IBigStepper, IPreimageOracle } from "./interfaces/IBigStepper.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
-import { BlockHashOracle } from "./BlockHashOracle.sol";
+import { BlockOracle } from "./BlockOracle.sol";
 
 import { Clone } from "../libraries/Clone.sol";
 import { Types } from "../libraries/Types.sol";
@@ -43,8 +43,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     L2OutputOracle public immutable L2_OUTPUT_ORACLE;
 
     /// @notice The block hash oracle, used for loading block hashes further back
-    ///         than the `BLOCKHASH` opcode allows.
-    BlockHashOracle public immutable BLOCK_HASH_ORACLE;
+    ///         than the `BLOCKHASH` opcode allows as well as their estimated timestamps.
+    BlockOracle public immutable BLOCK_ORACLE;
 
     /// @notice The root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
@@ -64,6 +64,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @notice An append-only array of all claims made during the dispute game.
     ClaimData[] public claimData;
 
+    /// @notice The starting and disputed output proposals, which are used to determine where
+    ///         game participants should start executing Cannon and to verify the state transition,
+    ///         respectively.
+    Types.OutputProposal[2] public proposals;
+
     /// @notice An internal mapping to allow for constant-time lookups of existing claims.
     mapping(ClaimHash => bool) internal claims;
 
@@ -73,6 +78,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @param _vm An onchain VM that performs single instruction steps on a fault proof program
     ///            trace.
     /// @param _l2oo The trusted L2OutputOracle contract.
+    /// @param _blockOracle The block oracle, used for loading block hashes further back
+    ///                     than the `BLOCKHASH` opcode allows as well as their estimated
+    ///                     timestamps.
     /// @custom:semver 0.0.5
     constructor(
         Claim _absolutePrestate,
@@ -80,14 +88,14 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         Duration _gameDuration,
         IBigStepper _vm,
         L2OutputOracle _l2oo,
-        BlockHashOracle _blockHashOracle
+        BlockOracle _blockOracle
     ) Semver(0, 0, 5) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
         GAME_DURATION = _gameDuration;
         VM = _vm;
         L2_OUTPUT_ORACLE = _l2oo;
-        BLOCK_HASH_ORACLE = _blockHashOracle;
+        BLOCK_ORACLE = _blockOracle;
     }
 
     ////////////////////////////////////////////////////////////////
@@ -422,6 +430,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
 
     /// @inheritdoc IInitializable
     function initialize() external {
+        // SAFETY: Any revert in this function will bubble up to the DisputeGameFactory and
+        // prevent the game from being created.
+
         // Set the game start
         gameStart = Timestamp.wrap(uint64(block.timestamp));
         // Set the game status
@@ -438,11 +449,30 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
             })
         );
 
-        // Set the L1 head hash to the block hash of the L1 block number provided.
-        // This call can revert if the block hash oracle does not have information
-        // about the block number provided to it. This revert will bubble up to the
-        // DisputeGameFactory and prevent the game from being created.
-        l1Head = BLOCK_HASH_ORACLE.load(_getArgUint256(0x40));
+        // Grab the index of the output proposal that commits to the starting L2 head.
+        // The output disputed is all outputs after this one.
+        // TODO(clabby): This is 2 calls too many for the information we need. Maybe
+        //               add a function to the L2OO?
+        uint256 proposalIdx = L2_OUTPUT_ORACLE.getL2OutputIndexAfter(l2BlockNumber());
+        Types.OutputProposal memory starting = L2_OUTPUT_ORACLE.getL2Output(proposalIdx);
+        Types.OutputProposal memory disputed = L2_OUTPUT_ORACLE.getL2Output(proposalIdx + 1);
+        // SAFETY: This call can revert if the block hash oracle does not have information
+        // about the block number provided to it.
+        BlockOracle.BlockInfo memory blockInfo = BLOCK_ORACLE.load(l1BlockNumber());
+
+        // INVARIANT: The L1 head must contain the disputed output root. If it does not,
+        //            the game cannot be played.
+        // TODO(clabby): The block timestamp in the oracle is an estimate that assumes a 13
+        //               second block time. Should we add a buffer here to ensure that the
+        //               estimation has room for error? This invariant cannot break.
+        if (Timestamp.unwrap(blockInfo.timestamp) < disputed.timestamp) revert L1HeadTooOld();
+
+        // Persist the output proposals fetched from the oracle.
+        // TODO(clabby): Docs on why we do this.
+        proposals[0] = starting;
+        proposals[1] = disputed;
+        // Persist the L1 head hash of the L1 block number provided.
+        l1Head = blockInfo.hash;
     }
 
     /// @notice Returns the length of the `claimData` array.

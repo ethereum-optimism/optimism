@@ -16,7 +16,7 @@ error NoImplementation(GameType gameType);
 error GameAlreadyExists(Hash uuid);
 
 ////////////////////////////////////////////////////////////////
-//               `DisputeGame_Fault.sol` Errors               //
+//               `FaultDisputeGame.sol` Errors                //
 ////////////////////////////////////////////////////////////////
 
 /// @notice Thrown when a supplied bond is too low to cover the
@@ -53,6 +53,10 @@ error InvalidPrestate();
 
 /// @notice Thrown when a step is made that computes the expected post state correctly.
 error ValidStep();
+
+/// @notice Thrown when a game is attempted to be initialized with an L1 head that does
+///         not contain the disputed output root.
+error L1HeadTooOld();
 
 ////////////////////////////////////////////////////////////////
 //              `AttestationDisputeGame` Errors               //
