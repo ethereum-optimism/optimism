@@ -498,9 +498,16 @@ contract Deploy is Deployer {
                     batcherHash,
                     uint64(cfg.l2GenesisBlockGasLimit()),
                     cfg.p2pSequencerAddress(),
-                    Constants.DEFAULT_RESOURCE_CONFIG()
+                    Constants.DEFAULT_RESOURCE_CONFIG(),
+                    mustGetAddress("L1CrossDomainMessengerProxy"),
+                    mustGetAddress("L1ERC721BridgeProxy"),
+                    mustGetAddress("L1StandardBridgeProxy"),
+                    mustGetAddress("L2OutputOracleProxy"),
+                    mustGetAddress("OptimismPortalProxy")
                 )
             )
+
+            // TODO: assert that addresses are correct
         });
 
         SystemConfig config = SystemConfig(systemConfigProxy);
