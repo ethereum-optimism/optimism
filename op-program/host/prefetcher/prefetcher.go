@@ -29,7 +29,6 @@ type L2Source interface {
 	InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error)
 	NodeByHash(ctx context.Context, hash common.Hash) ([]byte, error)
 	CodeByHash(ctx context.Context, hash common.Hash) ([]byte, error)
-	OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error)
 }
 
 type Prefetcher struct {
@@ -125,12 +124,6 @@ func (p *Prefetcher) prefetch(ctx context.Context, hint string) error {
 			return fmt.Errorf("failed to fetch L2 contract code %s: %w", hash, err)
 		}
 		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), code)
-	case l2.HintL2Output:
-		output, err := p.l2Fetcher.OutputByRoot(ctx, hash)
-		if err != nil {
-			return fmt.Errorf("failed to fetch L2 output root %s: %w", hash, err)
-		}
-		return p.kvStore.Put(preimage.Keccak256Key(hash).PreimageKey(), output.Marshal())
 	}
 	return fmt.Errorf("unknown hint type: %v", hintType)
 }

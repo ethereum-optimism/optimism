@@ -6,6 +6,9 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -91,4 +94,75 @@ func TestFinalizeWhileSyncing(gt *testing.T) {
 
 	// Verify the verifier finalized something new
 	require.Less(t, verifierStartStatus.FinalizedL2.Number, verifier.SyncStatus().FinalizedL2.Number, "verifier finalized L2 blocks during sync")
+}
+
+func TestUnsafeSync(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	log := testlog.Logger(t, log.LvlInfo)
+
+	sd, _, _, sequencer, seqEng, verifier, _, _ := setupReorgTestActors(t, dp, sd, log)
+	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
+	require.NoError(t, err)
+
+	sequencer.ActL2PipelineFull(t)
+	verifier.ActL2PipelineFull(t)
+
+	for i := 0; i < 10; i++ {
+		// Build a L2 block
+		sequencer.ActL2StartBlock(t)
+		sequencer.ActL2EndBlock(t)
+		// Notify new L2 block to verifier by unsafe gossip
+		seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+		require.NoError(t, err)
+		verifier.ActL2UnsafeGossipReceive(seqHead)(t)
+		// Handle unsafe payload
+		verifier.ActL2PipelineFull(t)
+		// Verifier must advance its unsafe head and engine sync target.
+		require.Equal(t, sequencer.L2Unsafe().Hash, verifier.L2Unsafe().Hash)
+		// Check engine sync target updated.
+		require.Equal(t, sequencer.L2Unsafe().Hash, sequencer.EngineSyncTarget().Hash)
+		require.Equal(t, verifier.L2Unsafe().Hash, verifier.EngineSyncTarget().Hash)
+	}
+}
+
+func TestEngineP2PSync(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	log := testlog.Logger(t, log.LvlInfo)
+
+	miner, seqEng, sequencer := setupSequencerTest(t, sd, log)
+	// Enable engine P2P sync
+	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{EngineSync: true})
+
+	seqEngCl, err := sources.NewEngineClient(seqEng.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
+	require.NoError(t, err)
+
+	sequencer.ActL2PipelineFull(t)
+	verifier.ActL2PipelineFull(t)
+
+	verifierUnsafeHead := verifier.L2Unsafe()
+
+	// Build a L2 block. This block will not be gossiped to verifier, so verifier can not advance chain by itself.
+	sequencer.ActL2StartBlock(t)
+	sequencer.ActL2EndBlock(t)
+
+	for i := 0; i < 10; i++ {
+		// Build a L2 block
+		sequencer.ActL2StartBlock(t)
+		sequencer.ActL2EndBlock(t)
+		// Notify new L2 block to verifier by unsafe gossip
+		seqHead, err := seqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+		require.NoError(t, err)
+		verifier.ActL2UnsafeGossipReceive(seqHead)(t)
+		// Handle unsafe payload
+		verifier.ActL2PipelineFull(t)
+		// Verifier must advance only engine sync target.
+		require.NotEqual(t, sequencer.L2Unsafe().Hash, verifier.L2Unsafe().Hash)
+		require.NotEqual(t, verifier.L2Unsafe().Hash, verifier.EngineSyncTarget().Hash)
+		require.Equal(t, verifier.L2Unsafe().Hash, verifierUnsafeHead.Hash)
+		require.Equal(t, sequencer.L2Unsafe().Hash, verifier.EngineSyncTarget().Hash)
+	}
 }

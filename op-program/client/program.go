@@ -53,7 +53,7 @@ func RunProgram(logger log.Logger, preimageOracle io.ReadWriter, preimageHinter 
 		bootInfo.RollupConfig,
 		bootInfo.L2ChainConfig,
 		bootInfo.L1Head,
-		bootInfo.L2OutputRoot,
+		bootInfo.L2Head,
 		bootInfo.L2Claim,
 		bootInfo.L2ClaimBlockNumber,
 		l1PreimageOracle,
@@ -62,9 +62,9 @@ func RunProgram(logger log.Logger, preimageOracle io.ReadWriter, preimageHinter 
 }
 
 // runDerivation executes the L2 state transition, given a minimal interface to retrieve data.
-func runDerivation(logger log.Logger, cfg *rollup.Config, l2Cfg *params.ChainConfig, l1Head common.Hash, l2OutputRoot common.Hash, l2Claim common.Hash, l2ClaimBlockNum uint64, l1Oracle l1.Oracle, l2Oracle l2.Oracle) error {
+func runDerivation(logger log.Logger, cfg *rollup.Config, l2Cfg *params.ChainConfig, l1Head common.Hash, l2Head common.Hash, l2Claim common.Hash, l2ClaimBlockNum uint64, l1Oracle l1.Oracle, l2Oracle l2.Oracle) error {
 	l1Source := l1.NewOracleL1Client(logger, l1Oracle, l1Head)
-	engineBackend, err := l2.NewOracleBackedL2Chain(logger, l2Oracle, l2Cfg, l2OutputRoot)
+	engineBackend, err := l2.NewOracleBackedL2Chain(logger, l2Oracle, l2Cfg, l2Head)
 	if err != nil {
 		return fmt.Errorf("failed to create oracle-backed L2 chain: %w", err)
 	}

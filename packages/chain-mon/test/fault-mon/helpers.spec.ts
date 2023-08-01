@@ -8,7 +8,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 import { expect } from './setup'
 import {
   findOutputForIndex,
-  findFirstUnfinalizedStateBatchIndex,
+  findFirstUnfinalizedOutputIndex,
 } from '../../src/fault-mon'
 
 describe('helpers', () => {
@@ -122,7 +122,7 @@ describe('helpers', () => {
       })
 
       it('should find the first batch older than the FPW', async () => {
-        const first = await findFirstUnfinalizedStateBatchIndex(
+        const first = await findFirstUnfinalizedOutputIndex(
           L2OutputOracle,
           deployConfig.finalizationPeriodSeconds
         )
@@ -164,7 +164,7 @@ describe('helpers', () => {
       })
 
       it('should return zero', async () => {
-        const first = await findFirstUnfinalizedStateBatchIndex(
+        const first = await findFirstUnfinalizedOutputIndex(
           L2OutputOracle,
           deployConfig.finalizationPeriodSeconds
         )
@@ -214,7 +214,7 @@ describe('helpers', () => {
       })
 
       it('should return undefined', async () => {
-        const first = await findFirstUnfinalizedStateBatchIndex(
+        const first = await findFirstUnfinalizedOutputIndex(
           L2OutputOracle,
           deployConfig.finalizationPeriodSeconds
         )

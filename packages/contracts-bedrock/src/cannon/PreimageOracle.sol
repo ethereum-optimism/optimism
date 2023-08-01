@@ -1,23 +1,21 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.15;
+pragma solidity 0.8.15;
+
+import { IPreimageOracle } from "./interfaces/IPreimageOracle.sol";
+import { PreimageKeyLib } from "./PreimageKeyLib.sol";
+import "./libraries/CannonErrors.sol";
 
 /// @title PreimageOracle
 /// @notice A contract for storing permissioned pre-images.
-contract PreimageOracle {
+contract PreimageOracle is IPreimageOracle {
     /// @notice Mapping of pre-image keys to pre-image lengths.
     mapping(bytes32 => uint256) public preimageLengths;
-
     /// @notice Mapping of pre-image keys to pre-image parts.
     mapping(bytes32 => mapping(uint256 => bytes32)) public preimageParts;
-
     /// @notice Mapping of pre-image keys to pre-image part offsets.
     mapping(bytes32 => mapping(uint256 => bool)) public preimagePartOk;
 
-    /// @notice Reads a pre-image from the oracle.
-    /// @param _key The key of the pre-image to read.
-    /// @param _offset The offset of the pre-image to read.
-    /// @return dat_ The pre-image data.
-    /// @return datLen_ The length of the pre-image data.
+    /// @inheritdoc IPreimageOracle
     function readPreimage(bytes32 _key, uint256 _offset)
         external
         view
@@ -37,11 +35,11 @@ contract PreimageOracle {
         dat_ = preimageParts[_key][_offset];
     }
 
-    // TODO(CLI-4104):
-    // we need to mix-in the ID of the dispute for local-type keys to avoid collisions,
-    // and restrict local pre-image insertion to the dispute-managing contract.
-    // For now we permit anyone to write any pre-image unchecked, to make testing easy.
-    // This method is DANGEROUS. And NOT FOR PRODUCTION.
+    /// TODO(CLI-4104):
+    /// we need to mix-in the ID of the dispute for local-type keys to avoid collisions,
+    /// and restrict local pre-image insertion to the dispute-managing contract.
+    /// For now we permit anyone to write any pre-image unchecked, to make testing easy.
+    /// This method is DANGEROUS. And NOT FOR PRODUCTION.
     function cheat(
         uint256 partOffset,
         bytes32 key,
@@ -53,37 +51,43 @@ contract PreimageOracle {
         preimageLengths[key] = size;
     }
 
-    /// @notice Computes and returns the key for a pre-image.
-    /// @param _preimage The pre-image.
-    /// @return key_ The pre-image key.
-    function computePreimageKey(bytes calldata _preimage) external pure returns (bytes32 key_) {
-        uint256 size;
-        assembly {
-            size := calldataload(0x24)
+    /// @inheritdoc IPreimageOracle
+    function loadLocalData(
+        uint256 _ident,
+        bytes32 _word,
+        uint256 _size,
+        uint256 _partOffset
+    ) external returns (bytes32 key_) {
+        // Compute the localized key from the given local identifier.
+        key_ = PreimageKeyLib.localizeIdent(_ident);
 
-            // Leave slots 0x40 and 0x60 untouched,
-            // and everything after as scratch-memory.
-            let ptr := 0x80
-
-            // Store size as a big-endian uint64 at the start of pre-image
-            mstore(ptr, shl(192, size))
-            ptr := add(ptr, 8)
-
-            // Copy preimage payload into memory so we can hash and read it.
-            calldatacopy(ptr, _preimage.offset, size)
-
-            // Compute the pre-image keccak256 hash (aka the pre-image key)
-            let h := keccak256(ptr, size)
-
-            // Mask out prefix byte, replace with type 2 byte
-            key_ := or(and(h, not(shl(248, 0xFF))), shl(248, 2))
+        // Revert if the given part offset is not within bounds.
+        if (_partOffset > _size + 8 || _size > 32) {
+            revert PartOffsetOOB();
         }
+
+        // Prepare the local data part at the given offset
+        bytes32 part;
+        assembly {
+            // Clean the memory in [0x20, 0x40)
+            mstore(0x20, 0x00)
+
+            // Store the full local data in scratch space.
+            mstore(0x00, shl(192, _size))
+            mstore(0x08, _word)
+
+            // Prepare the local data part at the requested offset.
+            part := mload(_partOffset)
+        }
+
+        // Store the first part with `_partOffset`.
+        preimagePartOk[key_][_partOffset] = true;
+        preimageParts[key_][_partOffset] = part;
+        // Assign the length of the preimage at the localized key.
+        preimageLengths[key_] = _size;
     }
 
-    /// @notice Prepares a pre-image to be read by keccak256 key, starting at
-    ///         the given offset and up to 32 bytes (clipped at pre-image length, if out of data).
-    /// @param _partOffset The offset of the pre-image to read.
-    /// @param _preimage The preimage data.
+    /// @inheritdoc IPreimageOracle
     function loadKeccak256PreimagePart(uint256 _partOffset, bytes calldata _preimage) external {
         uint256 size;
         bytes32 key;
@@ -94,7 +98,10 @@ contract PreimageOracle {
 
             // revert if part offset > size+8 (i.e. parts must be within bounds)
             if gt(_partOffset, add(size, 8)) {
-                revert(0, 0)
+                // Store "PartOffsetOOB()"
+                mstore(0, 0xfe254987)
+                // Revert with "PartOffsetOOB()"
+                revert(0x1c, 4)
             }
             // we leave solidity slots 0x40 and 0x60 untouched,
             // and everything after as scratch-memory.

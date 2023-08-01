@@ -1,5 +1,11 @@
 # @eth-optimism/drippie-mon
 
+## 0.4.2
+
+### Patch Changes
+
+- [#6469](https://github.com/ethereum-optimism/optimism/pull/6469) [`0c769680e`](https://github.com/ethereum-optimism/optimism/commit/0c769680e44208c086deef2f9c03c37da2b536fe) Thanks [@maurelian](https://github.com/maurelian)! - Update language in fault-mon from batches to outputs
+
 ## 0.4.1
 
 ### Patch Changes

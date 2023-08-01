@@ -19,7 +19,7 @@ func NewLocalPreimageSource(config *config.Config) *LocalPreimageSource {
 
 var (
 	l1HeadKey             = client.L1HeadLocalIndex.PreimageKey()
-	l2OutputRootKey       = client.L2OutputRootLocalIndex.PreimageKey()
+	l2HeadKey             = client.L2HeadLocalIndex.PreimageKey()
 	l2ClaimKey            = client.L2ClaimLocalIndex.PreimageKey()
 	l2ClaimBlockNumberKey = client.L2ClaimBlockNumberLocalIndex.PreimageKey()
 	l2ChainConfigKey      = client.L2ChainConfigLocalIndex.PreimageKey()
@@ -30,8 +30,8 @@ func (s *LocalPreimageSource) Get(key common.Hash) ([]byte, error) {
 	switch [32]byte(key) {
 	case l1HeadKey:
 		return s.config.L1Head.Bytes(), nil
-	case l2OutputRootKey:
-		return s.config.L2OutputRoot.Bytes(), nil
+	case l2HeadKey:
+		return s.config.L2Head.Bytes(), nil
 	case l2ClaimKey:
 		return s.config.L2Claim.Bytes(), nil
 	case l2ClaimBlockNumberKey:

@@ -15,7 +15,7 @@ import (
 func TestBootstrapClient(t *testing.T) {
 	bootInfo := &BootInfo{
 		L1Head:             common.HexToHash("0x1111"),
-		L2OutputRoot:       common.HexToHash("0x2222"),
+		L2Head:             common.HexToHash("0x2222"),
 		L2Claim:            common.HexToHash("0x3333"),
 		L2ClaimBlockNumber: 1,
 		L2ChainConfig:      params.GoerliChainConfig,
@@ -34,8 +34,8 @@ func (o *mockBoostrapOracle) Get(key preimage.Key) []byte {
 	switch key.PreimageKey() {
 	case L1HeadLocalIndex.PreimageKey():
 		return o.b.L1Head[:]
-	case L2OutputRootLocalIndex.PreimageKey():
-		return o.b.L2OutputRoot[:]
+	case L2HeadLocalIndex.PreimageKey():
+		return o.b.L2Head[:]
 	case L2ClaimLocalIndex.PreimageKey():
 		return o.b.L2Claim[:]
 	case L2ClaimBlockNumberLocalIndex.PreimageKey():
