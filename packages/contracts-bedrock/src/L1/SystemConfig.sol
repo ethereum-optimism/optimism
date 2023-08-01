@@ -34,6 +34,12 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     ///         proof to fetch this value.
     bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
 
+    bytes32 public constant L1_CROSS_DOMAIN_MESSENGER_SLOT = keccak256("systemconfig.l1crossdomainmessenger");
+    bytes32 public constant L1_ERC_721_BRIDGE_SLOT = keccak256("systemconfig.l1erc721bridge");
+    bytes32 public constant L1_STANDARD_BRIDGE_SLOT = keccak256("systemconfig.l1standardbridge");
+    bytes32 public constant L2_OUTPUT_ORACLE_SLOT = keccak256("systemconfig.l2outputoracle");
+    bytes32 public constant OPTIMISM_PORTAL_SLOT = keccak256("systemconfig.optimismportal");
+
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     uint256 public overhead;
 
@@ -58,6 +64,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     /// @param updateType Type of update.
     /// @param data       Encoded update data.
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
+
+    /// @notice The block at which the op-node can start searching for
+    ///         logs from
+    uint256 startBlock;
 
     /// @custom:semver 1.3.1
     /// @notice Constructs the SystemConfig contract.
@@ -84,7 +94,12 @@ contract SystemConfig is OwnableUpgradeable, Semver {
             _batcherHash: _batcherHash,
             _gasLimit: _gasLimit,
             _unsafeBlockSigner: _unsafeBlockSigner,
-            _config: _config
+            _config: _config,
+            _l1CrossDomainMessenger: address(0),
+            _l1ERC721Bridge: address(0),
+            _l1StandardBridge: address(0),
+            _l2OutputOracle: address(0),
+            _optimismPortal: address(0)
         });
     }
 
@@ -104,15 +119,43 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         bytes32 _batcherHash,
         uint64 _gasLimit,
         address _unsafeBlockSigner,
-        ResourceMetering.ResourceConfig memory _config
+        ResourceMetering.ResourceConfig memory _config,
+        address _l1CrossDomainMessenger,
+        address _l1ERC721Bridge,
+        address _l1StandardBridge,
+        address _l2OutputOracle,
+        address _optimismPortal
     ) public initializer {
         __Ownable_init();
         transferOwnership(_owner);
+
+        // TODO: this needs to be backwards compatible with
+        // chains that already have it set.
+        startBlock = block.number;
+        // Could add an extra arg that is an override and do
+        // something like:
+        /*
+        if (_startBlock != 0) startBlock = _startBlock;
+        else startBlock = block.number;
+        */
+       // And then in the next upgrade, remove the extra arg
+        // and move to something like:
+       /*
+        if (startBlock == 0) startBlock = block.number;
+        */
+
         overhead = _overhead;
         scalar = _scalar;
         batcherHash = _batcherHash;
         gasLimit = _gasLimit;
         _setUnsafeBlockSigner(_unsafeBlockSigner);
+
+        _setAddress(_l1CrossDomainMessenger, L1_CROSS_DOMAIN_MESSENGER_SLOT);
+        _setAddress(_l1ERC721Bridge, L1_ERC_721_BRIDGE_SLOT);
+        _setAddress(_l1StandardBridge, L1_STANDARD_BRIDGE_SLOT);
+        _setAddress(_l2OutputOracle, L2_OUTPUT_ORACLE_SLOT);
+        _setAddress(_optimismPortal, OPTIMISM_PORTAL_SLOT);
+
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
     }
@@ -139,6 +182,14 @@ contract SystemConfig is OwnableUpgradeable, Semver {
             addr := sload(slot)
         }
         return addr;
+    }
+
+    /// @notice
+    function _setAddress(address _addr, bytes32 _slot) internal {
+        bytes32 slot = _slot;
+        assembly {
+            sstore(slot, _addr)
+        }
     }
 
     /// @notice Updates the unsafe block signer address.
