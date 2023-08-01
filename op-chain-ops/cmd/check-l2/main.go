@@ -17,8 +17,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/clients"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/util"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -31,59 +31,88 @@ var defaultCrossDomainMessageSender = common.HexToAddress("0x0000000000000000000
 func main() {
 	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd()))))
 
-	flags := []cli.Flag{}
-	flags = append(flags, util.ClientsFlags...)
-	flags = append(flags, util.AddressesFlags...)
-
 	app := &cli.App{
 		Name:  "check-l2",
 		Usage: "Check that an OP Stack L2 has been configured correctly",
-		Flags: flags,
-		Action: func(ctx *cli.Context) error {
-			clients, err := util.NewClients(ctx)
-			if err != nil {
-				return err
-			}
-
-			log.Info("Checking predeploy proxy config")
-			g := new(errgroup.Group)
-
-			// Check that all proxies are configured correctly
-			// Do this in parallel but not too quickly to allow for
-			// querying against rate limiting RPC backends
-			count := uint64(2048)
-			for i := uint64(0); i < count; i++ {
-				i := i
-				if i%4 == 0 {
-					log.Info("Checking proxy", "index", i, "total", count)
-					if err := g.Wait(); err != nil {
-						return err
-					}
-				}
-				g.Go(func() error {
-					return checkPredeploy(clients.L2Client, i)
-				})
-			}
-
-			if err := g.Wait(); err != nil {
-				return err
-			}
-			log.Info("All predeploy proxies are set correctly")
-
-			// Check that all of the defined predeploys are set up correctly
-			for name, addr := range predeploys.Predeploys {
-				log.Info("Checking predeploy", "name", name, "address", addr.Hex())
-				if err := checkPredeployConfig(clients.L2Client, name); err != nil {
-					return err
-				}
-			}
-			return nil
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     "l1-rpc-url",
+				Required: true,
+				Usage:    "L1 RPC URL",
+				EnvVars:  []string{"L1_RPC_URL"},
+			},
+			&cli.StringFlag{
+				Name:     "l2-rpc-url",
+				Required: true,
+				Usage:    "L2 RPC URL",
+				EnvVars:  []string{"L2_RPC_URL"},
+			},
 		},
+		Action: entrypoint,
 	}
 
 	if err := app.Run(os.Args); err != nil {
-		log.Crit("error indexing state", "err", err)
+		log.Crit("error checking l2", "err", err)
 	}
+}
+
+// entrypoint is the entrypoint for the check-l2 script
+func entrypoint(ctx *cli.Context) error {
+	clients, err := clients.NewClients(ctx)
+	if err != nil {
+		return err
+	}
+
+	log.Info("Checking predeploy proxy config")
+	g := new(errgroup.Group)
+
+	// Check that all proxies are configured correctly
+	// Do this in parallel but not too quickly to allow for
+	// querying against rate limiting RPC backends
+	count := uint64(2048)
+	for i := uint64(0); i < count; i++ {
+		i := i
+		if i%4 == 0 {
+			log.Info("Checking proxy", "index", i, "total", count)
+			if err := g.Wait(); err != nil {
+				return err
+			}
+		}
+		g.Go(func() error {
+			return checkPredeploy(clients.L2Client, i)
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return err
+	}
+	log.Info("All predeploy proxies are set correctly")
+
+	// Check that all of the defined predeploys are set up correctly
+	for name, addr := range predeploys.Predeploys {
+		log.Info("Checking predeploy", "name", name, "address", addr.Hex())
+		if err := checkPredeployConfig(clients.L2Client, name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkPredeploy ensures that the predeploy at index i has the correct proxy admin set
+func checkPredeploy(client *ethclient.Client, i uint64) error {
+	bigAddr := new(big.Int).Or(genesis.BigL2PredeployNamespace, new(big.Int).SetUint64(i))
+	addr := common.BigToAddress(bigAddr)
+	if !predeploys.IsProxied(addr) {
+		return nil
+	}
+	admin, err := getEIP1967AdminAddress(client, addr)
+	if err != nil {
+		return err
+	}
+	if admin != predeploys.ProxyAdminAddr {
+		return fmt.Errorf("%s does not have correct proxy admin set", addr)
+	}
+	return nil
 }
 
 // checkPredeployConfig checks that the defined predeploys are configured correctly
@@ -760,7 +789,7 @@ func checkEAS(addr common.Address, client *ethclient.Client) error {
 }
 
 func getEIP1967AdminAddress(client *ethclient.Client, addr common.Address) (common.Address, error) {
-	slot, err := client.StorageAt(context.Background(), addr, util.EIP1967AdminSlot, nil)
+	slot, err := client.StorageAt(context.Background(), addr, genesis.AdminSlot, nil)
 	if err != nil {
 		return common.Address{}, err
 	}
@@ -769,27 +798,10 @@ func getEIP1967AdminAddress(client *ethclient.Client, addr common.Address) (comm
 }
 
 func getEIP1967ImplementationAddress(client *ethclient.Client, addr common.Address) (common.Address, error) {
-	slot, err := client.StorageAt(context.Background(), addr, util.EIP1967ImplementationSlot, nil)
+	slot, err := client.StorageAt(context.Background(), addr, genesis.ImplementationSlot, nil)
 	if err != nil {
 		return common.Address{}, err
 	}
 	impl := common.BytesToAddress(slot)
 	return impl, nil
-}
-
-// checkPredeploy ensures that the predeploy at index i has the correct proxy admin set
-func checkPredeploy(client *ethclient.Client, i uint64) error {
-	bigAddr := new(big.Int).Or(genesis.BigL2PredeployNamespace, new(big.Int).SetUint64(i))
-	addr := common.BigToAddress(bigAddr)
-	if !predeploys.IsProxied(addr) {
-		return nil
-	}
-	admin, err := getEIP1967AdminAddress(client, addr)
-	if err != nil {
-		return err
-	}
-	if admin != predeploys.ProxyAdminAddr {
-		return fmt.Errorf("%s does not have correct proxy admin set", addr)
-	}
-	return nil
 }
