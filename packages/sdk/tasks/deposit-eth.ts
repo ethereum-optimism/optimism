@@ -318,6 +318,8 @@ task('deposit-eth', 'Deposits ether to L2.')
       console.log(
         `Latest L2OutputOracle commitment number: ${latest.toString()}`
       )
+      const tip = await signer.provider!.getBlockNumber()
+      console.log(`L1 chain tip: ${tip.toString()}`)
     }, 3000)
 
     try {

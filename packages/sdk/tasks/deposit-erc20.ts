@@ -325,6 +325,8 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
       console.log(
         `Latest L2OutputOracle commitment number: ${latest.toString()}`
       )
+      const tip = await signer.provider!.getBlockNumber()
+      console.log(`L1 chain tip: ${tip.toString()}`)
     }, 3000)
 
     const now = Math.floor(Date.now() / 1000)
