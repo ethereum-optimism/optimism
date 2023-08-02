@@ -1,0 +1,12 @@
+{
+  "solidity.packageDefaultDependenciesContractsDirectory": "src",
+  "solidity.packageDefaultDependenciesDirectory": "lib",
+  "editor.formatOnSave": true,
+  "[solidity]": {
+    "editor.defaultFormatter": "JuanBlanco.solidity" 
+  },
+  "solidity.formatter": "forge",
+  "solidity.compileUsingRemoteVersion": "v0.8.15+commit.e14f2714",
+  "r.lsp.diagnostics": false,
+  "max-line-length": 10000
+}
