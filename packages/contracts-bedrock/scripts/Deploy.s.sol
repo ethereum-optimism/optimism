@@ -24,6 +24,7 @@ import { ResourceMetering } from "../src/L1/ResourceMetering.sol";
 import { Constants } from "../src/libraries/Constants.sol";
 import { DisputeGameFactory } from "../src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "../src/dispute/FaultDisputeGame.sol";
+import { PreimageOracle } from "../src/cannon/PreimageOracle.sol";
 import { L1ERC721Bridge } from "../src/L1/L1ERC721Bridge.sol";
 import { Predeploys } from "../src/libraries/Predeploys.sol";
 
@@ -79,6 +80,7 @@ contract Deploy is Deployer {
         deployL1StandardBridge();
         deployL1ERC721Bridge();
         deployDisputeGameFactory();
+        deployPreimageOracle();
 
         transferAddressManagerOwnership();
 
@@ -353,6 +355,18 @@ contract Deploy is Deployer {
             console.log("DisputeGameFactory deployed at %s", address(factory));
 
             return address(factory);
+        }
+        return address(0);
+    }
+
+    /// @notice Deploy the PreimageOracle
+    function deployPreimageOracle() broadcast() public returns (address) {
+        if (block.chainid == 900) {
+            PreimageOracle preimageOracle = new PreimageOracle();
+            save("PreimageOracle", address(preimageOracle));
+            console.log("PreimageOracle deployed at %s", address(preimageOracle));
+
+            return address(preimageOracle);
         }
         return address(0);
     }
