@@ -53,11 +53,11 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 	require.NoError(err)
 
 	// Deploy the block hash oracle
-	_, tx, _, err = bindings.DeployBlockHashOracle(opts, client)
+	_, tx, _, err = bindings.DeployBlockOracle(opts, client)
 	require.NoError(err)
 	blockHashOracleAddr, err := bind.WaitDeployed(ctx, client, tx)
 	require.NoError(err)
-	blockHashOracle, err := bindings.NewBlockHashOracle(blockHashOracleAddr, client)
+	blockHashOracle, err := bindings.NewBlockOracle(blockHashOracleAddr, client)
 	require.NoError(err)
 
 	// Deploy the fault dispute game implementation

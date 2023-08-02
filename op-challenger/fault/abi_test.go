@@ -28,7 +28,7 @@ func setupFaultDisputeGame() (common.Address, *bind.TransactOpts, *backends.Simu
 	}
 	backend := backends.NewSimulatedBackend(core.GenesisAlloc{from: {Balance: big.NewInt(params.Ether)}}, 50_000_000)
 
-	blockHashOracle, _, _, err := bindings.DeployBlockHashOracle(opts, backend)
+	blockHashOracle, _, _, err := bindings.DeployBlockOracle(opts, backend)
 	if err != nil {
 		return common.Address{}, nil, nil, nil, err
 	}
