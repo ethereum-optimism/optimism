@@ -23,7 +23,8 @@ func TestServerMode(t *testing.T) {
 	dir := t.TempDir()
 
 	l1Head := common.Hash{0x11}
-	cfg := config.NewConfig(&chaincfg.Goerli, config.OPGoerliChainConfig, l1Head, common.Hash{0x22}, common.Hash{0x33}, 1000)
+	l2OutputRoot := common.Hash{0x33}
+	cfg := config.NewConfig(&chaincfg.Goerli, config.OPGoerliChainConfig, l1Head, common.Hash{0x22}, l2OutputRoot, common.Hash{0x44}, 1000)
 	cfg.DataDir = dir
 	cfg.ServerMode = true
 
@@ -43,7 +44,8 @@ func TestServerMode(t *testing.T) {
 	hClient := preimage.NewHintWriter(hintClient)
 	l1PreimageOracle := l1.NewPreimageOracle(pClient, hClient)
 
-	require.Equal(t, l1Head.Bytes(), pClient.Get(client.L1HeadLocalIndex), "Should get preimages")
+	require.Equal(t, l1Head.Bytes(), pClient.Get(client.L1HeadLocalIndex), "Should get l1 head preimages")
+	require.Equal(t, l2OutputRoot.Bytes(), pClient.Get(client.L2OutputRootLocalIndex), "Should get l2 output root preimages")
 
 	// Should exit when a preimage is unavailable
 	require.Panics(t, func() {

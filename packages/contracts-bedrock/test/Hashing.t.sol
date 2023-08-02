@@ -89,22 +89,22 @@ contract Hashing_hashWithdrawal_Test is CommonTest {
 contract Hashing_hashOutputRootProof_Test is CommonTest {
     /// @notice Tests that hashOutputRootProof returns the correct hash in a simple case.
     function testDiff_hashOutputRootProof_succeeds(
-        bytes32 _version,
         bytes32 _stateRoot,
         bytes32 _messagePasserStorageRoot,
         bytes32 _latestBlockhash
     ) external {
+        bytes32 version = 0;
         assertEq(
             Hashing.hashOutputRootProof(
                 Types.OutputRootProof({
-                    version: _version,
+                    version: version,
                     stateRoot: _stateRoot,
                     messagePasserStorageRoot: _messagePasserStorageRoot,
                     latestBlockhash: _latestBlockhash
                 })
             ),
             ffi.hashOutputRootProof(
-                _version,
+                version,
                 _stateRoot,
                 _messagePasserStorageRoot,
                 _latestBlockhash

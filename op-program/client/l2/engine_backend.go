@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-program/client/l2/engineapi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -39,8 +40,13 @@ type OracleBackedL2Chain struct {
 
 var _ engineapi.EngineBackend = (*OracleBackedL2Chain)(nil)
 
-func NewOracleBackedL2Chain(logger log.Logger, oracle Oracle, chainCfg *params.ChainConfig, l2Head common.Hash) (*OracleBackedL2Chain, error) {
-	head := oracle.BlockByHash(l2Head)
+func NewOracleBackedL2Chain(logger log.Logger, oracle Oracle, chainCfg *params.ChainConfig, l2OutputRoot common.Hash) (*OracleBackedL2Chain, error) {
+	output := oracle.OutputByRoot(l2OutputRoot)
+	outputV0, ok := output.(*eth.OutputV0)
+	if !ok {
+		return nil, fmt.Errorf("unsupported L2 output version: %d", output.Version())
+	}
+	head := oracle.BlockByHash(outputV0.BlockHash)
 	logger.Info("Loaded L2 head", "hash", head.Hash(), "number", head.Number())
 	return &OracleBackedL2Chain{
 		log:      logger,
