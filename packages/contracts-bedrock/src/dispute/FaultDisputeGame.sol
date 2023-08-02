@@ -64,10 +64,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @notice An append-only array of all claims made during the dispute game.
     ClaimData[] public claimData;
 
-    /// @notice The starting and disputed output proposals, which are used to determine where
-    ///         game participants should start executing Cannon and to verify the state transition,
-    ///         respectively.
-    Types.OutputProposal[2] public proposals;
+    /// @notice The starting and disputed output proposal for the game. Includes information about
+    ///         the output indexes in the `L2OutputOracle` and the output roots at the time of
+    ///         game creation.
+    OutputProposal[2] public proposals;
 
     /// @notice An internal mapping to allow for constant-time lookups of existing claims.
     mapping(ClaimHash => bool) internal claims;
@@ -81,7 +81,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @param _blockOracle The block oracle, used for loading block hashes further back
     ///                     than the `BLOCKHASH` opcode allows as well as their estimated
     ///                     timestamps.
-    /// @custom:semver 0.0.5
+    /// @custom:semver 0.0.6
     constructor(
         Claim _absolutePrestate,
         uint256 _maxGameDepth,
@@ -89,7 +89,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         IBigStepper _vm,
         L2OutputOracle _l2oo,
         BlockOracle _blockOracle
-    ) Semver(0, 0, 5) {
+    ) Semver(0, 0, 6) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
         GAME_DURATION = _gameDuration;
@@ -282,20 +282,21 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
             // Load the L1 head hash into the game's local context in the preimage oracle.
             oracle.loadLocalData(_ident, Hash.unwrap(l1Head), 32, _partOffset);
         } else if (_ident == 2) {
-            // Load the earliest output root that commits to the passed L2 block number
-            // into the game's local context in the preimage oracle.
-            Types.OutputProposal memory proposal = L2_OUTPUT_ORACLE.getL2OutputAfter(
-                l2BlockNumber()
-            );
-            oracle.loadLocalData(_ident, proposal.outputRoot, 32, _partOffset);
+            // Load the starting output root into the game's local context in the preimage oracle.
+            oracle.loadLocalData(_ident, Hash.unwrap(proposals[0].outputRoot), 32, _partOffset);
         } else if (_ident == 3) {
-            // Load the root claim into the game's local context in the preimage oracle.
-            oracle.loadLocalData(_ident, Claim.unwrap(rootClaim()), 32, _partOffset);
+            // Load the disputed output root into the game's local context in the preimage oracle.
+            oracle.loadLocalData(_ident, Hash.unwrap(proposals[1].outputRoot), 32, _partOffset);
         } else if (_ident == 4) {
-            // Load the L2 block number into the game's local context in the preimage oracle.
+            // Load the starting l2 block number into the game's local context in the preimage oracle.
             // The L2 block number is stored as a big-endian uint64 in the upper 8 bytes of the
             // passed word.
-            oracle.loadLocalData(_ident, bytes32(l2BlockNumber() << 192), 8, _partOffset);
+            oracle.loadLocalData(
+                _ident,
+                bytes32(uint256(proposals[0].l2BlockNumber) << 192),
+                8,
+                _partOffset
+            );
         } else if (_ident == 5) {
             // Load the chain ID into the game's local context in the preimage oracle.
             // The chain ID is stored as a big-endian uint64 in the upper 8 bytes of the
@@ -454,8 +455,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // TODO(clabby): This is 2 calls too many for the information we need. Maybe
         //               add a function to the L2OO?
         uint256 proposalIdx = L2_OUTPUT_ORACLE.getL2OutputIndexAfter(l2BlockNumber());
-        Types.OutputProposal memory starting = L2_OUTPUT_ORACLE.getL2Output(proposalIdx);
-        Types.OutputProposal memory disputed = L2_OUTPUT_ORACLE.getL2Output(proposalIdx + 1);
+        Types.OutputProposal memory starting = L2_OUTPUT_ORACLE.getL2Output(proposalIdx - 1);
+        Types.OutputProposal memory disputed = L2_OUTPUT_ORACLE.getL2Output(proposalIdx);
         // SAFETY: This call can revert if the block hash oracle does not have information
         // about the block number provided to it.
         BlockOracle.BlockInfo memory blockInfo = BLOCK_ORACLE.load(l1BlockNumber());
@@ -467,10 +468,20 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         //               estimation has room for error? This invariant cannot break.
         if (Timestamp.unwrap(blockInfo.timestamp) < disputed.timestamp) revert L1HeadTooOld();
 
-        // Persist the output proposals fetched from the oracle.
-        // TODO(clabby): Docs on why we do this.
-        proposals[0] = starting;
-        proposals[1] = disputed;
+        // Persist the output proposals fetched from the oracle. These outputs will be referenced
+        // for loading local data into the preimage oracle as well as to authenticate the game's
+        // resolution. If the disputed output has changed in the oracle, the game cannot be
+        // resolved.
+        proposals[0] = OutputProposal({
+            index: uint128(proposalIdx - 1),
+            outputRoot: Hash.wrap(starting.outputRoot),
+            l2BlockNumber: starting.l2BlockNumber
+        });
+        proposals[1] = OutputProposal({
+            index: uint128(proposalIdx),
+            outputRoot: Hash.wrap(starting.outputRoot),
+            l2BlockNumber: starting.l2BlockNumber
+        });
         // Persist the L1 head hash of the L1 block number provided.
         l1Head = blockInfo.hash;
     }
