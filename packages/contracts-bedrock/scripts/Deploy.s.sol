@@ -394,6 +394,18 @@ contract Deploy is Deployer {
         return address(0);
     }
 
+    /// @notice Deploy Mips
+    function deployMips() broadcast() public returns (address) {
+        if (block.chainid == 900) {
+            MIPS mips = new MIPS();
+            save("Mips", address(mips));
+            console.log("Mips deployed at %s", address(mips));
+
+            return address(mips);
+        }
+        return address(0);
+    }
+
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() broadcast() public returns (address) {
         bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
