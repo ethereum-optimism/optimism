@@ -15,6 +15,9 @@ receipt-reference-builder:
 op-upgrade:
 	go build -o ./bin/op-upgrade ./cmd/op-upgrade/main.go
 
+celo-migrate:
+	go build -o ./bin/celo-migrate ./cmd/celo-migrate/*.go
+
 test:
 	go test ./...
 
