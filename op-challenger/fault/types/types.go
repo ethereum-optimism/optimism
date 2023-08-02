@@ -3,6 +3,7 @@ package types
 import (
 	"context"
 	"errors"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -25,6 +26,11 @@ type PreimageOracleData struct {
 	IsLocal    bool
 	OracleKey  []byte
 	OracleData []byte
+}
+
+// GetIdent returns the ident for the preimage oracle data.
+func (p *PreimageOracleData) GetIdent() *big.Int {
+	return big.NewInt(int64(p.OracleData[0]))
 }
 
 // NewPreimageOracleData creates a new [PreimageOracleData] instance.
