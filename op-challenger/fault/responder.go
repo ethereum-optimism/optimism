@@ -24,19 +24,28 @@ type faultResponder struct {
 
 	fdgAddr common.Address
 	fdgAbi  *abi.ABI
+
+	preimageOracleAddr common.Address
+	preimageOracleAbi  *abi.ABI
 }
 
 // NewFaultResponder returns a new [faultResponder].
-func NewFaultResponder(logger log.Logger, txManagr txmgr.TxManager, fdgAddr common.Address) (*faultResponder, error) {
+func NewFaultResponder(logger log.Logger, txManagr txmgr.TxManager, fdgAddr common.Address, preimageOracleAddr common.Address) (*faultResponder, error) {
 	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
+	preimageOracleAbi, err := bindings.PreimageOracleMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
 	return &faultResponder{
-		log:     logger,
-		txMgr:   txManagr,
-		fdgAddr: fdgAddr,
-		fdgAbi:  fdgAbi,
+		log:                logger,
+		txMgr:              txManagr,
+		fdgAddr:            fdgAddr,
+		fdgAbi:             fdgAbi,
+		preimageOracleAddr: preimageOracleAddr,
+		preimageOracleAbi:  preimageOracleAbi,
 	}, nil
 }
 
@@ -104,12 +113,11 @@ func (r *faultResponder) PopulateOracleData(ctx context.Context, data types.Prei
 //
 // Encoded call to: addLocalData(uint256 _ident, uint256 _partOffset) external
 func (r *faultResponder) buildLocalOracleData(data types.PreimageOracleData) ([]byte, error) {
-	// return r.fdgAbi.Pack(
-	// 	"addLocalData",
-	//  data.OracleKey,
-	// 	big.NewInt(0),
-	// )
-	panic("not implemented")
+	return r.fdgAbi.Pack(
+		"addLocalData",
+		data.OracleKey,
+		big.NewInt(0),
+	)
 }
 
 // buildGlobalOracleData takes the global preimage key and data
@@ -118,11 +126,11 @@ func (r *faultResponder) buildLocalOracleData(data types.PreimageOracleData) ([]
 //
 // Encoded call to: loadKeccak256PreimagePart(uint256 _partOffset, bytes calldata _preimage) external
 func (r *faultResponder) buildGlobalOracleData(data types.PreimageOracleData) ([]byte, error) {
-	// return r.oracleAbi.Pack(
-	// 	"loadKeccak256PreimagePart",
-	// 	big.NewInt(0),
-	// 	data.OracleData,
-	// )
+	return r.preimageOracleAbi.Pack(
+		"loadKeccak256PreimagePart",
+		big.NewInt(0),
+		data.OracleData,
+	)
 	panic("not implemented")
 }
 

@@ -3,6 +3,7 @@ package types
 import (
 	"context"
 	"errors"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -22,9 +23,25 @@ const (
 // PreimageOracleData encapsulates the preimage oracle data
 // to load into the onchain oracle.
 type PreimageOracleData struct {
-	IsLocal    bool
-	OracleKey  []byte
-	OracleData []byte
+	IsLocal      bool
+	OracleKey    []byte
+	OracleData   []byte
+	OracleOffset *big.Int
+}
+
+// GetIdent returns the ident for the preimage oracle data.
+func (p *PreimageOracleData) GetIdent() *big.Int {
+	return big.NewInt(int64(p.OracleData[0]))
+}
+
+// GetPartOffset returns the part offset for the preimage oracle data.
+func (p *PreimageOracleData) GetPartOffset() *big.Int {
+	panic("part offset not implemented")
+}
+
+// GetPreimage returns the preimage data.
+func (p *PreimageOracleData) GetPreimage() []byte {
+	return p.OracleData
 }
 
 // NewPreimageOracleData creates a new [PreimageOracleData] instance.
