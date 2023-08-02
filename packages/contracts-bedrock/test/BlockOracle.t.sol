@@ -25,7 +25,6 @@ contract BlockOracle_Test is Test {
 
         BlockOracle.BlockInfo memory res = oracle.load(_blockNumber);
         assertEq(Hash.unwrap(res.hash), blockhash(_blockNumber));
-        emit log_uint(block.timestamp - ((block.number - _blockNumber) * 13));
         assertEq(Timestamp.unwrap(res.timestamp), block.timestamp - ((block.number - _blockNumber) * 13));
     }
 
