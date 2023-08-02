@@ -419,14 +419,12 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the L1StandardBridge
     function deployL1StandardBridge() broadcast() public returns (address) {
-        address l1CrossDomainMessengerProxy = mustGetAddress("L1CrossDomainMessengerProxy");
+        L1StandardBridge bridge = new L1StandardBridge();
 
-        L1StandardBridge bridge = new L1StandardBridge({
-            _messenger: payable(l1CrossDomainMessengerProxy)
-        });
-
-        require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
+        require(address(bridge.MESSENGER()) == address(0));
+        require(address(bridge.messenger()) == address(0));
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
+        require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
 
         save("L1StandardBridge", address(bridge));
         console.log("L1StandardBridge deployed at %s", address(bridge));
@@ -543,9 +541,13 @@ contract Deploy is Deployer {
         }
         require(uint256(proxyAdmin.proxyType(l1StandardBridgeProxy)) == uint256(ProxyAdmin.ProxyType.CHUGSPLASH));
 
-        proxyAdmin.upgrade({
+        proxyAdmin.upgradeAndCall({
             _proxy: payable(l1StandardBridgeProxy),
-            _implementation: l1StandardBridge
+            _implementation: l1StandardBridge,
+            _data: abi.encodeCall(
+                L1StandardBridge.initialize,
+                (L1CrossDomainMessenger(l1CrossDomainMessengerProxy))
+            )
         });
 
         string memory version = L1StandardBridge(payable(l1StandardBridgeProxy)).version();
@@ -553,7 +555,9 @@ contract Deploy is Deployer {
 
         L1StandardBridge bridge = L1StandardBridge(payable(l1StandardBridgeProxy));
         require(address(bridge.MESSENGER()) == l1CrossDomainMessengerProxy);
+        require(address(bridge.messenger()) == l1CrossDomainMessengerProxy);
         require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
+        require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
 
     }
 
