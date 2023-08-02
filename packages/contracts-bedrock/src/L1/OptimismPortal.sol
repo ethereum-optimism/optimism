@@ -135,6 +135,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         paused = _paused;
         __ResourceMetering_init();
     }
+
     /// @notice Getter for the L2OutputOracle
     /// @custom:legacy
     function L2_ORACLE() external view returns (L2OutputOracle) {
