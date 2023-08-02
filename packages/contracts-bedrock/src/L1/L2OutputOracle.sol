@@ -60,8 +60,8 @@ contract L2OutputOracle is Initializable, Semver {
     /// @notice Constructs the L2OutputOracle contract.
     /// @param _submissionInterval  Interval in blocks at which checkpoints must be submitted.
     /// @param _l2BlockTime         The time per L2 block, in seconds.
-    /// @param _finalizationPeriodSeconds The amount of time that must pass for an output proposal to
-    //                                    be considered canonical.
+    /// @param _finalizationPeriodSeconds The amount of time that must pass for an output proposal
+    //                                    to be considered canonical.
     constructor(
         uint256 _submissionInterval,
         uint256 _l2BlockTime,
@@ -95,10 +95,7 @@ contract L2OutputOracle is Initializable, Semver {
         uint256 _startingTimestamp,
         address _proposer,
         address _challenger
-    )
-        public
-        reinitializer(2)
-    {
+    ) public reinitializer(2) {
         require(
             _startingTimestamp <= block.timestamp,
             "L2OutputOracle: starting L2 timestamp must be less than current time"
