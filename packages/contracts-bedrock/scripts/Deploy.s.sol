@@ -382,6 +382,18 @@ contract Deploy is Deployer {
         return address(mips);
     }
 
+    /// @notice Deploy the PreimageOracle
+    function deployPreimageOracle() broadcast() public returns (address) {
+        if (block.chainid == 900) {
+            PreimageOracle preimageOracle = new PreimageOracle();
+            save("PreimageOracle", address(preimageOracle));
+            console.log("PreimageOracle deployed at %s", address(preimageOracle));
+
+            return address(preimageOracle);
+        }
+        return address(0);
+    }
+
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() broadcast() public returns (address) {
         bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
