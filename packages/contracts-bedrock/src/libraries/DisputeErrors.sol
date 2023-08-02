@@ -78,7 +78,7 @@ error AlreadyChallenged();
 error NotOwner();
 
 ////////////////////////////////////////////////////////////////
-//                `BlockHashOracle.sol` Errors                //
+//                  `BlockOracle.sol` Errors                  //
 ////////////////////////////////////////////////////////////////
 
 /// @notice Thrown when a block that is out of the range of the `BLOCKHASH` opcode
