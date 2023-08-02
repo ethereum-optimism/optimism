@@ -131,7 +131,6 @@ func (r *faultResponder) buildGlobalOracleData(data types.PreimageOracleData) ([
 		big.NewInt(0),
 		data.OracleData,
 	)
-	panic("not implemented")
 }
 
 // CanResolve determines if the resolve function on the fault dispute game contract
