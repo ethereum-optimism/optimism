@@ -3,6 +3,7 @@ import '@nomiclabs/hardhat-ethers'
 import { Contract, utils } from 'ethers'
 import { toRpcHexString } from '@eth-optimism/core-utils'
 import Artifact__L2OutputOracle from '@eth-optimism/contracts-bedrock/forge-artifacts/L2OutputOracle.sol/L2OutputOracle.json'
+import Artifact__Proxy from '@eth-optimism/contracts-bedrock/forge-artifacts/Proxy.sol/Proxy.json'
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers'
 
 import { expect } from './setup'
@@ -29,21 +30,42 @@ describe('helpers', () => {
   })
 
   let L2OutputOracle: Contract
+  let Proxy: Contract
   beforeEach(async () => {
+    const Factory__Proxy = new hre.ethers.ContractFactory(
+      Artifact__Proxy.abi,
+      Artifact__Proxy.bytecode.object,
+      signer
+    )
+
+    Proxy = await Factory__Proxy.deploy(signer.address)
+
     const Factory__L2OutputOracle = new hre.ethers.ContractFactory(
       Artifact__L2OutputOracle.abi,
       Artifact__L2OutputOracle.bytecode.object,
       signer
     )
 
-    L2OutputOracle = await Factory__L2OutputOracle.deploy(
+    const L2OutputOracleImplementation = await Factory__L2OutputOracle.deploy(
       deployConfig.l2OutputOracleSubmissionInterval,
       deployConfig.l2BlockTime,
-      deployConfig.l2OutputOracleStartingBlockNumber,
-      deployConfig.l2OutputOracleStartingTimestamp,
-      deployConfig.l2OutputOracleProposer,
-      deployConfig.l2OutputOracleChallenger,
       deployConfig.finalizationPeriodSeconds
+    )
+
+    await Proxy.upgradeToAndCall(
+      L2OutputOracleImplementation.address,
+      L2OutputOracleImplementation.interface.encodeFunctionData('initialize', [
+        deployConfig.l2OutputOracleStartingBlockNumber,
+        deployConfig.l2OutputOracleStartingTimestamp,
+        deployConfig.l2OutputOracleProposer,
+        deployConfig.l2OutputOracleChallenger,
+      ])
+    )
+
+    L2OutputOracle = new hre.ethers.Contract(
+      Proxy.address,
+      Artifact__L2OutputOracle.abi,
+      signer
     )
   })
 
