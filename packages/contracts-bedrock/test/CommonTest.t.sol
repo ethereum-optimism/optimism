@@ -7,6 +7,7 @@ import { L2OutputOracle } from "../src/L1/L2OutputOracle.sol";
 import { L2ToL1MessagePasser } from "../src/L2/L2ToL1MessagePasser.sol";
 import { L1StandardBridge } from "../src/L1/L1StandardBridge.sol";
 import { L2StandardBridge } from "../src/L2/L2StandardBridge.sol";
+import { StandardBridge } from "../src/universal/StandardBridge.sol";
 import { L1ERC721Bridge } from "../src/L1/L1ERC721Bridge.sol";
 import { L2ERC721Bridge } from "../src/L2/L2ERC721Bridge.sol";
 import { OptimismMintableERC20Factory } from "../src/universal/OptimismMintableERC20Factory.sol";
@@ -414,21 +415,24 @@ contract Bridge_Initializer is Messenger_Initializer {
             abi.encode(true)
         );
         vm.startPrank(multisig);
-        proxy.setCode(address(new L1StandardBridge(payable(address(L1Messenger)))).code);
+        proxy.setCode(address(new L1StandardBridge()).code);
         vm.clearMockedCalls();
         address L1Bridge_Impl = proxy.getImplementation();
         vm.stopPrank();
 
         L1Bridge = L1StandardBridge(payable(address(proxy)));
+        L1Bridge.initialize({
+            _messenger: L1Messenger
+        });
 
         vm.label(address(proxy), "L1StandardBridge_Proxy");
         vm.label(address(L1Bridge_Impl), "L1StandardBridge_Impl");
 
         // Deploy the L2StandardBridge, move it to the correct predeploy
         // address and then initialize it
-        L2StandardBridge l2B = new L2StandardBridge(payable(proxy));
-        vm.etch(Predeploys.L2_STANDARD_BRIDGE, address(l2B).code);
+        vm.etch(Predeploys.L2_STANDARD_BRIDGE, address(new L2StandardBridge(StandardBridge(payable(proxy)))).code);
         L2Bridge = L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
+        L2Bridge.initialize();
 
         // Set up the L2 mintable token factory
         OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory(
