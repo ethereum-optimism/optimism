@@ -53,15 +53,15 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
     /// @notice Address of the L2OutputOracle contract.
     /// @custom:network-specific
-    L2OutputOracle public L2_ORACLE;
+    L2OutputOracle internal _L2_ORACLE;
 
     /// @notice Address of the SystemConfig contract.
     /// @custom:network-specific
-    SystemConfig public SYSTEM_CONFIG;
+    SystemConfig internal _SYSTEM_CONFIG;
 
     /// @notice Address that has the ability to pause and unpause withdrawals.
     /// @custom:network-specific
-    address public GUARDIAN;
+    address internal _GUARDIAN;
 
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
@@ -129,23 +129,55 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         bool _paused
     ) public reinitializer(2) {
         l2Sender = Constants.DEFAULT_L2_SENDER;
-        L2_ORACLE = _l2Oracle;
-        SYSTEM_CONFIG = _systemConfig;
-        GUARDIAN = _guardian;
+        _L2_ORACLE = _l2Oracle;
+        _SYSTEM_CONFIG = _systemConfig;
+        _GUARDIAN = _guardian;
         paused = _paused;
         __ResourceMetering_init();
+    }
+    /// @notice Getter for the L2OutputOracle
+    /// @custom:legacy
+    function L2_ORACLE() external view returns (L2OutputOracle) {
+        return _L2_ORACLE;
+    }
+
+    /// @notice Getter for the L2OutputOracle
+    function l2Oracle() external view returns (L2OutputOracle) {
+        return _L2_ORACLE;
+    }
+
+    /// @notice Getter for the SystemConfig
+    /// @custom:legacy
+    function SYSTEM_CONFIG() external view returns (SystemConfig) {
+        return _SYSTEM_CONFIG;
+    }
+
+    /// @notice Getter for the SystemConfig
+    function systemConfig() external view returns (SystemConfig) {
+        return _SYSTEM_CONFIG;
+    }
+
+    /// @notice Getter for the Guardian
+    /// @custom:legacy
+    function GUARDIAN() external view returns (address) {
+        return _GUARDIAN;
+    }
+
+    /// @notice Getter for the Guardian
+    function guardian() external view returns (address) {
+        return _GUARDIAN;
     }
 
     /// @notice Pauses withdrawals.
     function pause() external {
-        require(msg.sender == GUARDIAN, "OptimismPortal: only guardian can pause");
+        require(msg.sender == _GUARDIAN, "OptimismPortal: only guardian can pause");
         paused = true;
         emit Paused(msg.sender);
     }
 
     /// @notice Unpauses withdrawals.
     function unpause() external {
-        require(msg.sender == GUARDIAN, "OptimismPortal: only guardian can unpause");
+        require(msg.sender == _GUARDIAN, "OptimismPortal: only guardian can unpause");
         paused = false;
         emit Unpaused(msg.sender);
     }
@@ -187,7 +219,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         override
         returns (ResourceMetering.ResourceConfig memory)
     {
-        return SYSTEM_CONFIG.resourceConfig();
+        return _SYSTEM_CONFIG.resourceConfig();
     }
 
     /// @notice Proves a withdrawal transaction.
@@ -211,7 +243,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
         // Get the output root and load onto the stack to prevent multiple mloads. This will
         // revert if there is no output root for the given block number.
-        bytes32 outputRoot = L2_ORACLE.getL2Output(_l2OutputIndex).outputRoot;
+        bytes32 outputRoot = _L2_ORACLE.getL2Output(_l2OutputIndex).outputRoot;
 
         // Verify that the output root can be generated with the elements in the proof.
         require(
@@ -231,7 +263,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // output index has been updated.
         require(
             provenWithdrawal.timestamp == 0 ||
-                L2_ORACLE.getL2Output(provenWithdrawal.l2OutputIndex).outputRoot !=
+                _L2_ORACLE.getL2Output(provenWithdrawal.l2OutputIndex).outputRoot !=
                 provenWithdrawal.outputRoot,
             "OptimismPortal: withdrawal hash has already been proven"
         );
@@ -303,7 +335,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // starting timestamp inside the L2OutputOracle. Not strictly necessary but extra layer of
         // safety against weird bugs in the proving step.
         require(
-            provenWithdrawal.timestamp >= L2_ORACLE.startingTimestamp(),
+            provenWithdrawal.timestamp >= _L2_ORACLE.startingTimestamp(),
             "OptimismPortal: withdrawal timestamp less than L2 Oracle starting timestamp"
         );
 
@@ -318,7 +350,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
         // Grab the OutputProposal from the L2OutputOracle, will revert if the output that
         // corresponds to the given index has not been proposed yet.
-        Types.OutputProposal memory proposal = L2_ORACLE.getL2Output(
+        Types.OutputProposal memory proposal = _L2_ORACLE.getL2Output(
             provenWithdrawal.l2OutputIndex
         );
 
@@ -438,7 +470,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /// @param _l2OutputIndex Index of the L2 output to check.
     /// @return Whether or not the output is finalized.
     function isOutputFinalized(uint256 _l2OutputIndex) external view returns (bool) {
-        return _isFinalizationPeriodElapsed(L2_ORACLE.getL2Output(_l2OutputIndex).timestamp);
+        return _isFinalizationPeriodElapsed(_L2_ORACLE.getL2Output(_l2OutputIndex).timestamp);
     }
 
     /// @notice Determines whether the finalization period has elapsed with respect to
@@ -446,6 +478,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /// @param _timestamp Timestamp to check.
     /// @return Whether or not the finalization period has elapsed.
     function _isFinalizationPeriodElapsed(uint256 _timestamp) internal view returns (bool) {
-        return block.timestamp > _timestamp + L2_ORACLE.FINALIZATION_PERIOD_SECONDS();
+        return block.timestamp > _timestamp + _L2_ORACLE.FINALIZATION_PERIOD_SECONDS();
     }
 }

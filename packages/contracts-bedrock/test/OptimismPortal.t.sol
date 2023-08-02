@@ -26,6 +26,9 @@ contract OptimismPortal_Test is Portal_Initializer {
     /// @dev Tests that the constructor sets the correct values.
     function test_constructor_succeeds() external {
         assertEq(address(op.L2_ORACLE()), address(oracle));
+        assertEq(address(op.l2Oracle()), address(oracle));
+        assertEq(op.GUARDIAN(), guardian);
+        assertEq(op.guardian(), guardian);
         assertEq(op.l2Sender(), 0x000000000000000000000000000000000000dEaD);
         assertEq(op.paused(), false);
     }
