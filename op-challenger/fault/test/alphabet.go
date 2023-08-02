@@ -10,7 +10,7 @@ import (
 
 func NewAlphabetWithProofProvider(t *testing.T, maxDepth int, oracleError error) *alphabetWithProofProvider {
 	return &alphabetWithProofProvider{
-		alphabet.NewAlphabetProvider("abcdefghijklmnopqrstuvwxyz", uint64(maxDepth)),
+		alphabet.NewTraceProvider("abcdefghijklmnopqrstuvwxyz", uint64(maxDepth)),
 		oracleError,
 	}
 }
@@ -21,12 +21,12 @@ func NewAlphabetClaimBuilder(t *testing.T, maxDepth int) *ClaimBuilder {
 }
 
 type alphabetWithProofProvider struct {
-	*alphabet.AlphabetProvider
+	*alphabet.AlphabetTraceProvider
 	OracleError error
 }
 
 func (a *alphabetWithProofProvider) GetPreimage(ctx context.Context, i uint64) ([]byte, []byte, error) {
-	preimage, _, err := a.AlphabetProvider.GetPreimage(ctx, i)
+	preimage, _, err := a.AlphabetTraceProvider.GetPreimage(ctx, i)
 	if err != nil {
 		return nil, nil, err
 	}

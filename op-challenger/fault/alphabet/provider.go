@@ -15,28 +15,28 @@ var (
 	ErrIndexTooLarge = errors.New("index is larger than the maximum index")
 )
 
-// AlphabetProvider is a [TraceProvider] that provides claims for specific
+// AlphabetTraceProvider is a [TraceProvider] that provides claims for specific
 // indices in the given trace.
-type AlphabetProvider struct {
+type AlphabetTraceProvider struct {
 	state  []string
 	maxLen uint64
 }
 
-// NewAlphabetProvider returns a new [AlphabetProvider].
-func NewAlphabetProvider(state string, depth uint64) *AlphabetProvider {
-	return &AlphabetProvider{
+// NewTraceProvider returns a new [AlphabetProvider].
+func NewTraceProvider(state string, depth uint64) *AlphabetTraceProvider {
+	return &AlphabetTraceProvider{
 		state:  strings.Split(state, ""),
 		maxLen: uint64(1 << depth),
 	}
 }
 
 // GetOracleData should not return any preimage oracle data for the alphabet provider.
-func (p *AlphabetProvider) GetOracleData(ctx context.Context, i uint64) (*types.PreimageOracleData, error) {
+func (p *AlphabetTraceProvider) GetOracleData(ctx context.Context, i uint64) (*types.PreimageOracleData, error) {
 	return &types.PreimageOracleData{}, nil
 }
 
 // GetPreimage returns the preimage for the given hash.
-func (ap *AlphabetProvider) GetPreimage(ctx context.Context, i uint64) ([]byte, []byte, error) {
+func (ap *AlphabetTraceProvider) GetPreimage(ctx context.Context, i uint64) ([]byte, []byte, error) {
 	// The index cannot be larger than the maximum index as computed by the depth.
 	if i >= ap.maxLen {
 		return nil, nil, ErrIndexTooLarge
@@ -49,7 +49,7 @@ func (ap *AlphabetProvider) GetPreimage(ctx context.Context, i uint64) ([]byte, 
 }
 
 // Get returns the claim value at the given index in the trace.
-func (ap *AlphabetProvider) Get(ctx context.Context, i uint64) (common.Hash, error) {
+func (ap *AlphabetTraceProvider) Get(ctx context.Context, i uint64) (common.Hash, error) {
 	claimBytes, _, err := ap.GetPreimage(ctx, i)
 	if err != nil {
 		return common.Hash{}, err
@@ -57,7 +57,7 @@ func (ap *AlphabetProvider) Get(ctx context.Context, i uint64) (common.Hash, err
 	return crypto.Keccak256Hash(claimBytes), nil
 }
 
-func (ap *AlphabetProvider) AbsolutePreState(ctx context.Context) []byte {
+func (ap *AlphabetTraceProvider) AbsolutePreState(ctx context.Context) []byte {
 	return common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060")
 }
 
