@@ -18,6 +18,14 @@ interface IFaultDisputeGame is IDisputeGame {
         Clock clock;
     }
 
+    /// @notice The `OutputProposal` struct contains information about an output proposal in
+    ///         the `L2OutputOracle` at a given index.
+    struct OutputProposal {
+        uint128 index;
+        uint128 l2BlockNumber;
+        Hash outputRoot;
+    }
+
     /// @notice Emitted when a new claim is added to the DAG by `claimant`
     /// @param parentIndex The index within the `claimData` array of the parent claim
     /// @param claim The claim being added
