@@ -105,6 +105,7 @@ contract L2OutputOracle_Initializer is CommonTest {
     uint256 internal l2BlockTime = 2;
     uint256 internal startingBlockNumber = 200;
     uint256 internal startingTimestamp = 1000;
+    uint256 internal finalizationPeriodSeconds = 7 days;
     address guardian;
 
     // Test data
@@ -157,17 +158,21 @@ contract L2OutputOracle_Initializer is CommonTest {
         oracleImpl = new L2OutputOracle({
             _submissionInterval: submissionInterval,
             _l2BlockTime: l2BlockTime,
-            _startingBlockNumber: startingBlockNumber,
-            _startingTimestamp: startingTimestamp,
-            _proposer: proposer,
-            _challenger: owner,
-            _finalizationPeriodSeconds: 7 days
+            _finalizationPeriodSeconds: finalizationPeriodSeconds
         });
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(oracleImpl),
-            abi.encodeCall(L2OutputOracle.initialize, (startingBlockNumber, startingTimestamp))
+            abi.encodeCall(
+                L2OutputOracle.initialize,
+                (
+                    startingBlockNumber,
+                    startingTimestamp,
+                    proposer,
+                    owner
+                )
+            )
         );
         oracle = L2OutputOracle(address(proxy));
         vm.label(address(oracle), "L2OutputOracle");

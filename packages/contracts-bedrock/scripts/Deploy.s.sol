@@ -311,20 +311,21 @@ contract Deploy is Deployer {
         L2OutputOracle oracle = new L2OutputOracle({
             _submissionInterval: cfg.l2OutputOracleSubmissionInterval(),
             _l2BlockTime: cfg.l2BlockTime(),
-            _startingBlockNumber: cfg.l2OutputOracleStartingBlockNumber(),
-            _startingTimestamp: cfg.l2OutputOracleStartingTimestamp(),
-            _proposer: cfg.l2OutputOracleProposer(),
-            _challenger: cfg.l2OutputOracleChallenger(),
             _finalizationPeriodSeconds: cfg.finalizationPeriodSeconds()
         });
 
         require(oracle.SUBMISSION_INTERVAL() == cfg.l2OutputOracleSubmissionInterval());
+        require(oracle.submissionInterval() == cfg.l2OutputOracleSubmissionInterval());
         require(oracle.L2_BLOCK_TIME() == cfg.l2BlockTime());
-        require(oracle.PROPOSER() == cfg.l2OutputOracleProposer());
-        require(oracle.CHALLENGER() == cfg.l2OutputOracleChallenger());
+        require(oracle.l2BlockTime() == cfg.l2BlockTime());
+        require(oracle.PROPOSER() == address(0));
+        require(oracle.proposer() == address(0));
+        require(oracle.CHALLENGER() == address(0));
+        require(oracle.challenger() == address(0));
         require(oracle.FINALIZATION_PERIOD_SECONDS() == cfg.finalizationPeriodSeconds());
-        require(oracle.startingBlockNumber() == cfg.l2OutputOracleStartingBlockNumber());
-        require(oracle.startingTimestamp() == cfg.l2OutputOracleStartingTimestamp());
+        require(oracle.finalizationPeriodSeconds() == cfg.finalizationPeriodSeconds());
+        require(oracle.startingBlockNumber() == 0);
+        require(oracle.startingTimestamp() == 0);
 
         save("L2OutputOracle", address(oracle));
         console.log("L2OutputOracle deployed at %s", address(oracle));
@@ -651,7 +652,9 @@ contract Deploy is Deployer {
                 L2OutputOracle.initialize,
                 (
                     cfg.l2OutputOracleStartingBlockNumber(),
-                    cfg.l2OutputOracleStartingTimestamp()
+                    cfg.l2OutputOracleStartingTimestamp(),
+                    cfg.l2OutputOracleProposer(),
+                    cfg.l2OutputOracleChallenger()
                 )
             )
         });
@@ -661,10 +664,15 @@ contract Deploy is Deployer {
         console.log("L2OutputOracle version: %s", version);
 
         require(oracle.SUBMISSION_INTERVAL() == cfg.l2OutputOracleSubmissionInterval());
+        require(oracle.submissionInterval() == cfg.l2OutputOracleSubmissionInterval());
         require(oracle.L2_BLOCK_TIME() == cfg.l2BlockTime());
+        require(oracle.l2BlockTime() == cfg.l2BlockTime());
         require(oracle.PROPOSER() == cfg.l2OutputOracleProposer());
+        require(oracle.proposer() == cfg.l2OutputOracleProposer());
         require(oracle.CHALLENGER() == cfg.l2OutputOracleChallenger());
+        require(oracle.challenger() == cfg.l2OutputOracleChallenger());
         require(oracle.FINALIZATION_PERIOD_SECONDS() == cfg.finalizationPeriodSeconds());
+        require(oracle.finalizationPeriodSeconds() == cfg.finalizationPeriodSeconds());
         require(oracle.startingBlockNumber() == cfg.l2OutputOracleStartingBlockNumber());
         require(oracle.startingTimestamp() == cfg.l2OutputOracleStartingTimestamp());
     }
