@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -27,7 +28,11 @@ func EngineClientDefaultConfig(config *rollup.Config) *EngineClientConfig {
 // EngineClient extends L2Client with engine API bindings.
 type EngineClient struct {
 	*L2Client
+	*MevClient
 }
+
+// it's here only needed to be able to quickly access MevEngine from EngineQueue
+var _ derive.MevEngine = (*EngineClient)(nil)
 
 func NewEngineClient(client client.RPC, log log.Logger, metrics caching.Metrics, config *EngineClientConfig) (*EngineClient, error) {
 	l2Client, err := NewL2Client(client, log, metrics, &config.L2ClientConfig)

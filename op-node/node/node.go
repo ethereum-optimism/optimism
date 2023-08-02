@@ -33,6 +33,7 @@ type OpNode struct {
 	l1Source  *sources.L1Client     // L1 Client to fetch data from
 	l2Driver  *driver.Driver        // L2 Engine to Sync
 	l2Source  *sources.EngineClient // L2 Execution Engine RPC bindings
+	mevSource *sources.MevClient    // MEV source for external builders' blocks
 	rpcSync   *sources.SyncClient   // Alt-sync RPC client, optional (may be nil)
 	server    *rpcServer            // RPC server hosting the rollup-node API
 	p2pNode   *p2p.NodeP2P          // P2P node functionality
@@ -82,6 +83,9 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 		return err
 	}
 	if err := n.initRuntimeConfig(ctx, cfg); err != nil {
+		return err
+	}
+	if err := n.initMev(ctx, cfg); err != nil {
 		return err
 	}
 	if err := n.initL2(ctx, cfg, snapshotLog); err != nil {
@@ -194,6 +198,12 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	if err != nil {
 		return fmt.Errorf("failed to create Engine client: %w", err)
 	}
+	if n.mevSource == nil {
+		// HACK: it should go separately up to EngineQueue
+		// through all components: DerivationPipeline, Driver ...
+		return errors.New("MEV source has to be initialized before L2 (sorry)")
+	}
+	n.l2Source.MevClient = n.mevSource
 
 	if err := cfg.Rollup.ValidateL2Config(ctx, n.l2Source); err != nil {
 		return err
@@ -201,6 +211,16 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 
 	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n, n, n.log, snapshotLog, n.metrics, cfg.ConfigPersistence)
 
+	return nil
+}
+
+func (n *OpNode) initMev(ctx context.Context, cfg *Config) error {
+	mevSource, err := cfg.Mev.Setup(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to setup MEV client: %w", err)
+	}
+
+	n.mevSource = mevSource
 	return nil
 }
 

@@ -36,6 +36,13 @@ type Engine interface {
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 	SystemConfigL2Fetcher
+
+	// HACK: to quicker get access to MevEngine, otherwise it need to be pushed the same way as engine is.
+	GetMevPayload(ctx context.Context) (*eth.ExecutionPayload, error)
+}
+
+type MevEngine interface {
+	GetMevPayload(ctx context.Context) (*eth.ExecutionPayload, error)
 }
 
 // EngineState provides a read-only interface of the forkchoice state properties of the L2 Engine.
@@ -125,8 +132,9 @@ type EngineQueue struct {
 	// Tracks which L2 blocks where last derived from which L1 block. At most finalityLookback large.
 	finalityData []FinalityData
 
-	engine Engine
-	prev   NextAttributesProvider
+	engine   Engine
+	mevBoost MevEngine
+	prev     NextAttributesProvider
 
 	origin eth.L1BlockRef   // updated on resets, and whenever we read from the previous stage.
 	sysCfg eth.SystemConfig // only used for pipeline resets

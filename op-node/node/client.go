@@ -208,3 +208,21 @@ func (cfg *PreparedL1Endpoint) Check() error {
 
 	return nil
 }
+
+type MevEndpointConfig struct {
+	MevEndpointAddr string // Address of MEV endpoint to fetch blocks from
+}
+
+func (mec *MevEndpointConfig) Check() error {
+	if mec.MevEndpointAddr == "" {
+		return errors.New("mev endpoint address cannot be empty")
+	}
+	return nil
+}
+
+func (mec *MevEndpointConfig) Setup(context.Context) (*sources.MevClient, error) {
+	if err := mec.Check(); err != nil {
+		return nil, err
+	}
+	return sources.NewMevClient(mec.MevEndpointAddr)
+}

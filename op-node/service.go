@@ -56,11 +56,14 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, fmt.Errorf("failed to load l2 endpoints info: %w", err)
 	}
 
+	mevEndpoint := NewMevEndpointConfig(ctx)
+
 	l2SyncEndpoint := NewL2SyncEndpointConfig(ctx)
 
 	cfg := &node.Config{
 		L1:     l1Endpoint,
 		L2:     l2Endpoint,
+		Mev:    mevEndpoint,
 		L2Sync: l2SyncEndpoint,
 		Rollup: *rollupConfig,
 		Driver: *driverConfig,
@@ -98,6 +101,12 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 	return cfg, nil
+}
+
+func NewMevEndpointConfig(ctx *cli.Context) node.MevEndpointConfig {
+	return node.MevEndpointConfig{
+		MevEndpointAddr: ctx.String(flags.MEVBoostAddr.Name),
+	}
 }
 
 func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
