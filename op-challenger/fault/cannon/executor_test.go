@@ -19,7 +19,7 @@ const execTestCannonPrestate = "/foo/pre.json"
 
 func TestGenerateProof(t *testing.T) {
 	input := "starting.json"
-	cfg := config.NewConfig("http://localhost:8888", common.Address{0xaa}, config.TraceTypeCannon, true, 5)
+	cfg := config.NewConfig("http://localhost:8888", common.Address{0xaa}, common.Address{0xbb}, config.TraceTypeCannon, true, 5)
 	cfg.CannonDatadir = t.TempDir()
 	cfg.CannonAbsolutePreState = "pre.json"
 	cfg.CannonBin = "./bin/cannon"
