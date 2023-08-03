@@ -7,10 +7,10 @@ import "src/libraries/DisputeErrors.sol";
 /// @title BlockOracle
 /// @notice Stores a map of block numbers => block hashes for use in dispute resolution
 contract BlockOracle {
-    /// @notice The BlockInfo struct contains a block's hash and estimated timestamp.
+    /// @notice The BlockInfo struct contains a block's hash and child timestamp.
     struct BlockInfo {
         Hash hash;
-        Timestamp timestamp;
+        Timestamp childTimestamp;
     }
 
     /// @notice Maps block numbers to block hashes and timestamps
@@ -25,22 +25,16 @@ contract BlockOracle {
         if (Hash.unwrap(blockInfo_.hash) == 0) revert BlockHashNotPresent();
     }
 
-    /// @notice Stores a block hash for the previous block number, assuming that the block number
-    ///         is within the acceptable range of [tip - 256, tip].
+    /// @notice Stores a block hash for the previous block number.
+    /// @return blockNumber_ The block number that was checkpointed, which is always
+    ///                      `block.number - 1`.
     function checkpoint() external returns (uint256 blockNumber_) {
-        // Fetch the block hash for the given block number and revert if it is out of
-        // the `BLOCKHASH` opcode's range.
         // SAFETY: This block hash will always be accessible by the `BLOCKHASH` opcode,
         //         and in the case of `block.number = 0`, we'll underflow.
-        bytes32 blockHash = blockhash(blockNumber_ = block.number - 1);
-
-        // Estimate the timestamp of the block assuming an average block time of 13 seconds.
-        Timestamp estimatedTimestamp = Timestamp.wrap(uint64(block.timestamp - 13));
-
         // Persist the block information.
         blocks[blockNumber_] = BlockInfo({
-            hash: Hash.wrap(blockHash),
-            timestamp: estimatedTimestamp
+            hash: Hash.wrap(blockhash(blockNumber_ = block.number - 1)),
+            childTimestamp: Timestamp.wrap(uint64(block.timestamp))
         });
     }
 }

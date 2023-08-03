@@ -23,7 +23,7 @@ contract BlockOracle_Test is Test {
         BlockOracle.BlockInfo memory res = oracle.load(blockNumber);
 
         assertEq(Hash.unwrap(res.hash), blockhash(blockNumber));
-        assertEq(Timestamp.unwrap(res.timestamp), block.timestamp - 13);
+        assertEq(Timestamp.unwrap(res.childTimestamp), block.timestamp);
     }
 
     /// @notice Tests that the `load` function reverts if the block hash for the given block
