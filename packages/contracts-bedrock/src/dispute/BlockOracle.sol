@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import "../libraries/DisputeTypes.sol";
-import "../libraries/DisputeErrors.sol";
+import "src/libraries/DisputeTypes.sol";
+import "src/libraries/DisputeErrors.sol";
 
 /// @title BlockOracle
 /// @notice Stores a map of block numbers => block hashes for use in dispute resolution
