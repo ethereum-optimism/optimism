@@ -94,9 +94,9 @@
     }
   },
   "L1StandardBridge": {
-    "spacer_0_0_20": {
+    "spacer_0_2_20": {
       "slot": 0,
-      "offset": 0,
+      "offset": 2,
       "length": 20
     },
     "spacer_1_0_20": {

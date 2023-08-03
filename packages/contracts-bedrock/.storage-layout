@@ -35,7 +35,7 @@
 |---------------|-------------------------------------------------|------|--------|-------|----------------------------------------------|
 | _initialized  | uint8                                           | 0    | 0      | 1     | src/L1/L1StandardBridge.sol:L1StandardBridge |
 | _initializing | bool                                            | 0    | 1      | 1     | src/L1/L1StandardBridge.sol:L1StandardBridge |
-| spacer_0_0_20 | address                                         | 0    | 2      | 20    | src/L1/L1StandardBridge.sol:L1StandardBridge |
+| spacer_0_2_20 | address                                         | 0    | 2      | 20    | src/L1/L1StandardBridge.sol:L1StandardBridge |
 | spacer_1_0_20 | address                                         | 1    | 0      | 20    | src/L1/L1StandardBridge.sol:L1StandardBridge |
 | deposits      | mapping(address => mapping(address => uint256)) | 2    | 0      | 32    | src/L1/L1StandardBridge.sol:L1StandardBridge |
 | _MESSENGER    | contract CrossDomainMessenger                   | 3    | 0      | 20    | src/L1/L1StandardBridge.sol:L1StandardBridge |
@@ -153,7 +153,7 @@
 |---------------|-------------------------------------------------|------|--------|-------|----------------------------------------------|
 | _initialized  | uint8                                           | 0    | 0      | 1     | src/L2/L2StandardBridge.sol:L2StandardBridge |
 | _initializing | bool                                            | 0    | 1      | 1     | src/L2/L2StandardBridge.sol:L2StandardBridge |
-| spacer_0_0_20 | address                                         | 0    | 2      | 20    | src/L2/L2StandardBridge.sol:L2StandardBridge |
+| spacer_0_2_20 | address                                         | 0    | 2      | 20    | src/L2/L2StandardBridge.sol:L2StandardBridge |
 | spacer_1_0_20 | address                                         | 1    | 0      | 20    | src/L2/L2StandardBridge.sol:L2StandardBridge |
 | deposits      | mapping(address => mapping(address => uint256)) | 2    | 0      | 32    | src/L2/L2StandardBridge.sol:L2StandardBridge |
 | _MESSENGER    | contract CrossDomainMessenger                   | 3    | 0      | 20    | src/L2/L2StandardBridge.sol:L2StandardBridge |
