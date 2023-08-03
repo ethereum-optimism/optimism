@@ -110,9 +110,9 @@ contract Deploy is Deployer {
     }
 
     /// @notice Modifier that will only allow a function to be called on devnet.
-    modifier onlyDevnet() internal view returns (bool) {
+    modifier onlyDevnet() {
         uint256 chainid = block.chainid;
-        if chaind != Chains.LocalDevnet && chainid != Chains.GethDevnet {
+        if (chainid != Chains.LocalDevnet && chainid != Chains.GethDevnet) {
             _;
         }
     }
@@ -370,9 +370,6 @@ contract Deploy is Deployer {
         save("PreimageOracle", address(preimageOracle));
         console.log("PreimageOracle deployed at %s", address(preimageOracle));
 
-        string memory version = preimageOracle.version();
-        console.log("PreimageOracle version: %s", version);
-
         return address(preimageOracle);
     }
 
@@ -381,9 +378,6 @@ contract Deploy is Deployer {
         MIPS mips = new MIPS();
         save("Mips", address(mips));
         console.log("MIPS deployed at %s", address(mips));
-
-        string memory version = mips.version();
-        console.log("MIPS version: %s", version);
 
         return address(mips);
     }
