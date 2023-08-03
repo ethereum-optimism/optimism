@@ -32,8 +32,9 @@ contract BlockOracle {
         // SAFETY: This block hash will always be accessible by the `BLOCKHASH` opcode,
         //         and in the case of `block.number = 0`, we'll underflow.
         // Persist the block information.
+        blockNumber_ = block.number - 1;
         blocks[blockNumber_] = BlockInfo({
-            hash: Hash.wrap(blockhash(blockNumber_ = block.number - 1)),
+            hash: Hash.wrap(blockhash(blockNumber_)),
             childTimestamp: Timestamp.wrap(uint64(block.timestamp))
         });
     }

@@ -73,7 +73,7 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 		big.NewInt(alphabetGameDepth),
 		gameDuration,
 		alphaVMAddr,
-		config.L1Deployments.L2OutputOracle,
+		config.L1Deployments.L2OutputOracleProxy,
 		blockHashOracleAddr,
 	)
 	require.NoError(err)

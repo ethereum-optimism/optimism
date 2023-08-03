@@ -148,17 +148,16 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev Tests that the game is initialized with the correct data.
     function test_initialize_correctData_succeeds() public {
         // Starting
-        (uint128 index, uint128 l2BlockNumber, Hash outputRoot) = gameProxy.proposals(0);
-        Types.OutputProposal memory starting = oracle.getL2Output(index);
-        assertEq(index, 0);
-        assertEq(l2BlockNumber, starting.l2BlockNumber);
-        assertEq(Hash.unwrap(outputRoot), starting.outputRoot);
+        (FaultDisputeGame.OutputProposal memory startingProp, FaultDisputeGame.OutputProposal memory disputedProp) = gameProxy.proposals();
+        Types.OutputProposal memory starting = oracle.getL2Output(startingProp.index);
+        assertEq(startingProp.index, 0);
+        assertEq(startingProp.l2BlockNumber, starting.l2BlockNumber);
+        assertEq(Hash.unwrap(startingProp.outputRoot), starting.outputRoot);
         // Disputed
-        (uint128 _index, uint128 _l2BlockNumber, Hash _outputRoot) = gameProxy.proposals(1);
-        Types.OutputProposal memory disputed = oracle.getL2Output(_index);
-        assertEq(_index, 1);
-        assertEq(_l2BlockNumber, disputed.l2BlockNumber);
-        assertEq(Hash.unwrap(_outputRoot), disputed.outputRoot);
+        Types.OutputProposal memory disputed = oracle.getL2Output(disputedProp.index);
+        assertEq(disputedProp.index, 1);
+        assertEq(disputedProp.l2BlockNumber, disputed.l2BlockNumber);
+        assertEq(Hash.unwrap(disputedProp.outputRoot), disputed.outputRoot);
 
         // L1 head
         (, uint256 l1HeadNumber) = abi.decode(gameProxy.extraData(), (uint256, uint256));
