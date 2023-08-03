@@ -13,16 +13,17 @@ import (
 )
 
 var (
-	l1EthRpc                = "http://example.com:8545"
-	gameAddressValue        = "0xaa00000000000000000000000000000000000000"
-	cannonBin               = "./bin/cannon"
-	cannonServer            = "./bin/op-program"
-	cannonPreState          = "./pre.json"
-	cannonDatadir           = "./test_data"
-	cannonL2                = "http://example.com:9545"
-	alphabetTrace           = "abcdefghijz"
-	agreeWithProposedOutput = "true"
-	gameDepth               = "4"
+	l1EthRpc                   = "http://example.com:8545"
+	gameAddressValue           = "0xaa00000000000000000000000000000000000000"
+	preimageOracleAddressValue = "0xbb00000000000000000000000000000000000000"
+	cannonBin                  = "./bin/cannon"
+	cannonServer               = "./bin/op-program"
+	cannonPreState             = "./pre.json"
+	cannonDatadir              = "./test_data"
+	cannonL2                   = "http://example.com:9545"
+	alphabetTrace              = "abcdefghijz"
+	agreeWithProposedOutput    = "true"
+	gameDepth                  = "4"
 )
 
 func TestLogLevel(t *testing.T) {
@@ -42,14 +43,14 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet))
-	defaultCfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), config.TraceTypeAlphabet, true, 4)
+	defaultCfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), common.HexToAddress(preimageOracleAddressValue), config.TraceTypeAlphabet, true, 4)
 	// Add in the extra CLI options required when using alphabet trace type
 	defaultCfg.AlphabetTrace = alphabetTrace
 	require.Equal(t, defaultCfg, cfg)
 }
 
 func TestDefaultConfigIsValid(t *testing.T) {
-	cfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), config.TraceTypeAlphabet, true, 4)
+	cfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), common.HexToAddress(preimageOracleAddressValue), config.TraceTypeAlphabet, true, 4)
 	// Add in options that are required based on the specific trace type
 	// To avoid needing to specify unused options, these aren't included in the params for NewConfig
 	cfg.AlphabetTrace = alphabetTrace
@@ -136,6 +137,26 @@ func TestGameDepth(t *testing.T) {
 		value := "4"
 		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-depth", "--game-depth="+value))
 		require.Equal(t, value, fmt.Sprint(cfg.GameDepth))
+	})
+}
+
+func TestPreimageOracleAddress(t *testing.T) {
+	t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
+		configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--preimage-oracle-address"))
+	})
+
+	t.Run("Required", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag preimage-oracle-address is required", addRequiredArgsExcept(config.TraceTypeCannon, "--preimage-oracle-address"))
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		addr := common.Address{0xbb, 0xcc, 0xdd}
+		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeCannon, "--preimage-oracle-address", "--preimage-oracle-address="+addr.Hex()))
+		require.Equal(t, addr, cfg.PreimageOracleAddress)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		verifyArgsInvalid(t, "invalid address: foo", addRequiredArgsExcept(config.TraceTypeCannon, "--preimage-oracle-address", "--preimage-oracle-address=foo"))
 	})
 }
 
@@ -267,6 +288,7 @@ func requiredArgs(traceType config.TraceType) map[string]string {
 		"--agree-with-proposed-output": agreeWithProposedOutput,
 		"--l1-eth-rpc":                 l1EthRpc,
 		"--game-address":               gameAddressValue,
+		"--preimage-oracle-address":    preimageOracleAddressValue,
 		"--trace-type":                 traceType.String(),
 	}
 	switch traceType {
