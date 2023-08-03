@@ -83,9 +83,7 @@ contract L1StandardBridge is StandardBridge, Semver {
         Semver(1, 2, 0)
         StandardBridge(StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)))
     {
-        initialize({
-            _messenger: CrossDomainMessenger(address(0))
-        });
+        initialize({ _messenger: CrossDomainMessenger(address(0)) });
     }
 
     /// @notice Storage slot 0 holds a legacy value on upgraded networks. It is an empty
@@ -102,10 +100,8 @@ contract L1StandardBridge is StandardBridge, Semver {
 
     /// @notice Initializer
     ///         The fix modifier should be removed during the next contract upgrade.
-    function initialize(CrossDomainMessenger _messenger) public clearLegacySlot() reinitializer(2) {
-        __StandardBridge_init({
-            _messenger: _messenger
-        });
+    function initialize(CrossDomainMessenger _messenger) public clearLegacySlot reinitializer(2) {
+        __StandardBridge_init({ _messenger: _messenger });
     }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
