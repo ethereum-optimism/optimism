@@ -477,12 +477,20 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
 
         // INVARIANT: The L1 head must contain the disputed output root. If it does not,
         //            the game cannot be played.
-        // TODO(clabby): The block timestamp in the oracle is an estimate that assumes a 13
-        //               second block time. Should we add a buffer here to ensure that the
-        //               estimation has room for error? This invariant cannot break. We could
-        //               add the L1 block number to the `Types.OutputProposal` type as well,
-        //               which would remove the need for estimation.
-        if (Timestamp.unwrap(blockInfo.timestamp) < disputed.timestamp) revert L1HeadTooOld();
+        // SAFETY: The block timestamp in the oracle records the timestamp of the
+        //         block *after* the hash stored. This means that the timestamp
+        //         is off by 1 block. This is known, and covered as follows:
+        //         - The timestamp will always be less than the disputed timestamp
+        //           if the checkpoint was made before the proposal. We must revert here.
+        //         - The timestamp will be equal to the disputed timestamp if the
+        //           checkpoint was made in the same block as the proposal, and the
+        //           hash will be the parent block, which does not contain the proposal.
+        //           We must revert here.
+        //         - The timestamp will always be greater than the disputed timestamp
+        //           if the checkpoint was made any block after the proposal. This is
+        //           the only case where we can continue, since we must have the L1
+        //           head contain the disputed output root to play the game.
+        if (Timestamp.unwrap(blockInfo.childTimestamp) <= disputed.timestamp) revert L1HeadTooOld();
 
         // Persist the output proposals fetched from the oracle. These outputs will be referenced
         // for loading local data into the preimage oracle as well as to authenticate the game's
