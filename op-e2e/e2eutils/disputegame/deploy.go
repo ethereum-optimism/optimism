@@ -107,9 +107,8 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 	_, err = utils.WaitReceiptOK(ctx, client, tx.Hash())
 	require.NoError(err, "wait for final transaction to be included and OK")
 
-	// Wait for the block hash oracle to be ready to receive the checkpoint.
-	// The block time is hard coded at 13 seconds, should parameterize.
-	clock.AdvanceTime(13 * time.Second)
+	// Warp 15 seconds ahead for a diff in the timestamp.
+	clock.AdvanceTime(15 * time.Second)
 
 	// Store the current block in the oracle
 	tx, err = blockHashOracle.Checkpoint(opts)
