@@ -2,27 +2,16 @@ package database
 
 import (
 	"errors"
-	"fmt"
 	"math/big"
 
 	"gorm.io/gorm"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/google/uuid"
 )
 
 /**
  * Types
  */
-
-type Transaction struct {
-	FromAddress common.Address `gorm:"serializer:json"`
-	ToAddress   common.Address `gorm:"serializer:json"`
-	Amount      U256
-	Data        hexutil.Bytes `gorm:"serializer:json"`
-	Timestamp   uint64
-}
 
 type TokenPair struct {
 	L1TokenAddress common.Address `gorm:"serializer:json"`
@@ -30,12 +19,9 @@ type TokenPair struct {
 }
 
 type L1BridgeDeposit struct {
-	GUID                 uuid.UUID `gorm:"primaryKey"`
-	InitiatedL1EventGUID uuid.UUID
+	TransactionSourceHash common.Hash `gorm:"primaryKey;serializer:json"`
 
-	CrossDomainMessengerNonce U256
-
-	FinalizedL2EventGUID *uuid.UUID
+	CrossDomainMessengerNonce *U256
 
 	Tx        Transaction `gorm:"embedded"`
 	TokenPair TokenPair   `gorm:"embedded"`
@@ -44,19 +30,14 @@ type L1BridgeDeposit struct {
 type L1BridgeDepositWithTransactionHashes struct {
 	L1BridgeDeposit L1BridgeDeposit `gorm:"embedded"`
 
-	L1TransactionHash          common.Hash `gorm:"serializer:json"`
-	FinalizedL2TransactionHash common.Hash `gorm:"serializer:json"`
+	L1TransactionHash common.Hash `gorm:"serializer:json"`
+	L2TransactionHash common.Hash `gorm:"serializer:json"`
 }
 
 type L2BridgeWithdrawal struct {
-	GUID                 uuid.UUID `gorm:"primaryKey"`
-	InitiatedL2EventGUID uuid.UUID
+	TransactionWithdrawalHash common.Hash `gorm:"primaryKey;serializer:json"`
 
-	CrossDomainMessengerNonce U256
-
-	WithdrawalHash       common.Hash `gorm:"serializer:json"`
-	ProvenL1EventGUID    *uuid.UUID
-	FinalizedL1EventGUID *uuid.UUID
+	CrossDomainMessengerNonce *U256
 
 	Tx        Transaction `gorm:"embedded"`
 	TokenPair TokenPair   `gorm:"embedded"`
@@ -71,10 +52,11 @@ type L2BridgeWithdrawalWithTransactionHashes struct {
 }
 
 type BridgeTransfersView interface {
+	L1BridgeDeposit(common.Hash) (*L1BridgeDeposit, error)
 	L1BridgeDepositByCrossDomainMessengerNonce(*big.Int) (*L1BridgeDeposit, error)
 	L1BridgeDepositsByAddress(common.Address) ([]*L1BridgeDepositWithTransactionHashes, error)
 
-	L2BridgeWithdrawalByWithdrawalHash(common.Hash) (*L2BridgeWithdrawal, error)
+	L2BridgeWithdrawal(common.Hash) (*L2BridgeWithdrawal, error)
 	L2BridgeWithdrawalByCrossDomainMessengerNonce(*big.Int) (*L2BridgeWithdrawal, error)
 	L2BridgeWithdrawalsByAddress(common.Address) ([]*L2BridgeWithdrawalWithTransactionHashes, error)
 }
@@ -83,11 +65,7 @@ type BridgeTransfersDB interface {
 	BridgeTransfersView
 
 	StoreL1BridgeDeposits([]*L1BridgeDeposit) error
-	MarkFinalizedL1BridgeDepositEvent(uuid.UUID, uuid.UUID) error
-
 	StoreL2BridgeWithdrawals([]*L2BridgeWithdrawal) error
-	MarkProvenL2BridgeWithdrawalEvent(uuid.UUID, uuid.UUID) error
-	MarkFinalizedL2BridgeWithdrawalEvent(uuid.UUID, uuid.UUID) error
 }
 
 /**
@@ -111,11 +89,24 @@ func (db *bridgeTransfersDB) StoreL1BridgeDeposits(deposits []*L1BridgeDeposit) 
 	return result.Error
 }
 
-// L1BridgeDepositByMessageNonce retrieves tokens deposited, specified by the associated `L1CrossDomainMessenger` nonce.
+func (db *bridgeTransfersDB) L1BridgeDeposit(txSourceHash common.Hash) (*L1BridgeDeposit, error) {
+	var deposit L1BridgeDeposit
+	result := db.gorm.Where(&L1BridgeDeposit{TransactionSourceHash: txSourceHash}).Take(&deposit)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+
+	return &deposit, nil
+}
+
+// L1BridgeDepositByCrossDomainMessengerNonce retrieves tokens deposited, specified by the associated `L1CrossDomainMessenger` nonce.
 // All tokens bridged via the StandardBridge flows through the L1CrossDomainMessenger
 func (db *bridgeTransfersDB) L1BridgeDepositByCrossDomainMessengerNonce(nonce *big.Int) (*L1BridgeDeposit, error) {
 	var deposit L1BridgeDeposit
-	result := db.gorm.Where(&L1BridgeDeposit{CrossDomainMessengerNonce: U256{Int: nonce}}).Take(&deposit)
+	result := db.gorm.Where(&L1BridgeDeposit{CrossDomainMessengerNonce: &U256{Int: nonce}}).Take(&deposit)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -129,13 +120,16 @@ func (db *bridgeTransfersDB) L1BridgeDepositByCrossDomainMessengerNonce(nonce *b
 // L1BridgeDepositsByAddress retrieves a list of deposits intiated by the specified address, coupled with the L1/L2 transaction
 // hashes that complete the bridge transaction.
 func (db *bridgeTransfersDB) L1BridgeDepositsByAddress(address common.Address) ([]*L1BridgeDepositWithTransactionHashes, error) {
-	depositsQuery := db.gorm.Table("l1_bridge_deposits").Select("l1_bridge_deposits.*, l1_contract_events.transaction_hash AS l1_transaction_hash, l2_contract_events.transaction_hash AS finalized_l2_transaction_hash")
+	depositsQuery := db.gorm.Table("l1_bridge_deposits").Select(`
+l1_bridge_deposits.*,
+l1_contract_events.transaction_hash AS l1_transaction_hash,
+l1_transaction_deposits.l2_transaction_hash`)
 
-	initiatedJoinQuery := depositsQuery.Joins("LEFT JOIN l1_contract_events ON l1_bridge_deposits.initiated_l1_event_guid = l1_contract_events.guid")
-	finalizedJoinQuery := initiatedJoinQuery.Joins("LEFT JOIN l2_contract_events ON l1_bridge_deposits.finalized_l2_event_guid = l2_contract_events.guid")
+	depositsQuery = depositsQuery.Joins("INNER JOIN l1_transaction_deposits ON l1_bridge_deposits.transaction_source_hash = l1_transaction_deposits.source_hash")
+	depositsQuery = depositsQuery.Joins("INNER JOIN l1_contract_events ON l1_transaction_deposits.initiated_l1_event_guid = l1_contract_events.guid")
 
 	// add in cursoring options
-	filteredQuery := finalizedJoinQuery.Where(&Transaction{FromAddress: address}).Order("l1_bridge_deposits.timestamp DESC").Limit(100)
+	filteredQuery := depositsQuery.Where(&Transaction{FromAddress: address}).Order("l1_bridge_deposits.timestamp DESC").Limit(100)
 
 	deposits := []*L1BridgeDepositWithTransactionHashes{}
 	result := filteredQuery.Scan(&deposits)
@@ -149,18 +143,6 @@ func (db *bridgeTransfersDB) L1BridgeDepositsByAddress(address common.Address) (
 	return deposits, nil
 }
 
-func (db *bridgeTransfersDB) MarkFinalizedL1BridgeDepositEvent(guid, finalizationEventGUID uuid.UUID) error {
-	var deposit L1BridgeDeposit
-	result := db.gorm.Where(&L1BridgeDeposit{GUID: guid}).Take(&deposit)
-	if result.Error != nil {
-		return result.Error
-	}
-
-	deposit.FinalizedL2EventGUID = &finalizationEventGUID
-	result = db.gorm.Save(&deposit)
-	return result.Error
-}
-
 /**
  * Tokens Bridged (Withdrawn) from L2
  */
@@ -170,9 +152,9 @@ func (db *bridgeTransfersDB) StoreL2BridgeWithdrawals(withdrawals []*L2BridgeWit
 	return result.Error
 }
 
-func (db *bridgeTransfersDB) L2BridgeWithdrawalByWithdrawalHash(withdrawalHash common.Hash) (*L2BridgeWithdrawal, error) {
+func (db *bridgeTransfersDB) L2BridgeWithdrawal(txWithdrawalHash common.Hash) (*L2BridgeWithdrawal, error) {
 	var withdrawal L2BridgeWithdrawal
-	result := db.gorm.Where(&L2BridgeWithdrawal{WithdrawalHash: withdrawalHash}).Take(&withdrawal)
+	result := db.gorm.Where(&L2BridgeWithdrawal{TransactionWithdrawalHash: txWithdrawalHash}).Take(&withdrawal)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -187,7 +169,7 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawalByWithdrawalHash(withdrawalHash c
 // All tokens bridged via the StandardBridge flows through the L2CrossDomainMessenger
 func (db *bridgeTransfersDB) L2BridgeWithdrawalByCrossDomainMessengerNonce(nonce *big.Int) (*L2BridgeWithdrawal, error) {
 	var withdrawal L2BridgeWithdrawal
-	result := db.gorm.Where(&L2BridgeWithdrawal{CrossDomainMessengerNonce: U256{Int: nonce}}).Take(&withdrawal)
+	result := db.gorm.Where(&L2BridgeWithdrawal{CrossDomainMessengerNonce: &U256{Int: nonce}}).Take(&withdrawal)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -201,14 +183,19 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawalByCrossDomainMessengerNonce(nonce
 // L2BridgeDepositsByAddress retrieves a list of deposits intiated by the specified address, coupled with the L1/L2 transaction hashes
 // that complete the bridge transaction. The hashes that correspond to with the Bedrock multistep withdrawal process are also surfaced
 func (db *bridgeTransfersDB) L2BridgeWithdrawalsByAddress(address common.Address) ([]*L2BridgeWithdrawalWithTransactionHashes, error) {
-	withdrawalsQuery := db.gorm.Table("l2_bridge_withdrawals").Select("l2_bridge_withdrawals.*, l2_contract_events.transaction_hash AS l2_transaction_hash, proven_l1_contract_events.transaction_hash AS proven_l1_transaction_hash, finalized_l1_contract_events.transaction_hash AS finalized_l1_transaction_hash")
+	withdrawalsQuery := db.gorm.Table("l2_bridge_withdrawals").Select(`
+l2_bridge_withdrawals.*,
+l2_contract_events.transaction_hash AS l2_transaction_hash,
+proven_l1_contract_events.transaction_hash AS proven_l1_transaction_hash,
+finalized_l1_contract_events.transaction_hash AS finalized_l1_transaction_hash`)
 
-	eventsJoinQuery := withdrawalsQuery.Joins("LEFT JOIN l2_contract_events ON l2_bridge_withdrawals.initiated_l2_event_guid = l2_contract_events.guid")
-	provenJoinQuery := eventsJoinQuery.Joins("LEFT JOIN l1_contract_events AS proven_l1_contract_events ON l2_bridge_withdrawals.proven_l1_event_guid = proven_l1_contract_events.guid")
-	finalizedJoinQuery := provenJoinQuery.Joins("LEFT JOIN l1_contract_events AS finalized_l1_contract_events ON l2_bridge_withdrawals.finalized_l1_event_guid = finalized_l1_contract_events.guid")
+	withdrawalsQuery = withdrawalsQuery.Joins("INNER JOIN l2_transaction_withdrawals ON l2_bridge_withdrawals.transaction_withdrawal_hash = l2_transaction_withdrawals.withdrawal_hash")
+	withdrawalsQuery = withdrawalsQuery.Joins("INNER JOIN l2_contract_events ON l2_transaction_withdrawals.initiated_l2_event_guid = l2_contract_events.guid")
+	withdrawalsQuery = withdrawalsQuery.Joins("LEFT JOIN l1_contract_events AS proven_l1_contract_events ON l2_transaction_withdrawals.proven_l1_event_guid = proven_l1_contract_events.guid")
+	withdrawalsQuery = withdrawalsQuery.Joins("LEFT JOIN l1_contract_events AS finalized_l1_contract_events ON l2_transaction_withdrawals.finalized_l1_event_guid = finalized_l1_contract_events.guid")
 
 	// add in cursoring options
-	filteredQuery := finalizedJoinQuery.Where(&Transaction{FromAddress: address}).Order("l2_bridge_withdrawals.timestamp DESC").Limit(100)
+	filteredQuery := withdrawalsQuery.Where(&Transaction{FromAddress: address}).Order("l2_bridge_withdrawals.timestamp DESC").Limit(100)
 
 	withdrawals := []*L2BridgeWithdrawalWithTransactionHashes{}
 	result := filteredQuery.Scan(&withdrawals)
@@ -220,32 +207,4 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawalsByAddress(address common.Address
 	}
 
 	return withdrawals, nil
-}
-
-func (db *bridgeTransfersDB) MarkProvenL2BridgeWithdrawalEvent(guid, provenL1EventGuid uuid.UUID) error {
-	var withdrawal L2BridgeWithdrawal
-	result := db.gorm.Where(&L2BridgeWithdrawal{GUID: guid}).Take(&withdrawal)
-	if result.Error != nil {
-		return result.Error
-	}
-
-	withdrawal.ProvenL1EventGUID = &provenL1EventGuid
-	result = db.gorm.Save(&withdrawal)
-	return result.Error
-}
-
-func (db *bridgeTransfersDB) MarkFinalizedL2BridgeWithdrawalEvent(guid, finalizedL1EventGuid uuid.UUID) error {
-	var withdrawal L2BridgeWithdrawal
-	result := db.gorm.Where(&L2BridgeWithdrawal{GUID: guid}).Take(&withdrawal)
-	if result.Error != nil {
-		return result.Error
-	}
-
-	if withdrawal.ProvenL1EventGUID == nil {
-		return fmt.Errorf("withdrawal %s marked finalized prior to being proven", guid)
-	}
-
-	withdrawal.FinalizedL1EventGUID = &finalizedL1EventGuid
-	result = db.gorm.Save(&withdrawal)
-	return result.Error
 }
