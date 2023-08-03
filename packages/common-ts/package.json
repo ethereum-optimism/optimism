@@ -41,7 +41,7 @@
     "commander": "^9.0.0",
     "dotenv": "^16.0.0",
     "envalid": "^7.2.2",
-    "ethers": "^5.7.0",
+    "ethers": "^6.7.0",
     "express": "^4.17.1",
     "express-prom-bundle": "^6.4.1",
     "lodash": "^4.17.21",
