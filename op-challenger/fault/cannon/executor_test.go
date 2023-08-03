@@ -3,6 +3,7 @@ package cannon
 import (
 	"context"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"testing"
@@ -27,7 +28,16 @@ func TestGenerateProof(t *testing.T) {
 	cfg.CannonL2 = "http://localhost:9999"
 	cfg.CannonSnapshotFreq = 500
 
-	executor := NewExecutor(testlog.Logger(t, log.LvlInfo), &cfg)
+	inputs := localGameInputs{
+		l1Head:        common.Hash{0x11},
+		l2ChainId:     big.NewInt(2342),
+		l2Head:        common.Hash{0x22},
+		l2OutputRoot:  common.Hash{0x33},
+		l2Claim:       common.Hash{0x44},
+		l2BlockNumber: big.NewInt(3333),
+	}
+
+	executor := NewExecutor(testlog.Logger(t, log.LvlInfo), &cfg, inputs)
 	executor.selectSnapshot = func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error) {
 		return input, nil
 	}
@@ -56,6 +66,14 @@ func TestGenerateProof(t *testing.T) {
 	require.Equal(t, filepath.Join(cfg.CannonDatadir, preimagesDir), args["--datadir"])
 	require.Equal(t, filepath.Join(cfg.CannonDatadir, proofsDir, "%d.json"), args["--proof-fmt"])
 	require.Equal(t, filepath.Join(cfg.CannonDatadir, snapsDir, "%d.json"), args["--snapshot-fmt"])
+
+	// Local game inputs
+	require.Equal(t, inputs.l1Head.Hex(), args["--l1.head"])
+	require.Equal(t, inputs.l2Head.Hex(), args["--l2.head"])
+	require.Equal(t, inputs.l2OutputRoot.Hex(), args["--l2.outputroot"])
+	require.Equal(t, inputs.l2Claim.Hex(), args["--l2.claim"])
+	require.Equal(t, "3333", args["--l2.blocknumber"])
+	require.Equal(t, "2342", args["--l2.chainid"])
 }
 
 func TestRunCmdLogsOutput(t *testing.T) {
