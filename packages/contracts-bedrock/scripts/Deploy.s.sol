@@ -109,6 +109,14 @@ contract Deploy is Deployer {
         vm.stopBroadcast();
     }
 
+    /// @notice Modifier that will only allow a function to be called on devnet.
+    modifier onlyDevnet() {
+        uint256 chainid = block.chainid;
+        if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet) {
+            _;
+        }
+    }
+
     /// @notice Deploy the AddressManager
     function deployAddressManager() broadcast() public returns (address) {
         AddressManager manager = new AddressManager();
@@ -250,22 +258,19 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the DisputeGameFactoryProxy
-    function deployDisputeGameFactoryProxy() broadcast() public returns (address) {
-        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
-            address proxyAdmin = mustGetAddress("ProxyAdmin");
-            Proxy proxy = new Proxy({
-                _admin: proxyAdmin
-            });
+    function deployDisputeGameFactoryProxy() onlyDevnet broadcast() public returns (address) {
+        address proxyAdmin = mustGetAddress("ProxyAdmin");
+        Proxy proxy = new Proxy({
+            _admin: proxyAdmin
+        });
 
-            address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
-            require(admin == proxyAdmin);
+        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
+        require(admin == proxyAdmin);
 
-            save("DisputeGameFactoryProxy", address(proxy));
-            console.log("DisputeGameFactoryProxy deployed at %s", address(proxy));
+        save("DisputeGameFactoryProxy", address(proxy));
+        console.log("DisputeGameFactoryProxy deployed at %s", address(proxy));
 
-            return address(proxy);
-        }
-        return address(0);
+        return address(proxy);
     }
 
     /// @notice Deploy the L1CrossDomainMessenger
@@ -351,39 +356,30 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the DisputeGameFactory
-    function deployDisputeGameFactory() broadcast() public returns (address) {
-        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
-            DisputeGameFactory factory = new DisputeGameFactory();
-            save("DisputeGameFactory", address(factory));
-            console.log("DisputeGameFactory deployed at %s", address(factory));
+    function deployDisputeGameFactory() onlyDevnet broadcast() public returns (address) {
+        DisputeGameFactory factory = new DisputeGameFactory();
+        save("DisputeGameFactory", address(factory));
+        console.log("DisputeGameFactory deployed at %s", address(factory));
 
-            return address(factory);
-        }
-        return address(0);
+        return address(factory);
     }
 
     /// @notice Deploy the PreimageOracle
-    function deployPreimageOracle() broadcast() public returns (address) {
-        if (block.chainid == 900) {
-            PreimageOracle preimageOracle = new PreimageOracle();
-            save("PreimageOracle", address(preimageOracle));
-            console.log("PreimageOracle deployed at %s", address(preimageOracle));
+    function deployPreimageOracle() onlyDevnet broadcast() public returns (address) {
+        PreimageOracle preimageOracle = new PreimageOracle();
+        save("PreimageOracle", address(preimageOracle));
+        console.log("PreimageOracle deployed at %s", address(preimageOracle));
 
-            return address(preimageOracle);
-        }
-        return address(0);
+        return address(preimageOracle);
     }
 
     /// @notice Deploy Mips
-    function deployMips() broadcast() public returns (address) {
-        if (block.chainid == 900) {
-            MIPS mips = new MIPS();
-            save("Mips", address(mips));
-            console.log("Mips deployed at %s", address(mips));
+    function deployMips() onlyDevnet broadcast() public returns (address) {
+        MIPS mips = new MIPS();
+        save("Mips", address(mips));
+        console.log("MIPS deployed at %s", address(mips));
 
-            return address(mips);
-        }
-        return address(0);
+        return address(mips);
     }
 
     /// @notice Deploy the SystemConfig
@@ -470,24 +466,22 @@ contract Deploy is Deployer {
     }
 
     /// @notice Initialize the DisputeGameFactory
-    function initializeDisputeGameFactory() broadcast() public {
-        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
-            ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
-            address disputeGameFactoryProxy = mustGetAddress("DisputeGameFactoryProxy");
-            address disputeGameFactory = mustGetAddress("DisputeGameFactory");
+    function initializeDisputeGameFactory() onlyDevnet broadcast() public {
+        ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
+        address disputeGameFactoryProxy = mustGetAddress("DisputeGameFactoryProxy");
+        address disputeGameFactory = mustGetAddress("DisputeGameFactory");
 
-            proxyAdmin.upgradeAndCall({
-                _proxy: payable(disputeGameFactoryProxy),
-                _implementation: disputeGameFactory,
-                _data: abi.encodeCall(
-                    DisputeGameFactory.initialize,
-                    (msg.sender)
-                )
-            });
+        proxyAdmin.upgradeAndCall({
+            _proxy: payable(disputeGameFactoryProxy),
+            _implementation: disputeGameFactory,
+            _data: abi.encodeCall(
+                DisputeGameFactory.initialize,
+                (msg.sender)
+            )
+        });
 
-            string memory version = DisputeGameFactory(disputeGameFactoryProxy).version();
-            console.log("DisputeGameFactory version: %s", version);
-        }
+        string memory version = DisputeGameFactory(disputeGameFactoryProxy).version();
+        console.log("DisputeGameFactory version: %s", version);
     }
 
     /// @notice Initialize the SystemConfig
@@ -704,34 +698,30 @@ contract Deploy is Deployer {
     }
 
     /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
-    function transferDisputeGameFactoryOwnership() broadcast() public {
-        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
-            DisputeGameFactory disputeGameFactory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
-            address owner = disputeGameFactory.owner();
-            address finalSystemOwner = cfg.finalSystemOwner();
-            if (owner != finalSystemOwner) {
-                disputeGameFactory.transferOwnership(finalSystemOwner);
-                console.log("DisputeGameFactory ownership transferred to: %s", finalSystemOwner);
-            }
+    function transferDisputeGameFactoryOwnership() onlyDevnet broadcast() public {
+        DisputeGameFactory disputeGameFactory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+        address owner = disputeGameFactory.owner();
+        address finalSystemOwner = cfg.finalSystemOwner();
+        if (owner != finalSystemOwner) {
+            disputeGameFactory.transferOwnership(finalSystemOwner);
+            console.log("DisputeGameFactory ownership transferred to: %s", finalSystemOwner);
         }
     }
 
     /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
-    function setFaultGameImplementation() broadcast() public {
-        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
-            DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
-            Claim absolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
-            IBigStepper faultVm = IBigStepper(new AlphabetVM(absolutePrestate));
-            if (address(factory.gameImpls(GameTypes.FAULT)) == address(0)) {
-                factory.setImplementation(GameTypes.FAULT, new FaultDisputeGame({
-                    _absolutePrestate: absolutePrestate,
-                    _maxGameDepth: cfg.faultGameMaxDepth(),
-                    _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
-                    _vm: faultVm,
-                    _l2oo: L2OutputOracle(mustGetAddress("L2OutputOracleProxy"))
-                }));
-                console.log("DisputeGameFactory: set `FaultDisputeGame` implementation");
-            }
+    function setFaultGameImplementation() onlyDevnet broadcast() public {
+        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
+        Claim absolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+        IBigStepper faultVm = IBigStepper(new AlphabetVM(absolutePrestate));
+        if (address(factory.gameImpls(GameTypes.FAULT)) == address(0)) {
+            factory.setImplementation(GameTypes.FAULT, new FaultDisputeGame({
+                _absolutePrestate: absolutePrestate,
+                _maxGameDepth: cfg.faultGameMaxDepth(),
+                _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
+                _vm: faultVm,
+                _l2oo: L2OutputOracle(mustGetAddress("L2OutputOracleProxy"))
+            }));
+            console.log("DisputeGameFactory: set `FaultDisputeGame` implementation");
         }
     }
 }
