@@ -72,30 +72,28 @@ def main():
 
 
 def deploy_contracts(paths):
-    def internal():
-        wait_up(8545)
-        wait_for_rpc_server('127.0.0.1:8545')
-        res = eth_accounts('127.0.0.1:8545')
+    wait_up(8545)
+    wait_for_rpc_server('127.0.0.1:8545')
+    res = eth_accounts('127.0.0.1:8545')
 
-        response = json.loads(res)
-        account = response['result'][0]
+    response = json.loads(res)
+    account = response['result'][0]
 
-        fqn = 'scripts/Deploy.s.sol:Deploy'
-        run_command([
-            'forge', 'script', fqn, '--sender', account,
-            '--rpc-url', 'http://127.0.0.1:8545', '--broadcast',
-            '--unlocked'
-        ], env={}, cwd=paths.contracts_bedrock_dir)
+    fqn = 'scripts/Deploy.s.sol:Deploy'
+    run_command([
+        'forge', 'script', fqn, '--sender', account,
+        '--rpc-url', 'http://127.0.0.1:8545', '--broadcast',
+        '--unlocked'
+    ], env={}, cwd=paths.contracts_bedrock_dir)
 
-        shutil.copy(paths.l1_deployments_path, paths.addresses_json_path)
+    shutil.copy(paths.l1_deployments_path, paths.addresses_json_path)
 
-        log.info('Syncing contracts.')
-        run_command([
-            'forge', 'script', fqn, '--sig', 'sync()',
-            '--rpc-url', 'http://127.0.0.1:8545'
-        ], env={}, cwd=paths.contracts_bedrock_dir)
+    log.info('Syncing contracts.')
+    run_command([
+        'forge', 'script', fqn, '--sig', 'sync()',
+        '--rpc-url', 'http://127.0.0.1:8545'
+    ], env={}, cwd=paths.contracts_bedrock_dir)
 
-    return internal
 
 
 def devnet_l1_genesis(paths):
@@ -105,7 +103,7 @@ def devnet_l1_genesis(paths):
         '--verbosity', '4', '--gcmode', 'archive', '--dev.gaslimit', '30000000'
     ])
 
-    forge = multiprocessing.Process(target=deploy_contracts(paths))
+    forge = multiprocessing.Process(target=deploy_contracts, args=(paths,))
     forge.start()
     forge.join()
 

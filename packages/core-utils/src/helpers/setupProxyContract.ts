@@ -49,7 +49,7 @@ const setupProxyContract = async (
     console.log(`Setting implementation to ${targetImplAddress}`)
 
     // The signer needs to be the current admin, otherwise we don't have permission
-    // to update the implmentation or admin
+    // to update the implementation or admin
     assert(
       signerAddress === currentAdmin,
       'the passed signer is not the admin, cannot update implementation'
@@ -89,7 +89,7 @@ const setupProxyContract = async (
     console.log(`Setting admin to ${targetProxyOwnerAddress}`)
 
     // The signer needs to be the current admin, otherwise we don't have permission
-    // to update the implmentation or admin
+    // to update the implementation or admin
     assert(
       signerAddress === currentAdmin,
       'proxyOwnerSigner is not the admin, cannot update admin'
