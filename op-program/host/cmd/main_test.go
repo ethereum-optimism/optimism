@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -46,7 +47,7 @@ func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
 	defaultCfg := config.NewConfig(
 		&chaincfg.Goerli,
-		config.OPGoerliChainConfig,
+		chainconfig.OPGoerliChainConfig,
 		common.HexToHash(l1HeadValue),
 		common.HexToHash(l2HeadValue),
 		common.HexToHash(l2OutputRoot),
@@ -114,7 +115,7 @@ func TestL2Genesis(t *testing.T) {
 
 	t.Run("NotRequiredForGoerli", func(t *testing.T) {
 		cfg := configForArgs(t, replaceRequiredArg("--network", "goerli"))
-		require.Equal(t, config.OPGoerliChainConfig, cfg.L2ChainConfig)
+		require.Equal(t, chainconfig.OPGoerliChainConfig, cfg.L2ChainConfig)
 	})
 }
 

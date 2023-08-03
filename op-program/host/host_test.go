@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
+	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-program/client"
 	"github.com/ethereum-optimism/optimism/op-program/client/l1"
 	"github.com/ethereum-optimism/optimism/op-program/host/config"
@@ -24,7 +25,7 @@ func TestServerMode(t *testing.T) {
 
 	l1Head := common.Hash{0x11}
 	l2OutputRoot := common.Hash{0x33}
-	cfg := config.NewConfig(&chaincfg.Goerli, config.OPGoerliChainConfig, l1Head, common.Hash{0x22}, l2OutputRoot, common.Hash{0x44}, 1000)
+	cfg := config.NewConfig(&chaincfg.Goerli, chainconfig.OPGoerliChainConfig, l1Head, common.Hash{0x22}, l2OutputRoot, common.Hash{0x44}, 1000)
 	cfg.DataDir = dir
 	cfg.ServerMode = true
 
