@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-service/client/utils"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -47,14 +48,14 @@ type FactoryHelper struct {
 	l1Head  *big.Int
 }
 
-func NewFactoryHelper(t *testing.T, ctx context.Context, client *ethclient.Client, gameDuration uint64) *FactoryHelper {
+func NewFactoryHelper(t *testing.T, ctx context.Context, clock *clock.AdvancingClock, client *ethclient.Client, gameDuration uint64) *FactoryHelper {
 	require := require.New(t)
 	chainID, err := client.ChainID(ctx)
 	require.NoError(err)
 	opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, chainID)
 	require.NoError(err)
 
-	factory, l1Head := deployDisputeGameContracts(require, ctx, client, opts, gameDuration)
+	factory, l1Head := deployDisputeGameContracts(require, ctx, clock, client, opts, gameDuration)
 
 	return &FactoryHelper{
 		t:       t,
