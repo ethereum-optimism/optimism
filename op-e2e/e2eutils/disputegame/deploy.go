@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/client/utils"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -53,7 +53,7 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 	alphaVMAddr, err := bind.WaitDeployed(ctx, client, tx)
 	require.NoError(err)
 
-	l2OutputOracle, err := bindings.NewL2OutputOracle(predeploys.DevL2OutputOracleAddr, client)
+	l2OutputOracle, err := bindings.NewL2OutputOracle(config.L1Deployments.L2OutputOracle, client)
 	require.NoError(err)
 
 	// Deploy the block hash oracle
@@ -72,7 +72,7 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 		big.NewInt(alphabetGameDepth),
 		gameDuration,
 		alphaVMAddr,
-		predeploys.DevL2OutputOracleAddr,
+		config.L1Deployments.L2OutputOracle,
 		blockHashOracleAddr,
 	)
 	require.NoError(err)
