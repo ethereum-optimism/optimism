@@ -13,6 +13,7 @@ import { Semver } from "../universal/Semver.sol";
 ///         interface instead of interacting with lower-level contracts directly.
 contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
     /// @notice Address of the OptimismPortal.
+    /// @custom:network-specific
     OptimismPortal internal _PORTAL;
 
     /// @custom:semver 1.5.0
