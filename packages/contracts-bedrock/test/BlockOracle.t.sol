@@ -11,36 +11,19 @@ contract BlockOracle_Test is Test {
 
     function setUp() public {
         oracle = new BlockOracle();
-        // Roll the chain forward 255 blocks.
-        vm.roll(block.number + 255);
-        // Set the time to a realistic date.
-        vm.warp(1690906994);
+        // Roll the chain forward 1 block.
+        vm.roll(block.number + 1);
+        vm.warp(block.timestamp + 13);
     }
 
-    /// @notice Tests that loading a block hash for a block number within the range of the
-    ///         `BLOCKHASH` opcode succeeds.
-    function testFuzz_store_succeeds(uint256 _blockNumber) public {
-        _blockNumber = bound(_blockNumber, 0, 255);
-        oracle.store(_blockNumber);
+    /// @notice Tests that checkpointing a block and loading its information succeeds.
+    function test_checkpointAndLoad_succeeds() public {
+        oracle.checkpoint();
+        uint256 blockNumber = block.number - 1;
+        BlockOracle.BlockInfo memory res = oracle.load(blockNumber);
 
-        BlockOracle.BlockInfo memory res = oracle.load(_blockNumber);
-        assertEq(Hash.unwrap(res.hash), blockhash(_blockNumber));
-        assertEq(Timestamp.unwrap(res.timestamp), block.timestamp - ((block.number - _blockNumber) * 13));
-    }
-
-    /// @notice Tests that loading a block hash for a block number outside the range of the
-    ///         `BLOCKHASH` opcode fails.
-    function testFuzz_store_oob_reverts(uint256 _blockNumber) public {
-        // Fast forward another 256 blocks.
-        vm.roll(block.number + 256);
-        // Bound the block number to the set { 0, ..., 255 } ∪ { 512, ..., type(uint256).max }
-        _blockNumber = _blockNumber % 2 == 0
-            ? bound(_blockNumber, 0, 255)
-            : bound(_blockNumber, 512, type(uint256).max);
-
-        // Attempt to load the block hash, which should fail.
-        vm.expectRevert(BlockNumberOOB.selector);
-        oracle.store(_blockNumber);
+        assertEq(Hash.unwrap(res.hash), blockhash(blockNumber));
+        assertEq(Timestamp.unwrap(res.timestamp), block.timestamp - 13);
     }
 
     /// @notice Tests that the `load` function reverts if the block hash for the given block
