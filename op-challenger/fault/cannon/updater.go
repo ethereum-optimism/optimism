@@ -66,7 +66,7 @@ func (u *cannonUpdater) UpdateOracle(ctx context.Context, data types.PreimageOra
 
 // sendLocalOracleData sends the local oracle data to the [txmgr].
 func (u *cannonUpdater) sendLocalOracleData(ctx context.Context, data types.PreimageOracleData) error {
-	txData, err := u.buildLocalOracleData(data)
+	txData, err := u.BuildLocalOracleData(data)
 	if err != nil {
 		return fmt.Errorf("local oracle tx data build: %w", err)
 	}
@@ -75,32 +75,32 @@ func (u *cannonUpdater) sendLocalOracleData(ctx context.Context, data types.Prei
 
 // sendGlobalOracleData sends the global oracle data to the [txmgr].
 func (u *cannonUpdater) sendGlobalOracleData(ctx context.Context, data types.PreimageOracleData) error {
-	txData, err := u.buildGlobalOracleData(data)
+	txData, err := u.BuildGlobalOracleData(data)
 	if err != nil {
 		return fmt.Errorf("global oracle tx data build: %w", err)
 	}
 	return u.sendTxAndWait(ctx, u.fdgAddr, txData)
 }
 
-// buildLocalOracleData takes the local preimage key and data
+// BuildLocalOracleData takes the local preimage key and data
 // and creates tx data to load the key, data pair into the
 // PreimageOracle contract from the FaultDisputeGame contract call.
-func (u *cannonUpdater) buildLocalOracleData(data types.PreimageOracleData) ([]byte, error) {
+func (u *cannonUpdater) BuildLocalOracleData(data types.PreimageOracleData) ([]byte, error) {
 	return u.fdgAbi.Pack(
 		"addLocalData",
-		data.OracleKey,
-		big.NewInt(0),
+		data.GetIdent(),
+		big.NewInt(int64(data.OracleOffset)),
 	)
 }
 
-// buildGlobalOracleData takes the global preimage key and data
+// BuildGlobalOracleData takes the global preimage key and data
 // and creates tx data to load the key, data pair into the
 // PreimageOracle contract.
-func (u *cannonUpdater) buildGlobalOracleData(data types.PreimageOracleData) ([]byte, error) {
+func (u *cannonUpdater) BuildGlobalOracleData(data types.PreimageOracleData) ([]byte, error) {
 	return u.preimageOracleAbi.Pack(
 		"loadKeccak256PreimagePart",
-		big.NewInt(0),
-		data.OracleData,
+		big.NewInt(int64(data.OracleOffset)),
+		data.GetPreimageWithoutSize(),
 	)
 }
 

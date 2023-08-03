@@ -37,6 +37,6 @@ func (a *alphabetWithProofProvider) GetOracleData(ctx context.Context, i uint64)
 	if a.OracleError != nil {
 		return &types.PreimageOracleData{}, a.OracleError
 	}
-	data := types.NewPreimageOracleData([]byte{byte(i)}, []byte{byte(i)})
+	data := types.NewPreimageOracleData([]byte{byte(i)}, []byte{byte(i)}, uint32(i))
 	return &data, nil
 }
