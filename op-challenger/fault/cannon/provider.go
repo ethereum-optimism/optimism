@@ -9,10 +9,13 @@ import (
 	"path/filepath"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -40,12 +43,25 @@ type CannonTraceProvider struct {
 	generator ProofGenerator
 }
 
-func NewTraceProvider(logger log.Logger, cfg *config.Config) *CannonTraceProvider {
+func NewTraceProvider(ctx context.Context, logger log.Logger, cfg *config.Config, l1Client bind.ContractCaller) (*CannonTraceProvider, error) {
+	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
+	if err != nil {
+		return nil, fmt.Errorf("dial l2 cleint %v: %w", cfg.CannonL2, err)
+	}
+	defer l2Client.Close() // Not needed after fetching the inputs
+	gameCaller, err := bindings.NewFaultDisputeGameCaller(cfg.GameAddress, l1Client)
+	if err != nil {
+		return nil, fmt.Errorf("create caller for game %v: %w", cfg.GameAddress, err)
+	}
+	l1Head, err := fetchLocalInputs(ctx, cfg.GameAddress, gameCaller, l2Client)
+	if err != nil {
+		return nil, fmt.Errorf("fetch local game inputs: %w", err)
+	}
 	return &CannonTraceProvider{
 		dir:       cfg.CannonDatadir,
 		prestate:  cfg.CannonAbsolutePreState,
-		generator: NewExecutor(logger, cfg),
-	}
+		generator: NewExecutor(logger, cfg, l1Head),
+	}, nil
 }
 
 func (p *CannonTraceProvider) GetOracleData(ctx context.Context, i uint64) (*types.PreimageOracleData, error) {
