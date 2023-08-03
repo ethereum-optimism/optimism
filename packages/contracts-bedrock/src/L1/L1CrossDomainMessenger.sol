@@ -18,13 +18,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
 
     /// @custom:semver 1.5.0
     /// @notice Constructs the L1CrossDomainMessenger contract.
-    constructor()
-        Semver(1, 5, 0)
-        CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
-    {
-        initialize({
-            _portal: OptimismPortal(payable(0))
-        });
+    constructor() Semver(1, 5, 0) CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
+        initialize({ _portal: OptimismPortal(payable(0)) });
     }
 
     /// @notice Initializes the contract.
