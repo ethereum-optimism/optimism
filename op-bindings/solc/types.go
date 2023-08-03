@@ -64,6 +64,17 @@ func (s *StorageLayout) GetStorageLayoutEntry(name string) (StorageLayoutEntry, 
 	return StorageLayoutEntry{}, fmt.Errorf("%s not found", name)
 }
 
+// GetStorageLayoutType returns the StorageLayoutType where the label matches
+// the provided name.
+func (s *StorageLayout) GetStorageLayoutType(name string) (StorageLayoutType, error) {
+	for typeName, typ := range s.Types {
+		if typeName == name {
+			return typ, nil
+		}
+	}
+	return StorageLayoutType{}, fmt.Errorf("%s not found", name)
+}
+
 type StorageLayoutEntry struct {
 	AstId    uint   `json:"astId"`
 	Contract string `json:"contract"`

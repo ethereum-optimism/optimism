@@ -603,11 +603,15 @@ func checkL2StandardBridge(addr common.Address, client *ethclient.Client) error 
 	if messenger != predeploys.L2CrossDomainMessengerAddr {
 		return fmt.Errorf("L2StandardBridge MESSENGER should be %s, got %s", predeploys.L2CrossDomainMessengerAddr, messenger)
 	}
-
 	version, err := contract.Version(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
+	initialized, err := getInitialized("L2StandardBridge", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2StandardBridge", "_initialized", initialized)
 	log.Info("L2StandardBridge version", "version", version)
 	return nil
 }
@@ -804,4 +808,49 @@ func getEIP1967ImplementationAddress(client *ethclient.Client, addr common.Addre
 	}
 	impl := common.BytesToAddress(slot)
 	return impl, nil
+}
+
+// checkPredeploy ensures that the predeploy at index i has the correct proxy admin set
+func checkPredeploy(client *ethclient.Client, i uint64) error {
+	bigAddr := new(big.Int).Or(genesis.BigL2PredeployNamespace, new(big.Int).SetUint64(i))
+	addr := common.BigToAddress(bigAddr)
+	if !predeploys.IsProxied(addr) {
+		return nil
+	}
+	admin, err := getEIP1967AdminAddress(client, addr)
+	if err != nil {
+		return err
+	}
+	if admin != predeploys.ProxyAdminAddr {
+		return fmt.Errorf("%s does not have correct proxy admin set", addr)
+	}
+	return nil
+}
+
+// getInitialized will get the initialized value in storage of a contract.
+// This is an incrementing number that starts at 1 and increments each time that
+// the contract is upgraded.
+func getInitialized(name string, addr common.Address, client *ethclient.Client) (*big.Int, error) {
+	layout, err := bindings.GetStorageLayout(name)
+	if err != nil {
+		return nil, err
+	}
+	entry, err := layout.GetStorageLayoutEntry("_initialized")
+	if err != nil {
+		return nil, err
+	}
+	typ, err := layout.GetStorageLayoutType(entry.Type)
+	if err != nil {
+		return nil, err
+	}
+	slot := common.BigToHash(big.NewInt(int64(entry.Slot)))
+	value, err := client.StorageAt(context.Background(), addr, slot, nil)
+	if err != nil {
+		return nil, err
+	}
+	if entry.Offset+typ.NumberOfBytes > uint(len(value)) {
+		return nil, fmt.Errorf("value length is too short")
+	}
+	initialized := new(big.Int).SetBytes(value[entry.Offset : entry.Offset+typ.NumberOfBytes])
+	return initialized, nil
 }
