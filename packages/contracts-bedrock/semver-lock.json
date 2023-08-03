@@ -9,7 +9,7 @@
   "src/L2/GasPriceOracle.sol": "0xc735a8bf01ad8bca194345748537bfd9924909c0342bc133c4a31e2fb8cb9882",
   "src/L2/L1Block.sol": "0x7fbfc8b4da630386636c665570321fdec287b0867dbe0f91c2e7cd5b7697c220",
   "src/L2/L1FeeVault.sol": "0x62bfe739ff939fc68f90916399ac4160936d31eb37749cb014dd9d0c5dd4183a",
-  "src/L2/L2CrossDomainMessenger.sol": "0x1ffe8f6bad8eaa4c7ecff77456d382bdc5b371ffd672af6b539cb1a97f23e265",
+  "src/L2/L2CrossDomainMessenger.sol": "0xc9641981f7aa79f44b5925100027098d8f76c6178c65aca99fafa859289182be",
   "src/L2/L2ERC721Bridge.sol": "0x2b30a48241787580918a6ce4263823c036a21bde9cd80cc38d9beb6626c4f93b",
   "src/L2/L2StandardBridge.sol": "0x73a4fea3dca8ac7d7ba32e38aadeb69bd344042666a40a75e8c28849f01999e5",
   "src/L2/L2ToL1MessagePasser.sol": "0xed800b600cb3f67e18a1ab10750e3934a8b3e42178f422bcacfde770a6e8e8bd",
