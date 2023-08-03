@@ -73,7 +73,7 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	rootClaim, err := trace.Get(ctx, lastAlphabetTraceIndex)
 	h.require.NoError(err, "get root claim")
 	extraData := make([]byte, 64)
-	binary.BigEndian.PutUint64(extraData[24:], uint64(3600))
+	binary.BigEndian.PutUint64(extraData[24:], uint64(8))
 	binary.BigEndian.PutUint64(extraData[56:], h.l1Head.Uint64())
 	tx, err := h.factory.Create(h.opts, faultGameType, rootClaim, extraData)
 	h.require.NoError(err, "create fault dispute game")

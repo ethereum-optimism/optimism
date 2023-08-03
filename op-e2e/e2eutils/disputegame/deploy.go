@@ -6,7 +6,9 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/client/utils"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -51,22 +53,7 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 	alphaVMAddr, err := bind.WaitDeployed(ctx, client, tx)
 	require.NoError(err)
 
-	// Deploy the L2 output oracle
-	_, tx, _, err = bindings.DeployL2OutputOracle(
-		opts,
-		client,
-		big.NewInt(1800),
-		big.NewInt(2),
-		big.NewInt(0),
-		big.NewInt(0),
-		opts.From,
-		opts.From,
-		big.NewInt(3600),
-	)
-	require.NoError(err)
-	l2OutputOracleAddr, err := bind.WaitDeployed(ctx, client, tx)
-	require.NoError(err)
-	l2OutputOracle, err := bindings.NewL2OutputOracle(l2OutputOracleAddr, client)
+	l2OutputOracle, err := bindings.NewL2OutputOracle(predeploys.DevL2OutputOracleAddr, client)
 	require.NoError(err)
 
 	// Deploy the block hash oracle
@@ -77,30 +64,6 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 	blockHashOracle, err := bindings.NewBlockOracle(blockHashOracleAddr, client)
 	require.NoError(err)
 
-	// Propose 2 outputs
-	for i := uint8(0); i < 2; i++ {
-		nextBlockNumber, err := l2OutputOracle.NextBlockNumber(&bind.CallOpts{Pending: true, Context: ctx})
-		require.NoError(err)
-		block, err := client.BlockByNumber(ctx, big.NewInt(int64(i)))
-		require.NoError(err)
-
-		tx, err = l2OutputOracle.ProposeL2Output(opts, [32]byte{i + 1}, nextBlockNumber, block.Hash(), block.Number())
-		require.NoError(err)
-		_, err = utils.WaitReceiptOK(ctx, client, tx.Hash())
-		require.NoError(err)
-	}
-
-	// Store the current block in the oracle
-	tx, err = blockHashOracle.Checkpoint(opts)
-	require.NoError(err)
-	r, err := utils.WaitReceiptOK(ctx, client, tx.Hash())
-	require.NoError(err, "failed to store block in blockoracle")
-
-	_, tx, _, err = bindings.DeployMIPS(opts, client)
-	require.NoError(err)
-	_, err = bind.WaitDeployed(ctx, client, tx)
-	require.NoError(err)
-
 	// Deploy the fault dispute game implementation
 	_, tx, _, err = bindings.DeployFaultDisputeGame(
 		opts,
@@ -109,18 +72,49 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 		big.NewInt(alphabetGameDepth),
 		gameDuration,
 		alphaVMAddr,
-		l2OutputOracleAddr,
+		predeploys.DevL2OutputOracleAddr,
 		blockHashOracleAddr,
 	)
 	require.NoError(err)
 	faultDisputeGameAddr, err := bind.WaitDeployed(ctx, client, tx)
 	require.NoError(err)
 
+	// Create a proposer transactor
+	secrets, err := e2eutils.DefaultMnemonicConfig.Secrets()
+	require.NoError(err)
+	chainId, err := client.ChainID(ctx)
+	require.NoError(err)
+	proposerOpts, err := bind.NewKeyedTransactorWithChainID(secrets.Proposer, chainId)
+	require.NoError(err)
+
+	// Propose 2 outputs
+	for i := uint8(0); i < 2; i++ {
+		nextBlockNumber, err := l2OutputOracle.NextBlockNumber(&bind.CallOpts{Pending: true, Context: ctx})
+		require.NoError(err)
+		block, err := client.BlockByNumber(ctx, big.NewInt(int64(i)))
+		require.NoError(err)
+
+		tx, err = l2OutputOracle.ProposeL2Output(proposerOpts, [32]byte{i + 1}, nextBlockNumber, block.Hash(), block.Number())
+		require.NoError(err)
+		_, err = utils.WaitReceiptOK(ctx, client, tx.Hash())
+		require.NoError(err)
+	}
+
 	// Set the fault game type implementation
 	tx, err = factory.SetImplementation(opts, faultGameType, faultDisputeGameAddr)
 	require.NoError(err)
 	_, err = utils.WaitReceiptOK(ctx, client, tx.Hash())
 	require.NoError(err, "wait for final transaction to be included and OK")
+
+	// Wait for the block hash oracle to be ready to receive the checkpoint.
+	// The block time is hard coded at 13 seconds, should parameterize.
+	time.Sleep(15 * time.Second)
+
+	// Store the current block in the oracle
+	tx, err = blockHashOracle.Checkpoint(opts)
+	require.NoError(err)
+	r, err := utils.WaitReceiptOK(ctx, client, tx.Hash())
+	require.NoError(err, "failed to store block in blockoracle")
 
 	return factory, new(big.Int).Sub(r.BlockNumber, big.NewInt(1))
 }
