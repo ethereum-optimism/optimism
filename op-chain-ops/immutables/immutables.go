@@ -131,13 +131,13 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 		{
 			Name: "L2ERC721Bridge",
 			Args: []interface{}{
-				predeploys.L2CrossDomainMessengerAddr,
 				immutable["L2ERC721Bridge"]["otherBridge"],
 			},
 		},
 		{
 			Name: "OptimismMintableERC721Factory",
 			Args: []interface{}{
+				predeploys.L2ERC721BridgeAddr,
 				immutable["OptimismMintableERC721Factory"]["remoteChainId"],
 			},
 		},
