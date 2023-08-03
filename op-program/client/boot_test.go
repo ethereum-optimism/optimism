@@ -3,6 +3,7 @@ package client
 import (
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
@@ -74,13 +75,13 @@ func (o *mockBoostrapOracle) Get(key preimage.Key) []byte {
 		return binary.BigEndian.AppendUint64(nil, o.b.L2ChainID)
 	case L2ChainConfigLocalIndex.PreimageKey():
 		if !o.custom {
-			panic("unexpected key")
+			panic(fmt.Sprintf("unexpected oracle request for preimage key %x", key.PreimageKey()))
 		}
 		b, _ := json.Marshal(o.b.L2ChainConfig)
 		return b
 	case RollupConfigLocalIndex.PreimageKey():
 		if !o.custom {
-			panic("unexpected key")
+			panic(fmt.Sprintf("unexpected oracle request for preimage key %x", key.PreimageKey()))
 		}
 		b, _ := json.Marshal(o.b.RollupConfig)
 		return b
