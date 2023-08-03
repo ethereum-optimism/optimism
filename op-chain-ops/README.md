@@ -1,6 +1,6 @@
 # op-chain-ops
 
-This package contains a number of state utilities.
+This package contains utilities for working with chain state.
 
 ## check-l2
 
@@ -23,25 +23,3 @@ that can be executed by providing the `--l1-rpc-url` and `--l2-rpc-url` flags.
   --l2-rpc-url http://localhost:9545 \
   --l1-rpc-url http://localhost:8545
 ```
-
-## eof-crawler
-
-Simple CLI tool to scan all accounts in a geth LevelDB
-for contracts that begin with the EOF prefix.
-
-#### Usage
-
-It can be built and run using the [Makefile](./Makefile) `eof-crawler` target.
-Run `make eof-crawler` to create a binary in [./bin/eof-crawler](./bin/eof-crawler)
-that can be executed by providing the `--db-path` and optional `--out` flags.
-
-1. Pass the directory of the Geth DB into the tool
-
-```sh
-./bin/eof-crawler/main.go \
-  --db-path <db_path> \
-  --out <out_file>
-```
-
-2. Once the indexing has completed, an array of all EOF-prefixed contracts
-will be written to designated output file (`eof_contracts.json` by default).
