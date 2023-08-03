@@ -33,6 +33,7 @@
   "CrossDomainMessenger",
   "MIPS",
   "PreimageOracle",
+  "BlockOracle",
   "EAS",
   "SchemaRegistry"
 ]

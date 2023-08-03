@@ -8,8 +8,9 @@ import { Test } from "forge-std/Test.sol";
 import { DisputeGameFactory } from "../src/dispute/DisputeGameFactory.sol";
 import { IDisputeGame } from "../src/dispute/interfaces/IDisputeGame.sol";
 import { Proxy } from "../src/universal/Proxy.sol";
+import { L2OutputOracle_Initializer } from "./CommonTest.t.sol";
 
-contract DisputeGameFactory_Init is Test {
+contract DisputeGameFactory_Init is L2OutputOracle_Initializer {
     DisputeGameFactory factory;
     FakeClone fakeClone;
 
@@ -21,7 +22,9 @@ contract DisputeGameFactory_Init is Test {
 
     event ImplementationSet(address indexed impl, GameType indexed gameType);
 
-    function setUp() public virtual {
+    function setUp() public virtual override {
+        super.setUp();
+
         Proxy proxy = new Proxy(address(this));
         DisputeGameFactory impl = new DisputeGameFactory();
 
