@@ -52,37 +52,19 @@ contract L2OutputOracle_constructor_Test is L2OutputOracle_Initializer {
         });
     }
 
-    /* For some reason, this test causes foundry to stack overflow
     /// @dev Tests that the constructor reverts if the starting timestamp is invalid.
     function test_constructor_badTimestamp_reverts() external {
-        Proxy proxy = new Proxy({
-            _admin: alice
-        });
-
-        vm.store(address(proxy), bytes32(0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc), bytes32(uint256(uint160(address(oracle)))));
-
+        // Reset the initialized field in the 0th storage slot
+        // so that initialize can be called again.
+        vm.store(address(oracle), bytes32(uint256(0)), bytes32(uint256(0)));
         vm.expectRevert("L2OutputOracle: starting L2 timestamp must be less than current time");
-        proxy.upgradeToAndCall({
-            _implementation: address(oracle),
-            _data: abi.encodeCall(
-                L2OutputOracle.initialize,
-                (
-                    0,
-                    block.timestamp + 1,
-                    address(0),
-                    address(0)
-                )
-            )
-        });
-
-        L2OutputOracle(address(proxy)).initialize({
+        oracle.initialize({
             _startingBlockNumber: 0,
             _startingTimestamp: block.timestamp + 1,
             _proposer: address(0),
             _challenger: address(0)
         });
     }
-    */
 }
 
 contract L2OutputOracle_getter_Test is L2OutputOracle_Initializer {
