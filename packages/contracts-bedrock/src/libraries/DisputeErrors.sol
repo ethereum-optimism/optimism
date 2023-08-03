@@ -16,7 +16,7 @@ error NoImplementation(GameType gameType);
 error GameAlreadyExists(Hash uuid);
 
 ////////////////////////////////////////////////////////////////
-//               `FaultDisputeGame.sol` Errors                //
+//                 `FaultDisputeGame` Errors                  //
 ////////////////////////////////////////////////////////////////
 
 /// @notice Thrown when a supplied bond is too low to cover the
@@ -78,7 +78,7 @@ error AlreadyChallenged();
 error NotOwner();
 
 ////////////////////////////////////////////////////////////////
-//                  `BlockOracle.sol` Errors                  //
+//                    `BlockOracle` Errors                    //
 ////////////////////////////////////////////////////////////////
 
 /// @notice Thrown when a block that is out of the range of the `BLOCKHASH` opcode
