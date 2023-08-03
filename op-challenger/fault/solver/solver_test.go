@@ -113,6 +113,9 @@ func TestAttemptStep(t *testing.T) {
 
 	ctx := context.Background()
 
+	preState, err := builder.CorrectTraceProvider().AbsolutePreState(ctx)
+	require.NoError(t, err)
+
 	tests := []struct {
 		name               string
 		claim              types.Claim
@@ -129,7 +132,7 @@ func TestAttemptStep(t *testing.T) {
 			name:               "AttackFirstTraceIndex",
 			claim:              builder.CreateLeafClaim(0, false),
 			expectAttack:       true,
-			expectPreState:     builder.CorrectTraceProvider().AbsolutePreState(ctx),
+			expectPreState:     preState,
 			expectProofData:    nil,
 			expectedOracleKey:  []byte{byte(0)},
 			expectedOracleData: []byte{byte(0)},
