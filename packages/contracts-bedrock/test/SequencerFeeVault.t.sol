@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 // Testing utilities
-import { FeeVault_Initializer } from "./CommonTest.t.sol";
+import { FeeVault_Initializer, Reverter } from "./CommonTest.t.sol";
 import { StandardBridge } from "../src/universal/StandardBridge.sol";
 
 // Libraries
@@ -136,5 +136,26 @@ contract SequencerFeeVault_L2Withdrawal_Test is FeeVault_Initializer {
         assertEq(vault.totalProcessed(), amount);
         assertEq(address(vault).balance, ZERO_VALUE);
         assertEq(recipient.balance, amount);
+    }
+
+    /// @dev Tests that `withdraw` fails if the Recipient reverts. This also serves to simulate
+    ///     a situation where insufficient gas is provided to the RECIPIENT.
+    function test_withdraw_toL2recipientReverts_fails() external {
+        uint256 amount = vault.MIN_WITHDRAWAL_AMOUNT();
+
+        vm.deal(address(vault), amount);
+        // No ether has been withdrawn yet
+        assertEq(vault.totalProcessed(), 0);
+
+        // Ensure the RECIPIENT reverts
+        vm.etch(vault.RECIPIENT(), type(Reverter).runtimeCode);
+
+        // The entire vault's balance is withdrawn
+        vm.expectCall(recipient, address(vault).balance, bytes(""));
+        vm.expectRevert(
+            "FeeVault: failed to send ETH to L2 fee recipient"
+        );
+        vault.withdraw();
+        assertEq(vault.totalProcessed(), 0);
     }
 }
