@@ -497,6 +497,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
             l2BlockNumber: disputed.l2BlockNumber,
             outputRoot: Hash.wrap(disputed.outputRoot)
         });
+
         // Persist the L1 head hash of the L1 block number provided.
         l1Head = blockInfo.hash;
     }
