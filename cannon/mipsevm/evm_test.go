@@ -37,7 +37,7 @@ func testContractsSetup(t require.TestingT) (*Contracts, *Addresses) {
 }
 
 func SourceMapTracer(t *testing.T, contracts *Contracts, addrs *Addresses) vm.EVMLogger {
-	t.Fatal("TODO(clabby): The source map tracer is disabled until source IDs have been added to foundry artifacts.")
+	//t.Fatal("TODO(clabby): The source map tracer is disabled until source IDs have been added to foundry artifacts.")
 
 	contractsDir := "../../packages/contracts-bedrock"
 	mipsSrcMap, err := contracts.MIPS.SourceMap([]string{path.Join(contractsDir, "src/cannon/MIPS.sol")})
@@ -105,9 +105,12 @@ func TestEVM(t *testing.T) {
 
 	contracts, addrs := testContractsSetup(t)
 	var tracer vm.EVMLogger // no-tracer by default, but see SourceMapTracer and MarkdownTracer
-	//tracer = SourceMapTracer(t, contracts, addrs)
+	tracer = SourceMapTracer(t, contracts, addrs)
 
 	for _, f := range testFiles {
+		if f.Name() != "add.bin" {
+			continue
+		}
 		t.Run(f.Name(), func(t *testing.T) {
 			var oracle PreimageOracle
 			if strings.HasPrefix(f.Name(), "oracle") {

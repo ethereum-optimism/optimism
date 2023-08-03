@@ -220,6 +220,20 @@ func (s *SourceMapTracer) info(codeAddr *common.Address, pc uint64) string {
 }
 
 func (s *SourceMapTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64, scope *vm.ScopeContext, rData []byte, depth int, err error) {
+	if pc >= 0xd1 && op.IsPush() {
+		fmt.Fprintf(s.out, "stack:\n")
+		stack := scope.Stack.Data()
+		for i := range stack {
+			fmt.Fprintf(s.out, "%3d: %x\n", -i, stack[len(stack)-1-i].Bytes32())
+		}
+	}
+	if op.IsPush() {
+		a := uint64(op) - uint64(vm.PUSH1) + 1
+		u := pc + 1 + a
+		arg := scope.Contract.Code[pc+1 : u]
+		fmt.Fprintf(s.out, "%-40s : pc %x opcode %s (%x)\n", s.info(scope.Contract.CodeAddr, pc), pc, op.String(), arg)
+		return
+	}
 	fmt.Fprintf(s.out, "%-40s : pc %x opcode %s\n", s.info(scope.Contract.CodeAddr, pc), pc, op.String())
 }
 
