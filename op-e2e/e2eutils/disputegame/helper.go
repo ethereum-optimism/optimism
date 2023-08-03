@@ -2,6 +2,7 @@ package disputegame
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"math/big"
 	"testing"
@@ -14,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-service/client/utils"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -33,7 +35,6 @@ const (
 	StatusDefenderWins
 )
 
-var alphaExtraData = common.Hex2Bytes("1000000000000000000000000000000000000000000000000000000000000000")
 var alphabetVMAbsolutePrestate = common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060")
 var alphabetVMAbsolutePrestateClaim = crypto.Keccak256Hash(alphabetVMAbsolutePrestate)
 var CorrectAlphabet = "abcdefghijklmnop"
@@ -44,16 +45,17 @@ type FactoryHelper struct {
 	client  *ethclient.Client
 	opts    *bind.TransactOpts
 	factory *bindings.DisputeGameFactory
+	l1Head  *big.Int
 }
 
-func NewFactoryHelper(t *testing.T, ctx context.Context, client *ethclient.Client, gameDuration uint64) *FactoryHelper {
+func NewFactoryHelper(t *testing.T, ctx context.Context, clock *clock.AdvancingClock, client *ethclient.Client, gameDuration uint64) *FactoryHelper {
 	require := require.New(t)
 	chainID, err := client.ChainID(ctx)
 	require.NoError(err)
 	opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, chainID)
 	require.NoError(err)
 
-	factory := deployDisputeGameContracts(require, ctx, client, opts, gameDuration)
+	factory, l1Head := deployDisputeGameContracts(require, ctx, clock, client, opts, gameDuration)
 
 	return &FactoryHelper{
 		t:       t,
@@ -61,6 +63,7 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, client *ethclient.Clien
 		client:  client,
 		opts:    opts,
 		factory: factory,
+		l1Head:  l1Head,
 	}
 }
 
@@ -70,7 +73,10 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	trace := alphabet.NewTraceProvider(claimedAlphabet, 4)
 	rootClaim, err := trace.Get(ctx, lastAlphabetTraceIndex)
 	h.require.NoError(err, "get root claim")
-	tx, err := h.factory.Create(h.opts, faultGameType, rootClaim, alphaExtraData)
+	extraData := make([]byte, 64)
+	binary.BigEndian.PutUint64(extraData[24:], uint64(8))
+	binary.BigEndian.PutUint64(extraData[56:], h.l1Head.Uint64())
+	tx, err := h.factory.Create(h.opts, faultGameType, rootClaim, extraData)
 	h.require.NoError(err, "create fault dispute game")
 	rcpt, err := utils.WaitReceiptOK(ctx, h.client, tx.Hash())
 	h.require.NoError(err, "wait for create fault dispute game receipt to be OK")
