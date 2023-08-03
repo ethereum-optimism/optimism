@@ -67,7 +67,7 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, client *ethclient.Clien
 func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet string) *FaultGameHelper {
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
-	trace := alphabet.NewAlphabetProvider(claimedAlphabet, 4)
+	trace := alphabet.NewTraceProvider(claimedAlphabet, 4)
 	rootClaim, err := trace.Get(ctx, lastAlphabetTraceIndex)
 	h.require.NoError(err, "get root claim")
 	tx, err := h.factory.Create(h.opts, faultGameType, rootClaim, alphaExtraData)

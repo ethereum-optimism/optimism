@@ -37,7 +37,7 @@ type CannonTraceProvider struct {
 	generator ProofGenerator
 }
 
-func NewCannonTraceProvider(logger log.Logger, cfg *config.Config) *CannonTraceProvider {
+func NewTraceProvider(logger log.Logger, cfg *config.Config) *CannonTraceProvider {
 	return &CannonTraceProvider{
 		dir:       cfg.CannonDatadir,
 		generator: NewExecutor(logger, cfg),

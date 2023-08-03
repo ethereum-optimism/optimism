@@ -17,7 +17,7 @@ func alphabetClaim(index uint64, letter string) common.Hash {
 // TestAlphabetProvider_Get_ClaimsByTraceIndex tests the [fault.AlphabetProvider] Get function.
 func TestAlphabetProvider_Get_ClaimsByTraceIndex(t *testing.T) {
 	// Create a new alphabet provider.
-	canonicalProvider := NewAlphabetProvider("abcdefgh", uint64(3))
+	canonicalProvider := NewTraceProvider("abcdefgh", uint64(3))
 
 	// Build a list of traces.
 	traces := []struct {
@@ -59,7 +59,7 @@ func FuzzIndexToBytes(f *testing.F) {
 // TestGetPreimage_Succeeds tests the GetPreimage function
 // returns the correct pre-image for a index.
 func TestGetPreimage_Succeeds(t *testing.T) {
-	ap := NewAlphabetProvider("abc", 2)
+	ap := NewTraceProvider("abc", 2)
 	expected := BuildAlphabetPreimage(0, "a'")
 	retrieved, proof, err := ap.GetPreimage(context.Background(), uint64(0))
 	require.NoError(t, err)
@@ -70,14 +70,14 @@ func TestGetPreimage_Succeeds(t *testing.T) {
 // TestGetPreimage_TooLargeIndex_Fails tests the GetPreimage
 // function errors if the index is too large.
 func TestGetPreimage_TooLargeIndex_Fails(t *testing.T) {
-	ap := NewAlphabetProvider("abc", 2)
+	ap := NewTraceProvider("abc", 2)
 	_, _, err := ap.GetPreimage(context.Background(), 4)
 	require.ErrorIs(t, err, ErrIndexTooLarge)
 }
 
 // TestGet_Succeeds tests the Get function.
 func TestGet_Succeeds(t *testing.T) {
-	ap := NewAlphabetProvider("abc", 2)
+	ap := NewTraceProvider("abc", 2)
 	claim, err := ap.Get(context.Background(), 0)
 	require.NoError(t, err)
 	expected := alphabetClaim(0, "a")
@@ -87,7 +87,7 @@ func TestGet_Succeeds(t *testing.T) {
 // TestGet_IndexTooLarge tests the Get function with an index
 // greater than the number of indices: 2^depth - 1.
 func TestGet_IndexTooLarge(t *testing.T) {
-	ap := NewAlphabetProvider("abc", 2)
+	ap := NewTraceProvider("abc", 2)
 	_, err := ap.Get(context.Background(), 4)
 	require.ErrorIs(t, err, ErrIndexTooLarge)
 }
@@ -95,7 +95,7 @@ func TestGet_IndexTooLarge(t *testing.T) {
 // TestGet_Extends tests the Get function with an index that is larger
 // than the trace, but smaller than the maximum depth.
 func TestGet_Extends(t *testing.T) {
-	ap := NewAlphabetProvider("abc", 2)
+	ap := NewTraceProvider("abc", 2)
 	claim, err := ap.Get(context.Background(), 3)
 	require.NoError(t, err)
 	expected := alphabetClaim(2, "c")
