@@ -112,7 +112,7 @@ contract Deploy is Deployer {
     /// @notice Modifier that will only allow a function to be called on devnet.
     modifier onlyDevnet() {
         uint256 chainid = block.chainid;
-        if (chainid != Chains.LocalDevnet && chainid != Chains.GethDevnet) {
+        if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet) {
             _;
         }
     }
