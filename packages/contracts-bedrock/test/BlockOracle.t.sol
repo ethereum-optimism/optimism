@@ -9,6 +9,13 @@ import "src/libraries/DisputeErrors.sol";
 contract BlockOracle_Test is Test {
     BlockOracle oracle;
 
+    /// @notice Emitted when a block is checkpointed.
+    event Checkpoint(
+        uint256 indexed blockNumber,
+        Hash indexed blockHash,
+        Timestamp indexed childTimestamp
+    );
+
     function setUp() public {
         oracle = new BlockOracle();
         // Roll the chain forward 1 block.
@@ -18,6 +25,12 @@ contract BlockOracle_Test is Test {
 
     /// @notice Tests that checkpointing a block and loading its information succeeds.
     function test_checkpointAndLoad_succeeds() public {
+        vm.expectEmit(true, true, true, false);
+        emit Checkpoint(
+            block.number - 1,
+            Hash.wrap(blockhash(block.number - 1)),
+            Timestamp.wrap(uint64(block.timestamp))
+        );
         oracle.checkpoint();
         uint256 blockNumber = block.number - 1;
         BlockOracle.BlockInfo memory res = oracle.load(blockNumber);

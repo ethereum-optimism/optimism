@@ -13,6 +13,13 @@ contract BlockOracle {
         Timestamp childTimestamp;
     }
 
+    /// @notice Emitted when a block is checkpointed.
+    event Checkpoint(
+        uint256 indexed blockNumber,
+        Hash indexed blockHash,
+        Timestamp indexed childTimestamp
+    );
+
     /// @notice Maps block numbers to block hashes and timestamps
     mapping(uint256 => BlockInfo) internal blocks;
 
@@ -33,9 +40,11 @@ contract BlockOracle {
         //         and in the case of `block.number = 0`, we'll underflow.
         // Persist the block information.
         blockNumber_ = block.number - 1;
-        blocks[blockNumber_] = BlockInfo({
-            hash: Hash.wrap(blockhash(blockNumber_)),
-            childTimestamp: Timestamp.wrap(uint64(block.timestamp))
-        });
+        Hash blockHash = Hash.wrap(blockhash(blockNumber_));
+        Timestamp childTimestamp = Timestamp.wrap(uint64(block.timestamp));
+
+        blocks[blockNumber_] = BlockInfo({ hash: blockHash, childTimestamp: childTimestamp });
+
+        emit Checkpoint(blockNumber_, blockHash, childTimestamp);
     }
 }

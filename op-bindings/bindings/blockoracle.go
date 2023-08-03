@@ -36,8 +36,8 @@ type BlockOracleBlockInfo struct {
 
 // BlockOracleMetaData contains all meta data concerning the BlockOracle contract.
 var BlockOracleMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"name\":\"BlockHashNotPresent\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"checkpoint\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"blockNumber_\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_blockNumber\",\"type\":\"uint256\"}],\"name\":\"load\",\"outputs\":[{\"components\":[{\"internalType\":\"Hash\",\"name\":\"hash\",\"type\":\"bytes32\"},{\"internalType\":\"Timestamp\",\"name\":\"childTimestamp\",\"type\":\"uint64\"}],\"internalType\":\"structBlockOracle.BlockInfo\",\"name\":\"blockInfo_\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
-	Bin: "0x608060405234801561001057600080fd5b506101e8806100206000396000f3fe608060405234801561001057600080fd5b50600436106100365760003560e01c806399d548aa1461003b578063c2c4c5c114610078575b600080fd5b61004e610049366004610184565b61008e565b604080518251815260209283015167ffffffffffffffff1692810192909252015b60405180910390f35b61008061010d565b60405190815260200161006f565b604080518082018252600080825260209182018190528381528082528281208351808501909452805480855260019091015467ffffffffffffffff169284019290925203610108576040517f37cf270500000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b919050565b600061011a60014361019d565b604080518082018252824081524267ffffffffffffffff908116602080840191825260008681529081905293909320915182559151600190910180547fffffffffffffffffffffffffffffffffffffffffffffffff00000000000000001691909216179055919050565b60006020828403121561019657600080fd5b5035919050565b6000828210156101d6577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b50039056fea164736f6c634300080f000a",
+	ABI: "[{\"inputs\":[],\"name\":\"BlockHashNotPresent\",\"type\":\"error\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"blockNumber\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"Hash\",\"name\":\"blockHash\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"Timestamp\",\"name\":\"childTimestamp\",\"type\":\"uint64\"}],\"name\":\"Checkpoint\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"checkpoint\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"blockNumber_\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_blockNumber\",\"type\":\"uint256\"}],\"name\":\"load\",\"outputs\":[{\"components\":[{\"internalType\":\"Hash\",\"name\":\"hash\",\"type\":\"bytes32\"},{\"internalType\":\"Timestamp\",\"name\":\"childTimestamp\",\"type\":\"uint64\"}],\"internalType\":\"structBlockOracle.BlockInfo\",\"name\":\"blockInfo_\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	Bin: "0x608060405234801561001057600080fd5b5061021c806100206000396000f3fe608060405234801561001057600080fd5b50600436106100365760003560e01c806399d548aa1461003b578063c2c4c5c114610078575b600080fd5b61004e6100493660046101b8565b61008e565b604080518251815260209283015167ffffffffffffffff1692810192909252015b60405180910390f35b61008061010d565b60405190815260200161006f565b604080518082018252600080825260209182018190528381528082528281208351808501909452805480855260019091015467ffffffffffffffff169284019290925203610108576040517f37cf270500000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b919050565b600061011a6001436101d1565b60408051808201825282408082524267ffffffffffffffff81811660208086018281526000898152918290528782209651875551600190960180547fffffffffffffffffffffffffffffffffffffffffffffffff000000000000000016969093169590951790915593519495509093909291849186917fb67ff58b33060fd371a35ae2d9f1c3cdaec9b8197969f6efe2594a1ff4ba68c691a4505090565b6000602082840312156101ca57600080fd5b5035919050565b60008282101561020a577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b50039056fea164736f6c634300080f000a",
 }
 
 // BlockOracleABI is the input ABI used to generate the binding from.
@@ -257,4 +257,166 @@ func (_BlockOracle *BlockOracleSession) Checkpoint() (*types.Transaction, error)
 // Solidity: function checkpoint() returns(uint256 blockNumber_)
 func (_BlockOracle *BlockOracleTransactorSession) Checkpoint() (*types.Transaction, error) {
 	return _BlockOracle.Contract.Checkpoint(&_BlockOracle.TransactOpts)
+}
+
+// BlockOracleCheckpointIterator is returned from FilterCheckpoint and is used to iterate over the raw logs and unpacked data for Checkpoint events raised by the BlockOracle contract.
+type BlockOracleCheckpointIterator struct {
+	Event *BlockOracleCheckpoint // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *BlockOracleCheckpointIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(BlockOracleCheckpoint)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(BlockOracleCheckpoint)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *BlockOracleCheckpointIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *BlockOracleCheckpointIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// BlockOracleCheckpoint represents a Checkpoint event raised by the BlockOracle contract.
+type BlockOracleCheckpoint struct {
+	BlockNumber    *big.Int
+	BlockHash      [32]byte
+	ChildTimestamp uint64
+	Raw            types.Log // Blockchain specific contextual infos
+}
+
+// FilterCheckpoint is a free log retrieval operation binding the contract event 0xb67ff58b33060fd371a35ae2d9f1c3cdaec9b8197969f6efe2594a1ff4ba68c6.
+//
+// Solidity: event Checkpoint(uint256 indexed blockNumber, bytes32 indexed blockHash, uint64 indexed childTimestamp)
+func (_BlockOracle *BlockOracleFilterer) FilterCheckpoint(opts *bind.FilterOpts, blockNumber []*big.Int, blockHash [][32]byte, childTimestamp []uint64) (*BlockOracleCheckpointIterator, error) {
+
+	var blockNumberRule []interface{}
+	for _, blockNumberItem := range blockNumber {
+		blockNumberRule = append(blockNumberRule, blockNumberItem)
+	}
+	var blockHashRule []interface{}
+	for _, blockHashItem := range blockHash {
+		blockHashRule = append(blockHashRule, blockHashItem)
+	}
+	var childTimestampRule []interface{}
+	for _, childTimestampItem := range childTimestamp {
+		childTimestampRule = append(childTimestampRule, childTimestampItem)
+	}
+
+	logs, sub, err := _BlockOracle.contract.FilterLogs(opts, "Checkpoint", blockNumberRule, blockHashRule, childTimestampRule)
+	if err != nil {
+		return nil, err
+	}
+	return &BlockOracleCheckpointIterator{contract: _BlockOracle.contract, event: "Checkpoint", logs: logs, sub: sub}, nil
+}
+
+// WatchCheckpoint is a free log subscription operation binding the contract event 0xb67ff58b33060fd371a35ae2d9f1c3cdaec9b8197969f6efe2594a1ff4ba68c6.
+//
+// Solidity: event Checkpoint(uint256 indexed blockNumber, bytes32 indexed blockHash, uint64 indexed childTimestamp)
+func (_BlockOracle *BlockOracleFilterer) WatchCheckpoint(opts *bind.WatchOpts, sink chan<- *BlockOracleCheckpoint, blockNumber []*big.Int, blockHash [][32]byte, childTimestamp []uint64) (event.Subscription, error) {
+
+	var blockNumberRule []interface{}
+	for _, blockNumberItem := range blockNumber {
+		blockNumberRule = append(blockNumberRule, blockNumberItem)
+	}
+	var blockHashRule []interface{}
+	for _, blockHashItem := range blockHash {
+		blockHashRule = append(blockHashRule, blockHashItem)
+	}
+	var childTimestampRule []interface{}
+	for _, childTimestampItem := range childTimestamp {
+		childTimestampRule = append(childTimestampRule, childTimestampItem)
+	}
+
+	logs, sub, err := _BlockOracle.contract.WatchLogs(opts, "Checkpoint", blockNumberRule, blockHashRule, childTimestampRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(BlockOracleCheckpoint)
+				if err := _BlockOracle.contract.UnpackLog(event, "Checkpoint", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseCheckpoint is a log parse operation binding the contract event 0xb67ff58b33060fd371a35ae2d9f1c3cdaec9b8197969f6efe2594a1ff4ba68c6.
+//
+// Solidity: event Checkpoint(uint256 indexed blockNumber, bytes32 indexed blockHash, uint64 indexed childTimestamp)
+func (_BlockOracle *BlockOracleFilterer) ParseCheckpoint(log types.Log) (*BlockOracleCheckpoint, error) {
+	event := new(BlockOracleCheckpoint)
+	if err := _BlockOracle.contract.UnpackLog(event, "Checkpoint", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
 }
