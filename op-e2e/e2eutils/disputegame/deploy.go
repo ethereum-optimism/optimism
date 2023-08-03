@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-service/client/utils"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
@@ -19,7 +20,7 @@ import (
 // It configures the alphabet fault game as game type 0 (faultGameType)
 // If/when the dispute game factory becomes a predeployed contract this can be removed and just use the
 // predeployed version
-func deployDisputeGameContracts(require *require.Assertions, ctx context.Context, client *ethclient.Client, opts *bind.TransactOpts, gameDuration uint64) (*bindings.DisputeGameFactory, *big.Int) {
+func deployDisputeGameContracts(require *require.Assertions, ctx context.Context, clock *clock.AdvancingClock, client *ethclient.Client, opts *bind.TransactOpts, gameDuration uint64) (*bindings.DisputeGameFactory, *big.Int) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 	// Deploy the proxy
@@ -108,7 +109,7 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 
 	// Wait for the block hash oracle to be ready to receive the checkpoint.
 	// The block time is hard coded at 13 seconds, should parameterize.
-	time.Sleep(15 * time.Second)
+	clock.AdvanceTime(13 * time.Second)
 
 	// Store the current block in the oracle
 	tx, err = blockHashOracle.Checkpoint(opts)
