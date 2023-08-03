@@ -470,6 +470,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         uint256 proposalIdx = L2_OUTPUT_ORACLE.getL2OutputIndexAfter(l2BlockNumber());
         Types.OutputProposal memory starting = L2_OUTPUT_ORACLE.getL2Output(proposalIdx - 1);
         Types.OutputProposal memory disputed = L2_OUTPUT_ORACLE.getL2Output(proposalIdx);
+
         // SAFETY: This call can revert if the block hash oracle does not have information
         // about the block number provided to it.
         BlockOracle.BlockInfo memory blockInfo = BLOCK_ORACLE.load(l1BlockNumber());
