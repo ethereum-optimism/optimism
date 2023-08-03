@@ -53,7 +53,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
 
         // Deploy a new block hash oracle and store the block hash for the genesis block.
         BlockOracle blockOracle = new BlockOracle();
-        blockOracle.store(block.number - 1);
+        blockOracle.checkpoint();
 
         // Set the extra data for the game creation
         extraData = abi.encode(oracle.SUBMISSION_INTERVAL() * 2, block.number - 1);
@@ -127,8 +127,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev Tests that a game cannot be created by the factory if the L1 head hash does not
     ///      contain the disputed L2 output root.
     function test_initialize_l1HeadTooOld_reverts() public {
-        gameProxy.BLOCK_ORACLE().store(block.number - 128);
-        bytes memory _extraData = abi.encode(oracle.SUBMISSION_INTERVAL() * 2, block.number - 128);
+        // Store a mock block hash for the genesis block. The timestamp will default to 0.
+        vm.store(address(gameImpl.BLOCK_ORACLE()), keccak256(abi.encode(0, 0)), bytes32(uint256(1)));
+        bytes memory _extraData = abi.encode(oracle.SUBMISSION_INTERVAL() * 2, 0);
 
         vm.expectRevert(L1HeadTooOld.selector);
         factory.create(GAME_TYPE, ROOT_CLAIM, _extraData);

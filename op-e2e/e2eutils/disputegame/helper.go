@@ -44,7 +44,7 @@ type FactoryHelper struct {
 	client  *ethclient.Client
 	opts    *bind.TransactOpts
 	factory *bindings.DisputeGameFactory
-	l1Head  uint64
+	l1Head  *big.Int
 }
 
 func NewFactoryHelper(t *testing.T, ctx context.Context, client *ethclient.Client, gameDuration uint64) *FactoryHelper {
@@ -74,7 +74,7 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	h.require.NoError(err, "get root claim")
 	extraData := make([]byte, 64)
 	binary.BigEndian.PutUint64(extraData[24:], uint64(3600))
-	binary.BigEndian.PutUint64(extraData[56:], h.l1Head)
+	binary.BigEndian.PutUint64(extraData[56:], h.l1Head.Uint64())
 	tx, err := h.factory.Create(h.opts, faultGameType, rootClaim, extraData)
 	h.require.NoError(err, "create fault dispute game")
 	rcpt, err := utils.WaitReceiptOK(ctx, h.client, tx.Hash())

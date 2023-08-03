@@ -478,7 +478,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         //            the game cannot be played.
         // TODO(clabby): The block timestamp in the oracle is an estimate that assumes a 13
         //               second block time. Should we add a buffer here to ensure that the
-        //               estimation has room for error? This invariant cannot break.
+        //               estimation has room for error? This invariant cannot break. We could
+        //               add the L1 block number to the `Types.OutputProposal` type as well,
+        //               which would remove the need for estimation.
         if (Timestamp.unwrap(blockInfo.timestamp) < disputed.timestamp) revert L1HeadTooOld();
 
         // Persist the output proposals fetched from the oracle. These outputs will be referenced

@@ -17,7 +17,7 @@ import (
 // It configures the alphabet fault game as game type 0 (faultGameType)
 // If/when the dispute game factory becomes a predeployed contract this can be removed and just use the
 // predeployed version
-func deployDisputeGameContracts(require *require.Assertions, ctx context.Context, client *ethclient.Client, opts *bind.TransactOpts, gameDuration uint64) (*bindings.DisputeGameFactory, uint64) {
+func deployDisputeGameContracts(require *require.Assertions, ctx context.Context, client *ethclient.Client, opts *bind.TransactOpts, gameDuration uint64) (*bindings.DisputeGameFactory, *big.Int) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 	// Deploy the proxy
@@ -51,14 +51,6 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 	alphaVMAddr, err := bind.WaitDeployed(ctx, client, tx)
 	require.NoError(err)
 
-	// Deploy the block hash oracle
-	_, tx, _, err = bindings.DeployBlockOracle(opts, client)
-	require.NoError(err)
-	blockHashOracleAddr, err := bind.WaitDeployed(ctx, client, tx)
-	require.NoError(err)
-	blockHashOracle, err := bindings.NewBlockOracle(blockHashOracleAddr, client)
-	require.NoError(err)
-
 	// Deploy the L2 output oracle
 	_, tx, _, err = bindings.DeployL2OutputOracle(
 		opts,
@@ -77,15 +69,17 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 	l2OutputOracle, err := bindings.NewL2OutputOracle(l2OutputOracleAddr, client)
 	require.NoError(err)
 
-	// Deploy the fault dispute game implementation
-	_, tx, _, err = bindings.DeployFaultDisputeGame(opts, client, alphabetVMAbsolutePrestateClaim, big.NewInt(alphabetGameDepth), gameDuration, alphaVMAddr, l2OutputOracleAddr, blockHashOracleAddr)
+	// Deploy the block hash oracle
+	_, tx, _, err = bindings.DeployBlockOracle(opts, client)
 	require.NoError(err)
-	faultDisputeGameAddr, err := bind.WaitDeployed(ctx, client, tx)
+	blockHashOracleAddr, err := bind.WaitDeployed(ctx, client, tx)
+	require.NoError(err)
+	blockHashOracle, err := bindings.NewBlockOracle(blockHashOracleAddr, client)
 	require.NoError(err)
 
 	// Propose 2 outputs
 	for i := uint8(0); i < 2; i++ {
-		nextBlockNumber, err := l2OutputOracle.NextBlockNumber(nil)
+		nextBlockNumber, err := l2OutputOracle.NextBlockNumber(&bind.CallOpts{Pending: true, Context: ctx})
 		require.NoError(err)
 		block, err := client.BlockByNumber(ctx, big.NewInt(int64(i)))
 		require.NoError(err)
@@ -97,12 +91,30 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 	}
 
 	// Store the current block in the oracle
-	blockNo, err := client.BlockNumber(ctx)
+	tx, err = blockHashOracle.Checkpoint(opts)
 	require.NoError(err)
-	tx, err = blockHashOracle.Store(opts, big.NewInt(int64(blockNo)))
-	require.NoError(err)
-	_, err = utils.WaitReceiptOK(ctx, client, tx.Hash())
+	r, err := utils.WaitReceiptOK(ctx, client, tx.Hash())
 	require.NoError(err, "failed to store block in blockoracle")
+
+	_, tx, _, err = bindings.DeployMIPS(opts, client)
+	require.NoError(err)
+	_, err = bind.WaitDeployed(ctx, client, tx)
+	require.NoError(err)
+
+	// Deploy the fault dispute game implementation
+	_, tx, _, err = bindings.DeployFaultDisputeGame(
+		opts,
+		client,
+		alphabetVMAbsolutePrestateClaim,
+		big.NewInt(alphabetGameDepth),
+		gameDuration,
+		alphaVMAddr,
+		l2OutputOracleAddr,
+		blockHashOracleAddr,
+	)
+	require.NoError(err)
+	faultDisputeGameAddr, err := bind.WaitDeployed(ctx, client, tx)
+	require.NoError(err)
 
 	// Set the fault game type implementation
 	tx, err = factory.SetImplementation(opts, faultGameType, faultDisputeGameAddr)
@@ -110,5 +122,5 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 	_, err = utils.WaitReceiptOK(ctx, client, tx.Hash())
 	require.NoError(err, "wait for final transaction to be included and OK")
 
-	return factory, blockNo
+	return factory, new(big.Int).Sub(r.BlockNumber, big.NewInt(1))
 }
