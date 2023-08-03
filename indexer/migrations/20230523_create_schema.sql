@@ -108,13 +108,47 @@ CREATE TABLE IF NOT EXISTS l2_transaction_withdrawals (
     timestamp    INTEGER NOT NULL CHECK (timestamp > 0)
 );
 
+-- CrossDomainMessenger
+CREATE TABLE IF NOT EXISTS l1_bridge_messages(
+    nonce                   UINT256 NOT NULL PRIMARY KEY,
+    message_hash            VARCHAR NOT NULL,
+    transaction_source_hash VARCHAR NOT NULL REFERENCES l1_transaction_deposits(source_hash),
+
+    sent_message_event_guid    VARCHAR NOT NULL UNIQUE REFERENCES l1_contract_events(guid),
+    relayed_message_event_guid VARCHAR UNIQUE REFERENCES l2_contract_events(guid),
+
+    -- sent message
+    from_address VARCHAR NOT NULL,
+    to_address   VARCHAR NOT NULL,
+    amount       UINT256 NOT NULL,
+    gas_limit    UINT256 NOT NULL,
+    data         VARCHAR NOT NULL,
+    timestamp    INTEGER NOT NULL CHECK (timestamp > 0)
+);
+CREATE TABLE IF NOT EXISTS l2_bridge_messages(
+    nonce                       UINT256 NOT NULL PRIMARY KEY,
+    message_hash                VARCHAR NOT NULL,
+    transaction_withdrawal_hash VARCHAR NOT NULL REFERENCES l2_transaction_withdrawals(withdrawal_hash),
+
+    sent_message_event_guid    VARCHAR NOT NULL UNIQUE REFERENCES l2_contract_events(guid),
+    relayed_message_event_guid VARCHAR UNIQUE REFERENCES l1_contract_events(guid),
+
+    -- sent message
+    from_address VARCHAR NOT NULL,
+    to_address   VARCHAR NOT NULL,
+    amount       UINT256 NOT NULL,
+    gas_limit    UINT256 NOT NULL,
+    data         VARCHAR NOT NULL,
+    timestamp    INTEGER NOT NULL CHECK (timestamp > 0)
+);
+
 -- StandardBridge
 CREATE TABLE IF NOT EXISTS l1_bridge_deposits (
     transaction_source_hash VARCHAR PRIMARY KEY REFERENCES l1_transaction_deposits(source_hash),
 
     -- We allow the cross_domain_messenger_nonce to be NULL-able to account
     -- for scenarios where ETH is simply sent to the OptimismPortal contract
-    cross_domain_messenger_nonce UINT256 UNIQUE,
+    cross_domain_messenger_nonce UINT256 UNIQUE REFERENCES l1_bridge_messages(nonce),
 
     -- Deposit information
 	from_address     VARCHAR NOT NULL,
@@ -130,7 +164,7 @@ CREATE TABLE IF NOT EXISTS l2_bridge_withdrawals (
 
     -- We allow the cross_domain_messenger_nonce to be NULL-able to account for
     -- scenarios where ETH is simply sent to the L2ToL1MessagePasser contract
-    cross_domain_messenger_nonce UINT256 UNIQUE,
+    cross_domain_messenger_nonce UINT256 UNIQUE REFERENCES l2_bridge_messages(nonce),
 
     -- Withdrawal information
 	from_address     VARCHAR NOT NULL,
