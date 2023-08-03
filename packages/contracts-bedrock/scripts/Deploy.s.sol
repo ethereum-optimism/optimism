@@ -574,7 +574,7 @@ contract Deploy is Deployer {
             _implementation: l1ERC721Bridge,
             _data: abi.encodeCall(
                 L1ERC721Bridge.initialize,
-                (CrossDomainMessenger(l1CrossDomainMessengerProxy))
+                (L1CrossDomainMessenger(l1CrossDomainMessengerProxy))
             )
         });
 
