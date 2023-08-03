@@ -13,22 +13,35 @@ import { Semver } from "../universal/Semver.sol";
 ///         interface instead of interacting with lower-level contracts directly.
 contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
     /// @notice Address of the OptimismPortal.
-    OptimismPortal public immutable PORTAL;
+    OptimismPortal internal _PORTAL;
 
-    /// @custom:semver 1.4.1
+    /// @custom:semver 1.5.0
     /// @notice Constructs the L1CrossDomainMessenger contract.
-    /// @param _portal Address of the OptimismPortal contract on this network.
-    constructor(OptimismPortal _portal)
-        Semver(1, 4, 1)
+    constructor()
+        Semver(1, 5, 0)
         CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
     {
-        PORTAL = _portal;
-        initialize();
+        initialize({
+            _portal: OptimismPortal(payable(0))
+        });
     }
 
     /// @notice Initializes the contract.
-    function initialize() public initializer {
+    /// @param _portal Address of the OptimismPortal contract on this network.
+    function initialize(OptimismPortal _portal) public reinitializer(2) {
+        _PORTAL = _portal;
         __CrossDomainMessenger_init();
+    }
+
+    /// @notice Getter for the OptimismPortal address.
+    /// @custom:legacy
+    function PORTAL() external view returns (address) {
+        return address(_PORTAL);
+    }
+
+    /// @notice Getter for the OptimismPortal address.
+    function portal() external view returns (address) {
+        return address(_PORTAL);
     }
 
     /// @inheritdoc CrossDomainMessenger
@@ -38,16 +51,16 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
         uint256 _value,
         bytes memory _data
     ) internal override {
-        PORTAL.depositTransaction{ value: _value }(_to, _value, _gasLimit, false, _data);
+        _PORTAL.depositTransaction{ value: _value }(_to, _value, _gasLimit, false, _data);
     }
 
     /// @inheritdoc CrossDomainMessenger
     function _isOtherMessenger() internal view override returns (bool) {
-        return msg.sender == address(PORTAL) && PORTAL.l2Sender() == OTHER_MESSENGER;
+        return msg.sender == address(_PORTAL) && _PORTAL.l2Sender() == OTHER_MESSENGER;
     }
 
     /// @inheritdoc CrossDomainMessenger
     function _isUnsafeTarget(address _target) internal view override returns (bool) {
-        return _target == address(this) || _target == address(PORTAL);
+        return _target == address(this) || _target == address(_PORTAL);
     }
 }
