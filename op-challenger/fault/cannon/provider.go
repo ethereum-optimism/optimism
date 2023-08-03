@@ -21,11 +21,12 @@ const (
 )
 
 type proofData struct {
-	ClaimValue  hexutil.Bytes `json:"post"`
-	StateData   hexutil.Bytes `json:"state-data"`
-	ProofData   hexutil.Bytes `json:"proof-data"`
-	OracleKey   hexutil.Bytes `json:"oracle-key,omitempty"`
-	OracleValue hexutil.Bytes `json:"oracle-value,omitempty"`
+	ClaimValue   hexutil.Bytes `json:"post"`
+	StateData    hexutil.Bytes `json:"state-data"`
+	ProofData    hexutil.Bytes `json:"proof-data"`
+	OracleKey    hexutil.Bytes `json:"oracle-key,omitempty"`
+	OracleValue  hexutil.Bytes `json:"oracle-value,omitempty"`
+	OracleOffset uint32        `json:"oracle-offset,omitempty"`
 }
 
 type ProofGenerator interface {
@@ -52,7 +53,7 @@ func (p *CannonTraceProvider) GetOracleData(ctx context.Context, i uint64) (*typ
 	if err != nil {
 		return nil, err
 	}
-	data := types.NewPreimageOracleData(proof.OracleKey, proof.OracleValue)
+	data := types.NewPreimageOracleData(proof.OracleKey, proof.OracleValue, proof.OracleOffset)
 	return &data, nil
 }
 
