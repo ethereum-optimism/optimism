@@ -36,8 +36,8 @@ type BlockOracleBlockInfo struct {
 
 // BlockOracleMetaData contains all meta data concerning the BlockOracle contract.
 var BlockOracleMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"name\":\"BlockHashNotPresent\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"BlockNumberOOB\",\"type\":\"error\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_blockNumber\",\"type\":\"uint256\"}],\"name\":\"load\",\"outputs\":[{\"components\":[{\"internalType\":\"Hash\",\"name\":\"hash\",\"type\":\"bytes32\"},{\"internalType\":\"Timestamp\",\"name\":\"timestamp\",\"type\":\"uint64\"}],\"internalType\":\"structBlockOracle.BlockInfo\",\"name\":\"blockInfo_\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_blockNumber\",\"type\":\"uint256\"}],\"name\":\"store\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
-	Bin: "0x608060405234801561001057600080fd5b50610279806100206000396000f3fe608060405234801561001057600080fd5b50600436106100365760003560e01c80636057361d1461003b57806399d548aa14610050575b600080fd5b61004e6100493660046101d0565b61008c565b005b61006361005e3660046101d0565b610151565b604080518251815260209283015167ffffffffffffffff16928101929092520160405180910390f35b804060008190036100c9576040517fd82756d800000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b60006100d58343610218565b6100e090600d61022f565b6100ea9042610218565b60408051808201825293845267ffffffffffffffff918216602080860191825260009687528690529420925183559251600190920180547fffffffffffffffffffffffffffffffffffffffffffffffff000000000000000016929093169190911790915550565b604080518082018252600080825260209182018190528381528082528281208351808501909452805480855260019091015467ffffffffffffffff1692840192909252036101cb576040517f37cf270500000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b919050565b6000602082840312156101e257600080fd5b5035919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b60008282101561022a5761022a6101e9565b500390565b6000817fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0483118215151615610267576102676101e9565b50029056fea164736f6c634300080f000a",
+	ABI: "[{\"inputs\":[],\"name\":\"BlockHashNotPresent\",\"type\":\"error\"},{\"inputs\":[],\"name\":\"checkpoint\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"blockNumber_\",\"type\":\"uint256\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_blockNumber\",\"type\":\"uint256\"}],\"name\":\"load\",\"outputs\":[{\"components\":[{\"internalType\":\"Hash\",\"name\":\"hash\",\"type\":\"bytes32\"},{\"internalType\":\"Timestamp\",\"name\":\"timestamp\",\"type\":\"uint64\"}],\"internalType\":\"structBlockOracle.BlockInfo\",\"name\":\"blockInfo_\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
+	Bin: "0x608060405234801561001057600080fd5b506101fb806100206000396000f3fe608060405234801561001057600080fd5b50600436106100365760003560e01c806399d548aa1461003b578063c2c4c5c114610078575b600080fd5b61004e610049366004610197565b61008e565b604080518251815260209283015167ffffffffffffffff1692810192909252015b60405180910390f35b61008061010d565b60405190815260200161006f565b604080518082018252600080825260209182018190528381528082528281208351808501909452805480855260019091015467ffffffffffffffff169284019290925203610108576040517f37cf270500000000000000000000000000000000000000000000000000000000815260040160405180910390fd5b919050565b60008061011b6001436101b0565b9150508040600061012d600d426101b0565b60408051808201825293845267ffffffffffffffff9182166020808601918252600087815290819052919091209351845551600190930180547fffffffffffffffffffffffffffffffffffffffffffffffff00000000000000001693909116929092179091555090565b6000602082840312156101a957600080fd5b5035919050565b6000828210156101e9577f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b50039056fea164736f6c634300080f000a",
 }
 
 // BlockOracleABI is the input ABI used to generate the binding from.
@@ -238,23 +238,23 @@ func (_BlockOracle *BlockOracleCallerSession) Load(_blockNumber *big.Int) (Block
 	return _BlockOracle.Contract.Load(&_BlockOracle.CallOpts, _blockNumber)
 }
 
-// Store is a paid mutator transaction binding the contract method 0x6057361d.
+// Checkpoint is a paid mutator transaction binding the contract method 0xc2c4c5c1.
 //
-// Solidity: function store(uint256 _blockNumber) returns()
-func (_BlockOracle *BlockOracleTransactor) Store(opts *bind.TransactOpts, _blockNumber *big.Int) (*types.Transaction, error) {
-	return _BlockOracle.contract.Transact(opts, "store", _blockNumber)
+// Solidity: function checkpoint() returns(uint256 blockNumber_)
+func (_BlockOracle *BlockOracleTransactor) Checkpoint(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _BlockOracle.contract.Transact(opts, "checkpoint")
 }
 
-// Store is a paid mutator transaction binding the contract method 0x6057361d.
+// Checkpoint is a paid mutator transaction binding the contract method 0xc2c4c5c1.
 //
-// Solidity: function store(uint256 _blockNumber) returns()
-func (_BlockOracle *BlockOracleSession) Store(_blockNumber *big.Int) (*types.Transaction, error) {
-	return _BlockOracle.Contract.Store(&_BlockOracle.TransactOpts, _blockNumber)
+// Solidity: function checkpoint() returns(uint256 blockNumber_)
+func (_BlockOracle *BlockOracleSession) Checkpoint() (*types.Transaction, error) {
+	return _BlockOracle.Contract.Checkpoint(&_BlockOracle.TransactOpts)
 }
 
-// Store is a paid mutator transaction binding the contract method 0x6057361d.
+// Checkpoint is a paid mutator transaction binding the contract method 0xc2c4c5c1.
 //
-// Solidity: function store(uint256 _blockNumber) returns()
-func (_BlockOracle *BlockOracleTransactorSession) Store(_blockNumber *big.Int) (*types.Transaction, error) {
-	return _BlockOracle.Contract.Store(&_BlockOracle.TransactOpts, _blockNumber)
+// Solidity: function checkpoint() returns(uint256 blockNumber_)
+func (_BlockOracle *BlockOracleTransactorSession) Checkpoint() (*types.Transaction, error) {
+	return _BlockOracle.Contract.Checkpoint(&_BlockOracle.TransactOpts)
 }
