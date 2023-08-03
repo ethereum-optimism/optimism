@@ -34,16 +34,6 @@ type L1Contracts struct {
 	// Remove afterwards?
 }
 
-func DevL1Contracts() L1Contracts {
-	return L1Contracts{
-		OptimismPortal:         common.HexToAddress("0x6900000000000000000000000000000000000000"),
-		L2OutputOracle:         common.HexToAddress("0x6900000000000000000000000000000000000001"),
-		L1CrossDomainMessenger: common.HexToAddress("0x6900000000000000000000000000000000000002"),
-		L1StandardBridge:       common.HexToAddress("0x6900000000000000000000000000000000000003"),
-		L1ERC721Bridge:         common.HexToAddress("0x6900000000000000000000000000000000000004"),
-	}
-}
-
 func (c L1Contracts) ToSlice() []common.Address {
 	fields := reflect.VisibleFields(reflect.TypeOf(c))
 	v := reflect.ValueOf(c)

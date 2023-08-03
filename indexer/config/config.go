@@ -5,6 +5,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 
+	"github.com/ethereum-optimism/optimism/indexer/processor"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -21,7 +22,8 @@ type Config struct {
 // ChainConfig configures of the chain being indexed
 type ChainConfig struct {
 	// Configure known chains with the l2 chain id
-	Preset int
+	Preset      int
+	L1Contracts processor.L1Contracts
 }
 
 // RPCsConfig configures the RPC urls

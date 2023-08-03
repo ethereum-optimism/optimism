@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/node"
-	"github.com/ethereum-optimism/optimism/indexer/processor"
 	"github.com/ethereum-optimism/optimism/op-service/client/utils"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/stretchr/testify/require"
@@ -25,7 +25,7 @@ func TestE2EBlockHeaders(t *testing.T) {
 
 	l1Client := testSuite.OpSys.Clients["l1"]
 	l2Client := testSuite.OpSys.Clients["sequencer"]
-	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(predeploys.DevL2OutputOracleAddr, l1Client)
+	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(testSuite.OpCfg.L1Deployments.L2OutputOracleProxy, l1Client)
 	require.NoError(t, err)
 
 	// a minute for total setup to finish
@@ -111,7 +111,10 @@ func TestE2EBlockHeaders(t *testing.T) {
 		testCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		devContracts := processor.DevL1Contracts().ToSlice()
+		devContracts := make([]common.Address, 0)
+		testSuite.OpCfg.L1Deployments.ForEach(func(name string, address common.Address) {
+			devContracts = append(devContracts, address)
+		})
 		logFilter := ethereum.FilterQuery{FromBlock: big.NewInt(0), ToBlock: big.NewInt(int64(l1Height)), Addresses: devContracts}
 		logs, err := l1Client.FilterLogs(testCtx, logFilter) // []types.Log
 		require.NoError(t, err)

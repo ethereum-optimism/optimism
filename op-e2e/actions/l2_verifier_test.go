@@ -34,6 +34,7 @@ func TestL2Verifier_SequenceWindow(gt *testing.T) {
 		MaxSequencerDrift:   10,
 		SequencerWindowSize: 24,
 		ChannelTimeout:      10,
+		L1BlockTime:         15,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)

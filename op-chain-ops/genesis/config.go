@@ -8,8 +8,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"reflect"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	gstate "github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -74,10 +77,15 @@ type DeployConfig struct {
 	// L2OutputOracleChallenger is the address of the account that challenges L2 outputs.
 	L2OutputOracleChallenger common.Address `json:"l2OutputOracleChallenger"`
 
+	// CliqueSignerAddress represents the signer address for the clique consensus engine.
+	// It is used in the multi-process devnet to sign blocks.
+	CliqueSignerAddress common.Address `json:"cliqueSignerAddress"`
+	// L1UseClique represents whether or not to use the clique consensus engine.
+	L1UseClique bool `json:"l1UseClique"`
+
 	L1BlockTime                 uint64         `json:"l1BlockTime"`
 	L1GenesisBlockTimestamp     hexutil.Uint64 `json:"l1GenesisBlockTimestamp"`
 	L1GenesisBlockNonce         hexutil.Uint64 `json:"l1GenesisBlockNonce"`
-	CliqueSignerAddress         common.Address `json:"cliqueSignerAddress"` // proof of stake genesis if left zeroed.
 	L1GenesisBlockGasLimit      hexutil.Uint64 `json:"l1GenesisBlockGasLimit"`
 	L1GenesisBlockDifficulty    *hexutil.Big   `json:"l1GenesisBlockDifficulty"`
 	L1GenesisBlockMixHash       common.Hash    `json:"l1GenesisBlockMixHash"`
@@ -181,7 +189,6 @@ func (d *DeployConfig) Copy() *DeployConfig {
 	if err = json.Unmarshal(raw, &cpy); err != nil {
 		panic(err)
 	}
-
 	return &cpy
 }
 
@@ -311,7 +318,20 @@ func (d *DeployConfig) Check() error {
 			return fmt.Errorf("%w: GovernanceToken owner cannot be address(0)", ErrInvalidDeployConfig)
 		}
 	}
+	// L2 block time must always be smaller than L1 block time
+	if d.L1BlockTime < d.L2BlockTime {
+		return fmt.Errorf("L2 block time (%d) is larger than L1 block time (%d)", d.L2BlockTime, d.L1BlockTime)
+	}
 	return nil
+}
+
+// SetDeployments will merge a Deployments into a DeployConfig.
+func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
+	d.L1StandardBridgeProxy = deployments.L1StandardBridgeProxy
+	d.L1CrossDomainMessengerProxy = deployments.L1CrossDomainMessengerProxy
+	d.L1ERC721BridgeProxy = deployments.L1ERC721BridgeProxy
+	d.SystemConfigProxy = deployments.SystemConfigProxy
+	d.OptimismPortalProxy = deployments.OptimismPortalProxy
 }
 
 // GetDeployedAddresses will get the deployed addresses of deployed L1 contracts
@@ -370,16 +390,6 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 		d.OptimismPortalProxy = optimismPortalProxyDeployment.Address
 	}
 
-	return nil
-}
-
-// InitDeveloperDeployedAddresses will set the dev addresses on the DeployConfig
-func (d *DeployConfig) InitDeveloperDeployedAddresses() error {
-	d.L1StandardBridgeProxy = predeploys.DevL1StandardBridgeAddr
-	d.L1CrossDomainMessengerProxy = predeploys.DevL1CrossDomainMessengerAddr
-	d.L1ERC721BridgeProxy = predeploys.DevL1ERC721BridgeAddr
-	d.OptimismPortalProxy = predeploys.DevOptimismPortalAddr
-	d.SystemConfigProxy = predeploys.DevSystemConfigAddr
 	return nil
 }
 
@@ -479,6 +489,64 @@ type L1Deployments struct {
 	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
 }
 
+// GetName will return the name of the contract given an address.
+func (d *L1Deployments) GetName(addr common.Address) string {
+	val := reflect.ValueOf(d)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	for i := 0; i < val.NumField(); i++ {
+		if addr == val.Field(i).Interface().(common.Address) {
+			return val.Type().Field(i).Name
+		}
+	}
+	return ""
+}
+
+// Check will ensure that the L1Deployments are sane
+func (d *L1Deployments) Check() error {
+	val := reflect.ValueOf(d)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	for i := 0; i < val.NumField(); i++ {
+		name := val.Type().Field(i).Name
+		// Skip the non production ready contracts
+		if name == "DisputeGameFactory" || name == "DisputeGameFactoryProxy" {
+			continue
+		}
+		if val.Field(i).Interface().(common.Address) == (common.Address{}) {
+			return fmt.Errorf("%s is not set", name)
+		}
+	}
+	return nil
+}
+
+// ForEach will iterate over each contract in the L1Deployments
+func (d *L1Deployments) ForEach(cb func(name string, addr common.Address)) {
+	val := reflect.ValueOf(d)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	for i := 0; i < val.NumField(); i++ {
+		name := val.Type().Field(i).Name
+		cb(name, val.Field(i).Interface().(common.Address))
+	}
+}
+
+// Copy will copy the L1Deployments struct
+func (d *L1Deployments) Copy() *L1Deployments {
+	cpy := L1Deployments{}
+	data, err := json.Marshal(d)
+	if err != nil {
+		panic(err)
+	}
+	if err := json.Unmarshal(data, &cpy); err != nil {
+		panic(err)
+	}
+	return &cpy
+}
+
 // NewL1Deployments will create a new L1Deployments from a JSON file on disk
 // at the given path.
 func NewL1Deployments(path string) (*L1Deployments, error) {
@@ -493,6 +561,20 @@ func NewL1Deployments(path string) (*L1Deployments, error) {
 	}
 
 	return &deployments, nil
+}
+
+// NewStateDump will read a Dump JSON file from disk
+func NewStateDump(path string) (*gstate.Dump, error) {
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("dump at %s not found: %w", path, err)
+	}
+
+	var dump gstate.Dump
+	if err := json.Unmarshal(file, &dump); err != nil {
+		return nil, fmt.Errorf("cannot unmarshal dump: %w", err)
+	}
+	return &dump, nil
 }
 
 // NewL2ImmutableConfig will create an ImmutableConfig given an instance of a

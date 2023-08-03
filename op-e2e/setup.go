@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/require"
@@ -42,6 +43,7 @@ import (
 	batchermetrics "github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -78,81 +80,27 @@ func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
 func DefaultSystemConfig(t *testing.T) SystemConfig {
 	secrets, err := e2eutils.DefaultMnemonicConfig.Secrets()
 	require.NoError(t, err)
-	addresses := secrets.Addresses()
+	deployConfig := config.DeployConfig.Copy()
+	deployConfig.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
+	require.NoError(t, deployConfig.Check())
+	l1Deployments := config.L1Deployments.Copy()
+	require.NoError(t, l1Deployments.Check())
 
-	deployConfig := &genesis.DeployConfig{
-		L1ChainID:   900,
-		L2ChainID:   901,
-		L2BlockTime: 1,
+	require.Equal(t, secrets.Addresses().Batcher, deployConfig.BatchSenderAddress)
+	require.Equal(t, secrets.Addresses().SequencerP2P, deployConfig.P2PSequencerAddress)
+	require.Equal(t, secrets.Addresses().Proposer, deployConfig.L2OutputOracleProposer)
 
-		FinalizationPeriodSeconds: 60 * 60 * 24,
-		MaxSequencerDrift:         10,
-		SequencerWindowSize:       30,
-		ChannelTimeout:            10,
-		P2PSequencerAddress:       addresses.SequencerP2P,
-		BatchInboxAddress:         common.Address{0: 0x52, 19: 0xff}, // tbd
-		BatchSenderAddress:        addresses.Batcher,
-
-		L2OutputOracleSubmissionInterval: 4,
-		L2OutputOracleStartingTimestamp:  -1,
-		L2OutputOracleProposer:           addresses.Proposer,
-		L2OutputOracleChallenger:         common.Address{}, // tbd
-
-		FinalSystemOwner: addresses.SysCfgOwner,
-
-		L1BlockTime:                 2,
-		L1GenesisBlockNonce:         4660,
-		CliqueSignerAddress:         common.Address{}, // op-e2e used to run Clique, but now uses fake Proof of Stake.
-		L1GenesisBlockTimestamp:     hexutil.Uint64(time.Now().Unix()),
-		L1GenesisBlockGasLimit:      30_000_000,
-		L1GenesisBlockDifficulty:    uint642big(1),
-		L1GenesisBlockMixHash:       common.Hash{},
-		L1GenesisBlockCoinbase:      common.Address{},
-		L1GenesisBlockNumber:        0,
-		L1GenesisBlockGasUsed:       0,
-		L1GenesisBlockParentHash:    common.Hash{},
-		L1GenesisBlockBaseFeePerGas: uint642big(7),
-
-		L2GenesisBlockNonce:         0,
-		L2GenesisBlockGasLimit:      30_000_000,
-		L2GenesisBlockDifficulty:    uint642big(1),
-		L2GenesisBlockMixHash:       common.Hash{},
-		L2GenesisBlockNumber:        0,
-		L2GenesisBlockGasUsed:       0,
-		L2GenesisBlockParentHash:    common.Hash{},
-		L2GenesisBlockBaseFeePerGas: uint642big(7),
-
-		GasPriceOracleOverhead: 2100,
-		GasPriceOracleScalar:   1_000_000,
-
-		SequencerFeeVaultRecipient:               common.Address{19: 1},
-		BaseFeeVaultRecipient:                    common.Address{19: 2},
-		L1FeeVaultRecipient:                      common.Address{19: 3},
-		BaseFeeVaultMinimumWithdrawalAmount:      uint642big(1000_000_000),           // 1 gwei
-		L1FeeVaultMinimumWithdrawalAmount:        uint642big(1000_000_000),           // 1 gwei
-		SequencerFeeVaultMinimumWithdrawalAmount: uint642big(1000_000_000),           // 1 gwei
-		BaseFeeVaultWithdrawalNetwork:            genesis.WithdrawalNetwork("local"), // L2 withdrawal network
-		L1FeeVaultWithdrawalNetwork:              genesis.WithdrawalNetwork("local"), // L2 withdrawal network
-		SequencerFeeVaultWithdrawalNetwork:       genesis.WithdrawalNetwork("local"), // L2 withdrawal network
-
-		DeploymentWaitConfirmations: 1,
-
-		EIP1559Elasticity:  2,
-		EIP1559Denominator: 8,
-
-		FundDevAccounts: true,
-	}
-
-	if err := deployConfig.InitDeveloperDeployedAddresses(); err != nil {
-		panic(err)
+	// Tests depend on premine being filled with secrets addresses
+	premine := make(map[common.Address]*big.Int)
+	for _, addr := range secrets.Addresses().All() {
+		premine[addr] = new(big.Int).Mul(big.NewInt(1000), big.NewInt(params.Ether))
 	}
 
 	return SystemConfig{
-		Secrets: secrets,
-
-		Premine: make(map[common.Address]*big.Int),
-
+		Secrets:                secrets,
+		Premine:                premine,
 		DeployConfig:           deployConfig,
+		L1Deployments:          config.L1Deployments,
 		L1InfoPredeployAddress: predeploys.L1BlockAddr,
 		JWTFilePath:            writeDefaultJWT(t),
 		JWTSecret:              testingJWTSecret,
@@ -169,7 +117,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 					ListenPort:  0,
 					EnableAdmin: true,
 				},
-				L1EpochPollInterval: time.Second * 4,
+				L1EpochPollInterval: time.Second * 2,
 				ConfigPersistence:   &rollupNode.DisabledConfigPersistence{},
 			},
 			"verifier": {
@@ -213,7 +161,8 @@ type SystemConfig struct {
 	Secrets                *e2eutils.Secrets
 	L1InfoPredeployAddress common.Address
 
-	DeployConfig *genesis.DeployConfig
+	DeployConfig  *genesis.DeployConfig
+	L1Deployments *genesis.L1Deployments
 
 	JWTFilePath string
 	JWTSecret   [32]byte
@@ -355,7 +304,11 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		c = sys.TimeTravelClock
 	}
 
-	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig)
+	if err := cfg.DeployConfig.Check(); err != nil {
+		return nil, err
+	}
+
+	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs, config.L1Deployments, true)
 	if err != nil {
 		return nil, err
 	}
@@ -419,12 +372,15 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 			L1ChainID:              cfg.L1ChainIDBig(),
 			L2ChainID:              cfg.L2ChainIDBig(),
 			BatchInboxAddress:      cfg.DeployConfig.BatchInboxAddress,
-			DepositContractAddress: predeploys.DevOptimismPortalAddr,
-			L1SystemConfigAddress:  predeploys.DevSystemConfigAddr,
+			DepositContractAddress: cfg.DeployConfig.OptimismPortalProxy,
+			L1SystemConfigAddress:  cfg.DeployConfig.SystemConfigProxy,
 			RegolithTime:           cfg.DeployConfig.RegolithTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 		}
 	}
 	defaultConfig := makeRollupConfig()
+	if err := defaultConfig.Check(); err != nil {
+		return nil, err
+	}
 	sys.RollupConfig = &defaultConfig
 
 	// Initialize nodes
@@ -620,11 +576,12 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	if sys.RollupNodes["sequencer"] == nil {
 		return sys, nil
 	}
+
 	// L2Output Submitter
 	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
 		L1EthRpc:          sys.Nodes["l1"].WSEndpoint(),
 		RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		L2OOAddress:       predeploys.DevL2OutputOracleAddr.String(),
+		L2OOAddress:       config.L1Deployments.L2OutputOracleProxy.Hex(),
 		PollInterval:      50 * time.Millisecond,
 		TxMgrConfig:       newTxMgrConfig(sys.Nodes["l1"].WSEndpoint(), cfg.Secrets.Proposer),
 		AllowNonFinalized: cfg.NonFinalizedProposals,
@@ -648,7 +605,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		RollupRpc:              sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		MaxPendingTransactions: 0,
 		MaxChannelDuration:     1,
-		MaxL1TxSize:            120_000,
+		MaxL1TxSize:            240_000,
 		CompressorConfig: compressor.CLIConfig{
 			TargetL1TxSizeBytes: cfg.BatcherTargetL1TxSizeBytes,
 			TargetNumFrames:     1,
@@ -760,12 +717,6 @@ func (cfg SystemConfig) L1ChainIDBig() *big.Int {
 
 func (cfg SystemConfig) L2ChainIDBig() *big.Int {
 	return new(big.Int).SetUint64(cfg.DeployConfig.L2ChainID)
-}
-
-func uint642big(in uint64) *hexutil.Big {
-	b := new(big.Int).SetUint64(in)
-	hu := hexutil.Big(*b)
-	return &hu
 }
 
 func hexPriv(in *ecdsa.PrivateKey) string {

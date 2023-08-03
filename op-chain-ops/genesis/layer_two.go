@@ -21,6 +21,7 @@ func BuildL2Genesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Gene
 
 	db := state.NewMemoryStateDB(genspec)
 	if config.FundDevAccounts {
+		log.Info("Funding developer accounts in L2 genesis")
 		FundDevAccounts(db)
 		SetPrecompileBalances(db)
 	}

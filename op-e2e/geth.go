@@ -26,6 +26,11 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 )
 
+var (
+	// errTimeout represents a timeout
+	errTimeout = errors.New("timeout")
+)
+
 func waitForL1OriginOnL2(l1BlockNum uint64, client *ethclient.Client, timeout time.Duration) (*types.Block, error) {
 	timeoutCh := time.After(timeout)
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
@@ -56,7 +61,7 @@ func waitForL1OriginOnL2(l1BlockNum uint64, client *ethclient.Client, timeout ti
 		case err := <-headSub.Err():
 			return nil, fmt.Errorf("error in head subscription: %w", err)
 		case <-timeoutCh:
-			return nil, errors.New("timeout")
+			return nil, errTimeout
 		}
 	}
 }
@@ -77,7 +82,11 @@ func waitForTransaction(hash common.Hash, client *ethclient.Client, timeout time
 
 		select {
 		case <-timeoutCh:
-			return nil, errors.New("timeout")
+			tip, err := client.BlockByNumber(context.Background(), nil)
+			if err != nil {
+				return nil, err
+			}
+			return nil, fmt.Errorf("receipt for transaction %s not found. tip block number is %d: %w", hash.Hex(), tip.NumberU64(), errTimeout)
 		case <-ticker.C:
 		}
 	}
@@ -104,7 +113,7 @@ func waitForBlock(number *big.Int, client *ethclient.Client, timeout time.Durati
 		case err := <-headSub.Err():
 			return nil, fmt.Errorf("error in head subscription: %w", err)
 		case <-timeoutCh:
-			return nil, errors.New("timeout")
+			return nil, errTimeout
 		}
 	}
 }

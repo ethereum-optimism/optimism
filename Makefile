@@ -74,12 +74,15 @@ nuke: clean devnet-clean
 .PHONY: nuke
 
 devnet-up:
+	$(shell ./ops/scripts/newer-file.sh .devnet/allocs-l1.json ./packages/contracts-bedrock)
+	if [ $(.SHELLSTATUS) -ne 0 ]; then \
+		make devnet-allocs; \
+	fi
 	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up
 
-devnet-up-deploy:
-	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --deploy
-.PHONY: devnet-up-deploy
+# alias for devnet-up
+devnet-up-deploy: devnet-up
 
 devnet-down:
 	@(cd ./ops-bedrock && GENESIS_TIMESTAMP=$(shell date +%s) docker-compose stop)
@@ -92,6 +95,9 @@ devnet-clean:
 	docker image ls 'ops-bedrock*' --format='{{.Repository}}' | xargs -r docker rmi
 	docker volume ls --filter name=ops-bedrock --format='{{.Name}}' | xargs -r docker volume rm
 .PHONY: devnet-clean
+
+devnet-allocs:
+	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --allocs
 
 devnet-logs:
 	@(cd ./ops-bedrock && docker-compose logs -f)
@@ -133,3 +139,6 @@ bedrock-markdown-links:
 	docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback \
 		--exclude twitter.com --exclude explorer.optimism.io --exclude linux-mips.org \
 		--exclude-mail /input/README.md "/input/specs/**/*.md"
+
+install-geth:
+	go install github.com/ethereum/go-ethereum/cmd/geth@v1.12.0

@@ -6,6 +6,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -158,6 +159,7 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 // can be properly set. The bytecode returned in the results is suitable to be
 // inserted into the state via state surgery.
 func BuildL2(constructors []deployer.Constructor) (DeploymentResults, error) {
+	log.Info("Creating L2 state")
 	deployments, err := deployer.Deploy(deployer.NewL2Backend(), constructors, l2Deployer)
 	if err != nil {
 		return nil, err

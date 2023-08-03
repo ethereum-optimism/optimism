@@ -19,7 +19,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 )
@@ -31,11 +31,11 @@ type L1Bindings struct {
 	L2OutputOracle *bindings.L2OutputOracle
 }
 
-func NewL1Bindings(t Testing, l1Cl *ethclient.Client, deployments *e2eutils.DeploymentsL1) *L1Bindings {
-	optimismPortal, err := bindings.NewOptimismPortal(deployments.OptimismPortalProxy, l1Cl)
+func NewL1Bindings(t Testing, l1Cl *ethclient.Client) *L1Bindings {
+	optimismPortal, err := bindings.NewOptimismPortal(config.L1Deployments.OptimismPortalProxy, l1Cl)
 	require.NoError(t, err)
 
-	l2OutputOracle, err := bindings.NewL2OutputOracle(deployments.L2OutputOracleProxy, l1Cl)
+	l2OutputOracle, err := bindings.NewL2OutputOracle(config.L1Deployments.L2OutputOracleProxy, l1Cl)
 	require.NoError(t, err)
 
 	return &L1Bindings{
@@ -319,7 +319,7 @@ func (s *CrossLayerUser) ActDeposit(t Testing) {
 		// estimate gas used by deposit
 		gas, err := s.L2.env.EthCl.EstimateGas(t.Ctx(), ethereum.CallMsg{
 			From:       s.L2.address,
-			To:         s.L2.txToAddr,
+			To:         &toAddr,
 			Value:      depositTransferValue, // TODO: estimate gas does not support minting yet
 			Data:       s.L2.txCallData,
 			AccessList: nil,

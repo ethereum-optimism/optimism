@@ -26,11 +26,11 @@ var MessagePassedTopic = crypto.Keccak256Hash([]byte("MessagePassed(uint256,addr
 // WaitForOutputRootPublished waits until there is an output published for an L2 block number larger than the supplied l2BlockNumber
 // This function polls and can block for a very long time if used on mainnet.
 // This returns the block number to use for proof generation.
-func WaitForOutputRootPublished(ctx context.Context, client *ethclient.Client, portalAddr common.Address, l2BlockNumber *big.Int) (uint64, error) {
+func WaitForOutputRootPublished(ctx context.Context, client *ethclient.Client, l2OutputOracleAddr common.Address, l2BlockNumber *big.Int) (uint64, error) {
 	l2BlockNumber = new(big.Int).Set(l2BlockNumber) // Don't clobber caller owned l2BlockNumber
 	opts := &bind.CallOpts{Context: ctx}
 
-	l2OO, err := createL2OOCaller(ctx, client, portalAddr)
+	l2OO, err := bindings.NewL2OutputOracleCaller(l2OutputOracleAddr, client)
 	if err != nil {
 		return 0, err
 	}

@@ -52,6 +52,9 @@ func runCrossLayerUserTest(gt *testing.T, test regolithScheduledTest) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 
+	require.Equal(t, dp.Secrets.Addresses().Batcher, dp.DeployConfig.BatchSenderAddress)
+	require.Equal(t, dp.Secrets.Addresses().Proposer, dp.DeployConfig.L2OutputOracleProposer)
+
 	miner, seqEngine, seq := setupSequencerTest(t, sd, log)
 	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
 		MinL1TxSize: 0,
@@ -77,7 +80,7 @@ func runCrossLayerUserTest(gt *testing.T, test regolithScheduledTest) {
 		EthCl:          l1Cl,
 		Signer:         types.LatestSigner(sd.L1Cfg.Config),
 		AddressCorpora: addresses,
-		Bindings:       NewL1Bindings(t, l1Cl, &sd.DeploymentsL1),
+		Bindings:       NewL1Bindings(t, l1Cl),
 	}
 	l2UserEnv := &BasicUserEnv[*L2Bindings]{
 		EthCl:          l2Cl,
