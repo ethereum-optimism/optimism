@@ -633,7 +633,7 @@ contract Deploy is Deployer {
         console.log("L1CrossDomainMessenger version: %s", version);
 
         require(address(messenger.PORTAL()) == optimismPortalProxy);
-        require(address(messenger.portal()) == address(0));
+        require(address(messenger.portal()) == optimismPortalProxy);
         bytes32 xdmSenderSlot = vm.load(address(messenger), bytes32(uint256(204)));
         require(address(uint160(uint256(xdmSenderSlot))) == Constants.DEFAULT_L2_SENDER);
     }
