@@ -24,9 +24,9 @@ import { ResourceMetering } from "src/L1/ResourceMetering.sol";
 import { Constants } from "src/libraries/Constants.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
+import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
+import { MIPS } from "src/cannon/MIPS.sol";
 import { BlockOracle } from "src/dispute/BlockOracle.sol";
-import { PreimageOracle } from "../src/cannon/PreimageOracle.sol";
-import { MIPS } from "../src/cannon/MIPS.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
 import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Chains } from "./Chains.sol";
@@ -383,30 +383,6 @@ contract Deploy is Deployer {
         return address(mips);
     }
 
-    /// @notice Deploy the PreimageOracle
-    function deployPreimageOracle() broadcast() public returns (address) {
-        if (block.chainid == 900) {
-            PreimageOracle preimageOracle = new PreimageOracle();
-            save("PreimageOracle", address(preimageOracle));
-            console.log("PreimageOracle deployed at %s", address(preimageOracle));
-
-            return address(preimageOracle);
-        }
-        return address(0);
-    }
-
-    /// @notice Deploy Mips
-    function deployMips() broadcast() public returns (address) {
-        if (block.chainid == 900) {
-            MIPS mips = new MIPS();
-            save("Mips", address(mips));
-            console.log("Mips deployed at %s", address(mips));
-
-            return address(mips);
-        }
-        return address(0);
-    }
-
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() broadcast() public returns (address) {
         bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
@@ -744,10 +720,10 @@ contract Deploy is Deployer {
                 _maxGameDepth: cfg.faultGameMaxDepth(),
                 _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
                 _vm: faultVm,
-                _l2oo: L2OutputOracle(mustGetAddress("L2OutputOracleProxy"))
+                _l2oo: L2OutputOracle(mustGetAddress("L2OutputOracleProxy")),
+                _blockOracle: new BlockOracle()
             }));
             console.log("DisputeGameFactory: set `FaultDisputeGame` implementation");
         }
     }
 }
-

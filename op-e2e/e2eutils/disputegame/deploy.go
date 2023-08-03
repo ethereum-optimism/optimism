@@ -54,7 +54,7 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 	alphaVMAddr, err := bind.WaitDeployed(ctx, client, tx)
 	require.NoError(err)
 
-	l2OutputOracle, err := bindings.NewL2OutputOracle(config.L1Deployments.L2OutputOracle, client)
+	l2OutputOracle, err := bindings.NewL2OutputOracle(config.L1Deployments.L2OutputOracleProxy, client)
 	require.NoError(err)
 
 	// Deploy the block hash oracle
