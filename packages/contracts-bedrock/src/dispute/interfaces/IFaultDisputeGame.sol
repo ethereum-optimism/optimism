@@ -26,6 +26,12 @@ interface IFaultDisputeGame is IDisputeGame {
         Hash outputRoot;
     }
 
+    /// @notice A container for two consecutive `OutputProposal`s.
+    struct OutputProposals {
+        OutputProposal starting;
+        OutputProposal disputed;
+    }
+
     /// @notice Emitted when a new claim is added to the DAG by `claimant`
     /// @param parentIndex The index within the `claimData` array of the parent claim
     /// @param claim The claim being added

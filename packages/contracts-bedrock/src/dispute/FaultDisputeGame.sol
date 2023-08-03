@@ -67,7 +67,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @notice The starting and disputed output proposal for the game. Includes information about
     ///         the output indexes in the `L2OutputOracle` and the output roots at the time of
     ///         game creation.
-    OutputProposal[2] public proposals;
+    OutputProposals public proposals;
 
     /// @notice An internal mapping to allow for constant-time lookups of existing claims.
     mapping(ClaimHash => bool) internal claims;
@@ -281,18 +281,21 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         if (_ident == 1) {
             // Load the L1 head hash into the game's local context in the preimage oracle.
             oracle.loadLocalData(_ident, Hash.unwrap(l1Head), 32, _partOffset);
-        } else if (_ident < 4) {
-            // Grab the index of the proposal to load at the given ident.
-            // Ident 2 loads the starting output root, and ident 3 loads the disputed output root.
-            uint256 proposal;
-            assembly {
-                proposal := iszero(mod(_ident, 2))
-            }
+        } else if (_ident == 2) {
             // Load the starting or disputed output root into the game's local context in the
             // preimage oracle.
             oracle.loadLocalData(
                 _ident,
-                Hash.unwrap(proposals[proposal].outputRoot),
+                Hash.unwrap(proposals.starting.outputRoot),
+                32,
+                _partOffset
+            );
+        } else if (_ident == 3) {
+            // Load the starting or disputed output root into the game's local context in the
+            // preimage oracle.
+            oracle.loadLocalData(
+                _ident,
+                Hash.unwrap(proposals.disputed.outputRoot),
                 32,
                 _partOffset
             );
@@ -302,7 +305,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
             // of the passed word.
             oracle.loadLocalData(
                 _ident,
-                bytes32(uint256(proposals[0].l2BlockNumber) << 192),
+                bytes32(uint256(proposals.starting.l2BlockNumber) << 192),
                 8,
                 _partOffset
             );
@@ -496,15 +499,17 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // for loading local data into the preimage oracle as well as to authenticate the game's
         // resolution. If the disputed output has changed in the oracle, the game cannot be
         // resolved.
-        proposals[0] = OutputProposal({
-            index: uint128(proposalIdx - 1),
-            l2BlockNumber: starting.l2BlockNumber,
-            outputRoot: Hash.wrap(starting.outputRoot)
-        });
-        proposals[1] = OutputProposal({
-            index: uint128(proposalIdx),
-            l2BlockNumber: disputed.l2BlockNumber,
-            outputRoot: Hash.wrap(disputed.outputRoot)
+        proposals = OutputProposals({
+            starting: OutputProposal({
+                index: uint128(proposalIdx - 1),
+                l2BlockNumber: starting.l2BlockNumber,
+                outputRoot: Hash.wrap(starting.outputRoot)
+            }),
+            disputed: OutputProposal({
+                index: uint128(proposalIdx),
+                l2BlockNumber: disputed.l2BlockNumber,
+                outputRoot: Hash.wrap(disputed.outputRoot)
+            })
         });
 
         // Persist the L1 head hash of the L1 block number provided.
