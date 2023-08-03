@@ -35,10 +35,15 @@ var (
 		EnvVars: prefixEnvVars("L2_ENGINE_RPC"),
 	}
 	MEVBoostAddr = &cli.StringFlag{
-		Name:    "mev",
+		Name:    "mev.api",
 		Usage:   "Address of MEV-Boost REST API endpoint to fetch external builders blocks from",
 		Value:   "http://127.0.0.1:9062",
 		EnvVars: prefixEnvVars("MEV_BOOST_API"),
+	}
+	MEVBoostBLSPubKey = &cli.StringFlag{
+		Name:    "mev.bls.pubkey",
+		Usage:   "BLS public key for MEV-Boost API",
+		EnvVars: prefixEnvVars("MEV_BOOST_BLS_PUBKEY"),
 	}
 	RollupConfig = &cli.StringFlag{
 		Name:    "rollup.config",
@@ -226,6 +231,7 @@ var requiredFlags = []cli.Flag{
 	L1NodeAddr,
 	L2EngineAddr,
 	MEVBoostAddr,
+	MEVBoostBLSPubKey,
 }
 
 var optionalFlags = []cli.Flag{

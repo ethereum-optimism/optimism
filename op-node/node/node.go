@@ -215,7 +215,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 }
 
 func (n *OpNode) initMev(ctx context.Context, cfg *Config) error {
-	mevSource, err := cfg.Mev.Setup(ctx)
+	mevSource, err := cfg.Mev.Setup(ctx, n.log)
 	if err != nil {
 		return fmt.Errorf("failed to setup MEV client: %w", err)
 	}

@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
@@ -211,18 +212,27 @@ func (cfg *PreparedL1Endpoint) Check() error {
 
 type MevEndpointConfig struct {
 	MevEndpointAddr string // Address of MEV endpoint to fetch blocks from
+	MevBlsPubKey    string // Address of MEV endpoint to fetch blocks from
 }
 
 func (mec *MevEndpointConfig) Check() error {
 	if mec.MevEndpointAddr == "" {
 		return errors.New("mev endpoint address cannot be empty")
 	}
+	if len(mec.MevBlsPubKey) != 96 {
+		return errors.New("mev bls public key must be 96 characters long")
+	}
+	_, err := hex.DecodeString(mec.MevBlsPubKey)
+	if err != nil {
+		return fmt.Errorf("mev bls public key must be hex encoded, %w", err)
+	}
+
 	return nil
 }
 
-func (mec *MevEndpointConfig) Setup(context.Context) (*sources.MevClient, error) {
+func (mec *MevEndpointConfig) Setup(_ctx context.Context, log log.Logger) (*sources.MevClient, error) {
 	if err := mec.Check(); err != nil {
 		return nil, err
 	}
-	return sources.NewMevClient(mec.MevEndpointAddr)
+	return sources.NewMevClient(log, mec.MevEndpointAddr, mec.MevBlsPubKey)
 }

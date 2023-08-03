@@ -38,11 +38,11 @@ type Engine interface {
 	SystemConfigL2Fetcher
 
 	// HACK: to quicker get access to MevEngine, otherwise it need to be pushed the same way as engine is.
-	GetMevPayload(ctx context.Context) (*eth.ExecutionPayload, error)
+	GetMevPayload(ctx context.Context, parent common.Hash) (*eth.ExecutionPayload, error)
 }
 
 type MevEngine interface {
-	GetMevPayload(ctx context.Context) (*eth.ExecutionPayload, error)
+	GetMevPayload(context.Context, common.Hash) (*eth.ExecutionPayload, error)
 }
 
 // EngineState provides a read-only interface of the forkchoice state properties of the L2 Engine.

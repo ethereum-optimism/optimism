@@ -118,7 +118,7 @@ func StartPayload(ctx context.Context, eng Engine, fc eth.ForkchoiceState, attrs
 // If updateSafe is true, then the payload will also be recognized as safe-head at the same time.
 // The severity of the error is distinguished to determine whether the payload was valid and can become canonical.
 func ConfirmPayload(ctx context.Context, log log.Logger, eng Engine, fc eth.ForkchoiceState, id eth.PayloadID, updateSafe bool) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
-	payload, err := eng.GetMevPayload(ctx)
+	payload, err := eng.GetMevPayload(ctx, fc.HeadBlockHash)
 	//payload, err := eng.GetPayload(ctx, id)
 	if err != nil {
 		// even if it is an input-error (unknown payload ID), it is temporary, since we will re-attempt the full payload building, not just the retrieval of the payload.
