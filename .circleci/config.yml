@@ -972,6 +972,9 @@ jobs:
           command: |
             pnpm install && pnpm build
       - run:
+          name: generate cannon prestate
+          command: make cannon-prestate
+      - run:
           name: Bring up the stack
           command: make devnet-up
       - run:
