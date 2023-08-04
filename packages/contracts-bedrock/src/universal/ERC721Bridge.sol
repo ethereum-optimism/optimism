@@ -10,10 +10,11 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 abstract contract ERC721Bridge is Initializable {
     /// @notice Messenger contract on this domain.
     /// @custom:network-specific
-    CrossDomainMessenger internal _MESSENGER;
+    CrossDomainMessenger public messenger;
 
     /// @notice Address of the bridge on the other network.
-    address internal immutable _OTHER_BRIDGE;
+    /// @custom:legacy
+    address public immutable OTHER_BRIDGE;
 
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
     uint256[48] private __gap;
@@ -53,7 +54,7 @@ abstract contract ERC721Bridge is Initializable {
     /// @notice Ensures that the caller is a cross-chain message from the other bridge.
     modifier onlyOtherBridge() {
         require(
-            msg.sender == address(_MESSENGER) && _MESSENGER.xDomainMessageSender() == _OTHER_BRIDGE,
+            msg.sender == address(messenger) && messenger.xDomainMessageSender() == OTHER_BRIDGE,
             "ERC721Bridge: function can only be called from the other bridge"
         );
         _;
@@ -63,38 +64,24 @@ abstract contract ERC721Bridge is Initializable {
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
     constructor(address _otherBridge) {
         require(_otherBridge != address(0), "ERC721Bridge: other bridge cannot be address(0)");
-        _OTHER_BRIDGE = _otherBridge;
+        OTHER_BRIDGE = _otherBridge;
     }
 
     // @notice Initializes the contract.
     /// @param _messenger   Address of the CrossDomainMessenger on this network.
     function __ERC721Bridge_init(CrossDomainMessenger _messenger) internal onlyInitializing {
-        _MESSENGER = _messenger;
+        messenger = _messenger;
     }
 
-    /// @notice Getter for messenger contract.
-    /// @return Messenger contract on this domain.
-    function messenger() external view returns (CrossDomainMessenger) {
-        return _MESSENGER;
-    }
-
-    /// @custom:legacy
     /// @notice Getter for messenger contract.
     function MESSENGER() external view returns (CrossDomainMessenger) {
-        return _MESSENGER;
+        return messenger;
     }
 
     /// @notice Getter for other bridge address.
     /// @return Address of the bridge on the other network.
     function otherBridge() external view returns (address) {
-        return _OTHER_BRIDGE;
-    }
-
-    /// @custom:legacy
-    /// @notice Getter for other bridge address.
-    /// @return Address of the bridge on the other network.
-    function OTHER_BRIDGE() external view returns (address) {
-        return _OTHER_BRIDGE;
+        return OTHER_BRIDGE;
     }
 
     /// @notice Initiates a bridge of an NFT to the caller's account on the other chain. Note that
