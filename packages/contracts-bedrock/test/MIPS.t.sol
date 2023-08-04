@@ -17,7 +17,7 @@ contract MIPS_Test is Test {
         vm.label(address(mips), "MIPS");
     }
 
-    function test_step_abi() external {
+    function test_step_abi_succeeds() external {
         uint32[32] memory registers;
         registers[16] = 0xbfff0000;
         MIPS.State memory state = MIPS.State({
