@@ -29,6 +29,7 @@ type Executor struct {
 	logger           log.Logger
 	l1               string
 	l2               string
+	inputs           localGameInputs
 	cannon           string
 	server           string
 	absolutePreState string
@@ -38,11 +39,12 @@ type Executor struct {
 	cmdExecutor      cmdExecutor
 }
 
-func NewExecutor(logger log.Logger, cfg *config.Config) *Executor {
+func NewExecutor(logger log.Logger, cfg *config.Config, inputs localGameInputs) *Executor {
 	return &Executor{
 		logger:           logger,
 		l1:               cfg.L1EthRpc,
 		l2:               cfg.CannonL2,
+		inputs:           inputs,
 		cannon:           cfg.CannonBin,
 		server:           cfg.CannonServer,
 		absolutePreState: cfg.CannonAbsolutePreState,
@@ -71,7 +73,12 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 		"--l1", e.l1,
 		"--l2", e.l2,
 		"--datadir", filepath.Join(e.dataDir, preimagesDir),
-		// TODO(CLI-4240): Pass local game inputs (l1.head, l2.head, l2.claim etc)
+		"--l1.head", e.inputs.l1Head.Hex(),
+		"--l2.head", e.inputs.l2Head.Hex(),
+		"--l2.outputroot", e.inputs.l2OutputRoot.Hex(),
+		"--l2.claim", e.inputs.l2Claim.Hex(),
+		"--l2.blocknumber", e.inputs.l2BlockNumber.Text(10),
+		"--l2.chainid", e.inputs.l2ChainId.Text(10),
 	}
 
 	e.logger.Info("Generating trace", "proof", i, "cmd", e.cannon, "args", args)

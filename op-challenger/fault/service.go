@@ -36,11 +36,19 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 		return nil, fmt.Errorf("failed to create the transaction manager: %w", err)
 	}
 
+	client, err := ethclient.Dial(cfg.L1EthRpc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to dial L1: %w", err)
+	}
+
 	var trace types.TraceProvider
 	var updater types.OracleUpdater
 	switch cfg.TraceType {
 	case config.TraceTypeCannon:
-		trace = cannon.NewTraceProvider(logger, cfg)
+		trace, err = cannon.NewTraceProvider(ctx, logger, cfg, client)
+		if err != nil {
+			return nil, fmt.Errorf("create cannon trace provider: %w", err)
+		}
 		updater, err = cannon.NewOracleUpdater(logger, txMgr, cfg.GameAddress, cfg.PreimageOracleAddress)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create the cannon updater: %w", err)
@@ -52,15 +60,11 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 		return nil, fmt.Errorf("unsupported trace type: %v", cfg.TraceType)
 	}
 
-	return newTypedService(ctx, logger, cfg, trace, updater, txMgr)
+	return newTypedService(ctx, logger, cfg, client, trace, updater, txMgr)
 }
 
 // newTypedService creates a new Service from a provided trace provider.
-func newTypedService(ctx context.Context, logger log.Logger, cfg *config.Config, provider types.TraceProvider, uploader types.OracleUpdater, txMgr txmgr.TxManager) (*service, error) {
-	client, err := ethclient.Dial(cfg.L1EthRpc)
-	if err != nil {
-		return nil, fmt.Errorf("failed to dial L1: %w", err)
-	}
+func newTypedService(ctx context.Context, logger log.Logger, cfg *config.Config, client *ethclient.Client, provider types.TraceProvider, uploader types.OracleUpdater, txMgr txmgr.TxManager) (*service, error) {
 
 	contract, err := bindings.NewFaultDisputeGameCaller(cfg.GameAddress, client)
 	if err != nil {
