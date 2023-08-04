@@ -46,6 +46,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     ///         than the `BLOCKHASH` opcode allows as well as their estimated timestamps.
     BlockOracle public immutable BLOCK_ORACLE;
 
+    /// @notice The game type ID
+    GameType internal immutable GAME_TYPE;
+
     /// @notice The root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
@@ -72,6 +75,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @notice An internal mapping to allow for constant-time lookups of existing claims.
     mapping(ClaimHash => bool) internal claims;
 
+    /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
     /// @param _maxGameDepth The maximum depth of bisection.
     /// @param _gameDuration The duration of the game.
@@ -83,6 +87,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     ///                     timestamps.
     /// @custom:semver 0.0.6
     constructor(
+        GameType _gameType,
         Claim _absolutePrestate,
         uint256 _maxGameDepth,
         Duration _gameDuration,
@@ -90,6 +95,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         L2OutputOracle _l2oo,
         BlockOracle _blockOracle
     ) Semver(0, 0, 6) {
+        GAME_TYPE = _gameType;
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
         GAME_DURATION = _gameDuration;
@@ -332,8 +338,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     ////////////////////////////////////////////////////////////////
 
     /// @inheritdoc IDisputeGame
-    function gameType() public pure override returns (GameType gameType_) {
-        gameType_ = GameTypes.FAULT;
+    function gameType() public view override returns (GameType gameType_) {
+        gameType_ = GAME_TYPE;
     }
 
     /// @inheritdoc IDisputeGame
@@ -425,7 +431,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @inheritdoc IDisputeGame
     function gameData()
         external
-        pure
+        view
         returns (
             GameType gameType_,
             Claim rootClaim_,

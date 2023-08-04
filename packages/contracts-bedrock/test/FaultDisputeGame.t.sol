@@ -60,6 +60,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
 
         // Deploy an implementation of the fault game
         gameImpl = new FaultDisputeGame(
+            GAME_TYPE,
             absolutePrestate,
             4,
             Duration.wrap(7 days),
