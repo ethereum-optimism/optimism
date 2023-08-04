@@ -478,8 +478,8 @@ contract MIPS {
     function proofOffset(uint8 _proofIndex) internal pure returns (uint256 offset_) {
         unchecked {
             // A proof of 32 bit memory, with 32-byte leaf values, is (32-5)=27 bytes32 entries.
-            // And the leaf value itself needs to be encoded as well. And proof.offset == 358
-            offset_ = 358 + (uint256(_proofIndex) * (28 * 32));
+            // And the leaf value itself needs to be encoded as well. And proof.offset == 388
+            offset_ = 388 + (uint256(_proofIndex) * (28 * 32));
             uint256 s = 0;
             assembly { s := calldatasize() }
             require(s >= (offset_ + 28 * 32), "check that there is enough calldata");
@@ -614,7 +614,7 @@ contract MIPS {
                 if iszero(eq(stateData.offset, 100)) { // 32*3+4=100 expected state data offset
                     revert(0,0)
                 }
-                if iszero(eq(proof.offset, 358)) { // 100+32+226=358 expected proof offset
+                if iszero(eq(proof.offset, 388)) { // 100+32+256=388 expected proof offset
                     revert(0,0)
                 }
 
