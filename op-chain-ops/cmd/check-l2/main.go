@@ -607,11 +607,13 @@ func checkL2StandardBridge(addr common.Address, client *ethclient.Client) error 
 	if err != nil {
 		return err
 	}
+
 	initialized, err := getInitialized("L2StandardBridge", addr, client)
 	if err != nil {
 		return err
 	}
 	log.Info("L2StandardBridge", "_initialized", initialized)
+
 	log.Info("L2StandardBridge version", "version", version)
 	return nil
 }
