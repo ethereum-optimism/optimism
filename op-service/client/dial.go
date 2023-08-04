@@ -16,9 +16,9 @@ import (
 )
 
 // DefaultDialTimeout is a default timeout for dialing a client.
-const DefaultDialTimeout = 30 * time.Second
+const DefaultDialTimeout = 1 * time.Minute
 const defaultRetryCount = 30
-const defaultRetryTime = 1_500 * time.Millisecond
+const defaultRetryTime = 2 * time.Second
 
 // DialEthClientWithTimeout attempts to dial the L1 provider using the provided
 // URL. If the dial doesn't complete within defaultDialTimeout seconds, this
@@ -70,7 +70,7 @@ func IsURLAvailable(address string) bool {
 	if err != nil {
 		return false
 	}
-	conn, err := net.DialTimeout("tcp", u.Host, 1*time.Second)
+	conn, err := net.DialTimeout("tcp", u.Host, 5*time.Second)
 	if err != nil {
 		return false
 	}
