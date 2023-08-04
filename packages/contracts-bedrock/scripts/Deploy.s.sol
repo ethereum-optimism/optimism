@@ -721,19 +721,37 @@ contract Deploy is Deployer {
 
     /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
     function setFaultGameImplementation() onlyDevnet broadcast() public {
+        // Create the absolute prestate dump
+        string memory filePath = string.concat(vm.projectRoot(), "/../../op-program/bin/prestate-proof.json");
+        bytes32 mipsAbsolutePrestate;
+        string[] memory commands = new string[](3);
+        commands[0] = "bash";
+        commands[1] = "-c";
+        commands[2] = string.concat("[[ -f ", filePath, " ]] && echo \"present\"");
+        if (vm.ffi(commands).length == 0) {
+            revert("Cannon prestate dump not found, generate it with `make cannon-prestate` in the monorepo root.");
+        }
+        commands[2] = string.concat("cat ", filePath, " | jq -r .pre");
+        mipsAbsolutePrestate = abi.decode(vm.ffi(commands), (bytes32));
+        console.log("Absolute prestate: %s", vm.toString(mipsAbsolutePrestate));
+
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
-        Claim absolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
-        IBigStepper faultVm = IBigStepper(new AlphabetVM(absolutePrestate));
-        if (address(factory.gameImpls(GameTypes.FAULT)) == address(0)) {
-            factory.setImplementation(GameTypes.FAULT, new FaultDisputeGame({
-                _absolutePrestate: absolutePrestate,
-                _maxGameDepth: cfg.faultGameMaxDepth(),
-                _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
-                _vm: faultVm,
-                _l2oo: L2OutputOracle(mustGetAddress("L2OutputOracleProxy")),
-                _blockOracle: BlockOracle(mustGetAddress("BlockOracle"))
-            }));
-            console.log("DisputeGameFactory: set `FaultDisputeGame` implementation");
+        for (uint8 i; i < 2; i++) {
+            Claim absolutePrestate = Claim.wrap(i == 0 ? bytes32(cfg.faultGameAbsolutePrestate()) : mipsAbsolutePrestate);
+            IBigStepper faultVm = IBigStepper(i == 0 ? address(new AlphabetVM(absolutePrestate)) : mustGetAddress("Mips"));
+            GameType gameType = GameType.wrap(i);
+            if (address(factory.gameImpls(gameType)) == address(0)) {
+                factory.setImplementation(gameType, new FaultDisputeGame({
+                    _gameType: gameType,
+                    _absolutePrestate: absolutePrestate,
+                    _maxGameDepth: i == 0 ? 4 : cfg.faultGameMaxDepth(), // The max depth of the alphabet game is always 4
+                    _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
+                    _vm: faultVm,
+                    _l2oo: L2OutputOracle(mustGetAddress("L2OutputOracleProxy")),
+                    _blockOracle: BlockOracle(mustGetAddress("BlockOracle"))
+                }));
+                console.log("DisputeGameFactoryProxy: set `FaultDisputeGame` implementation (Backend: %s | GameType: %s)", i == 0 ? "AlphabetVM" : "MIPS", vm.toString(i));
+            }
         }
     }
 }

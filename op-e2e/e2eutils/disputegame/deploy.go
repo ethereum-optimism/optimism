@@ -69,6 +69,7 @@ func deployDisputeGameContracts(require *require.Assertions, ctx context.Context
 	_, tx, _, err = bindings.DeployFaultDisputeGame(
 		opts,
 		client,
+		uint8(0),
 		alphabetVMAbsolutePrestateClaim,
 		big.NewInt(alphabetGameDepth),
 		gameDuration,
