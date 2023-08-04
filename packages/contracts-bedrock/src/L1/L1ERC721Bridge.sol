@@ -19,21 +19,14 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
 
     /// @custom:semver 1.3.0
     /// @notice Constructs the contract.
-    constructor()
-        Semver(1, 3, 0)
-        ERC721Bridge(Predeploys.L2_ERC721_BRIDGE)
-    {
-        initialize({
-            _messenger: CrossDomainMessenger(address(0))
-        });
+    constructor() Semver(1, 3, 0) ERC721Bridge(Predeploys.L2_ERC721_BRIDGE) {
+        initialize({ _messenger: CrossDomainMessenger(address(0)) });
     }
 
     /// @notice Initializes the contract.
     /// @param _messenger   Address of the CrossDomainMessenger on this network.
-    function initialize(CrossDomainMessenger _messenger) public reinitializer(1) {
-        __ERC721Bridge_init({
-            _messenger: _messenger
-        });
+    function initialize(CrossDomainMessenger _messenger) public reinitializer(2) {
+        __ERC721Bridge_init({ _messenger: _messenger });
     }
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
