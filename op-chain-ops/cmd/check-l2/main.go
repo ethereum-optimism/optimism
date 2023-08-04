@@ -810,23 +810,6 @@ func getEIP1967ImplementationAddress(client *ethclient.Client, addr common.Addre
 	return impl, nil
 }
 
-// checkPredeploy ensures that the predeploy at index i has the correct proxy admin set
-func checkPredeploy(client *ethclient.Client, i uint64) error {
-	bigAddr := new(big.Int).Or(genesis.BigL2PredeployNamespace, new(big.Int).SetUint64(i))
-	addr := common.BigToAddress(bigAddr)
-	if !predeploys.IsProxied(addr) {
-		return nil
-	}
-	admin, err := getEIP1967AdminAddress(client, addr)
-	if err != nil {
-		return err
-	}
-	if admin != predeploys.ProxyAdminAddr {
-		return fmt.Errorf("%s does not have correct proxy admin set", addr)
-	}
-	return nil
-}
-
 // getInitialized will get the initialized value in storage of a contract.
 // This is an incrementing number that starts at 1 and increments each time that
 // the contract is upgraded.
