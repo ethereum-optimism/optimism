@@ -18,11 +18,11 @@ import { Semver } from "../universal/Semver.sol";
 ///         wait for the one-week challenge period to elapse before their Optimism-native NFT
 ///         can be refunded on L2.
 contract L2ERC721Bridge is ERC721Bridge, Semver {
-    /// @custom:semver 1.2.0
+    /// @custom:semver 1.3.0
     /// @notice Constructs the L2ERC721Bridge contract.
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
     constructor(address _otherBridge)
-        Semver(1, 2, 1)
+        Semver(1, 3, 0)
         ERC721Bridge(_otherBridge)
     {
         initialize({
@@ -32,8 +32,10 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
 
     /// @notice Initializes the contract.
     /// @param _messenger   Address of the CrossDomainMessenger on this network.
-    function initialize(CrossDomainMessenger _messenger) public reinitializer(1) {
-        __ERC721Bridge_init(_messenger);
+    function initialize(CrossDomainMessenger _messenger) public reinitializer(2) {
+        __ERC721Bridge_init({
+            _messenger: _messenger
+        });
     }
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
@@ -119,7 +121,7 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
 
         // Send message to L1 bridge
         // slither-disable-next-line reentrancy-events
-        _MESSENGER.sendMessage(_OTHER_BRIDGE, message, _minGasLimit);
+        messenger.sendMessage(OTHER_BRIDGE, message, _minGasLimit);
 
         // slither-disable-next-line reentrancy-events
         emit ERC721BridgeInitiated(_localToken, remoteToken, _from, _to, _tokenId, _extraData);
