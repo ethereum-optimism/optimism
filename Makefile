@@ -56,6 +56,15 @@ op-program:
 	make -C ./op-program op-program
 .PHONY: op-program
 
+cannon:
+	make -C ./cannon cannon
+.PHONY: cannon
+
+cannon-prestate: op-program cannon
+	./cannon/bin/cannon load-elf --path op-program/bin/op-program-client.elf --out op-program/bin/prestate.json --meta op-program/bin/meta.json
+	./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate.json --meta op-program/bin/meta.json --proof-fmt 'op-program/bin/%d.json' --output /dev/null
+	mv op-program/bin/0.json op-program/bin/prestate-proof.json
+
 mod-tidy:
 	# Below GOPRIVATE line allows mod-tidy to be run immediately after
 	# releasing new versions. This bypasses the Go modules proxy, which
