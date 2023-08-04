@@ -336,9 +336,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
         // Grab the OutputProposal from the L2OutputOracle, will revert if the output that
         // corresponds to the given index has not been proposed yet.
-        Types.OutputProposal memory proposal = l2Oracle.getL2Output(
-            provenWithdrawal.l2OutputIndex
-        );
+        Types.OutputProposal memory proposal = l2Oracle.getL2Output(provenWithdrawal.l2OutputIndex);
 
         // Check that the output root that was used to prove the withdrawal is the same as the
         // current output root for the given output index. An output root may change if it is
