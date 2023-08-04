@@ -744,7 +744,7 @@ contract Deploy is Deployer {
         string[] memory commands = new string[](3);
         commands[0] = "bash";
         commands[1] = "-c";
-        commands[2] = "[[ -f ../../op-program/bin/prestate-proof.json ]] && echo \"present\"";
+        commands[2] = string.concat("[[ -f ", filePath, " ]] && echo \"present\"");
         if (vm.ffi(commands).length == 0) {
             revert("Cannon prestate dump not found, generate it with `make cannon-prestate` in the monorepo root.");
         }
