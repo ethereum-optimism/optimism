@@ -262,17 +262,21 @@ contract Deploy is Deployer {
     /// @notice Deploy the DisputeGameFactoryProxy
     function deployDisputeGameFactoryProxy() onlyDevnet broadcast() public returns (address) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
-        Proxy proxy = new Proxy({
-            _admin: proxyAdmin
-        });
 
-        address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
-        require(admin == proxyAdmin);
+        string[2] memory contractNames = ["DisputeGameFactoryProxy", "MIPSDisputeGameFactoryProxy"];
+        for (uint256 i; i < contractNames.length; i++) {
+            Proxy proxy = new Proxy({
+                _admin: proxyAdmin
+            });
 
-        save("DisputeGameFactoryProxy", address(proxy));
-        console.log("DisputeGameFactoryProxy deployed at %s", address(proxy));
+            address admin = address(uint160(uint256(vm.load(address(proxy), OWNER_KEY))));
+            require(admin == proxyAdmin);
 
-        return address(proxy);
+            save(contractNames[i], address(proxy));
+            console.log("%s deployed at %s", contractNames[i], address(proxy));
+        }
+
+        return mustGetAddress(contractNames[0]);
     }
 
     /// @notice Deploy the L1CrossDomainMessenger
@@ -362,6 +366,10 @@ contract Deploy is Deployer {
         DisputeGameFactory factory = new DisputeGameFactory();
         save("DisputeGameFactory", address(factory));
         console.log("DisputeGameFactory deployed at %s", address(factory));
+
+        DisputeGameFactory mipsFactory = new DisputeGameFactory();
+        save("MIPSDisputeGameFactory", address(mipsFactory));
+        console.log("MIPSDisputeGameFactory deployed at %s", address(mipsFactory));
 
         return address(factory);
     }
@@ -479,20 +487,26 @@ contract Deploy is Deployer {
     /// @notice Initialize the DisputeGameFactory
     function initializeDisputeGameFactory() onlyDevnet broadcast() public {
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
-        address disputeGameFactoryProxy = mustGetAddress("DisputeGameFactoryProxy");
-        address disputeGameFactory = mustGetAddress("DisputeGameFactory");
+        string[2][2] memory contractNames = [
+            ["DisputeGameFactoryProxy", "DisputeGameFactory"],
+            ["MIPSDisputeGameFactoryProxy", "MIPSDisputeGameFactory"]
+        ];
+        for (uint256 i; i < contractNames.length; i++) {
+            address disputeGameFactoryProxy = mustGetAddress(contractNames[i][0]);
+            address disputeGameFactory = mustGetAddress(contractNames[i][1]);
 
-        proxyAdmin.upgradeAndCall({
-            _proxy: payable(disputeGameFactoryProxy),
-            _implementation: disputeGameFactory,
-            _data: abi.encodeCall(
-                DisputeGameFactory.initialize,
-                (msg.sender)
-            )
-        });
+            proxyAdmin.upgradeAndCall({
+                _proxy: payable(disputeGameFactoryProxy),
+                _implementation: disputeGameFactory,
+                _data: abi.encodeCall(
+                    DisputeGameFactory.initialize,
+                    (msg.sender)
+                )
+            });
 
-        string memory version = DisputeGameFactory(disputeGameFactoryProxy).version();
-        console.log("DisputeGameFactory version: %s", version);
+            string memory version = DisputeGameFactory(disputeGameFactoryProxy).version();
+            console.log("%s version: %s", contractNames[i][1], version);
+        }
     }
 
     /// @notice Initialize the SystemConfig
@@ -710,30 +724,37 @@ contract Deploy is Deployer {
 
     /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
     function transferDisputeGameFactoryOwnership() onlyDevnet broadcast() public {
-        DisputeGameFactory disputeGameFactory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
-        address owner = disputeGameFactory.owner();
-        address finalSystemOwner = cfg.finalSystemOwner();
-        if (owner != finalSystemOwner) {
-            disputeGameFactory.transferOwnership(finalSystemOwner);
-            console.log("DisputeGameFactory ownership transferred to: %s", finalSystemOwner);
+        string[2] memory contractNames = ["DisputeGameFactoryProxy", "MIPSDisputeGameFactoryProxy"];
+        for (uint256 i; i < contractNames.length; i++) {
+            DisputeGameFactory disputeGameFactory = DisputeGameFactory(mustGetAddress(contractNames[i]));
+            address owner = disputeGameFactory.owner();
+            address finalSystemOwner = cfg.finalSystemOwner();
+            if (owner != finalSystemOwner) {
+                disputeGameFactory.transferOwnership(finalSystemOwner);
+                console.log("%s ownership transferred to: %s", contractNames[i], finalSystemOwner);
+            }
         }
     }
 
     /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
     function setFaultGameImplementation() onlyDevnet broadcast() public {
-        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
-        Claim absolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
-        IBigStepper faultVm = IBigStepper(new AlphabetVM(absolutePrestate));
-        if (address(factory.gameImpls(GameTypes.FAULT)) == address(0)) {
-            factory.setImplementation(GameTypes.FAULT, new FaultDisputeGame({
-                _absolutePrestate: absolutePrestate,
-                _maxGameDepth: cfg.faultGameMaxDepth(),
-                _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
-                _vm: faultVm,
-                _l2oo: L2OutputOracle(mustGetAddress("L2OutputOracleProxy")),
-                _blockOracle: BlockOracle(mustGetAddress("BlockOracle"))
-            }));
-            console.log("DisputeGameFactory: set `FaultDisputeGame` implementation");
+        string[2] memory contractNames = ["DisputeGameFactoryProxy", "MIPSDisputeGameFactoryProxy"];
+
+        for (uint256 i; i < contractNames.length; i++) {
+            DisputeGameFactory factory = DisputeGameFactory(mustGetAddress(contractNames[i]));
+            Claim absolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+            IBigStepper faultVm = IBigStepper(i == 0 ? address(new AlphabetVM(absolutePrestate)) : mustGetAddress("Mips"));
+            if (address(factory.gameImpls(GameTypes.FAULT)) == address(0)) {
+                factory.setImplementation(GameTypes.FAULT, new FaultDisputeGame({
+                    _absolutePrestate: absolutePrestate,
+                    _maxGameDepth: i == 0 ? 4 : cfg.faultGameMaxDepth(), // The max depth of the alphabet game is always 4
+                    _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
+                    _vm: faultVm,
+                    _l2oo: L2OutputOracle(mustGetAddress("L2OutputOracleProxy")),
+                    _blockOracle: BlockOracle(mustGetAddress("BlockOracle"))
+                }));
+                console.log("%s: set `FaultDisputeGame` implementation", contractNames[i]);
+            }
         }
     }
 }
