@@ -51,7 +51,7 @@
     "mocha": "^10.0.0",
     "vitest": "^0.28.3",
     "zod": "^3.11.6",
-    "viem": "^0.3.30",
+    "viem": "^1.5.3",
     "isomorphic-fetch": "^3.0.0"
   },
   "dependencies": {
