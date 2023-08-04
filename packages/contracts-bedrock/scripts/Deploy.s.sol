@@ -738,11 +738,25 @@ contract Deploy is Deployer {
 
     /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
     function setFaultGameImplementation() onlyDevnet broadcast() public {
+        // Create the absolute prestate dump
+        string memory filePath = string.concat(vm.projectRoot(), "/../../op-program/bin/prestate-proof.json");
+        bytes32 mipsAbsolutePrestate;
+        string[] memory commands = new string[](3);
+        commands[0] = "bash";
+        commands[1] = "-c";
+        commands[2] = "[[ -f ../../op-program/bin/prestate-proof.json ]] && echo \"present\"";
+        if (vm.ffi(commands).length == 0) {
+            revert("Cannon prestate dump not found, generate it with `make cannon-prestate` in the monorepo root.");
+        }
+        commands[2] = string.concat("cat ", filePath, " | jq -r .pre");
+        mipsAbsolutePrestate = abi.decode(vm.ffi(commands), (bytes32));
+        console.log("Absolute prestate: %s", vm.toString(mipsAbsolutePrestate));
+
         string[2] memory contractNames = ["DisputeGameFactoryProxy", "MIPSDisputeGameFactoryProxy"];
 
         for (uint256 i; i < contractNames.length; i++) {
             DisputeGameFactory factory = DisputeGameFactory(mustGetAddress(contractNames[i]));
-            Claim absolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+            Claim absolutePrestate = Claim.wrap(i == 0 ? bytes32(cfg.faultGameAbsolutePrestate()) : mipsAbsolutePrestate);
             IBigStepper faultVm = IBigStepper(i == 0 ? address(new AlphabetVM(absolutePrestate)) : mustGetAddress("Mips"));
             if (address(factory.gameImpls(GameTypes.FAULT)) == address(0)) {
                 factory.setImplementation(GameTypes.FAULT, new FaultDisputeGame({
