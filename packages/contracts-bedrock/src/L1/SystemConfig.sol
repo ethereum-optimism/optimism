@@ -184,7 +184,12 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         return addr;
     }
 
-    /// @notice
+    /// @notice Stores an address in an arbitrary storage slot, `_slot`.
+    /// @param _addr The address to store
+    /// @param _slot The storage slot to store the address in.
+    /// @dev WARNING! This function must be used cautiously, as it allows for overwriting values
+    ///      in arbitrary storage slots. Solc will add checks that the data passed as `_addr`
+    ///      is 20 bytes or less. 
     function _setAddress(address _addr, bytes32 _slot) internal {
         bytes32 slot = _slot;
         assembly {
