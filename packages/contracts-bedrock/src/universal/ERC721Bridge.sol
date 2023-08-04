@@ -13,7 +13,7 @@ abstract contract ERC721Bridge is Initializable {
     CrossDomainMessenger internal _MESSENGER;
 
     /// @notice Address of the bridge on the other network.
-    address internal _OTHER_BRIDGE;
+    address internal immutable _OTHER_BRIDGE;
 
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
     uint256[48] private __gap;
