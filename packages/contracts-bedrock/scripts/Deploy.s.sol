@@ -83,6 +83,7 @@ contract Deploy is Deployer {
         deployL1StandardBridge();
         deployL1ERC721Bridge();
         deployDisputeGameFactory();
+        deployBlockOracle();
         deployPreimageOracle();
         deployMips();
 
@@ -363,6 +364,15 @@ contract Deploy is Deployer {
         console.log("DisputeGameFactory deployed at %s", address(factory));
 
         return address(factory);
+    }
+
+    /// @notice Deploy the BlockOracle
+    function deployBlockOracle() onlyDevnet broadcast() public returns (address) {
+        BlockOracle oracle = new BlockOracle();
+        save("BlockOracle", address(oracle));
+        console.log("BlockOracle deployed at %s", address(oracle));
+
+        return address(oracle);
     }
 
     /// @notice Deploy the PreimageOracle
@@ -721,7 +731,7 @@ contract Deploy is Deployer {
                 _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
                 _vm: faultVm,
                 _l2oo: L2OutputOracle(mustGetAddress("L2OutputOracleProxy")),
-                _blockOracle: new BlockOracle()
+                _blockOracle: BlockOracle(mustGetAddress("BlockOracle"))
             }));
             console.log("DisputeGameFactory: set `FaultDisputeGame` implementation");
         }
