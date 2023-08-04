@@ -3,7 +3,7 @@
   "src/L1/L1ERC721Bridge.sol": "0xac9d8e236a1b35c358f9800834f65375cf4270155e817cf3d0f2bac1968f9107",
   "src/L1/L1StandardBridge.sol": "0x26fd79e041c403f4bc68758c410fcc801975e7648c0b51a2c4a6e8c44fabcbfd",
   "src/L1/L2OutputOracle.sol": "0xd6c5eb38732077c4705f46a61be68a7beccc069a99ed1d07b8e1fc6e1de8ffa6",
-  "src/L1/OptimismPortal.sol": "0xaec3d476e2b892a56a7214aa1cceb33584457fd5f68c66730bb7cf27ddc7b57b",
+  "src/L1/OptimismPortal.sol": "0xb3652b69895ef7ab6da489ba57ee9b213cf4e2939cdf3b8d40a39a9fac13d31e",
   "src/L1/SystemConfig.sol": "0x8e2b5103d2eb93b74af2e2f96a4505e637cdc3c44d80cf5ec2eca70060e1deff",
   "src/L2/BaseFeeVault.sol": "0xa596e60762f16192cfa86459fcb9f4da9d8f756106eedac643a1ffeafbbfcc5f",
   "src/L2/GasPriceOracle.sol": "0xc735a8bf01ad8bca194345748537bfd9924909c0342bc133c4a31e2fb8cb9882",
