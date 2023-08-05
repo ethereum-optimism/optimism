@@ -443,40 +443,34 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
             FaultDisputeGame.OutputProposal memory disputed
         ) = gameProxy.proposals();
 
-        // Load the L1 head hash
-        gameProxy.addLocalData(1, 8);
-        bytes32 key = _getKey(1);
-        (bytes32 dat, uint256 datLen) = oracle.readPreimage(key, 8);
-        assertEq(dat, Hash.unwrap(gameProxy.l1Head()));
-        assertEq(datLen, 32);
+        bytes32[5] memory data = [
+            Hash.unwrap(gameProxy.l1Head()),
+            Hash.unwrap(starting.outputRoot),
+            Hash.unwrap(disputed.outputRoot),
+            bytes32(uint256(starting.l2BlockNumber) << 0xC0),
+            bytes32(block.chainid << 0xC0)
+        ];
 
-        // Load the starting output root
-        gameProxy.addLocalData(2, 8);
-        key = _getKey(2);
-        (dat, datLen) = oracle.readPreimage(key, 8);
-        assertEq(dat, Hash.unwrap(starting.outputRoot));
-        assertEq(datLen, 32);
+        for (uint256 i = 1; i <= 5; i++) {
+            uint256 expectedLen = i > 3 ? 8 : 32;
 
-        // Load the disputed output root
-        gameProxy.addLocalData(3, 8);
-        key = _getKey(3);
-        (dat, datLen) = oracle.readPreimage(key, 8);
-        assertEq(dat, Hash.unwrap(disputed.outputRoot));
-        assertEq(datLen, 32);
+            gameProxy.addLocalData(i, 0);
+            bytes32 key = _getKey(i);
+            (bytes32 dat, uint256 datLen) = oracle.readPreimage(key, 0);
+            assertEq(dat >> 0xC0, bytes32(expectedLen));
+            // Account for the length prefix if i > 3 (the data stored
+            // at identifiers i <= 3 are 32 bytes long, so the expected
+            // length is already correct. If i > 3, the data is only 8
+            // bytes long, so the length prefix + the data is 16 bytes
+            // total.)
+            assertEq(datLen, expectedLen + (i > 3 ? 8 : 0));
 
-        // Load the starting L2 block number
-        gameProxy.addLocalData(4, 8);
-        key = _getKey(4);
-        (dat, datLen) = oracle.readPreimage(key, 8);
-        assertEq(dat, bytes32(uint256(starting.l2BlockNumber) << 0xC0));
-        assertEq(datLen, 8);
-
-        // Load the chain ID
-        gameProxy.addLocalData(5, 8);
-        key = _getKey(5);
-        (dat, datLen) = oracle.readPreimage(key, 8);
-        assertEq(dat, bytes32(block.chainid << 0xC0));
-        assertEq(datLen, 8);
+            gameProxy.addLocalData(i, 8);
+            key = _getKey(i);
+            (dat, datLen) = oracle.readPreimage(key, 8);
+            assertEq(dat, data[i - 1]);
+            assertEq(datLen, expectedLen);
+        }
     }
 
     /// @dev Helper to get the localized key for an identifier in the context of the game proxy.
