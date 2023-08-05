@@ -1050,16 +1050,3 @@ contract AlphabetVM is IBigStepper {
         postState_ = keccak256(abi.encode(traceIndex, claim + 1));
     }
 }
-
-////////////////////////////////////////////////////////////////
-//                          HELPERS                           //
-////////////////////////////////////////////////////////////////
-
-/// @notice Deploys a noop contract.
-function deployNoop() returns (address noop_) {
-    assembly {
-        mstore(0x00, 0x60016000F3)
-        let size := 5
-        noop_ := create(0, sub(0x20, size), size)
-    }
-}
