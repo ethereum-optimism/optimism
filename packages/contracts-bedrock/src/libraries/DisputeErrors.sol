@@ -58,6 +58,9 @@ error ValidStep();
 ///         not contain the disputed output root.
 error L1HeadTooOld();
 
+/// @notice Thrown when an invalid local identifier is passed to the `addLocalData` function.
+error InvalidLocalIdent();
+
 ////////////////////////////////////////////////////////////////
 //              `AttestationDisputeGame` Errors               //
 ////////////////////////////////////////////////////////////////

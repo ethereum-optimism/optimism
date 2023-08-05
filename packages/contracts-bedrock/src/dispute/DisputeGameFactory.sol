@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import "../libraries/DisputeTypes.sol";
-import "../libraries/DisputeErrors.sol";
-
 import { ClonesWithImmutableArgs } from "@cwia/ClonesWithImmutableArgs.sol";
 import {
     OwnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { Semver } from "../universal/Semver.sol";
+import { Semver } from "src/universal/Semver.sol";
 
 import { IDisputeGame } from "./interfaces/IDisputeGame.sol";
 import { IDisputeGameFactory } from "./interfaces/IDisputeGameFactory.sol";
+
+import "src/libraries/DisputeTypes.sol";
+import "src/libraries/DisputeErrors.sol";
 
 /// @title DisputeGameFactory
 /// @notice A factory contract for creating `IDisputeGame` contracts. All created dispute games
@@ -37,7 +37,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
     GameId[] internal _disputeGameList;
 
     /// @notice constructs a new DisputeGameFactory contract.
-    constructor() OwnableUpgradeable() Semver(0, 0, 2) {
+    constructor() OwnableUpgradeable() Semver(0, 0, 3) {
         initialize(address(0));
     }
 
@@ -88,9 +88,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
         IDisputeGame impl = gameImpls[gameType];
 
         // If there is no implementation to clone for the given `GameType`, revert.
-        if (address(impl) == address(0)) {
-            revert NoImplementation(gameType);
-        }
+        if (address(impl) == address(0)) revert NoImplementation(gameType);
 
         // Clone the implementation contract and initialize it with the given parameters.
         proxy = IDisputeGame(address(impl).clone(abi.encodePacked(rootClaim, extraData)));
@@ -100,9 +98,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
         Hash uuid = getGameUUID(gameType, rootClaim, extraData);
 
         // If a dispute game with the same UUID already exists, revert.
-        if (GameId.unwrap(_disputeGames[uuid]) != bytes32(0)) {
-            revert GameAlreadyExists(uuid);
-        }
+        if (GameId.unwrap(_disputeGames[uuid]) != bytes32(0)) revert GameAlreadyExists(uuid);
 
         GameId slot = _packSlot(address(proxy), block.timestamp);
 

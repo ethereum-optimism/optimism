@@ -102,9 +102,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(gameProxy.extraData(), extraData);
     }
 
-    /// @dev Tests that the game's status is set correctly.
-    function test_gameStart_succeeds() public {
-        assertEq(Timestamp.unwrap(gameProxy.gameStart()), block.timestamp);
+    /// @dev Tests that the game's starting timestamp is set correctly.
+    function test_createdAt_succeeds() public {
+        assertEq(Timestamp.unwrap(gameProxy.createdAt()), block.timestamp);
     }
 
     /// @dev Tests that the game's type is set correctly.
