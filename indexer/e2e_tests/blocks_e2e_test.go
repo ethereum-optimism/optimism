@@ -23,9 +23,7 @@ import (
 func TestE2EBlockHeaders(t *testing.T) {
 	testSuite := createE2ETestSuite(t)
 
-	l1Client := testSuite.OpSys.Clients["l1"]
-	l2Client := testSuite.OpSys.Clients["sequencer"]
-	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(testSuite.OpCfg.L1Deployments.L2OutputOracleProxy, l1Client)
+	l2OutputOracle, err := bindings.NewL2OutputOracle(testSuite.OpCfg.L1Deployments.L2OutputOracleProxy, testSuite.L1Client)
 	require.NoError(t, err)
 
 	// a minute for total setup to finish
@@ -39,7 +37,7 @@ func TestE2EBlockHeaders(t *testing.T) {
 	}))
 
 	// ensure the processors are caught up to this state
-	l1Height, err := l1Client.BlockNumber(setupCtx)
+	l1Height, err := testSuite.L1Client.BlockNumber(setupCtx)
 	require.NoError(t, err)
 	require.NoError(t, utils.WaitFor(setupCtx, time.Second, func() (bool, error) {
 		l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
@@ -60,7 +58,7 @@ func TestE2EBlockHeaders(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, indexedHeader)
 
-			header, err := l2Client.HeaderByNumber(context.Background(), height)
+			header, err := testSuite.L2Client.HeaderByNumber(context.Background(), height)
 			require.NoError(t, err)
 			require.NotNil(t, indexedHeader)
 
@@ -93,7 +91,7 @@ func TestE2EBlockHeaders(t *testing.T) {
 			require.NotEmpty(t, output.L1ContractEventGUID)
 
 			// we may as well check the integrity of the output root
-			l2Block, err := l2Client.BlockByNumber(context.Background(), blockNumber)
+			l2Block, err := testSuite.L2Client.BlockByNumber(context.Background(), blockNumber)
 			require.NoError(t, err)
 			messagePasserStorageHash, err := l2EthClient.StorageHash(predeploys.L2ToL1MessagePasserAddr, blockNumber)
 			require.NoError(t, err)
@@ -111,12 +109,10 @@ func TestE2EBlockHeaders(t *testing.T) {
 		testCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		devContracts := make([]common.Address, 0)
-		testSuite.OpCfg.L1Deployments.ForEach(func(name string, address common.Address) {
-			devContracts = append(devContracts, address)
-		})
-		logFilter := ethereum.FilterQuery{FromBlock: big.NewInt(0), ToBlock: big.NewInt(int64(l1Height)), Addresses: devContracts}
-		logs, err := l1Client.FilterLogs(testCtx, logFilter) // []types.Log
+		l1Contracts := []common.Address{}
+		testSuite.OpCfg.L1Deployments.ForEach(func(name string, addr common.Address) { l1Contracts = append(l1Contracts, addr) })
+		logFilter := ethereum.FilterQuery{FromBlock: big.NewInt(0), ToBlock: big.NewInt(int64(l1Height)), Addresses: l1Contracts}
+		logs, err := testSuite.L1Client.FilterLogs(testCtx, logFilter) // []types.Log
 		require.NoError(t, err)
 
 		for _, log := range logs {
@@ -128,7 +124,7 @@ func TestE2EBlockHeaders(t *testing.T) {
 			require.Equal(t, log.Index, uint(contractEvent.LogIndex))
 
 			// ensure the block is also indexed
-			block, err := l1Client.BlockByNumber(testCtx, big.NewInt(int64(log.BlockNumber)))
+			block, err := testSuite.L1Client.BlockByNumber(testCtx, big.NewInt(int64(log.BlockNumber)))
 			require.NoError(t, err)
 
 			require.Equal(t, block.Time(), contractEvent.Timestamp)
