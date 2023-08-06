@@ -24,6 +24,19 @@ import {
 } from '@eth-optimism/contracts-ts'
 import { parseEther, parseGwei } from 'viem'
 
+vi.mock('viem', async () => {
+  const _viem = (await vi.importActual('viem')) as any
+  return {
+    ..._viem,
+    // no way to get historical gas price
+    createPublicClient: (...args: [any]) => {
+      const client = _viem.createPublicClient(...args)
+      client.getGasPrice = async () => parseGwei('0.00000042')
+      return client
+    },
+  }
+})
+
 // using this optimist https://optimistic.etherscan.io/tx/0xaa291efba7ea40b0742e5ff84a1e7831a2eb6c2fc35001fa03ba80fd3b609dc9
 const blockNumber = BigInt(107028270)
 const optimistOwnerAddress =
@@ -95,44 +108,44 @@ beforeEach(() => {
 test('estimateFees should return correct fees', async () => {
   // burn
   const res = await estimateFees({ ...paramsWithRpcUrl, ...functionDataBurn })
-  expect(res).toMatchInlineSnapshot('20573185261089n')
-  expect(formatEther(res)).toMatchInlineSnapshot('"0.000020573185261089"')
+  expect(res).toMatchInlineSnapshot('20573203833264n')
+  expect(formatEther(res)).toMatchInlineSnapshot('"0.000020573203833264"')
   expect(
     await estimateFees({ ...paramsWithRpcUrl, ...functionDataBurn })
-  ).toMatchInlineSnapshot('20573185261089n')
+  ).toMatchInlineSnapshot('20573203833264n')
   expect(
     await estimateFees({ ...paramsWithViemClient, ...functionDataBurn })
-  ).toMatchInlineSnapshot('20573185261089n')
+  ).toMatchInlineSnapshot('20573203833264n')
   expect(
     await estimateFees({
       ...paramsWithRpcUrl,
       ...functionDataBurnWithPriorityFees,
     })
-  ).toMatchInlineSnapshot('21536974118090n')
+  ).toMatchInlineSnapshot('21536992690265n')
   // what is the l2 and l1 part of the fees for reference?
   const l1Fee = await getL1Fee({ ...paramsWithRpcUrl, ...functionDataBurn })
   const l2Fee = res - l1Fee
   expect(l1Fee).toMatchInlineSnapshot('20573185216764n')
   expect(formatEther(l1Fee)).toMatchInlineSnapshot('"0.000020573185216764"')
-  expect(l2Fee).toMatchInlineSnapshot('44325n')
-  expect(formatEther(l2Fee)).toMatchInlineSnapshot('"0.000000000000044325"')
+  expect(l2Fee).toMatchInlineSnapshot('18616500n')
+  expect(formatEther(l2Fee)).toMatchInlineSnapshot('"0.0000000000186165"')
 
   // withdraw
   const res2 = await estimateFees({
     ...paramsWithRpcUrlWithdraw,
     ...functionDataWithdraw,
   })
-  expect(res2).toMatchInlineSnapshot('62857039016380n')
+  expect(res2).toMatchInlineSnapshot('62857090247510n')
   expect(
     await estimateFees({ ...paramsWithRpcUrlWithdraw, ...functionDataWithdraw })
-  ).toMatchInlineSnapshot('62857039016380n')
+  ).toMatchInlineSnapshot('62857090247510n')
   expect(
     await estimateFees({ ...paramsWithRpcUrlWithdraw, ...functionDataWithdraw })
-  ).toMatchInlineSnapshot('62857039016380n')
+  ).toMatchInlineSnapshot('62857090247510n')
   expect(
     await estimateFees({ ...paramsWithRpcUrlWithdraw, ...functionDataWithdraw })
-  ).toMatchInlineSnapshot('62857039016380n')
-  expect(formatEther(res2)).toMatchInlineSnapshot('"0.00006285703901638"')
+  ).toMatchInlineSnapshot('62857090247510n')
+  expect(formatEther(res2)).toMatchInlineSnapshot('"0.00006285709024751"')
   // what is the l2 and l1 part of the fees for reference?
   const l1Fee2 = await getL1Fee({
     ...paramsWithRpcUrlWithdraw,
@@ -141,8 +154,8 @@ test('estimateFees should return correct fees', async () => {
   const l2Fee2 = res2 - l1Fee
   expect(l1Fee2).toMatchInlineSnapshot('62857038894110n')
   expect(formatEther(l1Fee2)).toMatchInlineSnapshot('"0.00006285703889411"')
-  expect(l2Fee2).toMatchInlineSnapshot('42283853799616n')
-  expect(formatEther(l2Fee2)).toMatchInlineSnapshot('"0.000042283853799616"')
+  expect(l2Fee2).toMatchInlineSnapshot('42283905030746n')
+  expect(formatEther(l2Fee2)).toMatchInlineSnapshot('"0.000042283905030746"')
 })
 
 test('baseFee should return the correct result', async () => {

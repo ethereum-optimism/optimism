@@ -332,7 +332,7 @@ export const estimateFees: EstimateFees = async (options) => {
     args: options.args,
     functionName: options.functionName,
   } as EncodeFunctionDataParameters)
-  const [l1Fee, l2Fee] = await Promise.all([
+  const [l1Fee, l2Gas, l2GasPrice] = await Promise.all([
     getL1Fee({
       ...options,
       // account must be undefined or else viem will return undefined
@@ -347,6 +347,7 @@ export const estimateFees: EstimateFees = async (options) => {
       data: encodedFunctionData,
       value: options.value,
     } as EstimateGasParameters<typeof chains.optimism>),
+    client.getGasPrice(),
   ])
-  return l1Fee + l2Fee
+  return l1Fee + l2Gas * l2GasPrice
 }
