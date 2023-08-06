@@ -61,7 +61,6 @@ const DefaultCannonSnapshotFreq = uint(10_000)
 type Config struct {
 	L1EthRpc                string         // L1 RPC Url
 	GameAddress             common.Address // Address of the fault game
-	PreimageOracleAddress   common.Address // Address of the pre-image oracle
 	AgreeWithProposedOutput bool           // Temporary config if we agree or disagree with the posted output
 	GameDepth               int            // Depth of the game tree
 
@@ -84,15 +83,13 @@ type Config struct {
 func NewConfig(
 	l1EthRpc string,
 	gameAddress common.Address,
-	preimageOracleAddress common.Address,
 	traceType TraceType,
 	agreeWithProposedOutput bool,
 	gameDepth int,
 ) Config {
 	return Config{
-		L1EthRpc:              l1EthRpc,
-		GameAddress:           gameAddress,
-		PreimageOracleAddress: preimageOracleAddress,
+		L1EthRpc:    l1EthRpc,
+		GameAddress: gameAddress,
 
 		AgreeWithProposedOutput: agreeWithProposedOutput,
 		GameDepth:               gameDepth,
@@ -116,9 +113,6 @@ func (c Config) Check() error {
 		return ErrMissingTraceType
 	}
 	if c.TraceType == TraceTypeCannon {
-		if c.PreimageOracleAddress == (common.Address{}) {
-			return ErrMissingPreimageOracleAddress
-		}
 		if c.CannonBin == "" {
 			return ErrMissingCannonBin
 		}

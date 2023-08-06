@@ -49,7 +49,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 		if err != nil {
 			return nil, fmt.Errorf("create cannon trace provider: %w", err)
 		}
-		updater, err = cannon.NewOracleUpdater(logger, txMgr, cfg.GameAddress, cfg.PreimageOracleAddress)
+		updater, err = cannon.NewOracleUpdater(ctx, logger, txMgr, cfg.GameAddress, client)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create the cannon updater: %w", err)
 		}
