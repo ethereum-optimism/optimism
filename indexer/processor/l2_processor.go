@@ -212,7 +212,10 @@ func l2ProcessContractEventsBridgeTransactions(processLog log.Logger, db *databa
 
 	if len(transactionWithdrawals) > 0 {
 		processLog.Info("detected transaction withdrawals", "size", len(transactionWithdrawals))
-		db.BridgeTransactions.StoreL2TransactionWithdrawals(transactionWithdrawals)
+		err := db.BridgeTransactions.StoreL2TransactionWithdrawals(transactionWithdrawals)
+		if err != nil {
+			return err
+		}
 
 		if len(ethWithdrawals) > 0 {
 			processLog.Info("detected L2ToL1MessagePasser ETH transfers", "size", len(ethWithdrawals))
@@ -225,7 +228,7 @@ func l2ProcessContractEventsBridgeTransactions(processLog log.Logger, db *databa
 
 	// (2) Process Deposit Finalization
 	//  - Since L2 deposits are apart of the block derivation processes, we dont track finalization as it's too tricky
-	// to do so purely from the L2-side since there is not a way to easily identify deposit transations on L2 without walking
+	// to do so purely from the L2-side since there is not a way to easily identify deposit transactions on L2 without walking
 	// the transaction list of every L2 epoch.
 
 	// a-ok!
