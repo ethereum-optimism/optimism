@@ -282,9 +282,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
         IPreimageOracle oracle = VM.oracle();
+        bytes4 loadLocalDataSelector = IPreimageOracle.loadLocalData.selector;
         assembly {
             // Store the `loadLocalData(uint256,bytes32,uint256,uint256)` selector
-            mstore(0x00, 0x9a1f5e7f)
+            mstore(0x1C, loadLocalDataSelector)
             // Store the `_ident` argument
             mstore(0x20, _ident)
             // Store the data to load

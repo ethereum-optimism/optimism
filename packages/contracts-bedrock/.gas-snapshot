@@ -97,7 +97,7 @@ FaultDisputeGame_ResolvesCorrectly_IncorrectRoot2:test_resolvesCorrectly_succeed
 FaultDisputeGame_ResolvesCorrectly_IncorrectRoot3:test_resolvesCorrectly_succeeds() (gas: 501212)
 FaultDisputeGame_ResolvesCorrectly_IncorrectRoot4:test_resolvesCorrectly_succeeds() (gas: 502409)
 FaultDisputeGame_ResolvesCorrectly_IncorrectRoot5:test_resolvesCorrectly_succeeds() (gas: 501698)
-FaultDisputeGame_Test:test_addLocalData_static_succeeds() (gas: 640363)
+FaultDisputeGame_Test:test_addLocalData_static_succeeds() (gas: 640503)
 FaultDisputeGame_Test:test_createdAt_succeeds() (gas: 10342)
 FaultDisputeGame_Test:test_extraData_succeeds() (gas: 32377)
 FaultDisputeGame_Test:test_gameData_succeeds() (gas: 32829)
