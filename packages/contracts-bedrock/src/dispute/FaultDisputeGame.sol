@@ -6,18 +6,18 @@ import { IFaultDisputeGame } from "./interfaces/IFaultDisputeGame.sol";
 import { IInitializable } from "./interfaces/IInitializable.sol";
 import { IBondManager } from "./interfaces/IBondManager.sol";
 import { IBigStepper, IPreimageOracle } from "./interfaces/IBigStepper.sol";
-import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
+import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { BlockOracle } from "./BlockOracle.sol";
 
-import { Clone } from "../libraries/Clone.sol";
-import { Types } from "../libraries/Types.sol";
-import { Semver } from "../universal/Semver.sol";
+import { Clone } from "src/libraries/Clone.sol";
+import { Types } from "src/libraries/Types.sol";
+import { Semver } from "src/universal/Semver.sol";
 import { LibHashing } from "./lib/LibHashing.sol";
 import { LibPosition } from "./lib/LibPosition.sol";
 import { LibClock } from "./lib/LibClock.sol";
 
-import "../libraries/DisputeTypes.sol";
-import "../libraries/DisputeErrors.sol";
+import "src/libraries/DisputeTypes.sol";
+import "src/libraries/DisputeErrors.sol";
 
 /// @title FaultDisputeGame
 /// @notice An implementation of the `IFaultDisputeGame` interface.
@@ -43,14 +43,17 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     L2OutputOracle public immutable L2_OUTPUT_ORACLE;
 
     /// @notice The block hash oracle, used for loading block hashes further back
-    ///         than the `BLOCKHASH` opcode allows as well as their estimated timestamps.
+    ///         than the `BLOCKHASH` opcode allows as well as their child's timestamp.
     BlockOracle public immutable BLOCK_ORACLE;
+
+    /// @notice The game type ID
+    GameType internal immutable GAME_TYPE;
 
     /// @notice The root claim's position is always at gindex 1.
     Position internal constant ROOT_POSITION = Position.wrap(1);
 
     /// @notice The starting timestamp of the game
-    Timestamp public gameStart;
+    Timestamp public createdAt;
 
     /// @inheritdoc IDisputeGame
     GameStatus public status;
@@ -72,6 +75,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @notice An internal mapping to allow for constant-time lookups of existing claims.
     mapping(ClaimHash => bool) internal claims;
 
+    /// @param _gameType The type ID of the game.
     /// @param _absolutePrestate The absolute prestate of the instruction trace.
     /// @param _maxGameDepth The maximum depth of bisection.
     /// @param _gameDuration The duration of the game.
@@ -81,15 +85,17 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @param _blockOracle The block oracle, used for loading block hashes further back
     ///                     than the `BLOCKHASH` opcode allows as well as their estimated
     ///                     timestamps.
-    /// @custom:semver 0.0.6
+    /// @custom:semver 0.0.7
     constructor(
+        GameType _gameType,
         Claim _absolutePrestate,
         uint256 _maxGameDepth,
         Duration _gameDuration,
         IBigStepper _vm,
         L2OutputOracle _l2oo,
         BlockOracle _blockOracle
-    ) Semver(0, 0, 6) {
+    ) Semver(0, 0, 7) {
+        GAME_TYPE = _gameType;
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
         GAME_DURATION = _gameDuration;
@@ -127,18 +133,16 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         Claim preStateClaim;
         ClaimData storage postState;
         if (_isAttack) {
-            if (stepPos.indexAtDepth() == 0) {
-                // If the step position's index at depth is 0, the prestate is the absolute
-                // prestate.
-                preStateClaim = ABSOLUTE_PRESTATE;
-            } else {
-                // If the step is an attack at a trace index > 0, the prestate exists elsewhere in
-                // the game state.
-                preStateClaim = findTraceAncestor(
+            // If the step position's index at depth is 0, the prestate is the absolute
+            // prestate.
+            // If the step is an attack at a trace index > 0, the prestate exists elsewhere in
+            // the game state.
+            preStateClaim = stepPos.indexAtDepth() == 0
+                ? ABSOLUTE_PRESTATE
+                : findTraceAncestor(
                     Position.wrap(Position.unwrap(parentPos) - 1),
                     parent.parentIndex
                 ).claim;
-            }
 
             // For all attacks, the poststate is the parent claim.
             postState = parent;
@@ -196,9 +200,6 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
 
         // Get the parent. If it does not exist, the call will revert with OOB.
         ClaimData memory parent = claimData[_challengeIndex];
-
-        // Set the parent claim as countered.
-        claimData[_challengeIndex].countered = true;
 
         // Compute the position that the claim commits to. Because the parent's position is already
         // known, we can compute the next position by moving left or right depending on whether
@@ -258,6 +259,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
             })
         );
 
+        // Set the parent claim as countered.
+        claimData[_challengeIndex].countered = true;
+
         // Emit the appropriate event for the attack or defense.
         emit Move(_challengeIndex, _claim, msg.sender);
     }
@@ -278,42 +282,55 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
         IPreimageOracle oracle = VM.oracle();
-        if (_ident == 1) {
-            // Load the L1 head hash into the game's local context in the preimage oracle.
-            oracle.loadLocalData(_ident, Hash.unwrap(l1Head), 32, _partOffset);
-        } else if (_ident == 2) {
-            // Load the starting or disputed output root into the game's local context in the
-            // preimage oracle.
-            oracle.loadLocalData(
-                _ident,
-                Hash.unwrap(proposals.starting.outputRoot),
-                32,
-                _partOffset
-            );
-        } else if (_ident == 3) {
-            // Load the starting or disputed output root into the game's local context in the
-            // preimage oracle.
-            oracle.loadLocalData(
-                _ident,
-                Hash.unwrap(proposals.disputed.outputRoot),
-                32,
-                _partOffset
-            );
-        } else if (_ident == 4) {
-            // Load the starting l2 block number into the game's local context in the preimage
-            // oracle. The L2 block number is stored as a big-endian uint64 in the upper 8 bytes
-            // of the passed word.
-            oracle.loadLocalData(
-                _ident,
-                bytes32(uint256(proposals.starting.l2BlockNumber) << 192),
-                8,
-                _partOffset
-            );
-        } else if (_ident == 5) {
-            // Load the chain ID into the game's local context in the preimage oracle.
-            // The chain ID is stored as a big-endian uint64 in the upper 8 bytes of the
-            // passed word.
-            oracle.loadLocalData(_ident, bytes32(block.chainid << 192), 8, _partOffset);
+        bytes4 loadLocalDataSelector = IPreimageOracle.loadLocalData.selector;
+        assembly {
+            // Store the `loadLocalData(uint256,bytes32,uint256,uint256)` selector
+            mstore(0x1C, loadLocalDataSelector)
+            // Store the `_ident` argument
+            mstore(0x20, _ident)
+            // Store the data to load
+            let data
+            switch _ident
+            case 1 {
+                // Load the L1 head hash
+                data := sload(l1Head.slot)
+            }
+            case 2 {
+                // Load the starting proposal's output root.
+                data := sload(add(proposals.slot, 0x01))
+            }
+            case 3 {
+                // Load the disputed proposal's output root
+                data := sload(add(proposals.slot, 0x03))
+            }
+            case 4 {
+                // Load the starting proposal's L2 block number as a big-endian uint64 in the
+                // high order 8 bytes of the word.
+                data := shl(0xC0, shr(0x80, sload(proposals.slot)))
+            }
+            case 5 {
+                // Load the chain ID as a big-endian uint64 in the high order 8 bytes of the word.
+                data := shl(0xC0, chainid())
+            }
+            default {
+                // Store the `InvalidLocalIdent()` selector.
+                mstore(0x00, 0xff137e65)
+                // Revert with  `InvalidLocalIdent()`
+                revert(0x1C, 0x04)
+            }
+            mstore(0x40, data)
+            // Store the size of the data to load
+            // _ident > 3 ? 8 : 32
+            mstore(0x60, shl(sub(0x05, shl(0x01, gt(_ident, 0x03))), 0x01))
+            // Store the part offset of the data
+            mstore(0x80, _partOffset)
+
+            // Attempt to add the local data to the preimage oracle and bubble up the revert
+            // if it fails.
+            if iszero(call(gas(), oracle, 0x00, 0x1C, 0x84, 0x00, 0x00)) {
+                returndatacopy(0x00, 0x00, returndatasize())
+                revert(0x00, returndatasize())
+            }
         }
     }
 
@@ -332,13 +349,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     ////////////////////////////////////////////////////////////////
 
     /// @inheritdoc IDisputeGame
-    function gameType() public pure override returns (GameType gameType_) {
-        gameType_ = GameTypes.FAULT;
-    }
-
-    /// @inheritdoc IDisputeGame
-    function createdAt() external view returns (Timestamp createdAt_) {
-        createdAt_ = gameStart;
+    function gameType() public view override returns (GameType gameType_) {
+        gameType_ = GAME_TYPE;
     }
 
     /// @inheritdoc IDisputeGame
@@ -425,7 +437,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @inheritdoc IDisputeGame
     function gameData()
         external
-        pure
+        view
         returns (
             GameType gameType_,
             Claim rootClaim_,
@@ -445,11 +457,11 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     function initialize() external {
         // SAFETY: Any revert in this function will bubble up to the DisputeGameFactory and
         // prevent the game from being created.
+        // Implicit assumptions:
+        // - The `gameStatus` state variable defaults to 0, which is `GameStatus.IN_PROGRESS`
 
-        // Set the game start
-        gameStart = Timestamp.wrap(uint64(block.timestamp));
-        // Set the game status
-        status = GameStatus.IN_PROGRESS;
+        // Set the game's starting timestamp
+        createdAt = Timestamp.wrap(uint64(block.timestamp));
 
         // Set the root claim
         claimData.push(
@@ -529,7 +541,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @param _pos The position to find the trace ancestor claim of.
     /// @param _start The index to start searching from.
     /// @return ancestor_ The ancestor claim that commits to the same trace index as `_pos`.
-    // TODO: Can we form a relationship between the trace path and the position to avoid looping?
+    // TODO(clabby): Can we form a relationship between the trace path and the position to avoid
+    //               looping?
     function findTraceAncestor(Position _pos, uint256 _start)
         internal
         view

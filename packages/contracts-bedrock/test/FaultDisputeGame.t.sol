@@ -8,6 +8,8 @@ import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { BlockOracle } from "src/dispute/BlockOracle.sol";
+import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
+import { PreimageKeyLib } from "src/cannon/PreimageKeyLib.sol";
 
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
@@ -38,12 +40,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
         // Propose 2 mock outputs
         vm.startPrank(oracle.PROPOSER());
         for (uint256 i; i < 2; i++) {
-            oracle.proposeL2Output(
-                bytes32(i + 1),
-                oracle.nextBlockNumber(),
-                blockhash(i),
-                i
-            );
+            oracle.proposeL2Output(bytes32(i + 1), oracle.nextBlockNumber(), blockhash(i), i);
 
             // Advance 1 block
             vm.roll(block.number + 1);
@@ -60,6 +57,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
 
         // Deploy an implementation of the fault game
         gameImpl = new FaultDisputeGame(
+            GAME_TYPE,
             absolutePrestate,
             4,
             Duration.wrap(7 days),
@@ -101,9 +99,9 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         assertEq(gameProxy.extraData(), extraData);
     }
 
-    /// @dev Tests that the game's status is set correctly.
-    function test_gameStart_succeeds() public {
-        assertEq(Timestamp.unwrap(gameProxy.gameStart()), block.timestamp);
+    /// @dev Tests that the game's starting timestamp is set correctly.
+    function test_createdAt_succeeds() public {
+        assertEq(Timestamp.unwrap(gameProxy.createdAt()), block.timestamp);
     }
 
     /// @dev Tests that the game's type is set correctly.
@@ -128,7 +126,11 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     ///      contain the disputed L2 output root.
     function test_initialize_l1HeadTooOld_reverts() public {
         // Store a mock block hash for the genesis block. The timestamp will default to 0.
-        vm.store(address(gameImpl.BLOCK_ORACLE()), keccak256(abi.encode(0, 0)), bytes32(uint256(1)));
+        vm.store(
+            address(gameImpl.BLOCK_ORACLE()),
+            keccak256(abi.encode(0, 0)),
+            bytes32(uint256(1))
+        );
         bytes memory _extraData = abi.encode(oracle.SUBMISSION_INTERVAL() * 2, 0);
 
         vm.expectRevert(L1HeadTooOld.selector);
@@ -148,7 +150,10 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev Tests that the game is initialized with the correct data.
     function test_initialize_correctData_succeeds() public {
         // Starting
-        (FaultDisputeGame.OutputProposal memory startingProp, FaultDisputeGame.OutputProposal memory disputedProp) = gameProxy.proposals();
+        (
+            FaultDisputeGame.OutputProposal memory startingProp,
+            FaultDisputeGame.OutputProposal memory disputedProp
+        ) = gameProxy.proposals();
         Types.OutputProposal memory starting = oracle.getL2Output(startingProp.index);
         assertEq(startingProp.index, 0);
         assertEq(startingProp.l2BlockNumber, starting.l2BlockNumber);
@@ -419,6 +424,59 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
         GameStatus status = gameProxy.resolve();
         assertEq(uint8(status), uint8(GameStatus.CHALLENGER_WINS));
         assertEq(uint8(gameProxy.status()), uint8(GameStatus.CHALLENGER_WINS));
+    }
+
+    /// @dev Tests that adding local data with an out of bounds identifier reverts.
+    function testFuzz_addLocalData_oob_reverts(uint256 _ident) public {
+        // [1, 5] are valid local data identifiers.
+        if (_ident <= 5) _ident = 0;
+
+        vm.expectRevert(InvalidLocalIdent.selector);
+        gameProxy.addLocalData(_ident, 0);
+    }
+
+    /// @dev Tests that local data is loaded into the preimage oracle correctly.
+    function test_addLocalData_static_succeeds() public {
+        IPreimageOracle oracle = IPreimageOracle(address(gameProxy.VM().oracle()));
+        (
+            FaultDisputeGame.OutputProposal memory starting,
+            FaultDisputeGame.OutputProposal memory disputed
+        ) = gameProxy.proposals();
+
+        bytes32[5] memory data = [
+            Hash.unwrap(gameProxy.l1Head()),
+            Hash.unwrap(starting.outputRoot),
+            Hash.unwrap(disputed.outputRoot),
+            bytes32(uint256(starting.l2BlockNumber) << 0xC0),
+            bytes32(block.chainid << 0xC0)
+        ];
+
+        for (uint256 i = 1; i <= 5; i++) {
+            uint256 expectedLen = i > 3 ? 8 : 32;
+
+            gameProxy.addLocalData(i, 0);
+            bytes32 key = _getKey(i);
+            (bytes32 dat, uint256 datLen) = oracle.readPreimage(key, 0);
+            assertEq(dat >> 0xC0, bytes32(expectedLen));
+            // Account for the length prefix if i > 3 (the data stored
+            // at identifiers i <= 3 are 32 bytes long, so the expected
+            // length is already correct. If i > 3, the data is only 8
+            // bytes long, so the length prefix + the data is 16 bytes
+            // total.)
+            assertEq(datLen, expectedLen + (i > 3 ? 8 : 0));
+
+            gameProxy.addLocalData(i, 8);
+            key = _getKey(i);
+            (dat, datLen) = oracle.readPreimage(key, 8);
+            assertEq(dat, data[i - 1]);
+            assertEq(datLen, expectedLen);
+        }
+    }
+
+    /// @dev Helper to get the localized key for an identifier in the context of the game proxy.
+    function _getKey(uint256 _ident) internal view returns (bytes32) {
+        bytes32 h = keccak256(abi.encode(_ident | (1 << 248), address(gameProxy)));
+        return bytes32((uint256(h) & ~uint256(0xFF << 248)) | (1 << 248));
     }
 }
 
@@ -962,7 +1020,7 @@ contract AlphabetVM is IBigStepper {
 
     constructor(Claim _absolutePrestate) {
         ABSOLUTE_PRESTATE = _absolutePrestate;
-        oracle = IPreimageOracle(deployNoop());
+        oracle = new PreimageOracle();
     }
 
     /// @inheritdoc IBigStepper
@@ -984,18 +1042,5 @@ contract AlphabetVM is IBigStepper {
         }
         // STF: n -> n + 1
         postState_ = keccak256(abi.encode(traceIndex, claim + 1));
-    }
-}
-
-////////////////////////////////////////////////////////////////
-//                          HELPERS                           //
-////////////////////////////////////////////////////////////////
-
-/// @notice Deploys a noop contract.
-function deployNoop() returns (address noop_) {
-    assembly {
-        mstore(0x00, 0x60016000F3)
-        let size := 5
-        noop_ := create(0, sub(0x20, size), size)
     }
 }

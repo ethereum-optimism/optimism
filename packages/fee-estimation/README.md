@@ -37,11 +37,9 @@ yarn add @eth-optimism/fee-estimation
 ### Basic Usage
 
 ```ts
-import {
-  estimateFees,
-} from '@eth-optimism/fee-estimation'
-import {optimistABI} from '@eth-optimism/contracts-ts'
-import {viemClient} from './viem-client'
+import { estimateFees } from '@eth-optimism/fee-estimation'
+import { optimistABI } from '@eth-optimism/contracts-ts'
+import { viemClient } from './viem-client'
 
 const optimistOwnerAddress =
   '0x77194aa25a06f932c10c0f25090f3046af2c85a6' as const

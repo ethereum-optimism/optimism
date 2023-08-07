@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import "../../libraries/DisputeTypes.sol";
-
 import { IBondManager } from "./IBondManager.sol";
 import { IInitializable } from "./IInitializable.sol";
+
+import "src/libraries/DisputeTypes.sol";
 
 /// @title IDisputeGame
 /// @notice The generic interface for a DisputeGame contract.
@@ -25,7 +25,7 @@ interface IDisputeGame is IInitializable {
     /// @dev The reference impl should be entirely different depending on the type (fault, validity)
     ///      i.e. The game type should indicate the security model.
     /// @return gameType_ The type of proof system being used.
-    function gameType() external pure returns (GameType gameType_);
+    function gameType() external view returns (GameType gameType_);
 
     /// @notice Getter for the root claim.
     /// @dev `clones-with-immutable-args` argument #1
@@ -58,7 +58,7 @@ interface IDisputeGame is IInitializable {
     /// @return extraData_ Any extra data supplied to the dispute game contract by the creator.
     function gameData()
         external
-        pure
+        view
         returns (
             GameType gameType_,
             Claim rootClaim_,

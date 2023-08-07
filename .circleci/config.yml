@@ -760,7 +760,7 @@ jobs:
         description: Go Module Name
         type: string
     docker:
-      - image: cimg/go:1.19
+      - image: cimg/go:1.20
     steps:
       - checkout
       - run:
@@ -818,6 +818,12 @@ jobs:
       - run:
           name: git submodules
           command: git submodule update --init --recursive
+      - run:
+          name: print go's available MIPS targets
+          command: go tool dist list | grep mips
+      - run:
+          name: generate cannon prestate
+          command: make cannon-prestate
       - run:
           name: generate L1 state
           command: make devnet-allocs
@@ -896,6 +902,9 @@ jobs:
           name: git submodules
           command: git submodule update --init --recursive
       - run:
+          name: generate cannon prestate
+          command: make cannon-prestate
+      - run:
           name: generate L1 state
           command: make devnet-allocs
       - store_test_results:
@@ -962,6 +971,9 @@ jobs:
           name: Install and build
           command: |
             pnpm install && pnpm build
+      - run:
+          name: generate cannon prestate
+          command: make cannon-prestate
       - run:
           name: Bring up the stack
           command: make devnet-up
@@ -1118,14 +1130,14 @@ jobs:
 
   bedrock-go-tests:
     docker:
-      - image: cimg/go:1.19
+      - image: cimg/go:1.20
     resource_class: medium
     steps:
       - run: echo Done
 
   fpp-verify:
     docker:
-      - image: cimg/go:1.19
+      - image: cimg/go:1.20
     steps:
       - checkout
       - run:

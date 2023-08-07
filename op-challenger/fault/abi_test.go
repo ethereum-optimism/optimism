@@ -36,6 +36,7 @@ func setupFaultDisputeGame() (common.Address, *bind.TransactOpts, *backends.Simu
 	_, _, contract, err := bindings.DeployFaultDisputeGame(
 		opts,
 		backend,
+		uint8(0),             // Game Type ID
 		[32]byte{0x01},       // Absolute Prestate Claim
 		big.NewInt(15),       // Max Game Depth
 		uint64(604800),       // 7 days

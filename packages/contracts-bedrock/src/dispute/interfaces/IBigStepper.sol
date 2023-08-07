@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import { IPreimageOracle } from "../../cannon/interfaces/IPreimageOracle.sol";
+import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 
 /// @title IBigStepper
 /// @notice An interface for a contract with a state transition function that

@@ -3,7 +3,6 @@ package op_e2e
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -17,13 +16,13 @@ func TestResolveDisputeGame(t *testing.T) {
 	InitParallel(t)
 
 	ctx := context.Background()
-	sys, l1Client := startL1OnlySystem(t)
+	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
 
-	gameDuration := 24 * time.Hour
-	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.TimeTravelClock, l1Client, uint64(gameDuration.Seconds()))
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
 	game := disputeGameFactory.StartAlphabetGame(ctx, "zyxwvut")
 	require.NotNil(t, game)
+	gameDuration := game.GameDuration(ctx)
 
 	game.WaitForGameStatus(ctx, disputegame.StatusInProgress)
 
@@ -115,13 +114,13 @@ func TestChallengerCompleteDisputeGame(t *testing.T) {
 			InitParallel(t)
 
 			ctx := context.Background()
-			sys, l1Client := startL1OnlySystem(t)
+			sys, l1Client := startFaultDisputeSystem(t)
 			t.Cleanup(sys.Close)
 
-			gameDuration := 24 * time.Hour
-			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.TimeTravelClock, l1Client, uint64(gameDuration.Seconds()))
+			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
 			game := disputeGameFactory.StartAlphabetGame(ctx, test.rootClaimAlphabet)
 			require.NotNil(t, game)
+			gameDuration := game.GameDuration(ctx)
 
 			game.StartChallenger(ctx, sys.NodeEndpoint("l1"), "Defender", func(c *config.Config) {
 				c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(sys.cfg.Secrets.Mallory)
@@ -144,13 +143,13 @@ func TestChallengerCompleteDisputeGame(t *testing.T) {
 	}
 }
 
-func startL1OnlySystem(t *testing.T) (*System, *ethclient.Client) {
+func startFaultDisputeSystem(t *testing.T) (*System, *ethclient.Client) {
 	cfg := DefaultSystemConfig(t)
-	cfg.DeployConfig.L1BlockTime = 1
 	delete(cfg.Nodes, "verifier")
-	delete(cfg.Nodes, "sequencer")
 	cfg.SupportL1TimeTravel = true
+	cfg.DeployConfig.L2OutputOracleSubmissionInterval = 2
+	cfg.NonFinalizedProposals = true // Submit output proposals asap
 	sys, err := cfg.Start()
-	require.Nil(t, err, "Error starting up system")
+	require.NoError(t, err, "Error starting up system")
 	return sys, sys.Clients["l1"]
 }
