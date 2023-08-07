@@ -39,12 +39,12 @@ type L1TransactionDeposit struct {
 type L2TransactionWithdrawal struct {
 	WithdrawalHash common.Hash `gorm:"serializer:json;primaryKey"`
 
+	Nonce                U256
 	InitiatedL2EventGUID uuid.UUID
 
 	ProvenL1EventGUID    *uuid.UUID
 	FinalizedL1EventGUID *uuid.UUID
-
-	Nonce U256
+	Succeeded            *bool
 
 	Tx       Transaction `gorm:"embedded"`
 	GasLimit U256
@@ -62,7 +62,7 @@ type BridgeTransactionsDB interface {
 
 	StoreL2TransactionWithdrawals([]*L2TransactionWithdrawal) error
 	MarkL2TransactionWithdrawalProvenEvent(common.Hash, uuid.UUID) error
-	MarkL2TransactionWithdrawalFinalizedEvent(common.Hash, uuid.UUID) error
+	MarkL2TransactionWithdrawalFinalizedEvent(common.Hash, uuid.UUID, bool) error
 }
 
 /**
@@ -136,7 +136,7 @@ func (db *bridgeTransactionsDB) MarkL2TransactionWithdrawalProvenEvent(withdrawa
 }
 
 // MarkL2TransactionWithdrawalProvenEvent links a withdrawn transaction in its finalized state
-func (db *bridgeTransactionsDB) MarkL2TransactionWithdrawalFinalizedEvent(withdrawalHash common.Hash, finalizedL1EventGuid uuid.UUID) error {
+func (db *bridgeTransactionsDB) MarkL2TransactionWithdrawalFinalizedEvent(withdrawalHash common.Hash, finalizedL1EventGuid uuid.UUID, succeeded bool) error {
 	withdrawal, err := db.L2TransactionWithdrawal(withdrawalHash)
 	if err != nil {
 		return err
@@ -147,6 +147,7 @@ func (db *bridgeTransactionsDB) MarkL2TransactionWithdrawalFinalizedEvent(withdr
 	}
 
 	withdrawal.FinalizedL1EventGUID = &finalizedL1EventGuid
+	withdrawal.Succeeded = &succeeded
 	result := db.gorm.Save(&withdrawal)
 	return result.Error
 }

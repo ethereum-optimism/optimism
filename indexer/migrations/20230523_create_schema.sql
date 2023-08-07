@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS l2_transaction_withdrawals (
     -- Multistep (bedrock) process of a withdrawal
     proven_l1_event_guid    VARCHAR REFERENCES l1_contract_events(guid),
     finalized_l1_event_guid VARCHAR REFERENCES l1_contract_events(guid),
+    succeeded               BOOLEAN,
 
     -- L2ToL1MessagePasser specific
     nonce UINT256 UNIQUE,
