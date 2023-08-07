@@ -53,8 +53,13 @@ contract MIPS {
     uint32 constant EBADF = 0x9;
     uint32 constant EINVAL = 0x16;
 
-    /// @notice The pre-image oracle.
+    /// @notice The preimage oracle contract.
     IPreimageOracle public oracle;
+
+    /// @param _oracle The address of the preimage oracle contract.
+    constructor(IPreimageOracle _oracle) {
+        oracle = _oracle;
+    }
 
     /// @notice Extends the value leftwards with its most significant bit (sign extension).
     function SE(uint32 _dat, uint32 _idx) internal pure returns (uint32) {
