@@ -6,7 +6,6 @@ import Web3, {
   DEFAULT_RETURN_FORMAT,
   FMT_BYTES,
   FMT_NUMBER,
-  type Numbers,
   type Transaction,
   Web3PluginBase,
 } from 'web3'
@@ -103,7 +102,7 @@ export class OptimismFeeEstimationPlugin extends Web3PluginBase {
     return Web3.utils.format(
       { format: 'uint' },
       await this._getPriceOracleContractInstance()
-        .methods.getL1Fee(this._serializeTransaction(transaction, returnFormat))
+        .methods.getL1Fee(this._serializeTransaction(transaction))
         .call(),
       returnFormat ?? DEFAULT_RETURN_FORMAT
     )
@@ -130,7 +129,7 @@ export class OptimismFeeEstimationPlugin extends Web3PluginBase {
       { format: 'uint' },
       await this._getPriceOracleContractInstance()
         .methods.getL1GasUsed(
-          this._serializeTransaction(transaction, returnFormat)
+          this._serializeTransaction(transaction)
         )
         .call(),
       returnFormat ?? DEFAULT_RETURN_FORMAT
@@ -303,9 +302,7 @@ export class OptimismFeeEstimationPlugin extends Web3PluginBase {
    * @param transaction - A web3.js {Transaction} object
    * @returns {string} - The RLP encoded hex string
    */
-  private _serializeTransaction<
-    ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
-  >(transaction: Transaction, returnFormat?: ReturnFormat) {
+  private _serializeTransaction(transaction: Transaction) {
     const ethereumjsTransaction = TransactionFactory.fromTxData(
       formatTransaction(transaction, {
         number: FMT_NUMBER.HEX,
