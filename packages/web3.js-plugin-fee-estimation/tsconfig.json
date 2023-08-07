@@ -9,7 +9,6 @@
     "module": "esnext",
     "moduleResolution": "Node",
     "isolatedModules": true,
-    "incremental": true,
     "allowUnreachableCode": false,
     "skipLibCheck": false,
     "allowUnusedLabels": false,
