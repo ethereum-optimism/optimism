@@ -328,14 +328,16 @@ func l1ProcessContractEventsBridgeTransactions(processLog log.Logger, db *databa
 		withdrawal, err := db.BridgeTransactions.L2TransactionWithdrawal(withdrawalHash)
 		if err != nil {
 			return err
-		} else if withdrawal == nil {
+		}
+
+		if withdrawal == nil {
 			// We need to ensure we are in a caught up state before claiming a missing event. Since L2 timestamps
 			// are derived from L1, we can simply compare the timestamp of this event with the latest L2 header.
 			if provenWithdrawal.RawEvent.Timestamp > latestL2Header.Timestamp {
 				processLog.Warn("behind on indexed L2 withdrawals")
 				return errors.New("waiting for L2Processor to catch up")
 			} else {
-				processLog.Crit("withdrawal missing!", "hash", withdrawalHash)
+				processLog.Crit("L2 withdrawal missing!", "withdrawal_hash", withdrawalHash)
 				return errors.New("withdrawal missing!")
 			}
 		}
@@ -367,7 +369,7 @@ func l1ProcessContractEventsBridgeTransactions(processLog log.Logger, db *databa
 			return errors.New("withdrawal missing!")
 		}
 
-		err = db.BridgeTransactions.MarkL2TransactionWithdrawalFinalizedEvent(withdrawalHash, finalizedWithdrawal.RawEvent.GUID)
+		err = db.BridgeTransactions.MarkL2TransactionWithdrawalFinalizedEvent(withdrawalHash, finalizedWithdrawal.RawEvent.GUID, finalizedWithdrawal.Success)
 		if err != nil {
 			return err
 		}

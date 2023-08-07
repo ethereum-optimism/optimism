@@ -158,9 +158,50 @@ func TestE2EBridgeTransactionsL2ToL1MessagePasserWithdrawal(t *testing.T) {
 	withdraw, err = testSuite.DB.BridgeTransactions.L2TransactionWithdrawal(withdrawalHash)
 	require.NoError(t, err)
 	require.NotNil(t, withdraw.FinalizedL1EventGUID)
+	require.NotNil(t, withdraw.Succeeded)
+	require.True(t, *withdraw.Succeeded)
 
 	finalizedEvent, err := testSuite.DB.ContractEvents.L1ContractEvent(*withdraw.FinalizedL1EventGUID)
 	require.NoError(t, err)
 	require.NotNil(t, event)
 	require.Equal(t, finalizedEvent.TransactionHash, finalizeReceipt.TxHash)
+}
+
+func TestE2EBridgeTransactionsL2ToL1MessagePasserFailedWithdrawal(t *testing.T) {
+	testSuite := createE2ETestSuite(t)
+	testCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	l2ToL1MessagePasser, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, testSuite.L2Client)
+	require.NoError(t, err)
+
+	aliceAddr := testSuite.OpCfg.Secrets.Addresses().Alice
+
+	// Try to withdrawl 1 ETH from L2 without any corresponding deposits on L1
+	l2Opts, err := bind.NewKeyedTransactorWithChainID(testSuite.OpCfg.Secrets.Alice, testSuite.OpCfg.L2ChainIDBig())
+	require.NoError(t, err)
+	l2Opts.Value = big.NewInt(params.Ether)
+
+	withdrawTx, err := l2ToL1MessagePasser.InitiateWithdrawal(l2Opts, aliceAddr, big.NewInt(100_000), nil)
+	require.NoError(t, err)
+	withdrawReceipt, err := utils.WaitReceiptOK(testCtx, testSuite.L2Client, withdrawTx.Hash())
+	require.NoError(t, err)
+
+	msgPassed, err := withdrawals.ParseMessagePassed(withdrawReceipt)
+	require.NoError(t, err)
+	withdrawalHash, err := withdrawals.WithdrawalHash(msgPassed)
+	require.NoError(t, err)
+
+	// Prove&Finalize withdrawal
+	_, finalizeReceipt := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.L1Client, testSuite.OpSys.Nodes["sequencer"], testSuite.OpCfg.Secrets.Alice, withdrawReceipt)
+	require.NoError(t, utils.WaitFor(testCtx, 500*time.Millisecond, func() (bool, error) {
+		l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
+		return l1Header != nil && l1Header.Number.Uint64() >= finalizeReceipt.BlockNumber.Uint64(), nil
+	}))
+
+	// Withdrawal registered but marked as unsuccessful
+	withdraw, err := testSuite.DB.BridgeTransactions.L2TransactionWithdrawal(withdrawalHash)
+	require.NoError(t, err)
+	require.NotNil(t, withdraw.Succeeded)
+	require.False(t, *withdraw.Succeeded)
 }
