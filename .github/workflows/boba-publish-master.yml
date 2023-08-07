@@ -1,9 +1,9 @@
-name: Publish Packages (boba-develop)
+name: Publish Packages (boba-master)
 
 on:
   push:
-    branches:
-      - 'boba-develop'
+    tags:
+    - '*'
 
 jobs:
   publish-develop:
@@ -25,6 +25,13 @@ jobs:
           username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
           password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
 
+      - name: Get the version
+        id: tag
+        run: echo ::set-output name=VERSION::${GITHUB_REF/refs\/tags\//}
+
+      - name: Print current tag
+        run: echo ${{ steps.tag.outputs.VERSION }}
+
       - name: Build the services
         working-directory: ./ops-bedrock
         run: |
@@ -38,7 +45,7 @@ jobs:
         working-directory: ./ops-bedrock
         run: |
           for i in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep bobanetwork); do
-            docker image tag "$i" bobanetwork/$(echo $i | awk -F'/' '{print $2}' | awk -F':' '{print $1}'):latest
+            docker image tag "$i" bobanetwork/$(echo $i | awk -F'/' '{print $2}' | awk -F':' '{print $1}'):${{ steps.tag.outputs.VERSION }}
           done
           docker images
 
