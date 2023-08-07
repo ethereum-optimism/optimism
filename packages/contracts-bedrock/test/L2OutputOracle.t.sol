@@ -52,8 +52,8 @@ contract L2OutputOracle_constructor_Test is L2OutputOracle_Initializer {
         });
     }
 
-    /// @dev Tests that the constructor reverts if the starting timestamp is invalid.
-    function test_constructor_badTimestamp_reverts() external {
+    /// @dev Tests that initialize reverts if the starting timestamp is invalid.
+    function test_initialize_badTimestamp_reverts() external {
         // Reset the initialized field in the 0th storage slot
         // so that initialize can be called again.
         vm.store(address(oracle), bytes32(uint256(0)), bytes32(uint256(0)));
