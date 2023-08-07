@@ -30,7 +30,11 @@
     "release:publish": "pnpm install --frozen-lockfile && npx nx run-many --target=build && pnpm build && changeset publish",
     "release:version": "changeset version && pnpm install --lockfile-only",
     "install:foundry": "curl -L https://foundry.paradigm.xyz | bash && pnpm update:foundry",
-    "update:foundry": "foundryup -C $(cat .foundryrc)"
+    "update:foundry": "foundryup -C $(cat .foundryrc)",
+    "install:abigen": "go install github.com/ethereum/go-ethereum/cmd/abigen@$(cat .abigenrc)",
+    "print:abigen": "abigen --version | sed -e 's/[^0-9]/ /g' -e 's/^ *//g' -e 's/ *$//g' -e 's/ /./g' -e 's/^/v/'",
+    "check:abigen": "[[ $(abigen --version | sed -e 's/[^0-9]/ /g' -e 's/^ *//g' -e 's/ *$//g' -e 's/ /./g' -e 's/^/v/') = $(cat .abigenrc) ]] && echo '✓ abigen versions match' || (echo '✗ abigen version mismatch. Run `pnpm upgrade:abigen` to upgrade.' && exit 1)",
+    "upgrade:abigen": "abigen --version | sed -e 's/[^0-9]/ /g' -e 's/^ *//g' -e 's/ *$//g' -e 's/ /./g' -e 's/^/v/' > .abigenrc"
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.18.2",
