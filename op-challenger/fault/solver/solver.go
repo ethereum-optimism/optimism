@@ -28,6 +28,12 @@ func NewSolver(gameDepth int, traceProvider types.TraceProvider) *Solver {
 	}
 }
 
+// GetOracleData returns the oracle data for the provided claim.
+// It passes through to the [TraceProvider] by finding the trace index for the claim.
+func (s *Solver) GetOracleData(ctx context.Context, claim types.Claim) (*types.PreimageOracleData, error) {
+	return s.trace.GetOracleData(ctx, claim.TraceIndex(s.gameDepth))
+}
+
 // NextMove returns the next move to make given the current state of the game.
 func (s *Solver) NextMove(ctx context.Context, claim types.Claim, agreeWithClaimLevel bool) (*types.Claim, error) {
 	if agreeWithClaimLevel {

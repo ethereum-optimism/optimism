@@ -10,15 +10,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-service/client/utils"
-	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
@@ -35,48 +34,90 @@ const (
 	StatusDefenderWins
 )
 
-var alphabetVMAbsolutePrestate = common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060")
-var alphabetVMAbsolutePrestateClaim = crypto.Keccak256Hash(alphabetVMAbsolutePrestate)
+func (s Status) String() string {
+	switch s {
+	case StatusInProgress:
+		return "In Progress"
+	case StatusChallengerWins:
+		return "Challenger Wins"
+	case StatusDefenderWins:
+		return "Defender Wins"
+	default:
+		return fmt.Sprintf("Unknown status: %v", int(s))
+	}
+}
+
 var CorrectAlphabet = "abcdefghijklmnop"
 
 type FactoryHelper struct {
-	t       *testing.T
-	require *require.Assertions
-	client  *ethclient.Client
-	opts    *bind.TransactOpts
-	factory *bindings.DisputeGameFactory
-	l1Head  *big.Int
+	t           *testing.T
+	require     *require.Assertions
+	client      *ethclient.Client
+	opts        *bind.TransactOpts
+	factory     *bindings.DisputeGameFactory
+	blockOracle *bindings.BlockOracle
+	l2oo        *bindings.L2OutputOracleCaller
 }
 
-func NewFactoryHelper(t *testing.T, ctx context.Context, clock *clock.AdvancingClock, client *ethclient.Client, gameDuration uint64) *FactoryHelper {
+func NewFactoryHelper(t *testing.T, ctx context.Context, deployments *genesis.L1Deployments, client *ethclient.Client) *FactoryHelper {
 	require := require.New(t)
 	chainID, err := client.ChainID(ctx)
 	require.NoError(err)
 	opts, err := bind.NewKeyedTransactorWithChainID(deployer.TestKey, chainID)
 	require.NoError(err)
 
-	factory, l1Head := deployDisputeGameContracts(require, ctx, clock, client, opts, gameDuration)
+	require.NotNil(deployments, "No deployments")
+	factory, err := bindings.NewDisputeGameFactory(deployments.DisputeGameFactoryProxy, client)
+	require.NoError(err)
+	blockOracle, err := bindings.NewBlockOracle(deployments.BlockOracle, client)
+	require.NoError(err)
+	l2oo, err := bindings.NewL2OutputOracleCaller(deployments.L2OutputOracleProxy, client)
+	require.NoError(err, "Error creating l2oo caller")
 
+	//factory, l1Head := deployDisputeGameContracts(require, ctx, clock, client, opts, gameDuration)
 	return &FactoryHelper{
-		t:       t,
-		require: require,
-		client:  client,
-		opts:    opts,
-		factory: factory,
-		l1Head:  l1Head,
+		t:           t,
+		require:     require,
+		client:      client,
+		opts:        opts,
+		factory:     factory,
+		blockOracle: blockOracle,
+		l2oo:        l2oo,
 	}
 }
 
 func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet string) *FaultGameHelper {
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	// Wait for two output proposals to be published
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	trace := alphabet.NewTraceProvider(claimedAlphabet, 4)
+	err := utils.WaitFor(ctx, time.Second, func() (bool, error) {
+		index, err := h.l2oo.LatestOutputIndex(&bind.CallOpts{Context: ctx})
+		if err != nil {
+			h.t.Logf("Could not get latest output index: %v", err.Error())
+			return false, nil
+		}
+		h.t.Logf("Latest output index: %v", index)
+		return index.Cmp(big.NewInt(1)) >= 0, nil
+	})
+	h.require.NoError(err, "Did not get two output roots")
+
+	ctx, cancel = context.WithTimeout(ctx, 1*time.Minute)
+	defer cancel()
+
+	// Store the current block in the oracle
+	tx, err := h.blockOracle.Checkpoint(h.opts)
+	h.require.NoError(err)
+	r, err := utils.WaitReceiptOK(ctx, h.client, tx.Hash())
+	h.require.NoError(err, "failed to store block in blockoracle")
+	l1Head := new(big.Int).Sub(r.BlockNumber, big.NewInt(1))
+
+	trace := alphabet.NewTraceProvider(claimedAlphabet, alphabetGameDepth)
 	rootClaim, err := trace.Get(ctx, lastAlphabetTraceIndex)
 	h.require.NoError(err, "get root claim")
 	extraData := make([]byte, 64)
 	binary.BigEndian.PutUint64(extraData[24:], uint64(8))
-	binary.BigEndian.PutUint64(extraData[56:], h.l1Head.Uint64())
-	tx, err := h.factory.Create(h.opts, faultGameType, rootClaim, extraData)
+	binary.BigEndian.PutUint64(extraData[56:], l1Head.Uint64())
+	tx, err = h.factory.Create(h.opts, faultGameType, rootClaim, extraData)
 	h.require.NoError(err, "create fault dispute game")
 	rcpt, err := utils.WaitReceiptOK(ctx, h.client, tx.Hash())
 	h.require.NoError(err, "wait for create fault dispute game receipt to be OK")
@@ -126,6 +167,12 @@ func (g *FaultGameHelper) StartChallenger(ctx context.Context, l1Endpoint string
 		_ = c.Close()
 	})
 	return c
+}
+
+func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
+	duration, err := g.game.GAMEDURATION(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "failed to get game duration")
+	return time.Duration(duration) * time.Second
 }
 
 func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
@@ -190,6 +237,7 @@ func (g *FaultGameHelper) Resolve(ctx context.Context) {
 }
 
 func (g *FaultGameHelper) WaitForGameStatus(ctx context.Context, expected Status) {
+	g.t.Logf("Waiting for game %v to have status %v", g.addr, expected)
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
 	err := utils.WaitFor(ctx, 1*time.Second, func() (bool, error) {
@@ -199,7 +247,7 @@ func (g *FaultGameHelper) WaitForGameStatus(ctx context.Context, expected Status
 		if err != nil {
 			return false, fmt.Errorf("game status unavailable: %w", err)
 		}
-
+		g.t.Logf("Game %v has state %v, waiting for state %v", g.addr, Status(status), expected)
 		return expected == Status(status), nil
 	})
 	g.require.NoError(err, "wait for game status")
