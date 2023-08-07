@@ -2,7 +2,6 @@ package indexer
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -91,12 +90,12 @@ func (i *Indexer) Run(ctx context.Context) error {
 		err := start(processorCtx)
 		if err != nil {
 			i.log.Error("halting indexer on error", "err", err)
-
 			cancel()
-			errCh <- err
-		} else {
-			errCh <- errors.New("processor stopped")
 		}
+
+		// Send a value down regardless if we've received an error or halted
+		// via cancellation where err == nil
+		errCh <- err
 	}
 
 	// Kick off the processors
