@@ -13,7 +13,6 @@ import (
 
 type localGameInputs struct {
 	l1Head        common.Hash
-	l2ChainId     *big.Int
 	l2Head        common.Hash
 	l2OutputRoot  common.Hash
 	l2Claim       common.Hash
@@ -39,10 +38,6 @@ func fetchLocalInputs(ctx context.Context, gameAddr common.Address, caller GameI
 	if err != nil {
 		return localGameInputs{}, fmt.Errorf("fetch L1 head for game %v: %w", gameAddr, err)
 	}
-	l2ChainId, err := l2Client.ChainID(ctx)
-	if err != nil {
-		return localGameInputs{}, fmt.Errorf("fetch L2 chain ID: %w", err)
-	}
 
 	proposals, err := caller.Proposals(opts)
 	if err != nil {
@@ -58,7 +53,6 @@ func fetchLocalInputs(ctx context.Context, gameAddr common.Address, caller GameI
 
 	return localGameInputs{
 		l1Head:        l1Head,
-		l2ChainId:     l2ChainId,
 		l2Head:        l2Head,
 		l2OutputRoot:  agreedOutput.OutputRoot,
 		l2Claim:       claimedOutput.OutputRoot,
