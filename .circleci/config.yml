@@ -643,15 +643,10 @@ jobs:
       - checkout
       - check-changed:
           patterns: specs/(.*)\.md$
-      # TODO remove me after ci builder updated
       - run:
           name: Install pnpm package manager
           command: |
             npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
       - run:
           name: Install yarn package manager
           command: |
@@ -671,7 +666,6 @@ jobs:
       image: ubuntu-2204:2022.07.1
     steps:
       - checkout
-      # TODO remove me after ci builder updated
       - run:
           name: Install pnpm package manager
           command: |
