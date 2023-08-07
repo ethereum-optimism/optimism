@@ -12,7 +12,8 @@ import { Semver } from "../universal/Semver.sol";
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
 contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
-    /// @notice Address of the OptimismPortal.
+    /// @notice Address of the OptimismPortal. The public getter for this
+    ///         is legacy and will be removed in the future. Use `portal()` instead.
     /// @custom:network-specific
     /// @custom:legacy
     OptimismPortal public PORTAL;
