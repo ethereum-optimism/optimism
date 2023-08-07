@@ -64,7 +64,7 @@ func newTestCannonUpdater(t *testing.T, sendFails bool) (*cannonUpdater, *mockTx
 		from:      mockFdgAddress,
 		sendFails: sendFails,
 	}
-	updater, err := NewOracleUpdater(logger, txMgr, mockFdgAddress, mockPreimageOracleAddress)
+	updater, err := NewOracleUpdaterWithOracle(logger, txMgr, mockFdgAddress, mockPreimageOracleAddress)
 	require.NoError(t, err)
 	return updater, txMgr
 }
