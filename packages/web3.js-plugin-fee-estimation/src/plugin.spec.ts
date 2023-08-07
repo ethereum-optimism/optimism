@@ -8,7 +8,7 @@ import {
   optimistAddress,
 } from '@eth-optimism/contracts-ts'
 
-import OptimismFeeEstimationPlugin from './plugin'
+import { OptimismFeeEstimationPlugin } from './plugin'
 
 const defaultProvider = 'https://mainnet.optimism.io'
 const provider = z.string().url().default(defaultProvider).parse(process.env['VITE_L2_RPC_URL'])

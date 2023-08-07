@@ -18,7 +18,7 @@ import {
 } from '@eth-optimism/contracts-ts'
 import { RLP } from '@ethereumjs/rlp'
 
-export default class OptimismFeeEstimationPlugin extends Web3PluginBase {
+export class OptimismFeeEstimationPlugin extends Web3PluginBase {
   public pluginNamespace = 'op'
 
   private _gasPriceOracleContract:
