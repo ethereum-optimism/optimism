@@ -38,8 +38,7 @@ func NewIndexer(cfg config.Config) (*Indexer, error) {
 		return nil, err
 	}
 
-	// L1 Processor (hardhat devnet contracts). Make this configurable
-	l1Contracts := processor.DevL1Contracts()
+	l1Contracts := cfg.Chain.L1Contracts
 	l1EthClient, err := node.DialEthClient(cfg.RPCs.L1RPC)
 	if err != nil {
 		return nil, err

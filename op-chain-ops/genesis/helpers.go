@@ -18,12 +18,8 @@ var (
 	codeNamespace = common.HexToAddress("0xc0D3C0d3C0d3C0D3c0d3C0d3c0D3C0d3c0d30000")
 	// l2PredeployNamespace represents the namespace of L2 predeploys
 	l2PredeployNamespace = common.HexToAddress("0x4200000000000000000000000000000000000000")
-	// l1PredeployNamespace represents the namespace of L1 predeploys
-	l1PredeployNamespace = common.HexToAddress("0x6900000000000000000000000000000000000000")
 	// bigL2PredeployNamespace represents the predeploy namespace as a big.Int
 	BigL2PredeployNamespace = new(big.Int).SetBytes(l2PredeployNamespace.Bytes())
-	// bigL1PredeployNamespace represents the predeploy namespace as a big.Int
-	bigL1PredeployNamespace = new(big.Int).SetBytes(l1PredeployNamespace.Bytes())
 	// bigCodeNamespace represents the predeploy namespace as a big.Int
 	bigCodeNameSpace = new(big.Int).SetBytes(codeNamespace.Bytes())
 	// implementationSlot represents the EIP 1967 implementation storage slot
@@ -67,16 +63,12 @@ var devBalance = hexutil.MustDecodeBig("0x20000000000000000000000000000000000000
 // AddressToCodeNamespace takes a predeploy address and computes
 // the implementation address that the implementation should be deployed at
 func AddressToCodeNamespace(addr common.Address) (common.Address, error) {
-	if !IsL1DevPredeploy(addr) && !IsL2DevPredeploy(addr) {
+	if !IsL2DevPredeploy(addr) {
 		return common.Address{}, fmt.Errorf("cannot handle non predeploy: %s", addr)
 	}
 	bigAddress := new(big.Int).SetBytes(addr[18:])
 	num := new(big.Int).Or(bigCodeNameSpace, bigAddress)
 	return common.BigToAddress(num), nil
-}
-
-func IsL1DevPredeploy(addr common.Address) bool {
-	return bytes.Equal(addr[0:2], []byte{0x69, 0x00})
 }
 
 func IsL2DevPredeploy(addr common.Address) bool {

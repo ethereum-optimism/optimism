@@ -28,7 +28,7 @@ func TestE2EBridge(t *testing.T) {
 	l1Client := testSuite.OpSys.Clients["l1"]
 	l2Client := testSuite.OpSys.Clients["sequencer"]
 
-	l1StandardBridge, err := bindings.NewL1StandardBridge(predeploys.DevL1StandardBridgeAddr, l1Client)
+	l1StandardBridge, err := bindings.NewL1StandardBridge(testSuite.OpCfg.L1Deployments.L1StandardBridgeProxy, l1Client)
 	require.NoError(t, err)
 
 	l2StandardBridge, err := bindings.NewL2StandardBridge(predeploys.L2StandardBridgeAddr, l2Client)

@@ -26,7 +26,7 @@ import (
 )
 
 type L2Source struct {
-	*sources.L2Client
+	*L2Client
 	*sources.DebugClient
 }
 
@@ -205,7 +205,7 @@ func makePrefetcher(ctx context.Context, logger log.Logger, kv kvstore.KV, cfg *
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L1 client: %w", err)
 	}
-	l2Cl, err := sources.NewL2Client(l2RPC, logger, nil, l2ClCfg)
+	l2Cl, err := NewL2Client(l2RPC, logger, nil, &L2ClientConfig{L2ClientConfig: l2ClCfg, L2Head: cfg.L2Head})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L2 client: %w", err)
 	}

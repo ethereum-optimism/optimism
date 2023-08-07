@@ -1,9 +1,9 @@
 package actions
 
 import (
-	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -55,9 +55,10 @@ func TestProposer(gt *testing.T) {
 	sequencer.ActL1SafeSignal(t)
 	sequencer.ActL1FinalizedSignal(t)
 	require.Equal(t, sequencer.SyncStatus().UnsafeL2, sequencer.SyncStatus().FinalizedL2)
+	require.True(t, proposer.CanPropose(t))
+
 	// make proposals until there is nothing left to propose
 	for proposer.CanPropose(t) {
-		// and propose it to L1
 		proposer.ActMakeProposalTx(t)
 		// include proposal on L1
 		miner.ActL1StartBlock(12)(t)
@@ -72,11 +73,15 @@ func TestProposer(gt *testing.T) {
 	// check that L1 stored the expected output root
 	outputOracleContract, err := bindings.NewL2OutputOracle(sd.DeploymentsL1.L2OutputOracleProxy, miner.EthClient())
 	require.NoError(t, err)
-	block := sequencer.SyncStatus().FinalizedL2
-	outputOnL1, err := outputOracleContract.GetL2OutputAfter(nil, new(big.Int).SetUint64(block.Number))
+	blockNumber, err := outputOracleContract.LatestBlockNumber(&bind.CallOpts{})
 	require.NoError(t, err)
-	require.Less(t, block.Time, outputOnL1.Timestamp.Uint64(), "output is registered with L1 timestamp of proposal tx, past L2 block")
-	outputComputed, err := sequencer.RollupClient().OutputAtBlock(t.Ctx(), block.Number)
+	require.Greater(t, int64(blockNumber.Uint64()), int64(0), "latest block number must be greater than 0")
+	block, err := seqEngine.EthClient().BlockByNumber(t.Ctx(), blockNumber)
+	require.NoError(t, err)
+	outputOnL1, err := outputOracleContract.GetL2OutputAfter(&bind.CallOpts{}, blockNumber)
+	require.NoError(t, err)
+	require.Less(t, block.Time(), outputOnL1.Timestamp.Uint64(), "output is registered with L1 timestamp of proposal tx, past L2 block")
+	outputComputed, err := sequencer.RollupClient().OutputAtBlock(t.Ctx(), blockNumber.Uint64())
 	require.NoError(t, err)
 	require.Equal(t, eth.Bytes32(outputOnL1.OutputRoot), outputComputed.OutputRoot, "output roots must match")
 }

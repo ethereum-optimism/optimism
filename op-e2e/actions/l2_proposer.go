@@ -126,6 +126,7 @@ func (p *L2Proposer) sendTx(t Testing, data []byte) {
 	require.NoError(t, err, "need to sign tx")
 
 	err = p.l1.SendTransaction(t.Ctx(), tx)
+	log.Info("Proposer sent tx", "hash", tx.Hash(), "to", p.contractAddr)
 	require.NoError(t, err, "need to send tx")
 
 	p.lastTx = tx.Hash()

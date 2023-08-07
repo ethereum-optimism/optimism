@@ -60,7 +60,7 @@ type TraceProvider interface {
 	GetPreimage(ctx context.Context, i uint64) (preimage []byte, proofData []byte, err error)
 
 	// AbsolutePreState is the pre-image value of the trace that transitions to the trace value at index 0
-	AbsolutePreState(ctx context.Context) []byte
+	AbsolutePreState(ctx context.Context) ([]byte, error)
 }
 
 // ClaimData is the core of a claim. It must be unique inside a specific game.

@@ -73,7 +73,11 @@ func (s *Solver) AttemptStep(ctx context.Context, claim types.Claim, agreeWithCl
 	var proofData []byte
 	// If we are attacking index 0, we provide the absolute pre-state, not an intermediate state
 	if index == 0 && !claimCorrect {
-		preState = s.trace.AbsolutePreState(ctx)
+		state, err := s.trace.AbsolutePreState(ctx)
+		if err != nil {
+			return StepData{}, err
+		}
+		preState = state
 	} else {
 		// If attacking, get the state just before, other get the state after
 		if !claimCorrect {

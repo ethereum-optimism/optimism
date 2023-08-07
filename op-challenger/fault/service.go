@@ -56,9 +56,9 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 	var trace types.TraceProvider
 	switch cfg.TraceType {
 	case config.TraceTypeCannon:
-		trace = cannon.NewCannonTraceProvider(logger, cfg)
+		trace = cannon.NewTraceProvider(logger, cfg)
 	case config.TraceTypeAlphabet:
-		trace = alphabet.NewAlphabetProvider(cfg.AlphabetTrace, uint64(cfg.GameDepth))
+		trace = alphabet.NewTraceProvider(cfg.AlphabetTrace, uint64(cfg.GameDepth))
 	default:
 		return nil, fmt.Errorf("unsupported trace type: %v", cfg.TraceType)
 	}

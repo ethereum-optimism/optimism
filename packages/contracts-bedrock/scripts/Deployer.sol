@@ -5,6 +5,7 @@ import { Script } from "forge-std/Script.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { Executables } from "./Executables.sol";
+import { Chains } from "./Chains.sol";
 
 /// @notice store the new deployment to be saved
 struct Deployment {
@@ -71,19 +72,21 @@ abstract contract Deployer is Script {
 
         deploymentContext = _getDeploymentContext();
         string memory deployFile = vm.envOr("DEPLOY_FILE", string("run-latest.json"));
-        deployPath = string.concat(root, "/broadcast/", deployScript, ".s.sol/", vm.toString(block.chainid), "/", deployFile);
+        uint256 chainId = vm.envOr("CHAIN_ID", block.chainid);
+        deployPath = string.concat(root, "/broadcast/", deployScript, ".s.sol/", vm.toString(chainId), "/", deployFile);
 
         deploymentsDir = string.concat(root, "/deployments/", deploymentContext);
         try vm.createDir(deploymentsDir, true) {} catch (bytes memory) {}
 
         string memory chainIdPath = string.concat(deploymentsDir, "/.chainId");
-        try vm.readFile(chainIdPath) returns (string memory chainid) {
-            uint256 chainId = vm.parseUint(chainid);
-            require(chainId == block.chainid, "Misconfigured networks");
+        try vm.readFile(chainIdPath) returns (string memory localChainId) {
+            if (vm.envOr("STRICT_DEPLOYMENT", true)) {
+                require(vm.parseUint(localChainId) == chainId, "Misconfigured networks");
+            }
         } catch {
-            vm.writeFile(chainIdPath, vm.toString(block.chainid));
+            vm.writeFile(chainIdPath, vm.toString(chainId));
         }
-        console.log("Connected to network with chainid %s", block.chainid);
+        console.log("Connected to network with chainid %s", chainId);
 
         tempDeploymentsPath = string.concat(deploymentsDir, "/.deploy");
         try vm.readFile(tempDeploymentsPath) returns (string memory) {} catch {
@@ -432,22 +435,22 @@ abstract contract Deployer is Script {
             return context;
         }
 
-        uint256 chainid = block.chainid;
-        if (chainid == 1) {
+        uint256 chainid = vm.envOr("CHAIN_ID", block.chainid);
+        if (chainid == Chains.Mainnet) {
             return "mainnet";
-        }  else if (chainid == 5) {
+        }  else if (chainid == Chains.Goerli) {
             return "goerli";
-        } else if (chainid == 420) {
+        } else if (chainid == Chains.OPGoerli) {
             return "optimism-goerli";
-        } else if (chainid == 10) {
+        } else if (chainid == Chains.OPMainnet) {
             return "optimism-mainnet";
-        } else if (chainid == 900) {
+        } else if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet) {
             return "devnetL1";
-        } else if (chainid == 31337) {
+        } else if (chainid == Chains.Hardhat) {
             return "hardhat";
-        } else if (chainid == 11155111) {
+        } else if (chainid == Chains.Sepolia) {
             return "sepolia";
-        } else if (chainid == 11155420) {
+        } else if (chainid == Chains.OPSepolia) {
             return "optimism-sepolia";
         } else {
             return vm.toString(chainid);

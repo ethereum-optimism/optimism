@@ -24,8 +24,11 @@ import { ResourceMetering } from "../src/L1/ResourceMetering.sol";
 import { Constants } from "../src/libraries/Constants.sol";
 import { DisputeGameFactory } from "../src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "../src/dispute/FaultDisputeGame.sol";
+import { PreimageOracle } from "../src/cannon/PreimageOracle.sol";
+import { MIPS } from "../src/cannon/MIPS.sol";
 import { L1ERC721Bridge } from "../src/L1/L1ERC721Bridge.sol";
 import { Predeploys } from "../src/libraries/Predeploys.sol";
+import { Chains } from "./Chains.sol";
 
 import { IBigStepper } from "../src/dispute/interfaces/IBigStepper.sol";
 import { AlphabetVM } from "../test/FaultDisputeGame.t.sol";
@@ -79,6 +82,8 @@ contract Deploy is Deployer {
         deployL1StandardBridge();
         deployL1ERC721Bridge();
         deployDisputeGameFactory();
+        deployPreimageOracle();
+        deployMips();
 
         transferAddressManagerOwnership();
 
@@ -246,7 +251,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the DisputeGameFactoryProxy
     function deployDisputeGameFactoryProxy() broadcast() public returns (address) {
-        if (block.chainid == 900) {
+        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
             address proxyAdmin = mustGetAddress("ProxyAdmin");
             Proxy proxy = new Proxy({
                 _admin: proxyAdmin
@@ -347,12 +352,36 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the DisputeGameFactory
     function deployDisputeGameFactory() broadcast() public returns (address) {
-        if (block.chainid == 900) {
+        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
             DisputeGameFactory factory = new DisputeGameFactory();
             save("DisputeGameFactory", address(factory));
             console.log("DisputeGameFactory deployed at %s", address(factory));
 
             return address(factory);
+        }
+        return address(0);
+    }
+
+    /// @notice Deploy the PreimageOracle
+    function deployPreimageOracle() broadcast() public returns (address) {
+        if (block.chainid == 900) {
+            PreimageOracle preimageOracle = new PreimageOracle();
+            save("PreimageOracle", address(preimageOracle));
+            console.log("PreimageOracle deployed at %s", address(preimageOracle));
+
+            return address(preimageOracle);
+        }
+        return address(0);
+    }
+
+    /// @notice Deploy Mips
+    function deployMips() broadcast() public returns (address) {
+        if (block.chainid == 900) {
+            MIPS mips = new MIPS();
+            save("Mips", address(mips));
+            console.log("Mips deployed at %s", address(mips));
+
+            return address(mips);
         }
         return address(0);
     }
@@ -442,7 +471,7 @@ contract Deploy is Deployer {
 
     /// @notice Initialize the DisputeGameFactory
     function initializeDisputeGameFactory() broadcast() public {
-        if (block.chainid == 900) {
+        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
             ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
             address disputeGameFactoryProxy = mustGetAddress("DisputeGameFactoryProxy");
             address disputeGameFactory = mustGetAddress("DisputeGameFactory");
@@ -676,7 +705,7 @@ contract Deploy is Deployer {
 
     /// @notice Transfer ownership of the DisputeGameFactory contract to the final system owner
     function transferDisputeGameFactoryOwnership() broadcast() public {
-        if (block.chainid == 900) {
+        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
             DisputeGameFactory disputeGameFactory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
             address owner = disputeGameFactory.owner();
             address finalSystemOwner = cfg.finalSystemOwner();
@@ -689,7 +718,7 @@ contract Deploy is Deployer {
 
     /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
     function setFaultGameImplementation() broadcast() public {
-        if (block.chainid == 900) {
+        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
             DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
             Claim absolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
             IBigStepper faultVm = IBigStepper(new AlphabetVM(absolutePrestate));
