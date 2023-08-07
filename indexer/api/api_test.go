@@ -8,32 +8,25 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
 // MockBridgeTransfersView mocks the BridgeTransfersView interface
 type MockBridgeTransfersView struct{}
 
-const (
-	guid1 = "8408b6d2-7c90-4cfc-8604-b2204116cb6a"
-	guid2 = "8408b6d2-7c90-4cfc-8604-b2204116cb6b"
-)
-
 var (
 	deposit = database.L1BridgeDeposit{
-		GUID:                 uuid.MustParse(guid1),
-		InitiatedL1EventGUID: uuid.MustParse(guid2),
-		Tx:                   database.Transaction{},
-		TokenPair:            database.TokenPair{},
+		TransactionSourceHash:     common.HexToHash("abc"),
+		CrossDomainMessengerNonce: &database.U256{Int: big.NewInt(0)},
+		Tx:                        database.Transaction{},
+		TokenPair:                 database.TokenPair{},
 	}
 
 	withdrawal = database.L2BridgeWithdrawal{
-		GUID:                 uuid.MustParse(guid2),
-		InitiatedL2EventGUID: uuid.MustParse(guid1),
-		WithdrawalHash:       common.HexToHash("0x456"),
-		Tx:                   database.Transaction{},
-		TokenPair:            database.TokenPair{},
+		TransactionWithdrawalHash: common.HexToHash("0x456"),
+		CrossDomainMessengerNonce: &database.U256{Int: big.NewInt(0)},
+		Tx:                        database.Transaction{},
+		TokenPair:                 database.TokenPair{},
 	}
 )
 
@@ -54,7 +47,7 @@ func (mbv *MockBridgeTransfersView) L1BridgeDepositsByAddress(address common.Add
 	}, nil
 }
 
-func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalByWithdrawalHash(address common.Hash) (*database.L2BridgeWithdrawal, error) {
+func (mbv *MockBridgeTransfersView) L2BridgeWithdrawal(address common.Hash) (*database.L2BridgeWithdrawal, error) {
 	return &withdrawal, nil
 }
 
