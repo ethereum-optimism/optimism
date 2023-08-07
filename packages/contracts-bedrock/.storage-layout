@@ -25,7 +25,7 @@
 | msgNonce           | uint240                  | 205  | 0      | 30    | src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 | failedMessages     | mapping(bytes32 => bool) | 206  | 0      | 32    | src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 | __gap              | uint256[42]              | 207  | 0      | 1344  | src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
-| _PORTAL            | contract OptimismPortal  | 249  | 0      | 20    | src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| PORTAL             | contract OptimismPortal  | 249  | 0      | 20    | src/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 
 =======================
 ➡ src/L1/L1StandardBridge.sol:L1StandardBridge
