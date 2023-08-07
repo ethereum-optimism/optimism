@@ -21,7 +21,7 @@
     "build": "tsup",
     "lint": "prettier --check .",
     "lint:fix": "prettier --write .",
-    "test": "vitest",
+    "test": "vitest --coverage",
     "test:coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
   },
