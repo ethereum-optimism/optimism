@@ -12,13 +12,13 @@
   "type": "module",
   "main": "dist/plugin.js",
   "module": "dist/plugin.mjs",
-  "types": "src/plugin.ts",
+  "types": "dist/plugin.d.ts",
   "files": [
     "dist/",
     "src/"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup --dts",
     "lint": "prettier --check .",
     "lint:fix": "prettier --write .",
     "test": "vitest --coverage",
