@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
@@ -208,7 +209,7 @@ func TestBedrockIndexer(t *testing.T) {
 		require.Nil(t, wd.BedrockFinalizedTxHash)
 
 		// Finalize withdrawal
-		err = withdrawals.WaitForFinalizationPeriod(e2eutils.TimeoutCtx(t, 30*time.Second), l1Client, cfg.L1Deployments.OptimismPortalProxy, proveReceipt.BlockNumber)
+		err = withdrawals.WaitForFinalizationPeriod(e2eutils.TimeoutCtx(t, 30*time.Second), l1Client, proveReceipt.BlockNumber, config.L1Deployments.L2OutputOracleProxy)
 		require.Nil(t, err)
 		finReceipt := op_e2e.FinalizeWithdrawal(t, cfg, l1Client, cfg.Secrets.Alice, wdReceipt, wdParams)
 

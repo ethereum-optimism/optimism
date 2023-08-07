@@ -27,6 +27,12 @@ func setupFaultDisputeGame() (common.Address, *bind.TransactOpts, *backends.Simu
 		return common.Address{}, nil, nil, nil, err
 	}
 	backend := backends.NewSimulatedBackend(core.GenesisAlloc{from: {Balance: big.NewInt(params.Ether)}}, 50_000_000)
+
+	blockHashOracle, _, _, err := bindings.DeployBlockOracle(opts, backend)
+	if err != nil {
+		return common.Address{}, nil, nil, nil, err
+	}
+
 	_, _, contract, err := bindings.DeployFaultDisputeGame(
 		opts,
 		backend,
@@ -35,6 +41,7 @@ func setupFaultDisputeGame() (common.Address, *bind.TransactOpts, *backends.Simu
 		uint64(604800),       // 7 days
 		common.Address{0xdd}, // VM
 		common.Address{0xee}, // L2OutputOracle (Not used in Alphabet Game)
+		blockHashOracle,      // Block hash oracle
 	)
 	if err != nil {
 		return common.Address{}, nil, nil, nil, err

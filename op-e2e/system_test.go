@@ -2,7 +2,6 @@ package op_e2e
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"math/big"
 	"os"
@@ -20,20 +19,19 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
-	"github.com/ethereum/go-ethereum/node"
-
-	//"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
+
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -48,28 +46,24 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	flag.BoolVar(&verboseEthNodes, "ethlogs", true, "Enable debug logs on Ethereum nodes")
-	flag.StringVar(&externalL2Nodes, "externalL2", "", "Enable tests with external L2")
-	flag.Parse()
-
-	if externalL2Nodes != "" {
-		fmt.Println("Running tests with external L2 process adapter at ", externalL2Nodes)
-		shimPath, err := filepath.Abs(externalL2Nodes)
+	if config.ExternalL2Nodes != "" {
+		fmt.Println("Running tests with external L2 process adapter at ", config.ExternalL2Nodes)
+		shimPath, err := filepath.Abs(config.ExternalL2Nodes)
 		if err != nil {
 			fmt.Printf("Could not compute abs of externalL2Nodes shim: %s\n", err)
 			os.Exit(2)
 		}
 		// We convert the passed in path to an absolute path, as it simplifies
 		// the path handling logic for the rest of the testing
-		externalL2Nodes = shimPath
+		config.ExternalL2Nodes = shimPath
 
-		_, err = os.Stat(externalL2Nodes)
+		_, err = os.Stat(config.ExternalL2Nodes)
 		if err != nil {
 			fmt.Printf("Failed to stat externalL2Nodes path: %s\n", err)
 			os.Exit(3)
 		}
 
-		cmd := exec.Command(externalL2Nodes, "--init")
+		cmd := exec.Command(config.ExternalL2Nodes, "--init")
 		cmd.Dir = filepath.Dir(shimPath)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -1145,6 +1139,22 @@ func TestWithdrawals(t *testing.T) {
 	require.Equal(t, withdrawAmount, diff)
 }
 
+type stateGetterAdapter struct {
+	ctx      context.Context
+	t        *testing.T
+	client   *ethclient.Client
+	blockNum *big.Int
+}
+
+func (sga *stateGetterAdapter) GetState(addr common.Address, key common.Hash) common.Hash {
+	sga.t.Helper()
+	val, err := sga.client.StorageAt(sga.ctx, addr, key, sga.blockNum)
+	require.NoError(sga.t, err)
+	var res common.Hash
+	copy(res[:], val)
+	return res
+}
+
 // TestFees checks that L1/L2 fees are handled.
 func TestFees(t *testing.T) {
 	InitParallel(t)
@@ -1162,11 +1172,21 @@ func TestFees(t *testing.T) {
 	l2Verif := sys.Clients["verifier"]
 	l1 := sys.Clients["l1"]
 
-	seqBackend := sys.Backends["sequencer"]
-	seqState, err := seqBackend.BlockChain().State()
-	require.Nil(t, err, "Error getting sequencer state")
+	config := &params.ChainConfig{
+		Optimism: &params.OptimismConfig{
+			EIP1559Elasticity:  cfg.DeployConfig.EIP1559Elasticity,
+			EIP1559Denominator: cfg.DeployConfig.EIP1559Denominator,
+		},
+		BedrockBlock: big.NewInt(0),
+	}
 
-	l1CostFn := types.NewL1CostFunc(seqBackend.BlockChain().Config(), seqState)
+	sga := &stateGetterAdapter{
+		ctx:    context.Background(),
+		t:      t,
+		client: l2Seq,
+	}
+
+	l1CostFn := types.NewL1CostFunc(config, sga)
 
 	// Transactor Account
 	ethPrivKey := cfg.Secrets.Alice

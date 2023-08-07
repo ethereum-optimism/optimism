@@ -557,7 +557,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			cancel()
 			require.Nil(t, err)
 
-			rpcClient, err := rpc.Dial(sys.Nodes["verifier"].WSEndpoint())
+			rpcClient, err := rpc.Dial(sys.EthInstances["verifier"].WSEndpoint())
 			require.Nil(t, err)
 			proofCl := gethclient.New(rpcClient)
 			receiptCl := ethclient.NewClient(rpcClient)
@@ -676,7 +676,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 				// Wait for finalization and then create the Finalized Withdrawal Transaction
 				ctx, cancel = context.WithTimeout(context.Background(), 45*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 				defer cancel()
-				err = withdrawals.WaitForFinalizationPeriod(ctx, l1Client, cfg.L1Deployments.OptimismPortalProxy, header.Number)
+				err = withdrawals.WaitForFinalizationPeriod(ctx, l1Client, header.Number, cfg.L1Deployments.L2OutputOracleProxy)
 				require.Nil(t, err)
 
 				// Finalize withdrawal

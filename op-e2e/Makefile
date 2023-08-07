@@ -10,13 +10,10 @@ pre-test:
 test: pre-test
 	go test -v ./...
 
-test-erigon:
-	go test -v --erigon -timeout 10m
-
 lint:
 	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is"
 
-test-external-%: external_%/shim
+test-external-%: pre-test external_%/shim
 	go test -v --externalL2 ./external_$*/shim
 
 external_%/shim: external_%/*.go
@@ -24,5 +21,4 @@ external_%/shim: external_%/*.go
 
 .PHONY: \
 	test \
-	test-erigon \
 	lint

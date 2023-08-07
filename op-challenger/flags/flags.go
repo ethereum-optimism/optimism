@@ -5,12 +5,13 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	openum "github.com/ethereum-optimism/optimism/op-service/enum"
-	"github.com/urfave/cli/v2"
-
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	txmgr "github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/urfave/cli/v2"
 )
 
 const (
@@ -58,6 +59,11 @@ var (
 		Usage:   "Correct Alphabet Trace (alphabet trace type only)",
 		EnvVars: prefixEnvVars("ALPHABET"),
 	}
+	PreimageOracleAddressFlag = &cli.StringFlag{
+		Name:    "preimage-oracle-address",
+		Usage:   "Address of the Preimage Oracle contract (only required for cannon).",
+		EnvVars: prefixEnvVars("PREIMAGE_ORACLE_ADDRESS"),
+	}
 	CannonBinFlag = &cli.StringFlag{
 		Name:    "cannon-bin",
 		Usage:   "Path to cannon executable to use when generating trace data (cannon trace type only)",
@@ -103,6 +109,7 @@ var requiredFlags = []cli.Flag{
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
 	AlphabetFlag,
+	PreimageOracleAddressFlag,
 	CannonBinFlag,
 	CannonServerFlag,
 	CannonPreStateFlag,
@@ -130,6 +137,9 @@ func CheckRequired(ctx *cli.Context) error {
 	gameType := config.TraceType(strings.ToLower(ctx.String(TraceTypeFlag.Name)))
 	switch gameType {
 	case config.TraceTypeCannon:
+		if !ctx.IsSet(PreimageOracleAddressFlag.Name) {
+			return fmt.Errorf("flag %s is required", PreimageOracleAddressFlag.Name)
+		}
 		if !ctx.IsSet(CannonBinFlag.Name) {
 			return fmt.Errorf("flag %s is required", CannonBinFlag.Name)
 		}
@@ -169,11 +179,21 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 
 	traceTypeFlag := config.TraceType(strings.ToLower(ctx.String(TraceTypeFlag.Name)))
 
+	preimageOracleAddress := common.Address{}
+	preimageOracleValue := ctx.String(PreimageOracleAddressFlag.Name)
+	if traceTypeFlag == config.TraceTypeCannon || preimageOracleValue != "" {
+		preimageOracleAddress, err = opservice.ParseAddress(preimageOracleValue)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &config.Config{
 		// Required Flags
 		L1EthRpc:                ctx.String(L1EthRpcFlag.Name),
 		TraceType:               traceTypeFlag,
 		GameAddress:             dgfAddress,
+		PreimageOracleAddress:   preimageOracleAddress,
 		AlphabetTrace:           ctx.String(AlphabetFlag.Name),
 		CannonBin:               ctx.String(CannonBinFlag.Name),
 		CannonServer:            ctx.String(CannonServerFlag.Name),

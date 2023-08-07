@@ -72,7 +72,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: cannon,packages/contracts-bedrock/contracts/cannon
+          patterns: cannon,packages/contracts-bedrock/src/cannon
       - run:
           name: prep Cannon results dir
           command: mkdir -p /tmp/test-results
@@ -766,7 +766,7 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: cannon,packages/contracts-bedrock/contracts/cannon
+          patterns: cannon,packages/contracts-bedrock/src/cannon
       - run:
           name: Fuzz
           command: make fuzz

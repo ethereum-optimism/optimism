@@ -139,7 +139,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		GethOptions:                map[string][]GethOption{},
 		P2PTopology:                nil, // no P2P connectivity by default
 		NonFinalizedProposals:      false,
-		ExternalL2Nodes:            externalL2Nodes,
+		ExternalL2Nodes:            config.ExternalL2Nodes,
 		BatcherTargetL1TxSizeBytes: 100_000,
 	}
 }
@@ -469,8 +469,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 	// Configure connections to L1 and L2 for rollup nodes.
 	// TODO: refactor testing to allow use of in-process rpc connections instead
-	// of only websockets (which are required for Erigon tests).
-
+	// of only websockets (which are required for external eth client tests).
 	for name, rollupCfg := range cfg.Nodes {
 		configureL1(rollupCfg, sys.EthInstances["l1"])
 		configureL2(rollupCfg, sys.EthInstances[name], cfg.JWTSecret)

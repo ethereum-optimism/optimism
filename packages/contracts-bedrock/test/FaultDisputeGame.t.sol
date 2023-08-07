@@ -7,16 +7,16 @@ import { DisputeGameFactory_Init } from "./DisputeGameFactory.t.sol";
 import { DisputeGameFactory } from "src/dispute/DisputeGameFactory.sol";
 import { FaultDisputeGame } from "src/dispute/FaultDisputeGame.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
+import { BlockOracle } from "src/dispute/BlockOracle.sol";
 
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
+import { Types } from "src/libraries/Types.sol";
 import { LibClock } from "src/dispute/lib/LibClock.sol";
 import { LibPosition } from "src/dispute/lib/LibPosition.sol";
 import { IBigStepper, IPreimageOracle } from "src/dispute/interfaces/IBigStepper.sol";
 
 contract FaultDisputeGame_Init is DisputeGameFactory_Init {
-    /// @dev The extra data passed to the game for initialization.
-    bytes internal constant EXTRA_DATA = abi.encode(1);
     /// @dev The type of the game being tested.
     GameType internal constant GAME_TYPE = GameType.wrap(0);
 
@@ -24,11 +24,39 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
     FaultDisputeGame internal gameImpl;
     /// @dev The `Clone` proxy of the game.
     FaultDisputeGame internal gameProxy;
+    /// @dev The extra data passed to the game for initialization.
+    bytes internal extraData;
 
     event Move(uint256 indexed parentIndex, Claim indexed pivot, address indexed claimant);
 
     function init(Claim rootClaim, Claim absolutePrestate) public {
         super.setUp();
+
+        // Set the time to a realistic date.
+        vm.warp(1690906994);
+
+        // Propose 2 mock outputs
+        vm.startPrank(oracle.PROPOSER());
+        for (uint256 i; i < 2; i++) {
+            oracle.proposeL2Output(
+                bytes32(i + 1),
+                oracle.nextBlockNumber(),
+                blockhash(i),
+                i
+            );
+
+            // Advance 1 block
+            vm.roll(block.number + 1);
+            vm.warp(block.timestamp + 13);
+        }
+        vm.stopPrank();
+
+        // Deploy a new block hash oracle and store the block hash for the genesis block.
+        BlockOracle blockOracle = new BlockOracle();
+        blockOracle.checkpoint();
+
+        // Set the extra data for the game creation
+        extraData = abi.encode(oracle.SUBMISSION_INTERVAL() * 2, block.number - 1);
 
         // Deploy an implementation of the fault game
         gameImpl = new FaultDisputeGame(
@@ -36,12 +64,13 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
             4,
             Duration.wrap(7 days),
             new AlphabetVM(absolutePrestate),
-            L2OutputOracle(deployNoop())
+            oracle,
+            blockOracle
         );
         // Register the game implementation with the factory.
         factory.setImplementation(GAME_TYPE, gameImpl);
         // Create a new game.
-        gameProxy = FaultDisputeGame(address(factory.create(GAME_TYPE, rootClaim, EXTRA_DATA)));
+        gameProxy = FaultDisputeGame(address(factory.create(GAME_TYPE, rootClaim, extraData)));
 
         // Label the proxy
         vm.label(address(gameProxy), "FaultDisputeGame_Clone");
@@ -69,7 +98,7 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
     /// @dev Tests that the game's extra data is set correctly.
     function test_extraData_succeeds() public {
-        assertEq(gameProxy.extraData(), EXTRA_DATA);
+        assertEq(gameProxy.extraData(), extraData);
     }
 
     /// @dev Tests that the game's status is set correctly.
@@ -84,19 +113,56 @@ contract FaultDisputeGame_Test is FaultDisputeGame_Init {
 
     /// @dev Tests that the game's data is set correctly.
     function test_gameData_succeeds() public {
-        (GameType gameType, Claim rootClaim, bytes memory extraData) = gameProxy.gameData();
+        (GameType gameType, Claim rootClaim, bytes memory _extraData) = gameProxy.gameData();
 
         assertEq(GameType.unwrap(gameType), GameType.unwrap(GAME_TYPE));
         assertEq(Claim.unwrap(rootClaim), Claim.unwrap(ROOT_CLAIM));
-        assertEq(extraData, EXTRA_DATA);
+        assertEq(_extraData, extraData);
     }
 
     ////////////////////////////////////////////////////////////////
     //          `IFaultDisputeGame` Implementation Tests          //
     ////////////////////////////////////////////////////////////////
 
-    /// @dev Tests that the root claim's data is set correctly when the game is initialized.
-    function test_initialRootClaimData_succeeds() public {
+    /// @dev Tests that a game cannot be created by the factory if the L1 head hash does not
+    ///      contain the disputed L2 output root.
+    function test_initialize_l1HeadTooOld_reverts() public {
+        // Store a mock block hash for the genesis block. The timestamp will default to 0.
+        vm.store(address(gameImpl.BLOCK_ORACLE()), keccak256(abi.encode(0, 0)), bytes32(uint256(1)));
+        bytes memory _extraData = abi.encode(oracle.SUBMISSION_INTERVAL() * 2, 0);
+
+        vm.expectRevert(L1HeadTooOld.selector);
+        factory.create(GAME_TYPE, ROOT_CLAIM, _extraData);
+    }
+
+    /// @dev Tests that a game cannot be created that disputes the first output root proposed.
+    /// TODO(clabby): This will be solved by the block hash bisection game, where we'll be able
+    ///               to dispute the first output root by using genesis as the starting point.
+    ///               For now, it is critical that the first proposed output root of an OP stack
+    ///               chain is done so by an honest party.
+    function test_initialize_firstOutput_reverts() public {
+        vm.expectRevert(abi.encodeWithSignature("Panic(uint256)", 0x11));
+        factory.create(GAME_TYPE, ROOT_CLAIM, abi.encode(1800, block.number - 1));
+    }
+
+    /// @dev Tests that the game is initialized with the correct data.
+    function test_initialize_correctData_succeeds() public {
+        // Starting
+        (FaultDisputeGame.OutputProposal memory startingProp, FaultDisputeGame.OutputProposal memory disputedProp) = gameProxy.proposals();
+        Types.OutputProposal memory starting = oracle.getL2Output(startingProp.index);
+        assertEq(startingProp.index, 0);
+        assertEq(startingProp.l2BlockNumber, starting.l2BlockNumber);
+        assertEq(Hash.unwrap(startingProp.outputRoot), starting.outputRoot);
+        // Disputed
+        Types.OutputProposal memory disputed = oracle.getL2Output(disputedProp.index);
+        assertEq(disputedProp.index, 1);
+        assertEq(disputedProp.l2BlockNumber, disputed.l2BlockNumber);
+        assertEq(Hash.unwrap(disputedProp.outputRoot), disputed.outputRoot);
+
+        // L1 head
+        (, uint256 l1HeadNumber) = abi.decode(gameProxy.extraData(), (uint256, uint256));
+        assertEq(blockhash(l1HeadNumber), Hash.unwrap(gameProxy.l1Head()));
+
         (
             uint32 parentIndex,
             bool countered,

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
@@ -46,7 +47,7 @@ func TestVerifyL2OutputRootEmptyBlockDetached(t *testing.T) {
 // - update the state root via a tx
 // - run program
 func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
-	if externalL2Nodes != "" {
+	if config.ExternalL2Nodes != "" {
 		t.Skip("debug_dbGet is a custom geth RPC which is not generally suported by other eth clients")
 	}
 	InitParallel(t)
@@ -150,7 +151,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 }
 
 func testVerifyL2OutputRoot(t *testing.T, detached bool) {
-	if externalL2Nodes != "" {
+	if config.ExternalL2Nodes != "" {
 		t.Skip("debug_dbGet is a custom geth RPC which is not generally supported by other clients")
 	}
 	InitParallel(t)

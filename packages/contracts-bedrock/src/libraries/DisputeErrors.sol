@@ -16,7 +16,7 @@ error NoImplementation(GameType gameType);
 error GameAlreadyExists(Hash uuid);
 
 ////////////////////////////////////////////////////////////////
-//               `DisputeGame_Fault.sol` Errors               //
+//                 `FaultDisputeGame` Errors                  //
 ////////////////////////////////////////////////////////////////
 
 /// @notice Thrown when a supplied bond is too low to cover the
@@ -54,6 +54,10 @@ error InvalidPrestate();
 /// @notice Thrown when a step is made that computes the expected post state correctly.
 error ValidStep();
 
+/// @notice Thrown when a game is attempted to be initialized with an L1 head that does
+///         not contain the disputed output root.
+error L1HeadTooOld();
+
 ////////////////////////////////////////////////////////////////
 //              `AttestationDisputeGame` Errors               //
 ////////////////////////////////////////////////////////////////
@@ -72,3 +76,14 @@ error AlreadyChallenged();
 /// @notice Thrown when a function that is protected by the `onlyOwner` modifier
 ///          is called from an account other than the owner.
 error NotOwner();
+
+////////////////////////////////////////////////////////////////
+//                    `BlockOracle` Errors                    //
+////////////////////////////////////////////////////////////////
+
+/// @notice Thrown when a block that is out of the range of the `BLOCKHASH` opcode
+///         is attempted to be loaded.
+error BlockNumberOOB();
+
+/// @notice Thrown when a block hash is attempted to be loaded that has not been stored.
+error BlockHashNotPresent();

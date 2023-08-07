@@ -45,15 +45,15 @@ COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
 RUN apt-get update && \
   apt-get install -y bash curl openssh-client git build-essential ca-certificates jq musl gnupg coreutils && \
   curl -sL https://deb.nodesource.com/setup_16.x -o nodesource_setup.sh && \
-  curl -sL https://go.dev/dl/go1.19.linux-amd64.tar.gz -o go1.19.linux-amd64.tar.gz && \
-  tar -C /usr/local/ -xzvf go1.19.linux-amd64.tar.gz && \
+  curl -sL https://go.dev/dl/go1.20.linux-amd64.tar.gz -o go1.20.linux-amd64.tar.gz && \
+  tar -C /usr/local/ -xzvf go1.20.linux-amd64.tar.gz && \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt && \
   bash nodesource_setup.sh && \
   apt-get install -y nodejs && \
   npm i -g depcheck && \
   pip install slither-analyzer==0.9.3 && \
   go install gotest.tools/gotestsum@latest && \
-  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.48.0 && \
+  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.53.3 && \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash
 
 # We need to isntall yarn because a bespoke dependency installed from github https://codeload.github.com/Saw-mon-and-Natalie/clones-with-immutable-arg needs it

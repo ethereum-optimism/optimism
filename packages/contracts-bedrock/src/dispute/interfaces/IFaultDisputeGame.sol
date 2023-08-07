@@ -18,6 +18,20 @@ interface IFaultDisputeGame is IDisputeGame {
         Clock clock;
     }
 
+    /// @notice The `OutputProposal` struct contains information about an output proposal in
+    ///         the `L2OutputOracle` at a given index.
+    struct OutputProposal {
+        uint128 index;
+        uint128 l2BlockNumber;
+        Hash outputRoot;
+    }
+
+    /// @notice A container for two consecutive `OutputProposal`s.
+    struct OutputProposals {
+        OutputProposal starting;
+        OutputProposal disputed;
+    }
+
     /// @notice Emitted when a new claim is added to the DAG by `claimant`
     /// @param parentIndex The index within the `claimData` array of the parent claim
     /// @param claim The claim being added
@@ -63,6 +77,8 @@ interface IFaultDisputeGame is IDisputeGame {
 
     /// @notice The l2BlockNumber that the `rootClaim` commits to. The trace being bisected within
     ///         the game is from `l2BlockNumber - 1` -> `l2BlockNumber`.
-    /// @return l2BlockNumber_ The l2BlockNumber that the `rootClaim` commits to.
     function l2BlockNumber() external view returns (uint256 l2BlockNumber_);
+
+    /// @notice The l1BlockNumber that Cannon was ran from to generate the root claim.
+    function l1BlockNumber() external view returns (uint256 l1BlockNumber_);
 }
