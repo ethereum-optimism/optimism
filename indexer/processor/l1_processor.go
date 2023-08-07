@@ -255,13 +255,13 @@ func l1BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethCl
 		return err
 	}
 
-	deposits := make([]*database.Deposit, len(initiatedDepositEvents))
+	deposits := make([]*database.L1BridgeDeposit, len(initiatedDepositEvents))
 	for i, initiatedBridgeEvent := range initiatedDepositEvents {
-		deposits[i] = &database.Deposit{
-			GUID:                 uuid.New(),
-			InitiatedL1EventGUID: initiatedBridgeEvent.RawEvent.GUID,
-			SentMessageNonce:     database.U256{Int: initiatedBridgeEvent.CrossDomainMessengerNonce},
-			TokenPair:            database.TokenPair{L1TokenAddress: initiatedBridgeEvent.LocalToken, L2TokenAddress: initiatedBridgeEvent.RemoteToken},
+		deposits[i] = &database.L1BridgeDeposit{
+			GUID:                      uuid.New(),
+			InitiatedL1EventGUID:      initiatedBridgeEvent.RawEvent.GUID,
+			CrossDomainMessengerNonce: database.U256{Int: initiatedBridgeEvent.CrossDomainMessengerNonce},
+			TokenPair:                 database.TokenPair{L1TokenAddress: initiatedBridgeEvent.LocalToken, L2TokenAddress: initiatedBridgeEvent.RemoteToken},
 			Tx: database.Transaction{
 				FromAddress: initiatedBridgeEvent.From,
 				ToAddress:   initiatedBridgeEvent.To,
@@ -274,7 +274,7 @@ func l1BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethCl
 
 	if len(deposits) > 0 {
 		processLog.Info("detected L1StandardBridge deposits", "num", len(deposits))
-		err := db.Bridge.StoreDeposits(deposits)
+		err := db.BridgeTransfers.StoreL1BridgeDeposits(deposits)
 		if err != nil {
 			return err
 		}
@@ -286,47 +286,39 @@ func l1BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethCl
 		return err
 	}
 
-	// we manually keep track since not every proven withdrawal is a standard bridge withdrawal
+	latestL2Header, err := db.Blocks.LatestL2BlockHeader()
+	if err != nil {
+		return err
+	} else if len(provenWithdrawalEvents) > 0 && latestL2Header == nil {
+		return errors.New("no indexed L2 state to process any proven L1 transactions")
+	}
+
 	numProvenWithdrawals := 0
 	for _, provenWithdrawalEvent := range provenWithdrawalEvents {
 		withdrawalHash := provenWithdrawalEvent.WithdrawalHash
-		withdrawal, err := db.Bridge.WithdrawalByHash(withdrawalHash)
+		withdrawal, err := db.BridgeTransfers.L2BridgeWithdrawalByWithdrawalHash(withdrawalHash)
 		if err != nil {
 			return err
-		}
-
-		// Check if the L2Processor is behind or really has missed an event. We can compare against the
-		// OptimismPortal#ProvenWithdrawal on-chain mapping relative to the latest indexed L2 height
-		if withdrawal == nil {
-
-			// This needs to be updated to read from config as well as correctly identify if the CrossDomainMessenger message is a standard
-			// bridge message. This will easier to do once we index passed messages separately which will include the right To/From fields
+		} else if withdrawal == nil {
+			// NOTE: This needs to be updated to identify if this CrossDomainMessenger message is a StandardBridge message. This
+			// will be easier to do once we index cross domain messages and track its lifecyle separately
 			if provenWithdrawalEvent.From != common.HexToAddress("0x4200000000000000000000000000000000000007") || provenWithdrawalEvent.To != l1Contracts.L1CrossDomainMessenger {
 				// non-bridge withdrawal
 				continue
 			}
 
-			// Query for the the proven withdrawal on-chain
-			provenWithdrawal, err := OptimismPortalQueryProvenWithdrawal(rawEthClient, l1Contracts.OptimismPortal, withdrawalHash)
-			if err != nil {
-				return err
-			}
-
-			latestL2Header, err := db.Blocks.LatestL2BlockHeader()
-			if err != nil {
-				return err
-			}
-
-			if latestL2Header == nil || provenWithdrawal.L2OutputIndex.Cmp(latestL2Header.Number.Int) > 0 {
-				processLog.Warn("behind on indexed L2 withdrawals")
+			// Check if the L2Processor is behind or really has missed an event. Since L2 timestamps
+			// are derived from L1, we can simply compare timestamps
+			if provenWithdrawalEvent.RawEvent.Timestamp > latestL2Header.Timestamp {
+				processLog.Warn("behind on indexed L2StandardBridge withdrawals")
 				return errors.New("waiting for L2Processor to catch up")
 			} else {
-				processLog.Crit("missing indexed withdrawal for this proven event")
+				processLog.Crit("missing indexed L2StandardBridge withdrawal for this proven event")
 				return errors.New("missing withdrawal message")
 			}
 		}
 
-		err = db.Bridge.MarkProvenWithdrawalEvent(withdrawal.GUID, provenWithdrawalEvent.RawEvent.GUID)
+		err = db.BridgeTransfers.MarkProvenL2BridgeWithdrawalEvent(withdrawal.GUID, provenWithdrawalEvent.RawEvent.GUID)
 		if err != nil {
 			return err
 		}
@@ -346,7 +338,7 @@ func l1BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethCl
 
 	for _, finalizedBridgeEvent := range finalizedWithdrawalEvents {
 		nonce := finalizedBridgeEvent.CrossDomainMessengerNonce
-		withdrawal, err := db.Bridge.WithdrawalByMessageNonce(nonce)
+		withdrawal, err := db.BridgeTransfers.L2BridgeWithdrawalByCrossDomainMessengerNonce(nonce)
 		if err != nil {
 			processLog.Error("error querying associated withdrawal messsage using nonce", "cross_domain_messenger_nonce", nonce)
 			return err
@@ -359,7 +351,7 @@ func l1BridgeProcessContractEvents(processLog log.Logger, db *database.DB, ethCl
 			return errors.New("missing withdrawal message")
 		}
 
-		err = db.Bridge.MarkFinalizedWithdrawalEvent(withdrawal.GUID, finalizedBridgeEvent.RawEvent.GUID)
+		err = db.BridgeTransfers.MarkFinalizedL2BridgeWithdrawalEvent(withdrawal.GUID, finalizedBridgeEvent.RawEvent.GUID)
 		if err != nil {
 			processLog.Error("error finalizing withdrawal", "err", err)
 			return err
