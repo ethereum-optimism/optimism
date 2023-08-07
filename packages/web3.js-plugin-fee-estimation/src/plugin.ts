@@ -1,16 +1,16 @@
 import Web3, {
-  BlockNumberOrTag,
+  type BlockNumberOrTag,
   BlockTags,
   Contract,
-  DataFormat,
+  type DataFormat,
   DEFAULT_RETURN_FORMAT,
   FMT_BYTES,
   FMT_NUMBER,
-  Numbers,
-  Transaction,
+  type Numbers,
+  type Transaction,
   Web3PluginBase,
 } from 'web3'
-import { TransactionFactory, TxData } from 'web3-eth-accounts'
+import { TransactionFactory, type TxData } from 'web3-eth-accounts'
 import { estimateGas, formatTransaction } from 'web3-eth'
 import {
   gasPriceOracleABI,
