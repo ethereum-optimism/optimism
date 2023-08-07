@@ -1,4 +1,4 @@
-# @eth-optimism/web3.js-plugin-fee-estimation
+# @eth-optimism/web3js-plugin
 
 This web3.js plugin adds utility functions for estimating L1 and L2 gas for OP chains by wrapping the [GasPriceOracle](../contracts-bedrock/contracts/l2/GasPriceOracle.sol) contract
 
@@ -13,22 +13,22 @@ This plugin is intended to be [registered](https://docs.web3js.org/guides/web3_p
 ### Installing the Plugin
 
 ```bash
-pnpm install @eth-optimism/web3.js-plugin-fee-estimation
+pnpm install @eth-optimism/web3js-plugin
 ```
 
 ```bash
-npm install @eth-optimism/web3.js-plugin-fee-estimation
+npm install @eth-optimism/web3js-plugin
 ```
 
 ```bash
-yarn add @eth-optimism/web3.js-plugin-fee-estimation
+yarn add @eth-optimism/web3js-plugin
 ```
 
 ### Registering the Plugin
 
 ```typescript
 import Web3 from 'web3'
-import OptimismFeeEstimationPlugin from '@eth-optimism/web3.js-plugin-fee-estimation'
+import OptimismFeeEstimationPlugin from '@eth-optimism/web3js-plugin'
 
 const web3 = new Web3('http://yourProvider.com')
 web3.registerPlugin(new OptimismFeeEstimationPlugin())
@@ -596,5 +596,5 @@ console.log(version) // 1.0.0
 
 ## Known Issues
 
-- `input` and `data`
-- `blockNumber` for `estimateFees` doesn't work
+- As of version `4.0.3` of web3.js, both `input` and `data` parameters are automatically added to a transaction objects causing the gas estimations to be inflated. This was corrected in [this](https://github.com/web3/web3.js/pull/6294) PR, but has yet to be released
+- For the plugin functions, `getL2Fee` and `estimateFees`, you should be able to get the fee estimates using the state of the blockchain at a specified block, however, this doesn't seem to be working with web3.js and requires further investigation
