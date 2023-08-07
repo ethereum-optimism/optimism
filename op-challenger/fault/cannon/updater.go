@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -28,8 +29,36 @@ type cannonUpdater struct {
 	preimageOracleAddr common.Address
 }
 
-// NewOracleUpdater returns a new updater.
+// NewOracleUpdater returns a new updater. The pre-image oracle address is loaded from the fault dispute game.
 func NewOracleUpdater(
+	ctx context.Context,
+	logger log.Logger,
+	txMgr txmgr.TxManager,
+	fdgAddr common.Address,
+	client bind.ContractCaller,
+) (*cannonUpdater, error) {
+	gameCaller, err := bindings.NewFaultDisputeGameCaller(fdgAddr, client)
+	if err != nil {
+		return nil, fmt.Errorf("create caller for game %v: %w", fdgAddr, err)
+	}
+	opts := &bind.CallOpts{Context: ctx}
+	vm, err := gameCaller.VM(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load VM address from game %v: %w", fdgAddr, err)
+	}
+	mipsCaller, err := bindings.NewMIPSCaller(vm, client)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create MIPS caller for address %v: %w", vm, err)
+	}
+	oracleAddr, err := mipsCaller.Oracle(opts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load pre-image oracle address from game %v: %w", fdgAddr, err)
+	}
+	return NewOracleUpdaterWithOracle(logger, txMgr, fdgAddr, oracleAddr)
+}
+
+// NewOracleUpdaterWithOracle returns a new updater using a specified pre-image oracle address.
+func NewOracleUpdaterWithOracle(
 	logger log.Logger,
 	txMgr txmgr.TxManager,
 	fdgAddr common.Address,

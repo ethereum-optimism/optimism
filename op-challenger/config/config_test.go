@@ -11,7 +11,6 @@ import (
 var (
 	validL1EthRpc              = "http://localhost:8545"
 	validGameAddress           = common.HexToAddress("0x7bdd3b028C4796eF0EAf07d11394d0d9d8c24139")
-	validPreimageOracleAddress = common.HexToAddress("0x7bdd3b028C4796eF0EAf07d11394d0d9d8c24139")
 	validAlphabetTrace         = "abcdefgh"
 	validCannonBin             = "./bin/cannon"
 	validCannonOpProgramBin    = "./bin/op-program"
@@ -23,7 +22,7 @@ var (
 )
 
 func validConfig(traceType TraceType) Config {
-	cfg := NewConfig(validL1EthRpc, validGameAddress, validPreimageOracleAddress, traceType, agreeWithProposedOutput, gameDepth)
+	cfg := NewConfig(validL1EthRpc, validGameAddress, traceType, agreeWithProposedOutput, gameDepth)
 	switch traceType {
 	case TraceTypeAlphabet:
 		cfg.AlphabetTrace = validAlphabetTrace
@@ -72,12 +71,6 @@ func TestAlphabetTraceRequired(t *testing.T) {
 	config := validConfig(TraceTypeAlphabet)
 	config.AlphabetTrace = ""
 	require.ErrorIs(t, config.Check(), ErrMissingAlphabetTrace)
-}
-
-func TestCannonPreimageOracleAddressRequired(t *testing.T) {
-	config := validConfig(TraceTypeCannon)
-	config.PreimageOracleAddress = common.Address{}
-	require.ErrorIs(t, config.Check(), ErrMissingPreimageOracleAddress)
 }
 
 func TestCannonBinRequired(t *testing.T) {
