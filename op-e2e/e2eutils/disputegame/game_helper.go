@@ -33,9 +33,9 @@ func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
 }
 
 func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	err := utils.WaitFor(ctx, 1*time.Second, func() (bool, error) {
+	err := utils.WaitFor(ctx, time.Second, func() (bool, error) {
 		actual, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
 		if err != nil {
 			return false, err
@@ -55,9 +55,9 @@ type ContractClaim struct {
 }
 
 func (g *FaultGameHelper) WaitForClaim(ctx context.Context, predicate func(claim ContractClaim) bool) {
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	err := utils.WaitFor(ctx, 1*time.Second, func() (bool, error) {
+	err := utils.WaitFor(ctx, time.Second, func() (bool, error) {
 		count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
 		if err != nil {
 			return false, fmt.Errorf("retrieve number of claims: %w", err)
@@ -85,7 +85,7 @@ func (g *FaultGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered 
 }
 
 func (g *FaultGameHelper) Resolve(ctx context.Context) {
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	tx, err := g.game.Resolve(g.opts)
 	g.require.NoError(err)
@@ -95,9 +95,9 @@ func (g *FaultGameHelper) Resolve(ctx context.Context) {
 
 func (g *FaultGameHelper) WaitForGameStatus(ctx context.Context, expected Status) {
 	g.t.Logf("Waiting for game %v to have status %v", g.addr, expected)
-	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	err := utils.WaitFor(ctx, 1*time.Second, func() (bool, error) {
+	err := utils.WaitFor(ctx, time.Second, func() (bool, error) {
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		status, err := g.game.Status(&bind.CallOpts{Context: ctx})
