@@ -177,7 +177,7 @@ func TestE2EBridgeTransactionsL2ToL1MessagePasserFailedWithdrawal(t *testing.T) 
 
 	aliceAddr := testSuite.OpCfg.Secrets.Addresses().Alice
 
-	// Try to withdrawl 1 ETH from L2 without any corresponding deposits on L1
+	// Try to withdraw 1 ETH from L2 without any corresponding deposits on L1
 	l2Opts, err := bind.NewKeyedTransactorWithChainID(testSuite.OpCfg.Secrets.Alice, testSuite.OpCfg.L2ChainIDBig())
 	require.NoError(t, err)
 	l2Opts.Value = big.NewInt(params.Ether)
