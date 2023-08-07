@@ -18,8 +18,7 @@ func (g *CannonGameHelper) StartChallenger(ctx context.Context, l1Endpoint strin
 			c.GameAddress = g.addr
 			c.GameDepth = cannonGameDepth
 			c.TraceType = config.TraceTypeCannon
-			// By default, agree with the proposed output root
-			c.AgreeWithProposedOutput = true
+			c.AgreeWithProposedOutput = false
 			c.CannonL2 = l2Endpoint
 			c.CannonBin = "../cannon/bin/cannon"
 			c.CannonDatadir = g.t.TempDir()
