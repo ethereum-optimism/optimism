@@ -18,7 +18,7 @@
     "src/"
   ],
   "scripts": {
-    "build": "tsup --dts",
+    "build": "tsup",
     "lint": "prettier --check .",
     "lint:fix": "prettier --write .",
     "test": "vitest --coverage",
