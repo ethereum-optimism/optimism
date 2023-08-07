@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, test } from 'vitest'
+import { z } from 'zod'
 import Web3, { Contract, FMT_BYTES, FMT_NUMBER } from 'web3'
 import {
   l2StandardBridgeABI,
@@ -9,7 +10,9 @@ import {
 
 import OptimismFeeEstimationPlugin from './plugin'
 
-const provider = process.env.VITE_L2_RPC_URL ?? 'https://mainnet.optimism.io'
+const defaultProvider = 'https://mainnet.optimism.io'
+const provider = z.string().url().default(defaultProvider).parse(process.env['VITE_L2_RPC_URL'])
+if (provider === defaultProvider) console.warn('Warning: Using default public provider, this could cause tests to fail due to rate limits. Set the VITE_L2_RPC_URL env to override default provider')
 
 describe('OptimismFeeEstimationPlugin', () => {
   let web3: Web3
