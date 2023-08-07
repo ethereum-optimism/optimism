@@ -23,7 +23,105 @@ describe('OptimismFeeEstimationPlugin', () => {
   })
 
   test('should be registered under .op namespace', () =>
-    expect(web3.op).toBeDefined())
+    expect(web3.op).toMatchInlineSnapshot(`
+      OptimismFeeEstimationPlugin {
+        "_accountProvider": {
+          "create": [Function],
+          "decrypt": [Function],
+          "encrypt": [Function],
+          "hashMessage": [Function],
+          "privateKeyToAccount": [Function],
+          "recover": [Function],
+          "recoverTransaction": [Function],
+          "sign": [Function],
+          "signTransaction": [Function],
+          "wallet": Wallet [],
+        },
+        "_emitter": EventEmitter {
+          "_events": {},
+          "_eventsCount": 0,
+          "_maxListeners": undefined,
+          Symbol(kCapture): false,
+        },
+        "_gasPriceOracleContract": undefined,
+        "_requestManager": Web3RequestManager {
+          "_emitter": EventEmitter {
+            "_events": {
+              "BEFORE_PROVIDER_CHANGE": [Function],
+              "PROVIDER_CHANGED": [Function],
+            },
+            "_eventsCount": 2,
+            "_maxListeners": undefined,
+            Symbol(kCapture): false,
+          },
+          "_provider": HttpProvider {
+            "clientUrl": "https://mainnet.optimism.io",
+            "httpProviderOptions": undefined,
+          },
+          "useRpcCallSpecification": undefined,
+        },
+        "_subscriptionManager": Web3SubscriptionManager {
+          "_subscriptions": Map {},
+          "registeredSubscriptions": {
+            "logs": [Function],
+            "newBlockHeaders": [Function],
+            "newHeads": [Function],
+            "newPendingTransactions": [Function],
+            "pendingTransactions": [Function],
+            "syncing": [Function],
+          },
+          "requestManager": Web3RequestManager {
+            "_emitter": EventEmitter {
+              "_events": {
+                "BEFORE_PROVIDER_CHANGE": [Function],
+                "PROVIDER_CHANGED": [Function],
+              },
+              "_eventsCount": 2,
+              "_maxListeners": undefined,
+              Symbol(kCapture): false,
+            },
+            "_provider": HttpProvider {
+              "clientUrl": "https://mainnet.optimism.io",
+              "httpProviderOptions": undefined,
+            },
+            "useRpcCallSpecification": undefined,
+          },
+          "tolerateUnlinkedSubscription": false,
+        },
+        "_wallet": Wallet [],
+        "config": {
+          "blockHeaderTimeout": 10,
+          "defaultAccount": undefined,
+          "defaultBlock": "latest",
+          "defaultChain": "mainnet",
+          "defaultCommon": undefined,
+          "defaultHardfork": "london",
+          "defaultMaxPriorityFeePerGas": "0x9502f900",
+          "defaultNetworkId": undefined,
+          "defaultTransactionType": "0x0",
+          "enableExperimentalFeatures": {
+            "useRpcCallSpecification": false,
+            "useSubscriptionWhenCheckingBlockTimeout": false,
+          },
+          "handleRevert": false,
+          "maxListenersWarningThreshold": 100,
+          "transactionBlockTimeout": 50,
+          "transactionBuilder": undefined,
+          "transactionConfirmationBlocks": 24,
+          "transactionConfirmationPollingInterval": undefined,
+          "transactionPollingInterval": 1000,
+          "transactionPollingTimeout": 750000,
+          "transactionReceiptPollingInterval": undefined,
+          "transactionSendTimeout": 750000,
+          "transactionTypeParser": undefined,
+        },
+        "pluginNamespace": "op",
+        "providers": {
+          "HttpProvider": [Function],
+          "WebsocketProvider": [Function],
+        },
+      }
+    `))
 
   describe('should return a bigint by default', () => {
     test('getBaseFee', async () =>
