@@ -2,6 +2,7 @@ package indexer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -72,13 +73,20 @@ func NewIndexer(cfg config.Config) (*Indexer, error) {
 // Start starts the indexing service on L1 and L2 chains
 func (i *Indexer) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
-	errCh := make(chan error)
+	errCh := make(chan error, 1)
 
 	// If either processor errors out, we stop
 	processorCtx, cancel := context.WithCancel(ctx)
 	run := func(start func(ctx context.Context) error) {
 		wg.Add(1)
-		defer wg.Done()
+		defer func() {
+			if err := recover(); err != nil {
+				i.log.Error("halting indexer on panic", "err", err)
+				errCh <- fmt.Errorf("panic: %v", err)
+			}
+
+			wg.Done()
+		}()
 
 		err := start(processorCtx)
 		if err != nil {
@@ -86,6 +94,8 @@ func (i *Indexer) Run(ctx context.Context) error {
 
 			cancel()
 			errCh <- err
+		} else {
+			errCh <- errors.New("processor stopped")
 		}
 	}
 
