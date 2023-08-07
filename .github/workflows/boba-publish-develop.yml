@@ -28,7 +28,7 @@ jobs:
       - name: Build the services
         working-directory: ./ops-bedrock
         run: |
-          docker-compose -f docker-copose.yml build
+          docker-compose -f docker-compose.yml build
 
       - name: Print images
         working-directory: ./
