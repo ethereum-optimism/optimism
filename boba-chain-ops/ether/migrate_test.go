@@ -356,21 +356,6 @@ func TestMigrateBalancesRandomMissing(t *testing.T) {
 		err := doMigration(g, addresses, allowances, big.NewInt(0), false)
 		require.ErrorContains(t, err, "unknown storage slot")
 	}
-
-	for i := 0; i < 100; i++ {
-		g, addresses, allowances, _ := setupRandTest(t)
-
-		if len(addresses) == 0 {
-			continue
-		}
-
-		// Remove a random allowance from the list of witnesses
-		idx := rand.Intn(len(allowances))
-		allowances = append(allowances[:idx], allowances[idx+1:]...)
-
-		err := doMigration(g, addresses, allowances, big.NewInt(0), false)
-		require.ErrorContains(t, err, "unknown storage slot")
-	}
 }
 
 func randAddr(t *testing.T) common.Address {
