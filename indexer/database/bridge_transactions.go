@@ -126,7 +126,8 @@ func (db *bridgeTransactionsDB) MarkL2TransactionWithdrawalProvenEvent(withdrawa
 	withdrawal, err := db.L2TransactionWithdrawal(withdrawalHash)
 	if err != nil {
 		return err
-	} else if withdrawal == nil {
+	}
+	if withdrawal == nil {
 		return fmt.Errorf("transaction withdrawal hash %s not found", withdrawalHash)
 	}
 
@@ -140,9 +141,11 @@ func (db *bridgeTransactionsDB) MarkL2TransactionWithdrawalFinalizedEvent(withdr
 	withdrawal, err := db.L2TransactionWithdrawal(withdrawalHash)
 	if err != nil {
 		return err
-	} else if withdrawal == nil {
+	}
+	if withdrawal == nil {
 		return fmt.Errorf("transaction withdrawal hash %s not found", withdrawalHash)
-	} else if withdrawal.ProvenL1EventGUID == nil {
+	}
+	if withdrawal.ProvenL1EventGUID == nil {
 		return fmt.Errorf("cannot mark unproven withdrawal hash %s as finalized", withdrawal.WithdrawalHash)
 	}
 
