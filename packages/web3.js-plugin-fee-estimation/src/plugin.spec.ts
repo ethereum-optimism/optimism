@@ -11,8 +11,15 @@ import {
 import { OptimismFeeEstimationPlugin } from './plugin'
 
 const defaultProvider = 'https://mainnet.optimism.io'
-const provider = z.string().url().default(defaultProvider).parse(process.env['VITE_L2_RPC_URL'])
-if (provider === defaultProvider) console.warn('Warning: Using default public provider, this could cause tests to fail due to rate limits. Set the VITE_L2_RPC_URL env to override default provider')
+const provider = z
+  .string()
+  .url()
+  .default(defaultProvider)
+  .parse(process.env['VITE_L2_RPC_URL'])
+if (provider === defaultProvider)
+  console.warn(
+    'Warning: Using default public provider, this could cause tests to fail due to rate limits. Set the VITE_L2_RPC_URL env to override default provider'
+  )
 
 describe('OptimismFeeEstimationPlugin', () => {
   let web3: Web3
@@ -125,16 +132,16 @@ describe('OptimismFeeEstimationPlugin', () => {
 
   describe('should return a bigint by default', () => {
     test('getBaseFee', async () =>
-      expect(typeof (await web3.op.getBaseFee())).toBe('bigint'))
+      expect(await web3.op.getBaseFee()).toBeTypeOf('bigint'))
 
     test('getDecimals should return 6n', async () =>
       expect(await web3.op.getDecimals()).toBe(BigInt(6)))
 
     test('getGasPrice', async () =>
-      expect(typeof (await web3.op.getGasPrice())).toBe('bigint'))
+      expect(await web3.op.getGasPrice()).toBeTypeOf('bigint'))
 
     test('getL1BaseFee', async () =>
-      expect(typeof (await web3.op.getL1BaseFee())).toBe('bigint'))
+      expect(await web3.op.getL1BaseFee()).toBeTypeOf('bigint'))
 
     test('getOverhead should return 188n', async () =>
       expect(await web3.op.getOverhead()).toBe(BigInt(188)))
@@ -147,16 +154,16 @@ describe('OptimismFeeEstimationPlugin', () => {
     const numberFormat = { number: FMT_NUMBER.NUMBER, bytes: FMT_BYTES.HEX }
 
     test('getBaseFee', async () =>
-      expect(typeof (await web3.op.getBaseFee(numberFormat))).toBe('number'))
+      expect(await web3.op.getBaseFee(numberFormat)).toBeTypeOf('number'))
 
     test('getDecimals should return 6', async () =>
       expect(await web3.op.getDecimals(numberFormat)).toBe(6))
 
     test('getGasPrice', async () =>
-      expect(typeof (await web3.op.getGasPrice(numberFormat))).toBe('number'))
+      expect(await web3.op.getGasPrice(numberFormat)).toBeTypeOf('number'))
 
     test('getL1BaseFee', async () =>
-      expect(typeof (await web3.op.getL1BaseFee(numberFormat))).toBe('number'))
+      expect(await web3.op.getL1BaseFee(numberFormat)).toBeTypeOf('number'))
 
     test('getOverhead should return 188', async () =>
       expect(await web3.op.getOverhead(numberFormat)).toBe(188))
@@ -182,11 +189,11 @@ describe('OptimismFeeEstimationPlugin', () => {
     describe('should return a bigint by default', () => {
       test('getL1Fee', async () => {
         expect(
-          typeof (await web3.op.getL1Fee({
+          await web3.op.getL1Fee({
             chainId: '0xa',
             data: encodedBurnMethod,
             type: '0x2',
-          }))
+          })
         ).toBe('bigint')
       })
 
@@ -201,30 +208,30 @@ describe('OptimismFeeEstimationPlugin', () => {
 
       test('estimateFees', async () =>
         expect(
-          typeof (await web3.op.estimateFees({
+          await web3.op.estimateFees({
             chainId: 10,
             data: encodedBurnMethod,
             type: 2,
             to: optimistAddress[10],
             from: '0x77194aa25a06f932c10c0f25090f3046af2c85a6',
-          }))
-        ).toBe('bigint'))
+          })
+        ).toBeTypeOf('bigint'))
 
       test('getL2Fee', async () => {
         expect(
-          typeof (await web3.op.getL2Fee({
+          await web3.op.getL2Fee({
             chainId: '0xa',
             data: encodedBurnMethod,
             type: '0x2',
             to: optimistAddress[10],
             from: '0x77194aa25a06f932c10c0f25090f3046af2c85a6',
-          }))
-        ).toBe('bigint')
+          })
+        ).toBeTypeOf('bigint')
       })
 
       test('estimateFees', async () =>
         expect(
-          typeof (await web3.op.estimateFees(
+          await web3.op.estimateFees(
             {
               chainId: 10,
               data: encodedBurnMethod,
@@ -233,8 +240,8 @@ describe('OptimismFeeEstimationPlugin', () => {
               from: '0x77194aa25a06f932c10c0f25090f3046af2c85a6',
             },
             { blockNumber: 107028270 }
-          ))
-        ).toBe('bigint'))
+          )
+        ).toBeTypeOf('bigint'))
     })
 
     describe('should return a hexString', () => {
@@ -242,15 +249,15 @@ describe('OptimismFeeEstimationPlugin', () => {
 
       test('getL1Fee', async () => {
         expect(
-          typeof (await web3.op.getL1Fee(
+          await web3.op.getL1Fee(
             {
               chainId: '0xa',
               data: encodedBurnMethod,
               type: '0x2',
             },
             hexStringFormat
-          ))
-        ).toBe('string')
+          )
+        ).toBeTypeOf('string')
       })
 
       test('getL1GasUsed should return 0x75c', async () =>
@@ -267,7 +274,7 @@ describe('OptimismFeeEstimationPlugin', () => {
 
       test('estimateFees', async () =>
         expect(
-          typeof (await web3.op.estimateFees(
+          await web3.op.estimateFees(
             {
               chainId: 10,
               data: encodedBurnMethod,
@@ -276,8 +283,8 @@ describe('OptimismFeeEstimationPlugin', () => {
               from: '0x77194aa25a06f932c10c0f25090f3046af2c85a6',
             },
             { returnFormat: hexStringFormat }
-          ))
-        ).toBe('string'))
+          )
+        ).toBeTypeOf('string'))
     })
   })
 
@@ -307,12 +314,12 @@ describe('OptimismFeeEstimationPlugin', () => {
     describe('should return a bigint by default', () => {
       test('getL1Fee', async () => {
         expect(
-          typeof (await web3.op.getL1Fee({
+          await web3.op.getL1Fee({
             chainId: '0xa',
             data: encodedWithdrawMethod,
             type: '0x2',
-          }))
-        ).toBe('bigint')
+          })
+        ).toBeTypeOf('bigint')
       })
 
       test('getL1GasUsed should return 2592n', async () =>
@@ -326,7 +333,7 @@ describe('OptimismFeeEstimationPlugin', () => {
 
       test('estimateFees', async () =>
         expect(
-          typeof (await web3.op.estimateFees({
+          await web3.op.estimateFees({
             chainId: 10,
             data: encodedWithdrawMethod,
             value: Web3.utils.toWei('0.00000001', 'ether'),
@@ -335,8 +342,8 @@ describe('OptimismFeeEstimationPlugin', () => {
             from: '0x6387a88a199120aD52Dd9742C7430847d3cB2CD4',
             maxFeePerGas: Web3.utils.toWei('0.2', 'gwei'),
             maxPriorityFeePerGas: Web3.utils.toWei('0.1', 'gwei'),
-          }))
-        ).toBe('bigint'))
+          })
+        ).toBeTypeOf('bigint'))
     })
   })
 })
