@@ -9,19 +9,15 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-)
-
-var (
-	EthAddress = common.HexToAddress("0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000")
 )
 
 type StandardBridgeInitiatedEvent struct {
 	// We hardcode to ERC20 since ETH can be pseudo-represented as an ERC20 utilizing
 	// the hardcoded ETH address
-	*bindings.L1StandardBridgeERC20BridgeInitiated
+	*bindings.StandardBridgeERC20BridgeInitiated
 
 	CrossDomainMessengerNonce *big.Int
 	RawEvent                  *database.ContractEvent
@@ -30,7 +26,7 @@ type StandardBridgeInitiatedEvent struct {
 type StandardBridgeFinalizedEvent struct {
 	// We hardcode to ERC20 since ETH can be pseudo-represented as an ERC20 utilizing
 	// the hardcoded ETH address
-	*bindings.L1StandardBridgeERC20BridgeFinalized
+	*bindings.StandardBridgeERC20BridgeFinalized
 
 	CrossDomainMessengerNonce *big.Int
 	RawEvent                  *database.ContractEvent
@@ -39,12 +35,12 @@ type StandardBridgeFinalizedEvent struct {
 // StandardBridgeInitiatedEvents extracts all initiated bridge events from the contracts that follow the StandardBridge ABI. The
 // correlated CrossDomainMessenger nonce is also parsed from the associated messenger events.
 func StandardBridgeInitiatedEvents(events *ProcessedContractEvents) ([]StandardBridgeInitiatedEvent, error) {
-	ethBridgeInitiatedEvents, err := _standardBridgeInitiatedEvents[bindings.L1StandardBridgeETHBridgeInitiated](events)
+	ethBridgeInitiatedEvents, err := _standardBridgeInitiatedEvents[bindings.StandardBridgeETHBridgeInitiated](events)
 	if err != nil {
 		return nil, err
 	}
 
-	erc20BridgeInitiatedEvents, err := _standardBridgeInitiatedEvents[bindings.L1StandardBridgeERC20BridgeInitiated](events)
+	erc20BridgeInitiatedEvents, err := _standardBridgeInitiatedEvents[bindings.StandardBridgeERC20BridgeInitiated](events)
 	if err != nil {
 		return nil, err
 	}
@@ -55,12 +51,12 @@ func StandardBridgeInitiatedEvents(events *ProcessedContractEvents) ([]StandardB
 // StandardBridgeFinalizedEvents extracts all finalization bridge events from the contracts that follow the StandardBridge ABI. The
 // correlated CrossDomainMessenger nonce is also parsed by looking at the parameters of the corresponding relayMessage transaction data.
 func StandardBridgeFinalizedEvents(rawEthClient *ethclient.Client, events *ProcessedContractEvents) ([]StandardBridgeFinalizedEvent, error) {
-	ethBridgeFinalizedEvents, err := _standardBridgeFinalizedEvents[bindings.L1StandardBridgeETHBridgeFinalized](rawEthClient, events)
+	ethBridgeFinalizedEvents, err := _standardBridgeFinalizedEvents[bindings.StandardBridgeETHBridgeFinalized](rawEthClient, events)
 	if err != nil {
 		return nil, err
 	}
 
-	erc20BridgeFinalizedEvents, err := _standardBridgeFinalizedEvents[bindings.L1StandardBridgeERC20BridgeFinalized](rawEthClient, events)
+	erc20BridgeFinalizedEvents, err := _standardBridgeFinalizedEvents[bindings.StandardBridgeERC20BridgeFinalized](rawEthClient, events)
 	if err != nil {
 		return nil, err
 	}
@@ -69,10 +65,10 @@ func StandardBridgeFinalizedEvents(rawEthClient *ethclient.Client, events *Proce
 }
 
 // parse out eth or erc20 bridge initiated events
-func _standardBridgeInitiatedEvents[BridgeEvent bindings.L1StandardBridgeETHBridgeInitiated | bindings.L1StandardBridgeERC20BridgeInitiated](
+func _standardBridgeInitiatedEvents[BridgeEvent bindings.StandardBridgeETHBridgeInitiated | bindings.StandardBridgeERC20BridgeInitiated](
 	events *ProcessedContractEvents,
 ) ([]StandardBridgeInitiatedEvent, error) {
-	l1StandardBridgeABI, err := bindings.L1StandardBridgeMetaData.GetAbi()
+	StandardBridgeABI, err := bindings.StandardBridgeMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
@@ -88,23 +84,23 @@ func _standardBridgeInitiatedEvents[BridgeEvent bindings.L1StandardBridgeETHBrid
 	var eventName string
 	var finalizeMethodName string
 	switch any(tmp).(type) {
-	case bindings.L1StandardBridgeETHBridgeInitiated:
+	case bindings.StandardBridgeETHBridgeInitiated:
 		eventName = "ETHBridgeInitiated"
 		finalizeMethodName = "finalizeBridgeETH"
-	case bindings.L1StandardBridgeERC20BridgeInitiated:
+	case bindings.StandardBridgeERC20BridgeInitiated:
 		eventName = "ERC20BridgeInitiated"
 		finalizeMethodName = "finalizeBridgeERC20"
 	default:
 		panic("should not be here")
 	}
 
-	processedInitiatedBridgeEvents := events.eventsBySignature[l1StandardBridgeABI.Events[eventName].ID]
+	processedInitiatedBridgeEvents := events.eventsBySignature[StandardBridgeABI.Events[eventName].ID]
 	initiatedBridgeEvents := make([]StandardBridgeInitiatedEvent, len(processedInitiatedBridgeEvents))
 	for i, bridgeInitiatedEvent := range processedInitiatedBridgeEvents {
 		log := events.eventLog[bridgeInitiatedEvent.GUID]
 
-		bridgeData := new(BridgeEvent)
-		err := UnpackLog(bridgeData, log, eventName, l1StandardBridgeABI)
+		var bridgeData BridgeEvent
+		err := UnpackLog(&bridgeData, log, eventName, StandardBridgeABI)
 		if err != nil {
 			return nil, err
 		}
@@ -119,28 +115,28 @@ func _standardBridgeInitiatedEvents[BridgeEvent bindings.L1StandardBridgeETHBrid
 			return nil, err
 		}
 
-		var erc20BridgeData *bindings.L1StandardBridgeERC20BridgeInitiated
+		var erc20BridgeData *bindings.StandardBridgeERC20BridgeInitiated
 		var expectedCrossDomainMessage []byte
 		switch any(bridgeData).(type) {
-		case *bindings.L1StandardBridgeETHBridgeInitiated:
-			ethBridgeData := any(bridgeData).(*bindings.L1StandardBridgeETHBridgeInitiated)
-			expectedCrossDomainMessage, err = l1StandardBridgeABI.Pack(finalizeMethodName, ethBridgeData.From, ethBridgeData.To, ethBridgeData.Amount, ethBridgeData.ExtraData)
+		case bindings.StandardBridgeETHBridgeInitiated:
+			ethBridgeData := any(bridgeData).(bindings.StandardBridgeETHBridgeInitiated)
+			expectedCrossDomainMessage, err = StandardBridgeABI.Pack(finalizeMethodName, ethBridgeData.From, ethBridgeData.To, ethBridgeData.Amount, ethBridgeData.ExtraData)
 			if err != nil {
 				return nil, err
 			}
 
 			// represent eth bridge as an erc20
-			erc20BridgeData = &bindings.L1StandardBridgeERC20BridgeInitiated{
+			erc20BridgeData = &bindings.StandardBridgeERC20BridgeInitiated{
 				// Represent ETH using the hardcoded address
-				LocalToken: EthAddress, RemoteToken: EthAddress,
+				LocalToken: predeploys.LegacyERC20ETHAddr, RemoteToken: predeploys.LegacyERC20ETHAddr,
 				// Bridge data
 				From: ethBridgeData.From, To: ethBridgeData.To, Amount: ethBridgeData.Amount, ExtraData: ethBridgeData.ExtraData,
 			}
 
-		case *bindings.L1StandardBridgeERC20BridgeInitiated:
-			_temp := any(bridgeData).(bindings.L1StandardBridgeERC20BridgeInitiated)
+		case bindings.StandardBridgeERC20BridgeInitiated:
+			_temp := any(bridgeData).(bindings.StandardBridgeERC20BridgeInitiated)
 			erc20BridgeData = &_temp
-			expectedCrossDomainMessage, err = l1StandardBridgeABI.Pack(finalizeMethodName, erc20BridgeData.RemoteToken, erc20BridgeData.LocalToken, erc20BridgeData.From, erc20BridgeData.To, erc20BridgeData.Amount, erc20BridgeData.ExtraData)
+			expectedCrossDomainMessage, err = StandardBridgeABI.Pack(finalizeMethodName, erc20BridgeData.RemoteToken, erc20BridgeData.LocalToken, erc20BridgeData.From, erc20BridgeData.To, erc20BridgeData.Amount, erc20BridgeData.ExtraData)
 			if err != nil {
 				return nil, err
 			}
@@ -157,11 +153,11 @@ func _standardBridgeInitiatedEvents[BridgeEvent bindings.L1StandardBridgeETHBrid
 }
 
 // parse out eth or erc20 bridge finalization events
-func _standardBridgeFinalizedEvents[BridgeEvent bindings.L1StandardBridgeETHBridgeFinalized | bindings.L1StandardBridgeERC20BridgeFinalized](
+func _standardBridgeFinalizedEvents[BridgeEvent bindings.StandardBridgeETHBridgeFinalized | bindings.StandardBridgeERC20BridgeFinalized](
 	rawEthClient *ethclient.Client,
 	events *ProcessedContractEvents,
 ) ([]StandardBridgeFinalizedEvent, error) {
-	l1StandardBridgeABI, err := bindings.L1StandardBridgeMetaData.GetAbi()
+	StandardBridgeABI, err := bindings.StandardBridgeMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
@@ -183,21 +179,21 @@ func _standardBridgeFinalizedEvents[BridgeEvent bindings.L1StandardBridgeETHBrid
 	var bridgeData BridgeEvent
 	var eventName string
 	switch any(bridgeData).(type) {
-	case bindings.L1StandardBridgeETHBridgeFinalized:
+	case bindings.StandardBridgeETHBridgeFinalized:
 		eventName = "ETHBridgeFinalized"
-	case bindings.L1StandardBridgeERC20BridgeFinalized:
+	case bindings.StandardBridgeERC20BridgeFinalized:
 		eventName = "ERC20BridgeFinalized"
 	default:
 		panic("should not be here")
 	}
 
-	processedFinalizedBridgeEvents := events.eventsBySignature[l1StandardBridgeABI.Events[eventName].ID]
+	processedFinalizedBridgeEvents := events.eventsBySignature[StandardBridgeABI.Events[eventName].ID]
 	finalizedBridgeEvents := make([]StandardBridgeFinalizedEvent, len(processedFinalizedBridgeEvents))
 	for i, bridgeFinalizedEvent := range processedFinalizedBridgeEvents {
 		log := events.eventLog[bridgeFinalizedEvent.GUID]
 
 		var bridgeData BridgeEvent
-		err := UnpackLog(&bridgeData, log, eventName, l1StandardBridgeABI)
+		err := UnpackLog(&bridgeData, log, eventName, StandardBridgeABI)
 		if err != nil {
 			return nil, err
 		}
@@ -256,19 +252,19 @@ func _standardBridgeFinalizedEvents[BridgeEvent bindings.L1StandardBridgeETHBrid
 			return nil, errors.New("unable to extract `_nonce` parameter from relayMessage calldata")
 		}
 
-		var erc20BridgeData *bindings.L1StandardBridgeERC20BridgeFinalized
+		var erc20BridgeData *bindings.StandardBridgeERC20BridgeFinalized
 		switch any(bridgeData).(type) {
-		case bindings.L1StandardBridgeETHBridgeInitiated:
-			ethBridgeData := any(bridgeData).(bindings.L1StandardBridgeETHBridgeFinalized)
-			erc20BridgeData = &bindings.L1StandardBridgeERC20BridgeFinalized{
+		case bindings.StandardBridgeETHBridgeFinalized:
+			ethBridgeData := any(bridgeData).(bindings.StandardBridgeETHBridgeFinalized)
+			erc20BridgeData = &bindings.StandardBridgeERC20BridgeFinalized{
 				// Represent ETH using the hardcoded address
-				LocalToken: EthAddress, RemoteToken: EthAddress,
+				LocalToken: predeploys.LegacyERC20ETHAddr, RemoteToken: predeploys.LegacyERC20ETHAddr,
 				// Bridge data
 				From: ethBridgeData.From, To: ethBridgeData.To, Amount: ethBridgeData.Amount, ExtraData: ethBridgeData.ExtraData,
 			}
 
-		case bindings.L1StandardBridgeERC20BridgeInitiated:
-			_temp := any(bridgeData).(bindings.L1StandardBridgeERC20BridgeFinalized)
+		case bindings.StandardBridgeERC20BridgeFinalized:
+			_temp := any(bridgeData).(bindings.StandardBridgeERC20BridgeFinalized)
 			erc20BridgeData = &_temp
 		}
 

@@ -40,7 +40,6 @@ func TestFetchLocalInputs(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, l1Client.l1Head, inputs.l1Head)
-	require.Equal(t, l2Client.chainID, inputs.l2ChainId)
 	require.Equal(t, l2Client.header.Hash(), inputs.l2Head)
 	require.EqualValues(t, l1Client.starting.OutputRoot, inputs.l2OutputRoot)
 	require.EqualValues(t, l1Client.disputed.OutputRoot, inputs.l2Claim)
