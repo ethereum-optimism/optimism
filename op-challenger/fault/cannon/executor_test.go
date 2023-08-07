@@ -20,7 +20,7 @@ const execTestCannonPrestate = "/foo/pre.json"
 
 func TestGenerateProof(t *testing.T) {
 	input := "starting.json"
-	cfg := config.NewConfig("http://localhost:8888", common.Address{0xaa}, common.Address{0xbb}, config.TraceTypeCannon, true, 5)
+	cfg := config.NewConfig("http://localhost:8888", common.Address{0xaa}, config.TraceTypeCannon, true, 5)
 	cfg.CannonDatadir = t.TempDir()
 	cfg.CannonAbsolutePreState = "pre.json"
 	cfg.CannonBin = "./bin/cannon"
@@ -30,7 +30,6 @@ func TestGenerateProof(t *testing.T) {
 
 	inputs := localGameInputs{
 		l1Head:        common.Hash{0x11},
-		l2ChainId:     big.NewInt(2342),
 		l2Head:        common.Hash{0x22},
 		l2OutputRoot:  common.Hash{0x33},
 		l2Claim:       common.Hash{0x44},
@@ -54,9 +53,15 @@ func TestGenerateProof(t *testing.T) {
 	}
 	err := executor.GenerateProof(context.Background(), cfg.CannonDatadir, 150_000_000)
 	require.NoError(t, err)
+	require.DirExists(t, filepath.Join(cfg.CannonDatadir, preimagesDir))
+	require.DirExists(t, filepath.Join(cfg.CannonDatadir, proofsDir))
+	require.DirExists(t, filepath.Join(cfg.CannonDatadir, snapsDir))
 	require.Equal(t, cfg.CannonBin, binary)
 	require.Equal(t, "run", subcommand)
 	require.Equal(t, input, args["--input"])
+	require.Contains(t, args, "--meta")
+	require.Equal(t, "", args["--meta"])
+	require.Equal(t, filepath.Join(cfg.CannonDatadir, "out.json"), args["--output"])
 	require.Equal(t, "=150000000", args["--proof-at"])
 	require.Equal(t, "=150000001", args["--stop-at"])
 	require.Equal(t, "%500", args["--snapshot-at"])
@@ -73,7 +78,6 @@ func TestGenerateProof(t *testing.T) {
 	require.Equal(t, inputs.l2OutputRoot.Hex(), args["--l2.outputroot"])
 	require.Equal(t, inputs.l2Claim.Hex(), args["--l2.claim"])
 	require.Equal(t, "3333", args["--l2.blocknumber"])
-	require.Equal(t, "2342", args["--l2.chainid"])
 }
 
 func TestRunCmdLogsOutput(t *testing.T) {

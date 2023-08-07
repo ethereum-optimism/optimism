@@ -23,16 +23,18 @@ type Agent struct {
 	solver                  *solver.Solver
 	loader                  Loader
 	responder               Responder
+	updater                 types.OracleUpdater
 	maxDepth                int
 	agreeWithProposedOutput bool
 	log                     log.Logger
 }
 
-func NewAgent(loader Loader, maxDepth int, trace types.TraceProvider, responder Responder, agreeWithProposedOutput bool, log log.Logger) *Agent {
+func NewAgent(loader Loader, maxDepth int, trace types.TraceProvider, responder Responder, updater types.OracleUpdater, agreeWithProposedOutput bool, log log.Logger) *Agent {
 	return &Agent{
 		solver:                  solver.NewSolver(maxDepth, trace),
 		loader:                  loader,
 		responder:               responder,
+		updater:                 updater,
 		maxDepth:                maxDepth,
 		agreeWithProposedOutput: agreeWithProposedOutput,
 		log:                     log,
@@ -130,6 +132,17 @@ func (a *Agent) step(ctx context.Context, claim types.Claim, game types.Game) er
 	if claim.Countered {
 		a.log.Debug("Step already executed against claim", "depth", claim.Depth(), "index_at_depth", claim.IndexAtDepth(), "value", claim.Value)
 		return nil
+	}
+
+	oracleData, err := a.solver.GetOracleData(ctx, claim)
+	if err != nil {
+		a.log.Debug("Failed to get oracle data", "err", err)
+		return nil
+	}
+
+	a.log.Info("Updating oracle data", "oracleKey", oracleData.OracleKey, "oracleData", oracleData.OracleData)
+	if err := a.updater.UpdateOracle(ctx, *oracleData); err != nil {
+		return fmt.Errorf("failed to load oracle data: %w", err)
 	}
 
 	a.log.Info("Attempting step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
