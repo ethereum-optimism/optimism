@@ -10,9 +10,9 @@ import (
 type DB struct {
 	gorm *gorm.DB
 
-	Blocks         BlocksDB
-	ContractEvents ContractEventsDB
-	Bridge         BridgeDB
+	Blocks          BlocksDB
+	ContractEvents  ContractEventsDB
+	BridgeTransfers BridgeTransfersDB
 }
 
 func NewDB(dsn string) (*DB, error) {
@@ -31,10 +31,10 @@ func NewDB(dsn string) (*DB, error) {
 	}
 
 	db := &DB{
-		gorm:           gorm,
-		Blocks:         newBlocksDB(gorm),
-		ContractEvents: newContractEventsDB(gorm),
-		Bridge:         newBridgeDB(gorm),
+		gorm:            gorm,
+		Blocks:          newBlocksDB(gorm),
+		ContractEvents:  newContractEventsDB(gorm),
+		BridgeTransfers: newBridgeTransfersDB(gorm),
 	}
 
 	return db, nil
@@ -59,9 +59,9 @@ func (db *DB) Close() error {
 
 func dbFromGormTx(tx *gorm.DB) *DB {
 	return &DB{
-		gorm:           tx,
-		Blocks:         newBlocksDB(tx),
-		ContractEvents: newContractEventsDB(tx),
-		Bridge:         newBridgeDB(tx),
+		gorm:            tx,
+		Blocks:          newBlocksDB(tx),
+		ContractEvents:  newContractEventsDB(tx),
+		BridgeTransfers: newBridgeTransfersDB(tx),
 	}
 }
