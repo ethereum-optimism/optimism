@@ -224,7 +224,7 @@ export class OptimismFeeEstimationPlugin extends Web3PluginBase {
   >(
     transaction: Transaction,
     options?: {
-      blockNumber?: BlockNumberOrTag
+      blockNumber?: BlockNumberOrTag | undefined
       returnFormat?: ReturnFormat
     }
   ) {
