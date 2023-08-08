@@ -12,23 +12,28 @@ import { Semver } from "../universal/Semver.sol";
 ///         for sending and receiving data on the L1 side. Users are encouraged to use this
 ///         interface instead of interacting with lower-level contracts directly.
 contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
-    /// @notice Address of the OptimismPortal.
-    OptimismPortal public immutable PORTAL;
+    /// @notice Address of the OptimismPortal. The public getter for this
+    ///         is legacy and will be removed in the future. Use `portal()` instead.
+    /// @custom:network-specific
+    /// @custom:legacy
+    OptimismPortal public PORTAL;
 
-    /// @custom:semver 1.4.1
+    /// @custom:semver 1.5.0
     /// @notice Constructs the L1CrossDomainMessenger contract.
-    /// @param _portal Address of the OptimismPortal contract on this network.
-    constructor(OptimismPortal _portal)
-        Semver(1, 4, 1)
-        CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
-    {
-        PORTAL = _portal;
-        initialize();
+    constructor() Semver(1, 5, 0) CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
+        initialize({ _portal: OptimismPortal(payable(0)) });
     }
 
     /// @notice Initializes the contract.
-    function initialize() public initializer {
+    /// @param _portal Address of the OptimismPortal contract on this network.
+    function initialize(OptimismPortal _portal) public reinitializer(2) {
+        PORTAL = _portal;
         __CrossDomainMessenger_init();
+    }
+
+    /// @notice Getter for the OptimismPortal address.
+    function portal() external view returns (address) {
+        return address(PORTAL);
     }
 
     /// @inheritdoc CrossDomainMessenger

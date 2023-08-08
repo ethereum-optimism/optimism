@@ -105,6 +105,7 @@ contract L2OutputOracle_Initializer is CommonTest {
     uint256 internal l2BlockTime = 2;
     uint256 internal startingBlockNumber = 200;
     uint256 internal startingTimestamp = 1000;
+    uint256 internal finalizationPeriodSeconds = 7 days;
     address guardian;
 
     // Test data
@@ -157,17 +158,21 @@ contract L2OutputOracle_Initializer is CommonTest {
         oracleImpl = new L2OutputOracle({
             _submissionInterval: submissionInterval,
             _l2BlockTime: l2BlockTime,
-            _startingBlockNumber: startingBlockNumber,
-            _startingTimestamp: startingTimestamp,
-            _proposer: proposer,
-            _challenger: owner,
-            _finalizationPeriodSeconds: 7 days
+            _finalizationPeriodSeconds: finalizationPeriodSeconds
         });
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(oracleImpl),
-            abi.encodeCall(L2OutputOracle.initialize, (startingBlockNumber, startingTimestamp))
+            abi.encodeCall(
+                L2OutputOracle.initialize,
+                (
+                    startingBlockNumber,
+                    startingTimestamp,
+                    proposer,
+                    owner
+                )
+            )
         );
         oracle = L2OutputOracle(address(proxy));
         vm.label(address(oracle), "L2OutputOracle");
@@ -207,18 +212,16 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
             _config: config
         });
 
-        opImpl = new OptimismPortal({
-            _l2Oracle: oracle,
-            _guardian: guardian,
-            _paused: true,
-            _config: systemConfig
-        });
+        opImpl = new OptimismPortal();
 
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(opImpl),
-            abi.encodeWithSelector(OptimismPortal.initialize.selector, false)
+            abi.encodeCall(
+                OptimismPortal.initialize,
+                (oracle, guardian, systemConfig, false)
+            )
         );
         op = OptimismPortal(payable(address(proxy)));
         vm.label(address(op), "OptimismPortal");
@@ -274,7 +277,7 @@ contract Messenger_Initializer is Portal_Initializer {
         addressManager = new AddressManager();
 
         // Setup implementation
-        L1CrossDomainMessenger L1MessengerImpl = new L1CrossDomainMessenger(op);
+        L1CrossDomainMessenger L1MessengerImpl = new L1CrossDomainMessenger();
 
         // Setup the address manager and proxy
         vm.prank(multisig);
@@ -284,7 +287,7 @@ contract Messenger_Initializer is Portal_Initializer {
             "OVM_L1CrossDomainMessenger"
         );
         L1Messenger = L1CrossDomainMessenger(address(proxy));
-        L1Messenger.initialize();
+        L1Messenger.initialize(op);
 
         vm.etch(
             Predeploys.L2_CROSS_DOMAIN_MESSENGER,
@@ -726,7 +729,7 @@ contract NextImpl is Initializable {
     bytes32 slot21;
     bytes32 public constant slot21Init = bytes32(hex"1337");
 
-    function initialize() public reinitializer(2) {
+    function initialize(uint8 _init) public reinitializer(_init) {
         // Slot21 is unused by an of our upgradeable contracts.
         // This is used to verify that we can access this value after an upgrade.
         slot21 = slot21Init;

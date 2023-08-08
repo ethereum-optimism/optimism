@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import "../../libraries/DisputeTypes.sol";
-
 import { IBondManager } from "./IBondManager.sol";
 import { IInitializable } from "./IInitializable.sol";
+
+import "src/libraries/DisputeTypes.sol";
 
 /// @title IDisputeGame
 /// @notice The generic interface for a DisputeGame contract.

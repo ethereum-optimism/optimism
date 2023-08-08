@@ -67,12 +67,12 @@ CREATE TABLE IF NOT EXISTS output_proposals (
  * BRIDGING DATA
  */
 
-CREATE TABLE IF NOT EXISTS deposits (
+CREATE TABLE IF NOT EXISTS l1_bridge_deposits (
 	guid                 VARCHAR PRIMARY KEY NOT NULL,
 
     -- Event causing the deposit
-    initiated_l1_event_guid VARCHAR NOT NULL REFERENCES l1_contract_events(guid),
-    sent_message_nonce      UINT256 UNIQUE,
+    initiated_l1_event_guid      VARCHAR NOT NULL REFERENCES l1_contract_events(guid),
+    cross_domain_messenger_nonce UINT256 UNIQUE,
 
     -- Finalization marker for the deposit
     finalized_l2_event_guid VARCHAR REFERENCES l2_contract_events(guid),
@@ -88,12 +88,12 @@ CREATE TABLE IF NOT EXISTS deposits (
     timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
 );
 
-CREATE TABLE IF NOT EXISTS withdrawals (
+CREATE TABLE IF NOT EXISTS l2_bridge_withdrawals (
 	guid                VARCHAR PRIMARY KEY NOT NULL,
 
     -- Event causing this withdrawal
-    initiated_l2_event_guid VARCHAR NOT NULL REFERENCES l2_contract_events(guid),
-    sent_message_nonce      UINT256 UNIQUE,
+    initiated_l2_event_guid      VARCHAR NOT NULL REFERENCES l2_contract_events(guid),
+    cross_domain_messenger_nonce UINT256 UNIQUE,
 
     -- Multistep (bedrock) process of a withdrawal
     withdrawal_hash      VARCHAR NOT NULL,

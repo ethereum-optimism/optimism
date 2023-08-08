@@ -49,7 +49,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 		if err != nil {
 			return nil, fmt.Errorf("create cannon trace provider: %w", err)
 		}
-		updater, err = cannon.NewOracleUpdater(logger, txMgr, cfg.GameAddress, cfg.PreimageOracleAddress)
+		updater, err = cannon.NewOracleUpdater(ctx, logger, txMgr, cfg.GameAddress, client)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create the cannon updater: %w", err)
 		}
@@ -64,8 +64,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 }
 
 // newTypedService creates a new Service from a provided trace provider.
-func newTypedService(ctx context.Context, logger log.Logger, cfg *config.Config, client *ethclient.Client, provider types.TraceProvider, uploader types.OracleUpdater, txMgr txmgr.TxManager) (*service, error) {
-
+func newTypedService(ctx context.Context, logger log.Logger, cfg *config.Config, client *ethclient.Client, provider types.TraceProvider, updater types.OracleUpdater, txMgr txmgr.TxManager) (*service, error) {
 	contract, err := bindings.NewFaultDisputeGameCaller(cfg.GameAddress, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to bind the fault dispute game contract: %w", err)
@@ -83,7 +82,7 @@ func newTypedService(ctx context.Context, logger log.Logger, cfg *config.Config,
 		return nil, fmt.Errorf("failed to bind the fault contract: %w", err)
 	}
 
-	agent := NewAgent(loader, cfg.GameDepth, provider, responder, cfg.AgreeWithProposedOutput, gameLogger)
+	agent := NewAgent(loader, cfg.GameDepth, provider, responder, updater, cfg.AgreeWithProposedOutput, gameLogger)
 
 	return &service{
 		agent:                   agent,
