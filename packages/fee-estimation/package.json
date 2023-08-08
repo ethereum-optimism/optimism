@@ -10,8 +10,16 @@
   },
   "homepage": "https://optimism.io",
   "type": "module",
-  "main": "dist/estimateFees.js",
-  "module": "dist/estimateFees.mjs",
+  "main": "dist/estimateFees.cjs",
+  "module": "dist/estimateFees.js",
+  "exports": {
+    ".": {
+      "import": "./dist/estimateFees.js",
+      "require": "./dist/estimateFees.cjs",
+      "default": "./dist/estimateFees.js",
+      "types": "./src/estimateFees.ts"
+    }
+  },
   "types": "src/estimateFees.ts",
   "files": [
     "dist/",
