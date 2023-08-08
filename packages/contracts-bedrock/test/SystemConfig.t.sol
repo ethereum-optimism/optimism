@@ -69,7 +69,7 @@ contract SystemConfig_Init is CommonTest {
 
 contract SystemConfig_Initialize_Test is SystemConfig_Init {
     /// @dev Tests that initailization sets the correct values.
-    function test_initialize_values() external {
+    function test_initialize_values_succeeds() external {
         assertEq(sysConf.l1CrossDomainMessenger(), l1CrossDomainMessenger);
         assertEq(sysConf.l1ERC721Bridge(), l1ERC721Bridge);
         assertEq(sysConf.l1StandardBridge(), l1StandardBridge);
