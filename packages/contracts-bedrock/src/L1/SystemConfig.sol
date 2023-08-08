@@ -45,7 +45,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
 
     /// @notice Storage slot that the L1CrossDomainMessenger address is stored at.
-    bytes32 public constant L1_CROSS_DOMAIN_MESSENGER_SLOT = keccak256("systemconfig.l1crossdomainmessenger");
+    bytes32 public constant L1_CROSS_DOMAIN_MESSENGER_SLOT =
+        keccak256("systemconfig.l1crossdomainmessenger");
 
     /// @notice Storage slot that the L1ERC721Bridge address is stored at.
     bytes32 public constant L1_ERC_721_BRIDGE_SLOT = keccak256("systemconfig.l1erc721bridge");
