@@ -3,6 +3,7 @@ package challenger
 import (
 	"context"
 	"errors"
+	"os"
 	"testing"
 	"time"
 
@@ -39,6 +40,19 @@ func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name st
 	}
 	require.NotEmpty(t, cfg.TxMgrConfig.PrivateKey, "Missing private key for TxMgrConfig")
 	require.NoError(t, cfg.Check(), "op-challenger config should be valid")
+
+	if cfg.CannonBin != "" {
+		_, err := os.Stat(cfg.CannonBin)
+		require.NoError(t, err, "cannon should be built. Make sure you've run make cannon-prestate")
+	}
+	if cfg.CannonServer != "" {
+		_, err := os.Stat(cfg.CannonServer)
+		require.NoError(t, err, "op-program should be built. Make sure you've run make cannon-prestate")
+	}
+	if cfg.CannonAbsolutePreState != "" {
+		_, err := os.Stat(cfg.CannonAbsolutePreState)
+		require.NoError(t, err, "cannon pre-state should be built. Make sure you've run make cannon-prestate")
+	}
 
 	errCh := make(chan error, 1)
 	ctx, cancel := context.WithCancel(ctx)
