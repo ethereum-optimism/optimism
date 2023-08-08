@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testutils/fuzzerutils"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -246,10 +245,6 @@ func TestMixedDepositValidity(t *testing.T) {
 	// Define our L1 transaction timeout duration.
 	txTimeoutDuration := 10 * time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second
 
-	// Bind to the deposit contract
-	depositContract, err := bindings.NewOptimismPortal(cfg.L1Deployments.OptimismPortalProxy, l1Client)
-	require.NoError(t, err)
-
 	// Create a struct used to track our transactors and their transactions sent.
 	type TestAccountState struct {
 		Account           *TestAccount
@@ -320,27 +315,18 @@ func TestMixedDepositValidity(t *testing.T) {
 		} else {
 			transferValue = new(big.Int).Mul(common.Big2, transactor.ExpectedL2Balance) // trigger a revert by trying to transfer our current balance * 2
 		}
-		tx, err := depositContract.DepositTransaction(transactor.Account.L1Opts, toAddr, transferValue, 100_000, false, nil)
-		require.Nil(t, err, "with deposit tx")
-
-		// Wait for the deposit tx to appear in L1.
-		receipt, err := waitForTransaction(tx.Hash(), l1Client, txTimeoutDuration)
-		require.Nil(t, err, "Waiting for deposit tx on L1")
-		require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
-
-		// Reconstruct the L2 tx hash to wait for the deposit in L2.
-		reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
-		require.NoError(t, err, "Could not reconstruct L2 Deposit")
-		tx = types.NewTx(reconstructedDep)
-		receipt, err = waitForTransaction(tx.Hash(), l2Verif, txTimeoutDuration)
-		require.NoError(t, err)
-
-		// Verify the result of the L2 tx receipt. Based on how much we transferred it should be successful/failed.
-		if validTransfer {
-			require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "Transaction should have succeeded")
-		} else {
-			require.Equal(t, types.ReceiptStatusFailed, receipt.Status, "Transaction should have failed")
-		}
+		SendDepositTx(t, cfg, l1Client, l2Verif, transactor.Account.L1Opts, func(l2Opts *DepositTxOpts) {
+			l2Opts.GasLimit = 100_000
+			l2Opts.IsCreation = false
+			l2Opts.Data = nil
+			l2Opts.ToAddr = toAddr
+			l2Opts.Value = transferValue
+			if validTransfer {
+				l2Opts.ExpectedStatus = types.ReceiptStatusSuccessful
+			} else {
+				l2Opts.ExpectedStatus = types.ReceiptStatusFailed
+			}
+		})
 
 		// Update our expected balances.
 		if validTransfer && transactor != receiver {

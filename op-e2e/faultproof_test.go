@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-service/client/utils"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
@@ -141,6 +142,32 @@ func TestChallengerCompleteDisputeGame(t *testing.T) {
 			game.WaitForGameStatus(ctx, test.expectedResult)
 		})
 	}
+}
+
+func TestCannonDisputeGame(t *testing.T) {
+	t.Skip("CLI-4290: op-challenger doesn't handle trace extension correctly for cannon")
+	InitParallel(t)
+
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
+	game := disputeGameFactory.StartCannonGame(ctx, common.Hash{0xaa})
+	require.NotNil(t, game)
+
+	game.StartChallenger(ctx, sys.NodeEndpoint("l1"), sys.NodeEndpoint("sequencer"), "Challenger", func(c *config.Config) {
+		c.AgreeWithProposedOutput = true // Agree with the proposed output, so disagree with the root claim
+		c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(sys.cfg.Secrets.Alice)
+	})
+
+	// Challenger should counter the root claim
+	game.WaitForClaimCount(ctx, 2)
+
+	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+	require.NoError(t, utils.WaitNextBlock(ctx, l1Client))
+
+	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 }
 
 func startFaultDisputeSystem(t *testing.T) (*System, *ethclient.Client) {
