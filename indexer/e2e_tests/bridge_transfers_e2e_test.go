@@ -95,8 +95,6 @@ func TestE2EBridgeTransfersOptimismPortalETHReceive(t *testing.T) {
 	depositInfo, err := e2etest_utils.ParseDepositInfo(portalDepositReceipt)
 	require.NoError(t, err)
 
-	depositL2TxHash := types.NewTx(depositInfo.DepositTx).Hash()
-
 	// wait for processor catchup
 	require.NoError(t, utils.WaitFor(context.Background(), 500*time.Millisecond, func() (bool, error) {
 		l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
@@ -106,7 +104,7 @@ func TestE2EBridgeTransfersOptimismPortalETHReceive(t *testing.T) {
 	aliceDeposits, err := testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr)
 	require.NoError(t, err)
 	require.Equal(t, portalDepositTx.Hash(), aliceDeposits[0].L1TransactionHash)
-	require.Equal(t, depositL2TxHash, aliceDeposits[0].L2TransactionHash)
+	require.Equal(t, types.NewTx(depositInfo.DepositTx).Hash(), aliceDeposits[0].L2TransactionHash)
 
 	deposit := aliceDeposits[0].L1BridgeDeposit
 	require.Equal(t, depositInfo.DepositTx.SourceHash, deposit.TransactionSourceHash)
@@ -119,6 +117,9 @@ func TestE2EBridgeTransfersOptimismPortalETHReceive(t *testing.T) {
 
 	// deposit was not sent through the cross domain messenger
 	require.Nil(t, deposit.CrossDomainMessengerNonce)
+
+	// (2) Test Deposit Finalization
+	// Nothing to do as we rely on the derivation process to include the deposit
 }
 
 func TestE2EBridgeTransfersStandardBridgeETHWithdrawal(t *testing.T) {
