@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -15,7 +16,8 @@ import (
 var (
 	l1EthRpc                = "http://example.com:8545"
 	gameAddressValue        = "0xaa00000000000000000000000000000000000000"
-	cannonNetwork           = "mainnet"
+	cannonNetwork           = chaincfg.AvailableNetworks()[0]
+	otherCannonNetwork      = chaincfg.AvailableNetworks()[1]
 	cannonBin               = "./bin/cannon"
 	cannonServer            = "./bin/op-program"
 	cannonPreState          = "./pre.json"
@@ -247,7 +249,7 @@ func TestMustNotSpecifyNetworkAndRollup(t *testing.T) {
 		t,
 		"flag cannon-network can not be used with cannon-rollup-config and cannon-l2-genesis",
 		addRequiredArgsExcept(config.TraceTypeCannon, "--cannon-network",
-			"--cannon-network=mainnet", "--cannon-rollup-config=rollup.json"))
+			"--cannon-network", cannonNetwork, "--cannon-rollup-config=rollup.json"))
 }
 
 func TestCannonNetwork(t *testing.T) {
@@ -261,8 +263,8 @@ func TestCannonNetwork(t *testing.T) {
 	})
 
 	t.Run("Valid", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeCannon, "--cannon-network", "--cannon-network=goerli"))
-		require.Equal(t, "goerli", cfg.CannonNetwork)
+		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeCannon, "--cannon-network", "--cannon-network", otherCannonNetwork))
+		require.Equal(t, otherCannonNetwork, cfg.CannonNetwork)
 	})
 }
 
