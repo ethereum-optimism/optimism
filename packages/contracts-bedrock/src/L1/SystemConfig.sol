@@ -31,7 +31,6 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         address l1StandardBridge;
         address l2OutputOracle;
         address optimismPortal;
-        //address batchInbox;
     }
 
     /// @notice Version identifier, used for upgrades.
@@ -108,7 +107,15 @@ contract SystemConfig is OwnableUpgradeable, Semver {
                 systemTxMaxGas: 0,
                 maximumBaseFee: 0
             }),
-            _startBlock: 0
+            _startBlock: 0,
+            _batchInbox: address(0),
+            _addresses: SystemConfig.Addresses({
+                l1CrossDomainMessenger: address(0),
+                l1ERC721Bridge: address(0),
+                l1StandardBridge: address(0),
+                l2OutputOracle: address(0),
+                optimismPortal: address(0)
+            })
         });
     }
 
@@ -121,6 +128,13 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     /// @param _gasLimit          Initial gas limit.
     /// @param _unsafeBlockSigner Initial unsafe block signer address.
     /// @param _config            Initial ResourceConfig.
+    /// @param _startBlock        Starting block for the op-node to search for logs from.
+    ///                           Contracts that were deployed before this field existed
+    ///                           need to have this field set manually via an override.
+    ///                           Newly deployed contracts should set this value to uint256(0).
+    /// @param _batchInbox        Batch inbox address. An identifier for the op-node to find
+    ///                           canonical data.
+    /// @param _addresses         Set of L1 contract addresses. These should be the proxies.
     function initialize(
         address _owner,
         uint256 _overhead,
@@ -129,10 +143,25 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint64 _gasLimit,
         address _unsafeBlockSigner,
         ResourceMetering.ResourceConfig memory _config,
-        uint256 _startBlock
+        uint256 _startBlock,
+        address _batchInbox,
+        SystemConfig.Addresses memory _addresses
     ) public reinitializer(2) {
         __Ownable_init();
         transferOwnership(_owner);
+
+        overhead = _overhead;
+        scalar = _scalar;
+        batcherHash = _batcherHash;
+        gasLimit = _gasLimit;
+
+        _setAddress(_unsafeBlockSigner, UNSAFE_BLOCK_SIGNER_SLOT);
+        _setAddress(_batchInbox, BATCH_INBOX_SLOT);
+        _setAddress(_addresses.l1CrossDomainMessenger, L1_CROSS_DOMAIN_MESSENGER_SLOT);
+        _setAddress(_addresses.l1ERC721Bridge, L1_ERC_721_BRIDGE_SLOT);
+        _setAddress(_addresses.l1StandardBridge, L1_STANDARD_BRIDGE_SLOT);
+        _setAddress(_addresses.l2OutputOracle, L2_OUTPUT_ORACLE_SLOT);
+        _setAddress(_addresses.optimismPortal, OPTIMISM_PORTAL_SLOT);
 
         // The start block for the op-node to start searching for logs
         // needs to be set in a backwards compatible way. Only allow setting
@@ -144,39 +173,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
             startBlock = block.number;
         }
 
-        overhead = _overhead;
-        scalar = _scalar;
-        batcherHash = _batcherHash;
-        gasLimit = _gasLimit;
-        _setAddress(_unsafeBlockSigner, UNSAFE_BLOCK_SIGNER_SLOT);
-
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
-    }
-
-    /// @notice Sets all of the addresses. These are not set in the `initialize`
-    ///         function because it results in stack too deep errors when that
-    ///         many constructor arguments are used. It is more simple to use
-    ///         another function.
-    /// @param _l1CrossDomainMessenger   Address of the L1CrossDomainMessenger.
-    /// @param _l1ERC721Bridge           Address of the L1ERC721Bridge.
-    /// @param _l1StandardBridge         Address of the L1StandardBridge.
-    /// @param _l2OutputOracle           Address of the L2OutputOracle.
-    /// @param _batchInbox               Address of the BatchInbox.
-    function setAddresses(
-        address _l1CrossDomainMessenger,
-        address _l1ERC721Bridge,
-        address _l1StandardBridge,
-        address _l2OutputOracle,
-        address _optimismPortal,
-        address _batchInbox
-    ) external onlyOwner {
-        _setAddress(_l1CrossDomainMessenger, L1_CROSS_DOMAIN_MESSENGER_SLOT);
-        _setAddress(_l1ERC721Bridge, L1_ERC_721_BRIDGE_SLOT);
-        _setAddress(_l1StandardBridge, L1_STANDARD_BRIDGE_SLOT);
-        _setAddress(_l2OutputOracle, L2_OUTPUT_ORACLE_SLOT);
-        _setAddress(_optimismPortal, OPTIMISM_PORTAL_SLOT);
-        _setAddress(_batchInbox, BATCH_INBOX_SLOT);
     }
 
     /// @notice Returns the minimum L2 gas limit that can be safely set for the system to

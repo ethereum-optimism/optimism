@@ -30,14 +30,22 @@ contract SystemConfig_Init is CommonTest {
             abi.encodeCall(
                 SystemConfig.initialize,
                 (
-                    alice,                                //_owner,
-                    2100,                                 //_overhead,
-                    1000000,                              //_scalar,
-                    bytes32(hex"abcd"),                   //_batcherHash,
-                    30_000_000,                           //_gasLimit,
-                    address(1),                           //_unsafeBlockSigner,
-                    Constants.DEFAULT_RESOURCE_CONFIG(),  //_config,
-                    0                                     //_startBlock
+                    alice,                                   //_owner,
+                    2100,                                    //_overhead,
+                    1000000,                                 //_scalar,
+                    bytes32(hex"abcd"),                      //_batcherHash,
+                    30_000_000,                              //_gasLimit,
+                    address(1),                              //_unsafeBlockSigner,
+                    Constants.DEFAULT_RESOURCE_CONFIG(),     //_config,
+                    0,                                       //_startBlock
+                    address(0),                              // _batchInbox
+                    SystemConfig.Addresses({                 // _addresses
+                        l1CrossDomainMessenger: address(0),
+                        l1ERC721Bridge: address(0),
+                        l1StandardBridge: address(0),
+                        l2OutputOracle: address(0),
+                        optimismPortal: address(0)
+                    })
                 )
             )
         );
@@ -68,14 +76,22 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
             abi.encodeCall(
                 SystemConfig.initialize,
                 (
-                    alice,                 //_owner,
-                    2100,                  //_overhead,
-                    1000000,               //_scalar,
-                    bytes32(hex"abcd"),    //_batcherHash,
-                    minimumGasLimit - 1,   //_gasLimit,
-                    address(1),            //_unsafeBlockSigner,
-                    cfg,                   //_config,
-                    0                      //_startBlock
+                    alice,                                  //_owner,
+                    2100,                                   //_overhead,
+                    1000000,                                //_scalar,
+                    bytes32(hex"abcd"),                     //_batcherHash,
+                    minimumGasLimit - 1,                    //_gasLimit,
+                    address(1),                             //_unsafeBlockSigner,
+                    cfg,                                    //_config,
+                    0,                                      //_startBlock
+                    address(0),                             // _batchInbox
+                    SystemConfig.Addresses({                // _addresses
+                        l1CrossDomainMessenger: address(0),
+                        l1ERC721Bridge: address(0),
+                        l1StandardBridge: address(0),
+                        l2OutputOracle: address(0),
+                        optimismPortal: address(0)
+                    })
                 )
             )
         );

@@ -393,7 +393,6 @@ contract Deploy is Deployer {
         require(config.unsafeBlockSigner() == address(0));
         require(config.batcherHash() == bytes32(0));
 
-        ResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
         ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
         require(resourceConfig.maxResourceLimit == 0);
         require(resourceConfig.elasticityMultiplier == 0);
@@ -477,7 +476,6 @@ contract Deploy is Deployer {
 
     /// @notice Initialize the SystemConfig
     function initializeSystemConfig() broadcast() public {
-        /*
         ProxyAdmin proxyAdmin = ProxyAdmin(mustGetAddress("ProxyAdmin"));
         address systemConfigProxy = mustGetAddress("SystemConfigProxy");
         address systemConfig = mustGetAddress("SystemConfig");
@@ -497,12 +495,15 @@ contract Deploy is Deployer {
                     uint64(cfg.l2GenesisBlockGasLimit()),
                     cfg.p2pSequencerAddress(),
                     Constants.DEFAULT_RESOURCE_CONFIG(),
-                    mustGetAddress("L1CrossDomainMessengerProxy"),
-                    mustGetAddress("L1ERC721BridgeProxy"),
-                    mustGetAddress("L1StandardBridgeProxy"),
-                    mustGetAddress("L2OutputOracleProxy"),
-                    mustGetAddress("OptimismPortalProxy"),
-                    0 // TODO: this needs to come from deploy config
+                    cfg.systemConfigStartBlock(),
+                    cfg.batchInboxAddress(),
+                    SystemConfig.Addresses({
+                        l1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
+                        l1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
+                        l1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
+                        l2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
+                        optimismPortal: mustGetAddress("OptimismPortalProxy")
+                    })
                 )
             )
         });
@@ -531,8 +532,7 @@ contract Deploy is Deployer {
         require(config.l2OutputOracle() == mustGetAddress("L2OutputOracleProxy"));
         require(config.optimismPortal() == mustGetAddress("OptimismPortalProxy"));
         require(config.l1CrossDomainMessenger() == mustGetAddress("L1CrossDomainMessengerProxy"));
-        require(config.startBlock() == 0); // TODO
-        */
+        require(config.startBlock() == cfg.systemConfigStartBlock());
     }
 
     /// @notice Initialize the L1StandardBridge
