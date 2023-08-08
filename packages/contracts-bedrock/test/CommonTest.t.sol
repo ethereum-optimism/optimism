@@ -209,8 +209,6 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
         vm.prank(multisig);
         systemConfigProxy.upgradeToAndCall(
             address(systemConfigImpl),
-            hex""
-            /*
             abi.encodeCall(
                 SystemConfig.initialize,
                 (
@@ -221,15 +219,17 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
                     30_000_000,                           //_gasLimit,
                     address(0),                           //_unsafeBlockSigner,
                     Constants.DEFAULT_RESOURCE_CONFIG(),  //_config,
-                    address(0x40),                        //_l1CrossDomainMessenger,
-                    address(0x41),                        //_l1ERC721Bridge,
-                    address(0x42),                        //_l1StandardBridge,
-                    address(0x43),                        //_l2OutputOracle,
-                    address(0x44),                        //_optimismPortal,
-                    0                                     //_startBlock
+                    0,                                    //_startBlock
+                    address(0xff),                        // _batchInbox
+                    SystemConfig.Addresses({              // _addresses
+                        l1CrossDomainMessenger: address(0),
+                        l1ERC721Bridge: address(0),
+                        l1StandardBridge: address(0),
+                        l2OutputOracle: address(oracle),
+                        optimismPortal: address(op)
+                    })
                 )
             )
-            */
         );
 
         systemConfig = SystemConfig(address(systemConfigProxy));
