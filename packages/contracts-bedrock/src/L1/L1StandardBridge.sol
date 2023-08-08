@@ -232,7 +232,7 @@ contract L1StandardBridge is StandardBridge, Semver {
     /// @notice Retrieves the access of the corresponding L2 bridge contract.
     /// @return Address of the corresponding L2 bridge contract.
     function l2TokenBridge() external view returns (address) {
-        return address(_OTHER_BRIDGE);
+        return address(OTHER_BRIDGE);
     }
 
     /// @notice Internal function for initiating an ETH deposit.
