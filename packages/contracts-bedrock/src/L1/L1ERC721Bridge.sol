@@ -17,9 +17,9 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
     ///         by ID was deposited for a given L2 token.
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
 
-    /// @custom:semver 1.3.0
+    /// @custom:semver 1.2.0
     /// @notice Constructs the contract.
-    constructor() Semver(1, 3, 0) ERC721Bridge(Predeploys.L2_ERC721_BRIDGE) {
+    constructor() Semver(1, 2, 0) ERC721Bridge(Predeploys.L2_ERC721_BRIDGE) {
         initialize({ _messenger: CrossDomainMessenger(address(0)) });
     }
 
