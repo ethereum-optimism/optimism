@@ -49,6 +49,8 @@
 | startingBlockNumber | uint256                       | 1    | 0      | 32    | src/L1/L2OutputOracle.sol:L2OutputOracle |
 | startingTimestamp   | uint256                       | 2    | 0      | 32    | src/L1/L2OutputOracle.sol:L2OutputOracle |
 | l2Outputs           | struct Types.OutputProposal[] | 3    | 0      | 32    | src/L1/L2OutputOracle.sol:L2OutputOracle |
+| challenger          | address                       | 4    | 0      | 20    | src/L1/L2OutputOracle.sol:L2OutputOracle |
+| proposer            | address                       | 5    | 0      | 20    | src/L1/L2OutputOracle.sol:L2OutputOracle |
 
 =======================
 ➡ src/L1/OptimismPortal.sol:OptimismPortal

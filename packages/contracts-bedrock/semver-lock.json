@@ -2,7 +2,7 @@
   "src/L1/L1CrossDomainMessenger.sol": "0x2b276f14475869cfd81868b03dc72b91dd726a787c9568caf4849fe34830b207",
   "src/L1/L1ERC721Bridge.sol": "0xac9d8e236a1b35c358f9800834f65375cf4270155e817cf3d0f2bac1968f9107",
   "src/L1/L1StandardBridge.sol": "0x26fd79e041c403f4bc68758c410fcc801975e7648c0b51a2c4a6e8c44fabcbfd",
-  "src/L1/L2OutputOracle.sol": "0xd6c5eb38732077c4705f46a61be68a7beccc069a99ed1d07b8e1fc6e1de8ffa6",
+  "src/L1/L2OutputOracle.sol": "0x8f32ccb4c5cb63a459a0e79ee412177dc03fd279fdaaf1dac69e8c714902e857",
   "src/L1/OptimismPortal.sol": "0xeaa47a63e8a3bcfdb7dfd3e6c8608369e34e362d9de82f3acf13cbc27c070bf7",
   "src/L1/SystemConfig.sol": "0x8e2b5103d2eb93b74af2e2f96a4505e637cdc3c44d80cf5ec2eca70060e1deff",
   "src/L2/BaseFeeVault.sol": "0xa596e60762f16192cfa86459fcb9f4da9d8f756106eedac643a1ffeafbbfcc5f",
