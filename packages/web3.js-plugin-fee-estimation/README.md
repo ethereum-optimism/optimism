@@ -59,20 +59,14 @@ You will now have access to the following functions under the `op` namespace, i.
 Computes the total (L1 + L2) fee estimate to execute a transaction
 
 ```typescript
-async estimateFees(transaction: Transaction, options?: { blockNumber?: BlockNumberOrTag, returnFormat?: ReturnFormat })
+async estimateFees(transaction: Transaction, returnFormat?: ReturnFormat)
 ```
 
 #### Parameters
 
 - `transaction: Transaction` - An unsigned web3.js [transaction](https://docs.web3js.org/api/web3-types/interface/Transaction) object
-- `options?: { blockNumber?: BlockNumberOrTag, returnFormat?: ReturnFormat }` - An optional object with properties:
-  - `blockNumber?: BlockNumberOrTag` - Specifies what block to use for gas estimation. Can be either:
-    - **Note** Specifying a block to estimate L2 gas for is currently not working
-    - A web3.js [Numbers](https://docs.web3js.org/api/web3-types#Numbers)
-    - A web3.js [BlockTags](https://docs.web3js.org/api/web3-types/enum/BlockTags)
-    - If not provided, `BlockTags.LATEST` is used
-  - `returnFormat?: ReturnFormat` - A web3.js [DataFormat](https://docs.web3js.org/api/web3-types#DataFormat) object that specifies how to format number and bytes values
-    - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT](https://docs.web3js.org/api/web3-types#DEFAULT_RETURN_FORMAT) is used which will format numbers to `BigInt`s
+- `returnFormat?: ReturnFormat` - A web3.js [DataFormat](https://docs.web3js.org/api/web3-types#DataFormat) object that specifies how to format number and bytes values
+  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT](https://docs.web3js.org/api/web3-types#DEFAULT_RETURN_FORMAT) is used which will format numbers to `BigInt`s
 
 #### Returns
 
@@ -597,4 +591,4 @@ console.log(version) // 1.0.0
 ## Known Issues
 
 - As of version `4.0.3` of web3.js, both `input` and `data` parameters are automatically added to a transaction objects causing the gas estimations to be inflated. This was corrected in [this](https://github.com/web3/web3.js/pull/6294) PR, but has yet to be released
-- For the plugin functions, `getL2Fee` and `estimateFees`, you should be able to get the fee estimates using the state of the blockchain at a specified block, however, this doesn't seem to be working with web3.js and requires further investigation
+- For the plugin function `getL2Fee`, you should be able to get the fee estimates using the state of the blockchain at a specified block, however, this doesn't seem to be working with web3.js and requires further investigation
