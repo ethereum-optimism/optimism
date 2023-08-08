@@ -10,8 +10,14 @@
   },
   "homepage": "https://optimism.io",
   "type": "module",
-  "main": "dist/plugin.js",
-  "module": "dist/plugin.mjs",
+  "exports": {
+    ".": {
+      "import": "./dist/plugin.js",
+      "require": "./dist/plugin.cjs",
+      "default": "./dist/plugin.js",
+      "types": "./src/plugin.d.ts"
+    }
+  },
   "types": "dist/plugin.d.ts",
   "files": [
     "dist/",
