@@ -100,12 +100,12 @@ contract SystemConfig is OwnableUpgradeable, Semver {
             _overhead: 0,
             _scalar: 0,
             _batcherHash: bytes32(0),
-            _gasLimit: 0,
+            _gasLimit: 1,
             _unsafeBlockSigner: address(0),
             _config: ResourceMetering.ResourceConfig({
-                maxResourceLimit: 0,
-                elasticityMultiplier: 0,
-                baseFeeMaxChangeDenominator: 0,
+                maxResourceLimit: 1,
+                elasticityMultiplier: 1,
+                baseFeeMaxChangeDenominator: 2,
                 minimumBaseFee: 0,
                 systemTxMaxGas: 0,
                 maximumBaseFee: 0
