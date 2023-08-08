@@ -17,7 +17,7 @@ import (
 
 const (
 	snapsDir     = "snapshots"
-	preimagesDir = "snapshots"
+	preimagesDir = "preimages"
 )
 
 var snapshotNameRegexp = regexp.MustCompile(`^[0-9]+\.json$`)
@@ -138,17 +138,17 @@ func findStartingSnapshot(logger log.Logger, snapDir string, absolutePreState st
 	bestSnap := uint64(0)
 	for _, entry := range entries {
 		if entry.IsDir() {
-			logger.Warn("Unexpected directory in snapshots dir: %v/%v", snapDir, entry.Name())
+			logger.Warn("Unexpected directory in snapshots dir", "parent", snapDir, "child", entry.Name())
 			continue
 		}
 		name := entry.Name()
 		if !snapshotNameRegexp.MatchString(name) {
-			logger.Warn("Unexpected file in snapshots dir: %v/%v", snapDir, entry.Name())
+			logger.Warn("Unexpected file in snapshots dir", "parent", snapDir, "child", entry.Name())
 			continue
 		}
 		index, err := strconv.ParseUint(name[0:len(name)-len(".json")], 10, 64)
 		if err != nil {
-			logger.Error("Unable to parse trace index of snapshot file: %v/%v", snapDir, entry.Name())
+			logger.Error("Unable to parse trace index of snapshot file", "parent", snapDir, "child", entry.Name())
 			continue
 		}
 		if index > bestSnap && index < traceIndex {
