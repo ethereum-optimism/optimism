@@ -3,6 +3,7 @@ package cannon
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -35,7 +36,7 @@ func TestGenerateProof(t *testing.T) {
 		l2Claim:       common.Hash{0x44},
 		l2BlockNumber: big.NewInt(3333),
 	}
-	captureExec := func(cfg config.Config) (string, string, map[string]string) {
+	captureExec := func(cfg config.Config, proofAt uint64) (string, string, map[string]string) {
 		executor := NewExecutor(testlog.Logger(t, log.LvlInfo), &cfg, inputs)
 		executor.selectSnapshot = func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error) {
 			return input, nil
@@ -46,12 +47,18 @@ func TestGenerateProof(t *testing.T) {
 		executor.cmdExecutor = func(ctx context.Context, l log.Logger, b string, a ...string) error {
 			binary = b
 			subcommand = a[0]
-			for i := 1; i < len(a); i += 2 {
+			for i := 1; i < len(a); {
+				if a[i] == "--" {
+					// Skip over the divider between cannon and server program
+					i += 1
+					continue
+				}
 				args[a[i]] = a[i+1]
+				i += 2
 			}
 			return nil
 		}
-		err := executor.GenerateProof(context.Background(), cfg.CannonDatadir, 150_000_000)
+		err := executor.GenerateProof(context.Background(), cfg.CannonDatadir, proofAt)
 		require.NoError(t, err)
 		return binary, subcommand, args
 	}
@@ -60,7 +67,7 @@ func TestGenerateProof(t *testing.T) {
 		cfg.CannonNetwork = "mainnet"
 		cfg.CannonRollupConfigPath = ""
 		cfg.CannonL2GenesisPath = ""
-		binary, subcommand, args := captureExec(cfg)
+		binary, subcommand, args := captureExec(cfg, 150_000_000)
 		require.DirExists(t, filepath.Join(cfg.CannonDatadir, preimagesDir))
 		require.DirExists(t, filepath.Join(cfg.CannonDatadir, proofsDir))
 		require.DirExists(t, filepath.Join(cfg.CannonDatadir, snapsDir))
@@ -73,7 +80,10 @@ func TestGenerateProof(t *testing.T) {
 		require.Equal(t, "=150000000", args["--proof-at"])
 		require.Equal(t, "=150000001", args["--stop-at"])
 		require.Equal(t, "%500", args["--snapshot-at"])
-		require.Equal(t, cfg.CannonServer, args["--"])
+		// Slight quirk of how we pair off args
+		// The server binary winds up as the key and the first arg --server as the value which has no value
+		// Then everything else pairs off correctly again
+		require.Equal(t, "--server", args[cfg.CannonServer])
 		require.Equal(t, cfg.L1EthRpc, args["--l1"])
 		require.Equal(t, cfg.CannonL2, args["--l2"])
 		require.Equal(t, filepath.Join(cfg.CannonDatadir, preimagesDir), args["--datadir"])
@@ -95,10 +105,20 @@ func TestGenerateProof(t *testing.T) {
 		cfg.CannonNetwork = ""
 		cfg.CannonRollupConfigPath = "rollup.json"
 		cfg.CannonL2GenesisPath = "genesis.json"
-		_, _, args := captureExec(cfg)
+		_, _, args := captureExec(cfg, 150_000_000)
 		require.NotContains(t, args, "--network")
 		require.Equal(t, cfg.CannonRollupConfigPath, args["--rollup.config"])
 		require.Equal(t, cfg.CannonL2GenesisPath, args["--l2.genesis"])
+	})
+
+	t.Run("NoStopAtWhenProofIsMaxUInt", func(t *testing.T) {
+		cfg.CannonNetwork = "mainnet"
+		cfg.CannonRollupConfigPath = "rollup.json"
+		cfg.CannonL2GenesisPath = "genesis.json"
+		_, _, args := captureExec(cfg, math.MaxUint64)
+		// stop-at would need to be one more than the proof step which would overflow back to 0
+		// so expect that it will be omitted. We'll ultimately want cannon to execute until the program exits.
+		require.NotContains(t, args, "--stop-at")
 	})
 }
 

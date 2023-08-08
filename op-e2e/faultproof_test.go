@@ -173,8 +173,10 @@ func TestCannonDisputeGame(t *testing.T) {
 func startFaultDisputeSystem(t *testing.T) (*System, *ethclient.Client) {
 	cfg := DefaultSystemConfig(t)
 	delete(cfg.Nodes, "verifier")
+	cfg.DeployConfig.SequencerWindowSize = 4
+	cfg.DeployConfig.FinalizationPeriodSeconds = 2
 	cfg.SupportL1TimeTravel = true
-	cfg.DeployConfig.L2OutputOracleSubmissionInterval = 2
+	cfg.DeployConfig.L2OutputOracleSubmissionInterval = 1
 	cfg.NonFinalizedProposals = true // Submit output proposals asap
 	sys, err := cfg.Start()
 	require.NoError(t, err, "Error starting up system")
