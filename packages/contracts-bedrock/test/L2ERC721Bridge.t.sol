@@ -8,7 +8,6 @@ import { ERC721Bridge_Initializer } from "./CommonTest.t.sol";
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import { L1ERC721Bridge } from "../src/L1/L1ERC721Bridge.sol";
 import { OptimismMintableERC721 } from "../src/universal/OptimismMintableERC721.sol";
-import { Proxy } from "../src/universal/Proxy.sol";
 
 // Target contract
 import { L2ERC721Bridge } from "../src/L2/L2ERC721Bridge.sol";
