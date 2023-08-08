@@ -11,7 +11,7 @@ contract MIPS_Test is Test {
 
     function setUp() public {
         oracle = new PreimageOracle();
-        mips = new MIPS();
+        mips = new MIPS(oracle);
         vm.store(address(mips), 0x0, bytes32(abi.encode(address(oracle))));
         vm.label(address(oracle), "PreimageOracle");
         vm.label(address(mips), "MIPS");

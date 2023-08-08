@@ -9,28 +9,29 @@ import { SafeCall } from "../libraries/SafeCall.sol";
 import { IOptimismMintableERC20, ILegacyMintableERC20 } from "./IOptimismMintableERC20.sol";
 import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /// @custom:upgradeable
 /// @title StandardBridge
 /// @notice StandardBridge is a base contract for the L1 and L2 standard ERC20 bridges. It handles
 ///         the core bridging logic, including escrowing tokens that are native to the local chain
 ///         and minting/burning tokens that are native to the remote chain.
-abstract contract StandardBridge {
+abstract contract StandardBridge is Initializable {
     using SafeERC20 for IERC20;
 
     /// @notice The L2 gas limit set when eth is depoisited using the receive() function.
     uint32 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 200_000;
 
-    /// @notice Messenger contract on this domain.
-    CrossDomainMessenger public immutable MESSENGER;
-
-    /// @notice Corresponding bridge on the other domain.
+    /// @notice Corresponding bridge on the other domain. This public getter is deprecated
+    ///         and will be removed in the future. Please use `otherBridge` instead.
+    /// @custom:legacy
+    /// @custom:network-specific
     StandardBridge public immutable OTHER_BRIDGE;
 
     /// @custom:legacy
     /// @custom:spacer messenger
     /// @notice Spacer for backwards compatibility.
-    address private spacer_0_0_20;
+    address private spacer_0_2_20;
 
     /// @custom:legacy
     /// @custom:spacer l2TokenBridge
@@ -40,10 +41,15 @@ abstract contract StandardBridge {
     /// @notice Mapping that stores deposits for a given pair of local and remote tokens.
     mapping(address => mapping(address => uint256)) public deposits;
 
+    /// @notice Messenger contract on this domain. This public getter is deprecated
+    ///         and will be removed in the future. Please use `messenger` instead.
+    /// @custom:network-specific
+    CrossDomainMessenger public messenger;
+
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
-    ///         A gap size of 47 was chosen here, so that the first slot used in a child contract
+    ///         A gap size of 46 was chosen here, so that the first slot used in a child contract
     ///         would be a multiple of 50.
-    uint256[47] private __gap;
+    uint256[46] private __gap;
 
     /// @notice Emitted when an ETH bridge is initiated to the other chain.
     /// @param from      Address of the sender.
@@ -115,29 +121,39 @@ abstract contract StandardBridge {
     /// @notice Ensures that the caller is a cross-chain message from the other bridge.
     modifier onlyOtherBridge() {
         require(
-            msg.sender == address(MESSENGER) &&
-                MESSENGER.xDomainMessageSender() == address(OTHER_BRIDGE),
+            msg.sender == address(messenger) &&
+                messenger.xDomainMessageSender() == address(OTHER_BRIDGE),
             "StandardBridge: function can only be called from the other bridge"
         );
         _;
     }
 
-    /// @param _messenger   Address of CrossDomainMessenger on this network.
     /// @param _otherBridge Address of the other StandardBridge contract.
-    constructor(address payable _messenger, address payable _otherBridge) {
-        MESSENGER = CrossDomainMessenger(_messenger);
-        OTHER_BRIDGE = StandardBridge(_otherBridge);
+    constructor(StandardBridge _otherBridge) {
+        OTHER_BRIDGE = _otherBridge;
+    }
+
+    /// @notice Initializer.
+    /// @param _messenger   Address of CrossDomainMessenger on this network.
+    // solhint-disable-next-line func-name-mixedcase
+    function __StandardBridge_init(CrossDomainMessenger _messenger) internal onlyInitializing {
+        messenger = _messenger;
     }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
     ///         Must be implemented by contracts that inherit.
     receive() external payable virtual;
 
+    /// @notice Getter for messenger contract.
     /// @custom:legacy
-    /// @notice Legacy getter for messenger contract.
     /// @return Messenger contract on this domain.
-    function messenger() external view returns (CrossDomainMessenger) {
-        return MESSENGER;
+    function MESSENGER() external view returns (CrossDomainMessenger) {
+        return messenger;
+    }
+
+    /// @notice Getter for the remote domain bridge contract.
+    function otherBridge() external view returns (StandardBridge) {
+        return OTHER_BRIDGE;
     }
 
     /// @notice Sends ETH to the sender's address on the other chain.
@@ -245,7 +261,7 @@ abstract contract StandardBridge {
     ) public payable onlyOtherBridge {
         require(msg.value == _amount, "StandardBridge: amount sent does not match amount required");
         require(_to != address(this), "StandardBridge: cannot send to self");
-        require(_to != address(MESSENGER), "StandardBridge: cannot send to messenger");
+        require(_to != address(messenger), "StandardBridge: cannot send to messenger");
 
         // Emit the correct events. By default this will be _amount, but child
         // contracts may override this function in order to emit legacy events as well.
@@ -314,7 +330,7 @@ abstract contract StandardBridge {
         // contracts may override this function in order to emit legacy events as well.
         _emitETHBridgeInitiated(_from, _to, _amount, _extraData);
 
-        MESSENGER.sendMessage{ value: _amount }(
+        messenger.sendMessage{ value: _amount }(
             address(OTHER_BRIDGE),
             abi.encodeWithSelector(
                 this.finalizeBridgeETH.selector,
@@ -361,7 +377,7 @@ abstract contract StandardBridge {
         // contracts may override this function in order to emit legacy events as well.
         _emitERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
 
-        MESSENGER.sendMessage(
+        messenger.sendMessage(
             address(OTHER_BRIDGE),
             abi.encodeWithSelector(
                 this.finalizeBridgeERC20.selector,
