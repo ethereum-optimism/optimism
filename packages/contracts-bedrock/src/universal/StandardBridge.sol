@@ -145,7 +145,7 @@ abstract contract StandardBridge {
     /// @param _extraData   Extra data to be sent with the transaction. Note that the recipient will
     ///                     not be triggered with this data, but it will be emitted and can be used
     ///                     to identify the transaction.
-    function bridgeETH(uint32 _minGasLimit, bytes calldata _extraData) public payable onlyEOA {
+    function bridgeETH(uint32 _minGasLimit, bytes calldata _extraData) public payable virtual onlyEOA {
         _initiateBridgeETH(msg.sender, msg.sender, msg.value, _minGasLimit, _extraData);
     }
 
@@ -165,7 +165,7 @@ abstract contract StandardBridge {
         address _to,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    ) public payable {
+    ) public payable virtual {
         _initiateBridgeETH(msg.sender, _to, msg.value, _minGasLimit, _extraData);
     }
 
@@ -304,7 +304,7 @@ abstract contract StandardBridge {
         uint256 _amount,
         uint32 _minGasLimit,
         bytes memory _extraData
-    ) internal {
+    ) internal virtual {
         require(
             msg.value == _amount,
             "StandardBridge: bridging ETH must include sufficient ETH value"
