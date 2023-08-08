@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -75,12 +77,11 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 		"--output", filepath.Join(dir, "out.json"),
 		"--meta", "",
 		"--proof-at", "=" + strconv.FormatUint(i, 10),
-		"--stop-at", "=" + strconv.FormatUint(i+1, 10),
 		"--proof-fmt", filepath.Join(proofDir, "%d.json"),
 		"--snapshot-at", "%" + strconv.FormatUint(uint64(e.snapshotFreq), 10),
 		"--snapshot-fmt", filepath.Join(snapshotDir, "%d.json"),
 		"--",
-		e.server,
+		e.server, "--server",
 		"--l1", e.l1,
 		"--l2", e.l2,
 		"--datadir", dataDir,
@@ -89,6 +90,9 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 		"--l2.outputroot", e.inputs.l2OutputRoot.Hex(),
 		"--l2.claim", e.inputs.l2Claim.Hex(),
 		"--l2.blocknumber", e.inputs.l2BlockNumber.Text(10),
+	}
+	if i < math.MaxUint64 {
+		args = append(args, "--stop-at", "="+strconv.FormatUint(i+1, 10))
 	}
 	if e.network != "" {
 		args = append(args, "--network", e.network)
@@ -109,7 +113,7 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 	if err := os.MkdirAll(proofDir, 0755); err != nil {
 		return fmt.Errorf("could not create proofs directory %v: %w", proofDir, err)
 	}
-	e.logger.Info("Generating trace", "proof", i, "cmd", e.cannon, "args", args)
+	e.logger.Info("Generating trace", "proof", i, "cmd", e.cannon, "args", strings.Join(args, ", "))
 	return e.cmdExecutor(ctx, e.logger.New("proof", i), e.cannon, args...)
 }
 
@@ -117,7 +121,8 @@ func runCmd(ctx context.Context, l log.Logger, binary string, args ...string) er
 	cmd := exec.CommandContext(ctx, binary, args...)
 	stdOut := oplog.NewWriter(l, log.LvlInfo)
 	defer stdOut.Close()
-	stdErr := oplog.NewWriter(l, log.LvlError)
+	// Keep stdErr at info level because cannon uses stderr for progress messages
+	stdErr := oplog.NewWriter(l, log.LvlInfo)
 	defer stdErr.Close()
 	cmd.Stdout = stdOut
 	cmd.Stderr = stdErr
