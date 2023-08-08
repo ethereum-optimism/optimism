@@ -3,7 +3,7 @@ name: Publish Packages (boba-develop)
 on:
   push:
     branches:
-      - 'boba-develop'
+      - 'add-github-action'
 
 jobs:
   publish-develop:
@@ -26,9 +26,13 @@ jobs:
           password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
 
       - name: Build the services
-        working-directory: ./ops-bedrock
+        working-directory: .
         run: |
-          docker-compose -f docker-compose.yml build
+          docker build . -f ./ops-bedrock/Dockerfile.l1 -t bobanetwork/geth:latest &
+          docker build . -f ./ops-bedrock/Dockerfile.l2-erigon -t bobanetwork/erigon:latest &
+          docker build . -f ./op-node/Dockerfile -t bobanetwork/op-node:latest &
+          docker build . -f ./op-proposer/Dockerfile -t bobanetwork/op-proposer:latest &
+          docker build . -f ./op-batcher/Dockerfile -t bobanetwork/op-batcher:latest
 
       - name: Print images
         working-directory: ./

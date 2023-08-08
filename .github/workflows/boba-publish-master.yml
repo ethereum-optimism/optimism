@@ -33,21 +33,17 @@ jobs:
         run: echo ${{ steps.tag.outputs.VERSION }}
 
       - name: Build the services
-        working-directory: ./ops-bedrock
+        working-directory: .
         run: |
-          docker-compose -f docker-compose.yml build
+          docker build . -f ./ops-bedrock/Dockerfile.l1 -t bobanetwork/geth:${{ steps.tag.outputs.VERSION }} &
+          docker build . -f ./ops-bedrock/Dockerfile.l2-erigon -t bobanetwork/erigon:${{ steps.tag.outputs.VERSION }} &
+          docker build . -f ./op-node/Dockerfile -t bobanetwork/op-node:${{ steps.tag.outputs.VERSION }} &
+          docker build . -f ./op-proposer/Dockerfile -t bobanetwork/op-proposer:${{ steps.tag.outputs.VERSION }} &
+          docker build . -f ./op-batcher/Dockerfile -t bobanetwork/op-batcher:${{ steps.tag.outputs.VERSION }}
 
       - name: Print images
         working-directory: ./
         run: docker images
-
-      - name: Rename and retag images
-        working-directory: ./ops-bedrock
-        run: |
-          for i in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep bobanetwork); do
-            docker image tag "$i" bobanetwork/$(echo $i | awk -F'/' '{print $2}' | awk -F':' '{print $1}'):${{ steps.tag.outputs.VERSION }}
-          done
-          docker images
 
       - name: Push images
         working-directory: ./ops
