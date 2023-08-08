@@ -659,7 +659,7 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	storage["L2StandardBridge"] = state.StorageValues{
 		"_initialized":  2,
 		"_initializing": false,
-		"MESSENGER":     predeploys.L2CrossDomainMessengerAddr,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 	}
 	storage["L1Block"] = state.StorageValues{
 		"number":         block.Number(),
