@@ -156,7 +156,7 @@ func TestCannonDisputeGame(t *testing.T) {
 	game := disputeGameFactory.StartCannonGame(ctx, common.Hash{0xaa})
 	require.NotNil(t, game)
 
-	game.StartChallenger(ctx, sys.NodeEndpoint("l1"), sys.NodeEndpoint("sequencer"), "Challenger", func(c *config.Config) {
+	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, sys.NodeEndpoint("l1"), sys.NodeEndpoint("sequencer"), "Challenger", func(c *config.Config) {
 		c.AgreeWithProposedOutput = true // Agree with the proposed output, so disagree with the root claim
 		c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(sys.cfg.Secrets.Alice)
 	})
@@ -173,8 +173,10 @@ func TestCannonDisputeGame(t *testing.T) {
 func startFaultDisputeSystem(t *testing.T) (*System, *ethclient.Client) {
 	cfg := DefaultSystemConfig(t)
 	delete(cfg.Nodes, "verifier")
+	cfg.DeployConfig.SequencerWindowSize = 4
+	cfg.DeployConfig.FinalizationPeriodSeconds = 2
 	cfg.SupportL1TimeTravel = true
-	cfg.DeployConfig.L2OutputOracleSubmissionInterval = 2
+	cfg.DeployConfig.L2OutputOracleSubmissionInterval = 1
 	cfg.NonFinalizedProposals = true // Submit output proposals asap
 	sys, err := cfg.Start()
 	require.NoError(t, err, "Error starting up system")
