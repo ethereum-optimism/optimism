@@ -8,7 +8,7 @@ import (
 )
 
 func Open(path string, cache int, handles int) (ethdb.Database, error) {
-	chaindataPath := filepath.Join(path, "geth", "chaindata")
+	chaindataPath := filepath.Join(path, "celo", "chaindata")
 	ancientPath := filepath.Join(chaindataPath, "ancient")
 	ldb, err := rawdb.Open(rawdb.OpenOptions{
 		Type:              "leveldb",

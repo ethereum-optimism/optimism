@@ -9,6 +9,6 @@ echo "Starting Migration"
 
 ./bin/op-migrate \
   --l1-rpc-url="http://127.0.0.1:8546" \
-  --db-path="/Users/paul/Projects/celo-blockchain/tmp/testenv/validator-00/celo/" \
+  --db-path="/Users/paul/Projects/celo-blockchain/tmp/testenv/validator-00/" \
   --rollup-config-out="rollup.json" \
   --dry-run
