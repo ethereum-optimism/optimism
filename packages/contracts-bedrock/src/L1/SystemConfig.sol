@@ -91,10 +91,12 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     uint256 public startBlock;
 
     /// @custom:semver 1.4.0
-    /// @notice Constructs the SystemConfig contract.
+    /// @notice Constructs the SystemConfig contract. Cannot set
+    ///         the owner to `address(0)` due to the Ownable contract's
+    ///         implementation, so set it to `address(0xdEaD)`
     constructor() Semver(1, 4, 0) {
         initialize({
-            _owner: address(0),
+            _owner: address(0xdEaD),
             _overhead: 0,
             _scalar: 0,
             _batcherHash: bytes32(0),

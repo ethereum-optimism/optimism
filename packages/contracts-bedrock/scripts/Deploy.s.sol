@@ -387,7 +387,7 @@ contract Deploy is Deployer {
     function deploySystemConfig() broadcast() public returns (address) {
         SystemConfig config = new SystemConfig();
 
-        require(config.owner() == address(0));
+        require(config.owner() == address(0xdEaD));
         require(config.overhead() == 0);
         require(config.scalar() == 0);
         require(config.unsafeBlockSigner() == address(0));
