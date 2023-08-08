@@ -5,6 +5,7 @@ import { Predeploys } from "../libraries/Predeploys.sol";
 import { StandardBridge } from "../universal/StandardBridge.sol";
 import { Semver } from "../universal/Semver.sol";
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
+import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 
 /// @custom:proxied
 /// @custom:predeploy 0x4200000000000000000000000000000000000010
@@ -50,13 +51,19 @@ contract L2StandardBridge is StandardBridge, Semver {
         bytes extraData
     );
 
-    /// @custom:semver 1.1.1
+    /// @custom:semver 1.2.0
     /// @notice Constructs the L2StandardBridge contract.
     /// @param _otherBridge Address of the L1StandardBridge.
-    constructor(address payable _otherBridge)
-        Semver(1, 1, 1)
-        StandardBridge(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge)
-    {}
+    constructor(StandardBridge _otherBridge) Semver(1, 2, 0) StandardBridge(_otherBridge) {
+        initialize();
+    }
+
+    /// @notice Initializer
+    function initialize() public reinitializer(2) {
+        __StandardBridge_init({
+            _messenger: CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
+        });
+    }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
     receive() external payable override onlyEOA {
