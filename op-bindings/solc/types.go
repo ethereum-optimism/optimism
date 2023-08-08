@@ -67,11 +67,9 @@ func (s *StorageLayout) GetStorageLayoutEntry(name string) (StorageLayoutEntry, 
 // GetStorageLayoutType returns the StorageLayoutType where the label matches
 // the provided name.
 func (s *StorageLayout) GetStorageLayoutType(name string) (StorageLayoutType, error) {
-	for typeName, typ := range s.Types {
-		if typeName == name {
-			return typ, nil
-		}
-	}
+    if ty, ok := s.Types[name]; ok {
+          return ty, nil
+    }
 	return StorageLayoutType{}, fmt.Errorf("%s not found", name)
 }
 
