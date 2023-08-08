@@ -32,6 +32,7 @@ import { Predeploys } from "src/libraries/Predeploys.sol";
 import { Chains } from "./Chains.sol";
 
 import { IBigStepper } from "src/dispute/interfaces/IBigStepper.sol";
+import { IPreimageOracle } from "src/cannon/interfaces/IPreimageOracle.sol";
 import { AlphabetVM } from "../test/FaultDisputeGame.t.sol";
 import "src/libraries/DisputeTypes.sol";
 
@@ -375,7 +376,7 @@ contract Deploy is Deployer {
 
     /// @notice Deploy Mips
     function deployMips() onlyDevnet broadcast() public returns (address) {
-        MIPS mips = new MIPS();
+        MIPS mips = new MIPS(IPreimageOracle(mustGetAddress("PreimageOracle")));
         save("Mips", address(mips));
         console.log("MIPS deployed at %s", address(mips));
 
