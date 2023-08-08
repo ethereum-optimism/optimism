@@ -202,17 +202,37 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
     function setUp() public virtual override {
         super.setUp();
 
-        ResourceMetering.ResourceConfig memory config = Constants.DEFAULT_RESOURCE_CONFIG();
+        Proxy systemConfigProxy = new Proxy(multisig);
 
-        systemConfig = new SystemConfig({
-            _owner: address(1),
-            _overhead: 0,
-            _scalar: 10000,
-            _batcherHash: bytes32(0),
-            _gasLimit: 30_000_000,
-            _unsafeBlockSigner: address(0),
-            _config: config
-        });
+        SystemConfig systemConfigImpl = new SystemConfig();
+
+        vm.prank(multisig);
+        systemConfigProxy.upgradeToAndCall(
+            address(systemConfigImpl),
+            hex""
+            /*
+            abi.encodeCall(
+                SystemConfig.initialize,
+                (
+                    address(1),                           //_owner,
+                    0,                                    //_overhead,
+                    10000,                                //_scalar,
+                    bytes32(0),                           //_batcherHash,
+                    30_000_000,                           //_gasLimit,
+                    address(0),                           //_unsafeBlockSigner,
+                    Constants.DEFAULT_RESOURCE_CONFIG(),  //_config,
+                    address(0x40),                        //_l1CrossDomainMessenger,
+                    address(0x41),                        //_l1ERC721Bridge,
+                    address(0x42),                        //_l1StandardBridge,
+                    address(0x43),                        //_l2OutputOracle,
+                    address(0x44),                        //_optimismPortal,
+                    0                                     //_startBlock
+                )
+            )
+            */
+        );
+
+        systemConfig = SystemConfig(address(systemConfigProxy));
 
         opImpl = new OptimismPortal();
 

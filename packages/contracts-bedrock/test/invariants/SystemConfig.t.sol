@@ -3,24 +3,35 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { SystemConfig } from "../../src/L1/SystemConfig.sol";
+import { Proxy } from "../../src/universal/Proxy.sol";
 import { ResourceMetering } from "../../src/L1/ResourceMetering.sol";
 import { Constants } from "../../src/libraries/Constants.sol";
 
 contract SystemConfig_GasLimitLowerBound_Invariant is Test {
     SystemConfig public config;
 
-    function setUp() public {
-        ResourceMetering.ResourceConfig memory cfg = Constants.DEFAULT_RESOURCE_CONFIG();
+    function setUp() external {
+        Proxy proxy = new Proxy(msg.sender);
+        SystemConfig configImpl = new SystemConfig();
 
-        config = new SystemConfig({
-            _owner: address(0xbeef),
-            _overhead: 2100,
-            _scalar: 1000000,
-            _batcherHash: bytes32(hex"abcd"),
-            _gasLimit: 30_000_000,
-            _unsafeBlockSigner: address(1),
-            _config: cfg
-        });
+        proxy.upgradeToAndCall(
+            address(configImpl),
+            abi.encodeCall(
+                configImpl.initialize,
+                (
+                    address(0xbeef),                      // owner
+                    2100,                                 // overhead
+                    1000000,                              // scalar
+                    bytes32(hex"abcd"),                   // batcher hash
+                    30_000_000,                           // gas limit
+                    address(1),                           // unsafe block signer
+                    Constants.DEFAULT_RESOURCE_CONFIG(),  // resource config
+                    0                                     //_startBlock
+                )
+            )
+        );
+
+        config = SystemConfig(address(proxy));
 
         // Set the target contract to the `config`
         targetContract(address(config));

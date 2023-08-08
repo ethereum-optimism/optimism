@@ -9,34 +9,40 @@ import { Constants } from "../src/libraries/Constants.sol";
 
 // Target contract dependencies
 import { ResourceMetering } from "../src/L1/ResourceMetering.sol";
+import { Proxy } from "../src/universal/Proxy.sol";
 
 // Target contract
 import { SystemConfig } from "../src/L1/SystemConfig.sol";
 
 contract SystemConfig_Init is CommonTest {
     SystemConfig sysConf;
+    SystemConfig systemConfigImpl;
 
     function setUp() public virtual override {
         super.setUp();
 
-        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            minimumBaseFee: 1 gwei,
-            systemTxMaxGas: 1_000_000,
-            maximumBaseFee: type(uint128).max
-        });
+        Proxy proxy = new Proxy(multisig);
+        systemConfigImpl = new SystemConfig();
 
-        sysConf = new SystemConfig({
-            _owner: alice,
-            _overhead: 2100,
-            _scalar: 1000000,
-            _batcherHash: bytes32(hex"abcd"),
-            _gasLimit: 30_000_000,
-            _unsafeBlockSigner: address(1),
-            _config: config
-        });
+        vm.prank(multisig);
+        proxy.upgradeToAndCall(
+            address(systemConfigImpl),
+            abi.encodeCall(
+                SystemConfig.initialize,
+                (
+                    alice,                                //_owner,
+                    2100,                                 //_overhead,
+                    1000000,                              //_scalar,
+                    bytes32(hex"abcd"),                   //_batcherHash,
+                    30_000_000,                           //_gasLimit,
+                    address(1),                           //_unsafeBlockSigner,
+                    Constants.DEFAULT_RESOURCE_CONFIG(),  //_config,
+                    0                                     //_startBlock
+                )
+            )
+        );
+
+        sysConf = SystemConfig(address(proxy));
     }
 }
 
@@ -54,16 +60,25 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
             maximumBaseFee: type(uint128).max
         });
 
+        vm.store(address(sysConf), bytes32(0), bytes32(0));
         vm.expectRevert("SystemConfig: gas limit too low");
-        new SystemConfig({
-            _owner: alice,
-            _overhead: 0,
-            _scalar: 0,
-            _batcherHash: bytes32(hex""),
-            _gasLimit: minimumGasLimit - 1,
-            _unsafeBlockSigner: address(1),
-            _config: cfg
-        });
+        vm.prank(multisig);
+        Proxy(payable(address(sysConf))).upgradeToAndCall(
+            address(systemConfigImpl),
+            abi.encodeCall(
+                SystemConfig.initialize,
+                (
+                    alice,                 //_owner,
+                    2100,                  //_overhead,
+                    1000000,               //_scalar,
+                    bytes32(hex"abcd"),    //_batcherHash,
+                    minimumGasLimit - 1,   //_gasLimit,
+                    address(1),            //_unsafeBlockSigner,
+                    cfg,                   //_config,
+                    0                      //_startBlock
+                )
+            )
+        );
     }
 }
 
