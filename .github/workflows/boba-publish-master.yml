@@ -32,21 +32,25 @@ jobs:
       - name: Print current tag
         run: echo ${{ steps.tag.outputs.VERSION }}
 
-      - name: Build the services
+      - name: Build l1 component
+        working-directory: ./ops-bedrock
+        run: |
+          docker build . -f ./Dockerfile.l1 -t bobanetwork/geth:${{ steps.tag.outputs.VERSION }}
+
+      - name: Build l2 components
         working-directory: .
         run: |
-          docker build . -f ./ops-bedrock/Dockerfile.l1 -t bobanetwork/geth:${{ steps.tag.outputs.VERSION }} &
           docker build . -f ./ops-bedrock/Dockerfile.l2-erigon -t bobanetwork/erigon:${{ steps.tag.outputs.VERSION }} &
           docker build . -f ./op-node/Dockerfile -t bobanetwork/op-node:${{ steps.tag.outputs.VERSION }} &
           docker build . -f ./op-proposer/Dockerfile -t bobanetwork/op-proposer:${{ steps.tag.outputs.VERSION }} &
           docker build . -f ./op-batcher/Dockerfile -t bobanetwork/op-batcher:${{ steps.tag.outputs.VERSION }}
 
       - name: Print images
-        working-directory: ./
+        working-directory: .
         run: docker images
 
       - name: Push images
-        working-directory: ./ops
+        working-directory: .
         run: |
           for i in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep bobanetwork); do
             echo "$1"

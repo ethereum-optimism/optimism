@@ -25,21 +25,25 @@ jobs:
           username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
           password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
 
-      - name: Build the services
+      - name: Build l1 component
+        working-directory: ./ops-bedrock
+        run: |
+          docker build . -f ./Dockerfile.l1 -t bobanetwork/geth:latest
+
+      - name: Build l2 components
         working-directory: .
         run: |
-          docker build . -f ./ops-bedrock/Dockerfile.l1 -t bobanetwork/geth:latest &
-          docker build . -f ./ops-bedrock/Dockerfile.l2-erigon -t bobanetwork/erigon:latest &
-          docker build . -f ./op-node/Dockerfile -t bobanetwork/op-node:latest &
-          docker build . -f ./op-proposer/Dockerfile -t bobanetwork/op-proposer:latest &
+          docker build . -f ./ops-bedrock/Dockerfile.l2-erigon -t bobanetwork/erigon:latest &&
+          docker build . -f ./op-node/Dockerfile -t bobanetwork/op-node:latest &&
+          docker build . -f ./op-proposer/Dockerfile -t bobanetwork/op-proposer:latest &&
           docker build . -f ./op-batcher/Dockerfile -t bobanetwork/op-batcher:latest
 
       - name: Print images
-        working-directory: ./
+        working-directory: .
         run: docker images
 
       - name: Rename and retag images
-        working-directory: ./ops-bedrock
+        working-directory: .
         run: |
           for i in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep bobanetwork); do
             docker image tag "$i" bobanetwork/$(echo $i | awk -F'/' '{print $2}' | awk -F':' '{print $1}'):latest
@@ -47,7 +51,7 @@ jobs:
           docker images
 
       - name: Push images
-        working-directory: ./ops
+        working-directory: .
         run: |
           for i in $(docker images --format "{{.Repository}}:{{.Tag}}" | grep bobanetwork); do
             echo "$1"

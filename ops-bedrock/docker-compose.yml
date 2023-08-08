@@ -12,7 +12,6 @@ volumes:
 
 services:
   l1:
-    image: bobanetwork/geth:latest
     build:
       context: .
       dockerfile: Dockerfile.l1
@@ -40,7 +39,6 @@ services:
 #      - "/entrypoint.sh"
 #      - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
   l2:
-    image: bobanetwork/erigon:latest
     build:
       context: ..
       dockerfile: ops-bedrock/Dockerfile.l2-erigon
@@ -59,7 +57,6 @@ services:
     depends_on:
       - l1
 #      - l2
-    image: bobanetwork/op-node:latest
     build:
       context: ../
       dockerfile: ./op-node/Dockerfile
@@ -103,7 +100,6 @@ services:
       - l1
       - l2
       - op-node
-    image: bobanetwork/op-proposer:latest
     build:
       context: ../
       dockerfile: ./op-proposer/Dockerfile
@@ -127,7 +123,6 @@ services:
       - l1
       - l2
       - op-node
-    image: bobanetwork/op-batcher:latest
     build:
       context: ../
       dockerfile: ./op-batcher/Dockerfile
