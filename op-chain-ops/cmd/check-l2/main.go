@@ -36,16 +36,16 @@ func main() {
 		Usage: "Check that an OP Stack L2 has been configured correctly",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:     "l1-rpc-url",
-				Required: true,
-				Usage:    "L1 RPC URL",
-				EnvVars:  []string{"L1_RPC_URL"},
+				Name:    "l1-rpc-url",
+				Value:   "http://127.0.0.1:8545",
+				Usage:   "L1 RPC URL",
+				EnvVars: []string{"L1_RPC_URL"},
 			},
 			&cli.StringFlag{
-				Name:     "l2-rpc-url",
-				Required: true,
-				Usage:    "L2 RPC URL",
-				EnvVars:  []string{"L2_RPC_URL"},
+				Name:    "l2-rpc-url",
+				Value:   "http://127.0.0.1:9545",
+				Usage:   "L2 RPC URL",
+				EnvVars: []string{"L2_RPC_URL"},
 			},
 		},
 		Action: entrypoint,
@@ -603,11 +603,17 @@ func checkL2StandardBridge(addr common.Address, client *ethclient.Client) error 
 	if messenger != predeploys.L2CrossDomainMessengerAddr {
 		return fmt.Errorf("L2StandardBridge MESSENGER should be %s, got %s", predeploys.L2CrossDomainMessengerAddr, messenger)
 	}
-
 	version, err := contract.Version(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
+
+	initialized, err := getInitialized("L2StandardBridge", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2StandardBridge", "_initialized", initialized)
+
 	log.Info("L2StandardBridge version", "version", version)
 	return nil
 }
@@ -714,6 +720,13 @@ func checkL2CrossDomainMessenger(addr common.Address, client *ethclient.Client) 
 	if err != nil {
 		return err
 	}
+
+	initialized, err := getInitialized("L2CrossDomainMessenger", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2CrossDomainMessenger", "_initialized", initialized)
+
 	log.Info("L2CrossDomainMessenger version", "version", version)
 	return nil
 }
@@ -804,4 +817,37 @@ func getEIP1967ImplementationAddress(client *ethclient.Client, addr common.Addre
 	}
 	impl := common.BytesToAddress(slot)
 	return impl, nil
+}
+
+// getInitialized will get the initialized value in storage of a contract.
+// This is an incrementing number that starts at 1 and increments each time that
+// the contract is upgraded.
+func getInitialized(name string, addr common.Address, client *ethclient.Client) (*big.Int, error) {
+	layout, err := bindings.GetStorageLayout(name)
+	if err != nil {
+		return nil, err
+	}
+	entry, err := layout.GetStorageLayoutEntry("_initialized")
+	if err != nil {
+		return nil, err
+	}
+	typ, err := layout.GetStorageLayoutType(entry.Type)
+	if err != nil {
+		return nil, err
+	}
+	slot := common.BigToHash(big.NewInt(int64(entry.Slot)))
+	value, err := client.StorageAt(context.Background(), addr, slot, nil)
+	if err != nil {
+		return nil, err
+	}
+	if entry.Offset+typ.NumberOfBytes > uint(len(value)) {
+		return nil, fmt.Errorf("value length is too short")
+	}
+	// Swap the endianness
+	slice := common.CopyBytes(value)
+	for i, j := 0, len(slice)-1; i < j; i, j = i+1, j-1 {
+		slice[i], slice[j] = slice[j], slice[i]
+	}
+	initialized := new(big.Int).SetBytes(slice[entry.Offset : entry.Offset+typ.NumberOfBytes])
+	return initialized, nil
 }
