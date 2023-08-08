@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
@@ -162,6 +163,11 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 				return err
 			}
 
+			err = l2ProcessContractEventsBridgeCrossDomainMessages(processLog, db, processedContractEvents)
+			if err != nil {
+				return err
+			}
+
 			// forward along contract events to standard bridge processor
 			err = l2ProcessContractEventsStandardBridge(processLog, db, ethClient, processedContractEvents)
 			if err != nil {
@@ -235,6 +241,104 @@ func l2ProcessContractEventsBridgeTransactions(processLog log.Logger, db *databa
 	return nil
 }
 
+func l2ProcessContractEventsBridgeCrossDomainMessages(processLog log.Logger, db *database.DB, events *ProcessedContractEvents) error {
+	l2ToL1MessagePasserABI, err := bindings.NewL2ToL1MessagePasser(common.Address{}, nil)
+	if err != nil {
+		return err
+	}
+
+	// (2) Process New Messages
+	sentMessageEvents, err := CrossDomainMessengerSentMessageEvents(events)
+	if err != nil {
+		return err
+	}
+
+	sentMessages := make([]*database.L2BridgeMessage, len(sentMessageEvents))
+	for i, sentMessageEvent := range sentMessageEvents {
+		log := events.eventLog[sentMessageEvent.RawEvent.GUID]
+
+		// extract the withdrawal hash from the previous MessagePassed event
+		msgPassedLog := events.eventLog[events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index - 1}].GUID]
+		msgPassedEvent, err := l2ToL1MessagePasserABI.ParseMessagePassed(*msgPassedLog)
+		if err != nil {
+			return err
+		}
+
+		sentMessages[i] = &database.L2BridgeMessage{
+			TransactionWithdrawalHash: msgPassedEvent.WithdrawalHash,
+			BridgeMessage: database.BridgeMessage{
+				Nonce:                database.U256{Int: sentMessageEvent.MessageNonce},
+				MessageHash:          sentMessageEvent.MessageHash,
+				SentMessageEventGUID: sentMessageEvent.RawEvent.GUID,
+				GasLimit:             database.U256{Int: sentMessageEvent.GasLimit},
+				Tx: database.Transaction{
+					FromAddress: sentMessageEvent.Sender,
+					ToAddress:   sentMessageEvent.Target,
+					Amount:      database.U256{Int: sentMessageEvent.Value},
+					Data:        sentMessageEvent.Message,
+					Timestamp:   sentMessageEvent.RawEvent.Timestamp,
+				},
+			},
+		}
+	}
+
+	if len(sentMessages) > 0 {
+		processLog.Info("detected L2CrossDomainMessenger messages", "size", len(sentMessages))
+		err := db.BridgeMessages.StoreL2BridgeMessages(sentMessages)
+		if err != nil {
+			return err
+		}
+	}
+
+	// (2) Process Relayed Messages.
+	//
+	// NOTE: Should we care about failed messages? A failed message can be
+	// inferred via an included deposit on L2 that has not been marked as relayed.
+	relayedMessageEvents, err := CrossDomainMessengerRelayedMessageEvents(events)
+	if err != nil {
+		return err
+	}
+
+	latestL1Header, err := db.Blocks.LatestL1BlockHeader()
+	if err != nil {
+		return err
+	} else if len(relayedMessageEvents) > 0 && latestL1Header == nil {
+		return errors.New("no indexed L1 headers to relay messages. waiting for L1Processor to catch up")
+	}
+
+	for _, relayedMessage := range relayedMessageEvents {
+		message, err := db.BridgeMessages.L1BridgeMessageByHash(relayedMessage.MsgHash)
+		if err != nil {
+			return err
+		}
+
+		if message == nil {
+			// Since the transaction processor running prior does not ensure the deposit inclusion, we need to
+			// ensure we are in a caught up state before claiming a missing event. Since L2 timestamps are derived
+			// from L1, we can simply compare the timestamp of this event with the latest L1 header.
+			if latestL1Header == nil || relayedMessage.RawEvent.Timestamp > latestL1Header.Timestamp {
+				processLog.Warn("waiting for L1Processor to catch up on L1CrossDomainMessages")
+				return errors.New("waiting for L1Processor to catch up")
+			} else {
+				processLog.Crit("missing indexed L1CrossDomainMessenger message", "message_hash", relayedMessage.MsgHash)
+				return fmt.Errorf("missing indexed L1CrossDomainMessager mesesage: 0x%x", relayedMessage.MsgHash)
+			}
+		}
+
+		err = db.BridgeMessages.MarkRelayedL1BridgeMessage(relayedMessage.MsgHash, relayedMessage.RawEvent.GUID)
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(relayedMessageEvents) > 0 {
+		processLog.Info("relayed L1CrossDomainMessenger messages", "size", len(relayedMessageEvents))
+	}
+
+	// a-ok!
+	return nil
+}
+
 func l2ProcessContractEventsStandardBridge(processLog log.Logger, db *database.DB, ethClient node.EthClient, events *ProcessedContractEvents) error {
 	rawEthClient := ethclient.NewClient(ethClient.RawRpcClient())
 
@@ -297,7 +401,7 @@ func l2ProcessContractEventsStandardBridge(processLog log.Logger, db *database.D
 		if err != nil {
 			return err
 		} else if deposit == nil {
-			// NOTE: We'll be indexing CrossDomainMessenger messages that'll ensure we're in a caught up state here
+			// Indexed CrossDomainMessenger messages ensure we're in a caught up state here
 			processLog.Error("missing indexed L1StandardBridge deposit on finalization", "cross_domain_messenger_nonce", finalizedDepositEvent.CrossDomainMessengerNonce)
 			return errors.New("missing indexed L1StandardBridge deposit on finalization")
 		}

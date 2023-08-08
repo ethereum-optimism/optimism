@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"reflect"
 
@@ -240,6 +241,12 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 				return err
 			}
 
+			// forward along contract events to bridge messages processor
+			err = l1ProcessContractEventsBridgeCrossDomainMessages(processLog, db, processedContractEvents)
+			if err != nil {
+				return err
+			}
+
 			// forward along contract events to standard bridge processor
 			err = l1ProcessContractEventsStandardBridge(processLog, db, ethClient, processedContractEvents)
 			if err != nil {
@@ -380,6 +387,84 @@ func l1ProcessContractEventsBridgeTransactions(processLog log.Logger, db *databa
 	}
 
 	// a-ok
+	return nil
+}
+
+func l1ProcessContractEventsBridgeCrossDomainMessages(processLog log.Logger, db *database.DB, events *ProcessedContractEvents) error {
+	// (1) Process New Messages
+	sentMessageEvents, err := CrossDomainMessengerSentMessageEvents(events)
+	if err != nil {
+		return err
+	}
+
+	sentMessages := make([]*database.L1BridgeMessage, len(sentMessageEvents))
+	for i, sentMessageEvent := range sentMessageEvents {
+		log := events.eventLog[sentMessageEvent.RawEvent.GUID]
+
+		// extract the deposit hash from the previous TransactionDepositedEvent
+		transactionDepositedLog := events.eventLog[events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index - 1}].GUID]
+		depositTx, err := derive.UnmarshalDepositLogEvent(transactionDepositedLog)
+		if err != nil {
+			return err
+		}
+
+		sentMessages[i] = &database.L1BridgeMessage{
+			TransactionSourceHash: depositTx.SourceHash,
+			BridgeMessage: database.BridgeMessage{
+				Nonce:                database.U256{Int: sentMessageEvent.MessageNonce},
+				MessageHash:          sentMessageEvent.MessageHash,
+				SentMessageEventGUID: sentMessageEvent.RawEvent.GUID,
+				GasLimit:             database.U256{Int: sentMessageEvent.GasLimit},
+				Tx: database.Transaction{
+					FromAddress: sentMessageEvent.Sender,
+					ToAddress:   sentMessageEvent.Target,
+					Amount:      database.U256{Int: sentMessageEvent.Value},
+					Data:        sentMessageEvent.Message,
+					Timestamp:   sentMessageEvent.RawEvent.Timestamp,
+				},
+			},
+		}
+	}
+
+	if len(sentMessages) > 0 {
+		processLog.Info("detected L1CrossDomainMessenger messages", "size", len(sentMessages))
+		err := db.BridgeMessages.StoreL1BridgeMessages(sentMessages)
+		if err != nil {
+			return err
+		}
+	}
+
+	// (2) Process Relayed Messages.
+	//
+	// NOTE: Should we care about failed messages? A failed message can be
+	// inferred via a finalized withdrawal that has not been marked as relayed.
+	relayedMessageEvents, err := CrossDomainMessengerRelayedMessageEvents(events)
+	if err != nil {
+		return err
+	}
+
+	for _, relayedMessage := range relayedMessageEvents {
+		message, err := db.BridgeMessages.L2BridgeMessageByHash(relayedMessage.MsgHash)
+		if err != nil {
+			return err
+		} else if message == nil {
+			// Since L2 withdrawals must be proven before being relayed, the transaction processor
+			// ensures that we are in indexed state on L2 if we've seen this finalization event
+			processLog.Crit("missing indexed L2CrossDomainMessenger sent message", "message_hash", relayedMessage.MsgHash)
+			return fmt.Errorf("missing indexed L2CrossDomainMessager mesesage: 0x%x", relayedMessage.MsgHash)
+		}
+
+		err = db.BridgeMessages.MarkRelayedL2BridgeMessage(relayedMessage.MsgHash, relayedMessage.RawEvent.GUID)
+		if err != nil {
+			return err
+		}
+	}
+
+	if len(relayedMessageEvents) > 0 {
+		processLog.Info("relayed L2CrossDomainMessenger messages", "size", len(relayedMessageEvents))
+	}
+
+	// a-ok!
 	return nil
 }
 

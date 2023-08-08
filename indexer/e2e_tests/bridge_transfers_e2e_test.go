@@ -70,8 +70,18 @@ func TestE2EBridgeTransfersStandardBridgeETHDeposit(t *testing.T) {
 	_, nonce := processor.DecodeVersionedNonce(deposit.CrossDomainMessengerNonce.Int)
 	require.Zero(t, nonce.Uint64())
 
-	// (2) Test Deposit Finalization
-	// Nothing to do as we rely on the derivation process to include the deposit
+	// (2) Test Deposit Finalization via CrossDomainMessenger relayed message
+	depositReceipt, err = utils.WaitReceiptOK(context.Background(), testSuite.L2Client, types.NewTx(depositInfo.DepositTx).Hash())
+	require.NoError(t, err)
+	require.NoError(t, utils.WaitFor(context.Background(), 500*time.Millisecond, func() (bool, error) {
+		l2Header := testSuite.Indexer.L2Processor.LatestProcessedHeader()
+		return l2Header != nil && l2Header.Number.Uint64() >= depositReceipt.BlockNumber.Uint64(), nil
+	}))
+
+	crossDomainBridgeMessage, err := testSuite.DB.BridgeMessages.L1BridgeMessage(deposit.CrossDomainMessengerNonce.Int)
+	require.NoError(t, err)
+	require.NotNil(t, crossDomainBridgeMessage)
+	require.NotNil(t, crossDomainBridgeMessage.RelayedMessageEventGUID)
 }
 
 func TestE2EBridgeTransfersOptimismPortalETHReceive(t *testing.T) {

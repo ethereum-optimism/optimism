@@ -13,6 +13,7 @@ type DB struct {
 	Blocks             BlocksDB
 	ContractEvents     ContractEventsDB
 	BridgeTransfers    BridgeTransfersDB
+	BridgeMessages     BridgeMessagesDB
 	BridgeTransactions BridgeTransactionsDB
 }
 
@@ -35,8 +36,9 @@ func NewDB(dsn string) (*DB, error) {
 		gorm:               gorm,
 		Blocks:             newBlocksDB(gorm),
 		ContractEvents:     newContractEventsDB(gorm),
-		BridgeTransactions: newBridgeTransactionsDB(gorm),
 		BridgeTransfers:    newBridgeTransfersDB(gorm),
+		BridgeMessages:     newBridgeMessagesDB(gorm),
+		BridgeTransactions: newBridgeTransactionsDB(gorm),
 	}
 
 	return db, nil
@@ -64,7 +66,8 @@ func dbFromGormTx(tx *gorm.DB) *DB {
 		gorm:               tx,
 		Blocks:             newBlocksDB(tx),
 		ContractEvents:     newContractEventsDB(tx),
-		BridgeTransactions: newBridgeTransactionsDB(tx),
 		BridgeTransfers:    newBridgeTransfersDB(tx),
+		BridgeMessages:     newBridgeMessagesDB(tx),
+		BridgeTransactions: newBridgeTransactionsDB(tx),
 	}
 }
