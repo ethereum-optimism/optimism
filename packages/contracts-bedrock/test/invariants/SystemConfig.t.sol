@@ -14,6 +14,14 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
         Proxy proxy = new Proxy(msg.sender);
         SystemConfig configImpl = new SystemConfig();
 
+        SystemConfig.Addresses memory addrs = SystemConfig.Addresses({
+            l1CrossDomainMessenger: address(0),
+            l1ERC721Bridge: address(0),
+            l1StandardBridge: address(0),
+            l2OutputOracle: address(0),
+            optimismPortal: address(0)
+        });
+
         proxy.upgradeToAndCall(
             address(configImpl),
             abi.encodeCall(
@@ -26,7 +34,9 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
                     30_000_000,                           // gas limit
                     address(1),                           // unsafe block signer
                     Constants.DEFAULT_RESOURCE_CONFIG(),  // resource config
-                    0                                     //_startBlock
+                    0,                                    //_startBlock
+                    address(0),                           // _batchInbox
+                    addrs                                 // addresses
                 )
             )
         );
