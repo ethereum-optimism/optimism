@@ -22,8 +22,10 @@ abstract contract StandardBridge is Initializable {
     /// @notice The L2 gas limit set when eth is depoisited using the receive() function.
     uint32 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 200_000;
 
-    /// @notice Corresponding bridge on the other domain.
-    StandardBridge internal immutable _OTHER_BRIDGE;
+    /// @notice Corresponding bridge on the other domain. This public getter is deprecated
+    ///         and will be removed in the future. Please use `otherBridge` instead.
+    /// @custom:legacy
+    StandardBridge public immutable OTHER_BRIDGE;
 
     /// @custom:legacy
     /// @custom:spacer messenger
@@ -38,8 +40,11 @@ abstract contract StandardBridge is Initializable {
     /// @notice Mapping that stores deposits for a given pair of local and remote tokens.
     mapping(address => mapping(address => uint256)) public deposits;
 
-    /// @notice Messenger contract on this domain.
-    CrossDomainMessenger internal _MESSENGER;
+    /// @notice Messenger contract on this domain. This public getter is deprecated
+    ///         and will be removed in the future. Please use `messenger` instead.
+    /// @custom:legacy
+    /// @custom:network-specific
+    CrossDomainMessenger public MESSENGER;
 
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
     ///         A gap size of 46 was chosen here, so that the first slot used in a child contract
@@ -116,8 +121,8 @@ abstract contract StandardBridge is Initializable {
     /// @notice Ensures that the caller is a cross-chain message from the other bridge.
     modifier onlyOtherBridge() {
         require(
-            msg.sender == address(_MESSENGER) &&
-                _MESSENGER.xDomainMessageSender() == address(_OTHER_BRIDGE),
+            msg.sender == address(MESSENGER) &&
+                MESSENGER.xDomainMessageSender() == address(OTHER_BRIDGE),
             "StandardBridge: function can only be called from the other bridge"
         );
         _;
@@ -125,14 +130,14 @@ abstract contract StandardBridge is Initializable {
 
     /// @param _otherBridge Address of the other StandardBridge contract.
     constructor(StandardBridge _otherBridge) {
-        _OTHER_BRIDGE = _otherBridge;
+        OTHER_BRIDGE = _otherBridge;
     }
 
     /// @notice Initializer.
     /// @param _messenger   Address of CrossDomainMessenger on this network.
     // solhint-disable-next-line func-name-mixedcase
     function __StandardBridge_init(CrossDomainMessenger _messenger) internal onlyInitializing {
-        _MESSENGER = _messenger;
+        MESSENGER = _messenger;
     }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
@@ -142,24 +147,12 @@ abstract contract StandardBridge is Initializable {
     /// @notice Getter for messenger contract.
     /// @return Messenger contract on this domain.
     function messenger() external view returns (CrossDomainMessenger) {
-        return _MESSENGER;
-    }
-
-    /// @notice Legacy getter for messenger contract.
-    /// @custom:legacy
-    function MESSENGER() external view returns (CrossDomainMessenger) {
-        return _MESSENGER;
+        return MESSENGER;
     }
 
     /// @notice Getter for the remote domain bridge contract.
     function otherBridge() external view returns (StandardBridge) {
-        return _OTHER_BRIDGE;
-    }
-
-    /// @notice Legacy getter for the remote domain bridge contract.
-    /// @custom:legacy
-    function OTHER_BRIDGE() external view returns (StandardBridge) {
-        return _OTHER_BRIDGE;
+        return OTHER_BRIDGE;
     }
 
     /// @notice Sends ETH to the sender's address on the other chain.
@@ -267,7 +260,7 @@ abstract contract StandardBridge is Initializable {
     ) public payable onlyOtherBridge {
         require(msg.value == _amount, "StandardBridge: amount sent does not match amount required");
         require(_to != address(this), "StandardBridge: cannot send to self");
-        require(_to != address(_MESSENGER), "StandardBridge: cannot send to messenger");
+        require(_to != address(MESSENGER), "StandardBridge: cannot send to messenger");
 
         // Emit the correct events. By default this will be _amount, but child
         // contracts may override this function in order to emit legacy events as well.
@@ -336,8 +329,8 @@ abstract contract StandardBridge is Initializable {
         // contracts may override this function in order to emit legacy events as well.
         _emitETHBridgeInitiated(_from, _to, _amount, _extraData);
 
-        _MESSENGER.sendMessage{ value: _amount }(
-            address(_OTHER_BRIDGE),
+        MESSENGER.sendMessage{ value: _amount }(
+            address(OTHER_BRIDGE),
             abi.encodeWithSelector(
                 this.finalizeBridgeETH.selector,
                 _from,
@@ -383,8 +376,8 @@ abstract contract StandardBridge is Initializable {
         // contracts may override this function in order to emit legacy events as well.
         _emitERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
 
-        _MESSENGER.sendMessage(
-            address(_OTHER_BRIDGE),
+        MESSENGER.sendMessage(
+            address(OTHER_BRIDGE),
             abi.encodeWithSelector(
                 this.finalizeBridgeERC20.selector,
                 // Because this call will be executed on the remote chain, we reverse the order of
