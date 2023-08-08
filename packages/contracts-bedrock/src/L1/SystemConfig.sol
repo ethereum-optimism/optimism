@@ -25,6 +25,15 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         UNSAFE_BLOCK_SIGNER
     }
 
+    struct Addresses {
+        address l1CrossDomainMessenger;
+        address l1ERC721Bridge;
+        address l1StandardBridge;
+        address l2OutputOracle;
+        address optimismPortal;
+        //address batchInbox;
+    }
+
     /// @notice Version identifier, used for upgrades.
     uint256 public constant VERSION = 0;
 
@@ -34,11 +43,23 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     ///         proof to fetch this value.
     bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
 
+    /// @notice
     bytes32 public constant L1_CROSS_DOMAIN_MESSENGER_SLOT = keccak256("systemconfig.l1crossdomainmessenger");
+
+    /// @notice
     bytes32 public constant L1_ERC_721_BRIDGE_SLOT = keccak256("systemconfig.l1erc721bridge");
+
+    /// @notice
     bytes32 public constant L1_STANDARD_BRIDGE_SLOT = keccak256("systemconfig.l1standardbridge");
+
+    /// @notice
     bytes32 public constant L2_OUTPUT_ORACLE_SLOT = keccak256("systemconfig.l2outputoracle");
+
+    /// @notice
     bytes32 public constant OPTIMISM_PORTAL_SLOT = keccak256("systemconfig.optimismportal");
+
+    /// @notice
+    bytes32 public constant BATCH_INBOX_SLOT = keccak256("systemconfig.batchinbox");
 
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     uint256 public overhead;
@@ -66,40 +87,28 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /// @notice The block at which the op-node can start searching for
-    ///         logs from
-    uint256 startBlock;
+    ///         logs from.
+    uint256 public startBlock;
 
-    /// @custom:semver 1.3.1
+    /// @custom:semver 1.4.0
     /// @notice Constructs the SystemConfig contract.
-    /// @param _owner             Initial owner of the contract.
-    /// @param _overhead          Initial overhead value.
-    /// @param _scalar            Initial scalar value.
-    /// @param _batcherHash       Initial batcher hash.
-    /// @param _gasLimit          Initial gas limit.
-    /// @param _unsafeBlockSigner Initial unsafe block signer address.
-    /// @param _config            Initial resource config.
-    constructor(
-        address _owner,
-        uint256 _overhead,
-        uint256 _scalar,
-        bytes32 _batcherHash,
-        uint64 _gasLimit,
-        address _unsafeBlockSigner,
-        ResourceMetering.ResourceConfig memory _config
-    ) Semver(1, 3, 1) {
+    constructor() Semver(1, 4, 0) {
         initialize({
-            _owner: _owner,
-            _overhead: _overhead,
-            _scalar: _scalar,
-            _batcherHash: _batcherHash,
-            _gasLimit: _gasLimit,
-            _unsafeBlockSigner: _unsafeBlockSigner,
-            _config: _config,
-            _l1CrossDomainMessenger: address(0),
-            _l1ERC721Bridge: address(0),
-            _l1StandardBridge: address(0),
-            _l2OutputOracle: address(0),
-            _optimismPortal: address(0)
+            _owner: address(0),
+            _overhead: 0,
+            _scalar: 0,
+            _batcherHash: bytes32(0),
+            _gasLimit: 0,
+            _unsafeBlockSigner: address(0),
+            _config: ResourceMetering.ResourceConfig({
+                maxResourceLimit: 0,
+                elasticityMultiplier: 0,
+                baseFeeMaxChangeDenominator: 0,
+                minimumBaseFee: 0,
+                systemTxMaxGas: 0,
+                maximumBaseFee: 0
+            }),
+            _startBlock: 0
         });
     }
 
@@ -120,44 +129,54 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint64 _gasLimit,
         address _unsafeBlockSigner,
         ResourceMetering.ResourceConfig memory _config,
-        address _l1CrossDomainMessenger,
-        address _l1ERC721Bridge,
-        address _l1StandardBridge,
-        address _l2OutputOracle,
-        address _optimismPortal
-    ) public initializer {
+        uint256 _startBlock
+    ) public reinitializer(2) {
         __Ownable_init();
         transferOwnership(_owner);
 
-        // TODO: this needs to be backwards compatible with
-        // chains that already have it set.
-        startBlock = block.number;
-        // Could add an extra arg that is an override and do
-        // something like:
-        /*
-        if (_startBlock != 0) startBlock = _startBlock;
-        else startBlock = block.number;
-        */
-       // And then in the next upgrade, remove the extra arg
-        // and move to something like:
-       /*
-        if (startBlock == 0) startBlock = block.number;
-        */
+        // The start block for the op-node to start searching for logs
+        // needs to be set in a backwards compatible way. Only allow setting
+        // the start block with an override if it has previously never been set.
+        if (_startBlock != 0) {
+            require(startBlock == 0, "SystemConfig: cannot override an already set start block");
+            startBlock = _startBlock;
+        } else if (startBlock == 0) {
+            startBlock = block.number;
+        }
 
         overhead = _overhead;
         scalar = _scalar;
         batcherHash = _batcherHash;
         gasLimit = _gasLimit;
-        _setUnsafeBlockSigner(_unsafeBlockSigner);
+        _setAddress(_unsafeBlockSigner, UNSAFE_BLOCK_SIGNER_SLOT);
 
+        _setResourceConfig(_config);
+        require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
+    }
+
+    /// @notice Sets all of the addresses. These are not set in the `initialize`
+    ///         function because it results in stack too deep errors when that
+    ///         many constructor arguments are used. It is more simple to use
+    ///         another function.
+    /// @param _l1CrossDomainMessenger   Address of the L1CrossDomainMessenger.
+    /// @param _l1ERC721Bridge           Address of the L1ERC721Bridge.
+    /// @param _l1StandardBridge         Address of the L1StandardBridge.
+    /// @param _l2OutputOracle           Address of the L2OutputOracle.
+    /// @param _batchInbox               Address of the BatchInbox.
+    function setAddresses(
+        address _l1CrossDomainMessenger,
+        address _l1ERC721Bridge,
+        address _l1StandardBridge,
+        address _l2OutputOracle,
+        address _optimismPortal,
+        address _batchInbox
+    ) external onlyOwner {
         _setAddress(_l1CrossDomainMessenger, L1_CROSS_DOMAIN_MESSENGER_SLOT);
         _setAddress(_l1ERC721Bridge, L1_ERC_721_BRIDGE_SLOT);
         _setAddress(_l1StandardBridge, L1_STANDARD_BRIDGE_SLOT);
         _setAddress(_l2OutputOracle, L2_OUTPUT_ORACLE_SLOT);
         _setAddress(_optimismPortal, OPTIMISM_PORTAL_SLOT);
-
-        _setResourceConfig(_config);
-        require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
+        _setAddress(_batchInbox, BATCH_INBOX_SLOT);
     }
 
     /// @notice Returns the minimum L2 gas limit that can be safely set for the system to
@@ -189,7 +208,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     /// @param _slot The storage slot to store the address in.
     /// @dev WARNING! This function must be used cautiously, as it allows for overwriting values
     ///      in arbitrary storage slots. Solc will add checks that the data passed as `_addr`
-    ///      is 20 bytes or less. 
+    ///      is 20 bytes or less.
     function _setAddress(address _addr, bytes32 _slot) internal {
         bytes32 slot = _slot;
         assembly {
@@ -197,10 +216,50 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         }
     }
 
+    /// @notice
+    function _getAddress(bytes32 _slot) internal view returns (address) {
+        address addr;
+        bytes32 slot = _slot;
+        assembly {
+            addr := sload(slot)
+        }
+        return addr;
+    }
+
+    /// @notice Getter for the L1CrossDomainMessenger address.
+    function l1CrossDomainMessenger() external view returns (address) {
+        return _getAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT);
+    }
+
+    /// @notice Getter for the L1ERC721Bridge address.
+    function l1ERC721Bridge() external view returns (address) {
+        return _getAddress(L1_ERC_721_BRIDGE_SLOT);
+    }
+
+    /// @notice Getter for the L1StandardBridge address.
+    function l1StandardBridge() external view returns (address) {
+        return _getAddress(L1_STANDARD_BRIDGE_SLOT);
+    }
+
+    /// @notice Getter for the L2OutputOracle address.
+    function l2OutputOracle() external view returns (address) {
+        return _getAddress(L2_OUTPUT_ORACLE_SLOT);
+    }
+
+    /// @notice Getter for the OptimismPortal address.
+    function optimismPortal() external view returns (address) {
+        return _getAddress(OPTIMISM_PORTAL_SLOT);
+    }
+
+    /// @notice Getter for the BatchInbox address.
+    function batchInbox() external view returns (address) {
+        return _getAddress(BATCH_INBOX_SLOT);
+    }
+
     /// @notice Updates the unsafe block signer address.
     /// @param _unsafeBlockSigner New unsafe block signer address.
     function setUnsafeBlockSigner(address _unsafeBlockSigner) external onlyOwner {
-        _setUnsafeBlockSigner(_unsafeBlockSigner);
+        _setAddress(_unsafeBlockSigner, UNSAFE_BLOCK_SIGNER_SLOT);
 
         bytes memory data = abi.encode(_unsafeBlockSigner);
         emit ConfigUpdate(VERSION, UpdateType.UNSAFE_BLOCK_SIGNER, data);
@@ -234,17 +293,6 @@ contract SystemConfig is OwnableUpgradeable, Semver {
 
         bytes memory data = abi.encode(_gasLimit);
         emit ConfigUpdate(VERSION, UpdateType.GAS_LIMIT, data);
-    }
-
-    /// @notice Low level setter for the unsafe block signer address.
-    ///         This function exists to deduplicate code around storing the unsafeBlockSigner
-    ///         address in storage.
-    /// @param _unsafeBlockSigner New unsafeBlockSigner value.
-    function _setUnsafeBlockSigner(address _unsafeBlockSigner) internal {
-        bytes32 slot = UNSAFE_BLOCK_SIGNER_SLOT;
-        assembly {
-            sstore(slot, _unsafeBlockSigner)
-        }
     }
 
     /// @notice A getter for the resource config.
