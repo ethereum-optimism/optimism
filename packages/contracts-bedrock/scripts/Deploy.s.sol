@@ -392,11 +392,12 @@ contract Deploy is Deployer {
         require(config.scalar() == 0);
         require(config.unsafeBlockSigner() == address(0));
         require(config.batcherHash() == bytes32(0));
+        require(config.gasLimit() == 1);
 
         ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
-        require(resourceConfig.maxResourceLimit == 0);
-        require(resourceConfig.elasticityMultiplier == 0);
-        require(resourceConfig.baseFeeMaxChangeDenominator == 0);
+        require(resourceConfig.maxResourceLimit == 1);
+        require(resourceConfig.elasticityMultiplier == 1);
+        require(resourceConfig.baseFeeMaxChangeDenominator == 2);
         require(resourceConfig.systemTxMaxGas == 0);
         require(resourceConfig.minimumBaseFee == 0);
         require(resourceConfig.maximumBaseFee == 0);
