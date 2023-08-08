@@ -32,6 +32,9 @@ type Executor struct {
 	inputs           localGameInputs
 	cannon           string
 	server           string
+	network          string
+	rollupConfig     string
+	l2Genesis        string
 	absolutePreState string
 	dataDir          string
 	snapshotFreq     uint
@@ -47,6 +50,9 @@ func NewExecutor(logger log.Logger, cfg *config.Config, inputs localGameInputs) 
 		inputs:           inputs,
 		cannon:           cfg.CannonBin,
 		server:           cfg.CannonServer,
+		network:          cfg.CannonNetwork,
+		rollupConfig:     cfg.CannonRollupConfigPath,
+		l2Genesis:        cfg.CannonL2GenesisPath,
 		absolutePreState: cfg.CannonAbsolutePreState,
 		dataDir:          cfg.CannonDatadir,
 		snapshotFreq:     cfg.CannonSnapshotFreq,
@@ -83,6 +89,15 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 		"--l2.outputroot", e.inputs.l2OutputRoot.Hex(),
 		"--l2.claim", e.inputs.l2Claim.Hex(),
 		"--l2.blocknumber", e.inputs.l2BlockNumber.Text(10),
+	}
+	if e.network != "" {
+		args = append(args, "--network", e.network)
+	}
+	if e.rollupConfig != "" {
+		args = append(args, "--rollup.config", e.rollupConfig)
+	}
+	if e.l2Genesis != "" {
+		args = append(args, "--l2.genesis", e.l2Genesis)
 	}
 
 	if err := os.MkdirAll(snapshotDir, 0755); err != nil {
