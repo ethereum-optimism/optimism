@@ -25,6 +25,7 @@ abstract contract StandardBridge is Initializable {
     /// @notice Corresponding bridge on the other domain. This public getter is deprecated
     ///         and will be removed in the future. Please use `otherBridge` instead.
     /// @custom:legacy
+    /// @custom:network-specific
     StandardBridge public immutable OTHER_BRIDGE;
 
     /// @custom:legacy
