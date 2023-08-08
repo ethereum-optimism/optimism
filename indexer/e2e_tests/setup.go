@@ -82,21 +82,19 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	indexer, err := indexer.NewIndexer(indexerCfg)
 	require.NoError(t, err)
 
+	indexerStoppedCh := make(chan interface{}, 1)
 	indexerCtx, indexerStop := context.WithCancel(context.Background())
 	go func() {
 		err := indexer.Run(indexerCtx)
 		require.NoError(t, err)
-
-		indexer.Cleanup()
+		indexerStoppedCh <- nil
 	}()
 
 	t.Cleanup(func() {
 		indexerStop()
+		<-indexerStoppedCh
 
-		// wait a second for the stop signal to be received
-		time.Sleep(1 * time.Second)
 		indexer.Cleanup()
-
 		db.Close()
 		opSys.Close()
 	})
