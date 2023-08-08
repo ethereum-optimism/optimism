@@ -73,7 +73,6 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, deployments *genesis.L1
 	l2oo, err := bindings.NewL2OutputOracleCaller(deployments.L2OutputOracleProxy, client)
 	require.NoError(err, "Error creating l2oo caller")
 
-	//factory, l1Head := deployDisputeGameContracts(require, ctx, clock, client, opts, gameDuration)
 	return &FactoryHelper{
 		t:           t,
 		require:     require,
@@ -107,6 +106,7 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	h.require.NoError(err)
 	game, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.client)
 	h.require.NoError(err)
+
 	return &AlphabetGameHelper{
 		FaultGameHelper: FaultGameHelper{
 			t:        h.t,
@@ -140,6 +140,7 @@ func (h *FactoryHelper) StartCannonGame(ctx context.Context, rootClaim common.Ha
 	h.require.NoError(err)
 	game, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.client)
 	h.require.NoError(err)
+
 	return &CannonGameHelper{
 		FaultGameHelper: FaultGameHelper{
 			t:        h.t,
