@@ -40,9 +40,9 @@ jobs:
       - name: Build l2 components
         working-directory: .
         run: |
-          docker build . -f ./ops-bedrock/Dockerfile.l2-erigon -t bobanetwork/erigon:${{ steps.tag.outputs.VERSION }} &
-          docker build . -f ./op-node/Dockerfile -t bobanetwork/op-node:${{ steps.tag.outputs.VERSION }} &
-          docker build . -f ./op-proposer/Dockerfile -t bobanetwork/op-proposer:${{ steps.tag.outputs.VERSION }} &
+          docker build . -f ./ops-bedrock/Dockerfile.l2-erigon -t bobanetwork/erigon:${{ steps.tag.outputs.VERSION }}
+          docker build . -f ./op-node/Dockerfile -t bobanetwork/op-node:${{ steps.tag.outputs.VERSION }}
+          docker build . -f ./op-proposer/Dockerfile -t bobanetwork/op-proposer:${{ steps.tag.outputs.VERSION }}
           docker build . -f ./op-batcher/Dockerfile -t bobanetwork/op-batcher:${{ steps.tag.outputs.VERSION }}
 
       - name: Print images

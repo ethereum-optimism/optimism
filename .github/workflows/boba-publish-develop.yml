@@ -33,9 +33,9 @@ jobs:
       - name: Build l2 components
         working-directory: .
         run: |
-          docker build . -f ./ops-bedrock/Dockerfile.l2-erigon -t bobanetwork/erigon:latest &&
-          docker build . -f ./op-node/Dockerfile -t bobanetwork/op-node:latest &&
-          docker build . -f ./op-proposer/Dockerfile -t bobanetwork/op-proposer:latest &&
+          docker build . -f ./ops-bedrock/Dockerfile.l2-erigon -t bobanetwork/erigon:latest
+          docker build . -f ./op-node/Dockerfile -t bobanetwork/op-node:latest
+          docker build . -f ./op-proposer/Dockerfile -t bobanetwork/op-proposer:latest
           docker build . -f ./op-batcher/Dockerfile -t bobanetwork/op-batcher:latest
 
       - name: Print images
