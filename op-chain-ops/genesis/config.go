@@ -470,6 +470,7 @@ func NewDeployConfigWithNetwork(network, path string) (*DeployConfig, error) {
 // L1Deployments represents a set of L1 contracts that are deployed.
 type L1Deployments struct {
 	AddressManager                    common.Address `json:"AddressManager"`
+	BlockOracle                       common.Address `json:"BlockOracle"`
 	DisputeGameFactory                common.Address `json:"DisputeGameFactory"`
 	DisputeGameFactoryProxy           common.Address `json:"DisputeGameFactoryProxy"`
 	L1CrossDomainMessenger            common.Address `json:"L1CrossDomainMessenger"`
@@ -512,7 +513,7 @@ func (d *L1Deployments) Check() error {
 	for i := 0; i < val.NumField(); i++ {
 		name := val.Type().Field(i).Name
 		// Skip the non production ready contracts
-		if name == "DisputeGameFactory" || name == "DisputeGameFactoryProxy" {
+		if name == "DisputeGameFactory" || name == "DisputeGameFactoryProxy" || name == "BlockOracle" {
 			continue
 		}
 		if val.Field(i).Interface().(common.Address) == (common.Address{}) {
@@ -655,6 +656,11 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
 		"msgNonce":         0,
 	}
+	storage["L2StandardBridge"] = state.StorageValues{
+		"_initialized":  2,
+		"_initializing": false,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+	}
 	storage["L1Block"] = state.StorageValues{
 		"number":         block.Number(),
 		"timestamp":      block.Time(),
@@ -683,6 +689,11 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
+	}
+	storage["L2ERC721Bridge"] = state.StorageValues{
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+		"_initialized":  2,
+		"_initializing": false,
 	}
 	return storage, nil
 }

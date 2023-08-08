@@ -17,6 +17,7 @@ import (
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -33,6 +34,10 @@ type E2ETestSuite struct {
 	// Rollup
 	OpCfg *op_e2e.SystemConfig
 	OpSys *op_e2e.System
+
+	// Clients
+	L1Client *ethclient.Client
+	L2Client *ethclient.Client
 }
 
 func createE2ETestSuite(t *testing.T) E2ETestSuite {
@@ -48,16 +53,13 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	opSys, err := opCfg.Start()
 	require.NoError(t, err)
 
-	l1Contracts := processor.L1Contracts{
-		OptimismPortal:         opCfg.L1Deployments.OptimismPortalProxy,
-		L2OutputOracle:         opCfg.L1Deployments.L2OutputOracleProxy,
-		L1CrossDomainMessenger: opCfg.L1Deployments.L1CrossDomainMessengerProxy,
-		L1StandardBridge:       opCfg.L1Deployments.L1StandardBridgeProxy,
-		L1ERC721Bridge:         opCfg.L1Deployments.L1ERC721BridgeProxy,
-	}
+	// E2E tests can run on the order of magnitude of minutes. Once
+	// the system is running, mark this test for Parallel execution
+	t.Parallel()
 
 	// Indexer Configuration and Start
 	indexerCfg := config.Config{
+		Logger: logger,
 		DB: config.DBConfig{
 			Host: "127.0.0.1",
 			Port: 5432,
@@ -68,9 +70,14 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 			L1RPC: opSys.Nodes["l1"].HTTPEndpoint(),
 			L2RPC: opSys.Nodes["sequencer"].HTTPEndpoint(),
 		},
-		Logger: logger,
 		Chain: config.ChainConfig{
-			L1Contracts: l1Contracts,
+			L1Contracts: processor.L1Contracts{
+				OptimismPortal:         opCfg.L1Deployments.OptimismPortalProxy,
+				L2OutputOracle:         opCfg.L1Deployments.L2OutputOracleProxy,
+				L1CrossDomainMessenger: opCfg.L1Deployments.L1CrossDomainMessengerProxy,
+				L1StandardBridge:       opCfg.L1Deployments.L1StandardBridgeProxy,
+				L1ERC721Bridge:         opCfg.L1Deployments.L1ERC721BridgeProxy,
+			},
 		},
 	}
 
@@ -79,36 +86,38 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	indexer, err := indexer.NewIndexer(indexerCfg)
 	require.NoError(t, err)
 
+	indexerStoppedCh := make(chan interface{}, 1)
 	indexerCtx, indexerStop := context.WithCancel(context.Background())
 	go func() {
 		err := indexer.Run(indexerCtx)
 		require.NoError(t, err)
-
-		indexer.Cleanup()
+		indexerStoppedCh <- nil
 	}()
 
 	t.Cleanup(func() {
 		indexerStop()
+		<-indexerStoppedCh
 
-		// wait a second for the stop signal to be received
-		time.Sleep(1 * time.Second)
 		indexer.Cleanup()
-
 		db.Close()
 		opSys.Close()
 	})
 
 	return E2ETestSuite{
-		t:       t,
-		DB:      db,
-		Indexer: indexer,
-		OpCfg:   &opCfg,
-		OpSys:   opSys,
+		t:        t,
+		DB:       db,
+		Indexer:  indexer,
+		OpCfg:    &opCfg,
+		OpSys:    opSys,
+		L1Client: opSys.Clients["l1"],
+		L2Client: opSys.Clients["sequencer"],
 	}
 }
 
 func setupTestDatabase(t *testing.T) string {
 	user := os.Getenv("DB_USER")
+	require.NotEmpty(t, user, "DB_USER env variable expected to instantiate test database")
+
 	pg, err := sql.Open("pgx", fmt.Sprintf("postgres://%s@localhost:5432?sslmode=disable", user))
 	require.NoError(t, err)
 	require.NoError(t, pg.Ping())

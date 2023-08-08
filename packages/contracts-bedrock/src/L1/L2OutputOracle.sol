@@ -14,18 +14,21 @@ contract L2OutputOracle is Initializable, Semver {
     /// @notice The interval in L2 blocks at which checkpoints must be submitted.
     ///         Although this is immutable, it can safely be modified by upgrading the
     ///         implementation contract.
+    ///         Public getter is legacy and will be removed in the future. Use `submissionInterval`
+    ///         instead.
+    /// @custom:legacy
     uint256 public immutable SUBMISSION_INTERVAL;
 
     /// @notice The time between L2 blocks in seconds. Once set, this value MUST NOT be modified.
+    ///         Public getter is legacy and will be removed in the future. Use `l2BlockTime`
+    ///         instead.
+    /// @custom:legacy
     uint256 public immutable L2_BLOCK_TIME;
 
-    /// @notice The address of the challenger. Can be updated via upgrade.
-    address public immutable CHALLENGER;
-
-    /// @notice The address of the proposer. Can be updated via upgrade.
-    address public immutable PROPOSER;
-
     /// @notice The minimum time (in seconds) that must elapse before a withdrawal can be finalized.
+    ///         Public getter is legacy and will be removed in the future. Use
+    //          `finalizationPeriodSeconds` instead.
+    /// @custom:legacy
     uint256 public immutable FINALIZATION_PERIOD_SECONDS;
 
     /// @notice The number of the first L2 block recorded in this contract.
@@ -36,6 +39,14 @@ contract L2OutputOracle is Initializable, Semver {
 
     /// @notice An array of L2 output proposals.
     Types.OutputProposal[] internal l2Outputs;
+
+    /// @notice The address of the challenger. Can be updated via reinitialize.
+    /// @custom:network-specific
+    address public challenger;
+
+    /// @notice The address of the proposer. Can be updated via reinitialize.
+    /// @custom:network-specific
+    address public proposer;
 
     /// @notice Emitted when an output is proposed.
     /// @param outputRoot    The output root.
@@ -54,23 +65,17 @@ contract L2OutputOracle is Initializable, Semver {
     /// @param newNextOutputIndex  Next L2 output index after the deletion.
     event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
 
-    /// @custom:semver 1.3.1
+    /// @custom:semver 1.4.0
     /// @notice Constructs the L2OutputOracle contract.
     /// @param _submissionInterval  Interval in blocks at which checkpoints must be submitted.
     /// @param _l2BlockTime         The time per L2 block, in seconds.
-    /// @param _startingBlockNumber The number of the first L2 block.
-    /// @param _startingTimestamp   The timestamp of the first L2 block.
-    /// @param _proposer            The address of the proposer.
-    /// @param _challenger          The address of the challenger.
+    /// @param _finalizationPeriodSeconds The amount of time that must pass for an output proposal
+    //                                    to be considered canonical.
     constructor(
         uint256 _submissionInterval,
         uint256 _l2BlockTime,
-        uint256 _startingBlockNumber,
-        uint256 _startingTimestamp,
-        address _proposer,
-        address _challenger,
         uint256 _finalizationPeriodSeconds
-    ) Semver(1, 3, 1) {
+    ) Semver(1, 4, 0) {
         require(_l2BlockTime > 0, "L2OutputOracle: L2 block time must be greater than 0");
         require(
             _submissionInterval > 0,
@@ -79,20 +84,27 @@ contract L2OutputOracle is Initializable, Semver {
 
         SUBMISSION_INTERVAL = _submissionInterval;
         L2_BLOCK_TIME = _l2BlockTime;
-        PROPOSER = _proposer;
-        CHALLENGER = _challenger;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
 
-        initialize(_startingBlockNumber, _startingTimestamp);
+        initialize({
+            _startingBlockNumber: 0,
+            _startingTimestamp: 0,
+            _proposer: address(0),
+            _challenger: address(0)
+        });
     }
 
     /// @notice Initializer.
     /// @param _startingBlockNumber Block number for the first recoded L2 block.
     /// @param _startingTimestamp   Timestamp for the first recoded L2 block.
-    function initialize(uint256 _startingBlockNumber, uint256 _startingTimestamp)
-        public
-        initializer
-    {
+    /// @param _proposer            The address of the proposer.
+    /// @param _challenger          The address of the challenger.
+    function initialize(
+        uint256 _startingBlockNumber,
+        uint256 _startingTimestamp,
+        address _proposer,
+        address _challenger
+    ) public reinitializer(2) {
         require(
             _startingTimestamp <= block.timestamp,
             "L2OutputOracle: starting L2 timestamp must be less than current time"
@@ -100,6 +112,37 @@ contract L2OutputOracle is Initializable, Semver {
 
         startingTimestamp = _startingTimestamp;
         startingBlockNumber = _startingBlockNumber;
+        proposer = _proposer;
+        challenger = _challenger;
+    }
+
+    /// @notice Getter for the output proposal submission interval.
+    function submissionInterval() external view returns (uint256) {
+        return SUBMISSION_INTERVAL;
+    }
+
+    /// @notice Getter for the L2 block time.
+    function l2BlockTime() external view returns (uint256) {
+        return L2_BLOCK_TIME;
+    }
+
+    /// @notice Getter for the finalization period.
+    function finalizationPeriodSeconds() external view returns (uint256) {
+        return FINALIZATION_PERIOD_SECONDS;
+    }
+
+    /// @notice Getter for the challenger address. This will be removed
+    ///         in the future, use `challenger` instead.
+    /// @custom:legacy
+    function CHALLENGER() external view returns (address) {
+        return challenger;
+    }
+
+    /// @notice Getter for the proposer address. This will be removed in the
+    ///         future, use `proposer` instead.
+    /// @custom:legacy
+    function PROPOSER() external view returns (address) {
+        return proposer;
     }
 
     /// @notice Deletes all output proposals after and including the proposal that corresponds to
@@ -109,7 +152,7 @@ contract L2OutputOracle is Initializable, Semver {
     // solhint-disable-next-line ordering
     function deleteL2Outputs(uint256 _l2OutputIndex) external {
         require(
-            msg.sender == CHALLENGER,
+            msg.sender == challenger,
             "L2OutputOracle: only the challenger address can delete outputs"
         );
 
@@ -149,7 +192,7 @@ contract L2OutputOracle is Initializable, Semver {
         uint256 _l1BlockNumber
     ) external payable {
         require(
-            msg.sender == PROPOSER,
+            msg.sender == proposer,
             "L2OutputOracle: only the proposer address can propose new outputs"
         );
 
