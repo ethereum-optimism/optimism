@@ -111,8 +111,10 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
         });
 
         vm.store(address(sysConf), bytes32(0), bytes32(0));
-        vm.expectRevert("SystemConfig: gas limit too low");
         vm.prank(multisig);
+        // The call to initialize reverts due to: "SystemConfig: gas limit too low"
+        // but the proxy revert message bubbles up.
+        vm.expectRevert("Proxy: delegatecall to new implementation contract failed");
         Proxy(payable(address(sysConf))).upgradeToAndCall(
             address(systemConfigImpl),
             abi.encodeCall(
