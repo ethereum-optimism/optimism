@@ -247,8 +247,7 @@ export class OptimismFeeEstimationPlugin extends Web3PluginBase {
   /**
    * Computes the total (L1 + L2) fee estimate to execute {transaction}
    * @param transaction - An unsigned web3.js {Transaction} object
-   * @param {{ blockNumber: BlockNumberOrTag, returnFormat: DataFormat }} [options={blockNumber: BlockTags.LATEST, returnFormat: DEFAULT_RETURN_FORMAT}] -
-   * An options object specifying what block to use for gas estimates and the web3.js format object that specifies how to format number and bytes values
+   * @param {DataFormat} [returnFormat=DEFAULT_RETURN_FORMAT] - The web3.js format object that specifies how to format number and bytes values
    * @returns {Promise<Numbers>} - The estimated total fee as a BigInt by default, but {returnFormat} determines type
    * @example
    * const estimatedFees: bigint = await estimateFees(transaction);
@@ -260,22 +259,17 @@ export class OptimismFeeEstimationPlugin extends Web3PluginBase {
     ReturnFormat extends DataFormat = typeof DEFAULT_RETURN_FORMAT
   >(
     transaction: Transaction,
-    options?: {
-      blockNumber?: BlockNumberOrTag
-      returnFormat?: ReturnFormat
-    }
+    returnFormat?: ReturnFormat
   ) {
     const [l1Fee, l2Fee] = await Promise.all([
       this.getL1Fee(transaction),
-      this.getL2Fee(transaction, {
-        blockNumber: options?.blockNumber,
-      }),
+      this.getL2Fee(transaction),
     ])
 
     return Web3.utils.format(
       { format: 'uint' },
       l1Fee + l2Fee,
-      options?.returnFormat ?? DEFAULT_RETURN_FORMAT
+      returnFormat ?? DEFAULT_RETURN_FORMAT
     )
   }
 
