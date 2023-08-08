@@ -5,7 +5,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 type CannonGameHelper struct {
@@ -24,7 +23,6 @@ func (g *CannonGameHelper) StartChallenger(ctx context.Context, l1Endpoint strin
 			c.CannonDatadir = g.t.TempDir()
 			c.CannonServer = "../op-program/bin/op-program"
 			c.CannonAbsolutePreState = "../op-program/bin/prestate.json"
-			c.PreimageOracleAddress = common.Address{0xbb}
 			c.CannonSnapshotFreq = config.DefaultCannonSnapshotFreq
 		},
 	}
