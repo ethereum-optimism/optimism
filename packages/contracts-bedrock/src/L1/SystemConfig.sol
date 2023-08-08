@@ -25,6 +25,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         UNSAFE_BLOCK_SIGNER
     }
 
+    /// @notice Struct representing the addresses of L1 system contracts. These should be the
+    ///         proxies and will differ for each OP Stack chain.
     struct Addresses {
         address l1CrossDomainMessenger;
         address l1ERC721Bridge;
@@ -42,22 +44,22 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     ///         proof to fetch this value.
     bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
 
-    /// @notice
+    /// @notice Storage slot that the L1CrossDomainMessenger address is stored at.
     bytes32 public constant L1_CROSS_DOMAIN_MESSENGER_SLOT = keccak256("systemconfig.l1crossdomainmessenger");
 
-    /// @notice
+    /// @notice Storage slot that the L1ERC721Bridge address is stored at.
     bytes32 public constant L1_ERC_721_BRIDGE_SLOT = keccak256("systemconfig.l1erc721bridge");
 
-    /// @notice
+    /// @notice Storage slot that the L1StandardBridge address is stored at.
     bytes32 public constant L1_STANDARD_BRIDGE_SLOT = keccak256("systemconfig.l1standardbridge");
 
-    /// @notice
+    /// @notice Storage slot that the L2OutputOracle address is stored at.
     bytes32 public constant L2_OUTPUT_ORACLE_SLOT = keccak256("systemconfig.l2outputoracle");
 
-    /// @notice
+    /// @notice Storage slot that the OptimismPortal address is stored at.
     bytes32 public constant OPTIMISM_PORTAL_SLOT = keccak256("systemconfig.optimismportal");
 
-    /// @notice
+    /// @notice Storage slot that the batch inbox address is stored at.
     bytes32 public constant BATCH_INBOX_SLOT = keccak256("systemconfig.batchinbox");
 
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
@@ -85,8 +87,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     /// @param data       Encoded update data.
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
-    /// @notice The block at which the op-node can start searching for
-    ///         logs from.
+    /// @notice The block at which the op-node can start searching for logs from.
     uint256 public startBlock;
 
     /// @custom:semver 1.4.0

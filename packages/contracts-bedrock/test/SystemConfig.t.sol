@@ -18,6 +18,19 @@ contract SystemConfig_Init is CommonTest {
     SystemConfig sysConf;
     SystemConfig systemConfigImpl;
 
+    // Dummy addresses used to test getters
+    address constant batchInbox = address(0x18);
+    address constant l1CrossDomainMessenger = address(0x20);
+    address constant l1ERC721Bridge = address(0x21);
+    address constant l1StandardBridge = address(0x22);
+    address constant l2OutputOracle = address(0x23);
+    address constant optimismPortal = address(0x24);
+    uint256 constant overhead = 2100;
+    uint256 constant scalar = 1000000;
+    bytes32 constant batcherHash = bytes32(hex"abcd");
+    uint64 constant gasLimit = 30_000_000;
+    address constant unsafeBlockSigner = address(1);
+
     function setUp() public virtual override {
         super.setUp();
 
@@ -30,27 +43,56 @@ contract SystemConfig_Init is CommonTest {
             abi.encodeCall(
                 SystemConfig.initialize,
                 (
-                    alice,                                   //_owner,
-                    2100,                                    //_overhead,
-                    1000000,                                 //_scalar,
-                    bytes32(hex"abcd"),                      //_batcherHash,
-                    30_000_000,                              //_gasLimit,
-                    address(1),                              //_unsafeBlockSigner,
-                    Constants.DEFAULT_RESOURCE_CONFIG(),     //_config,
-                    0,                                       //_startBlock
-                    address(0),                              // _batchInbox
-                    SystemConfig.Addresses({                 // _addresses
-                        l1CrossDomainMessenger: address(0),
-                        l1ERC721Bridge: address(0),
-                        l1StandardBridge: address(0),
-                        l2OutputOracle: address(0),
-                        optimismPortal: address(0)
+                    alice,                                              //_owner,
+                    overhead,                                           //_overhead,
+                    scalar,                                             //_scalar,
+                    batcherHash,                                        // _batcherHash
+                    gasLimit,                                           //_gasLimit,
+                    unsafeBlockSigner,                                  //_unsafeBlockSigner,
+                    Constants.DEFAULT_RESOURCE_CONFIG(),                //_config,
+                    0,                                                  //_startBlock
+                    batchInbox,                                         // _batchInbox
+                    SystemConfig.Addresses({                            // _addresses
+                        l1CrossDomainMessenger: l1CrossDomainMessenger,
+                        l1ERC721Bridge: l1ERC721Bridge,
+                        l1StandardBridge: l1StandardBridge,
+                        l2OutputOracle: l2OutputOracle,
+                        optimismPortal: optimismPortal
                     })
                 )
             )
         );
 
         sysConf = SystemConfig(address(proxy));
+    }
+}
+
+contract SystemConfig_Initialize_Test is SystemConfig_Init {
+    /// @dev Tests that initailization sets the correct values.
+    function test_initialize_values() external {
+        assertEq(sysConf.l1CrossDomainMessenger(), l1CrossDomainMessenger);
+        assertEq(sysConf.l1ERC721Bridge(), l1ERC721Bridge);
+        assertEq(sysConf.l1StandardBridge(), l1StandardBridge);
+        assertEq(sysConf.l2OutputOracle(), l2OutputOracle);
+        assertEq(sysConf.optimismPortal(), optimismPortal);
+        assertEq(sysConf.batchInbox(), batchInbox);
+        assertEq(sysConf.owner(), alice);
+        assertEq(sysConf.overhead(), overhead);
+        assertEq(sysConf.scalar(), scalar);
+        assertEq(sysConf.batcherHash(), batcherHash);
+        assertEq(sysConf.gasLimit(), gasLimit);
+        assertEq(sysConf.unsafeBlockSigner(), unsafeBlockSigner);
+        // Depends on start block being set to 0 in `initialize`
+        assertEq(sysConf.startBlock(), block.number);
+        // Depends on `initialize` being called with defaults
+        ResourceMetering.ResourceConfig memory cfg = Constants.DEFAULT_RESOURCE_CONFIG();
+        ResourceMetering.ResourceConfig memory actual = sysConf.resourceConfig();
+        assertEq(actual.maxResourceLimit, cfg.maxResourceLimit);
+        assertEq(actual.elasticityMultiplier, cfg.elasticityMultiplier);
+        assertEq(actual.baseFeeMaxChangeDenominator, cfg.baseFeeMaxChangeDenominator);
+        assertEq(actual.minimumBaseFee, cfg.minimumBaseFee);
+        assertEq(actual.systemTxMaxGas, cfg.systemTxMaxGas);
+        assertEq(actual.maximumBaseFee, cfg.maximumBaseFee);
     }
 }
 
