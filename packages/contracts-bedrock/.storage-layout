@@ -38,7 +38,7 @@
 | spacer_0_2_20 | address                                         | 0    | 2      | 20    | src/L1/L1StandardBridge.sol:L1StandardBridge |
 | spacer_1_0_20 | address                                         | 1    | 0      | 20    | src/L1/L1StandardBridge.sol:L1StandardBridge |
 | deposits      | mapping(address => mapping(address => uint256)) | 2    | 0      | 32    | src/L1/L1StandardBridge.sol:L1StandardBridge |
-| MESSENGER     | contract CrossDomainMessenger                   | 3    | 0      | 20    | src/L1/L1StandardBridge.sol:L1StandardBridge |
+| messenger     | contract CrossDomainMessenger                   | 3    | 0      | 20    | src/L1/L1StandardBridge.sol:L1StandardBridge |
 | __gap         | uint256[46]                                     | 4    | 0      | 1472  | src/L1/L1StandardBridge.sol:L1StandardBridge |
 
 =======================
@@ -156,7 +156,7 @@
 | spacer_0_2_20 | address                                         | 0    | 2      | 20    | src/L2/L2StandardBridge.sol:L2StandardBridge |
 | spacer_1_0_20 | address                                         | 1    | 0      | 20    | src/L2/L2StandardBridge.sol:L2StandardBridge |
 | deposits      | mapping(address => mapping(address => uint256)) | 2    | 0      | 32    | src/L2/L2StandardBridge.sol:L2StandardBridge |
-| MESSENGER     | contract CrossDomainMessenger                   | 3    | 0      | 20    | src/L2/L2StandardBridge.sol:L2StandardBridge |
+| messenger     | contract CrossDomainMessenger                   | 3    | 0      | 20    | src/L2/L2StandardBridge.sol:L2StandardBridge |
 | __gap         | uint256[46]                                     | 4    | 0      | 1472  | src/L2/L2StandardBridge.sol:L2StandardBridge |
 
 =======================
