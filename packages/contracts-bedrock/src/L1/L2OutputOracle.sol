@@ -40,19 +40,13 @@ contract L2OutputOracle is Initializable, Semver {
     /// @notice An array of L2 output proposals.
     Types.OutputProposal[] internal l2Outputs;
 
-    /// @notice The address of the challenger. Can be updated via upgrade.
-    ///         Public getter is legacy and will be removed in the future.
-    ///         Use `challenger` instead.
+    /// @notice The address of the challenger. Can be updated via reinitialize.
     /// @custom:network-specific
-    /// @custom:legacy
-    address public CHALLENGER;
+    address public challenger;
 
-    /// @notice The address of the proposer. Can be updated via upgrade.
-    ///         Public getter is legacy and will be removed in the future.
-    ///         Use `proposer` instead.
+    /// @notice The address of the proposer. Can be updated via reinitialize.
     /// @custom:network-specific
-    /// @custom:legacy
-    address public PROPOSER;
+    address public proposer;
 
     /// @notice Emitted when an output is proposed.
     /// @param outputRoot    The output root.
@@ -118,9 +112,8 @@ contract L2OutputOracle is Initializable, Semver {
 
         startingTimestamp = _startingTimestamp;
         startingBlockNumber = _startingBlockNumber;
-
-        PROPOSER = _proposer;
-        CHALLENGER = _challenger;
+        proposer = _proposer;
+        challenger = _challenger;
     }
 
     /// @notice Getter for the output proposal submission interval.
@@ -138,14 +131,18 @@ contract L2OutputOracle is Initializable, Semver {
         return FINALIZATION_PERIOD_SECONDS;
     }
 
-    /// @notice Getter for the challenger address.
-    function challenger() external view returns (address) {
-        return CHALLENGER;
+    /// @notice Getter for the challenger address. This will be removed
+    ///         in the future, use `challenger` instead.
+    /// @custom:legacy
+    function CHALLENGER() external view returns (address) {
+        return challenger;
     }
 
-    /// @notice Getter for the proposer address.
-    function proposer() external view returns (address) {
-        return PROPOSER;
+    /// @notice Getter for the proposer address. This will be removed in the
+    ///         future, use `proposer` instead.
+    /// @custom:legacy
+    function PROPOSER() external view returns (address) {
+        return proposer;
     }
 
     /// @notice Deletes all output proposals after and including the proposal that corresponds to
@@ -155,7 +152,7 @@ contract L2OutputOracle is Initializable, Semver {
     // solhint-disable-next-line ordering
     function deleteL2Outputs(uint256 _l2OutputIndex) external {
         require(
-            msg.sender == CHALLENGER,
+            msg.sender == challenger,
             "L2OutputOracle: only the challenger address can delete outputs"
         );
 
@@ -195,7 +192,7 @@ contract L2OutputOracle is Initializable, Semver {
         uint256 _l1BlockNumber
     ) external payable {
         require(
-            msg.sender == PROPOSER,
+            msg.sender == proposer,
             "L2OutputOracle: only the proposer address can propose new outputs"
         );
 
