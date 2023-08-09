@@ -16,7 +16,6 @@ func (g *AlphabetGameHelper) StartChallenger(ctx context.Context, l1Endpoint str
 	opts := []challenger.Option{
 		func(c *config.Config) {
 			c.GameAddress = g.addr
-			c.GameDepth = alphabetGameDepth
 			c.TraceType = config.TraceTypeAlphabet
 			// By default the challenger agrees with the root claim (thus disagrees with the proposed output)
 			// This can be overridden by passing in options
