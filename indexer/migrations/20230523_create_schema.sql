@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS l1_contract_events (
 	block_hash       VARCHAR NOT NULL REFERENCES l1_block_headers(hash),
     transaction_hash VARCHAR NOT NULL,
     log_index        INTEGER NOT NULL,
-    event_signature  VARCHAR NOT NULL, -- Edge case anon events are 0x0
+    event_signature  VARCHAR NOT NULL, -- bytes32(0x0) when topics are missing
     timestamp        INTEGER NOT NULL CHECK (timestamp > 0),
 
     -- Raw Data
@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS l2_contract_events (
 	block_hash       VARCHAR NOT NULL REFERENCES l2_block_headers(hash),
     transaction_hash VARCHAR NOT NULL,
     log_index        INTEGER NOT NULL,
-    event_signature  VARCHAR, -- Edge case of anonymous events
+    event_signature  VARCHAR NOT NULL, -- bytes32(0x0) when topics are missing
     timestamp        INTEGER NOT NULL CHECK (timestamp > 0),
 
     -- Raw Data
