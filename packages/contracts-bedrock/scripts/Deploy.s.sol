@@ -46,8 +46,8 @@ contract Deploy is Deployer {
 
     /// @notice The name of the script, used to ensure the right deploy artifacts
     ///         are used.
-    function name() public pure override returns (string memory) {
-        return "Deploy";
+    function name() public pure override returns (string memory name_) {
+        name_ = "Deploy";
     }
 
     function setUp() public override {
@@ -121,17 +121,17 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy the AddressManager
-    function deployAddressManager() broadcast() public returns (address addr) {
+    function deployAddressManager() broadcast() public returns (address addr_) {
         AddressManager manager = new AddressManager();
         require(manager.owner() == msg.sender);
 
         save("AddressManager", address(manager));
         console.log("AddressManager deployed at %s", address(manager));
-        addr = address(manager);
+        addr_ = address(manager);
     }
 
     /// @notice Deploy the ProxyAdmin
-    function deployProxyAdmin() broadcast() public returns (address addr) {
+    function deployProxyAdmin() broadcast() public returns (address addr_) {
         ProxyAdmin admin = new ProxyAdmin({
             _owner: msg.sender
         });
@@ -146,11 +146,11 @@ contract Deploy is Deployer {
 
         save("ProxyAdmin", address(admin));
         console.log("ProxyAdmin deployed at %s", address(admin));
-        addr = address(admin);
+        addr_ = address(admin);
     }
 
     /// @notice Deploy the L1StandardBridgeProxy
-    function deployL1StandardBridgeProxy() broadcast() public returns (address addr) {
+    function deployL1StandardBridgeProxy() broadcast() public returns (address addr_) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         L1ChugSplashProxy proxy = new L1ChugSplashProxy(proxyAdmin);
 
@@ -159,11 +159,11 @@ contract Deploy is Deployer {
 
         save("L1StandardBridgeProxy", address(proxy));
         console.log("L1StandardBridgeProxy deployed at %s", address(proxy));
-        addr = address(proxy);
+        addr_ = address(proxy);
     }
 
     /// @notice Deploy the L2OutputOracleProxy
-    function deployL2OutputOracleProxy() broadcast() public returns (address addr) {
+    function deployL2OutputOracleProxy() broadcast() public returns (address addr_) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         Proxy proxy = new Proxy({
             _admin: proxyAdmin
@@ -174,11 +174,11 @@ contract Deploy is Deployer {
 
         save("L2OutputOracleProxy", address(proxy));
         console.log("L2OutputOracleProxy deployed at %s", address(proxy));
-        addr = address(proxy);
+        addr_ = address(proxy);
     }
 
     /// @notice Deploy the L1CrossDomainMessengerProxy
-    function deployL1CrossDomainMessengerProxy() broadcast() public returns (address addr) {
+    function deployL1CrossDomainMessengerProxy() broadcast() public returns (address addr_) {
         AddressManager addressManager = AddressManager(mustGetAddress("AddressManager"));
         string memory contractName = "OVM_L1CrossDomainMessenger";
         ResolvedDelegateProxy proxy = new ResolvedDelegateProxy(addressManager, contractName);
@@ -193,11 +193,11 @@ contract Deploy is Deployer {
 
         require(addressManager.getAddress(contractName) == address(proxy));
 
-        addr = address(proxy);
+        addr_ = address(proxy);
     }
 
     /// @notice Deploy the OptimismPortalProxy
-    function deployOptimismPortalProxy() broadcast() public returns (address addr) {
+    function deployOptimismPortalProxy() broadcast() public returns (address addr_) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         Proxy proxy = new Proxy({
             _admin: proxyAdmin
@@ -209,11 +209,11 @@ contract Deploy is Deployer {
         save("OptimismPortalProxy", address(proxy));
         console.log("OptimismPortalProxy deployed at %s", address(proxy));
 
-        addr = address(proxy);
+        addr_ = address(proxy);
     }
 
     /// @notice Deploy the OptimismMintableERC20FactoryProxy
-    function deployOptimismMintableERC20FactoryProxy() broadcast() public returns (address addr) {
+    function deployOptimismMintableERC20FactoryProxy() broadcast() public returns (address addr_) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         Proxy proxy = new Proxy({
             _admin: proxyAdmin
@@ -225,11 +225,11 @@ contract Deploy is Deployer {
         save("OptimismMintableERC20FactoryProxy", address(proxy));
         console.log("OptimismMintableERC20FactoryProxy deployed at %s", address(proxy));
 
-        addr = address(proxy);
+        addr_ = address(proxy);
     }
 
     /// @notice Deploy the L1ERC721BridgeProxy
-    function deployL1ERC721BridgeProxy() broadcast() public returns (address addr) {
+    function deployL1ERC721BridgeProxy() broadcast() public returns (address addr_) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         Proxy proxy = new Proxy({
             _admin: proxyAdmin
@@ -241,11 +241,11 @@ contract Deploy is Deployer {
         save("L1ERC721BridgeProxy", address(proxy));
         console.log("L1ERC721BridgeProxy deployed at %s", address(proxy));
 
-        addr = address(proxy);
+        addr_ = address(proxy);
     }
 
     /// @notice Deploy the SystemConfigProxy
-    function deploySystemConfigProxy() broadcast() public returns (address addr) {
+    function deploySystemConfigProxy() broadcast() public returns (address addr_) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         Proxy proxy = new Proxy({
             _admin: proxyAdmin
@@ -257,11 +257,11 @@ contract Deploy is Deployer {
         save("SystemConfigProxy", address(proxy));
         console.log("SystemConfigProxy deployed at %s", address(proxy));
 
-        addr = address(proxy);
+        addr_ = address(proxy);
     }
 
     /// @notice Deploy the DisputeGameFactoryProxy
-    function deployDisputeGameFactoryProxy() onlyDevnet broadcast() public returns (address addr) {
+    function deployDisputeGameFactoryProxy() onlyDevnet broadcast() public returns (address addr_) {
         address proxyAdmin = mustGetAddress("ProxyAdmin");
         Proxy proxy = new Proxy({
             _admin: proxyAdmin
@@ -273,11 +273,11 @@ contract Deploy is Deployer {
         save("DisputeGameFactoryProxy", address(proxy));
         console.log("DisputeGameFactoryProxy deployed at %s", address(proxy));
 
-        addr = address(proxy);
+        addr_ = address(proxy);
     }
 
     /// @notice Deploy the L1CrossDomainMessenger
-    function deployL1CrossDomainMessenger() broadcast() public returns (address addr) {
+    function deployL1CrossDomainMessenger() broadcast() public returns (address addr_) {
         L1CrossDomainMessenger messenger = new L1CrossDomainMessenger();
 
         require(address(messenger.PORTAL()) == address(0));
@@ -289,11 +289,11 @@ contract Deploy is Deployer {
         save("L1CrossDomainMessenger", address(messenger));
         console.log("L1CrossDomainMessenger deployed at %s", address(messenger));
 
-        addr = address(messenger);
+        addr_ = address(messenger);
     }
 
     /// @notice Deploy the OptimismPortal
-    function deployOptimismPortal() broadcast() public returns (address addr) {
+    function deployOptimismPortal() broadcast() public returns (address addr_) {
         OptimismPortal portal = new OptimismPortal();
 
         require(address(portal.L2_ORACLE()) == address(0));
@@ -304,11 +304,11 @@ contract Deploy is Deployer {
         save("OptimismPortal", address(portal));
         console.log("OptimismPortal deployed at %s", address(portal));
 
-        addr = address(portal);
+        addr_ = address(portal);
     }
 
     /// @notice Deploy the L2OutputOracle
-    function deployL2OutputOracle() broadcast() public returns (address addr) {
+    function deployL2OutputOracle() broadcast() public returns (address addr_) {
         L2OutputOracle oracle = new L2OutputOracle({
             _submissionInterval: cfg.l2OutputOracleSubmissionInterval(),
             _l2BlockTime: cfg.l2BlockTime(),
@@ -331,11 +331,11 @@ contract Deploy is Deployer {
         save("L2OutputOracle", address(oracle));
         console.log("L2OutputOracle deployed at %s", address(oracle));
 
-        addr = address(oracle);
+        addr_ = address(oracle);
     }
 
     /// @notice Deploy the OptimismMintableERC20Factory
-    function deployOptimismMintableERC20Factory() broadcast() public returns (address addr) {
+    function deployOptimismMintableERC20Factory() broadcast() public returns (address addr_) {
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
         OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory(l1StandardBridgeProxy);
 
@@ -344,47 +344,47 @@ contract Deploy is Deployer {
         save("OptimismMintableERC20Factory", address(factory));
         console.log("OptimismMintableERC20Factory deployed at %s", address(factory));
 
-        addr = address(factory);
+        addr_ = address(factory);
     }
 
     /// @notice Deploy the DisputeGameFactory
-    function deployDisputeGameFactory() onlyDevnet broadcast() public returns (address addr) {
+    function deployDisputeGameFactory() onlyDevnet broadcast() public returns (address addr_) {
         DisputeGameFactory factory = new DisputeGameFactory();
         save("DisputeGameFactory", address(factory));
         console.log("DisputeGameFactory deployed at %s", address(factory));
 
-        addr = address(factory);
+        addr_ = address(factory);
     }
 
     /// @notice Deploy the BlockOracle
-    function deployBlockOracle() onlyDevnet broadcast() public returns (address addr) {
+    function deployBlockOracle() onlyDevnet broadcast() public returns (address addr_) {
         BlockOracle oracle = new BlockOracle();
         save("BlockOracle", address(oracle));
         console.log("BlockOracle deployed at %s", address(oracle));
 
-        addr = address(oracle);
+        addr_ = address(oracle);
     }
 
     /// @notice Deploy the PreimageOracle
-    function deployPreimageOracle() onlyDevnet broadcast() public returns (address addr) {
+    function deployPreimageOracle() onlyDevnet broadcast() public returns (address addr_) {
         PreimageOracle preimageOracle = new PreimageOracle();
         save("PreimageOracle", address(preimageOracle));
         console.log("PreimageOracle deployed at %s", address(preimageOracle));
 
-        addr = address(preimageOracle);
+        addr_ = address(preimageOracle);
     }
 
     /// @notice Deploy Mips
-    function deployMips() onlyDevnet broadcast() public returns (address addr) {
+    function deployMips() onlyDevnet broadcast() public returns (address addr_) {
         MIPS mips = new MIPS(IPreimageOracle(mustGetAddress("PreimageOracle")));
         save("Mips", address(mips));
         console.log("MIPS deployed at %s", address(mips));
 
-        addr = address(mips);
+        addr_ = address(mips);
     }
 
     /// @notice Deploy the SystemConfig
-    function deploySystemConfig() broadcast() public returns (address addr) {
+    function deploySystemConfig() broadcast() public returns (address addr_) {
         SystemConfig config = new SystemConfig();
         bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
 
@@ -414,11 +414,11 @@ contract Deploy is Deployer {
         save("SystemConfig", address(config));
         console.log("SystemConfig deployed at %s", address(config));
 
-        addr = address(config);
+        addr_ = address(config);
     }
 
     /// @notice Deploy the L1StandardBridge
-    function deployL1StandardBridge() broadcast() public returns (address addr) {
+    function deployL1StandardBridge() broadcast() public returns (address addr_) {
         L1StandardBridge bridge = new L1StandardBridge();
 
         require(address(bridge.MESSENGER()) == address(0));
@@ -429,11 +429,11 @@ contract Deploy is Deployer {
         save("L1StandardBridge", address(bridge));
         console.log("L1StandardBridge deployed at %s", address(bridge));
 
-        addr = address(bridge);
+        addr_ = address(bridge);
     }
 
     /// @notice Deploy the L1ERC721Bridge
-    function deployL1ERC721Bridge() broadcast() public returns (address addr) {
+    function deployL1ERC721Bridge() broadcast() public returns (address addr_) {
         L1ERC721Bridge bridge = new L1ERC721Bridge();
 
         require(address(bridge.MESSENGER()) == address(0));
@@ -442,7 +442,7 @@ contract Deploy is Deployer {
         save("L1ERC721Bridge", address(bridge));
         console.log("L1ERC721Bridge deployed at %s", address(bridge));
 
-        addr = address(bridge);
+        addr_ = address(bridge);
     }
 
     /// @notice Transfer ownership of the address manager to the ProxyAdmin
