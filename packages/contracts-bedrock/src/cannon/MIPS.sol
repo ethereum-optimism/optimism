@@ -60,6 +60,8 @@ contract MIPS {
         ORACLE = _oracle;
     }
 
+    /// @notice Getter for the pre-image oracle contract.
+    /// @return oracle_ The IPreimageOracle contract.
     function oracle() external view returns (IPreimageOracle oracle_) {
         oracle_ = ORACLE;
     }
