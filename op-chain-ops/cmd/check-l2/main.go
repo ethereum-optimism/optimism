@@ -868,7 +868,7 @@ func getInitializing(name string, addr common.Address, client *ethclient.Client)
 }
 
 // getStorageValue will get the value of a named storage slot in a contract. It isn't smart about
-// automatically converting from a byte slice to a type, it is the caller's responsiblity to do that.
+// automatically converting from a byte slice to a type, it is the caller's responsibility to do that.
 func getStorageValue(name, entryName string, addr common.Address, client *ethclient.Client) ([]byte, error) {
 	layout, err := bindings.GetStorageLayout(name)
 	if err != nil {
