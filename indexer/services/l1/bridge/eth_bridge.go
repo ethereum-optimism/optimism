@@ -28,11 +28,8 @@ func (e *EthBridge) GetDepositsByBlockRange(ctx context.Context, start, end uint
 		End:     &end,
 	}
 
-	var iter *bindings.L1StandardBridgeETHDepositInitiatedIterator
-	err := backoff.Do(3, backoff.Exponential(), func() error {
-		var err error
-		iter, err = e.contract.FilterETHDepositInitiated(opts, nil, nil)
-		return err
+	iter, err := backoff.Do(ctx, 3, backoff.Exponential(), func() (*bindings.L1StandardBridgeETHDepositInitiatedIterator, error) {
+		return e.contract.FilterETHDepositInitiated(opts, nil, nil)
 	})
 	if err != nil {
 		return nil, err

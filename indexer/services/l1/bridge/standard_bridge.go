@@ -28,11 +28,8 @@ func (s *StandardBridge) GetDepositsByBlockRange(ctx context.Context, start, end
 		End:     &end,
 	}
 
-	var iter *bindings.L1StandardBridgeERC20DepositInitiatedIterator
-	err := backoff.Do(3, backoff.Exponential(), func() error {
-		var err error
-		iter, err = s.contract.FilterERC20DepositInitiated(opts, nil, nil, nil)
-		return err
+	iter, err := backoff.Do(ctx, 3, backoff.Exponential(), func() (*bindings.L1StandardBridgeERC20DepositInitiatedIterator, error) {
+		return s.contract.FilterERC20DepositInitiated(opts, nil, nil, nil)
 	})
 	if err != nil {
 		return nil, err
