@@ -42,26 +42,35 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     ///         Storing it at this deterministic storage slot allows for decoupling the storage
     ///         layout from the way that `solc` lays out storage. The `op-node` uses a storage
     ///         proof to fetch this value.
+    ///         NOTE: this value will be migrated to another storage slot in a future version.
+    ///         User input should not be placed in storage in this contract until this migration
+    ///         happens. It is unlikely that keccak second preimage resistance will be broken,
+    ///         but it is better to be safe than sorry.
     bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
 
     /// @notice Storage slot that the L1CrossDomainMessenger address is stored at.
     bytes32 public constant L1_CROSS_DOMAIN_MESSENGER_SLOT =
-        keccak256("systemconfig.l1crossdomainmessenger");
+        bytes32(uint256(keccak256("systemconfig.l1crossdomainmessenger")) - 1);
 
     /// @notice Storage slot that the L1ERC721Bridge address is stored at.
-    bytes32 public constant L1_ERC_721_BRIDGE_SLOT = keccak256("systemconfig.l1erc721bridge");
+    bytes32 public constant L1_ERC_721_BRIDGE_SLOT =
+        bytes32(uint256(keccak256("systemconfig.l1erc721bridge")) - 1);
 
     /// @notice Storage slot that the L1StandardBridge address is stored at.
-    bytes32 public constant L1_STANDARD_BRIDGE_SLOT = keccak256("systemconfig.l1standardbridge");
+    bytes32 public constant L1_STANDARD_BRIDGE_SLOT =
+        bytes32(uint256(keccak256("systemconfig.l1standardbridge")) - 1);
 
     /// @notice Storage slot that the L2OutputOracle address is stored at.
-    bytes32 public constant L2_OUTPUT_ORACLE_SLOT = keccak256("systemconfig.l2outputoracle");
+    bytes32 public constant L2_OUTPUT_ORACLE_SLOT =
+        bytes32(uint256(keccak256("systemconfig.l2outputoracle")) - 1);
 
     /// @notice Storage slot that the OptimismPortal address is stored at.
-    bytes32 public constant OPTIMISM_PORTAL_SLOT = keccak256("systemconfig.optimismportal");
+    bytes32 public constant OPTIMISM_PORTAL_SLOT =
+        bytes32(uint256(keccak256("systemconfig.optimismportal")) - 1);
 
     /// @notice Storage slot that the batch inbox address is stored at.
-    bytes32 public constant BATCH_INBOX_SLOT = keccak256("systemconfig.batchinbox");
+    bytes32 public constant BATCH_INBOX_SLOT =
+        bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
 
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     uint256 public overhead;
