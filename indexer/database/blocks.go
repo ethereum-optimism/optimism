@@ -22,6 +22,8 @@ type BlockHeader struct {
 	ParentHash common.Hash `gorm:"serializer:json"`
 	Number     U256
 	Timestamp  uint64
+
+	GethHeader *GethHeader `gorm:"serializer:rlp;column:rlp_bytes"`
 }
 
 func BlockHeaderFromGethHeader(header *types.Header) BlockHeader {
@@ -30,6 +32,8 @@ func BlockHeaderFromGethHeader(header *types.Header) BlockHeader {
 		ParentHash: header.ParentHash,
 		Number:     U256{Int: header.Number},
 		Timestamp:  header.Time,
+
+		GethHeader: (*GethHeader)(header),
 	}
 }
 

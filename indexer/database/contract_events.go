@@ -23,19 +23,28 @@ type ContractEvent struct {
 	EventSignature common.Hash `gorm:"serializer:json"`
 	LogIndex       uint64
 	Timestamp      uint64
+
+	GethLog *types.Log `gorm:"serializer:rlp;column:rlp_bytes"`
 }
 
 func ContractEventFromGethLog(log *types.Log, timestamp uint64) ContractEvent {
+	eventSig := common.Hash{}
+	if len(log.Topics) > 0 {
+		eventSig = log.Topics[0]
+	}
+
 	return ContractEvent{
 		GUID: uuid.New(),
 
 		BlockHash:       log.BlockHash,
 		TransactionHash: log.TxHash,
 
-		EventSignature: log.Topics[0],
+		EventSignature: eventSig,
 		LogIndex:       uint64(log.Index),
 
 		Timestamp: timestamp,
+
+		GethLog: log,
 	}
 }
 
