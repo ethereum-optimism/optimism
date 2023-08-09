@@ -19,11 +19,13 @@ type ClaimFetcher interface {
 		Clock       *big.Int
 	}, error)
 	ClaimDataLen(opts *bind.CallOpts) (*big.Int, error)
+	MAXGAMEDEPTH(opts *bind.CallOpts) (*big.Int, error)
 }
 
 // Loader is a minimal interface for loading onchain [Claim] data.
 type Loader interface {
 	FetchClaims(ctx context.Context) ([]types.Claim, error)
+	FetchGameDepth(ctx context.Context) (uint64, error)
 }
 
 // loader pulls in fault dispute game claim data periodically and over subscriptions.
@@ -36,6 +38,20 @@ func NewLoader(claimFetcher ClaimFetcher) *loader {
 	return &loader{
 		claimFetcher: claimFetcher,
 	}
+}
+
+// FetchGameDepth fetches the game depth from the fault dispute game.
+func (l *loader) FetchGameDepth(ctx context.Context) (uint64, error) {
+	callOpts := bind.CallOpts{
+		Context: ctx,
+	}
+
+	gameDepth, err := l.claimFetcher.MAXGAMEDEPTH(&callOpts)
+	if err != nil {
+		return 0, err
+	}
+
+	return gameDepth.Uint64(), nil
 }
 
 // fetchClaim fetches a single [Claim] with a hydrated parent.

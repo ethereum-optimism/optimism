@@ -25,7 +25,6 @@ var (
 	cannonL2                = "http://example.com:9545"
 	alphabetTrace           = "abcdefghijz"
 	agreeWithProposedOutput = "true"
-	gameDepth               = "4"
 )
 
 func TestLogLevel(t *testing.T) {
@@ -45,14 +44,14 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet))
-	defaultCfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), config.TraceTypeAlphabet, true, 4)
+	defaultCfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), config.TraceTypeAlphabet, true)
 	// Add in the extra CLI options required when using alphabet trace type
 	defaultCfg.AlphabetTrace = alphabetTrace
 	require.Equal(t, defaultCfg, cfg)
 }
 
 func TestDefaultConfigIsValid(t *testing.T) {
-	cfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), config.TraceTypeAlphabet, true, 4)
+	cfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), config.TraceTypeAlphabet, true)
 	// Add in options that are required based on the specific trace type
 	// To avoid needing to specify unused options, these aren't included in the params for NewConfig
 	cfg.AlphabetTrace = alphabetTrace
@@ -127,18 +126,6 @@ func TestAgreeWithProposedOutput(t *testing.T) {
 	t.Run("Disabled", func(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--agree-with-proposed-output=false"))
 		require.False(t, cfg.AgreeWithProposedOutput)
-	})
-}
-
-func TestGameDepth(t *testing.T) {
-	t.Run("Required", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag game-depth is required", addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-depth"))
-	})
-
-	t.Run("Valid", func(t *testing.T) {
-		value := "4"
-		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-depth", "--game-depth="+value))
-		require.Equal(t, value, fmt.Sprint(cfg.GameDepth))
 	})
 }
 
@@ -327,7 +314,6 @@ func addRequiredArgsExcept(traceType config.TraceType, name string, optionalArgs
 
 func requiredArgs(traceType config.TraceType) map[string]string {
 	args := map[string]string{
-		"--game-depth":                 gameDepth,
 		"--agree-with-proposed-output": agreeWithProposedOutput,
 		"--l1-eth-rpc":                 l1EthRpc,
 		"--game-address":               gameAddressValue,

@@ -12,15 +12,18 @@ import (
 )
 
 var (
-	mockClaimDataError = fmt.Errorf("claim data errored")
-	mockClaimLenError  = fmt.Errorf("claim len errored")
+	mockClaimDataError    = fmt.Errorf("claim data errored")
+	mockClaimLenError     = fmt.Errorf("claim len errored")
+	mockMaxGameDepthError = fmt.Errorf("max game depth errored")
 )
 
 type mockClaimFetcher struct {
-	claimDataError bool
-	claimLenError  bool
-	currentIndex   uint64
-	returnClaims   []struct {
+	claimDataError    bool
+	claimLenError     bool
+	maxGameDepthError bool
+	maxGameDepth      uint64
+	currentIndex      uint64
+	returnClaims      []struct {
 		ParentIndex uint32
 		Countered   bool
 		Claim       [32]byte
@@ -86,6 +89,34 @@ func (m *mockClaimFetcher) ClaimDataLen(opts *bind.CallOpts) (*big.Int, error) {
 		return big.NewInt(0), mockClaimLenError
 	}
 	return big.NewInt(int64(len(m.returnClaims))), nil
+}
+
+func (m *mockClaimFetcher) MAXGAMEDEPTH(opts *bind.CallOpts) (*big.Int, error) {
+	if m.maxGameDepthError {
+		return nil, mockMaxGameDepthError
+	}
+	return big.NewInt(int64(m.maxGameDepth)), nil
+}
+
+// TestLoader_FetchGameDepth tests [loader.FetchGameDepth].
+func TestLoader_FetchGameDepth(t *testing.T) {
+	t.Run("Succeeds", func(t *testing.T) {
+		mockClaimFetcher := newMockClaimFetcher()
+		mockClaimFetcher.maxGameDepth = 10
+		loader := NewLoader(mockClaimFetcher)
+		depth, err := loader.FetchGameDepth(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, uint64(10), depth)
+	})
+
+	t.Run("Errors", func(t *testing.T) {
+		mockClaimFetcher := newMockClaimFetcher()
+		mockClaimFetcher.maxGameDepthError = true
+		loader := NewLoader(mockClaimFetcher)
+		depth, err := loader.FetchGameDepth(context.Background())
+		require.ErrorIs(t, mockMaxGameDepthError, err)
+		require.Equal(t, depth, uint64(0))
+	})
 }
 
 // TestLoader_FetchClaims_Succeeds tests [loader.FetchClaims].

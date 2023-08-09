@@ -67,7 +67,6 @@ type Config struct {
 	L1EthRpc                string         // L1 RPC Url
 	GameAddress             common.Address // Address of the fault game
 	AgreeWithProposedOutput bool           // Temporary config if we agree or disagree with the posted output
-	GameDepth               int            // Depth of the game tree
 
 	TraceType TraceType // Type of trace
 
@@ -93,14 +92,12 @@ func NewConfig(
 	gameAddress common.Address,
 	traceType TraceType,
 	agreeWithProposedOutput bool,
-	gameDepth int,
 ) Config {
 	return Config{
 		L1EthRpc:    l1EthRpc,
 		GameAddress: gameAddress,
 
 		AgreeWithProposedOutput: agreeWithProposedOutput,
-		GameDepth:               gameDepth,
 
 		TraceType: traceType,
 
