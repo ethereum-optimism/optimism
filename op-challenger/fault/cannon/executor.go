@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -17,7 +19,8 @@ import (
 
 const (
 	snapsDir     = "snapshots"
-	preimagesDir = "snapshots"
+	preimagesDir = "preimages"
+	finalState   = "final.json"
 )
 
 var snapshotNameRegexp = regexp.MustCompile(`^[0-9]+\.json$`)
@@ -32,6 +35,9 @@ type Executor struct {
 	inputs           localGameInputs
 	cannon           string
 	server           string
+	network          string
+	rollupConfig     string
+	l2Genesis        string
 	absolutePreState string
 	dataDir          string
 	snapshotFreq     uint
@@ -47,6 +53,9 @@ func NewExecutor(logger log.Logger, cfg *config.Config, inputs localGameInputs) 
 		inputs:           inputs,
 		cannon:           cfg.CannonBin,
 		server:           cfg.CannonServer,
+		network:          cfg.CannonNetwork,
+		rollupConfig:     cfg.CannonRollupConfigPath,
+		l2Genesis:        cfg.CannonL2GenesisPath,
 		absolutePreState: cfg.CannonAbsolutePreState,
 		dataDir:          cfg.CannonDatadir,
 		snapshotFreq:     cfg.CannonSnapshotFreq,
@@ -63,18 +72,23 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 	}
 	proofDir := filepath.Join(dir, proofsDir)
 	dataDir := filepath.Join(e.dataDir, preimagesDir)
+	lastGeneratedState := filepath.Join(dir, finalState)
 	args := []string{
 		"run",
 		"--input", start,
-		"--output", filepath.Join(dir, "out.json"),
+		"--output", lastGeneratedState,
 		"--meta", "",
 		"--proof-at", "=" + strconv.FormatUint(i, 10),
-		"--stop-at", "=" + strconv.FormatUint(i+1, 10),
 		"--proof-fmt", filepath.Join(proofDir, "%d.json"),
 		"--snapshot-at", "%" + strconv.FormatUint(uint64(e.snapshotFreq), 10),
 		"--snapshot-fmt", filepath.Join(snapshotDir, "%d.json"),
+	}
+	if i < math.MaxUint64 {
+		args = append(args, "--stop-at", "="+strconv.FormatUint(i+1, 10))
+	}
+	args = append(args,
 		"--",
-		e.server,
+		e.server, "--server",
 		"--l1", e.l1,
 		"--l2", e.l2,
 		"--datadir", dataDir,
@@ -83,6 +97,15 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 		"--l2.outputroot", e.inputs.l2OutputRoot.Hex(),
 		"--l2.claim", e.inputs.l2Claim.Hex(),
 		"--l2.blocknumber", e.inputs.l2BlockNumber.Text(10),
+	)
+	if e.network != "" {
+		args = append(args, "--network", e.network)
+	}
+	if e.rollupConfig != "" {
+		args = append(args, "--rollup.config", e.rollupConfig)
+	}
+	if e.l2Genesis != "" {
+		args = append(args, "--l2.genesis", e.l2Genesis)
 	}
 
 	if err := os.MkdirAll(snapshotDir, 0755); err != nil {
@@ -94,7 +117,7 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 	if err := os.MkdirAll(proofDir, 0755); err != nil {
 		return fmt.Errorf("could not create proofs directory %v: %w", proofDir, err)
 	}
-	e.logger.Info("Generating trace", "proof", i, "cmd", e.cannon, "args", args)
+	e.logger.Info("Generating trace", "proof", i, "cmd", e.cannon, "args", strings.Join(args, ", "))
 	return e.cmdExecutor(ctx, e.logger.New("proof", i), e.cannon, args...)
 }
 
@@ -102,7 +125,8 @@ func runCmd(ctx context.Context, l log.Logger, binary string, args ...string) er
 	cmd := exec.CommandContext(ctx, binary, args...)
 	stdOut := oplog.NewWriter(l, log.LvlInfo)
 	defer stdOut.Close()
-	stdErr := oplog.NewWriter(l, log.LvlError)
+	// Keep stdErr at info level because cannon uses stderr for progress messages
+	stdErr := oplog.NewWriter(l, log.LvlInfo)
 	defer stdErr.Close()
 	cmd.Stdout = stdOut
 	cmd.Stderr = stdErr
@@ -123,17 +147,17 @@ func findStartingSnapshot(logger log.Logger, snapDir string, absolutePreState st
 	bestSnap := uint64(0)
 	for _, entry := range entries {
 		if entry.IsDir() {
-			logger.Warn("Unexpected directory in snapshots dir: %v/%v", snapDir, entry.Name())
+			logger.Warn("Unexpected directory in snapshots dir", "parent", snapDir, "child", entry.Name())
 			continue
 		}
 		name := entry.Name()
 		if !snapshotNameRegexp.MatchString(name) {
-			logger.Warn("Unexpected file in snapshots dir: %v/%v", snapDir, entry.Name())
+			logger.Warn("Unexpected file in snapshots dir", "parent", snapDir, "child", entry.Name())
 			continue
 		}
 		index, err := strconv.ParseUint(name[0:len(name)-len(".json")], 10, 64)
 		if err != nil {
-			logger.Error("Unable to parse trace index of snapshot file: %v/%v", snapDir, entry.Name())
+			logger.Error("Unable to parse trace index of snapshot file", "parent", snapDir, "child", entry.Name())
 			continue
 		}
 		if index > bestSnap && index < traceIndex {

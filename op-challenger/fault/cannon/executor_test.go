@@ -3,6 +3,7 @@ package cannon
 import (
 	"context"
 	"fmt"
+	"math"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -35,49 +36,90 @@ func TestGenerateProof(t *testing.T) {
 		l2Claim:       common.Hash{0x44},
 		l2BlockNumber: big.NewInt(3333),
 	}
-
-	executor := NewExecutor(testlog.Logger(t, log.LvlInfo), &cfg, inputs)
-	executor.selectSnapshot = func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error) {
-		return input, nil
-	}
-	var binary string
-	var subcommand string
-	args := make(map[string]string)
-	executor.cmdExecutor = func(ctx context.Context, l log.Logger, b string, a ...string) error {
-		binary = b
-		subcommand = a[0]
-		for i := 1; i < len(a); i += 2 {
-			args[a[i]] = a[i+1]
+	captureExec := func(t *testing.T, cfg config.Config, proofAt uint64) (string, string, map[string]string) {
+		executor := NewExecutor(testlog.Logger(t, log.LvlInfo), &cfg, inputs)
+		executor.selectSnapshot = func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error) {
+			return input, nil
 		}
-		return nil
+		var binary string
+		var subcommand string
+		args := make(map[string]string)
+		executor.cmdExecutor = func(ctx context.Context, l log.Logger, b string, a ...string) error {
+			binary = b
+			subcommand = a[0]
+			for i := 1; i < len(a); {
+				if a[i] == "--" {
+					// Skip over the divider between cannon and server program
+					i += 1
+					continue
+				}
+				args[a[i]] = a[i+1]
+				i += 2
+			}
+			return nil
+		}
+		err := executor.GenerateProof(context.Background(), cfg.CannonDatadir, proofAt)
+		require.NoError(t, err)
+		return binary, subcommand, args
 	}
-	err := executor.GenerateProof(context.Background(), cfg.CannonDatadir, 150_000_000)
-	require.NoError(t, err)
-	require.DirExists(t, filepath.Join(cfg.CannonDatadir, preimagesDir))
-	require.DirExists(t, filepath.Join(cfg.CannonDatadir, proofsDir))
-	require.DirExists(t, filepath.Join(cfg.CannonDatadir, snapsDir))
-	require.Equal(t, cfg.CannonBin, binary)
-	require.Equal(t, "run", subcommand)
-	require.Equal(t, input, args["--input"])
-	require.Contains(t, args, "--meta")
-	require.Equal(t, "", args["--meta"])
-	require.Equal(t, filepath.Join(cfg.CannonDatadir, "out.json"), args["--output"])
-	require.Equal(t, "=150000000", args["--proof-at"])
-	require.Equal(t, "=150000001", args["--stop-at"])
-	require.Equal(t, "%500", args["--snapshot-at"])
-	require.Equal(t, cfg.CannonServer, args["--"])
-	require.Equal(t, cfg.L1EthRpc, args["--l1"])
-	require.Equal(t, cfg.CannonL2, args["--l2"])
-	require.Equal(t, filepath.Join(cfg.CannonDatadir, preimagesDir), args["--datadir"])
-	require.Equal(t, filepath.Join(cfg.CannonDatadir, proofsDir, "%d.json"), args["--proof-fmt"])
-	require.Equal(t, filepath.Join(cfg.CannonDatadir, snapsDir, "%d.json"), args["--snapshot-fmt"])
 
-	// Local game inputs
-	require.Equal(t, inputs.l1Head.Hex(), args["--l1.head"])
-	require.Equal(t, inputs.l2Head.Hex(), args["--l2.head"])
-	require.Equal(t, inputs.l2OutputRoot.Hex(), args["--l2.outputroot"])
-	require.Equal(t, inputs.l2Claim.Hex(), args["--l2.claim"])
-	require.Equal(t, "3333", args["--l2.blocknumber"])
+	t.Run("Network", func(t *testing.T) {
+		cfg.CannonNetwork = "mainnet"
+		cfg.CannonRollupConfigPath = ""
+		cfg.CannonL2GenesisPath = ""
+		binary, subcommand, args := captureExec(t, cfg, 150_000_000)
+		require.DirExists(t, filepath.Join(cfg.CannonDatadir, preimagesDir))
+		require.DirExists(t, filepath.Join(cfg.CannonDatadir, proofsDir))
+		require.DirExists(t, filepath.Join(cfg.CannonDatadir, snapsDir))
+		require.Equal(t, cfg.CannonBin, binary)
+		require.Equal(t, "run", subcommand)
+		require.Equal(t, input, args["--input"])
+		require.Contains(t, args, "--meta")
+		require.Equal(t, "", args["--meta"])
+		require.Equal(t, filepath.Join(cfg.CannonDatadir, finalState), args["--output"])
+		require.Equal(t, "=150000000", args["--proof-at"])
+		require.Equal(t, "=150000001", args["--stop-at"])
+		require.Equal(t, "%500", args["--snapshot-at"])
+		// Slight quirk of how we pair off args
+		// The server binary winds up as the key and the first arg --server as the value which has no value
+		// Then everything else pairs off correctly again
+		require.Equal(t, "--server", args[cfg.CannonServer])
+		require.Equal(t, cfg.L1EthRpc, args["--l1"])
+		require.Equal(t, cfg.CannonL2, args["--l2"])
+		require.Equal(t, filepath.Join(cfg.CannonDatadir, preimagesDir), args["--datadir"])
+		require.Equal(t, filepath.Join(cfg.CannonDatadir, proofsDir, "%d.json"), args["--proof-fmt"])
+		require.Equal(t, filepath.Join(cfg.CannonDatadir, snapsDir, "%d.json"), args["--snapshot-fmt"])
+		require.Equal(t, cfg.CannonNetwork, args["--network"])
+		require.NotContains(t, args, "--rollup.config")
+		require.NotContains(t, args, "--l2.genesis")
+
+		// Local game inputs
+		require.Equal(t, inputs.l1Head.Hex(), args["--l1.head"])
+		require.Equal(t, inputs.l2Head.Hex(), args["--l2.head"])
+		require.Equal(t, inputs.l2OutputRoot.Hex(), args["--l2.outputroot"])
+		require.Equal(t, inputs.l2Claim.Hex(), args["--l2.claim"])
+		require.Equal(t, "3333", args["--l2.blocknumber"])
+	})
+
+	t.Run("RollupAndGenesis", func(t *testing.T) {
+		cfg.CannonNetwork = ""
+		cfg.CannonRollupConfigPath = "rollup.json"
+		cfg.CannonL2GenesisPath = "genesis.json"
+		_, _, args := captureExec(t, cfg, 150_000_000)
+		require.NotContains(t, args, "--network")
+		require.Equal(t, cfg.CannonRollupConfigPath, args["--rollup.config"])
+		require.Equal(t, cfg.CannonL2GenesisPath, args["--l2.genesis"])
+	})
+
+	t.Run("NoStopAtWhenProofIsMaxUInt", func(t *testing.T) {
+		cfg.CannonNetwork = "mainnet"
+		cfg.CannonRollupConfigPath = "rollup.json"
+		cfg.CannonL2GenesisPath = "genesis.json"
+		_, _, args := captureExec(t, cfg, math.MaxUint64)
+		// stop-at would need to be one more than the proof step which would overflow back to 0
+		// so expect that it will be omitted. We'll ultimately want cannon to execute until the program exits.
+		require.NotContains(t, args, "--stop-at")
+	})
 }
 
 func TestRunCmdLogsOutput(t *testing.T) {

@@ -53,6 +53,10 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	opSys, err := opCfg.Start()
 	require.NoError(t, err)
 
+	// E2E tests can run on the order of magnitude of minutes. Once
+	// the system is running, mark this test for Parallel execution
+	t.Parallel()
+
 	// Indexer Configuration and Start
 	indexerCfg := config.Config{
 		Logger: logger,
@@ -82,21 +86,19 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	indexer, err := indexer.NewIndexer(indexerCfg)
 	require.NoError(t, err)
 
+	indexerStoppedCh := make(chan interface{}, 1)
 	indexerCtx, indexerStop := context.WithCancel(context.Background())
 	go func() {
 		err := indexer.Run(indexerCtx)
 		require.NoError(t, err)
-
-		indexer.Cleanup()
+		indexerStoppedCh <- nil
 	}()
 
 	t.Cleanup(func() {
 		indexerStop()
+		<-indexerStoppedCh
 
-		// wait a second for the stop signal to be received
-		time.Sleep(1 * time.Second)
 		indexer.Cleanup()
-
 		db.Close()
 		opSys.Close()
 	})
@@ -114,6 +116,8 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 
 func setupTestDatabase(t *testing.T) string {
 	user := os.Getenv("DB_USER")
+	require.NotEmpty(t, user, "DB_USER env variable expected to instantiate test database")
+
 	pg, err := sql.Open("pgx", fmt.Sprintf("postgres://%s@localhost:5432?sslmode=disable", user))
 	require.NoError(t, err)
 	require.NoError(t, pg.Ping())

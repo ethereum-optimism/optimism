@@ -7,6 +7,7 @@ import { L2OutputOracle } from "../src/L1/L2OutputOracle.sol";
 import { L2ToL1MessagePasser } from "../src/L2/L2ToL1MessagePasser.sol";
 import { L1StandardBridge } from "../src/L1/L1StandardBridge.sol";
 import { L2StandardBridge } from "../src/L2/L2StandardBridge.sol";
+import { StandardBridge } from "../src/universal/StandardBridge.sol";
 import { L1ERC721Bridge } from "../src/L1/L1ERC721Bridge.sol";
 import { L2ERC721Bridge } from "../src/L2/L2ERC721Bridge.sol";
 import { OptimismMintableERC20Factory } from "../src/universal/OptimismMintableERC20Factory.sol";
@@ -28,6 +29,7 @@ import { ResolvedDelegateProxy } from "../src/legacy/ResolvedDelegateProxy.sol";
 import { AddressManager } from "../src/legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "../src/legacy/L1ChugSplashProxy.sol";
 import { IL1ChugSplashDeployer } from "../src/legacy/L1ChugSplashProxy.sol";
+import { CrossDomainMessenger } from "../src/universal/CrossDomainMessenger.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { LegacyMintableERC20 } from "../src/legacy/LegacyMintableERC20.sol";
 import { SystemConfig } from "../src/L1/SystemConfig.sol";
@@ -200,17 +202,38 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
     function setUp() public virtual override {
         super.setUp();
 
-        ResourceMetering.ResourceConfig memory config = Constants.DEFAULT_RESOURCE_CONFIG();
+        Proxy systemConfigProxy = new Proxy(multisig);
 
-        systemConfig = new SystemConfig({
-            _owner: address(1),
-            _overhead: 0,
-            _scalar: 10000,
-            _batcherHash: bytes32(0),
-            _gasLimit: 30_000_000,
-            _unsafeBlockSigner: address(0),
-            _config: config
-        });
+        SystemConfig systemConfigImpl = new SystemConfig();
+
+        vm.prank(multisig);
+        systemConfigProxy.upgradeToAndCall(
+            address(systemConfigImpl),
+            abi.encodeCall(
+                SystemConfig.initialize,
+                (
+                    address(1),                           //_owner,
+                    0,                                    //_overhead,
+                    10000,                                //_scalar,
+                    bytes32(0),                           //_batcherHash,
+                    30_000_000,                           //_gasLimit,
+                    address(0),                           //_unsafeBlockSigner,
+                    Constants.DEFAULT_RESOURCE_CONFIG(),  //_config,
+                    0,                                    //_startBlock
+                    address(0xff),                        // _batchInbox
+                    SystemConfig.Addresses({              // _addresses
+                        l1CrossDomainMessenger: address(0),
+                        l1ERC721Bridge: address(0),
+                        l1StandardBridge: address(0),
+                        l2OutputOracle: address(oracle),
+                        optimismPortal: address(op),
+                        optimismMintableERC20Factory: address(0)
+                    })
+                )
+            )
+        );
+
+        systemConfig = SystemConfig(address(systemConfigProxy));
 
         opImpl = new OptimismPortal();
 
@@ -414,21 +437,24 @@ contract Bridge_Initializer is Messenger_Initializer {
             abi.encode(true)
         );
         vm.startPrank(multisig);
-        proxy.setCode(address(new L1StandardBridge(payable(address(L1Messenger)))).code);
+        proxy.setCode(address(new L1StandardBridge()).code);
         vm.clearMockedCalls();
         address L1Bridge_Impl = proxy.getImplementation();
         vm.stopPrank();
 
         L1Bridge = L1StandardBridge(payable(address(proxy)));
+        L1Bridge.initialize({
+            _messenger: L1Messenger
+        });
 
         vm.label(address(proxy), "L1StandardBridge_Proxy");
         vm.label(address(L1Bridge_Impl), "L1StandardBridge_Impl");
 
         // Deploy the L2StandardBridge, move it to the correct predeploy
         // address and then initialize it
-        L2StandardBridge l2B = new L2StandardBridge(payable(proxy));
-        vm.etch(Predeploys.L2_STANDARD_BRIDGE, address(l2B).code);
+        vm.etch(Predeploys.L2_STANDARD_BRIDGE, address(new L2StandardBridge(StandardBridge(payable(proxy)))).code);
         L2Bridge = L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
+        L2Bridge.initialize();
 
         // Set up the L2 mintable token factory
         OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory(
@@ -495,13 +521,33 @@ contract ERC721Bridge_Initializer is Messenger_Initializer {
         super.setUp();
 
         // Deploy the L1ERC721Bridge.
-        L1Bridge = new L1ERC721Bridge(address(L1Messenger), Predeploys.L2_ERC721_BRIDGE);
+        L1ERC721Bridge l1BridgeImpl = new L1ERC721Bridge();
+        Proxy l1BridgeProxy = new Proxy(multisig);
+
+        vm.prank(multisig);
+        l1BridgeProxy.upgradeToAndCall(
+            address(l1BridgeImpl),
+            abi.encodeCall(
+                L1ERC721Bridge.initialize,
+                (CrossDomainMessenger(L1Messenger))
+            )
+        );
+
+        L1Bridge = L1ERC721Bridge(address(l1BridgeProxy));
 
         // Deploy the implementation for the L2ERC721Bridge and etch it into the predeploy address.
-        vm.etch(
-            Predeploys.L2_ERC721_BRIDGE,
-            address(new L2ERC721Bridge(Predeploys.L2_CROSS_DOMAIN_MESSENGER, address(L1Bridge)))
-                .code
+        L2ERC721Bridge l2BridgeImpl = new L2ERC721Bridge(address(L1Bridge));
+        Proxy l2BridgeProxy = new Proxy(multisig);
+        vm.etch(Predeploys.L2_ERC721_BRIDGE, address(l2BridgeProxy).code);
+
+        // set the storage slot for admin
+        bytes32 OWNER_KEY = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+        vm.store(Predeploys.L2_ERC721_BRIDGE, OWNER_KEY, bytes32(uint256(uint160(multisig))));
+
+        vm.prank(multisig);
+        Proxy(payable(Predeploys.L2_ERC721_BRIDGE)).upgradeToAndCall(
+            address(l2BridgeImpl),
+            abi.encodeCall(L2ERC721Bridge.initialize, (L2Messenger))
         );
 
         // Set up a reference to the L2ERC721Bridge.

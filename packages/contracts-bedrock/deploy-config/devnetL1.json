@@ -45,5 +45,6 @@
   "l2GenesisRegolithTimeOffset": "0x0",
   "faultGameAbsolutePrestate": "0x41c7ae758795765c6664a5d39bf63841c71ff191e9189522bad8ebff5d4eca98",
   "faultGameMaxDepth": 4,
-  "faultGameMaxDuration": 300
+  "faultGameMaxDuration": 300,
+  "systemConfigStartBlock": 0
 }

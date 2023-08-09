@@ -20,6 +20,7 @@ func main() {
 	app.Description = "MIPS Fault Proof tool"
 	app.Commands = []*cli.Command{
 		cmd.LoadELFCommand,
+		cmd.WitnessCommand,
 		cmd.RunCommand,
 	}
 	ctx, cancel := context.WithCancel(context.Background())

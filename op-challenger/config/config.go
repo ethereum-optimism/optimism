@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -18,8 +19,12 @@ var (
 	ErrMissingAlphabetTrace          = errors.New("missing alphabet trace")
 	ErrMissingL1EthRPC               = errors.New("missing l1 eth rpc url")
 	ErrMissingGameAddress            = errors.New("missing game address")
-	ErrMissingPreimageOracleAddress  = errors.New("missing pre-image oracle address")
 	ErrMissingCannonSnapshotFreq     = errors.New("missing cannon snapshot freq")
+	ErrMissingCannonRollupConfig     = errors.New("missing cannon network or rollup config path")
+	ErrMissingCannonL2Genesis        = errors.New("missing cannon network or l2 genesis path")
+	ErrCannonNetworkAndRollupConfig  = errors.New("only specify one of network or rollup config path")
+	ErrCannonNetworkAndL2Genesis     = errors.New("only specify one of network or l2 genesis path")
+	ErrCannonNetworkUnknown          = errors.New("unknown cannon network")
 )
 
 type TraceType string
@@ -53,7 +58,7 @@ func ValidTraceType(value TraceType) bool {
 	return false
 }
 
-const DefaultCannonSnapshotFreq = uint(10_000)
+const DefaultCannonSnapshotFreq = uint(1_000_000_000)
 
 // Config is a well typed config that is parsed from the CLI params.
 // This also contains config options for auxiliary services.
@@ -73,6 +78,9 @@ type Config struct {
 	CannonBin              string // Path to the cannon executable to run when generating trace data
 	CannonServer           string // Path to the op-program executable that provides the pre-image oracle server
 	CannonAbsolutePreState string // File to load the absolute pre-state for Cannon traces from
+	CannonNetwork          string
+	CannonRollupConfigPath string
+	CannonL2GenesisPath    string
 	CannonDatadir          string // Cannon Data Directory
 	CannonL2               string // L2 RPC Url
 	CannonSnapshotFreq     uint   // Frequency of snapshots to create when executing cannon (in VM instructions)
@@ -118,6 +126,24 @@ func (c Config) Check() error {
 		}
 		if c.CannonServer == "" {
 			return ErrMissingCannonServer
+		}
+		if c.CannonNetwork == "" {
+			if c.CannonRollupConfigPath == "" {
+				return ErrMissingCannonRollupConfig
+			}
+			if c.CannonL2GenesisPath == "" {
+				return ErrMissingCannonL2Genesis
+			}
+		} else {
+			if c.CannonRollupConfigPath != "" {
+				return ErrCannonNetworkAndRollupConfig
+			}
+			if c.CannonL2GenesisPath != "" {
+				return ErrCannonNetworkAndL2Genesis
+			}
+			if _, ok := chaincfg.NetworksByName[c.CannonNetwork]; !ok {
+				return fmt.Errorf("%w: %v", ErrCannonNetworkUnknown, c.CannonNetwork)
+			}
 		}
 		if c.CannonAbsolutePreState == "" {
 			return ErrMissingCannonAbsolutePreState

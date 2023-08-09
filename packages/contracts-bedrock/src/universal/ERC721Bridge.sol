@@ -3,18 +3,21 @@ pragma solidity 0.8.15;
 
 import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /// @title ERC721Bridge
 /// @notice ERC721Bridge is a base contract for the L1 and L2 ERC721 bridges.
-abstract contract ERC721Bridge {
+abstract contract ERC721Bridge is Initializable {
     /// @notice Messenger contract on this domain.
-    CrossDomainMessenger public immutable MESSENGER;
+    /// @custom:network-specific
+    CrossDomainMessenger public messenger;
 
     /// @notice Address of the bridge on the other network.
+    /// @custom:legacy
     address public immutable OTHER_BRIDGE;
 
     /// @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
-    uint256[49] private __gap;
+    uint256[48] private __gap;
 
     /// @notice Emitted when an ERC721 bridge to the other network is initiated.
     /// @param localToken  Address of the token on this domain.
@@ -51,31 +54,31 @@ abstract contract ERC721Bridge {
     /// @notice Ensures that the caller is a cross-chain message from the other bridge.
     modifier onlyOtherBridge() {
         require(
-            msg.sender == address(MESSENGER) && MESSENGER.xDomainMessageSender() == OTHER_BRIDGE,
+            msg.sender == address(messenger) && messenger.xDomainMessageSender() == OTHER_BRIDGE,
             "ERC721Bridge: function can only be called from the other bridge"
         );
         _;
     }
 
-    /// @param _messenger   Address of the CrossDomainMessenger on this network.
+    /// @notice Constructs the contract.
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    constructor(address _messenger, address _otherBridge) {
-        require(_messenger != address(0), "ERC721Bridge: messenger cannot be address(0)");
+    constructor(address _otherBridge) {
         require(_otherBridge != address(0), "ERC721Bridge: other bridge cannot be address(0)");
-
-        MESSENGER = CrossDomainMessenger(_messenger);
         OTHER_BRIDGE = _otherBridge;
     }
 
-    /// @custom:legacy
-    /// @notice Legacy getter for messenger contract.
-    /// @return Messenger contract on this domain.
-    function messenger() external view returns (CrossDomainMessenger) {
-        return MESSENGER;
+    // @notice Initializes the contract.
+    /// @param _messenger   Address of the CrossDomainMessenger on this network.
+    function __ERC721Bridge_init(CrossDomainMessenger _messenger) internal onlyInitializing {
+        messenger = _messenger;
     }
 
-    /// @custom:legacy
-    /// @notice Legacy getter for other bridge address.
+    /// @notice Getter for messenger contract.
+    function MESSENGER() external view returns (CrossDomainMessenger) {
+        return messenger;
+    }
+
+    /// @notice Getter for other bridge address.
     /// @return Address of the bridge on the other network.
     function otherBridge() external view returns (address) {
         return OTHER_BRIDGE;

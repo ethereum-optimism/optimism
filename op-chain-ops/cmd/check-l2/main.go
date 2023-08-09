@@ -36,16 +36,16 @@ func main() {
 		Usage: "Check that an OP Stack L2 has been configured correctly",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:     "l1-rpc-url",
-				Required: true,
-				Usage:    "L1 RPC URL",
-				EnvVars:  []string{"L1_RPC_URL"},
+				Name:    "l1-rpc-url",
+				Value:   "http://127.0.0.1:8545",
+				Usage:   "L1 RPC URL",
+				EnvVars: []string{"L1_RPC_URL"},
 			},
 			&cli.StringFlag{
-				Name:     "l2-rpc-url",
-				Required: true,
-				Usage:    "L2 RPC URL",
-				EnvVars:  []string{"L2_RPC_URL"},
+				Name:    "l2-rpc-url",
+				Value:   "http://127.0.0.1:9545",
+				Usage:   "L2 RPC URL",
+				EnvVars: []string{"L2_RPC_URL"},
 			},
 		},
 		Action: entrypoint,
@@ -423,6 +423,19 @@ func checkL2ERC721Bridge(addr common.Address, client *ethclient.Client) error {
 	if otherBridge == (common.Address{}) {
 		return errors.New("L2ERC721Bridge.OTHERBRIDGE is zero address")
 	}
+
+	initialized, err := getInitialized("L2ERC721Bridge", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2ERC721Bridge", "_initialized", initialized)
+
+	initializing, err := getInitializing("L2ERC721Bridge", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2ERC721Bridge", "_initializing", initializing)
+
 	version, err := contract.Version(&bind.CallOpts{})
 	if err != nil {
 		return err
@@ -603,11 +616,23 @@ func checkL2StandardBridge(addr common.Address, client *ethclient.Client) error 
 	if messenger != predeploys.L2CrossDomainMessengerAddr {
 		return fmt.Errorf("L2StandardBridge MESSENGER should be %s, got %s", predeploys.L2CrossDomainMessengerAddr, messenger)
 	}
-
 	version, err := contract.Version(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
+
+	initialized, err := getInitialized("L2StandardBridge", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2StandardBridge", "_initialized", initialized)
+
+	initializing, err := getInitializing("L2StandardBridge", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2StandardBridge", "_initializing", initializing)
+
 	log.Info("L2StandardBridge version", "version", version)
 	return nil
 }
@@ -714,6 +739,19 @@ func checkL2CrossDomainMessenger(addr common.Address, client *ethclient.Client) 
 	if err != nil {
 		return err
 	}
+
+	initialized, err := getInitialized("L2CrossDomainMessenger", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2CrossDomainMessenger", "_initialized", initialized)
+
+	initializing, err := getInitializing("L2CrossDomainMessenger", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2CrossDomainMessenger", "_initializing", initializing)
+
 	log.Info("L2CrossDomainMessenger version", "version", version)
 	return nil
 }
@@ -804,4 +842,58 @@ func getEIP1967ImplementationAddress(client *ethclient.Client, addr common.Addre
 	}
 	impl := common.BytesToAddress(slot)
 	return impl, nil
+}
+
+// getInitialized will get the initialized value in storage of a contract.
+// This is an incrementing number that starts at 1 and increments each time that
+// the contract is upgraded.
+func getInitialized(name string, addr common.Address, client *ethclient.Client) (*big.Int, error) {
+	value, err := getStorageValue(name, "_initialized", addr, client)
+	if err != nil {
+		return nil, err
+	}
+	return new(big.Int).SetBytes(value), nil
+}
+
+// getInitializing will get the _initializing value in storage of a contract.
+func getInitializing(name string, addr common.Address, client *ethclient.Client) (bool, error) {
+	value, err := getStorageValue(name, "_initializing", addr, client)
+	if err != nil {
+		return false, err
+	}
+	if len(value) != 1 {
+		return false, fmt.Errorf("Unexpected length for _initializing: %d", len(value))
+	}
+	return value[0] == 1, nil
+}
+
+// getStorageValue will get the value of a named storage slot in a contract. It isn't smart about
+// automatically converting from a byte slice to a type, it is the caller's responsibility to do that.
+func getStorageValue(name, entryName string, addr common.Address, client *ethclient.Client) ([]byte, error) {
+	layout, err := bindings.GetStorageLayout(name)
+	if err != nil {
+		return nil, err
+	}
+	entry, err := layout.GetStorageLayoutEntry(entryName)
+	if err != nil {
+		return nil, err
+	}
+	typ, err := layout.GetStorageLayoutType(entry.Type)
+	if err != nil {
+		return nil, err
+	}
+	slot := common.BigToHash(big.NewInt(int64(entry.Slot)))
+	value, err := client.StorageAt(context.Background(), addr, slot, nil)
+	if err != nil {
+		return nil, err
+	}
+	if entry.Offset+typ.NumberOfBytes > uint(len(value)) {
+		return nil, fmt.Errorf("value length is too short")
+	}
+	// Swap the endianness
+	slice := common.CopyBytes(value)
+	for i, j := 0, len(slice)-1; i < j; i, j = i+1, j-1 {
+		slice[i], slice[j] = slice[j], slice[i]
+	}
+	return slice[entry.Offset : entry.Offset+typ.NumberOfBytes], nil
 }
