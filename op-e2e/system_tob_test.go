@@ -409,7 +409,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			l2Verif := sys.Clients["verifier"]
 			require.NoError(t, err)
 
-			systemConfig, err := bindings.NewSystemConfigCaller(cfg.L1Deployments.SystemConfig, l1Client)
+			systemConfig, err := bindings.NewSystemConfigCaller(cfg.L1Deployments.SystemConfigProxy, l1Client)
 			require.NoError(t, err)
 			unsafeBlockSigner, err := systemConfig.UnsafeBlockSigner(nil)
 			require.NoError(t, err)

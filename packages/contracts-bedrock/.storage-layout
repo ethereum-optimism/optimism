@@ -89,6 +89,7 @@
 | batcherHash     | bytes32                                | 103  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
 | gasLimit        | uint64                                 | 104  | 0      | 8     | src/L1/SystemConfig.sol:SystemConfig |
 | _resourceConfig | struct ResourceMetering.ResourceConfig | 105  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
+| startBlock      | uint256                                | 106  | 0      | 32    | src/L1/SystemConfig.sol:SystemConfig |
 
 =======================
 ➡ src/legacy/DeployerWhitelist.sol:DeployerWhitelist
