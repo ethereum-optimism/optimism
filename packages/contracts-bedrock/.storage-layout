@@ -33,10 +33,13 @@
 
 | Name          | Type                                            | Slot | Offset | Bytes | Contract                                     |
 |---------------|-------------------------------------------------|------|--------|-------|----------------------------------------------|
-| spacer_0_0_20 | address                                         | 0    | 0      | 20    | src/L1/L1StandardBridge.sol:L1StandardBridge |
+| _initialized  | uint8                                           | 0    | 0      | 1     | src/L1/L1StandardBridge.sol:L1StandardBridge |
+| _initializing | bool                                            | 0    | 1      | 1     | src/L1/L1StandardBridge.sol:L1StandardBridge |
+| spacer_0_2_20 | address                                         | 0    | 2      | 20    | src/L1/L1StandardBridge.sol:L1StandardBridge |
 | spacer_1_0_20 | address                                         | 1    | 0      | 20    | src/L1/L1StandardBridge.sol:L1StandardBridge |
 | deposits      | mapping(address => mapping(address => uint256)) | 2    | 0      | 32    | src/L1/L1StandardBridge.sol:L1StandardBridge |
-| __gap         | uint256[47]                                     | 3    | 0      | 1504  | src/L1/L1StandardBridge.sol:L1StandardBridge |
+| messenger     | contract CrossDomainMessenger                   | 3    | 0      | 20    | src/L1/L1StandardBridge.sol:L1StandardBridge |
+| __gap         | uint256[46]                                     | 4    | 0      | 1472  | src/L1/L1StandardBridge.sol:L1StandardBridge |
 
 =======================
 ➡ src/L1/L2OutputOracle.sol:L2OutputOracle
@@ -148,10 +151,13 @@
 
 | Name          | Type                                            | Slot | Offset | Bytes | Contract                                     |
 |---------------|-------------------------------------------------|------|--------|-------|----------------------------------------------|
-| spacer_0_0_20 | address                                         | 0    | 0      | 20    | src/L2/L2StandardBridge.sol:L2StandardBridge |
+| _initialized  | uint8                                           | 0    | 0      | 1     | src/L2/L2StandardBridge.sol:L2StandardBridge |
+| _initializing | bool                                            | 0    | 1      | 1     | src/L2/L2StandardBridge.sol:L2StandardBridge |
+| spacer_0_2_20 | address                                         | 0    | 2      | 20    | src/L2/L2StandardBridge.sol:L2StandardBridge |
 | spacer_1_0_20 | address                                         | 1    | 0      | 20    | src/L2/L2StandardBridge.sol:L2StandardBridge |
 | deposits      | mapping(address => mapping(address => uint256)) | 2    | 0      | 32    | src/L2/L2StandardBridge.sol:L2StandardBridge |
-| __gap         | uint256[47]                                     | 3    | 0      | 1504  | src/L2/L2StandardBridge.sol:L2StandardBridge |
+| messenger     | contract CrossDomainMessenger                   | 3    | 0      | 20    | src/L2/L2StandardBridge.sol:L2StandardBridge |
+| __gap         | uint256[46]                                     | 4    | 0      | 1472  | src/L2/L2StandardBridge.sol:L2StandardBridge |
 
 =======================
 ➡ src/L2/L2ToL1MessagePasser.sol:L2ToL1MessagePasser

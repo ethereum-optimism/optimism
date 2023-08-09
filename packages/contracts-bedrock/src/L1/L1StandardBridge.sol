@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Predeploys } from "../libraries/Predeploys.sol";
 import { StandardBridge } from "../universal/StandardBridge.sol";
 import { Semver } from "../universal/Semver.sol";
+import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 
 /// @custom:proxied
 /// @title L1StandardBridge
@@ -76,13 +77,32 @@ contract L1StandardBridge is StandardBridge, Semver {
         bytes extraData
     );
 
-    /// @custom:semver 1.1.1
+    /// @custom:semver 1.2.0
     /// @notice Constructs the L1StandardBridge contract.
-    /// @param _messenger Address of the L1CrossDomainMessenger.
-    constructor(address payable _messenger)
-        Semver(1, 1, 1)
-        StandardBridge(_messenger, payable(Predeploys.L2_STANDARD_BRIDGE))
-    {}
+    constructor()
+        Semver(1, 2, 0)
+        StandardBridge(StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)))
+    {
+        initialize({ _messenger: CrossDomainMessenger(address(0)) });
+    }
+
+    /// @notice Storage slot 0 holds a legacy value on upgraded networks. It is an empty
+    //          placeholder slot on new networks. Manually set it to 0 so that `Initializable`
+    //          can use the first storage slot. This few lines of code helps to prevent a large
+    //          diff in the source code to preserve the storage layout. This should be removed
+    //          during the next contract upgrade.
+    modifier clearLegacySlot() {
+        assembly {
+            sstore(0, 0)
+        }
+        _;
+    }
+
+    /// @notice Initializer
+    ///         The fix modifier should be removed during the next contract upgrade.
+    function initialize(CrossDomainMessenger _messenger) public clearLegacySlot reinitializer(2) {
+        __StandardBridge_init({ _messenger: _messenger });
+    }
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
     receive() external payable override onlyEOA {

@@ -10,8 +10,8 @@
   },
   "homepage": "https://optimism.io",
   "type": "module",
-  "main": "dist/constants.js",
-  "module": "dist/constants.mjs",
+  "main": "dist/constants.cjs",
+  "module": "dist/constants.js",
   "types": "src/constants.ts",
   "exports": {
     ".": {
