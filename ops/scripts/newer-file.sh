@@ -6,9 +6,17 @@
 if [[ ! -e "$1" ]]; then exit 1; fi
 if [[ ! -e "$2" ]]; then exit 1; fi
 
-FILE_1_AGE=$(date +%s%N --reference "$1")
-FILE_2_AGE=$(date +%s%N --reference "$2")
-if (("$FILE_1_AGE" > "$FILE_2_AGE")); then
+if uname | grep -q "Darwin"; then
+    MOD_TIME_FMT="-f %m"
+else
+    MOD_TIME_FMT="-c %Y"
+fi
+
+FILE_1_AGE=$(stat $MOD_TIME_FMT "$1")
+FILE_2_AGE=$(stat $MOD_TIME_FMT "$2")
+
+if [ "$FILE_1_AGE" -gt "$FILE_2_AGE" ]; then
   exit 0
 fi
+
 exit 1
