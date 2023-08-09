@@ -423,6 +423,19 @@ func checkL2ERC721Bridge(addr common.Address, client *ethclient.Client) error {
 	if otherBridge == (common.Address{}) {
 		return errors.New("L2ERC721Bridge.OTHERBRIDGE is zero address")
 	}
+
+	initialized, err := getInitialized("L2ERC721Bridge", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2ERC721Bridge", "_initialized", initialized)
+
+	initializing, err := getInitializing("L2ERC721Bridge", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2ERC721Bridge", "_initializing", initializing)
+
 	version, err := contract.Version(&bind.CallOpts{})
 	if err != nil {
 		return err
@@ -614,6 +627,12 @@ func checkL2StandardBridge(addr common.Address, client *ethclient.Client) error 
 	}
 	log.Info("L2StandardBridge", "_initialized", initialized)
 
+	initializing, err := getInitializing("L2StandardBridge", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2StandardBridge", "_initializing", initializing)
+
 	log.Info("L2StandardBridge version", "version", version)
 	return nil
 }
@@ -727,6 +746,12 @@ func checkL2CrossDomainMessenger(addr common.Address, client *ethclient.Client) 
 	}
 	log.Info("L2CrossDomainMessenger", "_initialized", initialized)
 
+	initializing, err := getInitializing("L2CrossDomainMessenger", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2CrossDomainMessenger", "_initializing", initializing)
+
 	log.Info("L2CrossDomainMessenger version", "version", version)
 	return nil
 }
@@ -823,11 +848,33 @@ func getEIP1967ImplementationAddress(client *ethclient.Client, addr common.Addre
 // This is an incrementing number that starts at 1 and increments each time that
 // the contract is upgraded.
 func getInitialized(name string, addr common.Address, client *ethclient.Client) (*big.Int, error) {
+	value, err := getStorageValue(name, "_initialized", addr, client)
+	if err != nil {
+		return nil, err
+	}
+	return new(big.Int).SetBytes(value), nil
+}
+
+// getInitializing will get the _initializing value in storage of a contract.
+func getInitializing(name string, addr common.Address, client *ethclient.Client) (bool, error) {
+	value, err := getStorageValue(name, "_initializing", addr, client)
+	if err != nil {
+		return false, err
+	}
+	if len(value) != 1 {
+		return false, fmt.Errorf("Unexpected length for _initializing: %d", len(value))
+	}
+	return value[0] == 1, nil
+}
+
+// getStorageValue will get the value of a named storage slot in a contract. It isn't smart about
+// automatically converting from a byte slice to a type, it is the caller's responsibility to do that.
+func getStorageValue(name, entryName string, addr common.Address, client *ethclient.Client) ([]byte, error) {
 	layout, err := bindings.GetStorageLayout(name)
 	if err != nil {
 		return nil, err
 	}
-	entry, err := layout.GetStorageLayoutEntry("_initialized")
+	entry, err := layout.GetStorageLayoutEntry(entryName)
 	if err != nil {
 		return nil, err
 	}
@@ -848,6 +895,5 @@ func getInitialized(name string, addr common.Address, client *ethclient.Client) 
 	for i, j := 0, len(slice)-1; i < j; i, j = i+1, j-1 {
 		slice[i], slice[j] = slice[j], slice[i]
 	}
-	initialized := new(big.Int).SetBytes(slice[entry.Offset : entry.Offset+typ.NumberOfBytes])
-	return initialized, nil
+	return slice[entry.Offset : entry.Offset+typ.NumberOfBytes], nil
 }
