@@ -62,7 +62,7 @@ contract L2OutputOracle is Initializable, Semver {
     /// @param newNextOutputIndex  Next L2 output index after the deletion.
     event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
 
-    /// @custom:semver 1.4.0
+    /// @custom:semver 1.4.1
     /// @notice Constructs the L2OutputOracle contract.
     /// @param _submissionInterval  Interval in blocks at which checkpoints must be submitted.
     /// @param _l2BlockTime         The time per L2 block, in seconds.
@@ -73,7 +73,7 @@ contract L2OutputOracle is Initializable, Semver {
         uint256 _l2BlockTime,
         uint256 _finalizationPeriodSeconds
     )
-        Semver(1, 4, 0)
+        Semver(1, 4, 1)
     {
         require(_l2BlockTime > 0, "L2OutputOracle: L2 block time must be greater than 0");
         require(_submissionInterval > 0, "L2OutputOracle: submission interval must be greater than 0");

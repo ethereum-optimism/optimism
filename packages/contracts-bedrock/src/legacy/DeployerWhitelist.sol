@@ -40,8 +40,8 @@ contract DeployerWhitelist is Semver {
         _;
     }
 
-    /// @custom:semver 1.0.1
-    constructor() Semver(1, 0, 1) { }
+    /// @custom:semver 1.0.2
+    constructor() Semver(1, 0, 2) { }
 
     /// @notice Adds or removes an address from the deployment whitelist.
     /// @param _deployer      Address to update permissions for.

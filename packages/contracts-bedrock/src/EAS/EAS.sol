@@ -2,15 +2,11 @@
 pragma solidity 0.8.19;
 
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
-
 import { Semver } from "../universal/Semver.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
-
 import { EIP712Verifier } from "./eip712/EIP712Verifier.sol";
-
 import { ISchemaResolver } from "./resolver/ISchemaResolver.sol";
 
-// prettier-ignore
 import {
     AccessDenied,
     EMPTY_UID,
@@ -22,7 +18,6 @@ import {
     uncheckedInc
 } from "./Common.sol";
 
-// prettier-ignore
 import {
     Attestation,
     AttestationRequest,
@@ -85,7 +80,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
     uint256[MAX_GAP - 3] private __gap;
 
     /// @dev Creates a new EAS instance.
-    constructor() Semver(1, 0, 1) EIP712Verifier("EAS", "1.0.1") { }
+    constructor() Semver(1, 0, 2) EIP712Verifier("EAS", "1.0.1") { }
 
     /// @inheritdoc IEAS
     function getSchemaRegistry() external pure returns (ISchemaRegistry) {

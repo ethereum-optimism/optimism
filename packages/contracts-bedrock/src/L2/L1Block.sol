@@ -38,9 +38,9 @@ contract L1Block is Semver {
     /// @notice The scalar value applied to the L1 portion of the transaction fee.
     uint256 public l1FeeScalar;
 
-    /// @custom:semver 1.0.1
+    /// @custom:semver 1.0.2
     /// @notice Constructs the L1Block contract.
-    constructor() Semver(1, 0, 1) { }
+    constructor() Semver(1, 0, 2) { }
 
     /// @notice Updates the L1 block values.
     /// @param _number         L1 blocknumber.

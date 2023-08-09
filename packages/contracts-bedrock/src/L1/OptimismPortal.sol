@@ -97,9 +97,9 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         _;
     }
 
-    /// @custom:semver 1.8.0
+    /// @custom:semver 1.8.1
     /// @notice Constructs the OptimismPortal contract.
-    constructor() Semver(1, 8, 0) {
+    constructor() Semver(1, 8, 1) {
         initialize({
             _l2Oracle: L2OutputOracle(address(0)),
             _guardian: address(0),

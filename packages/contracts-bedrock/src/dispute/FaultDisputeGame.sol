@@ -95,7 +95,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         L2OutputOracle _l2oo,
         BlockOracle _blockOracle
     )
-        Semver(0, 0, 7)
+        Semver(0, 0, 8)
     {
         GAME_TYPE = _gameType;
         ABSOLUTE_PRESTATE = _absolutePrestate;
