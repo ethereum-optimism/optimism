@@ -822,11 +822,9 @@ jobs:
           name: print go's available MIPS targets
           command: go tool dist list | grep mips
       - run:
-          name: generate cannon prestate
-          command: make cannon-prestate
-      - run:
-          name: generate L1 state
-          command: make devnet-allocs
+          name: Run all init steps for op-e2e
+          command: make pre-test
+          working_directory: <<parameters.module>>
       - run:
           name: run tests
           command: |
