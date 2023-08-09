@@ -385,32 +385,30 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() broadcast() public returns (address) {
-        bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
+        SystemConfig config = new SystemConfig();
 
-        SystemConfig config = new SystemConfig({
-            _owner: cfg.finalSystemOwner(),
-            _overhead: cfg.gasPriceOracleOverhead(),
-            _scalar: cfg.gasPriceOracleScalar(),
-            _batcherHash: batcherHash,
-            _gasLimit: uint64(cfg.l2GenesisBlockGasLimit()),
-            _unsafeBlockSigner: cfg.p2pSequencerAddress(),
-            _config: Constants.DEFAULT_RESOURCE_CONFIG()
-        });
+        require(config.owner() == address(0xdEaD));
+        require(config.overhead() == 0);
+        require(config.scalar() == 0);
+        require(config.unsafeBlockSigner() == address(0));
+        require(config.batcherHash() == bytes32(0));
+        require(config.gasLimit() == 1);
 
-        require(config.owner() == cfg.finalSystemOwner());
-        require(config.overhead() == cfg.gasPriceOracleOverhead());
-        require(config.scalar() == cfg.gasPriceOracleScalar());
-        require(config.unsafeBlockSigner() == cfg.p2pSequencerAddress());
-        require(config.batcherHash() == batcherHash);
-
-        ResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
         ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
-        require(resourceConfig.maxResourceLimit == rconfig.maxResourceLimit);
-        require(resourceConfig.elasticityMultiplier == rconfig.elasticityMultiplier);
-        require(resourceConfig.baseFeeMaxChangeDenominator == rconfig.baseFeeMaxChangeDenominator);
-        require(resourceConfig.systemTxMaxGas == rconfig.systemTxMaxGas);
-        require(resourceConfig.minimumBaseFee == rconfig.minimumBaseFee);
-        require(resourceConfig.maximumBaseFee == rconfig.maximumBaseFee);
+        require(resourceConfig.maxResourceLimit == 1);
+        require(resourceConfig.elasticityMultiplier == 1);
+        require(resourceConfig.baseFeeMaxChangeDenominator == 2);
+        require(resourceConfig.systemTxMaxGas == 0);
+        require(resourceConfig.minimumBaseFee == 0);
+        require(resourceConfig.maximumBaseFee == 0);
+
+        require(config.l1ERC721Bridge() == address(0));
+        require(config.l1StandardBridge() == address(0));
+        require(config.l2OutputOracle() == address(0));
+        require(config.optimismPortal() == address(0));
+        require(config.l1CrossDomainMessenger() == address(0));
+        require(config.optimismMintableERC20Factory() == address(0));
+        require(config.startBlock() == 0);
 
         save("SystemConfig", address(config));
         console.log("SystemConfig deployed at %s", address(config));
@@ -498,7 +496,17 @@ contract Deploy is Deployer {
                     batcherHash,
                     uint64(cfg.l2GenesisBlockGasLimit()),
                     cfg.p2pSequencerAddress(),
-                    Constants.DEFAULT_RESOURCE_CONFIG()
+                    Constants.DEFAULT_RESOURCE_CONFIG(),
+                    cfg.systemConfigStartBlock(),
+                    cfg.batchInboxAddress(),
+                    SystemConfig.Addresses({
+                        l1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
+                        l1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
+                        l1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
+                        l2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
+                        optimismPortal: mustGetAddress("OptimismPortalProxy"),
+                        optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy")
+                    })
                 )
             )
         });
@@ -522,6 +530,12 @@ contract Deploy is Deployer {
         require(resourceConfig.minimumBaseFee == rconfig.minimumBaseFee);
         require(resourceConfig.maximumBaseFee == rconfig.maximumBaseFee);
 
+        require(config.l1ERC721Bridge() == mustGetAddress("L1ERC721BridgeProxy"));
+        require(config.l1StandardBridge() == mustGetAddress("L1StandardBridgeProxy"));
+        require(config.l2OutputOracle() == mustGetAddress("L2OutputOracleProxy"));
+        require(config.optimismPortal() == mustGetAddress("OptimismPortalProxy"));
+        require(config.l1CrossDomainMessenger() == mustGetAddress("L1CrossDomainMessengerProxy"));
+        require(config.startBlock() == cfg.systemConfigStartBlock());
     }
 
     /// @notice Initialize the L1StandardBridge

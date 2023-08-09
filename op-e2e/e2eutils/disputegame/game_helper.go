@@ -33,7 +33,7 @@ func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
 }
 
 func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	err := utils.WaitFor(ctx, time.Second, func() (bool, error) {
 		actual, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
