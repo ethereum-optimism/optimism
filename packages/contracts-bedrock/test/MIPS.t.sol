@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 import { CommonTest } from "./CommonTest.t.sol";
 import { MIPS } from "src/cannon/MIPS.sol";
 import { PreimageOracle } from "src/cannon/PreimageOracle.sol";
-import { console2 as console } from "forge-std/console2.sol";
 
 contract MIPS_Test is CommonTest {
     MIPS internal mips;
@@ -296,6 +295,55 @@ contract MIPS_Test is CommonTest {
         expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
         expect.registers[8] = ~(state.registers[17] | state.registers[18]); // t0
+        expect.registers[17] = state.registers[17];
+        expect.registers[18] = state.registers[18];
+
+        bytes32 postState = mips.step(encodedState, proof);
+        assertTrue(postState == outputState(expect), "unexpected post state");
+    }
+
+    function test_slt_succeeds() external {
+        uint32 insn = encodespec(17, 18, 8, 0x2a); // slt t0, s1, s2
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[17] = 1200;
+        state.registers[18] = 490;
+
+        MIPS.State memory expect;
+        expect.memRoot = state.memRoot;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
+        expect.step = state.step + 1;
+        expect.registers[8] = state.registers[17] < state.registers[18] ? 1 : 0; // t0
+        expect.registers[17] = state.registers[17];
+        expect.registers[18] = state.registers[18];
+
+        bytes32 postState = mips.step(encodeState(state), proof);
+        assertTrue(postState == outputState(expect), "unexpected post state");
+
+        // swap and check again
+        uint32 tmp = state.registers[17];
+        state.registers[17] = state.registers[18];
+        state.registers[18] = tmp;
+        expect.registers[17] = state.registers[17];
+        expect.registers[18] = state.registers[18];
+        expect.registers[8] = state.registers[17] < state.registers[18] ? 1 : 0; // t0
+        postState = mips.step(encodeState(state), proof);
+        assertTrue(postState == outputState(expect), "unexpected post state");
+    }
+
+    function test_sltu_succeeds() external {
+        uint32 insn = encodespec(17, 18, 8, 0x2b); // sltu t0, s1, s2
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[17] = 1200;
+        state.registers[18] = 490;
+        bytes memory encodedState = encodeState(state);
+
+        MIPS.State memory expect;
+        expect.memRoot = state.memRoot;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
+        expect.step = state.step + 1;
+        expect.registers[8] = state.registers[17] < state.registers[18] ? 1 : 0; // t0
         expect.registers[17] = state.registers[17];
         expect.registers[18] = state.registers[18];
 
@@ -969,6 +1017,41 @@ contract MIPS_Test is CommonTest {
         expect.nextPC = label << 2;
         expect.step = state.step + 1;
         expect.registers[31] = state.pc + 8;
+
+        bytes32 postState = mips.step(encodeState(state), proof);
+        assertTrue(postState == outputState(expect), "unexpected post state");
+    }
+
+    function test_jr_succeeds() external {
+        uint16 tgt = 0x34;
+        uint32 insn = encodespec(0x8, 0, 0, 0x8); // jr t0
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[8] = tgt;
+
+        MIPS.State memory expect;
+        expect.memRoot = state.memRoot;
+        expect.pc = state.nextPC;
+        expect.nextPC = tgt;
+        expect.step = state.step + 1;
+        expect.registers[8] = tgt;
+
+        bytes32 postState = mips.step(encodeState(state), proof);
+        assertTrue(postState == outputState(expect), "unexpected post state");
+    }
+
+    function test_jalr_succeeds() external {
+        uint16 tgt = 0x34;
+        uint32 insn = encodespec(0x8, 0, 0x9, 0x9); // jalr t1, t0
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[8] = tgt; // t0
+
+        MIPS.State memory expect;
+        expect.memRoot = state.memRoot;
+        expect.pc = state.nextPC;
+        expect.nextPC = tgt;
+        expect.step = state.step + 1;
+        expect.registers[8] = tgt;
+        expect.registers[9] = state.pc + 8; // t1
 
         bytes32 postState = mips.step(encodeState(state), proof);
         assertTrue(postState == outputState(expect), "unexpected post state");
