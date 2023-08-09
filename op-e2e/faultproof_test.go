@@ -145,7 +145,6 @@ func TestChallengerCompleteDisputeGame(t *testing.T) {
 }
 
 func TestCannonDisputeGame(t *testing.T) {
-	t.Skip("CLI-4290: op-challenger doesn't handle trace extension correctly for cannon")
 	InitParallel(t)
 
 	ctx := context.Background()
