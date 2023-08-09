@@ -37,11 +37,8 @@ func (p *Portal) GetProvenWithdrawalsByBlockRange(ctx context.Context, start, en
 		End:     &end,
 	}
 
-	var iter *bindings.OptimismPortalWithdrawalProvenIterator
-	err := backoff.Do(3, backoff.Exponential(), func() error {
-		var err error
-		iter, err = p.contract.FilterWithdrawalProven(opts, nil, nil, nil)
-		return err
+	iter, err := backoff.Do(ctx, 3, backoff.Exponential(), func() (*bindings.OptimismPortalWithdrawalProvenIterator, error) {
+		return p.contract.FilterWithdrawalProven(opts, nil, nil, nil)
 	})
 	if err != nil {
 		return nil, err
@@ -71,11 +68,8 @@ func (p *Portal) GetFinalizedWithdrawalsByBlockRange(ctx context.Context, start,
 		End:     &end,
 	}
 
-	var iter *bindings.OptimismPortalWithdrawalFinalizedIterator
-	err := backoff.Do(3, backoff.Exponential(), func() error {
-		var err error
-		iter, err = p.contract.FilterWithdrawalFinalized(opts, nil)
-		return err
+	iter, err := backoff.Do(ctx, 3, backoff.Exponential(), func() (*bindings.OptimismPortalWithdrawalFinalizedIterator, error) {
+		return p.contract.FilterWithdrawalFinalized(opts, nil)
 	})
 	if err != nil {
 		return nil, err
