@@ -51,10 +51,10 @@ contract L2StandardBridge is StandardBridge, Semver {
         bytes extraData
     );
 
-    /// @custom:semver 1.2.0
+    /// @custom:semver 1.2.1
     /// @notice Constructs the L2StandardBridge contract.
     /// @param _otherBridge Address of the L1StandardBridge.
-    constructor(StandardBridge _otherBridge) Semver(1, 2, 0) StandardBridge(_otherBridge) {
+    constructor(StandardBridge _otherBridge) Semver(1, 2, 1) StandardBridge(_otherBridge) {
         initialize();
     }
 

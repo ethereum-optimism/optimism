@@ -10,7 +10,7 @@ import { FeeVault } from "../universal/FeeVault.sol";
 /// @notice The SequencerFeeVault is the contract that holds any fees paid to the Sequencer during
 ///         transaction processing and block production.
 contract SequencerFeeVault is FeeVault, Semver {
-    /// @custom:semver 1.3.0
+    /// @custom:semver 1.3.1
     /// @notice Constructs the SequencerFeeVault contract.
     /// @param _recipient           Wallet that will receive the fees.
     /// @param _minWithdrawalAmount Minimum balance for withdrawals.
@@ -21,7 +21,7 @@ contract SequencerFeeVault is FeeVault, Semver {
         WithdrawalNetwork _withdrawalNetwork
     )
         FeeVault(_recipient, _minWithdrawalAmount, _withdrawalNetwork)
-        Semver(1, 3, 0)
+        Semver(1, 3, 1)
     { }
 
     /// @custom:legacy

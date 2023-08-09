@@ -35,7 +35,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
     GameId[] internal _disputeGameList;
 
     /// @notice constructs a new DisputeGameFactory contract.
-    constructor() OwnableUpgradeable() Semver(0, 0, 3) {
+    constructor() OwnableUpgradeable() Semver(0, 0, 4) {
         initialize(address(0));
     }
 
