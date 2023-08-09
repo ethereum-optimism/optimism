@@ -382,10 +382,10 @@ jobs:
             pnpm lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
-          name: gas snapshot
+          name: gas lock
           command: |
             forge --version
-            pnpm gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
+            pnpm gas-lock --check || echo "export GAS_LOCK_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -398,10 +398,10 @@ jobs:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
       - run:
-          name: storage snapshot
+          name: storage lock
           command: |
-            pnpm storage-snapshot
-            git diff --exit-code .storage-layout || echo "export STORAGE_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
+            pnpm storage-lock
+            git diff --exit-code locks/storage-lock || echo "export STORAGE_LOCK_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: semver lock
@@ -422,16 +422,16 @@ jobs:
               FAILED=1
               echo "Linting failed, see job output for details."
             fi
-            if [[ "$GAS_SNAPSHOT_STATUS" -ne 0 ]]; then
+            if [[ "$GAS_LOCK_STATUS" -ne 0 ]]; then
               FAILED=1
-              echo "Gas snapshot failed, see job output for details."
+              echo "Gas lock failed, see job output for details."
             fi
             if [[ "$DEPLOY_CONFIG_STATUS" -ne 0 ]]; then
               FAILED=1
               echo "Deploy configs invalid, see job output for details."
             fi
-            if [[ "$STORAGE_SNAPSHOT_STATUS" -ne 0 ]]; then
-              echo "Storage snapshot failed, see job output for details."
+            if [[ "$STORAGE_LOCK_STATUS" -ne 0 ]]; then
+              echo "Storage lock failed, see job output for details."
               FAILED=1
             fi
             if [[ "$INVARIANT_DOCS_STATUS" -ne 0 ]]; then

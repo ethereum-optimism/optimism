@@ -38,15 +38,15 @@ dir=$(dirname "$0")
 
 echo "Creating storage layout diagrams.."
 
-echo "=======================" > $dir/../.storage-layout
-echo "👁👁 STORAGE LAYOUT snapshot 👁👁" >> $dir/../.storage-layout
-echo "=======================" >> $dir/../.storage-layout
+echo "=======================" > $dir/../locks/storage-lock
+echo "👁👁 STORAGE LAYOUT LOCK 👁👁" >> $dir/../locks/storage-lock
+echo "=======================" >> $dir/../locks/storage-lock
 
 for contract in ${contracts[@]}
 do
-  echo -e "\n=======================" >> $dir/../.storage-layout
-  echo "➡ $contract">> $dir/../.storage-layout
-  echo -e "=======================\n" >> $dir/../.storage-layout
-  forge inspect --pretty $contract storage-layout >> $dir/../.storage-layout
+  echo -e "\n=======================" >> $dir/../locks/storage-lock
+  echo "➡ $contract">> $dir/../locks/storage-lock
+  echo -e "=======================\n" >> $dir/../locks/storage-lock
+  forge inspect --pretty $contract storageLayout >> $dir/../locks/storage-lock
 done
-echo "Storage layout snapshot stored at $dir/../.storage-layout"
+echo "Storage layout lock stored at $dir/../locks/storage-lock"
