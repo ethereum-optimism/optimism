@@ -53,7 +53,7 @@ contract OptimismMintableERC20Factory is Semver {
         string memory _name,
         string memory _symbol
     ) external returns (address) {
-        return createOptimismMintableERC20(_remoteToken, _name, _symbol);
+        return createOptimismMintableERC20(_remoteToken, _name, _symbol, 18);
     }
 
     /// @notice Creates an instance of the OptimismMintableERC20 contract.
@@ -64,7 +64,8 @@ contract OptimismMintableERC20Factory is Semver {
     function createOptimismMintableERC20(
         address _remoteToken,
         string memory _name,
-        string memory _symbol
+        string memory _symbol,
+        uint8 _decimals
     ) public returns (address) {
         require(
             _remoteToken != address(0),
@@ -72,7 +73,7 @@ contract OptimismMintableERC20Factory is Semver {
         );
 
         address localToken = address(
-            new OptimismMintableERC20(BRIDGE, _remoteToken, _name, _symbol)
+            new OptimismMintableERC20(BRIDGE, _remoteToken, _name, _symbol, _decimals)
         );
 
         // Emit the old event too for legacy support.

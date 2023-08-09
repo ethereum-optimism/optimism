@@ -19,6 +19,9 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
     /// @notice Address of the StandardBridge on this network.
     address public immutable BRIDGE;
 
+    /// @notice Decimals of the token
+    uint8 private immutable overridenDecimals;
+
     /// @notice Emitted whenever tokens are minted for an account.
     /// @param account Address of the account tokens are being minted for.
     /// @param amount  Amount of tokens minted.
@@ -44,10 +47,12 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
         address _bridge,
         address _remoteToken,
         string memory _name,
-        string memory _symbol
+        string memory _symbol,
+        uint8 _decimals
     ) ERC20(_name, _symbol) Semver(1, 0, 2) {
         REMOTE_TOKEN = _remoteToken;
         BRIDGE = _bridge;
+        overridenDecimals = _decimals;
     }
 
     /// @notice Allows the StandardBridge on this network to mint tokens.
@@ -110,5 +115,15 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
     /// @notice Legacy getter for BRIDGE.
     function bridge() public view returns (address) {
         return BRIDGE;
+    }
+
+    /// @dev Returns the number of decimals used to get its user representation.
+    /// For example, if `decimals` equals `2`, a balance of `505` tokens should
+    /// be displayed to a user as `5.05` (`505 / 10 ** 2`).
+    /// NOTE: This information is only used for _display_ purposes: it in
+    /// no way affects any of the arithmetic of the contract, including
+    /// {IERC20-balanceOf} and {IERC20-transfer}.
+    function decimals() public view virtual override returns (uint8) {
+        return overridenDecimals;
     }
 }
