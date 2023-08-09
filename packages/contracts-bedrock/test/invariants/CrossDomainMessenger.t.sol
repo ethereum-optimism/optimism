@@ -25,12 +25,7 @@ contract RelayActor is StdUtils {
     Vm vm;
     bool doFail;
 
-    constructor(
-        OptimismPortal _op,
-        L1CrossDomainMessenger _xdm,
-        Vm _vm,
-        bool _doFail
-    ) {
+    constructor(OptimismPortal _op, L1CrossDomainMessenger _xdm, Vm _vm, bool _doFail) {
         op = _op;
         xdm = _xdm;
         vm = _vm;
@@ -39,11 +34,7 @@ contract RelayActor is StdUtils {
 
     /// @notice Relays a message to the `L1CrossDomainMessenger` with a random `version`,
     ///         and `_message`.
-    function relay(
-        uint8 _version,
-        uint8 _value,
-        bytes memory _message
-    ) external {
+    function relay(uint8 _version, uint8 _value, bytes memory _message) external {
         address target = address(0x04); // ID precompile
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
@@ -65,20 +56,13 @@ contract RelayActor is StdUtils {
 
         // If the message should succeed, supply it `baseGas`. If not, supply it an amount of
         // gas that is too low to complete the call.
-        uint256 gas = doFail
-            ? bound(minGasLimit, 60_000, 80_000)
-            : xdm.baseGas(_message, minGasLimit);
+        uint256 gas = doFail ? bound(minGasLimit, 60_000, 80_000) : xdm.baseGas(_message, minGasLimit);
 
         // Compute the cross domain message hash and store it in `hashes`.
         // The `relayMessage` function will always encode the message as a version 1
         // message after checking that the V0 hash has not already been relayed.
         bytes32 _hash = Hashing.hashCrossDomainMessageV1(
-            Encoding.encodeVersionedNonce(0, _version),
-            sender,
-            target,
-            _value,
-            minGasLimit,
-            _message
+            Encoding.encodeVersionedNonce(0, _version), sender, target, _value, minGasLimit, _message
         );
         hashes.push(_hash);
         numHashes += 1;
@@ -92,16 +76,9 @@ contract RelayActor is StdUtils {
         if (!doFail) {
             vm.expectCallMinGas(address(0x04), _value, minGasLimit, _message);
         }
-        try
-            xdm.relayMessage{ gas: gas, value: _value }(
-                Encoding.encodeVersionedNonce(0, _version),
-                sender,
-                target,
-                _value,
-                minGasLimit,
-                _message
-            )
-        {} catch {
+        try xdm.relayMessage{ gas: gas, value: _value }(
+            Encoding.encodeVersionedNonce(0, _version), sender, target, _value, minGasLimit, _message
+        ) { } catch {
             // If any of these calls revert, set `reverted` to true to fail the invariant test.
             // NOTE: This is to get around forge's invariant fuzzer ignoring reverted calls
             // to this function.

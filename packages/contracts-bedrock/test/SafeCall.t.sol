@@ -9,12 +9,7 @@ import { SafeCall } from "../src/libraries/SafeCall.sol";
 
 contract SafeCall_Test is CommonTest {
     /// @dev Tests that the `send` function succeeds.
-    function testFuzz_send_succeeds(
-        address from,
-        address to,
-        uint256 gas,
-        uint64 value
-    ) external {
+    function testFuzz_send_succeeds(address from, address to, uint256 gas, uint64 value) external {
         vm.assume(from.balance == 0);
         vm.assume(to.balance == 0);
         // no precompiles (mainnet)
@@ -49,13 +44,7 @@ contract SafeCall_Test is CommonTest {
     }
 
     /// @dev Tests that `call` succeeds.
-    function testFuzz_call_succeeds(
-        address from,
-        address to,
-        uint256 gas,
-        uint64 value,
-        bytes memory data
-    ) external {
+    function testFuzz_call_succeeds(address from, address to, uint256 gas, uint64 value, bytes memory data) external {
         vm.assume(from.balance == 0);
         vm.assume(to.balance == 0);
         // no precompiles (mainnet)
@@ -96,7 +85,9 @@ contract SafeCall_Test is CommonTest {
         uint64 minGas,
         uint64 value,
         bytes memory data
-    ) external {
+    )
+        external
+    {
         vm.assume(from.balance == 0);
         vm.assume(to.balance == 0);
         // no precompiles (mainnet)
@@ -145,12 +136,7 @@ contract SafeCall_Test is CommonTest {
             if (i < 65_907) {
                 assertFalse(caller.makeSafeCall(i, 25_000));
             } else {
-                vm.expectCallMinGas(
-                    address(caller),
-                    0,
-                    25_000,
-                    abi.encodeWithSelector(caller.setA.selector, 1)
-                );
+                vm.expectCallMinGas(address(caller), 0, 25_000, abi.encodeWithSelector(caller.setA.selector, 1));
                 assertTrue(caller.makeSafeCall(i, 25_000));
             }
 
@@ -170,12 +156,7 @@ contract SafeCall_Test is CommonTest {
             if (i < 15_278_606) {
                 assertFalse(caller.makeSafeCall(i, 15_000_000));
             } else {
-                vm.expectCallMinGas(
-                    address(caller),
-                    0,
-                    15_000_000,
-                    abi.encodeWithSelector(caller.setA.selector, 1)
-                );
+                vm.expectCallMinGas(address(caller), 0, 15_000_000, abi.encodeWithSelector(caller.setA.selector, 1));
                 assertTrue(caller.makeSafeCall(i, 15_000_000));
             }
 
@@ -188,23 +169,11 @@ contract SimpleSafeCaller {
     uint256 public a;
 
     function makeSafeCall(uint64 gas, uint64 minGas) external returns (bool) {
-        return
-            SafeCall.call(
-                address(this),
-                gas,
-                0,
-                abi.encodeWithSelector(this.makeSafeCallMinGas.selector, minGas)
-            );
+        return SafeCall.call(address(this), gas, 0, abi.encodeWithSelector(this.makeSafeCallMinGas.selector, minGas));
     }
 
     function makeSafeCallMinGas(uint64 minGas) external returns (bool) {
-        return
-            SafeCall.callWithMinGas(
-                address(this),
-                minGas,
-                0,
-                abi.encodeWithSelector(this.setA.selector, 1)
-            );
+        return SafeCall.callWithMinGas(address(this), minGas, 0, abi.encodeWithSelector(this.setA.selector, 1));
     }
 
     function setA(uint256 _a) external {

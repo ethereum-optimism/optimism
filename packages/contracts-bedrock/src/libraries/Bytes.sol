@@ -12,11 +12,7 @@ library Bytes {
     /// @param _start Starting index of the slice.
     /// @param _length Length of the slice.
     /// @return Slice of the input byte array.
-    function slice(
-        bytes memory _bytes,
-        uint256 _start,
-        uint256 _length
-    ) internal pure returns (bytes memory) {
+    function slice(bytes memory _bytes, uint256 _start, uint256 _length) internal pure returns (bytes memory) {
         unchecked {
             require(_length + 31 >= _length, "slice_overflow");
             require(_start + _length >= _start, "slice_overflow");
@@ -56,9 +52,7 @@ library Bytes {
                 } lt(mc, end) {
                     mc := add(mc, 0x20)
                     cc := add(cc, 0x20)
-                } {
-                    mstore(mc, mload(cc))
-                }
+                } { mstore(mc, mload(cc)) }
 
                 mstore(tempBytes, _length)
 
@@ -125,11 +119,7 @@ library Bytes {
             let nibblesStart := add(_nibbles, 0x20)
 
             // Loop through each byte in the input array
-            for {
-                let i := 0x00
-            } lt(i, bytesLength) {
-                i := add(i, 0x01)
-            } {
+            for { let i := 0x00 } lt(i, bytesLength) { i := add(i, 0x01) } {
                 // Get the starting offset of the next 2 bytes in the nibbles array
                 let offset := add(nibblesStart, shl(0x01, i))
                 // Load the byte at the current index within the `_bytes` array

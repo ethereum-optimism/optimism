@@ -40,7 +40,7 @@ contract L1Block is Semver {
 
     /// @custom:semver 1.0.1
     /// @notice Constructs the L1Block contract.
-    constructor() Semver(1, 0, 1) {}
+    constructor() Semver(1, 0, 1) { }
 
     /// @notice Updates the L1 block values.
     /// @param _number         L1 blocknumber.
@@ -60,11 +60,10 @@ contract L1Block is Semver {
         bytes32 _batcherHash,
         uint256 _l1FeeOverhead,
         uint256 _l1FeeScalar
-    ) external {
-        require(
-            msg.sender == DEPOSITOR_ACCOUNT,
-            "L1Block: only the depositor account can set L1 block values"
-        );
+    )
+        external
+    {
+        require(msg.sender == DEPOSITOR_ACCOUNT, "L1Block: only the depositor account can set L1 block values");
 
         number = _number;
         timestamp = _timestamp;

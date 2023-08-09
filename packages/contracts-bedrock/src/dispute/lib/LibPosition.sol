@@ -6,7 +6,6 @@ import "src/libraries/DisputeTypes.sol";
 /// @title LibPosition
 /// @notice This library contains helper functions for working with the `Position` type.
 library LibPosition {
-
     /// @notice Computes a generalized index (2^{depth} + indexAtDepth).
     /// @param _depth The depth of the position.
     /// @param _indexAtDepth The index at the depth of the position.
@@ -36,13 +35,14 @@ library LibPosition {
             _position := or(_position, shr(8, _position))
             _position := or(_position, shr(16, _position))
 
-            depth_ := or(
-                depth_,
-                byte(
-                    shr(251, mul(_position, shl(224, 0x07c4acdd))),
-                    0x0009010a0d15021d0b0e10121619031e080c141c0f111807131b17061a05041f
+            depth_ :=
+                or(
+                    depth_,
+                    byte(
+                        shr(251, mul(_position, shl(224, 0x07c4acdd))),
+                        0x0009010a0d15021d0b0e10121619031e080c141c0f111807131b17061a05041f
+                    )
                 )
-            )
         }
     }
 
@@ -93,10 +93,7 @@ library LibPosition {
     /// @param _position The position to get the relative deepest, right most gindex of.
     /// @param _maxDepth The maximum depth of the game.
     /// @return rightIndex_ The deepest, right most gindex relative to the `position`.
-    function rightIndex(
-        Position _position,
-        uint256 _maxDepth
-    ) internal pure returns (Position rightIndex_) {
+    function rightIndex(Position _position, uint256 _maxDepth) internal pure returns (Position rightIndex_) {
         uint256 msb = depth(_position);
         assembly {
             let remaining := sub(_maxDepth, msb)
@@ -110,17 +107,11 @@ library LibPosition {
     /// @param _position The position to get the relative trace index of.
     /// @param _maxDepth The maximum depth of the game.
     /// @return traceIndex_ The trace index relative to the `position`.
-    function traceIndex(
-        Position _position,
-        uint256 _maxDepth
-    ) internal pure returns (uint256 traceIndex_) {
+    function traceIndex(Position _position, uint256 _maxDepth) internal pure returns (uint256 traceIndex_) {
         uint256 msb = depth(_position);
         assembly {
             let remaining := sub(_maxDepth, msb)
-            traceIndex_ := sub(
-                or(shl(remaining, _position), sub(shl(remaining, 1), 1)),
-                shl(_maxDepth, 1)
-            )
+            traceIndex_ := sub(or(shl(remaining, _position), sub(shl(remaining, 1), 1)), shl(_maxDepth, 1))
         }
     }
 

@@ -15,12 +15,7 @@ contract OptimistInviter_Initializer is Test {
     event InviteClaimed(address indexed issuer, address indexed claimer);
     event Initialized(uint8 version);
     event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
-    event AttestationCreated(
-        address indexed creator,
-        address indexed about,
-        bytes32 indexed key,
-        bytes val
-    );
+    event AttestationCreated(address indexed creator, address indexed about, bytes32 indexed key, bytes val);
 
     bytes32 EIP712_DOMAIN_TYPEHASH;
 
@@ -62,9 +57,8 @@ contract OptimistInviter_Initializer is Test {
         vm.deal(ted, 1 ether);
         vm.deal(eve, 1 ether);
 
-        EIP712_DOMAIN_TYPEHASH = keccak256(
-            "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-        );
+        EIP712_DOMAIN_TYPEHASH =
+            keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 
         _initializeContracts();
     }
@@ -94,19 +88,13 @@ contract OptimistInviter_Initializer is Test {
     /// @notice Returns true if claimer has the proper attestation from OptimistInviter to mint.
     function _hasMintAttestation(address _claimer) internal view returns (bool) {
         bytes memory attestation = attestationStation.attestations(
-            address(optimistInviter),
-            _claimer,
-            OptimistConstants.OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY
+            address(optimistInviter), _claimer, OptimistConstants.OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY
         );
         return attestation.length > 0;
     }
 
     /// @notice Get signature as a bytes blob, since SignatureChecker takes arbitrary signature blobs.
-    function _getSignature(uint256 _signingPrivateKey, bytes32 _digest)
-        internal
-        pure
-        returns (bytes memory)
-    {
+    function _getSignature(uint256 _signingPrivateKey, bytes32 _digest) internal pure returns (bytes memory) {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(_signingPrivateKey, _digest);
 
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -119,14 +107,13 @@ contract OptimistInviter_Initializer is Test {
         internal
         returns (OptimistInviter.ClaimableInvite memory, bytes memory)
     {
-        return
-            _issueInviteWithEIP712Domain(
-                _privateKey,
-                bytes("OptimistInviter"),
-                bytes(optimistInviter.EIP712_VERSION()),
-                block.chainid,
-                address(optimistInviter)
-            );
+        return _issueInviteWithEIP712Domain(
+            _privateKey,
+            bytes("OptimistInviter"),
+            bytes(optimistInviter.EIP712_VERSION()),
+            block.chainid,
+            address(optimistInviter)
+        );
     }
 
     /// @notice Signs a claimable invite with the given private key and returns the signature using
@@ -138,22 +125,21 @@ contract OptimistInviter_Initializer is Test {
         bytes memory _eip712Version,
         uint256 _eip712Chainid,
         address _eip712VerifyingContract
-    ) internal returns (OptimistInviter.ClaimableInvite memory, bytes memory) {
+    )
+        internal
+        returns (OptimistInviter.ClaimableInvite memory, bytes memory)
+    {
         address issuer = vm.addr(_issuerPrivateKey);
-        OptimistInviter.ClaimableInvite memory claimableInvite = optimistInviterHelper
-            .getClaimableInviteWithNewNonce(issuer);
+        OptimistInviter.ClaimableInvite memory claimableInvite =
+            optimistInviterHelper.getClaimableInviteWithNewNonce(issuer);
         return (
             claimableInvite,
             _getSignature(
                 _issuerPrivateKey,
                 optimistInviterHelper.getDigestWithEIP712Domain(
-                    claimableInvite,
-                    _eip712Name,
-                    _eip712Version,
-                    _eip712Chainid,
-                    _eip712VerifyingContract
+                    claimableInvite, _eip712Name, _eip712Version, _eip712Chainid, _eip712VerifyingContract
                 )
-            )
+                )
         );
     }
 
@@ -170,24 +156,22 @@ contract OptimistInviter_Initializer is Test {
     /// @notice Signs a claimable invite with the given private key. The claimer commits then claims
     ///         the invite. Checks that all expected events are emitted and that state is updated
     ///         correctly. Returns the signature and invite for use in tests.
-    function _issueThenClaimShouldSucceed(uint256 _issuerPrivateKey, address _claimer)
+    function _issueThenClaimShouldSucceed(
+        uint256 _issuerPrivateKey,
+        address _claimer
+    )
         internal
         returns (OptimistInviter.ClaimableInvite memory, bytes memory)
     {
         address issuer = vm.addr(_issuerPrivateKey);
         uint256 prevInviteCount = _getInviteCount(issuer);
-        (
-            OptimistInviter.ClaimableInvite memory claimableInvite,
-            bytes memory signature
-        ) = _issueInviteAs(_issuerPrivateKey);
+        (OptimistInviter.ClaimableInvite memory claimableInvite, bytes memory signature) =
+            _issueInviteAs(_issuerPrivateKey);
 
         _commitInviteAs(_claimer, signature);
 
         // The hash(claimer ++ signature) should be committed
-        assertEq(
-            optimistInviter.commitmentTimestamps(keccak256(abi.encode(_claimer, signature))),
-            block.timestamp
-        );
+        assertEq(optimistInviter.commitmentTimestamps(keccak256(abi.encode(_claimer, signature))), block.timestamp);
 
         _passMinCommitmentPeriod();
 
@@ -227,10 +211,7 @@ contract OptimistInviter_Initializer is Test {
 
         vm.expectEmit(true, true, true, true, address(attestationStation));
         emit AttestationCreated(
-            address(optimistInviter),
-            _to,
-            optimistInviter.CAN_INVITE_ATTESTATION_KEY(),
-            bytes("true")
+            address(optimistInviter), _to, optimistInviter.CAN_INVITE_ATTESTATION_KEY(), bytes("true")
         );
 
         vm.prank(alice_inviteGranter);
@@ -258,18 +239,12 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
 
         vm.expectEmit(true, true, true, true, address(attestationStation));
         emit AttestationCreated(
-            address(optimistInviter),
-            bob,
-            optimistInviter.CAN_INVITE_ATTESTATION_KEY(),
-            bytes("true")
+            address(optimistInviter), bob, optimistInviter.CAN_INVITE_ATTESTATION_KEY(), bytes("true")
         );
 
         vm.expectEmit(true, true, true, true, address(attestationStation));
         emit AttestationCreated(
-            address(optimistInviter),
-            sally,
-            optimistInviter.CAN_INVITE_ATTESTATION_KEY(),
-            bytes("true")
+            address(optimistInviter), sally, optimistInviter.CAN_INVITE_ATTESTATION_KEY(), bytes("true")
         );
 
         vm.expectEmit(true, true, true, true, address(attestationStation));
@@ -348,10 +323,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
     /// @notice Bob issues signature, and Ted commits the invite for Sally. Eve claims for Sally.
     function test_claimInvite_claimForSomeoneElse_succeeds() external {
         _grantInvitesTo(bob);
-        (
-            OptimistInviter.ClaimableInvite memory claimableInvite,
-            bytes memory signature
-        ) = _issueInviteAs(bobPrivateKey);
+        (OptimistInviter.ClaimableInvite memory claimableInvite, bytes memory signature) = _issueInviteAs(bobPrivateKey);
 
         vm.prank(ted);
         optimistInviter.commitInvite(keccak256(abi.encode(sally, signature)));
@@ -379,10 +351,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
 
     function test_claimInvite_claimBeforeMinCommitmentPeriod_reverts() external {
         _grantInvitesTo(bob);
-        (
-            OptimistInviter.ClaimableInvite memory claimableInvite,
-            bytes memory signature
-        ) = _issueInviteAs(bobPrivateKey);
+        (OptimistInviter.ClaimableInvite memory claimableInvite, bytes memory signature) = _issueInviteAs(bobPrivateKey);
 
         _commitInviteAs(sally, signature);
 
@@ -397,16 +366,9 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
     /// @notice Signature issued for previous versions of the contract should fail.
     function test_claimInvite_usingSignatureIssuedForDifferentVersion_reverts() external {
         _grantInvitesTo(bob);
-        (
-            OptimistInviter.ClaimableInvite memory claimableInvite,
-            bytes memory signature
-        ) = _issueInviteWithEIP712Domain(
-                bobPrivateKey,
-                "OptimismInviter",
-                "0.9.1",
-                block.chainid,
-                address(optimistInviter)
-            );
+        (OptimistInviter.ClaimableInvite memory claimableInvite, bytes memory signature) = _issueInviteWithEIP712Domain(
+            bobPrivateKey, "OptimismInviter", "0.9.1", block.chainid, address(optimistInviter)
+        );
 
         _commitInviteAs(sally, signature);
         _passMinCommitmentPeriod();
@@ -420,16 +382,9 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
     ///         should fail.
     function test_claimInvite_usingSignatureIssuedForDifferentChain_reverts() external {
         _grantInvitesTo(bob);
-        (
-            OptimistInviter.ClaimableInvite memory claimableInvite,
-            bytes memory signature
-        ) = _issueInviteWithEIP712Domain(
-                bobPrivateKey,
-                "OptimismInviter",
-                bytes(optimistInviter.EIP712_VERSION()),
-                1,
-                address(optimistInviter)
-            );
+        (OptimistInviter.ClaimableInvite memory claimableInvite, bytes memory signature) = _issueInviteWithEIP712Domain(
+            bobPrivateKey, "OptimismInviter", bytes(optimistInviter.EIP712_VERSION()), 1, address(optimistInviter)
+        );
 
         _commitInviteAs(sally, signature);
         _passMinCommitmentPeriod();
@@ -443,16 +398,9 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
     ///         on a different address should fail.
     function test_claimInvite_usingSignatureIssuedForDifferentContract_reverts() external {
         _grantInvitesTo(bob);
-        (
-            OptimistInviter.ClaimableInvite memory claimableInvite,
-            bytes memory signature
-        ) = _issueInviteWithEIP712Domain(
-                bobPrivateKey,
-                "OptimismInviter",
-                bytes(optimistInviter.EIP712_VERSION()),
-                block.chainid,
-                address(0xBEEF)
-            );
+        (OptimistInviter.ClaimableInvite memory claimableInvite, bytes memory signature) = _issueInviteWithEIP712Domain(
+            bobPrivateKey, "OptimismInviter", bytes(optimistInviter.EIP712_VERSION()), block.chainid, address(0xBEEF)
+        );
 
         _commitInviteAs(sally, signature);
         _passMinCommitmentPeriod();
@@ -466,10 +414,8 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
     function test_claimInvite_replayingUsedNonce_reverts() external {
         _grantInvitesTo(bob);
 
-        (
-            OptimistInviter.ClaimableInvite memory claimableInvite,
-            bytes memory signature
-        ) = _issueThenClaimShouldSucceed(bobPrivateKey, sally);
+        (OptimistInviter.ClaimableInvite memory claimableInvite, bytes memory signature) =
+            _issueThenClaimShouldSucceed(bobPrivateKey, sally);
 
         // Sally tries to claim the invite using the same signature
         vm.expectRevert("OptimistInviter: nonce has already been used");
@@ -491,13 +437,10 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
     function test_claimInvite_usingERC1271Wallet_succeeds() external {
         _grantInvitesTo(address(carolERC1271Wallet));
 
-        OptimistInviter.ClaimableInvite memory claimableInvite = optimistInviterHelper
-            .getClaimableInviteWithNewNonce(address(carolERC1271Wallet));
+        OptimistInviter.ClaimableInvite memory claimableInvite =
+            optimistInviterHelper.getClaimableInviteWithNewNonce(address(carolERC1271Wallet));
 
-        bytes memory signature = _getSignature(
-            carolPrivateKey,
-            optimistInviterHelper.getDigest(claimableInvite)
-        );
+        bytes memory signature = _getSignature(carolPrivateKey, optimistInviterHelper.getDigest(claimableInvite));
 
         // Sally tries to claim the invite
         _commitInviteAs(sally, signature);
@@ -520,10 +463,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
     ///         claim the Bob's invite without committing the signature first.
     function test_claimInvite_withoutCommittingHash_reverts() external {
         _grantInvitesTo(bob);
-        (
-            OptimistInviter.ClaimableInvite memory claimableInvite,
-            bytes memory signature
-        ) = _issueInviteAs(bobPrivateKey);
+        (OptimistInviter.ClaimableInvite memory claimableInvite, bytes memory signature) = _issueInviteAs(bobPrivateKey);
 
         vm.expectRevert("OptimistInviter: claimer and signature have not been committed yet");
         vm.prank(sally);
@@ -534,10 +474,8 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
     function test_claimInvite_withIncorrectSignature_reverts() external {
         _grantInvitesTo(carol);
         _grantInvitesTo(bob);
-        (
-            OptimistInviter.ClaimableInvite memory bobClaimableInvite,
-            bytes memory bobSignature
-        ) = _issueInviteAs(bobPrivateKey);
+        (OptimistInviter.ClaimableInvite memory bobClaimableInvite, bytes memory bobSignature) =
+            _issueInviteAs(bobPrivateKey);
         (, bytes memory carolSignature) = _issueInviteAs(carolPrivateKey);
 
         _commitInviteAs(sally, bobSignature);
@@ -554,10 +492,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
     ///         fail.
     function test_claimInvite_whenIssuerNeverReceivedInvites_reverts() external {
         // Bob was never granted any invites, but issues an invite for Eve
-        (
-            OptimistInviter.ClaimableInvite memory claimableInvite,
-            bytes memory signature
-        ) = _issueInviteAs(bobPrivateKey);
+        (OptimistInviter.ClaimableInvite memory claimableInvite, bytes memory signature) = _issueInviteAs(bobPrivateKey);
 
         _commitInviteAs(sally, signature);
         _passMinCommitmentPeriod();
@@ -580,10 +515,8 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
 
         assertEq(_getInviteCount(bob), 0);
 
-        (
-            OptimistInviter.ClaimableInvite memory claimableInvite4,
-            bytes memory signature4
-        ) = _issueInviteAs(bobPrivateKey);
+        (OptimistInviter.ClaimableInvite memory claimableInvite4, bytes memory signature4) =
+            _issueInviteAs(bobPrivateKey);
 
         _commitInviteAs(eve, signature4);
         _passMinCommitmentPeriod();

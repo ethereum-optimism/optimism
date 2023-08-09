@@ -106,7 +106,7 @@ contract DeployConfig is Script {
             } catch {
                 try vm.parseJsonUint(_json, "$.l1StartingBlockTag") returns (uint256 tag) {
                     return _getBlockByTag(vm.toString(tag));
-                } catch {}
+                } catch { }
             }
         }
         revert("l1StartingBlockTag must be a bytes32, string or uint256 or cannot fetch l1StartingBlockTag");
