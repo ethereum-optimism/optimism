@@ -2,7 +2,11 @@
 pragma solidity 0.8.15;
 
 import { Predeploys } from "../libraries/Predeploys.sol";
-import { StandardBridge } from "../universal/StandardBridge.sol";
+import {
+    StandardBridge,
+    ETHStandardBridge,
+    ERC20StandardBridge
+} from "../universal/StandardBridge.sol";
 import { Semver } from "../universal/Semver.sol";
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
@@ -54,7 +58,7 @@ contract L2StandardBridge is StandardBridge, Semver {
     /// @custom:semver 1.2.1
     /// @notice Constructs the L2StandardBridge contract.
     /// @param _otherBridge Address of the L1StandardBridge.
-    constructor(StandardBridge _otherBridge) Semver(1, 2, 1) StandardBridge(_otherBridge) {
+    constructor(StandardBridge _otherBridge) Semver(1, 3, 0) StandardBridge(_otherBridge) {
         initialize();
     }
 
@@ -180,9 +184,9 @@ contract L2StandardBridge is StandardBridge, Semver {
         }
     }
 
+    /// @inheritdoc ETHStandardBridge
     /// @notice Emits the legacy WithdrawalInitiated event followed by the ETHBridgeInitiated event.
     ///         This is necessary for backwards compatibility with the legacy bridge.
-    /// @inheritdoc StandardBridge
     function _emitETHBridgeInitiated(
         address _from,
         address _to,
@@ -196,9 +200,9 @@ contract L2StandardBridge is StandardBridge, Semver {
         super._emitETHBridgeInitiated(_from, _to, _amount, _extraData);
     }
 
+    /// @inheritdoc ETHStandardBridge
     /// @notice Emits the legacy DepositFinalized event followed by the ETHBridgeFinalized event.
     ///         This is necessary for backwards compatibility with the legacy bridge.
-    /// @inheritdoc StandardBridge
     function _emitETHBridgeFinalized(
         address _from,
         address _to,
@@ -212,9 +216,9 @@ contract L2StandardBridge is StandardBridge, Semver {
         super._emitETHBridgeFinalized(_from, _to, _amount, _extraData);
     }
 
+    /// @inheritdoc ERC20StandardBridge
     /// @notice Emits the legacy WithdrawalInitiated event followed by the ERC20BridgeInitiated
     ///         event. This is necessary for backwards compatibility with the legacy bridge.
-    /// @inheritdoc StandardBridge
     function _emitERC20BridgeInitiated(
         address _localToken,
         address _remoteToken,
@@ -230,9 +234,9 @@ contract L2StandardBridge is StandardBridge, Semver {
         super._emitERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }
 
+    /// @inheritdoc ERC20StandardBridge
     /// @notice Emits the legacy DepositFinalized event followed by the ERC20BridgeFinalized event.
     ///         This is necessary for backwards compatibility with the legacy bridge.
-    /// @inheritdoc StandardBridge
     function _emitERC20BridgeFinalized(
         address _localToken,
         address _remoteToken,

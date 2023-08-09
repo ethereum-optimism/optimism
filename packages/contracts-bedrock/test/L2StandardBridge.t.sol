@@ -15,7 +15,7 @@ import { Types } from "../src/libraries/Types.sol";
 
 // Target contract dependencies
 import { Predeploys } from "../src/libraries/Predeploys.sol";
-import { StandardBridge } from "../src/universal/StandardBridge.sol";
+import { ETHStandardBridge, ERC20StandardBridge, StandardBridge } from "../src/universal/StandardBridge.sol";
 import { OptimismMintableERC20 } from "../src/universal/OptimismMintableERC20.sol";
 
 contract L2StandardBridge_Test is Bridge_Initializer {
@@ -34,7 +34,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         uint256 nonce = L2Messenger.messageNonce();
 
         bytes memory message =
-            abi.encodeWithSelector(StandardBridge.finalizeBridgeETH.selector, alice, alice, 100, hex"");
+            abi.encodeWithSelector(ETHStandardBridge.finalizeBridgeETH.selector, alice, alice, 100, hex"");
         uint64 baseGas = L2Messenger.baseGas(message, 200_000);
         bytes memory withdrawalData = abi.encodeWithSelector(
             CrossDomainMessenger.relayMessage.selector,
@@ -147,7 +147,7 @@ contract PreBridgeERC20 is Bridge_Initializer {
         assertEq(ERC20(_l2Token).balanceOf(alice), 100);
         uint256 nonce = L2Messenger.messageNonce();
         bytes memory message = abi.encodeWithSelector(
-            StandardBridge.finalizeBridgeERC20.selector, address(L1Token), _l2Token, alice, alice, 100, hex""
+            ERC20StandardBridge.finalizeBridgeERC20.selector, address(L1Token), _l2Token, alice, alice, 100, hex""
         );
         uint64 baseGas = L2Messenger.baseGas(message, 1000);
         bytes memory withdrawalData = abi.encodeWithSelector(
@@ -267,7 +267,7 @@ contract PreBridgeERC20To is Bridge_Initializer {
         assertEq(ERC20(L2Token).balanceOf(alice), 100);
         uint256 nonce = L2Messenger.messageNonce();
         bytes memory message = abi.encodeWithSelector(
-            StandardBridge.finalizeBridgeERC20.selector, address(L1Token), _l2Token, alice, bob, 100, hex""
+            ERC20StandardBridge.finalizeBridgeERC20.selector, address(L1Token), _l2Token, alice, bob, 100, hex""
         );
         uint64 baseGas = L2Messenger.baseGas(message, 1000);
         bytes memory withdrawalData = abi.encodeWithSelector(
