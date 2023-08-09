@@ -33,6 +33,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         address l1StandardBridge;
         address l2OutputOracle;
         address optimismPortal;
+        address optimismMintableERC20Factory;
     }
 
     /// @notice Version identifier, used for upgrades.
@@ -67,6 +68,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     /// @notice Storage slot that the OptimismPortal address is stored at.
     bytes32 public constant OPTIMISM_PORTAL_SLOT =
         bytes32(uint256(keccak256("systemconfig.optimismportal")) - 1);
+
+    /// @notice Storage slot that the OptimismMintableERC20Factory address is stored at.
+    bytes32 public constant OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT =
+        bytes32(uint256(keccak256("systemconfig.optimismmintableerc20factory")) - 1);
 
     /// @notice Storage slot that the batch inbox address is stored at.
     bytes32 public constant BATCH_INBOX_SLOT =
@@ -127,7 +132,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
                 l1ERC721Bridge: address(0),
                 l1StandardBridge: address(0),
                 l2OutputOracle: address(0),
-                optimismPortal: address(0)
+                optimismPortal: address(0),
+                optimismMintableERC20Factory: address(0)
             })
         });
     }
@@ -175,6 +181,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         _setAddress(_addresses.l1StandardBridge, L1_STANDARD_BRIDGE_SLOT);
         _setAddress(_addresses.l2OutputOracle, L2_OUTPUT_ORACLE_SLOT);
         _setAddress(_addresses.optimismPortal, OPTIMISM_PORTAL_SLOT);
+        _setAddress(_addresses.optimismMintableERC20Factory, OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
 
         // The start block for the op-node to start searching for logs
         // needs to be set in a backwards compatible way. Only allow setting
@@ -260,6 +267,11 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     /// @notice Getter for the OptimismPortal address.
     function optimismPortal() external view returns (address) {
         return _getAddress(OPTIMISM_PORTAL_SLOT);
+    }
+
+    /// @notice Getter for the OptimismMintableERC20Factory address.
+    function optimismMintableERC20Factory() external view returns (address) {
+        return _getAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
     }
 
     /// @notice Getter for the BatchInbox address.

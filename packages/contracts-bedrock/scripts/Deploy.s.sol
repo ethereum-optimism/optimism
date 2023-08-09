@@ -407,6 +407,7 @@ contract Deploy is Deployer {
         require(config.l2OutputOracle() == address(0));
         require(config.optimismPortal() == address(0));
         require(config.l1CrossDomainMessenger() == address(0));
+        require(config.optimismMintableERC20Factory() == address(0));
         require(config.startBlock() == 0);
 
         save("SystemConfig", address(config));
@@ -503,7 +504,8 @@ contract Deploy is Deployer {
                         l1ERC721Bridge: mustGetAddress("L1ERC721BridgeProxy"),
                         l1StandardBridge: mustGetAddress("L1StandardBridgeProxy"),
                         l2OutputOracle: mustGetAddress("L2OutputOracleProxy"),
-                        optimismPortal: mustGetAddress("OptimismPortalProxy")
+                        optimismPortal: mustGetAddress("OptimismPortalProxy"),
+                        optimismMintableERC20Factory: mustGetAddress("OptimismMintableERC20FactoryProxy")
                     })
                 )
             )

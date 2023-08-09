@@ -226,7 +226,8 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
                         l1ERC721Bridge: address(0),
                         l1StandardBridge: address(0),
                         l2OutputOracle: address(oracle),
-                        optimismPortal: address(op)
+                        optimismPortal: address(op),
+                        optimismMintableERC20Factory: address(0)
                     })
                 )
             )
