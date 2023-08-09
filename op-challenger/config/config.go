@@ -58,7 +58,7 @@ func ValidTraceType(value TraceType) bool {
 	return false
 }
 
-const DefaultCannonSnapshotFreq = uint(10_000)
+const DefaultCannonSnapshotFreq = uint(1_000_000_000)
 
 // Config is a well typed config that is parsed from the CLI params.
 // This also contains config options for auxiliary services.
