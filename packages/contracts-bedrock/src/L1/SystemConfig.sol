@@ -43,7 +43,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     ///         Storing it at this deterministic storage slot allows for decoupling the storage
     ///         layout from the way that `solc` lays out storage. The `op-node` uses a storage
     ///         proof to fetch this value.
-    ///         NOTE: this value will be migrated to another storage slot in a future version.
+    /// @dev    NOTE: this value will be migrated to another storage slot in a future version.
     ///         User input should not be placed in storage in this contract until this migration
     ///         happens. It is unlikely that keccak second preimage resistance will be broken,
     ///         but it is better to be safe than sorry.
@@ -202,15 +202,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     /// @notice High level getter for the unsafe block signer address.
     ///         Unsafe blocks can be propagated across the p2p network if they are signed by the
     ///         key corresponding to this address.
-    /// @return Address of the unsafe block signer.
+    /// @return addr_ Address of the unsafe block signer.
     // solhint-disable-next-line ordering
-    function unsafeBlockSigner() external view returns (address) {
-        address addr;
-        bytes32 slot = UNSAFE_BLOCK_SIGNER_SLOT;
-        assembly {
-            addr := sload(slot)
-        }
-        return addr;
+    function unsafeBlockSigner() external view returns (address addr_) {
+        addr_ = _getAddress(UNSAFE_BLOCK_SIGNER_SLOT);
     }
 
     /// @notice Stores an address in an arbitrary storage slot, `_slot`.
@@ -220,9 +215,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     ///      in arbitrary storage slots. Solc will add checks that the data passed as `_addr`
     ///      is 20 bytes or less.
     function _setAddress(address _addr, bytes32 _slot) internal {
-        bytes32 slot = _slot;
         assembly {
-            sstore(slot, _addr)
+            sstore(_slot, _addr)
         }
     }
 
@@ -230,59 +224,63 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     ///         These storage slots decouple the storage layout from
     ///         solc's automation.
     /// @param _slot The storage slot to retrieve the address from.
-    function _getAddress(bytes32 _slot) internal view returns (address) {
-        address addr;
-        bytes32 slot = _slot;
+    function _getAddress(bytes32 _slot) internal view returns (address addr_) {
         assembly {
-            addr := sload(slot)
+            addr_ := sload(_slot)
         }
-        return addr;
     }
 
     /// @notice Getter for the L1CrossDomainMessenger address.
-    function l1CrossDomainMessenger() external view returns (address) {
-        return _getAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT);
+    function l1CrossDomainMessenger() external view returns (address addr_) {
+        addr_ = _getAddress(L1_CROSS_DOMAIN_MESSENGER_SLOT);
     }
 
     /// @notice Getter for the L1ERC721Bridge address.
-    function l1ERC721Bridge() external view returns (address) {
-        return _getAddress(L1_ERC_721_BRIDGE_SLOT);
+    function l1ERC721Bridge() external view returns (address addr_) {
+        addr_ = _getAddress(L1_ERC_721_BRIDGE_SLOT);
     }
 
     /// @notice Getter for the L1StandardBridge address.
-    function l1StandardBridge() external view returns (address) {
-        return _getAddress(L1_STANDARD_BRIDGE_SLOT);
+    function l1StandardBridge() external view returns (address addr_) {
+        addr_ = _getAddress(L1_STANDARD_BRIDGE_SLOT);
     }
 
     /// @notice Getter for the L2OutputOracle address.
-    function l2OutputOracle() external view returns (address) {
-        return _getAddress(L2_OUTPUT_ORACLE_SLOT);
+    function l2OutputOracle() external view returns (address addr_) {
+        addr_ = _getAddress(L2_OUTPUT_ORACLE_SLOT);
     }
 
     /// @notice Getter for the OptimismPortal address.
-    function optimismPortal() external view returns (address) {
-        return _getAddress(OPTIMISM_PORTAL_SLOT);
+    function optimismPortal() external view returns (address addr_) {
+        addr_ = _getAddress(OPTIMISM_PORTAL_SLOT);
     }
 
     /// @notice Getter for the OptimismMintableERC20Factory address.
-    function optimismMintableERC20Factory() external view returns (address) {
-        return _getAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
+    function optimismMintableERC20Factory() external view returns (address addr_) {
+        addr_ = _getAddress(OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
     }
 
     /// @notice Getter for the BatchInbox address.
-    function batchInbox() external view returns (address) {
-        return _getAddress(BATCH_INBOX_SLOT);
+    function batchInbox() external view returns (address addr_) {
+        addr_ = _getAddress(BATCH_INBOX_SLOT);
     }
 
     /// @notice Sets the start block in a backwards compatible way. Proxies
-    ///         that were initialized before this existed will not have it
-    ///         be set by `block.number`.
+    ///         that were initialized before the startBlock existed in storage
+    ///         can have their start block set by a user provided override.
+    ///         A start block of 0 indicates that there is no override and the
+    ///         start block will be set by `block.number`.
+    /// @dev    This logic is used to patch legacy with new storage values. In the
+    ///         next version, it should remove the override and set the start block
+    ///         to `block.number` if the value in storage is 0. This will allow it
+    ///         to be reinitialized again and also work for fresh deployments.
+    /// @param  _startBlock The start block override to set in storage.
     function _setStartBlock(uint256 _startBlock) internal {
+        require(startBlock == 0, "SystemConfig: cannot override an already set start block");
         if (_startBlock != 0) {
             // There is an override, it cannot already be set.
-            require(startBlock == 0, "SystemConfig: cannot override an already set start block");
             startBlock = _startBlock;
-        } else if (startBlock == 0) {
+        } else {
             // There is no override and it is not set in storage. Set it to the block number.
             startBlock = block.number;
         }
