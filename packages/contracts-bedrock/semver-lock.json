@@ -4,7 +4,7 @@
   "src/L1/L1StandardBridge.sol": "0xa35dc0ab143043063c3bff73c8b065e401c23296a2017258ce8a87f4a4da9416",
   "src/L1/L2OutputOracle.sol": "0x8f32ccb4c5cb63a459a0e79ee412177dc03fd279fdaaf1dac69e8c714902e857",
   "src/L1/OptimismPortal.sol": "0xeaa47a63e8a3bcfdb7dfd3e6c8608369e34e362d9de82f3acf13cbc27c070bf7",
-  "src/L1/SystemConfig.sol": "0xb3a313305b6b813cf2ef0a2a11a94cbd26a14b8e00e6b8fd6c07eff23890e179",
+  "src/L1/SystemConfig.sol": "0x6ee7793ce1fb655dae54f1fb639188b199001d406dfac18e2911969508aa6002",
   "src/L2/BaseFeeVault.sol": "0xa596e60762f16192cfa86459fcb9f4da9d8f756106eedac643a1ffeafbbfcc5f",
   "src/L2/GasPriceOracle.sol": "0xc735a8bf01ad8bca194345748537bfd9924909c0342bc133c4a31e2fb8cb9882",
   "src/L2/L1Block.sol": "0x7fbfc8b4da630386636c665570321fdec287b0867dbe0f91c2e7cd5b7697c220",
