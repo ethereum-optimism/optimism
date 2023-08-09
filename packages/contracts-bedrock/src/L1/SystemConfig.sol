@@ -226,7 +226,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         }
     }
 
-    /// @notice
+    /// @notice Returns an address stored in an arbitrary storage slot.
+    ///         These storage slots decouple the storage layout from
+    ///         solc's automation.
+    /// @param _slot The storage slot to retrieve the address from.
     function _getAddress(bytes32 _slot) internal view returns (address) {
         address addr;
         bytes32 slot = _slot;
