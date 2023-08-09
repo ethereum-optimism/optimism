@@ -1453,7 +1453,7 @@ func TestPendingBlockIsLatest(t *testing.T) {
 	l2Seq := sys.Clients["sequencer"]
 
 	t.Run("block", func(t *testing.T) {
-		for i := 0; i < 10; i++ {
+		for i := 0; i < 100; i++ {
 			// TODO(CLI-4044): pending-block ID change
 			pending, err := l2Seq.BlockByNumber(context.Background(), big.NewInt(-1))
 			require.NoError(t, err)
@@ -1468,7 +1468,7 @@ func TestPendingBlockIsLatest(t *testing.T) {
 		t.Fatal("failed to get pending block with same number as latest block")
 	})
 	t.Run("header", func(t *testing.T) {
-		for i := 0; i < 10; i++ {
+		for i := 0; i < 100; i++ {
 			// TODO(CLI-4044): pending-block ID change
 			pending, err := l2Seq.HeaderByNumber(context.Background(), big.NewInt(-1))
 			require.NoError(t, err)
