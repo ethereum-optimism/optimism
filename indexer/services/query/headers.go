@@ -10,11 +10,7 @@ import (
 
 // HeaderByNumberWithRetry retries getting headers.
 func HeaderByNumberWithRetry(ctx context.Context, client *ethclient.Client) (*types.Header, error) {
-	var res *types.Header
-	err := backoff.DoCtx(ctx, 3, backoff.Exponential(), func() error {
-		var err error
-		res, err = client.HeaderByNumber(ctx, nil)
-		return err
+	return backoff.Do(ctx, 3, backoff.Exponential(), func() (*types.Header, error) {
+		return client.HeaderByNumber(ctx, nil)
 	})
-	return res, err
 }
