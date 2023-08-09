@@ -183,15 +183,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         _setAddress(_addresses.optimismPortal, OPTIMISM_PORTAL_SLOT);
         _setAddress(_addresses.optimismMintableERC20Factory, OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT);
 
-        // The start block for the op-node to start searching for logs
-        // needs to be set in a backwards compatible way. Only allow setting
-        // the start block with an override if it has previously never been set.
-        if (_startBlock != 0) {
-            require(startBlock == 0, "SystemConfig: cannot override an already set start block");
-            startBlock = _startBlock;
-        } else if (startBlock == 0) {
-            startBlock = block.number;
-        }
+        _setStartBlock(_startBlock);
 
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
@@ -277,6 +269,20 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     /// @notice Getter for the BatchInbox address.
     function batchInbox() external view returns (address) {
         return _getAddress(BATCH_INBOX_SLOT);
+    }
+
+    /// @notice Sets the start block in a backwards compatible way. Proxies
+    ///         that were initialized before this existed will not have it
+    ///         be set by `block.number`.
+    function _setStartBlock(uint256 _startBlock) internal {
+        if (_startBlock != 0) {
+            // There is an override, it cannot already be set.
+            require(startBlock == 0, "SystemConfig: cannot override an already set start block");
+            startBlock = _startBlock;
+        } else if (startBlock == 0) {
+            // There is no override and it is not set in storage. Set it to the block number.
+            startBlock = block.number;
+        }
     }
 
     /// @notice Updates the unsafe block signer address.
