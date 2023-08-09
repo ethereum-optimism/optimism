@@ -19,7 +19,10 @@ contract SequencerFeeVault is FeeVault, Semver {
         address _recipient,
         uint256 _minWithdrawalAmount,
         WithdrawalNetwork _withdrawalNetwork
-    ) FeeVault(_recipient, _minWithdrawalAmount, _withdrawalNetwork) Semver(1, 3, 0) {}
+    )
+        FeeVault(_recipient, _minWithdrawalAmount, _withdrawalNetwork)
+        Semver(1, 3, 0)
+    { }
 
     /// @custom:legacy
     /// @notice Legacy getter for the recipient address.

@@ -29,8 +29,7 @@ contract Proxy_Test is Test {
 
     address alice = address(64);
 
-    bytes32 internal constant IMPLEMENTATION_KEY =
-        bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
+    bytes32 internal constant IMPLEMENTATION_KEY = bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
 
     bytes32 internal constant OWNER_KEY = bytes32(uint256(keccak256("eip1967.proxy.admin")) - 1);
 
@@ -155,10 +154,7 @@ contract Proxy_Test is Test {
         vm.expectEmit(true, true, true, true);
         emit Upgraded(address(simpleStorage));
         vm.prank(alice);
-        proxy.upgradeToAndCall(
-            address(simpleStorage),
-            abi.encodeWithSelector(simpleStorage.set.selector, 1, 1)
-        );
+        proxy.upgradeToAndCall(address(simpleStorage), abi.encodeWithSelector(simpleStorage.set.selector, 1, 1));
 
         // The call should have impacted the state
         uint256 result = SimpleStorage(address(proxy)).get(1);
@@ -191,10 +187,7 @@ contract Proxy_Test is Test {
         // The attempt to `upgradeToAndCall`
         // should revert when it is not called by the owner.
         vm.expectRevert();
-        proxy.upgradeToAndCall(
-            address(simpleStorage),
-            abi.encodeWithSelector(simpleStorage.set.selector, 1, 1)
-        );
+        proxy.upgradeToAndCall(address(simpleStorage), abi.encodeWithSelector(simpleStorage.set.selector, 1, 1));
     }
 
     function test_upgradeToAndCall_isPayable_succeeds() external {
@@ -204,8 +197,7 @@ contract Proxy_Test is Test {
         // value.
         vm.prank(alice);
         proxy.upgradeToAndCall{ value: 1 ether }(
-            address(simpleStorage),
-            abi.encodeWithSelector(simpleStorage.set.selector, 1, 1)
+            address(simpleStorage), abi.encodeWithSelector(simpleStorage.set.selector, 1, 1)
         );
 
         // The implementation address should be correct
@@ -267,10 +259,7 @@ contract Proxy_Test is Test {
         (bool success, bytes memory returndata) = address(proxy).call(hex"");
         assertEq(success, false);
 
-        bytes memory err = abi.encodeWithSignature(
-            "Error(string)",
-            "Proxy: implementation not initialized"
-        );
+        bytes memory err = abi.encodeWithSignature("Error(string)", "Proxy: implementation not initialized");
 
         assertEq(returndata, err);
     }

@@ -9,18 +9,14 @@ import { CrossDomainMessenger } from "../src/universal/CrossDomainMessenger.sol"
 import { ResourceMetering } from "../src/L1/ResourceMetering.sol";
 
 // Free function for setting the prevBaseFee param in the OptimismPortal.
-function setPrevBaseFee(
-    Vm _vm,
-    address _op,
-    uint128 _prevBaseFee
-) {
+function setPrevBaseFee(Vm _vm, address _op, uint128 _prevBaseFee) {
     _vm.store(address(_op), bytes32(uint256(1)), bytes32((block.number << 192) | _prevBaseFee));
 }
 
 contract SetPrevBaseFee_Test is Portal_Initializer {
     function test_setPrevBaseFee_succeeds() external {
         setPrevBaseFee(vm, address(op), 100 gwei);
-        (uint128 prevBaseFee, , uint64 prevBlockNum) = op.params();
+        (uint128 prevBaseFee,, uint64 prevBlockNum) = op.params();
         assertEq(uint256(prevBaseFee), 100 gwei);
         assertEq(uint256(prevBlockNum), block.number);
     }
@@ -56,8 +52,7 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
         // Get withdrawal proof data we can use for testing.
         bytes32 _storageRoot;
         bytes32 _stateRoot;
-        (_stateRoot, _storageRoot, _outputRoot, , _withdrawalProof) = ffi
-            .getProveWithdrawalTransactionInputs(_defaultTx);
+        (_stateRoot, _storageRoot, _outputRoot,, _withdrawalProof) = ffi.getProveWithdrawalTransactionInputs(_defaultTx);
 
         // Setup a dummy output root proof for reuse.
         _outputRootProof = Types.OutputRootProof({
@@ -78,11 +73,7 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
         oracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
 
         // Warp beyond the finalization period for the block we've proposed.
-        vm.warp(
-            oracle.getL2Output(_proposedOutputIndex).timestamp +
-                oracle.FINALIZATION_PERIOD_SECONDS() +
-                1
-        );
+        vm.warp(oracle.getL2Output(_proposedOutputIndex).timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
 
         // Fund the portal so that we can withdraw ETH.
         vm.deal(address(op), 0xFFFFFFFF);
@@ -90,32 +81,19 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
 
     function test_depositTransaction_benchmark() external {
         op.depositTransaction{ value: NON_ZERO_VALUE }(
-            NON_ZERO_ADDRESS,
-            ZERO_VALUE,
-            NON_ZERO_GASLIMIT,
-            false,
-            NON_ZERO_DATA
+            NON_ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, false, NON_ZERO_DATA
         );
     }
 
     function test_depositTransaction_benchmark_1() external {
         setPrevBaseFee(vm, address(op), 1 gwei);
         op.depositTransaction{ value: NON_ZERO_VALUE }(
-            NON_ZERO_ADDRESS,
-            ZERO_VALUE,
-            NON_ZERO_GASLIMIT,
-            false,
-            NON_ZERO_DATA
+            NON_ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, false, NON_ZERO_DATA
         );
     }
 
     function test_proveWithdrawalTransaction_benchmark() external {
-        op.proveWithdrawalTransaction(
-            _defaultTx,
-            _proposedOutputIndex,
-            _outputRootProof,
-            _withdrawalProof
-        );
+        op.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
     }
 }
 
@@ -124,8 +102,8 @@ contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
         vm.pauseGasMetering();
         setPrevBaseFee(vm, address(op), 1 gwei);
         // The amount of data typically sent during a bridge deposit.
-        bytes
-            memory data = hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        bytes memory data =
+            hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
         vm.resumeGasMetering();
         L1Messenger.sendMessage(bob, data, uint32(100));
     }
@@ -134,8 +112,8 @@ contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
         vm.pauseGasMetering();
         setPrevBaseFee(vm, address(op), 10 gwei);
         // The amount of data typically sent during a bridge deposit.
-        bytes
-            memory data = hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        bytes memory data =
+            hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
         vm.resumeGasMetering();
         L1Messenger.sendMessage(bob, data, uint32(100));
     }

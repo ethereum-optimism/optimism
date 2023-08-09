@@ -20,7 +20,6 @@ import { PreimageKeyLib } from "./PreimageKeyLib.sol";
 /// @dev https://github.com/golang/go/blob/master/src/syscall/zerrors_linux_mips.go
 ///      MIPS linux kernel errors used by Go runtime
 contract MIPS {
-
     /// @notice Stores the VM state.
     ///         Total state size: 32 + 32 + 6 * 4 + 1 + 1 + 8 + 32 * 4 = 226 bytes
     ///         If nextPC != pc + 4, then the VM is executing a branch/jump delay slot.
@@ -40,7 +39,7 @@ contract MIPS {
     }
 
     /// @notice Start of the data segment.
-    uint32 constant public BRK_START = 0x40000000;
+    uint32 public constant BRK_START = 0x40000000;
 
     uint32 constant FD_STDIN = 0;
     uint32 constant FD_STDOUT = 1;
@@ -90,23 +89,21 @@ contract MIPS {
             let to := start
 
             // Copy state to free memory
-            from, to := copyMem(from, to, 32)  // memRoot
-            from, to := copyMem(from, to, 32)  // preimageKey
-            from, to := copyMem(from, to, 4)   // preimageOffset
-            from, to := copyMem(from, to, 4)   // pc
-            from, to := copyMem(from, to, 4)   // nextPC
-            from, to := copyMem(from, to, 4)   // lo
-            from, to := copyMem(from, to, 4)   // hi
-            from, to := copyMem(from, to, 4)   // heap
-            from, to := copyMem(from, to, 1)   // exitCode
-            from, to := copyMem(from, to, 1)   // exited
-            from, to := copyMem(from, to, 8)   // step
-            from := add(from, 32)              // offset to registers
+            from, to := copyMem(from, to, 32) // memRoot
+            from, to := copyMem(from, to, 32) // preimageKey
+            from, to := copyMem(from, to, 4) // preimageOffset
+            from, to := copyMem(from, to, 4) // pc
+            from, to := copyMem(from, to, 4) // nextPC
+            from, to := copyMem(from, to, 4) // lo
+            from, to := copyMem(from, to, 4) // hi
+            from, to := copyMem(from, to, 4) // heap
+            from, to := copyMem(from, to, 1) // exitCode
+            from, to := copyMem(from, to, 1) // exited
+            from, to := copyMem(from, to, 8) // step
+            from := add(from, 32) // offset to registers
 
             // Copy registers
-            for { let i := 0 } lt(i, 32) { i := add(i, 1) } {
-                from, to := copyMem(from, to, 4)
-            }
+            for { let i := 0 } lt(i, 32) { i := add(i, 1) } { from, to := copyMem(from, to, 4) }
 
             // Clean up end of memory
             mstore(to, 0)
@@ -141,8 +138,9 @@ contract MIPS {
             // mmap: Allocates a page from the heap.
             if (syscall_no == 4090) {
                 uint32 sz = a1;
-                if (sz&4095 != 0) { // adjust size to align with page size
-                    sz += 4096 - (sz&4095);
+                if (sz & 4095 != 0) {
+                    // adjust size to align with page size
+                    sz += 4096 - (sz & 4095);
                 }
                 if (a0 == 0) {
                     v0 = state.heap;
@@ -191,9 +189,11 @@ contract MIPS {
                         if lt(space, datLen) { datLen := space } // if less space than data, shorten data
                         if lt(a2, datLen) { datLen := a2 } // if requested to read less, read less
                         dat := shr(sub(256, mul(datLen, 8)), dat) // right-align data
-                        dat := shl(mul(sub(sub(4, datLen), alignment), 8), dat) // position data to insert into memory word
+                        dat := shl(mul(sub(sub(4, datLen), alignment), 8), dat) // position data to insert into memory
+                            // word
                         let mask := sub(shl(mul(sub(4, alignment), 8), 1), 1) // mask all bytes after start
-                        let suffixMask := sub(shl(mul(sub(sub(4, alignment), datLen), 8), 1), 1) // mask of all bytes starting from end, maybe none
+                        let suffixMask := sub(shl(mul(sub(sub(4, alignment), datLen), 8), 1), 1) // mask of all bytes
+                            // starting from end, maybe none
                         mask := and(mask, not(suffixMask)) // reduce mask to just cover the data we insert
                         mem := or(and(mem, not(mask)), dat) // clear masked part of original memory, and insert data
                     }
@@ -208,8 +208,7 @@ contract MIPS {
                     // Don't read into memory, just say we read it all
                     // The result is ignored anyway
                     v0 = a2;
-                }
-                else {
+                } else {
                     v0 = 0xFFffFFff;
                     v1 = EBADF;
                 }
@@ -242,17 +241,18 @@ contract MIPS {
                     state.preimageKey = key;
                     state.preimageOffset = 0; // reset offset, to read new pre-image data from the start
                     v0 = a2;
-                }
-                else {
+                } else {
                     v0 = 0xFFffFFff;
                     v1 = EBADF;
                 }
             }
             // fcntl: Like linux fcntl syscall, but only supports minimal file-descriptor control commands,
             // to retrieve the file-descriptor R/W flags.
-            else if (syscall_no == 4055) { // fcntl
+            else if (syscall_no == 4055) {
+                // fcntl
                 // args: a0 = fd, a1 = cmd
-                if (a1 == 3) { // F_GETFL: get file descriptor flags
+                if (a1 == 3) {
+                    // F_GETFL: get file descriptor flags
                     if (a0 == FD_STDIN || a0 == FD_PREIMAGE_READ || a0 == FD_HINT_READ) {
                         v0 = 0; // O_RDONLY
                     } else if (a0 == FD_STDOUT || a0 == FD_STDERR || a0 == FD_PREIMAGE_WRITE || a0 == FD_HINT_WRITE) {
@@ -295,7 +295,7 @@ contract MIPS {
 
             bool shouldBranch = false;
 
-            if (state.nextPC != state.pc+4) {
+            if (state.nextPC != state.pc + 4) {
                 revert("branch in delay slot");
             }
 
@@ -428,7 +428,7 @@ contract MIPS {
                 state := 0x80
             }
 
-            if (state.nextPC != state.pc+4) {
+            if (state.nextPC != state.pc + 4) {
                 revert("jump in delay slot");
             }
 
@@ -486,7 +486,9 @@ contract MIPS {
             // And the leaf value itself needs to be encoded as well. And proof.offset == 388
             offset_ = 388 + (uint256(_proofIndex) * (28 * 32));
             uint256 s = 0;
-            assembly { s := calldatasize() }
+            assembly {
+                s := calldatasize()
+            }
             require(s >= (offset_ + 28 * 32), "check that there is enough calldata");
             return offset_;
         }
@@ -503,9 +505,7 @@ contract MIPS {
 
             assembly {
                 // Validate the address alignement.
-                if and(_addr, 3) {
-                    revert(0, 0)
-                }
+                if and(_addr, 3) { revert(0, 0) }
 
                 // Load the leaf value.
                 let leaf := calldataload(offset)
@@ -526,11 +526,8 @@ contract MIPS {
                     let sibling := calldataload(offset)
                     offset := add(offset, 32)
                     switch and(shr(i, path), 1)
-                    case 0 {
-                        node := hashPair(node, sibling)
-                    } case 1 {
-                        node := hashPair(sibling, node)
-                    }
+                    case 0 { node := hashPair(node, sibling) }
+                    case 1 { node := hashPair(sibling, node) }
                 }
 
                 // Load the memory root from the first field of state.
@@ -562,9 +559,7 @@ contract MIPS {
 
             assembly {
                 // Validate the address alignement.
-                if and(_addr, 3) {
-                    revert(0, 0)
-                }
+                if and(_addr, 3) { revert(0, 0) }
 
                 // Load the leaf value.
                 let leaf := calldataload(offset)
@@ -589,11 +584,8 @@ contract MIPS {
                     let sibling := calldataload(offset)
                     offset := add(offset, 32)
                     switch and(shr(i, path), 1)
-                    case 0 {
-                        node := hashPair(node, sibling)
-                    } case 1 {
-                        node := hashPair(sibling, node)
-                    }
+                    case 0 { node := hashPair(node, sibling) }
+                    case 1 { node := hashPair(sibling, node) }
                 }
 
                 // Store the new memory root in the first field of state.
@@ -610,17 +602,21 @@ contract MIPS {
 
             // Packed calldata is ~6 times smaller than state size
             assembly {
-                if iszero(eq(state, 0x80)) { // expected state mem offset check
-                    revert(0,0)
+                if iszero(eq(state, 0x80)) {
+                    // expected state mem offset check
+                    revert(0, 0)
                 }
-                if iszero(eq(mload(0x40), mul(32, 48))) { // expected memory check
-                    revert(0,0)
+                if iszero(eq(mload(0x40), mul(32, 48))) {
+                    // expected memory check
+                    revert(0, 0)
                 }
-                if iszero(eq(stateData.offset, 100)) { // 32*3+4=100 expected state data offset
-                    revert(0,0)
+                if iszero(eq(stateData.offset, 100)) {
+                    // 32*3+4=100 expected state data offset
+                    revert(0, 0)
                 }
-                if iszero(eq(proof.offset, 388)) { // 100+32+256=388 expected proof offset
-                    revert(0,0)
+                if iszero(eq(proof.offset, 388)) {
+                    // 100+32+256=388 expected proof offset
+                    revert(0, 0)
                 }
 
                 function putField(callOffset, memOffset, size) -> callOffsetOut, memOffsetOut {
@@ -632,26 +628,24 @@ contract MIPS {
                 }
 
                 // Unpack state from calldata into memory
-                let c := stateData.offset  // calldata offset
-                let m := 0x80              // mem offset
+                let c := stateData.offset // calldata offset
+                let m := 0x80 // mem offset
                 c, m := putField(c, m, 32) // memRoot
                 c, m := putField(c, m, 32) // preimageKey
-                c, m := putField(c, m, 4)  // preimageOffset
-                c, m := putField(c, m, 4)  // pc
-                c, m := putField(c, m, 4)  // nextPC
-                c, m := putField(c, m, 4)  // lo
-                c, m := putField(c, m, 4)  // hi
-                c, m := putField(c, m, 4)  // heap
-                c, m := putField(c, m, 1)  // exitCode
-                c, m := putField(c, m, 1)  // exited
-                c, m := putField(c, m, 8)  // step
+                c, m := putField(c, m, 4) // preimageOffset
+                c, m := putField(c, m, 4) // pc
+                c, m := putField(c, m, 4) // nextPC
+                c, m := putField(c, m, 4) // lo
+                c, m := putField(c, m, 4) // hi
+                c, m := putField(c, m, 4) // heap
+                c, m := putField(c, m, 1) // exitCode
+                c, m := putField(c, m, 1) // exited
+                c, m := putField(c, m, 8) // step
 
                 // Unpack register calldata into memory
-                mstore(m, add(m, 32))      // offset to registers
+                mstore(m, add(m, 32)) // offset to registers
                 m := add(m, 32)
-                for { let i := 0 } lt(i, 32) { i := add(i, 1) } {
-                    c, m := putField(c, m, 4)
-                }
+                for { let i := 0 } lt(i, 32) { i := add(i, 1) } { c, m := putField(c, m, 4) }
             }
 
             // Don't change state once exited
@@ -713,7 +707,7 @@ contract MIPS {
             uint32 mem;
             if (opcode >= 0x20) {
                 // M[R[rs]+SignExtImm]
-                rs += SE(insn&0xFFFF, 16);
+                rs += SE(insn & 0xFFFF, 16);
                 uint32 addr = rs & 0xFFFFFFFC;
                 mem = readMem(addr, 1);
                 if (opcode >= 0x28 && opcode != 0x30) {
@@ -729,14 +723,17 @@ contract MIPS {
 
             uint32 func = insn & 0x3f; // 6-bits
             if (opcode == 0 && func >= 8 && func < 0x1c) {
-                if (func == 8 || func == 9) { // jr/jalr
+                if (func == 8 || func == 9) {
+                    // jr/jalr
                     return handleJump(func == 8 ? 0 : rdReg, rs);
                 }
 
-                if (func == 0xa) { // movz
+                if (func == 0xa) {
+                    // movz
                     return handleRd(rdReg, rs, rt == 0);
                 }
-                if (func == 0xb) { // movn
+                if (func == 0xb) {
+                    // movn
                     return handleRd(rdReg, rs, rt != 0);
                 }
 
@@ -770,7 +767,7 @@ contract MIPS {
     /// @notice Execute an instruction.
     function execute(uint32 insn, uint32 rs, uint32 rt, uint32 mem) internal pure returns (uint32) {
         unchecked {
-            uint32 opcode = insn >> 26;    // 6-bits
+            uint32 opcode = insn >> 26; // 6-bits
             uint32 func = insn & 0x3f; // 6-bits
             // TODO(CLI-4136): deref the immed into a register
 
@@ -778,13 +775,19 @@ contract MIPS {
                 // transform ArithLogI
                 // TODO(CLI-4136): replace with table
                 if (opcode >= 8 && opcode < 0xF) {
-                    if (opcode == 8) { func = 0x20; }        // addi
-                    else if (opcode == 9) { func = 0x21; }   // addiu
-                    else if (opcode == 0xa) { func = 0x2a; } // slti
-                    else if (opcode == 0xb) { func = 0x2B; } // sltiu
-                    else if (opcode == 0xc) { func = 0x24; } // andi
-                    else if (opcode == 0xd) { func = 0x25; } // ori
-                    else if (opcode == 0xe) { func = 0x26; } // xori
+                    if (opcode == 8) func = 0x20; // addi
+
+                    else if (opcode == 9) func = 0x21; // addiu
+
+                    else if (opcode == 0xa) func = 0x2a; // slti
+
+                    else if (opcode == 0xb) func = 0x2B; // sltiu
+
+                    else if (opcode == 0xc) func = 0x24; // andi
+
+                    else if (opcode == 0xd) func = 0x25; // ori
+
+                    else if (opcode == 0xe) func = 0x26; // xori
                     opcode = 0;
                 }
 
@@ -854,7 +857,7 @@ contract MIPS {
                     }
                     // sltu: Set to 1 if less than unsigned
                     else if (func == 0x2B) {
-                        return rs<rt ? 1 : 0;
+                        return rs < rt ? 1 : 0;
                     }
                 }
                 // lui: Load Upper Immediate
@@ -873,15 +876,14 @@ contract MIPS {
                             rs = ~rs;
                         }
                         uint32 i = 0;
-                        while (rs&0x80000000 != 0) {
+                        while (rs & 0x80000000 != 0) {
                             i++;
                             rs <<= 1;
                         }
                         return i;
                     }
                 }
-            }
-            else if (opcode < 0x28) {
+            } else if (opcode < 0x28) {
                 // lb
                 if (opcode == 0x20) {
                     return SE((mem >> (24 - (rs & 3) * 8)) & 0xFF, 8);

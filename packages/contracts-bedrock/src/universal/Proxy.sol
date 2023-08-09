@@ -8,13 +8,11 @@ pragma solidity 0.8.15;
 contract Proxy {
     /// @notice The storage slot that holds the address of the implementation.
     ///         bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1)
-    bytes32 internal constant IMPLEMENTATION_KEY =
-        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+    bytes32 internal constant IMPLEMENTATION_KEY = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
 
     /// @notice The storage slot that holds the address of the owner.
     ///         bytes32(uint256(keccak256('eip1967.proxy.admin')) - 1)
-    bytes32 internal constant OWNER_KEY =
-        0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+    bytes32 internal constant OWNER_KEY = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
     /// @notice An event that is emitted each time the implementation is changed. This event is part
     ///         of the EIP-1967 specification.
@@ -72,7 +70,10 @@ contract Proxy {
     ///         atomic execution of initialization-based upgrades.
     /// @param _implementation Address of the implementation contract.
     /// @param _data           Calldata to delegatecall the new implementation with.
-    function upgradeToAndCall(address _implementation, bytes calldata _data)
+    function upgradeToAndCall(
+        address _implementation,
+        bytes calldata _data
+    )
         public
         payable
         virtual
@@ -140,9 +141,7 @@ contract Proxy {
             returndatacopy(0x0, 0x0, returndatasize())
 
             // Success == 0 means a revert. We'll revert too and pass the data up.
-            if iszero(success) {
-                revert(0x0, returndatasize())
-            }
+            if iszero(success) { revert(0x0, returndatasize()) }
 
             // Otherwise we'll just return and pass the data up.
             return(0x0, returndatasize())

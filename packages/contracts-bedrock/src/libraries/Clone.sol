@@ -46,11 +46,7 @@ contract Clone {
     /// @param argOffset The offset of the arg in the packed data
     /// @param arrLen Number of elements in the array
     /// @return arr The array
-    function _getArgUint256Array(uint256 argOffset, uint64 arrLen)
-        internal
-        pure
-        returns (uint256[] memory arr)
-    {
+    function _getArgUint256Array(uint256 argOffset, uint64 arrLen) internal pure returns (uint256[] memory arr) {
         uint256 offset = _getImmutableArgsOffset() + argOffset;
         arr = new uint256[](arrLen);
 
@@ -63,11 +59,7 @@ contract Clone {
     /// @param argOffset The offset of the arg in the packed data
     /// @param arrLen Number of elements in the array
     /// @return arr The array
-    function _getArgDynBytes(uint256 argOffset, uint64 arrLen)
-        internal
-        pure
-        returns (bytes memory arr)
-    {
+    function _getArgDynBytes(uint256 argOffset, uint64 arrLen) internal pure returns (bytes memory arr) {
         uint256 offset = _getImmutableArgsOffset() + argOffset;
         arr = new bytes(arrLen);
 

@@ -23,10 +23,7 @@ interface IMulticall3 {
         bytes returnData;
     }
 
-    function aggregate3(Call3[] calldata calls)
-        external
-        payable
-        returns (Result[] memory returnData);
+    function aggregate3(Call3[] calldata calls) external payable returns (Result[] memory returnData);
 }
 
 library Multicall {
@@ -38,17 +35,11 @@ library Multicall {
 contract Optimist_Initializer is Test {
     event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
     event Initialized(uint8);
-    event AttestationCreated(
-        address indexed creator,
-        address indexed about,
-        bytes32 indexed key,
-        bytes val
-    );
+    event AttestationCreated(address indexed creator, address indexed about, bytes32 indexed key, bytes val);
 
     string constant name = "Optimist name";
     string constant symbol = "OPTIMISTSYMBOL";
-    string constant base_uri =
-        "https://storageapi.fleek.co/6442819a1b05-bucket/optimist-nft/attributes";
+    string constant base_uri = "https://storageapi.fleek.co/6442819a1b05-bucket/optimist-nft/attributes";
     AttestationStation attestationStation;
     Optimist optimist;
     OptimistAllowlist optimistAllowlist;
@@ -70,21 +61,12 @@ contract Optimist_Initializer is Test {
     /// @notice BaseURI attestor sets the baseURI of the Optimist NFT.
     function _attestBaseURI(string memory _baseUri) internal {
         bytes32 baseURIAttestationKey = optimist.BASE_URI_ATTESTATION_KEY();
-        AttestationStation.AttestationData[]
-            memory attestationData = new AttestationStation.AttestationData[](1);
-        attestationData[0] = AttestationStation.AttestationData(
-            address(optimist),
-            baseURIAttestationKey,
-            bytes(_baseUri)
-        );
+        AttestationStation.AttestationData[] memory attestationData = new AttestationStation.AttestationData[](1);
+        attestationData[0] =
+            AttestationStation.AttestationData(address(optimist), baseURIAttestationKey, bytes(_baseUri));
 
         vm.expectEmit(true, true, true, true, address(attestationStation));
-        emit AttestationCreated(
-            carol_baseURIAttestor,
-            address(optimist),
-            baseURIAttestationKey,
-            bytes(_baseUri)
-        );
+        emit AttestationCreated(carol_baseURIAttestor, address(optimist), baseURIAttestationKey, bytes(_baseUri));
         vm.prank(carol_baseURIAttestor);
         attestationStation.attest(attestationData);
     }
@@ -92,14 +74,10 @@ contract Optimist_Initializer is Test {
     /// @notice Allowlist attestor creates an attestation for an address.
     function _attestAllowlist(address _about) internal {
         bytes32 attestationKey = optimistAllowlist.OPTIMIST_CAN_MINT_ATTESTATION_KEY();
-        AttestationStation.AttestationData[]
-            memory attestationData = new AttestationStation.AttestationData[](1);
+        AttestationStation.AttestationData[] memory attestationData = new AttestationStation.AttestationData[](1);
         // we are using true but it can be any non empty value
-        attestationData[0] = AttestationStation.AttestationData({
-            about: _about,
-            key: attestationKey,
-            val: bytes("true")
-        });
+        attestationData[0] =
+            AttestationStation.AttestationData({ about: _about, key: attestationKey, val: bytes("true") });
 
         vm.expectEmit(true, true, true, true, address(attestationStation));
         emit AttestationCreated(alice_allowlistAttestor, _about, attestationKey, bytes("true"));
@@ -113,14 +91,10 @@ contract Optimist_Initializer is Test {
     /// @notice Coinbase Quest attestor creates an attestation for an address.
     function _attestCoinbaseQuest(address _about) internal {
         bytes32 attestationKey = optimistAllowlist.COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY();
-        AttestationStation.AttestationData[]
-            memory attestationData = new AttestationStation.AttestationData[](1);
+        AttestationStation.AttestationData[] memory attestationData = new AttestationStation.AttestationData[](1);
         // we are using true but it can be any non empty value
-        attestationData[0] = AttestationStation.AttestationData({
-            about: _about,
-            key: attestationKey,
-            val: bytes("true")
-        });
+        attestationData[0] =
+            AttestationStation.AttestationData({ about: _about, key: attestationKey, val: bytes("true") });
 
         vm.expectEmit(true, true, true, true, address(attestationStation));
         emit AttestationCreated(ted_coinbaseAttestor, _about, attestationKey, bytes("true"));
@@ -145,15 +119,12 @@ contract Optimist_Initializer is Test {
         optimistInviter.setInviteCounts(addresses, 3);
 
         // issue a new invite
-        OptimistInviter.ClaimableInvite memory claimableInvite = optimistInviterHelper
-            .getClaimableInviteWithNewNonce(inviter);
+        OptimistInviter.ClaimableInvite memory claimableInvite =
+            optimistInviterHelper.getClaimableInviteWithNewNonce(inviter);
 
         // EIP-712 sign with Inviter's private key
 
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            inviterPrivateKey,
-            optimistInviterHelper.getDigest(claimableInvite)
-        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(inviterPrivateKey, optimistInviterHelper.getDigest(claimableInvite));
         bytes memory signature = abi.encodePacked(r, s, v);
 
         bytes32 hashedCommit = keccak256(abi.encode(_about, signature));
@@ -492,10 +463,7 @@ contract OptimistTest is Optimist_Initializer {
         // expect approval amount to stil be 0
         assertEq(optimist.getApproved(_getTokenId(bob)), address(0));
         // isApprovedForAll should return false
-        assertEq(
-            optimist.isApprovedForAll(alice_allowlistAttestor, alice_allowlistAttestor),
-            false
-        );
+        assertEq(optimist.isApprovedForAll(alice_allowlistAttestor, alice_allowlistAttestor), false);
     }
 
     /// @notice Only owner should be able to burn token.
@@ -554,15 +522,12 @@ contract OptimistTest is Optimist_Initializer {
         optimistInviter.setInviteCounts(addresses, 3);
 
         // issue a new invite
-        OptimistInviter.ClaimableInvite memory claimableInvite = optimistInviterHelper
-            .getClaimableInviteWithNewNonce(inviter);
+        OptimistInviter.ClaimableInvite memory claimableInvite =
+            optimistInviterHelper.getClaimableInviteWithNewNonce(inviter);
 
         // EIP-712 sign with Inviter's private key
 
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
-            inviterPrivateKey,
-            optimistInviterHelper.getDigest(claimableInvite)
-        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(inviterPrivateKey, optimistInviterHelper.getDigest(claimableInvite));
         bytes memory signature = abi.encodePacked(r, s, v);
 
         bytes32 hashedCommit = keccak256(abi.encode(bob, signature));
@@ -579,12 +544,7 @@ contract OptimistTest is Optimist_Initializer {
         // First call is to claim the invite, receiving the attestation
         calls[0] = IMulticall3.Call3({
             target: address(optimistInviter),
-            callData: abi.encodeWithSelector(
-                optimistInviter.claimInvite.selector,
-                bob,
-                claimableInvite,
-                signature
-            ),
+            callData: abi.encodeWithSelector(optimistInviter.claimInvite.selector, bob, claimableInvite, signature),
             allowFailure: false
         });
 

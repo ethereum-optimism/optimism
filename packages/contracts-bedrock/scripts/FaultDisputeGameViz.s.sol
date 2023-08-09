@@ -54,13 +54,7 @@ contract FaultDisputeGameViz is Script, FaultDisputeGame_Init {
         uint256 numClaims = uint256(vm.load(address(gameProxy), bytes32(uint256(1))));
         IFaultDisputeGame.ClaimData[] memory gameData = new IFaultDisputeGame.ClaimData[](numClaims);
         for (uint256 i = 0; i < numClaims; i++) {
-            (
-                uint32 parentIndex,
-                bool countered,
-                Claim claim,
-                Position position,
-                Clock clock
-            ) = gameProxy.claimData(i);
+            (uint32 parentIndex, bool countered, Claim claim, Position position, Clock clock) = gameProxy.claimData(i);
 
             gameData[i] = IFaultDisputeGame.ClaimData({
                 parentIndex: parentIndex,

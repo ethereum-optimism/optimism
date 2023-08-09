@@ -20,12 +20,7 @@ contract Faucet {
     /// @param userId     The id of the user that requested the drip.
     /// @param amount     The amount of funds sent.
     /// @param recipient  The recipient of the drip.
-    event Drip(
-        string indexed authModule,
-        bytes32 indexed userId,
-        uint256 amount,
-        address indexed recipient
-    );
+    event Drip(string indexed authModule, bytes32 indexed userId, uint256 amount, address indexed recipient);
 
     /// @notice Parameters for a drip.
     struct DripParameters {

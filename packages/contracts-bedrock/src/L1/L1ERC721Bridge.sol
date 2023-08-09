@@ -46,7 +46,10 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
         address _to,
         uint256 _tokenId,
         bytes calldata _extraData
-    ) external onlyOtherBridge {
+    )
+        external
+        onlyOtherBridge
+    {
         require(_localToken != address(this), "L1ERC721Bridge: local token cannot be self");
 
         // Checks that the L1/L2 NFT pair has a token ID that is escrowed in the L1 Bridge.
@@ -76,18 +79,15 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
         uint256 _tokenId,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    ) internal override {
+    )
+        internal
+        override
+    {
         require(_remoteToken != address(0), "L1ERC721Bridge: remote token cannot be address(0)");
 
         // Construct calldata for _l2Token.finalizeBridgeERC721(_to, _tokenId)
         bytes memory message = abi.encodeWithSelector(
-            L2ERC721Bridge.finalizeBridgeERC721.selector,
-            _remoteToken,
-            _localToken,
-            _from,
-            _to,
-            _tokenId,
-            _extraData
+            L2ERC721Bridge.finalizeBridgeERC721.selector, _remoteToken, _localToken, _from, _to, _tokenId, _extraData
         );
 
         // Lock token into bridge

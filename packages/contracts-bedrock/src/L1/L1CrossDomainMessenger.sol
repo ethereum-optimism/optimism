@@ -37,12 +37,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
     }
 
     /// @inheritdoc CrossDomainMessenger
-    function _sendMessage(
-        address _to,
-        uint64 _gasLimit,
-        uint256 _value,
-        bytes memory _data
-    ) internal override {
+    function _sendMessage(address _to, uint64 _gasLimit, uint256 _value, bytes memory _data) internal override {
         PORTAL.depositTransaction{ value: _value }(_to, _value, _gasLimit, false, _data);
     }
 

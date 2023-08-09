@@ -20,8 +20,7 @@ contract SequencerFeeVault_Test is FeeVault_Initializer {
         super.setUp();
         vm.etch(
             Predeploys.SEQUENCER_FEE_WALLET,
-            address(new SequencerFeeVault(recipient, NON_ZERO_VALUE, FeeVault.WithdrawalNetwork.L1))
-                .code
+            address(new SequencerFeeVault(recipient, NON_ZERO_VALUE, FeeVault.WithdrawalNetwork.L1)).code
         );
         vm.label(Predeploys.SEQUENCER_FEE_WALLET, "SequencerFeeVault");
     }
@@ -41,7 +40,7 @@ contract SequencerFeeVault_Test is FeeVault_Initializer {
         uint256 balance = address(vault).balance;
 
         vm.prank(alice);
-        (bool success, ) = address(vault).call{ value: 100 }(hex"");
+        (bool success,) = address(vault).call{ value: 100 }(hex"");
 
         assertEq(success, true);
         assertEq(address(vault).balance, balance + 100);
@@ -52,9 +51,7 @@ contract SequencerFeeVault_Test is FeeVault_Initializer {
     function test_withdraw_notEnough_reverts() external {
         assert(address(vault).balance < vault.MIN_WITHDRAWAL_AMOUNT());
 
-        vm.expectRevert(
-            "FeeVault: withdrawal amount must be greater than minimum withdrawal amount"
-        );
+        vm.expectRevert("FeeVault: withdrawal amount must be greater than minimum withdrawal amount");
         vault.withdraw();
     }
 
@@ -69,23 +66,13 @@ contract SequencerFeeVault_Test is FeeVault_Initializer {
         vm.expectEmit(true, true, true, true, address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(address(vault).balance, vault.RECIPIENT(), address(this));
         vm.expectEmit(true, true, true, true, address(Predeploys.SEQUENCER_FEE_WALLET));
-        emit Withdrawal(
-            address(vault).balance,
-            vault.RECIPIENT(),
-            address(this),
-            FeeVault.WithdrawalNetwork.L1
-        );
+        emit Withdrawal(address(vault).balance, vault.RECIPIENT(), address(this), FeeVault.WithdrawalNetwork.L1);
 
         // The entire vault's balance is withdrawn
         vm.expectCall(
             Predeploys.L2_STANDARD_BRIDGE,
             address(vault).balance,
-            abi.encodeWithSelector(
-                StandardBridge.bridgeETHTo.selector,
-                vault.l1FeeWallet(),
-                35_000,
-                bytes("")
-            )
+            abi.encodeWithSelector(StandardBridge.bridgeETHTo.selector, vault.l1FeeWallet(), 35_000, bytes(""))
         );
 
         vault.withdraw();
@@ -103,8 +90,7 @@ contract SequencerFeeVault_L2Withdrawal_Test is FeeVault_Initializer {
         super.setUp();
         vm.etch(
             Predeploys.SEQUENCER_FEE_WALLET,
-            address(new SequencerFeeVault(recipient, NON_ZERO_VALUE, FeeVault.WithdrawalNetwork.L2))
-                .code
+            address(new SequencerFeeVault(recipient, NON_ZERO_VALUE, FeeVault.WithdrawalNetwork.L2)).code
         );
         vm.label(Predeploys.SEQUENCER_FEE_WALLET, "SequencerFeeVault");
     }
@@ -120,12 +106,7 @@ contract SequencerFeeVault_L2Withdrawal_Test is FeeVault_Initializer {
         vm.expectEmit(true, true, true, true, address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(address(vault).balance, vault.RECIPIENT(), address(this));
         vm.expectEmit(true, true, true, true, address(Predeploys.SEQUENCER_FEE_WALLET));
-        emit Withdrawal(
-            address(vault).balance,
-            vault.RECIPIENT(),
-            address(this),
-            FeeVault.WithdrawalNetwork.L2
-        );
+        emit Withdrawal(address(vault).balance, vault.RECIPIENT(), address(this), FeeVault.WithdrawalNetwork.L2);
 
         // The entire vault's balance is withdrawn
         vm.expectCall(recipient, address(vault).balance, bytes(""));
@@ -152,9 +133,7 @@ contract SequencerFeeVault_L2Withdrawal_Test is FeeVault_Initializer {
 
         // The entire vault's balance is withdrawn
         vm.expectCall(recipient, address(vault).balance, bytes(""));
-        vm.expectRevert(
-            "FeeVault: failed to send ETH to L2 fee recipient"
-        );
+        vm.expectRevert("FeeVault: failed to send ETH to L2 fee recipient");
         vault.withdraw();
         assertEq(vault.totalProcessed(), 0);
     }

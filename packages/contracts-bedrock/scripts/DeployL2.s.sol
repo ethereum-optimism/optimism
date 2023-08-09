@@ -39,7 +39,7 @@ contract DeployL2 is Deployer {
     }
 
     /// @notice Deploy the EAS implementation.
-    function deployEAS() broadcast() public returns (address) {
+    function deployEAS() public broadcast returns (address) {
         EAS eas = new EAS();
 
         ISchemaRegistry registry = eas.getSchemaRegistry();
@@ -55,7 +55,7 @@ contract DeployL2 is Deployer {
     }
 
     /// @notice Deploy the SchemaManager implementation.
-    function deploySchemaRegistry() broadcast() public returns (address) {
+    function deploySchemaRegistry() public broadcast returns (address) {
         SchemaRegistry registry = new SchemaRegistry();
 
         save("SchemaRegistry", address(registry));
@@ -67,4 +67,3 @@ contract DeployL2 is Deployer {
         return address(registry);
     }
 }
-
