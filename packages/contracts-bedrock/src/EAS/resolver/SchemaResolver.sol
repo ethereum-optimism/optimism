@@ -139,10 +139,8 @@ abstract contract SchemaResolver is ISchemaResolver, Semver {
     /// @param attestation The new attestation.
     /// @param value An explicit ETH amount that was sent to the resolver. Please note that this value is verified in
     ///        both attest() and multiAttest() callbacks EAS-only callbacks and that in case of multi attestations,
-    /// it'll
-    ///        usually hold that msg.value != value, since msg.value aggregated the sent ETH amounts for all the
-    /// attestations
-    ///        in the batch.
+    ///        it'll usually hold that msg.value != value, since msg.value aggregated the sent ETH amounts for all
+    ///        the attestations in the batch.
     /// @return Whether the attestation is valid.
     function onAttest(Attestation calldata attestation, uint256 value) internal virtual returns (bool);
 
