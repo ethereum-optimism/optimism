@@ -240,7 +240,7 @@ func setupWithTestData(t *testing.T, dataDir string, prestate string) (*CannonTr
 		logger:    testlog.Logger(t, log.LvlInfo),
 		dir:       dataDir,
 		generator: generator,
-		prestate:  prestate,
+		prestate:  filepath.Join(dataDir, prestate),
 	}, generator
 }
 

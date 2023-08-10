@@ -15,5 +15,5 @@ import (
 func TestAlphabetUpdater(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	updater := NewOracleUpdater(logger)
-	require.Nil(t, updater.UpdateOracle(context.Background(), types.PreimageOracleData{}))
+	require.Nil(t, updater.UpdateOracle(context.Background(), &types.PreimageOracleData{}))
 }
