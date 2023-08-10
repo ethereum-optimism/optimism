@@ -114,8 +114,7 @@ func (p *CannonTraceProvider) GetPreimage(ctx context.Context, i uint64) ([]byte
 }
 
 func (p *CannonTraceProvider) AbsolutePreState(ctx context.Context) ([]byte, error) {
-	path := filepath.Join(p.dir, p.prestate)
-	state, err := parseState(path)
+	state, err := parseState(p.prestate)
 	if err != nil {
 		return []byte{}, fmt.Errorf("cannot load absolute pre-state: %w", err)
 	}
