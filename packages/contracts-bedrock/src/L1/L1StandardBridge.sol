@@ -2,11 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Predeploys } from "../libraries/Predeploys.sol";
-import {
-    StandardBridge,
-    ETHStandardBridge,
-    ERC20StandardBridge
-} from "../universal/StandardBridge.sol";
+import { StandardBridge, ETHStandardBridge, ERC20StandardBridge } from "../universal/StandardBridge.sol";
 import { Semver } from "../universal/Semver.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 

@@ -97,24 +97,14 @@ abstract contract ETHStandardBridge is StandardBridgeBase {
     /// @param to        Address of the receiver.
     /// @param amount    Amount of ETH sent.
     /// @param extraData Extra data sent with the transaction.
-    event ETHBridgeInitiated(
-        address indexed from,
-        address indexed to,
-        uint256 amount,
-        bytes extraData
-    );
+    event ETHBridgeInitiated(address indexed from, address indexed to, uint256 amount, bytes extraData);
 
     /// @notice Emitted when an ETH bridge is finalized on this chain.
     /// @param from      Address of the sender.
     /// @param to        Address of the receiver.
     /// @param amount    Amount of ETH sent.
     /// @param extraData Extra data sent with the transaction.
-    event ETHBridgeFinalized(
-        address indexed from,
-        address indexed to,
-        uint256 amount,
-        bytes extraData
-    );
+    event ETHBridgeFinalized(address indexed from, address indexed to, uint256 amount, bytes extraData);
 
     /// @notice Allows EOAs to bridge ETH by sending directly to the bridge.
     ///         Must be implemented by contracts that inherit.
@@ -188,7 +178,11 @@ abstract contract ETHStandardBridge is StandardBridgeBase {
         address _to,
         uint256 _amount,
         bytes calldata _extraData
-    ) public payable onlyOtherBridge {
+    )
+        public
+        payable
+        onlyOtherBridge
+    {
         require(msg.value == _amount, "StandardBridge: amount sent does not match amount required");
         require(_to != address(this), "StandardBridge: cannot send to self");
         require(_to != address(messenger), "StandardBridge: cannot send to messenger");
@@ -212,7 +206,10 @@ abstract contract ETHStandardBridge is StandardBridgeBase {
         address _to,
         uint256 _amount,
         bytes memory _extraData
-    ) internal virtual {
+    )
+        internal
+        virtual
+    {
         emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
     }
 
@@ -227,7 +224,10 @@ abstract contract ETHStandardBridge is StandardBridgeBase {
         address _to,
         uint256 _amount,
         bytes memory _extraData
-    ) internal virtual {
+    )
+        internal
+        virtual
+    {
         emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
     }
 }
@@ -286,7 +286,11 @@ abstract contract ERC20StandardBridge is StandardBridgeBase {
         uint256 _amount,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    ) public virtual onlyEOA {
+    )
+        public
+        virtual
+        onlyEOA
+    {
         bridgeERC20To(_localToken, _remoteToken, msg.sender, _amount, _minGasLimit, _extraData);
     }
 
@@ -309,16 +313,11 @@ abstract contract ERC20StandardBridge is StandardBridgeBase {
         uint256 _amount,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    ) public virtual {
-        _initiateBridgeERC20(
-            _localToken,
-            _remoteToken,
-            msg.sender,
-            _to,
-            _amount,
-            _minGasLimit,
-            _extraData
-        );
+    )
+        public
+        virtual
+    {
+        _initiateBridgeERC20(_localToken, _remoteToken, msg.sender, _to, _amount, _minGasLimit, _extraData);
     }
 
     /// @notice Sends ERC20 tokens to a receiver's address on the other chain.
@@ -392,7 +391,10 @@ abstract contract ERC20StandardBridge is StandardBridgeBase {
         address _to,
         uint256 _amount,
         bytes calldata _extraData
-    ) public onlyOtherBridge {
+    )
+        public
+        onlyOtherBridge
+    {
         if (_isOptimismMintableERC20(_localToken)) {
             require(
                 _isCorrectTokenPair(_localToken, _remoteToken),
@@ -485,5 +487,5 @@ abstract contract ERC20StandardBridge is StandardBridgeBase {
 ///         the local chain and minting/burning tokens that are native to the remote chain.
 abstract contract StandardBridge is StandardBridgeBase, ETHStandardBridge, ERC20StandardBridge {
     /// @param _otherBridge Address of the other StandardBridge contract.
-    constructor(StandardBridge _otherBridge) StandardBridgeBase(_otherBridge) {}
+    constructor(StandardBridge _otherBridge) StandardBridgeBase(_otherBridge) { }
 }
