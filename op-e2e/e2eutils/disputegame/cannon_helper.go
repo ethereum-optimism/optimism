@@ -20,7 +20,6 @@ func (g *CannonGameHelper) StartChallenger(ctx context.Context, rollupCfg *rollu
 	opts := []challenger.Option{
 		func(c *config.Config) {
 			c.GameAddress = g.addr
-			c.GameDepth = cannonGameDepth
 			c.TraceType = config.TraceTypeCannon
 			c.AgreeWithProposedOutput = false
 			c.CannonL2 = l2Endpoint

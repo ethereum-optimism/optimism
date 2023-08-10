@@ -35,11 +35,8 @@ func (s *StandardBridge) GetWithdrawalsByBlockRange(ctx context.Context, start, 
 		End:     &end,
 	}
 
-	var iter *bindings.L2StandardBridgeWithdrawalInitiatedIterator
-	err := backoff.Do(3, backoff.Exponential(), func() error {
-		var err error
-		iter, err = s.l2SB.FilterWithdrawalInitiated(opts, nil, nil, nil)
-		return err
+	iter, err := backoff.Do(ctx, 3, backoff.Exponential(), func() (*bindings.L2StandardBridgeWithdrawalInitiatedIterator, error) {
+		return s.l2SB.FilterWithdrawalInitiated(opts, nil, nil, nil)
 	})
 	if err != nil {
 		return nil, err
