@@ -47,7 +47,7 @@
     "lodash": "^4.17.21",
     "morgan": "^1.10.0",
     "pino": "^6.11.3",
-    "pino-multi-stream": "^5.3.0",
+    "pino-multi-stream": "^6.0.0",
     "pino-sentry": "^0.7.0",
     "prom-client": "^13.1.0"
   },
