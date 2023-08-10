@@ -40,7 +40,9 @@ contract L2ToL1MessagePasserTest is CommonTest {
         uint256 _value,
         uint256 _gasLimit,
         bytes memory _data
-    ) external {
+    )
+        external
+    {
         uint256 nonce = messagePasser.messageNonce();
 
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
@@ -72,28 +74,13 @@ contract L2ToL1MessagePasserTest is CommonTest {
     ///      log when called by a contract.
     function test_initiateWithdrawal_fromContract_succeeds() external {
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
-            Types.WithdrawalTransaction(
-                messagePasser.messageNonce(),
-                address(this),
-                address(4),
-                100,
-                64000,
-                hex""
-            )
+            Types.WithdrawalTransaction(messagePasser.messageNonce(), address(this), address(4), 100, 64000, hex"")
         );
 
         vm.expectEmit(true, true, true, true);
-        emit MessagePassed(
-            messagePasser.messageNonce(),
-            address(this),
-            address(4),
-            100,
-            64000,
-            hex"",
-            withdrawalHash
-        );
+        emit MessagePassed(messagePasser.messageNonce(), address(this), address(4), 100, 64000, hex"", withdrawalHash);
 
-        vm.deal(address(this), 2**64);
+        vm.deal(address(this), 2 ** 64);
         messagePasser.initiateWithdrawal{ value: 100 }(address(4), 64000, hex"");
     }
 
@@ -108,10 +95,9 @@ contract L2ToL1MessagePasserTest is CommonTest {
 
         // EOA emulation
         vm.prank(alice, alice);
-        vm.deal(alice, 2**64);
-        bytes32 withdrawalHash = Hashing.hashWithdrawal(
-            Types.WithdrawalTransaction(nonce, alice, target, value, gasLimit, data)
-        );
+        vm.deal(alice, 2 ** 64);
+        bytes32 withdrawalHash =
+            Hashing.hashWithdrawal(Types.WithdrawalTransaction(nonce, alice, target, value, gasLimit, data));
 
         vm.expectEmit(true, true, true, true);
         emit MessagePassed(nonce, alice, target, value, gasLimit, data, withdrawalHash);
@@ -126,11 +112,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
 
     /// @dev Tests that `burn` succeeds and destroys the ETH held in the contract.
     function test_burn_succeeds() external {
-        messagePasser.initiateWithdrawal{ value: NON_ZERO_VALUE }(
-            NON_ZERO_ADDRESS,
-            NON_ZERO_GASLIMIT,
-            NON_ZERO_DATA
-        );
+        messagePasser.initiateWithdrawal{ value: NON_ZERO_VALUE }(NON_ZERO_ADDRESS, NON_ZERO_GASLIMIT, NON_ZERO_DATA);
 
         assertEq(address(messagePasser).balance, NON_ZERO_VALUE);
         vm.expectEmit(true, false, false, false);

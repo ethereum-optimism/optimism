@@ -36,15 +36,12 @@ contract DeployerWhitelist is Semver {
 
     /// @notice Blocks functions to anyone except the contract owner.
     modifier onlyOwner() {
-        require(
-            msg.sender == owner,
-            "DeployerWhitelist: function can only be called by the owner of this contract"
-        );
+        require(msg.sender == owner, "DeployerWhitelist: function can only be called by the owner of this contract");
         _;
     }
 
-    /// @custom:semver 1.0.1
-    constructor() Semver(1, 0, 1) {}
+    /// @custom:semver 1.0.2
+    constructor() Semver(1, 0, 2) { }
 
     /// @notice Adds or removes an address from the deployment whitelist.
     /// @param _deployer      Address to update permissions for.
@@ -60,10 +57,7 @@ contract DeployerWhitelist is Semver {
         // Prevent users from setting the whitelist owner to address(0) except via
         // enableArbitraryContractDeployment. If you want to burn the whitelist owner, send it to
         // any other address that doesn't have a corresponding knowable private key.
-        require(
-            _owner != address(0),
-            "DeployerWhitelist: can only be disabled via enableArbitraryContractDeployment"
-        );
+        require(_owner != address(0), "DeployerWhitelist: can only be disabled via enableArbitraryContractDeployment");
 
         emit OwnerChanged(owner, _owner);
         owner = _owner;

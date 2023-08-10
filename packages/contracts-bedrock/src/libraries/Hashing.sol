@@ -12,11 +12,7 @@ library Hashing {
     ///         system.
     /// @param _tx User deposit transaction to hash.
     /// @return Hash of the RLP encoded L2 deposit transaction.
-    function hashDepositTransaction(Types.UserDepositTransaction memory _tx)
-        internal
-        pure
-        returns (bytes32)
-    {
+    function hashDepositTransaction(Types.UserDepositTransaction memory _tx) internal pure returns (bytes32) {
         return keccak256(Encoding.encodeDepositTransaction(_tx));
     }
 
@@ -26,11 +22,7 @@ library Hashing {
     /// @param _l1BlockHash Hash of the L1 block where the deposit was included.
     /// @param _logIndex    The index of the log that created the deposit transaction.
     /// @return Hash of the deposit transaction's "source hash".
-    function hashDepositSource(bytes32 _l1BlockHash, uint256 _logIndex)
-        internal
-        pure
-        returns (bytes32)
-    {
+    function hashDepositSource(bytes32 _l1BlockHash, uint256 _logIndex) internal pure returns (bytes32) {
         bytes32 depositId = keccak256(abi.encode(_l1BlockHash, _logIndex));
         return keccak256(abi.encode(bytes32(0), depositId));
     }
@@ -51,7 +43,11 @@ library Hashing {
         uint256 _value,
         uint256 _gasLimit,
         bytes memory _data
-    ) internal pure returns (bytes32) {
+    )
+        internal
+        pure
+        returns (bytes32)
+    {
         (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
         if (version == 0) {
             return hashCrossDomainMessageV0(_target, _sender, _data, _nonce);
@@ -73,7 +69,11 @@ library Hashing {
         address _sender,
         bytes memory _data,
         uint256 _nonce
-    ) internal pure returns (bytes32) {
+    )
+        internal
+        pure
+        returns (bytes32)
+    {
         return keccak256(Encoding.encodeCrossDomainMessageV0(_target, _sender, _data, _nonce));
     }
 
@@ -92,51 +92,33 @@ library Hashing {
         uint256 _value,
         uint256 _gasLimit,
         bytes memory _data
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                Encoding.encodeCrossDomainMessageV1(
-                    _nonce,
-                    _sender,
-                    _target,
-                    _value,
-                    _gasLimit,
-                    _data
-                )
-            );
+    )
+        internal
+        pure
+        returns (bytes32)
+    {
+        return keccak256(Encoding.encodeCrossDomainMessageV1(_nonce, _sender, _target, _value, _gasLimit, _data));
     }
 
     /// @notice Derives the withdrawal hash according to the encoding in the L2 Withdrawer contract
     /// @param _tx Withdrawal transaction to hash.
     /// @return Hashed withdrawal transaction.
-    function hashWithdrawal(Types.WithdrawalTransaction memory _tx)
-        internal
-        pure
-        returns (bytes32)
-    {
-        return
-            keccak256(
-                abi.encode(_tx.nonce, _tx.sender, _tx.target, _tx.value, _tx.gasLimit, _tx.data)
-            );
+    function hashWithdrawal(Types.WithdrawalTransaction memory _tx) internal pure returns (bytes32) {
+        return keccak256(abi.encode(_tx.nonce, _tx.sender, _tx.target, _tx.value, _tx.gasLimit, _tx.data));
     }
 
     /// @notice Hashes the various elements of an output root proof into an output root hash which
     ///         can be used to check if the proof is valid.
     /// @param _outputRootProof Output root proof which should hash to an output root.
     /// @return Hashed output root proof.
-    function hashOutputRootProof(Types.OutputRootProof memory _outputRootProof)
-        internal
-        pure
-        returns (bytes32)
-    {
-        return
-            keccak256(
-                abi.encode(
-                    _outputRootProof.version,
-                    _outputRootProof.stateRoot,
-                    _outputRootProof.messagePasserStorageRoot,
-                    _outputRootProof.latestBlockhash
-                )
-            );
+    function hashOutputRootProof(Types.OutputRootProof memory _outputRootProof) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                _outputRootProof.version,
+                _outputRootProof.stateRoot,
+                _outputRootProof.messagePasserStorageRoot,
+                _outputRootProof.latestBlockhash
+            )
+        );
     }
 }

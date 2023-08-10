@@ -28,31 +28,26 @@ contract EASUpgrader is SafeBuilder, Deployer {
     mapping(uint256 => ContractSet) internal proxies;
 
     /// @notice The expected versions for the contracts to be upgraded to.
-    string constant internal EAS_Version = "1.0.0";
-    string constant internal SchemaRegistry_Version = "1.0.0";
+    string internal constant EAS_Version = "1.0.0";
+    string internal constant SchemaRegistry_Version = "1.0.0";
 
     /// @notice Place the contract addresses in storage so they can be used when building calldata.
     function setUp() public override {
         super.setUp();
 
-        implementations[OP_GOERLI] = ContractSet({
-            EAS: getAddress("EAS"),
-            SchemaRegistry: getAddress("SchemaRegistry")
-        });
+        implementations[OP_GOERLI] =
+            ContractSet({ EAS: getAddress("EAS"), SchemaRegistry: getAddress("SchemaRegistry") });
 
-        proxies[OP_GOERLI] = ContractSet({
-            EAS: Predeploys.EAS,
-            SchemaRegistry: Predeploys.SCHEMA_REGISTRY
-        });
+        proxies[OP_GOERLI] = ContractSet({ EAS: Predeploys.EAS, SchemaRegistry: Predeploys.SCHEMA_REGISTRY });
     }
 
     /// @notice
-    function name() public override pure returns (string memory) {
+    function name() public pure override returns (string memory) {
         return "EASUpgrader";
     }
 
     /// @notice Follow up assertions to ensure that the script ran to completion.
-    function _postCheck() internal override view {
+    function _postCheck() internal view override {
         ContractSet memory prox = getProxies();
         require(_versionHash(prox.EAS) == keccak256(bytes(EAS_Version)), "EAS");
         require(_versionHash(prox.SchemaRegistry) == keccak256(bytes(SchemaRegistry_Version)), "SchemaRegistry");
@@ -65,7 +60,7 @@ contract EASUpgrader is SafeBuilder, Deployer {
 
     /// @notice Test coverage of the logic. Should only run on goerli but other chains
     ///         could be added.
-    function test_script_succeeds() skipWhenNotForking external {
+    function test_script_succeeds() external skipWhenNotForking {
         address _safe;
         address _proxyAdmin;
 
@@ -96,7 +91,7 @@ contract EASUpgrader is SafeBuilder, Deployer {
     /// @notice Builds the calldata that the multisig needs to make for the upgrade to happen.
     ///         A total of 9 calls are made to the proxy admin to upgrade the implementations
     ///         of the predeploys.
-    function buildCalldata(address  _proxyAdmin) internal override view returns (bytes memory) {
+    function buildCalldata(address _proxyAdmin) internal view override returns (bytes memory) {
         IMulticall3.Call3[] memory calls = new IMulticall3.Call3[](2);
 
         ContractSet memory impl = getImplementations();
@@ -106,20 +101,14 @@ contract EASUpgrader is SafeBuilder, Deployer {
         calls[0] = IMulticall3.Call3({
             target: _proxyAdmin,
             allowFailure: false,
-            callData: abi.encodeCall(
-                ProxyAdmin.upgrade,
-                (payable(prox.EAS), impl.EAS)
-            )
+            callData: abi.encodeCall(ProxyAdmin.upgrade, (payable(prox.EAS), impl.EAS))
         });
 
         // Upgrade SchemaRegistry
         calls[1] = IMulticall3.Call3({
             target: _proxyAdmin,
             allowFailure: false,
-            callData: abi.encodeCall(
-                ProxyAdmin.upgrade,
-                (payable(prox.SchemaRegistry), impl.SchemaRegistry)
-            )
+            callData: abi.encodeCall(ProxyAdmin.upgrade, (payable(prox.SchemaRegistry), impl.SchemaRegistry))
         });
 
         return abi.encodeCall(IMulticall3.aggregate3, (calls));

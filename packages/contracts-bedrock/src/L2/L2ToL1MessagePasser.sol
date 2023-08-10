@@ -48,9 +48,9 @@ contract L2ToL1MessagePasser is Semver {
     /// @param amount Amount of ETh that was burned.
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
-    /// @custom:semver 1.0.1
+    /// @custom:semver 1.0.2
     /// @notice Constructs the L2ToL1MessagePasser contract.
-    constructor() Semver(1, 0, 1) {}
+    constructor() Semver(1, 0, 2) { }
 
     /// @notice Allows users to withdraw ETH by sending directly to this contract.
     receive() external payable {
@@ -71,11 +71,7 @@ contract L2ToL1MessagePasser is Semver {
     /// @param _target   Address to call on L1 execution.
     /// @param _gasLimit Minimum gas limit for executing the message on L1.
     /// @param _data     Data to forward to L1 target.
-    function initiateWithdrawal(
-        address _target,
-        uint256 _gasLimit,
-        bytes memory _data
-    ) public payable {
+    function initiateWithdrawal(address _target, uint256 _gasLimit, bytes memory _data) public payable {
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction({
                 nonce: messageNonce(),
@@ -89,15 +85,7 @@ contract L2ToL1MessagePasser is Semver {
 
         sentMessages[withdrawalHash] = true;
 
-        emit MessagePassed(
-            messageNonce(),
-            msg.sender,
-            _target,
-            msg.value,
-            _gasLimit,
-            _data,
-            withdrawalHash
-        );
+        emit MessagePassed(messageNonce(), msg.sender, _target, msg.value, _gasLimit, _data, withdrawalHash);
 
         unchecked {
             ++msgNonce;
