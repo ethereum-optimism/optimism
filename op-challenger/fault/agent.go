@@ -141,7 +141,7 @@ func (a *Agent) step(ctx context.Context, claim types.Claim, game types.Game) er
 	}
 
 	a.log.Info("Updating oracle data", "oracleKey", oracleData.OracleKey, "oracleData", oracleData.OracleData)
-	if err := a.updater.UpdateOracle(ctx, *oracleData); err != nil {
+	if err := a.updater.UpdateOracle(ctx, oracleData); err != nil {
 		return fmt.Errorf("failed to load oracle data: %w", err)
 	}
 
