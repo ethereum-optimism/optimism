@@ -41,10 +41,7 @@ contract MintManager is Ownable {
     /// @param _amount  The amount of tokens to mint.
     function mint(address _account, uint256 _amount) public onlyOwner {
         if (mintPermittedAfter > 0) {
-            require(
-                mintPermittedAfter <= block.timestamp,
-                "MintManager: minting not permitted yet"
-            );
+            require(mintPermittedAfter <= block.timestamp, "MintManager: minting not permitted yet");
 
             require(
                 _amount <= (governanceToken.totalSupply() * MINT_CAP) / DENOMINATOR,
@@ -59,10 +56,7 @@ contract MintManager is Ownable {
     /// @notice Upgrade the owner of the governance token to a new MintManager.
     /// @param _newMintManager The MintManager to upgrade to.
     function upgrade(address _newMintManager) public onlyOwner {
-        require(
-            _newMintManager != address(0),
-            "MintManager: mint manager cannot be the zero address"
-        );
+        require(_newMintManager != address(0), "MintManager: mint manager cannot be the zero address");
 
         governanceToken.transferOwnership(_newMintManager);
     }

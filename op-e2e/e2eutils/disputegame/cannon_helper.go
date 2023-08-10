@@ -27,7 +27,7 @@ func (g *CannonGameHelper) StartChallenger(ctx context.Context, rollupCfg *rollu
 			c.CannonDatadir = g.t.TempDir()
 			c.CannonServer = "../op-program/bin/op-program"
 			c.CannonAbsolutePreState = "../op-program/bin/prestate.json"
-			c.CannonSnapshotFreq = config.DefaultCannonSnapshotFreq
+			c.CannonSnapshotFreq = 10_000_000
 
 			genesisBytes, err := json.Marshal(l2Genesis)
 			g.require.NoError(err, "marshall l2 genesis config")

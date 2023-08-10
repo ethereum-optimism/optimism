@@ -7,12 +7,8 @@ import { AdminFaucetAuthModule } from "../src/periphery/faucet/authmodules/Admin
 import { FaucetHelper } from "./Helpers.sol";
 
 contract Faucet_Initializer is Test {
-    event Drip(
-        string indexed authModule,
-        bytes32 indexed userId,
-        uint256 amount,
-        address indexed recipient
-    );
+    event Drip(string indexed authModule, bytes32 indexed userId, uint256 amount, address indexed recipient);
+
     address internal faucetContractAdmin;
     address internal faucetAuthAdmin;
     address internal nonAdmin;
@@ -66,20 +62,13 @@ contract Faucet_Initializer is Test {
 
     function _enableFaucetAuthModules() internal {
         vm.startPrank(faucetContractAdmin);
-        faucet.configure(
-            optimistNftFam,
-            Faucet.ModuleConfig("OptimistNftModule", true, 1 days, 1 ether)
-        );
-        faucet.configure(githubFam, Faucet.ModuleConfig("GithubModule", true, 1 days, .05 ether));
+        faucet.configure(optimistNftFam, Faucet.ModuleConfig("OptimistNftModule", true, 1 days, 1 ether));
+        faucet.configure(githubFam, Faucet.ModuleConfig("GithubModule", true, 1 days, 0.05 ether));
         vm.stopPrank();
     }
 
     /// @notice Get signature as a bytes blob.
-    function _getSignature(uint256 _signingPrivateKey, bytes32 _digest)
-        internal
-        pure
-        returns (bytes memory)
-    {
+    function _getSignature(uint256 _signingPrivateKey, bytes32 _digest) internal pure returns (bytes memory) {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(_signingPrivateKey, _digest);
 
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -98,23 +87,18 @@ contract Faucet_Initializer is Test {
         address recipient,
         bytes32 id,
         bytes32 nonce
-    ) internal view returns (bytes memory) {
-        AdminFaucetAuthModule.Proof memory proof = AdminFaucetAuthModule.Proof(
-            recipient,
-            nonce,
-            id
+    )
+        internal
+        view
+        returns (bytes memory)
+    {
+        AdminFaucetAuthModule.Proof memory proof = AdminFaucetAuthModule.Proof(recipient, nonce, id);
+        return _getSignature(
+            _issuerPrivateKey,
+            faucetHelper.getDigestWithEIP712Domain(
+                proof, _eip712Name, _contractVersion, _eip712Chainid, _eip712VerifyingContract
+            )
         );
-        return
-            _getSignature(
-                _issuerPrivateKey,
-                faucetHelper.getDigestWithEIP712Domain(
-                    proof,
-                    _eip712Name,
-                    _contractVersion,
-                    _eip712Chainid,
-                    _eip712VerifyingContract
-                )
-            );
     }
 }
 
@@ -140,11 +124,7 @@ contract FaucetTest is Faucet_Initializer {
         vm.prank(nonAdmin);
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce),
-            Faucet.AuthParameters(
-                optimistNftFam,
-                keccak256(abi.encodePacked(fundsReceiver)),
-                signature
-            )
+            Faucet.AuthParameters(optimistNftFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
     }
 
@@ -166,11 +146,7 @@ contract FaucetTest is Faucet_Initializer {
         vm.expectRevert("Faucet: drip parameters could not be verified by security module");
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce),
-            Faucet.AuthParameters(
-                optimistNftFam,
-                keccak256(abi.encodePacked(fundsReceiver)),
-                signature
-            )
+            Faucet.AuthParameters(optimistNftFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
     }
 
@@ -192,18 +168,10 @@ contract FaucetTest is Faucet_Initializer {
         vm.prank(nonAdmin);
         faucet.drip(
             Faucet.DripParameters(payable(fundsReceiver), nonce),
-            Faucet.AuthParameters(
-                optimistNftFam,
-                keccak256(abi.encodePacked(fundsReceiver)),
-                signature
-            )
+            Faucet.AuthParameters(optimistNftFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
         uint256 recipientBalanceAfter = address(fundsReceiver).balance;
-        assertEq(
-            recipientBalanceAfter - recipientBalanceBefore,
-            1 ether,
-            "expect increase of 1 ether"
-        );
+        assertEq(recipientBalanceAfter - recipientBalanceBefore, 1 ether, "expect increase of 1 ether");
     }
 
     function test_drip_githubSendsCorrectAmount_succeeds() external {
@@ -227,11 +195,7 @@ contract FaucetTest is Faucet_Initializer {
             Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
         uint256 recipientBalanceAfter = address(fundsReceiver).balance;
-        assertEq(
-            recipientBalanceAfter - recipientBalanceBefore,
-            .05 ether,
-            "expect increase of .05 ether"
-        );
+        assertEq(recipientBalanceAfter - recipientBalanceBefore, 0.05 ether, "expect increase of .05 ether");
     }
 
     function test_drip_emitsEvent_succeeds() external {
@@ -249,12 +213,7 @@ contract FaucetTest is Faucet_Initializer {
         );
 
         vm.expectEmit(true, true, true, true, address(faucet));
-        emit Drip(
-            "GithubModule",
-            keccak256(abi.encodePacked(fundsReceiver)),
-            .05 ether,
-            fundsReceiver
-        );
+        emit Drip("GithubModule", keccak256(abi.encodePacked(fundsReceiver)), 0.05 ether, fundsReceiver);
 
         vm.prank(nonAdmin);
         faucet.drip(
@@ -283,7 +242,7 @@ contract FaucetTest is Faucet_Initializer {
             Faucet.AuthParameters(githubFam, keccak256(abi.encodePacked(fundsReceiver)), signature)
         );
 
-        faucet.configure(githubFam, Faucet.ModuleConfig("GithubModule", false, 1 days, .05 ether));
+        faucet.configure(githubFam, Faucet.ModuleConfig("GithubModule", false, 1 days, 0.05 ether));
 
         vm.expectRevert("Faucet: provided auth module is not supported by this faucet");
         faucet.drip(
@@ -408,11 +367,7 @@ contract FaucetTest is Faucet_Initializer {
         faucet.withdraw(payable(fundsReceiver), 2 ether);
 
         uint256 recipientBalanceAfter = address(fundsReceiver).balance;
-        assertEq(
-            recipientBalanceAfter - recipientBalanceBefore,
-            2 ether,
-            "expect increase of 2 ether"
-        );
+        assertEq(recipientBalanceAfter - recipientBalanceBefore, 2 ether, "expect increase of 2 ether");
         vm.stopPrank();
     }
 
@@ -426,7 +381,7 @@ contract FaucetTest is Faucet_Initializer {
         uint256 faucetBalanceBefore = address(faucet).balance;
 
         vm.prank(nonAdmin);
-        (bool success, ) = address(faucet).call{ value: 1 ether }("");
+        (bool success,) = address(faucet).call{ value: 1 ether }("");
         assertTrue(success);
 
         uint256 faucetBalanceAfter = address(faucet).balance;

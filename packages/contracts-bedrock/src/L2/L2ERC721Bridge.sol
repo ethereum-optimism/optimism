@@ -18,10 +18,10 @@ import { Semver } from "../universal/Semver.sol";
 ///         wait for the one-week challenge period to elapse before their Optimism-native NFT
 ///         can be refunded on L2.
 contract L2ERC721Bridge is ERC721Bridge, Semver {
-    /// @custom:semver 1.2.0
+    /// @custom:semver 1.2.1
     /// @notice Constructs the L2ERC721Bridge contract.
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    constructor(address _otherBridge) Semver(1, 2, 0) ERC721Bridge(_otherBridge) {
+    constructor(address _otherBridge) Semver(1, 2, 1) ERC721Bridge(_otherBridge) {
         initialize({ _messenger: CrossDomainMessenger(address(0)) });
     }
 
@@ -48,7 +48,10 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
         address _to,
         uint256 _tokenId,
         bytes calldata _extraData
-    ) external onlyOtherBridge {
+    )
+        external
+        onlyOtherBridge
+    {
         require(_localToken != address(this), "L2ERC721Bridge: local token cannot be self");
 
         // Note that supportsInterface makes a callback to the _localToken address which is user
@@ -80,7 +83,10 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
         uint256 _tokenId,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    ) internal override {
+    )
+        internal
+        override
+    {
         require(_remoteToken != address(0), "L2ERC721Bridge: remote token cannot be address(0)");
 
         // Check that the withdrawal is being initiated by the NFT owner
@@ -92,10 +98,7 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
         // Construct calldata for l1ERC721Bridge.finalizeBridgeERC721(_to, _tokenId)
         // slither-disable-next-line reentrancy-events
         address remoteToken = IOptimismMintableERC721(_localToken).remoteToken();
-        require(
-            remoteToken == _remoteToken,
-            "L2ERC721Bridge: remote token does not match given value"
-        );
+        require(remoteToken == _remoteToken, "L2ERC721Bridge: remote token does not match given value");
 
         // When a withdrawal is initiated, we burn the withdrawer's NFT to prevent subsequent L2
         // usage
@@ -103,13 +106,7 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
         IOptimismMintableERC721(_localToken).burn(_from, _tokenId);
 
         bytes memory message = abi.encodeWithSelector(
-            L1ERC721Bridge.finalizeBridgeERC721.selector,
-            remoteToken,
-            _localToken,
-            _from,
-            _to,
-            _tokenId,
-            _extraData
+            L1ERC721Bridge.finalizeBridgeERC721.selector, remoteToken, _localToken, _from, _to, _tokenId, _extraData
         );
 
         // Send message to L1 bridge

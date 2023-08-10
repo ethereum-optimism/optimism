@@ -22,14 +22,14 @@ library LibSort {
             let h := add(a, shl(5, n)) // High slot.
             let s := 0x20
             let w := not(31)
-            for { let i := add(a, s) } 1 {} {
+            for { let i := add(a, s) } 1 { } {
                 i := add(i, s)
                 if gt(i, h) { break }
                 let k := mload(i) // Key.
                 let j := add(i, w) // The slot before the current slot.
                 let v := mload(j) // The value of `j`.
                 if iszero(gt(v, k)) { continue }
-                for {} 1 {} {
+                for { } 1 { } {
                     mstore(add(j, s), v)
                     j := add(j, w) // `sub(j, 0x20)`.
                     v := mload(j)
@@ -73,7 +73,7 @@ library LibSort {
             // Let the stack be the start of the free memory.
             let stack := mload(0x40)
 
-            for {} iszero(lt(n, 2)) {} {
+            for { } iszero(lt(n, 2)) { } {
                 // Push `l` and `h` to the stack.
                 // The `shl` by 5 is equivalent to multiplying by `0x20`.
                 let l := add(a, s)
@@ -94,7 +94,7 @@ library LibSort {
                 }
                 // If the array is reversed sorted.
                 if eq(j, l) {
-                    for {} 1 {} {
+                    for { } 1 { } {
                         let t := mload(l)
                         mstore(l, mload(h))
                         mstore(h, t)
@@ -112,7 +112,7 @@ library LibSort {
                 break
             }
 
-            for { let stackBottom := mload(0x40) } iszero(eq(stack, stackBottom)) {} {
+            for { let stackBottom := mload(0x40) } iszero(eq(stack, stackBottom)) { } {
                 // Pop `l` and `h` from the stack.
                 stack := sub(stack, 0x40)
                 let l := mload(stack)
@@ -128,14 +128,14 @@ library LibSort {
                         mstore(i, mload(l))
                         mstore(l, t)
                     }
-                    for {} 1 {} {
+                    for { } 1 { } {
                         i := add(i, s)
                         if gt(i, h) { break }
                         let k := mload(i) // Key.
                         let j := add(i, w) // The slot before the current slot.
                         let v := mload(j) // The value of `j`.
                         if iszero(gt(v, k)) { continue }
-                        for {} 1 {} {
+                        for { } 1 { } {
                             mstore(add(j, s), v)
                             j := add(j, w)
                             v := mload(j)
@@ -176,13 +176,13 @@ library LibSort {
                     // The value of the pivot slot.
                     let x := mload(p)
                     p := h
-                    for { let i := l } 1 {} {
-                        for {} 1 {} {
+                    for { let i := l } 1 { } {
+                        for { } 1 { } {
                             i := add(i, s)
                             if iszero(gt(x, mload(i))) { break }
                         }
                         let j := p
-                        for {} 1 {} {
+                        for { } 1 { } {
                             j := add(j, w)
                             if iszero(lt(x, mload(j))) { break }
                         }
@@ -239,7 +239,7 @@ library LibSort {
                 let x := add(a, 0x20)
                 let y := add(a, 0x40)
                 let end := add(a, shl(5, add(mload(a), 1)))
-                for {} 1 {} {
+                for { } 1 { } {
                     if iszero(eq(mload(x), mload(y))) {
                         x := add(x, 0x20)
                         mstore(x, mload(y))
@@ -264,31 +264,19 @@ library LibSort {
 
     /// @dev Returns whether `a` contains `needle`,
     /// and the index of the nearest element less than or equal to `needle`.
-    function searchSorted(uint256[] memory a, uint256 needle)
-        internal
-        pure
-        returns (bool found, uint256 index)
-    {
+    function searchSorted(uint256[] memory a, uint256 needle) internal pure returns (bool found, uint256 index) {
         (found, index) = _searchSorted(a, needle, 0);
     }
 
     /// @dev Returns whether `a` contains `needle`,
     /// and the index of the nearest element less than or equal to `needle`.
-    function searchSorted(int256[] memory a, int256 needle)
-        internal
-        pure
-        returns (bool found, uint256 index)
-    {
+    function searchSorted(int256[] memory a, int256 needle) internal pure returns (bool found, uint256 index) {
         (found, index) = _searchSorted(_toUints(a), uint256(needle), 1 << 255);
     }
 
     /// @dev Returns whether `a` contains `needle`,
     /// and the index of the nearest element less than or equal to `needle`.
-    function searchSorted(address[] memory a, address needle)
-        internal
-        pure
-        returns (bool found, uint256 index)
-    {
+    function searchSorted(address[] memory a, address needle) internal pure returns (bool found, uint256 index) {
         (found, index) = _searchSorted(_toUints(a), uint256(uint160(needle)), 0);
     }
 
@@ -300,7 +288,7 @@ library LibSort {
                 let s := 0x20
                 let w := not(31)
                 let h := add(a, shl(5, mload(a)))
-                for { a := add(a, s) } 1 {} {
+                for { a := add(a, s) } 1 { } {
                     let t := mload(a)
                     mstore(a, mload(h))
                     mstore(h, t)
@@ -329,7 +317,7 @@ library LibSort {
             result := 1
             if iszero(lt(mload(a), 2)) {
                 let end := add(a, shl(5, mload(a)))
-                for { a := add(a, 0x20) } 1 {} {
+                for { a := add(a, 0x20) } 1 { } {
                     let p := mload(a)
                     a := add(a, 0x20)
                     result := iszero(gt(p, mload(a)))
@@ -346,7 +334,7 @@ library LibSort {
             result := 1
             if iszero(lt(mload(a), 2)) {
                 let end := add(a, shl(5, mload(a)))
-                for { a := add(a, 0x20) } 1 {} {
+                for { a := add(a, 0x20) } 1 { } {
                     let p := mload(a)
                     a := add(a, 0x20)
                     result := iszero(sgt(p, mload(a)))
@@ -368,7 +356,7 @@ library LibSort {
             result := 1
             if iszero(lt(mload(a), 2)) {
                 let end := add(a, shl(5, mload(a)))
-                for { a := add(a, 0x20) } 1 {} {
+                for { a := add(a, 0x20) } 1 { } {
                     let p := mload(a)
                     a := add(a, 0x20)
                     result := lt(p, mload(a))
@@ -385,7 +373,7 @@ library LibSort {
             result := 1
             if iszero(lt(mload(a), 2)) {
                 let end := add(a, shl(5, mload(a)))
-                for { a := add(a, 0x20) } 1 {} {
+                for { a := add(a, 0x20) } 1 { } {
                     let p := mload(a)
                     a := add(a, 0x20)
                     result := slt(p, mload(a))
@@ -402,91 +390,55 @@ library LibSort {
 
     /// @dev Returns the sorted set difference of `a` and `b`.
     /// Note: Behaviour is undefined if inputs are not sorted and uniquified.
-    function difference(uint256[] memory a, uint256[] memory b)
-        internal
-        pure
-        returns (uint256[] memory c)
-    {
+    function difference(uint256[] memory a, uint256[] memory b) internal pure returns (uint256[] memory c) {
         c = _difference(a, b, 0);
     }
 
     /// @dev Returns the sorted set difference between `a` and `b`.
     /// Note: Behaviour is undefined if inputs are not sorted and uniquified.
-    function difference(int256[] memory a, int256[] memory b)
-        internal
-        pure
-        returns (int256[] memory c)
-    {
+    function difference(int256[] memory a, int256[] memory b) internal pure returns (int256[] memory c) {
         c = _toInts(_difference(_toUints(a), _toUints(b), 1 << 255));
     }
 
     /// @dev Returns the sorted set difference between `a` and `b`.
     /// Note: Behaviour is undefined if inputs are not sorted and uniquified.
-    function difference(address[] memory a, address[] memory b)
-        internal
-        pure
-        returns (address[] memory c)
-    {
+    function difference(address[] memory a, address[] memory b) internal pure returns (address[] memory c) {
         c = _toAddresses(_difference(_toUints(a), _toUints(b), 0));
     }
 
     /// @dev Returns the sorted set intersection between `a` and `b`.
     /// Note: Behaviour is undefined if inputs are not sorted and uniquified.
-    function intersection(uint256[] memory a, uint256[] memory b)
-        internal
-        pure
-        returns (uint256[] memory c)
-    {
+    function intersection(uint256[] memory a, uint256[] memory b) internal pure returns (uint256[] memory c) {
         c = _intersection(a, b, 0);
     }
 
     /// @dev Returns the sorted set intersection between `a` and `b`.
     /// Note: Behaviour is undefined if inputs are not sorted and uniquified.
-    function intersection(int256[] memory a, int256[] memory b)
-        internal
-        pure
-        returns (int256[] memory c)
-    {
+    function intersection(int256[] memory a, int256[] memory b) internal pure returns (int256[] memory c) {
         c = _toInts(_intersection(_toUints(a), _toUints(b), 1 << 255));
     }
 
     /// @dev Returns the sorted set intersection between `a` and `b`.
     /// Note: Behaviour is undefined if inputs are not sorted and uniquified.
-    function intersection(address[] memory a, address[] memory b)
-        internal
-        pure
-        returns (address[] memory c)
-    {
+    function intersection(address[] memory a, address[] memory b) internal pure returns (address[] memory c) {
         c = _toAddresses(_intersection(_toUints(a), _toUints(b), 0));
     }
 
     /// @dev Returns the sorted set union of `a` and `b`.
     /// Note: Behaviour is undefined if inputs are not sorted and uniquified.
-    function union(uint256[] memory a, uint256[] memory b)
-        internal
-        pure
-        returns (uint256[] memory c)
-    {
+    function union(uint256[] memory a, uint256[] memory b) internal pure returns (uint256[] memory c) {
         c = _union(a, b, 0);
     }
 
     /// @dev Returns the sorted set union of `a` and `b`.
     /// Note: Behaviour is undefined if inputs are not sorted and uniquified.
-    function union(int256[] memory a, int256[] memory b)
-        internal
-        pure
-        returns (int256[] memory c)
-    {
+    function union(int256[] memory a, int256[] memory b) internal pure returns (int256[] memory c) {
         c = _toInts(_union(_toUints(a), _toUints(b), 1 << 255));
     }
 
     /// @dev Returns the sorted set union between `a` and `b`.
     /// Note: Behaviour is undefined if inputs are not sorted and uniquified.
-    function union(address[] memory a, address[] memory b)
-        internal
-        pure
-        returns (address[] memory c)
-    {
+    function union(address[] memory a, address[] memory b) internal pure returns (address[] memory c) {
         c = _toAddresses(_union(_toUints(a), _toUints(b), 0));
     }
 
@@ -535,7 +487,7 @@ library LibSort {
         /// @solidity memory-safe-assembly
         assembly {
             let w := shl(255, 1)
-            for { let end := add(a, shl(5, mload(a))) } iszero(eq(a, end)) {} {
+            for { let end := add(a, shl(5, mload(a))) } iszero(eq(a, end)) { } {
                 a := add(a, 0x20)
                 mstore(a, add(mload(a), w))
             }
@@ -544,7 +496,11 @@ library LibSort {
 
     /// @dev Returns whether `a` contains `needle`,
     /// and the index of the nearest element less than or equal to `needle`.
-    function _searchSorted(uint256[] memory a, uint256 needle, uint256 signed)
+    function _searchSorted(
+        uint256[] memory a,
+        uint256 needle,
+        uint256 signed
+    )
         private
         pure
         returns (bool found, uint256 index)
@@ -555,7 +511,7 @@ library LibSort {
             let s := 0x20
             let l := add(a, s) // Slot of the start of search.
             let h := add(a, shl(5, mload(a))) // Slot of the end of search.
-            for { needle := add(signed, needle) } 1 {} {
+            for { needle := add(signed, needle) } 1 { } {
                 // Average of `l` and `h`.
                 m := add(shl(5, shr(6, add(l, h))), and(31, l))
                 let t := add(signed, mload(m))
@@ -578,7 +534,11 @@ library LibSort {
 
     /// @dev Returns the sorted set difference of `a` and `b`.
     /// Note: Behaviour is undefined if inputs are not sorted and uniquified.
-    function _difference(uint256[] memory a, uint256[] memory b, uint256 signed)
+    function _difference(
+        uint256[] memory a,
+        uint256[] memory b,
+        uint256 signed
+    )
         private
         pure
         returns (uint256[] memory c)
@@ -592,7 +552,7 @@ library LibSort {
             a := add(a, s)
             b := add(b, s)
             let k := c
-            for {} iszero(or(gt(a, aEnd), gt(b, bEnd))) {} {
+            for { } iszero(or(gt(a, aEnd), gt(b, bEnd))) { } {
                 let u := mload(a)
                 let v := mload(b)
                 if iszero(xor(u, v)) {
@@ -608,7 +568,7 @@ library LibSort {
                 mstore(k, u)
                 a := add(a, s)
             }
-            for {} iszero(gt(a, aEnd)) {} {
+            for { } iszero(gt(a, aEnd)) { } {
                 k := add(k, s)
                 mstore(k, mload(a))
                 a := add(a, s)
@@ -620,7 +580,11 @@ library LibSort {
 
     /// @dev Returns the sorted set intersection between `a` and `b`.
     /// Note: Behaviour is undefined if inputs are not sorted and uniquified.
-    function _intersection(uint256[] memory a, uint256[] memory b, uint256 signed)
+    function _intersection(
+        uint256[] memory a,
+        uint256[] memory b,
+        uint256 signed
+    )
         private
         pure
         returns (uint256[] memory c)
@@ -634,7 +598,7 @@ library LibSort {
             a := add(a, s)
             b := add(b, s)
             let k := c
-            for {} iszero(or(gt(a, aEnd), gt(b, bEnd))) {} {
+            for { } iszero(or(gt(a, aEnd), gt(b, bEnd))) { } {
                 let u := mload(a)
                 let v := mload(b)
                 if iszero(xor(u, v)) {
@@ -657,11 +621,7 @@ library LibSort {
 
     /// @dev Returns the sorted set union of `a` and `b`.
     /// Note: Behaviour is undefined if inputs are not sorted and uniquified.
-    function _union(uint256[] memory a, uint256[] memory b, uint256 signed)
-        private
-        pure
-        returns (uint256[] memory c)
-    {
+    function _union(uint256[] memory a, uint256[] memory b, uint256 signed) private pure returns (uint256[] memory c) {
         /// @solidity memory-safe-assembly
         assembly {
             let s := 0x20
@@ -671,7 +631,7 @@ library LibSort {
             a := add(a, s)
             b := add(b, s)
             let k := c
-            for {} iszero(or(gt(a, aEnd), gt(b, bEnd))) {} {
+            for { } iszero(or(gt(a, aEnd), gt(b, bEnd))) { } {
                 let u := mload(a)
                 let v := mload(b)
                 if iszero(xor(u, v)) {
@@ -691,12 +651,12 @@ library LibSort {
                 mstore(k, u)
                 a := add(a, s)
             }
-            for {} iszero(gt(a, aEnd)) {} {
+            for { } iszero(gt(a, aEnd)) { } {
                 k := add(k, s)
                 mstore(k, mload(a))
                 a := add(a, s)
             }
-            for {} iszero(gt(b, bEnd)) {} {
+            for { } iszero(gt(b, bEnd)) { } {
                 k := add(k, s)
                 mstore(k, mload(b))
                 b := add(b, s)

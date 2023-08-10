@@ -31,9 +31,7 @@ contract FeeVault_Test is Bridge_Initializer {
         );
         vm.etch(
             Predeploys.L1_FEE_VAULT,
-            address(
-                new L1FeeVault(bob, otherMinimumWithdrawalAmount, FeeVault.WithdrawalNetwork.L2)
-            ).code
+            address(new L1FeeVault(bob, otherMinimumWithdrawalAmount, FeeVault.WithdrawalNetwork.L2)).code
         );
 
         vm.label(Predeploys.BASE_FEE_VAULT, "BaseFeeVault");
