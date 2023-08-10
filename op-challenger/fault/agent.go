@@ -134,21 +134,17 @@ func (a *Agent) step(ctx context.Context, claim types.Claim, game types.Game) er
 		return nil
 	}
 
-	oracleData, err := a.solver.GetOracleData(ctx, claim)
-	if err != nil {
-		a.log.Debug("Failed to get oracle data", "err", err)
-		return nil
-	}
-
-	a.log.Info("Updating oracle data", "oracleKey", oracleData.OracleKey, "oracleData", oracleData.OracleData)
-	if err := a.updater.UpdateOracle(ctx, oracleData); err != nil {
-		return fmt.Errorf("failed to load oracle data: %w", err)
-	}
-
 	a.log.Info("Attempting step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
 	step, err := a.solver.AttemptStep(ctx, claim, agreeWithClaimLevel)
 	if err != nil {
 		return fmt.Errorf("attempt step: %w", err)
+	}
+
+	if step.OracleData != nil {
+		a.log.Info("Updating oracle data", "oracleKey", step.OracleData.OracleKey, "oracleData", step.OracleData.OracleData)
+		if err := a.updater.UpdateOracle(ctx, step.OracleData); err != nil {
+			return fmt.Errorf("failed to load oracle data: %w", err)
+		}
 	}
 
 	a.log.Info("Performing step", "is_attack", step.IsAttack,

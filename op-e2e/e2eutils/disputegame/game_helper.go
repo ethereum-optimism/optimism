@@ -122,3 +122,29 @@ func (g *FaultGameHelper) Attack(ctx context.Context, claimIdx int64, claim comm
 	_, err = utils.WaitReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err, "Attack transaction was not OK")
 }
+
+func (g *FaultGameHelper) Defend(ctx context.Context, claimIdx int64, claim common.Hash) {
+	tx, err := g.game.Defend(g.opts, big.NewInt(claimIdx), claim)
+	g.require.NoError(err, "Defend transaction did not send")
+	_, err = utils.WaitReceiptOK(ctx, g.client, tx.Hash())
+	g.require.NoError(err, "Defend transaction was not OK")
+}
+
+func (g *FaultGameHelper) LogGameData(ctx context.Context) {
+	opts := &bind.CallOpts{Context: ctx}
+	maxDepth := int(g.MaxDepth(ctx))
+	claimCount, err := g.game.ClaimDataLen(opts)
+	info := fmt.Sprintf("Claim count: %v\n", claimCount)
+	g.require.NoError(err, "Fetching claim count")
+	for i := int64(0); i < claimCount.Int64(); i++ {
+		claim, err := g.game.ClaimData(opts, big.NewInt(i))
+		g.require.NoErrorf(err, "Fetch claim %v", i)
+
+		pos := types.NewPositionFromGIndex(claim.Position.Uint64())
+		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, Value: %v, Countered: %v\n",
+			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.Countered)
+	}
+	status, err := g.game.Status(opts)
+	g.require.NoError(err, "Load game status")
+	g.t.Logf("Game %v:\n%v\nCurrent status: %v\n", g.addr, info, Status(status))
+}

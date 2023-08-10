@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 )
 
@@ -48,4 +49,8 @@ func (g *CannonGameHelper) StartChallenger(ctx context.Context, rollupCfg *rollu
 		_ = c.Close()
 	})
 	return c
+}
+
+func (g *FaultGameHelper) Address() common.Address {
+	return g.addr
 }
