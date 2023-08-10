@@ -64,31 +64,8 @@ contract Deploy is Deployer {
     function run() public {
         console.log("Deploying L1 system");
 
-        deployAddressManager();
-        deployProxyAdmin();
-
-        deployOptimismPortalProxy();
-        deployL2OutputOracleProxy();
-        deploySystemConfigProxy();
-        deployL1StandardBridgeProxy();
-        deployL1CrossDomainMessengerProxy();
-        deployOptimismMintableERC20FactoryProxy();
-        deployL1ERC721BridgeProxy();
-        deployDisputeGameFactoryProxy();
-
-        deployOptimismPortal();
-        deployL1CrossDomainMessenger();
-        deployL2OutputOracle();
-        deployOptimismMintableERC20Factory();
-        deploySystemConfig();
-        deployL1StandardBridge();
-        deployL1ERC721Bridge();
-        deployDisputeGameFactory();
-        deployBlockOracle();
-        deployPreimageOracle();
-        deployMips();
-
-        transferAddressManagerOwnership();
+        deployProxies();
+        deployImplementations();
 
         initializeDisputeGameFactory();
         initializeSystemConfig();
@@ -118,6 +95,38 @@ contract Deploy is Deployer {
         if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet) {
             _;
         }
+    }
+
+    /// @notice Deploy all of the proxies
+    function deployProxies() public {
+        deployAddressManager();
+        deployProxyAdmin();
+
+        deployOptimismPortalProxy();
+        deployL2OutputOracleProxy();
+        deploySystemConfigProxy();
+        deployL1StandardBridgeProxy();
+        deployL1CrossDomainMessengerProxy();
+        deployOptimismMintableERC20FactoryProxy();
+        deployL1ERC721BridgeProxy();
+        deployDisputeGameFactoryProxy();
+
+        transferAddressManagerOwnership();
+    }
+
+    /// @notice Deploy all of the implementations
+    function deployImplementations() public {
+        deployOptimismPortal();
+        deployL1CrossDomainMessenger();
+        deployL2OutputOracle();
+        deployOptimismMintableERC20Factory();
+        deploySystemConfig();
+        deployL1StandardBridge();
+        deployL1ERC721Bridge();
+        deployDisputeGameFactory();
+        deployBlockOracle();
+        deployPreimageOracle();
+        deployMips();
     }
 
     /// @notice Deploy the AddressManager
