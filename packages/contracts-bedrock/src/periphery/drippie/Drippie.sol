@@ -55,42 +55,29 @@ contract Drippie is AssetReceiver {
     /// @param nameref Indexed name parameter (hashed).
     /// @param name    Unindexed name parameter (unhashed).
     /// @param config  Config for the created drip.
-    event DripCreated(
-        // Emit name twice because indexed version is hashed.
-        string indexed nameref,
-        string name,
-        DripConfig config
-    );
+    // Emit name twice because indexed version is hashed.
+    event DripCreated(string indexed nameref, string name, DripConfig config);
 
     /// @notice Emitted when a drip status is updated.
     /// @param nameref Indexed name parameter (hashed).
     /// @param name    Unindexed name parameter (unhashed).
     /// @param status  New drip status.
-    event DripStatusUpdated(
-        // Emit name twice because indexed version is hashed.
-        string indexed nameref,
-        string name,
-        DripStatus status
-    );
+    // Emit name twice because indexed version is hashed.
+    event DripStatusUpdated(string indexed nameref, string name, DripStatus status);
 
     /// @notice Emitted when a drip is executed.
     /// @param nameref   Indexed name parameter (hashed).
     /// @param name      Unindexed name parameter (unhashed).
     /// @param executor  Address that executed the drip.
     /// @param timestamp Time when the drip was executed.
-    event DripExecuted(
-        // Emit name twice because indexed version is hashed.
-        string indexed nameref,
-        string name,
-        address executor,
-        uint256 timestamp
-    );
+    // Emit name twice because indexed version is hashed.
+    event DripExecuted(string indexed nameref, string name, address executor, uint256 timestamp);
 
     /// @notice Maps from drip names to drip states.
     mapping(string => DripState) public drips;
 
     //// @param _owner Initial contract owner.
-    constructor(address _owner) AssetReceiver(_owner) {}
+    constructor(address _owner) AssetReceiver(_owner) { }
 
     /// @notice Creates a new drip with the given name and configuration. Once created, drips cannot
     ///         be modified in any way (this is a security measure). If you want to update a drip,
@@ -101,24 +88,15 @@ contract Drippie is AssetReceiver {
         // Make sure this drip doesn't already exist. We *must* guarantee that no other function
         // will ever set the status of a drip back to NONE after it's been created. This is why
         // archival is a separate status.
-        require(
-            drips[_name].status == DripStatus.NONE,
-            "Drippie: drip with that name already exists"
-        );
+        require(drips[_name].status == DripStatus.NONE, "Drippie: drip with that name already exists");
 
         // Validate the drip interval, only allowing an interval of zero if the drip has explicitly
         // been marked as reentrant. Prevents client-side bugs making a drip infinitely executable
         // within the same block (of course, restricted by gas limits).
         if (_config.reentrant) {
-            require(
-                _config.interval == 0,
-                "Drippie: if allowing reentrant drip, must set interval to zero"
-            );
+            require(_config.interval == 0, "Drippie: if allowing reentrant drip, must set interval to zero");
         } else {
-            require(
-                _config.interval > 0,
-                "Drippie: interval must be greater than zero if drip is not reentrant"
-            );
+            require(_config.interval > 0, "Drippie: interval must be greater than zero if drip is not reentrant");
         }
 
         // We initialize this way because Solidity won't let us copy arrays into storage yet.
@@ -147,10 +125,7 @@ contract Drippie is AssetReceiver {
     function status(string calldata _name, DripStatus _status) external onlyOwner {
         // Make sure we can never set drip status back to NONE. A simple security measure to
         // prevent accidental overwrites if this code is ever updated down the line.
-        require(
-            _status != DripStatus.NONE,
-            "Drippie: drip status can never be set back to NONE after creation"
-        );
+        require(_status != DripStatus.NONE, "Drippie: drip status can never be set back to NONE after creation");
 
         // Load the drip status once to avoid unnecessary SLOADs.
         DripStatus curr = drips[_name].status;
@@ -158,34 +133,22 @@ contract Drippie is AssetReceiver {
         // Make sure the drip in question actually exists. Not strictly necessary but there doesn't
         // seem to be any clear reason why you would want to do this, and it may save some gas in
         // the case of a front-end bug.
-        require(
-            curr != DripStatus.NONE,
-            "Drippie: drip with that name does not exist and cannot be updated"
-        );
+        require(curr != DripStatus.NONE, "Drippie: drip with that name does not exist and cannot be updated");
 
         // Once a drip has been archived, it cannot be un-archived. This is, after all, the entire
         // point of archiving a drip.
-        require(
-            curr != DripStatus.ARCHIVED,
-            "Drippie: drip with that name has been archived and cannot be updated"
-        );
+        require(curr != DripStatus.ARCHIVED, "Drippie: drip with that name has been archived and cannot be updated");
 
         // Although not strictly necessary, we make sure that the status here is actually changing.
         // This may save the client some gas if there's a front-end bug and the user accidentally
         // tries to "change" the status to the same value as before.
-        require(
-            curr != _status,
-            "Drippie: cannot set drip status to the same status as its current status"
-        );
+        require(curr != _status, "Drippie: cannot set drip status to the same status as its current status");
 
         // If the user is trying to archive this drip, make sure the drip has been paused. We do
         // not allow users to archive active drips so that the effects of this action are more
         // abundantly clear.
         if (_status == DripStatus.ARCHIVED) {
-            require(
-                curr == DripStatus.PAUSED,
-                "Drippie: drip must first be paused before being archived"
-            );
+            require(curr == DripStatus.PAUSED, "Drippie: drip must first be paused before being archived");
         }
 
         // If we made it here then we can safely update the status.
@@ -200,10 +163,7 @@ contract Drippie is AssetReceiver {
         DripState storage state = drips[_name];
 
         // Only allow active drips to be executed, an obvious security measure.
-        require(
-            state.status == DripStatus.ACTIVE,
-            "Drippie: selected drip does not exist or is not currently active"
-        );
+        require(state.status == DripStatus.ACTIVE, "Drippie: selected drip does not exist or is not currently active");
 
         // Don't drip if the drip interval has not yet elapsed since the last time we dripped. This
         // is a safety measure that prevents a malicious recipient from, e.g., spending all of
@@ -269,7 +229,7 @@ contract Drippie is AssetReceiver {
             // will ever happen in practice). Could save a marginal amount of gas to ignore the
             // returndata.
             // slither-disable-next-line calls-loop
-            (bool success, ) = action.target.call{ value: action.value }(action.data);
+            (bool success,) = action.target.call{ value: action.value }(action.data);
 
             // Generally should not happen, but could if there's a misconfiguration (e.g., passing
             // the wrong data to the target contract), the recipient is not payable, or
@@ -279,10 +239,7 @@ contract Drippie is AssetReceiver {
             // Note that this forces the drip executor to supply sufficient gas to the call
             // (assuming there is some sufficient gas limit that exists, otherwise the drip will
             // not execute).
-            require(
-                success,
-                "Drippie: drip was unsuccessful, please check your configuration for mistakes"
-            );
+            require(success, "Drippie: drip was unsuccessful, please check your configuration for mistakes");
         }
 
         emit DripExecuted(_name, _name, msg.sender, block.timestamp);

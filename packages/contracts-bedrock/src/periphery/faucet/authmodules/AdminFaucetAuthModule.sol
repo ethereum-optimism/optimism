@@ -14,8 +14,7 @@ contract AdminFaucetAuthModule is IFaucetAuthModule, EIP712 {
     address public immutable ADMIN;
 
     /// @notice EIP712 typehash for the Proof type.
-    bytes32 public constant PROOF_TYPEHASH =
-        keccak256("Proof(address recipient,bytes32 nonce,bytes32 id)");
+    bytes32 public constant PROOF_TYPEHASH = keccak256("Proof(address recipient,bytes32 nonce,bytes32 id)");
 
     /// @notice Struct that represents a proof that verifies the admin.
     /// @custom:field recipient Address that will be receiving the faucet funds.
@@ -30,11 +29,7 @@ contract AdminFaucetAuthModule is IFaucetAuthModule, EIP712 {
     /// @param _admin   Admin address that can sign off on drips.
     /// @param _name    Contract name.
     /// @param _version The current major version of the signing domain.
-    constructor(
-        address _admin,
-        string memory _name,
-        string memory _version
-    ) EIP712(_name, _version) {
+    constructor(address _admin, string memory _name, string memory _version) EIP712(_name, _version) {
         ADMIN = _admin;
     }
 
@@ -43,13 +38,15 @@ contract AdminFaucetAuthModule is IFaucetAuthModule, EIP712 {
         Faucet.DripParameters memory _params,
         bytes32 _id,
         bytes memory _proof
-    ) external view returns (bool valid_) {
+    )
+        external
+        view
+        returns (bool valid_)
+    {
         // Generate a EIP712 typed data hash to compare against the proof.
         valid_ = SignatureChecker.isValidSignatureNow(
             ADMIN,
-            _hashTypedDataV4(
-                keccak256(abi.encode(PROOF_TYPEHASH, _params.recipient, _params.nonce, _id))
-            ),
+            _hashTypedDataV4(keccak256(abi.encode(PROOF_TYPEHASH, _params.recipient, _params.nonce, _id))),
             _proof
         );
     }

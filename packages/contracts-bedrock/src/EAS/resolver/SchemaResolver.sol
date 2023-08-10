@@ -56,7 +56,12 @@ abstract contract SchemaResolver is ISchemaResolver, Semver {
     function multiAttest(
         Attestation[] calldata attestations,
         uint256[] calldata values
-    ) external payable onlyEAS returns (bool) {
+    )
+        external
+        payable
+        onlyEAS
+        returns (bool)
+    {
         uint256 length = attestations.length;
 
         // We are keeping track of the remaining ETH amount that can be sent to resolvers and will keep deducting
@@ -95,7 +100,12 @@ abstract contract SchemaResolver is ISchemaResolver, Semver {
     function multiRevoke(
         Attestation[] calldata attestations,
         uint256[] calldata values
-    ) external payable onlyEAS returns (bool) {
+    )
+        external
+        payable
+        onlyEAS
+        returns (bool)
+    {
         uint256 length = attestations.length;
 
         // We are keeping track of the remaining ETH amount that can be sent to resolvers and will keep deducting
@@ -128,18 +138,18 @@ abstract contract SchemaResolver is ISchemaResolver, Semver {
     /// @notice A resolver callback that should be implemented by child contracts.
     /// @param attestation The new attestation.
     /// @param value An explicit ETH amount that was sent to the resolver. Please note that this value is verified in
-    ///        both attest() and multiAttest() callbacks EAS-only callbacks and that in case of multi attestations, it'll
-    ///        usually hold that msg.value != value, since msg.value aggregated the sent ETH amounts for all the attestations
-    ///        in the batch.
+    ///        both attest() and multiAttest() callbacks EAS-only callbacks and that in case of multi attestations,
+    ///        it'll usually hold that msg.value != value, since msg.value aggregated the sent ETH amounts for all
+    ///        the attestations in the batch.
     /// @return Whether the attestation is valid.
     function onAttest(Attestation calldata attestation, uint256 value) internal virtual returns (bool);
 
     /// @notice Processes an attestation revocation and verifies if it can be revoked.
     /// @param attestation The existing attestation to be revoked.
     /// @param value An explicit ETH amount that was sent to the resolver. Please note that this value is verified in
-    ///        both revoke() and multiRevoke() callbacks EAS-only callbacks and that in case of multi attestations, it'll
-    ///        usually hold that msg.value != value, since msg.value aggregated the sent ETH amounts for all the attestations
-    ///        in the batch.
+    ///        both revoke() and multiRevoke() callbacks EAS-only callbacks and that in case of multi attestations,
+    ///        it'll usually hold that msg.value != value, since msg.value aggregated the sent ETH amounts for all
+    ///        the attestations in the batch.
     /// @return Whether the attestation can be revoked.
     function onRevoke(Attestation calldata attestation, uint256 value) internal virtual returns (bool);
 

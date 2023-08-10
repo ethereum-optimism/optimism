@@ -186,14 +186,18 @@ contract ProxyAdmin is Ownable {
         address payable _proxy,
         address _implementation,
         bytes memory _data
-    ) external payable onlyOwner {
+    )
+        external
+        payable
+        onlyOwner
+    {
         ProxyType ptype = proxyType[_proxy];
         if (ptype == ProxyType.ERC1967) {
             Proxy(_proxy).upgradeToAndCall{ value: msg.value }(_implementation, _data);
         } else {
             // reverts if proxy type is unknown
             upgrade(_proxy, _implementation);
-            (bool success, ) = _proxy.call{ value: msg.value }(_data);
+            (bool success,) = _proxy.call{ value: msg.value }(_data);
             require(success, "ProxyAdmin: call to proxy after upgrade failed");
         }
     }

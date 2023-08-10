@@ -44,14 +44,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
                 0,
                 L1Messenger.baseGas(hex"ff", 100),
                 false,
-                Encoding.encodeCrossDomainMessage(
-                    L1Messenger.messageNonce(),
-                    alice,
-                    recipient,
-                    0,
-                    100,
-                    hex"ff"
-                )
+                Encoding.encodeCrossDomainMessage(L1Messenger.messageNonce(), alice, recipient, 0, 100, hex"ff")
             )
         );
 
@@ -64,14 +57,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
             0,
             L1Messenger.baseGas(hex"ff", 100),
             false,
-            Encoding.encodeCrossDomainMessage(
-                L1Messenger.messageNonce(),
-                alice,
-                recipient,
-                0,
-                100,
-                hex"ff"
-            )
+            Encoding.encodeCrossDomainMessage(L1Messenger.messageNonce(), alice, recipient, 0, 100, hex"ff")
         );
 
         // SentMessage event
@@ -112,9 +98,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
 
         // Expect a revert.
-        vm.expectRevert(
-            "CrossDomainMessenger: only version 0 or 1 messages are supported at this time"
-        );
+        vm.expectRevert("CrossDomainMessenger: only version 0 or 1 messages are supported at this time");
 
         // Try to relay a v2 message.
         vm.prank(address(op));
@@ -143,12 +127,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.expectEmit(true, true, true, true);
 
         bytes32 hash = Hashing.hashCrossDomainMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
-            sender,
-            target,
-            0,
-            0,
-            hex"1111"
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, target, 0, 0, hex"1111"
         );
 
         emit RelayedMessage(hash);
@@ -179,23 +158,13 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.prank(address(op));
         vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
-            sender,
-            target,
-            0,
-            0,
-            message
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, target, 0, 0, message
         );
 
         vm.store(address(op), 0, bytes32(abi.encode(sender)));
         vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
-            sender,
-            target,
-            0,
-            0,
-            message
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, target, 0, 0, message
         );
     }
 
@@ -206,16 +175,9 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         bytes memory message = hex"1111";
 
-        vm.expectRevert(
-            "CrossDomainMessenger: value must be zero unless message is from a system address"
-        );
+        vm.expectRevert("CrossDomainMessenger: value must be zero unless message is from a system address");
         L1Messenger.relayMessage{ value: 100 }(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
-            sender,
-            target,
-            0,
-            0,
-            message
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, target, 0, 0, message
         );
     }
 
@@ -230,12 +192,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
         vm.prank(address(op));
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
-            address(0),
-            address(0),
-            0,
-            0,
-            hex""
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), address(0), address(0), 0, 0, hex""
         );
 
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
@@ -253,12 +210,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.expectCall(target, hex"1111");
 
         bytes32 hash = Hashing.hashCrossDomainMessage(
-            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
-            sender,
-            target,
-            value,
-            0,
-            hex"1111"
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }), sender, target, value, 0, hex"1111"
         );
 
         vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));

@@ -40,7 +40,9 @@ contract L1BlockTest is CommonTest {
         bytes32 bt,
         uint256 fo,
         uint256 fs
-    ) external {
+    )
+        external
+    {
         vm.prank(depositor);
         lb.setL1BlockValues(n, t, b, h, s, bt, fo, fs);
         assertEq(lb.number(), n);

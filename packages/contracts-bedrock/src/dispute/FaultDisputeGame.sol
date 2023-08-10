@@ -94,7 +94,9 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         IBigStepper _vm,
         L2OutputOracle _l2oo,
         BlockOracle _blockOracle
-    ) Semver(0, 0, 7) {
+    )
+        Semver(0, 0, 8)
+    {
         GAME_TYPE = _gameType;
         ABSOLUTE_PRESTATE = _absolutePrestate;
         MAX_GAME_DEPTH = _maxGameDepth;
@@ -109,12 +111,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     ////////////////////////////////////////////////////////////////
 
     /// @inheritdoc IFaultDisputeGame
-    function step(
-        uint256 _claimIndex,
-        bool _isAttack,
-        bytes calldata _stateData,
-        bytes calldata _proof
-    ) external {
+    function step(uint256 _claimIndex, bool _isAttack, bytes calldata _stateData, bytes calldata _proof) external {
         // INVARIANT: Steps cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
@@ -139,10 +136,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
             // the game state.
             preStateClaim = stepPos.indexAtDepth() == 0
                 ? ABSOLUTE_PRESTATE
-                : findTraceAncestor(
-                    Position.wrap(Position.unwrap(parentPos) - 1),
-                    parent.parentIndex
-                ).claim;
+                : findTraceAncestor(Position.wrap(Position.unwrap(parentPos) - 1), parent.parentIndex).claim;
 
             // For all attacks, the poststate is the parent claim.
             postState = parent;
@@ -150,10 +144,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
             // If the step is a defense, the poststate exists elsewhere in the game state,
             // and the parent claim is the expected pre-state.
             preStateClaim = parent.claim;
-            postState = findTraceAncestor(
-                Position.wrap(Position.unwrap(parentPos) + 1),
-                parent.parentIndex
-            );
+            postState = findTraceAncestor(Position.wrap(Position.unwrap(parentPos) + 1), parent.parentIndex);
         }
 
         // INVARIANT: The prestate is always invalid if the passed `_stateData` is not the
@@ -185,11 +176,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @param _challengeIndex The index of the claim being moved against.
     /// @param _claim The claim at the next logical position in the game.
     /// @param _isAttack Whether or not the move is an attack or defense.
-    function move(
-        uint256 _challengeIndex,
-        Claim _claim,
-        bool _isAttack
-    ) public payable {
+    function move(uint256 _challengeIndex, Claim _claim, bool _isAttack) public payable {
         // INVARIANT: Moves cannot be made unless the game is currently in progress.
         if (status != GameStatus.IN_PROGRESS) revert GameNotInProgress();
 
@@ -225,11 +212,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         Duration nextDuration = Duration.wrap(
             uint64(
                 // First, fetch the duration of the grandparent claim.
-                Duration.unwrap(grandparentClock.duration()) +
-                    // Second, add the difference between the current block timestamp and the
-                    // parent's clock timestamp.
-                    block.timestamp -
-                    Timestamp.unwrap(parent.clock.timestamp())
+                Duration.unwrap(grandparentClock.duration())
+                // Second, add the difference between the current block timestamp and the
+                // parent's clock timestamp.
+                + block.timestamp - Timestamp.unwrap(parent.clock.timestamp())
             )
         );
 
@@ -362,7 +348,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // The most recent claim is always a dangling, non-bottom node so we start with that
         uint256 leftMostIndex = claimData.length - 1;
         uint256 leftMostTraceIndex = type(uint128).max;
-        for (uint256 i = leftMostIndex; i < type(uint64).max; ) {
+        for (uint256 i = leftMostIndex; i < type(uint64).max;) {
             // Fetch the claim at the current index.
             ClaimData storage claim = claimData[i];
 
@@ -396,13 +382,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         //            claim, it is uncountered, and we check if 3.5 days has passed since its
         //            creation.
         uint256 parentIndex = leftMostUncontested.parentIndex;
-        Clock opposingClock = parentIndex == type(uint32).max
-            ? leftMostUncontested.clock
-            : claimData[parentIndex].clock;
+        Clock opposingClock = parentIndex == type(uint32).max ? leftMostUncontested.clock : claimData[parentIndex].clock;
         if (
-            Duration.unwrap(opposingClock.duration()) +
-                (block.timestamp - Timestamp.unwrap(opposingClock.timestamp())) <=
-            Duration.unwrap(GAME_DURATION) >> 1
+            Duration.unwrap(opposingClock.duration()) + (block.timestamp - Timestamp.unwrap(opposingClock.timestamp()))
+                <= Duration.unwrap(GAME_DURATION) >> 1
         ) {
             revert ClockNotExpired();
         }
@@ -410,8 +393,10 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // If the left-most dangling node is at an even depth, the defender wins.
         // Otherwise, the challenger wins and the root claim is deemed invalid.
         if (
-            // slither-disable-next-line weak-prng
-            leftMostUncontested.position.depth() % 2 == 0 && leftMostTraceIndex != type(uint128).max
+            leftMostUncontested
+                .position
+                // slither-disable-next-line weak-prng
+                .depth() % 2 == 0 && leftMostTraceIndex != type(uint128).max
         ) {
             status_ = GameStatus.DEFENDER_WINS;
         } else {
@@ -435,15 +420,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     }
 
     /// @inheritdoc IDisputeGame
-    function gameData()
-        external
-        view
-        returns (
-            GameType gameType_,
-            Claim rootClaim_,
-            bytes memory extraData_
-        )
-    {
+    function gameData() external view returns (GameType gameType_, Claim rootClaim_, bytes memory extraData_) {
         gameType_ = gameType();
         rootClaim_ = rootClaim();
         extraData_ = extraData();
@@ -543,11 +520,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @return ancestor_ The ancestor claim that commits to the same trace index as `_pos`.
     // TODO(clabby): Can we form a relationship between the trace path and the position to avoid
     //               looping?
-    function findTraceAncestor(Position _pos, uint256 _start)
-        internal
-        view
-        returns (ClaimData storage ancestor_)
-    {
+    function findTraceAncestor(Position _pos, uint256 _start) internal view returns (ClaimData storage ancestor_) {
         // Grab the trace ancestor's expected position.
         Position preStateTraceAncestor = _pos.traceAncestor();
 

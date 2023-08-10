@@ -11,7 +11,8 @@ struct AttestationRequestData {
     bool revocable; // Whether the attestation is revocable.
     bytes32 refUID; // The UID of the related attestation.
     bytes data; // Custom attestation data.
-    uint256 value; // An explicit ETH amount to send to the resolver. This is important to prevent accidental user errors.
+    uint256 value; // An explicit ETH amount to send to the resolver. This is important to prevent accidental user
+        // errors.
 }
 
 /// @dev A struct representing the full arguments of the attestation request.
@@ -38,14 +39,16 @@ struct MultiAttestationRequest {
 struct MultiDelegatedAttestationRequest {
     bytes32 schema; // The unique identifier of the schema.
     AttestationRequestData[] data; // The arguments of the attestation requests.
-    EIP712Signature[] signatures; // The EIP712 signatures data. Please note that the signatures are assumed to be signed with increasing nonces.
+    EIP712Signature[] signatures; // The EIP712 signatures data. Please note that the signatures are assumed to be
+        // signed with increasing nonces.
     address attester; // The attesting account.
 }
 
 /// @dev A struct representing the arguments of the revocation request.
 struct RevocationRequestData {
     bytes32 uid; // The UID of the attestation to revoke.
-    uint256 value; // An explicit ETH amount to send to the resolver. This is important to prevent accidental user errors.
+    uint256 value; // An explicit ETH amount to send to the resolver. This is important to prevent accidental user
+        // errors.
 }
 
 /// @dev A struct representing the full arguments of the revocation request.
@@ -72,7 +75,8 @@ struct MultiRevocationRequest {
 struct MultiDelegatedRevocationRequest {
     bytes32 schema; // The unique identifier of the schema.
     RevocationRequestData[] data; // The arguments of the revocation requests.
-    EIP712Signature[] signatures; // The EIP712 signatures data. Please note that the signatures are assumed to be signed with increasing nonces.
+    EIP712Signature[] signatures; // The EIP712 signatures data. Please note that the signatures are assumed to be
+        // signed with increasing nonces.
     address revoker; // The revoking account.
 }
 
@@ -152,9 +156,10 @@ interface IEAS {
     ///
     /// @param delegatedRequest The arguments of the delegated attestation request.
     /// @return The UID of the new attestation.
-    function attestByDelegation(
-        DelegatedAttestationRequest calldata delegatedRequest
-    ) external payable returns (bytes32);
+    function attestByDelegation(DelegatedAttestationRequest calldata delegatedRequest)
+        external
+        payable
+        returns (bytes32);
 
     /// @notice Attests to multiple schemas.
     ///
@@ -194,7 +199,10 @@ interface IEAS {
     /// @param multiRequests The arguments of the multi attestation requests. The requests should be grouped by distinct
     ///        schema ids to benefit from the best batching optimization.
     /// @return The UIDs of the new attestations.
-    function multiAttest(MultiAttestationRequest[] calldata multiRequests) external payable returns (bytes32[] memory);
+    function multiAttest(MultiAttestationRequest[] calldata multiRequests)
+        external
+        payable
+        returns (bytes32[] memory);
 
     /// @notice Attests to multiple schemas using via provided EIP712 signatures.
     ///
@@ -234,9 +242,10 @@ interface IEAS {
     /// @param multiDelegatedRequests The arguments of the delegated multi attestation requests. The requests should be
     ///        grouped by distinct schema ids to benefit from the best batching optimization.
     /// @return The UIDs of the new attestations.
-    function multiAttestByDelegation(
-        MultiDelegatedAttestationRequest[] calldata multiDelegatedRequests
-    ) external payable returns (bytes32[] memory);
+    function multiAttestByDelegation(MultiDelegatedAttestationRequest[] calldata multiDelegatedRequests)
+        external
+        payable
+        returns (bytes32[] memory);
 
     /// @notice Revokes an existing attestation to a specific schema.
     ///
@@ -328,11 +337,12 @@ interface IEAS {
     ///             revoker: '0x244934dd3e31bE2c81f84ECf0b3E6329F5381992'
     ///         }])
     ///
-    /// @param multiDelegatedRequests The arguments of the delegated multi revocation attestation requests. The requests should be
+    /// @param multiDelegatedRequests The arguments of the delegated multi revocation attestation requests. The requests
+    /// should be
     ///        grouped by distinct schema ids to benefit from the best batching optimization.
-    function multiRevokeByDelegation(
-        MultiDelegatedRevocationRequest[] calldata multiDelegatedRequests
-    ) external payable;
+    function multiRevokeByDelegation(MultiDelegatedRevocationRequest[] calldata multiDelegatedRequests)
+        external
+        payable;
 
     /// @notice Timestamps the specified bytes32 data.
     /// @param data The data to timestamp.
