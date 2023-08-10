@@ -287,8 +287,7 @@ abstract contract Deployer is Script {
     }
 
     /// @notice Removes the semantic versioning from a contract name. The semver will exist if the contract is compiled
-    /// more than
-    ///         once with different versions of the compiler.
+    /// more than once with different versions of the compiler.
     function _stripSemver(string memory _name) internal returns (string memory) {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
