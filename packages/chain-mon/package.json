@@ -43,7 +43,7 @@
     "@eth-optimism/contracts-bedrock": "0.16.0",
     "@eth-optimism/core-utils": "0.12.2",
     "@eth-optimism/sdk": "3.1.0",
-    "ethers": "^5.7.0",
+    "ethers": "^6.7.0",
     "dotenv": "^16.1.4",
     "@types/dateformat": "^5.0.0",
     "chai-as-promised": "^7.1.1",
