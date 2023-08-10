@@ -22,13 +22,13 @@ contract OptimismMintableERC721Factory is Semver {
     /// @param deployer    Address of the initiator of the deployment
     event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken, address deployer);
 
-    /// @custom:semver 1.2.2
+    /// @custom:semver 1.2.3
     /// @notice The semver MUST be bumped any time that there is a change in
     ///         the OptimismMintableERC721 token contract since this contract
     ///         is responsible for deploying OptimismMintableERC721 contracts.
     /// @param _bridge Address of the ERC721 bridge on this network.
     /// @param _remoteChainId Chain ID for the remote network.
-    constructor(address _bridge, uint256 _remoteChainId) Semver(1, 2, 2) {
+    constructor(address _bridge, uint256 _remoteChainId) Semver(1, 2, 3) {
         BRIDGE = _bridge;
         REMOTE_CHAIN_ID = _remoteChainId;
     }
