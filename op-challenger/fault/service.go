@@ -41,6 +41,19 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 		return nil, fmt.Errorf("failed to dial L1: %w", err)
 	}
 
+	contract, err := bindings.NewFaultDisputeGameCaller(cfg.GameAddress, client)
+	if err != nil {
+		return nil, fmt.Errorf("failed to bind the fault dispute game contract: %w", err)
+	}
+
+	loader := NewLoader(contract)
+
+	gameDepth, err := loader.FetchGameDepth(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch the game depth: %w", err)
+	}
+	gameDepth = uint64(gameDepth)
+
 	var trace types.TraceProvider
 	var updater types.OracleUpdater
 	switch cfg.TraceType {
@@ -54,23 +67,17 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 			return nil, fmt.Errorf("failed to create the cannon updater: %w", err)
 		}
 	case config.TraceTypeAlphabet:
-		trace = alphabet.NewTraceProvider(cfg.AlphabetTrace, uint64(cfg.GameDepth))
+		trace = alphabet.NewTraceProvider(cfg.AlphabetTrace, gameDepth)
 		updater = alphabet.NewOracleUpdater(logger)
 	default:
 		return nil, fmt.Errorf("unsupported trace type: %v", cfg.TraceType)
 	}
 
-	return newTypedService(ctx, logger, cfg, client, trace, updater, txMgr)
+	return newTypedService(ctx, logger, cfg, loader, gameDepth, client, trace, updater, txMgr)
 }
 
 // newTypedService creates a new Service from a provided trace provider.
-func newTypedService(ctx context.Context, logger log.Logger, cfg *config.Config, client *ethclient.Client, provider types.TraceProvider, updater types.OracleUpdater, txMgr txmgr.TxManager) (*service, error) {
-	contract, err := bindings.NewFaultDisputeGameCaller(cfg.GameAddress, client)
-	if err != nil {
-		return nil, fmt.Errorf("failed to bind the fault dispute game contract: %w", err)
-	}
-
-	loader := NewLoader(contract)
+func newTypedService(ctx context.Context, logger log.Logger, cfg *config.Config, loader Loader, gameDepth uint64, client *ethclient.Client, provider types.TraceProvider, updater types.OracleUpdater, txMgr txmgr.TxManager) (*service, error) {
 	gameLogger := logger.New("game", cfg.GameAddress)
 	responder, err := NewFaultResponder(gameLogger, txMgr, cfg.GameAddress)
 	if err != nil {
@@ -82,7 +89,7 @@ func newTypedService(ctx context.Context, logger log.Logger, cfg *config.Config,
 		return nil, fmt.Errorf("failed to bind the fault contract: %w", err)
 	}
 
-	agent := NewAgent(loader, cfg.GameDepth, provider, responder, updater, cfg.AgreeWithProposedOutput, gameLogger)
+	agent := NewAgent(loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, gameLogger)
 
 	return &service{
 		agent:                   agent,
