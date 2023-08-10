@@ -21,12 +21,12 @@ ffi = true
 fuzz_runs = 16
 
 fs_permissions = [
-  { 'access'='read-write', 'path'='./.resource-metering.csv' },
-  { 'access'='read-write', 'path'='./deployments/' },
-  { 'access'='read', 'path'='./deploy-config/' },
-  { 'access'='read', 'path'='./broadcast/' },
-  { access = 'read', path = './forge-artifacts/' },
-  { 'access'='write', 'path'='./semver-lock.json' },
+  { access='read-write', path='./.resource-metering.csv' },
+  { access='read-write', path='./deployments/' },
+  { access='read', path='./deploy-config/' },
+  { access='read', path='./broadcast/' },
+  { access='read', path = './forge-artifacts/' },
+  { access='write', path='./semver-lock.json' },
 ]
 
 [fmt]
