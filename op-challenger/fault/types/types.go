@@ -65,7 +65,7 @@ type StepCallData struct {
 // OracleUpdater is a generic interface for updating oracles.
 type OracleUpdater interface {
 	// UpdateOracle updates the oracle with the given data.
-	UpdateOracle(ctx context.Context, data PreimageOracleData) error
+	UpdateOracle(ctx context.Context, data *PreimageOracleData) error
 }
 
 // TraceProvider is a generic way to get a claim value at a specific step in the trace.

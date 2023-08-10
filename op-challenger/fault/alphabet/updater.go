@@ -21,7 +21,7 @@ func NewOracleUpdater(logger log.Logger) *alphabetUpdater {
 }
 
 // UpdateOracle updates the oracle with the given data.
-func (u *alphabetUpdater) UpdateOracle(ctx context.Context, data types.PreimageOracleData) error {
+func (u *alphabetUpdater) UpdateOracle(ctx context.Context, data *types.PreimageOracleData) error {
 	u.logger.Info("alphabet oracle updater called")
 	return nil
 }

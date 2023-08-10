@@ -21,7 +21,7 @@ const execTestCannonPrestate = "/foo/pre.json"
 
 func TestGenerateProof(t *testing.T) {
 	input := "starting.json"
-	cfg := config.NewConfig("http://localhost:8888", common.Address{0xaa}, config.TraceTypeCannon, true, 5)
+	cfg := config.NewConfig("http://localhost:8888", common.Address{0xaa}, config.TraceTypeCannon, true)
 	cfg.CannonDatadir = t.TempDir()
 	cfg.CannonAbsolutePreState = "pre.json"
 	cfg.CannonBin = "./bin/cannon"
@@ -36,7 +36,7 @@ func TestGenerateProof(t *testing.T) {
 		l2Claim:       common.Hash{0x44},
 		l2BlockNumber: big.NewInt(3333),
 	}
-	captureExec := func(cfg config.Config, proofAt uint64) (string, string, map[string]string) {
+	captureExec := func(t *testing.T, cfg config.Config, proofAt uint64) (string, string, map[string]string) {
 		executor := NewExecutor(testlog.Logger(t, log.LvlInfo), &cfg, inputs)
 		executor.selectSnapshot = func(logger log.Logger, dir string, absolutePreState string, i uint64) (string, error) {
 			return input, nil
@@ -67,7 +67,7 @@ func TestGenerateProof(t *testing.T) {
 		cfg.CannonNetwork = "mainnet"
 		cfg.CannonRollupConfigPath = ""
 		cfg.CannonL2GenesisPath = ""
-		binary, subcommand, args := captureExec(cfg, 150_000_000)
+		binary, subcommand, args := captureExec(t, cfg, 150_000_000)
 		require.DirExists(t, filepath.Join(cfg.CannonDatadir, preimagesDir))
 		require.DirExists(t, filepath.Join(cfg.CannonDatadir, proofsDir))
 		require.DirExists(t, filepath.Join(cfg.CannonDatadir, snapsDir))
@@ -76,7 +76,7 @@ func TestGenerateProof(t *testing.T) {
 		require.Equal(t, input, args["--input"])
 		require.Contains(t, args, "--meta")
 		require.Equal(t, "", args["--meta"])
-		require.Equal(t, filepath.Join(cfg.CannonDatadir, "out.json"), args["--output"])
+		require.Equal(t, filepath.Join(cfg.CannonDatadir, finalState), args["--output"])
 		require.Equal(t, "=150000000", args["--proof-at"])
 		require.Equal(t, "=150000001", args["--stop-at"])
 		require.Equal(t, "%500", args["--snapshot-at"])
@@ -105,7 +105,7 @@ func TestGenerateProof(t *testing.T) {
 		cfg.CannonNetwork = ""
 		cfg.CannonRollupConfigPath = "rollup.json"
 		cfg.CannonL2GenesisPath = "genesis.json"
-		_, _, args := captureExec(cfg, 150_000_000)
+		_, _, args := captureExec(t, cfg, 150_000_000)
 		require.NotContains(t, args, "--network")
 		require.Equal(t, cfg.CannonRollupConfigPath, args["--rollup.config"])
 		require.Equal(t, cfg.CannonL2GenesisPath, args["--l2.genesis"])
@@ -115,7 +115,7 @@ func TestGenerateProof(t *testing.T) {
 		cfg.CannonNetwork = "mainnet"
 		cfg.CannonRollupConfigPath = "rollup.json"
 		cfg.CannonL2GenesisPath = "genesis.json"
-		_, _, args := captureExec(cfg, math.MaxUint64)
+		_, _, args := captureExec(t, cfg, math.MaxUint64)
 		// stop-at would need to be one more than the proof step which would overflow back to 0
 		// so expect that it will be omitted. We'll ultimately want cannon to execute until the program exits.
 		require.NotContains(t, args, "--stop-at")

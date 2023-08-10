@@ -145,7 +145,6 @@ func TestChallengerCompleteDisputeGame(t *testing.T) {
 }
 
 func TestCannonDisputeGame(t *testing.T) {
-	t.Skip("CLI-4290: op-challenger doesn't handle trace extension correctly for cannon")
 	InitParallel(t)
 
 	ctx := context.Background()
@@ -161,8 +160,18 @@ func TestCannonDisputeGame(t *testing.T) {
 		c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(sys.cfg.Secrets.Alice)
 	})
 
-	// Challenger should counter the root claim
-	game.WaitForClaimCount(ctx, 2)
+	maxDepth := game.MaxDepth(ctx)
+	for claimCount := int64(1); claimCount < maxDepth; {
+		claimCount++
+		// Wait for the challenger to counter
+		game.WaitForClaimCount(ctx, claimCount)
+
+		// Post our own counter to the latest challenger claim
+		game.Attack(ctx, claimCount-1, common.Hash{byte(claimCount)})
+		claimCount++
+		game.WaitForClaimCount(ctx, claimCount)
+	}
+	game.WaitForClaimAtMaxDepth(ctx, false)
 
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, utils.WaitNextBlock(ctx, l1Client))

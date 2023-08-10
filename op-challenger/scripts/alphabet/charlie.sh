@@ -24,5 +24,4 @@ $CHALLENGER_DIR/bin/op-challenger \
   --game-address $FAULT_GAME_ADDRESS \
   --private-key $CHARLIE_KEY \
   --num-confirmations 1 \
-  --game-depth 4 \
   --agree-with-proposed-output=true

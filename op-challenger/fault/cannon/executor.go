@@ -20,6 +20,7 @@ import (
 const (
 	snapsDir     = "snapshots"
 	preimagesDir = "preimages"
+	finalState   = "final.json"
 )
 
 var snapshotNameRegexp = regexp.MustCompile(`^[0-9]+\.json$`)
@@ -71,15 +72,21 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 	}
 	proofDir := filepath.Join(dir, proofsDir)
 	dataDir := filepath.Join(e.dataDir, preimagesDir)
+	lastGeneratedState := filepath.Join(dir, finalState)
 	args := []string{
 		"run",
 		"--input", start,
-		"--output", filepath.Join(dir, "out.json"),
+		"--output", lastGeneratedState,
 		"--meta", "",
 		"--proof-at", "=" + strconv.FormatUint(i, 10),
 		"--proof-fmt", filepath.Join(proofDir, "%d.json"),
 		"--snapshot-at", "%" + strconv.FormatUint(uint64(e.snapshotFreq), 10),
 		"--snapshot-fmt", filepath.Join(snapshotDir, "%d.json"),
+	}
+	if i < math.MaxUint64 {
+		args = append(args, "--stop-at", "="+strconv.FormatUint(i+1, 10))
+	}
+	args = append(args,
 		"--",
 		e.server, "--server",
 		"--l1", e.l1,
@@ -90,10 +97,7 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 		"--l2.outputroot", e.inputs.l2OutputRoot.Hex(),
 		"--l2.claim", e.inputs.l2Claim.Hex(),
 		"--l2.blocknumber", e.inputs.l2BlockNumber.Text(10),
-	}
-	if i < math.MaxUint64 {
-		args = append(args, "--stop-at", "="+strconv.FormatUint(i+1, 10))
-	}
+	)
 	if e.network != "" {
 		args = append(args, "--network", e.network)
 	}

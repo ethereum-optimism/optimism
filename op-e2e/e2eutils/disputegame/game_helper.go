@@ -17,13 +17,12 @@ import (
 )
 
 type FaultGameHelper struct {
-	t        *testing.T
-	require  *require.Assertions
-	client   *ethclient.Client
-	opts     *bind.TransactOpts
-	game     *bindings.FaultDisputeGame
-	maxDepth int
-	addr     common.Address
+	t       *testing.T
+	require *require.Assertions
+	client  *ethclient.Client
+	opts    *bind.TransactOpts
+	game    *bindings.FaultDisputeGame
+	addr    common.Address
 }
 
 func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
@@ -33,7 +32,7 @@ func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
 }
 
 func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
-	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	err := utils.WaitFor(ctx, time.Second, func() (bool, error) {
 		actual, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
@@ -52,6 +51,12 @@ type ContractClaim struct {
 	Claim       [32]byte
 	Position    *big.Int
 	Clock       *big.Int
+}
+
+func (g *FaultGameHelper) MaxDepth(ctx context.Context) int64 {
+	depth, err := g.game.MAXGAMEDEPTH(&bind.CallOpts{Context: ctx})
+	g.require.NoError(err, "Failed to load game depth")
+	return depth.Int64()
 }
 
 func (g *FaultGameHelper) WaitForClaim(ctx context.Context, predicate func(claim ContractClaim) bool) {
@@ -78,9 +83,10 @@ func (g *FaultGameHelper) WaitForClaim(ctx context.Context, predicate func(claim
 }
 
 func (g *FaultGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered bool) {
+	maxDepth := g.MaxDepth(ctx)
 	g.WaitForClaim(ctx, func(claim ContractClaim) bool {
 		pos := types.NewPositionFromGIndex(claim.Position.Uint64())
-		return pos.Depth() == g.maxDepth && claim.Countered == countered
+		return int64(pos.Depth()) == maxDepth && claim.Countered == countered
 	})
 }
 
@@ -108,4 +114,11 @@ func (g *FaultGameHelper) WaitForGameStatus(ctx context.Context, expected Status
 		return expected == Status(status), nil
 	})
 	g.require.NoError(err, "wait for game status")
+}
+
+func (g *FaultGameHelper) Attack(ctx context.Context, claimIdx int64, claim common.Hash) {
+	tx, err := g.game.Attack(g.opts, big.NewInt(claimIdx), claim)
+	g.require.NoError(err, "Attack transaction did not send")
+	_, err = utils.WaitReceiptOK(ctx, g.client, tx.Hash())
+	g.require.NoError(err, "Attack transaction was not OK")
 }

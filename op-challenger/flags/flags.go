@@ -48,11 +48,6 @@ var (
 		Usage:   "Temporary hardcoded flag if we agree or disagree with the proposed output.",
 		EnvVars: prefixEnvVars("AGREE_WITH_PROPOSED_OUTPUT"),
 	}
-	GameDepthFlag = &cli.IntFlag{
-		Name:    "game-depth",
-		Usage:   "Depth of the game tree.",
-		EnvVars: prefixEnvVars("GAME_DEPTH"),
-	}
 	// Optional Flags
 	AlphabetFlag = &cli.StringFlag{
 		Name:    "alphabet",
@@ -113,7 +108,6 @@ var requiredFlags = []cli.Flag{
 	DGFAddressFlag,
 	TraceTypeFlag,
 	AgreeWithProposedOutputFlag,
-	GameDepthFlag,
 }
 
 // optionalFlags is a list of unchecked cli flags
@@ -212,7 +206,6 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		CannonL2:                ctx.String(CannonL2Flag.Name),
 		CannonSnapshotFreq:      ctx.Uint(CannonSnapshotFreqFlag.Name),
 		AgreeWithProposedOutput: ctx.Bool(AgreeWithProposedOutputFlag.Name),
-		GameDepth:               ctx.Int(GameDepthFlag.Name),
 		TxMgrConfig:             txMgrConfig,
 	}, nil
 }

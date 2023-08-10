@@ -86,7 +86,10 @@ func NewOracleUpdaterWithOracle(
 }
 
 // UpdateOracle updates the oracle with the given data.
-func (u *cannonUpdater) UpdateOracle(ctx context.Context, data types.PreimageOracleData) error {
+func (u *cannonUpdater) UpdateOracle(ctx context.Context, data *types.PreimageOracleData) error {
+	if len(data.OracleKey) == 0 {
+		return nil
+	}
 	if data.IsLocal {
 		return u.sendLocalOracleData(ctx, data)
 	}
@@ -94,7 +97,7 @@ func (u *cannonUpdater) UpdateOracle(ctx context.Context, data types.PreimageOra
 }
 
 // sendLocalOracleData sends the local oracle data to the [txmgr].
-func (u *cannonUpdater) sendLocalOracleData(ctx context.Context, data types.PreimageOracleData) error {
+func (u *cannonUpdater) sendLocalOracleData(ctx context.Context, data *types.PreimageOracleData) error {
 	txData, err := u.BuildLocalOracleData(data)
 	if err != nil {
 		return fmt.Errorf("local oracle tx data build: %w", err)
@@ -103,7 +106,7 @@ func (u *cannonUpdater) sendLocalOracleData(ctx context.Context, data types.Prei
 }
 
 // sendGlobalOracleData sends the global oracle data to the [txmgr].
-func (u *cannonUpdater) sendGlobalOracleData(ctx context.Context, data types.PreimageOracleData) error {
+func (u *cannonUpdater) sendGlobalOracleData(ctx context.Context, data *types.PreimageOracleData) error {
 	txData, err := u.BuildGlobalOracleData(data)
 	if err != nil {
 		return fmt.Errorf("global oracle tx data build: %w", err)
@@ -114,7 +117,7 @@ func (u *cannonUpdater) sendGlobalOracleData(ctx context.Context, data types.Pre
 // BuildLocalOracleData takes the local preimage key and data
 // and creates tx data to load the key, data pair into the
 // PreimageOracle contract from the FaultDisputeGame contract call.
-func (u *cannonUpdater) BuildLocalOracleData(data types.PreimageOracleData) ([]byte, error) {
+func (u *cannonUpdater) BuildLocalOracleData(data *types.PreimageOracleData) ([]byte, error) {
 	return u.fdgAbi.Pack(
 		"addLocalData",
 		data.GetIdent(),
@@ -125,7 +128,7 @@ func (u *cannonUpdater) BuildLocalOracleData(data types.PreimageOracleData) ([]b
 // BuildGlobalOracleData takes the global preimage key and data
 // and creates tx data to load the key, data pair into the
 // PreimageOracle contract.
-func (u *cannonUpdater) BuildGlobalOracleData(data types.PreimageOracleData) ([]byte, error) {
+func (u *cannonUpdater) BuildGlobalOracleData(data *types.PreimageOracleData) ([]byte, error) {
 	return u.preimageOracleAbi.Pack(
 		"loadKeccak256PreimagePart",
 		big.NewInt(int64(data.OracleOffset)),

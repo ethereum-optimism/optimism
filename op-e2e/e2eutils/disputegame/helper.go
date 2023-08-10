@@ -22,7 +22,6 @@ import (
 const alphabetGameType uint8 = 0
 const cannonGameType uint8 = 1
 const alphabetGameDepth = 4
-const cannonGameDepth = 64
 const lastAlphabetTraceIndex = 1<<alphabetGameDepth - 1
 
 type Status uint8
@@ -109,13 +108,12 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 
 	return &AlphabetGameHelper{
 		FaultGameHelper: FaultGameHelper{
-			t:        h.t,
-			require:  h.require,
-			client:   h.client,
-			opts:     h.opts,
-			game:     game,
-			maxDepth: alphabetGameDepth,
-			addr:     createdEvent.DisputeProxy,
+			t:       h.t,
+			require: h.require,
+			client:  h.client,
+			opts:    h.opts,
+			game:    game,
+			addr:    createdEvent.DisputeProxy,
 		},
 		claimedAlphabet: claimedAlphabet,
 	}
@@ -143,13 +141,12 @@ func (h *FactoryHelper) StartCannonGame(ctx context.Context, rootClaim common.Ha
 
 	return &CannonGameHelper{
 		FaultGameHelper: FaultGameHelper{
-			t:        h.t,
-			require:  h.require,
-			client:   h.client,
-			opts:     h.opts,
-			game:     game,
-			maxDepth: cannonGameDepth,
-			addr:     createdEvent.DisputeProxy,
+			t:       h.t,
+			require: h.require,
+			client:  h.client,
+			opts:    h.opts,
+			game:    game,
+			addr:    createdEvent.DisputeProxy,
 		},
 	}
 }
