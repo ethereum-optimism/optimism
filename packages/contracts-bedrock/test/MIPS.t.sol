@@ -59,7 +59,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[18] = state.registers[18];
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_addu_succeeds() external {
@@ -79,7 +79,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[18] = state.registers[18];
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_addi_succeeds() external {
@@ -99,7 +99,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[17] = state.registers[17];
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_addui_succeeds() external {
@@ -119,7 +119,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[17] = state.registers[17];
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_sub_succeeds() external {
@@ -139,7 +139,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[18] = state.registers[18];
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_subu_succeeds() external {
@@ -159,7 +159,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[18] = state.registers[18];
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_and_succeeds() external {
@@ -179,7 +179,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[18] = state.registers[18];
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_andi_succeeds() external {
@@ -199,7 +199,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[17] = state.registers[17];
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_or_succeeds() external {
@@ -219,7 +219,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[18] = state.registers[18];
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_ori_succeeds() external {
@@ -239,7 +239,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[17] = state.registers[17];
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_xor_succeeds() external {
@@ -259,7 +259,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[18] = state.registers[18];
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_xori_succeeds() external {
@@ -279,7 +279,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[17] = state.registers[17];
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_nor_succeeds() external {
@@ -299,7 +299,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[18] = state.registers[18];
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_slt_succeeds() external {
@@ -318,7 +318,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[18] = state.registers[18];
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
 
         // swap and check again
         uint32 tmp = state.registers[17];
@@ -328,7 +328,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[18] = state.registers[18];
         expect.registers[8] = state.registers[17] < state.registers[18] ? 1 : 0; // t0
         postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_sltu_succeeds() external {
@@ -348,7 +348,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[18] = state.registers[18];
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_lb_succeeds() external {
@@ -368,7 +368,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = t1;
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_lh_succeeds() external {
@@ -390,7 +390,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = t1;
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_lw_succeeds() external {
@@ -412,7 +412,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = t1;
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_lbu_succeeds() external {
@@ -432,7 +432,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = t1;
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_lhu_succeeds() external {
@@ -452,7 +452,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = t1;
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_lwl_succeeds() external {
@@ -471,7 +471,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = t1;
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
 
         // test unaligned address
         insn = encodeitype(0x22, 0x9, 0x8, 0x5); // lwl $t0, 5($t1)
@@ -479,7 +479,7 @@ contract MIPS_Test is CommonTest {
         expect.memRoot = state.memRoot;
         expect.registers[8] = 0x34_56_78_dd; // t0
         postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_lwr_succeeds() external {
@@ -498,7 +498,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = t1;
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
 
         // test unaligned address
         insn = encodeitype(0x26, 0x9, 0x8, 0x5); // lwr $t0, 5($t1)
@@ -506,7 +506,7 @@ contract MIPS_Test is CommonTest {
         expect.memRoot = state.memRoot;
         expect.registers[8] = 0xaa_bb_12_34; // t0
         postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_sb_succeeds() external {
@@ -526,7 +526,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = state.registers[9];
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_sh_succeeds() external {
@@ -545,7 +545,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = state.registers[9];
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_swl_succeeds() external {
@@ -564,7 +564,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = state.registers[9];
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_sw_succeeds() external {
@@ -583,7 +583,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = state.registers[9];
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_swr_succeeds() external {
@@ -602,7 +602,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = state.registers[9];
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_ll_succeeds() external {
@@ -624,7 +624,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = t1;
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_sc_succeeds() external {
@@ -643,7 +643,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = state.registers[9];
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_movn_succeeds() external {
@@ -664,13 +664,13 @@ contract MIPS_Test is CommonTest {
         expect.registers[10] = state.registers[10];
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
 
         state.registers[10] = 0x0; // t2
         expect.registers[10] = 0x0; // t2
         expect.registers[8] = state.registers[8];
         postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_movz_succeeds() external {
@@ -691,13 +691,13 @@ contract MIPS_Test is CommonTest {
         expect.registers[10] = state.registers[10];
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
 
         state.registers[10] = 0x1; // t2
         expect.registers[10] = 0x1; // t2
         expect.registers[8] = state.registers[8];
         postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_mflo_succeeds() external {
@@ -714,7 +714,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[8] = state.lo;
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_mfhi_succeeds() external {
@@ -731,7 +731,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[8] = state.hi;
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_mthi_succeeds() external {
@@ -748,7 +748,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[8] = state.registers[8];
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_mtlo_succeeds() external {
@@ -765,7 +765,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[8] = state.registers[8];
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_mul_succeeds() external {
@@ -784,7 +784,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[10] = 2;
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_mult_succeeds() external {
@@ -805,7 +805,7 @@ contract MIPS_Test is CommonTest {
 
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_multu_succeeds() external {
@@ -826,7 +826,7 @@ contract MIPS_Test is CommonTest {
 
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_div_succeeds() external {
@@ -847,7 +847,7 @@ contract MIPS_Test is CommonTest {
 
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_divu_succeeds() external {
@@ -868,7 +868,7 @@ contract MIPS_Test is CommonTest {
 
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_beq_succeeds() external {
@@ -887,14 +887,14 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = 0xdeadbeef;
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
 
         // branch not taken
         state.registers[8] = 0xaa;
         expect.registers[8] = 0xaa;
         expect.nextPC = state.nextPC + 4;
         postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_bne_succeeds() external {
@@ -913,7 +913,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = 0xaa;
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_blez_succeeds() external {
@@ -930,7 +930,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[8] = 0;
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_bgtz_succeeds() external {
@@ -948,7 +948,7 @@ contract MIPS_Test is CommonTest {
 
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_bltz_succeeds() external {
@@ -965,7 +965,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[8] = 0xF0_00_00_00;
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_bgez_succeeds() external {
@@ -982,7 +982,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[8] = 0x00_00_00_01;
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_jump_succeeds() external {
@@ -997,7 +997,7 @@ contract MIPS_Test is CommonTest {
         expect.step = state.step + 1;
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_jal_succeeds() external {
@@ -1019,7 +1019,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[31] = state.pc + 8;
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_jr_succeeds() external {
@@ -1036,7 +1036,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[8] = tgt;
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_jalr_succeeds() external {
@@ -1054,7 +1054,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = state.pc + 8; // t1
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_sll_succeeds() external {
@@ -1073,7 +1073,7 @@ contract MIPS_Test is CommonTest {
 
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_srl_succeeds() external {
@@ -1092,7 +1092,7 @@ contract MIPS_Test is CommonTest {
 
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_sra_succeeds() external {
@@ -1111,7 +1111,7 @@ contract MIPS_Test is CommonTest {
 
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_sllv_succeeds() external {
@@ -1131,7 +1131,7 @@ contract MIPS_Test is CommonTest {
 
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_srlv_succeeds() external {
@@ -1151,7 +1151,7 @@ contract MIPS_Test is CommonTest {
 
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_srav_succeeds() external {
@@ -1171,7 +1171,7 @@ contract MIPS_Test is CommonTest {
 
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_lui_succeeds() external {
@@ -1187,7 +1187,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[8] = 0x00_04_00_00; // t0
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_clo_succeeds() external {
@@ -1204,7 +1204,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = state.registers[9];
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_clz_succeeds() external {
@@ -1221,7 +1221,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[9] = state.registers[9];
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_preimage_read_succeeds() external {
@@ -1270,7 +1270,7 @@ contract MIPS_Test is CommonTest {
         (expect.memRoot,) = ffi.getCannonMemoryProof(pc, insn, a1, 0xdeadbeef);
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_preimage_write_succeeds() external {
@@ -1312,7 +1312,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[7] = 0; // errno
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_mmap_succeeds() external {
@@ -1339,7 +1339,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[5] = 4095; // a1
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_brk_succeeds() external {
@@ -1358,7 +1358,7 @@ contract MIPS_Test is CommonTest {
         expect.registers[4] = state.registers[4]; // registers unchanged
 
         bytes32 postState = mips.step(encodedState, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_clone_succeeds() external {
@@ -1375,7 +1375,7 @@ contract MIPS_Test is CommonTest {
 
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_exit_succeeds() external {
@@ -1395,7 +1395,7 @@ contract MIPS_Test is CommonTest {
         expect.exitCode = uint8(state.registers[4]);
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_fcntl_succeeds() external {
@@ -1414,14 +1414,14 @@ contract MIPS_Test is CommonTest {
         expect.registers[5] = state.registers[5];
 
         bytes32 postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
 
         // assert O_WRONLY
         state.registers[4] = 0x1; // a0
         expect.registers[4] = state.registers[4];
         expect.registers[2] = 1;
         postState = mips.step(encodeState(state), proof);
-        assertTrue(postState == outputState(expect), "unexpected post state");
+        assertEq(postState, outputState(expect), "unexpected post state");
     }
 
     function test_prestate_exited_succeeds() external {
@@ -1431,7 +1431,7 @@ contract MIPS_Test is CommonTest {
 
         bytes memory enc = encodeState(state);
         bytes32 postState = mips.step(enc, proof);
-        assertTrue(postState == outputState(state), "unexpected post state");
+        assertEq(postState, outputState(state), "unexpected post state");
     }
 
     function test_illegal_instruction_fails() external {
@@ -1455,7 +1455,7 @@ contract MIPS_Test is CommonTest {
         state.registers[4] = 0x5; // a0
 
         // invalidate proof
-        for (uint i = 0; i < proof.length; i++) {
+        for (uint256 i = 0; i < proof.length; i++) {
             proof[i] = 0x0;
         }
         vm.expectRevert(hex"000000000000000000000000000000000000000000000000000000000badf00d");
@@ -1512,7 +1512,15 @@ contract MIPS_Test is CommonTest {
         }
     }
 
-    function constructMIPSState(uint32 pc, uint32 insn, uint32 addr, uint32 val) internal returns (MIPS.State memory state, bytes memory proof) {
+    function constructMIPSState(
+        uint32 pc,
+        uint32 insn,
+        uint32 addr,
+        uint32 val
+    )
+        internal
+        returns (MIPS.State memory state, bytes memory proof)
+    {
         (state.memRoot, proof) = ffi.getCannonMemoryProof(pc, insn, addr, val);
         state.pc = pc;
         state.nextPC = pc + 4;
