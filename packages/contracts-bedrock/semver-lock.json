@@ -18,12 +18,12 @@
   "src/legacy/DeployerWhitelist.sol": "0xf2129ec3da75307ba8e21bc943c332bb04704642e6e263149b5c8ee92dbcb7a8",
   "src/legacy/L1BlockNumber.sol": "0x30aae1fc85103476af0226b6e98c71c01feebbdc35d93401390b1ad438a37be6",
   "src/legacy/LegacyMessagePasser.sol": "0x5c08b0a663cc49d30e4e38540f6aefab19ef287c3ecd31c8d8c3decd5f5bd497",
-  "src/periphery/op-nft/AttestationStation.sol": "0xa9618d708af7ab5ed840d889e69e1241622296a31c0baa18bc3ca932c07a86fd",
-  "src/periphery/op-nft/Optimist.sol": "0xb34b9001f3bea6744128ad51a9355f4102468996f9ca8d1f05e93f6a9d083026",
-  "src/periphery/op-nft/OptimistAllowlist.sol": "0x5653727a032d266bf59d0dd0eece5de0dd801f573c9ebf95ba6bb416ec3145c7",
-  "src/periphery/op-nft/OptimistInviter.sol": "0x8c2ffa16a63d8e270e14348e0946f03b01e57bb3e27a68b17964fc615819a4db",
-  "src/universal/OptimismMintableERC20.sol": "0xe2227c6ae87176a1034771c05426d1fcb4e78a403fb7ae3231dc9ac8d93c7ca2",
-  "src/universal/OptimismMintableERC20Factory.sol": "0xc0dc1bca7437a3283f8d5a1be2d5541a5fddffde60fe005f6119974c6b909997",
-  "src/universal/OptimismMintableERC721.sol": "0x4eaa5ea0d923ce967f299c2ded84c2a53431159c47c0a344a9b8f534a25b7e1f",
-  "src/universal/OptimismMintableERC721Factory.sol": "0xbc652464d81c86add3436a4a79bdf37ed01e9dde727896fe39a41282a479c5db"
+  "src/periphery/op-nft/AttestationStation.sol": "0x9cf6f2fd909f9bcff229a137198186749a839cfa3d11ddbb3021fe71c30a2fa9",
+  "src/periphery/op-nft/Optimist.sol": "0x38407f766aa9d394403e9da388dd0265b48901789f3e8a28af50014f9f5251d9",
+  "src/periphery/op-nft/OptimistAllowlist.sol": "0x53e9a9dfecbae036fd468e8f34c80c7d9c35bd8908c8a6483db44dbc5128ad69",
+  "src/periphery/op-nft/OptimistInviter.sol": "0xfdd5b9d45205ef9372ba37f7a6394724695e676d27a47cb154ee6e4148490013",
+  "src/universal/OptimismMintableERC20.sol": "0xddb1f0047ee90db724405ad6a775fd2b26882cbc31d464c3def2c20c88aaf750",
+  "src/universal/OptimismMintableERC20Factory.sol": "0xfb32cda24ca85092833336e9f61570084cc738b76d11e77c7708c538ce818435",
+  "src/universal/OptimismMintableERC721.sol": "0x55f2656ba5933ee64d1278030eb90f10e9b4305307ed8ba6ab7a72971d40f5b8",
+  "src/universal/OptimismMintableERC721Factory.sol": "0x5529bc0f7653adfba9e52846752a70f3ce050a86e468d781e9bf89f0cc0f174f"
 }
