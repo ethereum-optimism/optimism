@@ -31,11 +31,7 @@ contract SemverLock is Script {
             commands = new string[](3);
             commands[0] = "bash";
             commands[1] = "-c";
-            commands[2] = string.concat(
-                "echo \"",
-                _files[i],
-                "\"| sed -E \'s|src/.*/(.+)\\.sol|\\1|\'"
-            );
+            commands[2] = string.concat("echo \"", _files[i], "\"| sed -E \'s|src/.*/(.+)\\.sol|\\1|\'");
             string memory contractName = string(vm.ffi(commands));
 
             commands[0] = "bash";
@@ -44,14 +40,8 @@ contract SemverLock is Script {
             string memory artifactsDir = string(vm.ffi(commands));
 
             // Parse the artifact to get the contract's initcode hash.
-            bytes memory initCode = vm.getCode(string.concat(
-                artifactsDir,
-                "/",
-                contractName,
-                ".sol/",
-                contractName,
-                ".json"
-            ));
+            bytes memory initCode =
+                vm.getCode(string.concat(artifactsDir, "/", contractName, ".sol/", contractName, ".json"));
 
             // Serialize the source hash in JSON.
             string memory j = vm.serializeBytes32(out, _files[i], keccak256(abi.encodePacked(fileContents, initCode)));

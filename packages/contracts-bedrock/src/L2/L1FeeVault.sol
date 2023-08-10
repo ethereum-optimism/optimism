@@ -9,7 +9,7 @@ import { FeeVault } from "../universal/FeeVault.sol";
 /// @title L1FeeVault
 /// @notice The L1FeeVault accumulates the L1 portion of the transaction fees.
 contract L1FeeVault is FeeVault, Semver {
-    /// @custom:semver 1.3.0
+    /// @custom:semver 1.3.1
     /// @notice Constructs the L1FeeVault contract.
     /// @param _recipient           Wallet that will receive the fees.
     /// @param _minWithdrawalAmount Minimum balance for withdrawals.
@@ -18,5 +18,8 @@ contract L1FeeVault is FeeVault, Semver {
         address _recipient,
         uint256 _minWithdrawalAmount,
         WithdrawalNetwork _withdrawalNetwork
-    ) FeeVault(_recipient, _minWithdrawalAmount, _withdrawalNetwork) Semver(1, 3, 0) {}
+    )
+        FeeVault(_recipient, _minWithdrawalAmount, _withdrawalNetwork)
+        Semver(1, 3, 1)
+    { }
 }

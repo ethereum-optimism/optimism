@@ -142,12 +142,12 @@ func (s *SyncClient) eventLoop() {
 			s.log.Debug("Shutting down RPC sync worker")
 			return
 		case reqNum := <-s.requests:
-			err := backoff.DoCtx(s.resCtx, 5, backoffStrategy, func() error {
+			_, err := backoff.Do(s.resCtx, 5, backoffStrategy, func() (interface{}, error) {
 				// Limit the maximum time for fetching payloads
 				ctx, cancel := context.WithTimeout(s.resCtx, time.Second*10)
 				defer cancel()
 				// We are only fetching one block at a time here.
-				return s.fetchUnsafeBlockFromRpc(ctx, reqNum)
+				return nil, s.fetchUnsafeBlockFromRpc(ctx, reqNum)
 			})
 			if err != nil {
 				if err == s.resCtx.Err() {

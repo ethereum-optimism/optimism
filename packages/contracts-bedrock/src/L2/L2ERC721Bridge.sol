@@ -5,6 +5,7 @@ import { ERC721Bridge } from "../universal/ERC721Bridge.sol";
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
 import { IOptimismMintableERC721 } from "../universal/IOptimismMintableERC721.sol";
+import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 import { Semver } from "../universal/Semver.sol";
 
 /// @title L2ERC721Bridge
@@ -17,14 +18,18 @@ import { Semver } from "../universal/Semver.sol";
 ///         wait for the one-week challenge period to elapse before their Optimism-native NFT
 ///         can be refunded on L2.
 contract L2ERC721Bridge is ERC721Bridge, Semver {
-    /// @custom:semver 1.1.1
+    /// @custom:semver 1.2.1
     /// @notice Constructs the L2ERC721Bridge contract.
-    /// @param _messenger   Address of the CrossDomainMessenger on this network.
     /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    constructor(address _messenger, address _otherBridge)
-        Semver(1, 1, 1)
-        ERC721Bridge(_messenger, _otherBridge)
-    {}
+    constructor(address _otherBridge) Semver(1, 2, 1) ERC721Bridge(_otherBridge) {
+        initialize({ _messenger: CrossDomainMessenger(address(0)) });
+    }
+
+    /// @notice Initializes the contract.
+    /// @param _messenger   Address of the CrossDomainMessenger on this network.
+    function initialize(CrossDomainMessenger _messenger) public reinitializer(2) {
+        __ERC721Bridge_init({ _messenger: _messenger });
+    }
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
     ///         recipient on this domain.
@@ -43,7 +48,10 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
         address _to,
         uint256 _tokenId,
         bytes calldata _extraData
-    ) external onlyOtherBridge {
+    )
+        external
+        onlyOtherBridge
+    {
         require(_localToken != address(this), "L2ERC721Bridge: local token cannot be self");
 
         // Note that supportsInterface makes a callback to the _localToken address which is user
@@ -75,7 +83,10 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
         uint256 _tokenId,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    ) internal override {
+    )
+        internal
+        override
+    {
         require(_remoteToken != address(0), "L2ERC721Bridge: remote token cannot be address(0)");
 
         // Check that the withdrawal is being initiated by the NFT owner
@@ -87,10 +98,7 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
         // Construct calldata for l1ERC721Bridge.finalizeBridgeERC721(_to, _tokenId)
         // slither-disable-next-line reentrancy-events
         address remoteToken = IOptimismMintableERC721(_localToken).remoteToken();
-        require(
-            remoteToken == _remoteToken,
-            "L2ERC721Bridge: remote token does not match given value"
-        );
+        require(remoteToken == _remoteToken, "L2ERC721Bridge: remote token does not match given value");
 
         // When a withdrawal is initiated, we burn the withdrawer's NFT to prevent subsequent L2
         // usage
@@ -98,18 +106,12 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
         IOptimismMintableERC721(_localToken).burn(_from, _tokenId);
 
         bytes memory message = abi.encodeWithSelector(
-            L1ERC721Bridge.finalizeBridgeERC721.selector,
-            remoteToken,
-            _localToken,
-            _from,
-            _to,
-            _tokenId,
-            _extraData
+            L1ERC721Bridge.finalizeBridgeERC721.selector, remoteToken, _localToken, _from, _to, _tokenId, _extraData
         );
 
         // Send message to L1 bridge
         // slither-disable-next-line reentrancy-events
-        MESSENGER.sendMessage(OTHER_BRIDGE, message, _minGasLimit);
+        messenger.sendMessage(OTHER_BRIDGE, message, _minGasLimit);
 
         // slither-disable-next-line reentrancy-events
         emit ERC721BridgeInitiated(_localToken, remoteToken, _from, _to, _tokenId, _extraData);

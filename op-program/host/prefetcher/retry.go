@@ -28,49 +28,33 @@ func NewRetryingL1Source(logger log.Logger, source L1Source) *RetryingL1Source {
 }
 
 func (s *RetryingL1Source) InfoByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, error) {
-	var info eth.BlockInfo
-	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() error {
+	return backoff.Do(ctx, maxAttempts, s.strategy, func() (eth.BlockInfo, error) {
 		res, err := s.source.InfoByHash(ctx, blockHash)
 		if err != nil {
 			s.logger.Warn("Failed to retrieve info", "hash", blockHash, "err", err)
-			return err
 		}
-		info = res
-		return nil
+		return res, err
 	})
-	return info, err
 }
 
 func (s *RetryingL1Source) InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error) {
-	var info eth.BlockInfo
-	var txs types.Transactions
-	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() error {
+	return backoff.Do2(ctx, maxAttempts, s.strategy, func() (eth.BlockInfo, types.Transactions, error) {
 		i, t, err := s.source.InfoAndTxsByHash(ctx, blockHash)
 		if err != nil {
 			s.logger.Warn("Failed to retrieve l1 info and txs", "hash", blockHash, "err", err)
-			return err
 		}
-		info = i
-		txs = t
-		return nil
+		return i, t, err
 	})
-	return info, txs, err
 }
 
 func (s *RetryingL1Source) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
-	var info eth.BlockInfo
-	var rcpts types.Receipts
-	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() error {
+	return backoff.Do2(ctx, maxAttempts, s.strategy, func() (eth.BlockInfo, types.Receipts, error) {
 		i, r, err := s.source.FetchReceipts(ctx, blockHash)
 		if err != nil {
 			s.logger.Warn("Failed to fetch receipts", "hash", blockHash, "err", err)
-			return err
 		}
-		info = i
-		rcpts = r
-		return nil
+		return i, r, err
 	})
-	return info, rcpts, err
 }
 
 var _ L1Source = (*RetryingL1Source)(nil)
@@ -82,61 +66,44 @@ type RetryingL2Source struct {
 }
 
 func (s *RetryingL2Source) InfoAndTxsByHash(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, error) {
-	var info eth.BlockInfo
-	var txs types.Transactions
-	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() error {
+	return backoff.Do2(ctx, maxAttempts, s.strategy, func() (eth.BlockInfo, types.Transactions, error) {
 		i, t, err := s.source.InfoAndTxsByHash(ctx, blockHash)
 		if err != nil {
 			s.logger.Warn("Failed to retrieve l2 info and txs", "hash", blockHash, "err", err)
-			return err
 		}
-		info = i
-		txs = t
-		return nil
+		return i, t, err
 	})
-	return info, txs, err
 }
 
 func (s *RetryingL2Source) NodeByHash(ctx context.Context, hash common.Hash) ([]byte, error) {
-	var node []byte
-	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() error {
+	return backoff.Do(ctx, maxAttempts, s.strategy, func() ([]byte, error) {
 		n, err := s.source.NodeByHash(ctx, hash)
 		if err != nil {
 			s.logger.Warn("Failed to retrieve node", "hash", hash, "err", err)
-			return err
 		}
-		node = n
-		return nil
+		return n, err
 	})
-	return node, err
 }
 
 func (s *RetryingL2Source) CodeByHash(ctx context.Context, hash common.Hash) ([]byte, error) {
-	var code []byte
-	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() error {
+	return backoff.Do(ctx, maxAttempts, s.strategy, func() ([]byte, error) {
 		c, err := s.source.CodeByHash(ctx, hash)
 		if err != nil {
 			s.logger.Warn("Failed to retrieve code", "hash", hash, "err", err)
-			return err
 		}
-		code = c
-		return nil
+		return c, err
 	})
-	return code, err
 }
 
 func (s *RetryingL2Source) OutputByRoot(ctx context.Context, root common.Hash) (eth.Output, error) {
-	var output eth.Output
-	err := backoff.DoCtx(ctx, maxAttempts, s.strategy, func() error {
+	return backoff.Do(ctx, maxAttempts, s.strategy, func() (eth.Output, error) {
 		o, err := s.source.OutputByRoot(ctx, root)
 		if err != nil {
 			s.logger.Warn("Failed to fetch l2 output", "root", root, "err", err)
-			return err
+			return o, err
 		}
-		output = o
-		return nil
+		return o, nil
 	})
-	return output, err
 }
 
 func NewRetryingL2Source(logger log.Logger, source L2Source) *RetryingL2Source {

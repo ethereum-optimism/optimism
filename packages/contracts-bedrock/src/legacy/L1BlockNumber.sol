@@ -14,8 +14,8 @@ import { Semver } from "../universal/Semver.sol";
 ///        If you want to access the L1 block number going forward, you should use the L1Block
 ///        contract instead.
 contract L1BlockNumber is Semver {
-    /// @custom:semver 1.0.1
-    constructor() Semver(1, 0, 1) {}
+    /// @custom:semver 1.0.2
+    constructor() Semver(1, 0, 2) { }
 
     /// @notice Returns the L1 block number.
     receive() external payable {

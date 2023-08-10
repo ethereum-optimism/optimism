@@ -10,11 +10,7 @@ import { OptimismMintableERC721Factory } from "../src/universal/OptimismMintable
 contract OptimismMintableERC721Factory_Test is ERC721Bridge_Initializer {
     OptimismMintableERC721Factory internal factory;
 
-    event OptimismMintableERC721Created(
-        address indexed localToken,
-        address indexed remoteToken,
-        address deployer
-    );
+    event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken, address deployer);
 
     function setUp() public override {
         super.setUp();
@@ -41,9 +37,8 @@ contract OptimismMintableERC721Factory_Test is ERC721Bridge_Initializer {
 
         // Create the token.
         vm.prank(alice);
-        OptimismMintableERC721 created = OptimismMintableERC721(
-            factory.createOptimismMintableERC721(address(1234), "L2Token", "L2T")
-        );
+        OptimismMintableERC721 created =
+            OptimismMintableERC721(factory.createOptimismMintableERC721(address(1234), "L2Token", "L2T"));
 
         // Token address should be correct.
         assertEq(address(created), predicted);

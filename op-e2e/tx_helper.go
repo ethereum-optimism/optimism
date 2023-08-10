@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -26,7 +25,7 @@ func SendDepositTx(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, l
 	applyL2Opts(l2Opts)
 
 	// Find deposit contract
-	depositContract, err := bindings.NewOptimismPortal(config.L1Deployments.OptimismPortalProxy, l1Client)
+	depositContract, err := bindings.NewOptimismPortal(cfg.L1Deployments.OptimismPortalProxy, l1Client)
 	require.Nil(t, err)
 
 	// Finally send TX
@@ -54,7 +53,7 @@ func SendDepositTx(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, l
 	tx = types.NewTx(reconstructedDep)
 	receipt, err = waitForTransaction(tx.Hash(), l2Client, 10*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
 	require.NoError(t, err)
-	require.Equal(t, l2Opts.ExpectedStatus, receipt.Status)
+	require.Equal(t, l2Opts.ExpectedStatus, receipt.Status, "l2 transaction status")
 }
 
 type DepositTxOptsFn func(l2Opts *DepositTxOpts)

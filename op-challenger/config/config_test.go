@@ -14,15 +14,15 @@ var (
 	validAlphabetTrace         = "abcdefgh"
 	validCannonBin             = "./bin/cannon"
 	validCannonOpProgramBin    = "./bin/op-program"
+	validCannonNetwork         = "mainnet"
 	validCannonAbsolutPreState = "pre.json"
 	validCannonDatadir         = "/tmp/cannon"
 	validCannonL2              = "http://localhost:9545"
 	agreeWithProposedOutput    = true
-	gameDepth                  = 4
 )
 
 func validConfig(traceType TraceType) Config {
-	cfg := NewConfig(validL1EthRpc, validGameAddress, traceType, agreeWithProposedOutput, gameDepth)
+	cfg := NewConfig(validL1EthRpc, validGameAddress, traceType, agreeWithProposedOutput)
 	switch traceType {
 	case TraceTypeAlphabet:
 		cfg.AlphabetTrace = validAlphabetTrace
@@ -32,6 +32,7 @@ func validConfig(traceType TraceType) Config {
 		cfg.CannonAbsolutePreState = validCannonAbsolutPreState
 		cfg.CannonDatadir = validCannonDatadir
 		cfg.CannonL2 = validCannonL2
+		cfg.CannonNetwork = validCannonNetwork
 	}
 	return cfg
 }
@@ -109,4 +110,42 @@ func TestCannonSnapshotFreq(t *testing.T) {
 		cfg.CannonSnapshotFreq = 0
 		require.ErrorIs(t, cfg.Check(), ErrMissingCannonSnapshotFreq)
 	})
+}
+
+func TestCannonNetworkOrRollupConfigRequired(t *testing.T) {
+	cfg := validConfig(TraceTypeCannon)
+	cfg.CannonNetwork = ""
+	cfg.CannonRollupConfigPath = ""
+	cfg.CannonL2GenesisPath = "genesis.json"
+	require.ErrorIs(t, cfg.Check(), ErrMissingCannonRollupConfig)
+}
+
+func TestCannonNetworkOrL2GenesisRequired(t *testing.T) {
+	cfg := validConfig(TraceTypeCannon)
+	cfg.CannonNetwork = ""
+	cfg.CannonRollupConfigPath = "foo.json"
+	cfg.CannonL2GenesisPath = ""
+	require.ErrorIs(t, cfg.Check(), ErrMissingCannonL2Genesis)
+}
+
+func TestMustNotSpecifyNetworkAndRollup(t *testing.T) {
+	cfg := validConfig(TraceTypeCannon)
+	cfg.CannonNetwork = validCannonNetwork
+	cfg.CannonRollupConfigPath = "foo.json"
+	cfg.CannonL2GenesisPath = ""
+	require.ErrorIs(t, cfg.Check(), ErrCannonNetworkAndRollupConfig)
+}
+
+func TestMustNotSpecifyNetworkAndL2Genesis(t *testing.T) {
+	cfg := validConfig(TraceTypeCannon)
+	cfg.CannonNetwork = validCannonNetwork
+	cfg.CannonRollupConfigPath = ""
+	cfg.CannonL2GenesisPath = "foo.json"
+	require.ErrorIs(t, cfg.Check(), ErrCannonNetworkAndL2Genesis)
+}
+
+func TestNetworkMustBeValid(t *testing.T) {
+	cfg := validConfig(TraceTypeCannon)
+	cfg.CannonNetwork = "unknown"
+	require.ErrorIs(t, cfg.Check(), ErrCannonNetworkUnknown)
 }

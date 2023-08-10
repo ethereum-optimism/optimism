@@ -74,7 +74,8 @@ func newTestCannonUpdater(t *testing.T, sendFails bool) (*cannonUpdater, *mockTx
 func TestCannonUpdater_UpdateOracle(t *testing.T) {
 	t.Run("succeeds", func(t *testing.T) {
 		updater, mockTxMgr := newTestCannonUpdater(t, false)
-		require.Nil(t, updater.UpdateOracle(context.Background(), types.PreimageOracleData{
+		require.NoError(t, updater.UpdateOracle(context.Background(), &types.PreimageOracleData{
+			OracleKey:  common.Hash{0xaa}.Bytes(),
 			OracleData: common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
 		}))
 		require.Equal(t, 1, mockTxMgr.sends)
@@ -82,7 +83,8 @@ func TestCannonUpdater_UpdateOracle(t *testing.T) {
 
 	t.Run("send fails", func(t *testing.T) {
 		updater, mockTxMgr := newTestCannonUpdater(t, true)
-		require.Error(t, updater.UpdateOracle(context.Background(), types.PreimageOracleData{
+		require.Error(t, updater.UpdateOracle(context.Background(), &types.PreimageOracleData{
+			OracleKey:  common.Hash{0xaa}.Bytes(),
 			OracleData: common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
 		}))
 		require.Equal(t, 1, mockTxMgr.failedSends)
@@ -93,7 +95,7 @@ func TestCannonUpdater_UpdateOracle(t *testing.T) {
 // builds a valid tx candidate for a local oracle update.
 func TestCannonUpdater_BuildLocalOracleData(t *testing.T) {
 	updater, _ := newTestCannonUpdater(t, false)
-	oracleData := types.PreimageOracleData{
+	oracleData := &types.PreimageOracleData{
 		OracleKey:    common.Hex2Bytes("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 		OracleData:   common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
 		OracleOffset: 7,
@@ -117,7 +119,7 @@ func TestCannonUpdater_BuildLocalOracleData(t *testing.T) {
 // builds a valid tx candidate for a global oracle update.
 func TestCannonUpdater_BuildGlobalOracleData(t *testing.T) {
 	updater, _ := newTestCannonUpdater(t, false)
-	oracleData := types.PreimageOracleData{
+	oracleData := &types.PreimageOracleData{
 		OracleKey:    common.Hex2Bytes("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
 		OracleData:   common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"),
 		OracleOffset: 7,

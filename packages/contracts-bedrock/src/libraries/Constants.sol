@@ -23,11 +23,7 @@ library Constants {
 
     /// @notice Returns the default values for the ResourceConfig. These are the recommended values
     ///         for a production network.
-    function DEFAULT_RESOURCE_CONFIG()
-        internal
-        pure
-        returns (ResourceMetering.ResourceConfig memory)
-    {
+    function DEFAULT_RESOURCE_CONFIG() internal pure returns (ResourceMetering.ResourceConfig memory) {
         ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 10,

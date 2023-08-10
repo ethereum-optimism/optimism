@@ -306,7 +306,7 @@ The contract has the following solidity interface, and can be interacted with ac
 
 A reference implementation of the L1 Attributes predeploy contract can be found in [L1Block.sol].
 
-[L1Block.sol]: ../packages/contracts-bedrock/contracts/L2/L1Block.sol
+[L1Block.sol]: ../packages/contracts-bedrock/src/L2/L1Block.sol
 
 After running `pnpm build` in the `packages/contracts` directory, the bytecode to add to the genesis
 file will be located in the `deployedBytecode` field of the build artifacts file at

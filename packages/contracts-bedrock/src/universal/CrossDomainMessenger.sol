@@ -149,13 +149,7 @@ abstract contract CrossDomainMessenger is
     /// @param message      Message to trigger the recipient address with.
     /// @param messageNonce Unique nonce attached to the message.
     /// @param gasLimit     Minimum gas limit that the message can be executed with.
-    event SentMessage(
-        address indexed target,
-        address sender,
-        bytes message,
-        uint256 messageNonce,
-        uint256 gasLimit
-    );
+    event SentMessage(address indexed target, address sender, bytes message, uint256 messageNonce, uint256 gasLimit);
 
     /// @notice Additional event data to emit, required as of Bedrock. Cannot be merged with the
     ///         SentMessage event without breaking the ABI of this contract, this is good enough.
@@ -183,11 +177,7 @@ abstract contract CrossDomainMessenger is
     /// @param _target      Target contract or wallet address.
     /// @param _message     Message to trigger the target address with.
     /// @param _minGasLimit Minimum gas limit that the message can be executed with.
-    function sendMessage(
-        address _target,
-        bytes calldata _message,
-        uint32 _minGasLimit
-    ) external payable {
+    function sendMessage(address _target, bytes calldata _message, uint32 _minGasLimit) external payable {
         // Triggers a message to the other messenger. Note that the amount of gas provided to the
         // message is the amount of gas requested by the user PLUS the base gas value. We want to
         // guarantee the property that the call to the target contract will always have at least
@@ -197,13 +187,7 @@ abstract contract CrossDomainMessenger is
             baseGas(_message, _minGasLimit),
             msg.value,
             abi.encodeWithSelector(
-                this.relayMessage.selector,
-                messageNonce(),
-                msg.sender,
-                _target,
-                msg.value,
-                _minGasLimit,
-                _message
+                this.relayMessage.selector, messageNonce(), msg.sender, _target, msg.value, _minGasLimit, _message
             )
         );
 
@@ -231,33 +215,24 @@ abstract contract CrossDomainMessenger is
         uint256 _value,
         uint256 _minGasLimit,
         bytes calldata _message
-    ) external payable {
+    )
+        external
+        payable
+    {
         (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
-        require(
-            version < 2,
-            "CrossDomainMessenger: only version 0 or 1 messages are supported at this time"
-        );
+        require(version < 2, "CrossDomainMessenger: only version 0 or 1 messages are supported at this time");
 
         // If the message is version 0, then it's a migrated legacy withdrawal. We therefore need
         // to check that the legacy version of the message has not already been relayed.
         if (version == 0) {
             bytes32 oldHash = Hashing.hashCrossDomainMessageV0(_target, _sender, _message, _nonce);
-            require(
-                successfulMessages[oldHash] == false,
-                "CrossDomainMessenger: legacy withdrawal already relayed"
-            );
+            require(successfulMessages[oldHash] == false, "CrossDomainMessenger: legacy withdrawal already relayed");
         }
 
         // We use the v1 message hash as the unique identifier for the message because it commits
         // to the value and minimum gas limit of the message.
-        bytes32 versionedHash = Hashing.hashCrossDomainMessageV1(
-            _nonce,
-            _sender,
-            _target,
-            _value,
-            _minGasLimit,
-            _message
-        );
+        bytes32 versionedHash =
+            Hashing.hashCrossDomainMessageV1(_nonce, _sender, _target, _value, _minGasLimit, _message);
 
         if (_isOtherMessenger()) {
             // These properties should always hold when the message is first submitted (as
@@ -265,26 +240,16 @@ abstract contract CrossDomainMessenger is
             assert(msg.value == _value);
             assert(!failedMessages[versionedHash]);
         } else {
-            require(
-                msg.value == 0,
-                "CrossDomainMessenger: value must be zero unless message is from a system address"
-            );
+            require(msg.value == 0, "CrossDomainMessenger: value must be zero unless message is from a system address");
 
-            require(
-                failedMessages[versionedHash],
-                "CrossDomainMessenger: message cannot be replayed"
-            );
+            require(failedMessages[versionedHash], "CrossDomainMessenger: message cannot be replayed");
         }
 
         require(
-            _isUnsafeTarget(_target) == false,
-            "CrossDomainMessenger: cannot send message to blocked system address"
+            _isUnsafeTarget(_target) == false, "CrossDomainMessenger: cannot send message to blocked system address"
         );
 
-        require(
-            successfulMessages[versionedHash] == false,
-            "CrossDomainMessenger: message has already been relayed"
-        );
+        require(successfulMessages[versionedHash] == false, "CrossDomainMessenger: message has already been relayed");
 
         // If there is not enough gas left to perform the external call and finish the execution,
         // return early and assign the message to the failedMessages mapping.
@@ -296,8 +261,8 @@ abstract contract CrossDomainMessenger is
         // If `xDomainMsgSender` is not the default L2 sender, this function
         // is being re-entered. This marks the message as failed to allow it to be replayed.
         if (
-            !SafeCall.hasMinGas(_minGasLimit, RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER) ||
-            xDomainMsgSender != Constants.DEFAULT_L2_SENDER
+            !SafeCall.hasMinGas(_minGasLimit, RELAY_RESERVED_GAS + RELAY_GAS_CHECK_BUFFER)
+                || xDomainMsgSender != Constants.DEFAULT_L2_SENDER
         ) {
             failedMessages[versionedHash] = true;
             emit FailedRelayedMessage(versionedHash);
@@ -342,8 +307,7 @@ abstract contract CrossDomainMessenger is
     /// @return Address of the sender of the currently executing message on the other chain.
     function xDomainMessageSender() external view returns (address) {
         require(
-            xDomainMsgSender != Constants.DEFAULT_L2_SENDER,
-            "CrossDomainMessenger: xDomainMessageSender is not set"
+            xDomainMsgSender != Constants.DEFAULT_L2_SENDER, "CrossDomainMessenger: xDomainMessageSender is not set"
         );
 
         return xDomainMsgSender;
@@ -366,22 +330,21 @@ abstract contract CrossDomainMessenger is
     /// @return Amount of gas required to guarantee message receipt.
     function baseGas(bytes calldata _message, uint32 _minGasLimit) public pure returns (uint64) {
         return
-            // Constant overhead
-            RELAY_CONSTANT_OVERHEAD +
-            // Calldata overhead
-            (uint64(_message.length) * MIN_GAS_CALLDATA_OVERHEAD) +
-            // Dynamic overhead (EIP-150)
-            ((_minGasLimit * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) /
-                MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR) +
-            // Gas reserved for the worst-case cost of 3/5 of the `CALL` opcode's dynamic gas
-            // factors. (Conservative)
-            RELAY_CALL_OVERHEAD +
-            // Relay reserved gas (to ensure execution of `relayMessage` completes after the
-            // subcontext finishes executing) (Conservative)
-            RELAY_RESERVED_GAS +
-            // Gas reserved for the execution between the `hasMinGas` check and the `CALL`
-            // opcode. (Conservative)
-            RELAY_GAS_CHECK_BUFFER;
+        // Constant overhead
+        RELAY_CONSTANT_OVERHEAD
+        // Calldata overhead
+        + (uint64(_message.length) * MIN_GAS_CALLDATA_OVERHEAD)
+        // Dynamic overhead (EIP-150)
+        + ((_minGasLimit * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) / MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR)
+        // Gas reserved for the worst-case cost of 3/5 of the `CALL` opcode's dynamic gas
+        // factors. (Conservative)
+        + RELAY_CALL_OVERHEAD
+        // Relay reserved gas (to ensure execution of `relayMessage` completes after the
+        // subcontext finishes executing) (Conservative)
+        + RELAY_RESERVED_GAS
+        // Gas reserved for the execution between the `hasMinGas` check and the `CALL`
+        // opcode. (Conservative)
+        + RELAY_GAS_CHECK_BUFFER;
     }
 
     /// @notice Initializer.
@@ -397,12 +360,7 @@ abstract contract CrossDomainMessenger is
     /// @param _gasLimit Minimum gas limit the message can be executed with.
     /// @param _value    Amount of ETH to send with the message.
     /// @param _data     Message data.
-    function _sendMessage(
-        address _to,
-        uint64 _gasLimit,
-        uint256 _value,
-        bytes memory _data
-    ) internal virtual;
+    function _sendMessage(address _to, uint64 _gasLimit, uint256 _value, bytes memory _data) internal virtual;
 
     /// @notice Checks whether the message is coming from the other messenger. Implemented by child
     ///         contracts because the logic for this depends on the network where the messenger is

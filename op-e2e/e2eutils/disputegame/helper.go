@@ -22,7 +22,6 @@ import (
 const alphabetGameType uint8 = 0
 const cannonGameType uint8 = 1
 const alphabetGameDepth = 4
-const cannonGameDepth = 64
 const lastAlphabetTraceIndex = 1<<alphabetGameDepth - 1
 
 type Status uint8
@@ -73,7 +72,6 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, deployments *genesis.L1
 	l2oo, err := bindings.NewL2OutputOracleCaller(deployments.L2OutputOracleProxy, client)
 	require.NoError(err, "Error creating l2oo caller")
 
-	//factory, l1Head := deployDisputeGameContracts(require, ctx, clock, client, opts, gameDuration)
 	return &FactoryHelper{
 		t:           t,
 		require:     require,
@@ -107,15 +105,15 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	h.require.NoError(err)
 	game, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.client)
 	h.require.NoError(err)
+
 	return &AlphabetGameHelper{
 		FaultGameHelper: FaultGameHelper{
-			t:        h.t,
-			require:  h.require,
-			client:   h.client,
-			opts:     h.opts,
-			game:     game,
-			maxDepth: alphabetGameDepth,
-			addr:     createdEvent.DisputeProxy,
+			t:       h.t,
+			require: h.require,
+			client:  h.client,
+			opts:    h.opts,
+			game:    game,
+			addr:    createdEvent.DisputeProxy,
 		},
 		claimedAlphabet: claimedAlphabet,
 	}
@@ -140,15 +138,15 @@ func (h *FactoryHelper) StartCannonGame(ctx context.Context, rootClaim common.Ha
 	h.require.NoError(err)
 	game, err := bindings.NewFaultDisputeGame(createdEvent.DisputeProxy, h.client)
 	h.require.NoError(err)
+
 	return &CannonGameHelper{
 		FaultGameHelper: FaultGameHelper{
-			t:        h.t,
-			require:  h.require,
-			client:   h.client,
-			opts:     h.opts,
-			game:     game,
-			maxDepth: cannonGameDepth,
-			addr:     createdEvent.DisputeProxy,
+			t:       h.t,
+			require: h.require,
+			client:  h.client,
+			opts:    h.opts,
+			game:    game,
+			addr:    createdEvent.DisputeProxy,
 		},
 	}
 }

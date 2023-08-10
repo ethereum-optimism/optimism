@@ -68,7 +68,7 @@ contract DeleteOutput is SafeBuilder {
     }
 
     /// @notice Test coverage of the script.
-    function test_script_succeeds() skipWhenNotForking external {
+    function test_script_succeeds() external skipWhenNotForking {
         uint256 _index = getLatestIndex();
         require(_index != 0, "DeleteOutput: No outputs to delete.");
 
@@ -103,10 +103,7 @@ contract DeleteOutput is SafeBuilder {
         calls[0] = IMulticall3.Call3({
             target: oracle,
             allowFailure: false,
-            callData: abi.encodeCall(
-                L2OutputOracle.deleteL2Outputs,
-                (index)
-            )
+            callData: abi.encodeCall(L2OutputOracle.deleteL2Outputs, (index))
         });
 
         return abi.encodeCall(IMulticall3.aggregate3, (calls));

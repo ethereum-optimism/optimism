@@ -20,11 +20,7 @@ abstract contract CrossDomainOwnable3 is Ownable {
     /// @param previousOwner The previous owner of the contract.
     /// @param newOwner      The new owner of the contract.
     /// @param isLocal       Configures the `isLocal` contract variable.
-    event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner,
-        bool isLocal
-    );
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner, bool isLocal);
 
     /// @notice Allows for ownership to be transferred with specifying the locality.
     /// @param _owner   The new owner of the contract.
@@ -46,19 +42,11 @@ abstract contract CrossDomainOwnable3 is Ownable {
         if (isLocal) {
             require(owner() == msg.sender, "CrossDomainOwnable3: caller is not the owner");
         } else {
-            L2CrossDomainMessenger messenger = L2CrossDomainMessenger(
-                Predeploys.L2_CROSS_DOMAIN_MESSENGER
-            );
+            L2CrossDomainMessenger messenger = L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
-            require(
-                msg.sender == address(messenger),
-                "CrossDomainOwnable3: caller is not the messenger"
-            );
+            require(msg.sender == address(messenger), "CrossDomainOwnable3: caller is not the messenger");
 
-            require(
-                owner() == messenger.xDomainMessageSender(),
-                "CrossDomainOwnable3: caller is not the owner"
-            );
+            require(owner() == messenger.xDomainMessageSender(), "CrossDomainOwnable3: caller is not the owner");
         }
     }
 }
