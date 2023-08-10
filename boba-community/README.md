@@ -47,15 +47,19 @@ ETH1_HTTP=
 
 The volumes of l2 should be modified to your file locations.
 
-```
-volumes:
-  - ./jwt-secret.txt:/config/jwt-secret.txt
-  - DATA_DIR:/db
+```yaml
+l2:
+  volumes:
+    - ./jwt-secret.txt:/config/jwt-secret.txt
+    - DATA_DIR:/db
+op-node:
+  volumes:
+  	- ./jwt-secret.txt:/config/jwt-secret.txt
 ```
 
 ### Start your replica node
 
-```
+```bash
 docker-compose -f docker-compose-op-goerli.yml up -d
 ```
 
