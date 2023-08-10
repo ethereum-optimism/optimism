@@ -3,7 +3,7 @@ name: Publish Packages (boba-develop)
 on:
   push:
     branches:
-      - 'add-github-action'
+      - 'boba-develop'
 
 jobs:
   publish-develop:
