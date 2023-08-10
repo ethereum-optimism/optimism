@@ -87,10 +87,10 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
     /// @notice Maps from addresses to number of invites they have.
     mapping(address => uint256) public inviteCounts;
 
-    /// @custom:semver 1.0.1
+    /// @custom:semver 1.0.2
     /// @param _inviteGranter      Address of the invite granter.
     /// @param _attestationStation Address of the AttestationStation contract.
-    constructor(address _inviteGranter, AttestationStation _attestationStation) Semver(1, 0, 1) {
+    constructor(address _inviteGranter, AttestationStation _attestationStation) Semver(1, 0, 2) {
         INVITE_GRANTER = _inviteGranter;
         ATTESTATION_STATION = _attestationStation;
     }

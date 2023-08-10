@@ -30,7 +30,7 @@ contract OptimistAllowlist is Semver {
     ///         attestations.
     address public immutable OPTIMIST_INVITER;
 
-    /// @custom:semver 1.0.1
+    /// @custom:semver 1.0.2
     /// @param _attestationStation    Address of the AttestationStation contract.
     /// @param _allowlistAttestor     Address of the allowlist attestor.
     /// @param _coinbaseQuestAttestor Address of the Coinbase Quest attestor.
@@ -41,7 +41,7 @@ contract OptimistAllowlist is Semver {
         address _coinbaseQuestAttestor,
         address _optimistInviter
     )
-        Semver(1, 0, 1)
+        Semver(1, 0, 2)
     {
         ATTESTATION_STATION = _attestationStation;
         ALLOWLIST_ATTESTOR = _allowlistAttestor;

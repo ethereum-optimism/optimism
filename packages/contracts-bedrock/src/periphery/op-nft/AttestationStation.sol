@@ -28,8 +28,8 @@ contract AttestationStation is Semver {
     /// @param val     Value of the attestation.
     event AttestationCreated(address indexed creator, address indexed about, bytes32 indexed key, bytes val);
 
-    /// @custom:semver 1.1.1
-    constructor() Semver(1, 1, 1) { }
+    /// @custom:semver 1.1.2
+    constructor() Semver(1, 1, 2) { }
 
     /// @notice Allows anyone to create an attestation.
     /// @param _about Address that the attestation is about.
