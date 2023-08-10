@@ -20,15 +20,19 @@ func L2ToL1MessagePasserMessagesPassed(events *ProcessedContractEvents) ([]L2ToL
 	processedMessagePassedEvents := events.eventsBySignature[l2ToL1MessagePasserAbi.Events[eventName].ID]
 	messagesPassed := make([]L2ToL1MessagePasserMessagePassed, len(processedMessagePassedEvents))
 	for i, messagePassedEvent := range processedMessagePassedEvents {
-		log := events.eventLog[messagePassedEvent.GUID]
+		log := messagePassedEvent.GethLog
 
 		var messagePassed bindings.L2ToL1MessagePasserMessagePassed
+		messagePassed.Raw = *log
 		err := UnpackLog(&messagePassed, log, eventName, l2ToL1MessagePasserAbi)
 		if err != nil {
 			return nil, err
 		}
 
-		messagesPassed[i] = L2ToL1MessagePasserMessagePassed{&messagePassed, messagePassedEvent}
+		messagesPassed[i] = L2ToL1MessagePasserMessagePassed{
+			L2ToL1MessagePasserMessagePassed: &messagePassed,
+			RawEvent:                         messagePassedEvent,
+		}
 	}
 
 	return messagesPassed, nil

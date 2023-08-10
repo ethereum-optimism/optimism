@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
 
 	"github.com/stretchr/testify/require"
 )
@@ -62,6 +63,9 @@ func TestE2EBlockHeaders(t *testing.T) {
 			require.Equal(t, header.Hash(), indexedHeader.Hash)
 			require.Equal(t, header.ParentHash, indexedHeader.ParentHash)
 			require.Equal(t, header.Time, indexedHeader.Timestamp)
+
+			// ensure the right rlp encoding is stored. checking the hashes sufficies
+			require.Equal(t, header.Hash(), indexedHeader.GethHeader.Hash())
 		}
 	})
 
@@ -116,8 +120,16 @@ func TestE2EBlockHeaders(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, log.Topics[0], contractEvent.EventSignature)
 			require.Equal(t, log.BlockHash, contractEvent.BlockHash)
+			require.Equal(t, log.Address, contractEvent.ContractAddress)
 			require.Equal(t, log.TxHash, contractEvent.TransactionHash)
 			require.Equal(t, log.Index, uint(contractEvent.LogIndex))
+
+			// ensure the right rlp encoding of the contract log is stored
+			logRlp, err := rlp.EncodeToBytes(&log)
+			require.NoError(t, err)
+			contractEventRlp, err := rlp.EncodeToBytes(contractEvent.GethLog)
+			require.NoError(t, err)
+			require.ElementsMatch(t, logRlp, contractEventRlp)
 
 			// ensure the block is also indexed
 			block, err := testSuite.L1Client.BlockByNumber(testCtx, big.NewInt(int64(log.BlockNumber)))
@@ -131,6 +143,10 @@ func TestE2EBlockHeaders(t *testing.T) {
 			require.Equal(t, block.ParentHash(), l1BlockHeader.ParentHash)
 			require.Equal(t, block.Number(), l1BlockHeader.Number.Int)
 			require.Equal(t, block.Time(), l1BlockHeader.Timestamp)
+
+			// ensure the right rlp encoding is stored. checking the hashes
+			// suffices as it is based on the rlp bytes of the header
+			require.Equal(t, block.Hash(), l1BlockHeader.GethHeader.Hash())
 		}
 	})
 }
