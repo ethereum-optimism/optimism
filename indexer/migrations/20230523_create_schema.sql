@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS l1_contract_events (
     -- Searchable fields
     guid             VARCHAR NOT NULL PRIMARY KEY,
 	block_hash       VARCHAR NOT NULL REFERENCES l1_block_headers(hash),
+    contract_address VARCHAR NOT NULL,
     transaction_hash VARCHAR NOT NULL,
     log_index        INTEGER NOT NULL,
     event_signature  VARCHAR NOT NULL, -- bytes32(0x0) when topics are missing
@@ -49,6 +50,7 @@ CREATE TABLE IF NOT EXISTS l2_contract_events (
     -- Searchable fields
     guid             VARCHAR NOT NULL PRIMARY KEY,
 	block_hash       VARCHAR NOT NULL REFERENCES l2_block_headers(hash),
+    contract_address VARCHAR NOT NULL,
     transaction_hash VARCHAR NOT NULL,
     log_index        INTEGER NOT NULL,
     event_signature  VARCHAR NOT NULL, -- bytes32(0x0) when topics are missing

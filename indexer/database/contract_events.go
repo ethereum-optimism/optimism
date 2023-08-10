@@ -16,9 +16,10 @@ import (
  */
 
 type ContractEvent struct {
-	GUID            uuid.UUID   `gorm:"primaryKey"`
-	BlockHash       common.Hash `gorm:"serializer:json"`
-	TransactionHash common.Hash `gorm:"serializer:json"`
+	GUID            uuid.UUID      `gorm:"primaryKey"`
+	BlockHash       common.Hash    `gorm:"serializer:json"`
+	ContractAddress common.Address `gorm:"serializer:json"`
+	TransactionHash common.Hash    `gorm:"serializer:json"`
 
 	EventSignature common.Hash `gorm:"serializer:json"`
 	LogIndex       uint64
@@ -37,6 +38,7 @@ func ContractEventFromGethLog(log *types.Log, timestamp uint64) ContractEvent {
 		GUID: uuid.New(),
 
 		BlockHash:       log.BlockHash,
+		ContractAddress: log.Address,
 		TransactionHash: log.TxHash,
 
 		EventSignature: eventSig,

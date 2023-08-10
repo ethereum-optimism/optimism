@@ -120,6 +120,7 @@ func TestE2EBlockHeaders(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, log.Topics[0], contractEvent.EventSignature)
 			require.Equal(t, log.BlockHash, contractEvent.BlockHash)
+			require.Equal(t, log.Address, contractEvent.ContractAddress)
 			require.Equal(t, log.TxHash, contractEvent.TransactionHash)
 			require.Equal(t, log.Index, uint(contractEvent.LogIndex))
 
