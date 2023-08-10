@@ -42,22 +42,22 @@
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "chai-as-promised": "^7.1.1",
-    "ethereum-waffle": "^3.4.0",
+    "ethereum-waffle": "^4.0.10",
     "ethers": "^5.7.0",
     "hardhat": "^2.9.6",
     "hardhat-deploy": "^0.11.4",
+    "isomorphic-fetch": "^3.0.0",
+    "mocha": "^10.0.0",
     "nyc": "^15.1.0",
     "typedoc": "^0.22.13",
-    "mocha": "^10.0.0",
-    "vitest": "^0.28.3",
-    "zod": "^3.11.6",
     "viem": "^0.3.30",
-    "isomorphic-fetch": "^3.0.0"
+    "vitest": "^0.28.3",
+    "zod": "^3.11.6"
   },
   "dependencies": {
     "@eth-optimism/contracts": "0.6.0",
-    "@eth-optimism/core-utils": "0.12.2",
     "@eth-optimism/contracts-bedrock": "0.16.0",
+    "@eth-optimism/core-utils": "0.12.2",
     "lodash": "^4.17.21",
     "merkletreejs": "^0.2.27",
     "rlp": "^2.2.7"
