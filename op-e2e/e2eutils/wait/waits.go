@@ -1,4 +1,4 @@
-package utils
+package wait
 
 import (
 	"context"
@@ -13,15 +13,15 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-func WaitReceiptOK(ctx context.Context, client *ethclient.Client, hash common.Hash) (*types.Receipt, error) {
-	return WaitReceipt(ctx, client, hash, types.ReceiptStatusSuccessful)
+func ForReceiptOK(ctx context.Context, client *ethclient.Client, hash common.Hash) (*types.Receipt, error) {
+	return ForReceipt(ctx, client, hash, types.ReceiptStatusSuccessful)
 }
 
-func WaitReceiptFail(ctx context.Context, client *ethclient.Client, hash common.Hash) (*types.Receipt, error) {
-	return WaitReceipt(ctx, client, hash, types.ReceiptStatusFailed)
+func ForReceiptFail(ctx context.Context, client *ethclient.Client, hash common.Hash) (*types.Receipt, error) {
+	return ForReceipt(ctx, client, hash, types.ReceiptStatusFailed)
 }
 
-func WaitReceipt(ctx context.Context, client *ethclient.Client, hash common.Hash, status uint64) (*types.Receipt, error) {
+func ForReceipt(ctx context.Context, client *ethclient.Client, hash common.Hash, status uint64) (*types.Receipt, error) {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
@@ -63,7 +63,7 @@ func addDebugTrace(ctx context.Context, client *ethclient.Client, txHash common.
 	return fmt.Errorf("%w\nTxTrace: %v", origErr, result)
 }
 
-func WaitBlock(ctx context.Context, client *ethclient.Client, n uint64) error {
+func ForBlock(ctx context.Context, client *ethclient.Client, n uint64) error {
 	for {
 		height, err := client.BlockNumber(ctx)
 		if err != nil {
@@ -79,15 +79,15 @@ func WaitBlock(ctx context.Context, client *ethclient.Client, n uint64) error {
 	return nil
 }
 
-func WaitNextBlock(ctx context.Context, client *ethclient.Client) error {
+func ForNextBlock(ctx context.Context, client *ethclient.Client) error {
 	current, err := client.BlockNumber(ctx)
 	if err != nil {
 		return fmt.Errorf("get starting block number: %w", err)
 	}
-	return WaitBlock(ctx, client, current+1)
+	return ForBlock(ctx, client, current+1)
 }
 
-func WaitFor(ctx context.Context, rate time.Duration, cb func() (bool, error)) error {
+func For(ctx context.Context, rate time.Duration, cb func() (bool, error)) error {
 	tick := time.NewTicker(rate)
 	defer tick.Stop()
 
@@ -107,7 +107,7 @@ func WaitFor(ctx context.Context, rate time.Duration, cb func() (bool, error)) e
 	}
 }
 
-func WaitAndGet[T interface{}](ctx context.Context, pollRate time.Duration, get func() (T, error), predicate func(T) bool) (T, error) {
+func AndGet[T interface{}](ctx context.Context, pollRate time.Duration, get func() (T, error), predicate func(T) bool) (T, error) {
 	tick := time.NewTicker(pollRate)
 	defer tick.Stop()
 

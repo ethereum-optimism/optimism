@@ -7,10 +7,9 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/node"
-	"github.com/ethereum-optimism/optimism/op-service/client/utils"
-
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -28,7 +27,7 @@ func TestE2EBlockHeaders(t *testing.T) {
 	require.NoError(t, err)
 
 	// wait for at least 10 L2 blocks to be created & posted on L1
-	require.NoError(t, utils.WaitFor(context.Background(), time.Second, func() (bool, error) {
+	require.NoError(t, wait.For(context.Background(), time.Second, func() (bool, error) {
 		l2Height, err := l2OutputOracle.LatestBlockNumber(&bind.CallOpts{Context: context.Background()})
 		return l2Height != nil && l2Height.Uint64() >= 9, err
 	}))
@@ -36,7 +35,7 @@ func TestE2EBlockHeaders(t *testing.T) {
 	// ensure the processors are caught up to this state
 	l1Height, err := testSuite.L1Client.BlockNumber(context.Background())
 	require.NoError(t, err)
-	require.NoError(t, utils.WaitFor(context.Background(), time.Second, func() (bool, error) {
+	require.NoError(t, wait.For(context.Background(), time.Second, func() (bool, error) {
 		l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
 		l2Header := testSuite.Indexer.L2Processor.LatestProcessedHeader()
 		return (l1Header != nil && l1Header.Number.Uint64() >= l1Height) && (l2Header != nil && l2Header.Number.Uint64() >= 9), nil
