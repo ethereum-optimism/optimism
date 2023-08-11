@@ -13,24 +13,21 @@ The first step is to download the initial data for `op-erigon`. Thanks for the c
 * [OP Mainnet](https://op-erigon-backup.mainnet.testinprod.io)
 * [OP Goerli](https://op-erigon-backup.goerli.testinprod.io)
 
-2. Create the data directory in `op-erigon` and fill it.
+2. Create the data directory and fill it.
 
   ```bash
-  mkdir op-erigon
-  cd ./op-erigon
-  mkdir erigon
-  cd ./erigon
+  cd op-anchorage/boba-community
+  mkdir op-db
+  cd ./op-db
   tar xvf ~/[DIR]/op-erigon-goerli.tar
   ```
 
 3. Create a shared secret (JWT token)
 
   ```bash
-  cd op-erigon
-  openssl rand -hex 32 > jwt.txt
+  cd op-anchorage/boba-community
+  openssl rand -hex 32 > jwt-secrete.txt
   ```
-
->  This step is optional, but we highly recommand you to create your own JWT token.
 
 ### Create a .env file
 
@@ -41,11 +38,11 @@ VERSION=
 ETH1_HTTP=
 ```
 
-> This step is optional, but we recommand you to use a latest release image for `VERSION`. Otherwise, it pulls the latest image.
+> This step is optional, but we recommand you to use a latest release image for `VERSION`. Otherwise, it pulls the image with the `latest` tag.
 
 ### Modify volume location
 
-The volumes of l2 should be modified to your file locations.
+The volumes of l2 and op-node should be modified to your file locations.
 
 ```yaml
 l2:
