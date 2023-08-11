@@ -91,7 +91,9 @@ func Main(version string, cliCtx *cli.Context) error {
 		}()
 		from, err := proposerConfig.TxManager.From()
 		if err != nil {
-			return fmt.Errorf("error getting from address: %w", err)
+			cancel()
+			l.Error("error getting from address", "err", err)
+			return err
 		}
 		m.StartBalanceMetrics(ctx, l, proposerConfig.L1Client, from)
 	}
