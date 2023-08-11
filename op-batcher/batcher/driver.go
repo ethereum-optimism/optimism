@@ -70,6 +70,11 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 		return nil, fmt.Errorf("querying rollup config: %w", err)
 	}
 
+	// var kmsManager *opkms.KmsManager
+	// if cfg.KmsConfig.KmsKeyID != "" {
+	// 	kmsManager, err = opkms.NewKmsManager(cfg.KmsConfig.KmsKeyID, cfg.KmsConfig.KmsEndpoint, cfg.KmsConfig.KmsRegion)
+	// }
+
 	txManager, err := txmgr.NewSimpleTxManager("batcher", l, m, cfg.TxMgrConfig)
 	if err != nil {
 		return nil, err
