@@ -58,6 +58,9 @@ RUN apt-get update && apt-get install -y \
   openssh-client \
   --no-install-recommends
 
+# ssh is used to download pnpm dependencies from github
+RUN ssh-keyscan -H github.com >> /etc/ssh/ssh_known_hosts
+
 RUN npm install pnpm --global
 
 COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
