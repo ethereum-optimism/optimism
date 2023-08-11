@@ -29,7 +29,7 @@ importers:
         version: 4.2.21
       '@types/chai-as-promised':
         specifier: ^7.1.4
-        version: 7.1.4
+        version: 7.1.5
       '@types/mocha':
         specifier: ^10.0.1
         version: 10.0.1
@@ -3746,8 +3746,8 @@ packages:
       '@types/node': 20.4.3
     dev: true
 
-  /@types/chai-as-promised@7.1.4:
-    resolution: {integrity: sha512-1y3L1cHePcIm5vXkh1DSGf/zQq5n5xDKG1fpCvf18+uOkpce0Z1ozNFPkyWsVswK7ntN1sZBw3oU6gmN+pDUcA==}
+  /@types/chai-as-promised@7.1.5:
+    resolution: {integrity: sha512-jStwss93SITGBwt/niYrkf2C+/1KTeZCZl1LaeezTlqppAKeoQC7jxyqYuP72sxBGKCIbw7oHgbYssIRzT5FCQ==}
     dependencies:
       '@types/chai': 4.3.5
     dev: true
