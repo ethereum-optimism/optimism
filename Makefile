@@ -33,9 +33,7 @@ op-bindings:
 .PHONY: op-bindings
 
 make op-bindings-docker:
-	docker run -v $(monorepo-base):/work -it us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder bash -c "env FORGE_BUILD_ARGS='--force' make -C /work op-bindings"
-	echo "Asking for root permissions to set owner of files to ${USER} after docker run"
-	sudo chown -R ${USER} $(monorepo-base)
+	docker run -u -it --rm -v $(monorepo-base):/work -it us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder bash -c "env FORGE_BUILD_ARGS='--force' make -C /work op-bindings"
 
 .PHONY: op-bindings-docker
 
