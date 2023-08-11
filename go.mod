@@ -51,7 +51,10 @@ require (
 	gorm.io/gorm v1.25.2
 )
 
-require github.com/jmespath/go-jmespath v0.4.0 // indirect
+require (
+	github.com/edsrzf/mmap-go v1.0.0 // indirect
+	github.com/jmespath/go-jmespath v0.4.0 // indirect
+)
 
 require (
 	github.com/DataDog/zstd v1.5.2 // indirect
@@ -81,7 +84,6 @@ require (
 	github.com/docker/docker v20.10.24+incompatible // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dop251/goja v0.0.0-20230122112309-96b1610dd4f7 // indirect
-	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/elastic/gosigar v0.14.2 // indirect
 	github.com/fatih/color v1.7.0 // indirect
 	github.com/felixge/fgprof v0.9.3 // indirect
@@ -186,6 +188,7 @@ require (
 	github.com/tklauser/go-sysconf v0.3.10 // indirect
 	github.com/tklauser/numcpus v0.5.0 // indirect
 	github.com/tyler-smith/go-bip39 v1.1.0 // indirect
+	github.com/welthee/go-ethereum-aws-kms-tx-signer v0.0.0-20211013075913-ca566ae7abeb
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.uber.org/atomic v1.10.0 // indirect

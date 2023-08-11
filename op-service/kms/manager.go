@@ -5,6 +5,10 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kms"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	ethawskmssigner "github.com/welthee/go-ethereum-aws-kms-tx-signer"
 )
 
 type KmsManager struct {
@@ -29,4 +33,25 @@ func NewKmsManager(cfg CLIConfig) (*KmsManager, error) {
 		keyId:      cfg.KmsKeyID,
 		kmsSession: kms.New(session),
 	}, nil
+}
+
+func (k *KmsManager) GetAddr() (common.Address, error) {
+	pubkey, err := ethawskmssigner.GetPubKey(k.kmsSession, k.keyId)
+	if err != nil {
+		return common.Address{}, err
+	}
+	addr := crypto.PubkeyToAddress(*pubkey)
+	return addr, nil
+}
+
+func (k *KmsManager) Sign(rawTx *types.DynamicFeeTx) (*types.Transaction, error) {
+	transactOpts, err := ethawskmssigner.NewAwsKmsTransactorWithChainID(k.kmsSession, k.keyId, rawTx.ChainID)
+	if err != nil {
+		return nil, err
+	}
+	signedTx, err := transactOpts.Signer(transactOpts.From, types.NewTx(rawTx))
+	if err != nil {
+		return nil, err
+	}
+	return signedTx, nil
 }

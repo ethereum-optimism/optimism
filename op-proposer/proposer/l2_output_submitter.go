@@ -89,7 +89,11 @@ func Main(version string, cliCtx *cli.Context) error {
 				l.Error("error starting metrics server", err)
 			}
 		}()
-		m.StartBalanceMetrics(ctx, l, proposerConfig.L1Client, proposerConfig.TxManager.From())
+		from, err := proposerConfig.TxManager.From()
+		if err != nil {
+			return fmt.Errorf("error getting from address: %w", err)
+		}
+		m.StartBalanceMetrics(ctx, l, proposerConfig.L1Client, from)
 	}
 
 	rpcCfg := cfg.RPCConfig
@@ -243,8 +247,14 @@ func (l *L2OutputSubmitter) Stop() {
 func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.OutputResponse, bool, error) {
 	cCtx, cancel := context.WithTimeout(ctx, l.networkTimeout)
 	defer cancel()
+	// TODO: we should not call KMS every time we want to fetch info
+	from, err := l.txMgr.From()
+	if err != nil {
+		l.log.Error("proposer unable to get from address", "err", err)
+		return nil, false, err
+	}
 	callOpts := &bind.CallOpts{
-		From:    l.txMgr.From(),
+		From:    from,
 		Context: cCtx,
 	}
 	nextCheckpointBlock, err := l.l2ooContract.NextBlockNumber(callOpts)

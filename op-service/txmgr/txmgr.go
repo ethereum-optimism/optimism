@@ -52,7 +52,7 @@ type TxManager interface {
 
 	// From returns the sending address associated with the instance of the transaction manager.
 	// It is static for a single instance of a TxManager.
-	From() common.Address
+	From() (common.Address, error)
 
 	// BlockNumber returns the most recent block number from the underlying network.
 	BlockNumber(ctx context.Context) (uint64, error)
@@ -105,7 +105,7 @@ type SimpleTxManager struct {
 
 	pending atomic.Int64
 
-	kmsManager *kms.KmsManager
+	kms *kms.KmsManager
 }
 
 // NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
@@ -120,18 +120,29 @@ func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLI
 	}
 
 	return &SimpleTxManager{
-		chainID:    conf.ChainID,
-		name:       name,
-		cfg:        conf,
-		backend:    conf.Backend,
-		l:          l.New("service", name),
-		metr:       m,
-		kmsManager: kmsManager,
+		chainID: conf.ChainID,
+		name:    name,
+		cfg:     conf,
+		backend: conf.Backend,
+		l:       l.New("service", name),
+		metr:    m,
+		kms:     kmsManager,
 	}, nil
 }
 
-func (m *SimpleTxManager) From() common.Address {
-	return m.cfg.From
+func (m *SimpleTxManager) UseKms() bool {
+	return m.kms != nil
+}
+
+func (m *SimpleTxManager) From() (common.Address, error) {
+	if m.UseKms() {
+		addr, err := m.kms.GetAddr()
+		if err != nil {
+			return common.Address{}, err
+		}
+		return addr, nil
+	}
+	return m.cfg.From, nil
 }
 
 func (m *SimpleTxManager) BlockNumber(ctx context.Context) (uint64, error) {
