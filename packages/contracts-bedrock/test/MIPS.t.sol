@@ -986,7 +986,7 @@ contract MIPS_Test is CommonTest {
     }
 
     function test_jump_succeeds() external {
-        uint16 label = 0x2;
+        uint32 label = 0x02_00_00_02; // set the 26th bit to assert no sign extension
         uint32 insn = uint32(0x08_00_00_00) | label; // j label
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
 
@@ -1000,23 +1000,51 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
-    function test_jal_succeeds() external {
-        uint32 pc = 0x0;
-        uint16 label = 0x2;
-        uint32 insn = uint32(0x0c_00_00_00) | label; // jal label
-        (bytes32 memRoot, bytes memory proof) = ffi.getCannonMemoryProof(pc, insn);
+    function test_jump_nonzeroRegion_succeeds() external {
+        uint32 pcRegion1 = 0x10000000;
+        uint32 label = 0x2;
+        uint32 insn = uint32(0x08_00_00_00) | label; // j label
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(pcRegion1, insn, 0x4, 0);
 
-        MIPS.State memory state;
-        state.pc = 0;
-        state.nextPC = 4;
-        state.memRoot = memRoot;
+        MIPS.State memory expect;
+        expect.memRoot = state.memRoot;
+        expect.pc = state.nextPC;
+        expect.nextPC = (state.nextPC & 0xF0_00_00_00) | (uint32(label) << 2);
+        expect.step = state.step + 1;
+
+        bytes memory witness = encodeState(state);
+        bytes32 postState = mips.step(witness, proof);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_jal_succeeds() external {
+        uint32 label = 0x02_00_00_02; // set the 26th bit to assert no sign extension
+        uint32 insn = uint32(0x0c_00_00_00) | label; // jal label
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
         expect.pc = state.nextPC;
         expect.nextPC = label << 2;
         expect.step = state.step + 1;
-        expect.registers[31] = state.pc + 8;
+        expect.registers[31] = state.pc + 8; // ra
+
+        bytes32 postState = mips.step(encodeState(state), proof);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
+    function test_jal_nonzeroRegion_succeeds() external {
+        uint32 pcRegion1 = 0x10000000;
+        uint32 label = 0x2;
+        uint32 insn = uint32(0x0c_00_00_00) | label; // jal label
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(pcRegion1, insn, 0x4, 0);
+
+        MIPS.State memory expect;
+        expect.memRoot = state.memRoot;
+        expect.pc = state.nextPC;
+        expect.nextPC = (state.nextPC & 0xF0_00_00_00) | (uint32(label) << 2);
+        expect.step = state.step + 1;
+        expect.registers[31] = state.pc + 8; // ra
 
         bytes32 postState = mips.step(encodeState(state), proof);
         assertEq(postState, outputState(expect), "unexpected post state");
