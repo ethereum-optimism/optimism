@@ -369,16 +369,16 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock,op-node
       # populate node modules from the cache
       - run:
           name: Install dependencies
           command: pnpm install --frozen-lockfile --prefer-offline
+      - run:
+          name: install deps
+          command: pnpm install
+          working_directory: packages/contracts-bedrock
       - run:
           name: build contracts
           command: pnpm build
@@ -1156,9 +1156,7 @@ workflows:
             - pnpm-monorepo
       - contracts-bedrock-tests
       - contracts-bedrock-coverage
-      - contracts-bedrock-checks:
-          requires:
-            - pnpm-monorepo
+      - contracts-bedrock-checks
       - contracts-bedrock-slither
       - contracts-bedrock-validate-spaces:
           requires:

@@ -31,11 +31,11 @@
     "preinstall": "npx only-allow pnpm",
     "pre-pr": "pnpm clean && pnpm gas-snapshot && pnpm storage-snapshot && pnpm semver-lock && pnpm autogen:invariant-docs && pnpm lint && (cd ../../op-bindings && make)",
     "pre-pr:full": "pnpm test && pnpm slither && pnpm validate-deploy-configs && pnpm validate-spacers && pnpm pre-pr",
-    "lint:ts:check": "eslint . --max-warnings=0",
+    "lint:ts:check": "npx eslint . --max-warnings=0",
     "lint:forge-tests:check": "npx tsx scripts/forge-test-names.ts",
     "lint:contracts:check": "pnpm lint:fix && git diff --exit-code",
     "lint:check": "pnpm lint:contracts:check && pnpm lint:ts:check",
-    "lint:ts:fix": "eslint --fix .",
+    "lint:ts:fix": "npx eslint --fix .",
     "lint:contracts:fix": "forge fmt",
     "lint:fix": "pnpm lint:contracts:fix && pnpm lint:ts:fix",
     "lint": "pnpm lint:fix && pnpm lint:check"
