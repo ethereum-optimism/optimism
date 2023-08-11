@@ -30,27 +30,31 @@ func NewTraceProvider(state string, depth uint64) *AlphabetTraceProvider {
 	}
 }
 
-// GetOracleData should not return any preimage oracle data for the alphabet provider.
-func (p *AlphabetTraceProvider) GetOracleData(ctx context.Context, i uint64) (*types.PreimageOracleData, error) {
-	return &types.PreimageOracleData{}, nil
-}
-
-// GetPreimage returns the preimage for the given hash.
-func (ap *AlphabetTraceProvider) GetPreimage(ctx context.Context, i uint64) ([]byte, []byte, error) {
+func (ap *AlphabetTraceProvider) GetStepData(ctx context.Context, i uint64) ([]byte, []byte, *types.PreimageOracleData, error) {
+	if i == 0 {
+		prestate, err := ap.AbsolutePreState(ctx)
+		if err != nil {
+			return nil, nil, nil, err
+		}
+		return prestate, []byte{}, nil, nil
+	}
+	// We want the pre-state which is the value prior to the one requested
+	i--
 	// The index cannot be larger than the maximum index as computed by the depth.
 	if i >= ap.maxLen {
-		return nil, nil, ErrIndexTooLarge
+		return nil, nil, nil, ErrIndexTooLarge
 	}
 	// We extend the deepest hash to the maximum depth if the trace is not expansive.
 	if i >= uint64(len(ap.state)) {
-		return ap.GetPreimage(ctx, uint64(len(ap.state))-1)
+		return ap.GetStepData(ctx, uint64(len(ap.state)))
 	}
-	return BuildAlphabetPreimage(i, ap.state[i]), []byte{}, nil
+	return BuildAlphabetPreimage(i, ap.state[i]), []byte{}, nil, nil
 }
 
 // Get returns the claim value at the given index in the trace.
 func (ap *AlphabetTraceProvider) Get(ctx context.Context, i uint64) (common.Hash, error) {
-	claimBytes, _, err := ap.GetPreimage(ctx, i)
+	// Step data returns the pre-state, so add 1 to get the state for index i
+	claimBytes, _, _, err := ap.GetStepData(ctx, i+1)
 	if err != nil {
 		return common.Hash{}, err
 	}

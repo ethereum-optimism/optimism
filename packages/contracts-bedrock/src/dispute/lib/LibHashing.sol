@@ -6,7 +6,6 @@ import "src/libraries/DisputeTypes.sol";
 /// @title Hashing
 /// @notice This library contains all of the hashing utilities used in the Cannon contracts.
 library LibHashing {
-
     /// @notice Hashes a claim and a position together.
     /// @param _claim A Claim type.
     /// @param _position The position of `claim`.

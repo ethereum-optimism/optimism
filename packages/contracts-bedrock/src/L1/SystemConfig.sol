@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {
-    OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { Semver } from "../universal/Semver.sol";
 import { ResourceMetering } from "./ResourceMetering.sol";
 
@@ -54,28 +52,23 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         bytes32(uint256(keccak256("systemconfig.l1crossdomainmessenger")) - 1);
 
     /// @notice Storage slot that the L1ERC721Bridge address is stored at.
-    bytes32 public constant L1_ERC_721_BRIDGE_SLOT =
-        bytes32(uint256(keccak256("systemconfig.l1erc721bridge")) - 1);
+    bytes32 public constant L1_ERC_721_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1erc721bridge")) - 1);
 
     /// @notice Storage slot that the L1StandardBridge address is stored at.
-    bytes32 public constant L1_STANDARD_BRIDGE_SLOT =
-        bytes32(uint256(keccak256("systemconfig.l1standardbridge")) - 1);
+    bytes32 public constant L1_STANDARD_BRIDGE_SLOT = bytes32(uint256(keccak256("systemconfig.l1standardbridge")) - 1);
 
     /// @notice Storage slot that the L2OutputOracle address is stored at.
-    bytes32 public constant L2_OUTPUT_ORACLE_SLOT =
-        bytes32(uint256(keccak256("systemconfig.l2outputoracle")) - 1);
+    bytes32 public constant L2_OUTPUT_ORACLE_SLOT = bytes32(uint256(keccak256("systemconfig.l2outputoracle")) - 1);
 
     /// @notice Storage slot that the OptimismPortal address is stored at.
-    bytes32 public constant OPTIMISM_PORTAL_SLOT =
-        bytes32(uint256(keccak256("systemconfig.optimismportal")) - 1);
+    bytes32 public constant OPTIMISM_PORTAL_SLOT = bytes32(uint256(keccak256("systemconfig.optimismportal")) - 1);
 
     /// @notice Storage slot that the OptimismMintableERC20Factory address is stored at.
     bytes32 public constant OPTIMISM_MINTABLE_ERC20_FACTORY_SLOT =
         bytes32(uint256(keccak256("systemconfig.optimismmintableerc20factory")) - 1);
 
     /// @notice Storage slot that the batch inbox address is stored at.
-    bytes32 public constant BATCH_INBOX_SLOT =
-        bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
+    bytes32 public constant BATCH_INBOX_SLOT = bytes32(uint256(keccak256("systemconfig.batchinbox")) - 1);
 
     /// @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
     uint256 public overhead;
@@ -105,11 +98,11 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     /// @notice The block at which the op-node can start searching for logs from.
     uint256 public startBlock;
 
-    /// @custom:semver 1.4.0
+    /// @custom:semver 1.4.1
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
     ///         implementation, so set it to `address(0xdEaD)`
-    constructor() Semver(1, 4, 0) {
+    constructor() Semver(1, 4, 1) {
         initialize({
             _owner: address(0xdEaD),
             _overhead: 0,
@@ -165,7 +158,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint256 _startBlock,
         address _batchInbox,
         SystemConfig.Addresses memory _addresses
-    ) public reinitializer(2) {
+    )
+        public
+        reinitializer(2)
+    {
         __Ownable_init();
         transferOwnership(_owner);
 
@@ -346,29 +342,19 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     function _setResourceConfig(ResourceMetering.ResourceConfig memory _config) internal {
         // Min base fee must be less than or equal to max base fee.
         require(
-            _config.minimumBaseFee <= _config.maximumBaseFee,
-            "SystemConfig: min base fee must be less than max base"
+            _config.minimumBaseFee <= _config.maximumBaseFee, "SystemConfig: min base fee must be less than max base"
         );
         // Base fee change denominator must be greater than 1.
-        require(
-            _config.baseFeeMaxChangeDenominator > 1,
-            "SystemConfig: denominator must be larger than 1"
-        );
+        require(_config.baseFeeMaxChangeDenominator > 1, "SystemConfig: denominator must be larger than 1");
         // Max resource limit plus system tx gas must be less than or equal to the L2 gas limit.
         // The gas limit must be increased before these values can be increased.
-        require(
-            _config.maxResourceLimit + _config.systemTxMaxGas <= gasLimit,
-            "SystemConfig: gas limit too low"
-        );
+        require(_config.maxResourceLimit + _config.systemTxMaxGas <= gasLimit, "SystemConfig: gas limit too low");
         // Elasticity multiplier must be greater than 0.
-        require(
-            _config.elasticityMultiplier > 0,
-            "SystemConfig: elasticity multiplier cannot be 0"
-        );
+        require(_config.elasticityMultiplier > 0, "SystemConfig: elasticity multiplier cannot be 0");
         // No precision loss when computing target resource limit.
         require(
-            ((_config.maxResourceLimit / _config.elasticityMultiplier) *
-                _config.elasticityMultiplier) == _config.maxResourceLimit,
+            ((_config.maxResourceLimit / _config.elasticityMultiplier) * _config.elasticityMultiplier)
+                == _config.maxResourceLimit,
             "SystemConfig: precision loss with target resource limit"
         );
 

@@ -3,6 +3,8 @@ package client
 import (
 	"context"
 	"fmt"
+	"net"
+	"net/url"
 	"regexp"
 	"time"
 
@@ -103,15 +105,29 @@ func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption)
 func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, attempts int, opts ...rpc.ClientOption) (*rpc.Client, error) {
 	bOff := backoff.Exponential()
 	return backoff.Do(ctx, attempts, bOff, func() (*rpc.Client, error) {
+		if !IsURLAvailable(addr) {
+			log.Warn("failed to dial address, but may connect later", "addr", addr)
+			return nil, fmt.Errorf("address unavailable (%s)", addr)
+		}
 		client, err := rpc.DialOptions(ctx, addr, opts...)
 		if err != nil {
-			if client == nil {
-				return nil, fmt.Errorf("failed to dial address (%s): %w", addr, err)
-			}
-			log.Warn("failed to dial address, but may connect later", "addr", addr, "err", err)
+			return nil, fmt.Errorf("failed to dial address (%s): %w", addr, err)
 		}
 		return client, nil
 	})
+}
+
+func IsURLAvailable(address string) bool {
+	u, err := url.Parse(address)
+	if err != nil {
+		return false
+	}
+	conn, err := net.DialTimeout("tcp", u.Host, 5*time.Second)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
 }
 
 // BaseRPCClient is a wrapper around a concrete *rpc.Client instance to make it compliant

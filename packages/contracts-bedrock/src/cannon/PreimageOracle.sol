@@ -16,11 +16,7 @@ contract PreimageOracle is IPreimageOracle {
     mapping(bytes32 => mapping(uint256 => bool)) public preimagePartOk;
 
     /// @inheritdoc IPreimageOracle
-    function readPreimage(bytes32 _key, uint256 _offset)
-        external
-        view
-        returns (bytes32 dat_, uint256 datLen_)
-    {
+    function readPreimage(bytes32 _key, uint256 _offset) external view returns (bytes32 dat_, uint256 datLen_) {
         require(preimagePartOk[_key][_offset], "pre-image must exist");
 
         // Calculate the length of the pre-image data
@@ -40,12 +36,7 @@ contract PreimageOracle is IPreimageOracle {
     /// and restrict local pre-image insertion to the dispute-managing contract.
     /// For now we permit anyone to write any pre-image unchecked, to make testing easy.
     /// This method is DANGEROUS. And NOT FOR PRODUCTION.
-    function cheat(
-        uint256 partOffset,
-        bytes32 key,
-        bytes32 part,
-        uint256 size
-    ) external {
+    function cheat(uint256 partOffset, bytes32 key, bytes32 part, uint256 size) external {
         preimagePartOk[key][partOffset] = true;
         preimageParts[key][partOffset] = part;
         preimageLengths[key] = size;
@@ -57,7 +48,10 @@ contract PreimageOracle is IPreimageOracle {
         bytes32 _word,
         uint256 _size,
         uint256 _partOffset
-    ) external returns (bytes32 key_) {
+    )
+        external
+        returns (bytes32 key_)
+    {
         // Compute the localized key from the given local identifier.
         key_ = PreimageKeyLib.localizeIdent(_ident);
 

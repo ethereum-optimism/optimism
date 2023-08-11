@@ -10,12 +10,8 @@ import { OptimistInviterHelper } from "./Helpers.sol";
 import { OptimistConstants } from "../src/periphery/op-nft/libraries/OptimistConstants.sol";
 
 contract OptimistAllowlist_Initializer is Test {
-    event AttestationCreated(
-        address indexed creator,
-        address indexed about,
-        bytes32 indexed key,
-        bytes val
-    );
+    event AttestationCreated(address indexed creator, address indexed about, bytes32 indexed key, bytes val);
+
     address internal alice_allowlistAttestor;
     address internal sally_coinbaseQuestAttestor;
     address internal ted;
@@ -49,8 +45,7 @@ contract OptimistAllowlist_Initializer is Test {
     }
 
     function attestAllowlist(address _about) internal {
-        AttestationStation.AttestationData[]
-            memory attestationData = new AttestationStation.AttestationData[](1);
+        AttestationStation.AttestationData[] memory attestationData = new AttestationStation.AttestationData[](1);
         // we are using true but it can be any non empty value
         attestationData[0] = AttestationStation.AttestationData({
             about: _about,
@@ -62,8 +57,7 @@ contract OptimistAllowlist_Initializer is Test {
     }
 
     function attestCoinbaseQuest(address _about) internal {
-        AttestationStation.AttestationData[]
-            memory attestationData = new AttestationStation.AttestationData[](1);
+        AttestationStation.AttestationData[] memory attestationData = new AttestationStation.AttestationData[](1);
         // we are using true but it can be any non empty value
         attestationData[0] = AttestationStation.AttestationData({
             about: _about,
@@ -84,14 +78,11 @@ contract OptimistAllowlist_Initializer is Test {
         optimistInviter.setInviteCounts(addresses, 3);
 
         // issue a new invite
-        OptimistInviter.ClaimableInvite memory claimableInvite = optimistInviterHelper
-            .getClaimableInviteWithNewNonce(bob);
+        OptimistInviter.ClaimableInvite memory claimableInvite =
+            optimistInviterHelper.getClaimableInviteWithNewNonce(bob);
 
         // EIP-712 sign with Bob's private key
-        bytes memory signature = _getSignature(
-            bobPrivateKey,
-            optimistInviterHelper.getDigest(claimableInvite)
-        );
+        bytes memory signature = _getSignature(bobPrivateKey, optimistInviterHelper.getDigest(claimableInvite));
 
         bytes32 hashedCommit = keccak256(abi.encode(claimer, signature));
 
@@ -107,11 +98,7 @@ contract OptimistAllowlist_Initializer is Test {
     }
 
     /// @notice Get signature as a bytes blob, since SignatureChecker takes arbitrary signature blobs.
-    function _getSignature(uint256 _signingPrivateKey, bytes32 _digest)
-        internal
-        pure
-        returns (bytes memory)
-    {
+    function _getSignature(uint256 _signingPrivateKey, bytes32 _digest) internal pure returns (bytes memory) {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(_signingPrivateKey, _digest);
 
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -173,11 +160,7 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
     function test_isAllowedToMint_fromWrongAllowlistAttestor_fails() external {
         // Ted is not the allowlist attestor
         vm.prank(ted);
-        attestationStation.attest(
-            bob,
-            optimistAllowlist.OPTIMIST_CAN_MINT_ATTESTATION_KEY(),
-            bytes("true")
-        );
+        attestationStation.attest(bob, optimistAllowlist.OPTIMIST_CAN_MINT_ATTESTATION_KEY(), bytes("true"));
         assertFalse(optimistAllowlist.isAllowedToMint(bob));
     }
 
@@ -185,11 +168,7 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
     function test_isAllowedToMint_fromWrongCoinbaseQuestAttestor_fails() external {
         // Ted is not the coinbase quest attestor
         vm.prank(ted);
-        attestationStation.attest(
-            bob,
-            optimistAllowlist.COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY(),
-            bytes("true")
-        );
+        attestationStation.attest(bob, optimistAllowlist.COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY(), bytes("true"));
         assertFalse(optimistAllowlist.isAllowedToMint(bob));
     }
 
@@ -197,11 +176,7 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
     ///          minting.
     function test_isAllowedToMint_fromWrongOptimistInviter_fails() external {
         vm.prank(ted);
-        attestationStation.attest(
-            bob,
-            OptimistConstants.OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY,
-            bytes("true")
-        );
+        attestationStation.attest(bob, OptimistConstants.OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY, bytes("true"));
         assertFalse(optimistAllowlist.isAllowedToMint(bob));
     }
 
@@ -215,11 +190,7 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
 
         // A invalid attestation, as Ted is not allowlist attestor
         vm.prank(ted);
-        attestationStation.attest(
-            bob,
-            optimistAllowlist.OPTIMIST_CAN_MINT_ATTESTATION_KEY(),
-            bytes("true")
-        );
+        attestationStation.attest(bob, optimistAllowlist.OPTIMIST_CAN_MINT_ATTESTATION_KEY(), bytes("true"));
 
         // Since Bob has at least one valid attestation, he should be allowed to mint
         assertTrue(optimistAllowlist.isAllowedToMint(bob));

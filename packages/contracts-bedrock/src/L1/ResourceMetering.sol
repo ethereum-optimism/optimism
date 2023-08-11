@@ -76,16 +76,16 @@ abstract contract ResourceMetering is Initializable {
         uint256 blockDiff = block.number - params.prevBlockNum;
 
         ResourceConfig memory config = _resourceConfig();
-        int256 targetResourceLimit = int256(uint256(config.maxResourceLimit)) /
-            int256(uint256(config.elasticityMultiplier));
+        int256 targetResourceLimit =
+            int256(uint256(config.maxResourceLimit)) / int256(uint256(config.elasticityMultiplier));
 
         if (blockDiff > 0) {
             // Handle updating EIP-1559 style gas parameters. We use EIP-1559 to restrict the rate
             // at which deposits can be created and therefore limit the potential for deposits to
             // spam the L2 system. Fee scheme is very similar to EIP-1559 with minor changes.
             int256 gasUsedDelta = int256(uint256(params.prevBoughtGas)) - targetResourceLimit;
-            int256 baseFeeDelta = (int256(uint256(params.prevBaseFee)) * gasUsedDelta) /
-                (targetResourceLimit * int256(uint256(config.baseFeeMaxChangeDenominator)));
+            int256 baseFeeDelta = (int256(uint256(params.prevBaseFee)) * gasUsedDelta)
+                / (targetResourceLimit * int256(uint256(config.baseFeeMaxChangeDenominator)));
 
             // Update base fee by adding the base fee delta and clamp the resulting value between
             // min and max.
@@ -155,10 +155,6 @@ abstract contract ResourceMetering is Initializable {
     ///         child contract.
     // solhint-disable-next-line func-name-mixedcase
     function __ResourceMetering_init() internal onlyInitializing {
-        params = ResourceParams({
-            prevBaseFee: 1 gwei,
-            prevBoughtGas: 0,
-            prevBlockNum: uint64(block.number)
-        });
+        params = ResourceParams({ prevBaseFee: 1 gwei, prevBoughtGas: 0, prevBlockNum: uint64(block.number) });
     }
 }

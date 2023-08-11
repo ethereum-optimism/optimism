@@ -21,6 +21,7 @@ func TestResolveDisputeGame(t *testing.T) {
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
+
 	game := disputeGameFactory.StartAlphabetGame(ctx, "zyxwvut")
 	require.NotNil(t, game)
 	gameDuration := game.GameDuration(ctx)
@@ -147,6 +148,67 @@ func TestChallengerCompleteDisputeGame(t *testing.T) {
 func TestCannonDisputeGame(t *testing.T) {
 	InitParallel(t)
 
+	tests := []struct {
+		name          string
+		defendAtClaim int64
+	}{
+		{"StepFirst", 0},
+		{"StepMiddle", 28},
+		{"StepInExtension", 2},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			InitParallel(t)
+
+			ctx := context.Background()
+			sys, l1Client := startFaultDisputeSystem(t)
+			t.Cleanup(sys.Close)
+
+			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
+			game := disputeGameFactory.StartCannonGame(ctx, common.Hash{0xaa})
+			require.NotNil(t, game)
+			game.LogGameData(ctx)
+
+			game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, sys.NodeEndpoint("l1"), sys.NodeEndpoint("sequencer"), "Challenger", func(c *config.Config) {
+				c.AgreeWithProposedOutput = true // Agree with the proposed output, so disagree with the root claim
+				c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(sys.cfg.Secrets.Alice)
+			})
+
+			maxDepth := game.MaxDepth(ctx)
+			for claimCount := int64(1); claimCount < maxDepth; {
+				game.LogGameData(ctx)
+				claimCount++
+				// Wait for the challenger to counter
+				game.WaitForClaimCount(ctx, claimCount)
+
+				// Post our own counter to the latest challenger claim
+				if claimCount == test.defendAtClaim {
+					// Defend one claim so we don't wind up executing from the absolute pre-state
+					game.Defend(ctx, claimCount-1, common.Hash{byte(claimCount)})
+				} else {
+					game.Attack(ctx, claimCount-1, common.Hash{byte(claimCount)})
+				}
+				claimCount++
+				game.WaitForClaimCount(ctx, claimCount)
+			}
+
+			game.LogGameData(ctx)
+			// Wait for the challenger to call step and counter our invalid claim
+			game.WaitForClaimAtMaxDepth(ctx, true)
+
+			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
+			require.NoError(t, utils.WaitNextBlock(ctx, l1Client))
+
+			game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+			game.LogGameData(ctx)
+		})
+	}
+}
+
+func TestCannonDefendStep(t *testing.T) {
+	InitParallel(t)
+
 	ctx := context.Background()
 	sys, l1Client := startFaultDisputeSystem(t)
 	t.Cleanup(sys.Close)
@@ -154,29 +216,47 @@ func TestCannonDisputeGame(t *testing.T) {
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
 	game := disputeGameFactory.StartCannonGame(ctx, common.Hash{0xaa})
 	require.NotNil(t, game)
+	game.LogGameData(ctx)
 
-	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, sys.NodeEndpoint("l1"), sys.NodeEndpoint("sequencer"), "Challenger", func(c *config.Config) {
+	l1Endpoint := sys.NodeEndpoint("l1")
+	l2Endpoint := sys.NodeEndpoint("sequencer")
+	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Challenger", func(c *config.Config) {
 		c.AgreeWithProposedOutput = true // Agree with the proposed output, so disagree with the root claim
 		c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(sys.cfg.Secrets.Alice)
 	})
 
+	correctTrace := game.CreateHonestActor(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Client, l1Endpoint, l2Endpoint, func(c *config.Config) {
+		c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(sys.cfg.Secrets.Mallory)
+	})
+
 	maxDepth := game.MaxDepth(ctx)
 	for claimCount := int64(1); claimCount < maxDepth; {
+		game.LogGameData(ctx)
 		claimCount++
 		// Wait for the challenger to counter
 		game.WaitForClaimCount(ctx, claimCount)
 
-		// Post our own counter to the latest challenger claim
-		game.Attack(ctx, claimCount-1, common.Hash{byte(claimCount)})
+		// Post invalid claims for most steps to get down into the early part of the trace
+		if claimCount < 28 {
+			game.Attack(ctx, claimCount-1, common.Hash{byte(claimCount)})
+		} else {
+			// Post our own counter but using the correct hash in low levels to force a defense step
+			correctTrace.Attack(ctx, claimCount-1)
+		}
 		claimCount++
+		game.LogGameData(ctx)
 		game.WaitForClaimCount(ctx, claimCount)
 	}
-	game.WaitForClaimAtMaxDepth(ctx, false)
+
+	game.LogGameData(ctx)
+	// Wait for the challenger to call step and counter our invalid claim
+	game.WaitForClaimAtMaxDepth(ctx, true)
 
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
 	require.NoError(t, utils.WaitNextBlock(ctx, l1Client))
 
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game.LogGameData(ctx)
 }
 
 func startFaultDisputeSystem(t *testing.T) (*System, *ethclient.Client) {
