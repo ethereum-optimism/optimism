@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
+	"github.com/ethereum-optimism/optimism/op-service/kms"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -75,7 +76,7 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 	// 	kmsManager, err = opkms.NewKmsManager(cfg.KmsConfig.KmsKeyID, cfg.KmsConfig.KmsEndpoint, cfg.KmsConfig.KmsRegion)
 	// }
 
-	txManager, err := txmgr.NewSimpleTxManager("batcher", l, m, cfg.TxMgrConfig)
+	txManager, err := txmgr.NewSimpleTxManager("batcher", l, m, cfg.TxMgrConfig, kms.CLIConfig{})
 	if err != nil {
 		return nil, err
 	}

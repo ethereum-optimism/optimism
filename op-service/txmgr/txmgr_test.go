@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/kms"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 
 	"github.com/ethereum/go-ethereum"
@@ -608,7 +609,7 @@ func TestWaitMinedMultipleConfs(t *testing.T) {
 func TestManagerErrsOnZeroConfs(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewSimpleTxManager("TEST", testlog.Logger(t, log.LvlCrit), &metrics.NoopTxMetrics{}, CLIConfig{})
+	_, err := NewSimpleTxManager("TEST", testlog.Logger(t, log.LvlCrit), &metrics.NoopTxMetrics{}, CLIConfig{}, kms.CLIConfig{})
 	require.Error(t, err)
 }
 

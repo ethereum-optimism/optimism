@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-service/kms"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
@@ -103,22 +104,29 @@ type SimpleTxManager struct {
 	nonceLock sync.RWMutex
 
 	pending atomic.Int64
+
+	kmsManager *kms.KmsManager
 }
 
 // NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
-func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLIConfig) (*SimpleTxManager, error) {
+func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLIConfig, kmsCfg kms.CLIConfig) (*SimpleTxManager, error) {
 	conf, err := NewConfig(cfg, l)
+	if err != nil {
+		return nil, err
+	}
+	kmsManager, err := kms.NewKmsManager(kmsCfg)
 	if err != nil {
 		return nil, err
 	}
 
 	return &SimpleTxManager{
-		chainID: conf.ChainID,
-		name:    name,
-		cfg:     conf,
-		backend: conf.Backend,
-		l:       l.New("service", name),
-		metr:    m,
+		chainID:    conf.ChainID,
+		name:       name,
+		cfg:        conf,
+		backend:    conf.Backend,
+		l:          l.New("service", name),
+		metr:       m,
+		kmsManager: kmsManager,
 	}, nil
 }
 

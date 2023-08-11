@@ -12,17 +12,21 @@ type KmsManager struct {
 	kmsSession *kms.KMS
 }
 
-func NewKmsManager(keyId, endpoint, region string) (*KmsManager, error) {
+func NewKmsManager(cfg CLIConfig) (*KmsManager, error) {
+	if cfg.KmsKeyID == "" || cfg.KmsEndpoint == "" || cfg.KmsRegion == "" {
+		return nil, nil
+	}
+
 	session, err := session.NewSession(&aws.Config{
 		Credentials: credentials.NewEnvCredentials(),
-		Region:      aws.String(endpoint),
-		Endpoint:    aws.String(region),
+		Region:      aws.String(cfg.KmsRegion),
+		Endpoint:    aws.String(cfg.KmsEndpoint),
 	})
 	if err != nil {
 		return nil, err
 	}
 	return &KmsManager{
-		keyId:      keyId,
+		keyId:      cfg.KmsKeyID,
 		kmsSession: kms.New(session),
 	}, nil
 }
