@@ -1,4 +1,4 @@
-package fault
+package chain
 
 import (
 	"context"
@@ -53,7 +53,7 @@ func (fc *FaultCaller) LogGameInfo(ctx context.Context) {
 		fc.log.Error("failed to get claim count", "err", err)
 		return
 	}
-	fc.log.Info("Game info", "claims", claimLen, "status", GameStatusString(status))
+	fc.log.Info("Game info", "claims", claimLen, "status", types.GameStatusString(status))
 }
 
 // GetGameStatus returns the current game status.
@@ -77,18 +77,4 @@ func (fc *FaultCaller) LogClaimDataLength(ctx context.Context) {
 		return
 	}
 	fc.log.Info("Number of claims", "length", claimLen)
-}
-
-// GameStatusString returns the current game status as a string.
-func GameStatusString(status types.GameStatus) string {
-	switch status {
-	case types.GameStatusInProgress:
-		return "In Progress"
-	case types.GameStatusChallengerWon:
-		return "Challenger Won"
-	case types.GameStatusDefenderWon:
-		return "Defender Won"
-	default:
-		return "Unknown"
-	}
 }

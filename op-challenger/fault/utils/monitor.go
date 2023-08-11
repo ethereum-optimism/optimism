@@ -1,4 +1,4 @@
-package fault
+package utils
 
 import (
 	"context"
@@ -51,9 +51,9 @@ func progressGame(ctx context.Context, logger log.Logger, agreeWithProposedOutpu
 			expectedStatus = types.GameStatusDefenderWon
 		}
 		if expectedStatus == status {
-			logger.Info("Game won", "status", GameStatusString(status))
+			logger.Info("Game won", "status", types.GameStatusString(status))
 		} else {
-			logger.Error("Game lost", "status", GameStatusString(status))
+			logger.Error("Game lost", "status", types.GameStatusString(status))
 		}
 		return true
 	} else {

@@ -1,19 +1,21 @@
-package fault
+package utils
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/agent"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/cannon"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/chain"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/responder"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
-	"github.com/ethereum/go-ethereum/crypto"
+
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -26,9 +28,9 @@ type Service interface {
 }
 
 type service struct {
-	agent                   *Agent
+	agent                   *agent.Agent
 	agreeWithProposedOutput bool
-	caller                  *FaultCaller
+	caller                  *chain.FaultCaller
 	logger                  log.Logger
 }
 
@@ -49,7 +51,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 		return nil, fmt.Errorf("failed to bind the fault dispute game contract: %w", err)
 	}
 
-	loader := NewLoader(contract)
+	loader := chain.NewLoader(contract)
 
 	gameDepth, err := loader.FetchGameDepth(ctx)
 	if err != nil {
@@ -80,45 +82,28 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 }
 
 // newTypedService creates a new Service from a provided trace provider.
-func newTypedService(ctx context.Context, logger log.Logger, cfg *config.Config, loader Loader, gameDepth uint64, client *ethclient.Client, provider types.TraceProvider, updater types.OracleUpdater, txMgr txmgr.TxManager) (*service, error) {
+func newTypedService(ctx context.Context, logger log.Logger, cfg *config.Config, loader chain.Loader, gameDepth uint64, client *ethclient.Client, provider types.TraceProvider, updater types.OracleUpdater, txMgr txmgr.TxManager) (*service, error) {
 	if err := ValidateAbsolutePrestate(ctx, provider, loader); err != nil {
 		return nil, fmt.Errorf("failed to validate absolute prestate: %w", err)
 	}
 
 	gameLogger := logger.New("game", cfg.GameAddress)
-	responder, err := NewFaultResponder(gameLogger, txMgr, cfg.GameAddress)
+	responder, err := responder.NewFaultResponder(gameLogger, txMgr, cfg.GameAddress)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
 
-	caller, err := NewFaultCallerFromBindings(cfg.GameAddress, client, gameLogger)
+	caller, err := chain.NewFaultCallerFromBindings(cfg.GameAddress, client, gameLogger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to bind the fault contract: %w", err)
 	}
 
 	return &service{
-		agent:                   NewAgent(loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, gameLogger),
+		agent:                   agent.NewAgent(loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, gameLogger),
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
 		caller:                  caller,
 		logger:                  gameLogger,
 	}, nil
-}
-
-// ValidateAbsolutePrestate validates the absolute prestate of the fault game.
-func ValidateAbsolutePrestate(ctx context.Context, trace types.TraceProvider, loader Loader) error {
-	providerPrestate, err := trace.AbsolutePreState(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get the trace provider's absolute prestate: %w", err)
-	}
-	providerPrestateHash := crypto.Keccak256(providerPrestate)
-	onchainPrestate, err := loader.FetchAbsolutePrestateHash(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get the onchain absolute prestate: %w", err)
-	}
-	if !bytes.Equal(providerPrestateHash, onchainPrestate) {
-		return fmt.Errorf("trace provider's absolute prestate does not match onchain absolute prestate")
-	}
-	return nil
 }
 
 // MonitorGame monitors the fault dispute game and attempts to progress it.

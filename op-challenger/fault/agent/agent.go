@@ -1,35 +1,28 @@
-package fault
+package agent
 
 import (
 	"context"
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/chain"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/solver"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
+
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// Responder takes a response action & executes.
-// For full op-challenger this means executing the transaction on chain.
-type Responder interface {
-	CanResolve(ctx context.Context) bool
-	Resolve(ctx context.Context) error
-	Respond(ctx context.Context, response types.Claim) error
-	Step(ctx context.Context, stepData types.StepCallData) error
-}
-
 type Agent struct {
 	solver                  *solver.Solver
-	loader                  Loader
-	responder               Responder
+	loader                  chain.Loader
+	responder               types.Responder
 	updater                 types.OracleUpdater
 	maxDepth                int
 	agreeWithProposedOutput bool
 	log                     log.Logger
 }
 
-func NewAgent(loader Loader, maxDepth int, trace types.TraceProvider, responder Responder, updater types.OracleUpdater, agreeWithProposedOutput bool, log log.Logger) *Agent {
+func NewAgent(loader chain.Loader, maxDepth int, trace types.TraceProvider, responder types.Responder, updater types.OracleUpdater, agreeWithProposedOutput bool, log log.Logger) *Agent {
 	return &Agent{
 		solver:                  solver.NewSolver(maxDepth, trace),
 		loader:                  loader,

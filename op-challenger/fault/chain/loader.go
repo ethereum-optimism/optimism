@@ -1,4 +1,4 @@
-package fault
+package chain
 
 import (
 	"context"
