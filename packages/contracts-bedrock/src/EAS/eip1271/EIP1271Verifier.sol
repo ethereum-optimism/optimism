@@ -2,8 +2,7 @@
 pragma solidity 0.8.19;
 
 import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/draft-EIP712.sol";
-import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
-import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 import {
@@ -86,7 +85,7 @@ abstract contract EIP1271Verifier is EIP712 {
             nonce = _nonces[request.attester]++;
         }
 
-        bytes32 digest = _hashTypedDataV4(
+        bytes32 hash = _hashTypedDataV4(
             keccak256(
                 abi.encode(
                     ATTEST_TYPEHASH,
@@ -100,7 +99,15 @@ abstract contract EIP1271Verifier is EIP712 {
                 )
             )
         );
-        _verifySignature(digest, signature, request.attester);
+        if (
+            !SignatureChecker.isValidSignatureNow(
+                request.attester,
+                hash,
+                abi.encodePacked(signature.r, signature.s, signature.v)
+            )
+        ) {
+            revert InvalidSignature();
+        }
     }
 
     /// @notice Verifies delegated revocation request.
@@ -114,28 +121,14 @@ abstract contract EIP1271Verifier is EIP712 {
             nonce = _nonces[request.revoker]++;
         }
 
-        bytes32 digest = _hashTypedDataV4(keccak256(abi.encode(REVOKE_TYPEHASH, request.schema, data.uid, nonce)));
-        _verifySignature(digest, signature, request.revoker);
-    }
-
-    /// @notice Verifies EIP712 signatures (with EIP1271 support).
-    /// @param digest The typed-data digest to verify.
-    /// @param signature The signature to verify (either a "real" ECDSA signature or an EIP1271-aware signature).
-    /// @param signer The signer to verify the signature against.
-    function _verifySignature(bytes32 digest, Signature memory signature, address signer) private view {
-        // If the signer is a contract, check if it's EIP1271 compliant.
-        if (signer.isContract()) {
-            bytes4 magicValue = IERC1271(signer).isValidSignature(digest, abi.encode(signature));
-            if (magicValue != IERC1271.isValidSignature.selector) {
-                revert InvalidSignature();
-            }
-
-            return;
-        }
-
-        // If the signer is an EOA, verify the signature using the standard (non-malleable) ECDSA signature
-        // verification.
-        if (ECDSA.recover(digest, signature.v, signature.r, signature.s) != signer) {
+        bytes32 hash = _hashTypedDataV4(keccak256(abi.encode(REVOKE_TYPEHASH, request.schema, data.uid, nonce)));
+        if (
+            !SignatureChecker.isValidSignatureNow(
+                request.revoker,
+                hash,
+                abi.encodePacked(signature.r, signature.s, signature.v)
+            )
+        ) {
             revert InvalidSignature();
         }
     }
