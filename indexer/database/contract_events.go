@@ -16,26 +16,37 @@ import (
  */
 
 type ContractEvent struct {
-	GUID            uuid.UUID   `gorm:"primaryKey"`
-	BlockHash       common.Hash `gorm:"serializer:json"`
-	TransactionHash common.Hash `gorm:"serializer:json"`
+	GUID            uuid.UUID      `gorm:"primaryKey"`
+	BlockHash       common.Hash    `gorm:"serializer:json"`
+	ContractAddress common.Address `gorm:"serializer:json"`
+	TransactionHash common.Hash    `gorm:"serializer:json"`
 
 	EventSignature common.Hash `gorm:"serializer:json"`
 	LogIndex       uint64
 	Timestamp      uint64
+
+	GethLog *types.Log `gorm:"serializer:rlp;column:rlp_bytes"`
 }
 
 func ContractEventFromGethLog(log *types.Log, timestamp uint64) ContractEvent {
+	eventSig := common.Hash{}
+	if len(log.Topics) > 0 {
+		eventSig = log.Topics[0]
+	}
+
 	return ContractEvent{
 		GUID: uuid.New(),
 
 		BlockHash:       log.BlockHash,
+		ContractAddress: log.Address,
 		TransactionHash: log.TxHash,
 
-		EventSignature: log.Topics[0],
+		EventSignature: eventSig,
 		LogIndex:       uint64(log.Index),
 
 		Timestamp: timestamp,
+
+		GethLog: log,
 	}
 }
 

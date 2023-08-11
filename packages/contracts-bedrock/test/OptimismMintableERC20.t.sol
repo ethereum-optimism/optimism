@@ -2,10 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Bridge_Initializer } from "./CommonTest.t.sol";
-import {
-    ILegacyMintableERC20,
-    IOptimismMintableERC20
-} from "../src/universal/IOptimismMintableERC20.sol";
+import { ILegacyMintableERC20, IOptimismMintableERC20 } from "../src/universal/IOptimismMintableERC20.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 contract OptimismMintableERC20_Test is Bridge_Initializer {
@@ -87,10 +84,8 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
         assertEq(iface2, type(ILegacyMintableERC20).interfaceId);
         assert(L2Token.supportsInterface(iface2));
 
-        bytes4 iface3 = L2Token.remoteToken.selector ^
-            L2Token.bridge.selector ^
-            L2Token.mint.selector ^
-            L2Token.burn.selector;
+        bytes4 iface3 =
+            L2Token.remoteToken.selector ^ L2Token.bridge.selector ^ L2Token.mint.selector ^ L2Token.burn.selector;
         assertEq(iface3, type(IOptimismMintableERC20).interfaceId);
         assert(L2Token.supportsInterface(iface3));
     }

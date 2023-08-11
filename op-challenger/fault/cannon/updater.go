@@ -87,9 +87,6 @@ func NewOracleUpdaterWithOracle(
 
 // UpdateOracle updates the oracle with the given data.
 func (u *cannonUpdater) UpdateOracle(ctx context.Context, data *types.PreimageOracleData) error {
-	if len(data.OracleKey) == 0 {
-		return nil
-	}
 	if data.IsLocal {
 		return u.sendLocalOracleData(ctx, data)
 	}

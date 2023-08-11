@@ -7,18 +7,25 @@ CREATE DOMAIN UINT256 AS NUMERIC
  */
 
 CREATE TABLE IF NOT EXISTS l1_block_headers (
+    -- Searchable fields
 	hash        VARCHAR NOT NULL PRIMARY KEY,
 	parent_hash VARCHAR NOT NULL,
 	number      UINT256 NOT NULL,
-	timestamp   INTEGER NOT NULL CHECK (timestamp > 0)
+	timestamp   INTEGER NOT NULL CHECK (timestamp > 0),
+
+    -- Raw Data
+    rlp_bytes VARCHAR NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS l2_block_headers (
-    -- Block header
+    -- Searchable fields
 	hash                     VARCHAR NOT NULL PRIMARY KEY,
 	parent_hash              VARCHAR NOT NULL,
 	number                   UINT256 NOT NULL,
-	timestamp                INTEGER NOT NULL CHECK (timestamp > 0)
+	timestamp                INTEGER NOT NULL CHECK (timestamp > 0),
+
+    -- Raw Data
+    rlp_bytes VARCHAR NOT NULL
 );
 
 /** 
@@ -26,21 +33,31 @@ CREATE TABLE IF NOT EXISTS l2_block_headers (
  */
 
 CREATE TABLE IF NOT EXISTS l1_contract_events (
+    -- Searchable fields
     guid             VARCHAR NOT NULL PRIMARY KEY,
 	block_hash       VARCHAR NOT NULL REFERENCES l1_block_headers(hash),
+    contract_address VARCHAR NOT NULL,
     transaction_hash VARCHAR NOT NULL,
-    event_signature  VARCHAR NOT NULL,
     log_index        INTEGER NOT NULL,
-    timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
+    event_signature  VARCHAR NOT NULL, -- bytes32(0x0) when topics are missing
+    timestamp        INTEGER NOT NULL CHECK (timestamp > 0),
+
+    -- Raw Data
+    rlp_bytes VARCHAR NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS l2_contract_events (
+    -- Searchable fields
     guid             VARCHAR NOT NULL PRIMARY KEY,
 	block_hash       VARCHAR NOT NULL REFERENCES l2_block_headers(hash),
+    contract_address VARCHAR NOT NULL,
     transaction_hash VARCHAR NOT NULL,
-    event_signature  VARCHAR NOT NULL,
     log_index        INTEGER NOT NULL,
-    timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
+    event_signature  VARCHAR NOT NULL, -- bytes32(0x0) when topics are missing
+    timestamp        INTEGER NOT NULL CHECK (timestamp > 0),
+
+    -- Raw Data
+    rlp_bytes VARCHAR NOT NULL
 );
 
 -- Tables that index finalization markers for L2 blocks.

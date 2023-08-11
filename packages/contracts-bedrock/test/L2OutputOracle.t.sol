@@ -190,16 +190,10 @@ contract L2OutputOracle_getter_Test is L2OutputOracle_Initializer {
         assertEq(oracle.computeL2Timestamp(startingBlockNumber), startingTimestamp);
 
         // check timestamp for the first block after the starting block
-        assertEq(
-            oracle.computeL2Timestamp(startingBlockNumber + 1),
-            startingTimestamp + l2BlockTime
-        );
+        assertEq(oracle.computeL2Timestamp(startingBlockNumber + 1), startingTimestamp + l2BlockTime);
 
         // check timestamp for some other block number
-        assertEq(
-            oracle.computeL2Timestamp(startingBlockNumber + 96024),
-            startingTimestamp + l2BlockTime * 96024
-        );
+        assertEq(oracle.computeL2Timestamp(startingBlockNumber + 96024), startingTimestamp + l2BlockTime * 96024);
     }
 }
 
@@ -271,15 +265,8 @@ contract L2OutputOracle_proposeL2Output_Test is L2OutputOracle_Initializer {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
         vm.prank(proposer);
-        vm.expectRevert(
-            "L2OutputOracle: block hash does not match the hash at the expected height"
-        );
-        oracle.proposeL2Output(
-            nonZeroHash,
-            nextBlockNumber,
-            bytes32(uint256(0x01)),
-            block.number - 1
-        );
+        vm.expectRevert("L2OutputOracle: block hash does not match the hash at the expected height");
+        oracle.proposeL2Output(nonZeroHash, nextBlockNumber, bytes32(uint256(0x01)), block.number - 1);
     }
 
     /// @dev Tests that `proposeL2Output` reverts when given a block number
@@ -297,9 +284,7 @@ contract L2OutputOracle_proposeL2Output_Test is L2OutputOracle_Initializer {
         vm.prank(proposer);
 
         // This will fail when foundry no longer returns zerod block hashes
-        vm.expectRevert(
-            "L2OutputOracle: block hash does not match the hash at the expected height"
-        );
+        vm.expectRevert("L2OutputOracle: block hash does not match the hash at the expected height");
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber, l1BlockHash, l1BlockNumber - 1);
     }
 }
@@ -478,10 +463,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
 
         NextImpl nextImpl = new NextImpl();
         vm.startPrank(multisig);
-        proxy.upgradeToAndCall(
-            address(nextImpl),
-            abi.encodeWithSelector(NextImpl.initialize.selector, 3)
-        );
+        proxy.upgradeToAndCall(address(nextImpl), abi.encodeWithSelector(NextImpl.initialize.selector, 3));
         assertEq(proxy.implementation(), address(nextImpl));
 
         // Verify that the NextImpl contract initialized its values according as expected

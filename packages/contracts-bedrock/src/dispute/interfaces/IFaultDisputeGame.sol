@@ -66,12 +66,7 @@ interface IFaultDisputeGame is IDisputeGame {
     ///        the move is a defense. If the step is an attack on the first instruction, it is
     ///        the absolute prestate of the fault proof VM.
     /// @param _proof Proof to access memory nodes in the VM's merkle state tree.
-    function step(
-        uint256 _claimIndex,
-        bool _isAttack,
-        bytes calldata _stateData,
-        bytes calldata _proof
-    ) external;
+    function step(uint256 _claimIndex, bool _isAttack, bytes calldata _stateData, bytes calldata _proof) external;
 
     /// @notice Posts the requested local data to the VM's `PreimageOralce`.
     /// @param _ident The local identifier of the data to post.

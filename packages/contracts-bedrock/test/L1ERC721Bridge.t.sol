@@ -14,7 +14,7 @@ import { L1ERC721Bridge } from "../src/L1/L1ERC721Bridge.sol";
 
 /// @dev Test ERC721 contract.
 contract TestERC721 is ERC721 {
-    constructor() ERC721("Test", "TST") {}
+    constructor() ERC721("Test", "TST") { }
 
     function mint(address to, uint256 tokenId) public {
         _mint(to, tokenId);
@@ -78,15 +78,8 @@ contract L1ERC721Bridge_Test is ERC721Bridge_Initializer {
                     address(L2Bridge),
                     abi.encodeCall(
                         L2ERC721Bridge.finalizeBridgeERC721,
-                        (
-                            address(remoteToken),
-                            address(localToken),
-                            alice,
-                            alice,
-                            tokenId,
-                            hex"5678"
-                        )
-                    ),
+                        (address(remoteToken), address(localToken), alice, alice, tokenId, hex"5678")
+                        ),
                     1234
                 )
             )
@@ -94,14 +87,7 @@ contract L1ERC721Bridge_Test is ERC721Bridge_Initializer {
 
         // Expect an event to be emitted.
         vm.expectEmit(true, true, true, true);
-        emit ERC721BridgeInitiated(
-            address(localToken),
-            address(remoteToken),
-            alice,
-            alice,
-            tokenId,
-            hex"5678"
-        );
+        emit ERC721BridgeInitiated(address(localToken), address(remoteToken), alice, alice, tokenId, hex"5678");
 
         // Bridge the token.
         vm.prank(alice);
@@ -174,7 +160,7 @@ contract L1ERC721Bridge_Test is ERC721Bridge_Initializer {
                     abi.encodeCall(
                         L2ERC721Bridge.finalizeBridgeERC721,
                         (address(remoteToken), address(localToken), alice, bob, tokenId, hex"5678")
-                    ),
+                        ),
                     1234
                 )
             )
@@ -182,25 +168,11 @@ contract L1ERC721Bridge_Test is ERC721Bridge_Initializer {
 
         // Expect an event to be emitted.
         vm.expectEmit(true, true, true, true);
-        emit ERC721BridgeInitiated(
-            address(localToken),
-            address(remoteToken),
-            alice,
-            bob,
-            tokenId,
-            hex"5678"
-        );
+        emit ERC721BridgeInitiated(address(localToken), address(remoteToken), alice, bob, tokenId, hex"5678");
 
         // Bridge the token.
         vm.prank(alice);
-        L1Bridge.bridgeERC721To(
-            address(localToken),
-            address(remoteToken),
-            bob,
-            tokenId,
-            1234,
-            hex"5678"
-        );
+        L1Bridge.bridgeERC721To(address(localToken), address(remoteToken), bob, tokenId, 1234, hex"5678");
 
         // Token is locked in the bridge.
         assertEq(L1Bridge.deposits(address(localToken), address(remoteToken), tokenId), true);
@@ -239,14 +211,7 @@ contract L1ERC721Bridge_Test is ERC721Bridge_Initializer {
         // Bridge the token.
         vm.prank(bob);
         vm.expectRevert("ERC721: transfer from incorrect owner");
-        L1Bridge.bridgeERC721To(
-            address(localToken),
-            address(remoteToken),
-            bob,
-            tokenId,
-            1234,
-            hex"5678"
-        );
+        L1Bridge.bridgeERC721To(address(localToken), address(remoteToken), bob, tokenId, 1234, hex"5678");
 
         // Token is not locked in the bridge.
         assertEq(L1Bridge.deposits(address(localToken), address(remoteToken), tokenId), false);
@@ -261,14 +226,7 @@ contract L1ERC721Bridge_Test is ERC721Bridge_Initializer {
 
         // Expect an event to be emitted.
         vm.expectEmit(true, true, true, true);
-        emit ERC721BridgeFinalized(
-            address(localToken),
-            address(remoteToken),
-            alice,
-            alice,
-            tokenId,
-            hex"5678"
-        );
+        emit ERC721BridgeFinalized(address(localToken), address(remoteToken), alice, alice, tokenId, hex"5678");
 
         // Finalize a withdrawal.
         vm.mockCall(
@@ -277,14 +235,7 @@ contract L1ERC721Bridge_Test is ERC721Bridge_Initializer {
             abi.encode(Predeploys.L2_ERC721_BRIDGE)
         );
         vm.prank(address(L1Messenger));
-        L1Bridge.finalizeBridgeERC721(
-            address(localToken),
-            address(remoteToken),
-            alice,
-            alice,
-            tokenId,
-            hex"5678"
-        );
+        L1Bridge.finalizeBridgeERC721(address(localToken), address(remoteToken), alice, alice, tokenId, hex"5678");
 
         // Token is not locked in the bridge.
         assertEq(L1Bridge.deposits(address(localToken), address(remoteToken), tokenId), false);
@@ -297,14 +248,7 @@ contract L1ERC721Bridge_Test is ERC721Bridge_Initializer {
         // Finalize a withdrawal.
         vm.prank(alice);
         vm.expectRevert("ERC721Bridge: function can only be called from the other bridge");
-        L1Bridge.finalizeBridgeERC721(
-            address(localToken),
-            address(remoteToken),
-            alice,
-            alice,
-            tokenId,
-            hex"5678"
-        );
+        L1Bridge.finalizeBridgeERC721(address(localToken), address(remoteToken), alice, alice, tokenId, hex"5678");
     }
 
     /// @dev Tests that the ERC721 bridge finalize reverts when not called
@@ -312,20 +256,11 @@ contract L1ERC721Bridge_Test is ERC721Bridge_Initializer {
     function test_finalizeBridgeERC721_notFromRemoteMessenger_reverts() external {
         // Finalize a withdrawal.
         vm.mockCall(
-            address(L1Messenger),
-            abi.encodeWithSelector(L1Messenger.xDomainMessageSender.selector),
-            abi.encode(alice)
+            address(L1Messenger), abi.encodeWithSelector(L1Messenger.xDomainMessageSender.selector), abi.encode(alice)
         );
         vm.prank(address(L1Messenger));
         vm.expectRevert("ERC721Bridge: function can only be called from the other bridge");
-        L1Bridge.finalizeBridgeERC721(
-            address(localToken),
-            address(remoteToken),
-            alice,
-            alice,
-            tokenId,
-            hex"5678"
-        );
+        L1Bridge.finalizeBridgeERC721(address(localToken), address(remoteToken), alice, alice, tokenId, hex"5678");
     }
 
     /// @dev Tests that the ERC721 bridge finalize reverts when the local token
@@ -339,14 +274,7 @@ contract L1ERC721Bridge_Test is ERC721Bridge_Initializer {
         );
         vm.prank(address(L1Messenger));
         vm.expectRevert("L1ERC721Bridge: local token cannot be self");
-        L1Bridge.finalizeBridgeERC721(
-            address(L1Bridge),
-            address(remoteToken),
-            alice,
-            alice,
-            tokenId,
-            hex"5678"
-        );
+        L1Bridge.finalizeBridgeERC721(address(L1Bridge), address(remoteToken), alice, alice, tokenId, hex"5678");
     }
 
     /// @dev Tests that the ERC721 bridge finalize reverts when the remote token
@@ -360,13 +288,6 @@ contract L1ERC721Bridge_Test is ERC721Bridge_Initializer {
         );
         vm.prank(address(L1Messenger));
         vm.expectRevert("L1ERC721Bridge: Token ID is not escrowed in the L1 Bridge");
-        L1Bridge.finalizeBridgeERC721(
-            address(localToken),
-            address(remoteToken),
-            alice,
-            alice,
-            tokenId,
-            hex"5678"
-        );
+        L1Bridge.finalizeBridgeERC721(address(localToken), address(remoteToken), alice, alice, tokenId, hex"5678");
     }
 }

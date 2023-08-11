@@ -97,7 +97,7 @@ func _standardBridgeInitiatedEvents[BridgeEvent bindings.StandardBridgeETHBridge
 	processedInitiatedBridgeEvents := events.eventsBySignature[StandardBridgeABI.Events[eventName].ID]
 	initiatedBridgeEvents := make([]StandardBridgeInitiatedEvent, len(processedInitiatedBridgeEvents))
 	for i, bridgeInitiatedEvent := range processedInitiatedBridgeEvents {
-		log := events.eventLog[bridgeInitiatedEvent.GUID]
+		log := bridgeInitiatedEvent.GethLog
 
 		var bridgeData BridgeEvent
 		err := UnpackLog(&bridgeData, log, eventName, StandardBridgeABI)
@@ -109,7 +109,8 @@ func _standardBridgeInitiatedEvents[BridgeEvent bindings.StandardBridgeETHBridge
 		//   - L1: BridgeInitiated -> Portal#DepositTransaction -> SentMessage ...
 		//   - L1: BridgeInitiated -> L2ToL1MessagePasser#MessagePassed -> SentMessage ...
 		var sentMsgData bindings.L1CrossDomainMessengerSentMessage
-		sentMsgLog := events.eventLog[events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 2}].GUID]
+		sentMsgLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 2}].GethLog
+		sentMsgData.Raw = *sentMsgLog
 		err = UnpackLog(&sentMsgData, sentMsgLog, sentMessageEventAbi.Name, l1CrossDomainMessengerABI)
 		if err != nil {
 			return nil, err
@@ -127,6 +128,7 @@ func _standardBridgeInitiatedEvents[BridgeEvent bindings.StandardBridgeETHBridge
 
 			// represent eth bridge as an erc20
 			erc20BridgeData = &bindings.StandardBridgeERC20BridgeInitiated{
+				Raw: *log,
 				// Represent ETH using the hardcoded address
 				LocalToken: predeploys.LegacyERC20ETHAddr, RemoteToken: predeploys.LegacyERC20ETHAddr,
 				// Bridge data
@@ -136,6 +138,7 @@ func _standardBridgeInitiatedEvents[BridgeEvent bindings.StandardBridgeETHBridge
 		case bindings.StandardBridgeERC20BridgeInitiated:
 			_temp := any(bridgeData).(bindings.StandardBridgeERC20BridgeInitiated)
 			erc20BridgeData = &_temp
+			erc20BridgeData.Raw = *log
 			expectedCrossDomainMessage, err = StandardBridgeABI.Pack(finalizeMethodName, erc20BridgeData.RemoteToken, erc20BridgeData.LocalToken, erc20BridgeData.From, erc20BridgeData.To, erc20BridgeData.Amount, erc20BridgeData.ExtraData)
 			if err != nil {
 				return nil, err
@@ -146,7 +149,11 @@ func _standardBridgeInitiatedEvents[BridgeEvent bindings.StandardBridgeETHBridge
 			return nil, errors.New("bridge cross domain message mismatch")
 		}
 
-		initiatedBridgeEvents[i] = StandardBridgeInitiatedEvent{erc20BridgeData, sentMsgData.MessageNonce, bridgeInitiatedEvent}
+		initiatedBridgeEvents[i] = StandardBridgeInitiatedEvent{
+			StandardBridgeERC20BridgeInitiated: erc20BridgeData,
+			CrossDomainMessengerNonce:          sentMsgData.MessageNonce,
+			RawEvent:                           bridgeInitiatedEvent,
+		}
 	}
 
 	return initiatedBridgeEvents, nil
@@ -190,7 +197,7 @@ func _standardBridgeFinalizedEvents[BridgeEvent bindings.StandardBridgeETHBridge
 	processedFinalizedBridgeEvents := events.eventsBySignature[StandardBridgeABI.Events[eventName].ID]
 	finalizedBridgeEvents := make([]StandardBridgeFinalizedEvent, len(processedFinalizedBridgeEvents))
 	for i, bridgeFinalizedEvent := range processedFinalizedBridgeEvents {
-		log := events.eventLog[bridgeFinalizedEvent.GUID]
+		log := bridgeFinalizedEvent.GethLog
 
 		var bridgeData BridgeEvent
 		err := UnpackLog(&bridgeData, log, eventName, StandardBridgeABI)
@@ -199,7 +206,7 @@ func _standardBridgeFinalizedEvents[BridgeEvent bindings.StandardBridgeETHBridge
 		}
 
 		// Look for the RelayedMessage event that follows right after the BridgeFinalized Event
-		relayedMsgLog := events.eventLog[events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 1}].GUID]
+		relayedMsgLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 1}].GethLog
 		if relayedMsgLog.Topics[0] != relayedMessageEventAbi.ID {
 			return nil, errors.New("unexpected bridge event ordering")
 		}
@@ -257,6 +264,7 @@ func _standardBridgeFinalizedEvents[BridgeEvent bindings.StandardBridgeETHBridge
 		case bindings.StandardBridgeETHBridgeFinalized:
 			ethBridgeData := any(bridgeData).(bindings.StandardBridgeETHBridgeFinalized)
 			erc20BridgeData = &bindings.StandardBridgeERC20BridgeFinalized{
+				Raw: *log,
 				// Represent ETH using the hardcoded address
 				LocalToken: predeploys.LegacyERC20ETHAddr, RemoteToken: predeploys.LegacyERC20ETHAddr,
 				// Bridge data
@@ -266,9 +274,14 @@ func _standardBridgeFinalizedEvents[BridgeEvent bindings.StandardBridgeETHBridge
 		case bindings.StandardBridgeERC20BridgeFinalized:
 			_temp := any(bridgeData).(bindings.StandardBridgeERC20BridgeFinalized)
 			erc20BridgeData = &_temp
+			erc20BridgeData.Raw = *log
 		}
 
-		finalizedBridgeEvents[i] = StandardBridgeFinalizedEvent{erc20BridgeData, nonce, bridgeFinalizedEvent}
+		finalizedBridgeEvents[i] = StandardBridgeFinalizedEvent{
+			StandardBridgeERC20BridgeFinalized: erc20BridgeData,
+			CrossDomainMessengerNonce:          nonce,
+			RawEvent:                           bridgeFinalizedEvent,
+		}
 	}
 
 	return finalizedBridgeEvents, nil

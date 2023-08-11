@@ -15,5 +15,8 @@ interface IFaucetAuthModule {
         Faucet.DripParameters memory _params,
         bytes32 _id,
         bytes memory _proof
-    ) external view returns (bool);
+    )
+        external
+        view
+        returns (bool);
 }
