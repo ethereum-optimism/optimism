@@ -26,6 +26,22 @@ type Option func(config2 *config.Config)
 func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name string, options ...Option) *Helper {
 	log := testlog.Logger(t, log.LvlInfo).New("role", name)
 	log.Info("Creating challenger", "l1", l1Endpoint)
+	cfg := NewChallengerConfig(t, l1Endpoint, options...)
+
+	errCh := make(chan error, 1)
+	ctx, cancel := context.WithCancel(ctx)
+	go func() {
+		defer close(errCh)
+		errCh <- op_challenger.Main(ctx, log, cfg)
+	}()
+	return &Helper{
+		log:    log,
+		cancel: cancel,
+		errors: errCh,
+	}
+}
+
+func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *config.Config {
 	txmgrCfg := txmgr.NewCLIConfig(l1Endpoint)
 	txmgrCfg.NumConfirmations = 1
 	txmgrCfg.ReceiptQueryInterval = 1 * time.Second
@@ -53,18 +69,7 @@ func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name st
 		_, err := os.Stat(cfg.CannonAbsolutePreState)
 		require.NoError(t, err, "cannon pre-state should be built. Make sure you've run make cannon-prestate")
 	}
-
-	errCh := make(chan error, 1)
-	ctx, cancel := context.WithCancel(ctx)
-	go func() {
-		defer close(errCh)
-		errCh <- op_challenger.Main(ctx, log, cfg)
-	}()
-	return &Helper{
-		log:    log,
-		cancel: cancel,
-		errors: errCh,
-	}
+	return cfg
 }
 
 func (h *Helper) Close() error {
