@@ -118,7 +118,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
                 systemTxMaxGas: 0,
                 maximumBaseFee: 0
             }),
-            _startBlock: 1,
+            _startBlock: type(uint256).max,
             _batchInbox: address(0),
             _addresses: SystemConfig.Addresses({
                 l1CrossDomainMessenger: address(0),

@@ -417,7 +417,7 @@ contract Deploy is Deployer {
         require(config.optimismPortal() == address(0));
         require(config.l1CrossDomainMessenger() == address(0));
         require(config.optimismMintableERC20Factory() == address(0));
-        require(config.startBlock() == 1);
+        require(config.startBlock() == type(uint256).max);
 
         save("SystemConfig", address(config));
         console.log("SystemConfig deployed at %s", address(config));
