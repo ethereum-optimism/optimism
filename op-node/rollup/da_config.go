@@ -5,13 +5,12 @@ import (
 	"encoding/hex"
 
 	openrpc "github.com/rollkit/celestia-openrpc"
-	openrpcns "github.com/rollkit/celestia-openrpc/types/namespace"
 	"github.com/rollkit/celestia-openrpc/types/share"
 )
 
 type DAConfig struct {
 	Rpc       string
-	Namespace openrpcns.Namespace
+	Namespace share.Namespace
 	Client    *openrpc.Client
 	AuthToken string
 }
@@ -33,7 +32,7 @@ func NewDAConfig(rpc, token, ns string) (*DAConfig, error) {
 	}
 
 	return &DAConfig{
-		Namespace: namespace.ToAppNamespace(),
+		Namespace: namespace,
 		Rpc:       rpc,
 		Client:    client,
 	}, nil

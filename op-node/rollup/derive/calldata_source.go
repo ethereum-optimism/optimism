@@ -1,9 +1,7 @@
 package derive
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -13,8 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/rollkit/celestia-openrpc/types/share"
 
+	"github.com/ethereum-optimism/optimism/op-celestia/celestia"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
@@ -142,44 +140,22 @@ func DataFromEVMTransactions(config *rollup.Config, daCfg *rollup.DAConfig, batc
 			}
 
 			if daCfg != nil {
-				height, index, err := decodeETHData(tx.Data())
+				frameRef := celestia.FrameRef{}
+				frameRef.UnmarshalBinary(tx.Data())
 				if err != nil {
-					log.Warn("unable to decode data pointer", "index", j, "err", err)
+					log.Warn("unable to decode frame reference", "index", j, "err", err)
 					return nil, err
 				}
-				log.Info("requesting data from celestia", "namespace", hex.EncodeToString(daCfg.Namespace.Bytes()), "height", height)
-				blobs, err := daCfg.Client.Blob.GetAll(context.Background(), uint64(height), []share.Namespace{daCfg.Namespace.Bytes()})
-				data := make([][]byte, len(blobs))
-				for i, blob := range blobs {
-					data[i] = blob.Data
-				}
+				log.Info("requesting data from celestia", "namespace", hex.EncodeToString(daCfg.Namespace), "height", frameRef.BlockHeight)
+				blob, err := daCfg.Client.Blob.Get(context.Background(), frameRef.BlockHeight, daCfg.Namespace, frameRef.TxCommitment)
 				if err != nil {
-					return nil, NewResetError(fmt.Errorf("failed to retrieve data from celestia: %w", err))
+					return nil, NewResetError(fmt.Errorf("failed to resolve frame from celestia: %w", err))
 				}
-				log.Debug("retrieved data", "data", hex.EncodeToString(data[index]))
-				out = append(out, data[index])
+				out = append(out, blob.Data)
 			} else {
 				out = append(out, tx.Data())
 			}
 		}
 	}
 	return out, nil
-}
-
-// decodeETHData will decode the data retrieved from the EVM, this data
-// was previously posted from op-batcher and contains the block height
-// with transaction index of the SubmitPFD transaction to the DA.
-func decodeETHData(celestiaData []byte) (int64, uint32, error) {
-	buf := bytes.NewBuffer(celestiaData)
-	var height int64
-	err := binary.Read(buf, binary.BigEndian, &height)
-	if err != nil {
-		return 0, 0, fmt.Errorf("error deserializing height: %w", err)
-	}
-	var index uint32
-	err = binary.Read(buf, binary.BigEndian, &index)
-	if err != nil {
-		return 0, 0, fmt.Errorf("error deserializing index: %w", err)
-	}
-	return height, index, nil
 }

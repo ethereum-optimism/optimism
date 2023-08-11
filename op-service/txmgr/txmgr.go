@@ -1,9 +1,7 @@
 package txmgr
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -14,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"cosmossdk.io/math"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -22,10 +19,11 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	openrpc "github.com/rollkit/celestia-openrpc"
-	openrpcns "github.com/rollkit/celestia-openrpc/types/namespace"
 	"github.com/rollkit/celestia-openrpc/types/blob"
+	openrpcns "github.com/rollkit/celestia-openrpc/types/namespace"
 	"github.com/rollkit/celestia-openrpc/types/share"
 
+	"github.com/ethereum-optimism/optimism/op-celestia/celestia"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
@@ -226,41 +224,27 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 	// writes the state commitment data to ethereum.
 	if candidate.To.Hex() == "0xfF00000000000000000000000000000000000000" {
 		dataBlob, err := blob.NewBlobV0(m.namespace.Bytes(), candidate.TxData)
-		res, err := m.daClient.State.SubmitPayForBlob(ctx, math.NewInt(200000), 2000000, []*blob.Blob{dataBlob})
+		com, err := blob.CreateCommitment(dataBlob)
+		if err != nil {
+			m.l.Warn("unable to create blob commitment to celestia", "err", err)
+			return nil, err
+		}
+		height, err := m.daClient.Blob.Submit(ctx, []*blob.Blob{dataBlob})
 		if err != nil {
 			m.l.Warn("unable to publish tx to celestia", "err", err)
 			return nil, err
 		}
-		fmt.Printf("res: %v\n", res)
-		if res.Code != 0 || res.TxHash == "" || res.Height == 0 {
-			m.l.Warn("unexpected response from celestia got", "res.Code", res.Code, "res.TxHash", res.TxHash, "res.Height", res.Height)
+		fmt.Printf("height: %v\n", height)
+		if height == 0 {
+			m.l.Warn("unexpected response from celestia got", "height", height)
 			return nil, errors.New("unexpected response code")
 		}
-
-		height := res.Height
-
-		// FIXME: needs to be tx index / share index?
-		index := uint32(0) // res.Logs[0].MsgIndex
-
-		// DA pointer serialization format
-		// | -------------------------|
-		// | 8 bytes       | 4 bytes  |
-		// | block height | tx index  |
-		// | -------------------------|
-
-		buf := new(bytes.Buffer)
-		err = binary.Write(buf, binary.BigEndian, height)
-		if err != nil {
-			return nil, fmt.Errorf("data pointer block height serialization failed: %w", err)
+		frameRef := celestia.FrameRef{
+			BlockHeight: height,
+			TxCommitment: com,
 		}
-		err = binary.Write(buf, binary.BigEndian, index)
-		if err != nil {
-			return nil, fmt.Errorf("data pointer tx index serialization failed: %w", err)
-		}
-
-		serialized := buf.Bytes()
-		fmt.Printf("TxData: %v\n", serialized)
-		candidate = TxCandidate{TxData: serialized, To: candidate.To, GasLimit: candidate.GasLimit}
+		frameRefData, _ := frameRef.MarshalBinary()
+		candidate = TxCandidate{TxData: frameRefData, To: candidate.To, GasLimit: candidate.GasLimit}
 	}
 
 	tx, err := m.craftTx(ctx, candidate)
