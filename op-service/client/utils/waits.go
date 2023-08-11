@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
@@ -37,10 +38,29 @@ func WaitReceipt(ctx context.Context, client *ethclient.Client, hash common.Hash
 			return nil, err
 		}
 		if receipt.Status != status {
-			return receipt, fmt.Errorf("expected status %d, but got %d", status, receipt.Status)
+			return receipt, addDebugTrace(ctx, client, hash, fmt.Errorf("expected status %d, but got %d", status, receipt.Status))
 		}
 		return receipt, nil
 	}
+}
+
+type jsonRawString string
+
+func (s *jsonRawString) UnmarshalJSON(input []byte) error {
+	str := jsonRawString(input)
+	*s = str
+	return nil
+}
+
+// addDebugTrace adds debug_traceTransaction output to the original error to make debugging
+func addDebugTrace(ctx context.Context, client *ethclient.Client, txHash common.Hash, origErr error) error {
+	var result jsonRawString
+	options := map[string]string{}
+	err := client.Client().CallContext(ctx, &result, "debug_traceTransaction", hexutil.Bytes(txHash.Bytes()), options)
+	if err != nil {
+		return fmt.Errorf("%w (tx trace unavailable: %v)", origErr, err)
+	}
+	return fmt.Errorf("%w\nTxTrace: %v", origErr, result)
 }
 
 func WaitBlock(ctx context.Context, client *ethclient.Client, n uint64) error {
