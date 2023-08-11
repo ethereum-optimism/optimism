@@ -1,7 +1,9 @@
 package types
 
 import (
+	"context"
 	"errors"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -18,6 +20,40 @@ const (
 	GameStatusDefenderWon
 )
 
+// PreimageOracleData encapsulates the preimage oracle data
+// to load into the onchain oracle.
+type PreimageOracleData struct {
+	IsLocal      bool
+	OracleKey    []byte
+	OracleData   []byte
+	OracleOffset uint32
+}
+
+// GetType returns the type for the preimage oracle data.
+func (p *PreimageOracleData) GetType() *big.Int {
+	return big.NewInt(int64(p.OracleKey[0]))
+}
+
+// GetIdent returns the ident for the preimage oracle data.
+func (p *PreimageOracleData) GetIdent() *big.Int {
+	return big.NewInt(0).SetBytes(p.OracleKey[1:])
+}
+
+// GetPreimageWithoutSize returns the preimage for the preimage oracle data.
+func (p *PreimageOracleData) GetPreimageWithoutSize() []byte {
+	return p.OracleData[8:]
+}
+
+// NewPreimageOracleData creates a new [PreimageOracleData] instance.
+func NewPreimageOracleData(key []byte, data []byte, offset uint32) PreimageOracleData {
+	return PreimageOracleData{
+		IsLocal:      len(key) > 0 && key[0] == byte(1),
+		OracleKey:    key,
+		OracleData:   data,
+		OracleOffset: offset,
+	}
+}
+
 // StepCallData encapsulates the data needed to perform a step.
 type StepCallData struct {
 	ClaimIndex uint64
@@ -26,18 +62,29 @@ type StepCallData struct {
 	Proof      []byte
 }
 
+// OracleUpdater is a generic interface for updating oracles.
+type OracleUpdater interface {
+	// UpdateOracle updates the oracle with the given data.
+	UpdateOracle(ctx context.Context, data PreimageOracleData) error
+}
+
 // TraceProvider is a generic way to get a claim value at a specific step in the trace.
 type TraceProvider interface {
 	// Get returns the claim value at the requested index.
 	// Get(i) = Keccak256(GetPreimage(i))
-	Get(i uint64) (common.Hash, error)
+	Get(ctx context.Context, i uint64) (common.Hash, error)
+
+	// GetOracleData returns preimage oracle data that can be submitted to the pre-image
+	// oracle and the dispute game contract. This function accepts a trace index for
+	// which the provider returns needed preimage data.
+	GetOracleData(ctx context.Context, i uint64) (*PreimageOracleData, error)
 
 	// GetPreimage returns the pre-image for a claim at the specified trace index, along
 	// with any associated proof data to assist in its verification.
-	GetPreimage(i uint64) (preimage []byte, proofData []byte, err error)
+	GetPreimage(ctx context.Context, i uint64) (preimage []byte, proofData []byte, err error)
 
 	// AbsolutePreState is the pre-image value of the trace that transitions to the trace value at index 0
-	AbsolutePreState() []byte
+	AbsolutePreState(ctx context.Context) ([]byte, error)
 }
 
 // ClaimData is the core of a claim. It must be unique inside a specific game.

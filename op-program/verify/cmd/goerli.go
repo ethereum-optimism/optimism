@@ -100,7 +100,31 @@ func Run(l1RpcUrl string, l2RpcUrl string, l2OracleAddr common.Address) error {
 	if err != nil {
 		return fmt.Errorf("retrieve agreed l2 block: %w", err)
 	}
-	l2Head := l2AgreedBlock.Hash()
+	agreedOutputIndex, err := outputOracle.GetL2OutputIndexAfter(callOpts, l2AgreedBlock.Number())
+	if err != nil {
+		return fmt.Errorf("failed to output index after agreed block")
+	}
+	// Find an output that differs from what is being claimed
+	var agreedOutput bindings.TypesOutputProposal
+	for {
+		agreedOutput, err = outputOracle.GetL2Output(callOpts, agreedOutputIndex)
+		if err != nil {
+			return fmt.Errorf("retrieve agreed output: %w", err)
+		}
+		if agreedOutput.OutputRoot != output.OutputRoot {
+			break
+		}
+		fmt.Printf("Output at %v equals output at finalized block. Continuing search...\n", agreedOutput.L2BlockNumber)
+		agreedOutputIndex.Sub(agreedOutputIndex, big.NewInt(1))
+		if agreedOutputIndex.Int64() < 0 {
+			return fmt.Errorf("failed to find an output different from finalized block output")
+		}
+	}
+	l2BlockAtOutput, err := l2Client.BlockByNumber(ctx, agreedOutput.L2BlockNumber)
+	if err != nil {
+		return fmt.Errorf("retrieve agreed block: %w", err)
+	}
+	l2Head := l2BlockAtOutput.Hash()
 
 	temp, err := os.MkdirTemp("", "oracledata")
 	if err != nil {
@@ -120,6 +144,7 @@ func Run(l1RpcUrl string, l2RpcUrl string, l2OracleAddr common.Address) error {
 		"--datadir", temp,
 		"--l1.head", l1Head.Hex(),
 		"--l2.head", l2Head.Hex(),
+		"--l2.outputroot", common.Bytes2Hex(agreedOutput.OutputRoot[:]),
 		"--l2.claim", l2Claim.Hex(),
 		"--l2.blocknumber", l2BlockNumber.String(),
 	}

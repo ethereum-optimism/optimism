@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
@@ -46,7 +47,7 @@ func TestBedrockIndexer(t *testing.T) {
 	// wait a couple of blocks
 	require.NoError(t, utils.WaitBlock(e2eutils.TimeoutCtx(t, 30*time.Second), l2Client, 10))
 
-	l1SB, err := bindings.NewL1StandardBridge(predeploys.DevL1StandardBridgeAddr, l1Client)
+	l1SB, err := bindings.NewL1StandardBridge(cfg.L1Deployments.L1StandardBridgeProxy, l1Client)
 	require.NoError(t, err)
 	l2SB, err := bindings.NewL2StandardBridge(predeploys.L2StandardBridgeAddr, l2Client)
 	require.NoError(t, err)
@@ -208,7 +209,7 @@ func TestBedrockIndexer(t *testing.T) {
 		require.Nil(t, wd.BedrockFinalizedTxHash)
 
 		// Finalize withdrawal
-		err = withdrawals.WaitForFinalizationPeriod(e2eutils.TimeoutCtx(t, 30*time.Second), l1Client, predeploys.DevOptimismPortalAddr, proveReceipt.BlockNumber)
+		err = withdrawals.WaitForFinalizationPeriod(e2eutils.TimeoutCtx(t, 30*time.Second), l1Client, proveReceipt.BlockNumber, config.L1Deployments.L2OutputOracleProxy)
 		require.Nil(t, err)
 		finReceipt := op_e2e.FinalizeWithdrawal(t, cfg, l1Client, cfg.Secrets.Alice, wdReceipt, wdParams)
 

@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"math/big"
 	"testing"
 
@@ -32,21 +33,21 @@ func (c *ClaimBuilder) CorrectTraceProvider() types.TraceProvider {
 
 // CorrectClaim returns the canonical claim at a specified trace index
 func (c *ClaimBuilder) CorrectClaim(idx uint64) common.Hash {
-	value, err := c.correct.Get(idx)
+	value, err := c.correct.Get(context.Background(), idx)
 	c.require.NoError(err)
 	return value
 }
 
 // CorrectPreState returns the pre-image of the canonical claim at the specified trace index
 func (c *ClaimBuilder) CorrectPreState(idx uint64) []byte {
-	preimage, _, err := c.correct.GetPreimage(idx)
+	preimage, _, err := c.correct.GetPreimage(context.Background(), idx)
 	c.require.NoError(err)
 	return preimage
 }
 
 // CorrectProofData returns the proof-data for the canonical claim at the specified trace index
 func (c *ClaimBuilder) CorrectProofData(idx uint64) []byte {
-	_, proof, err := c.correct.GetPreimage(idx)
+	_, proof, err := c.correct.GetPreimage(context.Background(), idx)
 	c.require.NoError(err)
 	return proof
 }

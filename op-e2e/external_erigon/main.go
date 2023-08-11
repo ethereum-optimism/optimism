@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"time"
 
-	e2e "github.com/ethereum-optimism/optimism/op-e2e"
+	"github.com/ethereum-optimism/optimism/op-e2e/external"
 	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
@@ -69,7 +69,7 @@ func run(init bool, configPath string) error {
 		return fmt.Errorf("could not open config: %w", err)
 	}
 
-	var config e2e.ExternalConfig
+	var config external.Config
 	if err := json.NewDecoder(configFile).Decode(&config); err != nil {
 		return fmt.Errorf("could not decode config file: %w", err)
 	}
@@ -95,7 +95,7 @@ func run(init bool, configPath string) error {
 	defer sess.Close()
 
 	fmt.Printf("==================    op-erigon shim encoding ready-file   ==========================\n")
-	if err := e2e.AtomicEncode(config.EndpointsReadyPath, sess.endpoints); err != nil {
+	if err := external.AtomicEncode(config.EndpointsReadyPath, sess.endpoints); err != nil {
 		return fmt.Errorf("could not encode endpoints")
 	}
 
@@ -108,7 +108,7 @@ func run(init bool, configPath string) error {
 	}
 }
 
-func initialize(binPath string, config e2e.ExternalConfig) error {
+func initialize(binPath string, config external.Config) error {
 	cmd := exec.Command(
 		binPath,
 		"--datadir", config.DataDir,
@@ -119,7 +119,7 @@ func initialize(binPath string, config e2e.ExternalConfig) error {
 
 type erigonSession struct {
 	session   *gexec.Session
-	endpoints *e2e.ExternalEndpoints
+	endpoints *external.Endpoints
 }
 
 func (es *erigonSession) Close() {
@@ -131,7 +131,7 @@ func (es *erigonSession) Close() {
 	}
 }
 
-func execute(binPath string, config e2e.ExternalConfig) (*erigonSession, error) {
+func execute(binPath string, config external.Config) (*erigonSession, error) {
 	if config.Verbosity < 3 {
 		// Note, we could manually filter the logging further, if this is
 		// really problematic.
@@ -183,7 +183,7 @@ func execute(binPath string, config e2e.ExternalConfig) (*erigonSession, error) 
 
 	return &erigonSession{
 		session: sess,
-		endpoints: &e2e.ExternalEndpoints{
+		endpoints: &external.Endpoints{
 			HTTPEndpoint:     fmt.Sprintf("http://127.0.0.1:%d/", httpPort),
 			WSEndpoint:       fmt.Sprintf("ws://127.0.0.1:%d/", httpPort),
 			HTTPAuthEndpoint: fmt.Sprintf("http://127.0.0.1:%d/", enginePort),

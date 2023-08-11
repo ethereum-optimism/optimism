@@ -94,7 +94,8 @@ func RecordError(provider string, errorLabel string) {
 func RecordErrorDetails(provider string, label string, err error) {
 	errClean := nonAlphanumericRegex.ReplaceAllString(err.Error(), "")
 	errClean = strings.ReplaceAll(errClean, " ", "_")
-	label = fmt.Sprintf("%s.%s", label)
+	errClean = strings.ReplaceAll(errClean, "__", "_")
+	label = fmt.Sprintf("%s.%s", label, errClean)
 	RecordError(provider, label)
 }
 

@@ -2,6 +2,7 @@ package proxyd
 
 import (
 	"fmt"
+	"math/big"
 	"os"
 	"strings"
 	"time"
@@ -121,9 +122,10 @@ type BatchConfig struct {
 // SenderRateLimitConfig configures the sender-based rate limiter
 // for eth_sendRawTransaction requests.
 type SenderRateLimitConfig struct {
-	Enabled  bool
-	Interval TOMLDuration
-	Limit    int
+	Enabled         bool
+	Interval        TOMLDuration
+	Limit           int
+	AllowedChainIds []*big.Int `toml:"allowed_chain_ids"`
 }
 
 type Config struct {

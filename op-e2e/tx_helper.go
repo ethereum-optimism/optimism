@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -24,13 +24,25 @@ import (
 func SendDepositTx(t *testing.T, cfg SystemConfig, l1Client *ethclient.Client, l2Client *ethclient.Client, l1Opts *bind.TransactOpts, applyL2Opts DepositTxOptsFn) {
 	l2Opts := defaultDepositTxOpts(l1Opts)
 	applyL2Opts(l2Opts)
+
 	// Find deposit contract
-	depositContract, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)
+	depositContract, err := bindings.NewOptimismPortal(config.L1Deployments.OptimismPortalProxy, l1Client)
 	require.Nil(t, err)
 
 	// Finally send TX
+	l1Opts.NoSend = true
 	tx, err := depositContract.DepositTransaction(l1Opts, l2Opts.ToAddr, l2Opts.Value, l2Opts.GasLimit, l2Opts.IsCreation, l2Opts.Data)
 	require.Nil(t, err, "with deposit tx")
+
+	l1Opts.NoSend = false
+	// Add 10% padding for the L1 gas limit because the estimation process can be affected by the 1559 style cost scale
+	// for buying L2 gas in the portal contracts.
+	l1Opts.GasLimit = tx.Gas() + (tx.Gas() / 10)
+
+	// Now resend with gas specified
+	tx, err = depositContract.DepositTransaction(l1Opts, l2Opts.ToAddr, l2Opts.Value, l2Opts.GasLimit, l2Opts.IsCreation, l2Opts.Data)
+	require.Nil(t, err, "with deposit tx")
+	l1Opts.GasLimit = 0
 
 	// Wait for transaction on L1
 	receipt, err := waitForTransaction(tx.Hash(), l1Client, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)

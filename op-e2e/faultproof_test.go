@@ -21,7 +21,7 @@ func TestResolveDisputeGame(t *testing.T) {
 	t.Cleanup(sys.Close)
 
 	gameDuration := 24 * time.Hour
-	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, l1Client, uint64(gameDuration.Seconds()))
+	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.TimeTravelClock, l1Client, uint64(gameDuration.Seconds()))
 	game := disputeGameFactory.StartAlphabetGame(ctx, "zyxwvut")
 	require.NotNil(t, game)
 
@@ -119,7 +119,7 @@ func TestChallengerCompleteDisputeGame(t *testing.T) {
 			t.Cleanup(sys.Close)
 
 			gameDuration := 24 * time.Hour
-			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, l1Client, uint64(gameDuration.Seconds()))
+			disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.TimeTravelClock, l1Client, uint64(gameDuration.Seconds()))
 			game := disputeGameFactory.StartAlphabetGame(ctx, test.rootClaimAlphabet)
 			require.NotNil(t, game)
 

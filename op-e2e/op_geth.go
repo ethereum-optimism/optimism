@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -49,7 +50,8 @@ type OpGeth struct {
 
 func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, error) {
 	logger := testlog.Logger(t, log.LvlCrit)
-	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig)
+
+	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig, config.L1Allocs, config.L1Deployments, true)
 	require.Nil(t, err)
 	l1Block := l1Genesis.ToBlock()
 

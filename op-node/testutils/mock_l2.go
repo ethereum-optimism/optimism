@@ -43,3 +43,11 @@ func (m *MockL2Client) SystemConfigByL2Hash(ctx context.Context, hash common.Has
 func (m *MockL2Client) ExpectSystemConfigByL2Hash(hash common.Hash, cfg eth.SystemConfig, err error) {
 	m.Mock.On("SystemConfigByL2Hash", hash).Once().Return(cfg, &err)
 }
+
+func (m *MockL2Client) OutputV0AtBlock(ctx context.Context, blockHash common.Hash) (*eth.OutputV0, error) {
+	return m.Mock.MethodCalled("OutputV0AtBlock", blockHash).Get(0).(*eth.OutputV0), nil
+}
+
+func (m *MockL2Client) ExpectOutputV0AtBlock(blockHash common.Hash, output *eth.OutputV0, err error) {
+	m.Mock.On("OutputV0AtBlock", blockHash).Once().Return(output, &err)
+}

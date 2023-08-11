@@ -28,7 +28,7 @@ func TestE2EBridge(t *testing.T) {
 	l1Client := testSuite.OpSys.Clients["l1"]
 	l2Client := testSuite.OpSys.Clients["sequencer"]
 
-	l1StandardBridge, err := bindings.NewL1StandardBridge(predeploys.DevL1StandardBridgeAddr, l1Client)
+	l1StandardBridge, err := bindings.NewL1StandardBridge(testSuite.OpCfg.L1Deployments.L1StandardBridgeProxy, l1Client)
 	require.NoError(t, err)
 
 	l2StandardBridge, err := bindings.NewL2StandardBridge(predeploys.L2StandardBridgeAddr, l2Client)
@@ -167,7 +167,7 @@ func TestE2EBridge(t *testing.T) {
 		// (3) Test Withdrawal Finalization
 
 		// finalize & wait for processor catchup
-		finalizeReceipt := op_e2e.FinalizeWithdrawal(t, *testSuite.OpCfg, l1Client, testSuite.OpCfg.Secrets.Alice, withdrawalReceipt, withdrawParams)
+		finalizeReceipt := op_e2e.FinalizeWithdrawal(t, *testSuite.OpCfg, l1Client, testSuite.OpCfg.Secrets.Alice, proveReceipt, withdrawParams)
 		require.NoError(t, utils.WaitFor(testCtx, 500*time.Millisecond, func() (bool, error) {
 			l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
 			return l1Header != nil && l1Header.Number.Uint64() >= finalizeReceipt.BlockNumber.Uint64(), nil

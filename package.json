@@ -22,7 +22,7 @@
     "lint:specs:check": "npx markdownlint-cli2  \"./specs/**/*.md\"",
     "lint:specs:toc": "npx doctoc '--title=**Table of Contents**' ./specs",
     "preinstall": "npx only-allow pnpm",
-    "postinstall": "patch-package && (test -d docs/op-stack && cd docs/op-stack && npx yarn@1 install && cd ../.. || exit 0)",
+    "postinstall": "patch-package",
     "ready": "pnpm lint && pnpm test",
     "prepare": "husky install",
     "release": "npx nx run-many --target=build --skip-nx-cache && pnpm changeset publish",

@@ -26,17 +26,17 @@ var MessagePassedTopic = crypto.Keccak256Hash([]byte("MessagePassed(uint256,addr
 // WaitForOutputRootPublished waits until there is an output published for an L2 block number larger than the supplied l2BlockNumber
 // This function polls and can block for a very long time if used on mainnet.
 // This returns the block number to use for proof generation.
-func WaitForOutputRootPublished(ctx context.Context, client *ethclient.Client, portalAddr common.Address, l2BlockNumber *big.Int) (uint64, error) {
+func WaitForOutputRootPublished(ctx context.Context, client *ethclient.Client, l2OutputOracleAddr common.Address, l2BlockNumber *big.Int) (uint64, error) {
 	l2BlockNumber = new(big.Int).Set(l2BlockNumber) // Don't clobber caller owned l2BlockNumber
 	opts := &bind.CallOpts{Context: ctx}
 
-	l2OO, err := createL2OOCaller(ctx, client, portalAddr)
+	l2OO, err := bindings.NewL2OutputOracleCaller(l2OutputOracleAddr, client)
 	if err != nil {
 		return 0, err
 	}
 
 	getL2BlockFromLatestOutput := func() (*big.Int, error) { return l2OO.LatestBlockNumber(opts) }
-	outputBlockNum, err := utils.WaitAndGet[*big.Int](ctx, time.Second, getL2BlockFromLatestOutput, func(latest *big.Int) bool {
+	outputBlockNum, err := utils.WaitAndGet(ctx, time.Second, getL2BlockFromLatestOutput, func(latest *big.Int) bool {
 		return latest.Cmp(l2BlockNumber) >= 0
 	})
 	if err != nil {
@@ -48,12 +48,12 @@ func WaitForOutputRootPublished(ctx context.Context, client *ethclient.Client, p
 // WaitForFinalizationPeriod waits until the L1 chain has progressed far enough that l1ProvingBlockNum has completed
 // the finalization period.
 // This functions polls and can block for a very long time if used on mainnet.
-func WaitForFinalizationPeriod(ctx context.Context, client *ethclient.Client, portalAddr common.Address, l1ProvingBlockNum *big.Int) error {
+func WaitForFinalizationPeriod(ctx context.Context, client *ethclient.Client, l1ProvingBlockNum *big.Int, l2OutputOracleAddr common.Address) error {
 	l1ProvingBlockNum = new(big.Int).Set(l1ProvingBlockNum) // Don't clobber caller owned l1ProvingBlockNum
 	opts := &bind.CallOpts{Context: ctx}
 
 	// Load finalization period
-	l2OO, err := createL2OOCaller(ctx, client, portalAddr)
+	l2OO, err := bindings.NewL2OutputOracleCaller(l2OutputOracleAddr, client)
 	if err != nil {
 		return fmt.Errorf("create L2OOCaller: %w", err)
 	}
@@ -79,18 +79,6 @@ func WaitForFinalizationPeriod(ctx context.Context, client *ethclient.Client, po
 		}
 		return header.Time > targetTimestamp.Uint64(), nil
 	})
-}
-
-func createL2OOCaller(ctx context.Context, client *ethclient.Client, portalAddr common.Address) (*bindings.L2OutputOracleCaller, error) {
-	portal, err := bindings.NewOptimismPortalCaller(portalAddr, client)
-	if err != nil {
-		return nil, fmt.Errorf("create OptimismPortalCaller: %w", err)
-	}
-	l2OOAddress, err := portal.L2ORACLE(&bind.CallOpts{Context: ctx})
-	if err != nil {
-		return nil, fmt.Errorf("create L2ORACLE: %w", err)
-	}
-	return bindings.NewL2OutputOracleCaller(l2OOAddress, client)
 }
 
 type ProofClient interface {

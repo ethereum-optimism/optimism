@@ -8,8 +8,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"reflect"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	gstate "github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -74,10 +77,15 @@ type DeployConfig struct {
 	// L2OutputOracleChallenger is the address of the account that challenges L2 outputs.
 	L2OutputOracleChallenger common.Address `json:"l2OutputOracleChallenger"`
 
+	// CliqueSignerAddress represents the signer address for the clique consensus engine.
+	// It is used in the multi-process devnet to sign blocks.
+	CliqueSignerAddress common.Address `json:"cliqueSignerAddress"`
+	// L1UseClique represents whether or not to use the clique consensus engine.
+	L1UseClique bool `json:"l1UseClique"`
+
 	L1BlockTime                 uint64         `json:"l1BlockTime"`
 	L1GenesisBlockTimestamp     hexutil.Uint64 `json:"l1GenesisBlockTimestamp"`
 	L1GenesisBlockNonce         hexutil.Uint64 `json:"l1GenesisBlockNonce"`
-	CliqueSignerAddress         common.Address `json:"cliqueSignerAddress"` // proof of stake genesis if left zeroed.
 	L1GenesisBlockGasLimit      hexutil.Uint64 `json:"l1GenesisBlockGasLimit"`
 	L1GenesisBlockDifficulty    *hexutil.Big   `json:"l1GenesisBlockDifficulty"`
 	L1GenesisBlockMixHash       common.Hash    `json:"l1GenesisBlockMixHash"`
@@ -99,7 +107,7 @@ type DeployConfig struct {
 	// L2GenesisRegolithTimeOffset is the number of seconds after genesis block that Regolith hard fork activates.
 	// Set it to 0 to activate at genesis. Nil to disable regolith.
 	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
-	// Configurable extradata. Will default to []byte("BEDROCK") if left unspecified.
+	// L2GenesisBlockExtraData is configurable extradata. Will default to []byte("BEDROCK") if left unspecified.
 	L2GenesisBlockExtraData []byte `json:"l2GenesisBlockExtraData"`
 	// ProxyAdminOwner represents the owner of the ProxyAdmin predeploy on L2.
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
@@ -124,11 +132,11 @@ type DeployConfig struct {
 	// SequencerFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the SequencerFeeVault.
 	SequencerFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"sequencerFeeVaultMinimumWithdrawalAmount"`
 	// BaseFeeVaultWithdrawalNetwork represents the withdrawal network for the BaseFeeVault.
-	BaseFeeVaultWithdrawalNetwork uint8 `json:"baseFeeVaultWithdrawalNetwork"`
+	BaseFeeVaultWithdrawalNetwork WithdrawalNetwork `json:"baseFeeVaultWithdrawalNetwork"`
 	// L1FeeVaultWithdrawalNetwork represents the withdrawal network for the L1FeeVault.
-	L1FeeVaultWithdrawalNetwork uint8 `json:"l1FeeVaultWithdrawalNetwork"`
+	L1FeeVaultWithdrawalNetwork WithdrawalNetwork `json:"l1FeeVaultWithdrawalNetwork"`
 	// SequencerFeeVaultWithdrawalNetwork represents the withdrawal network for the SequencerFeeVault.
-	SequencerFeeVaultWithdrawalNetwork uint8 `json:"sequencerFeeVaultWithdrawalNetwork"`
+	SequencerFeeVaultWithdrawalNetwork WithdrawalNetwork `json:"sequencerFeeVaultWithdrawalNetwork"`
 	// L1StandardBridgeProxy represents the address of the L1StandardBridgeProxy on L1 and is used
 	// as part of building the L2 genesis state.
 	L1StandardBridgeProxy common.Address `json:"l1StandardBridgeProxy"`
@@ -169,10 +177,25 @@ type DeployConfig struct {
 	FundDevAccounts bool `json:"fundDevAccounts"`
 }
 
+// Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
+// which makes it easier to maintain, we do not need efficiency in this case.
+func (d *DeployConfig) Copy() *DeployConfig {
+	raw, err := json.Marshal(d)
+	if err != nil {
+		panic(err)
+	}
+
+	cpy := DeployConfig{}
+	if err = json.Unmarshal(raw, &cpy); err != nil {
+		panic(err)
+	}
+	return &cpy
+}
+
 // Check will ensure that the config is sane and return an error when it is not
 func (d *DeployConfig) Check() error {
 	if d.L1StartingBlockTag == nil {
-		return fmt.Errorf("%w: L2StartingBlockTag cannot be nil", ErrInvalidDeployConfig)
+		return fmt.Errorf("%w: L1StartingBlockTag cannot be nil", ErrInvalidDeployConfig)
 	}
 	if d.L1ChainID == 0 {
 		return fmt.Errorf("%w: L1ChainID cannot be 0", ErrInvalidDeployConfig)
@@ -237,13 +260,13 @@ func (d *DeployConfig) Check() error {
 	if d.SequencerFeeVaultRecipient == (common.Address{}) {
 		return fmt.Errorf("%w: SequencerFeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
 	}
-	if d.BaseFeeVaultWithdrawalNetwork >= 2 {
+	if !d.BaseFeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: BaseFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
 	}
-	if d.L1FeeVaultWithdrawalNetwork >= 2 {
+	if !d.L1FeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: L1FeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
 	}
-	if d.SequencerFeeVaultWithdrawalNetwork >= 2 {
+	if !d.SequencerFeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: SequencerFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
 	}
 	if d.GasPriceOracleOverhead == 0 {
@@ -295,7 +318,20 @@ func (d *DeployConfig) Check() error {
 			return fmt.Errorf("%w: GovernanceToken owner cannot be address(0)", ErrInvalidDeployConfig)
 		}
 	}
+	// L2 block time must always be smaller than L1 block time
+	if d.L1BlockTime < d.L2BlockTime {
+		return fmt.Errorf("L2 block time (%d) is larger than L1 block time (%d)", d.L2BlockTime, d.L1BlockTime)
+	}
 	return nil
+}
+
+// SetDeployments will merge a Deployments into a DeployConfig.
+func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
+	d.L1StandardBridgeProxy = deployments.L1StandardBridgeProxy
+	d.L1CrossDomainMessengerProxy = deployments.L1CrossDomainMessengerProxy
+	d.L1ERC721BridgeProxy = deployments.L1ERC721BridgeProxy
+	d.SystemConfigProxy = deployments.SystemConfigProxy
+	d.OptimismPortalProxy = deployments.OptimismPortalProxy
 }
 
 // GetDeployedAddresses will get the deployed addresses of deployed L1 contracts
@@ -354,16 +390,6 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 		d.OptimismPortalProxy = optimismPortalProxyDeployment.Address
 	}
 
-	return nil
-}
-
-// InitDeveloperDeployedAddresses will set the dev addresses on the DeployConfig
-func (d *DeployConfig) InitDeveloperDeployedAddresses() error {
-	d.L1StandardBridgeProxy = predeploys.DevL1StandardBridgeAddr
-	d.L1CrossDomainMessengerProxy = predeploys.DevL1CrossDomainMessengerAddr
-	d.L1ERC721BridgeProxy = predeploys.DevL1ERC721BridgeAddr
-	d.OptimismPortalProxy = predeploys.DevOptimismPortalAddr
-	d.SystemConfigProxy = predeploys.DevSystemConfigAddr
 	return nil
 }
 
@@ -441,6 +467,116 @@ func NewDeployConfigWithNetwork(network, path string) (*DeployConfig, error) {
 	return NewDeployConfig(deployConfig)
 }
 
+// L1Deployments represents a set of L1 contracts that are deployed.
+type L1Deployments struct {
+	AddressManager                    common.Address `json:"AddressManager"`
+	DisputeGameFactory                common.Address `json:"DisputeGameFactory"`
+	DisputeGameFactoryProxy           common.Address `json:"DisputeGameFactoryProxy"`
+	L1CrossDomainMessenger            common.Address `json:"L1CrossDomainMessenger"`
+	L1CrossDomainMessengerProxy       common.Address `json:"L1CrossDomainMessengerProxy"`
+	L1ERC721Bridge                    common.Address `json:"L1ERC721Bridge"`
+	L1ERC721BridgeProxy               common.Address `json:"L1ERC721BridgeProxy"`
+	L1StandardBridge                  common.Address `json:"L1StandardBridge"`
+	L1StandardBridgeProxy             common.Address `json:"L1StandardBridgeProxy"`
+	L2OutputOracle                    common.Address `json:"L2OutputOracle"`
+	L2OutputOracleProxy               common.Address `json:"L2OutputOracleProxy"`
+	OptimismMintableERC20Factory      common.Address `json:"OptimismMintableERC20Factory"`
+	OptimismMintableERC20FactoryProxy common.Address `json:"OptimismMintableERC20FactoryProxy"`
+	OptimismPortal                    common.Address `json:"OptimismPortal"`
+	OptimismPortalProxy               common.Address `json:"OptimismPortalProxy"`
+	ProxyAdmin                        common.Address `json:"ProxyAdmin"`
+	SystemConfig                      common.Address `json:"SystemConfig"`
+	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
+}
+
+// GetName will return the name of the contract given an address.
+func (d *L1Deployments) GetName(addr common.Address) string {
+	val := reflect.ValueOf(d)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	for i := 0; i < val.NumField(); i++ {
+		if addr == val.Field(i).Interface().(common.Address) {
+			return val.Type().Field(i).Name
+		}
+	}
+	return ""
+}
+
+// Check will ensure that the L1Deployments are sane
+func (d *L1Deployments) Check() error {
+	val := reflect.ValueOf(d)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	for i := 0; i < val.NumField(); i++ {
+		name := val.Type().Field(i).Name
+		// Skip the non production ready contracts
+		if name == "DisputeGameFactory" || name == "DisputeGameFactoryProxy" {
+			continue
+		}
+		if val.Field(i).Interface().(common.Address) == (common.Address{}) {
+			return fmt.Errorf("%s is not set", name)
+		}
+	}
+	return nil
+}
+
+// ForEach will iterate over each contract in the L1Deployments
+func (d *L1Deployments) ForEach(cb func(name string, addr common.Address)) {
+	val := reflect.ValueOf(d)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	for i := 0; i < val.NumField(); i++ {
+		name := val.Type().Field(i).Name
+		cb(name, val.Field(i).Interface().(common.Address))
+	}
+}
+
+// Copy will copy the L1Deployments struct
+func (d *L1Deployments) Copy() *L1Deployments {
+	cpy := L1Deployments{}
+	data, err := json.Marshal(d)
+	if err != nil {
+		panic(err)
+	}
+	if err := json.Unmarshal(data, &cpy); err != nil {
+		panic(err)
+	}
+	return &cpy
+}
+
+// NewL1Deployments will create a new L1Deployments from a JSON file on disk
+// at the given path.
+func NewL1Deployments(path string) (*L1Deployments, error) {
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("L1 deployments at %s not found: %w", path, err)
+	}
+
+	var deployments L1Deployments
+	if err := json.Unmarshal(file, &deployments); err != nil {
+		return nil, fmt.Errorf("cannot unmarshal L1 deployements: %w", err)
+	}
+
+	return &deployments, nil
+}
+
+// NewStateDump will read a Dump JSON file from disk
+func NewStateDump(path string) (*gstate.Dump, error) {
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("dump at %s not found: %w", path, err)
+	}
+
+	var dump gstate.Dump
+	if err := json.Unmarshal(file, &dump); err != nil {
+		return nil, fmt.Errorf("cannot unmarshal dump: %w", err)
+	}
+	return &dump, nil
+}
+
 // NewL2ImmutableConfig will create an ImmutableConfig given an instance of a
 // DeployConfig and a block.
 func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.ImmutableConfig, error) {
@@ -482,17 +618,17 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 	immutable["SequencerFeeVault"] = immutables.ImmutableValues{
 		"recipient":               config.SequencerFeeVaultRecipient,
 		"minimumWithdrawalAmount": config.SequencerFeeVaultMinimumWithdrawalAmount,
-		"withdrawalNetwork":       config.SequencerFeeVaultWithdrawalNetwork,
+		"withdrawalNetwork":       config.SequencerFeeVaultWithdrawalNetwork.ToUint8(),
 	}
 	immutable["L1FeeVault"] = immutables.ImmutableValues{
 		"recipient":               config.L1FeeVaultRecipient,
 		"minimumWithdrawalAmount": config.L1FeeVaultMinimumWithdrawalAmount,
-		"withdrawalNetwork":       config.L1FeeVaultWithdrawalNetwork,
+		"withdrawalNetwork":       config.L1FeeVaultWithdrawalNetwork.ToUint8(),
 	}
 	immutable["BaseFeeVault"] = immutables.ImmutableValues{
 		"recipient":               config.BaseFeeVaultRecipient,
 		"minimumWithdrawalAmount": config.BaseFeeVaultMinimumWithdrawalAmount,
-		"withdrawalNetwork":       config.BaseFeeVaultWithdrawalNetwork,
+		"withdrawalNetwork":       config.BaseFeeVaultWithdrawalNetwork.ToUint8(),
 	}
 	immutable["BobaL2"] = immutables.ImmutableValues{
 		"bridge":      predeploys.L2StandardBridgeAddr,

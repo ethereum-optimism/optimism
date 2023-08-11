@@ -1,5 +1,4 @@
 # Deps and test files
-node_modules
 lib
 
 # build output

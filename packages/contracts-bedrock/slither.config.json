@@ -10,6 +10,6 @@
   "hardhat_ignore_compile": false,
   "disable_color": false,
   "exclude_dependencies": true,
-  "filter_paths": "contracts/test,contracts/vendor,node_modules,contracts/cannon/MIPS.sol",
+  "filter_paths": "test,src/vendor,lib,src/cannon/MIPS.sol",
   "foundry_out_directory": "artifacts"
 }

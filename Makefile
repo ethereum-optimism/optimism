@@ -61,6 +61,15 @@ op-erigon:
 	make -C ./op-erigon erigon
 .PHONY: op-erigon
 
+cannon:
+	make -C ./cannon cannon
+.PHONY: cannon
+
+cannon-prestate: op-program cannon
+	./cannon/bin/cannon load-elf --path op-program/bin/op-program-client.elf --out op-program/bin/prestate.json --meta op-program/bin/meta.json
+	./cannon/bin/cannon run --proof-at '=0' --stop-at '=1' --input op-program/bin/prestate.json --meta op-program/bin/meta.json --proof-fmt 'op-program/bin/%d.json' --output /dev/null
+	mv op-program/bin/0.json op-program/bin/prestate-proof.json
+
 mod-tidy:
 	# Below GOPRIVATE line allows mod-tidy to be run immediately after
 	# releasing new versions. This bypasses the Go modules proxy, which
@@ -82,12 +91,19 @@ nuke: clean devnet-clean
 .PHONY: nuke
 
 devnet-up:
+	$(shell ./ops/scripts/newer-file.sh .devnet/allocs-l1.json ./packages/contracts-bedrock)
+	if [ $(.SHELLSTATUS) -ne 0 ]; then \
+		make devnet-allocs; \
+	fi
 	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up
 
-devnet-up-deploy:
-	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --deploy
-.PHONY: devnet-up-deploy
+# alias for devnet-up
+devnet-up-deploy: devnet-up
+
+devnet-test:
+	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --test
+.PHONY: devnet-test
 
 devnet-test:
 	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --test
@@ -104,6 +120,9 @@ devnet-clean:
 	docker image ls 'ops-bedrock*' --format='{{.Repository}}' | xargs -r docker rmi
 	docker volume ls --filter name=ops-bedrock --format='{{.Name}}' | xargs -r docker volume rm
 .PHONY: devnet-clean
+
+devnet-allocs:
+	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=. --allocs
 
 devnet-logs:
 	@(cd ./ops-bedrock && docker-compose logs -f)
@@ -145,3 +164,6 @@ bedrock-markdown-links:
 	docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback \
 		--exclude twitter.com --exclude explorer.optimism.io --exclude linux-mips.org \
 		--exclude-mail /input/README.md "/input/specs/**/*.md"
+
+install-geth:
+	go install github.com/ethereum/go-ethereum/cmd/geth@v1.12.0

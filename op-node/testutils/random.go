@@ -266,6 +266,15 @@ func RandomOutputResponse(rng *rand.Rand) *eth.OutputResponse {
 			UnsafeL2:           RandomL2BlockRef(rng),
 			SafeL2:             RandomL2BlockRef(rng),
 			FinalizedL2:        RandomL2BlockRef(rng),
+			EngineSyncTarget:   RandomL2BlockRef(rng),
 		},
+	}
+}
+
+func RandomOutputV0(rng *rand.Rand) *eth.OutputV0 {
+	return &eth.OutputV0{
+		StateRoot:                eth.Bytes32(RandomHash(rng)),
+		MessagePasserStorageRoot: eth.Bytes32(RandomHash(rng)),
+		BlockHash:                RandomHash(rng),
 	}
 }
