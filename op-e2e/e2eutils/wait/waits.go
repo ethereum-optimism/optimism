@@ -58,7 +58,7 @@ func addDebugTrace(ctx context.Context, client *ethclient.Client, txHash common.
 	options := map[string]string{}
 	err := client.Client().CallContext(ctx, &result, "debug_traceTransaction", hexutil.Bytes(txHash.Bytes()), options)
 	if err != nil {
-		return fmt.Errorf("%w (tx trace unavailable: %v)", origErr, err)
+		return errors.Join(origErr, fmt.Errorf("tx trace unavailable: %w", err))
 	}
 	return fmt.Errorf("%w\nTxTrace: %v", origErr, result)
 }
