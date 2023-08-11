@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.json",
+  "extends": "../@eth-optimism/configs/tsconfig.json",
 
   "compilerOptions": {
     "rootDir": "./src",

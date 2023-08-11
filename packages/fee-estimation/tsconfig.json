@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.json",
+    "extends": "../@eth-optimism/configs/tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
     "baseUrl": "./src",
@@ -10,6 +10,6 @@
     "jsx": "react",
     "target": "ESNext",
     "noEmit": true
-  },
-  "include": ["./src"]
+},
+"include": ["./src"]
 }

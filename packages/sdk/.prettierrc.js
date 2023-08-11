@@ -1,3 +1,3 @@
 module.exports = {
-  ...require('../../.prettierrc.js'),
+  ...require('../@eth-optimism/configs/.prettierrc.js'),
 };

@@ -1,4 +1,4 @@
 module.exports = {
-  extends: '../../.eslintrc.js',
+  extends: '../@eth-optimism/configs/.eslintrc.js',
   ignorePatterns: ['src/contract-artifacts.ts'],
 }

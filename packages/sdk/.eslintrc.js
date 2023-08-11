@@ -1,5 +1,5 @@
 module.exports = {
-  extends: '../../.eslintrc.js',
+  extends: '../@eth-optimism/configs/.eslintrc.js',
   overrides: [
     {
       files: ['src/**/*.ts'],

@@ -5,7 +5,6 @@
   },
   "implicitDependencies": {
     "nx.json": "*",
-    "tsconfig.json": "*",
     ".foundryrc": "*",
     "pnpm.lock.yaml": "*",
     ".npmrc": "*",
