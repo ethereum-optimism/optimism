@@ -21,6 +21,7 @@ func TestResolveDisputeGame(t *testing.T) {
 	t.Cleanup(sys.Close)
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
+
 	game := disputeGameFactory.StartAlphabetGame(ctx, "zyxwvut")
 	require.NotNil(t, game)
 	gameDuration := game.GameDuration(ctx)
