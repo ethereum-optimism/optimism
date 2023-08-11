@@ -1,102 +1,35 @@
 package api
 
 import (
-	"encoding/json"
+	"fmt"
 	"net/http"
 
+	"github.com/ethereum-optimism/optimism/indexer/api/routes"
 	"github.com/ethereum-optimism/optimism/indexer/database"
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/go-chi/chi/v5"
 )
 
-type PaginationResponse struct {
-	// TODO type this better
-	Data        interface{} `json:"data"`
-	Cursor      string      `json:"cursor"`
-	HasNextPage bool        `json:"hasNextPage"`
-}
-
-func (a *Api) L1DepositsHandler(w http.ResponseWriter, r *http.Request) {
-	bv := a.BridgeTransfersView
-	address := common.HexToAddress(chi.URLParam(r, "address"))
-
-	// limit := getIntFromQuery(r, "limit", 10)
-	// cursor := r.URL.Query().Get("cursor")
-	// sortDirection := r.URL.Query().Get("sortDirection")
-
-	deposits, err := bv.L1BridgeDepositsByAddress(address)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// This is not the shape of the response we want!!!
-	// will add in the individual features in future prs 1 by 1
-	response := PaginationResponse{
-		Data: deposits,
-		// Cursor:      nextCursor,
-		HasNextPage: false,
-	}
-
-	jsonResponse(w, response, http.StatusOK)
-}
-
-func (a *Api) L2WithdrawalsHandler(w http.ResponseWriter, r *http.Request) {
-	bv := a.BridgeTransfersView
-	address := common.HexToAddress(chi.URLParam(r, "address"))
-
-	// limit := getIntFromQuery(r, "limit", 10)
-	// cursor := r.URL.Query().Get("cursor")
-	// sortDirection := r.URL.Query().Get("sortDirection")
-
-	withdrawals, err := bv.L2BridgeWithdrawalsByAddress(address)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// This is not the shape of the response we want!!!
-	// will add in the individual features in future prs 1 by 1
-	response := PaginationResponse{
-		Data: withdrawals,
-		// Cursor:      nextCursor,
-		HasNextPage: false,
-	}
-
-	jsonResponse(w, response, http.StatusOK)
-}
-
-func (a *Api) HealthzHandler(w http.ResponseWriter, r *http.Request) {
-	jsonResponse(w, "ok", http.StatusOK)
-}
-
-func jsonResponse(w http.ResponseWriter, data interface{}, statusCode int) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(statusCode)
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-	}
-}
+const ethereumAddressRegex = `^0x[a-fA-F0-9]{40}$`
 
 type Api struct {
-	Router              *chi.Mux
-	BridgeTransfersView database.BridgeTransfersView
+	Router *chi.Mux
 }
 
-func NewApi(bv database.BridgeTransfersView) *Api {
+func NewApi(bv database.BridgeTransfersView, logger log.Logger) *Api {
+	logger.Info("Initializing API...")
+
 	r := chi.NewRouter()
 
-	api := &Api{Router: r, BridgeTransfersView: bv}
+	h := routes.NewRoutes(logger, bv)
 
-	// these regex are .+ because I wasn't sure what they should be
-	// don't want a regex for addresses because would prefer to validate the address
-	// with go-ethereum and throw a friendly error message
-	r.Get("/api/v0/deposits/{address:.+}", api.L1DepositsHandler)
-	r.Get("/api/v0/withdrawals/{address:.+}", api.L2WithdrawalsHandler)
-	r.Get("/healthz", api.HealthzHandler)
+	api := &Api{Router: r}
+
+	r.Get("/healthz", h.HealthzHandler)
+	r.Get(fmt.Sprintf("/api/v0/deposits/{address:%s}", ethereumAddressRegex), h.L1DepositsHandler)
+	r.Get(fmt.Sprintf("/api/v0/withdrawals/{address:%s}", ethereumAddressRegex), h.L2WithdrawalsHandler)
 
 	return api
-
 }
 
 func (a *Api) Listen(port string) error {
