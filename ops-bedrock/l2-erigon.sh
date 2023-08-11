@@ -45,7 +45,7 @@ if [ -z "$CHAIN_NAME" ]; then
 fi
 
 if [ ! -z "$CHAIN_ID" ]; then
-  ERIGON_FLAGS += " --chainid ${CHAIN_ID} "
+  ERIGON_FLAGS="${ERIGON_FLAGS} --networkid ${CHAIN_ID}"
 fi
 
 if [ "$CHAIN_NAME" == "dev" ] && [ -z "$CHAIN_ID" ]; then
@@ -53,7 +53,7 @@ if [ "$CHAIN_NAME" == "dev" ] && [ -z "$CHAIN_ID" ]; then
   exit 1
 fi
 
-if [ ! -d ${DATADIR}/chaindata ] ; then
+if [ ! -d "${DATADIR}/chaindata" ] ; then
 	echo "${DATADIR}/chaindata  missing, running init"
   erigon ${COMMON_FLAGS} init /config/genesis-l2.json
   echo "Creating keyfile"
@@ -65,9 +65,10 @@ else
 fi
 
 echo "---------------"
-echo ${ERIGON_FLAGS}
+echo ${ERIGON_FLAGS} "$@"
 echo "--------------"
-	erigon ${ERIGON_FLAGS}
-        echo
-        echo ***** EXITED WITH STATUS $? *****
-        echo
+
+exec erigon ${ERIGON_FLAGS} "$@"
+echo
+echo ***** EXITED WITH STATUS $? *****
+echo
