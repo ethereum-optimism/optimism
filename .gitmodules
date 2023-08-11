@@ -10,9 +10,6 @@
 [submodule "packages/contracts-bedrock/lib/clones-with-immutable-args"]
 	path = packages/contracts-bedrock/lib/clones-with-immutable-args
 	url = https://github.com/Saw-mon-and-Natalie/clones-with-immutable-args
-[submodule "packages/contracts-bedrock/lib/ds-test"]
-	path = packages/contracts-bedrock/lib/ds-test
-	url = https://github.com/dapphub/ds-test
 [submodule "packages/contracts-bedrock/lib/forge-std"]
 	path = packages/contracts-bedrock/lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
