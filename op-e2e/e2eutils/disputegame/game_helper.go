@@ -82,6 +82,16 @@ func (g *FaultGameHelper) WaitForClaim(ctx context.Context, predicate func(claim
 	g.require.NoError(err)
 }
 
+// getClaim retrieves the claim data for a specific index.
+// Note that it is deliberately not exported as tests should use WaitForClaim to avoid race conditions.
+func (g *FaultGameHelper) getClaim(ctx context.Context, claimIdx int64) ContractClaim {
+	claimData, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(claimIdx))
+	if err != nil {
+		g.require.NoErrorf(err, "retrieve claim %v", claimIdx)
+	}
+	return claimData
+}
+
 func (g *FaultGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered bool) {
 	maxDepth := g.MaxDepth(ctx)
 	g.WaitForClaim(ctx, func(claim ContractClaim) bool {
@@ -146,5 +156,5 @@ func (g *FaultGameHelper) LogGameData(ctx context.Context) {
 	}
 	status, err := g.game.Status(opts)
 	g.require.NoError(err, "Load game status")
-	g.t.Logf("Game %v:\n%v\nCurrent status: %v\n", g.addr, info, Status(status))
+	g.t.Logf("Game %v (%v):\n%v\n", g.addr, Status(status), info)
 }
