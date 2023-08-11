@@ -26,12 +26,12 @@ The first step is to download the initial data for `op-erigon`. Thanks for the c
 
   ```bash
   cd op-anchorage/boba-community
-  openssl rand -hex 32 > jwt-secrete.txt
+  openssl rand -hex 32 > jwt-secret.txt
   ```
 
 ### Create a .env file
 
-Create a  `.env` file in `boba-community`. 
+Create a  `.env` file in `boba-community`.
 
 ```
 VERSION=
