@@ -89,12 +89,6 @@ func TestCannonUpdater_UpdateOracle(t *testing.T) {
 		}))
 		require.Equal(t, 1, mockTxMgr.failedSends)
 	})
-
-	t.Run("skip empty data", func(t *testing.T) {
-		updater, mockTxMgr := newTestCannonUpdater(t, true)
-		require.NoError(t, updater.UpdateOracle(context.Background(), &types.PreimageOracleData{}))
-		require.Equal(t, 0, mockTxMgr.sends)
-	})
 }
 
 // TestCannonUpdater_BuildLocalOracleData tests the [cannonUpdater]

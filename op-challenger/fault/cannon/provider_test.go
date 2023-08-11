@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -61,68 +62,44 @@ func TestGet(t *testing.T) {
 	})
 }
 
-func TestGetOracleData(t *testing.T) {
+func TestGetStepData(t *testing.T) {
 	dataDir, prestate := setupTestData(t)
 	t.Run("ExistingProof", func(t *testing.T) {
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		oracleData, err := provider.GetOracleData(context.Background(), 420)
-		require.NoError(t, err)
-		require.False(t, oracleData.IsLocal)
-		expectedKey := common.Hex2Bytes("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
-		require.Equal(t, expectedKey, oracleData.OracleKey)
-		expectedData := common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
-		require.Equal(t, expectedData, oracleData.OracleData)
-		require.Empty(t, generator.generated)
-	})
-
-	t.Run("ProofAfterEndOfTrace", func(t *testing.T) {
-		provider, generator := setupWithTestData(t, dataDir, prestate)
-		generator.finalState = &mipsevm.State{
-			Memory: &mipsevm.Memory{},
-			Step:   10,
-			Exited: true,
-		}
-		generator.proof = &proofData{
-			ClaimValue:   common.Hash{0xaa}.Bytes(),
-			StateData:    []byte{0xbb},
-			ProofData:    []byte{0xcc},
-			OracleKey:    common.Hash{0xdd}.Bytes(),
-			OracleValue:  []byte{0xdd},
-			OracleOffset: 10,
-		}
-		oracleData, err := provider.GetOracleData(context.Background(), 7000)
-		require.NoError(t, err)
-		require.Contains(t, generator.generated, 7000, "should have tried to generate the proof")
-		require.Contains(t, generator.generated, 9, "should have regenerated proof from last step")
-		require.False(t, oracleData.IsLocal)
-		require.EqualValues(t, generator.proof.OracleKey, oracleData.OracleKey)
-		require.EqualValues(t, generator.proof.OracleValue, oracleData.OracleData)
-	})
-
-	t.Run("IgnoreUnknownFields", func(t *testing.T) {
-		provider, generator := setupWithTestData(t, dataDir, prestate)
-		oracleData, err := provider.GetOracleData(context.Background(), 421)
-		require.NoError(t, err)
-		require.False(t, oracleData.IsLocal)
-		expectedKey := common.Hex2Bytes("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee")
-		require.Equal(t, expectedKey, oracleData.OracleKey)
-		expectedData := common.Hex2Bytes("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
-		require.Equal(t, expectedData, oracleData.OracleData)
-		require.Empty(t, generator.generated)
-	})
-}
-
-func TestGetPreimage(t *testing.T) {
-	dataDir, prestate := setupTestData(t)
-	t.Run("ExistingProof", func(t *testing.T) {
-		provider, generator := setupWithTestData(t, dataDir, prestate)
-		value, proof, err := provider.GetPreimage(context.Background(), 0)
+		value, proof, data, err := provider.GetStepData(context.Background(), 0)
 		require.NoError(t, err)
 		expected := common.Hex2Bytes("b8f068de604c85ea0e2acd437cdb47add074a2d70b81d018390c504b71fe26f400000000000000000000000000000000000000000000000000000000000000000000000000")
 		require.Equal(t, expected, value)
 		expectedProof := common.Hex2Bytes("08028e3c0000000000000000000000003c01000a24210b7c00200008000000008fa40004")
 		require.Equal(t, expectedProof, proof)
+		// TODO: Need to add some oracle data
+		require.Nil(t, data)
 		require.Empty(t, generator.generated)
+	})
+
+	t.Run("GenerateProof", func(t *testing.T) {
+		provider, generator := setupWithTestData(t, dataDir, prestate)
+		generator.finalState = &mipsevm.State{
+			Memory: &mipsevm.Memory{},
+			Step:   10,
+			Exited: true,
+		}
+		generator.proof = &proofData{
+			ClaimValue:   common.Hash{0xaa}.Bytes(),
+			StateData:    []byte{0xbb},
+			ProofData:    []byte{0xcc},
+			OracleKey:    common.Hash{0xdd}.Bytes(),
+			OracleValue:  []byte{0xdd},
+			OracleOffset: 10,
+		}
+		preimage, proof, data, err := provider.GetStepData(context.Background(), 4)
+		require.NoError(t, err)
+		require.Contains(t, generator.generated, 4, "should have tried to generate the proof")
+
+		require.EqualValues(t, generator.proof.StateData, preimage)
+		require.EqualValues(t, generator.proof.ProofData, proof)
+		expectedData := types.NewPreimageOracleData(generator.proof.OracleKey, generator.proof.OracleValue, generator.proof.OracleOffset)
+		require.EqualValues(t, expectedData, data)
 	})
 
 	t.Run("ProofAfterEndOfTrace", func(t *testing.T) {
@@ -140,30 +117,33 @@ func TestGetPreimage(t *testing.T) {
 			OracleValue:  []byte{0xdd},
 			OracleOffset: 10,
 		}
-		preimage, proof, err := provider.GetPreimage(context.Background(), 7000)
+		preimage, proof, data, err := provider.GetStepData(context.Background(), 7000)
 		require.NoError(t, err)
 		require.Contains(t, generator.generated, 7000, "should have tried to generate the proof")
-		require.Contains(t, generator.generated, 9, "should have regenerated proof from last step")
-		require.EqualValues(t, generator.proof.StateData, preimage)
-		require.EqualValues(t, generator.proof.ProofData, proof)
+
+		witness := generator.finalState.EncodeWitness()
+		require.EqualValues(t, witness, preimage)
+		require.Equal(t, []byte{}, proof)
+		require.Nil(t, data)
 	})
 
 	t.Run("MissingStateData", func(t *testing.T) {
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		_, _, err := provider.GetPreimage(context.Background(), 1)
+		_, _, _, err := provider.GetStepData(context.Background(), 1)
 		require.ErrorContains(t, err, "missing state data")
 		require.Empty(t, generator.generated)
 	})
 
 	t.Run("IgnoreUnknownFields", func(t *testing.T) {
 		provider, generator := setupWithTestData(t, dataDir, prestate)
-		value, proof, err := provider.GetPreimage(context.Background(), 2)
+		value, proof, data, err := provider.GetStepData(context.Background(), 2)
 		require.NoError(t, err)
 		expected := common.Hex2Bytes("cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
 		require.Equal(t, expected, value)
 		expectedProof := common.Hex2Bytes("dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
 		require.Equal(t, expectedProof, proof)
 		require.Empty(t, generator.generated)
+		require.Nil(t, data)
 	})
 }
 

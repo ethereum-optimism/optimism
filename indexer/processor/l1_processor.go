@@ -399,10 +399,10 @@ func l1ProcessContractEventsBridgeCrossDomainMessages(processLog log.Logger, db 
 
 	sentMessages := make([]*database.L1BridgeMessage, len(sentMessageEvents))
 	for i, sentMessageEvent := range sentMessageEvents {
-		log := events.eventLog[sentMessageEvent.RawEvent.GUID]
+		log := sentMessageEvent.RawEvent.GethLog
 
 		// extract the deposit hash from the previous TransactionDepositedEvent
-		transactionDepositedLog := events.eventLog[events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index - 1}].GUID]
+		transactionDepositedLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index - 1}].GethLog
 		depositTx, err := derive.UnmarshalDepositLogEvent(transactionDepositedLog)
 		if err != nil {
 			return err
@@ -479,10 +479,10 @@ func l1ProcessContractEventsStandardBridge(processLog log.Logger, db *database.D
 
 	deposits := make([]*database.L1BridgeDeposit, len(initiatedDepositEvents))
 	for i, initiatedBridgeEvent := range initiatedDepositEvents {
-		log := events.eventLog[initiatedBridgeEvent.RawEvent.GUID]
+		log := initiatedBridgeEvent.RawEvent.GethLog
 
 		// extract the deposit hash from the following TransactionDeposited event
-		transactionDepositedLog := events.eventLog[events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 1}].GUID]
+		transactionDepositedLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 1}].GethLog
 		depositTx, err := derive.UnmarshalDepositLogEvent(transactionDepositedLog)
 		if err != nil {
 			return err

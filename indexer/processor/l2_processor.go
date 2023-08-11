@@ -106,17 +106,8 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 		l2Headers := make([]*database.L2BlockHeader, len(headers))
 		l2HeaderMap := make(map[common.Hash]*types.Header)
 		for i, header := range headers {
-			blockHash := header.Hash()
-			l2Headers[i] = &database.L2BlockHeader{
-				BlockHeader: database.BlockHeader{
-					Hash:       blockHash,
-					ParentHash: header.ParentHash,
-					Number:     database.U256{Int: header.Number},
-					Timestamp:  header.Time,
-				},
-			}
-
-			l2HeaderMap[blockHash] = header
+			l2Headers[i] = &database.L2BlockHeader{BlockHeader: database.BlockHeaderFromGethHeader(header)}
+			l2HeaderMap[l2Headers[i].Hash] = header
 		}
 
 		/** Watch for Contract Events **/
@@ -255,10 +246,10 @@ func l2ProcessContractEventsBridgeCrossDomainMessages(processLog log.Logger, db 
 
 	sentMessages := make([]*database.L2BridgeMessage, len(sentMessageEvents))
 	for i, sentMessageEvent := range sentMessageEvents {
-		log := events.eventLog[sentMessageEvent.RawEvent.GUID]
+		log := sentMessageEvent.RawEvent.GethLog
 
 		// extract the withdrawal hash from the previous MessagePassed event
-		msgPassedLog := events.eventLog[events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index - 1}].GUID]
+		msgPassedLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index - 1}].GethLog
 		msgPassedEvent, err := l2ToL1MessagePasserABI.ParseMessagePassed(*msgPassedLog)
 		if err != nil {
 			return err
@@ -355,10 +346,10 @@ func l2ProcessContractEventsStandardBridge(processLog log.Logger, db *database.D
 
 	withdrawals := make([]*database.L2BridgeWithdrawal, len(initiatedWithdrawalEvents))
 	for i, initiatedBridgeEvent := range initiatedWithdrawalEvents {
-		log := events.eventLog[initiatedBridgeEvent.RawEvent.GUID]
+		log := initiatedBridgeEvent.RawEvent.GethLog
 
 		// extract the withdrawal hash from the following MessagePassed event
-		msgPassedLog := events.eventLog[events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 1}].GUID]
+		msgPassedLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 1}].GethLog
 		msgPassedEvent, err := l2ToL1MessagePasserABI.ParseMessagePassed(*msgPassedLog)
 		if err != nil {
 			return err

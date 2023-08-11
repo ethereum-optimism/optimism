@@ -3,8 +3,12 @@ package database
 import (
 	"database/sql/driver"
 	"errors"
+	"io"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/jackc/pgtype"
 )
 
@@ -13,7 +17,7 @@ var big10 = big.NewInt(10)
 
 var ErrU256Overflow = errors.New("number exceeds u256")
 var ErrU256ContainsDecimal = errors.New("number contains fractional digits")
-var ErrU256NotNull = errors.New("number cannot be null")
+var ErrU256Null = errors.New("number cannot be null")
 
 // U256 is a wrapper over big.Int that conforms to the database U256 numeric domain type
 type U256 struct {
@@ -30,7 +34,7 @@ func (u256 *U256) Scan(src interface{}) error {
 	} else if numeric.Exp < 0 {
 		return ErrU256ContainsDecimal
 	} else if numeric.Status == pgtype.Null {
-		return ErrU256NotNull
+		return ErrU256Null
 	}
 
 	// factor in the powers of 10
@@ -54,7 +58,7 @@ func (u256 *U256) Scan(src interface{}) error {
 func (u256 U256) Value() (driver.Value, error) {
 	// check bounds
 	if u256.Int == nil {
-		return nil, ErrU256NotNull
+		return nil, ErrU256Null
 	} else if u256.Int.Cmp(u256BigIntOverflow) >= 0 {
 		return nil, ErrU256Overflow
 	}
@@ -62,4 +66,30 @@ func (u256 U256) Value() (driver.Value, error) {
 	// simply encode as a numeric with no Exp set (non-decimal)
 	numeric := pgtype.Numeric{Int: u256.Int, Status: pgtype.Present}
 	return numeric.Value()
+}
+
+type GethHeader types.Header
+
+func (h *GethHeader) EncodeRLP(w io.Writer) error {
+	return types.NewBlockWithHeader((*types.Header)(h)).EncodeRLP(w)
+}
+
+func (h *GethHeader) DecodeRLP(s *rlp.Stream) error {
+	block := new(types.Block)
+	err := block.DecodeRLP(s)
+	if err != nil {
+		return err
+	}
+
+	header := block.Header()
+	*h = (GethHeader)(*header)
+	return nil
+}
+
+func (h *GethHeader) Header() *types.Header {
+	return (*types.Header)(h)
+}
+
+func (h *GethHeader) Hash() common.Hash {
+	return h.Header().Hash()
 }
