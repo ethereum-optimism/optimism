@@ -98,11 +98,11 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     /// @notice The block at which the op-node can start searching for logs from.
     uint256 public startBlock;
 
-    /// @custom:semver 1.4.1
+    /// @custom:semver 1.5.0
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
     ///         implementation, so set it to `address(0xdEaD)`
-    constructor() Semver(1, 4, 1) {
+    constructor() Semver(1, 5, 0) {
         initialize({
             _owner: address(0xdEaD),
             _overhead: 0,
