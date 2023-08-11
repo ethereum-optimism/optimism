@@ -4,15 +4,15 @@ import (
 	"context"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 // faultResponder implements the [Responder] interface to send onchain transactions.
@@ -26,7 +26,11 @@ type faultResponder struct {
 }
 
 // NewFaultResponder returns a new [faultResponder].
-func NewFaultResponder(logger log.Logger, txManagr txmgr.TxManager, fdgAddr common.Address) (*faultResponder, error) {
+func NewFaultResponder(
+	logger log.Logger,
+	txManagr txmgr.TxManager,
+	fdgAddr common.Address,
+) (*faultResponder, error) {
 	fdgAbi, err := bindings.FaultDisputeGameMetaData.GetAbi()
 	if err != nil {
 		return nil, err
@@ -40,7 +44,10 @@ func NewFaultResponder(logger log.Logger, txManagr txmgr.TxManager, fdgAddr comm
 }
 
 // buildFaultDefendData creates the transaction data for the Defend function.
-func (r *faultResponder) buildFaultDefendData(parentContractIndex int, pivot [32]byte) ([]byte, error) {
+func (r *faultResponder) buildFaultDefendData(
+	parentContractIndex int,
+	pivot [32]byte,
+) ([]byte, error) {
 	return r.fdgAbi.Pack(
 		"defend",
 		big.NewInt(int64(parentContractIndex)),
@@ -49,7 +56,10 @@ func (r *faultResponder) buildFaultDefendData(parentContractIndex int, pivot [32
 }
 
 // buildFaultAttackData creates the transaction data for the Attack function.
-func (r *faultResponder) buildFaultAttackData(parentContractIndex int, pivot [32]byte) ([]byte, error) {
+func (r *faultResponder) buildFaultAttackData(
+	parentContractIndex int,
+	pivot [32]byte,
+) ([]byte, error) {
 	return r.fdgAbi.Pack(
 		"attack",
 		big.NewInt(int64(parentContractIndex)),
@@ -79,18 +89,25 @@ func (r *faultResponder) BuildTx(ctx context.Context, response types.Claim) ([]b
 	}
 }
 
-// CanResolve determines if the resolve function on the fault dispute game contract
-// would succeed. Returns true if the game can be resolved, otherwise false.
-func (r *faultResponder) CanResolve(ctx context.Context) bool {
+// CallResolve determines if the resolve function on the fault dispute game contract
+// would succeed. Returns the game status if the call would succeed, errors otherwise.
+func (r *faultResponder) CallResolve(ctx context.Context) (uint8, error) {
 	txData, err := r.buildResolveData()
 	if err != nil {
-		return false
+		return 0, err
 	}
-	_, err = r.txMgr.Call(ctx, ethereum.CallMsg{
+	res, err := r.txMgr.Call(ctx, ethereum.CallMsg{
 		To:   &r.fdgAddr,
 		Data: txData,
 	}, nil)
-	return err == nil
+	if err != nil {
+		return 0, err
+	}
+	var status uint8
+	if err = r.fdgAbi.UnpackIntoInterface(&status, "resolve", res); err != nil {
+		return 0, err
+	}
+	return status, nil
 }
 
 // Resolve executes a resolve transaction to resolve a fault dispute game.

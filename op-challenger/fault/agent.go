@@ -5,15 +5,16 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/solver"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // Responder takes a response action & executes.
 // For full op-challenger this means executing the transaction on chain.
 type Responder interface {
-	CanResolve(ctx context.Context) bool
+	CallResolve(ctx context.Context) (uint8, error)
 	Resolve(ctx context.Context) error
 	Respond(ctx context.Context, response types.Claim) error
 	Step(ctx context.Context, stepData types.StepCallData) error
@@ -29,7 +30,15 @@ type Agent struct {
 	log                     log.Logger
 }
 
-func NewAgent(loader Loader, maxDepth int, trace types.TraceProvider, responder Responder, updater types.OracleUpdater, agreeWithProposedOutput bool, log log.Logger) *Agent {
+func NewAgent(
+	loader Loader,
+	maxDepth int,
+	trace types.TraceProvider,
+	responder Responder,
+	updater types.OracleUpdater,
+	agreeWithProposedOutput bool,
+	log log.Logger,
+) *Agent {
 	return &Agent{
 		solver:                  solver.NewSolver(maxDepth, trace),
 		loader:                  loader,
@@ -52,7 +61,8 @@ func (a *Agent) Act(ctx context.Context) error {
 	}
 	// Create counter claims
 	for _, claim := range game.Claims() {
-		if err := a.move(ctx, claim, game); err != nil && !errors.Is(err, types.ErrGameDepthReached) {
+		if err := a.move(ctx, claim, game); err != nil &&
+			!errors.Is(err, types.ErrGameDepthReached) {
 			log.Error("Failed to move", "err", err)
 		}
 	}
@@ -65,10 +75,27 @@ func (a *Agent) Act(ctx context.Context) error {
 	return nil
 }
 
+// ShouldResolve returns true if the agent should resolve the game.
+// This method will return false if the game is still in progress.
+func (a *Agent) ShouldResolve(ctx context.Context, status uint8) bool {
+	expected := types.GameStatusDefenderWon
+	if a.agreeWithProposedOutput {
+		expected = types.GameStatusChallengerWon
+	}
+	if expected != types.GameStatus(status) {
+		a.log.Warn("game status mismatch", "expected", expected, "actual", status)
+	}
+	return expected == types.GameStatus(status)
+}
+
 // tryResolve resolves the game if it is in a terminal state
 // and returns true if the game resolves successfully.
 func (a *Agent) tryResolve(ctx context.Context) bool {
-	if !a.responder.CanResolve(ctx) {
+	status, err := a.responder.CallResolve(ctx)
+	if err != nil {
+		return false
+	}
+	if !a.ShouldResolve(ctx, status) {
 		return false
 	}
 	a.log.Info("Resolving game")
@@ -106,9 +133,17 @@ func (a *Agent) move(ctx context.Context, claim types.Claim, game types.Game) er
 		return nil
 	}
 	move := *nextMove
-	log := a.log.New("is_defend", move.DefendsParent(), "depth", move.Depth(), "index_at_depth", move.IndexAtDepth(),
-		"value", move.Value, "trace_index", move.TraceIndex(a.maxDepth),
-		"parent_value", claim.Value, "parent_trace_index", claim.TraceIndex(a.maxDepth))
+
+	builder := NewLogBuilder()
+	builder.With("is_defend", move.DefendsParent())
+	builder.With("depth", move.Depth())
+	builder.With("index_at_depth", move.IndexAtDepth())
+	builder.With("value", move.Value)
+	builder.With("trace_index", move.TraceIndex(a.maxDepth))
+	builder.With("parent_value", claim.Value)
+	builder.With("parent_trace_index", claim.TraceIndex(a.maxDepth))
+	log := builder.Build()
+
 	if game.IsDuplicate(move) {
 		log.Debug("Skipping duplicate move")
 		return nil
@@ -125,12 +160,26 @@ func (a *Agent) step(ctx context.Context, claim types.Claim, game types.Game) er
 
 	agreeWithClaimLevel := game.AgreeWithClaimLevel(claim)
 	if agreeWithClaimLevel {
-		a.log.Debug("Agree with leaf claim, skipping step", "claim_depth", claim.Depth(), "maxDepth", a.maxDepth)
+		a.log.Debug(
+			"Agree with leaf claim, skipping step",
+			"claim_depth",
+			claim.Depth(),
+			"max_depth",
+			a.maxDepth,
+		)
 		return nil
 	}
 
 	if claim.Countered {
-		a.log.Debug("Step already executed against claim", "depth", claim.Depth(), "index_at_depth", claim.IndexAtDepth(), "value", claim.Value)
+		a.log.Debug(
+			"Step already executed against claim",
+			"depth",
+			claim.Depth(),
+			"index_at_depth",
+			claim.IndexAtDepth(),
+			"value",
+			claim.Value,
+		)
 		return nil
 	}
 
@@ -141,14 +190,29 @@ func (a *Agent) step(ctx context.Context, claim types.Claim, game types.Game) er
 	}
 
 	if step.OracleData != nil {
-		a.log.Info("Updating oracle data", "oracleKey", step.OracleData.OracleKey, "oracleData", step.OracleData.OracleData)
+		a.log.Info(
+			"Updating oracle data",
+			"oracle_key",
+			step.OracleData.OracleKey,
+			"oracle_data",
+			step.OracleData.OracleData,
+		)
 		if err := a.updater.UpdateOracle(ctx, step.OracleData); err != nil {
 			return fmt.Errorf("failed to load oracle data: %w", err)
 		}
 	}
 
-	a.log.Info("Performing step", "is_attack", step.IsAttack,
-		"depth", step.LeafClaim.Depth(), "index_at_depth", step.LeafClaim.IndexAtDepth(), "value", step.LeafClaim.Value)
+	a.log.Info(
+		"Performing step",
+		"is_attack",
+		step.IsAttack,
+		"depth",
+		step.LeafClaim.Depth(),
+		"index_at_depth",
+		step.LeafClaim.IndexAtDepth(),
+		"value",
+		step.LeafClaim.Value,
+	)
 	callData := types.StepCallData{
 		ClaimIndex: uint64(step.LeafClaim.ContractIndex),
 		IsAttack:   step.IsAttack,

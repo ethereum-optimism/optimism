@@ -5,6 +5,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
@@ -13,9 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // Service provides a clean interface for the challenger to interact
@@ -34,7 +35,12 @@ type service struct {
 
 // NewService creates a new Service.
 func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*service, error) {
-	txMgr, err := txmgr.NewSimpleTxManager("challenger", logger, &metrics.NoopTxMetrics{}, cfg.TxMgrConfig)
+	txMgr, err := txmgr.NewSimpleTxManager(
+		"challenger",
+		logger,
+		&metrics.NoopTxMetrics{},
+		cfg.TxMgrConfig,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the transaction manager: %w", err)
 	}
@@ -80,7 +86,17 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 }
 
 // newTypedService creates a new Service from a provided trace provider.
-func newTypedService(ctx context.Context, logger log.Logger, cfg *config.Config, loader Loader, gameDepth uint64, client *ethclient.Client, provider types.TraceProvider, updater types.OracleUpdater, txMgr txmgr.TxManager) (*service, error) {
+func newTypedService(
+	ctx context.Context,
+	logger log.Logger,
+	cfg *config.Config,
+	loader Loader,
+	gameDepth uint64,
+	client *ethclient.Client,
+	provider types.TraceProvider,
+	updater types.OracleUpdater,
+	txMgr txmgr.TxManager,
+) (*service, error) {
 	if err := ValidateAbsolutePrestate(ctx, provider, loader); err != nil {
 		return nil, fmt.Errorf("failed to validate absolute prestate: %w", err)
 	}
@@ -97,7 +113,15 @@ func newTypedService(ctx context.Context, logger log.Logger, cfg *config.Config,
 	}
 
 	return &service{
-		agent:                   NewAgent(loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, gameLogger),
+		agent: NewAgent(
+			loader,
+			int(gameDepth),
+			provider,
+			responder,
+			updater,
+			cfg.AgreeWithProposedOutput,
+			gameLogger,
+		),
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
 		caller:                  caller,
 		logger:                  gameLogger,
@@ -116,7 +140,9 @@ func ValidateAbsolutePrestate(ctx context.Context, trace types.TraceProvider, lo
 		return fmt.Errorf("failed to get the onchain absolute prestate: %w", err)
 	}
 	if !bytes.Equal(providerPrestateHash, onchainPrestate) {
-		return fmt.Errorf("trace provider's absolute prestate does not match onchain absolute prestate")
+		return fmt.Errorf(
+			"trace provider's absolute prestate does not match onchain absolute prestate",
+		)
 	}
 	return nil
 }

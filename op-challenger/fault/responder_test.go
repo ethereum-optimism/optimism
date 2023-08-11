@@ -6,22 +6,22 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 var (
 	mockFdgAddress = common.HexToAddress("0x1234")
 	mockSendError  = errors.New("mock send error")
+	mockCallError  = errors.New("mock call error")
 )
 
 type mockTxManager struct {
@@ -29,9 +29,14 @@ type mockTxManager struct {
 	sends     int
 	calls     int
 	sendFails bool
+	callFails bool
+	callBytes []byte
 }
 
-func (m *mockTxManager) Send(ctx context.Context, candidate txmgr.TxCandidate) (*ethtypes.Receipt, error) {
+func (m *mockTxManager) Send(
+	ctx context.Context,
+	candidate txmgr.TxCandidate,
+) (*ethtypes.Receipt, error) {
 	if m.sendFails {
 		return nil, mockSendError
 	}
@@ -44,11 +49,16 @@ func (m *mockTxManager) Send(ctx context.Context, candidate txmgr.TxCandidate) (
 }
 
 func (m *mockTxManager) Call(_ context.Context, _ ethereum.CallMsg, _ *big.Int) ([]byte, error) {
-	if m.sendFails {
-		return nil, mockSendError
+	if m.callFails {
+		return nil, mockCallError
 	}
 	m.calls++
-	return []byte{}, nil
+	if m.callBytes != nil {
+		return m.callBytes, nil
+	}
+	return common.Hex2Bytes(
+		"0000000000000000000000000000000000000000000000000000000000000000",
+	), nil
 }
 
 func (m *mockTxManager) BlockNumber(ctx context.Context) (uint64, error) {
@@ -59,55 +69,66 @@ func (m *mockTxManager) From() common.Address {
 	return m.from
 }
 
-func newTestFaultResponder(t *testing.T, sendFails bool) (*faultResponder, *mockTxManager) {
+func newTestFaultResponder(t *testing.T) (*faultResponder, *mockTxManager) {
 	log := testlog.Logger(t, log.LvlError)
 	mockTxMgr := &mockTxManager{}
-	mockTxMgr.sendFails = sendFails
 	responder, err := NewFaultResponder(log, mockTxMgr, mockFdgAddress)
 	require.NoError(t, err)
 	return responder, mockTxMgr
 }
 
-// TestResponder_CanResolve_CallFails tests the [Responder.CanResolve] method
-// bubbles up the error returned by the [txmgr.Call] method.
-func TestResponder_CanResolve_CallFails(t *testing.T) {
-	responder, mockTxMgr := newTestFaultResponder(t, true)
-	resolved := responder.CanResolve(context.Background())
-	require.False(t, resolved)
-	require.Equal(t, 0, mockTxMgr.sends)
+// TestResponder_CallResolve tests the [Responder.CallResolve].
+func TestResponder_CallResolve(t *testing.T) {
+	t.Run("SendFails", func(t *testing.T) {
+		responder, mockTxMgr := newTestFaultResponder(t)
+		mockTxMgr.callFails = true
+		status, err := responder.CallResolve(context.Background())
+		require.ErrorIs(t, err, mockCallError)
+		require.Equal(t, uint8(0), status)
+		require.Equal(t, 0, mockTxMgr.calls)
+	})
+
+	t.Run("UnpackFails", func(t *testing.T) {
+		responder, mockTxMgr := newTestFaultResponder(t)
+		mockTxMgr.callBytes = []byte{0x00, 0x01}
+		status, err := responder.CallResolve(context.Background())
+		require.Error(t, err)
+		require.Equal(t, uint8(0), status)
+		require.Equal(t, 1, mockTxMgr.calls)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		responder, mockTxMgr := newTestFaultResponder(t)
+		status, err := responder.CallResolve(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, uint8(0), status)
+		require.Equal(t, 1, mockTxMgr.calls)
+	})
 }
 
-// TestResponder_CanResolve_Success tests the [Responder.CanResolve] method
-// succeeds when the call message is successfully sent through the txmgr.
-func TestResponder_CanResolve_Success(t *testing.T) {
-	responder, mockTxMgr := newTestFaultResponder(t, false)
-	resolved := responder.CanResolve(context.Background())
-	require.True(t, resolved)
-	require.Equal(t, 1, mockTxMgr.calls)
-}
+// TestResponder_Resolve tests the [Responder.Resolve] method.
+func TestResponder_Resolve(t *testing.T) {
+	t.Run("SendFails", func(t *testing.T) {
+		responder, mockTxMgr := newTestFaultResponder(t)
+		mockTxMgr.sendFails = true
+		err := responder.Resolve(context.Background())
+		require.ErrorIs(t, err, mockSendError)
+		require.Equal(t, 0, mockTxMgr.sends)
+	})
 
-// TestResponder_Resolve_SendFails tests the [Responder.Resolve] method
-// bubbles up the error returned by the [txmgr.Send] method.
-func TestResponder_Resolve_SendFails(t *testing.T) {
-	responder, mockTxMgr := newTestFaultResponder(t, true)
-	err := responder.Resolve(context.Background())
-	require.ErrorIs(t, err, mockSendError)
-	require.Equal(t, 0, mockTxMgr.sends)
-}
-
-// TestResponder_Resolve_Success tests the [Responder.Resolve] method
-// succeeds when the tx candidate is successfully sent through the txmgr.
-func TestResponder_Resolve_Success(t *testing.T) {
-	responder, mockTxMgr := newTestFaultResponder(t, false)
-	err := responder.Resolve(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, 1, mockTxMgr.sends)
+	t.Run("Success", func(t *testing.T) {
+		responder, mockTxMgr := newTestFaultResponder(t)
+		err := responder.Resolve(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, 1, mockTxMgr.sends)
+	})
 }
 
 // TestResponder_Respond_SendFails tests the [Responder.Respond] method
 // bubbles up the error returned by the [txmgr.Send] method.
 func TestResponder_Respond_SendFails(t *testing.T) {
-	responder, mockTxMgr := newTestFaultResponder(t, true)
+	responder, mockTxMgr := newTestFaultResponder(t)
+	mockTxMgr.sendFails = true
 	err := responder.Respond(context.Background(), types.Claim{
 		ClaimData: types.ClaimData{
 			Value:    common.Hash{0x01},
@@ -127,7 +148,7 @@ func TestResponder_Respond_SendFails(t *testing.T) {
 // TestResponder_Respond_Success tests the [Responder.Respond] method
 // succeeds when the tx candidate is successfully sent through the txmgr.
 func TestResponder_Respond_Success(t *testing.T) {
-	responder, mockTxMgr := newTestFaultResponder(t, false)
+	responder, mockTxMgr := newTestFaultResponder(t)
 	err := responder.Respond(context.Background(), types.Claim{
 		ClaimData: types.ClaimData{
 			Value:    common.Hash{0x01},
@@ -147,7 +168,7 @@ func TestResponder_Respond_Success(t *testing.T) {
 // TestResponder_BuildTx_Attack tests the [Responder.BuildTx] method
 // returns a tx candidate with the correct data for an attack tx.
 func TestResponder_BuildTx_Attack(t *testing.T) {
-	responder, _ := newTestFaultResponder(t, false)
+	responder, _ := newTestFaultResponder(t)
 	responseClaim := types.Claim{
 		ClaimData: types.ClaimData{
 			Value:    common.Hash{0x01},
@@ -178,7 +199,7 @@ func TestResponder_BuildTx_Attack(t *testing.T) {
 // TestResponder_BuildTx_Defend tests the [Responder.BuildTx] method
 // returns a tx candidate with the correct data for a defend tx.
 func TestResponder_BuildTx_Defend(t *testing.T) {
-	responder, _ := newTestFaultResponder(t, false)
+	responder, _ := newTestFaultResponder(t)
 	responseClaim := types.Claim{
 		ClaimData: types.ClaimData{
 			Value:    common.Hash{0x01},
