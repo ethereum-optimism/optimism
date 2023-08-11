@@ -10,4 +10,10 @@ generate-mocks:
 .PHONY: \
 	test \
 	lint \
-	generate-mocks
+	generate-mocks \
+	fuzz
+
+fuzz:
+	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzExecutionPayloadUnmarshal ./eth
+	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzExecutionPayloadMarshalUnmarshal ./eth
+	go test -run NOTAREALTEST -v -fuzztime 10s -fuzz FuzzOBP01 ./eth
