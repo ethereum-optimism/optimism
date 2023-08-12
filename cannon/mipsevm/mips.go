@@ -289,7 +289,7 @@ func (m *InstrumentedState) mipsStep() error {
 		if opcode == 3 {
 			linkReg = 31
 		}
-		// Take top 4 bits of current PC (its 256 MB region), and concatenate with 26-bit offset
+		// Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
 		target := (m.state.NextPC & 0xF0000000) | ((insn & 0x03FFFFFF) << 2)
 		return m.handleJump(linkReg, target)
 	}

@@ -667,7 +667,7 @@ contract MIPS {
 
             // j-type j/jal
             if (opcode == 2 || opcode == 3) {
-                // Take top 4 bits of current PC (its 256 MB region), and concatenate with 26-bit offset
+                // Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
                 uint32 target = (state.nextPC & 0xF0000000) | (insn & 0x03FFFFFF) << 2;
                 return handleJump(opcode == 2 ? 0 : 31, target);
             }
