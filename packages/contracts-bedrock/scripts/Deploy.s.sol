@@ -64,31 +64,8 @@ contract Deploy is Deployer {
     function run() public {
         console.log("Deploying L1 system");
 
-        deployAddressManager();
-        deployProxyAdmin();
-
-        deployOptimismPortalProxy();
-        deployL2OutputOracleProxy();
-        deploySystemConfigProxy();
-        deployL1StandardBridgeProxy();
-        deployL1CrossDomainMessengerProxy();
-        deployOptimismMintableERC20FactoryProxy();
-        deployL1ERC721BridgeProxy();
-        deployDisputeGameFactoryProxy();
-
-        deployOptimismPortal();
-        deployL1CrossDomainMessenger();
-        deployL2OutputOracle();
-        deployOptimismMintableERC20Factory();
-        deploySystemConfig();
-        deployL1StandardBridge();
-        deployL1ERC721Bridge();
-        deployDisputeGameFactory();
-        deployBlockOracle();
-        deployPreimageOracle();
-        deployMips();
-
-        transferAddressManagerOwnership();
+        deployProxies();
+        deployImplementations();
 
         initializeDisputeGameFactory();
         initializeSystemConfig();
@@ -118,6 +95,38 @@ contract Deploy is Deployer {
         if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet) {
             _;
         }
+    }
+
+    /// @notice Deploy all of the proxies
+    function deployProxies() public {
+        deployAddressManager();
+        deployProxyAdmin();
+
+        deployOptimismPortalProxy();
+        deployL2OutputOracleProxy();
+        deploySystemConfigProxy();
+        deployL1StandardBridgeProxy();
+        deployL1CrossDomainMessengerProxy();
+        deployOptimismMintableERC20FactoryProxy();
+        deployL1ERC721BridgeProxy();
+        deployDisputeGameFactoryProxy();
+
+        transferAddressManagerOwnership();
+    }
+
+    /// @notice Deploy all of the implementations
+    function deployImplementations() public {
+        deployOptimismPortal();
+        deployL1CrossDomainMessenger();
+        deployL2OutputOracle();
+        deployOptimismMintableERC20Factory();
+        deploySystemConfig();
+        deployL1StandardBridge();
+        deployL1ERC721Bridge();
+        deployDisputeGameFactory();
+        deployBlockOracle();
+        deployPreimageOracle();
+        deployMips();
     }
 
     /// @notice Deploy the AddressManager
@@ -386,7 +395,6 @@ contract Deploy is Deployer {
     /// @notice Deploy the SystemConfig
     function deploySystemConfig() public broadcast returns (address addr_) {
         SystemConfig config = new SystemConfig();
-        bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
 
         require(config.owner() == address(0xdEaD));
         require(config.overhead() == 0);
@@ -409,7 +417,7 @@ contract Deploy is Deployer {
         require(config.optimismPortal() == address(0));
         require(config.l1CrossDomainMessenger() == address(0));
         require(config.optimismMintableERC20Factory() == address(0));
-        require(config.startBlock() == 0);
+        require(config.startBlock() == type(uint256).max);
 
         save("SystemConfig", address(config));
         console.log("SystemConfig deployed at %s", address(config));
@@ -481,6 +489,7 @@ contract Deploy is Deployer {
         address systemConfig = mustGetAddress("SystemConfig");
 
         bytes32 batcherHash = bytes32(uint256(uint160(cfg.batchSenderAddress())));
+        uint256 startBlock = cfg.systemConfigStartBlock();
 
         proxyAdmin.upgradeAndCall({
             _proxy: payable(systemConfigProxy),
@@ -495,7 +504,7 @@ contract Deploy is Deployer {
                     uint64(cfg.l2GenesisBlockGasLimit()),
                     cfg.p2pSequencerAddress(),
                     Constants.DEFAULT_RESOURCE_CONFIG(),
-                    cfg.systemConfigStartBlock(),
+                    startBlock,
                     cfg.batchInboxAddress(),
                     SystemConfig.Addresses({
                         l1CrossDomainMessenger: mustGetAddress("L1CrossDomainMessengerProxy"),
@@ -533,7 +542,13 @@ contract Deploy is Deployer {
         require(config.l2OutputOracle() == mustGetAddress("L2OutputOracleProxy"));
         require(config.optimismPortal() == mustGetAddress("OptimismPortalProxy"));
         require(config.l1CrossDomainMessenger() == mustGetAddress("L1CrossDomainMessengerProxy"));
-        require(config.startBlock() == cfg.systemConfigStartBlock());
+
+        // A non zero start block is an override
+        if (startBlock != 0) {
+            require(config.startBlock() == startBlock);
+        } else {
+            require(config.startBlock() == block.number);
+        }
     }
 
     /// @notice Initialize the L1StandardBridge

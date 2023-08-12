@@ -1,7 +1,6 @@
 package processor
 
 import (
-	"context"
 	"errors"
 	"math/big"
 
@@ -9,10 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 type OptimismPortalTransactionDepositEvent struct {
@@ -51,7 +47,7 @@ func OptimismPortalTransactionDepositEvents(events *ProcessedContractEvents) ([]
 	processedTxDepositedEvents := events.eventsBySignature[derive.DepositEventABIHash]
 	txDeposits := make([]OptimismPortalTransactionDepositEvent, len(processedTxDepositedEvents))
 	for i, txDepositEvent := range processedTxDepositedEvents {
-		log := events.eventLog[txDepositEvent.GUID]
+		log := txDepositEvent.GethLog
 
 		depositTx, err := derive.UnmarshalDepositLogEvent(log)
 		if err != nil {
@@ -59,12 +55,17 @@ func OptimismPortalTransactionDepositEvents(events *ProcessedContractEvents) ([]
 		}
 
 		var txDeposit bindings.OptimismPortalTransactionDeposited
+		txDeposit.Raw = *log
 		err = UnpackLog(&txDeposit, log, eventName, optimismPortalAbi)
 		if err != nil {
 			return nil, err
 		}
 
-		txDeposits[i] = OptimismPortalTransactionDepositEvent{&txDeposit, depositTx, txDepositEvent}
+		txDeposits[i] = OptimismPortalTransactionDepositEvent{
+			OptimismPortalTransactionDeposited: &txDeposit,
+			DepositTx:                          depositTx,
+			RawEvent:                           txDepositEvent,
+		}
 	}
 
 	return txDeposits, nil
@@ -80,15 +81,19 @@ func OptimismPortalWithdrawalProvenEvents(events *ProcessedContractEvents) ([]Op
 	processedWithdrawalProvenEvents := events.eventsBySignature[optimismPortalAbi.Events[eventName].ID]
 	provenEvents := make([]OptimismPortalWithdrawalProvenEvent, len(processedWithdrawalProvenEvents))
 	for i, provenEvent := range processedWithdrawalProvenEvents {
-		log := events.eventLog[provenEvent.GUID]
+		log := provenEvent.GethLog
 
 		var withdrawalProven bindings.OptimismPortalWithdrawalProven
+		withdrawalProven.Raw = *log
 		err := UnpackLog(&withdrawalProven, log, eventName, optimismPortalAbi)
 		if err != nil {
 			return nil, err
 		}
 
-		provenEvents[i] = OptimismPortalWithdrawalProvenEvent{&withdrawalProven, provenEvent}
+		provenEvents[i] = OptimismPortalWithdrawalProvenEvent{
+			OptimismPortalWithdrawalProven: &withdrawalProven,
+			RawEvent:                       provenEvent,
+		}
 	}
 
 	return provenEvents, nil
@@ -104,7 +109,7 @@ func OptimismPortalWithdrawalFinalizedEvents(events *ProcessedContractEvents) ([
 	processedWithdrawalFinalizedEvents := events.eventsBySignature[optimismPortalAbi.Events[eventName].ID]
 	finalizedEvents := make([]OptimismPortalWithdrawalFinalizedEvent, len(processedWithdrawalFinalizedEvents))
 	for i, finalizedEvent := range processedWithdrawalFinalizedEvents {
-		log := events.eventLog[finalizedEvent.GUID]
+		log := finalizedEvent.GethLog
 
 		var withdrawalFinalized bindings.OptimismPortalWithdrawalFinalized
 		err := UnpackLog(&withdrawalFinalized, log, eventName, optimismPortalAbi)
@@ -112,36 +117,11 @@ func OptimismPortalWithdrawalFinalizedEvents(events *ProcessedContractEvents) ([
 			return nil, err
 		}
 
-		finalizedEvents[i] = OptimismPortalWithdrawalFinalizedEvent{&withdrawalFinalized, finalizedEvent}
+		finalizedEvents[i] = OptimismPortalWithdrawalFinalizedEvent{
+			OptimismPortalWithdrawalFinalized: &withdrawalFinalized,
+			RawEvent:                          finalizedEvent,
+		}
 	}
 
 	return finalizedEvents, nil
-}
-
-func OptimismPortalQueryProvenWithdrawal(ethClient *ethclient.Client, portalAddress common.Address, withdrawalHash common.Hash) (OptimismPortalProvenWithdrawal, error) {
-	var provenWithdrawal OptimismPortalProvenWithdrawal
-
-	optimismPortalAbi, err := bindings.OptimismPortalMetaData.GetAbi()
-	if err != nil {
-		return provenWithdrawal, err
-	}
-
-	name := "provenWithdrawals"
-	txData, err := optimismPortalAbi.Pack(name, withdrawalHash)
-	if err != nil {
-		return provenWithdrawal, err
-	}
-
-	callMsg := ethereum.CallMsg{To: &portalAddress, Data: txData}
-	data, err := ethClient.CallContract(context.Background(), callMsg, nil)
-	if err != nil {
-		return provenWithdrawal, err
-	}
-
-	err = optimismPortalAbi.UnpackIntoInterface(&provenWithdrawal, name, data)
-	if err != nil {
-		return provenWithdrawal, err
-	}
-
-	return provenWithdrawal, nil
 }

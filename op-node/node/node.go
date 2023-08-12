@@ -76,32 +76,32 @@ func New(ctx context.Context, cfg *Config, log log.Logger, snapshotLog log.Logge
 
 func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) error {
 	if err := n.initTracer(ctx, cfg); err != nil {
-		return err
+		return fmt.Errorf("failed to init the trace: %w", err)
 	}
 	if err := n.initL1(ctx, cfg); err != nil {
-		return err
+		return fmt.Errorf("failed to init L1: %w", err)
 	}
 	if err := n.initRuntimeConfig(ctx, cfg); err != nil {
-		return err
+		return fmt.Errorf("failed to init the runtime config: %w", err)
 	}
 	if err := n.initL2(ctx, cfg, snapshotLog); err != nil {
-		return err
+		return fmt.Errorf("failed to init L2: %w", err)
 	}
 	if err := n.initRPCSync(ctx, cfg); err != nil {
-		return err
+		return fmt.Errorf("failed to init RPC sync: %w", err)
 	}
 	if err := n.initP2PSigner(ctx, cfg); err != nil {
-		return err
+		return fmt.Errorf("failed to init the P2P signer: %w", err)
 	}
 	if err := n.initP2P(ctx, cfg); err != nil {
-		return err
+		return fmt.Errorf("failed to init the P2P stack: %w", err)
 	}
 	// Only expose the server at the end, ensuring all RPC backend components are initialized.
 	if err := n.initRPCServer(ctx, cfg); err != nil {
-		return err
+		return fmt.Errorf("failed to init the RPC server: %w", err)
 	}
 	if err := n.initMetricsServer(ctx, cfg); err != nil {
-		return err
+		return fmt.Errorf("failed to init the metrics server: %w", err)
 	}
 	return nil
 }
@@ -128,7 +128,7 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 	}
 
 	if err := cfg.Rollup.ValidateL1Config(ctx, n.l1Source); err != nil {
-		return err
+		return fmt.Errorf("failed to validate the L1 config: %w", err)
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync

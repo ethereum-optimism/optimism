@@ -4,7 +4,6 @@ pragma solidity 0.8.19;
 import { EIP712 } from "@openzeppelin/contracts/utils/cryptography/draft-EIP712.sol";
 import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 
-// prettier-ignore
 import {
     AttestationRequest,
     AttestationRequestData,

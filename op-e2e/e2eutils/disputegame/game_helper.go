@@ -82,6 +82,16 @@ func (g *FaultGameHelper) WaitForClaim(ctx context.Context, predicate func(claim
 	g.require.NoError(err)
 }
 
+// getClaim retrieves the claim data for a specific index.
+// Note that it is deliberately not exported as tests should use WaitForClaim to avoid race conditions.
+func (g *FaultGameHelper) getClaim(ctx context.Context, claimIdx int64) ContractClaim {
+	claimData, err := g.game.ClaimData(&bind.CallOpts{Context: ctx}, big.NewInt(claimIdx))
+	if err != nil {
+		g.require.NoErrorf(err, "retrieve claim %v", claimIdx)
+	}
+	return claimData
+}
+
 func (g *FaultGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered bool) {
 	maxDepth := g.MaxDepth(ctx)
 	g.WaitForClaim(ctx, func(claim ContractClaim) bool {
@@ -121,4 +131,30 @@ func (g *FaultGameHelper) Attack(ctx context.Context, claimIdx int64, claim comm
 	g.require.NoError(err, "Attack transaction did not send")
 	_, err = utils.WaitReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err, "Attack transaction was not OK")
+}
+
+func (g *FaultGameHelper) Defend(ctx context.Context, claimIdx int64, claim common.Hash) {
+	tx, err := g.game.Defend(g.opts, big.NewInt(claimIdx), claim)
+	g.require.NoError(err, "Defend transaction did not send")
+	_, err = utils.WaitReceiptOK(ctx, g.client, tx.Hash())
+	g.require.NoError(err, "Defend transaction was not OK")
+}
+
+func (g *FaultGameHelper) LogGameData(ctx context.Context) {
+	opts := &bind.CallOpts{Context: ctx}
+	maxDepth := int(g.MaxDepth(ctx))
+	claimCount, err := g.game.ClaimDataLen(opts)
+	info := fmt.Sprintf("Claim count: %v\n", claimCount)
+	g.require.NoError(err, "Fetching claim count")
+	for i := int64(0); i < claimCount.Int64(); i++ {
+		claim, err := g.game.ClaimData(opts, big.NewInt(i))
+		g.require.NoErrorf(err, "Fetch claim %v", i)
+
+		pos := types.NewPositionFromGIndex(claim.Position.Uint64())
+		info = info + fmt.Sprintf("%v - Position: %v, Depth: %v, IndexAtDepth: %v Trace Index: %v, Value: %v, Countered: %v\n",
+			i, claim.Position.Int64(), pos.Depth(), pos.IndexAtDepth(), pos.TraceIndex(maxDepth), common.Hash(claim.Claim).Hex(), claim.Countered)
+	}
+	status, err := g.game.Status(opts)
+	g.require.NoError(err, "Load game status")
+	g.t.Logf("Game %v (%v):\n%v\n", g.addr, Status(status), info)
 }

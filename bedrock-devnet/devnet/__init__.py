@@ -9,7 +9,7 @@ import datetime
 import time
 import shutil
 import http.client
-import multiprocessing
+from multiprocessing import Process, Queue
 
 import devnet.log_setup
 
@@ -24,6 +24,26 @@ log = logging.getLogger()
 class Bunch:
     def __init__(self, **kwds):
         self.__dict__.update(kwds)
+
+class ChildProcess:
+    def __init__(self, func, *args):
+        self.errq = Queue()
+        self.process = Process(target=self._func, args=(func, args))
+
+    def _func(self, func, args):
+        try:
+            func(*args)
+        except Exception as e:
+            self.errq.put(str(e))
+
+    def start(self):
+        self.process.start()
+
+    def join(self):
+        self.process.join()
+
+    def get_error(self):
+        return self.errq.get() if not self.errq.empty() else None
 
 
 def main():
@@ -103,9 +123,12 @@ def devnet_l1_genesis(paths):
         '--verbosity', '4', '--gcmode', 'archive', '--dev.gaslimit', '30000000'
     ])
 
-    forge = multiprocessing.Process(target=deploy_contracts, args=(paths,))
+    forge = ChildProcess(deploy_contracts, paths)
     forge.start()
     forge.join()
+    err = forge.get_error()
+    if err:
+        raise Exception(f"Exception occurred in child process: {err}")
 
     res = debug_dumpBlock('127.0.0.1:8545')
     response = json.loads(res)

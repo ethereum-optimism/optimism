@@ -11,7 +11,7 @@ remappings = [
   '@rari-capital/solmate/=lib/solmate',
   "@cwia/=lib/clones-with-immutable-args/src",
   'forge-std/=lib/forge-std/src',
-  'ds-test/=lib/ds-test/src'
+  'ds-test/=lib/forge-std/lib/ds-test/src'
 ]
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
 bytecode_hash = 'none'
@@ -21,12 +21,12 @@ ffi = true
 fuzz_runs = 16
 
 fs_permissions = [
-  { 'access'='read-write', 'path'='./.resource-metering.csv' },
-  { 'access'='read-write', 'path'='./deployments/' },
-  { 'access'='read', 'path'='./deploy-config/' },
-  { 'access'='read', 'path'='./broadcast/' },
-  { access = 'read', path = './forge-artifacts/' },
-  { 'access'='write', 'path'='./semver-lock.json' },
+  { access='read-write', path='./.resource-metering.csv' },
+  { access='read-write', path='./deployments/' },
+  { access='read', path='./deploy-config/' },
+  { access='read', path='./broadcast/' },
+  { access='read', path = './forge-artifacts/' },
+  { access='write', path='./semver-lock.json' },
 ]
 
 [fmt]

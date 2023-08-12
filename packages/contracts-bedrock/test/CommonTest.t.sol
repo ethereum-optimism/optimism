@@ -678,6 +678,38 @@ contract FFIInterface is Test {
 
         return abi.decode(vm.ffi(cmds), (bytes32, bytes, bytes, bytes[]));
     }
+
+    function getCannonMemoryProof(uint32 pc, uint32 insn) external returns (bytes32, bytes memory) {
+        string[] memory cmds = new string[](4);
+        cmds[0] = "scripts/differential-testing/differential-testing";
+        cmds[1] = "cannonMemoryProof";
+        cmds[2] = vm.toString(pc);
+        cmds[3] = vm.toString(insn);
+        bytes memory result = vm.ffi(cmds);
+        (bytes32 memRoot, bytes memory proof) = abi.decode(result, (bytes32, bytes));
+        return (memRoot, proof);
+    }
+
+    function getCannonMemoryProof(
+        uint32 pc,
+        uint32 insn,
+        uint32 memAddr,
+        uint32 memVal
+    )
+        external
+        returns (bytes32, bytes memory)
+    {
+        string[] memory cmds = new string[](6);
+        cmds[0] = "scripts/differential-testing/differential-testing";
+        cmds[1] = "cannonMemoryProof";
+        cmds[2] = vm.toString(pc);
+        cmds[3] = vm.toString(insn);
+        cmds[4] = vm.toString(memAddr);
+        cmds[5] = vm.toString(memVal);
+        bytes memory result = vm.ffi(cmds);
+        (bytes32 memRoot, bytes memory proof) = abi.decode(result, (bytes32, bytes));
+        return (memRoot, proof);
+    }
 }
 
 // Used for testing a future upgrade beyond the current implementations.

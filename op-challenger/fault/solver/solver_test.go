@@ -113,9 +113,6 @@ func TestAttemptStep(t *testing.T) {
 
 	ctx := context.Background()
 
-	preState, err := builder.CorrectTraceProvider().AbsolutePreState(ctx)
-	require.NoError(t, err)
-
 	tests := []struct {
 		name               string
 		claim              types.Claim
@@ -124,63 +121,55 @@ func TestAttemptStep(t *testing.T) {
 		expectAttack       bool
 		expectPreState     []byte
 		expectProofData    []byte
-		expectedLocal      bool
-		expectedOracleKey  []byte
-		expectedOracleData []byte
+		expectedOracleData *types.PreimageOracleData
 	}{
 		{
 			name:               "AttackFirstTraceIndex",
 			claim:              builder.CreateLeafClaim(0, false),
 			expectAttack:       true,
-			expectPreState:     preState,
-			expectProofData:    nil,
-			expectedOracleKey:  []byte{byte(0)},
-			expectedOracleData: []byte{byte(0)},
+			expectPreState:     builder.CorrectPreState(0),
+			expectProofData:    builder.CorrectProofData(0),
+			expectedOracleData: builder.CorrectOracleData(0),
 		},
 		{
 			name:               "DefendFirstTraceIndex",
 			claim:              builder.CreateLeafClaim(0, true),
 			expectAttack:       false,
-			expectPreState:     builder.CorrectPreState(0),
-			expectProofData:    builder.CorrectProofData(0),
-			expectedOracleKey:  []byte{byte(0)},
-			expectedOracleData: []byte{byte(0)},
+			expectPreState:     builder.CorrectPreState(1),
+			expectProofData:    builder.CorrectProofData(1),
+			expectedOracleData: builder.CorrectOracleData(1),
 		},
 		{
 			name:               "AttackMiddleTraceIndex",
 			claim:              builder.CreateLeafClaim(4, false),
 			expectAttack:       true,
-			expectPreState:     builder.CorrectPreState(3),
-			expectProofData:    builder.CorrectProofData(3),
-			expectedOracleKey:  []byte{byte(3)},
-			expectedOracleData: []byte{byte(3)},
+			expectPreState:     builder.CorrectPreState(4),
+			expectProofData:    builder.CorrectProofData(4),
+			expectedOracleData: builder.CorrectOracleData(4),
 		},
 		{
 			name:               "DefendMiddleTraceIndex",
 			claim:              builder.CreateLeafClaim(4, true),
 			expectAttack:       false,
-			expectPreState:     builder.CorrectPreState(4),
-			expectProofData:    builder.CorrectProofData(4),
-			expectedOracleKey:  []byte{byte(4)},
-			expectedOracleData: []byte{byte(4)},
+			expectPreState:     builder.CorrectPreState(5),
+			expectProofData:    builder.CorrectProofData(5),
+			expectedOracleData: builder.CorrectOracleData(5),
 		},
 		{
 			name:               "AttackLastTraceIndex",
 			claim:              builder.CreateLeafClaim(lastLeafTraceIndex, false),
 			expectAttack:       true,
-			expectPreState:     builder.CorrectPreState(lastLeafTraceIndex - 1),
-			expectProofData:    builder.CorrectProofData(lastLeafTraceIndex - 1),
-			expectedOracleKey:  []byte{byte(5)},
-			expectedOracleData: []byte{byte(5)},
+			expectPreState:     builder.CorrectPreState(lastLeafTraceIndex),
+			expectProofData:    builder.CorrectProofData(lastLeafTraceIndex),
+			expectedOracleData: builder.CorrectOracleData(lastLeafTraceIndex),
 		},
 		{
 			name:               "DefendLastTraceIndex",
 			claim:              builder.CreateLeafClaim(lastLeafTraceIndex, true),
 			expectAttack:       false,
-			expectPreState:     builder.CorrectPreState(lastLeafTraceIndex),
-			expectProofData:    builder.CorrectProofData(lastLeafTraceIndex),
-			expectedOracleKey:  []byte{byte(6)},
-			expectedOracleData: []byte{byte(6)},
+			expectPreState:     builder.CorrectPreState(lastLeafTraceIndex + 1),
+			expectProofData:    builder.CorrectProofData(lastLeafTraceIndex + 1),
+			expectedOracleData: builder.CorrectOracleData(lastLeafTraceIndex + 1),
 		},
 		{
 			name:        "CannotStepNonLeaf",
@@ -198,24 +187,6 @@ func TestAttemptStep(t *testing.T) {
 			claim:          builder.Seq(false).Attack(false).Get(),
 			agreeWithLevel: true,
 			expectedErr:    solver.ErrStepNonLeafNode,
-		},
-		{
-			name:               "AttackLocalOracleData",
-			claim:              builder.Seq(false).Attack(false).Attack(true).Defend(false).Get(),
-			expectAttack:       true,
-			agreeWithLevel:     false,
-			expectPreState:     builder.CorrectPreState(1),
-			expectProofData:    builder.CorrectProofData(1),
-			expectedLocal:      true,
-			expectedOracleKey:  []byte{0x01},
-			expectedOracleData: []byte{0x01},
-			expectedErr:        nil,
-		},
-		{
-			name:           "AttackStepOracleError",
-			claim:          builder.Seq(false).Attack(false).Attack(false).Attack(false).Get(),
-			agreeWithLevel: false,
-			expectedErr:    errProvider,
 		},
 	}
 
@@ -235,9 +206,10 @@ func TestAttemptStep(t *testing.T) {
 				require.Equal(t, tableTest.expectAttack, step.IsAttack)
 				require.Equal(t, tableTest.expectPreState, step.PreState)
 				require.Equal(t, tableTest.expectProofData, step.ProofData)
-				require.Equal(t, tableTest.expectedLocal, step.OracleData.IsLocal)
-				require.Equal(t, tableTest.expectedOracleKey, step.OracleData.OracleKey)
-				require.Equal(t, tableTest.expectedOracleData, step.OracleData.OracleData)
+				require.Equal(t, tableTest.expectedOracleData.IsLocal, step.OracleData.IsLocal)
+				require.Equal(t, tableTest.expectedOracleData.OracleKey, step.OracleData.OracleKey)
+				require.Equal(t, tableTest.expectedOracleData.OracleData, step.OracleData.OracleData)
+				require.Equal(t, tableTest.expectedOracleData.OracleOffset, step.OracleData.OracleOffset)
 			} else {
 				require.ErrorIs(t, err, tableTest.expectedErr)
 				require.Equal(t, solver.StepData{}, step)

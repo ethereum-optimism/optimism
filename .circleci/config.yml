@@ -524,7 +524,7 @@ jobs:
   op-bindings-build:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: medium
+    resource_class: large
     steps:
       - checkout
       - run:
@@ -885,6 +885,7 @@ jobs:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
       - image: cimg/postgres:14.1
+    resource_class: large
     steps:
       - checkout
       - check-changed:
@@ -911,7 +912,7 @@ jobs:
           name: Test
           command: |
             mkdir -p /test-results
-            DB_USER=postgres gotestsum --junitfile /test-results/tests.xml
+            DB_USER=postgres gotestsum --junitfile /test-results/tests.xml -- -parallel=4 ./...
           working_directory: indexer
       - run:
           name: Build

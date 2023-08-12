@@ -3,8 +3,6 @@ package client
 import (
 	"context"
 	"fmt"
-	"net"
-	"net/url"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
@@ -53,7 +51,7 @@ func DialRollupClientWithTimeout(timeout time.Duration, log log.Logger, url stri
 func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string) (*rpc.Client, error) {
 	bOff := backoff.Fixed(defaultRetryTime)
 	return backoff.Do(ctx, defaultRetryCount, bOff, func() (*rpc.Client, error) {
-		if !IsURLAvailable(addr) {
+		if !client.IsURLAvailable(addr) {
 			log.Warn("failed to dial address, but may connect later", "addr", addr)
 			return nil, fmt.Errorf("address unavailable (%s)", addr)
 		}
@@ -63,17 +61,4 @@ func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string) 
 		}
 		return client, nil
 	})
-}
-
-func IsURLAvailable(address string) bool {
-	u, err := url.Parse(address)
-	if err != nil {
-		return false
-	}
-	conn, err := net.DialTimeout("tcp", u.Host, 5*time.Second)
-	if err != nil {
-		return false
-	}
-	conn.Close()
-	return true
 }

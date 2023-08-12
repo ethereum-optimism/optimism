@@ -49,7 +49,7 @@ type CrossDomainMessengerRelayedMessageEvent struct {
 }
 
 func CrossDomainMessengerSentMessageEvents(events *ProcessedContractEvents) ([]CrossDomainMessengerSentMessageEvent, error) {
-	crossDomainMessengerABI, err := bindings.L1CrossDomainMessengerMetaData.GetAbi()
+	crossDomainMessengerABI, err := bindings.CrossDomainMessengerMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
@@ -60,16 +60,18 @@ func CrossDomainMessengerSentMessageEvents(events *ProcessedContractEvents) ([]C
 	processedSentMessageEvents := events.eventsBySignature[sentMessageEventAbi.ID]
 	crossDomainMessageEvents := make([]CrossDomainMessengerSentMessageEvent, len(processedSentMessageEvents))
 	for i, sentMessageEvent := range processedSentMessageEvents {
-		log := events.eventLog[sentMessageEvent.GUID]
+		log := sentMessageEvent.GethLog
 
 		var sentMsgData bindings.CrossDomainMessengerSentMessage
+		sentMsgData.Raw = *log
 		err = UnpackLog(&sentMsgData, log, sentMessageEventAbi.Name, crossDomainMessengerABI)
 		if err != nil {
 			return nil, err
 		}
 
 		var sentMsgExtensionData bindings.CrossDomainMessengerSentMessageExtension1
-		extensionLog := events.eventLog[events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 1}].GUID]
+		extensionLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 1}].GethLog
+		sentMsgExtensionData.Raw = *extensionLog
 		err = UnpackLog(&sentMsgExtensionData, extensionLog, sentMessageEventExtensionAbi.Name, crossDomainMessengerABI)
 		if err != nil {
 			return nil, err
@@ -101,15 +103,19 @@ func CrossDomainMessengerRelayedMessageEvents(events *ProcessedContractEvents) (
 	processedRelayedMessageEvents := events.eventsBySignature[relayedMessageEventAbi.ID]
 	crossDomainMessageEvents := make([]CrossDomainMessengerRelayedMessageEvent, len(processedRelayedMessageEvents))
 	for i, relayedMessageEvent := range processedRelayedMessageEvents {
-		log := events.eventLog[relayedMessageEvent.GUID]
+		log := relayedMessageEvent.GethLog
 
 		var relayedMsgData bindings.CrossDomainMessengerRelayedMessage
+		relayedMsgData.Raw = *log
 		err = UnpackLog(&relayedMsgData, log, relayedMessageEventAbi.Name, crossDomainMessengerABI)
 		if err != nil {
 			return nil, err
 		}
 
-		crossDomainMessageEvents[i] = CrossDomainMessengerRelayedMessageEvent{&relayedMsgData, relayedMessageEvent}
+		crossDomainMessageEvents[i] = CrossDomainMessengerRelayedMessageEvent{
+			CrossDomainMessengerRelayedMessage: &relayedMsgData,
+			RawEvent:                           relayedMessageEvent,
+		}
 	}
 
 	return crossDomainMessageEvents, nil
