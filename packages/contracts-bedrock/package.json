@@ -27,7 +27,7 @@
     "validate-spacers": "pnpm build && npx ts-node scripts/validate-spacers.ts",
     "slither": "./scripts/slither.sh",
     "slither:triage": "TRIAGE_MODE=1 ./scripts/slither.sh",
-    "clean": "rm -rf ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./tsconfig.build.tsbuildinfo ./test-case-generator/fuzz ./scripts/differential-testing",
+    "clean": "rm -rf ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./tsconfig.build.tsbuildinfo ./test-case-generator/fuzz ./scripts/differential-testing/differential-testing",
     "preinstall": "npx only-allow pnpm",
     "lint:ts:check": "eslint . --max-warnings=0",
     "lint:forge-tests:check": "ts-node scripts/forge-test-names.ts",
