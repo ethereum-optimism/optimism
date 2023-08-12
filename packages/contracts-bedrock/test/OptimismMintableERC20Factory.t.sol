@@ -42,7 +42,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         L2TokenFactory.createStandardL2Token(remote, "Beep", "BOOP");
     }
 
-    function test_createStandardL2Token_remoteIsZero_succeeds() external {
+    function test_createStandardL2Token_remoteIsZero_reverts() external {
         address remote = address(0);
         vm.expectRevert("OptimismMintableERC20Factory: must provide remote token address");
         L2TokenFactory.createStandardL2Token(remote, "Beep", "BOOP");
