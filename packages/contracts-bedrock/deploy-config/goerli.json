@@ -5,6 +5,7 @@
   "l1ChainID": 5,
   "l2ChainID": 420,
   "l2BlockTime": 2,
+  "l1BlockTime": 12,
   "maxSequencerDrift": 600,
   "sequencerWindowSize": 3600,
   "channelTimeout": 300,
@@ -36,5 +37,6 @@
   "l2GenesisBlockGasLimit": "0x17D7840",
   "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
   "eip1559Denominator": 50,
-  "eip1559Elasticity": 10
+  "eip1559Elasticity": 10,
+  "systemConfigStartBlock": 8901153
 }
