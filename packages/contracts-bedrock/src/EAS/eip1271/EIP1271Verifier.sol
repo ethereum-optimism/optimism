@@ -101,9 +101,7 @@ abstract contract EIP1271Verifier is EIP712 {
         );
         if (
             !SignatureChecker.isValidSignatureNow(
-                request.attester,
-                hash,
-                abi.encodePacked(signature.r, signature.s, signature.v)
+                request.attester, hash, abi.encodePacked(signature.r, signature.s, signature.v)
             )
         ) {
             revert InvalidSignature();
@@ -124,9 +122,7 @@ abstract contract EIP1271Verifier is EIP712 {
         bytes32 hash = _hashTypedDataV4(keccak256(abi.encode(REVOKE_TYPEHASH, request.schema, data.uid, nonce)));
         if (
             !SignatureChecker.isValidSignatureNow(
-                request.revoker,
-                hash,
-                abi.encodePacked(signature.r, signature.s, signature.v)
+                request.revoker, hash, abi.encodePacked(signature.r, signature.s, signature.v)
             )
         ) {
             revert InvalidSignature();
