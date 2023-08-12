@@ -125,6 +125,7 @@ l1_bridge_deposits.*,
 l1_contract_events.transaction_hash AS l1_transaction_hash,
 l1_transaction_deposits.l2_transaction_hash`)
 
+	// TODO join with l1_tokens and l2_tokens
 	depositsQuery = depositsQuery.Joins("INNER JOIN l1_transaction_deposits ON l1_bridge_deposits.transaction_source_hash = l1_transaction_deposits.source_hash")
 	depositsQuery = depositsQuery.Joins("INNER JOIN l1_contract_events ON l1_transaction_deposits.initiated_l1_event_guid = l1_contract_events.guid")
 

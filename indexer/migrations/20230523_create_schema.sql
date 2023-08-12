@@ -3,6 +3,12 @@ CREATE DOMAIN UINT256 AS NUMERIC
     CHECK (VALUE >= 0 AND VALUE < 2^256 and SCALE(VALUE) = 0);
 
 /**
+ * CHAIN DATA - data indexed directly from chain
+ * In future we should rarely if ever need to resync this as the
+ * schema should never change
+ */
+
+/**
  * BLOCK DATA
  */
 
@@ -81,8 +87,40 @@ CREATE TABLE IF NOT EXISTS output_proposals (
 );
 
 /**
+ * Derived data
+ * These schemas may change and need to resync
+ * We should consider syncing this from the CHAIN data instead of directly
+ * from the processor
+ */
+
+/**
  * BRIDGING DATA
  */
+
+ /**
+ * TOKEN DATA
+ */
+
+-- L1 Token table
+CREATE TABLE IF NOT EXISTS l1_tokens (
+    token_address   VARCHAR PRIMARY KEY,
+    name            VARCHAR NOT NULL,
+    symbol          VARCHAR NOT NULL,
+    decimals        INTEGER NOT NULL CHECK (decimals >= 0 AND decimals <= 18),
+    bridge_address  VARCHAR NOT NULL,
+    l2_token_address VARCHAR NOT NULL
+);
+
+-- L2 Token table
+CREATE TABLE IF NOT EXISTS l2_tokens (
+    token_address   VARCHAR PRIMARY KEY,
+    name            VARCHAR NOT NULL,
+    symbol          VARCHAR NOT NULL,
+    decimals        INTEGER NOT NULL CHECK (decimals >= 0 AND decimals <= 18),
+    l1_token_address VARCHAR REFERENCES l1_tokens(token_address),
+    bridge_address  VARCHAR NOT NULL
+);
+
 
 -- OptimismPortal/L2ToL1MessagePasser
 CREATE TABLE IF NOT EXISTS l1_transaction_deposits (
@@ -170,8 +208,8 @@ CREATE TABLE IF NOT EXISTS l1_bridge_deposits (
     -- Deposit information
 	from_address     VARCHAR NOT NULL,
 	to_address       VARCHAR NOT NULL,
-	l1_token_address VARCHAR NOT NULL,
-	l2_token_address VARCHAR NOT NULL,
+    l1_token_address VARCHAR NOT NULL, -- REFERENCES l1_tokens(token_address), uncomment me in future pr
+    l2_token_address VARCHAR NOT NULL, -- REFERENCES l2_tokens(token_address), uncomment me in future pr
 	amount           UINT256 NOT NULL,
 	data             VARCHAR NOT NULL,
     timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
@@ -186,8 +224,8 @@ CREATE TABLE IF NOT EXISTS l2_bridge_withdrawals (
     -- Withdrawal information
 	from_address     VARCHAR NOT NULL,
 	to_address       VARCHAR NOT NULL,
-	l1_token_address VARCHAR NOT NULL,
-	l2_token_address VARCHAR NOT NULL,
+    l1_token_address VARCHAR NOT NULL, -- REFERENCES l1_tokens(token_address), uncomment me in future pr
+    l2_token_address VARCHAR NOT NULL, -- REFERENCES l2_tokens(token_address), uncomment me in future pr
 	amount           UINT256 NOT NULL,
 	data             VARCHAR NOT NULL,
     timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
