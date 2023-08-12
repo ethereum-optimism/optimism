@@ -84,6 +84,6 @@ contract OptimismMintableERC721Factory_Test is ERC721Bridge_Initializer {
         bytes memory bytecode = abi.encodePacked(type(OptimismMintableERC721).creationCode, constructorArgs);
         bytes32 salt = keccak256(abi.encode(_remote, _name, _symbol));
         bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(factory), salt, keccak256(bytecode)));
-        return address(uint160(uint(hash)));
+        return address(uint160(uint256(hash)));
     }
 }
