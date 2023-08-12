@@ -70,7 +70,8 @@ contract OptimismMintableERC20Factory is Semver {
     {
         require(_remoteToken != address(0), "OptimismMintableERC20Factory: must provide remote token address");
 
-        address localToken = address(new OptimismMintableERC20(BRIDGE, _remoteToken, _name, _symbol));
+        bytes32 salt = keccak256(abi.encode(_remoteToken, _name, _symbol));
+        address localToken = address(new OptimismMintableERC20{salt: salt}(BRIDGE, _remoteToken, _name, _symbol));
 
         // Emit the old event too for legacy support.
         emit StandardL2TokenCreated(_remoteToken, localToken);
