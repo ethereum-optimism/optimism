@@ -53,11 +53,17 @@ contract MIPS {
     uint32 constant EINVAL = 0x16;
 
     /// @notice The preimage oracle contract.
-    IPreimageOracle public oracle;
+    IPreimageOracle internal immutable ORACLE;
 
     /// @param _oracle The address of the preimage oracle contract.
     constructor(IPreimageOracle _oracle) {
-        oracle = _oracle;
+        ORACLE = _oracle;
+    }
+
+    /// @notice Getter for the pre-image oracle contract.
+    /// @return oracle_ The IPreimageOracle contract.
+    function oracle() external view returns (IPreimageOracle oracle_) {
+        oracle_ = ORACLE;
     }
 
     /// @notice Extends the value leftwards with its most significant bit (sign extension).
@@ -179,7 +185,7 @@ contract MIPS {
                     if (uint8(preimageKey[0]) == 1) {
                         preimageKey = PreimageKeyLib.localize(preimageKey);
                     }
-                    (bytes32 dat, uint256 datLen) = oracle.readPreimage(preimageKey, state.preimageOffset);
+                    (bytes32 dat, uint256 datLen) = ORACLE.readPreimage(preimageKey, state.preimageOffset);
 
                     // Transform data for writing to memory
                     // We use assembly for more precise ops, and no var count limit
