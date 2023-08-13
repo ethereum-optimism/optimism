@@ -40,7 +40,9 @@ func newDepositResponse(deposits []*database.L1BridgeDepositWithTransactionHashe
 
 			},
 			Tx: Transaction{
-				TransactionHash: "0x420", // TODO
+				// BlockNumber:     420420,  // TODO
+				// BlockHash:       "0x420", // TODO
+				TransactionHash: deposit.L1TransactionHash.String(), // TODO
 				Timestamp:       deposit.L1BridgeDeposit.Tx.Timestamp,
 			},
 			From:   deposit.L1BridgeDeposit.Tx.FromAddress.String(),

@@ -53,7 +53,7 @@ func newWithdrawalResponse(withdrawals []*database.L2BridgeWithdrawalWithTransac
 
 			},
 			Tx: Transaction{
-				TransactionHash: "0x420", // TODO
+				TransactionHash: withdrawal.L2TransactionHash.String(),
 				Timestamp:       withdrawal.L2BridgeWithdrawal.Tx.Timestamp,
 			},
 			From:            withdrawal.L2BridgeWithdrawal.Tx.FromAddress.String(),
