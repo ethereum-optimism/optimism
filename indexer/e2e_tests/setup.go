@@ -13,10 +13,10 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
-	"github.com/ethereum-optimism/optimism/indexer/processor"
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	op_log "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -59,7 +59,10 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 
 	// Indexer Configuration and Start
 	indexerCfg := config.Config{
-		Logger: logger,
+
+		Logger: op_log.CLIConfig{
+			Level: "warn",
+		},
 		DB: config.DBConfig{
 			Host: "127.0.0.1",
 			Port: 5432,
@@ -71,7 +74,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 			L2RPC: opSys.Nodes["sequencer"].HTTPEndpoint(),
 		},
 		Chain: config.ChainConfig{
-			L1Contracts: processor.L1Contracts{
+			L1Contracts: config.L1Contracts{
 				OptimismPortal:         opCfg.L1Deployments.OptimismPortalProxy,
 				L2OutputOracle:         opCfg.L1Deployments.L2OutputOracleProxy,
 				L1CrossDomainMessenger: opCfg.L1Deployments.L1CrossDomainMessengerProxy,
@@ -81,9 +84,14 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 		},
 	}
 
-	db, err := database.NewDB(fmt.Sprintf("postgres://%s@localhost:5432/%s?sslmode=disable", dbUser, dbName))
+	db, err := database.NewDB(indexerCfg.DB)
 	require.NoError(t, err)
-	indexer, err := indexer.NewIndexer(indexerCfg)
+	indexer, err := indexer.NewIndexer(
+		indexerCfg.Chain,
+		indexerCfg.RPCs,
+		db,
+		logger,
+	)
 	require.NoError(t, err)
 
 	indexerStoppedCh := make(chan interface{}, 1)
