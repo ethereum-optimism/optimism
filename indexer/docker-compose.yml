@@ -98,5 +98,121 @@ services:
       postgres:
         condition: service_healthy
 
+  gateway-frontend:
+    command: pnpm nx start @gateway/frontend --host 0.0.0.0 --port 5173
+    # Change tag to `latest` after https://github.com/ethereum-optimism/gateway/pull/2541 merges
+    image: ethereumoptimism/gateway-frontend:0687c408e4f85cbe81acf7a197e861df8c7282df
+    ports:
+      - 5173:5173
+    healthcheck:
+      test: curl http://0.0.0.0:5173
+    environment:
+      - VITE_GROWTHBOOK=${VITE_GROWTHBOOK:-https://cdn.growthbook.io/api/features/dev_iGoAbSwtGOtEJONeHdVTosV0BD3TvTPttAccGyRxqsk}
+      - VITE_ENABLE_DEVNET=true
+      - VITE_RPC_URL_ETHEREUM_MAINNET=$VITE_RPC_URL_ETHEREUM_MAINNET
+      - VITE_RPC_URL_ETHEREUM_OPTIMISM_MAINNET=$VITE_RPC_URL_OPTIMISM_MAINNET
+      - VITE_RPC_URL_ETHEREUM_GOERLI=$VITE_RPC_URL_ETHEREUM_GOERLI
+      - VITE_RPC_URL_ETHEREUM_OPTIMISM_GOERLI=$VITE_RPC_URL_OPTIMISM_GOERLI
+      - VITE_BACKEND_URL_MAINNET=http://localhost:7421
+      - VITE_BACKEND_URL_GOERLI=http://localhost:7422
+      - VITE_ENABLE_ALL_FEATURES=true
+
+  backend-mainnet:
+    image: ethereumoptimism/gateway-backend:latest
+    environment:
+      # this enables the backend to proxy history requests to the indexer
+      - BRIDGE_INDEXER_URI=http://api
+      - HOST=0.0.0.0
+      - PORT=7300
+      - MIGRATE_APP_DB_USER=${MIGRATE_APP_DB_USER:-postgres}
+      - MIGRATE_APP_DB_PASSWORD=${MIGRATE_APP_DB_PASSWORD:-db_password}
+      - APP_DB_HOST=${APP_DB_HOST:-postgres-app}
+      - APP_DB_USER=${APP_DB_USER:-gateway-backend-mainnet@oplabs-local-web.iam}
+      - APP_DB_NAME=${APP_DB_NAME:-gateway}
+      - APP_DB_PORT=${APP_DB_PORT:-5432}
+      # THis is for the legacy indexer which won't be used but the env variable is still required
+      - INDEXER_DB_HOST=postgres-mainnet
+      # THis is for the legacy indexer which won't be used but the env variable is still required
+      - INDEXER_DB_USER=db_username
+      # THis is for the legacy indexer which won't be used but the env variable is still required
+      - INDEXER_DB_PASS=db_password
+      # THis is for the legacy indexer which won't be used but the env variable is still required
+      - INDEXER_DB_NAME=db_name
+      # THis is for the legacy indexer which won't be used but the env variable is still required
+      - INDEXER_DB_PORT=5432
+      # THis is for the legacy indexer which won't be used but the env variable is still required
+      - DATABASE_URL=postgres://db_username:db_password@postgres-mainnet:5432/db_name
+      - JSON_RPC_URLS_L1=$JSON_RPC_URLS_L1_MAINNET
+      - JSON_RPC_URLS_L2=$JSON_RPC_URLS_L2_MAINNET
+      - JSON_RPC_URLS_L2_GOERLI=$JSON_RPC_URLS_L2_GOERLI
+      # anvil[0] privater key as placeholder
+      - FAUCET_AUTH_ADMIN_WALLET_PRIVATE_KEY=${$FAUCET_AUTH_ADMIN_WALLET_PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+      - IRON_SESSION_SECRET=${IRON_SESSION_SECRET:-UNKNOWN_IRON_SESSION_PASSWORD_32}
+      - CHAIN_ID_L1=1
+      - CHAIN_ID_L2=10
+      - FLEEK_BUCKET_ADDRESS=34a609661-6774-441f-9fdb-453fdbb89931-bucket
+      - FLEEK_API_SECRET=$FLEEK_API_SECRET
+      - FLEEK_API_KEY=$FLEEK_API_KEY
+      - MOCK_MERKLE_PROOF=true
+      - LOOP_INTERVAL_MINUTES=.1
+      - GITHUB_CLIENT_ID=$GITHUB_CLIENT_ID
+      - GITHUB_SECRET=$GITHUB_SECRET
+      - MAINNET_BEDROCK=$MAINNET_BEDROCK
+      - TRM_API_KEY=$TRM_API_KEY
+      - GOOGLE_CLOUD_STORAGE_BUCKET_NAME=oplabs-dev-web-content
+      # Recommened to uncomment for local dev unless you need it
+      #- BYPASS_EVENT_LOG_POLLER_BOOTSTRAP=true
+    ports:
+      - 7421:7300
+    # overrides command in Dockerfile so we can hot reload the server in docker while developing
+    #command: ['pnpm', 'nx', 'run', '@gateway/backend:docker:watch']
+    healthcheck:
+      test: curl http://0.0.0.0:7300/api/v0/healthz
+
+  backend-goerli:
+    image: ethereumoptimism/gateway-backend:latest
+    environment:
+      # this enables the backend to proxy history requests to the indexer
+      - BRIDGE_INDEXER_URI=http://api
+      - HOST=0.0.0.0
+      - PORT=7300
+      - MIGRATE_APP_DB_USER=${MIGRATE_APP_DB_USER:-postgres}
+      - MIGRATE_APP_DB_PASSWORD=${MIGRATE_APP_DB_PASSWORD:-db_password}
+      - APP_DB_HOST=${APP_DB_HOST:-postgres-app}
+      - APP_DB_USER=${APP_DB_USER:-gateway-backend-goerli@oplabs-local-web.iam}
+      - APP_DB_NAME=${APP_DB_NAME:-gateway}
+      - APP_DB_PORT=${APP_DB_PORT:-5432}
+      - INDEXER_DB_HOST=${INDEXER_DB_HOST_GOERLI:-postgres-goerli}
+      - INDEXER_DB_USER=${INDEXER_DB_USER_GOERLI:-db_username}
+      - INDEXER_DB_PASS=${INDEXER_DB_PASSWORD_GOERLI:-db_password}
+      - INDEXER_DB_NAME=${INDEXER_DB_NAME_GOERLI:-db_name}
+      - INDEXER_DB_PORT=${INDEXER_DB_PORT_GOERLI:-5432}
+      - DATABASE_URL=${DATABASE_URL_GOERLI:-postgres://db_username:db_password@postgres-goerli:5432/db_name}
+      - JSON_RPC_URLS_L1=$JSON_RPC_URLS_L1_GOERLI
+      - JSON_RPC_URLS_L2=$JSON_RPC_URLS_L2_GOERLI
+      - JSON_RPC_URLS_L2_GOERLI=$JSON_RPC_URLS_L2_GOERLI
+      - FAUCET_AUTH_ADMIN_WALLET_PRIVATE_KEY=$FAUCET_AUTH_ADMIN_WALLET_PRIVATE_KEY
+      - IRON_SESSION_SECRET=${IRON_SESSION_SECRET:-UNKNOWN_IRON_SESSION_PASSWORD_32}
+      - CHAIN_ID_L1=5
+      - CHAIN_ID_L2=420
+      - FLEEK_BUCKET_ADDRESS=34a609661-6774-441f-9fdb-453fdbb89931-bucket
+      - FLEEK_API_SECRET=$FLEEK_API_SECRET
+      - FLEEK_API_KEY=$FLEEK_API_KEY
+      - MOCK_MERKLE_PROOF=true
+      - LOOP_INTERVAL_MINUTES=.1
+      - GITHUB_CLIENT_ID=$GITHUB_CLIENT_ID
+      - GITHUB_SECRET=$GITHUB_SECRET
+      - MAINNET_BEDROCK=true
+      - TRM_API_KEY=$TRM_API_KEY
+      - GOOGLE_CLOUD_STORAGE_BUCKET_NAME=oplabs-dev-web-content
+      # Recommened to uncomment for local dev unless you need it
+      #- BYPASS_EVENT_LOG_POLLER_BOOTSTRAP=true
+    ports:
+      - 7422:7300
+    # overrides command in Dockerfile so we can hot reload the server in docker while developing
+    #command: ['pnpm', 'nx', 'run', '@gateway/backend:docker:watch']
+    healthcheck:
+      test: curl http://0.0.0.0:7300/api/v0/healthz
+
 volumes:
   postgres_data:
