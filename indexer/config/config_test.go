@@ -4,10 +4,13 @@ import (
 	"os"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLoadConfig(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
 	tmpfile, err := os.CreateTemp("", "test.toml")
 	require.NoError(t, err)
 	defer os.Remove(tmpfile.Name())
@@ -45,7 +48,7 @@ func TestLoadConfig(t *testing.T) {
 	err = tmpfile.Close()
 	require.NoError(t, err)
 
-	conf, err := LoadConfig(tmpfile.Name())
+	conf, err := LoadConfig(logger, tmpfile.Name())
 	require.NoError(t, err)
 
 	require.Equal(t, conf.Chain.Preset, 1234)
