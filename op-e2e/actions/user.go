@@ -484,7 +484,7 @@ func (s *CrossLayerUser) CompleteWithdrawal(t Testing, l2TxHash common.Hash) com
 	// Check if the withdrawal may be completed yet
 	if l2OutputBlock.Time()+finalizationPeriod.Uint64() >= l1Head.Time {
 		t.InvalidAction("withdrawal tx %s was included in L2 block %d (time %d) but L1 only knows of L2 proposal %d (time %d) at head %d (time %d) which has not reached output confirmation yet (period is %d)",
-			l2TxHash, l2WithdrawalBlock.NumberU64(), l2WithdrawalBlock.Time(), l2OutputBlock.NumberU64(), l2OutputBlock.Time(), finalizationPeriod.Uint64(), l1Head.Number.Uint64(), l1Head.Time)
+			l2TxHash, l2WithdrawalBlock.NumberU64(), l2WithdrawalBlock.Time(), l2OutputBlock.NumberU64(), l2OutputBlock.Time(), l1Head.Number.Uint64(), l1Head.Time, finalizationPeriod.Uint64())
 		return common.Hash{}
 	}
 
