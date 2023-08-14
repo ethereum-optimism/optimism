@@ -31,7 +31,7 @@ func runIndexer(ctx *cli.Context) error {
 	})
 
 	configPath := ctx.String(ConfigFlag.Name)
-	cfg, err := config.LoadConfig(configPath)
+	cfg, err := config.LoadConfig(logger, configPath)
 	if err != nil {
 		logger.Error("failed to load config", "err", err)
 		return err
@@ -63,7 +63,7 @@ func runApi(ctx *cli.Context) error {
 	logger := log.NewLogger(log.ReadCLIConfig(ctx))
 
 	configPath := ctx.String(ConfigFlag.Name)
-	cfg, err := config.LoadConfig(configPath)
+	cfg, err := config.LoadConfig(logger, configPath)
 	if err != nil {
 		logger.Error("failed to load config", "err", err)
 		return err
