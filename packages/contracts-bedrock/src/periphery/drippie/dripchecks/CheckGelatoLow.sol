@@ -25,12 +25,10 @@ contract CheckGelatoLow is IDripCheck {
         Params memory params = abi.decode(_params, (Params));
 
         // Check GelatoTreasury ETH balance is below threshold.
-        execute_ =
-            IGelatoTreasury(params.treasury).userTokenBalance(
-                params.recipient,
-                // Gelato represents ETH as 0xeeeee....eeeee
-                0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE
-            ) <
-            params.threshold;
+        execute_ = IGelatoTreasury(params.treasury).userTokenBalance(
+            params.recipient,
+            // Gelato represents ETH as 0xeeeee....eeeee
+            0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE
+        ) < params.threshold;
     }
 }

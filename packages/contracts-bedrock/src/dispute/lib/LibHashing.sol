@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.15;
 
-import "../../libraries/DisputeTypes.sol";
+import "src/libraries/DisputeTypes.sol";
 
 /// @title Hashing
 /// @notice This library contains all of the hashing utilities used in the Cannon contracts.
 library LibHashing {
-
     /// @notice Hashes a claim and a position together.
     /// @param _claim A Claim type.
     /// @param _position The position of `claim`.

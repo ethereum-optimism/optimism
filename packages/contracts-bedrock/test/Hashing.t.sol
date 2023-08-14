@@ -16,10 +16,7 @@ contract Hashing_hashDepositSource_Test is CommonTest {
     /// @notice Tests that hashDepositSource returns the correct hash in a simple case.
     function test_hashDepositSource_succeeds() external {
         assertEq(
-            Hashing.hashDepositSource(
-                0xd25df7858efc1778118fb133ac561b138845361626dfb976699c5287ed0f4959,
-                0x1
-            ),
+            Hashing.hashDepositSource(0xd25df7858efc1778118fb133ac561b138845361626dfb976699c5287ed0f4959, 0x1),
             0xf923fb07134d7d287cb52c770cc619e17e82606c21a875c92f4c63b65280a5cc
         );
     }
@@ -35,7 +32,9 @@ contract Hashing_hashCrossDomainMessage_Test is CommonTest {
         uint256 _value,
         uint256 _gasLimit,
         bytes memory _data
-    ) external {
+    )
+        external
+    {
         // Ensure the version is valid.
         uint16 version = uint16(bound(uint256(_version), 0, 1));
         uint256 nonce = Encoding.encodeVersionedNonce(_nonce, version);
@@ -52,16 +51,11 @@ contract Hashing_hashCrossDomainMessage_Test is CommonTest {
         address _sender,
         bytes memory _message,
         uint256 _messageNonce
-    ) external {
+    )
+        external
+    {
         assertEq(
-            keccak256(
-                LegacyCrossDomainUtils.encodeXDomainCalldata(
-                    _target,
-                    _sender,
-                    _message,
-                    _messageNonce
-                )
-            ),
+            keccak256(LegacyCrossDomainUtils.encodeXDomainCalldata(_target, _sender, _message, _messageNonce)),
             Hashing.hashCrossDomainMessageV0(_target, _sender, _message, _messageNonce)
         );
     }
@@ -76,11 +70,11 @@ contract Hashing_hashWithdrawal_Test is CommonTest {
         uint256 _value,
         uint256 _gasLimit,
         bytes memory _data
-    ) external {
+    )
+        external
+    {
         assertEq(
-            Hashing.hashWithdrawal(
-                Types.WithdrawalTransaction(_nonce, _sender, _target, _value, _gasLimit, _data)
-            ),
+            Hashing.hashWithdrawal(Types.WithdrawalTransaction(_nonce, _sender, _target, _value, _gasLimit, _data)),
             ffi.hashWithdrawal(_nonce, _sender, _target, _value, _gasLimit, _data)
         );
     }
@@ -92,7 +86,9 @@ contract Hashing_hashOutputRootProof_Test is CommonTest {
         bytes32 _stateRoot,
         bytes32 _messagePasserStorageRoot,
         bytes32 _latestBlockhash
-    ) external {
+    )
+        external
+    {
         bytes32 version = 0;
         assertEq(
             Hashing.hashOutputRootProof(
@@ -103,12 +99,7 @@ contract Hashing_hashOutputRootProof_Test is CommonTest {
                     latestBlockhash: _latestBlockhash
                 })
             ),
-            ffi.hashOutputRootProof(
-                version,
-                _stateRoot,
-                _messagePasserStorageRoot,
-                _latestBlockhash
-            )
+            ffi.hashOutputRootProof(version, _stateRoot, _messagePasserStorageRoot, _latestBlockhash)
         );
     }
 }
@@ -123,7 +114,9 @@ contract Hashing_hashDepositTransaction_Test is CommonTest {
         uint64 _gas,
         bytes memory _data,
         uint64 _logIndex
-    ) external {
+    )
+        external
+    {
         assertEq(
             Hashing.hashDepositTransaction(
                 Types.UserDepositTransaction(

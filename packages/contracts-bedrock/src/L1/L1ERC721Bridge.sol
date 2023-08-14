@@ -5,6 +5,8 @@ import { ERC721Bridge } from "../universal/ERC721Bridge.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
 import { Semver } from "../universal/Semver.sol";
+import { Predeploys } from "../libraries/Predeploys.sol";
+import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 
 /// @title L1ERC721Bridge
 /// @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
@@ -15,14 +17,17 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
     ///         by ID was deposited for a given L2 token.
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
 
-    /// @custom:semver 1.1.2
-    /// @notice Constructs the L1ERC721Bridge contract.
+    /// @custom:semver 1.2.1
+    /// @notice Constructs the contract.
+    constructor() Semver(1, 2, 1) ERC721Bridge(Predeploys.L2_ERC721_BRIDGE) {
+        initialize({ _messenger: CrossDomainMessenger(address(0)) });
+    }
+
+    /// @notice Initializes the contract.
     /// @param _messenger   Address of the CrossDomainMessenger on this network.
-    /// @param _otherBridge Address of the ERC721 bridge on the other network.
-    constructor(address _messenger, address _otherBridge)
-        Semver(1, 1, 2)
-        ERC721Bridge(_messenger, _otherBridge)
-    {}
+    function initialize(CrossDomainMessenger _messenger) public reinitializer(2) {
+        __ERC721Bridge_init({ _messenger: _messenger });
+    }
 
     /// @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
     ///         recipient on this domain.
@@ -41,7 +46,10 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
         address _to,
         uint256 _tokenId,
         bytes calldata _extraData
-    ) external onlyOtherBridge {
+    )
+        external
+        onlyOtherBridge
+    {
         require(_localToken != address(this), "L1ERC721Bridge: local token cannot be self");
 
         // Checks that the L1/L2 NFT pair has a token ID that is escrowed in the L1 Bridge.
@@ -71,18 +79,15 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
         uint256 _tokenId,
         uint32 _minGasLimit,
         bytes calldata _extraData
-    ) internal override {
+    )
+        internal
+        override
+    {
         require(_remoteToken != address(0), "L1ERC721Bridge: remote token cannot be address(0)");
 
         // Construct calldata for _l2Token.finalizeBridgeERC721(_to, _tokenId)
         bytes memory message = abi.encodeWithSelector(
-            L2ERC721Bridge.finalizeBridgeERC721.selector,
-            _remoteToken,
-            _localToken,
-            _from,
-            _to,
-            _tokenId,
-            _extraData
+            L2ERC721Bridge.finalizeBridgeERC721.selector, _remoteToken, _localToken, _from, _to, _tokenId, _extraData
         );
 
         // Lock token into bridge
@@ -90,7 +95,7 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
         IERC721(_localToken).transferFrom(_from, address(this), _tokenId);
 
         // Send calldata into L2
-        MESSENGER.sendMessage(OTHER_BRIDGE, message, _minGasLimit);
+        messenger.sendMessage(OTHER_BRIDGE, message, _minGasLimit);
         emit ERC721BridgeInitiated(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
     }
 }

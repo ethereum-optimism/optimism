@@ -15,7 +15,7 @@ contract LibPosition_Test is Test {
     function boundIndexAtDepth(uint8 _depth, uint64 _indexAtDepth) internal view returns (uint64) {
         // Index at depth bound: [0, 2 ** _depth-1]
         if (_depth > 0) {
-            return uint64(bound(_indexAtDepth, 0, 2**(_depth - 1)));
+            return uint64(bound(_indexAtDepth, 0, 2 ** (_depth - 1)));
         } else {
             return 0;
         }
@@ -29,7 +29,8 @@ contract LibPosition_Test is Test {
         assertEq(position.depth(), _depth);
     }
 
-    /// @notice Tests that the `indexAtDepth` function correctly shifts out the `indexAtDepth` from a packed `Position` type.
+    /// @notice Tests that the `indexAtDepth` function correctly shifts out the `indexAtDepth` from a packed `Position`
+    /// type.
     function testFuzz_indexAtDepth_correctness_succeeds(uint8 _depth, uint64 _indexAtDepth) public {
         _depth = uint8(bound(_depth, 0, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
@@ -76,9 +77,7 @@ contract LibPosition_Test is Test {
 
     /// @notice Tests that the `traceAncestor` function correctly computes the position of the
     ///         highest ancestor that commits to the same trace index.
-    function testFuzz_traceAncestor_correctness_succeeds(uint8 _depth, uint64 _indexAtDepth)
-        public
-    {
+    function testFuzz_traceAncestor_correctness_succeeds(uint8 _depth, uint64 _indexAtDepth) public {
         _depth = uint8(bound(_depth, 1, MAX_DEPTH));
         _indexAtDepth = boundIndexAtDepth(_depth, _indexAtDepth);
 
@@ -94,11 +93,7 @@ contract LibPosition_Test is Test {
 
     /// @notice Tests that the `rightIndex` function correctly computes the deepest, right most index relative
     ///         to a given position.
-    function testFuzz_rightIndex_correctness_succeeds(
-        uint64 _maxDepth,
-        uint8 _depth,
-        uint64 _indexAtDepth
-    ) public {
+    function testFuzz_rightIndex_correctness_succeeds(uint64 _maxDepth, uint8 _depth, uint64 _indexAtDepth) public {
         // Max depth bound: [1, 63]
         // The max game depth MUST be at least 1.
         _maxDepth = uint8(bound(_maxDepth, 1, MAX_DEPTH));

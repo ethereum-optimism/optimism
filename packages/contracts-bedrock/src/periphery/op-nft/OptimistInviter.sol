@@ -5,9 +5,7 @@ import { OptimistConstants } from "./libraries/OptimistConstants.sol";
 import { Semver } from "../../universal/Semver.sol";
 import { AttestationStation } from "./AttestationStation.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
-import {
-    EIP712Upgradeable
-} from "@openzeppelin/contracts-upgradeable/utils/cryptography/draft-EIP712Upgradeable.sol";
+import { EIP712Upgradeable } from "@openzeppelin/contracts-upgradeable/utils/cryptography/draft-EIP712Upgradeable.sol";
 
 /// @custom:upgradeable
 /// @title  OptimistInviter
@@ -47,8 +45,7 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
     string public constant EIP712_VERSION = "1.0.0";
 
     /// @notice EIP712 typehash for the ClaimableInvite type.
-    bytes32 public constant CLAIMABLE_INVITE_TYPEHASH =
-        keccak256("ClaimableInvite(address issuer,bytes32 nonce)");
+    bytes32 public constant CLAIMABLE_INVITE_TYPEHASH = keccak256("ClaimableInvite(address issuer,bytes32 nonce)");
 
     /// @notice Attestation key for that signals that an account was allowed to issue invites
     bytes32 public constant CAN_INVITE_ATTESTATION_KEY = bytes32("optimist.can-invite");
@@ -90,10 +87,10 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
     /// @notice Maps from addresses to number of invites they have.
     mapping(address => uint256) public inviteCounts;
 
-    /// @custom:semver 1.0.1
+    /// @custom:semver 1.0.2
     /// @param _inviteGranter      Address of the invite granter.
     /// @param _attestationStation Address of the AttestationStation contract.
-    constructor(address _inviteGranter, AttestationStation _attestationStation) Semver(1, 0, 1) {
+    constructor(address _inviteGranter, AttestationStation _attestationStation) Semver(1, 0, 2) {
         INVITE_GRANTER = _inviteGranter;
         ATTESTATION_STATION = _attestationStation;
     }
@@ -113,17 +110,13 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
     /// @param _inviteCount Number of invites to set to.
     function setInviteCounts(address[] calldata _accounts, uint256 _inviteCount) public {
         // Only invite granter can grant invites
-        require(
-            msg.sender == INVITE_GRANTER,
-            "OptimistInviter: only invite granter can grant invites"
-        );
+        require(msg.sender == INVITE_GRANTER, "OptimistInviter: only invite granter can grant invites");
 
         uint256 length = _accounts.length;
 
-        AttestationStation.AttestationData[]
-            memory attestations = new AttestationStation.AttestationData[](length);
+        AttestationStation.AttestationData[] memory attestations = new AttestationStation.AttestationData[](length);
 
-        for (uint256 i; i < length; ) {
+        for (uint256 i; i < length;) {
             // Set invite count for account to _inviteCount
             inviteCounts[_accounts[i]] = _inviteCount;
 
@@ -179,20 +172,11 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
     /// @param _claimer         Address that will be granted the invite.
     /// @param _claimableInvite ClaimableInvite struct containing the issuer and nonce.
     /// @param _signature       Signature signed over the claimable invite.
-    function claimInvite(
-        address _claimer,
-        ClaimableInvite calldata _claimableInvite,
-        bytes memory _signature
-    ) public {
-        uint256 commitmentTimestamp = commitmentTimestamps[
-            keccak256(abi.encode(_claimer, _signature))
-        ];
+    function claimInvite(address _claimer, ClaimableInvite calldata _claimableInvite, bytes memory _signature) public {
+        uint256 commitmentTimestamp = commitmentTimestamps[keccak256(abi.encode(_claimer, _signature))];
 
         // Make sure the claimer and signature have been committed.
-        require(
-            commitmentTimestamp > 0,
-            "OptimistInviter: claimer and signature have not been committed yet"
-        );
+        require(commitmentTimestamp > 0, "OptimistInviter: claimer and signature have not been committed yet");
 
         // Check that MIN_COMMITMENT_PERIOD has passed since the commitment was made.
         require(
@@ -202,13 +186,7 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
 
         // Generate a EIP712 typed data hash to compare against the signature.
         bytes32 digest = _hashTypedDataV4(
-            keccak256(
-                abi.encode(
-                    CLAIMABLE_INVITE_TYPEHASH,
-                    _claimableInvite.issuer,
-                    _claimableInvite.nonce
-                )
-            )
+            keccak256(abi.encode(CLAIMABLE_INVITE_TYPEHASH, _claimableInvite.issuer, _claimableInvite.nonce))
         );
 
         // Uses SignatureChecker, which supports both regular ECDSA signatures from EOAs as well as
@@ -233,10 +211,7 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
         usedNonces[_claimableInvite.issuer][_claimableInvite.nonce] = true;
 
         // Failing this check means that the issuer has used up all of their existing invites.
-        require(
-            inviteCounts[_claimableInvite.issuer] > 0,
-            "OptimistInviter: issuer has no invites"
-        );
+        require(inviteCounts[_claimableInvite.issuer] > 0, "OptimistInviter: issuer has no invites");
 
         // Reduce the issuer's invite count by 1. Can be unchecked because we check above that
         // count is > 0.

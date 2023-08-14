@@ -18,27 +18,18 @@ contract L2OutputOracle_constructor_Test is L2OutputOracle_Initializer {
     /// @dev Tests that constructor sets the initial values correctly.
     function test_constructor_succeeds() external {
         assertEq(oracle.PROPOSER(), proposer);
+        assertEq(oracle.proposer(), proposer);
         assertEq(oracle.CHALLENGER(), owner);
+        assertEq(oracle.challenger(), owner);
         assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);
+        assertEq(oracle.submissionInterval(), submissionInterval);
         assertEq(oracle.latestBlockNumber(), startingBlockNumber);
         assertEq(oracle.startingBlockNumber(), startingBlockNumber);
         assertEq(oracle.startingTimestamp(), startingTimestamp);
-    }
-
-    /// @dev Tests that the constructor reverts if the starting timestamp is invalid.
-    function test_constructor_badTimestamp_reverts() external {
-        vm.expectRevert("L2OutputOracle: starting L2 timestamp must be less than current time");
-
-        // startingTimestamp is in the future
-        new L2OutputOracle({
-            _submissionInterval: submissionInterval,
-            _l2BlockTime: l2BlockTime,
-            _startingBlockNumber: startingBlockNumber,
-            _startingTimestamp: block.timestamp + 1,
-            _proposer: proposer,
-            _challenger: owner,
-            _finalizationPeriodSeconds: 7 days
-        });
+        assertEq(oracle.L2_BLOCK_TIME(), l2BlockTime);
+        assertEq(oracle.l2BlockTime(), l2BlockTime);
+        assertEq(oracle.finalizationPeriodSeconds(), finalizationPeriodSeconds);
+        assertEq(oracle.FINALIZATION_PERIOD_SECONDS(), finalizationPeriodSeconds);
     }
 
     /// @dev Tests that the constructor reverts if the l2BlockTime is invalid.
@@ -47,10 +38,6 @@ contract L2OutputOracle_constructor_Test is L2OutputOracle_Initializer {
         new L2OutputOracle({
             _submissionInterval: submissionInterval,
             _l2BlockTime: 0,
-            _startingBlockNumber: startingBlockNumber,
-            _startingTimestamp: block.timestamp,
-            _proposer: proposer,
-            _challenger: owner,
             _finalizationPeriodSeconds: 7 days
         });
     }
@@ -61,11 +48,21 @@ contract L2OutputOracle_constructor_Test is L2OutputOracle_Initializer {
         new L2OutputOracle({
             _submissionInterval: 0,
             _l2BlockTime: l2BlockTime,
-            _startingBlockNumber: startingBlockNumber,
-            _startingTimestamp: block.timestamp,
-            _proposer: proposer,
-            _challenger: owner,
             _finalizationPeriodSeconds: 7 days
+        });
+    }
+
+    /// @dev Tests that initialize reverts if the starting timestamp is invalid.
+    function test_initialize_badTimestamp_reverts() external {
+        // Reset the initialized field in the 0th storage slot
+        // so that initialize can be called again.
+        vm.store(address(oracle), bytes32(uint256(0)), bytes32(uint256(0)));
+        vm.expectRevert("L2OutputOracle: starting L2 timestamp must be less than current time");
+        oracle.initialize({
+            _startingBlockNumber: 0,
+            _startingTimestamp: block.timestamp + 1,
+            _proposer: address(0),
+            _challenger: address(0)
         });
     }
 }
@@ -193,16 +190,10 @@ contract L2OutputOracle_getter_Test is L2OutputOracle_Initializer {
         assertEq(oracle.computeL2Timestamp(startingBlockNumber), startingTimestamp);
 
         // check timestamp for the first block after the starting block
-        assertEq(
-            oracle.computeL2Timestamp(startingBlockNumber + 1),
-            startingTimestamp + l2BlockTime
-        );
+        assertEq(oracle.computeL2Timestamp(startingBlockNumber + 1), startingTimestamp + l2BlockTime);
 
         // check timestamp for some other block number
-        assertEq(
-            oracle.computeL2Timestamp(startingBlockNumber + 96024),
-            startingTimestamp + l2BlockTime * 96024
-        );
+        assertEq(oracle.computeL2Timestamp(startingBlockNumber + 96024), startingTimestamp + l2BlockTime * 96024);
     }
 }
 
@@ -274,15 +265,8 @@ contract L2OutputOracle_proposeL2Output_Test is L2OutputOracle_Initializer {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
         vm.prank(proposer);
-        vm.expectRevert(
-            "L2OutputOracle: block hash does not match the hash at the expected height"
-        );
-        oracle.proposeL2Output(
-            nonZeroHash,
-            nextBlockNumber,
-            bytes32(uint256(0x01)),
-            block.number - 1
-        );
+        vm.expectRevert("L2OutputOracle: block hash does not match the hash at the expected height");
+        oracle.proposeL2Output(nonZeroHash, nextBlockNumber, bytes32(uint256(0x01)), block.number - 1);
     }
 
     /// @dev Tests that `proposeL2Output` reverts when given a block number
@@ -300,9 +284,7 @@ contract L2OutputOracle_proposeL2Output_Test is L2OutputOracle_Initializer {
         vm.prank(proposer);
 
         // This will fail when foundry no longer returns zerod block hashes
-        vm.expectRevert(
-            "L2OutputOracle: block hash does not match the hash at the expected height"
-        );
+        vm.expectRevert("L2OutputOracle: block hash does not match the hash at the expected height");
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber, l1BlockHash, l1BlockNumber - 1);
     }
 }
@@ -423,25 +405,54 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
 
     /// @dev Tests that the proxy is initialized with the correct values.
     function test_initValuesOnProxy_succeeds() external {
+        assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);
+        assertEq(oracle.submissionInterval(), submissionInterval);
+        assertEq(oracle.L2_BLOCK_TIME(), l2BlockTime);
+        assertEq(oracle.l2BlockTime(), l2BlockTime);
+        assertEq(oracle.startingBlockNumber(), startingBlockNumber);
+        assertEq(oracle.startingTimestamp(), startingTimestamp);
+        assertEq(oracle.finalizationPeriodSeconds(), finalizationPeriodSeconds);
+        assertEq(oracle.PROPOSER(), proposer);
+        assertEq(oracle.proposer(), proposer);
+        assertEq(oracle.CHALLENGER(), owner);
+        assertEq(oracle.challenger(), owner);
+    }
+
+    /// @dev Tests that the impl is created with the correct values.
+    function test_initValuesOnImpl_succeeds() external {
         assertEq(submissionInterval, oracleImpl.SUBMISSION_INTERVAL());
         assertEq(l2BlockTime, oracleImpl.L2_BLOCK_TIME());
-        assertEq(startingBlockNumber, oracleImpl.startingBlockNumber());
-        assertEq(startingTimestamp, oracleImpl.startingTimestamp());
 
-        assertEq(proposer, oracleImpl.PROPOSER());
-        assertEq(owner, oracleImpl.CHALLENGER());
+        // The values that are set in the initialize function should be all
+        // zero values in the implementation contract.
+        assertEq(oracleImpl.startingBlockNumber(), 0);
+        assertEq(oracleImpl.startingTimestamp(), 0);
+        assertEq(oracleImpl.PROPOSER(), address(0));
+        assertEq(oracleImpl.proposer(), address(0));
+        assertEq(oracleImpl.CHALLENGER(), address(0));
+        assertEq(oracleImpl.challenger(), address(0));
     }
 
     /// @dev Tests that the proxy cannot be initialized twice.
     function test_initializeProxy_alreadyInitialized_reverts() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        L2OutputOracle(payable(proxy)).initialize(startingBlockNumber, startingTimestamp);
+        L2OutputOracle(payable(proxy)).initialize({
+            _startingBlockNumber: startingBlockNumber,
+            _startingTimestamp: startingTimestamp,
+            _proposer: address(1),
+            _challenger: address(2)
+        });
     }
 
     /// @dev Tests that the implementation contract cannot be initialized twice.
     function test_initializeImpl_alreadyInitialized_reverts() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        L2OutputOracle(oracleImpl).initialize(startingBlockNumber, startingTimestamp);
+        L2OutputOracle(oracleImpl).initialize({
+            _startingBlockNumber: startingBlockNumber,
+            _startingTimestamp: startingTimestamp,
+            _proposer: address(1),
+            _challenger: address(2)
+        });
     }
 
     /// @dev Tests that the proxy can be successfully upgraded.
@@ -452,10 +463,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
 
         NextImpl nextImpl = new NextImpl();
         vm.startPrank(multisig);
-        proxy.upgradeToAndCall(
-            address(nextImpl),
-            abi.encodeWithSelector(NextImpl.initialize.selector)
-        );
+        proxy.upgradeToAndCall(address(nextImpl), abi.encodeWithSelector(NextImpl.initialize.selector, 3));
         assertEq(proxy.implementation(), address(nextImpl));
 
         // Verify that the NextImpl contract initialized its values according as expected

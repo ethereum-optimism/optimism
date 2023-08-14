@@ -53,7 +53,9 @@ contract PreimageOracle_Test is Test {
         bytes32 word,
         uint256 size,
         uint256 partOffset
-    ) public {
+    )
+        public
+    {
         // Bound the size to [0, 32]
         size = bound(size, 0, 32);
         // Bound the part offset to [0, size + 8]

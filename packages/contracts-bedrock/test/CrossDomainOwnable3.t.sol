@@ -30,11 +30,7 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     /// @dev CrossDomainOwnable3.sol transferOwnership event
-    event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner,
-        bool isLocal
-    );
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner, bool isLocal);
 
     /// @dev Sets up the test suite.
     function setUp() public override {
@@ -111,12 +107,7 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
         bytes memory message = abi.encodeWithSelector(XDomainSetter3.set.selector, 1);
 
         bytes32 hash = Hashing.hashCrossDomainMessage(
-            Encoding.encodeVersionedNonce(nonce, 1),
-            sender,
-            target,
-            value,
-            minGasLimit,
-            message
+            Encoding.encodeVersionedNonce(nonce, 1), sender, target, value, minGasLimit, message
         );
 
         // It should be a failed message. The revert is caught,
@@ -125,14 +116,7 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
         emit FailedRelayedMessage(hash);
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)));
-        L2Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(nonce, 1),
-            sender,
-            target,
-            value,
-            minGasLimit,
-            message
-        );
+        L2Messenger.relayMessage(Encoding.encodeVersionedNonce(nonce, 1), sender, target, value, minGasLimit, message);
 
         assertEq(setter.value(), 0);
     }

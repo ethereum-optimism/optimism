@@ -35,15 +35,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /// @notice The L2 gas limit set when eth is deposited using the receive() function.
     uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
 
-    /// @notice Address of the L2OutputOracle contract.
-    L2OutputOracle public immutable L2_ORACLE;
-
-    /// @notice Address of the SystemConfig contract.
-    SystemConfig public immutable SYSTEM_CONFIG;
-
-    /// @notice Address that has the ability to pause and unpause withdrawals.
-    address public immutable GUARDIAN;
-
     /// @notice Address of the L2 account which initiated a withdrawal in this transaction.
     ///         If the of this variable is the default L2 sender address, then we are NOT inside of
     ///         a call to finalizeWithdrawalTransaction.
@@ -60,6 +51,18 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     ///         This may be removed in the future.
     bool public paused;
 
+    /// @notice Address of the L2OutputOracle contract.
+    /// @custom:network-specific
+    L2OutputOracle public l2Oracle;
+
+    /// @notice Address of the SystemConfig contract.
+    /// @custom:network-specific
+    SystemConfig public systemConfig;
+
+    /// @notice Address that has the ability to pause and unpause withdrawals.
+    /// @custom:network-specific
+    address public guardian;
+
     /// @notice Emitted when a transaction is deposited from L1 to L2.
     ///         The parameters of this event are read by the rollup node and used to derive deposit
     ///         transactions on L2.
@@ -67,22 +70,13 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /// @param to         Address that the deposit transaction is directed to.
     /// @param version    Version of this deposit transaction event.
     /// @param opaqueData ABI encoded deposit data to be parsed off-chain.
-    event TransactionDeposited(
-        address indexed from,
-        address indexed to,
-        uint256 indexed version,
-        bytes opaqueData
-    );
+    event TransactionDeposited(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData);
 
     /// @notice Emitted when a withdrawal transaction is proven.
     /// @param withdrawalHash Hash of the withdrawal transaction.
     /// @param from           Address that triggered the withdrawal transaction.
     /// @param to             Address that the withdrawal transaction is directed to.
-    event WithdrawalProven(
-        bytes32 indexed withdrawalHash,
-        address indexed from,
-        address indexed to
-    );
+    event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
 
     /// @notice Emitted when a withdrawal transaction is finalized.
     /// @param withdrawalHash Hash of the withdrawal transaction.
@@ -103,41 +97,67 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         _;
     }
 
-    /// @custom:semver 1.7.2
+    /// @custom:semver 1.8.1
     /// @notice Constructs the OptimismPortal contract.
-    /// @param _l2Oracle Address of the L2OutputOracle contract.
-    /// @param _guardian Address that can pause withdrawals.
-    /// @param _paused Sets the contract's pausability state.
-    /// @param _config Address of the SystemConfig contract.
-    constructor(
-        L2OutputOracle _l2Oracle,
-        address _guardian,
-        bool _paused,
-        SystemConfig _config
-    ) Semver(1, 7, 2) {
-        L2_ORACLE = _l2Oracle;
-        GUARDIAN = _guardian;
-        SYSTEM_CONFIG = _config;
-        initialize(_paused);
+    constructor() Semver(1, 8, 1) {
+        initialize({
+            _l2Oracle: L2OutputOracle(address(0)),
+            _guardian: address(0),
+            _systemConfig: SystemConfig(address(0)),
+            _paused: true
+        });
     }
 
     /// @notice Initializer.
-    function initialize(bool _paused) public initializer {
+    /// @param _l2Oracle Address of the L2OutputOracle contract.
+    /// @param _guardian Address that can pause withdrawals.
+    /// @param _paused Sets the contract's pausability state.
+    /// @param _systemConfig Address of the SystemConfig contract.
+    function initialize(
+        L2OutputOracle _l2Oracle,
+        address _guardian,
+        SystemConfig _systemConfig,
+        bool _paused
+    )
+        public
+        reinitializer(2)
+    {
         l2Sender = Constants.DEFAULT_L2_SENDER;
+        l2Oracle = _l2Oracle;
+        systemConfig = _systemConfig;
+        guardian = _guardian;
         paused = _paused;
         __ResourceMetering_init();
     }
 
+    /// @notice Getter for the L2OutputOracle
+    /// @custom:legacy
+    function L2_ORACLE() external view returns (L2OutputOracle) {
+        return l2Oracle;
+    }
+
+    /// @notice Getter for the SystemConfig
+    /// @custom:legacy
+    function SYSTEM_CONFIG() external view returns (SystemConfig) {
+        return systemConfig;
+    }
+
+    /// @notice Getter for the Guardian
+    /// @custom:legacy
+    function GUARDIAN() external view returns (address) {
+        return guardian;
+    }
+
     /// @notice Pauses withdrawals.
     function pause() external {
-        require(msg.sender == GUARDIAN, "OptimismPortal: only guardian can pause");
+        require(msg.sender == guardian, "OptimismPortal: only guardian can pause");
         paused = true;
         emit Paused(msg.sender);
     }
 
     /// @notice Unpauses withdrawals.
     function unpause() external {
-        require(msg.sender == GUARDIAN, "OptimismPortal: only guardian can unpause");
+        require(msg.sender == guardian, "OptimismPortal: only guardian can unpause");
         paused = false;
         emit Unpaused(msg.sender);
     }
@@ -173,13 +193,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     ///         Used internally by the ResourceMetering contract.
     ///         The SystemConfig is the source of truth for the resource config.
     /// @return ResourceMetering ResourceConfig
-    function _resourceConfig()
-        internal
-        view
-        override
-        returns (ResourceMetering.ResourceConfig memory)
-    {
-        return SYSTEM_CONFIG.resourceConfig();
+    function _resourceConfig() internal view override returns (ResourceMetering.ResourceConfig memory) {
+        return systemConfig.resourceConfig();
     }
 
     /// @notice Proves a withdrawal transaction.
@@ -192,23 +207,22 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         uint256 _l2OutputIndex,
         Types.OutputRootProof calldata _outputRootProof,
         bytes[] calldata _withdrawalProof
-    ) external whenNotPaused {
+    )
+        external
+        whenNotPaused
+    {
         // Prevent users from creating a deposit transaction where this address is the message
         // sender on L2. Because this is checked here, we do not need to check again in
         // `finalizeWithdrawalTransaction`.
-        require(
-            _tx.target != address(this),
-            "OptimismPortal: you cannot send messages to the portal contract"
-        );
+        require(_tx.target != address(this), "OptimismPortal: you cannot send messages to the portal contract");
 
         // Get the output root and load onto the stack to prevent multiple mloads. This will
         // revert if there is no output root for the given block number.
-        bytes32 outputRoot = L2_ORACLE.getL2Output(_l2OutputIndex).outputRoot;
+        bytes32 outputRoot = l2Oracle.getL2Output(_l2OutputIndex).outputRoot;
 
         // Verify that the output root can be generated with the elements in the proof.
         require(
-            outputRoot == Hashing.hashOutputRootProof(_outputRootProof),
-            "OptimismPortal: invalid output root proof"
+            outputRoot == Hashing.hashOutputRootProof(_outputRootProof), "OptimismPortal: invalid output root proof"
         );
 
         // Load the ProvenWithdrawal into memory, using the withdrawal hash as a unique identifier.
@@ -222,9 +236,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // to re-prove their withdrawal only in the case that the output root for their specified
         // output index has been updated.
         require(
-            provenWithdrawal.timestamp == 0 ||
-                L2_ORACLE.getL2Output(provenWithdrawal.l2OutputIndex).outputRoot !=
-                provenWithdrawal.outputRoot,
+            provenWithdrawal.timestamp == 0
+                || l2Oracle.getL2Output(provenWithdrawal.l2OutputIndex).outputRoot != provenWithdrawal.outputRoot,
             "OptimismPortal: withdrawal hash has already been proven"
         );
 
@@ -244,10 +257,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // be relayed on L1.
         require(
             SecureMerkleTrie.verifyInclusionProof(
-                abi.encode(storageKey),
-                hex"01",
-                _withdrawalProof,
-                _outputRootProof.messagePasserStorageRoot
+                abi.encode(storageKey), hex"01", _withdrawalProof, _outputRootProof.messagePasserStorageRoot
             ),
             "OptimismPortal: invalid withdrawal inclusion proof"
         );
@@ -267,16 +277,12 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
     /// @notice Finalizes a withdrawal transaction.
     /// @param _tx Withdrawal transaction to finalize.
-    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx)
-        external
-        whenNotPaused
-    {
+    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external whenNotPaused {
         // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
         // than the default value when a withdrawal transaction is being finalized. This check is
         // a defacto reentrancy guard.
         require(
-            l2Sender == Constants.DEFAULT_L2_SENDER,
-            "OptimismPortal: can only trigger one withdrawal per transaction"
+            l2Sender == Constants.DEFAULT_L2_SENDER, "OptimismPortal: can only trigger one withdrawal per transaction"
         );
 
         // Grab the proven withdrawal from the `provenWithdrawals` map.
@@ -286,16 +292,13 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // A withdrawal can only be finalized if it has been proven. We know that a withdrawal has
         // been proven at least once when its timestamp is non-zero. Unproven withdrawals will have
         // a timestamp of zero.
-        require(
-            provenWithdrawal.timestamp != 0,
-            "OptimismPortal: withdrawal has not been proven yet"
-        );
+        require(provenWithdrawal.timestamp != 0, "OptimismPortal: withdrawal has not been proven yet");
 
         // As a sanity check, we make sure that the proven withdrawal's timestamp is greater than
         // starting timestamp inside the L2OutputOracle. Not strictly necessary but extra layer of
         // safety against weird bugs in the proving step.
         require(
-            provenWithdrawal.timestamp >= L2_ORACLE.startingTimestamp(),
+            provenWithdrawal.timestamp >= l2Oracle.startingTimestamp(),
             "OptimismPortal: withdrawal timestamp less than L2 Oracle starting timestamp"
         );
 
@@ -310,9 +313,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
         // Grab the OutputProposal from the L2OutputOracle, will revert if the output that
         // corresponds to the given index has not been proposed yet.
-        Types.OutputProposal memory proposal = L2_ORACLE.getL2Output(
-            provenWithdrawal.l2OutputIndex
-        );
+        Types.OutputProposal memory proposal = l2Oracle.getL2Output(provenWithdrawal.l2OutputIndex);
 
         // Check that the output root that was used to prove the withdrawal is the same as the
         // current output root for the given output index. An output root may change if it is
@@ -329,10 +330,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         );
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
-        require(
-            finalizedWithdrawals[withdrawalHash] == false,
-            "OptimismPortal: withdrawal has already been finalized"
-        );
+        require(finalizedWithdrawals[withdrawalHash] == false, "OptimismPortal: withdrawal has already been finalized");
 
         // Mark the withdrawal as finalized so it can't be replayed.
         finalizedWithdrawals[withdrawalHash] = true;
@@ -379,22 +377,20 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         uint64 _gasLimit,
         bool _isCreation,
         bytes memory _data
-    ) public payable metered(_gasLimit) {
+    )
+        public
+        payable
+        metered(_gasLimit)
+    {
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
         if (_isCreation) {
-            require(
-                _to == address(0),
-                "OptimismPortal: must send to address(0) when creating a contract"
-            );
+            require(_to == address(0), "OptimismPortal: must send to address(0) when creating a contract");
         }
 
         // Prevent depositing transactions that have too small of a gas limit. Users should pay
         // more for more resource usage.
-        require(
-            _gasLimit >= minimumGasLimit(uint64(_data.length)),
-            "OptimismPortal: gas limit too small"
-        );
+        require(_gasLimit >= minimumGasLimit(uint64(_data.length)), "OptimismPortal: gas limit too small");
 
         // Prevent the creation of deposit transactions that have too much calldata. This gives an
         // upper limit on the size of unsafe blocks over the p2p network. 120kb is chosen to ensure
@@ -411,13 +407,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // Compute the opaque data that will be emitted as part of the TransactionDeposited event.
         // We use opaque data so that we can update the TransactionDeposited event in the future
         // without breaking the current interface.
-        bytes memory opaqueData = abi.encodePacked(
-            msg.value,
-            _value,
-            _gasLimit,
-            _isCreation,
-            _data
-        );
+        bytes memory opaqueData = abi.encodePacked(msg.value, _value, _gasLimit, _isCreation, _data);
 
         // Emit a TransactionDeposited event so that the rollup node can derive a deposit
         // transaction for this deposit.
@@ -430,7 +420,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /// @param _l2OutputIndex Index of the L2 output to check.
     /// @return Whether or not the output is finalized.
     function isOutputFinalized(uint256 _l2OutputIndex) external view returns (bool) {
-        return _isFinalizationPeriodElapsed(L2_ORACLE.getL2Output(_l2OutputIndex).timestamp);
+        return _isFinalizationPeriodElapsed(l2Oracle.getL2Output(_l2OutputIndex).timestamp);
     }
 
     /// @notice Determines whether the finalization period has elapsed with respect to
@@ -438,6 +428,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /// @param _timestamp Timestamp to check.
     /// @return Whether or not the finalization period has elapsed.
     function _isFinalizationPeriodElapsed(uint256 _timestamp) internal view returns (bool) {
-        return block.timestamp > _timestamp + L2_ORACLE.FINALIZATION_PERIOD_SECONDS();
+        return block.timestamp > _timestamp + l2Oracle.FINALIZATION_PERIOD_SECONDS();
     }
 }

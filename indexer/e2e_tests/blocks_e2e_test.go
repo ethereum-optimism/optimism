@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
 
 	"github.com/stretchr/testify/require"
 )
@@ -23,25 +24,19 @@ import (
 func TestE2EBlockHeaders(t *testing.T) {
 	testSuite := createE2ETestSuite(t)
 
-	l1Client := testSuite.OpSys.Clients["l1"]
-	l2Client := testSuite.OpSys.Clients["sequencer"]
-	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(testSuite.OpCfg.L1Deployments.L2OutputOracleProxy, l1Client)
+	l2OutputOracle, err := bindings.NewL2OutputOracle(testSuite.OpCfg.L1Deployments.L2OutputOracleProxy, testSuite.L1Client)
 	require.NoError(t, err)
 
-	// a minute for total setup to finish
-	setupCtx, cancel := context.WithTimeout(context.Background(), time.Minute)
-	defer cancel()
-
 	// wait for at least 10 L2 blocks to be created & posted on L1
-	require.NoError(t, utils.WaitFor(setupCtx, time.Second, func() (bool, error) {
-		l2Height, err := l2OutputOracle.LatestBlockNumber(&bind.CallOpts{Context: setupCtx})
+	require.NoError(t, utils.WaitFor(context.Background(), time.Second, func() (bool, error) {
+		l2Height, err := l2OutputOracle.LatestBlockNumber(&bind.CallOpts{Context: context.Background()})
 		return l2Height != nil && l2Height.Uint64() >= 9, err
 	}))
 
 	// ensure the processors are caught up to this state
-	l1Height, err := l1Client.BlockNumber(setupCtx)
+	l1Height, err := testSuite.L1Client.BlockNumber(context.Background())
 	require.NoError(t, err)
-	require.NoError(t, utils.WaitFor(setupCtx, time.Second, func() (bool, error) {
+	require.NoError(t, utils.WaitFor(context.Background(), time.Second, func() (bool, error) {
 		l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
 		l2Header := testSuite.Indexer.L2Processor.LatestProcessedHeader()
 		return (l1Header != nil && l1Header.Number.Uint64() >= l1Height) && (l2Header != nil && l2Header.Number.Uint64() >= 9), nil
@@ -60,7 +55,7 @@ func TestE2EBlockHeaders(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, indexedHeader)
 
-			header, err := l2Client.HeaderByNumber(context.Background(), height)
+			header, err := testSuite.L2Client.HeaderByNumber(context.Background(), height)
 			require.NoError(t, err)
 			require.NotNil(t, indexedHeader)
 
@@ -68,6 +63,9 @@ func TestE2EBlockHeaders(t *testing.T) {
 			require.Equal(t, header.Hash(), indexedHeader.Hash)
 			require.Equal(t, header.ParentHash, indexedHeader.ParentHash)
 			require.Equal(t, header.Time, indexedHeader.Timestamp)
+
+			// ensure the right rlp encoding is stored. checking the hashes sufficies
+			require.Equal(t, header.Hash(), indexedHeader.GethHeader.Hash())
 		}
 	})
 
@@ -93,7 +91,7 @@ func TestE2EBlockHeaders(t *testing.T) {
 			require.NotEmpty(t, output.L1ContractEventGUID)
 
 			// we may as well check the integrity of the output root
-			l2Block, err := l2Client.BlockByNumber(context.Background(), blockNumber)
+			l2Block, err := testSuite.L2Client.BlockByNumber(context.Background(), blockNumber)
 			require.NoError(t, err)
 			messagePasserStorageHash, err := l2EthClient.StorageHash(predeploys.L2ToL1MessagePasserAddr, blockNumber)
 			require.NoError(t, err)
@@ -111,12 +109,10 @@ func TestE2EBlockHeaders(t *testing.T) {
 		testCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		devContracts := make([]common.Address, 0)
-		testSuite.OpCfg.L1Deployments.ForEach(func(name string, address common.Address) {
-			devContracts = append(devContracts, address)
-		})
-		logFilter := ethereum.FilterQuery{FromBlock: big.NewInt(0), ToBlock: big.NewInt(int64(l1Height)), Addresses: devContracts}
-		logs, err := l1Client.FilterLogs(testCtx, logFilter) // []types.Log
+		l1Contracts := []common.Address{}
+		testSuite.OpCfg.L1Deployments.ForEach(func(name string, addr common.Address) { l1Contracts = append(l1Contracts, addr) })
+		logFilter := ethereum.FilterQuery{FromBlock: big.NewInt(0), ToBlock: big.NewInt(int64(l1Height)), Addresses: l1Contracts}
+		logs, err := testSuite.L1Client.FilterLogs(testCtx, logFilter) // []types.Log
 		require.NoError(t, err)
 
 		for _, log := range logs {
@@ -124,11 +120,19 @@ func TestE2EBlockHeaders(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, log.Topics[0], contractEvent.EventSignature)
 			require.Equal(t, log.BlockHash, contractEvent.BlockHash)
+			require.Equal(t, log.Address, contractEvent.ContractAddress)
 			require.Equal(t, log.TxHash, contractEvent.TransactionHash)
 			require.Equal(t, log.Index, uint(contractEvent.LogIndex))
 
+			// ensure the right rlp encoding of the contract log is stored
+			logRlp, err := rlp.EncodeToBytes(&log)
+			require.NoError(t, err)
+			contractEventRlp, err := rlp.EncodeToBytes(contractEvent.GethLog)
+			require.NoError(t, err)
+			require.ElementsMatch(t, logRlp, contractEventRlp)
+
 			// ensure the block is also indexed
-			block, err := l1Client.BlockByNumber(testCtx, big.NewInt(int64(log.BlockNumber)))
+			block, err := testSuite.L1Client.BlockByNumber(testCtx, big.NewInt(int64(log.BlockNumber)))
 			require.NoError(t, err)
 
 			require.Equal(t, block.Time(), contractEvent.Timestamp)
@@ -139,6 +143,10 @@ func TestE2EBlockHeaders(t *testing.T) {
 			require.Equal(t, block.ParentHash(), l1BlockHeader.ParentHash)
 			require.Equal(t, block.Number(), l1BlockHeader.Number.Int)
 			require.Equal(t, block.Time(), l1BlockHeader.Timestamp)
+
+			// ensure the right rlp encoding is stored. checking the hashes
+			// suffices as it is based on the rlp bytes of the header
+			require.Equal(t, block.Hash(), l1BlockHeader.GethHeader.Hash())
 		}
 	})
 }

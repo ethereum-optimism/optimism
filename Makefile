@@ -16,6 +16,9 @@ build-ts: submodules
 	pnpm build
 .PHONY: build-ts
 
+ci-builder:
+	docker build -t ci-builder -f ops/docker/ci-builder/Dockerfile .
+
 submodules:
 	# CI will checkout submodules on its own (and fails on these commands)
 	if [ -z "$$GITHUB_ENV" ]; then \

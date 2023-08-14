@@ -14,11 +14,7 @@ contract BlockOracle {
     }
 
     /// @notice Emitted when a block is checkpointed.
-    event Checkpoint(
-        uint256 indexed blockNumber,
-        Hash indexed blockHash,
-        Timestamp indexed childTimestamp
-    );
+    event Checkpoint(uint256 indexed blockNumber, Hash indexed blockHash, Timestamp indexed childTimestamp);
 
     /// @notice Maps block numbers to block hashes and timestamps
     mapping(uint256 => BlockInfo) internal blocks;

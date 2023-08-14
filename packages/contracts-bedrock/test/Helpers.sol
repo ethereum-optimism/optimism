@@ -7,13 +7,11 @@ import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { OptimistInviter } from "../src/periphery/op-nft/OptimistInviter.sol";
 import { IERC1271 } from "@openzeppelin/contracts/interfaces/IERC1271.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import {
-    ECDSAUpgradeable
-} from "@openzeppelin/contracts-upgradeable/utils/cryptography/ECDSAUpgradeable.sol";
+import { ECDSAUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/cryptography/ECDSAUpgradeable.sol";
 import { AdminFaucetAuthModule } from "../src/periphery/faucet/authmodules/AdminFaucetAuthModule.sol";
 
 contract TestERC20 is ERC20 {
-    constructor() ERC20("TEST", "TST", 18) {}
+    constructor() ERC20("TEST", "TST", 18) { }
 
     function mint(address to, uint256 value) public {
         _mint(to, value);
@@ -21,13 +19,13 @@ contract TestERC20 is ERC20 {
 }
 
 contract TestERC721 is ERC721 {
-    constructor() ERC721("TEST", "TST") {}
+    constructor() ERC721("TEST", "TST") { }
 
     function mint(address to, uint256 tokenId) public {
         _mint(to, tokenId);
     }
 
-    function tokenURI(uint256) public pure virtual override returns (string memory) {}
+    function tokenURI(uint256) public pure virtual override returns (string memory) { }
 }
 
 contract CallRecorder {
@@ -71,14 +69,11 @@ contract SimpleStorage {
 ///         in OptimistInviter.t.sol for reusability.
 contract OptimistInviterHelper {
     /// @notice EIP712 typehash for the ClaimableInvite type.
-    bytes32 public constant CLAIMABLE_INVITE_TYPEHASH =
-        keccak256("ClaimableInvite(address issuer,bytes32 nonce)");
+    bytes32 public constant CLAIMABLE_INVITE_TYPEHASH = keccak256("ClaimableInvite(address issuer,bytes32 nonce)");
 
     /// @notice EIP712 typehash for the EIP712Domain type that is included as part of the signature.
     bytes32 public constant EIP712_DOMAIN_TYPEHASH =
-        keccak256(
-            "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-        );
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 
     /// @notice Address of OptimistInviter contract we are testing.
     OptimistInviter public optimistInviter;
@@ -102,14 +97,7 @@ contract OptimistInviterHelper {
         pure
         returns (bytes32)
     {
-        return
-            keccak256(
-                abi.encode(
-                    CLAIMABLE_INVITE_TYPEHASH,
-                    _claimableInvite.issuer,
-                    _claimableInvite.nonce
-                )
-            );
+        return keccak256(abi.encode(CLAIMABLE_INVITE_TYPEHASH, _claimableInvite.issuer, _claimableInvite.nonce));
     }
 
     /// @notice Returns a bytes32 nonce that should change everytime. In practice, people should use
@@ -122,29 +110,21 @@ contract OptimistInviterHelper {
     /// @notice Returns a ClaimableInvite with the issuer and current nonce.
     /// @param _issuer Issuer to include in the ClaimableInvite.
     /// @return ClaimableInvite that can be hashed & signed.
-    function getClaimableInviteWithNewNonce(address _issuer)
-        public
-        returns (OptimistInviter.ClaimableInvite memory)
-    {
+    function getClaimableInviteWithNewNonce(address _issuer) public returns (OptimistInviter.ClaimableInvite memory) {
         return OptimistInviter.ClaimableInvite(_issuer, consumeNonce());
     }
 
     /// @notice Computes the EIP712 digest with default correct parameters.
     /// @param _claimableInvite ClaimableInvite struct to hash.
     /// @return EIP-712 compatible digest.
-    function getDigest(OptimistInviter.ClaimableInvite calldata _claimableInvite)
-        public
-        view
-        returns (bytes32)
-    {
-        return
-            getDigestWithEIP712Domain(
-                _claimableInvite,
-                bytes(name),
-                bytes(optimistInviter.EIP712_VERSION()),
-                block.chainid,
-                address(optimistInviter)
-            );
+    function getDigest(OptimistInviter.ClaimableInvite calldata _claimableInvite) public view returns (bytes32) {
+        return getDigestWithEIP712Domain(
+            _claimableInvite,
+            bytes(name),
+            bytes(optimistInviter.EIP712_VERSION()),
+            block.chainid,
+            address(optimistInviter)
+        );
     }
 
     /// @notice Computes the EIP712 digest with the given domain parameters.
@@ -161,18 +141,15 @@ contract OptimistInviterHelper {
         bytes memory _version,
         uint256 _chainid,
         address _verifyingContract
-    ) public pure returns (bytes32) {
+    )
+        public
+        pure
+        returns (bytes32)
+    {
         bytes32 domainSeparator = keccak256(
-            abi.encode(
-                EIP712_DOMAIN_TYPEHASH,
-                keccak256(_name),
-                keccak256(_version),
-                _chainid,
-                _verifyingContract
-            )
+            abi.encode(EIP712_DOMAIN_TYPEHASH, keccak256(_name), keccak256(_version), _chainid, _verifyingContract)
         );
-        return
-            ECDSA.toTypedDataHash(domainSeparator, getClaimableInviteStructHash(_claimableInvite));
+        return ECDSA.toTypedDataHash(domainSeparator, getClaimableInviteStructHash(_claimableInvite));
     }
 }
 
@@ -184,28 +161,19 @@ contract TestERC1271Wallet is Ownable, IERC1271 {
         transferOwnership(originalOwner);
     }
 
-    function isValidSignature(bytes32 hash, bytes memory signature)
-        public
-        view
-        override
-        returns (bytes4 magicValue)
-    {
-        return
-            ECDSA.recover(hash, signature) == owner() ? this.isValidSignature.selector : bytes4(0);
+    function isValidSignature(bytes32 hash, bytes memory signature) public view override returns (bytes4 magicValue) {
+        return ECDSA.recover(hash, signature) == owner() ? this.isValidSignature.selector : bytes4(0);
     }
 }
 
 /// @notice Simple helper contract that helps with testing the Faucet contract.
 contract FaucetHelper {
     /// @notice EIP712 typehash for the Proof type.
-    bytes32 public constant PROOF_TYPEHASH =
-        keccak256("Proof(address recipient,bytes32 nonce,bytes32 id)");
+    bytes32 public constant PROOF_TYPEHASH = keccak256("Proof(address recipient,bytes32 nonce,bytes32 id)");
 
     /// @notice EIP712 typehash for the EIP712Domain type that is included as part of the signature.
     bytes32 public constant EIP712_DOMAIN_TYPEHASH =
-        keccak256(
-            "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
-        );
+        keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
 
     /// @notice Keeps track of current nonce to generate new nonces for each drip.
     uint256 public currentNonce;
@@ -220,11 +188,7 @@ contract FaucetHelper {
     /// @notice Returns the hash of the struct Proof.
     /// @param _proof Proof struct to hash.
     /// @return EIP-712 typed struct hash.
-    function getProofStructHash(AdminFaucetAuthModule.Proof memory _proof)
-        public
-        pure
-        returns (bytes32)
-    {
+    function getProofStructHash(AdminFaucetAuthModule.Proof memory _proof) public pure returns (bytes32) {
         return keccak256(abi.encode(PROOF_TYPEHASH, _proof.recipient, _proof.nonce, _proof.id));
     }
 
@@ -244,15 +208,13 @@ contract FaucetHelper {
         bytes memory _version,
         uint256 _chainid,
         address _verifyingContract
-    ) public pure returns (bytes32) {
+    )
+        public
+        pure
+        returns (bytes32)
+    {
         bytes32 domainSeparator = keccak256(
-            abi.encode(
-                EIP712_DOMAIN_TYPEHASH,
-                keccak256(_name),
-                keccak256(_version),
-                _chainid,
-                _verifyingContract
-            )
+            abi.encode(EIP712_DOMAIN_TYPEHASH, keccak256(_name), keccak256(_version), _chainid, _verifyingContract)
         );
         return ECDSAUpgradeable.toTypedDataHash(domainSeparator, getProofStructHash(_proof));
     }

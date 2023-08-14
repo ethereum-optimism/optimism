@@ -18,21 +18,25 @@ import (
 const agreedBlockTrailingDistance = 100
 
 func main() {
-	if len(os.Args) != 3 {
+	if len(os.Args) < 3 {
 		_, _ = fmt.Fprintln(os.Stderr, "Must specify L1 RPC URL and L2 RPC URL as arguments")
 		os.Exit(2)
 	}
 	l1RpcUrl := os.Args[1]
 	l2RpcUrl := os.Args[2]
+	l1RpcKind := "alchemy"
+	if len(os.Args) > 3 {
+		l1RpcKind = os.Args[3]
+	}
 	goerliOutputAddress := common.HexToAddress("0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0")
-	err := Run(l1RpcUrl, l2RpcUrl, goerliOutputAddress)
+	err := Run(l1RpcUrl, l1RpcKind, l2RpcUrl, goerliOutputAddress)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed: %v\n", err.Error())
 		os.Exit(1)
 	}
 }
 
-func Run(l1RpcUrl string, l2RpcUrl string, l2OracleAddr common.Address) error {
+func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common.Address) error {
 	ctx := context.Background()
 	l1RpcClient, err := rpc.Dial(l1RpcUrl)
 	if err != nil {
@@ -150,7 +154,7 @@ func Run(l1RpcUrl string, l2RpcUrl string, l2OracleAddr common.Address) error {
 	}
 	fmt.Printf("Configuration: %s\n", args)
 	fmt.Println("Running in online mode")
-	err = runFaultProofProgram(ctx, append(args, "--l1", l1RpcUrl, "--l2", l2RpcUrl))
+	err = runFaultProofProgram(ctx, append(args, "--l1", l1RpcUrl, "--l2", l2RpcUrl, "--l1.rpckind", l1RpcKind))
 	if err != nil {
 		return fmt.Errorf("online mode failed: %w", err)
 	}

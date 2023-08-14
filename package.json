@@ -30,7 +30,11 @@
     "release:publish": "pnpm install --frozen-lockfile && npx nx run-many --target=build && pnpm build && changeset publish",
     "release:version": "changeset version && pnpm install --lockfile-only",
     "install:foundry": "curl -L https://foundry.paradigm.xyz | bash && pnpm update:foundry",
-    "update:foundry": "foundryup -C $(cat .foundryrc)"
+    "update:foundry": "foundryup -C $(cat .foundryrc)",
+    "install:abigen": "go install github.com/ethereum/go-ethereum/cmd/abigen@$(cat .abigenrc)",
+    "print:abigen": "abigen --version | sed -e 's/[^0-9]/ /g' -e 's/^ *//g' -e 's/ *$//g' -e 's/ /./g' -e 's/^/v/'",
+    "check:abigen": "[[ $(abigen --version | sed -e 's/[^0-9]/ /g' -e 's/^ *//g' -e 's/ *$//g' -e 's/ /./g' -e 's/^/v/') = $(cat .abigenrc) ]] && echo '✓ abigen versions match' || (echo '✗ abigen version mismatch. Run `pnpm upgrade:abigen` to upgrade.' && exit 1)",
+    "upgrade:abigen": "abigen --version | sed -e 's/[^0-9]/ /g' -e 's/^ *//g' -e 's/ *$//g' -e 's/ /./g' -e 's/^/v/' > .abigenrc"
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.18.2",
@@ -38,7 +42,7 @@
     "@nrwl/nx-cloud": "latest",
     "@types/chai": "^4.2.18",
     "@types/chai-as-promised": "^7.1.4",
-    "@types/mocha": "^8.2.2",
+    "@types/mocha": "^10.0.1",
     "@types/node": "^12.0.0",
     "@typescript-eslint/eslint-plugin": "^5.60.1",
     "@typescript-eslint/parser": "^5.60.1",
@@ -63,7 +67,7 @@
     "markdownlint": "^0.24.0",
     "markdownlint-cli2": "0.4.0",
     "mkdirp": "^1.0.4",
-    "mocha": "^8.4.0",
+    "mocha": "^10.2.0",
     "nx": "15.6.0",
     "nyc": "^15.1.0",
     "patch-package": "^6.4.7",
@@ -71,7 +75,7 @@
     "prettier-plugin-solidity": "^1.0.0-beta.13",
     "rimraf": "^5.0.1",
     "ts-mocha": "^10.0.0",
-    "typescript": "^4.9.3"
+    "typescript": "^5.1.6"
   },
   "dependencies": {
     "@changesets/cli": "^2.26.0",
