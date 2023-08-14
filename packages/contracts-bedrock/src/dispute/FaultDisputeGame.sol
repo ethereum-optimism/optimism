@@ -85,7 +85,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
     /// @param _blockOracle The block oracle, used for loading block hashes further back
     ///                     than the `BLOCKHASH` opcode allows as well as their estimated
     ///                     timestamps.
-    /// @custom:semver 0.0.7
+    /// @custom:semver 0.0.9
     constructor(
         GameType _gameType,
         Claim _absolutePrestate,
@@ -95,7 +95,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         L2OutputOracle _l2oo,
         BlockOracle _blockOracle
     )
-        Semver(0, 0, 8)
+        Semver(0, 0, 9)
     {
         GAME_TYPE = _gameType;
         ABSOLUTE_PRESTATE = _absolutePrestate;
@@ -163,7 +163,8 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // SAFETY:    While the `attack` path does not need an extra check for the post
         //            state's depth in relation to the parent, we don't need another
         //            branch because (n - n) % 2 == 0.
-        bool validStep = VM.step(_stateData, _proof) == Claim.unwrap(postState.claim);
+        (bytes32 vmPostState, ) = VM.step(_stateData, _proof);
+        bool validStep = vmPostState == Claim.unwrap(postState.claim);
         bool parentPostAgree = (parentPos.depth() - postState.position.depth()) % 2 == 0;
         if (parentPostAgree == validStep) revert ValidStep();
 

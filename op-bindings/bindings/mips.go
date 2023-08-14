@@ -265,21 +265,21 @@ func (_MIPS *MIPSCallerSession) Oracle() (common.Address, error) {
 
 // Step is a paid mutator transaction binding the contract method 0xf8e0cb96.
 //
-// Solidity: function step(bytes stateData, bytes proof) returns(bytes32)
+// Solidity: function step(bytes stateData, bytes proof) returns(bytes32 output_, uint8 exitCode_)
 func (_MIPS *MIPSTransactor) Step(opts *bind.TransactOpts, stateData []byte, proof []byte) (*types.Transaction, error) {
 	return _MIPS.contract.Transact(opts, "step", stateData, proof)
 }
 
 // Step is a paid mutator transaction binding the contract method 0xf8e0cb96.
 //
-// Solidity: function step(bytes stateData, bytes proof) returns(bytes32)
+// Solidity: function step(bytes stateData, bytes proof) returns(bytes32 output_, uint8 exitCode_)
 func (_MIPS *MIPSSession) Step(stateData []byte, proof []byte) (*types.Transaction, error) {
 	return _MIPS.Contract.Step(&_MIPS.TransactOpts, stateData, proof)
 }
 
 // Step is a paid mutator transaction binding the contract method 0xf8e0cb96.
 //
-// Solidity: function step(bytes stateData, bytes proof) returns(bytes32)
+// Solidity: function step(bytes stateData, bytes proof) returns(bytes32 output_, uint8 exitCode_)
 func (_MIPS *MIPSTransactorSession) Step(stateData []byte, proof []byte) (*types.Transaction, error) {
 	return _MIPS.Contract.Step(&_MIPS.TransactOpts, stateData, proof)
 }

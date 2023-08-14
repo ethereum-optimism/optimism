@@ -30,7 +30,8 @@ interface IBigStepper {
     /// @param _stateData The preimage of the prestate hash.
     /// @param _proof A proof for the inclusion of the prestate's memory in the merkle tree.
     /// @return postState_ The poststate hash after the instruction step.
-    function step(bytes calldata _stateData, bytes calldata _proof) external returns (bytes32 postState_);
+    /// @return exitCode_ The exit code of the VM.
+    function step(bytes calldata _stateData, bytes calldata _proof) external returns (bytes32 postState_, uint8 exitCode_);
 
     /// @notice Returns the preimage oracle used by the stepper.
     function oracle() external view returns (IPreimageOracle oracle_);

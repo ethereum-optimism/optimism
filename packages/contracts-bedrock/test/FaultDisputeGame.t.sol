@@ -965,7 +965,7 @@ contract AlphabetVM is IBigStepper {
     }
 
     /// @inheritdoc IBigStepper
-    function step(bytes calldata _stateData, bytes calldata) external view returns (bytes32 postState_) {
+    function step(bytes calldata _stateData, bytes calldata) external view returns (bytes32 postState_, uint8) {
         uint256 traceIndex;
         uint256 claim;
         if (keccak256(_stateData) == Claim.unwrap(ABSOLUTE_PRESTATE)) {

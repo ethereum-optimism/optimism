@@ -78,7 +78,7 @@ contract MIPS {
 
     /// @notice Computes the hash of the MIPS state.
     /// @return out_ The hash of the MIPS state.
-    function outputState() internal returns (bytes32 out_) {
+    function outputState() internal returns (bytes32 out_, uint8 exitCode_) {
         assembly {
             // copies 'size' bytes, right-aligned in word at 'from', to 'to', incl. trailing data
             function copyMem(from, to, size) -> fromOut, toOut {
@@ -119,11 +119,14 @@ contract MIPS {
 
             // Compute the hash of the resulting MIPS state
             out_ := keccak256(start, sub(to, start))
+            // Load the exit code onto the stack
+            // 0x180 is the offset of the exitCode field in the State struct within memory.
+            exitCode_ := mload(0x180)
         }
     }
 
     /// @notice Handles a syscall.
-    function handleSyscall() internal returns (bytes32 out_) {
+    function handleSyscall() internal returns (bytes32 out_, uint8 exitCode_) {
         unchecked {
             // Load state from memory
             State memory state;
@@ -281,7 +284,7 @@ contract MIPS {
             state.pc = state.nextPC;
             state.nextPC = state.nextPC + 4;
 
-            out_ = outputState();
+            return outputState();
         }
     }
 
@@ -291,7 +294,7 @@ contract MIPS {
     /// @param _rtReg The register to be used for the branch.
     /// @param _rs The register to be compared with the branch register.
     /// @return out_ The hashed MIPS state.
-    function handleBranch(uint32 _opcode, uint32 _insn, uint32 _rtReg, uint32 _rs) internal returns (bytes32 out_) {
+    function handleBranch(uint32 _opcode, uint32 _insn, uint32 _rtReg, uint32 _rs) internal returns (bytes32 out_, uint8 exitCode_) {
         unchecked {
             // Load state from memory
             State memory state;
@@ -345,7 +348,7 @@ contract MIPS {
             }
 
             // Return the hash of the resulting state
-            out_ = outputState();
+            return outputState();
         }
     }
 
@@ -355,7 +358,7 @@ contract MIPS {
     /// @param _rt The value of the RT register.
     /// @param _storeReg The register to store the result in.
     /// @return out_ The hash of the resulting MIPS state.
-    function handleHiLo(uint32 _func, uint32 _rs, uint32 _rt, uint32 _storeReg) internal returns (bytes32 out_) {
+    function handleHiLo(uint32 _func, uint32 _rs, uint32 _rt, uint32 _storeReg) internal returns (bytes32 out_, uint8 exitCode_) {
         unchecked {
             // Load state from memory
             State memory state;
@@ -418,7 +421,7 @@ contract MIPS {
             state.nextPC = state.nextPC + 4;
 
             // Return the hash of the resulting state
-            out_ = outputState();
+            return outputState();
         }
     }
 
@@ -426,7 +429,7 @@ contract MIPS {
     /// @param _linkReg The register to store the link to the instruction after the delay slot instruction.
     /// @param _dest The destination to jump to.
     /// @return out_ The hashed MIPS state.
-    function handleJump(uint32 _linkReg, uint32 _dest) internal returns (bytes32 out_) {
+    function handleJump(uint32 _linkReg, uint32 _dest) internal returns (bytes32 out_, uint8 exitCode_) {
         unchecked {
             // Load state from memory.
             State memory state;
@@ -449,7 +452,7 @@ contract MIPS {
             }
 
             // Return the hash of the resulting state.
-            out_ = outputState();
+            return outputState();
         }
     }
 
@@ -458,7 +461,7 @@ contract MIPS {
     /// @param _val The value to store.
     /// @param _conditional Whether or not the store is conditional.
     /// @return out_ The hashed MIPS state.
-    function handleRd(uint32 _storeReg, uint32 _val, bool _conditional) internal returns (bytes32 out_) {
+    function handleRd(uint32 _storeReg, uint32 _val, bool _conditional) internal returns (bytes32 out_, uint8 exitCode_) {
         unchecked {
             // Load state from memory.
             State memory state;
@@ -478,8 +481,8 @@ contract MIPS {
             state.pc = state.nextPC;
             state.nextPC = state.nextPC + 4;
 
-            // Return the hash of the resulting state.
-            out_ = outputState();
+            // Return the hash of the resulting state and the exit code of the VM.
+            return outputState();
         }
     }
 
@@ -602,7 +605,7 @@ contract MIPS {
 
     /// @notice Executes a single step of the vm.
     ///         Will revert if any required input state is missing.
-    function step(bytes calldata stateData, bytes calldata proof) public returns (bytes32) {
+    function step(bytes calldata stateData, bytes calldata proof) public returns (bytes32 output_, uint8 exitCode_) {
         unchecked {
             State memory state;
 
