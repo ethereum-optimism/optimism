@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/kms"
+	kmsmocks "github.com/ethereum-optimism/optimism/op-service/kms/mocks"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 
 	"github.com/ethereum/go-ethereum"
@@ -611,6 +612,43 @@ func TestManagerErrsOnZeroConfs(t *testing.T) {
 
 	_, err := NewSimpleTxManager("TEST", testlog.Logger(t, log.LvlCrit), &metrics.NoopTxMetrics{}, CLIConfig{}, kms.CLIConfig{})
 	require.Error(t, err)
+}
+
+// TestManagerKMS ensures that SimpleTxManager will use the KMS if configured.
+func TestManagerKMS(t *testing.T) {
+	txManager := SimpleTxManager{}
+	txManager.cfg = Config{
+		From: common.Address{1},
+	}
+	addr, err := txManager.From()
+	require.NoError(t, err)
+	require.Equal(t, addr, common.Address{1})
+
+	mock := kmsmocks.NewKmsManager(t)
+	txManager.kms = mock
+	require.Equal(t, txManager.UseKms(), true)
+
+	mock.On("GetAddr").Return(common.Address{}, fmt.Errorf("error")).Once()
+	_, err = txManager.From()
+	require.ErrorContains(t, err, "error")
+	mock.On("GetAddr").Return(common.Address{2}, nil).Once()
+	addr, err = txManager.From()
+	require.NoError(t, err)
+	require.Equal(t, addr, common.Address{2})
+
+	dynamicTx := &types.DynamicFeeTx{
+		GasTipCap: big.NewInt(1),
+		GasFeeCap: big.NewInt(2),
+	}
+	mock.On("Sign", dynamicTx).Return(nil, fmt.Errorf("error")).Once()
+	_, err = txManager.Sign(context.Background(), common.Address{1}, dynamicTx)
+	require.ErrorContains(t, err, "error")
+
+	tx := types.NewTransaction(1, common.Address{1}, big.NewInt(1), 1, big.NewInt(1), []byte{})
+	mock.On("Sign", dynamicTx).Return(tx, nil).Once()
+	signedTx, err := txManager.Sign(context.Background(), common.Address{1}, dynamicTx)
+	require.NoError(t, err)
+	require.Equal(t, signedTx, tx)
 }
 
 // failingBackend implements ReceiptSource, returning a failure on the
