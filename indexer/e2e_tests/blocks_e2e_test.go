@@ -64,7 +64,7 @@ func TestE2EBlockHeaders(t *testing.T) {
 			require.Equal(t, header.Time, indexedHeader.Timestamp)
 
 			// ensure the right rlp encoding is stored. checking the hashes sufficies
-			require.Equal(t, header.Hash(), indexedHeader.GethHeader.Hash())
+			require.Equal(t, header.Hash(), indexedHeader.RLPHeader.Hash())
 		}
 	})
 
@@ -126,7 +126,7 @@ func TestE2EBlockHeaders(t *testing.T) {
 			// ensure the right rlp encoding of the contract log is stored
 			logRlp, err := rlp.EncodeToBytes(&log)
 			require.NoError(t, err)
-			contractEventRlp, err := rlp.EncodeToBytes(contractEvent.GethLog)
+			contractEventRlp, err := rlp.EncodeToBytes(contractEvent.RLPLog)
 			require.NoError(t, err)
 			require.ElementsMatch(t, logRlp, contractEventRlp)
 
@@ -145,7 +145,7 @@ func TestE2EBlockHeaders(t *testing.T) {
 
 			// ensure the right rlp encoding is stored. checking the hashes
 			// suffices as it is based on the rlp bytes of the header
-			require.Equal(t, block.Hash(), l1BlockHeader.GethHeader.Hash())
+			require.Equal(t, block.Hash(), l1BlockHeader.RLPHeader.Hash())
 		}
 	})
 }
