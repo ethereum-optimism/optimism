@@ -6,9 +6,10 @@ package safe
 import (
 	"encoding/json"
 	"fmt"
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"math/big"
 )
 
 // BatchFile represents a Safe tx-builder transaction.
