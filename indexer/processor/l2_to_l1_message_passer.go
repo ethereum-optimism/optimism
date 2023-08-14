@@ -7,7 +7,7 @@ import (
 
 type L2ToL1MessagePasserMessagePassed struct {
 	*bindings.L2ToL1MessagePasserMessagePassed
-	RawEvent *database.ContractEvent
+	Event *database.ContractEvent
 }
 
 func L2ToL1MessagePasserMessagesPassed(events *ProcessedContractEvents) ([]L2ToL1MessagePasserMessagePassed, error) {
@@ -20,7 +20,7 @@ func L2ToL1MessagePasserMessagesPassed(events *ProcessedContractEvents) ([]L2ToL
 	processedMessagePassedEvents := events.eventsBySignature[l2ToL1MessagePasserAbi.Events[eventName].ID]
 	messagesPassed := make([]L2ToL1MessagePasserMessagePassed, len(processedMessagePassedEvents))
 	for i, messagePassedEvent := range processedMessagePassedEvents {
-		log := messagePassedEvent.GethLog
+		log := messagePassedEvent.RLPLog
 
 		var messagePassed bindings.L2ToL1MessagePasserMessagePassed
 		messagePassed.Raw = *log
@@ -31,7 +31,7 @@ func L2ToL1MessagePasserMessagesPassed(events *ProcessedContractEvents) ([]L2ToL
 
 		messagesPassed[i] = L2ToL1MessagePasserMessagePassed{
 			L2ToL1MessagePasserMessagePassed: &messagePassed,
-			RawEvent:                         messagePassedEvent,
+			Event:                            messagePassedEvent,
 		}
 	}
 

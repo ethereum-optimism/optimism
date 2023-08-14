@@ -22,13 +22,13 @@ contract OptimismMintableERC721Factory is Semver {
     /// @param deployer    Address of the initiator of the deployment
     event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken, address deployer);
 
-    /// @custom:semver 1.2.3
+    /// @custom:semver 1.3.0
     /// @notice The semver MUST be bumped any time that there is a change in
     ///         the OptimismMintableERC721 token contract since this contract
     ///         is responsible for deploying OptimismMintableERC721 contracts.
     /// @param _bridge Address of the ERC721 bridge on this network.
     /// @param _remoteChainId Chain ID for the remote network.
-    constructor(address _bridge, uint256 _remoteChainId) Semver(1, 2, 3) {
+    constructor(address _bridge, uint256 _remoteChainId) Semver(1, 3, 0) {
         BRIDGE = _bridge;
         REMOTE_CHAIN_ID = _remoteChainId;
     }
@@ -47,7 +47,9 @@ contract OptimismMintableERC721Factory is Semver {
     {
         require(_remoteToken != address(0), "OptimismMintableERC721Factory: L1 token address cannot be address(0)");
 
-        address localToken = address(new OptimismMintableERC721(BRIDGE, REMOTE_CHAIN_ID, _remoteToken, _name, _symbol));
+        bytes32 salt = keccak256(abi.encode(_remoteToken, _name, _symbol));
+        address localToken =
+            address(new OptimismMintableERC721{salt: salt}(BRIDGE, REMOTE_CHAIN_ID, _remoteToken, _name, _symbol));
 
         isOptimismMintableERC721[localToken] = true;
         emit OptimismMintableERC721Created(localToken, _remoteToken, msg.sender);

@@ -40,12 +40,12 @@ type CrossDomainMessengerSentMessageEvent struct {
 
 	Value       *big.Int
 	MessageHash common.Hash
-	RawEvent    *database.ContractEvent
+	Event       *database.ContractEvent
 }
 
 type CrossDomainMessengerRelayedMessageEvent struct {
 	*bindings.CrossDomainMessengerRelayedMessage
-	RawEvent *database.ContractEvent
+	Event *database.ContractEvent
 }
 
 func CrossDomainMessengerSentMessageEvents(events *ProcessedContractEvents) ([]CrossDomainMessengerSentMessageEvent, error) {
@@ -60,7 +60,7 @@ func CrossDomainMessengerSentMessageEvents(events *ProcessedContractEvents) ([]C
 	processedSentMessageEvents := events.eventsBySignature[sentMessageEventAbi.ID]
 	crossDomainMessageEvents := make([]CrossDomainMessengerSentMessageEvent, len(processedSentMessageEvents))
 	for i, sentMessageEvent := range processedSentMessageEvents {
-		log := sentMessageEvent.GethLog
+		log := sentMessageEvent.RLPLog
 
 		var sentMsgData bindings.CrossDomainMessengerSentMessage
 		sentMsgData.Raw = *log
@@ -70,7 +70,7 @@ func CrossDomainMessengerSentMessageEvents(events *ProcessedContractEvents) ([]C
 		}
 
 		var sentMsgExtensionData bindings.CrossDomainMessengerSentMessageExtension1
-		extensionLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 1}].GethLog
+		extensionLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 1}].RLPLog
 		sentMsgExtensionData.Raw = *extensionLog
 		err = UnpackLog(&sentMsgExtensionData, extensionLog, sentMessageEventExtensionAbi.Name, crossDomainMessengerABI)
 		if err != nil {
@@ -86,7 +86,7 @@ func CrossDomainMessengerSentMessageEvents(events *ProcessedContractEvents) ([]C
 			CrossDomainMessengerSentMessage: &sentMsgData,
 			Value:                           sentMsgExtensionData.Value,
 			MessageHash:                     msgHash,
-			RawEvent:                        sentMessageEvent,
+			Event:                           sentMessageEvent,
 		}
 	}
 
@@ -103,7 +103,7 @@ func CrossDomainMessengerRelayedMessageEvents(events *ProcessedContractEvents) (
 	processedRelayedMessageEvents := events.eventsBySignature[relayedMessageEventAbi.ID]
 	crossDomainMessageEvents := make([]CrossDomainMessengerRelayedMessageEvent, len(processedRelayedMessageEvents))
 	for i, relayedMessageEvent := range processedRelayedMessageEvents {
-		log := relayedMessageEvent.GethLog
+		log := relayedMessageEvent.RLPLog
 
 		var relayedMsgData bindings.CrossDomainMessengerRelayedMessage
 		relayedMsgData.Raw = *log
@@ -114,7 +114,7 @@ func CrossDomainMessengerRelayedMessageEvents(events *ProcessedContractEvents) (
 
 		crossDomainMessageEvents[i] = CrossDomainMessengerRelayedMessageEvent{
 			CrossDomainMessengerRelayedMessage: &relayedMsgData,
-			RawEvent:                           relayedMessageEvent,
+			Event:                              relayedMessageEvent,
 		}
 	}
 
