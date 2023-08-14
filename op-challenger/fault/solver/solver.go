@@ -36,11 +36,6 @@ func (s *Solver) NextMove(ctx context.Context, claim types.Claim, agreeWithClaim
 	if claim.Depth() == s.gameDepth {
 		return nil, types.ErrGameDepthReached
 	}
-	if claim.IsRoot() {
-		// We can't defend the root claim so attack regardless of whether we agree or not
-		// This isn't necessarily the right solution...
-		return s.attack(ctx, claim)
-	}
 	agree, err := s.agreeWithClaim(ctx, claim.ClaimData)
 	if err != nil {
 		return nil, err
