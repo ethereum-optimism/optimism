@@ -35,7 +35,7 @@ func ForReceipt(ctx context.Context, client *ethclient.Client, hash common.Hash,
 			}
 		}
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to get receipt: %w", err)
 		}
 		if receipt.Status != status {
 			return receipt, addDebugTrace(ctx, client, hash, fmt.Errorf("expected status %d, but got %d", status, receipt.Status))
