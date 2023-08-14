@@ -7,7 +7,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
-	"github.com/ethereum-optimism/optimism/op-service/client/utils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
@@ -37,7 +37,7 @@ func TestResolveDisputeGame(t *testing.T) {
 	game.WaitForClaimCount(ctx, 2)
 
 	sys.TimeTravelClock.AdvanceTime(gameDuration)
-	require.NoError(t, utils.WaitNextBlock(ctx, l1Client))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	// Challenger should resolve the game now that the clocks have expired.
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
@@ -138,7 +138,7 @@ func TestChallengerCompleteDisputeGame(t *testing.T) {
 			game.WaitForClaimAtMaxDepth(ctx, test.expectStep)
 
 			sys.TimeTravelClock.AdvanceTime(gameDuration)
-			require.NoError(t, utils.WaitNextBlock(ctx, l1Client))
+			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 			game.WaitForGameStatus(ctx, test.expectedResult)
 		})
@@ -198,7 +198,7 @@ func TestCannonDisputeGame(t *testing.T) {
 			game.WaitForClaimAtMaxDepth(ctx, true)
 
 			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
-			require.NoError(t, utils.WaitNextBlock(ctx, l1Client))
+			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 			game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 			game.LogGameData(ctx)
@@ -253,7 +253,7 @@ func TestCannonDefendStep(t *testing.T) {
 	game.WaitForClaimAtMaxDepth(ctx, true)
 
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
-	require.NoError(t, utils.WaitNextBlock(ctx, l1Client))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 	game.LogGameData(ctx)
