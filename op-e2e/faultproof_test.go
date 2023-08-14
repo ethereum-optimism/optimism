@@ -253,7 +253,7 @@ func TestCannonDefendStep(t *testing.T) {
 	game.WaitForClaimAtMaxDepth(ctx, true)
 
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
-	require.NoError(t, utils.WaitNextBlock(ctx, l1Client))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 	game.LogGameData(ctx)
