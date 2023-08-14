@@ -105,7 +105,7 @@ type SimpleTxManager struct {
 
 	pending atomic.Int64
 
-	kms *kms.KmsManager
+	kms kms.KmsManager
 }
 
 // NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
@@ -114,7 +114,7 @@ func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLI
 	if err != nil {
 		return nil, err
 	}
-	kmsManager, err := kms.NewKmsManager(kmsCfg)
+	kmsManager, err := kms.NewKmsConfig(kmsCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -147,6 +147,13 @@ func (m *SimpleTxManager) From() (common.Address, error) {
 
 func (m *SimpleTxManager) BlockNumber(ctx context.Context) (uint64, error) {
 	return m.backend.BlockNumber(ctx)
+}
+
+func (m *SimpleTxManager) Sign(ctx context.Context, from common.Address, rawTx *types.DynamicFeeTx) (*types.Transaction, error) {
+	if m.UseKms() {
+		return m.kms.Sign(rawTx)
+	}
+	return m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
 }
 
 // TxCandidate is a transaction candidate that can be submitted to ask the
@@ -250,7 +257,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 
 	ctx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
-	return m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
+	return m.Sign(ctx, m.cfg.From, rawTx)
 }
 
 // nextNonce returns a nonce to use for the next transaction. It uses
@@ -529,7 +536,7 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 
 	ctx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
-	newTx, err := m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
+	newTx, err := m.Sign(ctx, m.cfg.From, rawTx)
 	if err != nil {
 		m.l.Warn("failed to sign new transaction", "err", err)
 		return tx, nil

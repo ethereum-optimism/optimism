@@ -23,7 +23,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
-	opkms "github.com/ethereum-optimism/optimism/op-service/kms"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -158,7 +157,7 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metr
 		return nil, err
 	}
 
-	txManager, err := txmgr.NewSimpleTxManager("proposer", l, m, cfg.TxMgrConfig, opkms.CLIConfig{})
+	txManager, err := txmgr.NewSimpleTxManager("proposer", l, m, cfg.TxMgrConfig, cfg.KmsConfig)
 	if err != nil {
 		return nil, err
 	}

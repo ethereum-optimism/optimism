@@ -11,12 +11,18 @@ import (
 	ethawskmssigner "github.com/welthee/go-ethereum-aws-kms-tx-signer"
 )
 
-type KmsManager struct {
+//go:generate mockery --name KmsManager --output ./mocks
+type KmsManager interface {
+	GetAddr() (common.Address, error)
+	Sign(rawTx *types.DynamicFeeTx) (*types.Transaction, error)
+}
+
+type KmsConfig struct {
 	keyId      string
 	kmsSession *kms.KMS
 }
 
-func NewKmsManager(cfg CLIConfig) (*KmsManager, error) {
+func NewKmsConfig(cfg CLIConfig) (*KmsConfig, error) {
 	if cfg.KmsKeyID == "" || cfg.KmsEndpoint == "" || cfg.KmsRegion == "" {
 		return nil, nil
 	}
@@ -29,13 +35,13 @@ func NewKmsManager(cfg CLIConfig) (*KmsManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &KmsManager{
+	return &KmsConfig{
 		keyId:      cfg.KmsKeyID,
 		kmsSession: kms.New(session),
 	}, nil
 }
 
-func (k *KmsManager) GetAddr() (common.Address, error) {
+func (k *KmsConfig) GetAddr() (common.Address, error) {
 	pubkey, err := ethawskmssigner.GetPubKey(k.kmsSession, k.keyId)
 	if err != nil {
 		return common.Address{}, err
@@ -44,7 +50,7 @@ func (k *KmsManager) GetAddr() (common.Address, error) {
 	return addr, nil
 }
 
-func (k *KmsManager) Sign(rawTx *types.DynamicFeeTx) (*types.Transaction, error) {
+func (k *KmsConfig) Sign(rawTx *types.DynamicFeeTx) (*types.Transaction, error) {
 	transactOpts, err := ethawskmssigner.NewAwsKmsTransactorWithChainID(k.kmsSession, k.keyId, rawTx.ChainID)
 	if err != nil {
 		return nil, err

@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli/v2"
 
 	opservice "github.com/ethereum-optimism/optimism/op-service"
+	opkms "github.com/ethereum-optimism/optimism/op-service/kms"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	txmgr "github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
@@ -101,6 +102,7 @@ var optionalFlags = []cli.Flag{
 func init() {
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, txmgr.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, opkms.CLIFlags(envVarPrefix)...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }
@@ -153,6 +155,8 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 
 	traceTypeFlag := config.TraceType(strings.ToLower(ctx.String(TraceTypeFlag.Name)))
 
+	kmsConfig := opkms.ReadCLIConfig(ctx)
+
 	return &config.Config{
 		// Required Flags
 		L1EthRpc:                ctx.String(L1EthRpcFlag.Name),
@@ -166,5 +170,6 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		AgreeWithProposedOutput: ctx.Bool(AgreeWithProposedOutputFlag.Name),
 		GameDepth:               ctx.Int(GameDepthFlag.Name),
 		TxMgrConfig:             txMgrConfig,
+		KmsConfig:               kmsConfig,
 	}, nil
 }
