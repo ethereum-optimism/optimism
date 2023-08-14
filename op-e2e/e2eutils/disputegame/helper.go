@@ -12,7 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
-	"github.com/ethereum-optimism/optimism/op-service/client/utils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -98,7 +98,7 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	binary.BigEndian.PutUint64(extraData[56:], l1Head.Uint64())
 	tx, err := h.factory.Create(h.opts, alphabetGameType, rootClaim, extraData)
 	h.require.NoError(err, "create fault dispute game")
-	rcpt, err := utils.WaitReceiptOK(ctx, h.client, tx.Hash())
+	rcpt, err := wait.ForReceiptOK(ctx, h.client, tx.Hash())
 	h.require.NoError(err, "wait for create fault dispute game receipt to be OK")
 	h.require.Len(rcpt.Logs, 1, "should have emitted a single DisputeGameCreated event")
 	createdEvent, err := h.factory.ParseDisputeGameCreated(*rcpt.Logs[0])
@@ -131,7 +131,7 @@ func (h *FactoryHelper) StartCannonGame(ctx context.Context, rootClaim common.Ha
 	binary.BigEndian.PutUint64(extraData[56:], l1Head.Uint64())
 	tx, err := h.factory.Create(h.opts, cannonGameType, rootClaim, extraData)
 	h.require.NoError(err, "create fault dispute game")
-	rcpt, err := utils.WaitReceiptOK(ctx, h.client, tx.Hash())
+	rcpt, err := wait.ForReceiptOK(ctx, h.client, tx.Hash())
 	h.require.NoError(err, "wait for create fault dispute game receipt to be OK")
 	h.require.Len(rcpt.Logs, 1, "should have emitted a single DisputeGameCreated event")
 	createdEvent, err := h.factory.ParseDisputeGameCreated(*rcpt.Logs[0])
@@ -158,7 +158,7 @@ func (h *FactoryHelper) waitForProposals(ctx context.Context) uint64 {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
 	opts := &bind.CallOpts{Context: ctx}
-	latestOutputIndex, err := utils.WaitAndGet(
+	latestOutputIndex, err := wait.AndGet(
 		ctx,
 		time.Second,
 		func() (*big.Int, error) {
@@ -187,7 +187,7 @@ func (h *FactoryHelper) checkpointL1Block(ctx context.Context) *big.Int {
 	// Store the current block in the oracle
 	tx, err := h.blockOracle.Checkpoint(h.opts)
 	h.require.NoError(err)
-	r, err := utils.WaitReceiptOK(ctx, h.client, tx.Hash())
+	r, err := wait.ForReceiptOK(ctx, h.client, tx.Hash())
 	h.require.NoError(err, "failed to store block in block oracle")
 	return new(big.Int).Sub(r.BlockNumber, big.NewInt(1))
 }
