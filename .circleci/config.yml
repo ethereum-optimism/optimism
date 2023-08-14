@@ -129,6 +129,7 @@ jobs:
             - "packages/core-utils/node_modules"
             - "packages/sdk/node_modules"
             - "packages/contracts-ts/node_modules"
+            - "packages/web3js-plugin/node_modules"
       - run:
           name: print forge version
           command: forge --version
