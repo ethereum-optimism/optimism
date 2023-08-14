@@ -29,11 +29,11 @@ type ContractEvent struct {
 	Timestamp      uint64
 
 	// NOTE: NOT ALL THE DERIVED FIELDS ON `types.Log` ARE
-	// AVAILABLE. ONLY THE ONES LISTED ABOVE.
-	GethLog *types.Log `gorm:"serializer:rlp;column:rlp_bytes"`
+	// AVAILABLE. FIELDS LISTED ABOVE ARE FILLED IN
+	RLPLog *types.Log `gorm:"serializer:rlp;column:rlp_bytes"`
 }
 
-func ContractEventFromGethLog(log *types.Log, timestamp uint64) ContractEvent {
+func ContractEventFromLog(log *types.Log, timestamp uint64) ContractEvent {
 	eventSig := common.Hash{}
 	if len(log.Topics) > 0 {
 		eventSig = log.Topics[0]
@@ -51,16 +51,16 @@ func ContractEventFromGethLog(log *types.Log, timestamp uint64) ContractEvent {
 
 		Timestamp: timestamp,
 
-		GethLog: log,
+		RLPLog: log,
 	}
 }
 
 func (c *ContractEvent) AfterFind(tx *gorm.DB) error {
 	// Fill in some of the derived fields that are not
-	// populated when decoding the GethLog from RLP
-	c.GethLog.BlockHash = c.BlockHash
-	c.GethLog.TxHash = c.TransactionHash
-	c.GethLog.Index = uint(c.LogIndex)
+	// populated when decoding the RLPLog from RLP
+	c.RLPLog.BlockHash = c.BlockHash
+	c.RLPLog.TxHash = c.TransactionHash
+	c.RLPLog.Index = uint(c.LogIndex)
 	return nil
 }
 
