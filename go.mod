@@ -24,6 +24,7 @@ require (
 	github.com/ipfs/go-ds-leveldb v0.5.0
 	github.com/jackc/pgtype v1.14.0
 	github.com/jackc/pgx/v5 v5.4.3
+	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
 	github.com/libp2p/go-libp2p v0.27.8
 	github.com/libp2p/go-libp2p-pubsub v0.9.3
