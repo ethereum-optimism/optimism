@@ -86,9 +86,9 @@ func (m *MIPSEVM) Step(t *testing.T, stepWitness *StepWitness) []byte {
 	input := stepWitness.EncodeStepInput()
 	ret, leftOverGas, err := m.env.Call(vm.AccountRef(sender), m.addrs.MIPS, input, startingGas, big.NewInt(0))
 	require.NoError(t, err, "evm should not fail")
-	require.Len(t, ret, 32, "expecting 32-byte state hash")
+	require.Len(t, ret, 64, "expecting 64 bytes of return data - [0;32) = stateHash, [63;64) = exitCode")
 	// remember state hash, to check it against state
-	postHash := common.Hash(*(*[32]byte)(ret))
+	postHash := common.Hash(*(*[32]byte)(ret[:32]))
 	logs := m.evmState.Logs()
 	require.Equal(t, 1, len(logs), "expecting a log with post-state")
 	evmPost := logs[0].Data
