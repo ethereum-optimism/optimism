@@ -37,5 +37,6 @@
   "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
   "eip1559Denominator": 50,
   "eip1559Elasticity": 6,
-  "l2GenesisRegolithTimeOffset": "0x0"
+  "l2GenesisRegolithTimeOffset": "0x0",
+  "systemConfigStartBlock": 0
 }
