@@ -4,13 +4,13 @@ pragma solidity 0.8.19;
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { Semver } from "../universal/Semver.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
-import { EIP712Verifier } from "./eip712/EIP712Verifier.sol";
+import { EIP1271Verifier } from "./eip1271/EIP1271Verifier.sol";
 import { ISchemaResolver } from "./resolver/ISchemaResolver.sol";
 
 import {
     AccessDenied,
     EMPTY_UID,
-    EIP712Signature,
+    Signature,
     InvalidLength,
     MAX_GAP,
     NotFound,
@@ -44,7 +44,7 @@ struct AttestationsResult {
 /// @custom:predeploy 0x4200000000000000000000000000000000000021
 /// @title EAS
 /// @notice The Ethereum Attestation Service protocol.
-contract EAS is IEAS, Semver, EIP712Verifier {
+contract EAS is IEAS, Semver, EIP1271Verifier {
     using Address for address payable;
 
     error AlreadyRevoked();
@@ -80,7 +80,8 @@ contract EAS is IEAS, Semver, EIP712Verifier {
     uint256[MAX_GAP - 3] private __gap;
 
     /// @dev Creates a new EAS instance.
-    constructor() Semver(1, 0, 2) EIP712Verifier("EAS", "1.0.1") { }
+    /// @custom:semver 1.1.0
+    constructor() Semver(1, 1, 0) EIP1271Verifier("EAS", "1.0.1") { }
 
     /// @inheritdoc IEAS
     function getSchemaRegistry() external pure returns (ISchemaRegistry) {
@@ -186,8 +187,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
                 revert InvalidLength();
             }
 
-            // Verify EIP712 signatures. Please note that the signatures are assumed to be signed with increasing
-            // nonces.
+            // Verify signatures. Please note that the signatures are assumed to be signed with increasing nonces.
             for (uint256 j = 0; j < data.length; j = uncheckedInc(j)) {
                 _verifyAttest(
                     DelegatedAttestationRequest({
@@ -287,8 +287,7 @@ contract EAS is IEAS, Semver, EIP712Verifier {
                 revert InvalidLength();
             }
 
-            // Verify EIP712 signatures. Please note that the signatures are assumed to be signed with increasing
-            // nonces.
+            // Verify signatures. Please note that the signatures are assumed to be signed with increasing nonces.
             for (uint256 j = 0; j < data.length; j = uncheckedInc(j)) {
                 _verifyRevoke(
                     DelegatedRevocationRequest({
