@@ -17,8 +17,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/clients"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/util"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -31,59 +31,88 @@ var defaultCrossDomainMessageSender = common.HexToAddress("0x0000000000000000000
 func main() {
 	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd()))))
 
-	flags := []cli.Flag{}
-	flags = append(flags, util.ClientsFlags...)
-	flags = append(flags, util.AddressesFlags...)
-
 	app := &cli.App{
 		Name:  "check-l2",
 		Usage: "Check that an OP Stack L2 has been configured correctly",
-		Flags: flags,
-		Action: func(ctx *cli.Context) error {
-			clients, err := util.NewClients(ctx)
-			if err != nil {
-				return err
-			}
-
-			log.Info("Checking predeploy proxy config")
-			g := new(errgroup.Group)
-
-			// Check that all proxies are configured correctly
-			// Do this in parallel but not too quickly to allow for
-			// querying against rate limiting RPC backends
-			count := uint64(2048)
-			for i := uint64(0); i < count; i++ {
-				i := i
-				if i%4 == 0 {
-					log.Info("Checking proxy", "index", i, "total", count)
-					if err := g.Wait(); err != nil {
-						return err
-					}
-				}
-				g.Go(func() error {
-					return checkPredeploy(clients.L2Client, i)
-				})
-			}
-
-			if err := g.Wait(); err != nil {
-				return err
-			}
-			log.Info("All predeploy proxies are set correctly")
-
-			// Check that all of the defined predeploys are set up correctly
-			for name, addr := range predeploys.Predeploys {
-				log.Info("Checking predeploy", "name", name, "address", addr.Hex())
-				if err := checkPredeployConfig(clients.L2Client, name); err != nil {
-					return err
-				}
-			}
-			return nil
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "l1-rpc-url",
+				Value:   "http://127.0.0.1:8545",
+				Usage:   "L1 RPC URL",
+				EnvVars: []string{"L1_RPC_URL"},
+			},
+			&cli.StringFlag{
+				Name:    "l2-rpc-url",
+				Value:   "http://127.0.0.1:9545",
+				Usage:   "L2 RPC URL",
+				EnvVars: []string{"L2_RPC_URL"},
+			},
 		},
+		Action: entrypoint,
 	}
 
 	if err := app.Run(os.Args); err != nil {
-		log.Crit("error indexing state", "err", err)
+		log.Crit("error checking l2", "err", err)
 	}
+}
+
+// entrypoint is the entrypoint for the check-l2 script
+func entrypoint(ctx *cli.Context) error {
+	clients, err := clients.NewClients(ctx)
+	if err != nil {
+		return err
+	}
+
+	log.Info("Checking predeploy proxy config")
+	g := new(errgroup.Group)
+
+	// Check that all proxies are configured correctly
+	// Do this in parallel but not too quickly to allow for
+	// querying against rate limiting RPC backends
+	count := uint64(2048)
+	for i := uint64(0); i < count; i++ {
+		i := i
+		if i%4 == 0 {
+			log.Info("Checking proxy", "index", i, "total", count)
+			if err := g.Wait(); err != nil {
+				return err
+			}
+		}
+		g.Go(func() error {
+			return checkPredeploy(clients.L2Client, i)
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return err
+	}
+	log.Info("All predeploy proxies are set correctly")
+
+	// Check that all of the defined predeploys are set up correctly
+	for name, addr := range predeploys.Predeploys {
+		log.Info("Checking predeploy", "name", name, "address", addr.Hex())
+		if err := checkPredeployConfig(clients.L2Client, name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkPredeploy ensures that the predeploy at index i has the correct proxy admin set
+func checkPredeploy(client *ethclient.Client, i uint64) error {
+	bigAddr := new(big.Int).Or(genesis.BigL2PredeployNamespace, new(big.Int).SetUint64(i))
+	addr := common.BigToAddress(bigAddr)
+	if !predeploys.IsProxied(addr) {
+		return nil
+	}
+	admin, err := getEIP1967AdminAddress(client, addr)
+	if err != nil {
+		return err
+	}
+	if admin != predeploys.ProxyAdminAddr {
+		return fmt.Errorf("%s does not have correct proxy admin set", addr)
+	}
+	return nil
 }
 
 // checkPredeployConfig checks that the defined predeploys are configured correctly
@@ -223,6 +252,16 @@ func checkPredeployConfig(client *ethclient.Client, name string) error {
 
 		case predeploys.L2ToL1MessagePasserAddr:
 			if err := checkL2ToL1MessagePasser(p, client); err != nil {
+				return err
+			}
+
+		case predeploys.SchemaRegistryAddr:
+			if err := checkSchemaRegistry(p, client); err != nil {
+				return err
+			}
+
+		case predeploys.EASAddr:
+			if err := checkEAS(p, client); err != nil {
 				return err
 			}
 		}
@@ -384,6 +423,19 @@ func checkL2ERC721Bridge(addr common.Address, client *ethclient.Client) error {
 	if otherBridge == (common.Address{}) {
 		return errors.New("L2ERC721Bridge.OTHERBRIDGE is zero address")
 	}
+
+	initialized, err := getInitialized("L2ERC721Bridge", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2ERC721Bridge", "_initialized", initialized)
+
+	initializing, err := getInitializing("L2ERC721Bridge", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2ERC721Bridge", "_initializing", initializing)
+
 	version, err := contract.Version(&bind.CallOpts{})
 	if err != nil {
 		return err
@@ -564,11 +616,23 @@ func checkL2StandardBridge(addr common.Address, client *ethclient.Client) error 
 	if messenger != predeploys.L2CrossDomainMessengerAddr {
 		return fmt.Errorf("L2StandardBridge MESSENGER should be %s, got %s", predeploys.L2CrossDomainMessengerAddr, messenger)
 	}
-
 	version, err := contract.Version(&bind.CallOpts{})
 	if err != nil {
 		return err
 	}
+
+	initialized, err := getInitialized("L2StandardBridge", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2StandardBridge", "_initialized", initialized)
+
+	initializing, err := getInitializing("L2StandardBridge", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2StandardBridge", "_initializing", initializing)
+
 	log.Info("L2StandardBridge version", "version", version)
 	return nil
 }
@@ -675,6 +739,19 @@ func checkL2CrossDomainMessenger(addr common.Address, client *ethclient.Client) 
 	if err != nil {
 		return err
 	}
+
+	initialized, err := getInitialized("L2CrossDomainMessenger", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2CrossDomainMessenger", "_initialized", initialized)
+
+	initializing, err := getInitializing("L2CrossDomainMessenger", addr, client)
+	if err != nil {
+		return err
+	}
+	log.Info("L2CrossDomainMessenger", "_initializing", initializing)
+
 	log.Info("L2CrossDomainMessenger version", "version", version)
 	return nil
 }
@@ -712,8 +789,45 @@ func checkDeployerWhitelist(addr common.Address, client *ethclient.Client) error
 	return nil
 }
 
+func checkSchemaRegistry(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewSchemaRegistry(addr, client)
+	if err != nil {
+		return err
+	}
+
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("SchemaRegistry version", "version", version)
+	return nil
+}
+
+func checkEAS(addr common.Address, client *ethclient.Client) error {
+	contract, err := bindings.NewEAS(addr, client)
+	if err != nil {
+		return err
+	}
+
+	registry, err := contract.GetSchemaRegistry(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	if registry != predeploys.SchemaRegistryAddr {
+		return fmt.Errorf("Incorrect registry address %s", registry)
+	}
+	log.Info("EAS", "registry", registry)
+
+	version, err := contract.Version(&bind.CallOpts{})
+	if err != nil {
+		return err
+	}
+	log.Info("EAS version", "version", version)
+	return nil
+}
+
 func getEIP1967AdminAddress(client *ethclient.Client, addr common.Address) (common.Address, error) {
-	slot, err := client.StorageAt(context.Background(), addr, util.EIP1967AdminSlot, nil)
+	slot, err := client.StorageAt(context.Background(), addr, genesis.AdminSlot, nil)
 	if err != nil {
 		return common.Address{}, err
 	}
@@ -722,7 +836,7 @@ func getEIP1967AdminAddress(client *ethclient.Client, addr common.Address) (comm
 }
 
 func getEIP1967ImplementationAddress(client *ethclient.Client, addr common.Address) (common.Address, error) {
-	slot, err := client.StorageAt(context.Background(), addr, util.EIP1967ImplementationSlot, nil)
+	slot, err := client.StorageAt(context.Background(), addr, genesis.ImplementationSlot, nil)
 	if err != nil {
 		return common.Address{}, err
 	}
@@ -730,19 +844,56 @@ func getEIP1967ImplementationAddress(client *ethclient.Client, addr common.Addre
 	return impl, nil
 }
 
-// checkPredeploy ensures that the predeploy at index i has the correct proxy admin set
-func checkPredeploy(client *ethclient.Client, i uint64) error {
-	bigAddr := new(big.Int).Or(genesis.BigL2PredeployNamespace, new(big.Int).SetUint64(i))
-	addr := common.BigToAddress(bigAddr)
-	if !predeploys.IsProxied(addr) {
-		return nil
-	}
-	admin, err := getEIP1967AdminAddress(client, addr)
+// getInitialized will get the initialized value in storage of a contract.
+// This is an incrementing number that starts at 1 and increments each time that
+// the contract is upgraded.
+func getInitialized(name string, addr common.Address, client *ethclient.Client) (*big.Int, error) {
+	value, err := getStorageValue(name, "_initialized", addr, client)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if admin != predeploys.ProxyAdminAddr {
-		return fmt.Errorf("%s does not have correct proxy admin set", addr)
+	return new(big.Int).SetBytes(value), nil
+}
+
+// getInitializing will get the _initializing value in storage of a contract.
+func getInitializing(name string, addr common.Address, client *ethclient.Client) (bool, error) {
+	value, err := getStorageValue(name, "_initializing", addr, client)
+	if err != nil {
+		return false, err
 	}
-	return nil
+	if len(value) != 1 {
+		return false, fmt.Errorf("Unexpected length for _initializing: %d", len(value))
+	}
+	return value[0] == 1, nil
+}
+
+// getStorageValue will get the value of a named storage slot in a contract. It isn't smart about
+// automatically converting from a byte slice to a type, it is the caller's responsibility to do that.
+func getStorageValue(name, entryName string, addr common.Address, client *ethclient.Client) ([]byte, error) {
+	layout, err := bindings.GetStorageLayout(name)
+	if err != nil {
+		return nil, err
+	}
+	entry, err := layout.GetStorageLayoutEntry(entryName)
+	if err != nil {
+		return nil, err
+	}
+	typ, err := layout.GetStorageLayoutType(entry.Type)
+	if err != nil {
+		return nil, err
+	}
+	slot := common.BigToHash(big.NewInt(int64(entry.Slot)))
+	value, err := client.StorageAt(context.Background(), addr, slot, nil)
+	if err != nil {
+		return nil, err
+	}
+	if entry.Offset+typ.NumberOfBytes > uint(len(value)) {
+		return nil, fmt.Errorf("value length is too short")
+	}
+	// Swap the endianness
+	slice := common.CopyBytes(value)
+	for i, j := 0, len(slice)-1; i < j; i, j = i+1, j-1 {
+		slice[i], slice[j] = slice[j], slice[i]
+	}
+	return slice[entry.Offset : entry.Offset+typ.NumberOfBytes], nil
 }

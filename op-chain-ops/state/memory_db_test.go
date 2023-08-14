@@ -52,7 +52,11 @@ func TestCode(t *testing.T) {
 		db.SetCode(addr, code)
 
 		post := db.GetCode(addr)
-		require.Equal(t, post, code)
+		if len(code) == 0 {
+			require.Nil(t, post)
+		} else {
+			require.Equal(t, post, code)
+		}
 
 		size := db.GetCodeSize(addr)
 		require.Equal(t, size, len(code))

@@ -4,7 +4,12 @@
     "defaultBase": "develop"
   },
   "implicitDependencies": {
-    "nx.json": "*"
+    "nx.json": "*",
+    "tsconfig.json": "*",
+    ".foundryrc": "*",
+    "pnpm.lock.yaml": "*",
+    ".npmrc": "*",
+    ".nvmrc":  "*"
   },
   "tasksRunnerOptions": {
     "default": {
@@ -49,6 +54,9 @@
     },
     "test": {
       "inputs": ["default", "testing", "^production"],
+      "dependsOn": ["^build"]
+    },
+    "generate": {
       "dependsOn": ["^build"]
     },
     "build:contracts": {

@@ -68,6 +68,7 @@ You'll need the following:
 * [Docker Compose](https://docs.docker.com/compose/install/)
 * [Go](https://go.dev/dl/)
 * [Foundry](https://getfoundry.sh)
+* [go-ethereum](https://github.com/ethereum/go-ethereum)
 
 ### Setup
 
@@ -80,7 +81,7 @@ cd optimism
 
 ### Install the Correct Version of NodeJS
 
-Install node v16.16.0 with [nvm](https://github.com/nvm-sh/nvm)
+Install the correct node version with [nvm](https://github.com/nvm-sh/nvm)
 
 ```bash
 nvm use
@@ -112,10 +113,11 @@ Use the above commands to recompile the packages.
 ### Building the rest of the system
 
 If you want to run an Optimism node OR **if you want to run the integration tests**, you'll need to build the rest of the system.
+Note that these environment variables significantly speed up build time.
 
 ```bash
-cd ops
-export COMPOSE_DOCKER_CLI_BUILD=1 # these environment variables significantly speed up build time
+cd ops-bedrock
+export COMPOSE_DOCKER_CLI_BUILD=1
 export DOCKER_BUILDKIT=1
 docker-compose build
 ```
@@ -124,7 +126,7 @@ Source code changes can have an impact on more than one container.
 **If you're unsure about which containers to rebuild, just rebuild them all**:
 
 ```bash
-cd ops
+cd ops-bedrock
 docker-compose down
 docker-compose build
 docker-compose up

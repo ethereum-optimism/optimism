@@ -1,6 +1,7 @@
 package backoff
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -14,20 +15,19 @@ func TestDo(t *testing.T) {
 
 	start := time.Now()
 	var i int
-	require.NoError(t, Do(2, strategy, func() error {
+	_, err := Do(context.Background(), 2, strategy, func() (int, error) {
 		if i == 1 {
-			return nil
+			return 0, nil
 		}
-
 		i++
-		return dummyErr
-	}))
+		return 0, dummyErr
+	})
+	require.NoError(t, err)
 	require.True(t, time.Since(start) > 10*time.Millisecond)
-
 	start = time.Now()
 	// add one because the first attempt counts
-	err := Do(3, strategy, func() error {
-		return dummyErr
+	_, err = Do(context.Background(), 3, strategy, func() (int, error) {
+		return 0, dummyErr
 	})
 	require.Equal(t, dummyErr, err.(*ErrFailedPermanently).LastErr)
 	require.True(t, time.Since(start) > 20*time.Millisecond)

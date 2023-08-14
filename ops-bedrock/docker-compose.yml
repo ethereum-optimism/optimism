@@ -132,6 +132,17 @@ services:
       OP_BATCHER_METRICS_ENABLED: "true"
       OP_BATCHER_RPC_ENABLE_ADMIN: "true"
 
+  artifact-server:
+    depends_on:
+      - l1
+    image: nginx:1.25-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - "${PWD}/../.devnet/:/usr/share/nginx/html/:ro"
+    security_opt:
+      - "no-new-privileges:true"
+
   stateviz:
     build:
       context: ../

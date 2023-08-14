@@ -7,10 +7,8 @@ This directory contains documentation for all defined invariant tests within `co
 
 ## Table of Contents
 - [AddressAliasHelper](./AddressAliasHelper.md)
-- [AddressAliasing](./AddressAliasing.md)
 - [Burn.Eth](./Burn.Eth.md)
 - [Burn.Gas](./Burn.Gas.md)
-- [Burn](./Burn.md)
 - [CrossDomainMessenger](./CrossDomainMessenger.md)
 - [Encoding](./Encoding.md)
 - [Hashing](./Hashing.md)
@@ -44,23 +42,6 @@ All tests within `forge` invariant files should follow the convention:
  * <longDescription>
  */
 function invariant_<shortDescription>() external {
-    // ...
-}
-```
-
-### Echidna Invariants
-
-All `echidna` invariant tests must exist within the `contracts/echidna` folder, and the file name should be
-`Fuzz<ContractName>.sol`, where `<ContractName>` is the name of the contract that is being tested.
-
-All property tests within `echidna` invariant files should follow the convention:
-```solidity
-/**
- * @custom:invariant <title>
- *
- * <longDescription>
- */
-function echidna_<shortDescription>() external view returns (bool) {
     // ...
 }
 ```

@@ -1,26 +1,15 @@
 import fs from 'fs'
 import path from 'path'
 
-const BASE_INVARIANTS_DIR = path.join(
-  __dirname,
-  '..',
-  'contracts',
-  'test',
-  'invariants'
-)
-const BASE_ECHIDNA_DIR = path.join(__dirname, '..', 'contracts', 'echidna')
+const BASE_INVARIANTS_DIR = path.join(__dirname, '..', 'test', 'invariants')
 const BASE_DOCS_DIR = path.join(__dirname, '..', 'invariant-docs')
-const BASE_ECHIDNA_GH_URL = '../contracts/echidna/'
-const BASE_INVARIANT_GH_URL = '../contracts/test/invariants/'
+const BASE_INVARIANT_GH_URL = '../test/invariants/'
 const NATSPEC_INV = '@custom:invariant'
-const BLOCK_COMMENT_PREFIX_REGEX = /\*(\/)?/
-const BLOCK_COMMENT_HEADER_REGEX = /\*\s(.)+/
 
 // Represents an invariant test contract
 type Contract = {
   name: string
   fileName: string
-  isEchidna: boolean
   docs: InvariantDoc[]
 }
 
@@ -33,10 +22,8 @@ type InvariantDoc = {
 
 const writtenFiles = []
 
-/**
- * Lazy-parses all test files in the `contracts/test/invariants` directory to generate documentation
- * on all invariant tests.
- */
+// Lazy-parses all test files in the `test/invariants` directory
+// to generate documentation on all invariant tests.
 const docGen = (dir: string): void => {
   // Grab all files within the invariants test dir
   const files = fs.readdirSync(dir)
@@ -52,11 +39,8 @@ const docGen = (dir: string): void => {
     const lines = fileContents.split('\n').map((line: string) => line.trim())
 
     // Create an object to store all invariant test docs for the current contract
-    const isEchidna = fileName.startsWith('Fuzz')
-    const name = isEchidna
-      ? fileName.replace('Fuzz', '').replace('.sol', '')
-      : fileName.replace('.t.sol', '')
-    const contract: Contract = { name, fileName, isEchidna, docs: [] }
+    const name = fileName.replace('.t.sol', '')
+    const contract: Contract = { name, fileName, docs: [] }
 
     let currentDoc: InvariantDoc
 
@@ -64,45 +48,36 @@ const docGen = (dir: string): void => {
     for (let i = 0; i < lines.length; i++) {
       let line = lines[i]
 
-      if (line.startsWith('/**')) {
-        // We are at the beginning of a new doc comment. Reset the `currentDoc`.
-        currentDoc = {}
-
-        // Move on to the next line
-        line = lines[++i]
-
-        // We have an invariant doc
-        if (line.startsWith(`* ${NATSPEC_INV}`)) {
-          // Assign the header of the invariant doc.
-          // TODO: Handle ambiguous case for `INVARIANT: ` prefix.
-          // TODO: Handle multi-line headers.
-          currentDoc = {
-            header: line.replace(`* ${NATSPEC_INV}`, '').trim(),
-            desc: '',
-          }
-
-          // If the header is multi-line, continue appending to the `currentDoc`'s header.
-          while (BLOCK_COMMENT_HEADER_REGEX.test((line = lines[++i]))) {
-            currentDoc.header += ` ${line
-              .replace(BLOCK_COMMENT_PREFIX_REGEX, '')
-              .trim()}`
-          }
-
-          // Process the description
-          while ((line = lines[++i]).startsWith('*')) {
-            line = line.replace(BLOCK_COMMENT_PREFIX_REGEX, '').trim()
-
-            // If the line has any contents, insert it into the desc.
-            // Otherwise, consider it a linebreak.
-            currentDoc.desc += line.length > 0 ? `${line} ` : '\n'
-          }
-
-          // Set the line number of the test
-          currentDoc.lineNo = i + 1
-
-          // Add the doc to the contract
-          contract.docs.push(currentDoc)
+      // We have an invariant doc
+      if (line.startsWith(`/// ${NATSPEC_INV}`)) {
+        // Assign the header of the invariant doc.
+        // TODO: Handle ambiguous case for `INVARIANT: ` prefix.
+        currentDoc = {
+          header: line.replace(`/// ${NATSPEC_INV}`, '').trim(),
+          desc: '',
         }
+
+        // If the header is multi-line, continue appending to the `currentDoc`'s header.
+        line = lines[++i]
+        while (line.startsWith(`///`) && line.trim() !== '///') {
+          currentDoc.header += ` ${line.replace(`///`, '').trim()}`
+          line = lines[++i]
+        }
+
+        // Process the description
+        while ((line = lines[++i]).startsWith('///')) {
+          line = line.replace('///', '').trim()
+
+          // If the line has any contents, insert it into the desc.
+          // Otherwise, consider it a linebreak.
+          currentDoc.desc += line.length > 0 ? `${line} ` : '\n'
+        }
+
+        // Set the line number of the test
+        currentDoc.lineNo = i + 1
+
+        // Add the doc to the contract
+        contract.docs.push(currentDoc)
       }
     }
 
@@ -139,9 +114,7 @@ const docGen = (dir: string): void => {
   )
 }
 
-/**
- * Generate a table of contents for all invariant docs and place it in the README.
- */
+//  Generate a table of contents for all invariant docs and place it in the README.
 const tocGen = (): void => {
   const autoTOCPrefix = '<!-- START autoTOC -->\n'
   const autoTOCPostfix = '<!-- END autoTOC -->\n'
@@ -171,27 +144,17 @@ const tocGen = (): void => {
   )
 }
 
-/**
- * Render a `Contract` object into valid markdown.
- */
+// Render a `Contract` object into valid markdown.
 const renderContractDoc = (contract: Contract, header: boolean): string => {
   const _header = header ? `# \`${contract.name}\` Invariants\n` : ''
   const docs = contract.docs
     .map((doc: InvariantDoc) => {
       const line = `${contract.fileName}#L${doc.lineNo}`
-      return `## ${doc.header}\n**Test:** [\`${line}\`](${getGithubBase(
-        contract
-      )}${line})\n\n${doc.desc}`
+      return `## ${doc.header}\n**Test:** [\`${line}\`](${BASE_INVARIANT_GH_URL}${line})\n\n${doc.desc}`
     })
     .join('\n\n')
   return `${_header}\n${docs}`
 }
-
-/**
- * Get the base URL for the test contract
- */
-const getGithubBase = ({ isEchidna }: Contract): string =>
-  isEchidna ? BASE_ECHIDNA_GH_URL : BASE_INVARIANT_GH_URL
 
 // Generate the docs
 
@@ -201,10 +164,6 @@ docGen(BASE_INVARIANTS_DIR)
 
 // New line
 console.log()
-
-// Echidna
-console.log('Generating docs for echidna invariants...')
-docGen(BASE_ECHIDNA_DIR)
 
 // Generate an updated table of contents
 tocGen()

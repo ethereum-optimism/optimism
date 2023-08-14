@@ -8,8 +8,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"reflect"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	gstate "github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -18,8 +21,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 var (
@@ -27,30 +30,62 @@ var (
 	ErrInvalidImmutablesConfig = errors.New("invalid immutables config")
 )
 
-// DeployConfig represents the deployment configuration for Optimism
+// DeployConfig represents the deployment configuration for an OP Stack chain.
 type DeployConfig struct {
+	// L1StartingBlockTag is used to fill in the storage of the L1Block info predeploy. The rollup
+	// config script uses this to fill the L1 genesis info for the rollup. The Output oracle deploy
+	// script may use it if the L2 starting timestamp is nil, assuming the L2 genesis is set up
+	// with this.
 	L1StartingBlockTag *MarshalableRPCBlockNumberOrHash `json:"l1StartingBlockTag"`
-	L1ChainID          uint64                           `json:"l1ChainID"`
-	L2ChainID          uint64                           `json:"l2ChainID"`
-	L2BlockTime        uint64                           `json:"l2BlockTime"`
+	// L1ChainID is the chain ID of the L1 chain.
+	L1ChainID uint64 `json:"l1ChainID"`
+	// L2ChainID is the chain ID of the L2 chain.
+	L2ChainID uint64 `json:"l2ChainID"`
+	// L2BlockTime is the number of seconds between each L2 block.
+	L2BlockTime uint64 `json:"l2BlockTime"`
+	// FinalizationPeriodSeconds represents the number of seconds before an output is considered
+	// finalized. This impacts the amount of time that withdrawals take to finalize and is
+	// generally set to 1 week.
+	FinalizationPeriodSeconds uint64 `json:"finalizationPeriodSeconds"`
+	// MaxSequencerDrift is the number of seconds after the L1 timestamp of the end of the
+	// sequencing window that batches must be included, otherwise L2 blocks including
+	// deposits are force included.
+	MaxSequencerDrift uint64 `json:"maxSequencerDrift"`
+	// SequencerWindowSize is the number of L1 blocks per sequencing window.
+	SequencerWindowSize uint64 `json:"sequencerWindowSize"`
+	// ChannelTimeout is the number of L1 blocks that a frame stays valid when included in L1.
+	ChannelTimeout uint64 `json:"channelTimeout"`
+	// P2PSequencerAddress is the address of the key the sequencer uses to sign blocks on the P2P layer.
+	P2PSequencerAddress common.Address `json:"p2pSequencerAddress"`
+	// BatchInboxAddress is the L1 account that batches are sent to.
+	BatchInboxAddress common.Address `json:"batchInboxAddress"`
+	// BatchSenderAddress represents the initial sequencer account that authorizes batches.
+	// Transactions sent from this account to the batch inbox address are considered valid.
+	BatchSenderAddress common.Address `json:"batchSenderAddress"`
+	// L2OutputOracleSubmissionInterval is the number of L2 blocks between outputs that are submitted
+	// to the L2OutputOracle contract located on L1.
+	L2OutputOracleSubmissionInterval uint64 `json:"l2OutputOracleSubmissionInterval"`
+	// L2OutputOracleStartingTimestamp is the starting timestamp for the L2OutputOracle.
+	// MUST be the same as the timestamp of the L2OO start block.
+	L2OutputOracleStartingTimestamp int `json:"l2OutputOracleStartingTimestamp"`
+	// L2OutputOracleStartingBlockNumber is the starting block number for the L2OutputOracle.
+	// Must be greater than or equal to the first Bedrock block. The first L2 output will correspond
+	// to this value plus the submission interval.
+	L2OutputOracleStartingBlockNumber uint64 `json:"l2OutputOracleStartingBlockNumber"`
+	// L2OutputOracleProposer is the address of the account that proposes L2 outputs.
+	L2OutputOracleProposer common.Address `json:"l2OutputOracleProposer"`
+	// L2OutputOracleChallenger is the address of the account that challenges L2 outputs.
+	L2OutputOracleChallenger common.Address `json:"l2OutputOracleChallenger"`
 
-	FinalizationPeriodSeconds uint64         `json:"finalizationPeriodSeconds"`
-	MaxSequencerDrift         uint64         `json:"maxSequencerDrift"`
-	SequencerWindowSize       uint64         `json:"sequencerWindowSize"`
-	ChannelTimeout            uint64         `json:"channelTimeout"`
-	P2PSequencerAddress       common.Address `json:"p2pSequencerAddress"`
-	BatchInboxAddress         common.Address `json:"batchInboxAddress"`
-	BatchSenderAddress        common.Address `json:"batchSenderAddress"`
-
-	L2OutputOracleSubmissionInterval uint64         `json:"l2OutputOracleSubmissionInterval"`
-	L2OutputOracleStartingTimestamp  int            `json:"l2OutputOracleStartingTimestamp"`
-	L2OutputOracleProposer           common.Address `json:"l2OutputOracleProposer"`
-	L2OutputOracleChallenger         common.Address `json:"l2OutputOracleChallenger"`
+	// CliqueSignerAddress represents the signer address for the clique consensus engine.
+	// It is used in the multi-process devnet to sign blocks.
+	CliqueSignerAddress common.Address `json:"cliqueSignerAddress"`
+	// L1UseClique represents whether or not to use the clique consensus engine.
+	L1UseClique bool `json:"l1UseClique"`
 
 	L1BlockTime                 uint64         `json:"l1BlockTime"`
 	L1GenesisBlockTimestamp     hexutil.Uint64 `json:"l1GenesisBlockTimestamp"`
 	L1GenesisBlockNonce         hexutil.Uint64 `json:"l1GenesisBlockNonce"`
-	CliqueSignerAddress         common.Address `json:"cliqueSignerAddress"` // proof of stake genesis if left zeroed.
 	L1GenesisBlockGasLimit      hexutil.Uint64 `json:"l1GenesisBlockGasLimit"`
 	L1GenesisBlockDifficulty    *hexutil.Big   `json:"l1GenesisBlockDifficulty"`
 	L1GenesisBlockMixHash       common.Hash    `json:"l1GenesisBlockMixHash"`
@@ -69,71 +104,98 @@ type DeployConfig struct {
 	L2GenesisBlockParentHash    common.Hash    `json:"l2GenesisBlockParentHash"`
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
 
-	// Seconds after genesis block that Regolith hard fork activates. 0 to activate at genesis. Nil to disable regolith
+	// L2GenesisRegolithTimeOffset is the number of seconds after genesis block that Regolith hard fork activates.
+	// Set it to 0 to activate at genesis. Nil to disable regolith.
 	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
-
-	// Configurable extradata. Will default to []byte("BEDROCK") if left unspecified.
+	// L2GenesisBlockExtraData is configurable extradata. Will default to []byte("BEDROCK") if left unspecified.
 	L2GenesisBlockExtraData []byte `json:"l2GenesisBlockExtraData"`
-
-	// Owner of the ProxyAdmin predeploy
+	// ProxyAdminOwner represents the owner of the ProxyAdmin predeploy on L2.
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
-	// Owner of the system on L1
+	// FinalSystemOwner is the owner of the system on L1. Any L1 contract that is ownable has
+	// this account set as its owner.
 	FinalSystemOwner common.Address `json:"finalSystemOwner"`
-	// GUARDIAN account in the OptimismPortal
+	// PortalGuardian represents the GUARDIAN account in the OptimismPortal. Has the ability to pause withdrawals.
 	PortalGuardian common.Address `json:"portalGuardian"`
-	// L1 recipient of fees accumulated in the BaseFeeVault
+	// BaseFeeVaultRecipient represents the recipient of fees accumulated in the BaseFeeVault.
+	// Can be an account on L1 or L2, depending on the BaseFeeVaultWithdrawalNetwork value.
 	BaseFeeVaultRecipient common.Address `json:"baseFeeVaultRecipient"`
-	// L1 recipient of fees accumulated in the L1FeeVault
+	// L1FeeVaultRecipient represents the recipient of fees accumulated in the L1FeeVault.
+	// Can be an account on L1 or L2, depending on the L1FeeVaultWithdrawalNetwork value.
 	L1FeeVaultRecipient common.Address `json:"l1FeeVaultRecipient"`
-	// L1 recipient of fees accumulated in the SequencerFeeVault
+	// SequencerFeeVaultRecipient represents the recipient of fees accumulated in the SequencerFeeVault.
+	// Can be an account on L1 or L2, depending on the SequencerFeeVaultWithdrawalNetwork value.
 	SequencerFeeVaultRecipient common.Address `json:"sequencerFeeVaultRecipient"`
-	// Minimum withdrawal amount for the BaseFeeVault
+	// BaseFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the BaseFeeVault.
 	BaseFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"baseFeeVaultMinimumWithdrawalAmount"`
-	// Minimum withdrawal amount for the L1FeeVault
+	// L1FeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the L1FeeVault.
 	L1FeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"l1FeeVaultMinimumWithdrawalAmount"`
-	// Minimum withdrawal amount for the SequencerFeeVault
+	// SequencerFeeVaultMinimumWithdrawalAmount represents the minimum withdrawal amount for the SequencerFeeVault.
 	SequencerFeeVaultMinimumWithdrawalAmount *hexutil.Big `json:"sequencerFeeVaultMinimumWithdrawalAmount"`
-	// Withdrawal network for the BaseFeeVault
-	BaseFeeVaultWithdrawalNetwork uint8 `json:"baseFeeVaultWithdrawalNetwork"`
-	// Withdrawal network for the L1FeeVault
-	L1FeeVaultWithdrawalNetwork uint8 `json:"l1FeeVaultWithdrawalNetwork"`
-	// Withdrawal network for the SequencerFeeVault
-	SequencerFeeVaultWithdrawalNetwork uint8 `json:"sequencerFeeVaultWithdrawalNetwork"`
-	// L1StandardBridge proxy address on L1
+	// BaseFeeVaultWithdrawalNetwork represents the withdrawal network for the BaseFeeVault.
+	BaseFeeVaultWithdrawalNetwork WithdrawalNetwork `json:"baseFeeVaultWithdrawalNetwork"`
+	// L1FeeVaultWithdrawalNetwork represents the withdrawal network for the L1FeeVault.
+	L1FeeVaultWithdrawalNetwork WithdrawalNetwork `json:"l1FeeVaultWithdrawalNetwork"`
+	// SequencerFeeVaultWithdrawalNetwork represents the withdrawal network for the SequencerFeeVault.
+	SequencerFeeVaultWithdrawalNetwork WithdrawalNetwork `json:"sequencerFeeVaultWithdrawalNetwork"`
+	// L1StandardBridgeProxy represents the address of the L1StandardBridgeProxy on L1 and is used
+	// as part of building the L2 genesis state.
 	L1StandardBridgeProxy common.Address `json:"l1StandardBridgeProxy"`
-	// L1CrossDomainMessenger proxy address on L1
+	// L1CrossDomainMessengerProxy represents the address of the L1CrossDomainMessengerProxy on L1 and is used
+	// as part of building the L2 genesis state.
 	L1CrossDomainMessengerProxy common.Address `json:"l1CrossDomainMessengerProxy"`
-	// L1ERC721Bridge proxy address on L1
+	// L1ERC721BridgeProxy represents the address of the L1ERC721Bridge on L1 and is used
+	// as part of building the L2 genesis state.
 	L1ERC721BridgeProxy common.Address `json:"l1ERC721BridgeProxy"`
-	// SystemConfig proxy address on L1
+	// SystemConfigProxy represents the address of the SystemConfigProxy on L1 and is used
+	// as part of the derivation pipeline.
 	SystemConfigProxy common.Address `json:"systemConfigProxy"`
-	// OptimismPortal proxy address on L1
+	// OptimismPortalProxy represents the address of the OptimismPortalProxy on L1 and is used
+	// as part of the derivation pipeline.
 	OptimismPortalProxy common.Address `json:"optimismPortalProxy"`
-	// The initial value of the gas overhead
+	// GasPriceOracleOverhead represents the initial value of the gas overhead in the GasPriceOracle predeploy.
 	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
-	// The initial value of the gas scalar
+	// GasPriceOracleScalar represents the initial value of the gas scalar in the GasPriceOracle predeploy.
 	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
-	// Whether or not include governance token predeploy
+	// EnableGovernance configures whether or not include governance token predeploy.
 	EnableGovernance bool `json:"enableGovernance"`
-	// The ERC20 symbol of the GovernanceToken
+	// GovernanceTokenSymbol represents the  ERC20 symbol of the GovernanceToken.
 	GovernanceTokenSymbol string `json:"governanceTokenSymbol"`
-	// The ERC20 name of the GovernanceToken
+	// GovernanceTokenName represents the ERC20 name of the GovernanceToken
 	GovernanceTokenName string `json:"governanceTokenName"`
-	// The owner of the GovernanceToken
+	// GovernanceTokenOwner represents the owner of the GovernanceToken. Has the ability
+	// to mint and burn tokens.
 	GovernanceTokenOwner common.Address `json:"governanceTokenOwner"`
-
+	// DeploymentWaitConfirmations is the number of confirmations to wait during
+	// deployment. This is DEPRECATED and should be removed in a future PR.
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
-
-	EIP1559Elasticity  uint64 `json:"eip1559Elasticity"`
+	// EIP1559Elasticity is the elasticity of the EIP1559 fee market.
+	EIP1559Elasticity uint64 `json:"eip1559Elasticity"`
+	// EIP1559Denominator is the denominator of EIP1559 base fee market.
 	EIP1559Denominator uint64 `json:"eip1559Denominator"`
-
+	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
+	// during devnet deployments.
 	FundDevAccounts bool `json:"fundDevAccounts"`
+}
+
+// Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
+// which makes it easier to maintain, we do not need efficiency in this case.
+func (d *DeployConfig) Copy() *DeployConfig {
+	raw, err := json.Marshal(d)
+	if err != nil {
+		panic(err)
+	}
+
+	cpy := DeployConfig{}
+	if err = json.Unmarshal(raw, &cpy); err != nil {
+		panic(err)
+	}
+	return &cpy
 }
 
 // Check will ensure that the config is sane and return an error when it is not
 func (d *DeployConfig) Check() error {
 	if d.L1StartingBlockTag == nil {
-		return fmt.Errorf("%w: L2StartingBlockTag cannot be nil", ErrInvalidDeployConfig)
+		return fmt.Errorf("%w: L1StartingBlockTag cannot be nil", ErrInvalidDeployConfig)
 	}
 	if d.L1ChainID == 0 {
 		return fmt.Errorf("%w: L1ChainID cannot be 0", ErrInvalidDeployConfig)
@@ -146,6 +208,9 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.FinalizationPeriodSeconds == 0 {
 		return fmt.Errorf("%w: FinalizationPeriodSeconds cannot be 0", ErrInvalidDeployConfig)
+	}
+	if d.L2OutputOracleStartingBlockNumber == 0 {
+		log.Warn("L2OutputOracleStartingBlockNumber is 0, should only be 0 for fresh chains")
 	}
 	if d.PortalGuardian == (common.Address{}) {
 		return fmt.Errorf("%w: PortalGuardian cannot be address(0)", ErrInvalidDeployConfig)
@@ -195,13 +260,13 @@ func (d *DeployConfig) Check() error {
 	if d.SequencerFeeVaultRecipient == (common.Address{}) {
 		return fmt.Errorf("%w: SequencerFeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
 	}
-	if d.BaseFeeVaultWithdrawalNetwork >= 2 {
+	if !d.BaseFeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: BaseFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
 	}
-	if d.L1FeeVaultWithdrawalNetwork >= 2 {
+	if !d.L1FeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: L1FeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
 	}
-	if d.SequencerFeeVaultWithdrawalNetwork >= 2 {
+	if !d.SequencerFeeVaultWithdrawalNetwork.Valid() {
 		return fmt.Errorf("%w: SequencerFeeVaultWithdrawalNetwork can only be 0 (L1) or 1 (L2)", ErrInvalidDeployConfig)
 	}
 	if d.GasPriceOracleOverhead == 0 {
@@ -253,7 +318,20 @@ func (d *DeployConfig) Check() error {
 			return fmt.Errorf("%w: GovernanceToken owner cannot be address(0)", ErrInvalidDeployConfig)
 		}
 	}
+	// L2 block time must always be smaller than L1 block time
+	if d.L1BlockTime < d.L2BlockTime {
+		return fmt.Errorf("L2 block time (%d) is larger than L1 block time (%d)", d.L2BlockTime, d.L1BlockTime)
+	}
 	return nil
+}
+
+// SetDeployments will merge a Deployments into a DeployConfig.
+func (d *DeployConfig) SetDeployments(deployments *L1Deployments) {
+	d.L1StandardBridgeProxy = deployments.L1StandardBridgeProxy
+	d.L1CrossDomainMessengerProxy = deployments.L1CrossDomainMessengerProxy
+	d.L1ERC721BridgeProxy = deployments.L1ERC721BridgeProxy
+	d.SystemConfigProxy = deployments.SystemConfigProxy
+	d.OptimismPortalProxy = deployments.OptimismPortalProxy
 }
 
 // GetDeployedAddresses will get the deployed addresses of deployed L1 contracts
@@ -312,16 +390,6 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 		d.OptimismPortalProxy = optimismPortalProxyDeployment.Address
 	}
 
-	return nil
-}
-
-// InitDeveloperDeployedAddresses will set the dev addresses on the DeployConfig
-func (d *DeployConfig) InitDeveloperDeployedAddresses() error {
-	d.L1StandardBridgeProxy = predeploys.DevL1StandardBridgeAddr
-	d.L1CrossDomainMessengerProxy = predeploys.DevL1CrossDomainMessengerAddr
-	d.L1ERC721BridgeProxy = predeploys.DevL1ERC721BridgeAddr
-	d.OptimismPortalProxy = predeploys.DevOptimismPortalAddr
-	d.SystemConfigProxy = predeploys.DevSystemConfigAddr
 	return nil
 }
 
@@ -399,6 +467,117 @@ func NewDeployConfigWithNetwork(network, path string) (*DeployConfig, error) {
 	return NewDeployConfig(deployConfig)
 }
 
+// L1Deployments represents a set of L1 contracts that are deployed.
+type L1Deployments struct {
+	AddressManager                    common.Address `json:"AddressManager"`
+	BlockOracle                       common.Address `json:"BlockOracle"`
+	DisputeGameFactory                common.Address `json:"DisputeGameFactory"`
+	DisputeGameFactoryProxy           common.Address `json:"DisputeGameFactoryProxy"`
+	L1CrossDomainMessenger            common.Address `json:"L1CrossDomainMessenger"`
+	L1CrossDomainMessengerProxy       common.Address `json:"L1CrossDomainMessengerProxy"`
+	L1ERC721Bridge                    common.Address `json:"L1ERC721Bridge"`
+	L1ERC721BridgeProxy               common.Address `json:"L1ERC721BridgeProxy"`
+	L1StandardBridge                  common.Address `json:"L1StandardBridge"`
+	L1StandardBridgeProxy             common.Address `json:"L1StandardBridgeProxy"`
+	L2OutputOracle                    common.Address `json:"L2OutputOracle"`
+	L2OutputOracleProxy               common.Address `json:"L2OutputOracleProxy"`
+	OptimismMintableERC20Factory      common.Address `json:"OptimismMintableERC20Factory"`
+	OptimismMintableERC20FactoryProxy common.Address `json:"OptimismMintableERC20FactoryProxy"`
+	OptimismPortal                    common.Address `json:"OptimismPortal"`
+	OptimismPortalProxy               common.Address `json:"OptimismPortalProxy"`
+	ProxyAdmin                        common.Address `json:"ProxyAdmin"`
+	SystemConfig                      common.Address `json:"SystemConfig"`
+	SystemConfigProxy                 common.Address `json:"SystemConfigProxy"`
+}
+
+// GetName will return the name of the contract given an address.
+func (d *L1Deployments) GetName(addr common.Address) string {
+	val := reflect.ValueOf(d)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	for i := 0; i < val.NumField(); i++ {
+		if addr == val.Field(i).Interface().(common.Address) {
+			return val.Type().Field(i).Name
+		}
+	}
+	return ""
+}
+
+// Check will ensure that the L1Deployments are sane
+func (d *L1Deployments) Check() error {
+	val := reflect.ValueOf(d)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	for i := 0; i < val.NumField(); i++ {
+		name := val.Type().Field(i).Name
+		// Skip the non production ready contracts
+		if name == "DisputeGameFactory" || name == "DisputeGameFactoryProxy" || name == "BlockOracle" {
+			continue
+		}
+		if val.Field(i).Interface().(common.Address) == (common.Address{}) {
+			return fmt.Errorf("%s is not set", name)
+		}
+	}
+	return nil
+}
+
+// ForEach will iterate over each contract in the L1Deployments
+func (d *L1Deployments) ForEach(cb func(name string, addr common.Address)) {
+	val := reflect.ValueOf(d)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+	for i := 0; i < val.NumField(); i++ {
+		name := val.Type().Field(i).Name
+		cb(name, val.Field(i).Interface().(common.Address))
+	}
+}
+
+// Copy will copy the L1Deployments struct
+func (d *L1Deployments) Copy() *L1Deployments {
+	cpy := L1Deployments{}
+	data, err := json.Marshal(d)
+	if err != nil {
+		panic(err)
+	}
+	if err := json.Unmarshal(data, &cpy); err != nil {
+		panic(err)
+	}
+	return &cpy
+}
+
+// NewL1Deployments will create a new L1Deployments from a JSON file on disk
+// at the given path.
+func NewL1Deployments(path string) (*L1Deployments, error) {
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("L1 deployments at %s not found: %w", path, err)
+	}
+
+	var deployments L1Deployments
+	if err := json.Unmarshal(file, &deployments); err != nil {
+		return nil, fmt.Errorf("cannot unmarshal L1 deployements: %w", err)
+	}
+
+	return &deployments, nil
+}
+
+// NewStateDump will read a Dump JSON file from disk
+func NewStateDump(path string) (*gstate.Dump, error) {
+	file, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("dump at %s not found: %w", path, err)
+	}
+
+	var dump gstate.Dump
+	if err := json.Unmarshal(file, &dump); err != nil {
+		return nil, fmt.Errorf("cannot unmarshal dump: %w", err)
+	}
+	return &dump, nil
+}
+
 // NewL2ImmutableConfig will create an ImmutableConfig given an instance of a
 // DeployConfig and a block.
 func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.ImmutableConfig, error) {
@@ -440,17 +619,17 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.
 	immutable["SequencerFeeVault"] = immutables.ImmutableValues{
 		"recipient":               config.SequencerFeeVaultRecipient,
 		"minimumWithdrawalAmount": config.SequencerFeeVaultMinimumWithdrawalAmount,
-		"withdrawalNetwork":       config.SequencerFeeVaultWithdrawalNetwork,
+		"withdrawalNetwork":       config.SequencerFeeVaultWithdrawalNetwork.ToUint8(),
 	}
 	immutable["L1FeeVault"] = immutables.ImmutableValues{
 		"recipient":               config.L1FeeVaultRecipient,
 		"minimumWithdrawalAmount": config.L1FeeVaultMinimumWithdrawalAmount,
-		"withdrawalNetwork":       config.L1FeeVaultWithdrawalNetwork,
+		"withdrawalNetwork":       config.L1FeeVaultWithdrawalNetwork.ToUint8(),
 	}
 	immutable["BaseFeeVault"] = immutables.ImmutableValues{
 		"recipient":               config.BaseFeeVaultRecipient,
 		"minimumWithdrawalAmount": config.BaseFeeVaultMinimumWithdrawalAmount,
-		"withdrawalNetwork":       config.BaseFeeVaultWithdrawalNetwork,
+		"withdrawalNetwork":       config.BaseFeeVaultWithdrawalNetwork.ToUint8(),
 	}
 
 	return immutable, nil
@@ -476,6 +655,11 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"_initializing":    false,
 		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
 		"msgNonce":         0,
+	}
+	storage["L2StandardBridge"] = state.StorageValues{
+		"_initialized":  2,
+		"_initializing": false,
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
 	}
 	storage["L1Block"] = state.StorageValues{
 		"number":         block.Number(),
@@ -505,6 +689,11 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
+	}
+	storage["L2ERC721Bridge"] = state.StorageValues{
+		"messenger":     predeploys.L2CrossDomainMessengerAddr,
+		"_initialized":  2,
+		"_initializing": false,
 	}
 	return storage, nil
 }

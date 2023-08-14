@@ -7,9 +7,9 @@ import (
 	"io"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +23,7 @@ func TestDerivationComplete(t *testing.T) {
 func TestTemporaryError(t *testing.T) {
 	driver := createDriver(t, fmt.Errorf("whoopsie: %w", derive.ErrTemporary))
 	err := driver.Step(context.Background())
-	require.ErrorIs(t, err, derive.ErrTemporary)
+	require.NoError(t, err, "should allow derivation to continue after temporary error")
 }
 
 func TestNotEnoughDataError(t *testing.T) {

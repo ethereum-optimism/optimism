@@ -6,16 +6,15 @@ import { SafeBuilder } from "../universal/SafeBuilder.sol";
 import { IMulticall3 } from "forge-std/interfaces/IMulticall3.sol";
 import { IGnosisSafe, Enum } from "../interfaces/IGnosisSafe.sol";
 import { LibSort } from "../libraries/LibSort.sol";
-import { ProxyAdmin } from "../../contracts/universal/ProxyAdmin.sol";
-import { Constants } from "../../contracts/libraries/Constants.sol";
-import { SystemConfig } from "../../contracts/L1/SystemConfig.sol";
-import { ResourceMetering } from "../../contracts/L1/ResourceMetering.sol";
-import { Semver } from "../../contracts/universal/Semver.sol";
+import { ProxyAdmin } from "../../src/universal/ProxyAdmin.sol";
+import { Constants } from "../../src/libraries/Constants.sol";
+import { SystemConfig } from "../../src/L1/SystemConfig.sol";
+import { ResourceMetering } from "../../src/L1/ResourceMetering.sol";
+import { Semver } from "../../src/universal/Semver.sol";
 
 /// @title PostSherlockL1
 /// @notice Upgrade script for upgrading the L1 contracts after the sherlock audit.
 contract PostSherlockL1 is SafeBuilder {
-
     /// @notice Address of the ProxyAdmin, passed in via constructor of `run`.
     ProxyAdmin internal PROXY_ADMIN;
 
@@ -38,13 +37,13 @@ contract PostSherlockL1 is SafeBuilder {
     mapping(uint256 => ContractSet) internal proxies;
 
     /// @notice The expected versions for the contracts to be upgraded to.
-    string constant internal L1CrossDomainMessenger_Version = "1.4.0";
-    string constant internal L1StandardBridge_Version = "1.1.0";
-    string constant internal L2OutputOracle_Version = "1.3.0";
-    string constant internal OptimismMintableERC20Factory_Version = "1.1.0";
-    string constant internal OptimismPortal_Version = "1.6.0";
-    string constant internal SystemConfig_Version = "1.3.0";
-    string constant internal L1ERC721Bridge_Version = "1.1.1";
+    string internal constant L1CrossDomainMessenger_Version = "1.4.0";
+    string internal constant L1StandardBridge_Version = "1.1.0";
+    string internal constant L2OutputOracle_Version = "1.3.0";
+    string internal constant OptimismMintableERC20Factory_Version = "1.1.0";
+    string internal constant OptimismPortal_Version = "1.6.0";
+    string internal constant SystemConfig_Version = "1.3.0";
+    string internal constant L1ERC721Bridge_Version = "1.1.1";
 
     /// @notice Place the contract addresses in storage so they can be used when building calldata.
     function setUp() external {
@@ -70,12 +69,18 @@ contract PostSherlockL1 is SafeBuilder {
     }
 
     /// @notice Follow up assertions to ensure that the script ran to completion.
-    function _postCheck() internal override view {
+    function _postCheck() internal view override {
         ContractSet memory prox = getProxies();
-        require(_versionHash(prox.L1CrossDomainMessenger) == keccak256(bytes(L1CrossDomainMessenger_Version)), "L1CrossDomainMessenger");
+        require(
+            _versionHash(prox.L1CrossDomainMessenger) == keccak256(bytes(L1CrossDomainMessenger_Version)),
+            "L1CrossDomainMessenger"
+        );
         require(_versionHash(prox.L1StandardBridge) == keccak256(bytes(L1StandardBridge_Version)), "L1StandardBridge");
         require(_versionHash(prox.L2OutputOracle) == keccak256(bytes(L2OutputOracle_Version)), "L2OutputOracle");
-        require(_versionHash(prox.OptimismMintableERC20Factory) == keccak256(bytes(OptimismMintableERC20Factory_Version)), "OptimismMintableERC20Factory");
+        require(
+            _versionHash(prox.OptimismMintableERC20Factory) == keccak256(bytes(OptimismMintableERC20Factory_Version)),
+            "OptimismMintableERC20Factory"
+        );
         require(_versionHash(prox.OptimismPortal) == keccak256(bytes(OptimismPortal_Version)), "OptimismPortal");
         require(_versionHash(prox.SystemConfig) == keccak256(bytes(SystemConfig_Version)), "SystemConfig");
         require(_versionHash(prox.L1ERC721Bridge) == keccak256(bytes(L1ERC721Bridge_Version)), "L1ERC721Bridge");
@@ -86,18 +91,41 @@ contract PostSherlockL1 is SafeBuilder {
 
         // Check that the codehashes of all implementations match the proxies set implementations.
         ContractSet memory impl = getImplementations();
-        require(PROXY_ADMIN.getProxyImplementation(prox.L1CrossDomainMessenger).codehash == impl.L1CrossDomainMessenger.codehash, "L1CrossDomainMessenger codehash");
-        require(PROXY_ADMIN.getProxyImplementation(prox.L1StandardBridge).codehash == impl.L1StandardBridge.codehash, "L1StandardBridge codehash");
-        require(PROXY_ADMIN.getProxyImplementation(prox.L2OutputOracle).codehash == impl.L2OutputOracle.codehash, "L2OutputOracle codehash");
-        require(PROXY_ADMIN.getProxyImplementation(prox.OptimismMintableERC20Factory).codehash == impl.OptimismMintableERC20Factory.codehash, "OptimismMintableERC20Factory codehash");
-        require(PROXY_ADMIN.getProxyImplementation(prox.OptimismPortal).codehash == impl.OptimismPortal.codehash, "OptimismPortal codehash");
-        require(PROXY_ADMIN.getProxyImplementation(prox.SystemConfig).codehash == impl.SystemConfig.codehash, "SystemConfig codehash");
-        require(PROXY_ADMIN.getProxyImplementation(prox.L1ERC721Bridge).codehash == impl.L1ERC721Bridge.codehash, "L1ERC721Bridge codehash");
+        require(
+            PROXY_ADMIN.getProxyImplementation(prox.L1CrossDomainMessenger).codehash
+                == impl.L1CrossDomainMessenger.codehash,
+            "L1CrossDomainMessenger codehash"
+        );
+        require(
+            PROXY_ADMIN.getProxyImplementation(prox.L1StandardBridge).codehash == impl.L1StandardBridge.codehash,
+            "L1StandardBridge codehash"
+        );
+        require(
+            PROXY_ADMIN.getProxyImplementation(prox.L2OutputOracle).codehash == impl.L2OutputOracle.codehash,
+            "L2OutputOracle codehash"
+        );
+        require(
+            PROXY_ADMIN.getProxyImplementation(prox.OptimismMintableERC20Factory).codehash
+                == impl.OptimismMintableERC20Factory.codehash,
+            "OptimismMintableERC20Factory codehash"
+        );
+        require(
+            PROXY_ADMIN.getProxyImplementation(prox.OptimismPortal).codehash == impl.OptimismPortal.codehash,
+            "OptimismPortal codehash"
+        );
+        require(
+            PROXY_ADMIN.getProxyImplementation(prox.SystemConfig).codehash == impl.SystemConfig.codehash,
+            "SystemConfig codehash"
+        );
+        require(
+            PROXY_ADMIN.getProxyImplementation(prox.L1ERC721Bridge).codehash == impl.L1ERC721Bridge.codehash,
+            "L1ERC721Bridge codehash"
+        );
     }
 
     /// @notice Test coverage of the logic. Should only run on goerli but other chains
     ///         could be added.
-    function test_script_succeeds() skipWhenNotForking external {
+    function test_script_succeeds() external skipWhenNotForking {
         address _safe;
         address _proxyAdmin;
 
@@ -130,7 +158,7 @@ contract PostSherlockL1 is SafeBuilder {
     /// @notice Builds the calldata that the multisig needs to make for the upgrade to happen.
     ///         A total of 8 calls are made, 7 upgrade implementations and 1 sets the resource
     ///         config to the default value in the SystemConfig contract.
-    function buildCalldata(address _proxyAdmin) internal override view returns (bytes memory) {
+    function buildCalldata(address _proxyAdmin) internal view override returns (bytes memory) {
         IMulticall3.Call3[] memory calls = new IMulticall3.Call3[](8);
 
         ContractSet memory impl = getImplementations();
@@ -141,29 +169,22 @@ contract PostSherlockL1 is SafeBuilder {
             target: _proxyAdmin,
             allowFailure: false,
             callData: abi.encodeCall(
-                ProxyAdmin.upgrade,
-                (payable(prox.L1CrossDomainMessenger), impl.L1CrossDomainMessenger)
-            )
+                ProxyAdmin.upgrade, (payable(prox.L1CrossDomainMessenger), impl.L1CrossDomainMessenger)
+                )
         });
 
         // Upgrade the L1StandardBridge
         calls[1] = IMulticall3.Call3({
             target: _proxyAdmin,
             allowFailure: false,
-            callData: abi.encodeCall(
-                ProxyAdmin.upgrade,
-                (payable(prox.L1StandardBridge), impl.L1StandardBridge)
-            )
+            callData: abi.encodeCall(ProxyAdmin.upgrade, (payable(prox.L1StandardBridge), impl.L1StandardBridge))
         });
 
         // Upgrade the L2OutputOracle
         calls[2] = IMulticall3.Call3({
             target: _proxyAdmin,
             allowFailure: false,
-            callData: abi.encodeCall(
-                ProxyAdmin.upgrade,
-                (payable(prox.L2OutputOracle), impl.L2OutputOracle)
-            )
+            callData: abi.encodeCall(ProxyAdmin.upgrade, (payable(prox.L2OutputOracle), impl.L2OutputOracle))
         });
 
         // Upgrade the OptimismMintableERC20Factory
@@ -171,39 +192,29 @@ contract PostSherlockL1 is SafeBuilder {
             target: _proxyAdmin,
             allowFailure: false,
             callData: abi.encodeCall(
-                ProxyAdmin.upgrade,
-                (payable(prox.OptimismMintableERC20Factory), impl.OptimismMintableERC20Factory)
-            )
+                ProxyAdmin.upgrade, (payable(prox.OptimismMintableERC20Factory), impl.OptimismMintableERC20Factory)
+                )
         });
 
         // Upgrade the OptimismPortal
         calls[4] = IMulticall3.Call3({
             target: _proxyAdmin,
             allowFailure: false,
-            callData: abi.encodeCall(
-                ProxyAdmin.upgrade,
-                (payable(prox.OptimismPortal), impl.OptimismPortal)
-            )
+            callData: abi.encodeCall(ProxyAdmin.upgrade, (payable(prox.OptimismPortal), impl.OptimismPortal))
         });
 
         // Upgrade the SystemConfig
         calls[5] = IMulticall3.Call3({
             target: _proxyAdmin,
             allowFailure: false,
-            callData: abi.encodeCall(
-                ProxyAdmin.upgrade,
-                (payable(prox.SystemConfig), impl.SystemConfig)
-            )
+            callData: abi.encodeCall(ProxyAdmin.upgrade, (payable(prox.SystemConfig), impl.SystemConfig))
         });
 
         // Upgrade the L1ERC721Bridge
         calls[6] = IMulticall3.Call3({
             target: _proxyAdmin,
             allowFailure: false,
-            callData: abi.encodeCall(
-                ProxyAdmin.upgrade,
-                (payable(prox.L1ERC721Bridge), impl.L1ERC721Bridge)
-            )
+            callData: abi.encodeCall(ProxyAdmin.upgrade, (payable(prox.L1ERC721Bridge), impl.L1ERC721Bridge))
         });
 
         // Set the default resource config

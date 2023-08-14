@@ -8,4 +8,6 @@ library Executables {
     string internal constant bash = "bash";
     string internal constant jq = "jq";
     string internal constant forge = "forge";
+    string internal constant echo = "echo";
+    string internal constant sed = "sed";
 }

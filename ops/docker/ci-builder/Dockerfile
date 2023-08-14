@@ -6,31 +6,32 @@ WORKDIR /opt
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
-    apt-get install -y curl build-essential git && \
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
-    chmod +x ./rustup.sh && \
-    ./rustup.sh -y
+  apt-get install -y curl build-essential git && \
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
+  chmod +x ./rustup.sh && \
+  ./rustup.sh -y
 
-# move the foundryrc file to the foundry dir
-WORKDIR /opt/foundry
-COPY ../../.foundryrc ./.foundryrc
+COPY ./.abigenrc ./.abigenrc
 
 # Only diff from upstream docker image is this clone instead
 # of COPY. We select a specific commit to use.
-RUN git clone https://github.com/foundry-rs/foundry.git . \
-  && git checkout $(cat .foundryrc)
+COPY ./.foundryrc ./.foundryrc
+RUN git clone https://github.com/foundry-rs/foundry.git ./foundry \
+  && cd foundry && git checkout $(cat ../.foundryrc)
+
+WORKDIR /opt/foundry
 
 RUN source $HOME/.profile && \
-    cargo build --release && \
-    strip /opt/foundry/target/release/forge && \
-    strip /opt/foundry/target/release/cast && \
-    strip /opt/foundry/target/release/anvil
+  cargo build --release && \
+  strip /opt/foundry/target/release/forge && \
+  strip /opt/foundry/target/release/cast && \
+  strip /opt/foundry/target/release/anvil
 
 FROM ethereum/client-go:alltools-v1.10.25 as geth
 
 FROM ghcr.io/crytic/echidna/echidna:v2.0.4 as echidna-test
 
-FROM python:3.8.13-slim-bullseye
+FROM python:3.11.4-slim-bullseye
 
 ENV GOPATH=/go
 ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
@@ -39,29 +40,28 @@ ENV DEBIAN_FRONTEND=noninteractive
 COPY --from=foundry-build /opt/foundry/target/release/forge /usr/local/bin/forge
 COPY --from=foundry-build /opt/foundry/target/release/cast /usr/local/bin/cast
 COPY --from=foundry-build /opt/foundry/target/release/anvil /usr/local/bin/anvil
-COPY --from=geth /usr/local/bin/abigen /usr/local/bin/abigen
 COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
 
 RUN apt-get update && \
   apt-get install -y bash curl openssh-client git build-essential ca-certificates jq musl gnupg coreutils && \
   curl -sL https://deb.nodesource.com/setup_16.x -o nodesource_setup.sh && \
-  curl -sL https://go.dev/dl/go1.19.linux-amd64.tar.gz -o go1.19.linux-amd64.tar.gz && \
-  tar -C /usr/local/ -xzvf go1.19.linux-amd64.tar.gz && \
+  curl -sL https://go.dev/dl/go1.20.linux-amd64.tar.gz -o go1.20.linux-amd64.tar.gz && \
+  tar -C /usr/local/ -xzvf go1.20.linux-amd64.tar.gz && \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt && \
   bash nodesource_setup.sh && \
   apt-get install -y nodejs && \
   npm i -g depcheck && \
   pip install slither-analyzer==0.9.3 && \
   go install gotest.tools/gotestsum@latest && \
-  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.48.0 && \
-  curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash &&
-  chmox +x /usr/local/bin/check-changed
+  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.53.3 && \
+  curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash
 
-RUN echo "downloading pnpm" && \
-  curl -o /pnpm-install.sh -L https://get.pnpm.io/install.sh && \
-  chmod +x /pnpm-install.sh && \
-  /pnpm-install.sh && \
-  rm /pnpm-install.sh
+# Install the specific version of abigen from .abigenrc
+RUN go install github.com/ethereum/go-ethereum/cmd/abigen@$(cat .abigenrc)
+
+# We need to isntall yarn because a bespoke dependency installed from github https://codeload.github.com/Saw-mon-and-Natalie/clones-with-immutable-arg needs it
+# it is installed from github which means it's postpack script which uses yarn is ran when unpacked into node_modules
+RUN echo "downloading pnpm and yarn" && npm i -g pnpm && npm i -g yarn@1 && pnpm --version && yarn --version
 
 RUN echo "downloading solidity compilers" && \
   curl -o solc-linux-amd64-v0.5.17+commit.d19bba13 -sL https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.5.17+commit.d19bba13 && \
@@ -110,3 +110,8 @@ RUN echo "downloading mockery tool" && \
   cp mockery-tmp-dir/mockery /usr/local/bin/mockery && \
   chmod +x /usr/local/bin/mockery && \
   rm -rf mockery-tmp-dir
+
+
+RUN echo "installing mips binutils" && \
+  apt-get install -y binutils-mips-linux-gnu python3 python3-pip && \
+  pip3 install capstone pyelftools

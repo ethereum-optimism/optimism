@@ -4,6 +4,10 @@ import (
 	"os"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/ethereum-optimism/optimism/indexer/processor"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/joho/godotenv"
 )
 
 // Config represents the `indexer.toml` file used to configure the indexer
@@ -13,12 +17,14 @@ type Config struct {
 	DB      DBConfig
 	API     APIConfig
 	Metrics MetricsConfig
+	Logger  log.Logger `toml:"-"`
 }
 
 // ChainConfig configures of the chain being indexed
 type ChainConfig struct {
 	// Configure known chains with the l2 chain id
-	Preset int
+	Preset      int
+	L1Contracts processor.L1Contracts
 }
 
 // RPCsConfig configures the RPC urls
@@ -31,6 +37,7 @@ type RPCsConfig struct {
 type DBConfig struct {
 	Host     string
 	Port     int
+	Name     string
 	User     string
 	Password string
 }
@@ -49,6 +56,13 @@ type MetricsConfig struct {
 
 // LoadConfig loads the `indexer.toml` config file from a given path
 func LoadConfig(path string) (Config, error) {
+	if err := godotenv.Load(); err != nil {
+		log.Warn("Unable to load .env file", err)
+		log.Info("Continuing without .env file")
+	} else {
+		log.Info("Loaded .env file")
+	}
+
 	var conf Config
 
 	// Read the config file.
@@ -62,8 +76,11 @@ func LoadConfig(path string) (Config, error) {
 
 	// Decode the TOML data.
 	if _, err := toml.Decode(string(data), &conf); err != nil {
+		log.Info("Failed to decode config file", "message", err)
 		return conf, err
 	}
+
+	log.Debug("Loaded config file", conf)
 
 	return conf, nil
 }

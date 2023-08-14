@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	preimage "github.com/ethereum-optimism/optimism/op-preimage"
 	"github.com/ethereum-optimism/optimism/op-program/client/mpt"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 func mockPreimageOracle(t *testing.T) (po *PreimageOracle, hintsMock *mock.Mock, preimages map[common.Hash][]byte) {
@@ -119,6 +119,24 @@ func TestPreimageOracleCodeByHash(t *testing.T) {
 			gotNode := po.CodeByHash(h)
 			hints.AssertExpectations(t)
 			require.Equal(t, hexutil.Bytes(node), hexutil.Bytes(gotNode), "code matches")
+		})
+	}
+}
+
+func TestPreimageOracleOutputByRoot(t *testing.T) {
+	rng := rand.New(rand.NewSource(123))
+
+	for i := 0; i < 10; i++ {
+		t.Run(fmt.Sprintf("output_%d", i), func(t *testing.T) {
+			po, hints, preimages := mockPreimageOracle(t)
+			output := testutils.RandomOutputV0(rng)
+
+			h := common.Hash(eth.OutputRoot(output))
+			preimages[preimage.Keccak256Key(h).PreimageKey()] = output.Marshal()
+			hints.On("hint", L2OutputHint(h).Hint()).Once().Return()
+			gotOutput := po.OutputByRoot(h)
+			hints.AssertExpectations(t)
+			require.Equal(t, hexutil.Bytes(output.Marshal()), hexutil.Bytes(gotOutput.Marshal()), "output matches")
 		})
 	}
 }

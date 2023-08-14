@@ -73,24 +73,13 @@ func testBuildL2Genesis(t *testing.T, config *genesis.DeployConfig) *core.Genesi
 	return gen
 }
 
-func TestBuildL2DeveloperGenesis(t *testing.T) {
-	config, err := genesis.NewDeployConfig("./testdata/test-deploy-config-devnet-l1.json")
-	require.Nil(t, err)
-	config.EnableGovernance = false
-	config.FundDevAccounts = true
-	err = config.InitDeveloperDeployedAddresses()
-	require.NoError(t, err)
-	gen := testBuildL2Genesis(t, config)
-	require.Equal(t, 2342, len(gen.Alloc))
-}
-
 func TestBuildL2MainnetGenesis(t *testing.T) {
 	config, err := genesis.NewDeployConfig("./testdata/test-deploy-config-devnet-l1.json")
 	require.Nil(t, err)
 	config.EnableGovernance = true
 	config.FundDevAccounts = false
 	gen := testBuildL2Genesis(t, config)
-	require.Equal(t, 2064, len(gen.Alloc))
+	require.Equal(t, 2066, len(gen.Alloc))
 }
 
 func TestBuildL2MainnetNoGovernanceGenesis(t *testing.T) {
@@ -99,5 +88,5 @@ func TestBuildL2MainnetNoGovernanceGenesis(t *testing.T) {
 	config.EnableGovernance = false
 	config.FundDevAccounts = false
 	gen := testBuildL2Genesis(t, config)
-	require.Equal(t, 2064, len(gen.Alloc))
+	require.Equal(t, 2066, len(gen.Alloc))
 }

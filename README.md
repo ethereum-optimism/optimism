@@ -52,11 +52,8 @@ Refer to the Directory Structure section below to understand which packages are 
 ├── <a href="./packages">packages</a>
 │   ├── <a href="./packages/common-ts">common-ts</a>: Common tools for building apps in TypeScript
 │   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: Bedrock smart contracts.
-│   ├── <a href="./packages/contracts-periphery">contracts-periphery</a>: Peripheral contracts for Optimism
 │   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
 │   ├── <a href="./packages/chain-mon">chain-mon</a>: Chain monitoring services
-│   ├── <a href="./packages/fault-detector">fault-detector</a>: Service for detecting Sequencer faults
-│   ├── <a href="./packages/replica-healthcheck">replica-healthcheck</a>: Service for monitoring the health of a replica node
 │   └── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
 ├── <a href="./op-bindings">op-bindings</a>: Go bindings for Bedrock smart contracts.
 ├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1
@@ -79,11 +76,8 @@ Refer to the Directory Structure section below to understand which packages are 
 ~~ Pre-BEDROCK ~~
 ├── <a href="./packages">packages</a>
 │   ├── <a href="./packages/common-ts">common-ts</a>: Common tools for building apps in TypeScript
-│   ├── <a href="./packages/contracts-periphery">contracts-periphery</a>: Peripheral contracts for Optimism
 │   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
 │   ├── <a href="./packages/chain-mon">chain-mon</a>: Chain monitoring services
-│   ├── <a href="./packages/fault-detector">fault-detector</a>: Service for detecting Sequencer faults
-│   ├── <a href="./packages/replica-healthcheck">replica-healthcheck</a>: Service for monitoring the health of a replica node
 │   └── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
 ├── <a href="./indexer">indexer</a>: indexes and syncs transactions
 ├── <a href="./op-exporter">op-exporter</a>: A prometheus exporter to collect/serve metrics from an Optimism node
@@ -118,7 +112,7 @@ The primary development branch is [`develop`](https://github.com/ethereum-optimi
 `develop` contains the most up-to-date software that remains backwards compatible with the latest experimental [network deployments](https://community.optimism.io/docs/useful-tools/networks/).
 If you're making a backwards compatible change, please direct your pull request towards `develop`.
 
-**Changes to contracts within `packages/contracts-bedrock/contracts` are usually NOT considered backwards compatible and SHOULD be made against a release candidate branch**.
+**Changes to contracts within `packages/contracts-bedrock/src` are usually NOT considered backwards compatible and SHOULD be made against a release candidate branch**.
 Some exceptions to this rule exist for cases in which we absolutely must deploy some new contract after a release candidate branch has already been fully deployed.
 If you're changing or adding a contract and you're unsure about which branch to make a PR into, default to using the latest release candidate branch.
 See below for info about release candidate branches.
@@ -126,7 +120,7 @@ See below for info about release candidate branches.
 ### Release candidate branches
 
 Branches marked `release/X.X.X` are **release candidate branches**.
-Changes that are not backwards compatible and all changes to contracts within `packages/contracts-bedrock/contracts` MUST be directed towards a release candidate branch.
+Changes that are not backwards compatible and all changes to contracts within `packages/contracts-bedrock/src` MUST be directed towards a release candidate branch.
 Release candidates are merged into `develop` and then into `master` once they've been fully deployed.
 We may sometimes have more than one active `release/X.X.X` branch if we're in the middle of a deployment.
 See table in the **Active Branches** section above to find the right branch to target.

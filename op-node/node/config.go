@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -43,6 +44,8 @@ type Config struct {
 	// Optional
 	Tracer    Tracer
 	Heartbeat HeartbeatConfig
+
+	Sync sync.Config
 }
 
 type RPCConfig struct {

@@ -13,10 +13,10 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-service/backoff"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // Deprecated: use eth.SyncStatus instead.
@@ -314,7 +314,12 @@ func (s *Driver) eventLoop() {
 			err := s.derivation.Step(context.Background())
 			stepAttempts += 1 // count as attempt by default. We reset to 0 if we are making healthy progress.
 			if err == io.EOF {
-				s.log.Debug("Derivation process went idle", "progress", s.derivation.Origin())
+				s.log.Debug("Derivation process went idle", "progress", s.derivation.Origin(), "err", err)
+				stepAttempts = 0
+				s.metrics.SetDerivationIdle(true)
+				continue
+			} else if err != nil && errors.Is(err, derive.EngineP2PSyncing) {
+				s.log.Debug("Derivation process went idle because the engine is syncing", "progress", s.derivation.Origin(), "sync_target", s.derivation.EngineSyncTarget(), "err", err)
 				stepAttempts = 0
 				s.metrics.SetDerivationIdle(true)
 				continue
@@ -474,6 +479,7 @@ func (s *Driver) syncStatus() *eth.SyncStatus {
 		SafeL2:             s.derivation.SafeL2Head(),
 		FinalizedL2:        s.derivation.Finalized(),
 		UnsafeL2SyncTarget: s.derivation.UnsafeL2SyncTarget(),
+		EngineSyncTarget:   s.derivation.EngineSyncTarget(),
 	}
 }
 

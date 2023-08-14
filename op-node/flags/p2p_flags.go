@@ -30,6 +30,7 @@ var (
 		Name:     "p2p.scoring",
 		Usage:    "Sets the peer scoring strategy for the P2P stack. Can be one of: none or light.",
 		Required: false,
+		Value:    "light",
 		EnvVars:  p2pEnv("PEER_SCORING"),
 	}
 	PeerScoring = &cli.StringFlag{
@@ -291,7 +292,8 @@ var (
 	}
 	SyncReqRespFlag = &cli.BoolFlag{
 		Name:     "p2p.sync.req-resp",
-		Usage:    "Enables experimental P2P req-resp alternative sync method, on both server and client side.",
+		Usage:    "Enables P2P req-resp alternative sync method, on both server and client side.",
+		Value:    true,
 		Required: false,
 		EnvVars:  p2pEnv("SYNC_REQ_RESP"),
 	}

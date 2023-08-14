@@ -22,6 +22,7 @@ import (
 	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 )
 
 // NewConfig creates a Config from the provided flags or environment variables.
@@ -30,7 +31,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 
-	rollupConfig, err := NewRollupConfig(ctx)
+	rollupConfig, err := NewRollupConfig(log, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -57,6 +58,8 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	}
 
 	l2SyncEndpoint := NewL2SyncEndpointConfig(ctx)
+
+	syncConfig := NewSyncConfig(ctx)
 
 	cfg := &node.Config{
 		L1:     l1Endpoint,
@@ -88,6 +91,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 			URL:     ctx.String(flags.HeartbeatURLFlag.Name),
 		},
 		ConfigPersistence: configPersistence,
+		Sync:              *syncConfig,
 	}
 
 	if err := cfg.LoadPersisted(log); err != nil {
@@ -168,9 +172,16 @@ func NewDriverConfig(ctx *cli.Context) *driver.Config {
 	}
 }
 
-func NewRollupConfig(ctx *cli.Context) (*rollup.Config, error) {
+func NewRollupConfig(log log.Logger, ctx *cli.Context) (*rollup.Config, error) {
 	network := ctx.String(flags.Network.Name)
+	rollupConfigPath := ctx.String(flags.RollupConfig.Name)
 	if network != "" {
+		if rollupConfigPath != "" {
+			log.Error(`Cannot configure network and rollup-config at the same time.
+Startup will proceed to use the network-parameter and ignore the rollup config.
+Conflicting configuration is deprecated, and will stop the op-node from starting in the future.
+`, "network", network, "rollup_config", rollupConfigPath)
+		}
 		config, err := chaincfg.GetRollupConfig(network)
 		if err != nil {
 			return nil, err
@@ -179,7 +190,6 @@ func NewRollupConfig(ctx *cli.Context) (*rollup.Config, error) {
 		return &config, nil
 	}
 
-	rollupConfigPath := ctx.String(flags.RollupConfig.Name)
 	file, err := os.Open(rollupConfigPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read rollup config: %w", err)
@@ -207,4 +217,11 @@ func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {
 	logger := log.New()
 	logger.SetHandler(handler)
 	return logger, nil
+}
+
+func NewSyncConfig(ctx *cli.Context) *sync.Config {
+	return &sync.Config{
+		EngineSync:         ctx.Bool(flags.L2EngineSyncEnabled.Name),
+		SkipSyncStartCheck: ctx.Bool(flags.SkipSyncStartCheck.Name),
+	}
 }

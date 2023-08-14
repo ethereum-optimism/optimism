@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity ^0.8.0;
 
 import { Script } from "forge-std/Script.sol";
 import { stdJson } from "forge-std/StdJson.sol";
 import { console2 as console } from "forge-std/console2.sol";
 import { Executables } from "./Executables.sol";
+import { Chains } from "./Chains.sol";
 
 /// @notice store the new deployment to be saved
 struct Deployment {
@@ -52,17 +53,17 @@ abstract contract Deployer is Script {
     /// @notice The path to the temp deployments file
     string internal tempDeploymentsPath;
     /// @notice Error for when attempting to fetch a deployment and it does not exist
+
     error DeploymentDoesNotExist(string);
     /// @notice Error for when trying to save an invalid deployment
     error InvalidDeployment(string);
     /// @notice The storage slot that holds the address of the implementation.
     ///        bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1)
-    bytes32 internal constant IMPLEMENTATION_KEY =
-        0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+
+    bytes32 internal constant IMPLEMENTATION_KEY = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
     /// @notice The storage slot that holds the address of the owner.
     ///        bytes32(uint256(keccak256('eip1967.proxy.admin')) - 1)
-    bytes32 internal constant OWNER_KEY =
-        0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
+    bytes32 internal constant OWNER_KEY = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
     /// @notice Create the global variables and set up the filesystem
     function setUp() public virtual {
@@ -71,22 +72,25 @@ abstract contract Deployer is Script {
 
         deploymentContext = _getDeploymentContext();
         string memory deployFile = vm.envOr("DEPLOY_FILE", string("run-latest.json"));
-        deployPath = string.concat(root, "/broadcast/", deployScript, ".s.sol/", vm.toString(block.chainid), "/", deployFile);
+        uint256 chainId = vm.envOr("CHAIN_ID", block.chainid);
+        deployPath = string.concat(root, "/broadcast/", deployScript, ".s.sol/", vm.toString(chainId), "/", deployFile);
 
         deploymentsDir = string.concat(root, "/deployments/", deploymentContext);
-        try vm.createDir(deploymentsDir, true) {} catch (bytes memory) {}
+        try vm.createDir(deploymentsDir, true) { } catch (bytes memory) { }
 
         string memory chainIdPath = string.concat(deploymentsDir, "/.chainId");
-        try vm.readFile(chainIdPath) returns (string memory chainid) {
-            uint256 chainId = vm.parseUint(chainid);
-            require(chainId == block.chainid, "Misconfigured networks");
+        try vm.readFile(chainIdPath) returns (string memory localChainId) {
+            if (vm.envOr("STRICT_DEPLOYMENT", true)) {
+                require(vm.parseUint(localChainId) == chainId, "Misconfigured networks");
+            }
         } catch {
-            vm.writeFile(chainIdPath, vm.toString(block.chainid));
+            vm.writeFile(chainIdPath, vm.toString(chainId));
         }
-        console.log("Connected to network with chainid %s", block.chainid);
+        console.log("Connected to network with chainid %s", chainId);
 
         tempDeploymentsPath = string.concat(deploymentsDir, "/.deploy");
-        try vm.readFile(tempDeploymentsPath) returns (string memory) {} catch {
+        try vm.readFile(tempDeploymentsPath) returns (string memory) { }
+        catch {
             vm.writeJson("{}", tempDeploymentsPath);
         }
         console.log("Storing temp deployment data in %s", tempDeploymentsPath);
@@ -97,19 +101,19 @@ abstract contract Deployer is Script {
     function sync() public {
         Deployment[] memory deployments = _getTempDeployments();
         console.log("Syncing %s deployments", deployments.length);
+        console.log("Using deployment artifact %s", deployPath);
 
         for (uint256 i; i < deployments.length; i++) {
             address addr = deployments[i].addr;
             string memory deploymentName = deployments[i].name;
 
             string memory deployTx = _getDeployTransactionByContractAddress(addr);
-            string memory contractName = stdJson.readString(deployTx, ".contractName");
-            console.log("Syncing %s", deploymentName);
+            string memory contractName = _getContractNameFromDeployTransaction(deployTx);
+            console.log("Syncing deployment %s: contract %s", deploymentName, contractName);
 
-            string memory fqn = getFullyQualifiedName(contractName);
             string[] memory args = getDeployTransactionConstructorArguments(deployTx);
-            bytes memory code = vm.getCode(fqn);
-            bytes memory deployedCode = vm.getDeployedCode(fqn);
+            bytes memory code = _getCode(contractName);
+            bytes memory deployedCode = _getDeployedCode(contractName);
             string memory receipt = _getDeployReceiptByContractAddress(addr);
 
             string memory artifactPath = string.concat(deploymentsDir, "/", deploymentName, ".json");
@@ -118,7 +122,8 @@ abstract contract Deployer is Script {
             try vm.readFile(artifactPath) returns (string memory res) {
                 numDeployments = stdJson.readUint(string(res), "$.numDeployments");
                 vm.removeFile(artifactPath);
-            } catch {}
+            } catch { }
+            numDeployments++;
 
             Artifact memory artifact = Artifact({
                 abi: getAbi(contractName),
@@ -138,10 +143,7 @@ abstract contract Deployer is Script {
 
             string memory json = _serializeArtifact(artifact);
 
-            vm.writeJson({
-                json: json,
-                path: artifactPath
-            });
+            vm.writeJson({ json: json, path: artifactPath });
         }
 
         console.log("Synced temp deploy files, deleting %s", tempDeploymentsPath);
@@ -150,7 +152,7 @@ abstract contract Deployer is Script {
 
     /// @notice Returns the name of the deployment script. Children contracts
     ///         must implement this to ensure that the deploy artifacts can be found.
-    function name() public virtual pure returns (string memory);
+    function name() public pure virtual returns (string memory);
 
     /// @notice Returns all of the deployments done in the current context.
     function newDeployments() external view returns (Deployment[] memory) {
@@ -218,10 +220,7 @@ abstract contract Deployer is Script {
             revert InvalidDeployment("AlreadyExists");
         }
 
-        Deployment memory deployment = Deployment({
-            name: _name,
-            addr: payable(_deployed)
-        });
+        Deployment memory deployment = Deployment({ name: _name, addr: payable(_deployed) });
         _namedDeployments[_name] = deployment;
         _newDeployments.push(deployment);
         _writeTemp(_name, _deployed);
@@ -243,10 +242,7 @@ abstract contract Deployer is Script {
         for (uint256 i; i < names.length; i++) {
             string memory contractName = names[i];
             address addr = stdJson.readAddress(json, string.concat("$.", contractName));
-            deployments[i] = Deployment({
-                name: contractName,
-                addr: payable(addr)
-            });
+            deployments[i] = Deployment({ name: contractName, addr: payable(addr) });
         }
         return deployments;
     }
@@ -256,7 +252,49 @@ abstract contract Deployer is Script {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
-        cmd[2] = string.concat(Executables.jq, " -r '.transactions[] | select(.contractAddress == ", '"', vm.toString(_addr), '"', ") | select(.transactionType == ", '"CREATE"', ")' < ", deployPath);
+        cmd[2] = string.concat(
+            Executables.jq,
+            " -r '.transactions[] | select(.contractAddress == ",
+            '"',
+            vm.toString(_addr),
+            '"',
+            ") | select(.transactionType == ",
+            '"CREATE"',
+            ")' < ",
+            deployPath
+        );
+        bytes memory res = vm.ffi(cmd);
+        return string(res);
+    }
+
+    /// @notice Returns the contract name from a deploy transaction.
+    function _getContractNameFromDeployTransaction(string memory _deployTx) internal returns (string memory) {
+        return stdJson.readString(_deployTx, ".contractName");
+    }
+
+    /// @notice Wrapper for vm.getCode that handles semver in the name.
+    function _getCode(string memory _name) internal returns (bytes memory) {
+        string memory fqn = _getFullyQualifiedName(_name);
+        bytes memory code = vm.getCode(fqn);
+        return code;
+    }
+
+    /// @notice Wrapper for vm.getDeployedCode that handles semver in the name.
+    function _getDeployedCode(string memory _name) internal returns (bytes memory) {
+        string memory fqn = _getFullyQualifiedName(_name);
+        bytes memory code = vm.getDeployedCode(fqn);
+        return code;
+    }
+
+    /// @notice Removes the semantic versioning from a contract name. The semver will exist if the contract is compiled
+    /// more than once with different versions of the compiler.
+    function _stripSemver(string memory _name) internal returns (string memory) {
+        string[] memory cmd = new string[](3);
+        cmd[0] = Executables.bash;
+        cmd[1] = "-c";
+        cmd[2] = string.concat(
+            Executables.echo, " ", _name, " | ", Executables.sed, " -E 's/[.][0-9]+\\.[0-9]+\\.[0-9]+//g'"
+        );
         bytes memory res = vm.ffi(cmd);
         return string(res);
     }
@@ -277,9 +315,10 @@ abstract contract Deployer is Script {
     }
 
     /// @notice Builds the fully qualified name of a contract. Assumes that the
-    ///         file name is the same as the contract name.
-    function getFullyQualifiedName(string memory _name) internal pure returns (string memory) {
-        return string.concat(_name, ".sol:", _name);
+    ///         file name is the same as the contract name but strips semver for the file name.
+    function _getFullyQualifiedName(string memory _name) internal returns (string memory) {
+        string memory sanitized = _stripSemver(_name);
+        return string.concat(sanitized, ".sol:", _name);
     }
 
     /// @notice Returns the filesystem path to the artifact path. Assumes that the name of the
@@ -290,7 +329,9 @@ abstract contract Deployer is Script {
         cmd[1] = "-c";
         cmd[2] = string.concat(Executables.forge, " config --json | ", Executables.jq, " -r .out");
         bytes memory res = vm.ffi(cmd);
-        string memory forgeArtifactPath = string.concat(vm.projectRoot(), "/", string(res), "/", _name, ".sol/", _name, ".json");
+        string memory contractName = _stripSemver(_name);
+        string memory forgeArtifactPath =
+            string.concat(vm.projectRoot(), "/", string(res), "/", contractName, ".sol/", _name, ".json");
         return forgeArtifactPath;
     }
 
@@ -306,7 +347,15 @@ abstract contract Deployer is Script {
         string[] memory cmd = new string[](3);
         cmd[0] = Executables.bash;
         cmd[1] = "-c";
-        cmd[2] = string.concat(Executables.jq, " -r '.receipts[] | select(.contractAddress == ", '"', vm.toString(addr), '"', ")' < ", deployPath);
+        cmd[2] = string.concat(
+            Executables.jq,
+            " -r '.receipts[] | select(.contractAddress == ",
+            '"',
+            vm.toString(addr),
+            '"',
+            ")' < ",
+            deployPath
+        );
         bytes memory res = vm.ffi(cmd);
         string memory receipt = string(res);
         return receipt;
@@ -364,10 +413,7 @@ abstract contract Deployer is Script {
 
     /// @notice Adds a deployment to the temp deployments file
     function _writeTemp(string memory _name, address _deployed) internal {
-        vm.writeJson({
-            json: stdJson.serialize("", _name, _deployed),
-            path: tempDeploymentsPath
-        });
+        vm.writeJson({ json: stdJson.serialize("", _name, _deployed), path: tempDeploymentsPath });
     }
 
     /// @notice Turns an Artifact into a json serialized string
@@ -399,19 +445,23 @@ abstract contract Deployer is Script {
             return context;
         }
 
-        uint256 chainid = block.chainid;
-        if (chainid == 1) {
+        uint256 chainid = vm.envOr("CHAIN_ID", block.chainid);
+        if (chainid == Chains.Mainnet) {
             return "mainnet";
-        }  else if (chainid == 5) {
+        } else if (chainid == Chains.Goerli) {
             return "goerli";
-        } else if (chainid == 420) {
+        } else if (chainid == Chains.OPGoerli) {
             return "optimism-goerli";
-        } else if (chainid == 10) {
+        } else if (chainid == Chains.OPMainnet) {
             return "optimism-mainnet";
-        } else if (chainid == 900) {
+        } else if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet) {
             return "devnetL1";
-        } else if (chainid == 31337) {
+        } else if (chainid == Chains.Hardhat) {
             return "hardhat";
+        } else if (chainid == Chains.Sepolia) {
+            return "sepolia";
+        } else if (chainid == Chains.OPSepolia) {
+            return "optimism-sepolia";
         } else {
             return vm.toString(chainid);
         }
@@ -431,15 +481,9 @@ abstract contract Deployer is Script {
         string memory path = string.concat(deploymentsDir, "/", _name, ".json");
         try vm.readFile(path) returns (string memory json) {
             bytes memory addr = stdJson.parseRaw(json, "$.address");
-            return Deployment({
-                addr: abi.decode(addr, (address)),
-                name: _name
-            });
+            return Deployment({ addr: abi.decode(addr, (address)), name: _name });
         } catch {
-            return Deployment({
-                addr: payable(address(0)),
-                name: ""
-            });
+            return Deployment({ addr: payable(address(0)), name: "" });
         }
     }
 }

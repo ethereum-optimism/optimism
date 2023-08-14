@@ -30,7 +30,7 @@ RUN mkdir manifests && \
   # .nvmrc
   cp .nvmrc ../manifests/
 
-FROM ethereumoptimism/foundry:latest as foundry
+FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest as foundry
 # bullseye-slim is debian based
 # we use it rather than alpien because it's not much
 # bigger and alpine is often missing packages for node applications
@@ -73,16 +73,15 @@ RUN pnpm install --frozen-lockfile
 
 COPY ./packages ./packages
 
+COPY .git/ ./.git
+COPY .gitmodules ./.gitmodules
+RUN git submodule update --init --recursive
+
 RUN pnpm build
 
-FROM base as fault-detector
-WORKDIR /opt/optimism/packages/fault-detector
-COPY ./ops/scripts/detector.sh .
-CMD ["pnpm", "run", "start"]
-
-FROM base as replica-healthcheck
-WORKDIR /opt/optimism/packages/replica-healthcheck
-ENTRYPOINT ["pnpm", "run", "start"]
+FROM base as replica-mon
+WORKDIR /opt/optimism/packages/chain-mon
+ENTRYPOINT ["pnpm", "run", "start:replica-mon"]
 
 FROM base as balance-mon
 WORKDIR /opt/optimism/packages/chain-mon
@@ -92,7 +91,6 @@ FROM base as drippie-mon
 WORKDIR /opt/optimism/packages/chain-mon
 ENTRYPOINT ["pnpm", "run", "start:drippie-mon"]
 
-
 FROM base as wd-mon
 WORKDIR /opt/optimism/packages/chain-mon
 ENTRYPOINT ["pnpm", "run", "start:wd-mon"]
@@ -100,3 +98,7 @@ ENTRYPOINT ["pnpm", "run", "start:wd-mon"]
 FROM base as wallet-mon
 WORKDIR /opt/optimism/packages/chain-mon
 ENTRYPOINT ["pnpm", "run", "start:wallet-mon"]
+
+from base as fault-mon
+WORKDIR /opt/optimism/packages/chain-mon
+ENTRYPOINT ["pnpm", "run", "start:fault-mon"]

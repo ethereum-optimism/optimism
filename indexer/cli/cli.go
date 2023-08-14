@@ -1,12 +1,16 @@
 package cli
 
 import (
+	"context"
 	"fmt"
-	"os"
 
+	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/config"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
+
 	"github.com/ethereum/go-ethereum/params"
+
 	"github.com/urfave/cli/v2"
 )
 
@@ -19,30 +23,45 @@ type Cli struct {
 }
 
 func runIndexer(ctx *cli.Context) error {
+	logger := log.NewLogger(log.ReadCLIConfig(ctx))
+
 	configPath := ctx.String(ConfigFlag.Name)
-	conf, err := config.LoadConfig(configPath)
-
-	fmt.Println(conf)
-
+	cfg, err := config.LoadConfig(configPath)
 	if err != nil {
-		log.Crit("Failed to load config", "message", err)
+		logger.Error("failed to load config", "err", err)
+		return err
 	}
 
-	// finish me
-	return nil
+	cfg.Logger = logger
+	indexer, err := indexer.NewIndexer(cfg)
+	if err != nil {
+		return err
+	}
+
+	indexerCtx, indexerCancel := context.WithCancel(context.Background())
+	go func() {
+		opio.BlockOnInterrupts()
+		indexerCancel()
+	}()
+
+	return indexer.Run(indexerCtx)
 }
 
 func runApi(ctx *cli.Context) error {
+	logger := log.NewLogger(log.ReadCLIConfig(ctx))
+
 	configPath := ctx.String(ConfigFlag.Name)
-	conf, err := config.LoadConfig(configPath)
-
-	fmt.Println(conf)
-
+	cfg, err := config.LoadConfig(configPath)
 	if err != nil {
-		log.Crit("Failed to load config", "message", err)
+		logger.Error("failed to load config", "err", err)
+		return err
 	}
+
+	cfg.Logger = logger
+	fmt.Println(cfg)
+
 	// finish me
-	return nil
+	return err
 }
 
 var (
@@ -53,15 +72,6 @@ var (
 		Usage:   "path to config file",
 		EnvVars: []string{"INDEXER_CONFIG"},
 	}
-	// Not used yet.  Use this flag to run legacy app instead
-	// Remove me after indexer is released
-	IndexerRefreshFlag = &cli.BoolFlag{
-		Name:    "indexer-refresh",
-		Value:   false,
-		Aliases: []string{"i"},
-		Usage:   "run new unreleased indexer by passing in flag",
-		EnvVars: []string{"INDEXER_REFRESH"},
-	}
 )
 
 // make a instance method on Cli called Run that runs cli
@@ -71,17 +81,7 @@ func (c *Cli) Run(args []string) error {
 }
 
 func NewCli(GitVersion string, GitCommit string, GitDate string) *Cli {
-	log.Root().SetHandler(
-		log.LvlFilterHandler(
-			log.LvlInfo,
-			log.StreamHandler(os.Stdout, log.TerminalFormat(true)),
-		),
-	)
-
-	flags := []cli.Flag{
-		ConfigFlag,
-	}
-
+	flags := append([]cli.Flag{ConfigFlag}, log.CLIFlags("INDEXER")...)
 	app := &cli.App{
 		Version:     fmt.Sprintf("%s-%s", GitVersion, params.VersionWithCommit(GitCommit, GitDate)),
 		Description: "An indexer of all optimism events with a serving api layer",

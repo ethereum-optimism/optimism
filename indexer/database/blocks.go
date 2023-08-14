@@ -6,6 +6,9 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+
+	"github.com/google/uuid"
 
 	"gorm.io/gorm"
 )
@@ -19,6 +22,19 @@ type BlockHeader struct {
 	ParentHash common.Hash `gorm:"serializer:json"`
 	Number     U256
 	Timestamp  uint64
+
+	RLPHeader *RLPHeader `gorm:"serializer:rlp;column:rlp_bytes"`
+}
+
+func BlockHeaderFromHeader(header *types.Header) BlockHeader {
+	return BlockHeader{
+		Hash:       header.Hash(),
+		ParentHash: header.ParentHash,
+		Number:     U256{Int: header.Number},
+		Timestamp:  header.Time,
+
+		RLPHeader: (*RLPHeader)(header),
+	}
 }
 
 type L1BlockHeader struct {
@@ -27,11 +43,6 @@ type L1BlockHeader struct {
 
 type L2BlockHeader struct {
 	BlockHeader
-
-	// Marked when the proposed output is finalized on L1.
-	// All bedrock blocks will have `LegacyStateBatchIndex ^== NULL`
-	L1BlockHash           *common.Hash `gorm:"serializer:json"`
-	LegacyStateBatchIndex *uint64
 }
 
 type LegacyStateBatch struct {
@@ -39,25 +50,39 @@ type LegacyStateBatch struct {
 	// violating the primary key constraint.
 	Index uint64 `gorm:"primaryKey;default:0"`
 
-	Root        common.Hash `gorm:"serializer:json"`
-	Size        uint64
-	PrevTotal   uint64
-	L1BlockHash common.Hash `gorm:"serializer:json"`
+	Root                common.Hash `gorm:"serializer:json"`
+	Size                uint64
+	PrevTotal           uint64
+	L1ContractEventGUID uuid.UUID
+}
+
+type OutputProposal struct {
+	OutputRoot    common.Hash `gorm:"primaryKey;serializer:json"`
+	L2OutputIndex U256
+	L2BlockNumber U256
+
+	L1ContractEventGUID uuid.UUID
 }
 
 type BlocksView interface {
-	FinalizedL1BlockHeader() (*L1BlockHeader, error)
-	FinalizedL2BlockHeader() (*L2BlockHeader, error)
+	L1BlockHeader(*big.Int) (*L1BlockHeader, error)
+	LatestL1BlockHeader() (*L1BlockHeader, error)
+
+	LatestCheckpointedOutput() (*OutputProposal, error)
+	OutputProposal(index *big.Int) (*OutputProposal, error)
+
+	L2BlockHeader(*big.Int) (*L2BlockHeader, error)
+	LatestL2BlockHeader() (*L2BlockHeader, error)
 }
 
 type BlocksDB interface {
 	BlocksView
 
 	StoreL1BlockHeaders([]*L1BlockHeader) error
-	StoreLegacyStateBatch(*LegacyStateBatch) error
-
 	StoreL2BlockHeaders([]*L2BlockHeader) error
-	MarkFinalizedL1RootForL2Block(common.Hash, common.Hash) error
+
+	StoreLegacyStateBatches([]*LegacyStateBatch) error
+	StoreOutputProposals([]*OutputProposal) error
 }
 
 /**
@@ -79,37 +104,31 @@ func (db *blocksDB) StoreL1BlockHeaders(headers []*L1BlockHeader) error {
 	return result.Error
 }
 
-func (db *blocksDB) StoreLegacyStateBatch(stateBatch *LegacyStateBatch) error {
-	result := db.gorm.Create(stateBatch)
-	if result.Error != nil {
-		return result.Error
-	}
-
-	// Mark this state batch index & l1 block hash for all applicable l2 blocks
-	l2Headers := make([]*L2BlockHeader, stateBatch.Size)
-
-	// [start, end] range is inclusive. Since `PrevTotal` is the index of the prior batch, no
-	// need to subtract one when adding the size
-	startHeight := U256{Int: big.NewInt(int64(stateBatch.PrevTotal + 1))}
-	endHeight := U256{Int: big.NewInt(int64(stateBatch.PrevTotal + stateBatch.Size))}
-	result = db.gorm.Where("number BETWEEN ? AND ?", &startHeight, &endHeight).Find(&l2Headers)
-	if result.Error != nil {
-		return result.Error
-	} else if result.RowsAffected != int64(stateBatch.Size) {
-		return errors.New("state batch size exceeds number of indexed l2 blocks")
-	}
-
-	for _, header := range l2Headers {
-		header.LegacyStateBatchIndex = &stateBatch.Index
-		header.L1BlockHash = &stateBatch.L1BlockHash
-	}
-
-	result = db.gorm.Save(&l2Headers)
+func (db *blocksDB) StoreLegacyStateBatches(stateBatches []*LegacyStateBatch) error {
+	result := db.gorm.Create(stateBatches)
 	return result.Error
 }
 
-// FinalizedL1BlockHeader returns the latest L1 block header stored in the database, nil otherwise
-func (db *blocksDB) FinalizedL1BlockHeader() (*L1BlockHeader, error) {
+func (db *blocksDB) StoreOutputProposals(outputs []*OutputProposal) error {
+	result := db.gorm.Create(outputs)
+	return result.Error
+}
+
+func (db *blocksDB) L1BlockHeader(height *big.Int) (*L1BlockHeader, error) {
+	var l1Header L1BlockHeader
+	result := db.gorm.Where(&BlockHeader{Number: U256{Int: height}}).Take(&l1Header)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return &l1Header, nil
+}
+
+func (db *blocksDB) LatestL1BlockHeader() (*L1BlockHeader, error) {
 	var l1Header L1BlockHeader
 	result := db.gorm.Order("number DESC").Take(&l1Header)
 	if result.Error != nil {
@@ -123,6 +142,34 @@ func (db *blocksDB) FinalizedL1BlockHeader() (*L1BlockHeader, error) {
 	return &l1Header, nil
 }
 
+func (db *blocksDB) LatestCheckpointedOutput() (*OutputProposal, error) {
+	var outputProposal OutputProposal
+	result := db.gorm.Order("l2_output_index DESC").Take(&outputProposal)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return &outputProposal, nil
+}
+
+func (db *blocksDB) OutputProposal(index *big.Int) (*OutputProposal, error) {
+	var outputProposal OutputProposal
+	result := db.gorm.Where(&OutputProposal{L2OutputIndex: U256{Int: index}}).Take(&outputProposal)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return &outputProposal, nil
+}
+
 // L2
 
 func (db *blocksDB) StoreL2BlockHeaders(headers []*L2BlockHeader) error {
@@ -130,8 +177,21 @@ func (db *blocksDB) StoreL2BlockHeaders(headers []*L2BlockHeader) error {
 	return result.Error
 }
 
-// FinalizedL2BlockHeader returns the latest L2 block header stored in the database, nil otherwise
-func (db *blocksDB) FinalizedL2BlockHeader() (*L2BlockHeader, error) {
+func (db *blocksDB) L2BlockHeader(height *big.Int) (*L2BlockHeader, error) {
+	var l2Header L2BlockHeader
+	result := db.gorm.Where(&BlockHeader{Number: U256{Int: height}}).Take(&l2Header)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+
+		return nil, result.Error
+	}
+
+	return &l2Header, nil
+}
+
+func (db *blocksDB) LatestL2BlockHeader() (*L2BlockHeader, error) {
 	var l2Header L2BlockHeader
 	result := db.gorm.Order("number DESC").Take(&l2Header)
 	if result.Error != nil {
@@ -144,20 +204,4 @@ func (db *blocksDB) FinalizedL2BlockHeader() (*L2BlockHeader, error) {
 
 	result.Logger.Info(context.Background(), "number ", l2Header.Number)
 	return &l2Header, nil
-}
-
-// MarkFinalizedL1RootForL2Block updates the stored L2 block header with the L1 block
-// that contains the output proposal for the L2 root.
-func (db *blocksDB) MarkFinalizedL1RootForL2Block(l2Root, l1Root common.Hash) error {
-	var l2Header L2BlockHeader
-	l2Header.Hash = l2Root // set the primary key
-
-	result := db.gorm.First(&l2Header)
-	if result.Error != nil {
-		return result.Error
-	}
-
-	l2Header.L1BlockHash = &l1Root
-	result = db.gorm.Save(&l2Header)
-	return result.Error
 }

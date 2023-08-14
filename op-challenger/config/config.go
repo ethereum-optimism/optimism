@@ -2,179 +2,164 @@ package config
 
 import (
 	"errors"
-	"time"
+	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/urfave/cli/v2"
-
-	flags "github.com/ethereum-optimism/optimism/op-challenger/flags"
-
-	opservice "github.com/ethereum-optimism/optimism/op-service"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	txmgr "github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 var (
-	ErrMissingL1EthRPC       = errors.New("missing l1 eth rpc url")
-	ErrMissingRollupRpc      = errors.New("missing rollup rpc url")
-	ErrMissingL2OOAddress    = errors.New("missing l2 output oracle contract address")
-	ErrMissingDGFAddress     = errors.New("missing dispute game factory contract address")
-	ErrInvalidNetworkTimeout = errors.New("invalid network timeout")
-	ErrMissingTxMgrConfig    = errors.New("missing tx manager config")
-	ErrMissingRPCConfig      = errors.New("missing rpc config")
-	ErrMissingLogConfig      = errors.New("missing log config")
-	ErrMissingMetricsConfig  = errors.New("missing metrics config")
-	ErrMissingPprofConfig    = errors.New("missing pprof config")
+	ErrMissingTraceType              = errors.New("missing trace type")
+	ErrMissingCannonDatadir          = errors.New("missing cannon datadir")
+	ErrMissingCannonL2               = errors.New("missing cannon L2")
+	ErrMissingCannonBin              = errors.New("missing cannon bin")
+	ErrMissingCannonServer           = errors.New("missing cannon server")
+	ErrMissingCannonAbsolutePreState = errors.New("missing cannon absolute pre-state")
+	ErrMissingAlphabetTrace          = errors.New("missing alphabet trace")
+	ErrMissingL1EthRPC               = errors.New("missing l1 eth rpc url")
+	ErrMissingGameAddress            = errors.New("missing game address")
+	ErrMissingCannonSnapshotFreq     = errors.New("missing cannon snapshot freq")
+	ErrMissingCannonRollupConfig     = errors.New("missing cannon network or rollup config path")
+	ErrMissingCannonL2Genesis        = errors.New("missing cannon network or l2 genesis path")
+	ErrCannonNetworkAndRollupConfig  = errors.New("only specify one of network or rollup config path")
+	ErrCannonNetworkAndL2Genesis     = errors.New("only specify one of network or l2 genesis path")
+	ErrCannonNetworkUnknown          = errors.New("unknown cannon network")
 )
+
+type TraceType string
+
+const (
+	TraceTypeAlphabet TraceType = "alphabet"
+	TraceTypeCannon   TraceType = "cannon"
+)
+
+var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon}
+
+func (t TraceType) String() string {
+	return string(t)
+}
+
+// Set implements the Set method required by the [cli.Generic] interface.
+func (t *TraceType) Set(value string) error {
+	if !ValidTraceType(TraceType(value)) {
+		return fmt.Errorf("unknown trace type: %q", value)
+	}
+	*t = TraceType(value)
+	return nil
+}
+
+func ValidTraceType(value TraceType) bool {
+	for _, t := range TraceTypes {
+		if t == value {
+			return true
+		}
+	}
+	return false
+}
+
+const DefaultCannonSnapshotFreq = uint(1_000_000_000)
 
 // Config is a well typed config that is parsed from the CLI params.
 // This also contains config options for auxiliary services.
 // It is used to initialize the challenger.
 type Config struct {
-	// L1EthRpc is the HTTP provider URL for L1.
-	L1EthRpc string
+	L1EthRpc                string         // L1 RPC Url
+	GameAddress             common.Address // Address of the fault game
+	AgreeWithProposedOutput bool           // Temporary config if we agree or disagree with the posted output
 
-	// RollupRpc is the HTTP provider URL for the rollup node.
-	RollupRpc string
+	TraceType TraceType // Type of trace
 
-	// L2OOAddress is the L2OutputOracle contract address.
-	L2OOAddress common.Address
+	// Specific to the alphabet trace provider
+	AlphabetTrace string // String for the AlphabetTraceProvider
 
-	// DGFAddress is the DisputeGameFactory contract address.
-	DGFAddress common.Address
+	// Specific to the cannon trace provider
+	CannonBin              string // Path to the cannon executable to run when generating trace data
+	CannonServer           string // Path to the op-program executable that provides the pre-image oracle server
+	CannonAbsolutePreState string // File to load the absolute pre-state for Cannon traces from
+	CannonNetwork          string
+	CannonRollupConfigPath string
+	CannonL2GenesisPath    string
+	CannonDatadir          string // Cannon Data Directory
+	CannonL2               string // L2 RPC Url
+	CannonSnapshotFreq     uint   // Frequency of snapshots to create when executing cannon (in VM instructions)
 
-	// NetworkTimeout is the timeout for network requests.
-	NetworkTimeout time.Duration
+	TxMgrConfig txmgr.CLIConfig
+}
 
-	TxMgrConfig *txmgr.CLIConfig
+func NewConfig(
+	l1EthRpc string,
+	gameAddress common.Address,
+	traceType TraceType,
+	agreeWithProposedOutput bool,
+) Config {
+	return Config{
+		L1EthRpc:    l1EthRpc,
+		GameAddress: gameAddress,
 
-	RPCConfig *oprpc.CLIConfig
+		AgreeWithProposedOutput: agreeWithProposedOutput,
 
-	LogConfig *oplog.CLIConfig
+		TraceType: traceType,
 
-	MetricsConfig *opmetrics.CLIConfig
+		TxMgrConfig: txmgr.NewCLIConfig(l1EthRpc),
 
-	PprofConfig *oppprof.CLIConfig
+		CannonSnapshotFreq: DefaultCannonSnapshotFreq,
+	}
 }
 
 func (c Config) Check() error {
 	if c.L1EthRpc == "" {
 		return ErrMissingL1EthRPC
 	}
-	if c.RollupRpc == "" {
-		return ErrMissingRollupRpc
+	if c.GameAddress == (common.Address{}) {
+		return ErrMissingGameAddress
 	}
-	if c.L2OOAddress == (common.Address{}) {
-		return ErrMissingL2OOAddress
+	if c.TraceType == "" {
+		return ErrMissingTraceType
 	}
-	if c.DGFAddress == (common.Address{}) {
-		return ErrMissingDGFAddress
+	if c.TraceType == TraceTypeCannon {
+		if c.CannonBin == "" {
+			return ErrMissingCannonBin
+		}
+		if c.CannonServer == "" {
+			return ErrMissingCannonServer
+		}
+		if c.CannonNetwork == "" {
+			if c.CannonRollupConfigPath == "" {
+				return ErrMissingCannonRollupConfig
+			}
+			if c.CannonL2GenesisPath == "" {
+				return ErrMissingCannonL2Genesis
+			}
+		} else {
+			if c.CannonRollupConfigPath != "" {
+				return ErrCannonNetworkAndRollupConfig
+			}
+			if c.CannonL2GenesisPath != "" {
+				return ErrCannonNetworkAndL2Genesis
+			}
+			if _, ok := chaincfg.NetworksByName[c.CannonNetwork]; !ok {
+				return fmt.Errorf("%w: %v", ErrCannonNetworkUnknown, c.CannonNetwork)
+			}
+		}
+		if c.CannonAbsolutePreState == "" {
+			return ErrMissingCannonAbsolutePreState
+		}
+		if c.CannonDatadir == "" {
+			return ErrMissingCannonDatadir
+		}
+		if c.CannonL2 == "" {
+			return ErrMissingCannonL2
+		}
+		if c.CannonSnapshotFreq == 0 {
+			return ErrMissingCannonSnapshotFreq
+		}
 	}
-	if c.NetworkTimeout == 0 {
-		return ErrInvalidNetworkTimeout
-	}
-	if c.TxMgrConfig == nil {
-		return ErrMissingTxMgrConfig
-	}
-	if c.RPCConfig == nil {
-		return ErrMissingRPCConfig
-	}
-	if c.LogConfig == nil {
-		return ErrMissingLogConfig
-	}
-	if c.MetricsConfig == nil {
-		return ErrMissingMetricsConfig
-	}
-	if c.PprofConfig == nil {
-		return ErrMissingPprofConfig
-	}
-	if err := c.RPCConfig.Check(); err != nil {
-		return err
-	}
-	if err := c.LogConfig.Check(); err != nil {
-		return err
-	}
-	if err := c.MetricsConfig.Check(); err != nil {
-		return err
-	}
-	if err := c.PprofConfig.Check(); err != nil {
-		return err
+	if c.TraceType == TraceTypeAlphabet && c.AlphabetTrace == "" {
+		return ErrMissingAlphabetTrace
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {
 		return err
 	}
 	return nil
-}
-
-// NewConfig creates a Config with all optional values set to the CLI default value
-func NewConfig(
-	L1EthRpc string,
-	RollupRpc string,
-	L2OOAddress common.Address,
-	DGFAddress common.Address,
-	NetworkTimeout time.Duration,
-	TxMgrConfig *txmgr.CLIConfig,
-	RPCConfig *oprpc.CLIConfig,
-	LogConfig *oplog.CLIConfig,
-	MetricsConfig *opmetrics.CLIConfig,
-	PprofConfig *oppprof.CLIConfig,
-) *Config {
-	return &Config{
-		L1EthRpc:       L1EthRpc,
-		RollupRpc:      RollupRpc,
-		L2OOAddress:    L2OOAddress,
-		DGFAddress:     DGFAddress,
-		NetworkTimeout: NetworkTimeout,
-		TxMgrConfig:    TxMgrConfig,
-		RPCConfig:      RPCConfig,
-		LogConfig:      LogConfig,
-		MetricsConfig:  MetricsConfig,
-		PprofConfig:    PprofConfig,
-	}
-}
-
-// NewConfigFromCLI parses the Config from the provided flags or environment variables.
-func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
-	if err := flags.CheckRequired(ctx); err != nil {
-		return nil, err
-	}
-	l1EthRpc := ctx.String(flags.L1EthRpcFlag.Name)
-	if l1EthRpc == "" {
-		return nil, ErrMissingL1EthRPC
-	}
-	rollupRpc := ctx.String(flags.RollupRpcFlag.Name)
-	if rollupRpc == "" {
-		return nil, ErrMissingRollupRpc
-	}
-	l2ooAddress, err := opservice.ParseAddress(ctx.String(flags.L2OOAddressFlag.Name))
-	if err != nil {
-		return nil, ErrMissingL2OOAddress
-	}
-	dgfAddress, err := opservice.ParseAddress(ctx.String(flags.DGFAddressFlag.Name))
-	if err != nil {
-		return nil, ErrMissingDGFAddress
-	}
-
-	txMgrConfig := txmgr.ReadCLIConfig(ctx)
-	rpcConfig := oprpc.ReadCLIConfig(ctx)
-	logConfig := oplog.ReadCLIConfig(ctx)
-	metricsConfig := opmetrics.ReadCLIConfig(ctx)
-	pprofConfig := oppprof.ReadCLIConfig(ctx)
-
-	return &Config{
-		// Required Flags
-		L1EthRpc:    l1EthRpc,
-		RollupRpc:   rollupRpc,
-		L2OOAddress: l2ooAddress,
-		DGFAddress:  dgfAddress,
-		TxMgrConfig: &txMgrConfig,
-		// Optional Flags
-		RPCConfig:     &rpcConfig,
-		LogConfig:     &logConfig,
-		MetricsConfig: &metricsConfig,
-		PprofConfig:   &pprofConfig,
-	}, nil
 }

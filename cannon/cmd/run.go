@@ -88,6 +88,13 @@ type Proof struct {
 	Pre  common.Hash `json:"pre"`
 	Post common.Hash `json:"post"`
 
+	StateData hexutil.Bytes `json:"state-data"`
+	ProofData hexutil.Bytes `json:"proof-data"`
+
+	OracleKey    hexutil.Bytes `json:"oracle-key,omitempty"`
+	OracleValue  hexutil.Bytes `json:"oracle-value,omitempty"`
+	OracleOffset uint32        `json:"oracle-offset,omitempty"`
+
 	StepInput   hexutil.Bytes `json:"step-input"`
 	OracleInput hexutil.Bytes `json:"oracle-input"`
 }
@@ -298,7 +305,7 @@ func Run(ctx *cli.Context) error {
 		}
 
 		if snapshotAt(state) {
-			if err := writeJSON[*mipsevm.State](fmt.Sprintf(snapshotFmt, step), state, false); err != nil {
+			if err := writeJSON(fmt.Sprintf(snapshotFmt, step), state, false); err != nil {
 				return fmt.Errorf("failed to write state snapshot: %w", err)
 			}
 		}
@@ -314,6 +321,8 @@ func Run(ctx *cli.Context) error {
 				Step:      step,
 				Pre:       preStateHash,
 				Post:      postStateHash,
+				StateData: witness.State,
+				ProofData: witness.MemProof,
 				StepInput: witness.EncodeStepInput(),
 			}
 			if witness.HasPreimage() {
@@ -322,8 +331,11 @@ func Run(ctx *cli.Context) error {
 					return fmt.Errorf("failed to encode pre-image oracle input: %w", err)
 				}
 				proof.OracleInput = inp
+				proof.OracleKey = witness.PreimageKey[:]
+				proof.OracleValue = witness.PreimageValue
+				proof.OracleOffset = witness.PreimageOffset
 			}
-			if err := writeJSON[*Proof](fmt.Sprintf(proofFmt, step), proof, true); err != nil {
+			if err := writeJSON(fmt.Sprintf(proofFmt, step), proof, true); err != nil {
 				return fmt.Errorf("failed to write proof data: %w", err)
 			}
 		} else {
@@ -334,7 +346,7 @@ func Run(ctx *cli.Context) error {
 		}
 	}
 
-	if err := writeJSON[*mipsevm.State](ctx.Path(RunOutputFlag.Name), state, true); err != nil {
+	if err := writeJSON(ctx.Path(RunOutputFlag.Name), state, true); err != nil {
 		return fmt.Errorf("failed to write state output: %w", err)
 	}
 	return nil

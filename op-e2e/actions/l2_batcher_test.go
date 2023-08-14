@@ -14,9 +14,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 func TestBatcher(gt *testing.T) {
@@ -25,12 +26,13 @@ func TestBatcher(gt *testing.T) {
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
 		SequencerWindowSize: 24,
 		ChannelTimeout:      20,
+		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
-	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg))
+	verifEngine, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
 
 	rollupSeqCl := sequencer.RollupClient()
 	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
@@ -268,7 +270,7 @@ func TestGarbageBatch(gt *testing.T) {
 		log := testlog.Logger(t, log.LvlError)
 		miner, engine, sequencer := setupSequencerTest(t, sd, log)
 
-		_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg))
+		_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
 
 		batcherCfg := &BatcherCfg{
 			MinL1TxSize: 0,
@@ -344,13 +346,14 @@ func TestExtendedTimeWithoutL1Batches(gt *testing.T) {
 		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
 		SequencerWindowSize: 24,
 		ChannelTimeout:      20,
+		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlError)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
 
-	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg))
+	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
 
 	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
 		MinL1TxSize: 0,
@@ -401,13 +404,14 @@ func TestBigL2Txs(gt *testing.T) {
 		MaxSequencerDrift:   100,
 		SequencerWindowSize: 1000,
 		ChannelTimeout:      200, // give enough space to buffer large amounts of data before submitting it
+		L1BlockTime:         12,
 	}
 	dp := e2eutils.MakeDeployParams(t, p)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlInfo)
 	miner, engine, sequencer := setupSequencerTest(t, sd, log)
 
-	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg))
+	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg), &sync.Config{})
 
 	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
 		MinL1TxSize: 0,

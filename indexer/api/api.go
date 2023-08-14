@@ -25,17 +25,15 @@ type PaginationResponse struct {
 	HasNextPage bool        `json:"hasNextPage"`
 }
 
-func (a *Api) DepositsHandler(w http.ResponseWriter, r *http.Request) {
-	bv := a.bridgeView
-
+func (a *Api) L1DepositsHandler(w http.ResponseWriter, r *http.Request) {
+	bv := a.BridgeTransfersView
 	address := common.HexToAddress(chi.URLParam(r, "address"))
 
 	// limit := getIntFromQuery(r, "limit", 10)
 	// cursor := r.URL.Query().Get("cursor")
 	// sortDirection := r.URL.Query().Get("sortDirection")
 
-	deposits, err := bv.DepositsByAddress(address)
-
+	deposits, err := bv.L1BridgeDepositsByAddress(address)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -52,17 +50,15 @@ func (a *Api) DepositsHandler(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, response, http.StatusOK)
 }
 
-func (a *Api) WithdrawalsHandler(w http.ResponseWriter, r *http.Request) {
-	bv := a.bridgeView
-
+func (a *Api) L2WithdrawalsHandler(w http.ResponseWriter, r *http.Request) {
+	bv := a.BridgeTransfersView
 	address := common.HexToAddress(chi.URLParam(r, "address"))
 
 	// limit := getIntFromQuery(r, "limit", 10)
 	// cursor := r.URL.Query().Get("cursor")
 	// sortDirection := r.URL.Query().Get("sortDirection")
 
-	withdrawals, err := bv.WithdrawalsByAddress(address)
-
+	withdrawals, err := bv.L2BridgeWithdrawalsByAddress(address)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -92,22 +88,20 @@ func jsonResponse(w http.ResponseWriter, data interface{}, statusCode int) {
 }
 
 type Api struct {
-	Router     *chi.Mux
-	bridgeView database.BridgeView
+	Router              *chi.Mux
+	BridgeTransfersView database.BridgeTransfersView
 }
 
-func NewApi(bv database.BridgeView) *Api {
+func NewApi(bv database.BridgeTransfersView) *Api {
 	r := chi.NewRouter()
 
-	api := &Api{
-		Router:     r,
-		bridgeView: bv,
-	}
+	api := &Api{Router: r, BridgeTransfersView: bv}
+
 	// these regex are .+ because I wasn't sure what they should be
 	// don't want a regex for addresses because would prefer to validate the address
 	// with go-ethereum and throw a friendly error message
-	r.Get(fmt.Sprintf("%s%s", depositPath, addressParam), api.DepositsHandler)
-	r.Get(fmt.Sprintf("%s%s", withdrawalPath, addressParam), api.WithdrawalsHandler)
+	r.Get(fmt.Sprintf("%s%s", depositPath, addressParam), api.L1DepositsHandler)
+	r.Get(fmt.Sprintf("%s%s", withdrawalPath, addressParam), api.L2WithdrawalsHandler)
 	r.Get(healthzPath, api.HealthzHandler)
 
 	return api

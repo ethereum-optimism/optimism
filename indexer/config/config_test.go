@@ -26,6 +26,7 @@ func TestLoadConfig(t *testing.T) {
 		port = 5432
 		user = "postgres"
 		password = "postgres"
+	  name = "indexer"
 
 		[api]
 		host = "127.0.0.1"
@@ -54,6 +55,7 @@ func TestLoadConfig(t *testing.T) {
 	require.Equal(t, conf.DB.Port, 5432)
 	require.Equal(t, conf.DB.User, "postgres")
 	require.Equal(t, conf.DB.Password, "postgres")
+	require.Equal(t, conf.DB.Name, "indexer")
 	require.Equal(t, conf.API.Host, "127.0.0.1")
 	require.Equal(t, conf.API.Port, 8080)
 	require.Equal(t, conf.Metrics.Host, "127.0.0.1")

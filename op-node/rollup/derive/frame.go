@@ -27,7 +27,7 @@ type Frame struct {
 	ID          ChannelID `json:"id"`
 	FrameNumber uint16    `json:"frame_number"`
 	Data        []byte    `json:"data"`
-	IsLast      bool      `'json:"is_last"`
+	IsLast      bool      `json:"is_last"`
 }
 
 // MarshalBinary writes the frame to `w`.

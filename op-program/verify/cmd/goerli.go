@@ -18,21 +18,25 @@ import (
 const agreedBlockTrailingDistance = 100
 
 func main() {
-	if len(os.Args) != 3 {
+	if len(os.Args) < 3 {
 		_, _ = fmt.Fprintln(os.Stderr, "Must specify L1 RPC URL and L2 RPC URL as arguments")
 		os.Exit(2)
 	}
 	l1RpcUrl := os.Args[1]
 	l2RpcUrl := os.Args[2]
+	l1RpcKind := "alchemy"
+	if len(os.Args) > 3 {
+		l1RpcKind = os.Args[3]
+	}
 	goerliOutputAddress := common.HexToAddress("0xE6Dfba0953616Bacab0c9A8ecb3a9BBa77FC15c0")
-	err := Run(l1RpcUrl, l2RpcUrl, goerliOutputAddress)
+	err := Run(l1RpcUrl, l1RpcKind, l2RpcUrl, goerliOutputAddress)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed: %v\n", err.Error())
 		os.Exit(1)
 	}
 }
 
-func Run(l1RpcUrl string, l2RpcUrl string, l2OracleAddr common.Address) error {
+func Run(l1RpcUrl string, l1RpcKind string, l2RpcUrl string, l2OracleAddr common.Address) error {
 	ctx := context.Background()
 	l1RpcClient, err := rpc.Dial(l1RpcUrl)
 	if err != nil {
@@ -100,7 +104,31 @@ func Run(l1RpcUrl string, l2RpcUrl string, l2OracleAddr common.Address) error {
 	if err != nil {
 		return fmt.Errorf("retrieve agreed l2 block: %w", err)
 	}
-	l2Head := l2AgreedBlock.Hash()
+	agreedOutputIndex, err := outputOracle.GetL2OutputIndexAfter(callOpts, l2AgreedBlock.Number())
+	if err != nil {
+		return fmt.Errorf("failed to output index after agreed block")
+	}
+	// Find an output that differs from what is being claimed
+	var agreedOutput bindings.TypesOutputProposal
+	for {
+		agreedOutput, err = outputOracle.GetL2Output(callOpts, agreedOutputIndex)
+		if err != nil {
+			return fmt.Errorf("retrieve agreed output: %w", err)
+		}
+		if agreedOutput.OutputRoot != output.OutputRoot {
+			break
+		}
+		fmt.Printf("Output at %v equals output at finalized block. Continuing search...\n", agreedOutput.L2BlockNumber)
+		agreedOutputIndex.Sub(agreedOutputIndex, big.NewInt(1))
+		if agreedOutputIndex.Int64() < 0 {
+			return fmt.Errorf("failed to find an output different from finalized block output")
+		}
+	}
+	l2BlockAtOutput, err := l2Client.BlockByNumber(ctx, agreedOutput.L2BlockNumber)
+	if err != nil {
+		return fmt.Errorf("retrieve agreed block: %w", err)
+	}
+	l2Head := l2BlockAtOutput.Hash()
 
 	temp, err := os.MkdirTemp("", "oracledata")
 	if err != nil {
@@ -120,12 +148,13 @@ func Run(l1RpcUrl string, l2RpcUrl string, l2OracleAddr common.Address) error {
 		"--datadir", temp,
 		"--l1.head", l1Head.Hex(),
 		"--l2.head", l2Head.Hex(),
+		"--l2.outputroot", common.Bytes2Hex(agreedOutput.OutputRoot[:]),
 		"--l2.claim", l2Claim.Hex(),
 		"--l2.blocknumber", l2BlockNumber.String(),
 	}
 	fmt.Printf("Configuration: %s\n", args)
 	fmt.Println("Running in online mode")
-	err = runFaultProofProgram(ctx, append(args, "--l1", l1RpcUrl, "--l2", l2RpcUrl))
+	err = runFaultProofProgram(ctx, append(args, "--l1", l1RpcUrl, "--l2", l2RpcUrl, "--l1.rpckind", l1RpcKind))
 	if err != nil {
 		return fmt.Errorf("online mode failed: %w", err)
 	}

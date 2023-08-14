@@ -2,6 +2,8 @@ package clock
 
 import (
 	"context"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -62,6 +64,64 @@ func TestAfter(t *testing.T) {
 	})
 }
 
+func TestAfterFunc(t *testing.T) {
+	t.Run("ZeroExecutesImmediately", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		ran := new(atomic.Bool)
+		timer := clock.AfterFunc(0, func() { ran.Store(true) })
+		require.True(t, ran.Load(), "duration should already have been reached")
+		require.False(t, timer.Stop(), "Stop should return false after executing")
+	})
+
+	t.Run("CompletesWhenTimeAdvances", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		ran := new(atomic.Bool)
+		timer := clock.AfterFunc(500*time.Millisecond, func() { ran.Store(true) })
+		require.False(t, ran.Load(), "should not complete immediately")
+
+		clock.AdvanceTime(499 * time.Millisecond)
+		require.False(t, ran.Load(), "should not complete before time is due")
+
+		clock.AdvanceTime(1 * time.Millisecond)
+		require.True(t, ran.Load(), "should complete when time is reached")
+		require.False(t, timer.Stop(), "Stop should return false after executing")
+	})
+
+	t.Run("CompletesWhenTimeAdvancesPastDue", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		ran := new(atomic.Bool)
+		timer := clock.AfterFunc(500*time.Millisecond, func() { ran.Store(true) })
+		require.False(t, ran.Load(), "should not complete immediately")
+
+		clock.AdvanceTime(9000 * time.Millisecond)
+		require.True(t, ran.Load(), "should complete when time is reached")
+		require.False(t, timer.Stop(), "Stop should return false after executing")
+	})
+
+	t.Run("RegisterAsPending", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		ran := new(atomic.Bool)
+		clock.AfterFunc(500*time.Millisecond, func() { ran.Store(true) })
+
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancelFunc()
+		require.True(t, clock.WaitForNewPendingTask(ctx), "should have added a new pending task")
+	})
+
+	t.Run("DoNotRunIfStopped", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		ran := new(atomic.Bool)
+		timer := clock.AfterFunc(500*time.Millisecond, func() { ran.Store(true) })
+		require.False(t, ran.Load(), "should not complete immediately")
+
+		require.True(t, timer.Stop(), "Stop should return true on first call")
+		require.False(t, timer.Stop(), "Stop should return false on subsequent calls")
+
+		clock.AdvanceTime(9000 * time.Millisecond)
+		require.False(t, ran.Load(), "should not run when time is reached")
+	})
+}
+
 func TestNewTicker(t *testing.T) {
 	t.Run("FiresAfterEachDuration", func(t *testing.T) {
 		clock := NewDeterministicClock(time.UnixMilli(1000))
@@ -95,6 +155,38 @@ func TestNewTicker(t *testing.T) {
 
 		clock.AdvanceTime(1 * time.Second)
 		require.Len(t, ticker.Ch(), 0, "should not fire until due again")
+	})
+
+	t.Run("SkipsFiringWhenProcessingIsSlow", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		ticker := clock.NewTicker(5 * time.Second)
+
+		// Fire once to fill the channel queue
+		clock.AdvanceTime(5 * time.Second)
+		firstEventTime := clock.Now()
+
+		var startProcessing sync.WaitGroup
+		startProcessing.Add(1)
+		processedTicks := make(chan time.Time)
+		go func() {
+			startProcessing.Wait()
+			// Read two events then exit
+			for i := 0; i < 2; i++ {
+				event := <-ticker.Ch()
+				processedTicks <- event
+			}
+		}()
+
+		// Advance time further before processing of events has started
+		// Can't publish any further events to the channel but shouldn't block
+		clock.AdvanceTime(30 * time.Second)
+
+		// Allow processing to start
+		startProcessing.Done()
+		require.Equal(t, firstEventTime, <-processedTicks, "Should process first event")
+
+		clock.AdvanceTime(5 * time.Second)
+		require.Equal(t, clock.Now(), <-processedTicks, "Should skip to latest time")
 	})
 
 	t.Run("StopFiring", func(t *testing.T) {
@@ -155,6 +247,46 @@ func TestNewTicker(t *testing.T) {
 		ctx, cancelFunc := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancelFunc()
 		require.True(t, clock.WaitForNewPendingTask(ctx), "should have added a new pending task")
+	})
+}
+
+func TestNewTimer(t *testing.T) {
+	t.Run("FireOnceAfterDuration", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		timer := clock.NewTimer(5 * time.Second)
+
+		require.Len(t, timer.Ch(), 0, "should not fire immediately")
+
+		clock.AdvanceTime(4 * time.Second)
+		require.Len(t, timer.Ch(), 0, "should not fire before due")
+
+		clock.AdvanceTime(1 * time.Second)
+		require.Len(t, timer.Ch(), 1, "should fire when due")
+		require.Equal(t, clock.Now(), <-timer.Ch(), "should post current time")
+
+		clock.AdvanceTime(6 * time.Second)
+		require.Len(t, timer.Ch(), 0, "should not fire when due again")
+	})
+
+	t.Run("StopBeforeExecuted", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		timer := clock.NewTimer(5 * time.Second)
+
+		require.True(t, timer.Stop())
+
+		clock.AdvanceTime(10 * time.Second)
+		require.Len(t, timer.Ch(), 0, "should not fire after stop")
+	})
+
+	t.Run("StopAfterExecuted", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		timer := clock.NewTimer(5 * time.Second)
+
+		clock.AdvanceTime(10 * time.Second)
+		require.Len(t, timer.Ch(), 1, "should fire when due")
+		require.Equal(t, clock.Now(), <-timer.Ch(), "should post current time")
+
+		require.False(t, timer.Stop())
 	})
 }
 

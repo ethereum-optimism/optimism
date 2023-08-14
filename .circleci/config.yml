@@ -66,18 +66,18 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: cannon,packages/contracts-bedrock/contracts/cannon
+          patterns: cannon,packages/contracts-bedrock/src/cannon
       - run:
           name: prep Cannon results dir
           command: mkdir -p /tmp/test-results
       - run:
           name: build Cannon example binaries
-          command: make elf  # only compile ELF binaries with Go, we do not have MIPS GCC for creating the debug-dumps.
+          command: make elf # only compile ELF binaries with Go, we do not have MIPS GCC for creating the debug-dumps.
           working_directory: cannon/example
       - run:
           name: Cannon Go lint
           command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
+            make lint
           working_directory: cannon
       - run:
           name: Cannon Go tests
@@ -90,6 +90,18 @@ jobs:
           command: codecov --verbose --clean --flags cannon-go-tests
       - store_test_results:
           path: /tmp/test-results
+  cannon-build-test-vectors:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: medium
+    steps:
+      - checkout
+      - check-changed:
+          patterns: cannon/mipsevm/open_mips_tests/test
+      - run:
+          name: Build MIPS test vectors
+          command: python3 maketests.py && git diff --exit-code
+          working_directory: cannon/mipsevm/open_mips_tests
 
   pnpm-monorepo:
     docker:
@@ -98,15 +110,11 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: op-bindings,op-chain-ops,packages/
+          patterns: op-chain-ops,packages/
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
       - run:
           name: Install dependencies
           command: pnpm install --frozen-lockfile
@@ -118,12 +126,9 @@ jobs:
             - "packages/chain-mon/node_modules"
             - "packages/common-ts/node_modules"
             - "packages/contracts-bedrock/node_modules"
-            - "packages/contracts-periphery/node_modules"
             - "packages/core-utils/node_modules"
-            - "packages/fault-detector/node_modules"
-            - "packages/hardhat-deploy-config/node_modules"
-            - "packages/replica-healthcheck/node_modules"
             - "packages/sdk/node_modules"
+            - "packages/contracts-ts/node_modules"
       - run:
           name: print forge version
           command: forge --version
@@ -177,7 +182,7 @@ jobs:
             fi
             IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
             DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
-            docker build \
+            docker build --progress plain \
             $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
             -f <<parameters.docker_file>> \
             <<parameters.docker_context>>
@@ -246,7 +251,7 @@ jobs:
             DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
             docker context create buildx-build
             docker buildx create --use buildx-build
-            docker buildx build --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
+            docker buildx build --progress plain --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
               $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
               -f <<parameters.docker_file>> \
               <<parameters.docker_context>>
@@ -301,7 +306,7 @@ jobs:
             DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
             docker context create buildx-build
             docker buildx create --use buildx-build
-            docker buildx build --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
+            docker buildx build --progress plain --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
               $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
               -f <<parameters.docker_file>> \
               <<parameters.docker_context>>
@@ -316,17 +321,8 @@ jobs:
     resource_class: large
     steps:
       - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
-          patterns: contracts-bedrock,hardhat-deploy-config
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
+          patterns: contracts-bedrock,op-node
       - run:
           name: print forge version
           command: forge --version
@@ -347,20 +343,11 @@ jobs:
   contracts-bedrock-tests:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
-          patterns: contracts-bedrock,hardhat-deploy-config
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
+          patterns: contracts-bedrock,op-node
       - run:
           name: print forge version
           command: forge --version
@@ -371,23 +358,24 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
+          no_output_timeout: 15m
 
   contracts-bedrock-checks:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: xlarge
     steps:
       - checkout
-      - attach_workspace: { at: "." }
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
-          patterns: contracts-bedrock,hardhat-deploy-config
+          patterns: contracts-bedrock,op-node
       - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
+          name: build contracts
+          command: pnpm build
+          working_directory: packages/contracts-bedrock
       - run:
           name: lint
           command: |
@@ -401,6 +389,7 @@ jobs:
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
+          no_output_timeout: 15m
       - run:
           name: validate deploy configs
           command: |
@@ -413,6 +402,12 @@ jobs:
           command: |
             pnpm storage-snapshot
             git diff --exit-code .storage-layout || echo "export STORAGE_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: semver lock
+          command: |
+            pnpm semver-lock
+            git diff --exit-code semver-lock.json || echo "export SEMVER_LOCK_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: invariant docs
@@ -443,6 +438,10 @@ jobs:
               echo "Invariant docs failed, see job output for details."
               FAILED=1
             fi
+            if [[ "$SEMVER_LOCK_STATUS" -ne 0 ]]; then
+              echo "Semver lock failed, see job output for details."
+              FAILED=1
+            fi
             if [[ "$FAILED" -ne 0 ]]; then
               exit 1
             fi
@@ -453,25 +452,12 @@ jobs:
     resource_class: large
     steps:
       - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
-          patterns: contracts-bedrock,hardhat-deploy-config
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
+          patterns: contracts-bedrock
       - run:
           name: slither
           command: |
-            slither --version && pnpm slither || echo "export LINT_STATUS=1" >> "$BASH_ENV"
-      - run:
-          name: invariant docs
-          command: pnpm autogen:invariant-docs && git diff --exit-code ./invariant-docs/*.md
-          working_directory: packages/contracts-bedrock
+            slither --version && pnpm slither || echo "Slither failed"
 
   contracts-bedrock-validate-spaces:
     docker:
@@ -484,11 +470,7 @@ jobs:
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
-          patterns: contracts-bedrock,hardhat-deploy-config
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
+          patterns: contracts-bedrock
       - run:
           name: validate spacers
           command: pnpm validate-spacers
@@ -501,11 +483,7 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - check-changed:
-          patterns: contracts-bedrock,contracts
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
+          patterns: contracts-bedrock
       - run:
           name: Compile with metadata hash
           command: pnpm clean && pnpm build:with-metadata
@@ -536,11 +514,7 @@ jobs:
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
-          patterns: contracts-bedrock,contracts
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
+          patterns: contracts-bedrock
       - run:
           name: Echidna Fuzz <<parameters.echidna_target>>
           command: pnpm echidna:<<parameters.echidna_target>>
@@ -550,20 +524,9 @@ jobs:
   op-bindings-build:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    resource_class: medium
+    resource_class: large
     steps:
       - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      - check-changed:
-          patterns: contracts-bedrock,op-bindings
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
       - run:
           name: check go bindings
           command: make && git diff --exit-code
@@ -594,10 +557,6 @@ jobs:
       - check-changed:
           patterns: <<parameters.package_name>>,<<parameters.dependencies>>
       - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      - run:
           name: Lint
           command: pnpm lint && git diff --exit-code
           working_directory: packages/<<parameters.package_name>>
@@ -608,6 +567,24 @@ jobs:
       - run:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
+
+  contracts-ts-tests:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore pnpm Package Cache
+          keys:
+            - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
+      - check-changed:
+          patterns: sdk,contracts-bedrock,contracts
+      - run:
+          name: Check generated and build
+          command: pnpm generate:check
+          working_directory: packages/contracts-ts
 
   sdk-next-tests:
     docker:
@@ -666,10 +643,19 @@ jobs:
       - checkout
       - check-changed:
           patterns: specs/(.*)\.md$
+      # TODO remove me after ci builder updated
       - run:
           name: Install pnpm package manager
           command: |
             npm i pnpm --global
+      # TODO remove me after ci builder updated
+      # A github dep clones-with-immutable-args is installed via github
+      # packages installed via npm via github automatically run postpack scripts
+      # their postpack script happens to use yarn so we need it here
+      - run:
+          name: Install yarn package manager
+          command: |
+            npm i yarn@1 --global
       - run:
           name: pnpm dev deps
           command: pnpm install
@@ -685,6 +671,15 @@ jobs:
       image: ubuntu-2204:2022.07.1
     steps:
       - checkout
+      # TODO remove me after ci builder updated
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      - run:
+          name: Install node_modules
+          command: |
+            pnpm install
       - run:
           name: Lint check
           command: |
@@ -710,6 +705,18 @@ jobs:
           command: make fuzz
           working_directory: op-node
 
+  fuzz-op-service:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - check-changed:
+          patterns: op-service
+      - run:
+          name: Fuzz
+          command: make fuzz
+          working_directory: op-service
+
   fuzz-op-chain-ops:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
@@ -721,6 +728,18 @@ jobs:
           name: Fuzz
           command: make fuzz
           working_directory: op-chain-ops
+
+  fuzz-cannon:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    steps:
+      - checkout
+      - check-changed:
+          patterns: cannon,packages/contracts-bedrock/src/cannon
+      - run:
+          name: Fuzz
+          command: make fuzz
+          working_directory: cannon
 
   depcheck:
     docker:
@@ -735,19 +754,9 @@ jobs:
       - check-changed:
           patterns: packages
       - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # Note: The below needs to be manually configured whenever we
-      # add a new package to CI.
-      - run:
           name: Check common-ts
           command: npx depcheck
           working_directory: packages/common-ts
-      - run:
-          name: Check contracts-periphery
-          command: npx depcheck
-          working_directory: packages/contracts-periphery
       - run:
           name: Check core-utils
           command: npx depcheck
@@ -763,7 +772,7 @@ jobs:
         description: Go Module Name
         type: string
     docker:
-      - image: cimg/go:1.19
+      - image: cimg/go:1.20
     steps:
       - checkout
       - run:
@@ -811,10 +820,23 @@ jobs:
     steps:
       - checkout
       - check-changed:
-          patterns: op-(.+),contracts-bedrock,contracts
+          patterns: op-(.+),contracts-bedrock
       - run:
           name: prep results dir
           command: mkdir -p /tmp/test-results
+      - run:
+          name: install geth
+          command: make install-geth
+      - run:
+          name: git submodules
+          command: git submodule update --init --recursive
+      - run:
+          name: print go's available MIPS targets
+          command: go tool dist list | grep mips
+      - run:
+          name: Run all init steps for op-e2e
+          command: make pre-test
+          working_directory: <<parameters.module>>
       - run:
           name: run tests
           command: |
@@ -846,7 +868,6 @@ jobs:
         default: this-package-does-not-exist
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-      - image: cimg/postgres:14.1
     steps:
       - checkout
       - check-changed:
@@ -861,7 +882,7 @@ jobs:
           name: Test
           command: |
             mkdir -p /test-results
-            DB_USER=postgres gotestsum --junitfile /test-results/tests.xml
+            gotestsum --junitfile /test-results/tests.xml
           working_directory: <<parameters.working_directory>>
       - when:
           condition:
@@ -872,26 +893,59 @@ jobs:
                 command: make <<parameters.binary_name>>
                 working_directory: <<parameters.working_directory>>
 
+  indexer-tests:
+    docker:
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+      - image: cimg/postgres:14.1
+    resource_class: large
+    steps:
+      - checkout
+      - check-changed:
+          patterns: indexer
+      - run:
+          name: Lint
+          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 2m -e "errors.As" -e "errors.Is" ./...
+          working_directory: indexer
+      - run:
+          name: install geth
+          command: make install-geth
+      - run:
+          name: git submodules
+          command: git submodule update --init --recursive
+      - run:
+          name: generate cannon prestate
+          command: make cannon-prestate
+      - run:
+          name: generate L1 state
+          command: make devnet-allocs
+      - store_test_results:
+          path: /test-results
+      - run:
+          name: Test
+          command: |
+            mkdir -p /test-results
+            DB_USER=postgres gotestsum --junitfile /test-results/tests.xml -- -parallel=4 ./...
+          working_directory: indexer
+      - run:
+          name: Build
+          command: make indexer
+          working_directory: indexer
+
   devnet:
     machine:
       image: ubuntu-2204:2022.10.2
-    parameters:
-      deploy:
-        description: Deploy contracts
-        default: false
-        type: boolean
     environment:
       DOCKER_BUILDKIT: 1
     steps:
       - checkout
       - check-changed:
-          patterns: op-(.+),packages
+          patterns: op-(.+),packages,ops-bedrock
       - run:
           name: Install latest golang
           command: |
-            wget https://go.dev/dl/go1.19.linux-amd64.tar.gz
+            wget https://go.dev/dl/go1.20.linux-amd64.tar.gz
             sudo rm -rf /usr/local/go
-            sudo tar -C /usr/local -xzf go1.19.linux-amd64.tar.gz
+            sudo tar -C /usr/local -xzf go1.20.linux-amd64.tar.gz
             export PATH=$PATH:/usr/local/go/bin
             go version
       - run:
@@ -901,107 +955,88 @@ jobs:
             source $HOME/.bashrc
             foundryup
             echo 'export PATH=$HOME/.foundry/bin:$PATH' >> $BASH_ENV
+            source $HOME/.bashrc
+            forge --version
       - run:
-          name: Install pnpm package manager
+          name: install geth
+          command: make install-geth
+      - run:
+          name: Install NVM
+          command: |
+            curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+            source ~/.bashrc
+            nvm --version
+      - run:
+          name: Install Node
+          command: |
+            nvm install
+            nvm use && node --version && npm --version
+      - run:
+          name: Install pnpm
           command: |
             npm i pnpm --global
       - run:
+          name: git submodules
+          command: git submodule update --init --recursive
+      - run:
           name: Install and build
           command: |
-            pnpm install
-            pnpm build
-      - when:
-          condition:
-            and:
-              - equal: [true, <<parameters.deploy>>]
-          steps:
-            - run:
-                name: Bring up the stack
-                command: |
-                  make devnet-up-deploy
-            - run:
-                name: Check L2 config
-                command: go run cmd/check-l2/main.go --l2-rpc-url http://localhost:9545 --l1-rpc-url http://localhost:8545
-                working_directory: op-chain-ops
-            - run:
-                name: Deposit ERC20 through the bridge
-                command: timeout 8m npx hardhat deposit-erc20 --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
-                working_directory: packages/sdk
-            - run:
-                name: Deposit ETH through the bridge
-                command: timeout 8m npx hardhat deposit-eth --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
-                working_directory: packages/sdk
-            - run:
-                name: Dump op-node logs
-                command: |
-                  docker logs ops-bedrock-op-node-1 || echo "No logs."
-                when: on_fail
-            - run:
-                name: Dump op-geth logs
-                command: |
-                  docker logs ops-bedrock-l2-1 || echo "No logs."
-                when: on_fail
-            - run:
-                name: Dump l1 logs
-                command: |
-                  docker logs ops-bedrock-l1-1 || echo "No logs."
-                when: on_fail
-            - run:
-                name: Dump op-batcher logs
-                command: |
-                  docker logs ops-bedrock-op-batcher-1 || echo "No logs."
-                when: on_fail
-            - run:
-                name: Dump op-proposer logs
-                command: |
-                  docker logs ops-bedrock-op-proposer-1 || echo "No logs."
-                when: on_fail
-      - when:
-          condition:
-            and:
-              - equal: [false, <<parameters.deploy>>]
-          steps:
-            - run:
-                name: Bring up the stack
-                command: |
-                  make devnet-up
-            - run:
-                name: Check L2 config
-                command: go run cmd/check-l2/main.go --l2-rpc-url http://localhost:9545 --l1-rpc-url http://localhost:8545
-                working_directory: op-chain-ops
-            - run:
-                name: Deposit ERC20 through the bridge
-                command: timeout 10m npx hardhat deposit-erc20 --network devnetL1
-                working_directory: packages/sdk
-            - run:
-                name: Deposit ETH through the bridge
-                command: timeout 10m npx hardhat deposit-eth --network devnetL1
-                working_directory: packages/sdk
-            - run:
-                name: Dump op-node logs
-                command: |
-                  docker logs ops-bedrock-op-node-1 || echo "No logs."
-                when: on_fail
-            - run:
-                name: Dump op-geth logs
-                command: |
-                  docker logs ops-bedrock-l2-1 || echo "No logs."
-                when: on_fail
-            - run:
-                name: Dump l1 logs
-                command: |
-                  docker logs ops-bedrock-l1-1 || echo "No logs."
-                when: on_fail
-            - run:
-                name: Dump op-batcher logs
-                command: |
-                  docker logs ops-bedrock-op-batcher-1 || echo "No logs."
-                when: on_fail
-            - run:
-                name: Dump op-proposer logs
-                command: |
-                  docker logs ops-bedrock-op-proposer-1 || echo "No logs."
-                when: on_fail
+            pnpm install && pnpm build
+      - run:
+          name: generate cannon prestate
+          command: make cannon-prestate
+      - run:
+          name: Bring up the stack
+          command: make devnet-up
+      - run:
+          name: Check L2 config
+          command: go run cmd/check-l2/main.go --l2-rpc-url http://localhost:9545 --l1-rpc-url http://localhost:8545
+          working_directory: op-chain-ops
+      - run:
+          name: Deposit ERC20 through the bridge
+          command: timeout 8m npx hardhat deposit-erc20 --network devnetL1 --l1-contracts-json-path ../../.devnet/addresses.json
+          working_directory: packages/sdk
+      - run:
+          name: Deposit ETH through the bridge
+          command: timeout 8m npx hardhat deposit-eth --network devnetL1 --l1-contracts-json-path ../../.devnet/addresses.json
+          working_directory: packages/sdk
+      - run:
+          name: Dump op-node logs
+          command: |
+            docker logs ops-bedrock-op-node-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump op-geth logs
+          command: |
+            docker logs ops-bedrock-l2-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump l1 logs
+          command: |
+            docker logs ops-bedrock-l1-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump op-batcher logs
+          command: |
+            docker logs ops-bedrock-op-batcher-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Dump op-proposer logs
+          command: |
+            docker logs ops-bedrock-op-proposer-1 || echo "No logs."
+          when: on_fail
+      - run:
+          name: Log deployment artifact
+          command: |
+            cat broadcast/Deploy.s.sol/900/run-latest.json || echo "No deployment file found"
+          when: on_fail
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Log artifacts directory
+          command: |
+            ls -R forge-artifacts || echo "No forge artifacts found"
+          when: on_fail
+          working_directory: packages/contracts-bedrock
 
   semgrep-scan:
     parameters:
@@ -1059,7 +1094,7 @@ jobs:
       sim:
         type: string
     machine:
-      image: ubuntu-2204:2022.07.1
+      image: ubuntu-2204:2022.10.2
       docker_layer_caching: true
       resource_class: large
     steps:
@@ -1077,32 +1112,43 @@ jobs:
       - go/mod-download
       - go/save-cache
       - run: { command: "go build ." }
+      - run: { command: "go build junit/junitformatter.go" }
       - run:
           command: |
             ./hive \
             -sim=<<parameters.sim>> \
             -sim.loglevel=5 \
-            -client=go-ethereum_v1.11.6,op-geth_optimism,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log || echo "failed."
+            -client=go-ethereum_v1.11.6,op-geth_optimism,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log
       - run:
           command: |
             tar -cvf /tmp/workspace.tgz -C /home/circleci/project /home/circleci/project/workspace
           name: "Archive workspace"
+          when: always
+      - run:
+          command: |
+            ./junitformatter /home/circleci/project/workspace/logs/*.json > /home/circleci/project/workspace/logs/junit.xml
+          when: always
       - store_artifacts:
           path: /tmp/workspace.tgz
           destination: hive-workspace.tgz
-      - run:
-          command: "! grep 'pass.*=false' /tmp/hive.log"
+          when: always
+      - store_test_results:
+          path: /home/circleci/project/workspace/logs/junit.xml
+          when: always
+      - store_artifacts:
+          path: /home/circleci/project/workspace/logs/junit.xml
+          when: always
 
   bedrock-go-tests:
     docker:
-      - image: cimg/go:1.19
+      - image: cimg/go:1.20
     resource_class: medium
     steps:
       - run: echo Done
 
   fpp-verify:
     docker:
-      - image: cimg/go:1.19
+      - image: cimg/go:1.20
     steps:
       - checkout
       - run:
@@ -1153,84 +1199,53 @@ workflows:
           package_name: core-utils
           requires:
             - pnpm-monorepo
-      - contracts-bedrock-tests:
-          requires:
-            - pnpm-monorepo
-      - contracts-bedrock-coverage:
-          requires:
-            - pnpm-monorepo
+      - contracts-bedrock-tests
+      - contracts-bedrock-coverage
       - contracts-bedrock-checks:
           requires:
             - pnpm-monorepo
-      - contracts-bedrock-slither:
-          requires:
-            - pnpm-monorepo
+      - contracts-bedrock-slither
       - contracts-bedrock-validate-spaces:
           requires:
             - pnpm-monorepo
-      - op-bindings-build:
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
-          name: contracts-periphery-tests
-          coverage_flag: contracts-periphery-tests
-          package_name: contracts-periphery
-          dependencies: "(contracts|contracts-bedrock|core-utils|hardhat-deploy-config)"
-          requires:
-            - pnpm-monorepo
+      - op-bindings-build
       - js-lint-test:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
           package_name: chain-mon
-          dependencies: "(common-ts|contracts-periphery|core-utils|sdk)"
+          dependencies: "(common-ts|contracts-bedrock|core-utils|sdk)"
           requires:
             - pnpm-monorepo
       - js-lint-test:
-          name: fault-detector-tests
-          coverage_flag: fault-detector-tests
-          package_name: fault-detector
-          dependencies: '(common-ts|core-utils|sdk)'
+          name: contracts-ts-tests
+          coverage_flag: contracts-ts-tests
+          package_name: contracts-ts
+          dependencies: '(contracts-bedrock|contracts-ts)'
           requires:
             - pnpm-monorepo
       - js-lint-test:
           name: sdk-next-tests
           coverage_flag: sdk-next-tests
           package_name: sdk
-          dependencies: '(common-ts|contracts-bedrock|core-utils)'
-          requires:
-            - pnpm-monorepo
-      - js-lint-test:
-          name: replica-healthcheck-tests
-          coverage_flag: replica-healthcheck-tests
-          package_name: replica-healthcheck
-          dependencies: "(common-ts|core-utils)"
+          dependencies: "(common-ts|contracts-bedrock|core-utils)"
           requires:
             - pnpm-monorepo
       - js-lint-test:
           name: sdk-tests
           coverage_flag: sdk-tests
           package_name: sdk
-          dependencies: '(contracts-bedrock|core-utils)'
+          dependencies: "(contracts-bedrock|core-utils)"
           requires:
             - pnpm-monorepo
       - depcheck:
           requires:
             - pnpm-monorepo
-      - devnet:
-          name: devnet (with deployed contracts)
-          deploy: true
-      - devnet:
-          name: devnet (with genesis contracts)
-          deploy: false
+      - devnet
       - go-lint-test-build:
           name: proxyd-tests
           binary_name: proxyd
           working_directory: proxyd
-      - go-lint-test-build:
-          name: indexer-tests
-          binary_name: indexer
-          working_directory: indexer
-          dependencies: op-bindings
+      - indexer-tests
       - go-lint-test-build:
           name: op-heartbeat tests
           binary_name: op-heartbeat
@@ -1238,7 +1253,9 @@ workflows:
       - semgrep-scan
       - go-mod-tidy
       - fuzz-op-node
+      - fuzz-op-service
       - fuzz-op-chain-ops
+      - fuzz-cannon
       - bedrock-markdown
       - go-lint:
           name: op-batcher-lint
@@ -1432,14 +1449,6 @@ workflows:
           docker_target: wd-mon
           context:
             - oplabs-gcr
-      - docker-publish:
-          name: fault-detector-docker-publish
-          docker_file: ./ops/docker/Dockerfile.packages
-          docker_name: fault-detector
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_target: fault-detector
-          context:
-            - oplabs-gcr
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
@@ -1470,13 +1479,14 @@ workflows:
       - check-generated-mocks-op-node
       - check-generated-mocks-op-service
       - cannon-go-lint-and-test
+      - cannon-build-test-vectors
   release:
     jobs:
       - hold:
           type: approval
           filters:
             tags:
-              only: /^(fault-detector|proxyd|indexer|ci-builder|op-[a-z0-9\-]*)\/v.*/
+              only: /^(proxyd|indexer|ci-builder|op-[a-z0-9\-]*)\/v.*/
             branches:
               ignore: /.*/
       - docker-release:
@@ -1543,23 +1553,6 @@ workflows:
             - oplabs-gcr-release
           requires:
             - hold
-      - docker-release:
-          name: fault-detector-docker-release
-          filters:
-            tags:
-              only: /^fault-detector\/v.*/
-            branches:
-              ignore: /.*/
-          docker_file: ./ops/docker/Dockerfile.packages
-          docker_name: fault-detector
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          docker_target: fault-detector
-          docker_context: .
-          platforms: "linux/amd64,linux/arm64"
-          context:
-            - oplabs-gcr-release
-          requires:
-            - hold
       - docker-build:
           name: op-migrate-docker-release
           filters:
@@ -1569,6 +1562,21 @@ workflows:
               ignore: /.*/
           docker_file: op-chain-ops/Dockerfile
           docker_name: op-migrate
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+          context:
+            - oplabs-gcr-release
+          requires:
+            - hold
+      - docker-release:
+          name: op-ufm-docker-release
+          filters:
+            tags:
+              only: /^op-ufm\/v.*/
+            branches:
+              ignore: /.*/
+          docker_file: op-ufm/Dockerfile
+          docker_name: op-ufm
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
           context:
@@ -1615,7 +1623,7 @@ workflows:
           docker_file: ./ops/docker/ci-builder/Dockerfile
           docker_name: ci-builder
           docker_tags: <<pipeline.git.revision>>,latest
-          docker_context: ./ops/docker/ci-builder
+          docker_context: .
           context:
             - oplabs-gcr
           requires:
@@ -1627,7 +1635,7 @@ workflows:
           cron: "0 0,6,12,18 * * *"
           filters:
             branches:
-              only: [ "develop" ]
+              only: ["develop"]
     jobs:
       - fpp-verify:
           context:
@@ -1641,7 +1649,7 @@ workflows:
           cron: "0 0 * * *"
           filters:
             branches:
-              only: [ "develop" ]
+              only: ["develop"]
     jobs:
       - bedrock-markdown-links:
           context: slack

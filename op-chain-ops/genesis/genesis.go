@@ -15,8 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// defaultL2GasLimit represents the default gas limit for an L2 block.
-const defaultL2GasLimit = 30_000_000
+// defaultGasLimit represents the default gas limit for a genesis block.
+const defaultGasLimit = 30_000_000
 
 // BedrockTransitionBlockExtraData represents the default extra data for the bedrock transition block.
 var BedrockTransitionBlockExtraData = []byte("BEDROCK")
@@ -66,7 +66,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 
 	gasLimit := config.L2GenesisBlockGasLimit
 	if gasLimit == 0 {
-		gasLimit = defaultL2GasLimit
+		gasLimit = defaultGasLimit
 	}
 	baseFee := config.L2GenesisBlockBaseFeePerGas
 	if baseFee == nil {
@@ -129,22 +129,25 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		GrayGlacierBlock:    big.NewInt(0),
 	}
 
-	if config.CliqueSignerAddress != (common.Address{}) {
+	extraData := make([]byte, 0)
+	if config.L1UseClique {
 		// warning: clique has an overly strict block header timestamp check against the system wallclock,
 		// causing blocks to get scheduled as "future block" and not get mined instantly when produced.
 		chainConfig.Clique = &params.CliqueConfig{
 			Period: config.L1BlockTime,
 			Epoch:  30000,
 		}
+		extraData = append(append(make([]byte, 32), config.CliqueSignerAddress[:]...), make([]byte, crypto.SignatureLength)...)
 	} else {
 		chainConfig.MergeNetsplitBlock = big.NewInt(0)
 		chainConfig.TerminalTotalDifficulty = big.NewInt(0)
 		chainConfig.TerminalTotalDifficultyPassed = true
+		chainConfig.ShanghaiTime = u64ptr(0)
 	}
 
 	gasLimit := config.L1GenesisBlockGasLimit
 	if gasLimit == 0 {
-		gasLimit = 15_000_000
+		gasLimit = defaultGasLimit
 	}
 	baseFee := config.L1GenesisBlockBaseFeePerGas
 	if baseFee == nil {
@@ -157,11 +160,6 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 	timestamp := config.L1GenesisBlockTimestamp
 	if timestamp == 0 {
 		timestamp = hexutil.Uint64(time.Now().Unix())
-	}
-
-	extraData := make([]byte, 0)
-	if config.CliqueSignerAddress != (common.Address{}) {
-		extraData = append(append(make([]byte, 32), config.CliqueSignerAddress[:]...), make([]byte, crypto.SignatureLength)...)
 	}
 
 	return &core.Genesis{
@@ -179,4 +177,8 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		BaseFee:    baseFee.ToInt(),
 		Alloc:      map[common.Address]core.GenesisAccount{},
 	}, nil
+}
+
+func u64ptr(n uint64) *uint64 {
+	return &n
 }

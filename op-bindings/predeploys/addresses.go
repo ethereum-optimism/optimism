@@ -2,6 +2,9 @@ package predeploys
 
 import "github.com/ethereum/go-ethereum/common"
 
+// TODO - we should get a single toml yaml or json file source of truth in @eth-optimism/bedrock package
+// This needs to be kept in sync with @eth-optimism/contracts-ts/wagmi.config.ts which also specifies this
+// To improve robustness and maintainability contracts-bedrock should export all addresses
 const (
 	L2ToL1MessagePasser           = "0x4200000000000000000000000000000000000016"
 	DeployerWhitelist             = "0x4200000000000000000000000000000000000002"
@@ -20,6 +23,8 @@ const (
 	ProxyAdmin                    = "0x4200000000000000000000000000000000000018"
 	BaseFeeVault                  = "0x4200000000000000000000000000000000000019"
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
+	SchemaRegistry                = "0x4200000000000000000000000000000000000020"
+	EAS                           = "0x4200000000000000000000000000000000000021"
 )
 
 var (
@@ -40,6 +45,8 @@ var (
 	ProxyAdminAddr                    = common.HexToAddress(ProxyAdmin)
 	BaseFeeVaultAddr                  = common.HexToAddress(BaseFeeVault)
 	L1FeeVaultAddr                    = common.HexToAddress(L1FeeVault)
+	SchemaRegistryAddr                = common.HexToAddress(SchemaRegistry)
+	EASAddr                           = common.HexToAddress(EAS)
 
 	Predeploys = make(map[string]*common.Address)
 )
@@ -73,4 +80,6 @@ func init() {
 	Predeploys["ProxyAdmin"] = &ProxyAdminAddr
 	Predeploys["BaseFeeVault"] = &BaseFeeVaultAddr
 	Predeploys["L1FeeVault"] = &L1FeeVaultAddr
+	Predeploys["SchemaRegistry"] = &SchemaRegistryAddr
+	Predeploys["EAS"] = &EASAddr
 }

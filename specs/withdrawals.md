@@ -214,5 +214,5 @@ whether or not it was 'supposed' to fail, and whether or not it should be 'repla
 minimize complexity, we have not provided any replay functionality, this may be implemented in external utility
 contracts if desired.
 
-[`WithdrawalTransaction` type]: https://github.com/ethereum-optimism/optimism/blob/6c6d142d7bb95faa11066aab5d8aed7187abfe38/packages/contracts-bedrock/contracts/libraries/Types.sol#L76-L83
-[`OutputRootProof` type]: https://github.com/ethereum-optimism/optimism/blob/6c6d142d7bb95faa11066aab5d8aed7187abfe38/packages/contracts-bedrock/contracts/libraries/Types.sol#L33-L38
+[`WithdrawalTransaction` type]: https://github.com/ethereum-optimism/optimism/blob/08daf8dbd38c9ffdbd18fc9a211c227606cdb0ad/packages/contracts-bedrock/src/libraries/Types.sol#L62-L69
+[`OutputRootProof` type]: https://github.com/ethereum-optimism/optimism/blob/08daf8dbd38c9ffdbd18fc9a211c227606cdb0ad/packages/contracts-bedrock/src/libraries/Types.sol#L25-L30

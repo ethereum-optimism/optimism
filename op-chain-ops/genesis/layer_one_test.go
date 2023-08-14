@@ -16,11 +16,16 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
+// TestBuildL1DeveloperGenesis tests that the L1 genesis block can be built
+// given a deploy config and an l1-allocs.json and a deploy.json that
+// are generated from a deploy config. If new contracts are added, these
+// mocks will need to be regenerated.
 func TestBuildL1DeveloperGenesis(t *testing.T) {
 	b, err := os.ReadFile("testdata/test-deploy-config-full.json")
 	require.NoError(t, err)
@@ -29,7 +34,15 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	require.NoError(t, dec.Decode(config))
 	config.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix() - 100)
 
-	genesis, err := BuildL1DeveloperGenesis(config)
+	c, err := os.ReadFile("testdata/allocs-l1.json")
+	require.NoError(t, err)
+	dump := new(state.Dump)
+	require.NoError(t, json.NewDecoder(bytes.NewReader(c)).Decode(dump))
+
+	deployments, err := NewL1Deployments("testdata/deploy.json")
+	require.NoError(t, err)
+
+	genesis, err := BuildL1DeveloperGenesis(config, dump, nil, false)
 	require.NoError(t, err)
 
 	sim := backends.NewSimulatedBackend(
@@ -38,9 +51,9 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	)
 	callOpts := &bind.CallOpts{}
 
-	oracle, err := bindings.NewL2OutputOracle(predeploys.DevL2OutputOracleAddr, sim)
+	oracle, err := bindings.NewL2OutputOracle(deployments.L2OutputOracleProxy, sim)
 	require.NoError(t, err)
-	portal, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, sim)
+	portal, err := bindings.NewOptimismPortal(deployments.OptimismPortalProxy, sim)
 	require.NoError(t, err)
 
 	proposer, err := oracle.PROPOSER(callOpts)
@@ -66,42 +79,30 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 
 	oracleAddr, err := portal.L2ORACLE(callOpts)
 	require.NoError(t, err)
-	require.EqualValues(t, predeploys.DevL2OutputOracleAddr, oracleAddr)
+	require.EqualValues(t, deployments.L2OutputOracleProxy, oracleAddr)
 
-	msgr, err := bindings.NewL1CrossDomainMessenger(predeploys.DevL1CrossDomainMessengerAddr, sim)
+	msgr, err := bindings.NewL1CrossDomainMessenger(deployments.L1CrossDomainMessengerProxy, sim)
 	require.NoError(t, err)
 	portalAddr, err := msgr.PORTAL(callOpts)
 	require.NoError(t, err)
-	require.Equal(t, predeploys.DevOptimismPortalAddr, portalAddr)
+	require.Equal(t, deployments.OptimismPortalProxy, portalAddr)
 
-	bridge, err := bindings.NewL1StandardBridge(predeploys.DevL1StandardBridgeAddr, sim)
+	bridge, err := bindings.NewL1StandardBridge(deployments.L1StandardBridgeProxy, sim)
 	require.NoError(t, err)
 	msgrAddr, err := bridge.Messenger(callOpts)
 	require.NoError(t, err)
-	require.Equal(t, predeploys.DevL1CrossDomainMessengerAddr, msgrAddr)
+	require.Equal(t, deployments.L1CrossDomainMessengerProxy, msgrAddr)
 	otherBridge, err := bridge.OTHERBRIDGE(callOpts)
 	require.NoError(t, err)
 	require.Equal(t, predeploys.L2StandardBridgeAddr, otherBridge)
 
-	factory, err := bindings.NewOptimismMintableERC20(predeploys.DevOptimismMintableERC20FactoryAddr, sim)
+	factory, err := bindings.NewOptimismMintableERC20(deployments.OptimismMintableERC20Factory, sim)
 	require.NoError(t, err)
 	bridgeAddr, err := factory.BRIDGE(callOpts)
 	require.NoError(t, err)
-	require.Equal(t, predeploys.DevL1StandardBridgeAddr, bridgeAddr)
+	require.Equal(t, deployments.L1StandardBridgeProxy, bridgeAddr)
 
-	weth9, err := bindings.NewWETH9(predeploys.DevWETH9Addr, sim)
-	require.NoError(t, err)
-	decimals, err := weth9.Decimals(callOpts)
-	require.NoError(t, err)
-	require.Equal(t, uint8(18), decimals)
-	symbol, err := weth9.Symbol(callOpts)
-	require.NoError(t, err)
-	require.Equal(t, "WETH", symbol)
-	name, err := weth9.Name(callOpts)
-	require.NoError(t, err)
-	require.Equal(t, "Wrapped Ether", name)
-
-	sysCfg, err := bindings.NewSystemConfig(predeploys.DevSystemConfigAddr, sim)
+	sysCfg, err := bindings.NewSystemConfig(deployments.SystemConfigProxy, sim)
 	require.NoError(t, err)
 	cfg, err := sysCfg.ResourceConfig(&bind.CallOpts{})
 	require.NoError(t, err)

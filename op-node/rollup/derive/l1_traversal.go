@@ -11,8 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 // L1 Traversal fetches the next L1 block and exposes it through the progress API
@@ -31,7 +31,7 @@ type L1Traversal struct {
 	cfg      *rollup.Config
 }
 
-var _ ResetableStage = (*L1Traversal)(nil)
+var _ ResettableStage = (*L1Traversal)(nil)
 
 func NewL1Traversal(log log.Logger, cfg *rollup.Config, l1Blocks L1BlockRefByNumberFetcher) *L1Traversal {
 	return &L1Traversal{
