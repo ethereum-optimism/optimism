@@ -3,8 +3,9 @@
 package mocks
 
 import (
-	common "github.com/ethereum/go-ethereum/common"
+	big "math/big"
 
+	common "github.com/ethereum/go-ethereum/common"
 	mock "github.com/stretchr/testify/mock"
 
 	types "github.com/ethereum/go-ethereum/core/types"
@@ -41,25 +42,25 @@ func (_m *KmsManager) GetAddr() (common.Address, error) {
 	return r0, r1
 }
 
-// Sign provides a mock function with given fields: rawTx
-func (_m *KmsManager) Sign(rawTx *types.DynamicFeeTx) (*types.Transaction, error) {
-	ret := _m.Called(rawTx)
+// Sign provides a mock function with given fields: chainID, tx
+func (_m *KmsManager) Sign(chainID *big.Int, tx *types.Transaction) (*types.Transaction, error) {
+	ret := _m.Called(chainID, tx)
 
 	var r0 *types.Transaction
 	var r1 error
-	if rf, ok := ret.Get(0).(func(*types.DynamicFeeTx) (*types.Transaction, error)); ok {
-		return rf(rawTx)
+	if rf, ok := ret.Get(0).(func(*big.Int, *types.Transaction) (*types.Transaction, error)); ok {
+		return rf(chainID, tx)
 	}
-	if rf, ok := ret.Get(0).(func(*types.DynamicFeeTx) *types.Transaction); ok {
-		r0 = rf(rawTx)
+	if rf, ok := ret.Get(0).(func(*big.Int, *types.Transaction) *types.Transaction); ok {
+		r0 = rf(chainID, tx)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*types.Transaction)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(*types.DynamicFeeTx) error); ok {
-		r1 = rf(rawTx)
+	if rf, ok := ret.Get(1).(func(*big.Int, *types.Transaction) error); ok {
+		r1 = rf(chainID, tx)
 	} else {
 		r1 = ret.Error(1)
 	}

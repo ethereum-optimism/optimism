@@ -1,6 +1,8 @@
-package kms
+package txmgr
 
 import (
+	"math/big"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -14,7 +16,7 @@ import (
 //go:generate mockery --name KmsManager --output ./mocks
 type KmsManager interface {
 	GetAddr() (common.Address, error)
-	Sign(rawTx *types.DynamicFeeTx) (*types.Transaction, error)
+	Sign(chainID *big.Int, tx *types.Transaction) (*types.Transaction, error)
 }
 
 type KmsConfig struct {
@@ -50,12 +52,12 @@ func (k *KmsConfig) GetAddr() (common.Address, error) {
 	return addr, nil
 }
 
-func (k *KmsConfig) Sign(rawTx *types.DynamicFeeTx) (*types.Transaction, error) {
-	transactOpts, err := ethawskmssigner.NewAwsKmsTransactorWithChainID(k.kmsSession, k.keyId, rawTx.ChainID)
+func (k *KmsConfig) Sign(chainID *big.Int, tx *types.Transaction) (*types.Transaction, error) {
+	transactOpts, err := ethawskmssigner.NewAwsKmsTransactorWithChainID(k.kmsSession, k.keyId, chainID)
 	if err != nil {
 		return nil, err
 	}
-	signedTx, err := transactOpts.Signer(transactOpts.From, types.NewTx(rawTx))
+	signedTx, err := transactOpts.Signer(transactOpts.From, tx)
 	if err != nil {
 		return nil, err
 	}

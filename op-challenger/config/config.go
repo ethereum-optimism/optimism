@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-service/kms"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -72,7 +71,6 @@ type Config struct {
 	CannonL2               string // L2 RPC Url
 
 	TxMgrConfig txmgr.CLIConfig
-	KmsConfig   kms.CLIConfig
 }
 
 func NewConfig(
@@ -92,7 +90,6 @@ func NewConfig(
 		TraceType: traceType,
 
 		TxMgrConfig: txmgr.NewCLIConfig(l1EthRpc),
-		KmsConfig:   kms.CLIConfig{},
 	}
 }
 
@@ -124,9 +121,6 @@ func (c Config) Check() error {
 		return ErrMissingAlphabetTrace
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {
-		return err
-	}
-	if err := c.KmsConfig.Check(); err != nil {
 		return err
 	}
 	return nil

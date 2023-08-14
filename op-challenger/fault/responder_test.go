@@ -55,8 +55,8 @@ func (m *mockTxManager) BlockNumber(ctx context.Context) (uint64, error) {
 	panic("not implemented")
 }
 
-func (m *mockTxManager) From() (common.Address, error) {
-	return m.from, nil
+func (m *mockTxManager) From() common.Address {
+	return m.from
 }
 
 func newTestFaultResponder(t *testing.T, sendFails bool) (*faultResponder, *mockTxManager) {

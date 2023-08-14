@@ -71,11 +71,7 @@ func Main(version string, cliCtx *cli.Context) error {
 				l.Error("error starting metrics server", err)
 			}
 		}()
-		from, err := batchSubmitter.TxManager.From()
-		if err != nil {
-			return fmt.Errorf("error getting from address: %w", err)
-		}
-		m.StartBalanceMetrics(ctx, l, batchSubmitter.L1Client, from)
+		m.StartBalanceMetrics(ctx, l, batchSubmitter.L1Client, batchSubmitter.TxManager.From())
 	}
 
 	rpcCfg := cfg.RPCConfig

@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	opkms "github.com/ethereum-optimism/optimism/op-service/kms"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -94,7 +93,6 @@ type CLIConfig struct {
 	MetricsConfig    opmetrics.CLIConfig
 	PprofConfig      oppprof.CLIConfig
 	CompressorConfig compressor.CLIConfig
-	KmsConfig        opkms.CLIConfig
 }
 
 func (c CLIConfig) Check() error {
@@ -111,9 +109,6 @@ func (c CLIConfig) Check() error {
 		return err
 	}
 	if err := c.TxMgrConfig.Check(); err != nil {
-		return err
-	}
-	if err := c.KmsConfig.Check(); err != nil {
 		return err
 	}
 	return nil
@@ -140,6 +135,5 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		MetricsConfig:          opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:            oppprof.ReadCLIConfig(ctx),
 		CompressorConfig:       compressor.ReadCLIConfig(ctx),
-		KmsConfig:              opkms.ReadCLIConfig(ctx),
 	}
 }

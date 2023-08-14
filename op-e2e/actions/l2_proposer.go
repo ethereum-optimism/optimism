@@ -44,8 +44,8 @@ type fakeTxMgr struct {
 	from common.Address
 }
 
-func (f fakeTxMgr) From() (common.Address, error) {
-	return f.from, nil
+func (f fakeTxMgr) From() common.Address {
+	return f.from
 }
 func (f fakeTxMgr) Call(_ context.Context, _ ethereum.CallMsg, _ *big.Int) ([]byte, error) {
 	panic("unimplemented")
