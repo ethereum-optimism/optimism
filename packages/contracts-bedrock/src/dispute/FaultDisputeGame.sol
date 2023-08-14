@@ -163,7 +163,7 @@ contract FaultDisputeGame is IFaultDisputeGame, Clone, Semver {
         // SAFETY:    While the `attack` path does not need an extra check for the post
         //            state's depth in relation to the parent, we don't need another
         //            branch because (n - n) % 2 == 0.
-        (bytes32 vmPostState, ) = VM.step(_stateData, _proof);
+        (bytes32 vmPostState,) = VM.step(_stateData, _proof);
         bool validStep = vmPostState == Claim.unwrap(postState.claim);
         bool parentPostAgree = (parentPos.depth() - postState.position.depth()) % 2 == 0;
         if (parentPostAgree == validStep) revert ValidStep();

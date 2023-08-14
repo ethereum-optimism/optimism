@@ -294,7 +294,15 @@ contract MIPS {
     /// @param _rtReg The register to be used for the branch.
     /// @param _rs The register to be compared with the branch register.
     /// @return out_ The hashed MIPS state.
-    function handleBranch(uint32 _opcode, uint32 _insn, uint32 _rtReg, uint32 _rs) internal returns (bytes32 out_, uint8 exitCode_) {
+    function handleBranch(
+        uint32 _opcode,
+        uint32 _insn,
+        uint32 _rtReg,
+        uint32 _rs
+    )
+        internal
+        returns (bytes32 out_, uint8 exitCode_)
+    {
         unchecked {
             // Load state from memory
             State memory state;
@@ -358,7 +366,15 @@ contract MIPS {
     /// @param _rt The value of the RT register.
     /// @param _storeReg The register to store the result in.
     /// @return out_ The hash of the resulting MIPS state.
-    function handleHiLo(uint32 _func, uint32 _rs, uint32 _rt, uint32 _storeReg) internal returns (bytes32 out_, uint8 exitCode_) {
+    function handleHiLo(
+        uint32 _func,
+        uint32 _rs,
+        uint32 _rt,
+        uint32 _storeReg
+    )
+        internal
+        returns (bytes32 out_, uint8 exitCode_)
+    {
         unchecked {
             // Load state from memory
             State memory state;
@@ -461,7 +477,14 @@ contract MIPS {
     /// @param _val The value to store.
     /// @param _conditional Whether or not the store is conditional.
     /// @return out_ The hashed MIPS state.
-    function handleRd(uint32 _storeReg, uint32 _val, bool _conditional) internal returns (bytes32 out_, uint8 exitCode_) {
+    function handleRd(
+        uint32 _storeReg,
+        uint32 _val,
+        bool _conditional
+    )
+        internal
+        returns (bytes32 out_, uint8 exitCode_)
+    {
         unchecked {
             // Load state from memory.
             State memory state;
