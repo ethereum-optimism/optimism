@@ -72,15 +72,6 @@ var (
 		Usage:   "path to config file",
 		EnvVars: []string{"INDEXER_CONFIG"},
 	}
-	// Not used yet.  Use this flag to run legacy app instead
-	// Remove me after indexer is released
-	IndexerRefreshFlag = &cli.BoolFlag{
-		Name:    "indexer-refresh",
-		Value:   false,
-		Aliases: []string{"i"},
-		Usage:   "run new unreleased indexer by passing in flag",
-		EnvVars: []string{"INDEXER_REFRESH"},
-	}
 )
 
 // make a instance method on Cli called Run that runs cli

@@ -31,16 +31,16 @@ func NewProcessedContractEvents() *ProcessedContractEvents {
 }
 
 func (p *ProcessedContractEvents) AddLog(log *types.Log, time uint64) *database.ContractEvent {
-	contractEvent := database.ContractEventFromGethLog(log, time)
+	event := database.ContractEventFromLog(log, time)
 	emptyHash := common.Hash{}
 
-	p.events = append(p.events, &contractEvent)
-	p.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index}] = &contractEvent
-	if contractEvent.EventSignature != emptyHash { // ignore anon events
-		p.eventsBySignature[contractEvent.EventSignature] = append(p.eventsBySignature[contractEvent.EventSignature], &contractEvent)
+	p.events = append(p.events, &event)
+	p.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index}] = &event
+	if event.EventSignature != emptyHash {
+		p.eventsBySignature[event.EventSignature] = append(p.eventsBySignature[event.EventSignature], &event)
 	}
 
-	return &contractEvent
+	return &event
 }
 
 func UnpackLog(out interface{}, log *types.Log, name string, contractAbi *abi.ABI) error {

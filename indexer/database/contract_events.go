@@ -2,6 +2,7 @@ package database
 
 import (
 	"errors"
+	"math/big"
 
 	"gorm.io/gorm"
 
@@ -16,19 +17,23 @@ import (
  */
 
 type ContractEvent struct {
-	GUID            uuid.UUID      `gorm:"primaryKey"`
+	GUID uuid.UUID `gorm:"primaryKey"`
+
+	// Some useful derived fields
 	BlockHash       common.Hash    `gorm:"serializer:json"`
 	ContractAddress common.Address `gorm:"serializer:json"`
 	TransactionHash common.Hash    `gorm:"serializer:json"`
+	LogIndex        uint64
 
 	EventSignature common.Hash `gorm:"serializer:json"`
-	LogIndex       uint64
 	Timestamp      uint64
 
-	GethLog *types.Log `gorm:"serializer:rlp;column:rlp_bytes"`
+	// NOTE: NOT ALL THE DERIVED FIELDS ON `types.Log` ARE
+	// AVAILABLE. FIELDS LISTED ABOVE ARE FILLED IN
+	RLPLog *types.Log `gorm:"serializer:rlp;column:rlp_bytes"`
 }
 
-func ContractEventFromGethLog(log *types.Log, timestamp uint64) ContractEvent {
+func ContractEventFromLog(log *types.Log, timestamp uint64) ContractEvent {
 	eventSig := common.Hash{}
 	if len(log.Topics) > 0 {
 		eventSig = log.Topics[0]
@@ -38,16 +43,25 @@ func ContractEventFromGethLog(log *types.Log, timestamp uint64) ContractEvent {
 		GUID: uuid.New(),
 
 		BlockHash:       log.BlockHash,
-		ContractAddress: log.Address,
 		TransactionHash: log.TxHash,
+		ContractAddress: log.Address,
 
 		EventSignature: eventSig,
 		LogIndex:       uint64(log.Index),
 
 		Timestamp: timestamp,
 
-		GethLog: log,
+		RLPLog: log,
 	}
+}
+
+func (c *ContractEvent) AfterFind(tx *gorm.DB) error {
+	// Fill in some of the derived fields that are not
+	// populated when decoding the RLPLog from RLP
+	c.RLPLog.BlockHash = c.BlockHash
+	c.RLPLog.TxHash = c.TransactionHash
+	c.RLPLog.Index = uint(c.LogIndex)
+	return nil
 }
 
 type L1ContractEvent struct {
@@ -61,9 +75,11 @@ type L2ContractEvent struct {
 type ContractEventsView interface {
 	L1ContractEvent(uuid.UUID) (*L1ContractEvent, error)
 	L1ContractEventByTxLogIndex(common.Hash, uint64) (*L1ContractEvent, error)
+	L1ContractEventsWithFilter(ContractEvent, *big.Int, *big.Int) ([]L1ContractEvent, error)
 
 	L2ContractEvent(uuid.UUID) (*L2ContractEvent, error)
 	L2ContractEventByTxLogIndex(common.Hash, uint64) (*L2ContractEvent, error)
+	L2ContractEventsWithFilter(ContractEvent, *big.Int, *big.Int) ([]L2ContractEvent, error)
 }
 
 type ContractEventsDB interface {
@@ -120,6 +136,30 @@ func (db *contractEventsDB) L1ContractEventByTxLogIndex(txHash common.Hash, logI
 	return &l1ContractEvent, nil
 }
 
+func (db *contractEventsDB) L1ContractEventsWithFilter(filter ContractEvent, fromHeight, toHeight *big.Int) ([]L1ContractEvent, error) {
+	if fromHeight == nil {
+		fromHeight = big.NewInt(0)
+	}
+
+	query := db.gorm.Table("l1_contract_events").Where(&filter)
+	query = query.Joins("INNER JOIN l1_block_headers ON l1_contract_events.block_hash = l1_block_headers.hash")
+	query = query.Where("l1_block_headers.number >= ? AND l1_block_headers.number <= ?", fromHeight, toHeight)
+	query = query.Order("l1_block_headers.number ASC").Select("l1_contract_events.*")
+
+	// NOTE: We use `Find` here instead of `Scan` since `Scan` doesn't not support
+	// model hooks like `ContractEvent#AfterFind`. Functionally they are the same
+	var events []L1ContractEvent
+	result := query.Find(&events)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+
+	return events, nil
+}
+
 // L2
 
 func (db *contractEventsDB) StoreL2ContractEvents(events []*L2ContractEvent) error {
@@ -153,4 +193,28 @@ func (db *contractEventsDB) L2ContractEventByTxLogIndex(txHash common.Hash, logI
 	}
 
 	return &l2ContractEvent, nil
+}
+
+func (db *contractEventsDB) L2ContractEventsWithFilter(filter ContractEvent, fromHeight, toHeight *big.Int) ([]L2ContractEvent, error) {
+	if fromHeight == nil {
+		fromHeight = big.NewInt(0)
+	}
+
+	query := db.gorm.Table("l2_contract_events").Where(&filter)
+	query = query.Joins("INNER JOIN l2_block_headers ON l2_contract_events.block_hash = l2_block_headers.hash")
+	query = query.Where("l2_block_headers.number >= ? AND l2_block_headers.number <= ?", fromHeight, toHeight)
+	query = query.Order("l2_block_headers.number ASC").Select("l2_contract_events.*")
+
+	// NOTE: We use `Find` here instead of `Scan` since `Scan` doesn't not support
+	// model hooks like `ContractEvent#AfterFind`. Functionally they are the same
+	var events []L2ContractEvent
+	result := query.Find(&events)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+
+	return events, nil
 }

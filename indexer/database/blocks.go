@@ -23,17 +23,17 @@ type BlockHeader struct {
 	Number     U256
 	Timestamp  uint64
 
-	GethHeader *GethHeader `gorm:"serializer:rlp;column:rlp_bytes"`
+	RLPHeader *RLPHeader `gorm:"serializer:rlp;column:rlp_bytes"`
 }
 
-func BlockHeaderFromGethHeader(header *types.Header) BlockHeader {
+func BlockHeaderFromHeader(header *types.Header) BlockHeader {
 	return BlockHeader{
 		Hash:       header.Hash(),
 		ParentHash: header.ParentHash,
 		Number:     U256{Int: header.Number},
 		Timestamp:  header.Time,
 
-		GethHeader: (*GethHeader)(header),
+		RLPHeader: (*RLPHeader)(header),
 	}
 }
 

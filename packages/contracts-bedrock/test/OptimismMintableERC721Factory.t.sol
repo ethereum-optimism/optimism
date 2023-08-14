@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import { ERC721Bridge_Initializer } from "./CommonTest.t.sol";
-import { LibRLP } from "./RLP.t.sol";
 import { OptimismMintableERC721 } from "../src/universal/OptimismMintableERC721.sol";
 import { OptimismMintableERC721Factory } from "../src/universal/OptimismMintableERC721Factory.sol";
 
@@ -28,20 +27,20 @@ contract OptimismMintableERC721Factory_Test is ERC721Bridge_Initializer {
     }
 
     function test_createOptimismMintableERC721_succeeds() external {
-        // Predict the address based on the factory address and nonce.
-        address predicted = LibRLP.computeAddress(address(factory), 1);
+        address remote = address(1234);
+        address local = calculateTokenAddress(address(1234), "L2Token", "L2T");
 
         // Expect a token creation event.
         vm.expectEmit(true, true, true, true);
-        emit OptimismMintableERC721Created(predicted, address(1234), alice);
+        emit OptimismMintableERC721Created(local, remote, alice);
 
         // Create the token.
         vm.prank(alice);
         OptimismMintableERC721 created =
-            OptimismMintableERC721(factory.createOptimismMintableERC721(address(1234), "L2Token", "L2T"));
+            OptimismMintableERC721(factory.createOptimismMintableERC721(remote, "L2Token", "L2T"));
 
         // Token address should be correct.
-        assertEq(address(created), predicted);
+        assertEq(address(created), local);
 
         // Should be marked as created by the factory.
         assertEq(factory.isOptimismMintableERC721(address(created)), true);
@@ -49,14 +48,42 @@ contract OptimismMintableERC721Factory_Test is ERC721Bridge_Initializer {
         // Token should've been constructed correctly.
         assertEq(created.name(), "L2Token");
         assertEq(created.symbol(), "L2T");
-        assertEq(created.REMOTE_TOKEN(), address(1234));
+        assertEq(created.REMOTE_TOKEN(), remote);
         assertEq(created.BRIDGE(), address(L2Bridge));
         assertEq(created.REMOTE_CHAIN_ID(), 1);
+    }
+
+    function test_createOptimismMintableERC721_sameTwice_reverts() external {
+        address remote = address(1234);
+
+        vm.prank(alice);
+        factory.createOptimismMintableERC721(remote, "L2Token", "L2T");
+
+        vm.expectRevert();
+
+        vm.prank(alice);
+        factory.createOptimismMintableERC721(remote, "L2Token", "L2T");
     }
 
     function test_createOptimismMintableERC721_zeroRemoteToken_reverts() external {
         // Try to create a token with a zero remote token address.
         vm.expectRevert("OptimismMintableERC721Factory: L1 token address cannot be address(0)");
         factory.createOptimismMintableERC721(address(0), "L2Token", "L2T");
+    }
+
+    function calculateTokenAddress(
+        address _remote,
+        string memory _name,
+        string memory _symbol
+    )
+        internal
+        view
+        returns (address)
+    {
+        bytes memory constructorArgs = abi.encode(address(L2Bridge), 1, _remote, _name, _symbol);
+        bytes memory bytecode = abi.encodePacked(type(OptimismMintableERC721).creationCode, constructorArgs);
+        bytes32 salt = keccak256(abi.encode(_remote, _name, _symbol));
+        bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), address(factory), salt, keccak256(bytecode)));
+        return address(uint160(uint256(hash)));
     }
 }

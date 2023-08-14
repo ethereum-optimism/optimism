@@ -197,7 +197,7 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 				continue
 			}
 
-			indexedL1Headers = append(indexedL1Headers, &database.L1BlockHeader{BlockHeader: database.BlockHeaderFromGethHeader(header)})
+			indexedL1Headers = append(indexedL1Headers, &database.L1BlockHeader{BlockHeader: database.BlockHeaderFromHeader(header)})
 		}
 
 		/** Update Database **/
@@ -275,7 +275,7 @@ func l1ProcessContractEventsBridgeTransactions(processLog log.Logger, db *databa
 		transactionDeposits[i] = &database.L1TransactionDeposit{
 			SourceHash:           depositTx.SourceHash,
 			L2TransactionHash:    types.NewTx(depositTx).Hash(),
-			InitiatedL1EventGUID: depositEvent.RawEvent.GUID,
+			InitiatedL1EventGUID: depositEvent.Event.GUID,
 			Version:              database.U256{Int: depositEvent.Version},
 			OpaqueData:           depositEvent.OpaqueData,
 			GasLimit:             database.U256{Int: new(big.Int).SetUint64(depositTx.Gas)},
@@ -284,7 +284,7 @@ func l1ProcessContractEventsBridgeTransactions(processLog log.Logger, db *databa
 				ToAddress:   depositTx.From,
 				Amount:      database.U256{Int: depositTx.Value},
 				Data:        depositTx.Data,
-				Timestamp:   depositEvent.RawEvent.Timestamp,
+				Timestamp:   depositEvent.Event.Timestamp,
 			},
 		}
 
@@ -340,7 +340,7 @@ func l1ProcessContractEventsBridgeTransactions(processLog log.Logger, db *databa
 		if withdrawal == nil {
 			// We need to ensure we are in a caught up state before claiming a missing event. Since L2 timestamps
 			// are derived from L1, we can simply compare the timestamp of this event with the latest L2 header.
-			if provenWithdrawal.RawEvent.Timestamp > latestL2Header.Timestamp {
+			if provenWithdrawal.Event.Timestamp > latestL2Header.Timestamp {
 				processLog.Warn("behind on indexed L2 withdrawals")
 				return errors.New("waiting for L2Processor to catch up")
 			} else {
@@ -349,7 +349,7 @@ func l1ProcessContractEventsBridgeTransactions(processLog log.Logger, db *databa
 			}
 		}
 
-		err = db.BridgeTransactions.MarkL2TransactionWithdrawalProvenEvent(withdrawalHash, provenWithdrawal.RawEvent.GUID)
+		err = db.BridgeTransactions.MarkL2TransactionWithdrawalProvenEvent(withdrawalHash, provenWithdrawal.Event.GUID)
 		if err != nil {
 			return err
 		}
@@ -376,7 +376,7 @@ func l1ProcessContractEventsBridgeTransactions(processLog log.Logger, db *databa
 			return errors.New("withdrawal missing!")
 		}
 
-		err = db.BridgeTransactions.MarkL2TransactionWithdrawalFinalizedEvent(withdrawalHash, finalizedWithdrawal.RawEvent.GUID, finalizedWithdrawal.Success)
+		err = db.BridgeTransactions.MarkL2TransactionWithdrawalFinalizedEvent(withdrawalHash, finalizedWithdrawal.Event.GUID, finalizedWithdrawal.Success)
 		if err != nil {
 			return err
 		}
@@ -399,10 +399,10 @@ func l1ProcessContractEventsBridgeCrossDomainMessages(processLog log.Logger, db 
 
 	sentMessages := make([]*database.L1BridgeMessage, len(sentMessageEvents))
 	for i, sentMessageEvent := range sentMessageEvents {
-		log := sentMessageEvent.RawEvent.GethLog
+		log := sentMessageEvent.Event.RLPLog
 
 		// extract the deposit hash from the previous TransactionDepositedEvent
-		transactionDepositedLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index - 1}].GethLog
+		transactionDepositedLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index - 1}].RLPLog
 		depositTx, err := derive.UnmarshalDepositLogEvent(transactionDepositedLog)
 		if err != nil {
 			return err
@@ -413,14 +413,14 @@ func l1ProcessContractEventsBridgeCrossDomainMessages(processLog log.Logger, db 
 			BridgeMessage: database.BridgeMessage{
 				Nonce:                database.U256{Int: sentMessageEvent.MessageNonce},
 				MessageHash:          sentMessageEvent.MessageHash,
-				SentMessageEventGUID: sentMessageEvent.RawEvent.GUID,
+				SentMessageEventGUID: sentMessageEvent.Event.GUID,
 				GasLimit:             database.U256{Int: sentMessageEvent.GasLimit},
 				Tx: database.Transaction{
 					FromAddress: sentMessageEvent.Sender,
 					ToAddress:   sentMessageEvent.Target,
 					Amount:      database.U256{Int: sentMessageEvent.Value},
 					Data:        sentMessageEvent.Message,
-					Timestamp:   sentMessageEvent.RawEvent.Timestamp,
+					Timestamp:   sentMessageEvent.Event.Timestamp,
 				},
 			},
 		}
@@ -454,7 +454,7 @@ func l1ProcessContractEventsBridgeCrossDomainMessages(processLog log.Logger, db 
 			return fmt.Errorf("missing indexed L2CrossDomainMessager mesesage: 0x%x", relayedMessage.MsgHash)
 		}
 
-		err = db.BridgeMessages.MarkRelayedL2BridgeMessage(relayedMessage.MsgHash, relayedMessage.RawEvent.GUID)
+		err = db.BridgeMessages.MarkRelayedL2BridgeMessage(relayedMessage.MsgHash, relayedMessage.Event.GUID)
 		if err != nil {
 			return err
 		}
@@ -479,11 +479,12 @@ func l1ProcessContractEventsStandardBridge(processLog log.Logger, db *database.D
 
 	deposits := make([]*database.L1BridgeDeposit, len(initiatedDepositEvents))
 	for i, initiatedBridgeEvent := range initiatedDepositEvents {
-		log := initiatedBridgeEvent.RawEvent.GethLog
+		log := initiatedBridgeEvent.Event.RLPLog
 
-		// extract the deposit hash from the following TransactionDeposited event
-		transactionDepositedLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 1}].GethLog
-		depositTx, err := derive.UnmarshalDepositLogEvent(transactionDepositedLog)
+		// extract the deposit hash from the following TransactionDeposited event. The `BlockHash` and `LogIndex`
+		// fields are filled in for `RLPLog` which is required for `DepositTx#SourceHash` to be computed correctly
+		transactionDepositedRLPLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 1}].RLPLog
+		depositTx, err := derive.UnmarshalDepositLogEvent(transactionDepositedRLPLog)
 		if err != nil {
 			return err
 		}
@@ -497,7 +498,7 @@ func l1ProcessContractEventsStandardBridge(processLog log.Logger, db *database.D
 				ToAddress:   initiatedBridgeEvent.To,
 				Amount:      database.U256{Int: initiatedBridgeEvent.Amount},
 				Data:        initiatedBridgeEvent.ExtraData,
-				Timestamp:   initiatedBridgeEvent.RawEvent.Timestamp,
+				Timestamp:   initiatedBridgeEvent.Event.Timestamp,
 			},
 		}
 	}

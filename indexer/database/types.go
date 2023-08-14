@@ -68,13 +68,13 @@ func (u256 U256) Value() (driver.Value, error) {
 	return numeric.Value()
 }
 
-type GethHeader types.Header
+type RLPHeader types.Header
 
-func (h *GethHeader) EncodeRLP(w io.Writer) error {
+func (h *RLPHeader) EncodeRLP(w io.Writer) error {
 	return types.NewBlockWithHeader((*types.Header)(h)).EncodeRLP(w)
 }
 
-func (h *GethHeader) DecodeRLP(s *rlp.Stream) error {
+func (h *RLPHeader) DecodeRLP(s *rlp.Stream) error {
 	block := new(types.Block)
 	err := block.DecodeRLP(s)
 	if err != nil {
@@ -82,14 +82,14 @@ func (h *GethHeader) DecodeRLP(s *rlp.Stream) error {
 	}
 
 	header := block.Header()
-	*h = (GethHeader)(*header)
+	*h = (RLPHeader)(*header)
 	return nil
 }
 
-func (h *GethHeader) Header() *types.Header {
+func (h *RLPHeader) Header() *types.Header {
 	return (*types.Header)(h)
 }
 
-func (h *GethHeader) Hash() common.Hash {
+func (h *RLPHeader) Hash() common.Hash {
 	return h.Header().Hash()
 }
