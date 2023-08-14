@@ -126,5 +126,8 @@ func (c Config) Check() error {
 	if err := c.TxMgrConfig.Check(); err != nil {
 		return err
 	}
+	if err := c.KmsConfig.Check(); err != nil {
+		return err
+	}
 	return nil
 }

@@ -114,11 +114,14 @@ func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLI
 	if err != nil {
 		return nil, err
 	}
-	kmsManager, err := kms.NewKmsConfig(kmsCfg)
-	if err != nil {
-		return nil, err
-	}
 
+	var kmsManager kms.KmsManager
+	if kmsCfg.KmsKeyID != "" {
+		kmsManager, err = kms.NewKmsConfig(kmsCfg)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return &SimpleTxManager{
 		chainID: conf.ChainID,
 		name:    name,
