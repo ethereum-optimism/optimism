@@ -24,44 +24,31 @@ type Indexer struct {
 }
 
 // NewIndexer initializes an instance of the Indexer
-func NewIndexer(cfg config.Config) (*Indexer, error) {
-	dsn := fmt.Sprintf("host=%s port=%d dbname=%s sslmode=disable", cfg.DB.Host, cfg.DB.Port, cfg.DB.Name)
-	if cfg.DB.User != "" {
-		dsn += fmt.Sprintf(" user=%s", cfg.DB.User)
-	}
-	if cfg.DB.Password != "" {
-		dsn += fmt.Sprintf(" password=%s", cfg.DB.Password)
-	}
-
-	db, err := database.NewDB(dsn)
+func NewIndexer(chainConfig config.ChainConfig, rpcsConfig config.RPCsConfig, db *database.DB, logger log.Logger) (*Indexer, error) {
+	l1Contracts := chainConfig.L1Contracts
+	l1EthClient, err := node.DialEthClient(rpcsConfig.L1RPC)
 	if err != nil {
 		return nil, err
 	}
-
-	l1Contracts := cfg.Chain.L1Contracts
-	l1EthClient, err := node.DialEthClient(cfg.RPCs.L1RPC)
-	if err != nil {
-		return nil, err
-	}
-	l1Processor, err := processor.NewL1Processor(cfg.Logger, l1EthClient, db, l1Contracts)
+	l1Processor, err := processor.NewL1Processor(logger, l1EthClient, db, l1Contracts)
 	if err != nil {
 		return nil, err
 	}
 
 	// L2Processor (predeploys). Although most likely the right setting, make this configurable?
 	l2Contracts := processor.L2ContractPredeploys()
-	l2EthClient, err := node.DialEthClient(cfg.RPCs.L2RPC)
+	l2EthClient, err := node.DialEthClient(rpcsConfig.L2RPC)
 	if err != nil {
 		return nil, err
 	}
-	l2Processor, err := processor.NewL2Processor(cfg.Logger, l2EthClient, db, l2Contracts)
+	l2Processor, err := processor.NewL2Processor(logger, l2EthClient, db, l2Contracts)
 	if err != nil {
 		return nil, err
 	}
 
 	indexer := &Indexer{
 		db:          db,
-		log:         cfg.Logger,
+		log:         logger,
 		L1Processor: l1Processor,
 		L2Processor: l2Processor,
 	}

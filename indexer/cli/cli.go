@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/config"
+	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/opio"
 
@@ -23,17 +24,28 @@ type Cli struct {
 }
 
 func runIndexer(ctx *cli.Context) error {
-	logger := log.NewLogger(log.ReadCLIConfig(ctx))
+	logger := log.NewLogger(log.CLIConfig{
+		Level:  "warn",
+		Color:  false,
+		Format: "terminal",
+	})
 
 	configPath := ctx.String(ConfigFlag.Name)
-	cfg, err := config.LoadConfig(configPath)
+	cfg, err := config.LoadConfig(logger, configPath)
 	if err != nil {
 		logger.Error("failed to load config", "err", err)
 		return err
 	}
 
-	cfg.Logger = logger
-	indexer, err := indexer.NewIndexer(cfg)
+	logger = log.NewLogger(cfg.Logger)
+
+	db, err := database.NewDB(cfg.DB)
+
+	if err != nil {
+		return err
+	}
+
+	indexer, err := indexer.NewIndexer(cfg.Chain, cfg.RPCs, db, logger)
 	if err != nil {
 		return err
 	}
@@ -51,13 +63,12 @@ func runApi(ctx *cli.Context) error {
 	logger := log.NewLogger(log.ReadCLIConfig(ctx))
 
 	configPath := ctx.String(ConfigFlag.Name)
-	cfg, err := config.LoadConfig(configPath)
+	cfg, err := config.LoadConfig(logger, configPath)
 	if err != nil {
 		logger.Error("failed to load config", "err", err)
 		return err
 	}
 
-	cfg.Logger = logger
 	fmt.Println(cfg)
 
 	// finish me
