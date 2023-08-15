@@ -29,6 +29,8 @@
     "slither:triage": "TRIAGE_MODE=1 ./scripts/slither.sh",
     "clean": "rm -rf ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./tsconfig.build.tsbuildinfo ./test-case-generator/fuzz ./scripts/differential-testing/differential-testing",
     "preinstall": "npx only-allow pnpm",
+    "pre-pr": "pnpm clean && pnpm gas-snapshot && pnpm storage-snapshot && pnpm semver-lock && pnpm autogen:invariant-docs && pnpm lint && (cd ../../op-bindings && make)",
+    "pre-pr:full": "pnpm test && pnpm slither && pnpm validate-deploy-configs && pnpm validate-spacers && pnpm pre-pr",
     "lint:ts:check": "eslint . --max-warnings=0",
     "lint:forge-tests:check": "tsx scripts/forge-test-names.ts",
     "lint:contracts:check": "pnpm lint:fix && git diff --exit-code",
