@@ -1,8 +1,12 @@
 package txmgr
 
 import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 	"github.com/urfave/cli/v2"
 )
@@ -38,4 +42,39 @@ func configForArgs(args ...string) CLIConfig {
 	}
 	_ = app.Run(args)
 	return config
+}
+
+type MockServer struct {
+	Server  *httptest.Server
+	Payload string
+}
+
+func (m *MockServer) Start() {
+	m.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("Receive Request")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(m.Payload))
+	}))
+}
+
+func (m *MockServer) Stop() {
+	m.Server.Close()
+}
+
+func TestNewConfigKMS(t *testing.T) {
+	m := MockServer{
+		Payload: "{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0x1\"}",
+	}
+	m.Start()
+	defer m.Stop()
+
+	cliCfg := NewCLIConfig(m.Server.URL)
+	_, err := NewConfig(cliCfg, log.New())
+	require.ErrorContains(t, err, "mnemonic is required")
+
+	cliCfg.KmsKeyID = "test"
+	cliCfg.KmsEndpoint = "test"
+	cliCfg.KmsRegion = "test"
+	_, err = NewConfig(cliCfg, log.New())
+	require.ErrorContains(t, err, "AWS_ACCESS_KEY_ID or AWS_ACCESS_KEY not found in environment")
 }

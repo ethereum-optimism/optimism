@@ -73,14 +73,10 @@ func (_m *TxManager) Call(ctx context.Context, msg ethereum.CallMsg, blockNumber
 }
 
 // From provides a mock function with given fields:
-func (_m *TxManager) From() (common.Address, error) {
+func (_m *TxManager) From() common.Address {
 	ret := _m.Called()
 
 	var r0 common.Address
-	var r1 error
-	if rf, ok := ret.Get(0).(func() (common.Address, error)); ok {
-		return rf()
-	}
 	if rf, ok := ret.Get(0).(func() common.Address); ok {
 		r0 = rf()
 	} else {
@@ -89,13 +85,7 @@ func (_m *TxManager) From() (common.Address, error) {
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func() error); ok {
-		r1 = rf()
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
+	return r0
 }
 
 // Send provides a mock function with given fields: ctx, candidate
