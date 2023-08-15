@@ -23,8 +23,12 @@ type Config struct {
 // ChainConfig configures of the chain being indexed
 type ChainConfig struct {
 	// Configure known chains with the l2 chain id
+	// NOTE - This currently performs no lookups to extract known L1 contracts by l2 chain id
 	Preset      int
-	L1Contracts processor.L1Contracts
+	L1Contracts processor.L1Contracts `toml:"l1-contracts"`
+	// L1StartingHeight is the block height to start indexing from
+	// NOTE - This is currently unimplemented
+	L1StartingHeight int
 }
 
 // RPCsConfig configures the RPC urls

@@ -23,14 +23,17 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// L1Contracts contains all L1 system contract addresses
+// NOTE - There are no active validations to ensure that the
+// addresses provided are not nil or duplicated
 type L1Contracts struct {
-	OptimismPortal         common.Address
-	L2OutputOracle         common.Address
-	L1CrossDomainMessenger common.Address
-	L1StandardBridge       common.Address
-	L1ERC721Bridge         common.Address
+	OptimismPortal         common.Address `toml:"optimism-portal"`
+	L2OutputOracle         common.Address `toml:"l2-output-oracle"`
+	L1CrossDomainMessenger common.Address `toml:"l1-cross-domain-messenger"`
+	L1StandardBridge       common.Address `toml:"l1-standard-bridge"`
+	L1ERC721Bridge         common.Address `toml:"l1-erc721-bridge"`
 
-	// Some more contracts -- ProxyAdmin, SystemConfig, etcc
+	// Some more contracts -- ProxyAdmin, SystemConfig, etc
 	// Ignore the auxiliary contracts?
 
 	// Legacy contracts? We'll add this in to index the legacy chain.
