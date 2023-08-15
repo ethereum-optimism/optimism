@@ -6,8 +6,6 @@ import (
 	"reflect"
 
 	"github.com/BurntSushi/toml"
-
-	"github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
 	geth_log "github.com/ethereum/go-ethereum/log"
 	"github.com/joho/godotenv"
@@ -22,7 +20,6 @@ type Config struct {
 	DB      DBConfig
 	API     APIConfig
 	Metrics MetricsConfig
-	Logger  log.CLIConfig
 }
 
 // fetch this via onchain config from RPCsConfig and remove from config in future
