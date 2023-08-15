@@ -57,12 +57,12 @@ func TestE2EBridgeL1CrossDomainMessenger(t *testing.T) {
 	nonceBytes := [31]byte{0: byte(1)}
 	nonce := new(big.Int).SetBytes(nonceBytes[:])
 
-	sentMessage, err := testSuite.DB.BridgeMessages.L1BridgeMessage(nonce)
+	sentMessage, err := testSuite.DB.BridgeMessages.L1BridgeMessage(parsedMessage.MessageHash)
 	require.NoError(t, err)
 	require.NotNil(t, sentMessage)
 	require.NotNil(t, sentMessage.SentMessageEventGUID)
 	require.Equal(t, depositInfo.DepositTx.SourceHash, sentMessage.TransactionSourceHash)
-	require.Equal(t, parsedMessage.MessageHash, sentMessage.MessageHash)
+	require.Equal(t, nonce.Uint64(), sentMessage.Nonce.Int.Uint64())
 	require.Equal(t, uint64(100_000), sentMessage.GasLimit.Int.Uint64())
 	require.Equal(t, big.NewInt(params.Ether), sentMessage.Tx.Amount.Int)
 	require.Equal(t, aliceAddr, sentMessage.Tx.FromAddress)
@@ -83,7 +83,7 @@ func TestE2EBridgeL1CrossDomainMessenger(t *testing.T) {
 		return l2Header != nil && l2Header.Number.Uint64() >= depositReceipt.BlockNumber.Uint64(), nil
 	}))
 
-	sentMessage, err = testSuite.DB.BridgeMessages.L1BridgeMessage(nonce)
+	sentMessage, err = testSuite.DB.BridgeMessages.L1BridgeMessage(parsedMessage.MessageHash)
 	require.NoError(t, err)
 	require.NotNil(t, sentMessage)
 	require.NotNil(t, sentMessage.RelayedMessageEventGUID)
@@ -143,12 +143,12 @@ func TestE2EBridgeL2CrossDomainMessenger(t *testing.T) {
 	nonceBytes := [31]byte{0: byte(1)}
 	nonce := new(big.Int).SetBytes(nonceBytes[:])
 
-	sentMessage, err := testSuite.DB.BridgeMessages.L2BridgeMessage(nonce)
+	sentMessage, err := testSuite.DB.BridgeMessages.L2BridgeMessage(parsedMessage.MessageHash)
 	require.NoError(t, err)
 	require.NotNil(t, sentMessage)
 	require.NotNil(t, sentMessage.SentMessageEventGUID)
 	require.Equal(t, withdrawalHash, sentMessage.TransactionWithdrawalHash)
-	require.Equal(t, parsedMessage.MessageHash, sentMessage.MessageHash)
+	require.Equal(t, nonce.Uint64(), sentMessage.Nonce.Int.Uint64())
 	require.Equal(t, uint64(100_000), sentMessage.GasLimit.Int.Uint64())
 	require.Equal(t, big.NewInt(params.Ether), sentMessage.Tx.Amount.Int)
 	require.Equal(t, aliceAddr, sentMessage.Tx.FromAddress)
@@ -166,7 +166,7 @@ func TestE2EBridgeL2CrossDomainMessenger(t *testing.T) {
 	}))
 
 	// message is marked as relayed
-	sentMessage, err = testSuite.DB.BridgeMessages.L2BridgeMessage(nonce)
+	sentMessage, err = testSuite.DB.BridgeMessages.L2BridgeMessage(parsedMessage.MessageHash)
 	require.NoError(t, err)
 	require.NotNil(t, sentMessage)
 	require.NotNil(t, sentMessage.RelayedMessageEventGUID)

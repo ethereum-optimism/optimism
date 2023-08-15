@@ -152,9 +152,10 @@ CREATE TABLE IF NOT EXISTS l2_transaction_withdrawals (
 
 -- CrossDomainMessenger
 CREATE TABLE IF NOT EXISTS l1_bridge_messages(
-    nonce                   UINT256 NOT NULL PRIMARY KEY,
-    message_hash            VARCHAR UNIQUE NOT NULL,
-    transaction_source_hash VARCHAR UNIQUE NOT NULL REFERENCES l1_transaction_deposits(source_hash),
+    message_hash            VARCHAR NOT NULL PRIMARY KEY,
+    nonce                   UINT256 NOT NULL UNIQUE,
+
+    transaction_source_hash VARCHAR NOT NULL UNIQUE REFERENCES l1_transaction_deposits(source_hash),
 
     sent_message_event_guid    VARCHAR NOT NULL UNIQUE REFERENCES l1_contract_events(guid),
     relayed_message_event_guid VARCHAR UNIQUE REFERENCES l2_contract_events(guid),
@@ -168,9 +169,10 @@ CREATE TABLE IF NOT EXISTS l1_bridge_messages(
     timestamp    INTEGER NOT NULL CHECK (timestamp > 0)
 );
 CREATE TABLE IF NOT EXISTS l2_bridge_messages(
-    nonce                       UINT256 NOT NULL PRIMARY KEY,
-    message_hash                VARCHAR UNIQUE NOT NULL,
-    transaction_withdrawal_hash VARCHAR UNIQUE NOT NULL REFERENCES l2_transaction_withdrawals(withdrawal_hash),
+    message_hash                VARCHAR NOT NULL PRIMARY KEY,
+    nonce                       UINT256 NOT NULL UNIQUE,
+
+    transaction_withdrawal_hash VARCHAR NOT NULL UNIQUE REFERENCES l2_transaction_withdrawals(withdrawal_hash),
 
     sent_message_event_guid    VARCHAR NOT NULL UNIQUE REFERENCES l2_contract_events(guid),
     relayed_message_event_guid VARCHAR UNIQUE REFERENCES l1_contract_events(guid),

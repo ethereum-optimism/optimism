@@ -74,7 +74,7 @@ func TestE2EBridgeTransfersStandardBridgeETHDeposit(t *testing.T) {
 		return l2Header != nil && l2Header.Number.Uint64() >= depositReceipt.BlockNumber.Uint64(), nil
 	}))
 
-	crossDomainBridgeMessage, err := testSuite.DB.BridgeMessages.L1BridgeMessageByHash(*deposit.CrossDomainMessageHash)
+	crossDomainBridgeMessage, err := testSuite.DB.BridgeMessages.L1BridgeMessage(*deposit.CrossDomainMessageHash)
 	require.NoError(t, err)
 	require.NotNil(t, crossDomainBridgeMessage)
 	require.NotNil(t, crossDomainBridgeMessage.RelayedMessageEventGUID)
@@ -125,7 +125,17 @@ func TestE2EBridgeTransfersOptimismPortalETHReceive(t *testing.T) {
 	require.Nil(t, deposit.CrossDomainMessageHash)
 
 	// (2) Test Deposit Finalization
-	// Nothing to do as we rely on the derivation process to include the deposit
+	depositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L2Client, types.NewTx(depositInfo.DepositTx).Hash())
+	require.NoError(t, err)
+	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
+		l2Header := testSuite.Indexer.L2Processor.LatestProcessedHeader()
+		return l2Header != nil && l2Header.Number.Uint64() >= depositReceipt.BlockNumber.Uint64(), nil
+	}))
+
+	// Still nil as the withdrawal did not occur through the standard bridge
+	aliceDeposits, err = testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr)
+	require.NoError(t, err)
+	require.Nil(t, aliceDeposits[0].L1BridgeDeposit.CrossDomainMessageHash)
 }
 
 func TestE2EBridgeTransfersStandardBridgeETHWithdrawal(t *testing.T) {
@@ -186,7 +196,7 @@ func TestE2EBridgeTransfersStandardBridgeETHWithdrawal(t *testing.T) {
 	// bytes of the nonce dedicated to the version. nonce == 0 (first message)
 	require.NotNil(t, withdrawal.CrossDomainMessageHash)
 
-	crossDomainBridgeMessage, err := testSuite.DB.BridgeMessages.L2BridgeMessageByHash(*withdrawal.CrossDomainMessageHash)
+	crossDomainBridgeMessage, err := testSuite.DB.BridgeMessages.L2BridgeMessage(*withdrawal.CrossDomainMessageHash)
 	require.NoError(t, err)
 	require.Nil(t, crossDomainBridgeMessage.RelayedMessageEventGUID)
 
@@ -206,7 +216,7 @@ func TestE2EBridgeTransfersStandardBridgeETHWithdrawal(t *testing.T) {
 	require.Equal(t, proveReceipt.TxHash, aliceWithdrawals[0].ProvenL1TransactionHash)
 	require.Equal(t, finalizeReceipt.TxHash, aliceWithdrawals[0].FinalizedL1TransactionHash)
 
-	crossDomainBridgeMessage, err = testSuite.DB.BridgeMessages.L2BridgeMessageByHash(*withdrawal.CrossDomainMessageHash)
+	crossDomainBridgeMessage, err = testSuite.DB.BridgeMessages.L2BridgeMessage(*withdrawal.CrossDomainMessageHash)
 	require.NoError(t, err)
 	require.NotNil(t, crossDomainBridgeMessage)
 	require.NotNil(t, crossDomainBridgeMessage.RelayedMessageEventGUID)
@@ -283,4 +293,7 @@ func TestE2EBridgeTransfersL2ToL1MessagePasserReceive(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, proveReceipt.TxHash, aliceWithdrawals[0].ProvenL1TransactionHash)
 	require.Equal(t, finalizeReceipt.TxHash, aliceWithdrawals[0].FinalizedL1TransactionHash)
+
+	// Still nil as the withdrawal did not occur through the standard bridge
+	require.Nil(t, aliceWithdrawals[0].L2BridgeWithdrawal.CrossDomainMessageHash)
 }
