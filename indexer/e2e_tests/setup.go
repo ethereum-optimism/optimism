@@ -71,23 +71,17 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 		},
 		Chain: config.ChainConfig{
 			L1Contracts: config.L1Contracts{
-				OptimismPortal:         opCfg.L1Deployments.OptimismPortalProxy,
-				L2OutputOracle:         opCfg.L1Deployments.L2OutputOracleProxy,
-				L1CrossDomainMessenger: opCfg.L1Deployments.L1CrossDomainMessengerProxy,
-				L1StandardBridge:       opCfg.L1Deployments.L1StandardBridgeProxy,
-				L1ERC721Bridge:         opCfg.L1Deployments.L1ERC721BridgeProxy,
+				OptimismPortalProxy:         opCfg.L1Deployments.OptimismPortalProxy,
+				L2OutputOracleProxy:         opCfg.L1Deployments.L2OutputOracleProxy,
+				L1CrossDomainMessengerProxy: opCfg.L1Deployments.L1CrossDomainMessengerProxy,
+				L1StandardBridgeProxy:       opCfg.L1Deployments.L1StandardBridgeProxy,
 			},
 		},
 	}
 
 	db, err := database.NewDB(indexerCfg.DB)
 	require.NoError(t, err)
-	indexer, err := indexer.NewIndexer(
-		indexerCfg.Chain,
-		indexerCfg.RPCs,
-		db,
-		logger,
-	)
+	indexer, err := indexer.NewIndexer(logger, indexerCfg.Chain, indexerCfg.RPCs, db)
 	require.NoError(t, err)
 
 	indexerStoppedCh := make(chan interface{}, 1)

@@ -191,13 +191,13 @@ CREATE TABLE IF NOT EXISTS l1_bridge_deposits (
     cross_domain_message_hash VARCHAR UNIQUE REFERENCES l1_bridge_messages(message_hash),
 
     -- Deposit information
-	from_address     VARCHAR NOT NULL,
-	to_address       VARCHAR NOT NULL,
-	local_token_address VARCHAR NOT NULL, -- REFERENCES l1_tokens(address), uncomment me in future pr
+	from_address         VARCHAR NOT NULL,
+	to_address           VARCHAR NOT NULL,
+	local_token_address  VARCHAR NOT NULL, -- REFERENCES l1_tokens(address), uncomment me in future pr
 	remote_token_address VARCHAR NOT NULL, -- REFERENCES l2_tokens(address), uncomment me in future pr
-	amount           UINT256 NOT NULL,
-	data             VARCHAR NOT NULL,
-    timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
+	amount               UINT256 NOT NULL,
+	data                 VARCHAR NOT NULL,
+    timestamp            INTEGER NOT NULL CHECK (timestamp > 0)
 );
 CREATE TABLE IF NOT EXISTS l2_bridge_withdrawals (
     transaction_withdrawal_hash VARCHAR PRIMARY KEY REFERENCES l2_transaction_withdrawals(withdrawal_hash),
@@ -207,11 +207,11 @@ CREATE TABLE IF NOT EXISTS l2_bridge_withdrawals (
     cross_domain_message_hash VARCHAR UNIQUE REFERENCES l2_bridge_messages(message_hash),
 
     -- Withdrawal information
-	from_address     VARCHAR NOT NULL,
-	to_address       VARCHAR NOT NULL,
-	local_token_address VARCHAR NOT NULL, -- REFERENCES l2_tokens(address), uncomment me in future pr
+	from_address         VARCHAR NOT NULL,
+	to_address           VARCHAR NOT NULL,
+	local_token_address  VARCHAR NOT NULL, -- REFERENCES l2_tokens(address), uncomment me in future pr
 	remote_token_address VARCHAR NOT NULL, -- REFERENCES l1_tokens(address), uncomment me in future pr
-	amount           UINT256 NOT NULL,
-	data             VARCHAR NOT NULL,
-    timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
+	amount               UINT256 NOT NULL,
+	data                 VARCHAR NOT NULL,
+    timestamp            INTEGER NOT NULL CHECK (timestamp > 0)
 );
