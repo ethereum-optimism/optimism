@@ -2,6 +2,9 @@
 package database
 
 import (
+	"fmt"
+
+	"github.com/ethereum-optimism/optimism/indexer/config"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -17,7 +20,14 @@ type DB struct {
 	BridgeTransactions BridgeTransactionsDB
 }
 
-func NewDB(dsn string) (*DB, error) {
+func NewDB(dbConfig config.DBConfig) (*DB, error) {
+	dsn := fmt.Sprintf("host=%s port=%d dbname=%s sslmode=disable", dbConfig.Host, dbConfig.Port, dbConfig.Name)
+	if dbConfig.User != "" {
+		dsn += fmt.Sprintf(" user=%s", dbConfig.User)
+	}
+	if dbConfig.Password != "" {
+		dsn += fmt.Sprintf(" password=%s", dbConfig.Password)
+	}
 	gorm, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		// The indexer will explicitly manage the transaction
 		// flow processing blocks
