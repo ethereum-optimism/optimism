@@ -1,6 +1,6 @@
 # Contributing to CONTRIBUTING.md
 
-First off, thanks for taking the time to contribute! ❤️
+First off, thanks for taking the time to contribute!
 
 We welcome and appreciate all kinds of contributions. Refer to the Table of Contents to discover various ways you can assist, as well as the procedures we follow for each type. Before you contribute, kindly review the appropriate section; this will streamline the process for both maintainers and contributors. We're excited to see your contributions! 🎉
 
@@ -12,6 +12,8 @@ We welcome and appreciate all kinds of contributions. Refer to the Table of Cont
 - [Suggesting Enhancements](#suggesting-enhancements)
 - [Your First Code Contribution](#your-first-code-contribution)
 - [Improving The Documentation](#improving-the-documentation)
+- [Deploying on Devnet](#deploying-on-devnet)
+- [Tools](#tools)
 
 ## I Have a Question
 
@@ -48,8 +50,10 @@ The best place to begin contributing is by looking through the issues with the `
 
 Optimism's smart contracts are written in Solidity and we use [foundry](https://github.com/foundry-rs/foundry) as our development framework. To get started, you'll need to install several dependencies:
 1. [pnpm](https://pnpm.io)
+  1. Make sure to `pnpm install`
 1. [foundry](https://getfoundry.sh)
-  1. Foundry is built with [rust](https://www.rust-lang.org/tools/install), so if you decide to build it from source, you'll need to install the rust toolchain via `rustup`.
+  1. Foundry is built with [rust](https://www.rust-lang.org/tools/install), and this project uses a pinned version of foundry. Install the rust toolchain with `rustup`.
+  1. Make sure to install the version of foundry used by `ci-builder`, defined in the `.foundryrc` file in the root of this repo. Once you have `foundryup` installed, there is a helper to do this: `pnpm install:foundry`
 1. [golang](https://golang.org/doc/install)
 1. [python](https://www.python.org/downloads/)
 
@@ -73,3 +77,42 @@ Once you've read the styleguide and are ready to work on your PR, there are a pl
 ### Improving The Documentation
 
 Documentation improvements are more than welcome! If you see a typo or feel that a code comment describes something poorly or incorrectly, please submit a PR with a fix.
+
+### Deploying on Devnet
+
+To deploy the smart contracts on a local devnet, run `make devnet-up` in the monorepo root.
+
+### Tools
+
+#### Layout Locking
+
+We use a system called "layout locking" as a safety mechanism to prevent certain contract variables from being moved to different storage slots accidentally.
+To lock a contract variable, add it to the `layout-lock.json` file which has the following format:
+
+```json
+{
+  "MyContractName": {
+    "myVariableName": {
+      "slot": 1,
+      "offset": 0,
+      "length": 32
+    }
+  }
+}
+```
+
+With the above config, the `validate-spacers` hardhat task will check that we have a contract called `MyContractName`, that the contract has a variable named `myVariableName`, and that the variable is in the correct position as defined in the lock file.
+You should add things to the `layout-lock.json` file when you want those variables to **never** change.
+Layout locking should be used in combination with diffing the `.storage-layout` file in CI.
+
+#### Gas Snapshots
+
+We use forge's `gas-snapshot` subcommand to produce a gas snapshot for most tests within our suite. CI will check that the gas snapshot has been updated properly when it runs, so make sure to run `pnpm gas-snapshot`!
+
+#### Semver Locking
+
+Many of our smart contracts are semantically versioned. To make sure that changes are not made to a contract without deliberately bumping its version, we commit to the source code and the creation bytecode of its dependencies in a lockfile. Consult the [Style Guide](./STYLE_GUIDE.md#Versioning) for more information about how our contracts are versioned.
+
+#### Storage Snapshots
+
+Due to the many proxied contracts in Optimism's protocol, we automate tracking the diff to storage layouts of the contracts in the project. This is to ensure that we don't break a proxy by upgrading its implementation to a contract with a different storage layout. To generate the storage lockfile, run `pnpm storage-snapshot`.
