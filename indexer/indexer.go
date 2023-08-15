@@ -20,9 +20,6 @@ type Indexer struct {
 	db  *database.DB
 	log log.Logger
 
-	L1Processor *processor.L1Processor
-	L2Processor *processor.L2Processor
-
 	L1ETL *processor.L1ETL
 	L2ETL *processor.L2ETL
 
@@ -31,12 +28,7 @@ type Indexer struct {
 
 // NewIndexer initializes an instance of the Indexer
 func NewIndexer(logger log.Logger, chainConfig config.ChainConfig, rpcsConfig config.RPCsConfig, db *database.DB) (*Indexer, error) {
-	l1Contracts := chainConfig.L1Contracts
 	l1EthClient, err := node.DialEthClient(rpcsConfig.L1RPC)
-	if err != nil {
-		return nil, err
-	}
-	l1Processor, err := processor.NewL1Processor(logger, l1EthClient, db, l1Contracts)
 	if err != nil {
 		return nil, err
 	}
@@ -47,12 +39,7 @@ func NewIndexer(logger log.Logger, chainConfig config.ChainConfig, rpcsConfig co
 	}
 
 	// L2Processor (predeploys). Although most likely the right setting, make this configurable?
-	l2Contracts := processor.L2ContractPredeploys()
 	l2EthClient, err := node.DialEthClient(rpcsConfig.L2RPC)
-	if err != nil {
-		return nil, err
-	}
-	l2Processor, err := processor.NewL2Processor(logger, l2EthClient, db, l2Contracts)
 	if err != nil {
 		return nil, err
 	}
@@ -68,14 +55,11 @@ func NewIndexer(logger log.Logger, chainConfig config.ChainConfig, rpcsConfig co
 	}
 
 	indexer := &Indexer{
-		db:          db,
-		log:         logger,
-		L1Processor: l1Processor,
-		L2Processor: l2Processor,
+		db:  db,
+		log: logger,
 
-		L1ETL: l1Etl,
-		L2ETL: l2Etl,
-
+		L1ETL:           l1Etl,
+		L2ETL:           l2Etl,
 		BridgeProcessor: bridgeProcessor,
 	}
 
@@ -85,7 +69,7 @@ func NewIndexer(logger log.Logger, chainConfig config.ChainConfig, rpcsConfig co
 // Start starts the indexing service on L1 and L2 chains
 func (i *Indexer) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
-	errCh := make(chan error, 5)
+	errCh := make(chan error, 3)
 
 	// If either processor errors out, we stop
 	subCtx, cancel := context.WithCancel(ctx)
@@ -107,22 +91,18 @@ func (i *Indexer) Run(ctx context.Context) error {
 			i.log.Error("halting indexer on error", "err", err)
 		}
 
-		// Send a value down regardless if we've received an error or halted
-		// via cancellation where err == nil
+		// Send a value down regardless if we've received an error
+		// or halted via cancellation where err == nil
 		errCh <- err
 	}
 
-	// Kick off the processors
-	go run(i.L1Processor.Start)
-	go run(i.L2Processor.Start)
+	// Kick off all the dependent routines
 	go run(i.L1ETL.Start)
 	go run(i.L2ETL.Start)
 	go run(i.BridgeProcessor.Start)
 	err := <-errCh
 
-	// ensure all go routines have stopped
 	wg.Wait()
-
 	i.log.Info("indexer stopped")
 	return err
 }

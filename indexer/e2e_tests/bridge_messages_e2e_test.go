@@ -32,9 +32,6 @@ func TestE2EBridgeL1CrossDomainMessenger(t *testing.T) {
 	require.NoError(t, err)
 	l1Opts.Value = big.NewInt(params.Ether)
 
-	// Pause the processor to track relayed event
-	testSuite.Indexer.L2Processor.PauseForTest()
-
 	// (1) Send the Message
 	sentMsgTx, err := l1CrossDomainMessenger.SendMessage(l1Opts, aliceAddr, calldata, 100_000)
 	require.NoError(t, err)
@@ -71,7 +68,6 @@ func TestE2EBridgeL1CrossDomainMessenger(t *testing.T) {
 
 	// (2) Process RelayedMesssage on inclusion
 	require.Nil(t, sentMessage.RelayedMessageEventGUID)
-	testSuite.Indexer.L2Processor.ResumeForTest()
 	transaction, err := testSuite.DB.BridgeTransactions.L1TransactionDeposit(sentMessage.TransactionSourceHash)
 	require.NoError(t, err)
 

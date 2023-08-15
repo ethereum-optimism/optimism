@@ -332,6 +332,7 @@ type BridgeProcessor struct {
 	// On each loop we check that the recorded hash exists? If not,
 	// we assume a reorg and start from the latest known headers
 
+	paused    bool
 	LastEpoch *database.Epoch
 }
 
@@ -340,7 +341,7 @@ func NewBridgeProcessor(log log.Logger, db *database.DB) (*BridgeProcessor, erro
 
 	// TODO: Detect where we should be starting from
 
-	return &BridgeProcessor{log: log, db: db, LastEpoch: nil}, nil
+	return &BridgeProcessor{log: log, db: db, paused: false, LastEpoch: nil}, nil
 }
 
 func (bridge *BridgeProcessor) Start(ctx context.Context) error {

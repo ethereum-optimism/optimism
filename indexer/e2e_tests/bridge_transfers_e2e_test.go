@@ -43,8 +43,8 @@ func TestE2EBridgeTransfersStandardBridgeETHDeposit(t *testing.T) {
 
 	// wait for processor catchup
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
-		return l1Header != nil && l1Header.Number.Uint64() >= depositReceipt.BlockNumber.Uint64(), nil
+		lastEpoch := testSuite.Indexer.BridgeProcessor.LastEpoch
+		return lastEpoch != nil && lastEpoch.L1BlockHeader.Number.Int.Uint64() >= depositReceipt.BlockNumber.Uint64(), nil
 	}))
 
 	aliceDeposits, err := testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr)
@@ -67,11 +67,11 @@ func TestE2EBridgeTransfersStandardBridgeETHDeposit(t *testing.T) {
 	require.NotNil(t, deposit.CrossDomainMessageHash)
 
 	// (2) Test Deposit Finalization via CrossDomainMessenger relayed message
-	depositReceipt, err = wait.ForReceiptOK(context.Background(), testSuite.L2Client, types.NewTx(depositInfo.DepositTx).Hash())
+	l2DepositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L2Client, types.NewTx(depositInfo.DepositTx).Hash())
 	require.NoError(t, err)
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l2Header := testSuite.Indexer.L2Processor.LatestProcessedHeader()
-		return l2Header != nil && l2Header.Number.Uint64() >= depositReceipt.BlockNumber.Uint64(), nil
+		lastEpoch := testSuite.Indexer.BridgeProcessor.LastEpoch
+		return lastEpoch != nil && lastEpoch.L2BlockHeader.Number.Int.Uint64() >= l2DepositReceipt.BlockNumber.Uint64(), nil
 	}))
 
 	crossDomainBridgeMessage, err := testSuite.DB.BridgeMessages.L1BridgeMessage(*deposit.CrossDomainMessageHash)
@@ -103,8 +103,8 @@ func TestE2EBridgeTransfersOptimismPortalETHReceive(t *testing.T) {
 
 	// wait for processor catchup
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
-		return l1Header != nil && l1Header.Number.Uint64() >= portalDepositReceipt.BlockNumber.Uint64(), nil
+		lastEpoch := testSuite.Indexer.BridgeProcessor.LastEpoch
+		return lastEpoch != nil && lastEpoch.L1BlockHeader.Number.Int.Uint64() >= portalDepositReceipt.BlockNumber.Uint64(), nil
 	}))
 
 	aliceDeposits, err := testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr)
@@ -125,11 +125,11 @@ func TestE2EBridgeTransfersOptimismPortalETHReceive(t *testing.T) {
 	require.Nil(t, deposit.CrossDomainMessageHash)
 
 	// (2) Test Deposit Finalization
-	depositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L2Client, types.NewTx(depositInfo.DepositTx).Hash())
+	l2DepositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L2Client, types.NewTx(depositInfo.DepositTx).Hash())
 	require.NoError(t, err)
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l2Header := testSuite.Indexer.L2Processor.LatestProcessedHeader()
-		return l2Header != nil && l2Header.Number.Uint64() >= depositReceipt.BlockNumber.Uint64(), nil
+		lastEpoch := testSuite.Indexer.BridgeProcessor.LastEpoch
+		return lastEpoch != nil && lastEpoch.L2BlockHeader.Number.Int.Uint64() >= l2DepositReceipt.BlockNumber.Uint64(), nil
 	}))
 
 	// Still nil as the withdrawal did not occur through the standard bridge
@@ -169,8 +169,8 @@ func TestE2EBridgeTransfersStandardBridgeETHWithdrawal(t *testing.T) {
 
 	// wait for processor catchup
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l2Header := testSuite.Indexer.L2Processor.LatestProcessedHeader()
-		return l2Header != nil && l2Header.Number.Uint64() >= withdrawReceipt.BlockNumber.Uint64(), nil
+		lastEpoch := testSuite.Indexer.BridgeProcessor.LastEpoch
+		return lastEpoch != nil && lastEpoch.L2BlockHeader.Number.Int.Uint64() >= withdrawReceipt.BlockNumber.Uint64(), nil
 	}))
 
 	aliceWithdrawals, err := testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr)
@@ -207,8 +207,8 @@ func TestE2EBridgeTransfersStandardBridgeETHWithdrawal(t *testing.T) {
 	// wait for processor catchup
 	proveReceipt, finalizeReceipt := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.L1Client, testSuite.OpSys.Nodes["sequencer"], testSuite.OpCfg.Secrets.Alice, withdrawReceipt)
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
-		return l1Header != nil && l1Header.Number.Uint64() >= finalizeReceipt.BlockNumber.Uint64(), nil
+		lastEpoch := testSuite.Indexer.BridgeProcessor.LastEpoch
+		return lastEpoch != nil && lastEpoch.L1BlockHeader.Number.Int.Uint64() >= finalizeReceipt.BlockNumber.Uint64(), nil
 	}))
 
 	aliceWithdrawals, err = testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr)
@@ -253,8 +253,8 @@ func TestE2EBridgeTransfersL2ToL1MessagePasserReceive(t *testing.T) {
 
 	// wait for processor catchup
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l2Header := testSuite.Indexer.L2Processor.LatestProcessedHeader()
-		return l2Header != nil && l2Header.Number.Uint64() >= l2ToL1WithdrawReceipt.BlockNumber.Uint64(), nil
+		lastEpoch := testSuite.Indexer.BridgeProcessor.LastEpoch
+		return lastEpoch != nil && lastEpoch.L2BlockHeader.Number.Int.Uint64() >= l2ToL1WithdrawReceipt.BlockNumber.Uint64(), nil
 	}))
 
 	aliceWithdrawals, err := testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr)
@@ -285,8 +285,8 @@ func TestE2EBridgeTransfersL2ToL1MessagePasserReceive(t *testing.T) {
 	// wait for processor catchup
 	proveReceipt, finalizeReceipt := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.L1Client, testSuite.OpSys.Nodes["sequencer"], testSuite.OpCfg.Secrets.Alice, l2ToL1WithdrawReceipt)
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
-		return l1Header != nil && l1Header.Number.Uint64() >= finalizeReceipt.BlockNumber.Uint64(), nil
+		lastEpoch := testSuite.Indexer.BridgeProcessor.LastEpoch
+		return lastEpoch != nil && lastEpoch.L1BlockHeader.Number.Int.Uint64() >= finalizeReceipt.BlockNumber.Uint64(), nil
 	}))
 
 	aliceWithdrawals, err = testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr)
