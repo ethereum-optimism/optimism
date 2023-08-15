@@ -99,7 +99,7 @@ func (c *Cli) Run(args []string) error {
 
 func NewCli(GitVersion string, GitCommit string, GitDate string) *Cli {
 	flags := []cli.Flag{ConfigFlag}
-	flags = append(flags, log.CLIFlags("indexer")...)
+	flags = append(flags, log.CLIFlags("INDEXER")...)
 	app := &cli.App{
 		Version:     fmt.Sprintf("%s-%s", GitVersion, params.VersionWithCommit(GitCommit, GitDate)),
 		Description: "An indexer of all optimism events with a serving api layer",
