@@ -667,9 +667,9 @@ contract MIPS {
 
             // j-type j/jal
             if (opcode == 2 || opcode == 3) {
-                // TODO(CLI-4136): likely bug in original code: MIPS spec says this should be in the "current" region;
-                // a 256 MB aligned region (i.e. use top 4 bits of branch delay slot (pc+4))
-                return handleJump(opcode == 2 ? 0 : 31, SE(insn & 0x03FFFFFF, 26) << 2);
+                // Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
+                uint32 target = (state.nextPC & 0xF0000000) | (insn & 0x03FFFFFF) << 2;
+                return handleJump(opcode == 2 ? 0 : 31, target);
             }
 
             // register fetch
@@ -775,7 +775,6 @@ contract MIPS {
         unchecked {
             uint32 opcode = insn >> 26; // 6-bits
             uint32 func = insn & 0x3f; // 6-bits
-            // TODO(CLI-4136): deref the immed into a register
 
             if (opcode < 0x20) {
                 // transform ArithLogI
