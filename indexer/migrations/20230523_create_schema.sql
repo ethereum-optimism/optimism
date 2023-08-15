@@ -188,9 +188,9 @@ CREATE TABLE IF NOT EXISTS l2_bridge_messages(
 CREATE TABLE IF NOT EXISTS l1_bridge_deposits (
     transaction_source_hash VARCHAR PRIMARY KEY REFERENCES l1_transaction_deposits(source_hash),
 
-    -- We allow the cross_domain_messenger_nonce to be NULL-able to account
+    -- We allow the cross_domain_message_hash to be NULL-able to account
     -- for scenarios where ETH is simply sent to the OptimismPortal contract
-    cross_domain_messenger_nonce UINT256 UNIQUE REFERENCES l1_bridge_messages(nonce),
+    cross_domain_message_hash VARCHAR UNIQUE REFERENCES l1_bridge_messages(nonce),
 
     -- Deposit information
 	from_address     VARCHAR NOT NULL,
@@ -204,9 +204,9 @@ CREATE TABLE IF NOT EXISTS l1_bridge_deposits (
 CREATE TABLE IF NOT EXISTS l2_bridge_withdrawals (
     transaction_withdrawal_hash VARCHAR PRIMARY KEY REFERENCES l2_transaction_withdrawals(withdrawal_hash),
 
-    -- We allow the cross_domain_messenger_nonce to be NULL-able to account for
+    -- We allow the cross_domain_message_hash to be NULL-able to account for
     -- scenarios where ETH is simply sent to the L2ToL1MessagePasser contract
-    cross_domain_messenger_nonce UINT256 UNIQUE REFERENCES l2_bridge_messages(nonce),
+    cross_domain_message_hash VARCHAR UNIQUE REFERENCES l2_bridge_messages(nonce),
 
     -- Withdrawal information
 	from_address     VARCHAR NOT NULL,
