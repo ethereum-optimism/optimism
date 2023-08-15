@@ -17,6 +17,10 @@ func (e *ErrFailedPermanently) Error() string {
 	return fmt.Sprintf("operation failed permanently after %d attempts: %v", e.attempts, e.LastErr)
 }
 
+func (e *ErrFailedPermanently) Unwrap() error {
+	return e.LastErr
+}
+
 type pair[T, U any] struct {
 	a T
 	b U
@@ -35,37 +39,27 @@ func Do2[T, U any](ctx context.Context, maxAttempts int, strategy Strategy, op f
 // with delays in between each retry according to the provided
 // Strategy.
 func Do[T any](ctx context.Context, maxAttempts int, strategy Strategy, op func() (T, error)) (T, error) {
-	var empty T
+	var empty, ret T
+	var err error
 	if maxAttempts < 1 {
 		return empty, fmt.Errorf("need at least 1 attempt to run op, but have %d max attempts", maxAttempts)
 	}
-	var attempt int
 
-	reattemptCh := make(chan struct{}, 1)
-	doReattempt := func() {
-		reattemptCh <- struct{}{}
-	}
-	doReattempt()
-
-	for {
-		select {
-		case <-ctx.Done():
+	for i := 0; i < maxAttempts; i++ {
+		if ctx.Err() != nil {
 			return empty, ctx.Err()
-		case <-reattemptCh:
-			attempt++
-			ret, err := op()
-			if err == nil {
-				return ret, nil
-			}
-
-			if attempt == maxAttempts {
-				return empty, &ErrFailedPermanently{
-					attempts: maxAttempts,
-					LastErr:  err,
-				}
-			}
-			time.AfterFunc(strategy.Duration(attempt-1), doReattempt)
 		}
-
+		ret, err = op()
+		if err == nil {
+			return ret, nil
+		}
+		// Don't sleep when we are about to exit the loop & return ErrFailedPermanently
+		if i != maxAttempts-1 {
+			time.Sleep(strategy.Duration(i))
+		}
+	}
+	return empty, &ErrFailedPermanently{
+		attempts: maxAttempts,
+		LastErr:  err,
 	}
 }
