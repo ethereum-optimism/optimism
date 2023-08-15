@@ -384,8 +384,8 @@ func l1ProcessContractEventsBridgeCrossDomainMessages(processLog log.Logger, db 
 		sentMessages[i] = &database.L1BridgeMessage{
 			TransactionSourceHash: depositTx.SourceHash,
 			BridgeMessage: database.BridgeMessage{
-				Nonce:                database.U256{Int: sentMessageEvent.MessageNonce},
 				MessageHash:          sentMessageEvent.MessageHash,
+				Nonce:                database.U256{Int: sentMessageEvent.MessageNonce},
 				SentMessageEventGUID: sentMessageEvent.Event.GUID,
 				GasLimit:             database.U256{Int: sentMessageEvent.GasLimit},
 				Tx: database.Transaction{
@@ -417,7 +417,7 @@ func l1ProcessContractEventsBridgeCrossDomainMessages(processLog log.Logger, db 
 	}
 
 	for _, relayedMessage := range relayedMessageEvents {
-		message, err := db.BridgeMessages.L2BridgeMessageByHash(relayedMessage.MsgHash)
+		message, err := db.BridgeMessages.L2BridgeMessage(relayedMessage.MsgHash)
 		if err != nil {
 			return err
 		} else if message == nil {
