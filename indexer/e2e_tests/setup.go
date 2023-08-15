@@ -5,14 +5,12 @@ import (
 	"database/sql"
 	"fmt"
 	"io/fs"
-	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer"
-	"github.com/ethereum-optimism/optimism/indexer/api"
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/processor"
@@ -30,7 +28,6 @@ type E2ETestSuite struct {
 	t *testing.T
 
 	// Indexer
-	Client  *api.Client
 	DB      *database.DB
 	Indexer *indexer.Indexer
 
@@ -93,10 +90,6 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	indexer, err := indexer.NewIndexer(indexerCfg)
 	require.NoError(t, err)
 
-	client := api.NewClient(
-		&http.Client{},
-		fmt.Sprintf("http://%s:%d", indexerCfg.API.Host, indexerCfg.API.Port))
-
 	indexerStoppedCh := make(chan interface{}, 1)
 	indexerCtx, indexerStop := context.WithCancel(context.Background())
 	go func() {
@@ -117,7 +110,6 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	return E2ETestSuite{
 		t:        t,
 		DB:       db,
-		Client:   client,
 		Indexer:  indexer,
 		OpCfg:    &opCfg,
 		OpSys:    opSys,
