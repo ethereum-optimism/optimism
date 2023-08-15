@@ -897,7 +897,7 @@ jobs:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
       - image: cimg/postgres:14.1
-    resource_class: large
+    resource_class: xlarge
     steps:
       - checkout
       - check-changed:
