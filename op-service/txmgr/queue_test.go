@@ -159,7 +159,7 @@ func TestSend(t *testing.T) {
 				{sendErr: true},
 				{},
 			},
-			nonces: []uint64{0, 1, 1},
+			nonces: []uint64{0, 1},
 			total:  3 * time.Second,
 		},
 	}
