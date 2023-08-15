@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
-	"github.com/ethereum-optimism/optimism/indexer/db"
 	"github.com/ethereum/go-ethereum/common"
 )
 
@@ -30,8 +29,8 @@ func (ec *Client) Close() {
 }
 
 // GetDepositsByAddress returns all associated (L1->L2) deposits for a provided L1 address.
-func (ic *Client) GetDepositsByAddress(addr common.Address) ([]*database.DepositWithTransactionHash, error) {
-	var deposits []*database.DepositWithTransactionHash
+func (ic *Client) GetDepositsByAddress(addr common.Address) ([]*database.L1BridgeDepositWithTransactionHashes, error) {
+	var deposits []*database.L1BridgeDepositWithTransactionHashes
 	resp, err := ic.c.Get(ic.url + depositPath + addr.Hex())
 	if err != nil {
 		return nil, err
@@ -51,8 +50,8 @@ func (ic *Client) GetDepositsByAddress(addr common.Address) ([]*database.Deposit
 }
 
 // GetWithdrawalsByAddress returns all associated (L2->L1) withdrawals for a provided L2 address.
-func (ic *Client) GetWithdrawalsByAddress(addr common.Address) (*db.PaginatedWithdrawals, error) {
-	var deposits *db.PaginatedWithdrawals
+func (ic *Client) GetWithdrawalsByAddress(addr common.Address) ([]*database.L2BridgeWithdrawalWithTransactionHashes, error) {
+	var withdrawals []*database.L2BridgeWithdrawalWithTransactionHashes
 	resp, err := ic.c.Get(ic.url + depositPath + addr.Hex())
 	if err != nil {
 		return nil, err
@@ -64,9 +63,9 @@ func (ic *Client) GetWithdrawalsByAddress(addr common.Address) (*db.PaginatedWit
 		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&deposits); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(&withdrawals); err != nil {
 		return nil, err
 	}
 
-	return deposits, nil
+	return withdrawals, nil
 }
