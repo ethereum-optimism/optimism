@@ -153,8 +153,8 @@ CREATE TABLE IF NOT EXISTS l2_transaction_withdrawals (
 -- CrossDomainMessenger
 CREATE TABLE IF NOT EXISTS l1_bridge_messages(
     nonce                   UINT256 NOT NULL PRIMARY KEY,
-    message_hash            VARCHAR NOT NULL,
-    transaction_source_hash VARCHAR NOT NULL REFERENCES l1_transaction_deposits(source_hash),
+    message_hash            VARCHAR UNIQUE NOT NULL,
+    transaction_source_hash VARCHAR UNIQUE NOT NULL REFERENCES l1_transaction_deposits(source_hash),
 
     sent_message_event_guid    VARCHAR NOT NULL UNIQUE REFERENCES l1_contract_events(guid),
     relayed_message_event_guid VARCHAR UNIQUE REFERENCES l2_contract_events(guid),
@@ -169,8 +169,8 @@ CREATE TABLE IF NOT EXISTS l1_bridge_messages(
 );
 CREATE TABLE IF NOT EXISTS l2_bridge_messages(
     nonce                       UINT256 NOT NULL PRIMARY KEY,
-    message_hash                VARCHAR NOT NULL,
-    transaction_withdrawal_hash VARCHAR NOT NULL REFERENCES l2_transaction_withdrawals(withdrawal_hash),
+    message_hash                VARCHAR UNIQUE NOT NULL,
+    transaction_withdrawal_hash VARCHAR UNIQUE NOT NULL REFERENCES l2_transaction_withdrawals(withdrawal_hash),
 
     sent_message_event_guid    VARCHAR NOT NULL UNIQUE REFERENCES l2_contract_events(guid),
     relayed_message_event_guid VARCHAR UNIQUE REFERENCES l1_contract_events(guid),
@@ -190,7 +190,7 @@ CREATE TABLE IF NOT EXISTS l1_bridge_deposits (
 
     -- We allow the cross_domain_message_hash to be NULL-able to account
     -- for scenarios where ETH is simply sent to the OptimismPortal contract
-    cross_domain_message_hash VARCHAR UNIQUE REFERENCES l1_bridge_messages(nonce),
+    cross_domain_message_hash VARCHAR UNIQUE REFERENCES l1_bridge_messages(message_hash),
 
     -- Deposit information
 	from_address     VARCHAR NOT NULL,
@@ -206,7 +206,7 @@ CREATE TABLE IF NOT EXISTS l2_bridge_withdrawals (
 
     -- We allow the cross_domain_message_hash to be NULL-able to account for
     -- scenarios where ETH is simply sent to the L2ToL1MessagePasser contract
-    cross_domain_message_hash VARCHAR UNIQUE REFERENCES l2_bridge_messages(nonce),
+    cross_domain_message_hash VARCHAR UNIQUE REFERENCES l2_bridge_messages(message_hash),
 
     -- Withdrawal information
 	from_address     VARCHAR NOT NULL,
