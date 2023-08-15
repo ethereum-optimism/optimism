@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -21,17 +20,21 @@ var mockAddress = "0x4204204204204204204204204204204204204204"
 
 var (
 	deposit = database.L1BridgeDeposit{
-		TransactionSourceHash:     common.HexToHash("abc"),
-		CrossDomainMessengerNonce: &database.U256{Int: big.NewInt(0)},
-		Tx:                        database.Transaction{},
-		TokenPair:                 database.TokenPair{},
+		TransactionSourceHash: common.HexToHash("abc"),
+		BridgeTransfer: database.BridgeTransfer{
+			CrossDomainMessageHash: &common.Hash{},
+			Tx:                     database.Transaction{},
+			TokenPair:              database.TokenPair{},
+		},
 	}
 
 	withdrawal = database.L2BridgeWithdrawal{
 		TransactionWithdrawalHash: common.HexToHash("0x420"),
-		CrossDomainMessengerNonce: &database.U256{Int: big.NewInt(0)},
-		Tx:                        database.Transaction{},
-		TokenPair:                 database.TokenPair{},
+		BridgeTransfer: database.BridgeTransfer{
+			CrossDomainMessageHash: &common.Hash{},
+			Tx:                     database.Transaction{},
+			TokenPair:              database.TokenPair{},
+		},
 	}
 )
 
@@ -39,7 +42,7 @@ func (mbv *MockBridgeTransfersView) L1BridgeDeposit(hash common.Hash) (*database
 	return &deposit, nil
 }
 
-func (mbv *MockBridgeTransfersView) L1BridgeDepositByCrossDomainMessengerNonce(nonce *big.Int) (*database.L1BridgeDeposit, error) {
+func (mbv *MockBridgeTransfersView) L1BridgeDepositWithFilter(filter database.BridgeTransfer) (*database.L1BridgeDeposit, error) {
 	return &deposit, nil
 }
 
@@ -56,7 +59,7 @@ func (mbv *MockBridgeTransfersView) L2BridgeWithdrawal(address common.Hash) (*da
 	return &withdrawal, nil
 }
 
-func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalByCrossDomainMessengerNonce(nonce *big.Int) (*database.L2BridgeWithdrawal, error) {
+func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalWithFilter(filter database.BridgeTransfer) (*database.L2BridgeWithdrawal, error) {
 	return &withdrawal, nil
 }
 
