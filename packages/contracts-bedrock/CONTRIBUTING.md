@@ -44,7 +44,7 @@ Enhancement suggestions are tracked as [GitHub issues](/issues).
 - Use a **clear and descriptive title** for the issue to identify the suggestion.
 - Provide a **step-by-step** description of the suggested enhancement in as many details as possible.
 - Describe the **current** behavior and why the **intended** behavior you expected to see differs. At this point you can also tell which alternatives do not work for you.
-- **Explain why this enhancement would be useful** in Optimism's smart contracts. You may also want to point out the other projects that solved it better and which could serve as inspiration.
+- Explain why this enhancement would be useful in Optimism's smart contracts. You may also want to point out the other projects that solved it better and which could serve as inspiration.
 
 ### Your First Code Contribution
 
