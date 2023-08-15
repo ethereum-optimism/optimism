@@ -14,17 +14,17 @@ import (
 type OptimismPortalTransactionDepositEvent struct {
 	*bindings.OptimismPortalTransactionDeposited
 	DepositTx *types.DepositTx
-	RawEvent  *database.ContractEvent
+	Event     *database.ContractEvent
 }
 
 type OptimismPortalWithdrawalProvenEvent struct {
 	*bindings.OptimismPortalWithdrawalProven
-	RawEvent *database.ContractEvent
+	Event *database.ContractEvent
 }
 
 type OptimismPortalWithdrawalFinalizedEvent struct {
 	*bindings.OptimismPortalWithdrawalFinalized
-	RawEvent *database.ContractEvent
+	Event *database.ContractEvent
 }
 
 type OptimismPortalProvenWithdrawal struct {
@@ -47,7 +47,7 @@ func OptimismPortalTransactionDepositEvents(events *ProcessedContractEvents) ([]
 	processedTxDepositedEvents := events.eventsBySignature[derive.DepositEventABIHash]
 	txDeposits := make([]OptimismPortalTransactionDepositEvent, len(processedTxDepositedEvents))
 	for i, txDepositEvent := range processedTxDepositedEvents {
-		log := txDepositEvent.GethLog
+		log := txDepositEvent.RLPLog
 
 		depositTx, err := derive.UnmarshalDepositLogEvent(log)
 		if err != nil {
@@ -64,7 +64,7 @@ func OptimismPortalTransactionDepositEvents(events *ProcessedContractEvents) ([]
 		txDeposits[i] = OptimismPortalTransactionDepositEvent{
 			OptimismPortalTransactionDeposited: &txDeposit,
 			DepositTx:                          depositTx,
-			RawEvent:                           txDepositEvent,
+			Event:                              txDepositEvent,
 		}
 	}
 
@@ -81,7 +81,7 @@ func OptimismPortalWithdrawalProvenEvents(events *ProcessedContractEvents) ([]Op
 	processedWithdrawalProvenEvents := events.eventsBySignature[optimismPortalAbi.Events[eventName].ID]
 	provenEvents := make([]OptimismPortalWithdrawalProvenEvent, len(processedWithdrawalProvenEvents))
 	for i, provenEvent := range processedWithdrawalProvenEvents {
-		log := provenEvent.GethLog
+		log := provenEvent.RLPLog
 
 		var withdrawalProven bindings.OptimismPortalWithdrawalProven
 		withdrawalProven.Raw = *log
@@ -92,7 +92,7 @@ func OptimismPortalWithdrawalProvenEvents(events *ProcessedContractEvents) ([]Op
 
 		provenEvents[i] = OptimismPortalWithdrawalProvenEvent{
 			OptimismPortalWithdrawalProven: &withdrawalProven,
-			RawEvent:                       provenEvent,
+			Event:                          provenEvent,
 		}
 	}
 
@@ -109,7 +109,7 @@ func OptimismPortalWithdrawalFinalizedEvents(events *ProcessedContractEvents) ([
 	processedWithdrawalFinalizedEvents := events.eventsBySignature[optimismPortalAbi.Events[eventName].ID]
 	finalizedEvents := make([]OptimismPortalWithdrawalFinalizedEvent, len(processedWithdrawalFinalizedEvents))
 	for i, finalizedEvent := range processedWithdrawalFinalizedEvents {
-		log := finalizedEvent.GethLog
+		log := finalizedEvent.RLPLog
 
 		var withdrawalFinalized bindings.OptimismPortalWithdrawalFinalized
 		err := UnpackLog(&withdrawalFinalized, log, eventName, optimismPortalAbi)
@@ -119,7 +119,7 @@ func OptimismPortalWithdrawalFinalizedEvents(events *ProcessedContractEvents) ([
 
 		finalizedEvents[i] = OptimismPortalWithdrawalFinalizedEvent{
 			OptimismPortalWithdrawalFinalized: &withdrawalFinalized,
-			RawEvent:                          finalizedEvent,
+			Event:                             finalizedEvent,
 		}
 	}
 

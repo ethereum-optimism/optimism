@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
-	"github.com/ethereum-optimism/optimism/op-service/client/utils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -34,7 +34,7 @@ func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
 func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	err := utils.WaitFor(ctx, time.Second, func() (bool, error) {
+	err := wait.For(ctx, time.Second, func() (bool, error) {
 		actual, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
 		if err != nil {
 			return false, err
@@ -62,7 +62,7 @@ func (g *FaultGameHelper) MaxDepth(ctx context.Context) int64 {
 func (g *FaultGameHelper) WaitForClaim(ctx context.Context, predicate func(claim ContractClaim) bool) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	err := utils.WaitFor(ctx, time.Second, func() (bool, error) {
+	err := wait.For(ctx, time.Second, func() (bool, error) {
 		count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
 		if err != nil {
 			return false, fmt.Errorf("retrieve number of claims: %w", err)
@@ -105,7 +105,7 @@ func (g *FaultGameHelper) Resolve(ctx context.Context) {
 	defer cancel()
 	tx, err := g.game.Resolve(g.opts)
 	g.require.NoError(err)
-	_, err = utils.WaitReceiptOK(ctx, g.client, tx.Hash())
+	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err)
 }
 
@@ -113,7 +113,7 @@ func (g *FaultGameHelper) WaitForGameStatus(ctx context.Context, expected Status
 	g.t.Logf("Waiting for game %v to have status %v", g.addr, expected)
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	err := utils.WaitFor(ctx, time.Second, func() (bool, error) {
+	err := wait.For(ctx, time.Second, func() (bool, error) {
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		status, err := g.game.Status(&bind.CallOpts{Context: ctx})
@@ -129,14 +129,14 @@ func (g *FaultGameHelper) WaitForGameStatus(ctx context.Context, expected Status
 func (g *FaultGameHelper) Attack(ctx context.Context, claimIdx int64, claim common.Hash) {
 	tx, err := g.game.Attack(g.opts, big.NewInt(claimIdx), claim)
 	g.require.NoError(err, "Attack transaction did not send")
-	_, err = utils.WaitReceiptOK(ctx, g.client, tx.Hash())
+	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err, "Attack transaction was not OK")
 }
 
 func (g *FaultGameHelper) Defend(ctx context.Context, claimIdx int64, claim common.Hash) {
 	tx, err := g.game.Defend(g.opts, big.NewInt(claimIdx), claim)
 	g.require.NoError(err, "Defend transaction did not send")
-	_, err = utils.WaitReceiptOK(ctx, g.client, tx.Hash())
+	_, err = wait.ForReceiptOK(ctx, g.client, tx.Hash())
 	g.require.NoError(err, "Defend transaction was not OK")
 }
 

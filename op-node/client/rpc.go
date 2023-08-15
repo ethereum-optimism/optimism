@@ -122,7 +122,19 @@ func IsURLAvailable(address string) bool {
 	if err != nil {
 		return false
 	}
-	conn, err := net.DialTimeout("tcp", u.Host, 5*time.Second)
+	addr := u.Host
+	if u.Port() == "" {
+		switch u.Scheme {
+		case "http", "ws":
+			addr += ":80"
+		case "https", "wss":
+			addr += ":443"
+		default:
+			// Fail open if we can't figure out what the port should be
+			return true
+		}
+	}
+	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
 	if err != nil {
 		return false
 	}

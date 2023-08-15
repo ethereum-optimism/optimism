@@ -2,13 +2,16 @@ import fs from 'fs'
 import path from 'path'
 import { execSync } from 'child_process'
 
+type Check = (parts: string[]) => boolean
+type Checks = Array<{
+  check: Check
+  error: string
+}>
+
 /**
  * Series of function name checks.
  */
-const checks: Array<{
-  check: (parts: string[]) => boolean
-  error: string
-}> = [
+const checks: Checks = [
   {
     error: 'test name parts should be in camelCase',
     check: (parts: string[]): boolean => {

@@ -13,8 +13,8 @@ error InvalidLength();
 error InvalidSignature();
 error NotFound();
 
-/// @dev A struct representing EIP712 signature data.
-struct EIP712Signature {
+/// @dev A struct representing ECDSA signature data.
+struct Signature {
     uint8 v; // The recovery ID.
     bytes32 r; // The x-coordinate of the nonce R.
     bytes32 s; // The signature data.
