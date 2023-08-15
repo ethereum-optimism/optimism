@@ -81,7 +81,7 @@ func NewL1Processor(logger log.Logger, ethClient node.EthClient, db *database.DB
 }
 
 func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts config.L1Contracts, checkpointAbi checkpointAbi) ProcessFn {
-	rawEthClient := ethclient.NewClient(ethClient.RawRpcClient())
+	rawEthClient := ethclient.NewClient(ethClient.GethRpcClient())
 
 	contractAddrs := l1Contracts.ToSlice()
 	processLog.Info("processor configured with contracts", "contracts", l1Contracts)
@@ -254,7 +254,7 @@ func l1ProcessContractEventsBridgeTransactions(processLog log.Logger, db *databa
 			GasLimit:             database.U256{Int: new(big.Int).SetUint64(depositTx.Gas)},
 			Tx: database.Transaction{
 				FromAddress: depositTx.From,
-				ToAddress:   depositTx.From,
+				ToAddress:   *depositTx.To,
 				Amount:      database.U256{Int: depositTx.Value},
 				Data:        depositTx.Data,
 				Timestamp:   depositEvent.Event.Timestamp,

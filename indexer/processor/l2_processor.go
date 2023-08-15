@@ -93,7 +93,7 @@ func NewL2Processor(logger log.Logger, ethClient node.EthClient, db *database.DB
 }
 
 func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2Contracts) ProcessFn {
-	rawEthClient := ethclient.NewClient(ethClient.RawRpcClient())
+	rawEthClient := ethclient.NewClient(ethClient.GethRpcClient())
 
 	contractAddrs := l2Contracts.ToSlice()
 	processLog.Info("processor configured with contracts", "contracts", l2Contracts)

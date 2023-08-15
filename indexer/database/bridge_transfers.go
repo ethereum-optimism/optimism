@@ -213,3 +213,24 @@ finalized_l1_contract_events.transaction_hash AS finalized_l1_transaction_hash`)
 
 	return withdrawals, nil
 }
+
+/*
+// LatestEpoch returns the latest epoch in which a deposit or withdrawal was observed
+func (db *bridgeTransfersDB) LatestEpoch() (*Epoch, error) {
+	var deposit L1BridgeDeposit
+	result := db.gorm.Table("l1_bridge_deposits").Order("l1_bridge_deposits.timestamp DESC").Take(&deposit)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+
+	depositsQuery := db.gorm.Table("l1_bridge_deposits").Select("MAX(l1_bridge_deposits.timestamp) as latest_deposit_time")
+	depositsQuery = depositsQuery.Joins("l1_block_headers").Where("l1_block_headers.timestamp <= latest_deposit_time")
+	depositsQuery = depositsQuery.Joins("INNER JOIN l2_block_headers ON l1_block_headers.timestamp = l2_block_headers.timestamp")
+	depositsQuery = depositsQuery.Select("l1_block_headers.*")
+
+	return nil, nil
+}
+*/

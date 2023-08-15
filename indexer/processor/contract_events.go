@@ -20,6 +20,8 @@ type ProcessedContractEvents struct {
 	events            []*database.ContractEvent
 	eventsBySignature map[common.Hash][]*database.ContractEvent
 	eventByLogIndex   map[ProcessedContractEventLogIndexKey]*database.ContractEvent
+
+	eventBlocks map[common.Hash]bool
 }
 
 func NewProcessedContractEvents() *ProcessedContractEvents {
@@ -27,6 +29,8 @@ func NewProcessedContractEvents() *ProcessedContractEvents {
 		events:            []*database.ContractEvent{},
 		eventsBySignature: make(map[common.Hash][]*database.ContractEvent),
 		eventByLogIndex:   make(map[ProcessedContractEventLogIndexKey]*database.ContractEvent),
+
+		eventBlocks: make(map[common.Hash]bool),
 	}
 }
 
@@ -35,6 +39,7 @@ func (p *ProcessedContractEvents) AddLog(log *types.Log, time uint64) *database.
 	emptyHash := common.Hash{}
 
 	p.events = append(p.events, &event)
+	p.eventBlocks[log.BlockHash] = true
 	p.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index}] = &event
 	if event.EventSignature != emptyHash {
 		p.eventsBySignature[event.EventSignature] = append(p.eventsBySignature[event.EventSignature], &event)

@@ -86,12 +86,7 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 
 	db, err := database.NewDB(indexerCfg.DB)
 	require.NoError(t, err)
-	indexer, err := indexer.NewIndexer(
-		indexerCfg.Chain,
-		indexerCfg.RPCs,
-		db,
-		logger,
-	)
+	indexer, err := indexer.NewIndexer(logger, indexerCfg.Chain, indexerCfg.RPCs, db)
 	require.NoError(t, err)
 
 	indexerStoppedCh := make(chan interface{}, 1)

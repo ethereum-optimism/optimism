@@ -38,11 +38,11 @@ func BlockHeaderFromHeader(header *types.Header) BlockHeader {
 }
 
 type L1BlockHeader struct {
-	BlockHeader
+	BlockHeader `gorm:"embedded"`
 }
 
 type L2BlockHeader struct {
-	BlockHeader
+	BlockHeader `gorm:"embedded"`
 }
 
 type LegacyStateBatch struct {
@@ -73,6 +73,8 @@ type BlocksView interface {
 
 	L2BlockHeader(*big.Int) (*L2BlockHeader, error)
 	LatestL2BlockHeader() (*L2BlockHeader, error)
+
+	LatestEpoch() (*Epoch, error)
 }
 
 type BlocksDB interface {
@@ -198,10 +200,37 @@ func (db *blocksDB) LatestL2BlockHeader() (*L2BlockHeader, error) {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
-
 		return nil, result.Error
 	}
 
 	result.Logger.Info(context.Background(), "number ", l2Header.Number)
 	return &l2Header, nil
+}
+
+// Auxilliary Methods on both L1 & L2
+
+type Epoch struct {
+	L1BlockHeader L1BlockHeader `gorm:"embedded"`
+	L2BlockHeader L2BlockHeader `gorm:"embedded"`
+}
+
+// LatestEpoch return the latest epoch that has been seen on BOTH L1 & L2
+func (db *blocksDB) LatestEpoch() (*Epoch, error) {
+	// Since L1 blocks occur less frequently than L2, we do a INNER JOIN from L1 on
+	// L2 for a faster query. Per the protocol, the L2 block that starts a new epoch
+	// will have a matching timestamp with the L1 origin.
+	query := db.gorm.Table("l1_block_headers").Order("l1_block_headers.timestamp DESC")
+	query = query.Joins("INNER JOIN l2_block_headers ON l1_block_headers.timestamp = l2_block_headers.timestamp")
+	query = query.Select("*")
+
+	var epoch Epoch
+	result := query.Take(&epoch)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+
+	return &epoch, nil
 }

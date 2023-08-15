@@ -80,6 +80,9 @@ type ContractEventsView interface {
 	L2ContractEvent(uuid.UUID) (*L2ContractEvent, error)
 	L2ContractEventByTxLogIndex(common.Hash, uint64) (*L2ContractEvent, error)
 	L2ContractEventsWithFilter(ContractEvent, *big.Int, *big.Int) ([]L2ContractEvent, error)
+
+	// TEMP -- will clean up this code
+	ContractEventsWithFilter(ContractEvent, string, *big.Int, *big.Int) ([]ContractEvent, error)
 }
 
 type ContractEventsDB interface {
@@ -217,4 +220,33 @@ func (db *contractEventsDB) L2ContractEventsWithFilter(filter ContractEvent, fro
 	}
 
 	return events, nil
+}
+
+// Auxilliary methods for both L1 and L2
+
+func (db *contractEventsDB) ContractEventsWithFilter(filter ContractEvent, chain string, fromHeight, toHeight *big.Int) ([]ContractEvent, error) {
+	switch chain {
+	case "l1":
+		l1Events, err := db.L1ContractEventsWithFilter(filter, fromHeight, toHeight)
+		if err != nil {
+			return nil, err
+		}
+		events := make([]ContractEvent, len(l1Events))
+		for i := range l1Events {
+			events[i] = l1Events[i].ContractEvent
+		}
+		return events, nil
+	case "l2":
+		l2Events, err := db.L2ContractEventsWithFilter(filter, fromHeight, toHeight)
+		if err != nil {
+			return nil, err
+		}
+		events := make([]ContractEvent, len(l2Events))
+		for i := range l2Events {
+			events[i] = l2Events[i].ContractEvent
+		}
+		return events, nil
+	default:
+		return nil, errors.New("expected 'l1' or 'l2' for chain type")
+	}
 }

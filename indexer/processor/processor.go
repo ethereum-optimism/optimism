@@ -48,8 +48,8 @@ func (p *processor) Start(ctx context.Context) error {
 			return nil
 
 		case <-pollTicker.C:
-			if p.paused {
-				p.processLog.Warn("processor is paused...")
+			if true {
+				p.processLog.Warn("processor is no-op...")
 				continue
 			}
 

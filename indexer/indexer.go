@@ -3,6 +3,7 @@ package indexer
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -21,16 +22,26 @@ type Indexer struct {
 
 	L1Processor *processor.L1Processor
 	L2Processor *processor.L2Processor
+
+	L1ETL *processor.L1ETL
+	L2ETL *processor.L2ETL
+
+	BridgeProcessor *processor.BridgeProcessor
 }
 
 // NewIndexer initializes an instance of the Indexer
-func NewIndexer(chainConfig config.ChainConfig, rpcsConfig config.RPCsConfig, db *database.DB, logger log.Logger) (*Indexer, error) {
+func NewIndexer(logger log.Logger, chainConfig config.ChainConfig, rpcsConfig config.RPCsConfig, db *database.DB) (*Indexer, error) {
 	l1Contracts := chainConfig.L1Contracts
 	l1EthClient, err := node.DialEthClient(rpcsConfig.L1RPC)
 	if err != nil {
 		return nil, err
 	}
 	l1Processor, err := processor.NewL1Processor(logger, l1EthClient, db, l1Contracts)
+	if err != nil {
+		return nil, err
+	}
+
+	l1Etl, err := processor.NewL1ETL(logger, db, l1EthClient)
 	if err != nil {
 		return nil, err
 	}
@@ -46,11 +57,26 @@ func NewIndexer(chainConfig config.ChainConfig, rpcsConfig config.RPCsConfig, db
 		return nil, err
 	}
 
+	l2Etl, err := processor.NewL2ETL(logger, db, l2EthClient)
+	if err != nil {
+		return nil, err
+	}
+
+	bridgeProcessor, err := processor.NewBridgeProcessor(logger, db)
+	if err != nil {
+		return nil, err
+	}
+
 	indexer := &Indexer{
 		db:          db,
 		log:         logger,
 		L1Processor: l1Processor,
 		L2Processor: l2Processor,
+
+		L1ETL: l1Etl,
+		L2ETL: l2Etl,
+
+		BridgeProcessor: bridgeProcessor,
 	}
 
 	return indexer, nil
@@ -59,25 +85,26 @@ func NewIndexer(chainConfig config.ChainConfig, rpcsConfig config.RPCsConfig, db
 // Start starts the indexing service on L1 and L2 chains
 func (i *Indexer) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
-	errCh := make(chan error, 1)
+	errCh := make(chan error, 5)
 
 	// If either processor errors out, we stop
-	processorCtx, cancel := context.WithCancel(ctx)
+	subCtx, cancel := context.WithCancel(ctx)
 	run := func(start func(ctx context.Context) error) {
 		wg.Add(1)
 		defer func() {
 			if err := recover(); err != nil {
 				i.log.Error("halting indexer on panic", "err", err)
+				debug.PrintStack()
 				errCh <- fmt.Errorf("panic: %v", err)
 			}
 
+			cancel()
 			wg.Done()
 		}()
 
-		err := start(processorCtx)
+		err := start(subCtx)
 		if err != nil {
 			i.log.Error("halting indexer on error", "err", err)
-			cancel()
 		}
 
 		// Send a value down regardless if we've received an error or halted
@@ -88,10 +115,15 @@ func (i *Indexer) Run(ctx context.Context) error {
 	// Kick off the processors
 	go run(i.L1Processor.Start)
 	go run(i.L2Processor.Start)
+	go run(i.L1ETL.Start)
+	go run(i.L2ETL.Start)
+	go run(i.BridgeProcessor.Start)
 	err := <-errCh
 
-	// ensure both processors have halted before returning
+	// ensure all go routines have stopped
 	wg.Wait()
+
+	i.log.Info("indexer stopped")
 	return err
 }
 

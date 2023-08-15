@@ -32,7 +32,8 @@ type EthClient interface {
 
 	StorageHash(common.Address, *big.Int) (common.Hash, error)
 
-	RawRpcClient() *rpc.Client
+	GethRpcClient() *rpc.Client
+	GethEthClient() *ethclient.Client
 }
 
 type client struct {
@@ -56,8 +57,12 @@ func NewEthClient(rpcClient *rpc.Client) EthClient {
 	return &client{rpcClient}
 }
 
-func (c *client) RawRpcClient() *rpc.Client {
+func (c *client) GethRpcClient() *rpc.Client {
 	return c.rpcClient
+}
+
+func (c *client) GethEthClient() *ethclient.Client {
+	return ethclient.NewClient(c.GethRpcClient())
 }
 
 // FinalizedBlockHeight retrieves the latest block height in a finalized state

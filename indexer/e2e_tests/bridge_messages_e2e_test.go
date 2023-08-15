@@ -46,8 +46,8 @@ func TestE2EBridgeL1CrossDomainMessenger(t *testing.T) {
 
 	// wait for processor catchup
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
-		return l1Header != nil && l1Header.Number.Uint64() >= sentMsgReceipt.BlockNumber.Uint64(), nil
+		lastEpoch := testSuite.Indexer.BridgeProcessor.LastEpoch
+		return lastEpoch != nil && lastEpoch.L1BlockHeader.Number.Int.Uint64() >= sentMsgReceipt.BlockNumber.Uint64(), nil
 	}))
 
 	parsedMessage, err := e2etest_utils.ParseCrossDomainMessage(sentMsgReceipt)
@@ -79,8 +79,8 @@ func TestE2EBridgeL1CrossDomainMessenger(t *testing.T) {
 	depositReceipt, err := wait.ForReceiptOK(context.Background(), testSuite.L2Client, transaction.L2TransactionHash)
 	require.NoError(t, err)
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l2Header := testSuite.Indexer.L2Processor.LatestProcessedHeader()
-		return l2Header != nil && l2Header.Number.Uint64() >= depositReceipt.BlockNumber.Uint64(), nil
+		lastEpoch := testSuite.Indexer.BridgeProcessor.LastEpoch
+		return lastEpoch != nil && lastEpoch.L1BlockHeader.Number.Int.Uint64() >= depositReceipt.BlockNumber.Uint64(), nil
 	}))
 
 	sentMessage, err = testSuite.DB.BridgeMessages.L1BridgeMessage(parsedMessage.MessageHash)
@@ -132,8 +132,8 @@ func TestE2EBridgeL2CrossDomainMessenger(t *testing.T) {
 
 	// wait for processor catchup
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l2Header := testSuite.Indexer.L2Processor.LatestProcessedHeader()
-		return l2Header != nil && l2Header.Number.Uint64() >= sentMsgReceipt.BlockNumber.Uint64(), nil
+		lastEpoch := testSuite.Indexer.BridgeProcessor.LastEpoch
+		return lastEpoch != nil && lastEpoch.L2BlockHeader.Number.Int.Uint64() >= sentMsgReceipt.BlockNumber.Uint64(), nil
 	}))
 
 	parsedMessage, err := e2etest_utils.ParseCrossDomainMessage(sentMsgReceipt)
@@ -161,8 +161,8 @@ func TestE2EBridgeL2CrossDomainMessenger(t *testing.T) {
 
 	// wait for processor catchup
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {
-		l1Header := testSuite.Indexer.L1Processor.LatestProcessedHeader()
-		return l1Header != nil && l1Header.Number.Uint64() >= finalizedReceipt.BlockNumber.Uint64(), nil
+		lastEpoch := testSuite.Indexer.BridgeProcessor.LastEpoch
+		return lastEpoch != nil && lastEpoch.L1BlockHeader.Number.Int.Uint64() >= finalizedReceipt.BlockNumber.Uint64(), nil
 	}))
 
 	// message is marked as relayed

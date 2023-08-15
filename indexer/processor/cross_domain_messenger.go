@@ -62,14 +62,14 @@ func CrossDomainMessengerSentMessageEvents(events *ProcessedContractEvents) ([]C
 	for i, sentMessageEvent := range processedSentMessageEvents {
 		log := sentMessageEvent.RLPLog
 
-		var sentMsgData bindings.CrossDomainMessengerSentMessage
+		sentMsgData := bindings.CrossDomainMessengerSentMessage{Raw: *sentMessageEvent.RLPLog}
 		sentMsgData.Raw = *log
 		err = UnpackLog(&sentMsgData, log, sentMessageEventAbi.Name, crossDomainMessengerABI)
 		if err != nil {
 			return nil, err
 		}
 
-		var sentMsgExtensionData bindings.CrossDomainMessengerSentMessageExtension1
+		sentMsgExtensionData := bindings.CrossDomainMessengerSentMessageExtension1{Raw: *sentMessageEvent.RLPLog}
 		extensionLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 1}].RLPLog
 		sentMsgExtensionData.Raw = *extensionLog
 		err = UnpackLog(&sentMsgExtensionData, extensionLog, sentMessageEventExtensionAbi.Name, crossDomainMessengerABI)
@@ -91,6 +91,63 @@ func CrossDomainMessengerSentMessageEvents(events *ProcessedContractEvents) ([]C
 	}
 
 	return crossDomainMessageEvents, nil
+}
+
+func CrossDomainMessengerSentMessageEvents2(contractAddress common.Address, chain string, db *database.DB, fromHeight, toHeight *big.Int) ([]CrossDomainMessengerSentMessageEvent, error) {
+	crossDomainMessengerAbi, err := bindings.CrossDomainMessengerMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+
+	sentMessageEventAbi := crossDomainMessengerAbi.Events["SentMessage"]
+	contractEventFilter := database.ContractEvent{ContractAddress: contractAddress, EventSignature: sentMessageEventAbi.ID}
+	sentMessageEvents, err := db.ContractEvents.ContractEventsWithFilter(contractEventFilter, chain, fromHeight, toHeight)
+	if err != nil {
+		return nil, err
+	}
+	if len(sentMessageEvents) == 0 {
+		// prevent the following db queries if we dont need them
+		return nil, nil
+	}
+
+	sentMessageExtensionEventAbi := crossDomainMessengerAbi.Events["SentMessageExtension1"]
+	contractEventFilter = database.ContractEvent{ContractAddress: contractAddress, EventSignature: sentMessageExtensionEventAbi.ID}
+	sentMessageExtensionEvents, err := db.ContractEvents.ContractEventsWithFilter(contractEventFilter, chain, fromHeight, toHeight)
+	if err != nil {
+		return nil, err
+	}
+	if len(sentMessageEvents) != len(sentMessageExtensionEvents) {
+		return nil, fmt.Errorf("mismatch in SentMessage events. %d sent messages & %d sent message extensions", len(sentMessageEvents), len(sentMessageExtensionEvents))
+	}
+
+	crossDomainSentMessages := make([]CrossDomainMessengerSentMessageEvent, len(sentMessageEvents))
+	for i := range sentMessageEvents {
+		var sentMessage bindings.CrossDomainMessengerSentMessage
+		err = UnpackLog(&sentMessage, sentMessageEvents[i].RLPLog, sentMessageEventAbi.Name, crossDomainMessengerAbi)
+		if err != nil {
+			return nil, err
+		}
+		var sentMessageExtension bindings.CrossDomainMessengerSentMessageExtension1
+		err = UnpackLog(&sentMessageExtension, sentMessageExtensionEvents[i].RLPLog, sentMessageExtensionEventAbi.Name, crossDomainMessengerAbi)
+		if err != nil {
+			return nil, err
+		}
+
+		msgHash, err := CrossDomainMessageHash(crossDomainMessengerAbi, &sentMessage, sentMessageExtension.Value)
+		if err != nil {
+			return nil, err
+		}
+
+		crossDomainSentMessages[i] = CrossDomainMessengerSentMessageEvent{
+			CrossDomainMessengerSentMessage: &sentMessage,
+			Value:                           sentMessageExtension.Value,
+			MessageHash:                     msgHash,
+			Event:                           &sentMessageEvents[i],
+		}
+
+	}
+
+	return crossDomainSentMessages, nil
 }
 
 func CrossDomainMessengerRelayedMessageEvents(events *ProcessedContractEvents) ([]CrossDomainMessengerRelayedMessageEvent, error) {
@@ -119,6 +176,36 @@ func CrossDomainMessengerRelayedMessageEvents(events *ProcessedContractEvents) (
 	}
 
 	return crossDomainMessageEvents, nil
+}
+
+func CrossDomainMessengerRelayedMessageEvents2(contractAddress common.Address, chain string, db *database.DB, fromHeight, toHeight *big.Int) ([]CrossDomainMessengerRelayedMessageEvent, error) {
+	crossDomainMessengerABI, err := bindings.L1CrossDomainMessengerMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+
+	relayedMessageEventAbi := crossDomainMessengerABI.Events["RelayedMessage"]
+	contractEventFilter := database.ContractEvent{ContractAddress: contractAddress, EventSignature: relayedMessageEventAbi.ID}
+	relayedMessageEvents, err := db.ContractEvents.ContractEventsWithFilter(contractEventFilter, chain, fromHeight, toHeight)
+	if err != nil {
+		return nil, err
+	}
+
+	crossDomainRelayedMessages := make([]CrossDomainMessengerRelayedMessageEvent, len(relayedMessageEvents))
+	for i := range relayedMessageEvents {
+		relayedMsgData := bindings.CrossDomainMessengerRelayedMessage{Raw: *relayedMessageEvents[i].RLPLog}
+		err = UnpackLog(&relayedMsgData, relayedMessageEvents[i].RLPLog, relayedMessageEventAbi.Name, crossDomainMessengerABI)
+		if err != nil {
+			return nil, err
+		}
+
+		crossDomainRelayedMessages[i] = CrossDomainMessengerRelayedMessageEvent{
+			CrossDomainMessengerRelayedMessage: &relayedMsgData,
+			Event:                              &relayedMessageEvents[i],
+		}
+	}
+
+	return crossDomainRelayedMessages, nil
 }
 
 // Replica of `Hashing.sol#hashCrossDomainMessage` solidity implementation
