@@ -5,7 +5,12 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/common"
+)
+
+var (
+	ETHTokenPair = TokenPair{L1TokenAddress: predeploys.LegacyERC20ETHAddr, L2TokenAddress: predeploys.LegacyERC20ETHAddr}
 )
 
 /**
@@ -18,7 +23,7 @@ type TokenPair struct {
 }
 
 type BridgeTransfer struct {
-	CrossDomainMessageHash *common.Hash
+	CrossDomainMessageHash *common.Hash `gorm:"serializer:json"`
 
 	Tx        Transaction `gorm:"embedded"`
 	TokenPair TokenPair   `gorm:"embedded"`
