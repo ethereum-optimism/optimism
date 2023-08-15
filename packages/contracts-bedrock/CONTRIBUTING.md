@@ -20,7 +20,7 @@ We welcome and appreciate all kinds of contributions. Refer to the Table of Cont
 > **Note**
 > Before making an issue, please read the documentation and search the issues to see if your question has already been answered.
 
-If you have any questions about the smart contracts, please feel free to ask them in the Optimism discord developer channels or in the issues of the monorepo.
+If you have any questions about the smart contracts, please feel free to ask them in the Optimism discord developer channels or create a new detailed issue.
 
 ## I Want To Contribute
 
