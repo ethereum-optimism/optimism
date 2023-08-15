@@ -330,10 +330,6 @@ jobs:
           name: print forge version
           command: forge --version
           working_directory: packages/contracts-bedrock
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: test and generate coverage
           command: pnpm coverage:lcov
@@ -355,10 +351,6 @@ jobs:
       - checkout
       - check-changed:
           patterns: contracts-bedrock,op-node
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: print forge version
           command: forge --version
@@ -383,10 +375,6 @@ jobs:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock,op-node
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: build contracts
           command: pnpm build
@@ -469,10 +457,6 @@ jobs:
       - checkout
       - check-changed:
           patterns: contracts-bedrock
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: slither
           command: |
@@ -499,69 +483,12 @@ jobs:
           command: pnpm validate-spacers
           working_directory: packages/contracts-bedrock
 
-  bedrock-echidna-build:
-    docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - check-changed:
-          patterns: contracts-bedrock
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
-      - run:
-          name: Compile with metadata hash
-          command: pnpm clean && pnpm build:with-metadata
-          working_directory: packages/contracts-bedrock
-      - persist_to_workspace:
-          root: .
-          paths:
-            - "node_modules"
-            - packages/contracts-bedrock
-
-  bedrock-echidna-run:
-    docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    parameters:
-      echidna_target:
-        description: Which echidna fuzz contract to run
-        type: string
-      size:
-        description: Custom resource class size for the run
-        type: string
-        default: large
-    resource_class: <<parameters.size>>
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      - check-changed:
-          patterns: contracts-bedrock
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
-      - run:
-          name: Echidna Fuzz <<parameters.echidna_target>>
-          command: pnpm echidna:<<parameters.echidna_target>>
-          working_directory: packages/contracts-bedrock
-          no_output_timeout: 15m
-
   op-bindings-build:
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: large
     steps:
       - checkout
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: check go bindings
           command: make && git diff --exit-code
@@ -695,10 +622,6 @@ jobs:
           command: |
             npm i pnpm --global
       - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
-      - run:
           name: pnpm dev deps
           command: pnpm install --frozen-lockfile --prefer-offline
       - run:
@@ -794,10 +717,6 @@ jobs:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: packages
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: Check common-ts
           command: npx depcheck
@@ -917,10 +836,6 @@ jobs:
       - checkout
       - check-changed:
           patterns: <<parameters.working_directory>>,<<parameters.dependencies>>
-      # populate node modules from the cache
-      - run:
-          name: Install dependencies
-          command: pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: Lint
           command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 2m -e "errors.As" -e "errors.Is" ./...
