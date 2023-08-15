@@ -1,6 +1,7 @@
 package txmgr
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -13,7 +14,6 @@ import (
 	ethawskmssigner "github.com/welthee/go-ethereum-aws-kms-tx-signer"
 )
 
-//go:generate mockery --name KmsManager --output ./mocks
 type KmsManager interface {
 	GetAddr() (common.Address, error)
 	Sign(chainID *big.Int, tx *types.Transaction) (*types.Transaction, error)
@@ -26,9 +26,8 @@ type KmsConfig struct {
 
 func NewKmsConfig(cfg CLIConfig) (*KmsConfig, error) {
 	if cfg.KmsKeyID == "" || cfg.KmsEndpoint == "" || cfg.KmsRegion == "" {
-		return nil, nil
+		return nil, fmt.Errorf("KMS config is not set")
 	}
-
 	session, err := session.NewSession(&aws.Config{
 		Credentials: credentials.NewEnvCredentials(),
 		Region:      aws.String(cfg.KmsRegion),

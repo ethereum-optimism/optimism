@@ -51,9 +51,11 @@ type MockServer struct {
 
 func (m *MockServer) Start() {
 	m.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Println("Receive Request")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(m.Payload))
+		_, err := w.Write([]byte(m.Payload))
+		if err != nil {
+			fmt.Printf("failed to write response: %v", err)
+		}
 	}))
 }
 
@@ -68,13 +70,13 @@ func TestNewConfigKMS(t *testing.T) {
 	m.Start()
 	defer m.Stop()
 
-	cliCfg := NewCLIConfig(m.Server.URL)
-	_, err := NewConfig(cliCfg, log.New())
+	cli := NewCLIConfig(m.Server.URL)
+	_, err := NewConfig(cli, log.New())
 	require.ErrorContains(t, err, "mnemonic is required")
 
-	cliCfg.KmsKeyID = "test"
-	cliCfg.KmsEndpoint = "test"
-	cliCfg.KmsRegion = "test"
-	_, err = NewConfig(cliCfg, log.New())
+	cli.KmsKeyID = "test"
+	cli.KmsEndpoint = "test"
+	cli.KmsRegion = "test"
+	_, err = NewConfig(cli, log.New())
 	require.ErrorContains(t, err, "AWS_ACCESS_KEY_ID or AWS_ACCESS_KEY not found in environment")
 }
