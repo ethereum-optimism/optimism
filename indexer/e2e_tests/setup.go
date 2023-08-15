@@ -16,7 +16,6 @@ import (
 
 	op_e2e "github.com/ethereum-optimism/optimism/op-e2e"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	op_log "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -60,9 +59,6 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 	// Indexer Configuration and Start
 	indexerCfg := config.Config{
 
-		Logger: op_log.CLIConfig{
-			Level: "warn",
-		},
 		DB: config.DBConfig{
 			Host: "127.0.0.1",
 			Port: 5432,

@@ -25,11 +25,7 @@ type Cli struct {
 }
 
 func runIndexer(ctx *cli.Context) error {
-	logger := log.NewLogger(log.CLIConfig{
-		Level:  "warn",
-		Color:  false,
-		Format: "terminal",
-	})
+	logger := log.NewLogger(log.ReadCLIConfig(ctx))
 
 	configPath := ctx.String(ConfigFlag.Name)
 	cfg, err := config.LoadConfig(logger, configPath)
@@ -37,8 +33,6 @@ func runIndexer(ctx *cli.Context) error {
 		logger.Error("failed to load config", "err", err)
 		return err
 	}
-
-	logger = log.NewLogger(cfg.Logger)
 
 	db, err := database.NewDB(cfg.DB)
 
@@ -99,6 +93,7 @@ func (c *Cli) Run(args []string) error {
 
 func NewCli(GitVersion string, GitCommit string, GitDate string) *Cli {
 	flags := []cli.Flag{ConfigFlag}
+	flags = append(flags, log.CLIFlags("INDEXER")...)
 	app := &cli.App{
 		Version:     fmt.Sprintf("%s-%s", GitVersion, params.VersionWithCommit(GitCommit, GitDate)),
 		Description: "An indexer of all optimism events with a serving api layer",
