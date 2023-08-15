@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/testutils/fuzzerutils"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -534,7 +535,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			// Wait for the finalization period, then we can finalize this withdrawal.
 			ctx, cancel = context.WithTimeout(context.Background(), 40*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 			require.NotEqual(t, cfg.L1Deployments.L2OutputOracleProxy, common.Address{})
-			blockNumber, err := withdrawals.WaitForOutputRootPublished(ctx, l1Client, cfg.L1Deployments.L2OutputOracleProxy, receipt.BlockNumber)
+			blockNumber, err := wait.ForOutputRootPublished(ctx, l1Client, cfg.L1Deployments.L2OutputOracleProxy, receipt.BlockNumber)
 			cancel()
 			require.Nil(t, err)
 
@@ -662,7 +663,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 				// Wait for finalization and then create the Finalized Withdrawal Transaction
 				ctx, cancel = context.WithTimeout(context.Background(), 45*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 				defer cancel()
-				err = withdrawals.WaitForFinalizationPeriod(ctx, l1Client, header.Number, cfg.L1Deployments.L2OutputOracleProxy)
+				err = wait.ForFinalizationPeriod(ctx, l1Client, header.Number, cfg.L1Deployments.L2OutputOracleProxy)
 				require.Nil(t, err)
 
 				// Finalize withdrawal

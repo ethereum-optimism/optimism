@@ -6,8 +6,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 )
 
 var Mainnet = rollup.Config{
@@ -73,16 +73,16 @@ var Goerli = rollup.Config{
 var Sepolia = rollup.Config{
 	Genesis: rollup.Genesis{
 		L1: eth.BlockID{
-			Hash:   common.HexToHash("0x70e5634d09793b1cfaa7d0a2a5d3289a3b2308de1e82f682b4f817fc670f9797"),
-			Number: 3976708,
+			Hash:   common.HexToHash("0x48f520cf4ddaf34c8336e6e490632ea3cf1e5e93b0b2bc6e917557e31845371b"),
+			Number: 4071408,
 		},
 		L2: eth.BlockID{
-			Hash:   common.HexToHash("0xfbfc64b34d705b0eb83ab8b2206c0da90a76e1ae54ae657c8cfbee0e802a9120"),
+			Hash:   common.HexToHash("0x102de6ffb001480cc9b8b548fd05c34cd4f46ae4aa91759393db90ea0409887d"),
 			Number: 0,
 		},
-		L2Time: 1690493568,
+		L2Time: 1691802540,
 		SystemConfig: eth.SystemConfig{
-			BatcherAddr: common.HexToAddress("0x7431310e026b69bfc676c0013e12a1a11411eec9"),
+			BatcherAddr: common.HexToAddress("0x8F23BB38F531600e5d8FDDaAEC41F13FaB46E98c"),
 			Overhead:    eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000000bc")),
 			Scalar:      eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000a6fe0")),
 			GasLimit:    30000000,
@@ -95,8 +95,8 @@ var Sepolia = rollup.Config{
 	L1ChainID:              big.NewInt(11155111),
 	L2ChainID:              big.NewInt(11155420),
 	BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000011155420"),
-	DepositContractAddress: common.HexToAddress("0x8f6452d842438c4e22ba18baa21652ff65530df4"),
-	L1SystemConfigAddress:  common.HexToAddress("0xf425ed544d2e1f1b7a8650d5897a7ccf43020791"),
+	DepositContractAddress: common.HexToAddress("0x16fc5058f25648194471939df75cf27a2fdc48bc"),
+	L1SystemConfigAddress:  common.HexToAddress("0x034edd2a225f7f429a63e0f1d2084b9e0a93b538"),
 	RegolithTime:           u64Ptr(0),
 }
 

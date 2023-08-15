@@ -6,6 +6,7 @@ COPY ./go.mod /app/go.mod
 COPY ./go.sum /app/go.sum
 
 COPY ./op-bindings /app/op-bindings
+COPY ./op-service /app/op-service
 
 WORKDIR /app/op-node
 RUN go mod download -x

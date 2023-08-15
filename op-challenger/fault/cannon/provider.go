@@ -53,7 +53,7 @@ type CannonTraceProvider struct {
 func NewTraceProvider(ctx context.Context, logger log.Logger, cfg *config.Config, l1Client bind.ContractCaller) (*CannonTraceProvider, error) {
 	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
 	if err != nil {
-		return nil, fmt.Errorf("dial l2 cleint %v: %w", cfg.CannonL2, err)
+		return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
 	}
 	defer l2Client.Close() // Not needed after fetching the inputs
 	gameCaller, err := bindings.NewFaultDisputeGameCaller(cfg.GameAddress, l1Client)

@@ -31,7 +31,7 @@ contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721, Se
         _;
     }
 
-    /// @custom:semver 1.1.2
+    /// @custom:semver 1.2.0
     /// @param _bridge        Address of the bridge on this network.
     /// @param _remoteChainId Chain ID where the remote token is deployed.
     /// @param _remoteToken   Address of the corresponding token on the other network.
@@ -45,7 +45,7 @@ contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721, Se
         string memory _symbol
     )
         ERC721(_name, _symbol)
-        Semver(1, 1, 2)
+        Semver(1, 2, 0)
     {
         require(_bridge != address(0), "OptimismMintableERC721: bridge cannot be address(0)");
         require(_remoteChainId != 0, "OptimismMintableERC721: remote chain id cannot be zero");

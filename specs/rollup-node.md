@@ -68,8 +68,7 @@ The input and return types here are as defined by the [engine API specs][engine-
 
 - method: `optimism_outputAtBlock`
 - params:
-  1. `blockNumber`: `QUANTITY`, 64 bits - L2 integer block number </br>
-        OR `String` - one of `"safe"`, `"latest"`, or `"pending"`.
+  1. `blockNumber`: `QUANTITY`, 64 bits - L2 integer block number.
 - returns:
   1. `version`: `DATA`, 32 Bytes - the output root version number, beginning with 0.
   1. `l2OutputRoot`: `DATA`, 32 Bytes - the output root.
