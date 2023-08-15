@@ -1,6 +1,8 @@
+# Chain configures l1 chain addresses
+# Can configure them manually or use a preset l2 ChainId for known chains including OP Mainnet, OP Goerli, Base, Base Goerli, Zora, and Zora goerli
 [chain]
+# OP Goerli
 preset = 420
-
 [rpcs]
 l1-rpc = "${INDEXER_RPC_URL_L1}"
 l2-rpc = "${INDEXER_RPC_URL_L2}"
@@ -19,4 +21,12 @@ port = 8080
 [metrics]
 host = "127.0.0.1"
 port = 7300
+
+[logger]
+# Log level: trace, debug, info, warn, error, crit. Capitals are accepted too.
+level = "info"
+# Color the log output. Defaults to true if terminal is detected.
+color = true
+# Format the log output. Supported formats: 'text', 'terminal', 'logfmt', 'json', 'json-pretty'
+format = "terminal"
 
