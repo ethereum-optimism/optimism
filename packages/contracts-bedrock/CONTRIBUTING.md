@@ -103,7 +103,7 @@ To lock a contract variable, add it to the `layout-lock.json` file which has the
 }
 ```
 
-With the above config, the `validate-spacers` hardhat task will check that we have a contract called `MyContractName`, that the contract has a variable named `myVariableName`, and that the variable is in the correct position as defined in the lock file.
+With the above config, the `validate-spacers` script will check that we have a contract called `MyContractName`, that the contract has a variable named `myVariableName`, and that the variable is in the correct position as defined in the lock file.
 You should add things to the `layout-lock.json` file when you want those variables to **never** change.
 Layout locking should be used in combination with diffing the `.storage-layout` file in CI.
 
