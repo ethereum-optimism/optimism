@@ -49,6 +49,7 @@
     "isomorphic-fetch": "^3.0.0",
     "mocha": "^10.0.0",
     "nyc": "^15.1.0",
+    "ts-node": "^10.9.1",
     "typedoc": "^0.22.13",
     "viem": "^0.3.30",
     "vitest": "^0.28.3",
@@ -58,6 +59,10 @@
     "@eth-optimism/contracts": "0.6.0",
     "@eth-optimism/contracts-bedrock": "0.16.0",
     "@eth-optimism/core-utils": "0.12.2",
+    "@types/chai": "^4.2.18",
+    "@types/chai-as-promised": "^7.1.4",
+    "@types/mocha": "^10.0.1",
+    "@types/node": "^20.5.0",
     "lodash": "^4.17.21",
     "merkletreejs": "^0.2.27",
     "rlp": "^2.2.7"
