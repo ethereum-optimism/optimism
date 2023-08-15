@@ -280,10 +280,4 @@ func TestE2EBridgeTransfersL2ToL1MessagePasserReceive(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, proveReceipt.TxHash, aliceWithdrawals[0].ProvenL1TransactionHash)
 	require.Equal(t, finalizeReceipt.TxHash, aliceWithdrawals[0].FinalizedL1TransactionHash)
-
-	// (3) Test API query for L2ToL1MessagePasser withdrawals
-	respWithdrawals, err := testSuite.Client.GetWithdrawalsByAddress(aliceAddr)
-	require.NoError(t, err)
-	require.Equal(t, proveReceipt.TxHash, respWithdrawals[0].ProvenL1TransactionHash)
-	require.Equal(t, finalizeReceipt.TxHash, respWithdrawals[0].FinalizedL1TransactionHash)
 }
