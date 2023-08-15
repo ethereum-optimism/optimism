@@ -79,10 +79,6 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 				L1ERC721Bridge:         opCfg.L1Deployments.L1ERC721BridgeProxy,
 			},
 		},
-		API: config.APIConfig{
-			Host: "127.0.0.1",
-			Port: 5345,
-		},
 	}
 
 	db, err := database.NewDB(fmt.Sprintf("postgres://%s@localhost:5432/%s?sslmode=disable", dbUser, dbName))
