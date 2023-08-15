@@ -380,14 +380,14 @@ importers:
         specifier: ^5.7.0
         version: 5.7.0
       '@ethersproject/web':
-        specifier: ^5.7.0
-        version: 5.7.0
-      chai:
-        specifier: ^4.3.4
-        version: 4.3.4
-      ethers:
-        specifier: ^5.7.0
+        specifier: ^5.7.1
         version: 5.7.1
+      chai:
+        specifier: ^4.3.7
+        version: 4.3.7
+      ethers:
+        specifier: ^5.7.2
+        version: 5.7.2
       node-fetch:
         specifier: ^2.6.7
         version: 2.6.7
@@ -396,8 +396,8 @@ importers:
         specifier: ^20.5.0
         version: 20.5.0
       mocha:
-        specifier: ^10.0.0
-        version: 10.0.0
+        specifier: ^10.2.0
+        version: 10.2.0
 
   packages/fee-estimation:
     devDependencies:
@@ -2377,16 +2377,6 @@ packages:
       '@ethersproject/signing-key': 5.7.0
       '@ethersproject/transactions': 5.7.0
       '@ethersproject/wordlists': 5.7.0
-
-  /@ethersproject/web@5.7.0:
-    resolution: {integrity: sha512-ApHcbbj+muRASVDSCl/tgxaH2LBkRMEYfLOLVa0COipx0+nlu0QKet7U2lEg0vdkh8XRSLf2nd1f1Uk9SrVSGA==}
-    dependencies:
-      '@ethersproject/base64': 5.7.0
-      '@ethersproject/bytes': 5.7.0
-      '@ethersproject/logger': 5.7.0
-      '@ethersproject/properties': 5.7.0
-      '@ethersproject/strings': 5.7.0
-    dev: false
 
   /@ethersproject/web@5.7.1:
     resolution: {integrity: sha512-Gueu8lSvyjBWL4cYsWsjh6MtMwM0+H4HvqFPZfB6dV8ctbP9zFAO73VG1cMWae0FLPCtz0peKPpZY8/ugJJX2w==}
@@ -5019,7 +5009,7 @@ packages:
       find-up: 6.3.0
       fs-extra: 10.1.0
       globby: 13.2.2
-      node-fetch: 3.3.1
+      node-fetch: 3.3.2
       ora: 6.3.1
       pathe: 1.1.1
       picocolors: 1.0.0
@@ -6734,6 +6724,7 @@ packages:
       get-func-name: 2.0.0
       pathval: 1.1.1
       type-detect: 4.0.8
+    dev: true
 
   /chai@4.3.7:
     resolution: {integrity: sha512-HLnAzZ2iupm25PlN0xFreAlBA5zaBSv3og0DdeGA4Ar6h6rJ3A0rolRUKJhSF2V10GZKDgWF/VmAEsNWjCRB+A==}
@@ -7555,6 +7546,7 @@ packages:
     engines: {node: '>=0.12'}
     dependencies:
       type-detect: 4.0.8
+    dev: true
 
   /deep-eql@4.1.3:
     resolution: {integrity: sha512-WaEtAOpRA1MQ0eohqZjpGD8zdI0Ovsm8mmFhaDN8dvDZzyoUMcYDnf5Y6iu7HTXxf8JDS23qWa4a+hKCDyOPzw==}
@@ -10203,7 +10195,7 @@ packages:
       lodash: 4.17.21
       merkle-patricia-tree: 4.2.4
       mnemonist: 0.38.3
-      mocha: 9.2.1
+      mocha: 9.2.2
       p-map: 4.0.0
       qs: 6.11.2
       raw-body: 2.5.2
@@ -12563,12 +12555,6 @@ packages:
   /minimalistic-crypto-utils@1.0.1:
     resolution: {integrity: sha512-JIYlbt6g8i5jKfJ3xz7rF0LXmv2TkDxBLUkiBeZ7bAx4GnnNMr8xFpGnOxn6GhTEHx3SjRrZEoU+j04prX1ktg==}
 
-  /minimatch@3.0.4:
-    resolution: {integrity: sha512-yJHVQEhyqPLUTgt9B83PXu6W3rx4MvvHvSUvToogpwoGDOUQ+yDrR0HRot+yOCdCO7u4hX3pWft6kWBBcqh0UA==}
-    dependencies:
-      brace-expansion: 1.1.11
-    dev: true
-
   /minimatch@3.0.5:
     resolution: {integrity: sha512-tUpxzX0VAzJHjLu0xUfFv1gwVp9ba3IOuRAVH2EGuRW8a5emA2FlACLqiT/lDVtS1W+TGNwqz3sWaNyLgDJWuw==}
     dependencies:
@@ -12579,6 +12565,13 @@ packages:
     resolution: {integrity: sha512-J7p63hRiAjw1NDEww1W7i37+ByIrOWO5XQQAzZ3VOcL0PNybwpfmV/N05zFAzwQ9USyEcX6t3UO+K5aqBQOIHw==}
     dependencies:
       brace-expansion: 1.1.11
+
+  /minimatch@4.2.1:
+    resolution: {integrity: sha512-9Uq1ChtSZO+Mxa/CL1eGizn2vRn3MlLgzhT0Iz8zaY8NdvxvB0d5QdPFmCKf7JKA9Lerx5vRrnwO03jsSfGG9g==}
+    engines: {node: '>=10'}
+    dependencies:
+      brace-expansion: 1.1.11
+    dev: true
 
   /minimatch@5.0.1:
     resolution: {integrity: sha512-nLDxIFRyhDblz3qMuq+SoRZED4+miJ/G+tdDrjkkkRnjAsBexeGpgjLEQ0blJy7rHhR2b93rhQY4SvyWu9v03g==}
@@ -12828,8 +12821,8 @@ packages:
       yargs-unparser: 2.0.0
     dev: true
 
-  /mocha@9.2.1:
-    resolution: {integrity: sha512-T7uscqjJVS46Pq1XDXyo9Uvey9gd3huT/DD9cYBb4K2Xc/vbKRPUWK067bxDQRK0yIz6Jxk73IrnimvASzBNAQ==}
+  /mocha@9.2.2:
+    resolution: {integrity: sha512-L6XC3EdwT6YrIk0yXpavvLkn8h+EU+Y5UcCHKECyMbdUIxyMuZj4bX4U9e1nvnvUUvQVsV2VHQr5zLdcUkhW/g==}
     engines: {node: '>= 12.0.0'}
     hasBin: true
     dependencies:
@@ -12846,9 +12839,9 @@ packages:
       he: 1.2.0
       js-yaml: 4.1.0
       log-symbols: 4.1.0
-      minimatch: 3.0.4
+      minimatch: 4.2.1
       ms: 2.1.3
-      nanoid: 3.2.0
+      nanoid: 3.3.1
       serialize-javascript: 6.0.0
       strip-json-comments: 3.1.1
       supports-color: 8.1.1
@@ -12934,8 +12927,8 @@ packages:
       thenify-all: 1.6.0
     dev: true
 
-  /nanoid@3.2.0:
-    resolution: {integrity: sha512-fmsZYa9lpn69Ad5eDn7FMcnnSR+8R34W9qJEijxYhTbfOWzr22n1QxCMzXLK+ODyW2973V3Fux959iQoUxzUIA==}
+  /nanoid@3.3.1:
+    resolution: {integrity: sha512-n6Vs/3KGyxPQd6uO0eH4Bv0ojGSUvuLlIHtC3Y0kEO23YRge8H9x1GCzLn28YX0H66pMkxuaeESFq4tKISKwdw==}
     engines: {node: ^10 || ^12 || ^13.7 || ^14 || >=15.0.1}
     hasBin: true
     dev: true
@@ -13028,8 +13021,8 @@ packages:
     dependencies:
       whatwg-url: 5.0.0
 
-  /node-fetch@3.3.1:
-    resolution: {integrity: sha512-cRVc/kyto/7E5shrWca1Wsea4y6tL9iYJE5FBCius3JQfb/4P4I295PfhgbJQBLTx6lATE4z+wK0rPM4VS2uow==}
+  /node-fetch@3.3.2:
+    resolution: {integrity: sha512-dRB78srN/l6gqWulah9SrxeYnxeddIG30+GOqK/9OlLVyLg3HPnr6SqOWTWOXKRwC2eGYCkZ59NNuSgvSrpgOA==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
     dependencies:
       data-uri-to-buffer: 4.0.1
@@ -16635,7 +16628,7 @@ packages:
       smartwrap: 2.0.2
       strip-ansi: 6.0.1
       wcwidth: 1.0.1
-      yargs: 17.6.2
+      yargs: 17.7.2
     dev: false
 
   /tuf-js@1.1.7:
@@ -17976,6 +17969,20 @@ packages:
       string-width: 4.2.3
       y18n: 5.0.8
       yargs-parser: 21.1.1
+    dev: true
+
+  /yargs@17.7.2:
+    resolution: {integrity: sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w==}
+    engines: {node: '>=12'}
+    dependencies:
+      cliui: 8.0.1
+      escalade: 3.1.1
+      get-caller-file: 2.0.5
+      require-directory: 2.1.1
+      string-width: 4.2.3
+      y18n: 5.0.8
+      yargs-parser: 21.1.1
+    dev: false
 
   /yargs@4.8.1:
     resolution: {integrity: sha512-LqodLrnIDM3IFT+Hf/5sxBnEGECrfdC1uIbgZeJmESCSo4HoCAaKEus8MylXHAkdacGc0ye+Qa+dpkuom8uVYA==}
