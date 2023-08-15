@@ -30,7 +30,7 @@ type DepositResponse struct {
 // TODO this is original spec but maybe include the l2 block info too for the relayed tx
 // FIXME make a pure function that returns a struct instead of newWithdrawalResponse
 func newDepositResponse(deposits []*database.L1BridgeDepositWithTransactionHashes) DepositResponse {
-	var items []DepositItem
+	items := make([]DepositItem, len(deposits))
 	for _, deposit := range deposits {
 		item := DepositItem{
 			Guid: deposit.L1BridgeDeposit.TransactionSourceHash.String(),

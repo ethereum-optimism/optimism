@@ -43,7 +43,7 @@ type WithdrawalResponse struct {
 
 // FIXME make a pure function that returns a struct instead of newWithdrawalResponse
 func newWithdrawalResponse(withdrawals []*database.L2BridgeWithdrawalWithTransactionHashes) WithdrawalResponse {
-	var items []WithdrawalItem
+	items := make([]WithdrawalItem, len(withdrawals))
 	for _, withdrawal := range withdrawals {
 		item := WithdrawalItem{
 			Guid: withdrawal.L2BridgeWithdrawal.TransactionWithdrawalHash.String(),
