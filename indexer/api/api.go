@@ -2,20 +2,11 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/go-chi/chi/v5"
-)
-
-const (
-	depositPath    = "/api/v0/deposits/"
-	withdrawalPath = "/api/v0/withdrawals/"
-	healthzPath    = "/healthz"
-
-	addressParam = "{address:.+}"
 )
 
 type PaginationResponse struct {
@@ -100,9 +91,9 @@ func NewApi(bv database.BridgeTransfersView) *Api {
 	// these regex are .+ because I wasn't sure what they should be
 	// don't want a regex for addresses because would prefer to validate the address
 	// with go-ethereum and throw a friendly error message
-	r.Get(fmt.Sprintf("%s%s", depositPath, addressParam), api.L1DepositsHandler)
-	r.Get(fmt.Sprintf("%s%s", withdrawalPath, addressParam), api.L2WithdrawalsHandler)
-	r.Get(healthzPath, api.HealthzHandler)
+	r.Get("/api/v0/deposits/{address:.+}", api.L1DepositsHandler)
+	r.Get("/api/v0/withdrawals/{address:.+}", api.L2WithdrawalsHandler)
+	r.Get("/healthz", api.HealthzHandler)
 
 	return api
 
