@@ -42,6 +42,10 @@ services:
     build:
       context: ..
       dockerfile: ops-bedrock/Dockerfile.l2-erigon
+    environment:
+      - CHAIN_NAME=dev
+      - CHAIN_ID=901
+      - VERBOSITY=6
     ports:
       - "9545:8545"
       - "8060:6060"
