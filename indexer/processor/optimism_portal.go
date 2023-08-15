@@ -34,45 +34,7 @@ type OptimismPortalProvenWithdrawal struct {
 	L2OutputIndex *big.Int
 }
 
-func OptimismPortalTransactionDepositEvents(events *ProcessedContractEvents) ([]OptimismPortalTransactionDepositEvent, error) {
-	optimismPortalAbi, err := bindings.OptimismPortalMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
-
-	transactionDepositedEventAbi := optimismPortalAbi.Events["TransactionDeposited"]
-	if transactionDepositedEventAbi.ID != derive.DepositEventABIHash {
-		return nil, errors.New("op-node deposit event abi hash & optimism portal tx deposit mismatch")
-	}
-
-	processedTxDepositedEvents := events.eventsBySignature[derive.DepositEventABIHash]
-	txDeposits := make([]OptimismPortalTransactionDepositEvent, len(processedTxDepositedEvents))
-	for i, txDepositEvent := range processedTxDepositedEvents {
-		log := txDepositEvent.RLPLog
-
-		depositTx, err := derive.UnmarshalDepositLogEvent(log)
-		if err != nil {
-			return nil, err
-		}
-
-		var txDeposit bindings.OptimismPortalTransactionDeposited
-		txDeposit.Raw = *log
-		err = UnpackLog(&txDeposit, log, transactionDepositedEventAbi.Name, optimismPortalAbi)
-		if err != nil {
-			return nil, err
-		}
-
-		txDeposits[i] = OptimismPortalTransactionDepositEvent{
-			OptimismPortalTransactionDeposited: &txDeposit,
-			DepositTx:                          depositTx,
-			Event:                              txDepositEvent,
-		}
-	}
-
-	return txDeposits, nil
-}
-
-func OptimismPortalTransactionDepositEvents2(contractAddress common.Address, db *database.DB, fromHeight, toHeight *big.Int) ([]OptimismPortalTransactionDepositEvent, error) {
+func OptimismPortalTransactionDepositEvents(contractAddress common.Address, db *database.DB, fromHeight, toHeight *big.Int) ([]OptimismPortalTransactionDepositEvent, error) {
 	optimismPortalAbi, err := bindings.OptimismPortalMetaData.GetAbi()
 	if err != nil {
 		return nil, err
@@ -112,35 +74,7 @@ func OptimismPortalTransactionDepositEvents2(contractAddress common.Address, db 
 	return optimismPortalTxDeposits, nil
 }
 
-func OptimismPortalWithdrawalProvenEvents(events *ProcessedContractEvents) ([]OptimismPortalWithdrawalProvenEvent, error) {
-	optimismPortalAbi, err := bindings.OptimismPortalMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
-
-	eventName := "WithdrawalProven"
-	processedWithdrawalProvenEvents := events.eventsBySignature[optimismPortalAbi.Events[eventName].ID]
-	provenEvents := make([]OptimismPortalWithdrawalProvenEvent, len(processedWithdrawalProvenEvents))
-	for i, provenEvent := range processedWithdrawalProvenEvents {
-		log := provenEvent.RLPLog
-
-		var withdrawalProven bindings.OptimismPortalWithdrawalProven
-		withdrawalProven.Raw = *log
-		err := UnpackLog(&withdrawalProven, log, eventName, optimismPortalAbi)
-		if err != nil {
-			return nil, err
-		}
-
-		provenEvents[i] = OptimismPortalWithdrawalProvenEvent{
-			OptimismPortalWithdrawalProven: &withdrawalProven,
-			Event:                          provenEvent,
-		}
-	}
-
-	return provenEvents, nil
-}
-
-func OptimismPortalWithdrawalProvenEvents2(contractAddress common.Address, db *database.DB, fromHeight, toHeight *big.Int) ([]OptimismPortalWithdrawalProvenEvent, error) {
+func OptimismPortalWithdrawalProvenEvents(contractAddress common.Address, db *database.DB, fromHeight, toHeight *big.Int) ([]OptimismPortalWithdrawalProvenEvent, error) {
 	optimismPortalAbi, err := bindings.OptimismPortalMetaData.GetAbi()
 	if err != nil {
 		return nil, err
@@ -169,34 +103,7 @@ func OptimismPortalWithdrawalProvenEvents2(contractAddress common.Address, db *d
 	return provenWithdrawals, nil
 }
 
-func OptimismPortalWithdrawalFinalizedEvents(events *ProcessedContractEvents) ([]OptimismPortalWithdrawalFinalizedEvent, error) {
-	optimismPortalAbi, err := bindings.OptimismPortalMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
-
-	eventName := "WithdrawalFinalized"
-	processedWithdrawalFinalizedEvents := events.eventsBySignature[optimismPortalAbi.Events[eventName].ID]
-	finalizedEvents := make([]OptimismPortalWithdrawalFinalizedEvent, len(processedWithdrawalFinalizedEvents))
-	for i, finalizedEvent := range processedWithdrawalFinalizedEvents {
-		log := finalizedEvent.RLPLog
-
-		var withdrawalFinalized bindings.OptimismPortalWithdrawalFinalized
-		err := UnpackLog(&withdrawalFinalized, log, eventName, optimismPortalAbi)
-		if err != nil {
-			return nil, err
-		}
-
-		finalizedEvents[i] = OptimismPortalWithdrawalFinalizedEvent{
-			OptimismPortalWithdrawalFinalized: &withdrawalFinalized,
-			Event:                             finalizedEvent,
-		}
-	}
-
-	return finalizedEvents, nil
-}
-
-func OptimismPortalWithdrawalFinalizedEvents2(contractAddress common.Address, db *database.DB, fromHeight, toHeight *big.Int) ([]OptimismPortalWithdrawalFinalizedEvent, error) {
+func OptimismPortalWithdrawalFinalizedEvents(contractAddress common.Address, db *database.DB, fromHeight, toHeight *big.Int) ([]OptimismPortalWithdrawalFinalizedEvent, error) {
 	optimismPortalAbi, err := bindings.OptimismPortalMetaData.GetAbi()
 	if err != nil {
 		return nil, err

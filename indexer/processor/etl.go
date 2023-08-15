@@ -21,6 +21,11 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+const (
+	defaultLoopInterval     = 5 * time.Second
+	defaultHeaderBufferSize = 500
+)
+
 type ETL struct {
 	log log.Logger
 
@@ -34,10 +39,12 @@ type ETL struct {
 // (RPC | DB) <-> ETL -- Starting from some height
 
 type ETLBatch struct {
-	Log log.Logger
+	Logger log.Logger
 
-	BlockHeaders []database.BlockHeader
-	Events       *ProcessedContractEvents
+	Headers []types.Header
+	Logs    []types.Log
+
+	HeaderMap map[common.Hash]*types.Header
 }
 
 // This ETL runs at HEAD for a given client and indexes the
@@ -54,7 +61,7 @@ func (etl *ETL) Start(ctx context.Context) error {
 	defer pollTicker.Stop()
 
 	etl.log.Info("starting etl...")
-	var headers []*types.Header
+	var headers []types.Header
 	for {
 		select {
 		case <-done:
@@ -84,11 +91,9 @@ func (etl *ETL) Start(ctx context.Context) error {
 			batchLog := etl.log.New("batch_start_block_number", firstHeader.Number, "batch_end_block_number", lastHeader.Number, "batch_size", len(headers))
 			batchLog.Info("extracting batch")
 
-			headerMap := make(map[common.Hash]*database.BlockHeader, len(headers))
-			blockHeaders := make([]database.BlockHeader, len(headers))
+			headerMap := make(map[common.Hash]*types.Header, len(headers))
 			for i := range headers {
-				blockHeaders[i] = database.BlockHeaderFromHeader(headers[i])
-				headerMap[blockHeaders[i].Hash] = &blockHeaders[i]
+				headerMap[headers[i].Hash()] = &headers[i]
 			}
 
 			logFilter := ethereum.FilterQuery{FromBlock: firstHeader.Number, ToBlock: lastHeader.Number, Addresses: etl.contracts}
@@ -97,25 +102,21 @@ func (etl *ETL) Start(ctx context.Context) error {
 				batchLog.Info("unable to extract logs within batch", "err", err)
 				continue // spin and try again
 			}
-			if len(logs) > 0 {
-				batchLog.Info("detected logs", "size", len(logs))
-			}
-
-			events := NewProcessedContractEvents()
 			for i := range logs {
 				log := &logs[i]
-				blockHeader, ok := headerMap[log.BlockHash]
-				if !ok {
+				if _, ok := headerMap[log.BlockHash]; !ok {
 					// TODO. Dont error out? Or is this a terminal state. Can this happen due to a reorg?
 					batchLog.Error("log found with block hash not in the batch", "block_hash", log.BlockHash, "log_index", log.Index)
 					return errors.New("parsed log with a block hash not in the fetched batch")
 				}
+			}
 
-				events.AddLog(log, blockHeader.Timestamp)
+			if len(logs) > 0 {
+				batchLog.Info("detected logs", "size", len(logs))
 			}
 
 			headers = nil
-			etl.etlBatches <- ETLBatch{Log: batchLog, BlockHeaders: blockHeaders, Events: events}
+			etl.etlBatches <- ETLBatch{Logger: batchLog, Headers: headers, HeaderMap: headerMap, Logs: logs}
 		}
 	}
 }
@@ -180,24 +181,22 @@ func (l1Etl *L1ETL) Start(ctx context.Context) error {
 			err := l1Etl.db.Transaction(func(tx *database.DB) error {
 				// pull out L1 blocks that have emitted a log
 				idx := 0
-				l1BlockHeaders := make([]*database.L1BlockHeader, len(batch.Events.eventBlocks))
-				for i := range batch.BlockHeaders {
-					blockHeader := batch.BlockHeaders[i]
-					_, ok := batch.Events.eventBlocks[blockHeader.Hash]
+				l1BlockHeaders := make([]*database.L1BlockHeader, len(batch.Headers))
+				for i := range batch.Logs {
+					header, ok := batch.HeaderMap[batch.Logs[i].BlockHash]
 					if !ok {
 						continue
 					}
 
-					l1BlockHeaders[idx] = &database.L1BlockHeader{BlockHeader: blockHeader}
+					l1BlockHeaders[idx] = &database.L1BlockHeader{BlockHeader: database.BlockHeaderFromHeader(header)}
 					idx++
 				}
 
-				l1ContractEvents := make([]*database.L1ContractEvent, len(batch.Events.events))
-				for i := range batch.Events.events {
-					l1ContractEvents[i] = &database.L1ContractEvent{ContractEvent: *batch.Events.events[i]}
+				l1ContractEvents := make([]*database.L1ContractEvent, len(batch.Logs))
+				for i := range batch.Logs {
+					timestamp := batch.HeaderMap[batch.Logs[i].BlockHash].Time
+					l1ContractEvents[i] = &database.L1ContractEvent{ContractEvent: database.ContractEventFromLog(&batch.Logs[i], timestamp)}
 				}
-
-				// should we index output proposals here rather than in a dependent processor?
 
 				// index blocks and logs
 				if len(l1BlockHeaders) > 0 {
@@ -210,7 +209,7 @@ func (l1Etl *L1ETL) Start(ctx context.Context) error {
 				}
 
 				// a-ok
-				batch.Log.Info("indexed batch")
+				batch.Logger.Info("indexed batch")
 				return nil
 			})
 
@@ -278,21 +277,21 @@ func (l2Etl *L2ETL) Start(ctx context.Context) error {
 		// Index incoming batches
 		case batch := <-l2Etl.etlBatches:
 			err := l2Etl.db.Transaction(func(tx *database.DB) error {
-				l2BlockHeaders := make([]*database.L2BlockHeader, len(batch.BlockHeaders))
-				for i := range batch.BlockHeaders {
-					l2BlockHeaders[i] = &database.L2BlockHeader{BlockHeader: batch.BlockHeaders[i]}
+				l2BlockHeaders := make([]*database.L2BlockHeader, len(batch.Headers))
+				for i := range batch.Headers {
+					l2BlockHeaders[i] = &database.L2BlockHeader{BlockHeader: database.BlockHeaderFromHeader(&batch.Headers[i])}
 				}
 
-				l2ContractEvents := make([]*database.L2ContractEvent, len(batch.Events.events))
-				for i := range batch.Events.events {
-					l2ContractEvents[i] = &database.L2ContractEvent{ContractEvent: *batch.Events.events[i]}
+				l2ContractEvents := make([]*database.L2ContractEvent, len(batch.Logs))
+				for i := range batch.Logs {
+					timestamp := batch.HeaderMap[batch.Logs[i].BlockHash].Time
+					l2ContractEvents[i] = &database.L2ContractEvent{ContractEvent: database.ContractEventFromLog(&batch.Logs[i], timestamp)}
 				}
 
 				// We're indexing every L2 block.
 				if err := tx.Blocks.StoreL2BlockHeaders(l2BlockHeaders); err != nil {
 					return err
 				}
-
 				if len(l2ContractEvents) > 0 {
 					if err := tx.ContractEvents.StoreL2ContractEvents(l2ContractEvents); err != nil {
 						return err
@@ -300,7 +299,7 @@ func (l2Etl *L2ETL) Start(ctx context.Context) error {
 				}
 
 				// a-ok
-				batch.Log.Info("indexed batch")
+				batch.Logger.Info("indexed batch")
 				return nil
 			})
 
@@ -433,7 +432,7 @@ func (bridge *BridgeProcessor) indexInitiatedL1BridgeEvents(tx *database.DB, fro
 	}
 
 	// (1) OptimismPortal deposits
-	optimismPortalTxDeposits, err := OptimismPortalTransactionDepositEvents2(config.L1Deployments.OptimismPortalProxy, tx, fromHeight, toHeight)
+	optimismPortalTxDeposits, err := OptimismPortalTransactionDepositEvents(config.L1Deployments.OptimismPortalProxy, tx, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -482,7 +481,7 @@ func (bridge *BridgeProcessor) indexInitiatedL1BridgeEvents(tx *database.DB, fro
 	}
 
 	// (2) L1CrossDomainMessenger SentMessages
-	crossDomainSentMessages, err := CrossDomainMessengerSentMessageEvents2(config.L1Deployments.L1CrossDomainMessengerProxy, "l1", tx, fromHeight, toHeight)
+	crossDomainSentMessages, err := CrossDomainMessengerSentMessageEvents(config.L1Deployments.L1CrossDomainMessengerProxy, "l1", tx, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -581,7 +580,7 @@ func (bridge *BridgeProcessor) indexInitiatedL2BridgeEvents(tx *database.DB, fro
 	}
 
 	// (2) L2CrosssDomainMessenger sentMessages
-	crossDomainSentMessages, err := CrossDomainMessengerSentMessageEvents2(predeploys.L2CrossDomainMessengerAddr, "l2", tx, fromHeight, toHeight)
+	crossDomainSentMessages, err := CrossDomainMessengerSentMessageEvents(predeploys.L2CrossDomainMessengerAddr, "l2", tx, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -627,7 +626,7 @@ func (bridge *BridgeProcessor) indexInitiatedL2BridgeEvents(tx *database.DB, fro
 
 func (bridge *BridgeProcessor) indexFinalizedL1BridgeEvents(tx *database.DB, fromHeight, toHeight *big.Int) error {
 	// (1) OptimismPortal proven withdrawals
-	provenWithdrawals, err := OptimismPortalWithdrawalProvenEvents2(config.L1Deployments.OptimismPortalProxy, tx, fromHeight, toHeight)
+	provenWithdrawals, err := OptimismPortalWithdrawalProvenEvents(config.L1Deployments.OptimismPortalProxy, tx, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -651,7 +650,7 @@ func (bridge *BridgeProcessor) indexFinalizedL1BridgeEvents(tx *database.DB, fro
 	}
 
 	// (2) OptimismPortal finalized withdrawals
-	finalizedWithdrawals, err := OptimismPortalWithdrawalFinalizedEvents2(config.L1Deployments.OptimismPortalProxy, tx, fromHeight, toHeight)
+	finalizedWithdrawals, err := OptimismPortalWithdrawalFinalizedEvents(config.L1Deployments.OptimismPortalProxy, tx, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -675,7 +674,7 @@ func (bridge *BridgeProcessor) indexFinalizedL1BridgeEvents(tx *database.DB, fro
 	}
 
 	// (3) L1CrossDomainMessenger relayedMessage
-	crossDomainRelayedMessages, err := CrossDomainMessengerRelayedMessageEvents2(config.L1Deployments.L1CrossDomainMessengerProxy, "l1", tx, fromHeight, toHeight)
+	crossDomainRelayedMessages, err := CrossDomainMessengerRelayedMessageEvents(config.L1Deployments.L1CrossDomainMessengerProxy, "l1", tx, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}
@@ -703,7 +702,7 @@ func (bridge *BridgeProcessor) indexFinalizedL1BridgeEvents(tx *database.DB, fro
 
 func (bridge *BridgeProcessor) indexFinalizedL2BridgeEvents(tx *database.DB, fromHeight, toHeight *big.Int) error {
 	// (1) L2CrosssDomainMessenger relayedMessage
-	crossDomainRelayedMessages, err := CrossDomainMessengerRelayedMessageEvents2(predeploys.L2CrossDomainMessengerAddr, "l2", tx, fromHeight, toHeight)
+	crossDomainRelayedMessages, err := CrossDomainMessengerRelayedMessageEvents(predeploys.L2CrossDomainMessengerAddr, "l2", tx, fromHeight, toHeight)
 	if err != nil {
 		return err
 	}

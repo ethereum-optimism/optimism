@@ -13,34 +13,6 @@ type L2ToL1MessagePasserMessagePassed struct {
 	Event *database.ContractEvent
 }
 
-func L2ToL1MessagePasserMessagesPassed(events *ProcessedContractEvents) ([]L2ToL1MessagePasserMessagePassed, error) {
-	l2ToL1MessagePasserAbi, err := bindings.L2ToL1MessagePasserMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
-
-	eventName := "MessagePassed"
-	processedMessagePassedEvents := events.eventsBySignature[l2ToL1MessagePasserAbi.Events[eventName].ID]
-	messagesPassed := make([]L2ToL1MessagePasserMessagePassed, len(processedMessagePassedEvents))
-	for i, messagePassedEvent := range processedMessagePassedEvents {
-		log := messagePassedEvent.RLPLog
-
-		var messagePassed bindings.L2ToL1MessagePasserMessagePassed
-		messagePassed.Raw = *log
-		err := UnpackLog(&messagePassed, log, eventName, l2ToL1MessagePasserAbi)
-		if err != nil {
-			return nil, err
-		}
-
-		messagesPassed[i] = L2ToL1MessagePasserMessagePassed{
-			L2ToL1MessagePasserMessagePassed: &messagePassed,
-			Event:                            messagePassedEvent,
-		}
-	}
-
-	return messagesPassed, nil
-}
-
 func L2ToL1MessagePasserMessagePassedEvents(contractAddress common.Address, db *database.DB, fromHeight, toHeight *big.Int) ([]L2ToL1MessagePasserMessagePassed, error) {
 	l2ToL1MessagePasserAbi, err := bindings.L2ToL1MessagePasserMetaData.GetAbi()
 	if err != nil {

@@ -48,52 +48,7 @@ type CrossDomainMessengerRelayedMessageEvent struct {
 	Event *database.ContractEvent
 }
 
-func CrossDomainMessengerSentMessageEvents(events *ProcessedContractEvents) ([]CrossDomainMessengerSentMessageEvent, error) {
-	crossDomainMessengerABI, err := bindings.CrossDomainMessengerMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
-
-	sentMessageEventAbi := crossDomainMessengerABI.Events["SentMessage"]
-	sentMessageEventExtensionAbi := crossDomainMessengerABI.Events["SentMessageExtension1"]
-
-	processedSentMessageEvents := events.eventsBySignature[sentMessageEventAbi.ID]
-	crossDomainMessageEvents := make([]CrossDomainMessengerSentMessageEvent, len(processedSentMessageEvents))
-	for i, sentMessageEvent := range processedSentMessageEvents {
-		log := sentMessageEvent.RLPLog
-
-		sentMsgData := bindings.CrossDomainMessengerSentMessage{Raw: *sentMessageEvent.RLPLog}
-		sentMsgData.Raw = *log
-		err = UnpackLog(&sentMsgData, log, sentMessageEventAbi.Name, crossDomainMessengerABI)
-		if err != nil {
-			return nil, err
-		}
-
-		sentMsgExtensionData := bindings.CrossDomainMessengerSentMessageExtension1{Raw: *sentMessageEvent.RLPLog}
-		extensionLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 1}].RLPLog
-		sentMsgExtensionData.Raw = *extensionLog
-		err = UnpackLog(&sentMsgExtensionData, extensionLog, sentMessageEventExtensionAbi.Name, crossDomainMessengerABI)
-		if err != nil {
-			return nil, err
-		}
-
-		msgHash, err := CrossDomainMessageHash(crossDomainMessengerABI, &sentMsgData, sentMsgExtensionData.Value)
-		if err != nil {
-			return nil, err
-		}
-
-		crossDomainMessageEvents[i] = CrossDomainMessengerSentMessageEvent{
-			CrossDomainMessengerSentMessage: &sentMsgData,
-			Value:                           sentMsgExtensionData.Value,
-			MessageHash:                     msgHash,
-			Event:                           sentMessageEvent,
-		}
-	}
-
-	return crossDomainMessageEvents, nil
-}
-
-func CrossDomainMessengerSentMessageEvents2(contractAddress common.Address, chain string, db *database.DB, fromHeight, toHeight *big.Int) ([]CrossDomainMessengerSentMessageEvent, error) {
+func CrossDomainMessengerSentMessageEvents(contractAddress common.Address, chain string, db *database.DB, fromHeight, toHeight *big.Int) ([]CrossDomainMessengerSentMessageEvent, error) {
 	crossDomainMessengerAbi, err := bindings.CrossDomainMessengerMetaData.GetAbi()
 	if err != nil {
 		return nil, err
@@ -150,35 +105,7 @@ func CrossDomainMessengerSentMessageEvents2(contractAddress common.Address, chai
 	return crossDomainSentMessages, nil
 }
 
-func CrossDomainMessengerRelayedMessageEvents(events *ProcessedContractEvents) ([]CrossDomainMessengerRelayedMessageEvent, error) {
-	crossDomainMessengerABI, err := bindings.L1CrossDomainMessengerMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
-
-	relayedMessageEventAbi := crossDomainMessengerABI.Events["RelayedMessage"]
-	processedRelayedMessageEvents := events.eventsBySignature[relayedMessageEventAbi.ID]
-	crossDomainMessageEvents := make([]CrossDomainMessengerRelayedMessageEvent, len(processedRelayedMessageEvents))
-	for i, relayedMessageEvent := range processedRelayedMessageEvents {
-		log := relayedMessageEvent.RLPLog
-
-		var relayedMsgData bindings.CrossDomainMessengerRelayedMessage
-		relayedMsgData.Raw = *log
-		err = UnpackLog(&relayedMsgData, log, relayedMessageEventAbi.Name, crossDomainMessengerABI)
-		if err != nil {
-			return nil, err
-		}
-
-		crossDomainMessageEvents[i] = CrossDomainMessengerRelayedMessageEvent{
-			CrossDomainMessengerRelayedMessage: &relayedMsgData,
-			Event:                              relayedMessageEvent,
-		}
-	}
-
-	return crossDomainMessageEvents, nil
-}
-
-func CrossDomainMessengerRelayedMessageEvents2(contractAddress common.Address, chain string, db *database.DB, fromHeight, toHeight *big.Int) ([]CrossDomainMessengerRelayedMessageEvent, error) {
+func CrossDomainMessengerRelayedMessageEvents(contractAddress common.Address, chain string, db *database.DB, fromHeight, toHeight *big.Int) ([]CrossDomainMessengerRelayedMessageEvent, error) {
 	crossDomainMessengerABI, err := bindings.L1CrossDomainMessengerMetaData.GetAbi()
 	if err != nil {
 		return nil, err
