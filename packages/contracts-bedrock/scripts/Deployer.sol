@@ -77,7 +77,7 @@ abstract contract Deployer is Script {
         deployScript = vm.envOr("DEPLOY_SCRIPT", name());
 
         deploymentContext = _getDeploymentContext();
-        string memory sig = vm.envOr("SIG", "run");
+        string memory sig = vm.envOr("SIG", string("run"));
         string memory deployFile = vm.envOr("DEPLOY_FILE", string.concat(sig, "-latest.json"));
         uint256 chainId = vm.envOr("CHAIN_ID", block.chainid);
         deployPath = string.concat(root, "/broadcast/", deployScript, ".s.sol/", vm.toString(chainId), "/", deployFile);
