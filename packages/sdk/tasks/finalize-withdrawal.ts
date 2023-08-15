@@ -60,6 +60,22 @@ task('finalize-withdrawal', 'Finalize a withdrawal')
       'OptimismPortalProxy'
     )
 
+    if (Deployment__L1StandardBridgeProxy?.address === undefined) {
+      throw new Error('No L1StandardBridgeProxy deployment')
+    }
+
+    if (Deployment__L1CrossDomainMessengerProxy?.address === undefined) {
+      throw new Error('No L1CrossDomainMessengerProxy deployment')
+    }
+
+    if (Deployment__L2OutputOracleProxy?.address === undefined) {
+      throw new Error('No L2OutputOracleProxy deployment')
+    }
+
+    if (Deployment__OptimismPortalProxy?.address === undefined) {
+      throw new Error('No OptimismPortalProxy deployment')
+    }
+
     const messenger = new CrossChainMessenger({
       l1SignerOrProvider: signer,
       l2SignerOrProvider: l2Signer,

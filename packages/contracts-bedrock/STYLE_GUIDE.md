@@ -102,7 +102,7 @@ All test contracts and functions should be organized and named according to the 
 These guidelines are also encoded in a script which can be run with:
 
 ```
-ts-node scripts/forge-test-names.ts
+tsx scripts/forge-test-names.ts
 ```
 
 _Note: This is a work in progress, not all test files are compliant with these guidelines._
