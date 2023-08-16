@@ -2,16 +2,13 @@ package processor
 
 import (
 	"bytes"
-	"context"
 	"errors"
-	"fmt"
-	"math/big"
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 
-	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type StandardBridgeInitiatedEvent struct {
@@ -19,8 +16,8 @@ type StandardBridgeInitiatedEvent struct {
 	// the hardcoded ETH address
 	*bindings.StandardBridgeERC20BridgeInitiated
 
-	CrossDomainMessengerNonce *big.Int
-	Event                     *database.ContractEvent
+	CrossDomainMessageHash common.Hash
+	Event                  *database.ContractEvent
 }
 
 type StandardBridgeFinalizedEvent struct {
@@ -28,8 +25,8 @@ type StandardBridgeFinalizedEvent struct {
 	// the hardcoded ETH address
 	*bindings.StandardBridgeERC20BridgeFinalized
 
-	CrossDomainMessengerNonce *big.Int
-	Event                     *database.ContractEvent
+	CrossDomainMessageHash common.Hash
+	Event                  *database.ContractEvent
 }
 
 // StandardBridgeInitiatedEvents extracts all initiated bridge events from the contracts that follow the StandardBridge ABI. The
@@ -50,13 +47,13 @@ func StandardBridgeInitiatedEvents(events *ProcessedContractEvents) ([]StandardB
 
 // StandardBridgeFinalizedEvents extracts all finalization bridge events from the contracts that follow the StandardBridge ABI. The
 // correlated CrossDomainMessenger nonce is also parsed by looking at the parameters of the corresponding relayMessage transaction data.
-func StandardBridgeFinalizedEvents(rawEthClient *ethclient.Client, events *ProcessedContractEvents) ([]StandardBridgeFinalizedEvent, error) {
-	ethBridgeFinalizedEvents, err := _standardBridgeFinalizedEvents[bindings.StandardBridgeETHBridgeFinalized](rawEthClient, events)
+func StandardBridgeFinalizedEvents(events *ProcessedContractEvents) ([]StandardBridgeFinalizedEvent, error) {
+	ethBridgeFinalizedEvents, err := _standardBridgeFinalizedEvents[bindings.StandardBridgeETHBridgeFinalized](events)
 	if err != nil {
 		return nil, err
 	}
 
-	erc20BridgeFinalizedEvents, err := _standardBridgeFinalizedEvents[bindings.StandardBridgeERC20BridgeFinalized](rawEthClient, events)
+	erc20BridgeFinalizedEvents, err := _standardBridgeFinalizedEvents[bindings.StandardBridgeERC20BridgeFinalized](events)
 	if err != nil {
 		return nil, err
 	}
@@ -68,17 +65,18 @@ func StandardBridgeFinalizedEvents(rawEthClient *ethclient.Client, events *Proce
 func _standardBridgeInitiatedEvents[BridgeEvent bindings.StandardBridgeETHBridgeInitiated | bindings.StandardBridgeERC20BridgeInitiated](
 	events *ProcessedContractEvents,
 ) ([]StandardBridgeInitiatedEvent, error) {
-	StandardBridgeABI, err := bindings.StandardBridgeMetaData.GetAbi()
+	standardBridgeABI, err := bindings.StandardBridgeMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
 
-	l1CrossDomainMessengerABI, err := bindings.L1CrossDomainMessengerMetaData.GetAbi()
+	crossDomainMessengerABI, err := bindings.CrossDomainMessengerMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
 
-	sentMessageEventAbi := l1CrossDomainMessengerABI.Events["SentMessage"]
+	sentMessageEventAbi := crossDomainMessengerABI.Events["SentMessage"]
+	sentMessageExtensionEventAbi := crossDomainMessengerABI.Events["SentMessageExtension1"]
 
 	var tmp BridgeEvent
 	var eventName string
@@ -94,24 +92,43 @@ func _standardBridgeInitiatedEvents[BridgeEvent bindings.StandardBridgeETHBridge
 		panic("should not be here")
 	}
 
-	processedInitiatedBridgeEvents := events.eventsBySignature[StandardBridgeABI.Events[eventName].ID]
+	processedInitiatedBridgeEvents := events.eventsBySignature[standardBridgeABI.Events[eventName].ID]
 	initiatedBridgeEvents := make([]StandardBridgeInitiatedEvent, len(processedInitiatedBridgeEvents))
 	for i, bridgeInitiatedEvent := range processedInitiatedBridgeEvents {
 		log := bridgeInitiatedEvent.RLPLog
 
 		var bridgeData BridgeEvent
-		err := UnpackLog(&bridgeData, log, eventName, StandardBridgeABI)
+		err := UnpackLog(&bridgeData, log, eventName, standardBridgeABI)
 		if err != nil {
 			return nil, err
 		}
 
-		// Look for the sent message event to extract the associated messager nonce
+		// Look for the sent message event to compute the message hash of the relayed tx
 		//   - L1: BridgeInitiated -> Portal#DepositTransaction -> SentMessage ...
 		//   - L1: BridgeInitiated -> L2ToL1MessagePasser#MessagePassed -> SentMessage ...
-		var sentMsgData bindings.L1CrossDomainMessengerSentMessage
+		var sentMsgData bindings.CrossDomainMessengerSentMessage
 		sentMsgLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 2}].RLPLog
+		if sentMsgLog.Topics[0] != sentMessageEventAbi.ID {
+			return nil, errors.New("unexpected bridge event ordering")
+		}
 		sentMsgData.Raw = *sentMsgLog
-		err = UnpackLog(&sentMsgData, sentMsgLog, sentMessageEventAbi.Name, l1CrossDomainMessengerABI)
+		err = UnpackLog(&sentMsgData, sentMsgLog, sentMessageEventAbi.Name, crossDomainMessengerABI)
+		if err != nil {
+			return nil, err
+		}
+
+		var sentMsgExtensionData bindings.CrossDomainMessengerSentMessageExtension1
+		sentMsgExtensionLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 3}].RLPLog
+		if sentMsgExtensionLog.Topics[0] != sentMessageExtensionEventAbi.ID {
+			return nil, errors.New("unexpected bridge event ordering")
+		}
+		sentMsgData.Raw = *sentMsgLog
+		err = UnpackLog(&sentMsgExtensionData, sentMsgExtensionLog, sentMessageExtensionEventAbi.Name, crossDomainMessengerABI)
+		if err != nil {
+			return nil, err
+		}
+
+		msgHash, err := CrossDomainMessageHash(crossDomainMessengerABI, &sentMsgData, sentMsgExtensionData.Value)
 		if err != nil {
 			return nil, err
 		}
@@ -121,7 +138,7 @@ func _standardBridgeInitiatedEvents[BridgeEvent bindings.StandardBridgeETHBridge
 		switch any(bridgeData).(type) {
 		case bindings.StandardBridgeETHBridgeInitiated:
 			ethBridgeData := any(bridgeData).(bindings.StandardBridgeETHBridgeInitiated)
-			expectedCrossDomainMessage, err = StandardBridgeABI.Pack(finalizeMethodName, ethBridgeData.From, ethBridgeData.To, ethBridgeData.Amount, ethBridgeData.ExtraData)
+			expectedCrossDomainMessage, err = standardBridgeABI.Pack(finalizeMethodName, ethBridgeData.From, ethBridgeData.To, ethBridgeData.Amount, ethBridgeData.ExtraData)
 			if err != nil {
 				return nil, err
 			}
@@ -139,7 +156,7 @@ func _standardBridgeInitiatedEvents[BridgeEvent bindings.StandardBridgeETHBridge
 			_temp := any(bridgeData).(bindings.StandardBridgeERC20BridgeInitiated)
 			erc20BridgeData = &_temp
 			erc20BridgeData.Raw = *log
-			expectedCrossDomainMessage, err = StandardBridgeABI.Pack(finalizeMethodName, erc20BridgeData.RemoteToken, erc20BridgeData.LocalToken, erc20BridgeData.From, erc20BridgeData.To, erc20BridgeData.Amount, erc20BridgeData.ExtraData)
+			expectedCrossDomainMessage, err = standardBridgeABI.Pack(finalizeMethodName, erc20BridgeData.RemoteToken, erc20BridgeData.LocalToken, erc20BridgeData.From, erc20BridgeData.To, erc20BridgeData.Amount, erc20BridgeData.ExtraData)
 			if err != nil {
 				return nil, err
 			}
@@ -151,7 +168,7 @@ func _standardBridgeInitiatedEvents[BridgeEvent bindings.StandardBridgeETHBridge
 
 		initiatedBridgeEvents[i] = StandardBridgeInitiatedEvent{
 			StandardBridgeERC20BridgeInitiated: erc20BridgeData,
-			CrossDomainMessengerNonce:          sentMsgData.MessageNonce,
+			CrossDomainMessageHash:             msgHash,
 			Event:                              bridgeInitiatedEvent,
 		}
 	}
@@ -161,27 +178,19 @@ func _standardBridgeInitiatedEvents[BridgeEvent bindings.StandardBridgeETHBridge
 
 // parse out eth or erc20 bridge finalization events
 func _standardBridgeFinalizedEvents[BridgeEvent bindings.StandardBridgeETHBridgeFinalized | bindings.StandardBridgeERC20BridgeFinalized](
-	rawEthClient *ethclient.Client,
 	events *ProcessedContractEvents,
 ) ([]StandardBridgeFinalizedEvent, error) {
-	StandardBridgeABI, err := bindings.StandardBridgeMetaData.GetAbi()
+	standardBridgeABI, err := bindings.StandardBridgeMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
 
-	l1CrossDomainMessengerABI, err := bindings.L1CrossDomainMessengerMetaData.GetAbi()
+	crossDomainMessengerABI, err := bindings.CrossDomainMessengerMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
 
-	optimismPortalAbi, err := bindings.OptimismPortalMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
-
-	relayedMessageEventAbi := l1CrossDomainMessengerABI.Events["RelayedMessage"]
-	relayMessageMethodAbi := l1CrossDomainMessengerABI.Methods["relayMessage"]
-	finalizeWithdrawalTransactionMethodAbi := optimismPortalAbi.Methods["finalizeWithdrawalTransaction"]
+	relayedMessageEventAbi := crossDomainMessengerABI.Events["RelayedMessage"]
 
 	var bridgeData BridgeEvent
 	var eventName string
@@ -194,69 +203,26 @@ func _standardBridgeFinalizedEvents[BridgeEvent bindings.StandardBridgeETHBridge
 		panic("should not be here")
 	}
 
-	processedFinalizedBridgeEvents := events.eventsBySignature[StandardBridgeABI.Events[eventName].ID]
+	processedFinalizedBridgeEvents := events.eventsBySignature[standardBridgeABI.Events[eventName].ID]
 	finalizedBridgeEvents := make([]StandardBridgeFinalizedEvent, len(processedFinalizedBridgeEvents))
 	for i, bridgeFinalizedEvent := range processedFinalizedBridgeEvents {
 		log := bridgeFinalizedEvent.RLPLog
 
 		var bridgeData BridgeEvent
-		err := UnpackLog(&bridgeData, log, eventName, StandardBridgeABI)
+		err := UnpackLog(&bridgeData, log, eventName, standardBridgeABI)
 		if err != nil {
 			return nil, err
 		}
 
 		// Look for the RelayedMessage event that follows right after the BridgeFinalized Event
+		var relayedMsgData bindings.CrossDomainMessengerRelayedMessage
 		relayedMsgLog := events.eventByLogIndex[ProcessedContractEventLogIndexKey{log.BlockHash, log.Index + 1}].RLPLog
 		if relayedMsgLog.Topics[0] != relayedMessageEventAbi.ID {
 			return nil, errors.New("unexpected bridge event ordering")
 		}
-
-		// There's no way to extract the nonce on the relayed message event. we can extract the nonce by
-		// by unpacking the transaction input for the `relayMessage` transaction. Since bedrock has OptimismPortal
-		// as on L1 as an intermediary for finalization, we have to check both scenarios
-		tx, isPending, err := rawEthClient.TransactionByHash(context.Background(), relayedMsgLog.TxHash)
-		if err != nil || isPending {
-			return nil, errors.New("unable to query relayMessage tx for bridge finalization event")
-		}
-
-		// If this is a finalization step with the optimism portal, the calldata for relayMessage invocation can be
-		// extracted from the withdrawal transaction.
-
-		// NOTE: the L2CrossDomainMessenger nonce may not match the L2ToL1MessagePasser nonce, hence the additional
-		// layer of decoding vs reading the nocne of the withdrawal transaction. Both nonces have a similar but
-		// different lifeycle that might not match (i.e L2ToL1MessagePasser can be invoced directly)
-		var relayMsgCallData []byte
-		switch {
-		case bytes.Equal(tx.Data()[:4], relayMessageMethodAbi.ID):
-			relayMsgCallData = tx.Data()[4:]
-		case bytes.Equal(tx.Data()[:4], finalizeWithdrawalTransactionMethodAbi.ID):
-			data, err := finalizeWithdrawalTransactionMethodAbi.Inputs.Unpack(tx.Data()[4:])
-			if err != nil {
-				return nil, err
-			}
-
-			finalizeWithdrawTransactionInput := new(struct {
-				Tx bindings.TypesWithdrawalTransaction
-			})
-			err = finalizeWithdrawalTransactionMethodAbi.Inputs.Copy(finalizeWithdrawTransactionInput, data)
-			if err != nil {
-				return nil, fmt.Errorf("unable extract withdrawal tx input from finalizeWithdrawalTransaction calldata: %w", err)
-			} else if !bytes.Equal(finalizeWithdrawTransactionInput.Tx.Data[:4], relayMessageMethodAbi.ID) {
-				return nil, errors.New("finalizeWithdrawalTransaction calldata does not match relayMessage invocation")
-			}
-			relayMsgCallData = finalizeWithdrawTransactionInput.Tx.Data[4:]
-		default:
-			return nil, errors.New("bridge finalization event does not correlate with a relayMessage tx invocation")
-		}
-
-		inputsMap := make(map[string]interface{})
-		err = relayMessageMethodAbi.Inputs.UnpackIntoMap(inputsMap, relayMsgCallData)
+		err = UnpackLog(&relayedMsgData, relayedMsgLog, relayedMessageEventAbi.Name, crossDomainMessengerABI)
 		if err != nil {
 			return nil, err
-		}
-		nonce, ok := inputsMap["_nonce"].(*big.Int)
-		if !ok {
-			return nil, errors.New("unable to extract `_nonce` parameter from relayMessage calldata")
 		}
 
 		var erc20BridgeData *bindings.StandardBridgeERC20BridgeFinalized
@@ -279,7 +245,7 @@ func _standardBridgeFinalizedEvents[BridgeEvent bindings.StandardBridgeETHBridge
 
 		finalizedBridgeEvents[i] = StandardBridgeFinalizedEvent{
 			StandardBridgeERC20BridgeFinalized: erc20BridgeData,
-			CrossDomainMessengerNonce:          nonce,
+			CrossDomainMessageHash:             relayedMsgData.MsgHash,
 			Event:                              bridgeFinalizedEvent,
 		}
 	}
