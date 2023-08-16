@@ -48,7 +48,7 @@ func newDepositResponse(deposits []*database.L1BridgeDepositWithTransactionHashe
 			Amount: deposit.L1BridgeDeposit.Tx.Amount.Int.String(),
 			L1Token: TokenInfo{
 				ChainId:  1,
-				Address:  deposit.L1BridgeDeposit.TokenPair.L1TokenAddress.String(),
+				Address:  deposit.L1BridgeDeposit.TokenPair.LocalTokenAddress.String(),
 				Name:     "TODO",
 				Symbol:   "TODO",
 				Decimals: 420,
@@ -58,7 +58,7 @@ func newDepositResponse(deposits []*database.L1BridgeDepositWithTransactionHashe
 			},
 			L2Token: TokenInfo{
 				ChainId:  10,
-				Address:  deposit.L1BridgeDeposit.TokenPair.L2TokenAddress.String(),
+				Address:  deposit.L1BridgeDeposit.TokenPair.RemoteTokenAddress.String(),
 				Name:     "TODO",
 				Symbol:   "TODO",
 				Decimals: 420,

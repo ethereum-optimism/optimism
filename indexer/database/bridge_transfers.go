@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	ETHTokenPair = TokenPair{L1TokenAddress: predeploys.LegacyERC20ETHAddr, L2TokenAddress: predeploys.LegacyERC20ETHAddr}
+	ETHTokenPair = TokenPair{LocalTokenAddress: predeploys.LegacyERC20ETHAddr, RemoteTokenAddress: predeploys.LegacyERC20ETHAddr}
 )
 
 /**
@@ -18,8 +18,8 @@ var (
  */
 
 type TokenPair struct {
-	L1TokenAddress common.Address `gorm:"serializer:json"`
-	L2TokenAddress common.Address `gorm:"serializer:json"`
+	LocalTokenAddress  common.Address `gorm:"serializer:json"`
+	RemoteTokenAddress common.Address `gorm:"serializer:json"`
 }
 
 type BridgeTransfer struct {
