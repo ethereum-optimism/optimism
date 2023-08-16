@@ -6,44 +6,201 @@ package safe
 import (
 	"encoding/json"
 	"fmt"
+	"golang.org/x/exp/maps"
 	"math/big"
+	"strconv"
+	"strings"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
-// BatchFile represents a Safe tx-builder transaction.
-type BatchFile struct {
+// Batch represents a Safe tx-builder transaction.
+type Batch struct {
 	Version      string             `json:"version"`
 	ChainID      *big.Int           `json:"chainId"`
 	CreatedAt    uint64             `json:"createdAt"`
-	Meta         BatchFileMeta      `json:"meta"`
+	Meta         BatchMeta          `json:"meta"`
 	Transactions []BatchTransaction `json:"transactions"`
+}
+
+func (b *Batch) AddCall(to common.Address, value *big.Int, sig string, args []any, iface abi.ABI) error {
+	// Attempt to pull out the signature from the top level methods.
+	// The abi package uses normalization that we do not want to be
+	// coupled to, so attempt to search for the raw name if the top
+	// level name is not found to handle overloading more gracefully.
+	method, ok := iface.Methods[sig]
+	if !ok {
+		for _, m := range iface.Methods {
+			if m.RawName == sig || m.Sig == sig {
+				method = m
+				ok = true
+			}
+		}
+	}
+	if !ok {
+		keys := maps.Keys(iface.Methods)
+		methods := strings.Join(keys, ",")
+		return fmt.Errorf("%s not found in abi, options are %s", sig, methods)
+	}
+
+	if len(args) != len(method.Inputs) {
+		return fmt.Errorf("requires %d inputs but got %d for %s", len(method.Inputs), len(args), method.RawName)
+	}
+
+	contractMethod := ContractMethod{
+		Name:    method.RawName,
+		Payable: method.Payable,
+	}
+
+	inputValues := make(map[string]string)
+
+	// TODO: refactor this to be recursive
+	// it should return a ContractInput and take an Input in
+	for i, input := range method.Inputs {
+		inputType, err := stringifyType(input.Type)
+		if err != nil {
+			return err
+		}
+
+		internalType := input.Type.String()
+		if inputType == "tuple" {
+			internalType = input.Type.TupleRawName
+		}
+
+		components := make([]ContractInput, len(input.Type.TupleElems))
+		for j, elem := range input.Type.TupleElems {
+			str := input.Type.TupleRawNames[j]
+			components[j] = ContractInput{
+				InternalType: elem.String(),
+				Name:         str,
+				Type:         elem.String(),
+			}
+		}
+
+		contractInput := ContractInput{
+			InternalType: internalType,
+			Name:         input.Name,
+			Type:         inputType,
+			Components:   components,
+		}
+		contractMethod.Inputs = append(contractMethod.Inputs, contractInput)
+
+		str, err := stringifyArg(args[i])
+		if err != nil {
+			return err
+		}
+		inputValues[input.Name] = str
+	}
+
+	batchTransaction := BatchTransaction{
+		To:          to,
+		Value:       value,
+		Method:      contractMethod,
+		InputValues: inputValues,
+	}
+
+	b.Transactions = append(b.Transactions, batchTransaction)
+
+	return nil
+}
+
+func stringifyType(t abi.Type) (string, error) {
+	switch t.T {
+	case abi.TupleTy:
+		return "tuple", nil
+	case abi.BoolTy:
+		return "bool", nil
+	case abi.AddressTy:
+		return "address", nil
+	case abi.UintTy:
+		return t.String(), nil
+	case abi.IntTy:
+		return t.String(), nil
+	default:
+		return "", fmt.Errorf("unknown type: %T", t.T)
+	}
+}
+
+func stringifyArg(argument any) (string, error) {
+	switch arg := argument.(type) {
+	case common.Address:
+		return arg.String(), nil
+	case *common.Address:
+		return arg.String(), nil
+	case *big.Int:
+		return arg.String(), nil
+	case big.Int:
+		return arg.String(), nil
+	case bool:
+		if arg {
+			return "true", nil
+		}
+		return "false", nil
+	case int64:
+		return strconv.FormatInt(arg, 10), nil
+	case int32:
+		return strconv.FormatInt(int64(arg), 10), nil
+	case int16:
+		return strconv.FormatInt(int64(arg), 10), nil
+	case int8:
+		return strconv.FormatInt(int64(arg), 10), nil
+	case int:
+		return strconv.FormatInt(int64(arg), 10), nil
+	case uint64:
+		return strconv.FormatUint(uint64(arg), 10), nil
+	case uint32:
+		return strconv.FormatUint(uint64(arg), 10), nil
+	case uint16:
+		return strconv.FormatUint(uint64(arg), 10), nil
+	case uint8:
+		return strconv.FormatUint(uint64(arg), 10), nil
+	case uint:
+		return strconv.FormatUint(uint64(arg), 10), nil
+	case []byte:
+		return hexutil.Encode(arg), nil
+	case []any:
+		ret := make([]string, len(arg))
+		for i, v := range arg {
+			str, err := stringifyArg(v)
+			if err != nil {
+				return "", err
+			}
+			ret[i] = str
+		}
+		return "[" + strings.Join(ret, ",") + "]", nil
+	default:
+		return "", fmt.Errorf("unknown type as argument: %T", arg)
+	}
 }
 
 // bathcFileMarshaling is a helper type used for JSON marshaling.
-type batchFileMarshaling struct {
+type batchMarshaling struct {
 	Version      string             `json:"version"`
 	ChainID      string             `json:"chainId"`
 	CreatedAt    uint64             `json:"createdAt"`
-	Meta         BatchFileMeta      `json:"meta"`
+	Meta         BatchMeta          `json:"meta"`
 	Transactions []BatchTransaction `json:"transactions"`
 }
 
-// MarshalJSON will marshal a BatchFile to JSON.
-func (b *BatchFile) MarshalJSON() ([]byte, error) {
-	return json.Marshal(batchFileMarshaling{
+// MarshalJSON will marshal a Batch to JSON.
+func (b *Batch) MarshalJSON() ([]byte, error) {
+	batch := batchMarshaling{
 		Version:      b.Version,
-		ChainID:      b.ChainID.String(),
 		CreatedAt:    b.CreatedAt,
 		Meta:         b.Meta,
 		Transactions: b.Transactions,
-	})
+	}
+	if b.ChainID != nil {
+		batch.ChainID = b.ChainID.String()
+	}
+	return json.Marshal(batch)
 }
 
-// UnmarshalJSON will unmarshal a BatchFile from JSON.
-func (b *BatchFile) UnmarshalJSON(data []byte) error {
-	var bf batchFileMarshaling
+// UnmarshalJSON will unmarshal a Batch from JSON.
+func (b *Batch) UnmarshalJSON(data []byte) error {
+	var bf batchMarshaling
 	if err := json.Unmarshal(data, &bf); err != nil {
 		return err
 	}
@@ -59,9 +216,9 @@ func (b *BatchFile) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// BatchFileMeta contains metadata about a BatchFile. Not all
+// BatchMeta contains metadata about a Batch. Not all
 // of the fields are required.
-type BatchFileMeta struct {
+type BatchMeta struct {
 	TxBuilderVersion        string `json:"txBuilderVersion,omitempty"`
 	Checksum                string `json:"checksum,omitempty"`
 	CreatedFromSafeAddress  string `json:"createdFromSafeAddress"`
