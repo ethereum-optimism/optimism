@@ -165,10 +165,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         __Ownable_init();
         transferOwnership(_owner);
 
-        _setGasConfig({
-            _overhead: _overhead,
-            _scalar: _scalar
-        });
+        _setGasConfig({ _overhead: _overhead, _scalar: _scalar });
 
         _setBatcherHash(_batcherHash);
         _setGasLimit(_gasLimit);
