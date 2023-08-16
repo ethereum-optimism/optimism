@@ -7,11 +7,42 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
-	"github.com/ethereum-optimism/optimism/op-service/client/utils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCannonMultipleGames(t *testing.T) {
+	t.Skip("Challenger doesn't yet support multiple games")
+	InitParallel(t)
+
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	gameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
+	// Start a challenger with the correct alphabet trace
+	gameFactory.StartChallenger(ctx, sys.NodeEndpoint("l1"), "TowerDefense", func(c *config.Config) {
+		c.AgreeWithProposedOutput = true
+		c.AlphabetTrace = "abcdefg"
+		c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(sys.cfg.Secrets.Alice)
+	})
+
+	game1 := gameFactory.StartAlphabetGame(ctx, "abcxyz")
+	// Wait for the challenger to respond to the first game
+	game1.WaitForClaimCount(ctx, 2)
+
+	game2 := gameFactory.StartAlphabetGame(ctx, "zyxabc")
+	// Wait for the challenger to respond to the second game
+	game2.WaitForClaimCount(ctx, 2)
+
+	// Challenger should respond to new claims
+	game2.Attack(ctx, 1, common.Hash{0xaa})
+	game2.WaitForClaimCount(ctx, 4)
+	game1.Defend(ctx, 1, common.Hash{0xaa})
+	game1.WaitForClaimCount(ctx, 4)
+}
 
 func TestResolveDisputeGame(t *testing.T) {
 	InitParallel(t)
@@ -37,7 +68,7 @@ func TestResolveDisputeGame(t *testing.T) {
 	game.WaitForClaimCount(ctx, 2)
 
 	sys.TimeTravelClock.AdvanceTime(gameDuration)
-	require.NoError(t, utils.WaitNextBlock(ctx, l1Client))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	// Challenger should resolve the game now that the clocks have expired.
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
@@ -138,7 +169,7 @@ func TestChallengerCompleteDisputeGame(t *testing.T) {
 			game.WaitForClaimAtMaxDepth(ctx, test.expectStep)
 
 			sys.TimeTravelClock.AdvanceTime(gameDuration)
-			require.NoError(t, utils.WaitNextBlock(ctx, l1Client))
+			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 			game.WaitForGameStatus(ctx, test.expectedResult)
 		})
@@ -198,7 +229,7 @@ func TestCannonDisputeGame(t *testing.T) {
 			game.WaitForClaimAtMaxDepth(ctx, true)
 
 			sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
-			require.NoError(t, utils.WaitNextBlock(ctx, l1Client))
+			require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 			game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 			game.LogGameData(ctx)
@@ -253,7 +284,7 @@ func TestCannonDefendStep(t *testing.T) {
 	game.WaitForClaimAtMaxDepth(ctx, true)
 
 	sys.TimeTravelClock.AdvanceTime(game.GameDuration(ctx))
-	require.NoError(t, utils.WaitNextBlock(ctx, l1Client))
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
 
 	game.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 	game.LogGameData(ctx)

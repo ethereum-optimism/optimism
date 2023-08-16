@@ -1,4 +1,7 @@
+# Chain configures l1 chain addresses
+# Can configure them manually or use a preset l2 ChainId for known chains including OP Mainnet, OP Goerli, Base, Base Goerli, Zora, and Zora goerli
 [chain]
+# OP Goerli
 preset = 420
 
 [chain.l1-contracts]

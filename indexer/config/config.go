@@ -1,14 +1,17 @@
 package config
 
 import (
+	"fmt"
 	"os"
+	"reflect"
 
 	"github.com/BurntSushi/toml"
-
-	"github.com/ethereum-optimism/optimism/indexer/processor"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/common"
+	geth_log "github.com/ethereum/go-ethereum/log"
 	"github.com/joho/godotenv"
 )
+
+// in future presets can just be onchain config and fetched on initialization
 
 // Config represents the `indexer.toml` file used to configure the indexer
 type Config struct {
@@ -17,7 +20,33 @@ type Config struct {
 	DB      DBConfig
 	API     APIConfig
 	Metrics MetricsConfig
-	Logger  log.Logger `toml:"-"`
+}
+
+// fetch this via onchain config from RPCsConfig and remove from config in future
+type L1Contracts struct {
+	OptimismPortal         common.Address
+	L2OutputOracle         common.Address
+	L1CrossDomainMessenger common.Address
+	L1StandardBridge       common.Address
+	L1ERC721Bridge         common.Address
+
+	// Some more contracts -- ProxyAdmin, SystemConfig, etcc
+	// Ignore the auxiliary contracts?
+
+	// Legacy contracts? We'll add this in to index the legacy chain.
+	// Remove afterwards?
+}
+
+func (c L1Contracts) ToSlice() []common.Address {
+	fields := reflect.VisibleFields(reflect.TypeOf(c))
+	v := reflect.ValueOf(c)
+
+	contracts := make([]common.Address, len(fields))
+	for i, field := range fields {
+		contracts[i] = (v.FieldByName(field.Name).Interface()).(common.Address)
+	}
+
+	return contracts
 }
 
 // ChainConfig configures of the chain being indexed
@@ -25,7 +54,7 @@ type ChainConfig struct {
 	// Configure known chains with the l2 chain id
 	// NOTE - This currently performs no lookups to extract known L1 contracts by l2 chain id
 	Preset      int
-	L1Contracts processor.L1Contracts `toml:"l1-contracts"`
+	L1Contracts L1Contracts `toml:"l1-contracts"`
 	// L1StartingHeight is the block height to start indexing from
 	// NOTE - This is currently unimplemented
 	L1StartingHeight int
@@ -59,32 +88,38 @@ type MetricsConfig struct {
 }
 
 // LoadConfig loads the `indexer.toml` config file from a given path
-func LoadConfig(path string) (Config, error) {
+func LoadConfig(logger geth_log.Logger, path string) (Config, error) {
 	if err := godotenv.Load(); err != nil {
-		log.Warn("Unable to load .env file", err)
-		log.Info("Continuing without .env file")
+		logger.Warn("Unable to load .env file", err)
+		logger.Info("Continuing without .env file")
 	} else {
-		log.Info("Loaded .env file")
+		logger.Info("Loaded .env file")
 	}
 
 	var conf Config
 
-	// Read the config file.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return conf, err
 	}
 
-	// Replace environment variables.
 	data = []byte(os.ExpandEnv(string(data)))
 
-	// Decode the TOML data.
 	if _, err := toml.Decode(string(data), &conf); err != nil {
-		log.Info("Failed to decode config file", "message", err)
+		logger.Info("Failed to decode config file", "message", err)
 		return conf, err
 	}
 
-	log.Debug("Loaded config file", conf)
+	if conf.Chain.Preset != 0 {
+		knownContracts, ok := presetL1Contracts[conf.Chain.Preset]
+		if ok {
+			conf.Chain.L1Contracts = knownContracts
+		} else {
+			return conf, fmt.Errorf("unknown preset: %d", conf.Chain.Preset)
+		}
+	}
+
+	logger.Debug("Loaded config file", conf)
 
 	return conf, nil
 }

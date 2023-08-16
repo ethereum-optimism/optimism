@@ -10,5 +10,6 @@ ignores: [
   "eslint-config-prettier",
   "eslint-plugin-prettier",
   "chai",
+  "ts-node",
   "typedoc"
 ]

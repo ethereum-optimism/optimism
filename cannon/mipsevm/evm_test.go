@@ -165,6 +165,43 @@ func TestEVM(t *testing.T) {
 	}
 }
 
+func TestEVMSingleStep(t *testing.T) {
+	contracts, addrs := testContractsSetup(t)
+	var tracer vm.EVMLogger
+	//tracer = SourceMapTracer(t, contracts, addrs)
+
+	type testInput struct {
+		name   string
+		pc     uint32
+		nextPC uint32
+		insn   uint32
+	}
+	cases := []testInput{
+		{"j MSB set target", 0, 4, 0x0A_00_00_02},                         // j 0x02_00_00_02
+		{"j non-zero PC region", 0x10000000, 0x10000004, 0x08_00_00_02},   // j 0x2
+		{"jal MSB set target", 0, 4, 0x0E_00_00_02},                       // jal 0x02_00_00_02
+		{"jal non-zero PC region", 0x10000000, 0x10000004, 0x0C_00_00_02}, // jal 0x2
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			state := &State{PC: tt.pc, NextPC: tt.nextPC, Memory: NewMemory()}
+			state.Memory.SetMemory(tt.pc, tt.insn)
+
+			us := NewInstrumentedState(state, nil, os.Stdout, os.Stderr)
+			stepWitness, err := us.Step(true)
+			require.NoError(t, err)
+
+			evm := NewMIPSEVM(contracts, addrs)
+			evm.SetTracer(tracer)
+			evmPost := evm.Step(t, stepWitness)
+			goPost := us.state.EncodeWitness()
+			require.Equal(t, hexutil.Bytes(goPost).String(), hexutil.Bytes(evmPost).String(),
+				"mipsevm produced different state than EVM")
+		})
+	}
+}
+
 func TestEVMFault(t *testing.T) {
 	contracts, addrs := testContractsSetup(t)
 	var tracer vm.EVMLogger // no-tracer by default, but see SourceMapTracer and MarkdownTracer

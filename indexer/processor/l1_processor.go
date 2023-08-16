@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
-	"reflect"
 
+	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -23,35 +23,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// L1Contracts contains all L1 system contract addresses
-// NOTE - There are no active validations to ensure that the
-// addresses provided are not nil or duplicated
-type L1Contracts struct {
-	OptimismPortal         common.Address `toml:"optimism-portal"`
-	L2OutputOracle         common.Address `toml:"l2-output-oracle"`
-	L1CrossDomainMessenger common.Address `toml:"l1-cross-domain-messenger"`
-	L1StandardBridge       common.Address `toml:"l1-standard-bridge"`
-	L1ERC721Bridge         common.Address `toml:"l1-erc721-bridge"`
-
-	// Some more contracts -- ProxyAdmin, SystemConfig, etc
-	// Ignore the auxiliary contracts?
-
-	// Legacy contracts? We'll add this in to index the legacy chain.
-	// Remove afterwards?
-}
-
-func (c L1Contracts) ToSlice() []common.Address {
-	fields := reflect.VisibleFields(reflect.TypeOf(c))
-	v := reflect.ValueOf(c)
-
-	contracts := make([]common.Address, len(fields))
-	for i, field := range fields {
-		contracts[i] = (v.FieldByName(field.Name).Interface()).(common.Address)
-	}
-
-	return contracts
-}
-
 type checkpointAbi struct {
 	l2OutputOracle             *abi.ABI
 	legacyStateCommitmentChain *abi.ABI
@@ -61,7 +32,7 @@ type L1Processor struct {
 	processor
 }
 
-func NewL1Processor(logger log.Logger, ethClient node.EthClient, db *database.DB, l1Contracts L1Contracts) (*L1Processor, error) {
+func NewL1Processor(logger log.Logger, ethClient node.EthClient, db *database.DB, l1Contracts config.L1Contracts) (*L1Processor, error) {
 	l1ProcessLog := logger.New("processor", "l1")
 	l1ProcessLog.Info("initializing processor")
 
@@ -110,7 +81,7 @@ func NewL1Processor(logger log.Logger, ethClient node.EthClient, db *database.DB
 	return l1Processor, nil
 }
 
-func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1Contracts, checkpointAbi checkpointAbi) ProcessFn {
+func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts config.L1Contracts, checkpointAbi checkpointAbi) ProcessFn {
 	rawEthClient := ethclient.NewClient(ethClient.RawRpcClient())
 
 	contractAddrs := l1Contracts.ToSlice()
@@ -264,7 +235,7 @@ func l1ProcessFn(processLog log.Logger, ethClient node.EthClient, l1Contracts L1
 	}
 }
 
-func l1ProcessContractEventsBridgeTransactions(processLog log.Logger, db *database.DB, l1Contracts L1Contracts, events *ProcessedContractEvents) error {
+func l1ProcessContractEventsBridgeTransactions(processLog log.Logger, db *database.DB, l1Contracts config.L1Contracts, events *ProcessedContractEvents) error {
 	// (1) Process New Deposits
 	portalDeposits, err := OptimismPortalTransactionDepositEvents(events)
 	if err != nil {
@@ -297,6 +268,7 @@ func l1ProcessContractEventsBridgeTransactions(processLog log.Logger, db *databa
 				TransactionSourceHash: depositTx.SourceHash,
 				Tx:                    transactionDeposits[i].Tx,
 				TokenPair: database.TokenPair{
+					// TODO index eth token if it doesn't exist
 					L1TokenAddress: predeploys.LegacyERC20ETHAddr,
 					L2TokenAddress: predeploys.LegacyERC20ETHAddr,
 				},
@@ -495,7 +467,8 @@ func l1ProcessContractEventsStandardBridge(processLog log.Logger, db *database.D
 		deposits[i] = &database.L1BridgeDeposit{
 			TransactionSourceHash:     depositTx.SourceHash,
 			CrossDomainMessengerNonce: &database.U256{Int: initiatedBridgeEvent.CrossDomainMessengerNonce},
-			TokenPair:                 database.TokenPair{L1TokenAddress: initiatedBridgeEvent.LocalToken, L2TokenAddress: initiatedBridgeEvent.RemoteToken},
+			// TODO index the tokens pairs if they don't exist
+			TokenPair: database.TokenPair{L1TokenAddress: initiatedBridgeEvent.LocalToken, L2TokenAddress: initiatedBridgeEvent.RemoteToken},
 			Tx: database.Transaction{
 				FromAddress: initiatedBridgeEvent.From,
 				ToAddress:   initiatedBridgeEvent.To,

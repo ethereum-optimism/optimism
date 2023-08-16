@@ -285,13 +285,13 @@ func (m *InstrumentedState) mipsStep() error {
 
 	// j-type j/jal
 	if opcode == 2 || opcode == 3 {
-		// TODO likely bug in original code: MIPS spec says this should be in the "current" region;
-		// a 256 MB aligned region (i.e. use top 4 bits of branch delay slot (pc+4))
 		linkReg := uint32(0)
 		if opcode == 3 {
 			linkReg = 31
 		}
-		return m.handleJump(linkReg, SE(insn&0x03FFFFFF, 26)<<2)
+		// Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
+		target := (m.state.NextPC & 0xF0000000) | ((insn & 0x03FFFFFF) << 2)
+		return m.handleJump(linkReg, target)
 	}
 
 	// register fetch
@@ -396,7 +396,6 @@ func (m *InstrumentedState) mipsStep() error {
 func execute(insn uint32, rs uint32, rt uint32, mem uint32) uint32 {
 	opcode := insn >> 26 // 6-bits
 	fun := insn & 0x3f   // 6-bits
-	// TODO(CLI-4136): deref the immed into a register
 
 	if opcode < 0x20 {
 		// transform ArithLogI
