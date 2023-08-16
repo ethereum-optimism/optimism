@@ -155,7 +155,8 @@ contract Multichain is SafeBuilder {
             "L1CrossDomainMessenger codehash"
         );
         require(
-            PROXY_ADMIN.getProxyImplementation(prox.L1StandardBridge).codehash == L1StandardBridgeImplementation.codehash,
+            PROXY_ADMIN.getProxyImplementation(prox.L1StandardBridge).codehash
+                == L1StandardBridgeImplementation.codehash,
             "L1StandardBridge codehash"
         );
         require(
@@ -230,14 +231,10 @@ contract Multichain is SafeBuilder {
                 (
                     payable(prox.L1CrossDomainMessenger), // proxy
                     L1CrossDomainMessengerImplementation, // implementation
-                    abi.encodeCall(                       // data
-                        L1CrossDomainMessenger.initialize,
-                        (
-                            OptimismPortal(payable(prox.OptimismPortal))
-                        )
-                    )
+                    abi.encodeCall( // data
+                        L1CrossDomainMessenger.initialize, (OptimismPortal(payable(prox.OptimismPortal))))
                 )
-            )
+                )
         });
 
         // Upgrade the L1StandardBridge
@@ -247,16 +244,11 @@ contract Multichain is SafeBuilder {
             callData: abi.encodeCall(
                 ProxyAdmin.upgradeAndCall,
                 (
-                    payable(prox.L1StandardBridge),  // proxy
-                    L1StandardBridgeImplementation,  // implementation
-                    abi.encodeCall(
-                        L1StandardBridge.initialize,
-                        (
-                            L1CrossDomainMessenger(prox.L1CrossDomainMessenger)
-                        )
-                    )
+                    payable(prox.L1StandardBridge), // proxy
+                    L1StandardBridgeImplementation, // implementation
+                    abi.encodeCall(L1StandardBridge.initialize, (L1CrossDomainMessenger(prox.L1CrossDomainMessenger)))
                 )
-            )
+                )
         });
 
         // Upgrade the L2OutputOracle
@@ -266,19 +258,19 @@ contract Multichain is SafeBuilder {
             callData: abi.encodeCall(
                 ProxyAdmin.upgradeAndCall,
                 (
-                    payable(prox.L2OutputOracle),   // proxy
-                    L2OutputOracleImplementation,   // implementation
-                    abi.encodeCall(                 // data
-                        L2OutputOracle.initialize,
-                        (
-                            cfg.l2OutputOracleStartingBlockNumber(),
-                            l2OutputOracleStartingTimestamp,
-                            cfg.l2OutputOracleProposer(),
-                            cfg.l2OutputOracleChallenger()
+                    payable(prox.L2OutputOracle), // proxy
+                    L2OutputOracleImplementation, // implementation
+                    abi.encodeCall( // data
+                            L2OutputOracle.initialize,
+                            (
+                                cfg.l2OutputOracleStartingBlockNumber(),
+                                l2OutputOracleStartingTimestamp,
+                                cfg.l2OutputOracleProposer(),
+                                cfg.l2OutputOracleChallenger()
+                            )
                         )
-                    )
                 )
-            )
+                )
         });
 
         // Upgrade the OptimismMintableERC20Factory. No initialize function.
@@ -287,7 +279,7 @@ contract Multichain is SafeBuilder {
             allowFailure: false,
             callData: abi.encodeCall(
                 ProxyAdmin.upgrade, (payable(prox.OptimismMintableERC20Factory), OptimismMintableERC20FactoryImplementation)
-            )
+                )
         });
 
         // Upgrade the OptimismPortal
@@ -297,19 +289,19 @@ contract Multichain is SafeBuilder {
             callData: abi.encodeCall(
                 ProxyAdmin.upgradeAndCall,
                 (
-                    payable(prox.OptimismPortal),   // proxy
-                    OptimismPortalImplementation,   // implementation
-                    abi.encodeCall(                 // data
-                        OptimismPortal.initialize,
-                        (
-                            L2OutputOracle(prox.L2OutputOracle),
-                            cfg.portalGuardian(),
-                            SystemConfig(prox.SystemConfig),
-                            false
+                    payable(prox.OptimismPortal), // proxy
+                    OptimismPortalImplementation, // implementation
+                    abi.encodeCall( // data
+                            OptimismPortal.initialize,
+                            (
+                                L2OutputOracle(prox.L2OutputOracle),
+                                cfg.portalGuardian(),
+                                SystemConfig(prox.SystemConfig),
+                                false
+                            )
                         )
-                    )
                 )
-            )
+                )
         });
 
         // Upgrade the SystemConfig
@@ -319,32 +311,32 @@ contract Multichain is SafeBuilder {
             callData: abi.encodeCall(
                 ProxyAdmin.upgradeAndCall,
                 (
-                    payable(prox.SystemConfig),   // proxy
-                    SystemConfigImplementation,   // implementation
-                    abi.encodeCall(               // data
-                        SystemConfig.initialize,
-                        (
-                            cfg.finalSystemOwner(),
-                            cfg.gasPriceOracleOverhead(),
-                            cfg.gasPriceOracleScalar(),
-                            bytes32(uint256(uint160(cfg.batchSenderAddress()))),
-                            uint64(cfg.l2GenesisBlockGasLimit()),
-                            cfg.p2pSequencerAddress(),
-                            Constants.DEFAULT_RESOURCE_CONFIG(),
-                            cfg.systemConfigStartBlock(),
-                            cfg.batchInboxAddress(),
-                            SystemConfig.Addresses({
-                                l1CrossDomainMessenger: prox.L1CrossDomainMessenger,
-                                l1ERC721Bridge: prox.L1ERC721Bridge,
-                                l1StandardBridge: prox.L1StandardBridge,
-                                l2OutputOracle: prox.L2OutputOracle,
-                                optimismPortal: prox.OptimismPortal,
-                                optimismMintableERC20Factory: prox.OptimismMintableERC20Factory
-                            })
+                    payable(prox.SystemConfig), // proxy
+                    SystemConfigImplementation, // implementation
+                    abi.encodeCall( // data
+                            SystemConfig.initialize,
+                            (
+                                cfg.finalSystemOwner(),
+                                cfg.gasPriceOracleOverhead(),
+                                cfg.gasPriceOracleScalar(),
+                                bytes32(uint256(uint160(cfg.batchSenderAddress()))),
+                                uint64(cfg.l2GenesisBlockGasLimit()),
+                                cfg.p2pSequencerAddress(),
+                                Constants.DEFAULT_RESOURCE_CONFIG(),
+                                cfg.systemConfigStartBlock(),
+                                cfg.batchInboxAddress(),
+                                SystemConfig.Addresses({
+                                    l1CrossDomainMessenger: prox.L1CrossDomainMessenger,
+                                    l1ERC721Bridge: prox.L1ERC721Bridge,
+                                    l1StandardBridge: prox.L1StandardBridge,
+                                    l2OutputOracle: prox.L2OutputOracle,
+                                    optimismPortal: prox.OptimismPortal,
+                                    optimismMintableERC20Factory: prox.OptimismMintableERC20Factory
+                                })
+                            )
                         )
-                    )
                 )
-            )
+                )
         });
 
         // Upgrade the L1ERC721Bridge
@@ -356,14 +348,9 @@ contract Multichain is SafeBuilder {
                 (
                     payable(prox.L1ERC721Bridge),
                     L1ERC721BridgeImplementation,
-                    abi.encodeCall(
-                        L1ERC721Bridge.initialize,
-                        (
-                            L1CrossDomainMessenger(prox.L1CrossDomainMessenger)
-                        )
-                    )
+                    abi.encodeCall(L1ERC721Bridge.initialize, (L1CrossDomainMessenger(prox.L1CrossDomainMessenger)))
                 )
-            )
+                )
         });
 
         return abi.encodeCall(IMulticall3.aggregate3, (calls));
