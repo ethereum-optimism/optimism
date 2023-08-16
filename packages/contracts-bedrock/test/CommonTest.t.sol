@@ -51,6 +51,9 @@ contract CommonTest is Test {
 
     event TransactionDeposited(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData);
 
+    /// @dev OpenZeppelin Ownable.sol transferOwnership event
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
     FFIInterface ffi;
 
     function setUp() public virtual {

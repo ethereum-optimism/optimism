@@ -26,9 +26,6 @@ contract XDomainSetter3 is CrossDomainOwnable3 {
 contract CrossDomainOwnable3_Test is Messenger_Initializer {
     XDomainSetter3 setter;
 
-    /// @dev OpenZeppelin Ownable.sol transferOwnership event
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
     /// @dev CrossDomainOwnable3.sol transferOwnership event
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner, bool isLocal);
 

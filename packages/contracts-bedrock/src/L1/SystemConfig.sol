@@ -98,11 +98,11 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     /// @notice The block at which the op-node can start searching for logs from.
     uint256 public startBlock;
 
-    /// @custom:semver 1.5.0
+    /// @custom:semver 1.6.0
     /// @notice Constructs the SystemConfig contract. Cannot set
     ///         the owner to `address(0)` due to the Ownable contract's
     ///         implementation, so set it to `address(0xdEaD)`
-    constructor() Semver(1, 5, 0) {
+    constructor() Semver(1, 6, 0) {
         initialize({
             _owner: address(0xdEaD),
             _overhead: 0,
@@ -165,12 +165,12 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         __Ownable_init();
         transferOwnership(_owner);
 
-        overhead = _overhead;
-        scalar = _scalar;
-        batcherHash = _batcherHash;
-        gasLimit = _gasLimit;
+        // These are set in ascending order of their UpdateTypes.
+        _setBatcherHash(_batcherHash);
+        _setGasConfig({ _overhead: _overhead, _scalar: _scalar });
+        _setGasLimit(_gasLimit);
+        _setUnsafeBlockSigner(_unsafeBlockSigner);
 
-        _setAddress(_unsafeBlockSigner, UNSAFE_BLOCK_SIGNER_SLOT);
         _setAddress(_batchInbox, BATCH_INBOX_SLOT);
         _setAddress(_addresses.l1CrossDomainMessenger, L1_CROSS_DOMAIN_MESSENGER_SLOT);
         _setAddress(_addresses.l1ERC721Bridge, L1_ERC_721_BRIDGE_SLOT);
@@ -282,28 +282,47 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         }
     }
 
-    /// @notice Updates the unsafe block signer address.
+    /// @notice Updates the unsafe block signer address. Can only be called by the owner.
     /// @param _unsafeBlockSigner New unsafe block signer address.
     function setUnsafeBlockSigner(address _unsafeBlockSigner) external onlyOwner {
+        _setUnsafeBlockSigner(_unsafeBlockSigner);
+    }
+
+    /// @notice Updates the unsafe block signer address.
+    /// @param _unsafeBlockSigner New unsafe block signer address.
+    function _setUnsafeBlockSigner(address _unsafeBlockSigner) internal {
         _setAddress(_unsafeBlockSigner, UNSAFE_BLOCK_SIGNER_SLOT);
 
         bytes memory data = abi.encode(_unsafeBlockSigner);
         emit ConfigUpdate(VERSION, UpdateType.UNSAFE_BLOCK_SIGNER, data);
     }
 
-    /// @notice Updates the batcher hash.
+    /// @notice Updates the batcher hash. Can only be called by the owner.
     /// @param _batcherHash New batcher hash.
     function setBatcherHash(bytes32 _batcherHash) external onlyOwner {
+        _setBatcherHash(_batcherHash);
+    }
+
+    /// @notice Internal function for updating the batcher hash.
+    /// @param _batcherHash New batcher hash.
+    function _setBatcherHash(bytes32 _batcherHash) internal {
         batcherHash = _batcherHash;
 
         bytes memory data = abi.encode(_batcherHash);
         emit ConfigUpdate(VERSION, UpdateType.BATCHER, data);
     }
 
-    /// @notice Updates gas config.
+    /// @notice Updates gas config. Can only be called by the owner.
     /// @param _overhead New overhead value.
     /// @param _scalar   New scalar value.
     function setGasConfig(uint256 _overhead, uint256 _scalar) external onlyOwner {
+        _setGasConfig(_overhead, _scalar);
+    }
+
+    /// @notice Internal function for updating the gas config.
+    /// @param _overhead New overhead value.
+    /// @param _scalar   New scalar value.
+    function _setGasConfig(uint256 _overhead, uint256 _scalar) internal {
         overhead = _overhead;
         scalar = _scalar;
 
@@ -311,9 +330,15 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         emit ConfigUpdate(VERSION, UpdateType.GAS_CONFIG, data);
     }
 
-    /// @notice Updates the L2 gas limit.
+    /// @notice Updates the L2 gas limit. Can only be called by the owner.
     /// @param _gasLimit New gas limit.
     function setGasLimit(uint64 _gasLimit) external onlyOwner {
+        _setGasLimit(_gasLimit);
+    }
+
+    /// @notice Internal function for updating the L2 gas limit.
+    /// @param _gasLimit New gas limit.
+    function _setGasLimit(uint64 _gasLimit) internal {
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
         gasLimit = _gasLimit;
 

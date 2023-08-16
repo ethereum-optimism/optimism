@@ -59,9 +59,6 @@ func TestE2EBridgeTransactionsOptimismPortalDeposits(t *testing.T) {
 	require.Equal(t, aliceAddr, deposit.Tx.ToAddress)
 	require.ElementsMatch(t, calldata, deposit.Tx.Data)
 
-	require.Equal(t, depositInfo.Version.Uint64(), deposit.Version.Int.Uint64())
-	require.ElementsMatch(t, depositInfo.OpaqueData, deposit.OpaqueData)
-
 	event, err := testSuite.DB.ContractEvents.L1ContractEvent(deposit.InitiatedL1EventGUID)
 	require.NoError(t, err)
 	require.NotNil(t, event)

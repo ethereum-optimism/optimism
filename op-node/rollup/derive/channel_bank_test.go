@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
@@ -101,7 +102,7 @@ func TestChannelBankSimple(t *testing.T) {
 
 	cfg := &rollup.Config{ChannelTimeout: 10}
 
-	cb := NewChannelBank(testlog.Logger(t, log.LvlCrit), cfg, input, nil)
+	cb := NewChannelBank(testlog.Logger(t, log.LvlCrit), cfg, input, nil, metrics.NoopMetrics)
 
 	// Load the first frame
 	out, err := cb.NextData(context.Background())
@@ -145,7 +146,7 @@ func TestChannelBankInterleaved(t *testing.T) {
 
 	cfg := &rollup.Config{ChannelTimeout: 10}
 
-	cb := NewChannelBank(testlog.Logger(t, log.LvlCrit), cfg, input, nil)
+	cb := NewChannelBank(testlog.Logger(t, log.LvlCrit), cfg, input, nil, metrics.NoopMetrics)
 
 	// Load a:0
 	out, err := cb.NextData(context.Background())
@@ -205,7 +206,7 @@ func TestChannelBankDuplicates(t *testing.T) {
 
 	cfg := &rollup.Config{ChannelTimeout: 10}
 
-	cb := NewChannelBank(testlog.Logger(t, log.LvlCrit), cfg, input, nil)
+	cb := NewChannelBank(testlog.Logger(t, log.LvlCrit), cfg, input, nil, metrics.NoopMetrics)
 
 	// Load the first frame
 	out, err := cb.NextData(context.Background())

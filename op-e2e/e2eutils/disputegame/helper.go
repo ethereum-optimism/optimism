@@ -11,7 +11,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -52,6 +54,7 @@ type FactoryHelper struct {
 	require     *require.Assertions
 	client      *ethclient.Client
 	opts        *bind.TransactOpts
+	factoryAddr common.Address
 	factory     *bindings.DisputeGameFactory
 	blockOracle *bindings.BlockOracle
 	l2oo        *bindings.L2OutputOracleCaller
@@ -65,7 +68,8 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, deployments *genesis.L1
 	require.NoError(err)
 
 	require.NotNil(deployments, "No deployments")
-	factory, err := bindings.NewDisputeGameFactory(deployments.DisputeGameFactoryProxy, client)
+	factoryAddr := deployments.DisputeGameFactoryProxy
+	factory, err := bindings.NewDisputeGameFactory(factoryAddr, client)
 	require.NoError(err)
 	blockOracle, err := bindings.NewBlockOracle(deployments.BlockOracle, client)
 	require.NoError(err)
@@ -78,6 +82,7 @@ func NewFactoryHelper(t *testing.T, ctx context.Context, deployments *genesis.L1
 		client:      client,
 		opts:        opts,
 		factory:     factory,
+		factoryAddr: factoryAddr,
 		blockOracle: blockOracle,
 		l2oo:        l2oo,
 	}
@@ -149,6 +154,21 @@ func (h *FactoryHelper) StartCannonGame(ctx context.Context, rootClaim common.Ha
 			addr:    createdEvent.DisputeProxy,
 		},
 	}
+}
+func (h *FactoryHelper) StartChallenger(ctx context.Context, l1Endpoint string, name string, options ...challenger.Option) *challenger.Helper {
+	opts := []challenger.Option{
+		func(c *config.Config) {
+			// Uncomment when challenger actually supports setting the game factory address
+			//c.FactoryAddress = h.factoryAddr
+			c.TraceType = config.TraceTypeAlphabet
+		},
+	}
+	opts = append(opts, options...)
+	c := challenger.NewChallenger(h.t, ctx, l1Endpoint, name, opts...)
+	h.t.Cleanup(func() {
+		_ = c.Close()
+	})
+	return c
 }
 
 // waitForProposals waits until there are at least two proposals in the output oracle

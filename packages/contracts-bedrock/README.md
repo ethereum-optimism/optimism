@@ -50,78 +50,29 @@ We export contract ABIs, contract source code, and contract deployment informati
 npm install @eth-optimism/contracts-bedrock
 ```
 
-## Development
+## Contributing
 
-### Dependencies
+For all information about working on and contributing to Optimism's smart contracts, please see [CONTRIBUTING.md](./CONTRIBUTING.md)
 
-We work on this repository with a combination of [Hardhat](https://hardhat.org) and [Foundry](https://getfoundry.sh/).
-
-1. Install node modules with pnpm (v8) and Node.js (16+):
-
-```shell
-pnpm install
-```
-
-2. Install the correct version of foundry (defined in the .foundryrc file in the root of this repo.
-
-```shell
-pnpm install:foundry
-```
-
-### Build
-
-```shell
-pnpm build
-```
-
-### Tests
-
-```shell
-pnpm test
-```
-
-### Deployment
+## Deployment
 
 The smart contracts are deployed using `foundry` with a `hardhat-deploy` compatibility layer. When the contracts are deployed,
 they will write a temp file to disk that can then be formatted into a `hardhat-deploy` style artifact by calling another script.
 
-#### Configuration
+### Configuration
 
 Create or modify a file `<network-name>.json` inside of the [`deploy-config`](./deploy-config/) folder.
 By default, the network name will be selected automatically based on the chainid. Alternatively, the `DEPLOYMENT_CONTEXT` env var can be used to override the network name.
 The spec for the deploy config is defined by the `deployConfigSpec` located inside of the [`hardhat.config.ts`](./hardhat.config.ts).
 
-#### Execution
+### Execution
 
 1. Set the env vars `ETH_RPC_URL`, `PRIVATE_KEY` and `ETHERSCAN_API_KEY` if contract verification is desired
 1. Deploy the contracts with `forge script -vvv scripts/Deploy.s.sol:Deploy --rpc-url $ETH_RPC_URL --broadcast --private-key $PRIVATE_KEY`
    Pass the `--verify` flag to verify the deployments automatically with Etherscan.
 1. Generate the hardhat deploy artifacts with `forge script -vvv scripts/Deploy.s.sol:Deploy --sig 'sync()' --rpc-url $ETH_RPC_URL --broadcast --private-key $PRIVATE_KEY`
 
-#### Deploying a single contract
+### Deploying a single contract
 
 All of the functions for deploying a single contract are `public` meaning that the `--sig` argument to `forge script` can be used to
 target the deployment of a single contract.
-
-## Tools
-
-### Layout Locking
-
-We use a system called "layout locking" as a safety mechanism to prevent certain contract variables from being moved to different storage slots accidentally.
-To lock a contract variable, add it to the `layout-lock.json` file which has the following format:
-
-```json
-{
-  "MyContractName": {
-    "myVariableName": {
-      "slot": 1,
-      "offset": 0,
-      "length": 32
-    }
-  }
-}
-```
-
-With the above config, the `validate-spacers` hardhat task will check that we have a contract called `MyContractName`, that the contract has a variable named `myVariableName`, and that the variable is in the correct position as defined in the lock file.
-You should add things to the `layout-lock.json` file when you want those variables to **never** change.
-Layout locking should be used in combination with diffing the `.storage-layout` file in CI.
