@@ -5,10 +5,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
 )
 
 func TestMonitorExitsWhenContextDone(t *testing.T) {
@@ -48,7 +49,6 @@ func TestProgressGame_LogErrorWhenGameLost(t *testing.T) {
 		agreeWithOutput bool
 		logLevel        log.Lvl
 		logMsg          string
-		statusText      string
 	}{
 		{
 			name:            "GameLostAsDefender",
@@ -56,7 +56,6 @@ func TestProgressGame_LogErrorWhenGameLost(t *testing.T) {
 			agreeWithOutput: false,
 			logLevel:        log.LvlError,
 			logMsg:          "Game lost",
-			statusText:      "Challenger Won",
 		},
 		{
 			name:            "GameLostAsChallenger",
@@ -64,7 +63,6 @@ func TestProgressGame_LogErrorWhenGameLost(t *testing.T) {
 			agreeWithOutput: true,
 			logLevel:        log.LvlError,
 			logMsg:          "Game lost",
-			statusText:      "Defender Won",
 		},
 		{
 			name:            "GameWonAsDefender",
@@ -72,7 +70,6 @@ func TestProgressGame_LogErrorWhenGameLost(t *testing.T) {
 			agreeWithOutput: false,
 			logLevel:        log.LvlInfo,
 			logMsg:          "Game won",
-			statusText:      "Defender Won",
 		},
 		{
 			name:            "GameWonAsChallenger",
@@ -80,7 +77,6 @@ func TestProgressGame_LogErrorWhenGameLost(t *testing.T) {
 			agreeWithOutput: true,
 			logLevel:        log.LvlInfo,
 			logMsg:          "Game won",
-			statusText:      "Challenger Won",
 		},
 	}
 	for _, test := range tests {
@@ -94,7 +90,7 @@ func TestProgressGame_LogErrorWhenGameLost(t *testing.T) {
 			require.Equal(t, 0, gameInfo.logCount, "should not log latest game state")
 			errLog := handler.FindLog(test.logLevel, test.logMsg)
 			require.NotNil(t, errLog, "should log game result")
-			require.Equal(t, test.statusText, errLog.GetContextValue("status"))
+			require.Equal(t, test.status, errLog.GetContextValue("status"))
 		})
 	}
 }
