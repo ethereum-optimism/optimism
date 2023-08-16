@@ -192,7 +192,7 @@ importers:
   packages/common-ts:
     dependencies:
       '@eth-optimism/core-utils':
-        specifier: 0.12.2
+        specifier: 0.12.3
         version: link:../core-utils
       '@sentry/node':
         specifier: ^6.3.1
@@ -450,7 +450,7 @@ importers:
         specifier: 0.16.0
         version: link:../contracts-bedrock
       '@eth-optimism/core-utils':
-        specifier: 0.12.2
+        specifier: 0.12.3
         version: link:../core-utils
       '@types/chai':
         specifier: ^4.2.18

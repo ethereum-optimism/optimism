@@ -12,6 +12,9 @@ pull_request_rules:
         - "label!=do-not-merge"
         - "label!=multiple-reviewers"
         - "label!=mergify-ignore"
+        - "label!=M-do-not-merge"
+        - "label!=M-multiple-reviewers"
+        - "label!=M-mergify-ignore"
         - "base=develop"
     actions:
       queue:
@@ -27,14 +30,14 @@ pull_request_rules:
             This PR has been added to the merge queue, and will be merged soon.
       label:
         add:
-          - on-merge-train
+          - S-on-merge-train
   - name: Remove merge train label
     conditions:
       - "queue-position = -1"
     actions:
       label:
         remove:
-          - on-merge-train
+          - S-on-merge-train
   - name: Ask to resolve conflict
     conditions:
       - conflict
@@ -43,14 +46,14 @@ pull_request_rules:
         message: Hey @{{author}}! This PR has merge conflicts. Please fix them before continuing review.
       label:
         add:
-          - conflict
+          - S-conflict
   - name: Remove conflicts label when conflicts gone
     conditions:
       - -conflict
     actions:
       label:
         remove:
-          - conflict
+          - S-conflict
   - name: Notify author when added to merge queue
     conditions:
       - "check-pending=Queue: Embarked in merge train"
@@ -77,7 +80,7 @@ pull_request_rules:
     actions:
       label:
         add:
-          - indexer
+          - A-indexer
       request_reviews:
         users:
           - roninjin10
@@ -87,7 +90,7 @@ pull_request_rules:
     actions:
       label:
         add:
-          - sdk
+          - A-pkg-sdk
       request_reviews:
         users:
           - roninjin10
@@ -97,7 +100,7 @@ pull_request_rules:
     actions:
       label:
         add:
-          - common-ts
+          - A-pkg-common-ts
       request_reviews:
         users:
           - roninjin10
