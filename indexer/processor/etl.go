@@ -41,10 +41,11 @@ type ETL struct {
 type ETLBatch struct {
 	Logger log.Logger
 
-	Headers []types.Header
-	Logs    []types.Log
-
+	Headers   []types.Header
 	HeaderMap map[common.Hash]*types.Header
+
+	Logs           []types.Log
+	HeadersWithLog map[common.Hash]bool
 }
 
 // This ETL runs at HEAD for a given client and indexes the
@@ -96,6 +97,7 @@ func (etl *ETL) Start(ctx context.Context) error {
 				headerMap[headers[i].Hash()] = &headers[i]
 			}
 
+			headersWithLog := make(map[common.Hash]bool, len(headers))
 			logFilter := ethereum.FilterQuery{FromBlock: firstHeader.Number, ToBlock: lastHeader.Number, Addresses: etl.contracts}
 			logs, err := etl.ethClient.FilterLogs(context.Background(), logFilter)
 			if err != nil {
@@ -103,20 +105,23 @@ func (etl *ETL) Start(ctx context.Context) error {
 				continue // spin and try again
 			}
 			for i := range logs {
-				log := &logs[i]
-				if _, ok := headerMap[log.BlockHash]; !ok {
+				if _, ok := headerMap[logs[i].BlockHash]; !ok {
 					// TODO. Dont error out? Or is this a terminal state. Can this happen due to a reorg?
-					batchLog.Error("log found with block hash not in the batch", "block_hash", log.BlockHash, "log_index", log.Index)
+					batchLog.Error("log found with block hash not in the batch", "block_hash", logs[i].BlockHash, "log_index", logs[i].Index)
 					return errors.New("parsed log with a block hash not in the fetched batch")
 				}
+				headersWithLog[logs[i].BlockHash] = true
 			}
 
 			if len(logs) > 0 {
 				batchLog.Info("detected logs", "size", len(logs))
 			}
 
+			// create a new reference such that when we clear `headers`
+			// the slice passed to `ETLBatch` remains unchanged
+			headersRef := headers
 			headers = nil
-			etl.etlBatches <- ETLBatch{Logger: batchLog, Headers: headers, HeaderMap: headerMap, Logs: logs}
+			etl.etlBatches <- ETLBatch{Logger: batchLog, Headers: headersRef, HeaderMap: headerMap, Logs: logs, HeadersWithLog: headersWithLog}
 		}
 	}
 }
@@ -179,17 +184,12 @@ func (l1Etl *L1ETL) Start(ctx context.Context) error {
 		// Index incoming batches
 		case batch := <-l1Etl.etlBatches:
 			err := l1Etl.db.Transaction(func(tx *database.DB) error {
-				// pull out L1 blocks that have emitted a log
-				idx := 0
-				l1BlockHeaders := make([]*database.L1BlockHeader, len(batch.Headers))
-				for i := range batch.Logs {
-					header, ok := batch.HeaderMap[batch.Logs[i].BlockHash]
-					if !ok {
-						continue
+				// pull out L1 blocks that have emitted a log ( <= batch.Headers )
+				l1BlockHeaders := make([]*database.L1BlockHeader, 0, len(batch.Headers))
+				for i := range batch.Headers {
+					if _, ok := batch.HeadersWithLog[batch.Headers[i].Hash()]; ok {
+						l1BlockHeaders = append(l1BlockHeaders, &database.L1BlockHeader{BlockHeader: database.BlockHeaderFromHeader(&batch.Headers[i])})
 					}
-
-					l1BlockHeaders[idx] = &database.L1BlockHeader{BlockHeader: database.BlockHeaderFromHeader(header)}
-					idx++
 				}
 
 				l1ContractEvents := make([]*database.L1ContractEvent, len(batch.Logs))
@@ -488,13 +488,16 @@ func (bridge *BridgeProcessor) indexInitiatedL1BridgeEvents(tx *database.DB, fro
 	if len(crossDomainSentMessages) > len(transactionDeposits) {
 		return fmt.Errorf("missing transaction deposit for each cross-domain message. deposits: %d, messages: %d", len(transactionDeposits), len(crossDomainSentMessages))
 	}
+	sentMessages := make(map[LogKey]*CrossDomainMessengerSentMessageEvent, len(crossDomainSentMessages))
 	l1BridgeMessages := make([]*database.L1BridgeMessage, len(crossDomainSentMessages))
 	for i := range crossDomainSentMessages {
-		// extract the deposit hash from the previous TransactionDepositedEvent
 		sentMessage := crossDomainSentMessages[i]
+		sentMessages[LogKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = &sentMessage
+
+		// extract the deposit hash from the previous TransactionDepositedEvent
 		depositTx, ok := depositTransactions[LogKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex - 1}]
 		if !ok {
-			return fmt.Errorf("missing expected preceding TransactionDepositEvent for SentMessage. tx_hash = %s", sentMessage.Event.TransactionHash)
+			return fmt.Errorf("missing expected preceding TransactionDeposit for SentMessage. tx_hash = %s", sentMessage.Event.TransactionHash)
 		}
 		l1BridgeMessages[i] = &database.L1BridgeMessage{
 			TransactionSourceHash: depositTx.SourceHash,
@@ -522,7 +525,51 @@ func (bridge *BridgeProcessor) indexInitiatedL1BridgeEvents(tx *database.DB, fro
 	}
 
 	// (3) L1StandardBridge BridgeInitiated
+	initiatedBridges, err := StandardBridgeInitiatedEvents(config.L1Deployments.L1StandardBridgeProxy, "l1", tx, fromHeight, toHeight)
+	if err != nil {
+		return err
+	}
+	if len(initiatedBridges) > len(crossDomainSentMessages) {
+		return fmt.Errorf("missing cross-domain message for each initiated bridge event. messages: %d, bridges: %d", len(crossDomainSentMessages), len(initiatedBridges))
+	}
+	l1BridgeDeposits := make([]*database.L1BridgeDeposit, len(initiatedBridges))
+	for i := range initiatedBridges {
+		initiatedBridge := initiatedBridges[i]
 
+		// extract the cross domain message hash & deposit source hash from the following events
+		depositTx, ok := depositTransactions[LogKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex + 1}]
+		if !ok {
+			return fmt.Errorf("missing expected following TransactionDeposit for BridgeInitiated. tx_hash = %s", initiatedBridge.Event.TransactionHash)
+		}
+		sentMessage, ok := sentMessages[LogKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex + 2}]
+		if !ok {
+			return fmt.Errorf("missing expected following SentMessage for BridgeInitiated. tx_hash = %s", initiatedBridge.Event.TransactionHash)
+		}
+
+		l1BridgeDeposits[i] = &database.L1BridgeDeposit{
+			TransactionSourceHash: depositTx.SourceHash,
+			BridgeTransfer: database.BridgeTransfer{
+				CrossDomainMessageHash: &sentMessage.MessageHash,
+				TokenPair:              database.TokenPair{L1TokenAddress: initiatedBridge.LocalToken, L2TokenAddress: initiatedBridge.RemoteToken},
+				Tx: database.Transaction{
+					FromAddress: initiatedBridge.From,
+					ToAddress:   initiatedBridge.To,
+					Amount:      database.U256{Int: initiatedBridge.Amount},
+					Data:        initiatedBridge.ExtraData,
+					Timestamp:   initiatedBridge.Event.Timestamp,
+				},
+			},
+		}
+	}
+
+	if len(l1BridgeDeposits) > 0 {
+		bridge.log.Info("detected L1StandardBridge deposits", "size", len(l1BridgeDeposits))
+		if err := tx.BridgeTransfers.StoreL1BridgeDeposits(l1BridgeDeposits); err != nil {
+			return err
+		}
+	}
+
+	// a-ok
 	return nil
 }
 
@@ -539,8 +586,8 @@ func (bridge *BridgeProcessor) indexInitiatedL2BridgeEvents(tx *database.DB, fro
 	}
 
 	ethWithdrawals := []*database.L2BridgeWithdrawal{}
-	transactionWithdrawals := make([]*database.L2TransactionWithdrawal, len(l2ToL1MPMessagesPassed))
 	messagesPassed := make(map[LogKey]*bindings.L2ToL1MessagePasserMessagePassed, len(l2ToL1MPMessagesPassed))
+	transactionWithdrawals := make([]*database.L2TransactionWithdrawal, len(l2ToL1MPMessagesPassed))
 	for i := range l2ToL1MPMessagesPassed {
 		messagePassed := l2ToL1MPMessagesPassed[i]
 		messagesPassed[LogKey{messagePassed.Event.BlockHash, messagePassed.Event.LogIndex}] = messagePassed.L2ToL1MessagePasserMessagePassed
@@ -587,10 +634,13 @@ func (bridge *BridgeProcessor) indexInitiatedL2BridgeEvents(tx *database.DB, fro
 	if len(crossDomainSentMessages) > len(messagesPassed) {
 		return fmt.Errorf("missing L2ToL1MP withdrawal for each cross-domain message. withdrawals: %d, messages: %d", len(messagesPassed), len(crossDomainSentMessages))
 	}
+	sentMessages := make(map[LogKey]*CrossDomainMessengerSentMessageEvent, len(crossDomainSentMessages))
 	l2BridgeMessages := make([]*database.L2BridgeMessage, len(crossDomainSentMessages))
 	for i := range crossDomainSentMessages {
-		// extract the withdrawal hash from the previous MessagePassed event
 		sentMessage := crossDomainSentMessages[i]
+		sentMessages[LogKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = &sentMessage
+
+		// extract the withdrawal hash from the previous MessagePassed event
 		messagePassed, ok := messagesPassed[LogKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex - 1}]
 		if !ok {
 			return fmt.Errorf("missing expected preceding MessagePassedEvent for SentMessage. tx_hash = %s", sentMessage.Event.TransactionHash)
@@ -621,6 +671,50 @@ func (bridge *BridgeProcessor) indexInitiatedL2BridgeEvents(tx *database.DB, fro
 	}
 
 	// (3) L2StandardBridge bridgeInitiated
+	initiatedBridges, err := StandardBridgeInitiatedEvents(predeploys.L2StandardBridgeAddr, "l2", tx, fromHeight, toHeight)
+	if err != nil {
+		return err
+	}
+	if len(initiatedBridges) > len(crossDomainSentMessages) {
+		return fmt.Errorf("missing cross-domain message for each initiated bridge event. messages: %d, bridges: %d", len(crossDomainSentMessages), len(initiatedBridges))
+	}
+	l2BridgeWithdrawals := make([]*database.L2BridgeWithdrawal, len(initiatedBridges))
+	for i := range initiatedBridges {
+		initiatedBridge := initiatedBridges[i]
+
+		// extract the cross domain message hash & deposit source hash from the following events
+		messagePassed, ok := messagesPassed[LogKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex + 1}]
+		if !ok {
+			return fmt.Errorf("missing expected following MessagePassed for BridgeInitiated. tx_hash = %s", initiatedBridge.Event.TransactionHash)
+		}
+		sentMessage, ok := sentMessages[LogKey{initiatedBridge.Event.BlockHash, initiatedBridge.Event.LogIndex + 2}]
+		if !ok {
+			return fmt.Errorf("missing expected following SentMessage for BridgeInitiated. tx_hash = %s", initiatedBridge.Event.TransactionHash)
+		}
+
+		l2BridgeWithdrawals[i] = &database.L2BridgeWithdrawal{
+			TransactionWithdrawalHash: messagePassed.WithdrawalHash,
+			BridgeTransfer: database.BridgeTransfer{
+				CrossDomainMessageHash: &sentMessage.MessageHash,
+				TokenPair:              database.TokenPair{L2TokenAddress: initiatedBridge.LocalToken, L1TokenAddress: initiatedBridge.RemoteToken},
+				Tx: database.Transaction{
+					FromAddress: initiatedBridge.From,
+					ToAddress:   initiatedBridge.To,
+					Amount:      database.U256{Int: initiatedBridge.Amount},
+					Data:        initiatedBridge.ExtraData,
+					Timestamp:   initiatedBridge.Event.Timestamp,
+				},
+			},
+		}
+	}
+
+	if len(l2BridgeWithdrawals) > 0 {
+		bridge.log.Info("detected L2StandardBridge withdrawals", "size", len(l2BridgeWithdrawals))
+		if err := tx.BridgeTransfers.StoreL2BridgeWithdrawals(l2BridgeWithdrawals); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 

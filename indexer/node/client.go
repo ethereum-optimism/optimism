@@ -134,15 +134,15 @@ func (c *client) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]types.H
 			break
 		}
 
-		header, ok := batchElem.Result.(types.Header)
+		header, ok := batchElem.Result.(*types.Header)
 		if !ok {
 			return nil, fmt.Errorf("unable to transform rpc response %v into types.Header", batchElem.Result)
 		}
 		if i > 0 && header.ParentHash != headers[i-1].Hash() {
-			return nil, fmt.Errorf("queried header %s does not follow parent %s", headers[i-1].Hash())
+			return nil, fmt.Errorf("queried header %s does not follow parent %s", header.Hash(), headers[i-1].Hash())
 		}
 
-		headers[i] = header
+		headers[i] = *header
 		size = size + 1
 	}
 
