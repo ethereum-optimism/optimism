@@ -65,13 +65,20 @@ abstract contract Deployer is Script {
     ///        bytes32(uint256(keccak256('eip1967.proxy.admin')) - 1)
     bytes32 internal constant OWNER_KEY = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
-    /// @notice Create the global variables and set up the filesystem
+    /// @notice Create the global variables and set up the filesystem.
+    ///         Forge script will create a file where the prefix is the
+    ///         name of the function that runs with the suffix `-latest.json`.
+    ///         By default, `run()` is called. Allow the user to use the SIG
+    ///         env var to specify what function signature was called so that
+    ///         the `sync()` method can be used to create hardhat deploy style
+    ///         artifacts.
     function setUp() public virtual {
         string memory root = vm.projectRoot();
         deployScript = vm.envOr("DEPLOY_SCRIPT", name());
 
         deploymentContext = _getDeploymentContext();
-        string memory deployFile = vm.envOr("DEPLOY_FILE", string("run-latest.json"));
+        string memory sig = vm.envOr("SIG", string("run"));
+        string memory deployFile = vm.envOr("DEPLOY_FILE", string.concat(sig, "-latest.json"));
         uint256 chainId = vm.envOr("CHAIN_ID", block.chainid);
         deployPath = string.concat(root, "/broadcast/", deployScript, ".s.sol/", vm.toString(chainId), "/", deployFile);
 

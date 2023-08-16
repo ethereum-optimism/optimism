@@ -97,7 +97,7 @@ contract DeleteOutput is SafeBuilder {
         _postCheck();
     }
 
-    function buildCalldata(address _proxyAdmin) internal view override returns (bytes memory) {
+    function buildCalldata(address) internal view override returns (bytes memory) {
         IMulticall3.Call3[] memory calls = new IMulticall3.Call3[](1);
 
         calls[0] = IMulticall3.Call3({
