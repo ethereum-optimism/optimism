@@ -29,8 +29,9 @@ type NextFrameProvider interface {
 
 // ChannelBank buffers channel frames, and emits full channel data
 type ChannelBank struct {
-	log log.Logger
-	cfg *rollup.Config
+	log     log.Logger
+	cfg     *rollup.Config
+	metrics Metrics
 
 	channels     map[ChannelID]*Channel // channels by ID
 	channelQueue []ChannelID            // channels in FIFO order
@@ -42,10 +43,11 @@ type ChannelBank struct {
 var _ ResettableStage = (*ChannelBank)(nil)
 
 // NewChannelBank creates a ChannelBank, which should be Reset(origin) before use.
-func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextFrameProvider, fetcher L1Fetcher) *ChannelBank {
+func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextFrameProvider, fetcher L1Fetcher, m Metrics) *ChannelBank {
 	return &ChannelBank{
 		log:          log,
 		cfg:          cfg,
+		metrics:      m,
 		channels:     make(map[ChannelID]*Channel),
 		channelQueue: make([]ChannelID, 0, 10),
 		prev:         prev,
@@ -83,6 +85,10 @@ func (cb *ChannelBank) IngestFrame(f Frame) {
 
 	currentCh, ok := cb.channels[f.ID]
 	if !ok {
+		// Only record a head channel if it can immediately be active.
+		if len(cb.channelQueue) == 0 {
+			cb.metrics.RecordHeadChannelOpened()
+		}
 		// create new channel if it doesn't exist yet
 		currentCh = NewChannel(f.ID, origin)
 		cb.channels[f.ID] = currentCh
@@ -101,6 +107,7 @@ func (cb *ChannelBank) IngestFrame(f Frame) {
 		log.Warn("failed to ingest frame into channel", "err", err)
 		return
 	}
+	cb.metrics.RecordFrame()
 
 	// Prune after the frame is loaded.
 	cb.prune()
@@ -117,8 +124,13 @@ func (cb *ChannelBank) Read() (data []byte, err error) {
 	timedOut := ch.OpenBlockNumber()+cb.cfg.ChannelTimeout < cb.Origin().Number
 	if timedOut {
 		cb.log.Info("channel timed out", "channel", first, "frames", len(ch.inputs))
+		cb.metrics.RecordChannelTimedOut()
 		delete(cb.channels, first)
 		cb.channelQueue = cb.channelQueue[1:]
+		// There is a new head channel if there is a channel after we have removed the first channel
+		if len(cb.channelQueue) > 0 {
+			cb.metrics.RecordHeadChannelOpened()
+		}
 		return nil, nil // multiple different channels may all be timed out
 	}
 	if !ch.IsReady() {
@@ -128,6 +140,10 @@ func (cb *ChannelBank) Read() (data []byte, err error) {
 
 	delete(cb.channels, first)
 	cb.channelQueue = cb.channelQueue[1:]
+	// There is a new head channel if there is a channel after we have removed the first channel
+	if len(cb.channelQueue) > 0 {
+		cb.metrics.RecordHeadChannelOpened()
+	}
 	r := ch.Reader()
 	// Suppress error here. io.ReadAll does return nil instead of io.EOF though.
 	data, _ = io.ReadAll(r)
