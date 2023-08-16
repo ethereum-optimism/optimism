@@ -18,7 +18,9 @@ import { L1StandardBridge } from "src/L1/L1StandardBridge.sol";
 import { L2OutputOracle } from "src/L1/L2OutputOracle.sol";
 import { OptimismPortal } from "src/L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "src/L1/L1CrossDomainMessenger.sol";
+import { OptimismMintableERC20Factory } from "src/universal/OptimismMintableERC20Factory.sol";
 import { L1ERC721Bridge } from "src/L1/L1ERC721Bridge.sol";
+import { Predeploys } from "src/libraries/Predeploys.sol";
 
 /// @title Multichain
 /// @notice Upgrade script for upgrading the L1 contracts after the multichain upgrade.
@@ -30,7 +32,8 @@ contract Multichain is SafeBuilder {
     /// @notice Address of the ProxyAdmin, passed in via constructor of `run`.
     ProxyAdmin internal PROXY_ADMIN;
 
-    /// @notice
+    /// @notice An instance of the deployconfig contract, the NETWORK env var determines
+    ///         which file is read from disk to populate this contract.
     DeployConfig internal cfg;
 
     /// @notice Represents a set of L1 contracts. Used to represent a set of proxies.
@@ -44,23 +47,32 @@ contract Multichain is SafeBuilder {
         address L1ERC721Bridge;
     }
 
+    /// @notice Possible value of NETWORK env var, for goerli
     string internal constant GOERLI_PROD = "goerli-prod";
+    /// @notice Possible value of NETWORK env var, for chaosnet
     string internal constant CHAOSNET = "chaosnet";
+    /// @notice Possible value of NETWORK env var, for devnet
     string internal constant DEVNET = "devnet";
+    /// @notice Digest of goerli-prod for comparison purposes
+    bytes32 internal goerli = keccak256(bytes(GOERLI_PROD));
+    /// @notice Digest of chaosnet for comparison purposes
+    bytes32 internal chaosnet = keccak256(bytes(CHAOSNET));
+    /// @notice Digest of devnet for comparison purposes
+    bytes32 internal devnet = keccak256(bytes(DEVNET));
 
-    /// @notice
+    /// @notice L1CrossDomainMessenger implementation to upgrade to
     address internal constant L1CrossDomainMessengerImplementation = 0xb5df97bB67f5AA7254d40E1B7034bBFF7F183a38;
-    /// @notice
+    /// @notice L1StandardBridge implementation to upgrade to
     address internal constant L1StandardBridgeImplementation = 0xd9aA10f75a2a93Bfc73AaDD41ae777e900CEdBc9;
-    /// @notice
+    /// @notice L2OutputOracle implementation to upgrade to
     address internal constant L2OutputOracleImplementation = 0xaBd96C062c6B640d5670455E9d1cD98383Dd23CA;
-    /// @notice
+    /// @notice OptimismMintableERC20Factory to upgrade to
     address internal constant OptimismMintableERC20FactoryImplementation = 0xE220F7D7fF39837003A1835fCefFa8bCA4098582;
-    /// @notice
+    /// @notice OptimismPortal implementation to upgrade to
     address internal constant OptimismPortalImplementation = 0x345D27c7B6C90fef5beA9631037C36119f4bF93e;
-    /// @notice
+    /// @notice SystemConfig implementation to upgrade to
     address internal constant SystemConfigImplementation = 0x00CB689221540dEd0FA5247dbE7Fc66621F431a6;
-    /// @notice
+    /// @notice L1ERC721Bridge implementation to upgrade to
     address internal constant L1ERC721BridgeImplementation = 0x53C115eD8D9902f4999fDBd8B93Ea79BF37cb588;
 
     /// @notice A mapping of deployment name to ContractSet of proxy addresses.
@@ -75,10 +87,9 @@ contract Multichain is SafeBuilder {
     string internal constant SystemConfigVersion = "1.5.0";
     string internal constant L1ERC721BridgeVersion = "1.2.1";
 
-    /// @notice
+    /// @notice The value of the NETWORK env var
     string internal NETWORK;
-
-    // @notice
+    // @notice Cache a non view function call to the SystemConfig contract
     uint256 internal l2OutputOracleStartingTimestamp;
 
     /// @notice Place the contract addresses in storage so they can be used when building calldata.
@@ -88,9 +99,6 @@ contract Multichain is SafeBuilder {
 
         // For simple comparisons of dynamic types
         bytes32 network = keccak256(bytes(NETWORK));
-        bytes32 goerli = keccak256(bytes(GOERLI_PROD));
-        bytes32 chaosnet = keccak256(bytes(CHAOSNET));
-        bytes32 devnet = keccak256(bytes(DEVNET));
 
         string memory deployConfigPath;
         if (network == goerli) {
@@ -105,8 +113,16 @@ contract Multichain is SafeBuilder {
                 L1ERC721Bridge: 0x8DD330DdE8D9898d43b4dc840Da27A07dF91b3c9
             });
         } else if (network == chaosnet) {
-            // TODO: migrate deploy config into repo
             deployConfigPath = string.concat(vm.projectRoot(), "/deploy-config/chaosnet.json");
+            proxies = ContractSet({
+                L1CrossDomainMessenger: 0xfc428D28D197fFf99A5EbAc6be8B761FEd8718Da,
+                L1StandardBridge: 0x60859421Ed85C0B11071230cf61dcEeEf54630Ff,
+                L2OutputOracle: 0x7D00A03f180d8C07B88d8c1384a15326c38FF9Ff,
+                OptimismMintableERC20Factory: 0x526920419b61153c1F80fD306B5Ab52b69110A6C,
+                OptimismPortal: 0x1566c8Eea4A255C07Ef58edF91431c8A73ae0B62,
+                SystemConfig: 0xf2Fa3621cAa534a2AE9Eb36667da57890E5C9E6a,
+                L1ERC721Bridge: 0x058BBf091232afE99BC2481F809254cD15e64Df5
+            });
         } else if (network == devnet) {
             deployConfigPath = string.concat(vm.projectRoot(), "/deploy-config/internal-devnet.json");
             proxies = ContractSet({
@@ -123,7 +139,7 @@ contract Multichain is SafeBuilder {
         }
 
         cfg = new DeployConfig(deployConfigPath);
-
+        // cache the starting timestamp here as to not break the view functions below
         l2OutputOracleStartingTimestamp = cfg.l2OutputOracleStartingTimestamp();
     }
 
@@ -180,6 +196,106 @@ contract Multichain is SafeBuilder {
             PROXY_ADMIN.getProxyImplementation(prox.L1ERC721Bridge).codehash == L1ERC721BridgeImplementation.codehash,
             "L1ERC721Bridge codehash"
         );
+
+        _postCheckSystemConfig();
+        _postCheckL1CrossDomainMessenger();
+        _postCheckL1StandardBridge();
+        _postCheckL2OutputOracle();
+        _postCheckOptimismMintableERC20Factory();
+        _postCheckL1ERC721Bridge();
+        _postCheckOptimismPortal();
+    }
+
+    /// @notice Post check hook for the system config
+    function _postCheckSystemConfig() internal view {
+        SystemConfig config = SystemConfig(proxies.SystemConfig);
+
+        require(config.owner() == cfg.finalSystemOwner());
+        require(config.overhead() == cfg.gasPriceOracleOverhead());
+        require(config.scalar() == cfg.gasPriceOracleScalar());
+        require(config.unsafeBlockSigner() == cfg.p2pSequencerAddress());
+        require(config.batcherHash() == bytes32(uint256(uint160(cfg.batchSenderAddress()))));
+
+        ResourceMetering.ResourceConfig memory rconfig = Constants.DEFAULT_RESOURCE_CONFIG();
+        ResourceMetering.ResourceConfig memory resourceConfig = config.resourceConfig();
+        require(resourceConfig.maxResourceLimit == rconfig.maxResourceLimit);
+        require(resourceConfig.elasticityMultiplier == rconfig.elasticityMultiplier);
+        require(resourceConfig.baseFeeMaxChangeDenominator == rconfig.baseFeeMaxChangeDenominator);
+        require(resourceConfig.systemTxMaxGas == rconfig.systemTxMaxGas);
+        require(resourceConfig.minimumBaseFee == rconfig.minimumBaseFee);
+        require(resourceConfig.maximumBaseFee == rconfig.maximumBaseFee);
+
+        require(config.l1ERC721Bridge() == proxies.L1ERC721Bridge);
+        require(config.l1StandardBridge() == proxies.L1StandardBridge);
+        require(config.l2OutputOracle() == proxies.L2OutputOracle);
+        require(config.optimismPortal() == proxies.OptimismPortal);
+        require(config.l1CrossDomainMessenger() == proxies.L1CrossDomainMessenger);
+
+        // A non zero start block is an override
+        uint256 startBlock = cfg.systemConfigStartBlock();
+        if (startBlock != 0) {
+            require(config.startBlock() == startBlock);
+        } else {
+            require(config.startBlock() == block.number);
+        }
+    }
+
+    /// @notice Post check hook for the L1CrossDomainMessenger
+    function _postCheckL1CrossDomainMessenger() internal view {
+        L1CrossDomainMessenger messenger = L1CrossDomainMessenger(proxies.L1CrossDomainMessenger);
+        require(address(messenger.portal()) == proxies.OptimismPortal);
+    }
+
+    /// @notice Post check hook for the L1StandardBridge
+    function _postCheckL1StandardBridge() internal view {
+        L1StandardBridge bridge = L1StandardBridge(payable(proxies.L1StandardBridge));
+        require(address(bridge.MESSENGER()) == proxies.L1CrossDomainMessenger);
+        require(address(bridge.messenger()) == proxies.L1CrossDomainMessenger);
+        require(address(bridge.OTHER_BRIDGE()) == Predeploys.L2_STANDARD_BRIDGE);
+        require(address(bridge.otherBridge()) == Predeploys.L2_STANDARD_BRIDGE);
+        // Ensures that the legacy slot is modified correctly. This will fail
+        // during predeployment simulation on OP Mainnet if there is a bug.
+        bytes32 slot0 = vm.load(address(bridge), bytes32(uint256(0)));
+        require(slot0 == bytes32(uint256(2)));
+    }
+
+    /// @notice Post check hook for the L2OutputOracle
+    function _postCheckL2OutputOracle() internal view {
+        L2OutputOracle oracle = L2OutputOracle(proxies.L2OutputOracle);
+        require(oracle.SUBMISSION_INTERVAL() == cfg.l2OutputOracleSubmissionInterval());
+        require(oracle.submissionInterval() == cfg.l2OutputOracleSubmissionInterval());
+        require(oracle.L2_BLOCK_TIME() == cfg.l2BlockTime());
+        require(oracle.l2BlockTime() == cfg.l2BlockTime());
+        require(oracle.PROPOSER() == cfg.l2OutputOracleProposer());
+        require(oracle.proposer() == cfg.l2OutputOracleProposer());
+        require(oracle.CHALLENGER() == cfg.l2OutputOracleChallenger());
+        require(oracle.challenger() == cfg.l2OutputOracleChallenger());
+        require(oracle.FINALIZATION_PERIOD_SECONDS() == cfg.finalizationPeriodSeconds());
+        require(oracle.finalizationPeriodSeconds() == cfg.finalizationPeriodSeconds());
+        require(oracle.startingBlockNumber() == cfg.l2OutputOracleStartingBlockNumber());
+        require(oracle.startingTimestamp() == l2OutputOracleStartingTimestamp);
+    }
+
+    /// @notice Post check hook for the OptimismMintableERC20Factory
+    function _postCheckOptimismMintableERC20Factory() internal view {
+        OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(proxies.OptimismMintableERC20Factory);
+        require(factory.BRIDGE() == proxies.L1StandardBridge);
+    }
+
+    /// @notice Post check hook for the L1ERC721Bridge
+    function _postCheckL1ERC721Bridge() internal view {
+        L1ERC721Bridge bridge = L1ERC721Bridge(proxies.L1ERC721Bridge);
+        require(address(bridge.MESSENGER()) == proxies.L1CrossDomainMessenger);
+        require(bridge.OTHER_BRIDGE() == Predeploys.L2_ERC721_BRIDGE);
+    }
+
+    /// @notice Post check hook for the OptimismPortal
+    function _postCheckOptimismPortal() internal view {
+        OptimismPortal portal = OptimismPortal(payable(proxies.OptimismPortal));
+        require(address(portal.L2_ORACLE()) == proxies.L2OutputOracle);
+        require(portal.GUARDIAN() == cfg.portalGuardian());
+        require(address(portal.SYSTEM_CONFIG()) == proxies.SystemConfig);
+        require(portal.paused() == false);
     }
 
     /// @notice Test coverage of the logic. Should only run on goerli but other chains
@@ -198,7 +314,6 @@ contract Multichain is SafeBuilder {
         require(_safe != address(0) && _proxyAdmin != address(0));
 
         address[] memory owners = IGnosisSafe(payable(_safe)).getOwners();
-
         for (uint256 i; i < owners.length; i++) {
             address owner = owners[i];
             vm.startBroadcast(owner);
@@ -246,7 +361,7 @@ contract Multichain is SafeBuilder {
                 (
                     payable(prox.L1StandardBridge), // proxy
                     L1StandardBridgeImplementation, // implementation
-                    abi.encodeCall(L1StandardBridge.initialize, (L1CrossDomainMessenger(prox.L1CrossDomainMessenger)))
+                    abi.encodeCall(L1StandardBridge.initialize, (L1CrossDomainMessenger(prox.L1CrossDomainMessenger))) // data
                 )
                 )
         });
