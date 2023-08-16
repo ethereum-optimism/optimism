@@ -395,87 +395,39 @@ func (m *InstrumentedState) mipsStep() error {
 
 func execute(insn uint32, rs uint32, rt uint32, mem uint32) uint32 {
 	opcode := insn >> 26 // 6-bits
-	fun := insn & 0x3f   // 6-bits
 
-	if opcode < 0x20 {
-		// transform ArithLogI
-		// TODO(CLI-4136): replace with table
-		if opcode >= 8 && opcode < 0xF {
-			switch opcode {
-			case 8:
-				fun = 0x20 // addi
-			case 9:
-				fun = 0x21 // addiu
-			case 0xA:
-				fun = 0x2A // slti
-			case 0xB:
-				fun = 0x2B // sltiu
-			case 0xC:
-				fun = 0x24 // andi
-			case 0xD:
-				fun = 0x25 // ori
-			case 0xE:
-				fun = 0x26 // xori
-			}
-			opcode = 0
+	if opcode == 0 || (opcode >= 8 && opcode < 0xF) {
+		fun := insn & 0x3f // 6-bits
+		// transform ArithLogI to SPECIAL
+		switch opcode {
+		case 8:
+			fun = 0x20 // addi
+		case 9:
+			fun = 0x21 // addiu
+		case 0xA:
+			fun = 0x2A // slti
+		case 0xB:
+			fun = 0x2B // sltiu
+		case 0xC:
+			fun = 0x24 // andi
+		case 0xD:
+			fun = 0x25 // ori
+		case 0xE:
+			fun = 0x26 // xori
 		}
-
-		// 0 is opcode SPECIAL
-		if opcode == 0 {
-			shamt := (insn >> 6) & 0x1F
-			if fun < 0x20 {
-				switch {
-				case fun >= 0x08:
-					return rs // jr/jalr/div + others
-				case fun == 0x00:
-					return rt << shamt // sll
-				case fun == 0x02:
-					return rt >> shamt // srl
-				case fun == 0x03:
-					return SE(rt>>shamt, 32-shamt) // sra
-				case fun == 0x04:
-					return rt << (rs & 0x1F) // sllv
-				case fun == 0x06:
-					return rt >> (rs & 0x1F) // srlv
-				case fun == 0x07:
-					return SE(rt>>rs, 32-rs) // srav
-				}
+		if fun < uint32(len(execSpecial0FnTable)) {
+			if fn := execSpecial0FnTable[fun]; fn != nil {
+				return fn(rt, rs, insn)
 			}
-			// 0x10-0x13 = mfhi, mthi, mflo, mtlo
-			// R-type (ArithLog)
+		}
+	} else {
+		// special2 is not in op table to avoid pessimization
+		if opcode == 0x1c { // special2
+			fun := insn & 0x3f // 6-bits
 			switch fun {
-			case 0x20, 0x21:
-				return rs + rt // add or addu
-			case 0x22, 0x23:
-				return rs - rt // sub or subu
-			case 0x24:
-				return rs & rt // and
-			case 0x25:
-				return rs | rt // or
-			case 0x26:
-				return rs ^ rt // xor
-			case 0x27:
-				return ^(rs | rt) // nor
-			case 0x2A:
-				if int32(rs) < int32(rt) {
-					return 1 // slt
-				} else {
-					return 0
-				}
-			case 0x2B:
-				if rs < rt {
-					return 1 // sltu
-				} else {
-					return 0
-				}
-			}
-		} else if opcode == 0xF {
-			return rt << 16 // lui
-		} else if opcode == 0x1C { // SPECIAL2
-			if fun == 2 { // mul
+			case 0x2: // mul
 				return uint32(int32(rs) * int32(rt))
-			}
-			if fun == 0x20 || fun == 0x21 { // clo
+			case 0x20, 0x21: // clo
 				if fun == 0x20 {
 					rs = ^rs
 				}
@@ -485,53 +437,170 @@ func execute(insn uint32, rs uint32, rt uint32, mem uint32) uint32 {
 				}
 				return i
 			}
+		} else {
+			if opcode < uint32(len(execOpTable)) {
+				if fn := execOpTable[opcode]; fn != nil {
+					return fn(rt, rs, mem)
+				}
+			}
 		}
-	} else if opcode < 0x28 {
-		switch opcode {
-		case 0x20: // lb
-			return SE((mem>>(24-(rs&3)*8))&0xFF, 8)
-		case 0x21: // lh
-			return SE((mem>>(16-(rs&2)*8))&0xFFFF, 16)
-		case 0x22: // lwl
-			val := mem << ((rs & 3) * 8)
-			mask := uint32(0xFFFFFFFF) << ((rs & 3) * 8)
-			return (rt & ^mask) | val
-		case 0x23: // lw
-			return mem
-		case 0x24: // lbu
-			return (mem >> (24 - (rs&3)*8)) & 0xFF
-		case 0x25: // lhu
-			return (mem >> (16 - (rs&2)*8)) & 0xFFFF
-		case 0x26: // lwr
-			val := mem >> (24 - (rs&3)*8)
-			mask := uint32(0xFFFFFFFF) >> (24 - (rs&3)*8)
-			return (rt & ^mask) | val
-		}
-	} else if opcode == 0x28 { // sb
-		val := (rt & 0xFF) << (24 - (rs&3)*8)
-		mask := 0xFFFFFFFF ^ uint32(0xFF<<(24-(rs&3)*8))
-		return (mem & mask) | val
-	} else if opcode == 0x29 { // sh
-		val := (rt & 0xFFFF) << (16 - (rs&2)*8)
-		mask := 0xFFFFFFFF ^ uint32(0xFFFF<<(16-(rs&2)*8))
-		return (mem & mask) | val
-	} else if opcode == 0x2a { // swl
-		val := rt >> ((rs & 3) * 8)
-		mask := uint32(0xFFFFFFFF) >> ((rs & 3) * 8)
-		return (mem & ^mask) | val
-	} else if opcode == 0x2b { // sw
-		return rt
-	} else if opcode == 0x2e { // swr
-		val := rt << (24 - (rs&3)*8)
-		mask := uint32(0xFFFFFFFF) << (24 - (rs&3)*8)
-		return (mem & ^mask) | val
-	} else if opcode == 0x30 {
-		return mem // ll
-	} else if opcode == 0x38 {
-		return rt // sc
 	}
-
 	panic("invalid instruction")
+}
+
+func defaultSpecial0(rt, rs, mem uint32) uint32 {
+	return rs
+}
+
+// maps SPECIAL0 funct codes to function execution
+// note: rt may also be imm depending on the instruction
+var execSpecial0FnTable = []func(rt, rs, insn uint32) uint32{
+	0x00: func(rt, rs, insn uint32) uint32 { return rt << ((insn >> 6) & 0x1F) }, // sll
+	0x02: func(rt, rs, insn uint32) uint32 { return rt >> ((insn >> 6) & 0x1F) }, // srl
+	0x03: func(rt, rs, insn uint32) uint32 { // sra
+		shamt := (insn >> 6) & 0x1F
+		return SE(rt>>shamt, 32-shamt)
+	},
+	0x04: func(rt, rs, insn uint32) uint32 { // sllv
+		return rt << (rs & 0x1F)
+	},
+	0x06: func(rt, rs, insn uint32) uint32 { // srlv
+		return rt >> (rs & 0x1F)
+	},
+	0x07: func(rt, rs, insn uint32) uint32 { // srav
+		return SE(rt>>rs, 32-rs)
+	},
+	// functs in range [0x8, 0x1b] are handled specially by other functions
+	0x08: defaultSpecial0, // jr
+	0x09: defaultSpecial0, // jalr
+	0x0a: defaultSpecial0, // movz
+	0x0b: defaultSpecial0, // movn
+	0x0c: defaultSpecial0, // syscall
+	// 0x0d - break not supported
+	0x0f: defaultSpecial0, // sync
+	0x10: defaultSpecial0, // mfhi
+	0x11: defaultSpecial0, // mthi
+	0x12: defaultSpecial0, // mflo
+	0x13: defaultSpecial0, // mtlo
+	0x18: defaultSpecial0, // mult
+	0x19: defaultSpecial0, // multu
+	0x1a: defaultSpecial0, // div
+	0x1b: defaultSpecial0, // divu
+
+	// The rest includes transformed R-type arith imm instructions
+	0x20: func(rt, rs, insn uint32) uint32 { return rs + rt }, // add
+	0x21: func(rt, rs, insn uint32) uint32 { return rs + rt }, // addu
+	0x22: func(rt, rs, insn uint32) uint32 { return rs - rt }, // sub
+	0x23: func(rt, rs, insn uint32) uint32 { return rs - rt }, // subu
+	0x24: func(rt, rs, insn uint32) uint32 { return rs & rt }, // and
+	0x25: func(rt, rs, insn uint32) uint32 { return rs | rt }, // or
+	0x26: func(rt, rs, insn uint32) uint32 { return rs ^ rt }, // xor
+	0x27: func(rt, rs, insn uint32) uint32 { // nor
+		return ^(rs | rt)
+	},
+	0x2a: func(rt, rs, insn uint32) uint32 { // slti
+		if int32(rs) < int32(rt) {
+			return 1
+		}
+		return 0
+	},
+	0x2b: func(rt, rs, insn uint32) uint32 { // sltiu
+		if rs < rt {
+			return 1
+		}
+		return 0
+	},
+}
+
+// maps opcodes to function execution
+var execOpTable = []func(rt, rs, mem uint32) uint32{
+	0xf:  lui,
+	0x20: lb,
+	0x21: lh,
+	0x22: lwl,
+	0x23: lw,
+	0x24: lbu,
+	0x25: lhu,
+	0x26: lwr,
+	0x28: sb,
+	0x29: sh,
+	0x2a: swl,
+	0x2b: sw,
+	0x2e: swr,
+	0x30: ll,
+	0x38: sc,
+}
+
+func lui(rt, rs, mem uint32) uint32 {
+	return rt << 16
+}
+
+func lb(rt, rs, mem uint32) uint32 {
+	return SE((mem>>(24-(rs&3)*8))&0xFF, 8)
+}
+
+func lh(rt, rs, mem uint32) uint32 {
+	return SE((mem>>(16-(rs&2)*8))&0xFFFF, 16)
+}
+
+func lwl(rt, rs, mem uint32) uint32 {
+	val := mem << ((rs & 3) * 8)
+	mask := uint32(0xFFFFFFFF) << ((rs & 3) * 8)
+	return (rt & ^mask) | val
+}
+
+func lw(rt, rs, mem uint32) uint32 {
+	return mem
+}
+
+func lbu(rt, rs, mem uint32) uint32 {
+	return (mem >> (24 - (rs&3)*8)) & 0xFF
+}
+
+func lhu(rt, rs, mem uint32) uint32 {
+	return (mem >> (16 - (rs&2)*8)) & 0xFFFF
+}
+
+func lwr(rt, rs, mem uint32) uint32 {
+	val := mem >> (24 - (rs&3)*8)
+	mask := uint32(0xFFFFFFFF) >> (24 - (rs&3)*8)
+	return (rt & ^mask) | val
+}
+
+func sb(rt, rs, mem uint32) uint32 {
+	val := (rt & 0xFF) << (24 - (rs&3)*8)
+	mask := 0xFFFFFFFF ^ uint32(0xFF<<(24-(rs&3)*8))
+	return (mem & mask) | val
+}
+
+func sh(rt, rs, mem uint32) uint32 {
+	val := (rt & 0xFFFF) << (16 - (rs&2)*8)
+	mask := 0xFFFFFFFF ^ uint32(0xFFFF<<(16-(rs&2)*8))
+	return (mem & mask) | val
+}
+
+func swl(rt, rs, mem uint32) uint32 {
+	val := rt >> ((rs & 3) * 8)
+	mask := uint32(0xFFFFFFFF) >> ((rs & 3) * 8)
+	return (mem & ^mask) | val
+}
+
+func sw(rt, rs, mem uint32) uint32 {
+	return rt
+}
+
+func swr(rt, rs, mem uint32) uint32 {
+	val := rt << (24 - (rs&3)*8)
+	mask := uint32(0xFFFFFFFF) << (24 - (rs&3)*8)
+	return (mem & ^mask) | val
+}
+
+func ll(rt, rs, mem uint32) uint32 {
+	return mem
+}
+
+func sc(rt, rs, mem uint32) uint32 {
+	return rt
 }
 
 func SE(dat uint32, idx uint32) uint32 {
