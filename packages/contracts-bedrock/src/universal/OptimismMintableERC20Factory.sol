@@ -41,7 +41,7 @@ contract OptimismMintableERC20Factory is Semver, Initializable {
     /// @notice Initializer.
     /// @param _bridge Address of the StandardBridge on this chain.
     function initialize(address _bridge) public reinitializer(2) {
-         bridge = _bridge;
+        bridge = _bridge;
     }
 
     /// @notice Returns the address of the StandardBridge on this chain.

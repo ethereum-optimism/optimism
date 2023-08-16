@@ -424,11 +424,7 @@ contract Bridge_Initializer is Messenger_Initializer {
 
         vm.prank(multisig);
         factoryProxy.upgradeToAndCall(
-            address(L1TokenFactoryImpl),
-            abi.encodeCall(
-                OptimismMintableERC20Factory.initialize,
-                address(L1Bridge)
-            )
+            address(L1TokenFactoryImpl), abi.encodeCall(OptimismMintableERC20Factory.initialize, address(L1Bridge))
         );
 
         L1TokenFactory = OptimismMintableERC20Factory(address(factoryProxy));
