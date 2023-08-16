@@ -84,6 +84,31 @@ CREATE TABLE IF NOT EXISTS output_proposals (
  * BRIDGING DATA
  */
 
+ /**
+ * TOKEN DATA
+ */
+
+-- L1 Token table
+CREATE TABLE IF NOT EXISTS l1_tokens (
+    address   VARCHAR PRIMARY KEY,
+    bridge_address  VARCHAR NOT NULL,
+    l2_token_address VARCHAR NOT NULL,
+    name            VARCHAR NOT NULL,
+    symbol          VARCHAR NOT NULL,
+    decimals        INTEGER NOT NULL CHECK (decimals >= 0 AND decimals <= 18)
+);
+
+-- L2 Token table
+CREATE TABLE IF NOT EXISTS l2_tokens (
+    address   VARCHAR PRIMARY KEY,
+    bridge_address  VARCHAR NOT NULL,
+    l1_token_address VARCHAR REFERENCES l1_tokens(address),
+    name            VARCHAR NOT NULL,
+    symbol          VARCHAR NOT NULL,
+    decimals        INTEGER NOT NULL CHECK (decimals >= 0 AND decimals <= 18)
+);
+
+
 -- OptimismPortal/L2ToL1MessagePasser
 CREATE TABLE IF NOT EXISTS l1_transaction_deposits (
     source_hash         VARCHAR NOT NULL PRIMARY KEY,
@@ -170,8 +195,8 @@ CREATE TABLE IF NOT EXISTS l1_bridge_deposits (
     -- Deposit information
 	from_address     VARCHAR NOT NULL,
 	to_address       VARCHAR NOT NULL,
-	l1_token_address VARCHAR NOT NULL,
-	l2_token_address VARCHAR NOT NULL,
+    l1_token_address VARCHAR NOT NULL, -- REFERENCES l1_tokens(address), uncomment me in future pr
+    l2_token_address VARCHAR NOT NULL, -- REFERENCES l2_tokens(address), uncomment me in future pr
 	amount           UINT256 NOT NULL,
 	data             VARCHAR NOT NULL,
     timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
@@ -186,8 +211,8 @@ CREATE TABLE IF NOT EXISTS l2_bridge_withdrawals (
     -- Withdrawal information
 	from_address     VARCHAR NOT NULL,
 	to_address       VARCHAR NOT NULL,
-	l1_token_address VARCHAR NOT NULL,
-	l2_token_address VARCHAR NOT NULL,
+    l1_token_address VARCHAR NOT NULL, -- REFERENCES l1_tokens(address), uncomment me in future pr
+    l2_token_address VARCHAR NOT NULL, -- REFERENCES l2_tokens(address), uncomment me in future pr
 	amount           UINT256 NOT NULL,
 	data             VARCHAR NOT NULL,
     timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
