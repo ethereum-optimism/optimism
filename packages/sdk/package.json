@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/sdk",
-  "version": "3.1.0",
+  "version": "3.1.1",
   "description": "[Optimism] Tools for working with Optimism",
   "main": "dist/index",
   "types": "dist/index",
@@ -58,7 +58,7 @@
   "dependencies": {
     "@eth-optimism/contracts": "0.6.0",
     "@eth-optimism/contracts-bedrock": "0.16.0",
-    "@eth-optimism/core-utils": "0.12.2",
+    "@eth-optimism/core-utils": "0.12.3",
     "@types/chai": "^4.2.18",
     "@types/chai-as-promised": "^7.1.4",
     "@types/mocha": "^10.0.1",
