@@ -695,6 +695,11 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"_initialized":  2,
 		"_initializing": false,
 	}
+	storage["OptimismMintableERC20Factory"] = state.StorageValues{
+		"bridge":        predeploys.L2StandardBridgeAddr,
+		"_initialized":  2,
+		"_initializing": false,
+	}
 	return storage, nil
 }
 
