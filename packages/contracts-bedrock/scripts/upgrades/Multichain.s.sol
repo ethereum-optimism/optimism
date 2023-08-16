@@ -71,7 +71,7 @@ contract Multichain is SafeBuilder {
     /// @notice OptimismPortal implementation to upgrade to
     address internal constant OptimismPortalImplementation = 0x345D27c7B6C90fef5beA9631037C36119f4bF93e;
     /// @notice SystemConfig implementation to upgrade to
-    address internal constant SystemConfigImplementation = 0x00CB689221540dEd0FA5247dbE7Fc66621F431a6;
+    address internal constant SystemConfigImplementation = 0x543bA4AADBAb8f9025686Bd03993043599c6fB04;
     /// @notice L1ERC721Bridge implementation to upgrade to
     address internal constant L1ERC721BridgeImplementation = 0x53C115eD8D9902f4999fDBd8B93Ea79BF37cb588;
 
@@ -84,7 +84,7 @@ contract Multichain is SafeBuilder {
     string internal constant L2OutputOracleVersion = "1.4.1";
     string internal constant OptimismMintableERC20FactoryVersion = "1.1.2";
     string internal constant OptimismPortalVersion = "1.8.1";
-    string internal constant SystemConfigVersion = "1.5.0";
+    string internal constant SystemConfigVersion = "1.6.0";
     string internal constant L1ERC721BridgeVersion = "1.2.1";
 
     /// @notice The value of the NETWORK env var
