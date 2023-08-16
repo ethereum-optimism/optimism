@@ -165,12 +165,12 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         __Ownable_init();
         transferOwnership(_owner);
 
-        _setGasConfig({ _overhead: _overhead, _scalar: _scalar });
-
+        // These are set in ascending order of their UpdateTypes.
         _setBatcherHash(_batcherHash);
+        _setGasConfig({ _overhead: _overhead, _scalar: _scalar });
         _setGasLimit(_gasLimit);
+        _setUnsafeBlockSigner(_unsafeBlockSigner);
 
-        _setAddress(_unsafeBlockSigner, UNSAFE_BLOCK_SIGNER_SLOT);
         _setAddress(_batchInbox, BATCH_INBOX_SLOT);
         _setAddress(_addresses.l1CrossDomainMessenger, L1_CROSS_DOMAIN_MESSENGER_SLOT);
         _setAddress(_addresses.l1ERC721Bridge, L1_ERC_721_BRIDGE_SLOT);
@@ -282,9 +282,15 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         }
     }
 
-    /// @notice Updates the unsafe block signer address.
+    /// @notice Updates the unsafe block signer address. Can only be called by the owner.
     /// @param _unsafeBlockSigner New unsafe block signer address.
     function setUnsafeBlockSigner(address _unsafeBlockSigner) external onlyOwner {
+        _setUnsafeBlockSigner(_unsafeBlockSigner);
+    }
+
+    /// @notice Updates the unsafe block signer address.
+    /// @param _unsafeBlockSigner New unsafe block signer address.
+    function _setUnsafeBlockSigner(address _unsafeBlockSigner) internal {
         _setAddress(_unsafeBlockSigner, UNSAFE_BLOCK_SIGNER_SLOT);
 
         bytes memory data = abi.encode(_unsafeBlockSigner);

@@ -18,6 +18,8 @@ contract SystemConfig_Init is CommonTest {
     SystemConfig sysConf;
     SystemConfig systemConfigImpl;
 
+    event ConfigUpdate(uint256 indexed version, SystemConfig.UpdateType indexed updateType, bytes data);
+
     // Dummy addresses used to test getters
     address constant batchInbox = address(0x18);
     address constant l1CrossDomainMessenger = address(0x20);
@@ -137,6 +139,51 @@ contract SystemConfig_Initialize_Test is SystemConfig_Init {
             )
         );
         assertEq(sysConf.startBlock(), startBlock);
+    }
+
+    /// @dev Ensures that the events are emitted during initialization.
+    function test_initialize_events_succeeds() external {
+        // Wipe out the initialized slot so the proxy can be initialized again
+        vm.store(address(sysConf), bytes32(0), bytes32(0));
+        vm.store(address(sysConf), bytes32(uint256(106)), bytes32(0));
+        assertEq(sysConf.startBlock(), 0);
+
+        // The order depends here
+        vm.expectEmit(true, true, true, true, address(sysConf));
+        emit ConfigUpdate(0, SystemConfig.UpdateType.BATCHER, abi.encode(batcherHash));
+        vm.expectEmit(true, true, true, true, address(sysConf));
+        emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_CONFIG, abi.encode(overhead, scalar));
+        vm.expectEmit(true, true, true, true, address(sysConf));
+        emit ConfigUpdate(0, SystemConfig.UpdateType.GAS_LIMIT, abi.encode(gasLimit));
+        vm.expectEmit(true, true, true, true, address(sysConf));
+        emit ConfigUpdate(0, SystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER, abi.encode(unsafeBlockSigner));
+
+        vm.prank(multisig);
+        Proxy(payable(address(sysConf))).upgradeToAndCall(
+            address(systemConfigImpl),
+            abi.encodeCall(
+                SystemConfig.initialize,
+                (
+                    alice, // _owner,
+                    overhead, // _overhead,
+                    scalar, // _scalar,
+                    batcherHash, // _batcherHash
+                    gasLimit, // _gasLimit,
+                    unsafeBlockSigner, // _unsafeBlockSigner,
+                    Constants.DEFAULT_RESOURCE_CONFIG(), // _config,
+                    0, // _startBlock
+                    batchInbox, // _batchInbox
+                    SystemConfig.Addresses({ // _addresses
+                        l1CrossDomainMessenger: l1CrossDomainMessenger,
+                        l1ERC721Bridge: l1ERC721Bridge,
+                        l1StandardBridge: l1StandardBridge,
+                        l2OutputOracle: l2OutputOracle,
+                        optimismPortal: optimismPortal,
+                        optimismMintableERC20Factory: optimismMintableERC20Factory
+                    })
+                )
+            )
+        );
     }
 }
 
@@ -318,8 +365,6 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
 }
 
 contract SystemConfig_Setters_Test is SystemConfig_Init {
-    event ConfigUpdate(uint256 indexed version, SystemConfig.UpdateType indexed updateType, bytes data);
-
     /// @dev Tests that `setBatcherHash` updates the batcher hash successfully.
     function testFuzz_setBatcherHash_succeeds(bytes32 newBatcherHash) external {
         vm.expectEmit(true, true, true, true);
