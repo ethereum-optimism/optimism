@@ -130,10 +130,6 @@ func (m *SimpleTxManager) BlockNumber(ctx context.Context) (uint64, error) {
 	return m.backend.BlockNumber(ctx)
 }
 
-func (m *SimpleTxManager) Sign(ctx context.Context, from common.Address, rawTx *types.DynamicFeeTx) (*types.Transaction, error) {
-	return m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
-}
-
 // TxCandidate is a transaction candidate that can be submitted to ask the
 // [TxManager] to construct a transaction with gas price bounds.
 type TxCandidate struct {
@@ -235,7 +231,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 
 	ctx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
-	return m.Sign(ctx, m.cfg.From, rawTx)
+	return m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
 }
 
 // nextNonce returns a nonce to use for the next transaction. It uses
@@ -514,7 +510,7 @@ func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transa
 
 	ctx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
-	newTx, err := m.Sign(ctx, m.cfg.From, rawTx)
+	newTx, err := m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
 	if err != nil {
 		m.l.Warn("failed to sign new transaction", "err", err)
 		return tx, nil

@@ -936,18 +936,8 @@ func (kms *mockKms) GetAddr() (common.Address, error) {
 	return kms.addr, kms.getAddrErr
 }
 
-func (kms *mockKms) SetGetAddr(addr common.Address, err error) {
-	kms.addr = addr
-	kms.getAddrErr = err
-}
-
 func (kms *mockKms) Sign(chainID *big.Int, tx *types.Transaction) (*types.Transaction, error) {
 	return kms.tx, kms.signErr
-}
-
-func (kms *mockKms) SetSign(tx *types.Transaction, err error) {
-	kms.tx = tx
-	kms.signErr = err
 }
 
 func TestSign(t *testing.T) {
@@ -964,12 +954,13 @@ func TestSign(t *testing.T) {
 		GasTipCap: big.NewInt(1),
 		GasFeeCap: big.NewInt(2),
 	}
-	kms.SetSign(nil, fmt.Errorf("error"))
-	_, err := txManager.Sign(context.Background(), common.Address{1}, dynamicTx)
-	require.ErrorContains(t, err, "error")
+	kms.tx = tx
+	kms.signErr = errors.New("fake-kms-error")
+	_, err := txManager.cfg.Signer(context.Background(), common.Address{1}, types.NewTx(dynamicTx))
+	require.ErrorContains(t, err, "fake-kms-error")
 
-	kms.SetSign(tx, nil)
-	signedTx, err := txManager.Sign(context.Background(), common.Address{1}, dynamicTx)
+	kms.signErr = nil
+	signedTx, err := txManager.cfg.Signer(context.Background(), common.Address{1}, types.NewTx(dynamicTx))
 	require.NoError(t, err)
 	require.Equal(t, tx, signedTx)
 }
