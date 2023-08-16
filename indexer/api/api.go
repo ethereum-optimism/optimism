@@ -21,7 +21,7 @@ func NewApi(bv database.BridgeTransfersView, logger log.Logger) *Api {
 
 	r := chi.NewRouter()
 
-	h := routes.NewRoutes(logger, bv)
+	h := routes.NewRoutes(logger, bv, r)
 
 	api := &Api{Router: r}
 

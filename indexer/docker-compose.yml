@@ -101,7 +101,7 @@ services:
   gateway-frontend:
     command: pnpm nx start @gateway/frontend --host 0.0.0.0 --port 5173
     # Change tag to `latest` after https://github.com/ethereum-optimism/gateway/pull/2541 merges
-    image: ethereumoptimism/gateway-frontend:0687c408e4f85cbe81acf7a197e861df8c7282df
+    image: ethereumoptimism/gateway-frontend:latest
     ports:
       - 5173:5173
     healthcheck:

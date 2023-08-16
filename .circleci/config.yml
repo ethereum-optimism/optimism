@@ -115,20 +115,23 @@ jobs:
           name: Restore PNPM Package Cache
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
+      # Fetch node_modules into the pnpm store
+      # This will cache node_modules based on pnpm-lock so other steps can instantly install them with `pnpm install --prefer-offline`
+      # --prefer-offline installs node_modules instantly by just reading from cache if it exists rather than fetching from network
+      # when installing node_modules pnpm simply adds symlinks instead of copying the files which is why it is pretty much instant to run --prefer-offline
+      # this allows a caching strategy of only checking pnpm-lockfile so we don't have to keep it in sync with our packages
+      # For more information see https://pnpm.io/cli/fetch
       - run:
-          name: Install dependencies
-          command: pnpm install --frozen-lockfile
+          name: Fetch dependencies
+          command: pnpm fetch --frozen-lockfile --prefer-offline
       - save_cache:
           name: Save PNPM Package Cache
           key: pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
           paths:
             - "node_modules"
-            - "packages/chain-mon/node_modules"
-            - "packages/common-ts/node_modules"
-            - "packages/contracts-bedrock/node_modules"
-            - "packages/core-utils/node_modules"
-            - "packages/sdk/node_modules"
-            - "packages/contracts-ts/node_modules"
+      - run:
+          name: Install dependencies
+          command: pnpm install --frozen-lockfile --offline
       - run:
           name: print forge version
           command: forge --version
@@ -469,57 +472,16 @@ jobs:
           name: Restore PNPM Package Cache
           keys:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
+      # populate node modules from the cache
+      - run:
+          name: Install dependencies
+          command: pnpm install --frozen-lockfile --prefer-offline
       - check-changed:
           patterns: contracts-bedrock
       - run:
           name: validate spacers
           command: pnpm validate-spacers
           working_directory: packages/contracts-bedrock
-
-  bedrock-echidna-build:
-    docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - check-changed:
-          patterns: contracts-bedrock
-      - run:
-          name: Compile with metadata hash
-          command: pnpm clean && pnpm build:with-metadata
-          working_directory: packages/contracts-bedrock
-      - persist_to_workspace:
-          root: .
-          paths:
-            - "node_modules"
-            - packages/contracts-bedrock
-
-  bedrock-echidna-run:
-    docker:
-      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
-    parameters:
-      echidna_target:
-        description: Which echidna fuzz contract to run
-        type: string
-      size:
-        description: Custom resource class size for the run
-        type: string
-        default: large
-    resource_class: <<parameters.size>>
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      - check-changed:
-          patterns: contracts-bedrock
-      - run:
-          name: Echidna Fuzz <<parameters.echidna_target>>
-          command: pnpm echidna:<<parameters.echidna_target>>
-          working_directory: packages/contracts-bedrock
-          no_output_timeout: 15m
 
   op-bindings-build:
     docker:
@@ -556,6 +518,10 @@ jobs:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: <<parameters.package_name>>,<<parameters.dependencies>>
+      # populate node modules from the cache
+      - run:
+          name: Install dependencies
+          command: pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: Lint
           command: pnpm lint && git diff --exit-code
@@ -581,6 +547,10 @@ jobs:
             - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
       - check-changed:
           patterns: sdk,contracts-bedrock,contracts
+      # populate node modules from the cache
+      - run:
+          name: Install dependencies
+          command: pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: Check generated and build
           command: pnpm generate:check
@@ -599,6 +569,10 @@ jobs:
             - pnpm-packages-v2-{{ checksum "pnpm.lock.yaml" }}
       - check-changed:
           patterns: sdk,contracts-bedrock,contracts
+      # populate node modules from the cache
+      - run:
+          name: Install dependencies
+          command: pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: anvil-l1
           background: true
@@ -643,22 +617,13 @@ jobs:
       - checkout
       - check-changed:
           patterns: specs/(.*)\.md$
-      # TODO remove me after ci builder updated
       - run:
           name: Install pnpm package manager
           command: |
             npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
       - run:
           name: pnpm dev deps
-          command: pnpm install
+          command: pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: specs toc
           command: pnpm lint:specs:toc && git diff --exit-code ./specs
@@ -671,7 +636,6 @@ jobs:
       image: ubuntu-2204:2022.07.1
     steps:
       - checkout
-      # TODO remove me after ci builder updated
       - run:
           name: Install pnpm package manager
           command: |
@@ -679,7 +643,7 @@ jobs:
       - run:
           name: Install node_modules
           command: |
-            pnpm install
+            pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: Lint check
           command: |
@@ -981,7 +945,7 @@ jobs:
       - run:
           name: Install and build
           command: |
-            pnpm install && pnpm build
+            pnpm install --frozen-lockfile --prefer-offline && pnpm build
       - run:
           name: generate cannon prestate
           command: make cannon-prestate
