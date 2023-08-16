@@ -194,7 +194,7 @@ describe('OptimismFeeEstimationPlugin', () => {
             data: encodedBurnMethod,
             type: '0x2',
           })
-        ).toBe('bigint')
+        ).toBeTypeOf('bigint')
       })
 
       test('getL1GasUsed should return 1884n', async () =>
