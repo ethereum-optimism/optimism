@@ -120,6 +120,7 @@ services:
       OP_PROPOSER_ALLOW_NON_FINALIZED: "true"
       OP_PROPOSER_KMS_ENDPOINT: "http://kms:8888"
       OP_PROPOSER_KMS_REGION: "us-east-1"
+      # The private key is derived from the mnemonic above
       OP_PROPOSER_KMS_KEY_ID: "0x70997970c51812dc3a010c7d01b50e0d17dc79c8"
       # testing purposes only
       AWS_ACCESS_KEY_ID: "1"
@@ -153,6 +154,7 @@ services:
       OP_BATCHER_RPC_ENABLE_ADMIN: "true"
       OP_BATCHER_KMS_ENDPOINT: "http://kms:8888"
       OP_BATCHER_KMS_REGION: "us-east-1"
+      # The private key is derived from the mnemonic above
       OP_BATCHER_KMS_KEY_ID: "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc"
       # testing purposes only
       AWS_ACCESS_KEY_ID: "1"
