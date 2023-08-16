@@ -355,7 +355,7 @@ func l2ProcessContractEventsStandardBridge(processLog log.Logger, db *database.D
 			TransactionWithdrawalHash: msgPassedEvent.WithdrawalHash,
 			BridgeTransfer: database.BridgeTransfer{
 				CrossDomainMessageHash: &initiatedBridgeEvent.CrossDomainMessageHash,
-				TokenPair:              database.TokenPair{L1TokenAddress: initiatedBridgeEvent.LocalToken, L2TokenAddress: initiatedBridgeEvent.RemoteToken},
+				TokenPair:              database.TokenPair{LocalTokenAddress: initiatedBridgeEvent.LocalToken, RemoteTokenAddress: initiatedBridgeEvent.RemoteToken},
 				Tx: database.Transaction{
 					FromAddress: initiatedBridgeEvent.From,
 					ToAddress:   initiatedBridgeEvent.To,
@@ -398,7 +398,7 @@ func l2ProcessContractEventsStandardBridge(processLog log.Logger, db *database.D
 		// sanity check on the bridge fields
 		if finalizedDepositEvent.From != deposit.Tx.FromAddress || finalizedDepositEvent.To != deposit.Tx.ToAddress ||
 			finalizedDepositEvent.Amount.Cmp(deposit.Tx.Amount.Int) != 0 || !bytes.Equal(finalizedDepositEvent.ExtraData, deposit.Tx.Data) ||
-			finalizedDepositEvent.LocalToken != deposit.TokenPair.L1TokenAddress || finalizedDepositEvent.RemoteToken != deposit.TokenPair.L2TokenAddress {
+			finalizedDepositEvent.LocalToken != deposit.TokenPair.LocalTokenAddress || finalizedDepositEvent.RemoteToken != deposit.TokenPair.RemoteTokenAddress {
 			processLog.Error("bridge finalization fields mismatch with initiated fields!", "tx_source_hash", deposit.TransactionSourceHash, "cross_domain_message_hash", deposit.CrossDomainMessageHash)
 			return errors.New("bridge tx mismatch")
 		}

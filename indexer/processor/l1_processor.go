@@ -249,8 +249,6 @@ func l1ProcessContractEventsBridgeTransactions(processLog log.Logger, db *databa
 			SourceHash:           depositTx.SourceHash,
 			L2TransactionHash:    types.NewTx(depositTx).Hash(),
 			InitiatedL1EventGUID: depositEvent.Event.GUID,
-			Version:              database.U256{Int: depositEvent.Version},
-			OpaqueData:           depositEvent.OpaqueData,
 			GasLimit:             database.U256{Int: new(big.Int).SetUint64(depositTx.Gas)},
 			Tx: database.Transaction{
 				FromAddress: depositTx.From,
@@ -465,7 +463,7 @@ func l1ProcessContractEventsStandardBridge(processLog log.Logger, db *database.D
 			BridgeTransfer: database.BridgeTransfer{
 				CrossDomainMessageHash: &initiatedBridgeEvent.CrossDomainMessageHash,
 				// TODO index the tokens pairs if they don't exist
-				TokenPair: database.TokenPair{L1TokenAddress: initiatedBridgeEvent.LocalToken, L2TokenAddress: initiatedBridgeEvent.RemoteToken},
+				TokenPair: database.TokenPair{LocalTokenAddress: initiatedBridgeEvent.LocalToken, RemoteTokenAddress: initiatedBridgeEvent.RemoteToken},
 				Tx: database.Transaction{
 					FromAddress: initiatedBridgeEvent.From,
 					ToAddress:   initiatedBridgeEvent.To,
@@ -506,7 +504,7 @@ func l1ProcessContractEventsStandardBridge(processLog log.Logger, db *database.D
 		// sanity check on the bridge fields
 		if finalizedWithdrawalEvent.From != withdrawal.Tx.FromAddress || finalizedWithdrawalEvent.To != withdrawal.Tx.ToAddress ||
 			finalizedWithdrawalEvent.Amount.Cmp(withdrawal.Tx.Amount.Int) != 0 || !bytes.Equal(finalizedWithdrawalEvent.ExtraData, withdrawal.Tx.Data) ||
-			finalizedWithdrawalEvent.LocalToken != withdrawal.TokenPair.L1TokenAddress || finalizedWithdrawalEvent.RemoteToken != withdrawal.TokenPair.L2TokenAddress {
+			finalizedWithdrawalEvent.LocalToken != withdrawal.TokenPair.LocalTokenAddress || finalizedWithdrawalEvent.RemoteToken != withdrawal.TokenPair.RemoteTokenAddress {
 			processLog.Crit("bridge finalization fields mismatch with initiated fields!", "tx_withdrawal_hash", withdrawal.TransactionWithdrawalHash, "cross_domain_message_hash", withdrawal.CrossDomainMessageHash)
 		}
 	}
