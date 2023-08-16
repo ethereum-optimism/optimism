@@ -4,13 +4,6 @@
 # OP Goerli
 preset = 420
 
-[chain.l1-contracts]
-optimism-portal = ""
-l2-output-oracle = ""
-l1-cross-domain-messenger = ""
-l1-standard-bridge = ""
-l1-erc721-bridge = ""
-
 [rpcs]
 l1-rpc = "${INDEXER_RPC_URL_L1}"
 l2-rpc = "${INDEXER_RPC_URL_L2}"
