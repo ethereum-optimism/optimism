@@ -209,8 +209,8 @@ CREATE TABLE IF NOT EXISTS l2_bridge_withdrawals (
     -- Withdrawal information
 	from_address     VARCHAR NOT NULL,
 	to_address       VARCHAR NOT NULL,
-	local_token_address VARCHAR NOT NULL, -- REFERENCES l1_tokens(address), uncomment me in future pr
-	remote_token_address VARCHAR NOT NULL, -- REFERENCES l2_tokens(address), uncomment me in future pr
+	local_token_address VARCHAR NOT NULL, -- REFERENCES l2_tokens(address), uncomment me in future pr
+	remote_token_address VARCHAR NOT NULL, -- REFERENCES l1_tokens(address), uncomment me in future pr
 	amount           UINT256 NOT NULL,
 	data             VARCHAR NOT NULL,
     timestamp        INTEGER NOT NULL CHECK (timestamp > 0)
