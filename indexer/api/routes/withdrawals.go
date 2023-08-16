@@ -73,7 +73,7 @@ func newWithdrawalResponse(withdrawals []*database.L2BridgeWithdrawalWithTransac
 			WithdrawalState: "COMPLETE", // TODO
 			L1Token: TokenInfo{
 				ChainId:  1,
-				Address:  withdrawal.L2BridgeWithdrawal.TokenPair.L1TokenAddress.String(),
+				Address:  withdrawal.L2BridgeWithdrawal.TokenPair.RemoteTokenAddress.String(),
 				Name:     "Example", // TODO
 				Symbol:   "EXAMPLE", // TODO
 				Decimals: 18,        // TODO
@@ -83,7 +83,7 @@ func newWithdrawalResponse(withdrawals []*database.L2BridgeWithdrawalWithTransac
 			},
 			L2Token: TokenInfo{
 				ChainId:  10,
-				Address:  withdrawal.L2BridgeWithdrawal.TokenPair.L2TokenAddress.String(),
+				Address:  withdrawal.L2BridgeWithdrawal.TokenPair.LocalTokenAddress.String(),
 				Name:     "Example", // TODO
 				Symbol:   "EXAMPLE", // TODO
 				Decimals: 18,        // TODO
