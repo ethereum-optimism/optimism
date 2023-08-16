@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -160,7 +159,7 @@ func l2ProcessFn(processLog log.Logger, ethClient node.EthClient, l2Contracts L2
 			}
 
 			// forward along contract events to standard bridge processor
-			err = l2ProcessContractEventsStandardBridge(processLog, db, ethClient, processedContractEvents)
+			err = l2ProcessContractEventsStandardBridge(processLog, db, processedContractEvents)
 			if err != nil {
 				return err
 			}
@@ -198,10 +197,9 @@ func l2ProcessContractEventsBridgeTransactions(processLog log.Logger, db *databa
 		if len(withdrawalEvent.Data) == 0 && withdrawalEvent.Value.BitLen() > 0 {
 			ethWithdrawals = append(ethWithdrawals, &database.L2BridgeWithdrawal{
 				TransactionWithdrawalHash: withdrawalEvent.WithdrawalHash,
-				Tx:                        transactionWithdrawals[i].Tx,
-				TokenPair: database.TokenPair{
-					L1TokenAddress: predeploys.LegacyERC20ETHAddr,
-					L2TokenAddress: predeploys.LegacyERC20ETHAddr,
+				BridgeTransfer: database.BridgeTransfer{
+					Tx:        transactionWithdrawals[i].Tx,
+					TokenPair: database.ETHTokenPair,
 				},
 			})
 		}
@@ -258,8 +256,8 @@ func l2ProcessContractEventsBridgeCrossDomainMessages(processLog log.Logger, db 
 		sentMessages[i] = &database.L2BridgeMessage{
 			TransactionWithdrawalHash: msgPassedEvent.WithdrawalHash,
 			BridgeMessage: database.BridgeMessage{
-				Nonce:                database.U256{Int: sentMessageEvent.MessageNonce},
 				MessageHash:          sentMessageEvent.MessageHash,
+				Nonce:                database.U256{Int: sentMessageEvent.MessageNonce},
 				SentMessageEventGUID: sentMessageEvent.Event.GUID,
 				GasLimit:             database.U256{Int: sentMessageEvent.GasLimit},
 				Tx: database.Transaction{
@@ -298,7 +296,7 @@ func l2ProcessContractEventsBridgeCrossDomainMessages(processLog log.Logger, db 
 	}
 
 	for _, relayedMessage := range relayedMessageEvents {
-		message, err := db.BridgeMessages.L1BridgeMessageByHash(relayedMessage.MsgHash)
+		message, err := db.BridgeMessages.L1BridgeMessage(relayedMessage.MsgHash)
 		if err != nil {
 			return err
 		}
@@ -330,9 +328,7 @@ func l2ProcessContractEventsBridgeCrossDomainMessages(processLog log.Logger, db 
 	return nil
 }
 
-func l2ProcessContractEventsStandardBridge(processLog log.Logger, db *database.DB, ethClient node.EthClient, events *ProcessedContractEvents) error {
-	rawEthClient := ethclient.NewClient(ethClient.RawRpcClient())
-
+func l2ProcessContractEventsStandardBridge(processLog log.Logger, db *database.DB, events *ProcessedContractEvents) error {
 	l2ToL1MessagePasserABI, err := bindings.NewL2ToL1MessagePasser(common.Address{}, nil)
 	if err != nil {
 		return err
@@ -357,14 +353,16 @@ func l2ProcessContractEventsStandardBridge(processLog log.Logger, db *database.D
 
 		withdrawals[i] = &database.L2BridgeWithdrawal{
 			TransactionWithdrawalHash: msgPassedEvent.WithdrawalHash,
-			CrossDomainMessengerNonce: &database.U256{Int: initiatedBridgeEvent.CrossDomainMessengerNonce},
-			TokenPair:                 database.TokenPair{L1TokenAddress: initiatedBridgeEvent.LocalToken, L2TokenAddress: initiatedBridgeEvent.RemoteToken},
-			Tx: database.Transaction{
-				FromAddress: initiatedBridgeEvent.From,
-				ToAddress:   initiatedBridgeEvent.To,
-				Amount:      database.U256{Int: initiatedBridgeEvent.Amount},
-				Data:        initiatedBridgeEvent.ExtraData,
-				Timestamp:   initiatedBridgeEvent.Event.Timestamp,
+			BridgeTransfer: database.BridgeTransfer{
+				CrossDomainMessageHash: &initiatedBridgeEvent.CrossDomainMessageHash,
+				TokenPair:              database.TokenPair{LocalTokenAddress: initiatedBridgeEvent.LocalToken, RemoteTokenAddress: initiatedBridgeEvent.RemoteToken},
+				Tx: database.Transaction{
+					FromAddress: initiatedBridgeEvent.From,
+					ToAddress:   initiatedBridgeEvent.To,
+					Amount:      database.U256{Int: initiatedBridgeEvent.Amount},
+					Data:        initiatedBridgeEvent.ExtraData,
+					Timestamp:   initiatedBridgeEvent.Event.Timestamp,
+				},
 			},
 		}
 	}
@@ -382,26 +380,26 @@ func l2ProcessContractEventsStandardBridge(processLog log.Logger, db *database.D
 	// bridge transaction & messages that have a tracked lifecyle. We simply walk through and ensure
 	// that the corresponding initiated deposits exist as an integrity check
 
-	finalizedDepositEvents, err := StandardBridgeFinalizedEvents(rawEthClient, events)
+	finalizedDepositEvents, err := StandardBridgeFinalizedEvents(events)
 	if err != nil {
 		return err
 	}
 
 	for _, finalizedDepositEvent := range finalizedDepositEvents {
-		deposit, err := db.BridgeTransfers.L1BridgeDepositByCrossDomainMessengerNonce(finalizedDepositEvent.CrossDomainMessengerNonce)
+		deposit, err := db.BridgeTransfers.L1BridgeDepositWithFilter(database.BridgeTransfer{CrossDomainMessageHash: &finalizedDepositEvent.CrossDomainMessageHash})
 		if err != nil {
 			return err
 		} else if deposit == nil {
 			// Indexed CrossDomainMessenger messages ensure we're in a caught up state here
-			processLog.Error("missing indexed L1StandardBridge deposit on finalization", "cross_domain_messenger_nonce", finalizedDepositEvent.CrossDomainMessengerNonce)
+			processLog.Error("missing indexed L1StandardBridge deposit on finalization", "cross_domain_massage_hash", finalizedDepositEvent.CrossDomainMessageHash)
 			return errors.New("missing indexed L1StandardBridge deposit on finalization")
 		}
 
 		// sanity check on the bridge fields
 		if finalizedDepositEvent.From != deposit.Tx.FromAddress || finalizedDepositEvent.To != deposit.Tx.ToAddress ||
 			finalizedDepositEvent.Amount.Cmp(deposit.Tx.Amount.Int) != 0 || !bytes.Equal(finalizedDepositEvent.ExtraData, deposit.Tx.Data) ||
-			finalizedDepositEvent.LocalToken != deposit.TokenPair.L1TokenAddress || finalizedDepositEvent.RemoteToken != deposit.TokenPair.L2TokenAddress {
-			processLog.Error("bridge finalization fields mismatch with initiated fields!", "tx_source_hash", deposit.TransactionSourceHash, "cross_domain_messenger_nonce", deposit.CrossDomainMessengerNonce.Int)
+			finalizedDepositEvent.LocalToken != deposit.TokenPair.LocalTokenAddress || finalizedDepositEvent.RemoteToken != deposit.TokenPair.RemoteTokenAddress {
+			processLog.Error("bridge finalization fields mismatch with initiated fields!", "tx_source_hash", deposit.TransactionSourceHash, "cross_domain_message_hash", deposit.CrossDomainMessageHash)
 			return errors.New("bridge tx mismatch")
 		}
 	}

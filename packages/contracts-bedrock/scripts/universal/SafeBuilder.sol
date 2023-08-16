@@ -56,7 +56,13 @@ abstract contract SafeBuilder is EnhancedScript, GlobalConstants {
         if (block.chainid == OP_GOERLI) {
             safe = 0xE534ccA2753aCFbcDBCeB2291F596fc60495257e;
             proxyAdmin = 0x4200000000000000000000000000000000000018;
+        } else if (block.chainid == GOERLI) {
+            safe = 0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f;
+            proxyAdmin = 0x01d3670863c3F4b24D7b107900f0b75d4BbC6e0d;
         }
+        console.log("ChainID: %s", block.chainid);
+        console.log("Using Safe: %s", safe);
+        console.log("Using ProxyAdmin: %s", proxyAdmin);
         return run(safe, proxyAdmin);
     }
 
