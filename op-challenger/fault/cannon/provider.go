@@ -60,16 +60,20 @@ func NewTraceProvider(ctx context.Context, logger log.Logger, cfg *config.Config
 	if err != nil {
 		return nil, fmt.Errorf("create caller for game %v: %w", cfg.GameAddress, err)
 	}
-	l1Head, err := fetchLocalInputs(ctx, cfg.GameAddress, gameCaller, l2Client)
+	localInputs, err := fetchLocalInputs(ctx, cfg.GameAddress, gameCaller, l2Client)
 	if err != nil {
 		return nil, fmt.Errorf("fetch local game inputs: %w", err)
 	}
+	return NewTraceProviderFromInputs(logger, cfg, localInputs), nil
+}
+
+func NewTraceProviderFromInputs(logger log.Logger, cfg *config.Config, localInputs LocalGameInputs) *CannonTraceProvider {
 	return &CannonTraceProvider{
 		logger:    logger,
 		dir:       cfg.CannonDatadir,
 		prestate:  cfg.CannonAbsolutePreState,
-		generator: NewExecutor(logger, cfg, l1Head),
-	}, nil
+		generator: NewExecutor(logger, cfg, localInputs),
+	}
 }
 
 func (p *CannonTraceProvider) Get(ctx context.Context, i uint64) (common.Hash, error) {
