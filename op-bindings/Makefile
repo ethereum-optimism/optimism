@@ -1,4 +1,4 @@
-SHELL := /bin/bash
+SHELL := /usr/bin/env bash
 
 pkg := bindings
 monorepo-base := $(shell dirname $(realpath .))

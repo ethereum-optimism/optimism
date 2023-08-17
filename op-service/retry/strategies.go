@@ -16,35 +16,34 @@ type Strategy interface {
 // ExponentialStrategy performs exponential backoff. The exponential backoff
 // function is min(e.Min + (2^attempt * 1000) + randBetween(0, e.MaxJitter), e.Max)
 type ExponentialStrategy struct {
-	// Min is the minimum amount of time to wait between attempts in ms.
-	Min float64
+	// Min is the minimum amount of time to wait between attempts.
+	Min time.Duration
 
-	// Max is the maximum amount of time to wait between attempts in ms.
-	Max float64
+	// Max is the maximum amount of time to wait between attempts.
+	Max time.Duration
 
-	// MaxJitter is the maximum amount of random jitter to insert between
-	// attempts in ms.
-	MaxJitter int
+	// MaxJitter is the maximum amount of random jitter to insert between attempts.
+	MaxJitter time.Duration
 }
 
 func (e *ExponentialStrategy) Duration(attempt int) time.Duration {
-	var jitter int
+	var jitter time.Duration
 	if e.MaxJitter > 0 {
-		jitter = rand.Intn(e.MaxJitter)
+		jitter = time.Duration(rand.Int63n(e.MaxJitter.Nanoseconds()))
 	}
-	dur := e.Min + (math.Pow(2, float64(attempt)) * 1000)
-	dur += float64(jitter)
+	dur := e.Min + time.Duration(int(math.Pow(2, float64(attempt))*1000))*time.Millisecond
+	dur += jitter
 	if dur > e.Max {
-		return time.Millisecond * time.Duration(e.Max)
+		return e.Max
 	}
 
-	return time.Millisecond * time.Duration(dur)
+	return dur
 }
 
 func Exponential() Strategy {
 	return &ExponentialStrategy{
-		Max:       10000,
-		MaxJitter: 250,
+		Max:       time.Duration(10000 * time.Millisecond),
+		MaxJitter: time.Duration(250 * time.Millisecond),
 	}
 }
 
