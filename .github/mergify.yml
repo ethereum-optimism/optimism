@@ -321,11 +321,3 @@ pull_request_rules:
       label:
         add:
           - M-ci
-  - name: Add M-bot label for bots
-    conditions:
-      - 'author=(github-actions|dependabot)'
-      - '#label<5'
-    actions:
-      label:
-        add:
-          - M-bot
