@@ -20,6 +20,20 @@ const (
 	GameStatusDefenderWon
 )
 
+// String returns the string representation of the game status.
+func (s GameStatus) String() string {
+	switch s {
+	case GameStatusInProgress:
+		return "In Progress"
+	case GameStatusChallengerWon:
+		return "Challenger Won"
+	case GameStatusDefenderWon:
+		return "Defender Won"
+	default:
+		return "Unknown"
+	}
+}
+
 // PreimageOracleData encapsulates the preimage oracle data
 // to load into the onchain oracle.
 type PreimageOracleData struct {

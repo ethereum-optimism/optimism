@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 )
 
 type GameInfo interface {
@@ -51,9 +52,9 @@ func progressGame(ctx context.Context, logger log.Logger, agreeWithProposedOutpu
 			expectedStatus = types.GameStatusDefenderWon
 		}
 		if expectedStatus == status {
-			logger.Info("Game won", "status", GameStatusString(status))
+			logger.Info("Game won", "status", status)
 		} else {
-			logger.Error("Game lost", "status", GameStatusString(status))
+			logger.Error("Game lost", "status", status)
 		}
 		return true
 	} else {
