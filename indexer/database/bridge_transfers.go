@@ -2,6 +2,7 @@ package database
 
 import (
 	"errors"
+	"fmt"
 
 	"gorm.io/gorm"
 
@@ -59,11 +60,11 @@ type L2BridgeWithdrawalWithTransactionHashes struct {
 type BridgeTransfersView interface {
 	L1BridgeDeposit(common.Hash) (*L1BridgeDeposit, error)
 	L1BridgeDepositWithFilter(BridgeTransfer) (*L1BridgeDeposit, error)
-	L1BridgeDepositsByAddress(common.Address) ([]*L1BridgeDepositWithTransactionHashes, error)
+	L1BridgeDepositsByAddress(common.Address, string, int) (*L1BridgeDepositsResponse, error)
 
 	L2BridgeWithdrawal(common.Hash) (*L2BridgeWithdrawal, error)
 	L2BridgeWithdrawalWithFilter(BridgeTransfer) (*L2BridgeWithdrawal, error)
-	L2BridgeWithdrawalsByAddress(common.Address) ([]*L2BridgeWithdrawalWithTransactionHashes, error)
+	L2BridgeWithdrawalsByAddress(common.Address, string, int) (*L2BridgeWithdrawalsResponse, error)
 }
 
 type BridgeTransfersDB interface {
@@ -122,9 +123,20 @@ func (db *bridgeTransfersDB) L1BridgeDepositWithFilter(filter BridgeTransfer) (*
 	return &deposit, nil
 }
 
+type L1BridgeDepositsResponse struct {
+	Deposits    []*L1BridgeDepositWithTransactionHashes
+	Cursor      string
+	HasNextPage bool
+}
+
 // L1BridgeDepositsByAddress retrieves a list of deposits intiated by the specified address, coupled with the L1/L2 transaction
 // hashes that complete the bridge transaction.
-func (db *bridgeTransfersDB) L1BridgeDepositsByAddress(address common.Address) ([]*L1BridgeDepositWithTransactionHashes, error) {
+func (db *bridgeTransfersDB) L1BridgeDepositsByAddress(address common.Address, cursor string, limit int) (*L1BridgeDepositsResponse, error) {
+	defaultLimit := 100
+	if limit <= 0 {
+		limit = defaultLimit
+	}
+
 	depositsQuery := db.gorm.Table("l1_bridge_deposits").Select(`
 l1_bridge_deposits.*,
 l1_contract_events.transaction_hash AS l1_transaction_hash,
@@ -134,8 +146,11 @@ l1_transaction_deposits.l2_transaction_hash`)
 	depositsQuery = depositsQuery.Joins("INNER JOIN l1_transaction_deposits ON l1_bridge_deposits.transaction_source_hash = l1_transaction_deposits.source_hash")
 	depositsQuery = depositsQuery.Joins("INNER JOIN l1_contract_events ON l1_transaction_deposits.initiated_l1_event_guid = l1_contract_events.guid")
 
-	// add in cursoring options
-	filteredQuery := depositsQuery.Where(&Transaction{FromAddress: address}).Order("l1_bridge_deposits.timestamp DESC").Limit(100)
+	if cursor != "" {
+		depositsQuery = depositsQuery.Where("l1_bridge_deposits.transaction_source_hash < ?", cursor)
+	}
+
+	filteredQuery := depositsQuery.Where(&Transaction{FromAddress: address}).Order("l1_bridge_deposits.transaction_source_hash DESC").Limit(limit + 1)
 
 	deposits := []*L1BridgeDepositWithTransactionHashes{}
 	result := filteredQuery.Scan(&deposits)
@@ -146,7 +161,24 @@ l1_transaction_deposits.l2_transaction_hash`)
 		return nil, result.Error
 	}
 
-	return deposits, nil
+	hasNextPage := false
+	if len(deposits) > limit {
+		hasNextPage = true
+		deposits = deposits[:limit]
+	}
+
+	nextCursor := ""
+	if hasNextPage {
+		nextCursor = deposits[len(deposits)-1].L1TransactionHash.String()
+	}
+
+	response := &L1BridgeDepositsResponse{
+		Deposits:    deposits,
+		Cursor:      nextCursor,
+		HasNextPage: hasNextPage,
+	}
+
+	return response, nil
 }
 
 /**
@@ -186,9 +218,20 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawalWithFilter(filter BridgeTransfer)
 	return &withdrawal, nil
 }
 
+type L2BridgeWithdrawalsResponse struct {
+	Withdrawals []*L2BridgeWithdrawalWithTransactionHashes
+	Cursor      string
+	HasNextPage bool
+}
+
 // L2BridgeDepositsByAddress retrieves a list of deposits intiated by the specified address, coupled with the L1/L2 transaction hashes
 // that complete the bridge transaction. The hashes that correspond to with the Bedrock multistep withdrawal process are also surfaced
-func (db *bridgeTransfersDB) L2BridgeWithdrawalsByAddress(address common.Address) ([]*L2BridgeWithdrawalWithTransactionHashes, error) {
+func (db *bridgeTransfersDB) L2BridgeWithdrawalsByAddress(address common.Address, cursor string, limit int) (*L2BridgeWithdrawalsResponse, error) {
+	defaultLimit := 100
+	if limit <= 0 {
+		limit = defaultLimit
+	}
+
 	withdrawalsQuery := db.gorm.Table("l2_bridge_withdrawals").Select(`
 l2_bridge_withdrawals.*,
 l2_contract_events.transaction_hash AS l2_transaction_hash,
@@ -200,8 +243,11 @@ finalized_l1_contract_events.transaction_hash AS finalized_l1_transaction_hash`)
 	withdrawalsQuery = withdrawalsQuery.Joins("LEFT JOIN l1_contract_events AS proven_l1_contract_events ON l2_transaction_withdrawals.proven_l1_event_guid = proven_l1_contract_events.guid")
 	withdrawalsQuery = withdrawalsQuery.Joins("LEFT JOIN l1_contract_events AS finalized_l1_contract_events ON l2_transaction_withdrawals.finalized_l1_event_guid = finalized_l1_contract_events.guid")
 
-	// add in cursoring options
-	filteredQuery := withdrawalsQuery.Where(&Transaction{FromAddress: address}).Order("l2_bridge_withdrawals.timestamp DESC").Limit(100)
+	if cursor != "" {
+		withdrawalsQuery = withdrawalsQuery.Where("l2_bridge_withdrawals.id < ?", cursor)
+	}
+
+	filteredQuery := withdrawalsQuery.Where(&Transaction{FromAddress: address}).Order("l2_bridge_withdrawals.timestamp DESC").Limit(limit + 1)
 
 	withdrawals := []*L2BridgeWithdrawalWithTransactionHashes{}
 	result := filteredQuery.Scan(&withdrawals)
@@ -212,5 +258,28 @@ finalized_l1_contract_events.transaction_hash AS finalized_l1_transaction_hash`)
 		return nil, result.Error
 	}
 
-	return withdrawals, nil
+	hasNextPage := false
+	if len(withdrawals) > limit {
+		hasNextPage = true
+		withdrawals = withdrawals[:limit]
+	}
+
+	nextCursor := ""
+	if hasNextPage {
+		nextCursor = fmt.Sprintf("%d", withdrawals[len(withdrawals)-1].L2TransactionHash)
+	}
+
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, result.Error
+	}
+	response := &L2BridgeWithdrawalsResponse{
+		Withdrawals: withdrawals,
+		Cursor:      nextCursor,
+		HasNextPage: hasNextPage,
+	}
+
+	return response, nil
 }

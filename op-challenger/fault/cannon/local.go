@@ -11,12 +11,12 @@ import (
 	ethtypes "github.com/ethereum/go-ethereum/core/types"
 )
 
-type localGameInputs struct {
-	l1Head        common.Hash
-	l2Head        common.Hash
-	l2OutputRoot  common.Hash
-	l2Claim       common.Hash
-	l2BlockNumber *big.Int
+type LocalGameInputs struct {
+	L1Head        common.Hash
+	L2Head        common.Hash
+	L2OutputRoot  common.Hash
+	L2Claim       common.Hash
+	L2BlockNumber *big.Int
 }
 
 type L2DataSource interface {
@@ -32,30 +32,30 @@ type GameInputsSource interface {
 	}, error)
 }
 
-func fetchLocalInputs(ctx context.Context, gameAddr common.Address, caller GameInputsSource, l2Client L2DataSource) (localGameInputs, error) {
+func fetchLocalInputs(ctx context.Context, gameAddr common.Address, caller GameInputsSource, l2Client L2DataSource) (LocalGameInputs, error) {
 	opts := &bind.CallOpts{Context: ctx}
 	l1Head, err := caller.L1Head(opts)
 	if err != nil {
-		return localGameInputs{}, fmt.Errorf("fetch L1 head for game %v: %w", gameAddr, err)
+		return LocalGameInputs{}, fmt.Errorf("fetch L1 head for game %v: %w", gameAddr, err)
 	}
 
 	proposals, err := caller.Proposals(opts)
 	if err != nil {
-		return localGameInputs{}, fmt.Errorf("fetch proposals: %w", err)
+		return LocalGameInputs{}, fmt.Errorf("fetch proposals: %w", err)
 	}
 	claimedOutput := proposals.Disputed
 	agreedOutput := proposals.Starting
 	agreedHeader, err := l2Client.HeaderByNumber(ctx, agreedOutput.L2BlockNumber)
 	if err != nil {
-		return localGameInputs{}, fmt.Errorf("fetch L2 block header %v: %w", agreedOutput.L2BlockNumber, err)
+		return LocalGameInputs{}, fmt.Errorf("fetch L2 block header %v: %w", agreedOutput.L2BlockNumber, err)
 	}
 	l2Head := agreedHeader.Hash()
 
-	return localGameInputs{
-		l1Head:        l1Head,
-		l2Head:        l2Head,
-		l2OutputRoot:  agreedOutput.OutputRoot,
-		l2Claim:       claimedOutput.OutputRoot,
-		l2BlockNumber: claimedOutput.L2BlockNumber,
+	return LocalGameInputs{
+		L1Head:        l1Head,
+		L2Head:        l2Head,
+		L2OutputRoot:  agreedOutput.OutputRoot,
+		L2Claim:       claimedOutput.OutputRoot,
+		L2BlockNumber: claimedOutput.L2BlockNumber,
 	}, nil
 }

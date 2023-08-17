@@ -2,6 +2,7 @@ package routes
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum/go-ethereum/common"
@@ -29,9 +30,9 @@ type DepositResponse struct {
 
 // TODO this is original spec but maybe include the l2 block info too for the relayed tx
 // FIXME make a pure function that returns a struct instead of newWithdrawalResponse
-func newDepositResponse(deposits []*database.L1BridgeDepositWithTransactionHashes) DepositResponse {
-	items := make([]DepositItem, len(deposits))
-	for _, deposit := range deposits {
+func newDepositResponse(deposits *database.L1BridgeDepositsResponse) DepositResponse {
+	items := make([]DepositItem, len(deposits.Deposits))
+	for _, deposit := range deposits.Deposits {
 		item := DepositItem{
 			Guid: deposit.L1BridgeDeposit.TransactionSourceHash.String(),
 			Block: Block{
@@ -71,16 +72,30 @@ func newDepositResponse(deposits []*database.L1BridgeDepositWithTransactionHashe
 	}
 
 	return DepositResponse{
-		Cursor:      "42042042-4204-4204-4204-420420420420", // TODO
-		HasNextPage: false,                                  // TODO
+		Cursor:      deposits.Cursor,
+		HasNextPage: deposits.HasNextPage,
 		Items:       items,
 	}
 }
 
 func (h Routes) L1DepositsHandler(w http.ResponseWriter, r *http.Request) {
 	address := common.HexToAddress(chi.URLParam(r, "address"))
+	cursor := r.URL.Query().Get("cursor")
+	limitQuery := r.URL.Query().Get("limit")
 
-	deposits, err := h.BridgeTransfersView.L1BridgeDepositsByAddress(address)
+	defaultLimit := 100
+	limit := defaultLimit
+	if limitQuery != "" {
+		parsedLimit, err := strconv.Atoi(limitQuery)
+		if err != nil {
+			http.Error(w, "Limit could not be parsed into a number", http.StatusBadRequest)
+			h.Logger.Error("Invalid limit")
+			h.Logger.Error(err.Error())
+		}
+		limit = parsedLimit
+	}
+
+	deposits, err := h.BridgeTransfersView.L1BridgeDepositsByAddress(address, cursor, limit)
 	if err != nil {
 		http.Error(w, "Internal server error reading deposits", http.StatusInternalServerError)
 		h.Logger.Error("Unable to read deposits from DB")

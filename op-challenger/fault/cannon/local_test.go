@@ -39,11 +39,11 @@ func TestFetchLocalInputs(t *testing.T) {
 	inputs, err := fetchLocalInputs(ctx, gameAddr, l1Client, l2Client)
 	require.NoError(t, err)
 
-	require.Equal(t, l1Client.l1Head, inputs.l1Head)
-	require.Equal(t, l2Client.header.Hash(), inputs.l2Head)
-	require.EqualValues(t, l1Client.starting.OutputRoot, inputs.l2OutputRoot)
-	require.EqualValues(t, l1Client.disputed.OutputRoot, inputs.l2Claim)
-	require.Equal(t, l1Client.disputed.L2BlockNumber, inputs.l2BlockNumber)
+	require.Equal(t, l1Client.l1Head, inputs.L1Head)
+	require.Equal(t, l2Client.header.Hash(), inputs.L2Head)
+	require.EqualValues(t, l1Client.starting.OutputRoot, inputs.L2OutputRoot)
+	require.EqualValues(t, l1Client.disputed.OutputRoot, inputs.L2Claim)
+	require.Equal(t, l1Client.disputed.L2BlockNumber, inputs.L2BlockNumber)
 }
 
 type mockGameInputsSource struct {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"math"
 	"math/big"
 	"testing"
 	"time"
@@ -13,11 +14,16 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/cannon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -125,9 +131,57 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 }
 
 func (h *FactoryHelper) StartCannonGame(ctx context.Context, rootClaim common.Hash) *CannonGameHelper {
-	l2BlockNumber := h.waitForProposals(ctx)
-	l1Head := h.checkpointL1Block(ctx)
+	l2BlockNumber, l1Head := h.prepareCannonGame(ctx)
+	return h.createCannonGame(ctx, l2BlockNumber, l1Head, rootClaim)
+}
 
+func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, rollupCfg *rollup.Config, l2Genesis *core.Genesis, l1Endpoint string, l2Endpoint string, options ...challenger.Option) (*CannonGameHelper, *HonestHelper) {
+	l2BlockNumber, l1Head := h.prepareCannonGame(ctx)
+	challengerOpts := []challenger.Option{createConfigOption(h.t, rollupCfg, l2Genesis, common.Address{0xaa}, l2Endpoint)}
+	challengerOpts = append(challengerOpts, options...)
+	cfg := challenger.NewChallengerConfig(h.t, l1Endpoint, challengerOpts...)
+	opts := &bind.CallOpts{Context: ctx}
+	outputIdx, err := h.l2oo.GetL2OutputIndexAfter(opts, new(big.Int).SetUint64(l2BlockNumber))
+	h.require.NoError(err, "Fetch challenged output index")
+	challengedOutput, err := h.l2oo.GetL2Output(opts, outputIdx)
+	h.require.NoError(err, "Fetch challenged output")
+	agreedOutput, err := h.l2oo.GetL2Output(opts, new(big.Int).Sub(outputIdx, common.Big1))
+	h.require.NoError(err, "Fetch agreed output")
+	l1BlockInfo, err := h.blockOracle.Load(opts, l1Head)
+	h.require.NoError(err, "Fetch L1 block info")
+
+	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
+	if err != nil {
+		h.require.NoErrorf(err, "Failed to dial l2 client %v", l2Endpoint)
+	}
+	defer l2Client.Close()
+	agreedHeader, err := l2Client.HeaderByNumber(ctx, agreedOutput.L2BlockNumber)
+	if err != nil {
+		h.require.NoErrorf(err, "Failed to fetch L2 block header %v", agreedOutput.L2BlockNumber)
+	}
+
+	inputs := cannon.LocalGameInputs{
+		L1Head:        l1BlockInfo.Hash,
+		L2Head:        agreedHeader.Hash(),
+		L2OutputRoot:  agreedOutput.OutputRoot,
+		L2Claim:       challengedOutput.OutputRoot,
+		L2BlockNumber: challengedOutput.L2BlockNumber,
+	}
+	provider := cannon.NewTraceProviderFromInputs(testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"), cfg, inputs)
+	rootClaim, err := provider.Get(ctx, math.MaxUint64)
+	h.require.NoError(err, "Compute correct root hash")
+
+	game := h.createCannonGame(ctx, l2BlockNumber, l1Head, rootClaim)
+	honestHelper := &HonestHelper{
+		t:            h.t,
+		require:      h.require,
+		game:         &game.FaultGameHelper,
+		correctTrace: provider,
+	}
+	return game, honestHelper
+}
+
+func (h *FactoryHelper) createCannonGame(ctx context.Context, l2BlockNumber uint64, l1Head *big.Int, rootClaim common.Hash) *CannonGameHelper {
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancel()
 
@@ -169,6 +223,12 @@ func (h *FactoryHelper) StartChallenger(ctx context.Context, l1Endpoint string, 
 		_ = c.Close()
 	})
 	return c
+}
+
+func (h *FactoryHelper) prepareCannonGame(ctx context.Context) (uint64, *big.Int) {
+	l2BlockNumber := h.waitForProposals(ctx)
+	l1Head := h.checkpointL1Block(ctx)
+	return l2BlockNumber, l1Head
 }
 
 // waitForProposals waits until there are at least two proposals in the output oracle

@@ -32,7 +32,7 @@ type Executor struct {
 	logger           log.Logger
 	l1               string
 	l2               string
-	inputs           localGameInputs
+	inputs           LocalGameInputs
 	cannon           string
 	server           string
 	network          string
@@ -45,7 +45,7 @@ type Executor struct {
 	cmdExecutor      cmdExecutor
 }
 
-func NewExecutor(logger log.Logger, cfg *config.Config, inputs localGameInputs) *Executor {
+func NewExecutor(logger log.Logger, cfg *config.Config, inputs LocalGameInputs) *Executor {
 	return &Executor{
 		logger:           logger,
 		l1:               cfg.L1EthRpc,
@@ -92,11 +92,11 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 		"--l1", e.l1,
 		"--l2", e.l2,
 		"--datadir", dataDir,
-		"--l1.head", e.inputs.l1Head.Hex(),
-		"--l2.head", e.inputs.l2Head.Hex(),
-		"--l2.outputroot", e.inputs.l2OutputRoot.Hex(),
-		"--l2.claim", e.inputs.l2Claim.Hex(),
-		"--l2.blocknumber", e.inputs.l2BlockNumber.Text(10),
+		"--l1.head", e.inputs.L1Head.Hex(),
+		"--l2.head", e.inputs.L2Head.Hex(),
+		"--l2.outputroot", e.inputs.L2OutputRoot.Hex(),
+		"--l2.claim", e.inputs.L2Claim.Hex(),
+		"--l2.blocknumber", e.inputs.L2BlockNumber.Text(10),
 	)
 	if e.network != "" {
 		args = append(args, "--network", e.network)
