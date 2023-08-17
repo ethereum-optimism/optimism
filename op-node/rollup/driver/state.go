@@ -15,8 +15,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-service/backoff"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 // Deprecated: use eth.SyncStatus instead.
@@ -178,7 +178,7 @@ func (s *Driver) eventLoop() {
 	var delayedStepReq <-chan time.Time
 
 	// keep track of consecutive failed attempts, to adjust the backoff time accordingly
-	bOffStrategy := backoff.Exponential()
+	bOffStrategy := retry.Exponential()
 	stepAttempts := 0
 
 	// step requests a derivation step to be taken. Won't deadlock if the channel is full.

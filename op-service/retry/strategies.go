@@ -1,4 +1,4 @@
-package backoff
+package retry
 
 import (
 	"math"
