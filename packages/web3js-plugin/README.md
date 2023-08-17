@@ -1,4 +1,4 @@
-# @eth-optimism/web3js-plugin
+# @eth-optimism/web3.js-plugin
 
 This web3.js plugin adds utility functions for estimating L1 and L2 gas for OP chains by wrapping the [GasPriceOracle](../contracts-bedrock/contracts/l2/GasPriceOracle.sol) contract
 
@@ -13,22 +13,22 @@ This plugin is intended to be [registered](https://docs.web3js.org/guides/web3_p
 ### Installing the Plugin
 
 ```bash
-pnpm install @eth-optimism/web3js-plugin
+pnpm install @eth-optimism/web3.js-plugin
 ```
 
 ```bash
-npm install @eth-optimism/web3js-plugin
+npm install @eth-optimism/web3.js-plugin
 ```
 
 ```bash
-yarn add @eth-optimism/web3js-plugin
+yarn add @eth-optimism/web3.js-plugin
 ```
 
 ### Registering the Plugin
 
 ```typescript
 import Web3 from 'web3'
-import OptimismFeeEstimationPlugin from '@eth-optimism/web3js-plugin'
+import OptimismFeeEstimationPlugin from '@eth-optimism/web3.js-plugin'
 
 const web3 = new Web3('http://yourProvider.com')
 web3.registerPlugin(new OptimismFeeEstimationPlugin())
