@@ -12,6 +12,7 @@ ignores: [
   "chai",
   "ts-node",
   "typedoc",
+  "typescript",
   "ethereum-waffle",
   "nyc"
 ]
