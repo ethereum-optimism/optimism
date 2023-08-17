@@ -221,17 +221,14 @@ pull_request_rules:
       label:
         add:
           - A-ops
-  - name: Add A-pkg-sdk label and ecopod reviewers
+  - name: Add A-pkg-chain-mon label
     conditions:
-      - 'files~=^packages/sdk/'
+      - 'files~=^packages/chain-mon/'
       - '#label<5'
     actions:
       label:
         add:
-          - A-pkg-sdk
-      request_reviews:
-        users:
-          - roninjin10
+          - A-pkg-chain-mon
   - name: Add A-pkg-common-ts label and ecopod reviewers
     conditions:
       - 'files~=^packages/common-ts/'
@@ -250,6 +247,57 @@ pull_request_rules:
       label:
         add:
           - A-pkg-contracts-bedrock
+  - name: Add A-pkg-contracts-ts label
+    conditions:
+      - 'files~=^packages/contracts-ts/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-pkg-contracts-ts
+  - name: Add A-pkg-core-utils label
+    conditions:
+      - 'files~=^packages/core-utils/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-pkg-core-utils
+  - name: Add A-pkg-fee-estimation label
+    conditions:
+      - 'files~=^packages/fee-estimation/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-pkg-fee-estimation
+  - name: Add A-pkg-sdk label and ecopod reviewers
+    conditions:
+      - 'files~=^packages/sdk/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-pkg-sdk
+      request_reviews:
+        users:
+          - roninjin10
+  - name: Add A-pkg-web3js-plugin label
+    conditions:
+      - 'files~=^packages/web3js-plugin/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-pkg-web3js-plugin
+  - name: Add A-proxyd label
+    conditions:
+      - 'files~=^proxyd/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-proxyd
   - name: Add M-docs label
     conditions:
       - 'files~=^(technical-documents|specs)\/'
