@@ -209,13 +209,20 @@ This makes them a great tool for contributors!
 
 #### Filtering for Work
 
-To find tickets available for external contribution, take a look at the [`M-community`][M-community] label.
+To find tickets available for external contribution, take a look at the https://github.com/ethereum-optimism/optimism/labels/M-community label.
 
-You can filter by the [`D-good-first-issue`][D-good-first-issue]
+You can filter by the https://github.com/ethereum-optimism/optimism/labels/D-good-first-issue
 label to find issues that are intended to be easy to implement or fix.
 
 Also, all labels can be seen by visiting the [labels page][labels]
 
 [labels]: https://github.com/ethereum-optimism/optimism/labels
-[M-community]: https://github.com/ethereum-optimism/optimism/labels/M-community
-[D-good-first-issue]: https://github.com/ethereum-optimism/optimism/labels/D-good-first-issue
+
+#### Modifying Labels
+
+When altering label names or deleting labels there are a few things you must be aware of.
+
+- This may affect the mergify bot's use of labels. See the [mergify config](.github/mergify.yml).
+- If the https://github.com/ethereum-optimism/labels/S-stale label is altered, the [close-stale](.github/workflows/close-stale.yml) workflow should be updated.
+- If the https://github.com/ethereum-optimism/labels/M-dependabot label is altered, the [dependabot config](.github/dependabot.yml) file should be adjusted.
+- Saved label filters for project boards will not automatically update. These should be updated if label names change.
