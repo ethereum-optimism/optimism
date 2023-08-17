@@ -345,10 +345,10 @@ contract Deploy is Deployer {
 
     /// @notice Deploy the OptimismMintableERC20Factory
     function deployOptimismMintableERC20Factory() public broadcast returns (address addr_) {
-        address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
-        OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory(l1StandardBridgeProxy);
+        OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory();
 
-        require(factory.BRIDGE() == l1StandardBridgeProxy);
+        require(factory.BRIDGE() == address(0));
+        require(factory.bridge() == address(0));
 
         save("OptimismMintableERC20Factory", address(factory));
         console.log("OptimismMintableERC20Factory deployed at %s", address(factory));
@@ -613,9 +613,10 @@ contract Deploy is Deployer {
         address optimismMintableERC20Factory = mustGetAddress("OptimismMintableERC20Factory");
         address l1StandardBridgeProxy = mustGetAddress("L1StandardBridgeProxy");
 
-        proxyAdmin.upgrade({
+        proxyAdmin.upgradeAndCall({
             _proxy: payable(optimismMintableERC20FactoryProxy),
-            _implementation: optimismMintableERC20Factory
+            _implementation: optimismMintableERC20Factory,
+            _data: abi.encodeCall(OptimismMintableERC20Factory.initialize, (l1StandardBridgeProxy))
         });
 
         OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(optimismMintableERC20FactoryProxy);
@@ -623,6 +624,7 @@ contract Deploy is Deployer {
         console.log("OptimismMintableERC20Factory version: %s", version);
 
         require(factory.BRIDGE() == l1StandardBridgeProxy);
+        require(factory.bridge() == l1StandardBridgeProxy);
     }
 
     /// @notice initializeL1CrossDomainMessenger

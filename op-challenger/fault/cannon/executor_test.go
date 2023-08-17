@@ -29,12 +29,12 @@ func TestGenerateProof(t *testing.T) {
 	cfg.CannonL2 = "http://localhost:9999"
 	cfg.CannonSnapshotFreq = 500
 
-	inputs := localGameInputs{
-		l1Head:        common.Hash{0x11},
-		l2Head:        common.Hash{0x22},
-		l2OutputRoot:  common.Hash{0x33},
-		l2Claim:       common.Hash{0x44},
-		l2BlockNumber: big.NewInt(3333),
+	inputs := LocalGameInputs{
+		L1Head:        common.Hash{0x11},
+		L2Head:        common.Hash{0x22},
+		L2OutputRoot:  common.Hash{0x33},
+		L2Claim:       common.Hash{0x44},
+		L2BlockNumber: big.NewInt(3333),
 	}
 	captureExec := func(t *testing.T, cfg config.Config, proofAt uint64) (string, string, map[string]string) {
 		executor := NewExecutor(testlog.Logger(t, log.LvlInfo), &cfg, inputs)
@@ -94,10 +94,10 @@ func TestGenerateProof(t *testing.T) {
 		require.NotContains(t, args, "--l2.genesis")
 
 		// Local game inputs
-		require.Equal(t, inputs.l1Head.Hex(), args["--l1.head"])
-		require.Equal(t, inputs.l2Head.Hex(), args["--l2.head"])
-		require.Equal(t, inputs.l2OutputRoot.Hex(), args["--l2.outputroot"])
-		require.Equal(t, inputs.l2Claim.Hex(), args["--l2.claim"])
+		require.Equal(t, inputs.L1Head.Hex(), args["--l1.head"])
+		require.Equal(t, inputs.L2Head.Hex(), args["--l2.head"])
+		require.Equal(t, inputs.L2OutputRoot.Hex(), args["--l2.outputroot"])
+		require.Equal(t, inputs.L2Claim.Hex(), args["--l2.claim"])
 		require.Equal(t, "3333", args["--l2.blocknumber"])
 	})
 

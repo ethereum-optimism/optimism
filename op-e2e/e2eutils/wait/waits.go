@@ -38,7 +38,8 @@ func ForReceipt(ctx context.Context, client *ethclient.Client, hash common.Hash,
 			return nil, fmt.Errorf("failed to get receipt: %w", err)
 		}
 		if receipt.Status != status {
-			return receipt, addDebugTrace(ctx, client, hash, fmt.Errorf("expected status %d, but got %d", status, receipt.Status))
+			printDebugTrace(ctx, client, hash)
+			return receipt, fmt.Errorf("expected status %d, but got %d", status, receipt.Status)
 		}
 		return receipt, nil
 	}
@@ -52,15 +53,16 @@ func (s *jsonRawString) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
-// addDebugTrace adds debug_traceTransaction output to the original error to make debugging
-func addDebugTrace(ctx context.Context, client *ethclient.Client, txHash common.Hash, origErr error) error {
-	var result jsonRawString
+// printDebugTrace logs debug_traceTransaction output to aid in debugging unexpected receipt statuses
+func printDebugTrace(ctx context.Context, client *ethclient.Client, txHash common.Hash) {
+	var trace jsonRawString
 	options := map[string]string{}
-	err := client.Client().CallContext(ctx, &result, "debug_traceTransaction", hexutil.Bytes(txHash.Bytes()), options)
+	err := client.Client().CallContext(ctx, &trace, "debug_traceTransaction", hexutil.Bytes(txHash.Bytes()), options)
 	if err != nil {
-		return errors.Join(origErr, fmt.Errorf("tx trace unavailable: %w", err))
+		fmt.Printf("TxTrace unavailable: %v\n", err)
+		return
 	}
-	return fmt.Errorf("%w\nTxTrace: %v", origErr, result)
+	fmt.Printf("TxTrace: %v\n", trace)
 }
 
 func ForBlock(ctx context.Context, client *ethclient.Client, n uint64) error {
