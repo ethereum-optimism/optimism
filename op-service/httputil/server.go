@@ -3,9 +3,7 @@ package httputil
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
-	"time"
 )
 
 func ListenAndServeContext(ctx context.Context, server *http.Server) error {
