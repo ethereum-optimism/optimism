@@ -67,7 +67,7 @@ contract Multichain is SafeBuilder {
     /// @notice L2OutputOracle implementation to upgrade to
     address internal constant L2OutputOracleImplementation = 0xaBd96C062c6B640d5670455E9d1cD98383Dd23CA;
     /// @notice OptimismMintableERC20Factory to upgrade to
-    address internal constant OptimismMintableERC20FactoryImplementation = 0xE220F7D7fF39837003A1835fCefFa8bCA4098582;
+    address internal constant OptimismMintableERC20FactoryImplementation = 0xdfe97868233d1aa22e815a266982f2cf17685a27;
     /// @notice OptimismPortal implementation to upgrade to
     address internal constant OptimismPortalImplementation = 0x345D27c7B6C90fef5beA9631037C36119f4bF93e;
     /// @notice SystemConfig implementation to upgrade to
@@ -82,7 +82,7 @@ contract Multichain is SafeBuilder {
     string internal constant L1CrossDomainMessengerVersion = "1.5.1";
     string internal constant L1StandardBridgeVersion = "1.2.1";
     string internal constant L2OutputOracleVersion = "1.4.1";
-    string internal constant OptimismMintableERC20FactoryVersion = "1.1.2";
+    string internal constant OptimismMintableERC20FactoryVersion = "1.3.0";
     string internal constant OptimismPortalVersion = "1.8.1";
     string internal constant SystemConfigVersion = "1.6.0";
     string internal constant L1ERC721BridgeVersion = "1.2.1";
@@ -393,7 +393,13 @@ contract Multichain is SafeBuilder {
             target: _proxyAdmin,
             allowFailure: false,
             callData: abi.encodeCall(
-                ProxyAdmin.upgrade, (payable(prox.OptimismMintableERC20Factory), OptimismMintableERC20FactoryImplementation)
+                ProxyAdmin.upgradeAndCall,
+                (
+                    payable(prox.OptimismMintableERC20Factory), // proxy
+                    OptimismMintableERC20FactoryImplementation, // implementation
+                    abi.encodeCall( // data
+                        OptimismMintableERC20Factory.initialize, (prox.L1StandardBridge))
+                )
                 )
         });
 
