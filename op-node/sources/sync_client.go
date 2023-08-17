@@ -131,9 +131,9 @@ func (s *SyncClient) eventLoop() {
 	s.log.Info("Starting sync client event loop")
 
 	backoffStrategy := &backoff.ExponentialStrategy{
-		Min:       1000,
-		Max:       20_000,
-		MaxJitter: 250,
+		Min:       1000 * time.Millisecond,
+		Max:       20_000 * time.Millisecond,
+		MaxJitter: 250 * time.Millisecond,
 	}
 
 	for {

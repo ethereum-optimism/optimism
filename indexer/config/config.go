@@ -8,7 +8,6 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum/go-ethereum/common"
 	geth_log "github.com/ethereum/go-ethereum/log"
-	"github.com/joho/godotenv"
 )
 
 // in future presets can just be onchain config and fetched on initialization
@@ -89,13 +88,7 @@ type MetricsConfig struct {
 
 // LoadConfig loads the `indexer.toml` config file from a given path
 func LoadConfig(logger geth_log.Logger, path string) (Config, error) {
-	if err := godotenv.Load(); err != nil {
-		logger.Warn("Unable to load .env file", err)
-		logger.Info("Continuing without .env file")
-	} else {
-		logger.Info("Loaded .env file")
-	}
-
+	logger.Info("Loading config file", "path", path)
 	var conf Config
 
 	data, err := os.ReadFile(path)
@@ -104,6 +97,8 @@ func LoadConfig(logger geth_log.Logger, path string) (Config, error) {
 	}
 
 	data = []byte(os.ExpandEnv(string(data)))
+
+	logger.Debug("Decoding config file", "data", string(data))
 
 	if _, err := toml.Decode(string(data), &conf); err != nil {
 		logger.Info("Failed to decode config file", "message", err)

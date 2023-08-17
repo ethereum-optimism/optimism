@@ -74,50 +74,6 @@ pull_request_rules:
 
           More details can be found on the `Queue: Embarked in merge train`
           check-run.
-  - name: Add A-indexer label and ecopod reviewers
-    conditions:
-      - 'files~=^indexer/'
-    actions:
-      label:
-        add:
-          - A-indexer
-      request_reviews:
-        users:
-          - roninjin10
-  - name: Add A-pkg-sdk label and ecopod reviewers
-    conditions:
-      - 'files~=^packages/sdk/'
-    actions:
-      label:
-        add:
-          - A-pkg-sdk
-      request_reviews:
-        users:
-          - roninjin10
-  - name: Add A-pkg-common-ts label and ecopod reviewers
-    conditions:
-      - 'files~=^packages/common-ts/'
-    actions:
-      label:
-        add:
-          - A-pkg-common-ts
-      request_reviews:
-        users:
-          - roninjin10
-  - name: Add A-op-node label
-    conditions:
-      - 'files~=^op-node/'
-    actions:
-      label:
-        add:
-          - A-op-node
-  - name: Add A-op-batcher label
-    conditions:
-      - 'files~=^op-batcher/'
-    actions:
-      label:
-        add:
-          - A-op-batcher
   - name: Add A-cannon label
     conditions:
       - 'files~=^cannon/'
@@ -125,13 +81,46 @@ pull_request_rules:
       label:
         add:
           - A-cannon
-  - name: Add A-op-program label
+  - name: Add A-indexer label and ecopod reviewers
     conditions:
-      - 'files~=^op-program/'
+      - 'files~=^indexer/'
+      - '#label<5'
     actions:
       label:
         add:
-          - A-op-program
+          - A-indexer
+      request_reviews:
+        users:
+          - roninjin10
+  - name: Add A-op-batcher label
+    conditions:
+      - 'files~=^op-batcher/'
+    actions:
+      label:
+        add:
+          - A-op-batcher
+  - name: Add A-op-bindings label
+    conditions:
+      - 'files~=^op-bindings/'
+    actions:
+      label:
+        add:
+          - A-op-bindings
+  - name: Add A-op-bootnode label
+    conditions:
+      - 'files~=^op-bootnode/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-op-bootnode
+  - name: Add A-op-chain-ops label
+    conditions:
+      - 'files~=^op-chain-ops/'
+    actions:
+      label:
+        add:
+          - A-op-chain-ops
   - name: Add A-op-challenger label
     conditions:
       - 'files~=^op-challenger/'
@@ -139,6 +128,118 @@ pull_request_rules:
       label:
         add:
           - A-op-challenger
+  - name: Add A-op-e2e label
+    conditions:
+      - 'files~=^op-e2e/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-op-e2e
+  - name: Add A-op-exporter label
+    conditions:
+      - 'files~=^op-exporter/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-op-exporter
+  - name: Add A-op-heartbeat label
+    conditions:
+      - 'files~=^op-heartbeat/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-op-heartbeat
+  - name: Add A-op-node label
+    conditions:
+      - 'files~=^op-node/'
+    actions:
+      label:
+        add:
+          - A-op-node
+  - name: Add A-op-preimage label
+    conditions:
+      - 'files~=^op-preimage/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-op-preimage
+  - name: Add A-op-program label
+    conditions:
+      - 'files~=^op-program/'
+    actions:
+      label:
+        add:
+          - A-op-program
+  - name: Add A-op-proposer label
+    conditions:
+      - 'files~=^op-proposer/'
+    actions:
+      label:
+        add:
+          - A-op-proposer
+  - name: Add A-op-service label
+    conditions:
+      - 'files~=^op-service/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-op-service
+  - name: Add A-op-signer label
+    conditions:
+      - 'files~=^op-signer/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-op-signer
+  - name: Add A-op-wheel label
+    conditions:
+      - 'files~=^op-wheel/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-op-wheel
+  - name: Add A-ops-bedrock label
+    conditions:
+      - 'files~=^ops-bedrock/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-ops-bedrock
+  - name: Add A-ops label
+    conditions:
+      - 'files~=^ops/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-ops
+  - name: Add A-pkg-chain-mon label
+    conditions:
+      - 'files~=^packages/chain-mon/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-pkg-chain-mon
+  - name: Add A-pkg-common-ts label and ecopod reviewers
+    conditions:
+      - 'files~=^packages/common-ts/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-pkg-common-ts
+      request_reviews:
+        users:
+          - roninjin10
   - name: Add A-pkg-contracts-bedrock label
     conditions:
       - 'files~=^packages/contracts-bedrock/'
@@ -146,14 +247,65 @@ pull_request_rules:
       label:
         add:
           - A-pkg-contracts-bedrock
-  - name: Add M-docs label
+  - name: Add A-pkg-contracts-ts label
     conditions:
-      - 'files~=^technical-documents/'
-      - 'files~=^specs/'
+      - 'files~=^packages/contracts-ts/'
+      - '#label<5'
     actions:
       label:
         add:
-          - A-pkg-contracts-bedrock
+          - A-pkg-contracts-ts
+  - name: Add A-pkg-core-utils label
+    conditions:
+      - 'files~=^packages/core-utils/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-pkg-core-utils
+  - name: Add A-pkg-fee-estimation label
+    conditions:
+      - 'files~=^packages/fee-estimation/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-pkg-fee-estimation
+  - name: Add A-pkg-sdk label and ecopod reviewers
+    conditions:
+      - 'files~=^packages/sdk/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-pkg-sdk
+      request_reviews:
+        users:
+          - roninjin10
+  - name: Add A-pkg-web3js-plugin label
+    conditions:
+      - 'files~=^packages/web3js-plugin/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-pkg-web3js-plugin
+  - name: Add A-proxyd label
+    conditions:
+      - 'files~=^proxyd/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - A-proxyd
+  - name: Add M-docs label
+    conditions:
+      - 'files~=^(technical-documents|specs)\/'
+      - '#label<5'
+    actions:
+      label:
+        add:
+          - M-docs
   - name: Add M-deletion label when files are removed
     conditions:
       - 'removed-files~=^/'
@@ -163,9 +315,8 @@ pull_request_rules:
           - M-deletion
   - name: Add M-ci label when ci files are modified
     conditions:
-      - 'files~=^.github/'
-      - 'files~=^.circleci/'
-      - 'files~=^.husky/'
+      - 'files~=^\.(github|circleci|husky)\/'
+      - '#label<5'
     actions:
       label:
         add:

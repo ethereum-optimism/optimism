@@ -22,4 +22,4 @@ FROM alpine:3.16
 
 COPY --from=builder /app/indexer/indexer /usr/local/bin
 
-CMD ["indexer"]
+CMD ["indexer", "--config", "/app/indexer/indexer.toml"]

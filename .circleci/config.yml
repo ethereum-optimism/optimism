@@ -398,13 +398,6 @@ jobs:
           working_directory: packages/contracts-bedrock
           no_output_timeout: 15m
       - run:
-          name: validate deploy configs
-          command: |
-            pnpm validate-deploy-configs || echo "export DEPLOY_CONFIG_STATUS=1" >> "$BASH_ENV"
-          environment:
-            FOUNDRY_PROFILE: ci
-          working_directory: packages/contracts-bedrock
-      - run:
           name: storage snapshot
           command: |
             pnpm storage-snapshot
@@ -432,10 +425,6 @@ jobs:
             if [[ "$GAS_SNAPSHOT_STATUS" -ne 0 ]]; then
               FAILED=1
               echo "Gas snapshot failed, see job output for details."
-            fi
-            if [[ "$DEPLOY_CONFIG_STATUS" -ne 0 ]]; then
-              FAILED=1
-              echo "Deploy configs invalid, see job output for details."
             fi
             if [[ "$STORAGE_SNAPSHOT_STATUS" -ne 0 ]]; then
               echo "Storage snapshot failed, see job output for details."
@@ -956,17 +945,8 @@ jobs:
           name: Bring up the stack
           command: make devnet-up
       - run:
-          name: Check L2 config
-          command: go run cmd/check-l2/main.go --l2-rpc-url http://localhost:9545 --l1-rpc-url http://localhost:8545
-          working_directory: op-chain-ops
-      - run:
-          name: Deposit ERC20 through the bridge
-          command: timeout 8m npx hardhat deposit-erc20 --network devnetL1 --l1-contracts-json-path ../../.devnet/addresses.json
-          working_directory: packages/sdk
-      - run:
-          name: Deposit ETH through the bridge
-          command: timeout 8m npx hardhat deposit-eth --network devnetL1 --l1-contracts-json-path ../../.devnet/addresses.json
-          working_directory: packages/sdk
+          name: Test the stack
+          command: make devnet-test
       - run:
           name: Dump op-node logs
           command: |

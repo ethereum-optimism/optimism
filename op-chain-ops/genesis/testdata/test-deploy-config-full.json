@@ -63,5 +63,8 @@
   "deploymentWaitConfirmations": 1,
   "eip1559Denominator": 8,
   "eip1559Elasticity": 2,
-  "fundDevAccounts": true
+  "fundDevAccounts": true,
+  "faultGameAbsolutePrestate": "0x0000000000000000000000000000000000000000000000000000000000000000",
+  "faultGameMaxDepth": 63,
+  "faultGameMaxDuration": 604800
 }
