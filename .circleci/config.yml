@@ -945,17 +945,8 @@ jobs:
           name: Bring up the stack
           command: make devnet-up
       - run:
-          name: Check L2 config
-          command: go run cmd/check-l2/main.go --l2-rpc-url http://localhost:9545 --l1-rpc-url http://localhost:8545
-          working_directory: op-chain-ops
-      - run:
-          name: Deposit ERC20 through the bridge
-          command: timeout 8m npx hardhat deposit-erc20 --network devnetL1 --l1-contracts-json-path ../../.devnet/addresses.json
-          working_directory: packages/sdk
-      - run:
-          name: Deposit ETH through the bridge
-          command: timeout 8m npx hardhat deposit-eth --network devnetL1 --l1-contracts-json-path ../../.devnet/addresses.json
-          working_directory: packages/sdk
+          name: Test the stack
+          command: make devnet-test
       - run:
           name: Dump op-node logs
           command: |

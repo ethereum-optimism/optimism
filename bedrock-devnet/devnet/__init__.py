@@ -18,6 +18,7 @@ pjoin = os.path.join
 parser = argparse.ArgumentParser(description='Bedrock devnet launcher')
 parser.add_argument('--monorepo-dir', help='Directory of the monorepo', default=os.getcwd())
 parser.add_argument('--allocs', help='Only create the allocs and exit', type=bool, action=argparse.BooleanOptionalAction)
+parser.add_argument('--test', help='Tests the deployment, must already be deployed', type=bool, action=argparse.BooleanOptionalAction)
 
 log = logging.getLogger()
 
@@ -57,6 +58,8 @@ def main():
     ops_bedrock_dir = pjoin(monorepo_dir, 'ops-bedrock')
     deploy_config_dir = pjoin(contracts_bedrock_dir, 'deploy-config'),
     devnet_config_path = pjoin(contracts_bedrock_dir, 'deploy-config', 'devnetL1.json')
+    ops_chain_ops = pjoin(monorepo_dir, 'op-chain-ops')
+    sdk_dir = pjoin(monorepo_dir, 'packages', 'sdk')
 
     paths = Bunch(
       mono_repo_dir=monorepo_dir,
@@ -68,6 +71,8 @@ def main():
       devnet_config_path=devnet_config_path,
       op_node_dir=op_node_dir,
       ops_bedrock_dir=ops_bedrock_dir,
+      ops_chain_ops=ops_chain_ops,
+      sdk_dir=sdk_dir,
       genesis_l1_path=pjoin(devnet_dir, 'genesis-l1.json'),
       genesis_l2_path=pjoin(devnet_dir, 'genesis-l2.json'),
       allocs_path=pjoin(devnet_dir, 'allocs-l1.json'),
@@ -75,6 +80,11 @@ def main():
       sdk_addresses_json_path=pjoin(devnet_dir, 'sdk-addresses.json'),
       rollup_config_path=pjoin(devnet_dir, 'rollup.json')
     )
+
+    if args.test:
+      log.info('Testing deployed devnet')
+      devnet_test(paths)
+      return
 
     os.makedirs(devnet_dir, exist_ok=True)
 
@@ -250,8 +260,26 @@ def wait_for_rpc_server(url):
             log.info(f'Waiting for RPC server at {url}')
             time.sleep(1)
 
+def devnet_test(paths):
+    # Check the L2 config
+    run_command(
+        ['go', 'run', 'cmd/check-l2/main.go', '--l2-rpc-url', 'http://localhost:9545', '--l1-rpc-url', 'http://localhost:8545'],
+        cwd=paths.ops_chain_ops,
+    )
 
-def run_command(args, check=True, shell=False, cwd=None, env=None):
+    run_command(
+         ['npx', 'hardhat',  'deposit-erc20', '--network',  'devnetL1', '--l1-contracts-json-path', paths.addresses_json_path],
+         cwd=paths.sdk_dir,
+         timeout=8*60,
+    )
+
+    run_command(
+         ['npx', 'hardhat',  'deposit-eth', '--network',  'devnetL1', '--l1-contracts-json-path', paths.addresses_json_path],
+         cwd=paths.sdk_dir,
+         timeout=8*60,
+    )
+
+def run_command(args, check=True, shell=False, cwd=None, env=None, timeout=None):
     env = env if env else {}
     return subprocess.run(
         args,
@@ -261,7 +289,8 @@ def run_command(args, check=True, shell=False, cwd=None, env=None):
             **os.environ,
             **env
         },
-        cwd=cwd
+        cwd=cwd,
+        timeout=timeout
     )
 
 
