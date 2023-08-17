@@ -46,15 +46,6 @@ func (mbv *MockBridgeTransfersView) L1BridgeDepositWithFilter(filter database.Br
 	return &deposit, nil
 }
 
-func (mbv *MockBridgeTransfersView) L1BridgeDepositsByAddress(address common.Address) ([]*database.L1BridgeDepositWithTransactionHashes, error) {
-	return []*database.L1BridgeDepositWithTransactionHashes{
-		{
-			L1BridgeDeposit:   deposit,
-			L1TransactionHash: common.HexToHash("0x123"),
-		},
-	}, nil
-}
-
 func (mbv *MockBridgeTransfersView) L2BridgeWithdrawal(address common.Hash) (*database.L2BridgeWithdrawal, error) {
 	return &withdrawal, nil
 }
@@ -63,15 +54,27 @@ func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalWithFilter(filter database
 	return &withdrawal, nil
 }
 
-func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalsByAddress(address common.Address) ([]*database.L2BridgeWithdrawalWithTransactionHashes, error) {
-	return []*database.L2BridgeWithdrawalWithTransactionHashes{
-		{
-			L2BridgeWithdrawal: withdrawal,
-			L2TransactionHash:  common.HexToHash("0x789"),
+func (mbv *MockBridgeTransfersView) L1BridgeDepositsByAddress(address common.Address, cursor string, limit int) (*database.L1BridgeDepositsResponse, error) {
+	return &database.L1BridgeDepositsResponse{
+		Deposits: []*database.L1BridgeDepositWithTransactionHashes{
+			{
+				L1BridgeDeposit:   deposit,
+				L1TransactionHash: common.HexToHash("0x123"),
+			},
 		},
 	}, nil
 }
 
+func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalsByAddress(address common.Address, cursor string, limit int) (*database.L2BridgeWithdrawalsResponse, error) {
+	return &database.L2BridgeWithdrawalsResponse{
+		Withdrawals: []*database.L2BridgeWithdrawalWithTransactionHashes{
+			{
+				L2BridgeWithdrawal: withdrawal,
+				L2TransactionHash:  common.HexToHash("0x789"),
+			},
+		},
+	}, nil
+}
 func TestHealthz(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	api := NewApi(&MockBridgeTransfersView{}, logger)
