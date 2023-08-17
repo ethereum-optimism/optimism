@@ -74,7 +74,7 @@ pull_request_rules:
 
           More details can be found on the `Queue: Embarked in merge train`
           check-run.
-  - name: Add indexer tag and ecopod reviewers
+  - name: Add A-indexer label and ecopod reviewers
     conditions:
       - 'files~=^indexer/'
     actions:
@@ -84,7 +84,7 @@ pull_request_rules:
       request_reviews:
         users:
           - roninjin10
-  - name: Add sdk tag and ecopod reviewers
+  - name: Add A-pkg-sdk label and ecopod reviewers
     conditions:
       - 'files~=^packages/sdk/'
     actions:
@@ -94,7 +94,7 @@ pull_request_rules:
       request_reviews:
         users:
           - roninjin10
-  - name: Add common-ts tag and ecopod reviewers
+  - name: Add A-pkg-common-ts label and ecopod reviewers
     conditions:
       - 'files~=^packages/common-ts/'
     actions:
@@ -104,3 +104,69 @@ pull_request_rules:
       request_reviews:
         users:
           - roninjin10
+  - name: Add A-op-node label
+    conditions:
+      - 'files~=^op-node/'
+    actions:
+      label:
+        add:
+          - A-op-node
+  - name: Add A-op-batcher label
+    conditions:
+      - 'files~=^op-batcher/'
+    actions:
+      label:
+        add:
+          - A-op-batcher
+  - name: Add A-cannon label
+    conditions:
+      - 'files~=^cannon/'
+    actions:
+      label:
+        add:
+          - A-cannon
+  - name: Add A-op-program label
+    conditions:
+      - 'files~=^op-program/'
+    actions:
+      label:
+        add:
+          - A-op-program
+  - name: Add A-op-challenger label
+    conditions:
+      - 'files~=^op-challenger/'
+    actions:
+      label:
+        add:
+          - A-op-challenger
+  - name: Add A-pkg-contracts-bedrock label
+    conditions:
+      - 'files~=^packages/contracts-bedrock/'
+    actions:
+      label:
+        add:
+          - A-pkg-contracts-bedrock
+  - name: Add M-docs label
+    conditions:
+      - 'files~=^technical-documents/'
+      - 'files~=^specs/'
+    actions:
+      label:
+        add:
+          - A-pkg-contracts-bedrock
+  - name: Add M-deletion label when files are removed
+    conditions:
+      - 'removed-files~=^/'
+    actions:
+      label:
+        add:
+          - M-deletion
+  - name: Add M-ci label when ci files are modified
+    conditions:
+      - 'files~=^.github/'
+      - 'files~=^.circleci/'
+      - 'files~=^.husky/'
+    actions:
+      label:
+        add:
+          - M-ci
