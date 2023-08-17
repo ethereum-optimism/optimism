@@ -28,10 +28,10 @@ yarn add @eth-optimism/web3.js-plugin
 
 ```typescript
 import Web3 from 'web3'
-import OptimismFeeEstimationPlugin from '@eth-optimism/web3.js-plugin'
+import { OptimismPlugin } from '@eth-optimism/web3.js-plugin'
 
 const web3 = new Web3('http://yourProvider.com')
-web3.registerPlugin(new OptimismFeeEstimationPlugin())
+web3.registerPlugin(new OptimismPlugin())
 ```
 
 You will now have access to the following functions under the `op` namespace, i.e. `web3.op.someMethod`
