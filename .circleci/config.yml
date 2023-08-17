@@ -745,8 +745,7 @@ jobs:
       - checkout
       - run:
           name: run lint
-          command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
+          command: make lint
           working_directory: <<parameters.module>>
 
   go-test:
@@ -842,7 +841,7 @@ jobs:
           patterns: <<parameters.working_directory>>,<<parameters.dependencies>>
       - run:
           name: Lint
-          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 2m -e "errors.As" -e "errors.Is" ./...
+          command: make lint
           working_directory: <<parameters.working_directory>>
       - store_test_results:
           path: /test-results
@@ -892,7 +891,7 @@ jobs:
           name: Test
           command: |
             mkdir -p /test-results
-            DB_USER=postgres gotestsum --junitfile /test-results/tests.xml -- -parallel=4 ./...
+            DB_USER=postgres gotestsum --format=standard-verbose --junitfile /test-results/tests.xml -- -parallel=4 ./...
           working_directory: indexer
       - run:
           name: Build

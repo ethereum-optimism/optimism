@@ -42,7 +42,7 @@ func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
 		g.t.Log("Waiting for claim count", "current", actual, "expected", count, "game", g.addr)
 		return actual.Cmp(big.NewInt(count)) == 0, nil
 	})
-	g.require.NoError(err)
+	g.require.NoErrorf(err, "Did not find expected claim count %v", count)
 }
 
 type ContractClaim struct {
