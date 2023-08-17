@@ -26,7 +26,7 @@ importers:
         version: 16.4.0-beta.1
       '@types/chai':
         specifier: ^4.2.18
-        version: 4.2.21
+        version: 4.3.5
       '@types/chai-as-promised':
         specifier: ^7.1.4
         version: 7.1.5
@@ -44,7 +44,7 @@ importers:
         version: 5.60.1(eslint@8.47.0)(typescript@5.1.6)
       chai:
         specifier: ^4.2.0
-        version: 4.3.4
+        version: 4.3.7
       copyfiles:
         specifier: ^2.3.0
         version: 2.4.1
@@ -4340,10 +4340,6 @@ packages:
     resolution: {integrity: sha512-frBecisrNGz+F4T6bcc+NLeolfiojh5FxW2klu669+8BARtyQv2C/GkNW6FUodVe4BroGMP/wER/YDGc7rEllw==}
     dependencies:
       '@types/chai': 4.3.5
-    dev: true
-
-  /@types/chai@4.2.21:
-    resolution: {integrity: sha512-yd+9qKmJxm496BOV9CMNaey8TWsikaZOwMRwPHQIjcOJM9oV+fi9ZMNw3JsVnbEEbo2gRTDnGEBv8pjyn67hNg==}
     dev: true
 
   /@types/chai@4.3.5:
