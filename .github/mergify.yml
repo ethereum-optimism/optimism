@@ -252,8 +252,7 @@ pull_request_rules:
           - A-pkg-contracts-bedrock
   - name: Add M-docs label
     conditions:
-      - 'files~=^technical-documents/'
-      - 'files~=^specs/'
+      - 'files~=^(technical-documents|specs)\/'
       - '#label<5'
     actions:
       label:
@@ -268,9 +267,7 @@ pull_request_rules:
           - M-deletion
   - name: Add M-ci label when ci files are modified
     conditions:
-      - 'files~=^.github/'
-      - 'files~=^.circleci/'
-      - 'files~=^.husky/'
+      - 'files~=^\.(github|circleci|husky)\/'
       - '#label<5'
     actions:
       label:
