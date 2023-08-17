@@ -24,11 +24,11 @@ type Config struct {
 
 // fetch this via onchain config from RPCsConfig and remove from config in future
 type L1Contracts struct {
-	OptimismPortal         common.Address
-	L2OutputOracle         common.Address
-	L1CrossDomainMessenger common.Address
-	L1StandardBridge       common.Address
-	L1ERC721Bridge         common.Address
+	OptimismPortal         common.Address `toml:"optimism-portal"`
+	L2OutputOracle         common.Address `toml:"l2-output-oracle"`
+	L1CrossDomainMessenger common.Address `toml:"l1-cross-domain-messenger"`
+	L1StandardBridge       common.Address `toml:"l1-standard-bridge"`
+	L1ERC721Bridge         common.Address `toml:"l1-erc721-bridge"`
 
 	// Some more contracts -- ProxyAdmin, SystemConfig, etcc
 	// Ignore the auxiliary contracts?
@@ -52,9 +52,12 @@ func (c L1Contracts) ToSlice() []common.Address {
 // ChainConfig configures of the chain being indexed
 type ChainConfig struct {
 	// Configure known chains with the l2 chain id
-	Preset int
-	// Configure custom chains via providing the L1Contract addresses
-	L1Contracts L1Contracts
+	// NOTE - This currently performs no lookups to extract known L1 contracts by l2 chain id
+	Preset      int
+	L1Contracts L1Contracts `toml:"l1-contracts"`
+	// L1StartingHeight is the block height to start indexing from
+	// NOTE - This is currently unimplemented
+	L1StartingHeight int
 }
 
 // RPCsConfig configures the RPC urls
