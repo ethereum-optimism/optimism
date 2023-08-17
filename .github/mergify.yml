@@ -323,7 +323,7 @@ pull_request_rules:
           - M-ci
   - name: Add M-bot label for bots
     conditions:
-      - 'author=(github-actions|dependabot|)'
+      - 'author=(github-actions|dependabot)'
       - '#label<5'
     actions:
       label:
