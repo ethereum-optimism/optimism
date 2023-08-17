@@ -774,121 +774,252 @@ contract MIPS {
     function execute(uint32 insn, uint32 rs, uint32 rt, uint32 mem) internal pure returns (uint32 out) {
         unchecked {
             uint32 opcode = insn >> 26; // 6-bits
-            bool badInsn = false;
 
             if (opcode == 0 || (opcode >= 8 && opcode < 0xF)) {
                 uint32 func = insn & 0x3f; // 6-bits
                 assembly {
                     // transform ArithLogI to SPECIAL
                     switch opcode
+                    // addi
                     case 0x8 { func := 0x20 }
+                    // addiu
                     case 0x9 { func := 0x21 }
+                    // stli
                     case 0xA { func := 0x2A }
+                    // sltiu
                     case 0xB { func := 0x2B }
+                    // andi
                     case 0xC { func := 0x24 }
+                    // ori
                     case 0xD { func := 0x25 }
+                    // xori
                     case 0xE { func := 0x26 }
+                }
 
-                    switch func
-                    case 0x00 { out := shl(and(shr(6, insn), 0x1F), rt) } // sll
-                    case 0x02 { out := shr(and(shr(6, insn), 0x1F), rt) } // srl
-                    case 0x03 { out := sar(signextend(3, and(shr(6, insn), 0x1F)), signextend(3, rt)) } // sra
-                    case 0x04 { out := shl(and(rs, 0x1F), rt) } // sllv
-                    case 0x06 { out := shr(and(rs, 0x1F), rt) } // srlv
-                    case 0x07 { out := sar(signextend(3, rs), signextend(3, rt)) } // srav
-                    case 0x08 { out := rs } // jr
-                    case 0x09 { out := rs } // jalr
-                    case 0x0a { out := rs } // movz
-                    case 0x0b { out := rs } // movn
-                    case 0x0c { out := rs } // syscall
-                    // 0x0d - break not supported
-                    case 0x0f { out := rs } // sync
-                    case 0x10 { out := rs } // mfhi
-                    case 0x11 { out := rs } // mthi
-                    case 0x12 { out := rs } // mflo
-                    case 0x13 { out := rs } // mtlo
-                    case 0x18 { out := rs } // mult
-                    case 0x19 { out := rs } // multu
-                    case 0x1a { out := rs } // div
-                    case 0x1b { out := rs } // divu
-                    // The rest includes transformed R-type arith imm instructions
-                    case 0x20 { out := add(rs, rt) } // add
-                    case 0x21 { out := add(rs, rt) } // addu
-                    case 0x22 { out := sub(rs, rt) } // sub
-                    case 0x23 { out := sub(rs, rt) } // subu
-                    case 0x24 { out := and(rs, rt) } // and
-                    case 0x25 { out := or(rs, rt) } // or
-                    case 0x26 { out := xor(rs, rt) } // xor
-                    case 0x27 { out := not(or(rs, rt)) } // nor
-                    case 0x2a { out := slt(signextend(3, rs), signextend(3, rt)) } // slt/slti
-                    case 0x2b { out := lt(rs, rt) } // sltu, sltiu
-                    default { badInsn := true }
+                // sll
+                if (func == 0x00) {
+                    return rt << ((insn >> 6) & 0x1F);
+                }
+                // srl
+                else if (func == 0x02) {
+                    return rt >> ((insn >> 6) & 0x1F);
+                }
+                // sra
+                else if (func == 0x03) {
+                    uint32 shamt = (insn >> 6) & 0x1F;
+                    return SE(rt >> shamt, 32 - shamt);
+                }
+                // sllv
+                else if (func == 0x04) {
+                    return rt << (rs & 0x1F);
+                }
+                // srlv
+                else if (func == 0x6) {
+                    return rt >> (rs & 0x1F);
+                }
+                // srav
+                else if (func == 0x07) {
+                    return SE(rt >> rs, 32 - rs);
+                }
+                // functs in range [0x8, 0x1b] are handled specially by other functions
+                // Explicitly enumerate each funct in range to reduce code diff against Go Vm
+                // jr
+                else if (func == 0x08) {
+                    return rs;
+                }
+                // jalr
+                else if (func == 0x09) {
+                    return rs;
+                }
+                // movz
+                else if (func == 0x0a) {
+                    return rs;
+                }
+                // movn
+                else if (func == 0x0b) {
+                    return rs;
+                }
+                // syscall
+                else if (func == 0x0c) {
+                    return rs;
+                }
+                // 0x0d - break not supported
+                // sync
+                else if (func == 0x0f) {
+                    return rs;
+                }
+                // mfhi
+                else if (func == 0x10) {
+                    return rs;
+                }
+                // mthi
+                else if (func == 0x11) {
+                    return rs;
+                }
+                // mflo
+                else if (func == 0x12) {
+                    return rs;
+                }
+                // mtlo
+                else if (func == 0x13) {
+                    return rs;
+                }
+                // mult
+                else if (func == 0x18) {
+                    return rs;
+                }
+                // multu
+                else if (func == 0x19) {
+                    return rs;
+                }
+                // div
+                else if (func == 0x1a) {
+                    return rs;
+                }
+                // divu
+                else if (func == 0x1b) {
+                    return rs;
+                }
+                // The rest includes transformed R-type arith imm instructions
+                // add
+                else if (func == 0x20) {
+                    return (rs + rt);
+                }
+                // addu
+                else if (func == 0x21) {
+                    return (rs + rt);
+                }
+                // sub
+                else if (func == 0x22) {
+                    return (rs - rt);
+                }
+                // subu
+                else if (func == 0x23) {
+                    return (rs - rt);
+                }
+                // and
+                else if (func == 0x24) {
+                    return (rs & rt);
+                }
+                // or
+                else if (func == 0x25) {
+                    return (rs | rt);
+                }
+                // xor
+                else if (func == 0x26) {
+                    return (rs ^ rt);
+                }
+                // nor
+                else if (func == 0x27) {
+                    return ~(rs | rt);
+                }
+                // slti
+                else if (func == 0x2a) {
+                    return int32(rs) < int32(rt) ? 1 : 0;
+                }
+                // sltiu
+                else if (func == 0x2b) {
+                    return rs < rt ? 1 : 0;
+                } else {
+                    revert("invalid instruction");
                 }
             } else {
-                assembly {
-                    switch opcode
-                    case 0x1C { // SPECIAL2
-                        let fun := and(insn, 0x3F)
-                        switch fun
-                        case 0x02 { out := mul(rs, rt) } // mul - sign doesn't matter
-                        case 0x20 { // clz
-                            rs := not(rs)
-                            let i := 0
-                            for { } and(rs, 0x80000000) { i := add(i, 1) } { rs := and(0xFFFFFFFF, shl(1, rs)) }
-                            out := i
+                // SPECIAL2
+                if (opcode == 0x1C) {
+                    uint32 func = insn & 0x3f; // 6-bits
+                    // mul
+                    if (func == 0x2) {
+                        return uint32(int32(rs) * int32(rt));
+                    }
+                    // clz, clo
+                    else if (func == 0x20 || func == 0x21) {
+                        if (func == 0x20) {
+                            rs = ~rs;
                         }
-                        case 0x21 { // clo
-                            let i := 0
-                            for { } and(rs, 0x80000000) { i := add(i, 1) } { rs := and(0xFFFFFFFF, shl(1, rs)) }
-                            out := i
+                        uint32 i = 0;
+                        while (rs & 0x80000000 != 0) {
+                            i++;
+                            rs <<= 1;
                         }
-                        default { badInsn := true }
+                        return i;
                     }
-                    case 0x0F { out := shl(16, rt) } // lui
-                    case 0x20 { out := signextend(0, and(shr(sub(24, mul(and(rs, 3), 8)), mem), 0xFF)) } // lb
-                    case 0x21 { out := signextend(1, and(shr(sub(16, mul(and(rs, 2), 8)), mem), 0xFFFF)) } // lh
-                    case 0x22 {  // lwl
-                        let val := shl(mul(and(rs, 3), 8), mem)
-                        let mask := shl(mul(and(rs, 3), 8), 0xFFFFFFFF)
-                        out := or(and(rt, not(mask)), val)
-                    }
-                    case 0x23 { out := mem } // lw
-                    case 0x24 { out := and(shr(sub(24, mul(and(rs, 3), 8)), mem), 0xFF) } // lbu
-                    case 0x25 { out := and(shr(sub(16, mul(and(rs, 2), 8)), mem), 0xFFFF) } // lhu
-                    case 0x26 { // lwr
-                        let val := shr(sub(24, mul(and(rs, 3), 8)), mem)
-                        let mask := shr(sub(24, mul(and(rs, 3), 8)), 0xFFFFFFFF)
-                        out := or(and(rt, not(mask)), val)
-                    }
-                    case 0x28 { // sb
-                        let val := shl(sub(24, mul(and(rs, 3), 8)), and(rt, 0xFF))
-                        let mask := xor(0xFFFFFFFF, shl(sub(24, mul(and(rs, 3), 8)), 0xFF))
-                        out := or(and(mem, mask), val)
-                    }
-                    case 0x29 { // sh
-                        let val := shl(sub(16, mul(and(rs, 2), 8)), and(rt, 0xFFFF))
-                        let mask := xor(0xFFFFFFFF, shl(sub(16, mul(and(rs, 2), 8)), 0xFFFF))
-                        out := or(and(mem, mask), val)
-                    }
-                    case 0x2a { // swl
-                        let val := shr(mul(and(rs, 3), 8), rt)
-                        let mask := shr(mul(and(rs, 3), 8), 0xFFFFFFFF)
-                        out := or(and(mem, not(mask)), val)
-                    }
-                    case 0x2b { out := rt } // sw
-                    case 0x2e { // swr
-                        let val := shl(sub(24, mul(and(rs, 3), 8)), rt)
-                        let mask := shl(sub(24, mul(and(rs, 3), 8)), 0xFFFFFFFF)
-                        out := or(and(mem, not(mask)), val)
-                    }
-                    case 0x30 { out := mem } // ll
-                    case 0x38 { out := rt } // sc
-                    default { badInsn := true }
+                }
+                // lui
+                else if (opcode == 0x0F) {
+                    return rt << 16;
+                }
+                // lb
+                else if (opcode == 0x20) {
+                    return SE((mem >> (24 - (rs & 3) * 8)) & 0xFF, 8);
+                }
+                // lh
+                else if (opcode == 0x21) {
+                    return SE((mem >> (16 - (rs & 2) * 8)) & 0xFFFF, 16);
+                }
+                // lwl
+                else if (opcode == 0x22) {
+                    uint32 val = mem << ((rs & 3) * 8);
+                    uint32 mask = uint32(0xFFFFFFFF) << ((rs & 3) * 8);
+                    return (rt & ~mask) | val;
+                }
+                // lw
+                else if (opcode == 0x23) {
+                    return mem;
+                }
+                // lbu
+                else if (opcode == 0x24) {
+                    return (mem >> (24 - (rs & 3) * 8)) & 0xFF;
+                }
+                //  lhu
+                else if (opcode == 0x25) {
+                    return (mem >> (16 - (rs & 2) * 8)) & 0xFFFF;
+                }
+                //  lwr
+                else if (opcode == 0x26) {
+                    uint32 val = mem >> (24 - (rs & 3) * 8);
+                    uint32 mask = uint32(0xFFFFFFFF) >> (24 - (rs & 3) * 8);
+                    return (rt & ~mask) | val;
+                }
+                //  sb
+                else if (opcode == 0x28) {
+                    uint32 val = (rt & 0xFF) << (24 - (rs & 3) * 8);
+                    uint32 mask = 0xFFFFFFFF ^ uint32(0xFF << (24 - (rs & 3) * 8));
+                    return (mem & mask) | val;
+                }
+                //  sh
+                else if (opcode == 0x29) {
+                    uint32 val = (rt & 0xFFFF) << (16 - (rs & 2) * 8);
+                    uint32 mask = 0xFFFFFFFF ^ uint32(0xFFFF << (16 - (rs & 2) * 8));
+                    return (mem & mask) | val;
+                }
+                //  swl
+                else if (opcode == 0x2a) {
+                    uint32 val = rt >> ((rs & 3) * 8);
+                    uint32 mask = uint32(0xFFFFFFFF) >> ((rs & 3) * 8);
+                    return (mem & ~mask) | val;
+                }
+                //  sw
+                else if (opcode == 0x2b) {
+                    return rt;
+                }
+                //  swr
+                else if (opcode == 0x2e) {
+                    uint32 val = rt << (24 - (rs & 3) * 8);
+                    uint32 mask = uint32(0xFFFFFFFF) << (24 - (rs & 3) * 8);
+                    return (mem & ~mask) | val;
+                }
+                // ll
+                else if (opcode == 0x30) {
+                    return mem;
+                }
+                // sc
+                else if (opcode == 0x38) {
+                    return rt;
+                } else {
+                    revert("invalid instruction");
                 }
             }
-            if (badInsn) {
-                revert("invalid instruction");
-            }
+            revert("invalid instruction");
         }
     }
 }
