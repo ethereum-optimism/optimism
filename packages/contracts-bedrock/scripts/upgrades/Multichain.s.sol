@@ -284,7 +284,6 @@ contract Multichain is SafeBuilder {
 
     /// @notice Post check hook for the OptimismMintableERC20Factory
     function _postCheckOptimismMintableERC20Factory() internal view {
-        console.log(proxies.OptimismMintableERC20Factory);
         OptimismMintableERC20Factory factory = OptimismMintableERC20Factory(proxies.OptimismMintableERC20Factory);
         require(factory.BRIDGE() == proxies.L1StandardBridge);
     }
