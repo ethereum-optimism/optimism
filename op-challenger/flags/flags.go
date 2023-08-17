@@ -35,7 +35,7 @@ var (
 		Usage:   "Address of the fault game factory contract.",
 		EnvVars: prefixEnvVars("GAME_FACTORY_ADDRESS"),
 	}
-	DGFAddressFlag = &cli.StringFlag{
+	GameAddressFlag = &cli.StringFlag{
 		Name:    "game-address",
 		Usage:   "Address of the Fault Game contract.",
 		EnvVars: prefixEnvVars("GAME_ADDRESS"),
@@ -119,7 +119,7 @@ var requiredFlags = []cli.Flag{
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
 	AlphabetFlag,
-	DGFAddressFlag,
+	GameAddressFlag,
 	CannonNetworkFlag,
 	CannonRollupConfigFlag,
 	CannonL2GenesisFlag,
@@ -192,9 +192,9 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	var dgfAddress common.Address
-	if ctx.IsSet(DGFAddressFlag.Name) {
-		dgfAddress, err = opservice.ParseAddress(ctx.String(DGFAddressFlag.Name))
+	var gameAddress common.Address
+	if ctx.IsSet(GameAddressFlag.Name) {
+		gameAddress, err = opservice.ParseAddress(ctx.String(GameAddressFlag.Name))
 		if err != nil {
 			return nil, err
 		}
@@ -209,7 +209,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		L1EthRpc:                ctx.String(L1EthRpcFlag.Name),
 		TraceType:               traceTypeFlag,
 		GameFactoryAddress:      gameFactoryAddress,
-		GameAddress:             dgfAddress,
+		GameAddress:             gameAddress,
 		AlphabetTrace:           ctx.String(AlphabetFlag.Name),
 		CannonNetwork:           ctx.String(CannonNetworkFlag.Name),
 		CannonRollupConfigPath:  ctx.String(CannonRollupConfigFlag.Name),
