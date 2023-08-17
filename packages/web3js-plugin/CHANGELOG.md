@@ -1,5 +1,11 @@
 # @eth-optimism/web3.js-plugin
 
+## 0.1.2
+
+### Patch Changes
+
+- [#6873](https://github.com/ethereum-optimism/optimism/pull/6873) [`fdab6caa7`](https://github.com/ethereum-optimism/optimism/commit/fdab6caa7e6684b08882d2a766ccd727068c2b2f) Thanks [@spacesailor24](https://github.com/spacesailor24)! - Update code exmaples in README
+
 ## 0.1.1
 
 ### Patch Changes
