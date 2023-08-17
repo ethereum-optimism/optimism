@@ -3,6 +3,7 @@
 [chain]
 # OP Goerli
 preset = 420
+
 [rpcs]
 l1-rpc = "${INDEXER_RPC_URL_L1}"
 l2-rpc = "${INDEXER_RPC_URL_L2}"
