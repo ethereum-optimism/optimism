@@ -76,12 +76,15 @@ async estimateFees(transaction: Transaction, returnFormat?: ReturnFormat)
 
 ```typescript
 import Web3 from 'web3'
+import { OptimismPlugin } from '@eth-optimism/web3.js-plugin'
 import {
   l2StandardBridgeABI,
   l2StandardBridgeAddress,
 } from '@eth-optimism/contracts-ts'
 
 const web3 = new Web3('https://mainnet.optimism.io')
+web3.registerPlugin(new OptimismPlugin())
+
 const l2BridgeContract = new web3.eth.Contract(
   l2StandardBridgeABI,
   optimistAddress[420]
@@ -117,12 +120,15 @@ console.log(totalFee) // 26608988767659n
 
 ```typescript
 import Web3 from 'web3'
+import { OptimismPlugin } from '@eth-optimism/web3.js-plugin'
 import {
   l2StandardBridgeABI,
   l2StandardBridgeAddress,
 } from '@eth-optimism/contracts-ts'
 
 const web3 = new Web3('https://mainnet.optimism.io')
+web3.registerPlugin(new OptimismPlugin())
+
 const l2BridgeContract = new web3.eth.Contract(
   l2StandardBridgeABI,
   optimistAddress[420]
