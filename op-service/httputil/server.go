@@ -14,15 +14,6 @@ func ListenAndServeContext(ctx context.Context, server *http.Server) error {
 		errCh <- server.ListenAndServe()
 	}()
 
-	// verify that the server comes up
-	tick := time.NewTimer(10 * time.Millisecond)
-	select {
-	case err := <-errCh:
-		return fmt.Errorf("http server failed: %w", err)
-	case <-tick.C:
-		break
-	}
-
 	select {
 	case err := <-errCh:
 		if errors.Is(err, http.ErrServerClosed) {
