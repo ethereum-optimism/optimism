@@ -25,9 +25,9 @@ services:
     environment:
       - INDEXER_RPC_URL_L1=$INDEXER_RPC_URL_L1
       - INDEXER_RPC_URL_L2=$INDEXER_RPC_URL_L2
-      - INDEXER_CONFIG=/indexer/indexer.toml
+      - INDEXER_CONFIG=/app/indexer/indexer.toml
     volumes:
-      - ./indexer.toml:/indexer/indexer.toml
+      - ./indexer.docker.toml:/app/indexer/indexer.toml
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,9 +44,9 @@ services:
       # reindex with INDEXER_BEDROCK=true or seed the database
       - INDEXER_RPC_URL_L1=$INDEXER_RPC_URL_L1
       - INDEXER_RPC_URL_L2=$INDEXER_RPC_URL_L2
-      - INDEXER_CONFIG=/indexer/indexer.toml
+      - INDEXER_CONFIG=/app/indexer/indexer.toml
     volumes:
-      - ./indexer.toml:/indexer/indexer.toml
+      - ./indexer.docker.toml:/app/indexer/indexer.toml
     ports:
       - 8080:8080
     depends_on:
