@@ -5,7 +5,7 @@
   "portalGuardian": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
   "controller": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
 
-  "l1StartingBlockTag": "0x38ee998e9e7f5eab0597432307380f5fbf2a81c2272c68aed170795caee596dc",
+  "l1StartingBlockTag": "0x05d0398a27fb6459da6db3e5feb13de71fb554feed8c4089549dc2281fee1ca3",
 
   "l1ChainID": 11155111,
   "l2ChainID": 28882,
@@ -21,7 +21,7 @@
 
   "l2OutputOracleSubmissionInterval": 120,
   "l2OutputOracleStartingBlockNumber": 0,
-  "l2OutputOracleStartingTimestamp": 1686598284,
+  "l2OutputOracleStartingTimestamp": 1692388764,
 
   "l2OutputOracleProposer": "0x044DEa5dEe6c62Ac432Aa1e50C3eB5899e85a52F",
   "l2OutputOracleChallenger": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
@@ -32,6 +32,13 @@
   "baseFeeVaultRecipient": "0x7Aa0289De18100Ca74E00F545480776E820aC8a6",
   "l1FeeVaultRecipient": "0x7Aa0289De18100Ca74E00F545480776E820aC8a6",
   "sequencerFeeVaultRecipient": "0x7Aa0289De18100Ca74E00F545480776E820aC8a6",
+
+  "baseFeeVaultMinimumWithdrawalAmount": "0x0",
+  "l1FeeVaultMinimumWithdrawalAmount": "0x0",
+  "sequencerFeeVaultMinimumWithdrawalAmount": "0x0",
+  "baseFeeVaultWithdrawalNetwork": 0,
+  "l1FeeVaultWithdrawalNetwork": 0,
+  "sequencerFeeVaultWithdrawalNetwork": 0,
 
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
