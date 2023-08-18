@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/web3.js-plugin",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A Web3.js plugin for doing OP-Chain gas estimation",
   "license": "MIT",
   "repository": {

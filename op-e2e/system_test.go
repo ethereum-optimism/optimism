@@ -34,9 +34,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/backoff"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 func TestL2OutputSubmitter(t *testing.T) {
@@ -533,7 +533,7 @@ func TestSystemMockP2P(t *testing.T) {
 
 	// poll to see if the verifier node is connected & meshed on gossip.
 	// Without this verifier, we shouldn't start sending blocks around, or we'll miss them and fail the test.
-	backOffStrategy := backoff.Exponential()
+	backOffStrategy := retry.Exponential()
 	for i := 0; i < 10; i++ {
 		if check() {
 			break

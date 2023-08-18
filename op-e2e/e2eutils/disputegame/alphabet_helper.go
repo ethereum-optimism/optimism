@@ -15,6 +15,7 @@ type AlphabetGameHelper struct {
 func (g *AlphabetGameHelper) StartChallenger(ctx context.Context, l1Endpoint string, name string, options ...challenger.Option) *challenger.Helper {
 	opts := []challenger.Option{
 		func(c *config.Config) {
+			c.GameFactoryAddress = g.factoryAddr
 			c.GameAddress = g.addr
 			c.TraceType = config.TraceTypeAlphabet
 			// By default the challenger agrees with the root claim (thus disagrees with the proposed output)

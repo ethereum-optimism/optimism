@@ -17,12 +17,13 @@ import (
 )
 
 type FaultGameHelper struct {
-	t       *testing.T
-	require *require.Assertions
-	client  *ethclient.Client
-	opts    *bind.TransactOpts
-	game    *bindings.FaultDisputeGame
-	addr    common.Address
+	t           *testing.T
+	require     *require.Assertions
+	client      *ethclient.Client
+	opts        *bind.TransactOpts
+	game        *bindings.FaultDisputeGame
+	factoryAddr common.Address
+	addr        common.Address
 }
 
 func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
