@@ -68,8 +68,12 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
     }
 
     /// @inheritdoc IDisputeGameFactory
-    function gameAtIndex(uint256 _index) external view returns (IDisputeGame proxy_, Timestamp timestamp_) {
-        (, timestamp_, proxy_) = _disputeGameList[_index].unpack();
+    function gameAtIndex(uint256 _index)
+        external
+        view
+        returns (GameType gameType_, Timestamp timestamp_, IDisputeGame proxy_)
+    {
+        (gameType_, timestamp_, proxy_) = _disputeGameList[_index].unpack();
     }
 
     /// @inheritdoc IDisputeGameFactory

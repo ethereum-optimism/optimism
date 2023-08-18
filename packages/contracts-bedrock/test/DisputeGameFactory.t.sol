@@ -58,7 +58,7 @@ contract DisputeGameFactory_Create_Test is DisputeGameFactory_Init {
         assertEq(Timestamp.unwrap(timestamp), block.timestamp);
         assertEq(factory.gameCount(), 1);
 
-        (IDisputeGame game2, Timestamp timestamp2) = factory.gameAtIndex(0);
+        (, Timestamp timestamp2, IDisputeGame game2) = factory.gameAtIndex(0);
         assertEq(address(game2), address(proxy));
         assertEq(Timestamp.unwrap(timestamp2), block.timestamp);
     }
