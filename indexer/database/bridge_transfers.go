@@ -31,8 +31,7 @@ type BridgeTransfer struct {
 }
 
 type L1BridgeDeposit struct {
-	BridgeTransfer `gorm:"embedded"`
-
+	BridgeTransfer        `gorm:"embedded"`
 	TransactionSourceHash common.Hash `gorm:"primaryKey;serializer:json"`
 }
 
@@ -44,8 +43,7 @@ type L1BridgeDepositWithTransactionHashes struct {
 }
 
 type L2BridgeWithdrawal struct {
-	BridgeTransfer `gorm:"embedded"`
-
+	BridgeTransfer            `gorm:"embedded"`
 	TransactionWithdrawalHash common.Hash `gorm:"primaryKey;serializer:json"`
 }
 
@@ -70,8 +68,8 @@ type BridgeTransfersView interface {
 type BridgeTransfersDB interface {
 	BridgeTransfersView
 
-	StoreL1BridgeDeposits([]*L1BridgeDeposit) error
-	StoreL2BridgeWithdrawals([]*L2BridgeWithdrawal) error
+	StoreL1BridgeDeposits([]L1BridgeDeposit) error
+	StoreL2BridgeWithdrawals([]L2BridgeWithdrawal) error
 }
 
 /**
@@ -90,7 +88,7 @@ func newBridgeTransfersDB(db *gorm.DB) BridgeTransfersDB {
  * Tokens Bridged (Deposited) from L1
  */
 
-func (db *bridgeTransfersDB) StoreL1BridgeDeposits(deposits []*L1BridgeDeposit) error {
+func (db *bridgeTransfersDB) StoreL1BridgeDeposits(deposits []L1BridgeDeposit) error {
 	result := db.gorm.Create(&deposits)
 	return result.Error
 }
@@ -124,7 +122,7 @@ func (db *bridgeTransfersDB) L1BridgeDepositWithFilter(filter BridgeTransfer) (*
 }
 
 type L1BridgeDepositsResponse struct {
-	Deposits    []*L1BridgeDepositWithTransactionHashes
+	Deposits    []L1BridgeDepositWithTransactionHashes
 	Cursor      string
 	HasNextPage bool
 }
@@ -152,7 +150,7 @@ l1_transaction_deposits.l2_transaction_hash`)
 
 	filteredQuery := depositsQuery.Where(&Transaction{FromAddress: address}).Order("l1_bridge_deposits.transaction_source_hash DESC").Limit(limit + 1)
 
-	deposits := []*L1BridgeDepositWithTransactionHashes{}
+	deposits := []L1BridgeDepositWithTransactionHashes{}
 	result := filteredQuery.Scan(&deposits)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
@@ -185,7 +183,7 @@ l1_transaction_deposits.l2_transaction_hash`)
  * Tokens Bridged (Withdrawn) from L2
  */
 
-func (db *bridgeTransfersDB) StoreL2BridgeWithdrawals(withdrawals []*L2BridgeWithdrawal) error {
+func (db *bridgeTransfersDB) StoreL2BridgeWithdrawals(withdrawals []L2BridgeWithdrawal) error {
 	result := db.gorm.Create(&withdrawals)
 	return result.Error
 }
@@ -219,7 +217,7 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawalWithFilter(filter BridgeTransfer)
 }
 
 type L2BridgeWithdrawalsResponse struct {
-	Withdrawals []*L2BridgeWithdrawalWithTransactionHashes
+	Withdrawals []L2BridgeWithdrawalWithTransactionHashes
 	Cursor      string
 	HasNextPage bool
 }
@@ -249,7 +247,7 @@ finalized_l1_contract_events.transaction_hash AS finalized_l1_transaction_hash`)
 
 	filteredQuery := withdrawalsQuery.Where(&Transaction{FromAddress: address}).Order("l2_bridge_withdrawals.timestamp DESC").Limit(limit + 1)
 
-	withdrawals := []*L2BridgeWithdrawalWithTransactionHashes{}
+	withdrawals := []L2BridgeWithdrawalWithTransactionHashes{}
 	result := filteredQuery.Scan(&withdrawals)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {

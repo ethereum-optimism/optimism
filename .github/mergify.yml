@@ -300,7 +300,7 @@ pull_request_rules:
           - A-proxyd
   - name: Add M-docs label
     conditions:
-      - 'files~=^(technical-documents|specs)\/'
+      - 'files~=^(docs|specs)\/'
       - '#label<5'
     actions:
       label:

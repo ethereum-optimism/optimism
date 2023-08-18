@@ -40,7 +40,7 @@ func runIndexer(ctx *cli.Context) error {
 		return err
 	}
 
-	indexer, err := indexer.NewIndexer(cfg.Chain, cfg.RPCs, db, logger)
+	indexer, err := indexer.NewIndexer(logger, cfg.Chain, cfg.RPCs, db)
 	if err != nil {
 		return err
 	}
