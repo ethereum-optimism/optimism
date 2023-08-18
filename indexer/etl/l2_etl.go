@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-service/backoff"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -79,8 +79,8 @@ func (l2Etl *L2ETL) Start(ctx context.Context) error {
 			}
 
 			// Continually try to persist this batch. If it fails after 5 attempts, we simply error out
-			backoffStrategy := &backoff.ExponentialStrategy{Min: 1000, Max: 20_000, MaxJitter: 250}
-			_, err := backoff.Do[interface{}](ctx, 10, backoffStrategy, func() (interface{}, error) {
+			retryStrategy := &retry.ExponentialStrategy{Min: 1000, Max: 20_000, MaxJitter: 250}
+			_, err := retry.Do[interface{}](ctx, 10, retryStrategy, func() (interface{}, error) {
 				err := l2Etl.db.Transaction(func(tx *database.DB) error {
 					if err := tx.Blocks.StoreL2BlockHeaders(l2BlockHeaders); err != nil {
 						return err
