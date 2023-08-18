@@ -27,12 +27,13 @@ const (
 type EthClient interface {
 	FinalizedBlockHeight() (*big.Int, error)
 
-	BlockHeadersByRange(*big.Int, *big.Int) ([]*types.Header, error)
+	BlockHeadersByRange(*big.Int, *big.Int) ([]types.Header, error)
 	BlockHeaderByHash(common.Hash) (*types.Header, error)
 
 	StorageHash(common.Address, *big.Int) (common.Hash, error)
 
-	RawRpcClient() *rpc.Client
+	GethRpcClient() *rpc.Client
+	GethEthClient() *ethclient.Client
 }
 
 type client struct {
@@ -56,8 +57,12 @@ func NewEthClient(rpcClient *rpc.Client) EthClient {
 	return &client{rpcClient}
 }
 
-func (c *client) RawRpcClient() *rpc.Client {
+func (c *client) GethRpcClient() *rpc.Client {
 	return c.rpcClient
+}
+
+func (c *client) GethEthClient() *ethclient.Client {
+	return ethclient.NewClient(c.GethRpcClient())
 }
 
 // FinalizedBlockHeight retrieves the latest block height in a finalized state
@@ -97,7 +102,7 @@ func (c *client) BlockHeaderByHash(hash common.Hash) (*types.Header, error) {
 // BlockHeadersByRange will retrieve block headers within the specified range -- includsive. No restrictions
 // are placed on the range such as blocks in the "latest", "safe" or "finalized" states. If the specified
 // range is too large, `endHeight > latest`, the resulting list is truncated to the available headers
-func (c *client) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]*types.Header, error) {
+func (c *client) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]types.Header, error) {
 	count := new(big.Int).Sub(endHeight, startHeight).Uint64() + 1
 	batchElems := make([]rpc.BatchElem, count)
 	for i := uint64(0); i < count; i++ {
@@ -121,7 +126,7 @@ func (c *client) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]*types.
 	//  - Ensure integrity that they build on top of each other
 	//  - Truncate out headers that do not exist (endHeight > "latest")
 	size := 0
-	headers := make([]*types.Header, count)
+	headers := make([]types.Header, count)
 	for i, batchElem := range batchElems {
 		if batchElem.Error != nil {
 			return nil, batchElem.Error
@@ -129,17 +134,19 @@ func (c *client) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]*types.
 			break
 		}
 
-		header := batchElem.Result.(*types.Header)
+		header, ok := batchElem.Result.(*types.Header)
+		if !ok {
+			return nil, fmt.Errorf("unable to transform rpc response %v into types.Header", batchElem.Result)
+		}
 		if i > 0 && header.ParentHash != headers[i-1].Hash() {
-			// Warn here that we got a bad (malicious?) response
-			break
+			return nil, fmt.Errorf("queried header %s does not follow parent %s", header.Hash(), headers[i-1].Hash())
 		}
 
-		headers[i] = header
+		headers[i] = *header
 		size = size + 1
 	}
-	headers = headers[:size]
 
+	headers = headers[:size]
 	return headers, nil
 }
 

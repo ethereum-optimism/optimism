@@ -300,7 +300,7 @@ pull_request_rules:
           - A-proxyd
   - name: Add M-docs label
     conditions:
-      - 'files~=^(technical-documents|specs)\/'
+      - 'files~=^(docs|specs)\/'
       - '#label<5'
     actions:
       label:
@@ -321,11 +321,3 @@ pull_request_rules:
       label:
         add:
           - M-ci
-  - name: Add M-bot label for bots
-    conditions:
-      - 'author=(github-actions|dependabot|)'
-      - '#label<5'
-    actions:
-      label:
-        add:
-          - M-bot

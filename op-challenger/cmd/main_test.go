@@ -15,7 +15,7 @@ import (
 
 var (
 	l1EthRpc                = "http://example.com:8545"
-	gameAddressValue        = "0xaa00000000000000000000000000000000000000"
+	gameFactoryAddressValue = "0xbb00000000000000000000000000000000000000"
 	cannonNetwork           = chaincfg.AvailableNetworks()[0]
 	otherCannonNetwork      = chaincfg.AvailableNetworks()[1]
 	cannonBin               = "./bin/cannon"
@@ -44,14 +44,14 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet))
-	defaultCfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), config.TraceTypeAlphabet, true)
+	defaultCfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, config.TraceTypeAlphabet, true)
 	// Add in the extra CLI options required when using alphabet trace type
 	defaultCfg.AlphabetTrace = alphabetTrace
 	require.Equal(t, defaultCfg, cfg)
 }
 
 func TestDefaultConfigIsValid(t *testing.T) {
-	cfg := config.NewConfig(l1EthRpc, common.HexToAddress(gameAddressValue), config.TraceTypeAlphabet, true)
+	cfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, config.TraceTypeAlphabet, true)
 	// Add in options that are required based on the specific trace type
 	// To avoid needing to specify unused options, these aren't included in the params for NewConfig
 	cfg.AlphabetTrace = alphabetTrace
@@ -89,9 +89,26 @@ func TestTraceType(t *testing.T) {
 	})
 }
 
-func TestGameAddress(t *testing.T) {
+func TestGameFactoryAddress(t *testing.T) {
 	t.Run("Required", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag game-address is required", addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-address"))
+		verifyArgsInvalid(t, "flag game-factory-address is required", addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-factory-address"))
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		addr := common.Address{0xbb, 0xcc, 0xdd}
+		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-factory-address", "--game-factory-address="+addr.Hex()))
+		require.Equal(t, addr, cfg.GameFactoryAddress)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		verifyArgsInvalid(t, "invalid address: foo", addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-factory-address", "--game-factory-address=foo"))
+	})
+}
+
+func TestGameAddress(t *testing.T) {
+	t.Run("Optional", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-address"))
+		require.NoError(t, cfg.Check())
 	})
 
 	t.Run("Valid", func(t *testing.T) {
@@ -316,7 +333,7 @@ func requiredArgs(traceType config.TraceType) map[string]string {
 	args := map[string]string{
 		"--agree-with-proposed-output": agreeWithProposedOutput,
 		"--l1-eth-rpc":                 l1EthRpc,
-		"--game-address":               gameAddressValue,
+		"--game-factory-address":       gameFactoryAddressValue,
 		"--trace-type":                 traceType.String(),
 	}
 	switch traceType {

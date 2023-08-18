@@ -13,6 +13,11 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// PrecompileCount represents the number of precompile addresses
+// starting from `address(0)` to PrecompileCount that are funded
+// with a single wei in the genesis state.
+const PrecompileCount = 256
+
 // FundDevAccounts will fund each of the development accounts.
 func FundDevAccounts(db vm.StateDB) {
 	for _, account := range DevAccounts {
@@ -52,7 +57,7 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 // This is an optimization to make calling them cheaper. This should only
 // be used for devnets.
 func SetPrecompileBalances(db vm.StateDB) {
-	for i := 0; i < 256; i++ {
+	for i := 0; i < PrecompileCount; i++ {
 		addr := common.BytesToAddress([]byte{byte(i)})
 		db.CreateAccount(addr)
 		db.AddBalance(addr, common.Big1)
