@@ -90,8 +90,8 @@ type ContractEventsView interface {
 type ContractEventsDB interface {
 	ContractEventsView
 
-	StoreL1ContractEvents([]*L1ContractEvent) error
-	StoreL2ContractEvents([]*L2ContractEvent) error
+	StoreL1ContractEvents([]L1ContractEvent) error
+	StoreL2ContractEvents([]L2ContractEvent) error
 }
 
 /**
@@ -108,7 +108,7 @@ func newContractEventsDB(db *gorm.DB) ContractEventsDB {
 
 // L1
 
-func (db *contractEventsDB) StoreL1ContractEvents(events []*L1ContractEvent) error {
+func (db *contractEventsDB) StoreL1ContractEvents(events []L1ContractEvent) error {
 	result := db.gorm.Create(&events)
 	return result.Error
 }
@@ -175,7 +175,7 @@ func (db *contractEventsDB) L1LatestContractEventWithFilter(filter ContractEvent
 
 // L2
 
-func (db *contractEventsDB) StoreL2ContractEvents(events []*L2ContractEvent) error {
+func (db *contractEventsDB) StoreL2ContractEvents(events []L2ContractEvent) error {
 	result := db.gorm.Create(&events)
 	return result.Error
 }
