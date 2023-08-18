@@ -23,7 +23,7 @@
     "gas-snapshot": "pnpm build:differential && pnpm build:fuzz && forge snapshot --no-match-test 'testDiff|testFuzz|invariant|generateArtifact'",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
     "semver-lock": "forge script scripts/SemverLock.s.sol",
-    "validate-deploy-configs": "./scripts/validate-deploy-configs.sh",
+    "validate-deploy-configs": "./scripts/check-deploy-configs.sh",
     "validate-spacers": "pnpm build && npx tsx scripts/validate-spacers.ts",
     "slither": "./scripts/slither.sh",
     "slither:triage": "TRIAGE_MODE=1 ./scripts/slither.sh",
