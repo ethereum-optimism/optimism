@@ -838,6 +838,11 @@ contract Deploy is Deployer {
                 rawGameType == 0 ? "Cannon" : "Alphabet",
                 vm.toString(rawGameType)
             );
+        } else {
+            console.log(
+                "[WARN] DisputeGameFactoryProxy: `FaultDisputeGame` implementation already set for game type: %s",
+                vm.toString(GameType.unwrap(_gameType))
+            );
         }
     }
 }
