@@ -10,9 +10,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
+	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
+	"github.com/ethereum-optimism/optimism/op-challenger/version"
 	"github.com/ethereum-optimism/optimism/op-service/client"
+	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -30,11 +32,13 @@ type service struct {
 	agreeWithProposedOutput bool
 	caller                  *FaultCaller
 	logger                  log.Logger
+	metrics                 metrics.Metricer
 }
 
 // NewService creates a new Service.
 func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*service, error) {
-	txMgr, err := txmgr.NewSimpleTxManager("challenger", logger, &metrics.NoopTxMetrics{}, cfg.TxMgrConfig)
+	m := metrics.NewMetrics()
+	txMgr, err := txmgr.NewSimpleTxManager("challenger", logger, &m.TxMetrics, cfg.TxMgrConfig)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the transaction manager: %w", err)
 	}
@@ -42,6 +46,27 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 	client, err := client.DialEthClientWithTimeout(client.DefaultDialTimeout, logger, cfg.L1EthRpc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to dial L1: %w", err)
+	}
+
+	pprofConfig := cfg.PprofConfig
+	if pprofConfig.Enabled {
+		logger.Info("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
+		go func() {
+			if err := oppprof.ListenAndServe(ctx, pprofConfig.ListenAddr, pprofConfig.ListenPort); err != nil {
+				logger.Error("error starting pprof", "err", err)
+			}
+		}()
+	}
+
+	metricsCfg := cfg.MetricsConfig
+	if metricsCfg.Enabled {
+		logger.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
+		go func() {
+			if err := m.Serve(ctx, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
+				logger.Error("error starting metrics server", "err", err)
+			}
+		}()
+		m.StartBalanceMetrics(ctx, logger, client, txMgr.From())
 	}
 
 	contract, err := bindings.NewFaultDisputeGameCaller(cfg.GameAddress, client)
@@ -76,11 +101,22 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 		return nil, fmt.Errorf("unsupported trace type: %v", cfg.TraceType)
 	}
 
-	return newTypedService(ctx, logger, cfg, loader, gameDepth, client, trace, updater, txMgr)
+	return newTypedService(ctx, logger, cfg, loader, gameDepth, client, trace, updater, txMgr, m)
 }
 
 // newTypedService creates a new Service from a provided trace provider.
-func newTypedService(ctx context.Context, logger log.Logger, cfg *config.Config, loader Loader, gameDepth uint64, client *ethclient.Client, provider types.TraceProvider, updater types.OracleUpdater, txMgr txmgr.TxManager) (*service, error) {
+func newTypedService(ctx context.Context,
+	logger log.Logger,
+	cfg *config.Config,
+	loader Loader,
+	gameDepth uint64,
+	client *ethclient.Client,
+	provider types.TraceProvider,
+	updater types.OracleUpdater,
+	txMgr txmgr.TxManager,
+	metrics metrics.Metricer,
+) (*service, error) {
+
 	if err := ValidateAbsolutePrestate(ctx, provider, loader); err != nil {
 		return nil, fmt.Errorf("failed to validate absolute prestate: %w", err)
 	}
@@ -96,11 +132,15 @@ func newTypedService(ctx context.Context, logger log.Logger, cfg *config.Config,
 		return nil, fmt.Errorf("failed to bind the fault contract: %w", err)
 	}
 
+	metrics.RecordInfo(version.SimpleWithMeta)
+	metrics.RecordUp()
+
 	return &service{
 		agent:                   NewAgent(loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, gameLogger),
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
 		caller:                  caller,
 		logger:                  gameLogger,
+		metrics:                 metrics,
 	}, nil
 }
 

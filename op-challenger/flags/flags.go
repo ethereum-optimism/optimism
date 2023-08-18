@@ -9,6 +9,8 @@ import (
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 
@@ -134,6 +136,8 @@ var optionalFlags = []cli.Flag{
 func init() {
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, txmgr.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, oppprof.CLIFlags(envVarPrefix)...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }
@@ -201,6 +205,8 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	}
 
 	txMgrConfig := txmgr.ReadCLIConfig(ctx)
+	metricsConfig := opmetrics.ReadCLIConfig(ctx)
+	pprofConfig := oppprof.ReadCLIConfig(ctx)
 
 	traceTypeFlag := config.TraceType(strings.ToLower(ctx.String(TraceTypeFlag.Name)))
 
@@ -222,5 +228,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		CannonSnapshotFreq:      ctx.Uint(CannonSnapshotFreqFlag.Name),
 		AgreeWithProposedOutput: ctx.Bool(AgreeWithProposedOutputFlag.Name),
 		TxMgrConfig:             txMgrConfig,
+		MetricsConfig:           metricsConfig,
+		PprofConfig:             pprofConfig,
 	}, nil
 }
