@@ -18,7 +18,7 @@ var (
 	ErrMissingCannonAbsolutePreState = errors.New("missing cannon absolute pre-state")
 	ErrMissingAlphabetTrace          = errors.New("missing alphabet trace")
 	ErrMissingL1EthRPC               = errors.New("missing l1 eth rpc url")
-	ErrMissingGameAddress            = errors.New("missing game address")
+	ErrMissingGameFactoryAddress     = errors.New("missing game factory address")
 	ErrMissingCannonSnapshotFreq     = errors.New("missing cannon snapshot freq")
 	ErrMissingCannonRollupConfig     = errors.New("missing cannon network or rollup config path")
 	ErrMissingCannonL2Genesis        = errors.New("missing cannon network or l2 genesis path")
@@ -32,9 +32,29 @@ type TraceType string
 const (
 	TraceTypeAlphabet TraceType = "alphabet"
 	TraceTypeCannon   TraceType = "cannon"
+
+	// Devnet game IDs
+	DevnetGameIDAlphabet = uint8(0)
+	DevnetGameIDCannon   = uint8(1)
+
+	// Mainnet game IDs
+	MainnetGameIDFault = uint8(0)
 )
 
 var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon}
+
+// GameIdToString maps game IDs to their string representation on a per-network basis.
+var GameIdToString = map[uint64]map[uint8]string{
+	// Mainnet
+	1: {
+		MainnetGameIDFault: "fault-cannon",
+	},
+	// Devnet
+	900: {
+		DevnetGameIDAlphabet: "fault-alphabet",
+		DevnetGameIDCannon:   "fault-cannon",
+	},
+}
 
 func (t TraceType) String() string {
 	return string(t)
@@ -65,6 +85,7 @@ const DefaultCannonSnapshotFreq = uint(1_000_000_000)
 // It is used to initialize the challenger.
 type Config struct {
 	L1EthRpc                string         // L1 RPC Url
+	GameFactoryAddress      common.Address // Address of the dispute game factory
 	GameAddress             common.Address // Address of the fault game
 	AgreeWithProposedOutput bool           // Temporary config if we agree or disagree with the posted output
 
@@ -88,14 +109,14 @@ type Config struct {
 }
 
 func NewConfig(
+	gameFactoryAddress common.Address,
 	l1EthRpc string,
-	gameAddress common.Address,
 	traceType TraceType,
 	agreeWithProposedOutput bool,
 ) Config {
 	return Config{
-		L1EthRpc:    l1EthRpc,
-		GameAddress: gameAddress,
+		L1EthRpc:           l1EthRpc,
+		GameFactoryAddress: gameFactoryAddress,
 
 		AgreeWithProposedOutput: agreeWithProposedOutput,
 
@@ -111,8 +132,8 @@ func (c Config) Check() error {
 	if c.L1EthRpc == "" {
 		return ErrMissingL1EthRPC
 	}
-	if c.GameAddress == (common.Address{}) {
-		return ErrMissingGameAddress
+	if c.GameFactoryAddress == (common.Address{}) {
+		return ErrMissingGameFactoryAddress
 	}
 	if c.TraceType == "" {
 		return ErrMissingTraceType

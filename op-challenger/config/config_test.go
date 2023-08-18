@@ -10,7 +10,7 @@ import (
 
 var (
 	validL1EthRpc              = "http://localhost:8545"
-	validGameAddress           = common.HexToAddress("0x7bdd3b028C4796eF0EAf07d11394d0d9d8c24139")
+	validGameFactoryAddress    = common.Address{0x23}
 	validAlphabetTrace         = "abcdefgh"
 	validCannonBin             = "./bin/cannon"
 	validCannonOpProgramBin    = "./bin/op-program"
@@ -22,7 +22,7 @@ var (
 )
 
 func validConfig(traceType TraceType) Config {
-	cfg := NewConfig(validL1EthRpc, validGameAddress, traceType, agreeWithProposedOutput)
+	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, traceType, agreeWithProposedOutput)
 	switch traceType {
 	case TraceTypeAlphabet:
 		cfg.AlphabetTrace = validAlphabetTrace
@@ -62,10 +62,16 @@ func TestL1EthRpcRequired(t *testing.T) {
 	require.ErrorIs(t, config.Check(), ErrMissingL1EthRPC)
 }
 
-func TestGameAddressRequired(t *testing.T) {
+func TestGameFactoryAddressRequired(t *testing.T) {
+	config := validConfig(TraceTypeCannon)
+	config.GameFactoryAddress = common.Address{}
+	require.ErrorIs(t, config.Check(), ErrMissingGameFactoryAddress)
+}
+
+func TestGameAddressNotRequired(t *testing.T) {
 	config := validConfig(TraceTypeCannon)
 	config.GameAddress = common.Address{}
-	require.ErrorIs(t, config.Check(), ErrMissingGameAddress)
+	require.NoError(t, config.Check())
 }
 
 func TestAlphabetTraceRequired(t *testing.T) {

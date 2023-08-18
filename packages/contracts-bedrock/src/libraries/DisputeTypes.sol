@@ -4,10 +4,12 @@ pragma solidity ^0.8.15;
 import { LibHashing } from "../dispute/lib/LibHashing.sol";
 import { LibPosition } from "../dispute/lib/LibPosition.sol";
 import { LibClock } from "../dispute/lib/LibClock.sol";
+import { LibGameId } from "../dispute/lib/LibGameId.sol";
 
 using LibHashing for Claim global;
 using LibPosition for Position global;
 using LibClock for Clock global;
+using LibGameId for GameId global;
 
 /// @notice A custom type for a generic hash.
 type Hash is bytes32;
@@ -29,14 +31,15 @@ type Timestamp is uint64;
 /// @dev Unit: seconds
 type Duration is uint64;
 
-/// @notice A `GameId` represents a packed 12 byte timestamp and a 20 byte address.
+/// @notice A `GameId` represents a packed 1 byte game ID, an 11 byte timestamp, and a 20 byte address.
 /// @dev The packed layout of this type is as follows:
-/// ┌────────────┬────────────────┐
-/// │    Bits    │     Value      │
-/// ├────────────┼────────────────┤
-/// │ [0, 96)    │ Timestamp      │
-/// │ [96, 256)  │ Address        │
-/// └────────────┴────────────────┘
+/// ┌───────────┬───────────┐
+/// │   Bits    │   Value   │
+/// ├───────────┼───────────┤
+/// │ [0, 8)    │ Game Type │
+/// │ [8, 96)   │ Timestamp │
+/// │ [96, 256) │ Address   │
+/// └───────────┴───────────┘
 type GameId is bytes32;
 
 /// @notice A `Clock` represents a packed `Duration` and `Timestamp`
