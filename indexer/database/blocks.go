@@ -82,11 +82,11 @@ type BlocksView interface {
 type BlocksDB interface {
 	BlocksView
 
-	StoreL1BlockHeaders([]*L1BlockHeader) error
-	StoreL2BlockHeaders([]*L2BlockHeader) error
+	StoreL1BlockHeaders([]L1BlockHeader) error
+	StoreL2BlockHeaders([]L2BlockHeader) error
 
-	StoreLegacyStateBatches([]*LegacyStateBatch) error
-	StoreOutputProposals([]*OutputProposal) error
+	StoreLegacyStateBatches([]LegacyStateBatch) error
+	StoreOutputProposals([]OutputProposal) error
 }
 
 /**
@@ -103,17 +103,17 @@ func newBlocksDB(db *gorm.DB) BlocksDB {
 
 // L1
 
-func (db *blocksDB) StoreL1BlockHeaders(headers []*L1BlockHeader) error {
+func (db *blocksDB) StoreL1BlockHeaders(headers []L1BlockHeader) error {
 	result := db.gorm.Create(&headers)
 	return result.Error
 }
 
-func (db *blocksDB) StoreLegacyStateBatches(stateBatches []*LegacyStateBatch) error {
+func (db *blocksDB) StoreLegacyStateBatches(stateBatches []LegacyStateBatch) error {
 	result := db.gorm.Create(stateBatches)
 	return result.Error
 }
 
-func (db *blocksDB) StoreOutputProposals(outputs []*OutputProposal) error {
+func (db *blocksDB) StoreOutputProposals(outputs []OutputProposal) error {
 	result := db.gorm.Create(outputs)
 	return result.Error
 }
@@ -179,7 +179,7 @@ func (db *blocksDB) OutputProposal(index *big.Int) (*OutputProposal, error) {
 
 // L2
 
-func (db *blocksDB) StoreL2BlockHeaders(headers []*L2BlockHeader) error {
+func (db *blocksDB) StoreL2BlockHeaders(headers []L2BlockHeader) error {
 	result := db.gorm.Create(&headers)
 	return result.Error
 }
