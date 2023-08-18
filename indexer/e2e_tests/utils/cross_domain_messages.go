@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math/big"
 
-	contracts "github.com/ethereum-optimism/optimism/indexer/processors/contracts_bedrock"
+	"github.com/ethereum-optimism/optimism/indexer/processors/contracts"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 
 	"github.com/ethereum/go-ethereum/common"

@@ -1,4 +1,4 @@
-package contracts_bedrock
+package contracts
 
 import (
 	"encoding/binary"
