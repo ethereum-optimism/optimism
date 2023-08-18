@@ -28,11 +28,11 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 	source.games = []FaultDisputeGame{
 		{
 			Proxy:     addr1,
-			Timestamp: big.NewInt(9999),
+			Timestamp: 9999,
 		},
 		{
 			Proxy:     addr2,
-			Timestamp: big.NewInt(9999),
+			Timestamp: 9999,
 		},
 	}
 
@@ -59,11 +59,11 @@ func TestMonitorOnlyCreateSpecifiedGame(t *testing.T) {
 	source.games = []FaultDisputeGame{
 		{
 			Proxy:     addr1,
-			Timestamp: big.NewInt(9999),
+			Timestamp: 9999,
 		},
 		{
 			Proxy:     addr2,
-			Timestamp: big.NewInt(9999),
+			Timestamp: 9999,
 		},
 	}
 
