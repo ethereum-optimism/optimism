@@ -80,13 +80,16 @@ func (m *gameMonitor) progressGame(ctx context.Context, gameData FaultDisputeGam
 func (m *gameMonitor) MonitorGames(ctx context.Context) error {
 	m.logger.Info("Monitoring fault dispute games")
 
+	ticker := time.NewTicker(300 * time.Millisecond)
+	defer ticker.Stop()
+
 	for {
 		err := m.progressGames(ctx)
 		if err != nil {
 			m.logger.Error("Failed to progress games", "err", err)
 		}
 		select {
-		case <-time.After(300 * time.Millisecond):
+		case <-ticker.C:
 		// Continue
 		case <-ctx.Done():
 			return ctx.Err()
