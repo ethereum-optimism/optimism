@@ -114,7 +114,7 @@ type createdGames struct {
 	created map[common.Address]*stubGame
 }
 
-func (c *createdGames) CreateGame(addr common.Address) (gameAgent, error) {
+func (c *createdGames) CreateGame(addr common.Address) (gamePlayer, error) {
 	if _, exists := c.created[addr]; exists {
 		c.t.Fatalf("game %v already exists", addr)
 	}

@@ -10,11 +10,11 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type gameAgent interface {
+type gamePlayer interface {
 	ProgressGame(ctx context.Context) bool
 }
 
-type gameCreator func(address common.Address) (gameAgent, error)
+type playerCreator func(address common.Address) (gamePlayer, error)
 type blockNumberFetcher func(ctx context.Context) (uint64, error)
 
 // gameSource loads information about the games available to play
@@ -25,20 +25,20 @@ type gameSource interface {
 type gameMonitor struct {
 	logger           log.Logger
 	source           gameSource
-	createGame       gameCreator
+	createPlayer     playerCreator
 	fetchBlockNumber blockNumberFetcher
 	allowedGame      common.Address
-	games            map[common.Address]gameAgent
+	players          map[common.Address]gamePlayer
 }
 
-func newGameMonitor(logger log.Logger, fetchBlockNumber blockNumberFetcher, allowedGame common.Address, source gameSource, createGame gameCreator) *gameMonitor {
+func newGameMonitor(logger log.Logger, fetchBlockNumber blockNumberFetcher, allowedGame common.Address, source gameSource, createGame playerCreator) *gameMonitor {
 	return &gameMonitor{
 		logger:           logger,
 		source:           source,
-		createGame:       createGame,
+		createPlayer:     createGame,
 		fetchBlockNumber: fetchBlockNumber,
 		allowedGame:      allowedGame,
-		games:            make(map[common.Address]gameAgent),
+		players:          make(map[common.Address]gamePlayer),
 	}
 }
 
@@ -56,25 +56,26 @@ func (m *gameMonitor) progressGames(ctx context.Context) error {
 			m.logger.Debug("Skipping game not on allow list", "game", game.Proxy)
 			continue
 		}
-		if err := m.progressGame(ctx, game); err != nil {
+		player, err := m.fetchOrCreateGamePlayer(game)
+		if err != nil {
 			m.logger.Error("Error while progressing game", "game", game.Proxy, "err", err)
+			continue
 		}
+		player.ProgressGame(ctx)
 	}
 	return nil
 }
 
-func (m *gameMonitor) progressGame(ctx context.Context, gameData FaultDisputeGame) error {
-	game, ok := m.games[gameData.Proxy]
-	if !ok {
-		newGame, err := m.createGame(gameData.Proxy)
-		if err != nil {
-			return fmt.Errorf("failed to progress game %v: %w", gameData.Proxy, err)
-		}
-		m.games[gameData.Proxy] = newGame
-		game = newGame
+func (m *gameMonitor) fetchOrCreateGamePlayer(gameData FaultDisputeGame) (gamePlayer, error) {
+	if player, ok := m.players[gameData.Proxy]; ok {
+		return player, nil
 	}
-	game.ProgressGame(ctx)
-	return nil
+	player, err := m.createPlayer(gameData.Proxy)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create game player %v: %w", gameData.Proxy, err)
+	}
+	m.players[gameData.Proxy] = player
+	return player, nil
 }
 
 func (m *gameMonitor) MonitorGames(ctx context.Context) error {

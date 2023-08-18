@@ -46,7 +46,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 	}
 	loader := NewGameLoader(factory)
 
-	monitor := newGameMonitor(logger, client.BlockNumber, cfg.GameAddress, loader, func(addr common.Address) (gameAgent, error) {
+	monitor := newGameMonitor(logger, client.BlockNumber, cfg.GameAddress, loader, func(addr common.Address) (gamePlayer, error) {
 		return NewGamePlayer(ctx, logger, cfg, addr, txMgr, client)
 	})
 	return &service{
