@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"os"
-	"reflect"
 
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum/go-ethereum/common"
@@ -23,29 +22,16 @@ type Config struct {
 
 // fetch this via onchain config from RPCsConfig and remove from config in future
 type L1Contracts struct {
-	OptimismPortal         common.Address `toml:"optimism-portal"`
-	L2OutputOracle         common.Address `toml:"l2-output-oracle"`
-	L1CrossDomainMessenger common.Address `toml:"l1-cross-domain-messenger"`
-	L1StandardBridge       common.Address `toml:"l1-standard-bridge"`
-	L1ERC721Bridge         common.Address `toml:"l1-erc721-bridge"`
+	OptimismPortalProxy         common.Address `toml:"optimism-portal"`
+	L2OutputOracleProxy         common.Address `toml:"l2-output-oracle"`
+	L1CrossDomainMessengerProxy common.Address `toml:"l1-cross-domain-messenger"`
+	L1StandardBridgeProxy       common.Address `toml:"l1-standard-bridge"`
 
-	// Some more contracts -- ProxyAdmin, SystemConfig, etcc
+	// Some more contracts -- L1ERC721Bridge, ProxyAdmin, SystemConfig, etc
 	// Ignore the auxiliary contracts?
 
 	// Legacy contracts? We'll add this in to index the legacy chain.
 	// Remove afterwards?
-}
-
-func (c L1Contracts) ToSlice() []common.Address {
-	fields := reflect.VisibleFields(reflect.TypeOf(c))
-	v := reflect.ValueOf(c)
-
-	contracts := make([]common.Address, len(fields))
-	for i, field := range fields {
-		contracts[i] = (v.FieldByName(field.Name).Interface()).(common.Address)
-	}
-
-	return contracts
 }
 
 // ChainConfig configures of the chain being indexed
