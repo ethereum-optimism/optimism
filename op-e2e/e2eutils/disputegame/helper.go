@@ -119,12 +119,13 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 
 	return &AlphabetGameHelper{
 		FaultGameHelper: FaultGameHelper{
-			t:       h.t,
-			require: h.require,
-			client:  h.client,
-			opts:    h.opts,
-			game:    game,
-			addr:    createdEvent.DisputeProxy,
+			t:           h.t,
+			require:     h.require,
+			client:      h.client,
+			opts:        h.opts,
+			game:        game,
+			factoryAddr: h.factoryAddr,
+			addr:        createdEvent.DisputeProxy,
 		},
 		claimedAlphabet: claimedAlphabet,
 	}
@@ -137,7 +138,7 @@ func (h *FactoryHelper) StartCannonGame(ctx context.Context, rootClaim common.Ha
 
 func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, rollupCfg *rollup.Config, l2Genesis *core.Genesis, l1Endpoint string, l2Endpoint string, options ...challenger.Option) (*CannonGameHelper, *HonestHelper) {
 	l2BlockNumber, l1Head := h.prepareCannonGame(ctx)
-	challengerOpts := []challenger.Option{createConfigOption(h.t, rollupCfg, l2Genesis, common.Address{0xaa}, l2Endpoint)}
+	challengerOpts := []challenger.Option{createConfigOption(h.t, rollupCfg, l2Genesis, h.factoryAddr, common.Address{0xaa}, l2Endpoint)}
 	challengerOpts = append(challengerOpts, options...)
 	cfg := challenger.NewChallengerConfig(h.t, l1Endpoint, challengerOpts...)
 	opts := &bind.CallOpts{Context: ctx}
@@ -200,20 +201,20 @@ func (h *FactoryHelper) createCannonGame(ctx context.Context, l2BlockNumber uint
 
 	return &CannonGameHelper{
 		FaultGameHelper: FaultGameHelper{
-			t:       h.t,
-			require: h.require,
-			client:  h.client,
-			opts:    h.opts,
-			game:    game,
-			addr:    createdEvent.DisputeProxy,
+			t:           h.t,
+			require:     h.require,
+			client:      h.client,
+			opts:        h.opts,
+			game:        game,
+			factoryAddr: h.factoryAddr,
+			addr:        createdEvent.DisputeProxy,
 		},
 	}
 }
 func (h *FactoryHelper) StartChallenger(ctx context.Context, l1Endpoint string, name string, options ...challenger.Option) *challenger.Helper {
 	opts := []challenger.Option{
 		func(c *config.Config) {
-			// Uncomment when challenger actually supports setting the game factory address
-			//c.FactoryAddress = h.factoryAddr
+			c.GameFactoryAddress = h.factoryAddr
 			c.TraceType = config.TraceTypeAlphabet
 		},
 	}

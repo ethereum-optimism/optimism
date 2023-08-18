@@ -24,7 +24,7 @@ type CannonGameHelper struct {
 }
 
 func (g *CannonGameHelper) StartChallenger(ctx context.Context, rollupCfg *rollup.Config, l2Genesis *core.Genesis, l1Endpoint string, l2Endpoint string, name string, options ...challenger.Option) *challenger.Helper {
-	opts := []challenger.Option{createConfigOption(g.t, rollupCfg, l2Genesis, g.addr, l2Endpoint)}
+	opts := []challenger.Option{createConfigOption(g.t, rollupCfg, l2Genesis, g.factoryAddr, g.addr, l2Endpoint)}
 	opts = append(opts, options...)
 	c := challenger.NewChallenger(g.t, ctx, l1Endpoint, name, opts...)
 	g.t.Cleanup(func() {
@@ -34,7 +34,7 @@ func (g *CannonGameHelper) StartChallenger(ctx context.Context, rollupCfg *rollu
 }
 
 func (g *CannonGameHelper) CreateHonestActor(ctx context.Context, rollupCfg *rollup.Config, l2Genesis *core.Genesis, l1Client bind.ContractCaller, l1Endpoint string, l2Endpoint string, options ...challenger.Option) *HonestHelper {
-	opts := []challenger.Option{createConfigOption(g.t, rollupCfg, l2Genesis, g.addr, l2Endpoint)}
+	opts := []challenger.Option{createConfigOption(g.t, rollupCfg, l2Genesis, g.factoryAddr, g.addr, l2Endpoint)}
 	opts = append(opts, options...)
 	cfg := challenger.NewChallengerConfig(g.t, l1Endpoint, opts...)
 	provider, err := cannon.NewTraceProvider(ctx, testlog.Logger(g.t, log.LvlInfo).New("role", "CorrectTrace"), cfg, l1Client)
@@ -48,9 +48,17 @@ func (g *CannonGameHelper) CreateHonestActor(ctx context.Context, rollupCfg *rol
 	}
 }
 
-func createConfigOption(t *testing.T, rollupCfg *rollup.Config, l2Genesis *core.Genesis, gameAddr common.Address, l2Endpoint string) challenger.Option {
+func createConfigOption(
+	t *testing.T,
+	rollupCfg *rollup.Config,
+	l2Genesis *core.Genesis,
+	factoryAddr common.Address,
+	gameAddr common.Address,
+	l2Endpoint string,
+) challenger.Option {
 	return func(c *config.Config) {
 		require := require.New(t)
+		c.GameFactoryAddress = factoryAddr
 		c.GameAddress = gameAddr
 		c.TraceType = config.TraceTypeCannon
 		c.AgreeWithProposedOutput = false
