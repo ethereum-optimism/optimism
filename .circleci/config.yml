@@ -416,6 +416,10 @@ jobs:
             git diff --exit-code ./invariant-docs/*.md || echo "export INVARIANT_DOCS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
+          name: check deploy configs || echo "export DEPLOY_CONFIGS_STATUS=1" >> "$BASH_ENV"
+          command: pnpm validate-deploy-configs
+          working_directory: packages/contracts-bedrock
+      - run:
           name: check statuses
           command: |
             if [[ "$LINT_STATUS" -ne 0 ]]; then
@@ -430,12 +434,16 @@ jobs:
               echo "Storage snapshot failed, see job output for details."
               FAILED=1
             fi
+            if [[ "$SEMVER_LOCK_STATUS" -ne 0 ]]; then
+              echo "Semver lock failed, see job output for details."
+              FAILED=1
+            fi
             if [[ "$INVARIANT_DOCS_STATUS" -ne 0 ]]; then
               echo "Invariant docs failed, see job output for details."
               FAILED=1
             fi
-            if [[ "$SEMVER_LOCK_STATUS" -ne 0 ]]; then
-              echo "Semver lock failed, see job output for details."
+            if [[ "$DEPLOY_CONFIGS_STATUS" -ne 0 ]]; then
+              echo "Deploy config check failed, see job output for details."
               FAILED=1
             fi
             if [[ "$FAILED" -ne 0 ]]; then
