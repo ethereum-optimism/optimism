@@ -76,7 +76,8 @@ contract Deploy is Deployer {
         initializeL2OutputOracle();
         initializeOptimismPortal();
 
-        setFaultGameImplementation();
+        setAlphabetFaultGameImplementation();
+        setCannonFaultGameImplementation();
 
         transferProxyAdminOwnership();
         transferDisputeGameFactoryOwnership();
@@ -759,43 +760,42 @@ contract Deploy is Deployer {
     }
 
     /// @notice Sets the implementation for the `FAULT` game type in the `DisputeGameFactory`
-    function setFaultGameImplementation() public onlyDevnet broadcast {
-        // Create the absolute prestate dump
-        string memory filePath = string.concat(vm.projectRoot(), "/../../op-program/bin/prestate-proof.json");
-        bytes32 mipsAbsolutePrestate;
-        string[] memory commands = new string[](3);
-        commands[0] = "bash";
-        commands[1] = "-c";
-        commands[2] = string.concat("[[ -f ", filePath, " ]] && echo \"present\"");
-        if (vm.ffi(commands).length == 0) {
-            revert("Cannon prestate dump not found, generate it with `make cannon-prestate` in the monorepo root.");
-        }
-        commands[2] = string.concat("cat ", filePath, " | jq -r .pre");
-        mipsAbsolutePrestate = abi.decode(vm.ffi(commands), (bytes32));
-        console.log("Absolute prestate: %s", vm.toString(mipsAbsolutePrestate));
-
+    function setCannonFaultGameImplementation() public onlyDevnet broadcast {
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
 
-        // -------------
-        // Mainnet games
-        // TODO: Remove the `onlyDevnet` modifier and conditionally deploy the mainnet games based on the chainid.
-        // -------------
+        Claim mipsAbsolutePrestate;
+        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet) {
+            // Fetch the absolute prestate dump
+            string memory filePath = string.concat(vm.projectRoot(), "/../../op-program/bin/prestate-proof.json");
+            string[] memory commands = new string[](3);
+            commands[0] = "bash";
+            commands[1] = "-c";
+            commands[2] = string.concat("[[ -f ", filePath, " ]] && echo \"present\"");
+            if (vm.ffi(commands).length == 0) {
+                revert("Cannon prestate dump not found, generate it with `make cannon-prestate` in the monorepo root.");
+            }
+            commands[2] = string.concat("cat ", filePath, " | jq -r .pre");
+            mipsAbsolutePrestate = Claim.wrap(abi.decode(vm.ffi(commands), (bytes32)));
+            console.log(
+                "[Cannon Dispute Game] Using devnet MIPS Absolute prestate: %s",
+                vm.toString(Claim.unwrap(mipsAbsolutePrestate))
+            );
+        } else {
+            console.log(
+                "[Cannon Dispute Game] Using absolute prestate from config: %s", cfg.faultGameAbsolutePrestate()
+            );
+            mipsAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+        }
 
         // Set the Cannon FaultDisputeGame implementation in the factory.
         _setFaultGameImplementation(
-            factory,
-            GameTypes.FAULT,
-            Claim.wrap(mipsAbsolutePrestate),
-            IBigStepper(mustGetAddress("Mips")),
-            cfg.faultGameMaxDepth()
+            factory, GameTypes.FAULT, mipsAbsolutePrestate, IBigStepper(mustGetAddress("Mips")), cfg.faultGameMaxDepth()
         );
+    }
 
-        // -------------
-        // Devnet games
-        // Devnet-specific games are created with a game type descending from the `GameType` type's max value.
-        // This is to preserve the game type space for mainnet games and to have those be in parity with
-        // their prod counter parts when deployed to a devnet.
-        // -------------
+    /// @notice Sets the implementation for the alphabet game type in the `DisputeGameFactory`
+    function setAlphabetFaultGameImplementation() public onlyDevnet broadcast {
+        DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
 
         // Set the Alphabet FaultDisputeGame implementation in the factory.
         Claim alphabetAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
