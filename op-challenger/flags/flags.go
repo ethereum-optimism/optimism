@@ -10,6 +10,7 @@ import (
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/urfave/cli/v2"
 )
@@ -29,7 +30,12 @@ var (
 		Usage:   "HTTP provider URL for L1.",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
 	}
-	DGFAddressFlag = &cli.StringFlag{
+	FactoryAddressFlag = &cli.StringFlag{
+		Name:    "game-factory-address",
+		Usage:   "Address of the fault game factory contract.",
+		EnvVars: prefixEnvVars("GAME_FACTORY_ADDRESS"),
+	}
+	GameAddressFlag = &cli.StringFlag{
 		Name:    "game-address",
 		Usage:   "Address of the Fault Game contract.",
 		EnvVars: prefixEnvVars("GAME_ADDRESS"),
@@ -105,7 +111,7 @@ var (
 // requiredFlags are checked by [CheckRequired]
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
-	DGFAddressFlag,
+	FactoryAddressFlag,
 	TraceTypeFlag,
 	AgreeWithProposedOutputFlag,
 }
@@ -113,6 +119,7 @@ var requiredFlags = []cli.Flag{
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
 	AlphabetFlag,
+	GameAddressFlag,
 	CannonNetworkFlag,
 	CannonRollupConfigFlag,
 	CannonL2GenesisFlag,
@@ -181,9 +188,16 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	if err := CheckRequired(ctx); err != nil {
 		return nil, err
 	}
-	dgfAddress, err := opservice.ParseAddress(ctx.String(DGFAddressFlag.Name))
+	gameFactoryAddress, err := opservice.ParseAddress(ctx.String(FactoryAddressFlag.Name))
 	if err != nil {
 		return nil, err
+	}
+	var gameAddress common.Address
+	if ctx.IsSet(GameAddressFlag.Name) {
+		gameAddress, err = opservice.ParseAddress(ctx.String(GameAddressFlag.Name))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	txMgrConfig := txmgr.ReadCLIConfig(ctx)
@@ -194,7 +208,8 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		// Required Flags
 		L1EthRpc:                ctx.String(L1EthRpcFlag.Name),
 		TraceType:               traceTypeFlag,
-		GameAddress:             dgfAddress,
+		GameFactoryAddress:      gameFactoryAddress,
+		GameAddress:             gameAddress,
 		AlphabetTrace:           ctx.String(AlphabetFlag.Name),
 		CannonNetwork:           ctx.String(CannonNetworkFlag.Name),
 		CannonRollupConfigPath:  ctx.String(CannonRollupConfigFlag.Name),

@@ -1,5 +1,12 @@
 # @eth-optimism/sdk
 
+## 3.1.1
+
+### Patch Changes
+
+- Updated dependencies [[`dfa309e34`](https://github.com/ethereum-optimism/optimism/commit/dfa309e3430ebc8790b932554dde120aafc4161e)]:
+  - @eth-optimism/core-utils@0.12.3
+
 ## 3.1.0
 
 ### Minor Changes

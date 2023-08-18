@@ -3,12 +3,10 @@ package config
 import (
 	"fmt"
 	"os"
-	"reflect"
 
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum/go-ethereum/common"
 	geth_log "github.com/ethereum/go-ethereum/log"
-	"github.com/joho/godotenv"
 )
 
 // in future presets can just be onchain config and fetched on initialization
@@ -24,37 +22,27 @@ type Config struct {
 
 // fetch this via onchain config from RPCsConfig and remove from config in future
 type L1Contracts struct {
-	OptimismPortal         common.Address
-	L2OutputOracle         common.Address
-	L1CrossDomainMessenger common.Address
-	L1StandardBridge       common.Address
-	L1ERC721Bridge         common.Address
+	OptimismPortalProxy         common.Address `toml:"optimism-portal"`
+	L2OutputOracleProxy         common.Address `toml:"l2-output-oracle"`
+	L1CrossDomainMessengerProxy common.Address `toml:"l1-cross-domain-messenger"`
+	L1StandardBridgeProxy       common.Address `toml:"l1-standard-bridge"`
 
-	// Some more contracts -- ProxyAdmin, SystemConfig, etcc
+	// Some more contracts -- L1ERC721Bridge, ProxyAdmin, SystemConfig, etc
 	// Ignore the auxiliary contracts?
 
 	// Legacy contracts? We'll add this in to index the legacy chain.
 	// Remove afterwards?
 }
 
-func (c L1Contracts) ToSlice() []common.Address {
-	fields := reflect.VisibleFields(reflect.TypeOf(c))
-	v := reflect.ValueOf(c)
-
-	contracts := make([]common.Address, len(fields))
-	for i, field := range fields {
-		contracts[i] = (v.FieldByName(field.Name).Interface()).(common.Address)
-	}
-
-	return contracts
-}
-
 // ChainConfig configures of the chain being indexed
 type ChainConfig struct {
 	// Configure known chains with the l2 chain id
-	Preset int
-	// Configure custom chains via providing the L1Contract addresses
-	L1Contracts L1Contracts
+	// NOTE - This currently performs no lookups to extract known L1 contracts by l2 chain id
+	Preset      int
+	L1Contracts L1Contracts `toml:"l1-contracts"`
+	// L1StartingHeight is the block height to start indexing from
+	// NOTE - This is currently unimplemented
+	L1StartingHeight int
 }
 
 // RPCsConfig configures the RPC urls
@@ -86,13 +74,7 @@ type MetricsConfig struct {
 
 // LoadConfig loads the `indexer.toml` config file from a given path
 func LoadConfig(logger geth_log.Logger, path string) (Config, error) {
-	if err := godotenv.Load(); err != nil {
-		logger.Warn("Unable to load .env file", err)
-		logger.Info("Continuing without .env file")
-	} else {
-		logger.Info("Loaded .env file")
-	}
-
+	logger.Info("Loading config file", "path", path)
 	var conf Config
 
 	data, err := os.ReadFile(path)
@@ -101,6 +83,8 @@ func LoadConfig(logger geth_log.Logger, path string) (Config, error) {
 	}
 
 	data = []byte(os.ExpandEnv(string(data)))
+
+	logger.Debug("Decoding config file", "data", string(data))
 
 	if _, err := toml.Decode(string(data), &conf); err != nil {
 		logger.Info("Failed to decode config file", "message", err)

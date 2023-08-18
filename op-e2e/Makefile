@@ -26,7 +26,7 @@ clean:
 	rm -r ../op-program/bin
 
 lint:
-	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is"
+	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
 
 .PHONY: \
 	test \

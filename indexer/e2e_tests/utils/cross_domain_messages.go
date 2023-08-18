@@ -4,7 +4,7 @@ import (
 	"errors"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/indexer/processor"
+	"github.com/ethereum-optimism/optimism/indexer/processors/contracts"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -57,5 +57,5 @@ func CrossDomainMessengerSentMessageHash(sentMessage *bindings.CrossDomainMessen
 		return common.Hash{}, err
 	}
 
-	return processor.CrossDomainMessageHash(abi, sentMessage, value)
+	return contracts.CrossDomainMessageHash(abi, sentMessage, value)
 }
