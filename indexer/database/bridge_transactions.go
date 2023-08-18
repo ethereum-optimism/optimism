@@ -53,9 +53,9 @@ type BridgeTransactionsView interface {
 type BridgeTransactionsDB interface {
 	BridgeTransactionsView
 
-	StoreL1TransactionDeposits([]*L1TransactionDeposit) error
+	StoreL1TransactionDeposits([]L1TransactionDeposit) error
 
-	StoreL2TransactionWithdrawals([]*L2TransactionWithdrawal) error
+	StoreL2TransactionWithdrawals([]L2TransactionWithdrawal) error
 	MarkL2TransactionWithdrawalProvenEvent(common.Hash, uuid.UUID) error
 	MarkL2TransactionWithdrawalFinalizedEvent(common.Hash, uuid.UUID, bool) error
 }
@@ -76,7 +76,7 @@ func newBridgeTransactionsDB(db *gorm.DB) BridgeTransactionsDB {
  * Transactions deposited from L1
  */
 
-func (db *bridgeTransactionsDB) StoreL1TransactionDeposits(deposits []*L1TransactionDeposit) error {
+func (db *bridgeTransactionsDB) StoreL1TransactionDeposits(deposits []L1TransactionDeposit) error {
 	result := db.gorm.Create(&deposits)
 	return result.Error
 }
@@ -98,7 +98,7 @@ func (db *bridgeTransactionsDB) L1TransactionDeposit(sourceHash common.Hash) (*L
  * Transactions withdrawn from L2
  */
 
-func (db *bridgeTransactionsDB) StoreL2TransactionWithdrawals(withdrawals []*L2TransactionWithdrawal) error {
+func (db *bridgeTransactionsDB) StoreL2TransactionWithdrawals(withdrawals []L2TransactionWithdrawal) error {
 	result := db.gorm.Create(&withdrawals)
 	return result.Error
 }
