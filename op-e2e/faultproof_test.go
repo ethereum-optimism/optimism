@@ -4,8 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/config"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/disputegame"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum/go-ethereum/common"
@@ -23,11 +22,11 @@ func TestCannonMultipleGames(t *testing.T) {
 
 	gameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
 	// Start a challenger with the correct alphabet trace
-	gameFactory.StartChallenger(ctx, sys.NodeEndpoint("l1"), "TowerDefense", func(c *config.Config) {
-		c.AgreeWithProposedOutput = true
-		c.AlphabetTrace = "abcdefg"
-		c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(sys.cfg.Secrets.Alice)
-	})
+	gameFactory.StartChallenger(ctx, sys.NodeEndpoint("l1"), "TowerDefense",
+		challenger.WithAlphabet("abcdefg"),
+		challenger.WithPrivKey(sys.cfg.Secrets.Alice),
+		challenger.WithAgreeProposedOutput(true),
+	)
 
 	game1 := gameFactory.StartAlphabetGame(ctx, "abcxyz")
 	// Wait for the challenger to respond to the first game
@@ -42,6 +41,59 @@ func TestCannonMultipleGames(t *testing.T) {
 	game2.WaitForClaimCount(ctx, 4)
 	game1.Defend(ctx, 1, common.Hash{0xaa})
 	game1.WaitForClaimCount(ctx, 4)
+}
+
+func TestMultipleCannonGames(t *testing.T) {
+	t.Skip("Cannon provider doesn't currently isolate different game traces")
+	InitParallel(t)
+
+	ctx := context.Background()
+	sys, l1Client := startFaultDisputeSystem(t)
+	t.Cleanup(sys.Close)
+
+	gameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
+	// Start a challenger with the correct alphabet trace
+	gameFactory.StartChallenger(ctx, sys.NodeEndpoint("l1"), "TowerDefense",
+		challenger.WithCannon(t, sys.RollupConfig, sys.L2GenesisCfg, sys.NodeEndpoint("sequencer")),
+		challenger.WithPrivKey(sys.cfg.Secrets.Alice),
+		challenger.WithAgreeProposedOutput(true),
+	)
+
+	game1 := gameFactory.StartCannonGame(ctx, common.Hash{0xaa})
+	game2 := gameFactory.StartCannonGame(ctx, common.Hash{0xbb})
+
+	game1.WaitForClaimCount(ctx, 2)
+	game2.WaitForClaimCount(ctx, 2)
+
+	game1Claim := game1.GetClaimValue(ctx, 1)
+	game2Claim := game2.GetClaimValue(ctx, 1)
+	require.NotEqual(t, game1Claim, game2Claim, "games should have different cannon traces")
+
+	// Push both games down to the step function
+	maxDepth := game1.MaxDepth(ctx)
+	for claimCount := int64(1); claimCount <= maxDepth; {
+		// Challenger should respond to both games
+		claimCount++
+		game1.WaitForClaimCount(ctx, claimCount)
+		game2.WaitForClaimCount(ctx, claimCount)
+
+		// Progress both games
+		game1.Defend(ctx, claimCount-1, common.Hash{0xaa})
+		game2.Defend(ctx, claimCount-1, common.Hash{0xaa})
+		claimCount++
+	}
+
+	game1.WaitForClaimAtMaxDepth(ctx, true)
+	game2.WaitForClaimAtMaxDepth(ctx, true)
+
+	gameDuration := game1.GameDuration(ctx)
+	sys.TimeTravelClock.AdvanceTime(gameDuration)
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	game1.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game2.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game1.LogGameData(ctx)
+	game2.LogGameData(ctx)
 }
 
 func TestResolveDisputeGame(t *testing.T) {
@@ -59,11 +111,11 @@ func TestResolveDisputeGame(t *testing.T) {
 
 	game.WaitForGameStatus(ctx, disputegame.StatusInProgress)
 
-	game.StartChallenger(ctx, sys.NodeEndpoint("l1"), "HonestAlice", func(c *config.Config) {
-		c.AgreeWithProposedOutput = true // Agree with the proposed output, so disagree with the root claim
-		c.AlphabetTrace = "abcdefg"
-		c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(sys.cfg.Secrets.Alice)
-	})
+	game.StartChallenger(ctx, sys.NodeEndpoint("l1"), "HonestAlice",
+		challenger.WithAgreeProposedOutput(true),
+		challenger.WithAlphabet("abcdefg"),
+		challenger.WithPrivKey(sys.cfg.Secrets.Alice),
+	)
 
 	game.WaitForClaimCount(ctx, 2)
 
@@ -155,15 +207,17 @@ func TestChallengerCompleteDisputeGame(t *testing.T) {
 			require.NotNil(t, game)
 			gameDuration := game.GameDuration(ctx)
 
-			game.StartChallenger(ctx, sys.NodeEndpoint("l1"), "Defender", func(c *config.Config) {
-				c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(sys.cfg.Secrets.Mallory)
-			})
+			game.StartChallenger(ctx, sys.NodeEndpoint("l1"), "Defender",
+				challenger.WithAgreeProposedOutput(false),
+				challenger.WithPrivKey(sys.cfg.Secrets.Mallory),
+			)
 
-			game.StartChallenger(ctx, sys.NodeEndpoint("l1"), "Challenger", func(c *config.Config) {
-				c.AgreeWithProposedOutput = true // Agree with the proposed output, so disagree with the root claim
-				c.AlphabetTrace = test.otherAlphabet
-				c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(sys.cfg.Secrets.Alice)
-			})
+			game.StartChallenger(ctx, sys.NodeEndpoint("l1"), "Challenger",
+				// Agree with the proposed output, so disagree with the root claim
+				challenger.WithAgreeProposedOutput(true),
+				challenger.WithAlphabet(test.otherAlphabet),
+				challenger.WithPrivKey(sys.cfg.Secrets.Alice),
+			)
 
 			// Wait for a claim at the maximum depth that has been countered to indicate we're ready to resolve the game
 			game.WaitForClaimAtMaxDepth(ctx, test.expectStep)
@@ -201,10 +255,11 @@ func TestCannonDisputeGame(t *testing.T) {
 			require.NotNil(t, game)
 			game.LogGameData(ctx)
 
-			game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, sys.NodeEndpoint("l1"), sys.NodeEndpoint("sequencer"), "Challenger", func(c *config.Config) {
-				c.AgreeWithProposedOutput = true // Agree with the proposed output, so disagree with the root claim
-				c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(sys.cfg.Secrets.Alice)
-			})
+			game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, sys.NodeEndpoint("l1"), sys.NodeEndpoint("sequencer"), "Challenger",
+				// Agree with the proposed output, so disagree with the root claim
+				challenger.WithAgreeProposedOutput(true),
+				challenger.WithPrivKey(sys.cfg.Secrets.Alice),
+			)
 
 			maxDepth := game.MaxDepth(ctx)
 			for claimCount := int64(1); claimCount < maxDepth; {
@@ -251,14 +306,15 @@ func TestCannonDefendStep(t *testing.T) {
 
 	l1Endpoint := sys.NodeEndpoint("l1")
 	l2Endpoint := sys.NodeEndpoint("sequencer")
-	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Challenger", func(c *config.Config) {
-		c.AgreeWithProposedOutput = true // Agree with the proposed output, so disagree with the root claim
-		c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(sys.cfg.Secrets.Alice)
-	})
+	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Challenger",
+		// Agree with the proposed output, so disagree with the root claim
+		challenger.WithAgreeProposedOutput(true),
+		challenger.WithPrivKey(sys.cfg.Secrets.Alice),
+	)
 
-	correctTrace := game.CreateHonestActor(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Client, l1Endpoint, l2Endpoint, func(c *config.Config) {
-		c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(sys.cfg.Secrets.Mallory)
-	})
+	correctTrace := game.CreateHonestActor(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Client, l1Endpoint, l2Endpoint,
+		challenger.WithPrivKey(sys.cfg.Secrets.Mallory),
+	)
 
 	maxDepth := game.MaxDepth(ctx)
 	for claimCount := int64(1); claimCount < maxDepth; {
@@ -302,16 +358,17 @@ func TestCannonChallengeWithCorrectRoot(t *testing.T) {
 	l2Endpoint := sys.NodeEndpoint("sequencer")
 
 	disputeGameFactory := disputegame.NewFactoryHelper(t, ctx, sys.cfg.L1Deployments, l1Client)
-	game, correctTrace := disputeGameFactory.StartCannonGameWithCorrectRoot(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, func(c *config.Config) {
-		c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(sys.cfg.Secrets.Mallory)
-	})
+	game, correctTrace := disputeGameFactory.StartCannonGameWithCorrectRoot(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint,
+		challenger.WithPrivKey(sys.cfg.Secrets.Mallory),
+	)
 	require.NotNil(t, game)
 	game.LogGameData(ctx)
 
-	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Challenger", func(c *config.Config) {
-		c.AgreeWithProposedOutput = true // Agree with the proposed output, so disagree with the root claim
-		c.TxMgrConfig.PrivateKey = e2eutils.EncodePrivKeyToString(sys.cfg.Secrets.Alice)
-	})
+	game.StartChallenger(ctx, sys.RollupConfig, sys.L2GenesisCfg, l1Endpoint, l2Endpoint, "Challenger",
+		// Agree with the proposed output, so disagree with the root claim
+		challenger.WithAgreeProposedOutput(true),
+		challenger.WithPrivKey(sys.cfg.Secrets.Alice),
+	)
 
 	maxDepth := game.MaxDepth(ctx)
 	for claimCount := int64(1); claimCount < maxDepth; {
