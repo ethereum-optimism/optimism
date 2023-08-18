@@ -84,7 +84,7 @@ func TestProgressGame_LogErrorWhenGameLost(t *testing.T) {
 	}
 }
 
-func setupProgressGameTest(t *testing.T, agreeWithProposedRoot bool) (*testlog.CapturingHandler, *Game, *stubActor, *stubGameInfo) {
+func setupProgressGameTest(t *testing.T, agreeWithProposedRoot bool) (*testlog.CapturingHandler, *GamePlayer, *stubActor, *stubGameInfo) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	handler := &testlog.CapturingHandler{
 		Delegate: logger.GetHandler(),
@@ -92,7 +92,7 @@ func setupProgressGameTest(t *testing.T, agreeWithProposedRoot bool) (*testlog.C
 	logger.SetHandler(handler)
 	actor := &stubActor{}
 	gameInfo := &stubGameInfo{}
-	game := &Game{
+	game := &GamePlayer{
 		agent:                   actor,
 		agreeWithProposedOutput: agreeWithProposedRoot,
 		caller:                  gameInfo,

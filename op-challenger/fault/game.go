@@ -24,21 +24,21 @@ type GameInfo interface {
 	LogGameInfo(ctx context.Context)
 }
 
-type Game struct {
+type GamePlayer struct {
 	agent                   Actor
 	agreeWithProposedOutput bool
 	caller                  GameInfo
 	logger                  log.Logger
 }
 
-func NewGame(
+func NewGamePlayer(
 	ctx context.Context,
 	logger log.Logger,
 	cfg *config.Config,
 	addr common.Address,
 	txMgr txmgr.TxManager,
 	client *ethclient.Client,
-) (*Game, error) {
+) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
 	contract, err := bindings.NewFaultDisputeGameCaller(addr, client)
 	if err != nil {
@@ -85,7 +85,7 @@ func NewGame(
 		return nil, fmt.Errorf("failed to bind the fault contract: %w", err)
 	}
 
-	return &Game{
+	return &GamePlayer{
 		agent:                   NewAgent(loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, logger),
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
 		caller:                  caller,
@@ -93,7 +93,7 @@ func NewGame(
 	}, nil
 }
 
-func (g *Game) ProgressGame(ctx context.Context) bool {
+func (g *GamePlayer) ProgressGame(ctx context.Context) bool {
 	g.logger.Trace("Checking if actions are required")
 	if err := g.agent.Act(ctx); err != nil {
 		g.logger.Error("Error when acting on game", "err", err)
