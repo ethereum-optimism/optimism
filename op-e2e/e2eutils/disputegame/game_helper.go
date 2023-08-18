@@ -60,7 +60,7 @@ func (g *FaultGameHelper) MaxDepth(ctx context.Context) int64 {
 	return depth.Int64()
 }
 
-func (g *FaultGameHelper) WaitForClaim(ctx context.Context, predicate func(claim ContractClaim) bool) {
+func (g *FaultGameHelper) waitForClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 	err := wait.For(ctx, time.Second, func() (bool, error) {
@@ -80,7 +80,15 @@ func (g *FaultGameHelper) WaitForClaim(ctx context.Context, predicate func(claim
 		}
 		return false, nil
 	})
-	g.require.NoError(err)
+	if err != nil { // Avoid waiting time capturing game data when there's no error
+		g.require.NoErrorf(err, "%v\n%v", errorMsg, g.gameData(ctx))
+	}
+}
+
+func (g *FaultGameHelper) GetClaimValue(ctx context.Context, claimIdx int64) common.Hash {
+	g.WaitForClaimCount(ctx, claimIdx+1)
+	claim := g.getClaim(ctx, claimIdx)
+	return claim.Claim
 }
 
 // getClaim retrieves the claim data for a specific index.
@@ -95,10 +103,13 @@ func (g *FaultGameHelper) getClaim(ctx context.Context, claimIdx int64) Contract
 
 func (g *FaultGameHelper) WaitForClaimAtMaxDepth(ctx context.Context, countered bool) {
 	maxDepth := g.MaxDepth(ctx)
-	g.WaitForClaim(ctx, func(claim ContractClaim) bool {
-		pos := types.NewPositionFromGIndex(claim.Position.Uint64())
-		return int64(pos.Depth()) == maxDepth && claim.Countered == countered
-	})
+	g.waitForClaim(
+		ctx,
+		fmt.Sprintf("Could not find claim depth %v with countered=%v", maxDepth, countered),
+		func(claim ContractClaim) bool {
+			pos := types.NewPositionFromGIndex(claim.Position.Uint64())
+			return int64(pos.Depth()) == maxDepth && claim.Countered == countered
+		})
 }
 
 func (g *FaultGameHelper) Resolve(ctx context.Context) {
@@ -141,7 +152,7 @@ func (g *FaultGameHelper) Defend(ctx context.Context, claimIdx int64, claim comm
 	g.require.NoError(err, "Defend transaction was not OK")
 }
 
-func (g *FaultGameHelper) LogGameData(ctx context.Context) {
+func (g *FaultGameHelper) gameData(ctx context.Context) string {
 	opts := &bind.CallOpts{Context: ctx}
 	maxDepth := int(g.MaxDepth(ctx))
 	claimCount, err := g.game.ClaimDataLen(opts)
@@ -157,5 +168,9 @@ func (g *FaultGameHelper) LogGameData(ctx context.Context) {
 	}
 	status, err := g.game.Status(opts)
 	g.require.NoError(err, "Load game status")
-	g.t.Logf("Game %v (%v):\n%v\n", g.addr, Status(status), info)
+	return fmt.Sprintf("Game %v (%v):\n%v\n", g.addr, Status(status), info)
+}
+
+func (g *FaultGameHelper) LogGameData(ctx context.Context) {
+	g.t.Log(g.gameData(ctx))
 }
