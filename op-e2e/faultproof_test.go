@@ -13,7 +13,6 @@ import (
 )
 
 func TestCannonMultipleGames(t *testing.T) {
-	t.Skip("Challenger doesn't yet support multiple games")
 	InitParallel(t)
 
 	ctx := context.Background()
