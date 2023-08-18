@@ -36,18 +36,14 @@ type PeerScoresTestSuite struct {
 	suite.Suite
 
 	mockStore    *p2pMocks.Peerstore
-	mockMetricer *p2pMocks.GossipMetricer
-	bandScorer   BandScoreThresholds
+	mockMetricer *p2pMocks.ScoreMetrics
 	logger       log.Logger
 }
 
 // SetupTest sets up the test suite.
 func (testSuite *PeerScoresTestSuite) SetupTest() {
 	testSuite.mockStore = &p2pMocks.Peerstore{}
-	testSuite.mockMetricer = &p2pMocks.GossipMetricer{}
-	bandScorer, err := NewBandScorer("0:graylist;")
-	testSuite.NoError(err)
-	testSuite.bandScorer = *bandScorer
+	testSuite.mockMetricer = &p2pMocks.ScoreMetrics{}
 	testSuite.logger = testlog.Logger(testSuite.T(), log.LvlError)
 }
 
@@ -76,7 +72,7 @@ func getNetHosts(testSuite *PeerScoresTestSuite, ctx context.Context, n int) []h
 	log := testlog.Logger(testSuite.T(), log.LvlError)
 	for i := 0; i < n; i++ {
 		swarm := tswarm.GenSwarm(testSuite.T())
-		eps, err := store.NewExtendedPeerstore(ctx, log, clock.SystemClock, swarm.Peerstore(), sync.MutexWrap(ds.NewMapDatastore()))
+		eps, err := store.NewExtendedPeerstore(ctx, log, clock.SystemClock, swarm.Peerstore(), sync.MutexWrap(ds.NewMapDatastore()), 1*time.Hour)
 		netw := &customPeerstoreNetwork{swarm, eps}
 		require.NoError(testSuite.T(), err)
 		h := bhost.NewBlankHost(netw)
@@ -84,6 +80,18 @@ func getNetHosts(testSuite *PeerScoresTestSuite, ctx context.Context, n int) []h
 		out = append(out, h)
 	}
 	return out
+}
+
+type discriminatingAppScorer struct {
+	badPeer peer.ID
+	NoopApplicationScorer
+}
+
+func (d *discriminatingAppScorer) ApplicationScore(id peer.ID) float64 {
+	if id == d.badPeer {
+		return -1000
+	}
+	return 0
 }
 
 func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []host.Host) []*pubsub.PubSub {
@@ -99,25 +107,19 @@ func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []
 		dataStore := sync.MutexWrap(ds.NewMapDatastore())
 		peerStore, err := pstoreds.NewPeerstore(context.Background(), dataStore, pstoreds.DefaultOpts())
 		require.NoError(testSuite.T(), err)
-		extPeerStore, err := store.NewExtendedPeerstore(context.Background(), logger, clock.SystemClock, peerStore, dataStore)
+		extPeerStore, err := store.NewExtendedPeerstore(context.Background(), logger, clock.SystemClock, peerStore, dataStore, 1*time.Hour)
 		require.NoError(testSuite.T(), err)
 
 		scorer := NewScorer(
 			&rollup.Config{L2ChainID: big.NewInt(123)},
-			extPeerStore, testSuite.mockMetricer, &testSuite.bandScorer, logger)
+			extPeerStore, testSuite.mockMetricer, &discriminatingAppScorer{badPeer: hosts[0].ID()}, logger)
 		opts = append(opts, ConfigurePeerScoring(&Config{
-			BandScoreThresholds: testSuite.bandScorer,
-			PeerScoring: pubsub.PeerScoreParams{
-				AppSpecificScore: func(p peer.ID) float64 {
-					if p == hosts[0].ID() {
-						return -1000
-					} else {
-						return 0
-					}
+			ScoringParams: &ScoringParams{
+				PeerScoring: pubsub.PeerScoreParams{
+					AppSpecificWeight: 1,
+					DecayInterval:     time.Second,
+					DecayToZero:       0.01,
 				},
-				AppSpecificWeight: 1,
-				DecayInterval:     time.Second,
-				DecayToZero:       0.01,
 			},
 		}, scorer, logger)...)
 		ps, err := pubsub.NewGossipSubWithRouter(ctx, h, rt, opts...)
@@ -157,7 +159,7 @@ func (testSuite *PeerScoresTestSuite) TestNegativeScores() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	testSuite.mockMetricer.On("SetPeerScores", mock.Anything).Return(nil)
+	testSuite.mockMetricer.On("SetPeerScores", mock.Anything, mock.Anything).Return(nil)
 
 	// Construct 20 hosts using the [getNetHosts] function.
 	hosts := getNetHosts(testSuite, ctx, 20)

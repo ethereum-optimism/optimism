@@ -1,0 +1,37 @@
+version: '3.4'
+
+services:
+  boba-regenerate:
+    image: bobanetwork/boba-chain-ops
+    build:
+      context: ..
+      dockerfile: ./boba-chain-ops/Dockerfile
+    command: boba-regenerate
+    # environment:
+      # JWT_SECRET_PATH: /jwt/jwt_secret.txt
+    # volumes:
+      #- /:/jwt
+
+  boba-crawler:
+    image: bobanetwork/boba-chain-ops
+    build:
+      context: ..
+      dockerfile: ./boba-chain-ops/Dockerfile
+    command: boba-crawler
+    environment:
+      OUTPUT_PATH: '/addr/eth-addresses.json'
+    restart: always
+    #volumes:
+      #- /:/addr
+
+  # boba-rollover:
+  #   image: bobanetwork/boba-chain-ops
+  #   build:
+  #     context: ..
+  #     dockerfile: ./boba-chain-ops/Dockerfile
+
+  # boba-migrate:
+  #   image: bobanetwork/boba-chain-ops
+  #   build:
+  #     context: ..
+  #     dockerfile: ./boba-chain-ops/Dockerfile

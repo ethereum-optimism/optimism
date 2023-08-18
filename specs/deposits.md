@@ -308,7 +308,7 @@ A reference implementation of the L1 Attributes predeploy contract can be found 
 
 [L1Block.sol]: ../packages/contracts-bedrock/contracts/L2/L1Block.sol
 
-After running `yarn build` in the `packages/contracts` directory, the bytecode to add to the genesis
+After running `pnpm build` in the `packages/contracts` directory, the bytecode to add to the genesis
 file will be located in the `deployedBytecode` field of the build artifacts file at
 `/packages/contracts/artifacts/contracts/L2/L1Block.sol/L1Block.json`.
 

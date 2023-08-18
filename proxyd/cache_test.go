@@ -101,6 +101,20 @@ func TestRPCCacheImmutableRPCs(t *testing.T) {
 			},
 			name: "eth_getUncleByBlockHashAndIndex",
 		},
+		{
+			req: &RPCReq{
+				JSONRPC: "2.0",
+				Method:  "debug_getRawReceipts",
+				Params:  mustMarshalJSON([]string{"0xc6ef2fc5426d6ad6fd9e2a26abeab0aa2411b7ab17f30a99d3cb96aed1d1055b"}),
+				ID:      ID,
+			},
+			res: &RPCRes{
+				JSONRPC: "2.0",
+				Result:  `{"debug_getRawReceipts":"!"}`,
+				ID:      ID,
+			},
+			name: "debug_getRawReceipts",
+		},
 	}
 
 	for _, rpc := range rpcs {
@@ -172,6 +186,15 @@ func TestRPCCacheUnsupportedMethod(t *testing.T) {
 				Method:  "eth_gasPrice",
 				ID:      ID,
 			},
+		},
+		{
+			req: &RPCReq{
+				JSONRPC: "2.0",
+				Method:  "debug_getRawReceipts",
+				Params:  mustMarshalJSON([]string{"0x100"}),
+				ID:      ID,
+			},
+			name: "debug_getRawReceipts",
 		},
 	}
 

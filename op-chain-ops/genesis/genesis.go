@@ -15,8 +15,11 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-// defaultL2GasLimit represents the default gas limit for an L2 block.
-const defaultL2GasLimit = 30_000_000
+// defaultGasLimit represents the default gas limit for a genesis block.
+const defaultGasLimit = 30_000_000
+
+// BedrockTransitionBlockExtraData represents the default extra data for the bedrock transition block.
+var BedrockTransitionBlockExtraData = []byte("BEDROCK")
 
 // NewL2Genesis will create a new L2 genesis
 func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, error) {
@@ -63,7 +66,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 
 	gasLimit := config.L2GenesisBlockGasLimit
 	if gasLimit == 0 {
-		gasLimit = defaultL2GasLimit
+		gasLimit = defaultGasLimit
 	}
 	baseFee := config.L2GenesisBlockBaseFeePerGas
 	if baseFee == nil {
@@ -74,8 +77,13 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		difficulty = newHexBig(0)
 	}
 
+	extraData := config.L2GenesisBlockExtraData
+	if extraData == nil {
+		// L2GenesisBlockExtraData is optional, so use a default value when nil
+		extraData = BedrockTransitionBlockExtraData
+	}
 	// Ensure that the extradata is valid
-	if size := len(BedrockTransitionBlockExtraData); size > 32 {
+	if size := len(extraData); size > 32 {
 		return nil, fmt.Errorf("transition block extradata too long: %d", size)
 	}
 
@@ -83,7 +91,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		Config:     &optimismChainConfig,
 		Nonce:      uint64(config.L2GenesisBlockNonce),
 		Timestamp:  block.Time(),
-		ExtraData:  BedrockTransitionBlockExtraData,
+		ExtraData:  extraData,
 		GasLimit:   uint64(gasLimit),
 		Difficulty: difficulty.ToInt(),
 		Mixhash:    config.L2GenesisBlockMixHash,
@@ -119,6 +127,7 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		LondonBlock:         big.NewInt(0),
 		ArrowGlacierBlock:   big.NewInt(0),
 		GrayGlacierBlock:    big.NewInt(0),
+		ShanghaiTime:        u64ptr(0),
 	}
 
 	if config.CliqueSignerAddress != (common.Address{}) {
@@ -136,7 +145,7 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 
 	gasLimit := config.L1GenesisBlockGasLimit
 	if gasLimit == 0 {
-		gasLimit = 15_000_000
+		gasLimit = defaultGasLimit
 	}
 	baseFee := config.L1GenesisBlockBaseFeePerGas
 	if baseFee == nil {
@@ -171,4 +180,8 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		BaseFee:    baseFee.ToInt(),
 		Alloc:      map[common.Address]core.GenesisAccount{},
 	}, nil
+}
+
+func u64ptr(n uint64) *uint64 {
+	return &n
 }

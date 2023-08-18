@@ -88,14 +88,22 @@ func (mh *MockedHandler) Handler(w http.ResponseWriter, req *http.Request) {
 			}
 		}
 		if selectedResponse != "" {
-			responses = append(responses, selectedResponse)
+			var rpcRes proxyd.RPCRes
+			err = json.Unmarshal([]byte(selectedResponse), &rpcRes)
+			if err != nil {
+				panic(err)
+			}
+			idJson, _ := json.Marshal(r["id"])
+			rpcRes.ID = idJson
+			res, _ := json.Marshal(rpcRes)
+			responses = append(responses, string(res))
 		}
 	}
 
 	resBody := ""
 	if batched {
 		resBody = "[" + strings.Join(responses, ",") + "]"
-	} else {
+	} else if len(responses) > 0 {
 		resBody = responses[0]
 	}
 

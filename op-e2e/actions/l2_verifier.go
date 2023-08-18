@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
@@ -121,6 +122,10 @@ func (s *l2VerifierBackend) StopSequencer(ctx context.Context) (common.Hash, err
 	return common.Hash{}, errors.New("stopping the L2Verifier sequencer is not supported")
 }
 
+func (s *l2VerifierBackend) SequencerActive(ctx context.Context) (bool, error) {
+	return false, nil
+}
+
 func (s *L2Verifier) L2Finalized() eth.L2BlockRef {
 	return s.derivation.Finalized()
 }
@@ -211,6 +216,9 @@ func (s *L2Verifier) ActL2PipelineStep(t Testing) {
 		return
 	} else if err != nil && errors.Is(err, derive.ErrTemporary) {
 		s.log.Warn("Derivation process temporary error", "err", err)
+		if errors.Is(err, sync.WrongChainErr) { // action-tests don't back off on temporary errors. Avoid a bad genesis setup from looping.
+			t.Fatalf("genesis setup issue: %v", err)
+		}
 		return
 	} else if err != nil && errors.Is(err, derive.ErrCritical) {
 		t.Fatalf("derivation failed critically: %v", err)

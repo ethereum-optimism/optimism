@@ -1,39 +1,23 @@
 package op_e2e
 
 import (
-	"flag"
 	"os"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var enableParallelTesting bool = true
+var verboseEthNodes bool
+var externalL2Nodes string
 
-// Init testing to enable test flags
-var _ = func() bool {
-	testing.Init()
-	return true
-}()
-
-var verboseGethNodes bool
-var erigonL2Nodes bool
-
-func init() {
-	flag.BoolVar(&verboseGethNodes, "gethlogs", true, "Enable logs on geth nodes")
-	flag.BoolVar(&erigonL2Nodes, "erigon", false, "Enable tests with erigon")
-	flag.Parse()
-	if os.Getenv("OP_E2E_DISABLE_PARALLEL") == "true" {
-		enableParallelTesting = false
-	}
-}
+var enableParallelTesting bool = os.Getenv("OP_E2E_DISABLE_PARALLEL") != "true"
 
 func InitParallel(t *testing.T) {
 	t.Helper()
 	if enableParallelTesting {
 		t.Parallel()
 	}
-	if !verboseGethNodes {
+	if !verboseEthNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
 }

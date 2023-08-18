@@ -24,10 +24,10 @@ Justification for linting rules in [.markdownlint.json](/.markdownlint.json):
 - *no-emphasis-as-heading*: enable emphasized paragraphs
 
 ```shell
-yarn                   # Install dependencies
-yarn lint:specs:check  # Run linter
-yarn lint:specs:fix    # Fix lint issues
-yarn lint:specs:toc    # Update TOC docs
+pnpm i                 # Install dependencies
+pnpm lint:specs:check  # Run linter
+pnpm lint:specs:fix    # Fix lint issues
+pnpm lint:specs:toc    # Update TOC docs
 
 # Check links
 docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback --exclude twitter.com --exclude-mail /input/README.md "/input/specs/**/*.md"

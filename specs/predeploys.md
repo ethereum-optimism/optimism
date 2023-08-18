@@ -21,6 +21,8 @@
 - [OptimismMintableERC721Factory](#optimismmintableerc721factory)
 - [BaseFeeVault](#basefeevault)
 - [L1FeeVault](#l1feevault)
+- [SchemaRegistry](#schemaregistry)
+- [EAS](#eas)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -62,7 +64,7 @@ or `Bedrock`. Deprecated contracts should not be used.
 | L2ToL1MessagePasser           | 0x4200000000000000000000000000000000000016 | Bedrock    | No         | Yes     |
 | L2ERC721Bridge                | 0x4200000000000000000000000000000000000014 | Legacy     | No         | Yes     |
 | OptimismMintableERC721Factory | 0x4200000000000000000000000000000000000017 | Bedrock    | No         | Yes     |
-| ProxyAdmin                    | 0x4200000000000000000000000000000000000018 | Bedrock    | No         | No      |
+| ProxyAdmin                    | 0x4200000000000000000000000000000000000018 | Bedrock    | No         | Yes     |
 | BaseFeeVault                  | 0x4200000000000000000000000000000000000019 | Bedrock    | No         | Yes     |
 | L1FeeVault                    | 0x420000000000000000000000000000000000001a | Bedrock    | No         | Yes     |
 
@@ -311,3 +313,20 @@ Address: `0x420000000000000000000000000000000000001a`
 The `L1FeeVault` predeploy receives the L1 portion of the transaction fees.
 Once the contract has received a certain amount of fees, the ETH can be
 withdrawn to an immutable address on L1.
+
+## SchemaRegistry
+
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/EAS/SchemaRegistry.sol)
+
+Address: `0x4200000000000000000000000000000000000020`
+
+The `SchemaRegistry` predeploy implements the global attestation schemas for the `Ethereum Attestation Service`
+protocol.
+
+## EAS
+
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/EAS/EAS.sol)
+
+Address: `0x4200000000000000000000000000000000000021`
+
+The `EAS` predeploy implements the `Ethereum Attestation Service` protocol.

@@ -3,14 +3,14 @@ package l1
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/indexer/bindings/legacy/scc"
 	"github.com/ethereum-optimism/optimism/indexer/db"
 	"github.com/ethereum-optimism/optimism/indexer/services/l1/bridge"
+	legacy_bindings "github.com/ethereum-optimism/optimism/op-bindings/legacy-bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 )
 
-func QueryStateBatches(filterer *scc.StateCommitmentChainFilterer, startHeight, endHeight uint64, ctx context.Context) (map[common.Hash][]db.StateBatch, error) {
+func QueryStateBatches(filterer *legacy_bindings.StateCommitmentChainFilterer, startHeight, endHeight uint64, ctx context.Context) (map[common.Hash][]db.StateBatch, error) {
 	batches := make(map[common.Hash][]db.StateBatch)
 
 	iter, err := bridge.FilterStateBatchAppendedWithRetry(ctx, filterer, &bind.FilterOpts{

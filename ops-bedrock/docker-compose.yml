@@ -17,6 +17,7 @@ services:
       dockerfile: Dockerfile.l1
     ports:
       - "8545:8545"
+      - "8546:8546"
       - "7060:6060"
     volumes:
       - "l1_data:/db"
@@ -41,13 +42,16 @@ services:
     build:
       context: ..
       dockerfile: ops-bedrock/Dockerfile.l2-erigon
+    environment:
+      - CHAIN_NAME=dev
+      - CHAIN_ID=901
+      - VERBOSITY=6
     ports:
       - "9545:8545"
       - "8060:6060"
     volumes:
       - "l2_data:/db"
-      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
-      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+      - "${PWD}/../.devnet:/config"
     entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
       - "/bin/sh"
       - "/home/boba/l2-erigon.sh"
@@ -70,7 +74,7 @@ services:
       --verifier.l1-confs=0
       --p2p.disable
       --p2p.sequencer.key=8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
-      --rollup.config=/rollup.json
+      --rollup.config=/config/rollup.json
       --rpc.addr=0.0.0.0
       --rpc.port=8545
       --p2p.listen.ip=0.0.0.0
@@ -92,10 +96,7 @@ services:
       - "7300:7300"
       - "6060:6060"
     volumes:
-      - "${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt"
-      - "${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt"
-      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
-      - "${PWD}/../.devnet/rollup.json:/rollup.json"
+      - "${PWD}/../.devnet:/config"
       - op_log:/op_log
 
   op-proposer:

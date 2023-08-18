@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-/* Testing utilities */
+// Testing utilities
 import { Test, StdUtils } from "forge-std/Test.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
@@ -15,6 +15,8 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 import { L2CrossDomainMessenger } from "../L2/L2CrossDomainMessenger.sol";
+import { SequencerFeeVault } from "../L2/SequencerFeeVault.sol";
+import { FeeVault } from "../universal/FeeVault.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { LegacyERC20ETH } from "../legacy/LegacyERC20ETH.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
@@ -120,6 +122,26 @@ contract L2OutputOracle_Initializer is CommonTest {
     // Advance the evm's time to meet the L2OutputOracle's requirements for proposeL2Output
     function warpToProposeTime(uint256 _nextBlockNumber) public {
         vm.warp(oracle.computeL2Timestamp(_nextBlockNumber) + 1);
+    }
+
+    /// @dev Helper function to propose an output.
+    function proposeAnotherOutput() public {
+        bytes32 proposedOutput2 = keccak256(abi.encode());
+        uint256 nextBlockNumber = oracle.nextBlockNumber();
+        uint256 nextOutputIndex = oracle.nextOutputIndex();
+        warpToProposeTime(nextBlockNumber);
+        uint256 proposedNumber = oracle.latestBlockNumber();
+
+        // Ensure the submissionInterval is enforced
+        assertEq(nextBlockNumber, proposedNumber + submissionInterval);
+
+        vm.roll(nextBlockNumber + 1);
+
+        vm.expectEmit(true, true, true, true);
+        emit OutputProposed(proposedOutput2, nextOutputIndex, nextBlockNumber, block.timestamp);
+
+        vm.prank(proposer);
+        oracle.proposeL2Output(proposedOutput2, nextBlockNumber, 0, 0);
     }
 
     function setUp() public virtual override {
@@ -488,6 +510,20 @@ contract ERC721Bridge_Initializer is Messenger_Initializer {
     }
 }
 
+contract FeeVault_Initializer is Bridge_Initializer {
+    SequencerFeeVault vault = SequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
+    address constant recipient = address(1024);
+
+    event Withdrawal(uint256 value, address to, address from);
+
+    event Withdrawal(
+        uint256 value,
+        address to,
+        address from,
+        FeeVault.WithdrawalNetwork withdrawalNetwork
+    );
+}
+
 contract FFIInterface is Test {
     function getProveWithdrawalTransactionInputs(Types.WithdrawalTransaction memory _tx)
         external
@@ -730,9 +766,7 @@ contract ConfigurableCaller {
 
     event WhatHappened(bool success, bytes returndata);
 
-    /**
-     * @notice Call the configured target with the configured payload OR revert.
-     */
+    /// @notice Call the configured target with the configured payload OR revert.
     function call() external {
         if (doRevert) {
             revert("ConfigurableCaller: revert");
@@ -751,31 +785,23 @@ contract ConfigurableCaller {
         }
     }
 
-    /**
-     * @notice Set whether or not to have `call` revert.
-     */
+    /// @notice Set whether or not to have `call` revert.
     function setDoRevert(bool _doRevert) external {
         doRevert = _doRevert;
     }
 
-    /**
-     * @notice Set the target for the call made in `call`.
-     */
+    /// @notice Set the target for the call made in `call`.
     function setTarget(address _target) external {
         target = _target;
     }
 
-    /**
-     * @notice Set the payload for the call made in `call`.
-     */
+    /// @notice Set the payload for the call made in `call`.
     function setPayload(bytes calldata _payload) external {
         payload = _payload;
     }
 
-    /**
-     * @notice Fallback function that reverts if `doRevert` is true.
-     *         Otherwise, it does nothing.
-     */
+    /// @notice Fallback function that reverts if `doRevert` is true.
+    ///        Otherwise, it does nothing.
     fallback() external {
         if (doRevert) {
             revert("ConfigurableCaller: revert");

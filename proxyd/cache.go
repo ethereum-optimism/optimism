@@ -2,8 +2,11 @@ package proxyd
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
+
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/golang/snappy"
@@ -124,6 +127,21 @@ type rpcCache struct {
 
 func newRPCCache(cache Cache) RPCCache {
 	staticHandler := &StaticMethodHandler{cache: cache}
+	debugGetRawReceiptsHandler := &StaticMethodHandler{cache: cache,
+		filter: func(req *RPCReq) bool {
+			// cache only if the request is for a block hash
+
+			var p []rpc.BlockNumberOrHash
+			err := json.Unmarshal(req.Params, &p)
+			if err != nil {
+				return false
+			}
+			if len(p) != 1 {
+				return false
+			}
+			return p[0].BlockHash != nil
+		},
+	}
 	handlers := map[string]RPCMethodHandler{
 		"eth_chainId":                           staticHandler,
 		"net_version":                           staticHandler,
@@ -132,6 +150,7 @@ func newRPCCache(cache Cache) RPCCache {
 		"eth_getBlockByHash":                    staticHandler,
 		"eth_getTransactionByBlockHashAndIndex": staticHandler,
 		"eth_getUncleByBlockHashAndIndex":       staticHandler,
+		"debug_getRawReceipts":                  debugGetRawReceiptsHandler,
 	}
 	return &rpcCache{
 		cache:    cache,
