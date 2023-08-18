@@ -39,6 +39,7 @@ func NewGame(
 	txMgr txmgr.TxManager,
 	client *ethclient.Client,
 ) (*Game, error) {
+	logger = logger.New("game", addr)
 	contract, err := bindings.NewFaultDisputeGameCaller(addr, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to bind the fault dispute game contract: %w", err)
@@ -74,22 +75,21 @@ func NewGame(
 		return nil, fmt.Errorf("failed to validate absolute prestate: %w", err)
 	}
 
-	gameLogger := logger.New("game", addr)
-	responder, err := NewFaultResponder(gameLogger, txMgr, addr)
+	responder, err := NewFaultResponder(logger, txMgr, addr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
 
-	caller, err := NewFaultCallerFromBindings(addr, client, gameLogger)
+	caller, err := NewFaultCallerFromBindings(addr, client, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to bind the fault contract: %w", err)
 	}
 
 	return &Game{
-		agent:                   NewAgent(loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, gameLogger),
+		agent:                   NewAgent(loader, int(gameDepth), provider, responder, updater, cfg.AgreeWithProposedOutput, logger),
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
 		caller:                  caller,
-		logger:                  gameLogger,
+		logger:                  logger,
 	}, nil
 }
 
