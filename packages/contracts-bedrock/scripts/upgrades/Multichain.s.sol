@@ -98,7 +98,7 @@ contract Multichain is SafeBuilder {
         NETWORK = vm.envOr("NETWORK", GOERLI_PROD);
 
         // TODO: hack
-        PROXY_ADMIN = ProxyAdmin(vm.envAddress("PROXY_ADMIN"));
+        PROXY_ADMIN = ProxyAdmin(vm.envOr("PROXY_ADMIN", 0x01d3670863c3F4b24D7b107900f0b75d4BbC6e0d));
 
         // For simple comparisons of dynamic types
         bytes32 network = keccak256(bytes(NETWORK));
