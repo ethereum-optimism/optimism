@@ -174,18 +174,10 @@ type DeployConfig struct {
 	EIP1559Elasticity uint64 `json:"eip1559Elasticity"`
 	// EIP1559Denominator is the denominator of EIP1559 base fee market.
 	EIP1559Denominator uint64 `json:"eip1559Denominator"`
-	// FaultGameAbsolutePrestate
-	FaultGameAbsolutePrestate common.Hash `json:"faultGameAbsolutePrestate"`
-	// FaultGameMaxDepth
-	FaultGameMaxDepth uint64 `json:"faultGameMaxDepth"`
-	// FaultGameMaxDuration
-	FaultGameMaxDuration uint64 `json:"faultGameMaxDuration"`
-	// SystemConfigStartBlock
+	// SystemConfigStartBlock represents the block at which the op-node should start syncing
+	// from. It is an override to set this value on legacy networks where it is not set by
+	// default. It can be removed once all networks have this value set in their storage.
 	SystemConfigStartBlock uint64 `json:"systemConfigStartBlock"`
-	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
-	// during devnet deployments.
-	FundDevAccounts bool `json:"fundDevAccounts"`
-
 	// FaultGameAbsolutePrestate is the absolute prestate of Cannon. This is computed
 	// by generating a proof from the 0th -> 1st instruction and grabbing the prestate from
 	// the output JSON. All honest challengers should agree on the setup state of the program.
@@ -203,6 +195,9 @@ type DeployConfig struct {
 	// game can run for before it is ready to be resolved. Each side receives half of this value
 	// on their chess clock at the inception of the dispute.
 	FaultGameMaxDuration uint64 `json:"faultGameMaxDuration"`
+	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
+	// during devnet deployments.
+	FundDevAccounts bool `json:"fundDevAccounts"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
