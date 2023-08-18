@@ -26,8 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const alphabetGameType uint8 = 0
-const cannonGameType uint8 = 1
+const alphabetGameType uint8 = 255
+const cannonGameType uint8 = 0
 const alphabetGameDepth = 4
 const lastAlphabetTraceIndex = 1<<alphabetGameDepth - 1
 

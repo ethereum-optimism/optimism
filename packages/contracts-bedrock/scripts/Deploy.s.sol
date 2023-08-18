@@ -775,31 +775,69 @@ contract Deploy is Deployer {
         console.log("Absolute prestate: %s", vm.toString(mipsAbsolutePrestate));
 
         DisputeGameFactory factory = DisputeGameFactory(mustGetAddress("DisputeGameFactoryProxy"));
-        for (uint8 i; i < 2; i++) {
-            Claim absolutePrestate =
-                Claim.wrap(i == 0 ? bytes32(cfg.faultGameAbsolutePrestate()) : mipsAbsolutePrestate);
-            IBigStepper faultVm =
-                IBigStepper(i == 0 ? address(new AlphabetVM(absolutePrestate)) : mustGetAddress("Mips"));
-            GameType gameType = GameType.wrap(i);
-            if (address(factory.gameImpls(gameType)) == address(0)) {
-                factory.setImplementation(
-                    gameType,
-                    new FaultDisputeGame({
-                    _gameType: gameType,
-                    _absolutePrestate: absolutePrestate,
-                    _maxGameDepth: i == 0 ? 4 : cfg.faultGameMaxDepth(), // The max depth of the alphabet game is always 4
+
+        // -------------
+        // Mainnet games
+        // TODO: Remove the `onlyDevnet` modifier and conditionally deploy the mainnet games based on the chainid.
+        // -------------
+
+        // Set the Cannon FaultDisputeGame implementation in the factory.
+        _setFaultGameImplementation(
+            factory,
+            GameTypes.FAULT,
+            Claim.wrap(mipsAbsolutePrestate),
+            IBigStepper(mustGetAddress("Mips")),
+            cfg.faultGameMaxDepth()
+        );
+
+        // -------------
+        // Devnet games
+        // Devnet-specific games are created with a game type descending from the `GameType` type's max value.
+        // This is to preserve the game type space for mainnet games and to have those be in parity with
+        // their prod counter parts when deployed to a devnet.
+        // -------------
+
+        // Set the Alphabet FaultDisputeGame implementation in the factory.
+        Claim alphabetAbsolutePrestate = Claim.wrap(bytes32(cfg.faultGameAbsolutePrestate()));
+        _setFaultGameImplementation(
+            factory,
+            GameType.wrap(255),
+            alphabetAbsolutePrestate,
+            IBigStepper(new AlphabetVM(alphabetAbsolutePrestate)),
+            4 // The max game depth of the alphabet game is always 4.
+        );
+    }
+
+    /// @notice Sets the implementation for the given fault game type in the `DisputeGameFactory`.
+    function _setFaultGameImplementation(
+        DisputeGameFactory _factory,
+        GameType _gameType,
+        Claim _absolutePrestate,
+        IBigStepper _faultVm,
+        uint256 _maxGameDepth
+    )
+        internal
+    {
+        if (address(_factory.gameImpls(_gameType)) == address(0)) {
+            _factory.setImplementation(
+                _gameType,
+                new FaultDisputeGame({
+                    _gameType: _gameType,
+                    _absolutePrestate: _absolutePrestate,
+                    _maxGameDepth: _maxGameDepth,
                     _gameDuration: Duration.wrap(uint64(cfg.faultGameMaxDuration())),
-                    _vm: faultVm,
+                    _vm: _faultVm,
                     _l2oo: L2OutputOracle(mustGetAddress("L2OutputOracleProxy")),
                     _blockOracle: BlockOracle(mustGetAddress("BlockOracle"))
-                    })
-                );
-                console.log(
-                    "DisputeGameFactoryProxy: set `FaultDisputeGame` implementation (Backend: %s | GameType: %s)",
-                    i == 0 ? "AlphabetVM" : "MIPS",
-                    vm.toString(i)
-                );
-            }
+                })
+            );
+
+            uint8 rawGameType = GameType.unwrap(_gameType);
+            console.log(
+                "DisputeGameFactoryProxy: set `FaultDisputeGame` implementation (Backend: %s | GameType: %s)",
+                rawGameType == 0 ? "Cannon" : "Alphabet",
+                vm.toString(rawGameType)
+            );
         }
     }
 }
