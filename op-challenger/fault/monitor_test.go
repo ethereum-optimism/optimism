@@ -13,7 +13,7 @@ import (
 )
 
 func TestMonitorExitsWhenContextDone(t *testing.T) {
-	monitor, _, _ := setupMonitorTest(t)
+	monitor, _, _ := setupMonitorTest(t, common.Address{})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	err := monitor.MonitorGames(ctx)
@@ -21,7 +21,7 @@ func TestMonitorExitsWhenContextDone(t *testing.T) {
 }
 
 func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
-	monitor, source, games := setupMonitorTest(t)
+	monitor, source, games := setupMonitorTest(t, common.Address{})
 
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
@@ -51,7 +51,32 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 	require.Equal(t, 2, games.created[addr2].progressCount)
 }
 
-func setupMonitorTest(t *testing.T) (*gameMonitor, *stubGameSource, *createdGames) {
+func TestMonitorOnlyCreateSpecifiedGame(t *testing.T) {
+	addr1 := common.Address{0xaa}
+	addr2 := common.Address{0xbb}
+	monitor, source, games := setupMonitorTest(t, addr2)
+
+	source.games = []FaultDisputeGame{
+		{
+			Proxy:     addr1,
+			Timestamp: big.NewInt(9999),
+		},
+		{
+			Proxy:     addr2,
+			Timestamp: big.NewInt(9999),
+		},
+	}
+
+	err := monitor.progressGames(context.Background())
+	require.NoError(t, err)
+
+	require.Len(t, games.created, 1, "should only create allowed game")
+	require.Contains(t, games.created, addr2)
+	require.NotContains(t, games.created, addr1)
+	require.Equal(t, 1, games.created[addr2].progressCount)
+}
+
+func setupMonitorTest(t *testing.T, allowedGame common.Address) (*gameMonitor, *stubGameSource, *createdGames) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	source := &stubGameSource{}
 	games := &createdGames{
@@ -61,7 +86,7 @@ func setupMonitorTest(t *testing.T) (*gameMonitor, *stubGameSource, *createdGame
 	fetchBlockNum := func(ctx context.Context) (uint64, error) {
 		return 1234, nil
 	}
-	monitor := newGameMonitor(logger, fetchBlockNum, source, games.CreateGame)
+	monitor := newGameMonitor(logger, fetchBlockNum, allowedGame, source, games.CreateGame)
 	return monitor, source, games
 }
 
