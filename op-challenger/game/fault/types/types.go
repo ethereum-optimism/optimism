@@ -105,7 +105,17 @@ type TraceProvider interface {
 
 	// AbsolutePreState is the pre-image value of the trace that transitions to the trace value at index 0
 	AbsolutePreState(ctx context.Context) (preimage []byte, err error)
+
+	// StateHash computes the state-hash of the given state, or returns an error if the state is invalid.
+	StateHash(ctx context.Context, state []byte) (common.Hash, error)
 }
+
+const (
+	VMStatusValid      = 0
+	VMStatusInvalid    = 1
+	VMStatusPanic      = 2
+	VMStatusUnfinished = 3
+)
 
 // ClaimData is the core of a claim. It must be unique inside a specific game.
 type ClaimData struct {

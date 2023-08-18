@@ -5,6 +5,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 type State struct {
@@ -37,7 +38,11 @@ type State struct {
 	LastHint hexutil.Bytes `json:"lastHint,omitempty"`
 }
 
-func (s *State) EncodeWitness() []byte {
+func (s *State) VMStatus() uint8 {
+	return vmStatus(s.Exited, s.ExitCode)
+}
+
+func (s *State) EncodeWitness() StateWitness {
 	out := make([]byte, 0)
 	memRoot := s.Memory.MerkleRoot()
 	out = append(out, memRoot[:]...)
@@ -59,4 +64,38 @@ func (s *State) EncodeWitness() []byte {
 		out = binary.BigEndian.AppendUint32(out, r)
 	}
 	return out
+}
+
+type StateWitness []byte
+
+const (
+	VMStatusValid      = 0
+	VMStatusInvalid    = 1
+	VMStatusPanic      = 2
+	VMStatusUnfinished = 3
+)
+
+func (sw StateWitness) StateHash() common.Hash {
+	hash := crypto.Keccak256Hash(sw)
+	offset := 32*2 + 4*6
+	exited := sw[offset]
+	exitCode := sw[offset+1]
+	status := vmStatus(exited == 1, exitCode)
+	hash[0] = status
+	return hash
+}
+
+func vmStatus(exited bool, exitCode uint8) uint8 {
+	if exited {
+		switch exitCode {
+		case 0:
+			return VMStatusValid
+		case 1:
+			return VMStatusInvalid
+		default:
+			return VMStatusPanic
+		}
+	} else {
+		return VMStatusUnfinished
+	}
 }

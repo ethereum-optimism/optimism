@@ -15,9 +15,13 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 )
 
 const (
@@ -25,7 +29,7 @@ const (
 )
 
 type proofData struct {
-	ClaimValue   hexutil.Bytes `json:"post"`
+	ClaimValue   common.Hash   `json:"post"`
 	StateData    hexutil.Bytes `json:"state-data"`
 	ProofData    hexutil.Bytes `json:"proof-data"`
 	OracleKey    hexutil.Bytes `json:"oracle-key,omitempty"`
@@ -86,7 +90,7 @@ func (p *CannonTraceProvider) Get(ctx context.Context, i uint64) (common.Hash, e
 	if err != nil {
 		return common.Hash{}, err
 	}
-	value := common.BytesToHash(proof.ClaimValue)
+	value := proof.ClaimValue
 
 	if value == (common.Hash{}) {
 		return common.Hash{}, errors.New("proof missing post hash")
@@ -152,8 +156,8 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 				// No execution is done, so no proof-data or oracle values are required.
 				witness := state.EncodeWitness()
 				proof := &proofData{
-					ClaimValue:   crypto.Keccak256(witness),
-					StateData:    witness,
+					ClaimValue:   witness.StateHash(),
+					StateData:    hexutil.Bytes(witness),
 					ProofData:    []byte{},
 					OracleKey:    nil,
 					OracleValue:  nil,
@@ -176,4 +180,8 @@ func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofDa
 		return nil, fmt.Errorf("failed to read proof (%v): %w", path, err)
 	}
 	return &proof, nil
+}
+
+func (p *CannonTraceProvider) StateHash(ctx context.Context, state []byte) (common.Hash, error) {
+	return mipsevm.StateWitness(state).StateHash(), nil
 }

@@ -103,7 +103,9 @@ contract MIPS {
             from, to := copyMem(from, to, 4) // lo
             from, to := copyMem(from, to, 4) // hi
             from, to := copyMem(from, to, 4) // heap
+            let exitCode := shr(248, mload(from))
             from, to := copyMem(from, to, 1) // exitCode
+            let exited := shr(248, mload(from))
             from, to := copyMem(from, to, 1) // exited
             from, to := copyMem(from, to, 8) // step
             from := add(from, 32) // offset to registers
@@ -117,8 +119,20 @@ contract MIPS {
             // Log the resulting MIPS state, for debugging
             log0(start, sub(to, start))
 
+            function vmStatus(_exited, _exitCode) -> status_ {
+                switch _exited
+                case 1 {
+                    switch _exitCode
+                    case 0 { status_ := 0 } // VMStatusValid
+                    case 1 { status_ := 1 } // VMStatusInvalid
+                    default { status_ := 2 } // VMStatusPanic
+                } default { status_ := 3 } // VMStatusUnfinished
+            }
+            let status := vmStatus(exited, exitCode)
+
             // Compute the hash of the resulting MIPS state
             out_ := keccak256(start, sub(to, start))
+            out_ := or(shl(248, status), and(not(shl(248, 0xff)), out_))
         }
     }
 

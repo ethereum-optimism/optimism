@@ -77,7 +77,7 @@ contract FaultDisputeGame_Init is DisputeGameFactory_Init {
 
 contract FaultDisputeGame_Test is FaultDisputeGame_Init {
     /// @dev The root claim of the game.
-    Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32(uint256(10)));
+    Claim internal constant ROOT_CLAIM = Claim.wrap(bytes32((uint256(1) << 248) + uint256(10)));
     /// @dev The absolute prestate of the trace.
     Claim internal constant ABSOLUTE_PRESTATE = Claim.wrap(bytes32(uint256(0)));
 

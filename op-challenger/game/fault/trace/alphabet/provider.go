@@ -9,6 +9,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/game/fault/types"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 )
 
 var (
@@ -58,7 +60,7 @@ func (ap *AlphabetTraceProvider) Get(ctx context.Context, i uint64) (common.Hash
 	if err != nil {
 		return common.Hash{}, err
 	}
-	return crypto.Keccak256Hash(claimBytes), nil
+	return alphabetStateHash(claimBytes), nil
 }
 
 // AbsolutePreState returns the absolute pre-state for the alphabet trace.
@@ -66,9 +68,29 @@ func (ap *AlphabetTraceProvider) AbsolutePreState(ctx context.Context) ([]byte, 
 	return common.Hex2Bytes("0000000000000000000000000000000000000000000000000000000000000060"), nil
 }
 
+func (ap *AlphabetTraceProvider) StateHash(ctx context.Context, state []byte) (common.Hash, error) {
+	return alphabetStateHash(state), nil
+}
+
 // BuildAlphabetPreimage constructs the claim bytes for the index and state item.
 func BuildAlphabetPreimage(i uint64, letter string) []byte {
 	return append(IndexToBytes(i), LetterToBytes(letter)...)
+}
+
+const maxAlphabet = 26
+
+func alphabetStateHash(state []byte) common.Hash {
+	h := crypto.Keccak256Hash(state)
+	// instead of the state containing an "exited" boolean, we just check if the index reached the end
+	i := new(big.Int).SetBytes(state[:32])
+	if !i.IsUint64() || i.Uint64() > maxAlphabet {
+		h[0] = types.VMStatusPanic // this state should never be reached, if we increment by 1 per step
+	} else if i.Uint64() == maxAlphabet {
+		h[0] = types.VMStatusValid
+	} else {
+		h[0] = types.VMStatusUnfinished
+	}
+	return h
 }
 
 // IndexToBytes converts an index to a byte slice big endian
