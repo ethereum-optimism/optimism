@@ -31,8 +31,7 @@ type BridgeTransfer struct {
 }
 
 type L1BridgeDeposit struct {
-	BridgeTransfer `gorm:"embedded"`
-
+	BridgeTransfer        `gorm:"embedded"`
 	TransactionSourceHash common.Hash `gorm:"primaryKey;serializer:json"`
 }
 
@@ -44,8 +43,7 @@ type L1BridgeDepositWithTransactionHashes struct {
 }
 
 type L2BridgeWithdrawal struct {
-	BridgeTransfer `gorm:"embedded"`
-
+	BridgeTransfer            `gorm:"embedded"`
 	TransactionWithdrawalHash common.Hash `gorm:"primaryKey;serializer:json"`
 }
 

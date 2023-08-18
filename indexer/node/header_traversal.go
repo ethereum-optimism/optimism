@@ -26,7 +26,7 @@ func NewHeaderTraversal(ethClient EthClient, fromHeader *types.Header) *HeaderTr
 
 // NextFinalizedHeaders retrives the next set of headers that have been
 // marked as finalized by the connected client, bounded by the supplied size
-func (f *HeaderTraversal) NextFinalizedHeaders(maxSize uint64) ([]*types.Header, error) {
+func (f *HeaderTraversal) NextFinalizedHeaders(maxSize uint64) ([]types.Header, error) {
 	finalizedBlockHeight, err := f.ethClient.FinalizedBlockHeight()
 	if err != nil {
 		return nil, err
@@ -61,6 +61,6 @@ func (f *HeaderTraversal) NextFinalizedHeaders(maxSize uint64) ([]*types.Header,
 		return nil, ErrHeaderTraversalAndProviderMismatchedState
 	}
 
-	f.lastHeader = headers[numHeaders-1]
+	f.lastHeader = &headers[numHeaders-1]
 	return headers, nil
 }
