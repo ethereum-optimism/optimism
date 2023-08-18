@@ -31,7 +31,7 @@ type Timestamp is uint64;
 /// @dev Unit: seconds
 type Duration is uint64;
 
-/// @notice A `GameId` represents a packed 12 byte timestamp and a 20 byte address.
+/// @notice A `GameId` represents a packed 1 byte game ID, an 11 byte timestamp, and a 20 byte address.
 /// @dev The packed layout of this type is as follows:
 /// ┌───────────┬───────────┐
 /// │   Bits    │   Value   │
