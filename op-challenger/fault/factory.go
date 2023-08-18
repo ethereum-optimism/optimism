@@ -20,14 +20,14 @@ type MinimalDisputeGameFactoryCaller interface {
 	GameCount(opts *bind.CallOpts) (*big.Int, error)
 	GameAtIndex(opts *bind.CallOpts, _index *big.Int) (struct {
 		GameType  uint8
-		Timestamp *big.Int
+		Timestamp uint64
 		Proxy     common.Address
 	}, error)
 }
 
 type FaultDisputeGame struct {
 	GameType  uint8
-	Timestamp *big.Int
+	Timestamp uint64
 	Proxy     common.Address
 }
 

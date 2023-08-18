@@ -90,7 +90,7 @@ func generateMockGames(count uint64) []FaultDisputeGame {
 	for i := uint64(0); i < count; i++ {
 		games[i] = FaultDisputeGame{
 			Proxy:     common.BigToAddress(big.NewInt(int64(i))),
-			Timestamp: big.NewInt(int64(i)),
+			Timestamp: i,
 		}
 	}
 
@@ -151,22 +151,26 @@ func (m *mockMinimalDisputeGameFactoryCaller) GameCount(opts *bind.CallOpts) (*b
 }
 
 func (m *mockMinimalDisputeGameFactoryCaller) GameAtIndex(opts *bind.CallOpts, _index *big.Int) (struct {
+	GameType  uint8
+	Timestamp uint64
 	Proxy     common.Address
-	Timestamp *big.Int
 }, error) {
 	index := _index.Uint64()
 	if m.indexErrors[index] {
 		return struct {
+			GameType  uint8
+			Timestamp uint64
 			Proxy     common.Address
-			Timestamp *big.Int
 		}{}, gameIndexErr
 	}
 
 	return struct {
+		GameType  uint8
+		Timestamp uint64
 		Proxy     common.Address
-		Timestamp *big.Int
 	}{
-		Proxy:     m.games[index].Proxy,
+		GameType:  m.games[index].GameType,
 		Timestamp: m.games[index].Timestamp,
+		Proxy:     m.games[index].Proxy,
 	}, nil
 }
