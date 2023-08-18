@@ -46,7 +46,7 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 	}
 	loader := NewGameLoader(factory)
 
-	monitor := newGameMonitor(logger, client.BlockNumber, loader, func(addr common.Address) (gameAgent, error) {
+	monitor := newGameMonitor(logger, client.BlockNumber, cfg.GameAddress, loader, func(addr common.Address) (gameAgent, error) {
 		return NewGame(ctx, logger, cfg, addr, txMgr, client)
 	})
 	return &service{
@@ -74,5 +74,5 @@ func ValidateAbsolutePrestate(ctx context.Context, trace types.TraceProvider, lo
 
 // MonitorGame monitors the fault dispute game and attempts to progress it.
 func (s *service) MonitorGame(ctx context.Context) error {
-	return s.monitor.MonitorGames(ctx) // TODO MonitorGame(ctx, s.logger, s.agreeWithProposedOutput, s.agent, s.caller)
+	return s.monitor.MonitorGames(ctx)
 }
