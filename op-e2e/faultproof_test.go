@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCannonMultipleGames(t *testing.T) {
+func TestMultipleAlphabetGames(t *testing.T) {
 	InitParallel(t)
 
 	ctx := context.Background()
@@ -40,6 +40,13 @@ func TestCannonMultipleGames(t *testing.T) {
 	game2.WaitForClaimCount(ctx, 4)
 	game1.Defend(ctx, 1, common.Hash{0xaa})
 	game1.WaitForClaimCount(ctx, 4)
+
+	gameDuration := game1.GameDuration(ctx)
+	sys.TimeTravelClock.AdvanceTime(gameDuration)
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	game1.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game2.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 }
 
 func TestMultipleCannonGames(t *testing.T) {
