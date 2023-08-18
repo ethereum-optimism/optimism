@@ -4,5 +4,6 @@ The `docs/` directory contains Optimism documentation closely tied to the implem
 
 The directory layout is divided into the following sub-directories.
 
+- [`contributing/`](./contributing/): Optimism monorepo specific documentation on contributing.
 - [`postmorems/`](./postmortems/): Timestamped post-mortem documents.
 - [`security-reviews`](./security-reviews/): Audit summaries and other security review documents.
