@@ -26,13 +26,13 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 		return err
 	}
 
-	ethWithdrawals := []*database.L2BridgeWithdrawal{}
+	ethWithdrawals := []database.L2BridgeWithdrawal{}
 	messagesPassed := make(map[logKey]*contracts.L2ToL1MessagePasserMessagePassed, len(l2ToL1MPMessagesPassed))
-	transactionWithdrawals := make([]*database.L2TransactionWithdrawal, len(l2ToL1MPMessagesPassed))
+	transactionWithdrawals := make([]database.L2TransactionWithdrawal, len(l2ToL1MPMessagesPassed))
 	for i := range l2ToL1MPMessagesPassed {
 		messagePassed := l2ToL1MPMessagesPassed[i]
 		messagesPassed[logKey{messagePassed.Event.BlockHash, messagePassed.Event.LogIndex}] = &messagePassed
-		transactionWithdrawals[i] = &database.L2TransactionWithdrawal{
+		transactionWithdrawals[i] = database.L2TransactionWithdrawal{
 			WithdrawalHash:       messagePassed.WithdrawalHash,
 			InitiatedL2EventGUID: messagePassed.Event.GUID,
 			Nonce:                messagePassed.Nonce,
@@ -41,7 +41,7 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 		}
 
 		if len(messagePassed.Tx.Data) == 0 && messagePassed.Tx.Amount.Int.BitLen() > 0 {
-			ethWithdrawals = append(ethWithdrawals, &database.L2BridgeWithdrawal{
+			ethWithdrawals = append(ethWithdrawals, database.L2BridgeWithdrawal{
 				TransactionWithdrawalHash: messagePassed.WithdrawalHash,
 				BridgeTransfer:            database.BridgeTransfer{Tx: transactionWithdrawals[i].Tx, TokenPair: database.ETHTokenPair},
 			})
@@ -71,7 +71,7 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 	}
 
 	sentMessages := make(map[logKey]*contracts.CrossDomainMessengerSentMessageEvent, len(crossDomainSentMessages))
-	l2BridgeMessages := make([]*database.L2BridgeMessage, len(crossDomainSentMessages))
+	l2BridgeMessages := make([]database.L2BridgeMessage, len(crossDomainSentMessages))
 	for i := range crossDomainSentMessages {
 		sentMessage := crossDomainSentMessages[i]
 		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = &sentMessage
@@ -82,7 +82,7 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 			return fmt.Errorf("missing expected preceding MessagePassedEvent for SentMessage. tx_hash = %s", sentMessage.Event.TransactionHash)
 		}
 
-		l2BridgeMessages[i] = &database.L2BridgeMessage{TransactionWithdrawalHash: messagePassed.WithdrawalHash, BridgeMessage: sentMessage.BridgeMessage}
+		l2BridgeMessages[i] = database.L2BridgeMessage{TransactionWithdrawalHash: messagePassed.WithdrawalHash, BridgeMessage: sentMessage.BridgeMessage}
 	}
 
 	if len(l2BridgeMessages) > 0 {
@@ -101,7 +101,7 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 		return fmt.Errorf("missing cross-domain message for each initiated bridge event. messages: %d, bridges: %d", len(crossDomainSentMessages), len(initiatedBridges))
 	}
 
-	l2BridgeWithdrawals := make([]*database.L2BridgeWithdrawal, len(initiatedBridges))
+	l2BridgeWithdrawals := make([]database.L2BridgeWithdrawal, len(initiatedBridges))
 	for i := range initiatedBridges {
 		initiatedBridge := initiatedBridges[i]
 
@@ -116,7 +116,7 @@ func L2ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, fromHeight 
 		}
 
 		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
-		l2BridgeWithdrawals[i] = &database.L2BridgeWithdrawal{TransactionWithdrawalHash: messagePassed.WithdrawalHash, BridgeTransfer: initiatedBridge.BridgeTransfer}
+		l2BridgeWithdrawals[i] = database.L2BridgeWithdrawal{TransactionWithdrawalHash: messagePassed.WithdrawalHash, BridgeTransfer: initiatedBridge.BridgeTransfer}
 	}
 
 	if len(l2BridgeWithdrawals) > 0 {
