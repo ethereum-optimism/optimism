@@ -39,7 +39,7 @@ interface IDisputeGameFactory {
     )
         external
         view
-        returns (IDisputeGame _proxy, uint256 _timestamp);
+        returns (IDisputeGame _proxy, Timestamp _timestamp);
 
     /// @notice `gameAtIndex` returns the dispute game contract address and its creation timestamp
     ///          at the given index. Each created dispute game increments the underlying index.
@@ -47,7 +47,7 @@ interface IDisputeGameFactory {
     /// @return _proxy The clone of the `DisputeGame` created with the given parameters.
     ///         Returns `address(0)` if nonexistent.
     /// @return _timestamp The timestamp of the creation of the dispute game.
-    function gameAtIndex(uint256 _index) external view returns (IDisputeGame _proxy, uint256 _timestamp);
+    function gameAtIndex(uint256 _index) external view returns (IDisputeGame _proxy, Timestamp _timestamp);
 
     /// @notice `gameImpls` is a mapping that maps `GameType`s to their respective
     ///         `IDisputeGame` implementations.
