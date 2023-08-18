@@ -17,6 +17,8 @@ export const opViemWalletExtension = <
   chain extends Chain | undefined = Chain | undefined,
   account extends Account | undefined = Account | undefined,
 >(client: WalletClient<transport, chain, account>) => ({
+  // TODO move me to an action 
+  // @see https://viem.sh/docs/actions/wallet/introduction.html
   bridgeWriteContract: async (args) => {
     // TODO don't hardcode this
     const minGasLimit = 200_000
@@ -25,6 +27,7 @@ export const opViemWalletExtension = <
       functionName: args.functionName,
       args: args.args,
     } as unknown as EncodeFunctionDataParameters<typeof args.abi, typeof args.functionName>)
+    // TODO internal implementations should only rely on actions
     const l1TxHash = await client.writeContract({
       abi: l1CrossDomainMessengerABI,
       // TODO currently hardcoded for OP

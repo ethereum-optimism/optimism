@@ -31,6 +31,7 @@ describe('opViemWalletExtension', async () => {
     args: [myAddress, theirAddress, BigInt(1)],
     address: optimistAddress[10],
     account: myAddress,
+    // TODO modify api here make it so the chain is the destination chain instead of origin chain
     chain: mainnet,
   })
 
