@@ -27,8 +27,9 @@ const (
 type EthClient interface {
 	FinalizedBlockHeight() (*big.Int, error)
 
-	BlockHeadersByRange(*big.Int, *big.Int) ([]types.Header, error)
+	BlockHeaderByNumber(*big.Int) (*types.Header, error)
 	BlockHeaderByHash(common.Hash) (*types.Header, error)
+	BlockHeadersByRange(*big.Int, *big.Int) ([]types.Header, error)
 
 	StorageHash(common.Address, *big.Int) (common.Hash, error)
 
@@ -99,7 +100,20 @@ func (c *client) BlockHeaderByHash(hash common.Hash) (*types.Header, error) {
 	return header, nil
 }
 
-// BlockHeadersByRange will retrieve block headers within the specified range -- includsive. No restrictions
+// BlockHeaderByNumber retrieves the block header attributed to the supplied height
+func (c *client) BlockHeaderByNumber(number *big.Int) (*types.Header, error) {
+	ctxwt, cancel := context.WithTimeout(context.Background(), defaultRequestTimeout)
+	defer cancel()
+
+	header, err := ethclient.NewClient(c.rpcClient).HeaderByNumber(ctxwt, number)
+	if err != nil {
+		return nil, err
+	}
+
+	return header, nil
+}
+
+// BlockHeadersByRange will retrieve block headers within the specified range -- inclusive. No restrictions
 // are placed on the range such as blocks in the "latest", "safe" or "finalized" states. If the specified
 // range is too large, `endHeight > latest`, the resulting list is truncated to the available headers
 func (c *client) BlockHeadersByRange(startHeight, endHeight *big.Int) ([]types.Header, error) {

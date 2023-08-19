@@ -2,7 +2,9 @@ package config
 
 import (
 	"fmt"
+	"math/big"
 	"os"
+	"reflect"
 
 	"github.com/BurntSushi/toml"
 	"github.com/ethereum/go-ethereum/common"
@@ -34,6 +36,26 @@ type L1Contracts struct {
 	// Remove afterwards?
 }
 
+// converts struct of to a slice of addresses for easy iteration
+// also validates that all fields are addresses
+func (c *L1Contracts) AsSlice() ([]common.Address, error) {
+	clone := *c
+	contractValue := reflect.ValueOf(clone)
+	fields := reflect.VisibleFields(reflect.TypeOf(clone))
+	l1Contracts := make([]common.Address, len(fields))
+	for i, field := range fields {
+		// ruleid: unsafe-reflect-by-name
+		addr, ok := (contractValue.FieldByName(field.Name).Interface()).(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("non-address found in L1Contracts: %s", field.Name)
+		}
+
+		l1Contracts[i] = addr
+	}
+
+	return l1Contracts, nil
+}
+
 // ChainConfig configures of the chain being indexed
 type ChainConfig struct {
 	// Configure known chains with the l2 chain id
@@ -41,8 +63,11 @@ type ChainConfig struct {
 	Preset      int
 	L1Contracts L1Contracts `toml:"l1-contracts"`
 	// L1StartingHeight is the block height to start indexing from
-	// NOTE - This is currently unimplemented
-	L1StartingHeight int
+	L1StartingHeight uint `toml:"l1-starting-height"`
+}
+
+func (cc *ChainConfig) L1StartHeight() *big.Int {
+	return big.NewInt(int64(cc.L1StartingHeight))
 }
 
 // RPCsConfig configures the RPC urls
