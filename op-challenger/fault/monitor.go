@@ -2,29 +2,89 @@ package fault
 
 import (
 	"context"
+	"fmt"
+	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-
-	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 )
 
-type GameInfo interface {
-	GetGameStatus(context.Context) (types.GameStatus, error)
-	LogGameInfo(ctx context.Context)
+type gamePlayer interface {
+	ProgressGame(ctx context.Context) bool
 }
 
-type Actor interface {
-	Act(ctx context.Context) error
+type playerCreator func(address common.Address) (gamePlayer, error)
+type blockNumberFetcher func(ctx context.Context) (uint64, error)
+
+// gameSource loads information about the games available to play
+type gameSource interface {
+	FetchAllGamesAtBlock(ctx context.Context, blockNumber *big.Int) ([]FaultDisputeGame, error)
 }
 
-func MonitorGame(ctx context.Context, logger log.Logger, agreeWithProposedOutput bool, actor Actor, caller GameInfo) error {
-	logger.Info("Monitoring fault dispute game", "agreeWithOutput", agreeWithProposedOutput)
+type gameMonitor struct {
+	logger           log.Logger
+	source           gameSource
+	createPlayer     playerCreator
+	fetchBlockNumber blockNumberFetcher
+	allowedGame      common.Address
+	players          map[common.Address]gamePlayer
+}
+
+func newGameMonitor(logger log.Logger, fetchBlockNumber blockNumberFetcher, allowedGame common.Address, source gameSource, createGame playerCreator) *gameMonitor {
+	return &gameMonitor{
+		logger:           logger,
+		source:           source,
+		createPlayer:     createGame,
+		fetchBlockNumber: fetchBlockNumber,
+		allowedGame:      allowedGame,
+		players:          make(map[common.Address]gamePlayer),
+	}
+}
+
+func (m *gameMonitor) progressGames(ctx context.Context) error {
+	blockNum, err := m.fetchBlockNumber(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load current block number: %w", err)
+	}
+	games, err := m.source.FetchAllGamesAtBlock(ctx, new(big.Int).SetUint64(blockNum))
+	if err != nil {
+		return fmt.Errorf("failed to load games: %w", err)
+	}
+	for _, game := range games {
+		if m.allowedGame != (common.Address{}) && m.allowedGame != game.Proxy {
+			m.logger.Debug("Skipping game not on allow list", "game", game.Proxy)
+			continue
+		}
+		player, err := m.fetchOrCreateGamePlayer(game)
+		if err != nil {
+			m.logger.Error("Error while progressing game", "game", game.Proxy, "err", err)
+			continue
+		}
+		player.ProgressGame(ctx)
+	}
+	return nil
+}
+
+func (m *gameMonitor) fetchOrCreateGamePlayer(gameData FaultDisputeGame) (gamePlayer, error) {
+	if player, ok := m.players[gameData.Proxy]; ok {
+		return player, nil
+	}
+	player, err := m.createPlayer(gameData.Proxy)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create game player %v: %w", gameData.Proxy, err)
+	}
+	m.players[gameData.Proxy] = player
+	return player, nil
+}
+
+func (m *gameMonitor) MonitorGames(ctx context.Context) error {
+	m.logger.Info("Monitoring fault dispute games")
 
 	for {
-		done := progressGame(ctx, logger, agreeWithProposedOutput, actor, caller)
-		if done {
-			return nil
+		err := m.progressGames(ctx)
+		if err != nil {
+			m.logger.Error("Failed to progress games", "err", err)
 		}
 		select {
 		case <-time.After(300 * time.Millisecond):
@@ -33,32 +93,4 @@ func MonitorGame(ctx context.Context, logger log.Logger, agreeWithProposedOutput
 			return ctx.Err()
 		}
 	}
-}
-
-// progressGame checks the current state of the game, and attempts to progress it by performing moves, steps or resolving
-// Returns true if the game is complete or false if it needs to be monitored further
-func progressGame(ctx context.Context, logger log.Logger, agreeWithProposedOutput bool, actor Actor, caller GameInfo) bool {
-	logger.Trace("Checking if actions are required")
-	if err := actor.Act(ctx); err != nil {
-		logger.Error("Error when acting on game", "err", err)
-	}
-	if status, err := caller.GetGameStatus(ctx); err != nil {
-		logger.Warn("Unable to retrieve game status", "err", err)
-	} else if status != 0 {
-		var expectedStatus types.GameStatus
-		if agreeWithProposedOutput {
-			expectedStatus = types.GameStatusChallengerWon
-		} else {
-			expectedStatus = types.GameStatusDefenderWon
-		}
-		if expectedStatus == status {
-			logger.Info("Game won", "status", status)
-		} else {
-			logger.Error("Game lost", "status", status)
-		}
-		return true
-	} else {
-		caller.LogGameInfo(ctx)
-	}
-	return false
 }

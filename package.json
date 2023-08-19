@@ -70,7 +70,7 @@
     "mocha": "^10.2.0",
     "nx": "16.7.1",
     "nyc": "^15.1.0",
-    "patch-package": "^6.4.7",
+    "patch-package": "^8.0.0",
     "prettier": "^2.8.0",
     "prettier-plugin-solidity": "^1.0.0-beta.13",
     "rimraf": "^5.0.1",
