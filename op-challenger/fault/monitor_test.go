@@ -2,130 +2,123 @@ package fault
 
 import (
 	"context"
-	"errors"
+	"math/big"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 )
 
 func TestMonitorExitsWhenContextDone(t *testing.T) {
-	logger := testlog.Logger(t, log.LvlDebug)
-	actor := &stubActor{}
-	gameInfo := &stubGameInfo{}
+	monitor, _, _ := setupMonitorTest(t, common.Address{})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := MonitorGame(ctx, logger, true, actor, gameInfo)
+	err := monitor.MonitorGames(ctx)
 	require.ErrorIs(t, err, context.Canceled)
 }
 
-func TestProgressGameAndLogState(t *testing.T) {
-	logger, _, actor, gameInfo := setupProgressGameTest(t)
-	done := progressGame(context.Background(), logger, true, actor, gameInfo)
-	require.False(t, done, "should not be done")
-	require.Equal(t, 1, actor.callCount, "should perform next actions")
-	require.Equal(t, 1, gameInfo.logCount, "should log latest game state")
-}
+func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
+	monitor, source, games := setupMonitorTest(t, common.Address{})
 
-func TestProgressGame_LogErrorFromAct(t *testing.T) {
-	logger, handler, actor, gameInfo := setupProgressGameTest(t)
-	actor.err = errors.New("Boom")
-	done := progressGame(context.Background(), logger, true, actor, gameInfo)
-	require.False(t, done, "should not be done")
-	require.Equal(t, 1, actor.callCount, "should perform next actions")
-	require.Equal(t, 1, gameInfo.logCount, "should log latest game state")
-	errLog := handler.FindLog(log.LvlError, "Error when acting on game")
-	require.NotNil(t, errLog, "should log error")
-	require.Equal(t, actor.err, errLog.GetContextValue("err"))
-}
-
-func TestProgressGame_LogErrorWhenGameLost(t *testing.T) {
-	tests := []struct {
-		name            string
-		status          types.GameStatus
-		agreeWithOutput bool
-		logLevel        log.Lvl
-		logMsg          string
-	}{
+	addr1 := common.Address{0xaa}
+	addr2 := common.Address{0xbb}
+	source.games = []FaultDisputeGame{
 		{
-			name:            "GameLostAsDefender",
-			status:          types.GameStatusChallengerWon,
-			agreeWithOutput: false,
-			logLevel:        log.LvlError,
-			logMsg:          "Game lost",
+			Proxy:     addr1,
+			Timestamp: 9999,
 		},
 		{
-			name:            "GameLostAsChallenger",
-			status:          types.GameStatusDefenderWon,
-			agreeWithOutput: true,
-			logLevel:        log.LvlError,
-			logMsg:          "Game lost",
-		},
-		{
-			name:            "GameWonAsDefender",
-			status:          types.GameStatusDefenderWon,
-			agreeWithOutput: false,
-			logLevel:        log.LvlInfo,
-			logMsg:          "Game won",
-		},
-		{
-			name:            "GameWonAsChallenger",
-			status:          types.GameStatusChallengerWon,
-			agreeWithOutput: true,
-			logLevel:        log.LvlInfo,
-			logMsg:          "Game won",
+			Proxy:     addr2,
+			Timestamp: 9999,
 		},
 	}
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			logger, handler, actor, gameInfo := setupProgressGameTest(t)
-			gameInfo.status = test.status
 
-			done := progressGame(context.Background(), logger, test.agreeWithOutput, actor, gameInfo)
-			require.True(t, done, "should be done")
-			require.Equal(t, 0, gameInfo.logCount, "should not log latest game state")
-			errLog := handler.FindLog(test.logLevel, test.logMsg)
-			require.NotNil(t, errLog, "should log game result")
-			require.Equal(t, test.status, errLog.GetContextValue("status"))
-		})
-	}
+	err := monitor.progressGames(context.Background())
+	require.NoError(t, err)
+
+	require.Len(t, games.created, 2, "should create game agents")
+	require.Contains(t, games.created, addr1)
+	require.Contains(t, games.created, addr2)
+	require.Equal(t, 1, games.created[addr1].progressCount)
+	require.Equal(t, 1, games.created[addr2].progressCount)
+
+	// The stub will fail the test if a game is created with the same address multiple times
+	require.NoError(t, monitor.progressGames(context.Background()), "should only create games once")
+	require.Equal(t, 2, games.created[addr1].progressCount)
+	require.Equal(t, 2, games.created[addr2].progressCount)
 }
 
-func setupProgressGameTest(t *testing.T) (log.Logger, *testlog.CapturingHandler, *stubActor, *stubGameInfo) {
+func TestMonitorOnlyCreateSpecifiedGame(t *testing.T) {
+	addr1 := common.Address{0xaa}
+	addr2 := common.Address{0xbb}
+	monitor, source, games := setupMonitorTest(t, addr2)
+
+	source.games = []FaultDisputeGame{
+		{
+			Proxy:     addr1,
+			Timestamp: 9999,
+		},
+		{
+			Proxy:     addr2,
+			Timestamp: 9999,
+		},
+	}
+
+	err := monitor.progressGames(context.Background())
+	require.NoError(t, err)
+
+	require.Len(t, games.created, 1, "should only create allowed game")
+	require.Contains(t, games.created, addr2)
+	require.NotContains(t, games.created, addr1)
+	require.Equal(t, 1, games.created[addr2].progressCount)
+}
+
+func setupMonitorTest(t *testing.T, allowedGame common.Address) (*gameMonitor, *stubGameSource, *createdGames) {
 	logger := testlog.Logger(t, log.LvlDebug)
-	handler := &testlog.CapturingHandler{
-		Delegate: logger.GetHandler(),
+	source := &stubGameSource{}
+	games := &createdGames{
+		t:       t,
+		created: make(map[common.Address]*stubGame),
 	}
-	logger.SetHandler(handler)
-	actor := &stubActor{}
-	gameInfo := &stubGameInfo{}
-	return logger, handler, actor, gameInfo
+	fetchBlockNum := func(ctx context.Context) (uint64, error) {
+		return 1234, nil
+	}
+	monitor := newGameMonitor(logger, fetchBlockNum, allowedGame, source, games.CreateGame)
+	return monitor, source, games
 }
 
-type stubActor struct {
-	callCount int
-	err       error
+type stubGameSource struct {
+	games []FaultDisputeGame
 }
 
-func (a *stubActor) Act(ctx context.Context) error {
-	a.callCount++
-	return a.err
+func (s *stubGameSource) FetchAllGamesAtBlock(ctx context.Context, blockNumber *big.Int) ([]FaultDisputeGame, error) {
+	return s.games, nil
 }
 
-type stubGameInfo struct {
-	status   types.GameStatus
-	err      error
-	logCount int
+type stubGame struct {
+	addr          common.Address
+	progressCount int
+	done          bool
 }
 
-func (s *stubGameInfo) GetGameStatus(ctx context.Context) (types.GameStatus, error) {
-	return s.status, s.err
+func (g *stubGame) ProgressGame(ctx context.Context) bool {
+	g.progressCount++
+	return g.done
 }
 
-func (s *stubGameInfo) LogGameInfo(ctx context.Context) {
-	s.logCount++
+type createdGames struct {
+	t       *testing.T
+	created map[common.Address]*stubGame
+}
+
+func (c *createdGames) CreateGame(addr common.Address) (gamePlayer, error) {
+	if _, exists := c.created[addr]; exists {
+		c.t.Fatalf("game %v already exists", addr)
+	}
+	game := &stubGame{addr: addr}
+	c.created[addr] = game
+	return game, nil
 }
