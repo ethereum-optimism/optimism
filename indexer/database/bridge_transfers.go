@@ -106,8 +106,7 @@ func (db *bridgeTransfersDB) L1BridgeDeposit(txSourceHash common.Hash) (*L1Bridg
 	return &deposit, nil
 }
 
-// L1BridgeDepositByCrossDomainMessengerNonce retrieves tokens deposited, specified by the associated `L1CrossDomainMessenger` nonce.
-// All tokens bridged via the StandardBridge flows through the L1CrossDomainMessenger
+// L1BridgeDepositWithFilter queries for a bridge deposit with set fields in the `BridgeTransfer` filter
 func (db *bridgeTransfersDB) L1BridgeDepositWithFilter(filter BridgeTransfer) (*L1BridgeDeposit, error) {
 	var deposit L1BridgeDeposit
 	result := db.gorm.Where(&filter).Take(&deposit)
@@ -127,31 +126,43 @@ type L1BridgeDepositsResponse struct {
 	HasNextPage bool
 }
 
-// L1BridgeDepositsByAddress retrieves a list of deposits intiated by the specified address, coupled with the L1/L2 transaction
-// hashes that complete the bridge transaction.
+// L1BridgeDepositsByAddress retrieves a list of deposits intiated by the specified address,
+// coupled with the L1/L2 transaction hashes that complete the bridge transaction.
 func (db *bridgeTransfersDB) L1BridgeDepositsByAddress(address common.Address, cursor string, limit int) (*L1BridgeDepositsResponse, error) {
 	defaultLimit := 100
 	if limit <= 0 {
 		limit = defaultLimit
 	}
 
-	depositsQuery := db.gorm.Table("l1_bridge_deposits").Select(`
-l1_bridge_deposits.*,
-l1_contract_events.transaction_hash AS l1_transaction_hash,
-l1_transaction_deposits.l2_transaction_hash`)
-
 	// TODO join with l1_tokens and l2_tokens
-	depositsQuery = depositsQuery.Joins("INNER JOIN l1_transaction_deposits ON l1_bridge_deposits.transaction_source_hash = l1_transaction_deposits.source_hash")
-	depositsQuery = depositsQuery.Joins("INNER JOIN l1_contract_events ON l1_transaction_deposits.initiated_l1_event_guid = l1_contract_events.guid")
+	ethAddressString := predeploys.LegacyERC20ETHAddr.String()
 
-	if cursor != "" {
-		depositsQuery = depositsQuery.Where("l1_bridge_deposits.transaction_source_hash < ?", cursor)
-	}
+	// Coalesce l1 transaction deposits that are ETH receives into bridge deposits.
+	ethTransactionDeposits := db.gorm.Model(&L1TransactionDeposit{})
+	ethTransactionDeposits = ethTransactionDeposits.Where(`from_address = ? AND data = '0x' AND amount > 0`, address.String())
+	ethTransactionDeposits = ethTransactionDeposits.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = initiated_l1_event_guid")
+	ethTransactionDeposits = ethTransactionDeposits.Select(`
+from_address, to_address, amount, data, source_hash AS transaction_source_hash, 
+l2_transaction_hash, l1_contract_events.transaction_hash AS l1_transaction_hash,
+l1_transaction_deposits.timestamp, NULL AS cross_domain_message_hash, ? AS local_token_address, ? AS remote_token_address`, ethAddressString, ethAddressString)
 
-	filteredQuery := depositsQuery.Where(&Transaction{FromAddress: address}).Order("l1_bridge_deposits.transaction_source_hash DESC").Limit(limit + 1)
+	depositsQuery := db.gorm.Model(&L1BridgeDeposit{})
+	depositsQuery = depositsQuery.Joins("INNER JOIN l1_transaction_deposits ON l1_transaction_deposits.source_hash = transaction_source_hash")
+	depositsQuery = depositsQuery.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = l1_transaction_deposits.initiated_l1_event_guid")
+	depositsQuery = depositsQuery.Select(`
+l1_bridge_deposits.from_address, l1_bridge_deposits.to_address, l1_bridge_deposits.amount, l1_bridge_deposits.data, transaction_source_hash,
+l2_transaction_hash, l1_contract_events.transaction_hash as l1_transaction_hash,
+l1_bridge_deposits.timestamp, cross_domain_message_hash, local_token_address, remote_token_address`)
 
+	// Since all bridge deposits share have the same primary key corresponding to the transaction
+	// deposit, we can simply order by the timestamp in the transaction deposits table which will
+	// order all deposits (bridge & transactions) uniformly
+
+	query := db.gorm.Table("(?) AS deposits", depositsQuery)
+	query = query.Joins("UNION (?)", ethTransactionDeposits)
+	query = query.Select("*").Order("timestamp DESC").Limit(limit)
 	deposits := []L1BridgeDepositWithTransactionHashes{}
-	result := filteredQuery.Scan(&deposits)
+	result := query.Debug().Find(&deposits)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -201,8 +212,7 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawal(txWithdrawalHash common.Hash) (*
 	return &withdrawal, nil
 }
 
-// L2BridgeWithdrawalByCrossDomainMessengerNonce retrieves tokens withdrawn, specified by the associated `L2CrossDomainMessenger` nonce.
-// All tokens bridged via the StandardBridge flows through the L2CrossDomainMessenger
+// L2BridgeWithdrawalWithFilter queries for a bridge withdrawal with set fields in the `BridgeTransfer` filter
 func (db *bridgeTransfersDB) L2BridgeWithdrawalWithFilter(filter BridgeTransfer) (*L2BridgeWithdrawal, error) {
 	var withdrawal L2BridgeWithdrawal
 	result := db.gorm.Where(filter).Take(&withdrawal)

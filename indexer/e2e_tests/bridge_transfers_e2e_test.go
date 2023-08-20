@@ -227,6 +227,8 @@ func TestE2EBridgeTransfersOptimismPortalETHReceive(t *testing.T) {
 
 	aliceDeposits, err := testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, "", 0)
 	require.NoError(t, err)
+	require.NotNil(t, aliceDeposits)
+	require.Len(t, aliceDeposits.Deposits, 1)
 	require.Equal(t, portalDepositTx.Hash(), aliceDeposits.Deposits[0].L1TransactionHash)
 
 	deposit := aliceDeposits.Deposits[0].L1BridgeDeposit
