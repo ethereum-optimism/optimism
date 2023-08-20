@@ -83,7 +83,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
         bytes calldata _extraData
     )
         external
-        returns (IDisputeGame proxy)
+        returns (IDisputeGame proxy_)
     {
         // Grab the implementation contract for the given `GameType`.
         IDisputeGame impl = gameImpls[_gameType];
@@ -92,8 +92,8 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
         if (address(impl) == address(0)) revert NoImplementation(_gameType);
 
         // Clone the implementation contract and initialize it with the given parameters.
-        proxy = IDisputeGame(address(impl).clone(abi.encodePacked(_rootClaim, _extraData)));
-        proxy.initialize();
+        proxy_ = IDisputeGame(address(impl).clone(abi.encodePacked(_rootClaim, _extraData)));
+        proxy_.initialize();
 
         // Compute the unique identifier for the dispute game.
         Hash uuid = getGameUUID(_gameType, _rootClaim, _extraData);
@@ -101,12 +101,12 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
         // If a dispute game with the same UUID already exists, revert.
         if (GameId.unwrap(_disputeGames[uuid]) != bytes32(0)) revert GameAlreadyExists(uuid);
 
-        GameId id = LibGameId.pack(_gameType, Timestamp.wrap(uint64(block.timestamp)), proxy);
+        GameId id = LibGameId.pack(_gameType, Timestamp.wrap(uint64(block.timestamp)), proxy_);
 
         // Store the dispute game id in the mapping & emit the `DisputeGameCreated` event.
         _disputeGames[uuid] = id;
         _disputeGameList.push(id);
-        emit DisputeGameCreated(address(proxy), _gameType, _rootClaim);
+        emit DisputeGameCreated(address(proxy_), _gameType, _rootClaim);
     }
 
     /// @inheritdoc IDisputeGameFactory
@@ -117,7 +117,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
     )
         public
         pure
-        returns (Hash _uuid)
+        returns (Hash uuid_)
     {
         assembly {
             // Grab the offsets of the other memory locations we will need to temporarily overwrite.
@@ -141,7 +141,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
             let hashLen := and(add(mload(_extraData), 0x9F), not(0x1F))
 
             // Hash the memory to produce the UUID digest
-            _uuid := keccak256(gameTypeOffset, hashLen)
+            uuid_ := keccak256(gameTypeOffset, hashLen)
 
             // Restore the memory prior to `extraData`
             mstore(gameTypeOffset, tempA)

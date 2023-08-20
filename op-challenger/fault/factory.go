@@ -31,11 +31,6 @@ type FaultDisputeGame struct {
 	Proxy     common.Address
 }
 
-// GameLoader is a minimal interface for fetching on chain dispute games.
-type GameLoader interface {
-	FetchAllGamesAtBlock(ctx context.Context) ([]FaultDisputeGame, error)
-}
-
 type gameLoader struct {
 	caller MinimalDisputeGameFactoryCaller
 }

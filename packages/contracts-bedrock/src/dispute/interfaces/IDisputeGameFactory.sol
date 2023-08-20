@@ -26,16 +26,16 @@ interface IDisputeGameFactory {
     /// @notice `games` queries an internal mapping that maps the hash of
     ///         `gameType ++ rootClaim ++ extraData` to the deployed `DisputeGame` clone.
     /// @dev `++` equates to concatenation.
-    /// @param gameType The type of the DisputeGame - used to decide the proxy implementation
-    /// @param rootClaim The root claim of the DisputeGame.
-    /// @param extraData Any extra data that should be provided to the created dispute game.
+    /// @param _gameType The type of the DisputeGame - used to decide the proxy implementation
+    /// @param _rootClaim The root claim of the DisputeGame.
+    /// @param _extraData Any extra data that should be provided to the created dispute game.
     /// @return proxy_ The clone of the `DisputeGame` created with the given parameters.
     ///         Returns `address(0)` if nonexistent.
     /// @return timestamp_ The timestamp of the creation of the dispute game.
     function games(
-        GameType gameType,
-        Claim rootClaim,
-        bytes calldata extraData
+        GameType _gameType,
+        Claim _rootClaim,
+        bytes calldata _extraData
     )
         external
         view
@@ -56,9 +56,9 @@ interface IDisputeGameFactory {
     /// @notice `gameImpls` is a mapping that maps `GameType`s to their respective
     ///         `IDisputeGame` implementations.
     /// @param _gameType The type of the dispute game.
-    /// @return _impl The address of the implementation of the game type.
+    /// @return impl_ The address of the implementation of the game type.
     ///         Will be cloned on creation of a new dispute game with the given `gameType`.
-    function gameImpls(GameType _gameType) external view returns (IDisputeGame _impl);
+    function gameImpls(GameType _gameType) external view returns (IDisputeGame impl_);
 
     /// @notice Creates a new DisputeGame proxy contract.
     /// @param _gameType The type of the DisputeGame - used to decide the proxy implementation.
@@ -85,7 +85,7 @@ interface IDisputeGameFactory {
     /// @param _gameType The type of the DisputeGame.
     /// @param _rootClaim The root claim of the DisputeGame.
     /// @param _extraData Any extra data that should be provided to the created dispute game.
-    /// @return _uuid The unique identifier for the given dispute game parameters.
+    /// @return uuid_ The unique identifier for the given dispute game parameters.
     function getGameUUID(
         GameType _gameType,
         Claim _rootClaim,
@@ -93,5 +93,5 @@ interface IDisputeGameFactory {
     )
         external
         pure
-        returns (Hash _uuid);
+        returns (Hash uuid_);
 }

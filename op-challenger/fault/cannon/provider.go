@@ -50,17 +50,17 @@ type CannonTraceProvider struct {
 	lastProof *proofData
 }
 
-func NewTraceProvider(ctx context.Context, logger log.Logger, cfg *config.Config, l1Client bind.ContractCaller) (*CannonTraceProvider, error) {
+func NewTraceProvider(ctx context.Context, logger log.Logger, cfg *config.Config, l1Client bind.ContractCaller, gameAddr common.Address) (*CannonTraceProvider, error) {
 	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
 	if err != nil {
 		return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
 	}
 	defer l2Client.Close() // Not needed after fetching the inputs
-	gameCaller, err := bindings.NewFaultDisputeGameCaller(cfg.GameAddress, l1Client)
+	gameCaller, err := bindings.NewFaultDisputeGameCaller(gameAddr, l1Client)
 	if err != nil {
-		return nil, fmt.Errorf("create caller for game %v: %w", cfg.GameAddress, err)
+		return nil, fmt.Errorf("create caller for game %v: %w", gameAddr, err)
 	}
-	localInputs, err := fetchLocalInputs(ctx, cfg.GameAddress, gameCaller, l2Client)
+	localInputs, err := fetchLocalInputs(ctx, gameAddr, gameCaller, l2Client)
 	if err != nil {
 		return nil, fmt.Errorf("fetch local game inputs: %w", err)
 	}
