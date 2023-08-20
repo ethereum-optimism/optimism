@@ -16,23 +16,22 @@ import (
 	"testing"
 )
 
-// test suite
-type l1EtlTs struct {
-	db        *database.MockDB
-	client    *node.MockEthClient
-	start     *big.Int
-	contracts config.L1Contracts
-}
-
 func Test_L1ETL_Construction(t *testing.T) {
+	type testSuite struct {
+		db        *database.MockDB
+		client    *node.MockEthClient
+		start     *big.Int
+		contracts config.L1Contracts
+	}
+
 	var tests = []struct {
 		name         string
-		construction func() *l1EtlTs
+		construction func() *testSuite
 		assertion    func(*L1ETL, error)
 	}{
 		{
 			name: "Start from L1 config height",
-			construction: func() *l1EtlTs {
+			construction: func() *testSuite {
 				client := new(node.MockEthClient)
 				db := database.NewMockDB()
 
@@ -48,7 +47,7 @@ func Test_L1ETL_Construction(t *testing.T) {
 
 				client.On("GethEthClient").Return(nil)
 
-				return &l1EtlTs{
+				return &testSuite{
 					db:        db,
 					client:    client,
 					start:     testStart,
@@ -62,7 +61,7 @@ func Test_L1ETL_Construction(t *testing.T) {
 		},
 		{
 			name: "Start from recent height stored in DB",
-			construction: func() *l1EtlTs {
+			construction: func() *testSuite {
 				client := new(node.MockEthClient)
 				db := database.NewMockDB()
 
@@ -78,7 +77,7 @@ func Test_L1ETL_Construction(t *testing.T) {
 
 				client.On("GethEthClient").Return(nil)
 
-				return &l1EtlTs{
+				return &testSuite{
 					db:        db,
 					client:    client,
 					start:     testStart,

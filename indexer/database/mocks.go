@@ -67,8 +67,6 @@ func (m *MockBlocksView) LatestEpoch() (*Epoch, error) {
 	return args.Get(0).(*Epoch), args.Error(1)
 }
 
-var _ BlocksDB = (*MockBlocksDB)(nil)
-
 type MockBlocksDB struct {
 	MockBlocksView
 }
@@ -92,10 +90,10 @@ func (m *MockBlocksDB) StoreOutputProposals(headers []OutputProposal) error {
 	return args.Error(1)
 }
 
+// MockDB is a mock database that can be used for testing
 type MockDB struct {
-	MockBlockView *MockBlocksView
-	MockBlocks    *MockBlocksDB
-	DB            *DB
+	MockBlocks *MockBlocksDB
+	DB         *DB
 }
 
 func NewMockDB() *MockDB {
@@ -105,6 +103,5 @@ func NewMockDB() *MockDB {
 	mockBlocks := new(MockBlocksDB)
 	db := &DB{Blocks: mockBlocks}
 
-	return &MockDB{MockBlocks: mockBlocks, DB: db,
-		MockBlockView: new(MockBlocksView)}
+	return &MockDB{MockBlocks: mockBlocks, DB: db}
 }
