@@ -48,7 +48,7 @@ func NewL1ETL(log log.Logger, db *database.DB, client node.EthClient, start *big
 		log.Info("no indexed state in storage, starting from supplied L1 height", "height", start.String())
 		header, err := client.BlockHeaderByNumber(start)
 		if err != nil {
-			return nil, fmt.Errorf("could not fetch starting block header: %v", err)
+			return nil, fmt.Errorf("could not fetch starting block header: %w", err)
 		}
 
 		fromHeader = header
