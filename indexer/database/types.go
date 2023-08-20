@@ -93,3 +93,12 @@ func (h *RLPHeader) Header() *types.Header {
 func (h *RLPHeader) Hash() common.Hash {
 	return h.Header().Hash()
 }
+
+type Bytes []byte
+
+func (b Bytes) Bytes() []byte {
+	return b[:]
+}
+func (b *Bytes) SetBytes(bytes []byte) {
+	*b = bytes
+}

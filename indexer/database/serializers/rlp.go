@@ -1,0 +1,60 @@
+package serializers
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"reflect"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/rlp"
+
+	"gorm.io/gorm/schema"
+)
+
+type RLPSerializer struct{}
+
+func init() {
+	schema.RegisterSerializer("rlp", RLPSerializer{})
+}
+
+func (RLPSerializer) Scan(ctx context.Context, field *schema.Field, dst reflect.Value, dbValue interface{}) error {
+	// RLP encoding never results in nil bytes
+	if dbValue == nil {
+		return errors.New("cannot unmarshal an empty dbValue")
+	}
+
+	hexStr, ok := dbValue.(string)
+	if !ok {
+		return fmt.Errorf("expected hex string as the database value: %T", dbValue)
+	}
+
+	b, err := hexutil.Decode(hexStr)
+	if err != nil {
+		return fmt.Errorf("failed to decode database value: %s", err)
+	}
+
+	fieldValue := reflect.New(field.FieldType)
+	if field.FieldType.Kind() == reflect.Pointer {
+		// Allocate memory if this is pointer which by
+		// default when deserializing is probably `nil`
+		fieldValue.Set(reflect.New(field.FieldType.Elem()))
+	}
+
+	if err := rlp.DecodeBytes(b, fieldValue.Interface()); err != nil {
+		return fmt.Errorf("failed to decode rlp bytes: %s", err)
+	}
+
+	field.ReflectValueOf(ctx, dst).Set(fieldValue.Elem())
+	return nil
+}
+
+func (RLPSerializer) Value(ctx context.Context, field *schema.Field, dst reflect.Value, fieldValue interface{}) (interface{}, error) {
+	rlpBytes, err := rlp.EncodeToBytes(fieldValue)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode rlp bytes: %s", err)
+	}
+
+	hexStr := hexutil.Encode(rlpBytes)
+	return hexStr, nil
+}
