@@ -315,3 +315,38 @@ func TestWaitForPending(t *testing.T) {
 		require.False(t, clock.WaitForNewPendingTask(ctx), "should have reset new pending task flag")
 	})
 }
+
+func TestSleepCtx(t *testing.T) {
+	t.Run("ReturnWhenContextComplete", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		err := clock.SleepCtx(ctx, 5*time.Minute)
+		require.ErrorIs(t, err, context.Canceled)
+	})
+
+	t.Run("ReturnWhenDurationComplete", func(t *testing.T) {
+		clock := NewDeterministicClock(time.UnixMilli(1000))
+		var wg sync.WaitGroup
+		var result atomic.Value
+		wg.Add(1)
+		go func() {
+			err := clock.SleepCtx(context.Background(), 5*time.Minute)
+			if err != nil {
+				result.Store(err)
+			}
+			wg.Done()
+		}()
+
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancelFunc()
+		// Wait until the SleepCtx is called and schedules a pending task
+		clock.WaitForNewPendingTask(ctx)
+
+		clock.AdvanceTime(5 * time.Minute)
+
+		// Wait for the call to return
+		wg.Wait()
+		require.Nil(t, result.Load())
+	})
+}
