@@ -56,7 +56,8 @@ func (s *jsonRawString) UnmarshalJSON(input []byte) error {
 // printDebugTrace logs debug_traceTransaction output to aid in debugging unexpected receipt statuses
 func printDebugTrace(ctx context.Context, client *ethclient.Client, txHash common.Hash) {
 	var trace jsonRawString
-	options := map[string]string{}
+	options := map[string]any{}
+	options["enableReturnData"] = true
 	err := client.Client().CallContext(ctx, &trace, "debug_traceTransaction", hexutil.Bytes(txHash.Bytes()), options)
 	if err != nil {
 		fmt.Printf("TxTrace unavailable: %v\n", err)
