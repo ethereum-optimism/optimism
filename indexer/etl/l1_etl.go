@@ -54,7 +54,7 @@ func NewL1ETL(log log.Logger, db *database.DB, client node.EthClient, start *big
 		fromHeader = header
 	}
 
-	// NOTE - The use of un-buffered channel here assumes that downstream bridge processor consumer
+	// NOTE - The use of un-buffered channel here assumes that downstream consumers
 	// will be able to keep up with the rate of incoming batches
 	etlBatches := make(chan ETLBatch)
 	etl := ETL{
