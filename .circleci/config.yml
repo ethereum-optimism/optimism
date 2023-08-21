@@ -778,6 +778,9 @@ jobs:
       use_http:
         description: If the op-e2e package should use HTTP clients
         type: string
+      use_external:
+        description: The extra-process shim (if any) that should be used
+        type: string
     docker:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     resource_class: xlarge
@@ -788,6 +791,13 @@ jobs:
       - run:
           name: prep results dir
           command: mkdir -p /tmp/test-results
+      - when:
+          condition: <<parameters.use_external>>
+          steps:
+            - run:
+                name: Build Shim
+                command: make -C <<parameters.use_external>>
+                working_directory: <<parameters.module>>
       - run:
           name: install geth
           command: make install-geth
@@ -807,9 +817,11 @@ jobs:
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
             # Note: -parallel must be set to match the number of cores in the resource class
+            export TEST_SUFFIX="<<parameters.use_external>>"
+            export EXTERNAL_L2="$(test -z '<<parameters.use_external>>' || echo '<<parameters.use_external>>/shim')"
             OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=false OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
-            --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml \
-            -- -timeout=20m -parallel=8 ./...
+            --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>$TEST_SUFFIX.xml \
+            -- -timeout=20m -parallel=8 --externalL2 "$EXTERNAL_L2" ./...
           working_directory: <<parameters.module>>
       - store_test_results:
           path: /tmp/test-results
@@ -1274,10 +1286,17 @@ workflows:
           name: op-e2e-WS-tests
           module: op-e2e
           use_http: "false"
+          use_external: ""
       - go-e2e-test:
           name: op-e2e-HTTP-tests
           module: op-e2e
           use_http: "true"
+          use_external: ""
+      - go-e2e-test:
+          name: op-e2e-WS-tests-external-geth
+          module: op-e2e
+          use_http: "false"
+          use_external: "external_geth"
       - bedrock-go-tests:
           requires:
             - op-batcher-lint
