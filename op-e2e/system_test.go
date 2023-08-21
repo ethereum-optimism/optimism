@@ -33,7 +33,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-e2e/config"
 	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
@@ -41,8 +40,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-service/backoff"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 )
 
 func TestMain(m *testing.M) {
@@ -589,7 +589,7 @@ func TestSystemMockP2P(t *testing.T) {
 
 	// poll to see if the verifier node is connected & meshed on gossip.
 	// Without this verifier, we shouldn't start sending blocks around, or we'll miss them and fail the test.
-	backOffStrategy := backoff.Exponential()
+	backOffStrategy := retry.Exponential()
 	for i := 0; i < 10; i++ {
 		if check() {
 			break

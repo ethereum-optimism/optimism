@@ -9,7 +9,7 @@ import datetime
 import time
 import shutil
 import http.client
-import multiprocessing
+from multiprocessing import Process, Queue
 
 import devnet.log_setup
 
@@ -26,6 +26,26 @@ class Bunch:
     def __init__(self, **kwds):
         self.__dict__.update(kwds)
 
+class ChildProcess:
+    def __init__(self, func, *args):
+        self.errq = Queue()
+        self.process = Process(target=self._func, args=(func, args))
+
+    def _func(self, func, args):
+        try:
+            func(*args)
+        except Exception as e:
+            self.errq.put(str(e))
+
+    def start(self):
+        self.process.start()
+
+    def join(self):
+        self.process.join()
+
+    def get_error(self):
+        return self.errq.get() if not self.errq.empty() else None
+
 
 def main():
     args = parser.parse_args()
@@ -33,12 +53,13 @@ def main():
     monorepo_dir = os.path.abspath(args.monorepo_dir)
     devnet_dir = pjoin(monorepo_dir, '.devnet')
     contracts_bedrock_dir = pjoin(monorepo_dir, 'packages', 'contracts-bedrock')
-    sdk_dir = pjoin(monorepo_dir, 'packages', 'sdk')
     deployment_dir = pjoin(contracts_bedrock_dir, 'deployments', 'devnetL1')
     op_node_dir = pjoin(args.monorepo_dir, 'op-node')
     ops_bedrock_dir = pjoin(monorepo_dir, 'ops-bedrock')
+    deploy_config_dir = pjoin(contracts_bedrock_dir, 'deploy-config'),
     devnet_config_path = pjoin(contracts_bedrock_dir, 'deploy-config', 'devnetL1.json')
     ops_chain_ops = pjoin(monorepo_dir, 'op-chain-ops')
+    sdk_dir = pjoin(monorepo_dir, 'packages', 'sdk')
 
     paths = Bunch(
       mono_repo_dir=monorepo_dir,
@@ -46,6 +67,7 @@ def main():
       contracts_bedrock_dir=contracts_bedrock_dir,
       deployment_dir=deployment_dir,
       l1_deployments_path=pjoin(deployment_dir, '.deploy'),
+      deploy_config_dir=deploy_config_dir,
       devnet_config_path=devnet_config_path,
       op_node_dir=op_node_dir,
       ops_bedrock_dir=ops_bedrock_dir,
@@ -111,9 +133,12 @@ def devnet_l1_genesis(paths):
         '--verbosity', '4', '--gcmode', 'archive', '--dev.gaslimit', '30000000'
     ])
 
-    forge = multiprocessing.Process(target=deploy_contracts, args=(paths,))
+    forge = ChildProcess(deploy_contracts, paths)
     forge.start()
     forge.join()
+    err = forge.get_error()
+    if err:
+        raise Exception(f"Exception occurred in child process: {err}")
 
     res = debug_dumpBlock('127.0.0.1:8545')
     response = json.loads(res)

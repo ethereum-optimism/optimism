@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-service/backoff"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -103,8 +103,8 @@ func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption)
 
 // Dials a JSON-RPC endpoint repeatedly, with a backoff, until a client connection is established. Auth is optional.
 func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, attempts int, opts ...rpc.ClientOption) (*rpc.Client, error) {
-	bOff := backoff.Exponential()
-	return backoff.Do(ctx, attempts, bOff, func() (*rpc.Client, error) {
+	bOff := retry.Exponential()
+	return retry.Do(ctx, attempts, bOff, func() (*rpc.Client, error) {
 		if !IsURLAvailable(addr) {
 			log.Warn("failed to dial address, but may connect later", "addr", addr)
 			return nil, fmt.Errorf("address unavailable (%s)", addr)
@@ -122,7 +122,19 @@ func IsURLAvailable(address string) bool {
 	if err != nil {
 		return false
 	}
-	conn, err := net.DialTimeout("tcp", u.Host, 5*time.Second)
+	addr := u.Host
+	if u.Port() == "" {
+		switch u.Scheme {
+		case "http", "ws":
+			addr += ":80"
+		case "https", "wss":
+			addr += ":443"
+		default:
+			// Fail open if we can't figure out what the port should be
+			return true
+		}
+	}
+	conn, err := net.DialTimeout("tcp", addr, 5*time.Second)
 	if err != nil {
 		return false
 	}

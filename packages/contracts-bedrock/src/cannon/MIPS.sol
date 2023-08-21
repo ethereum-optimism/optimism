@@ -53,11 +53,17 @@ contract MIPS {
     uint32 constant EINVAL = 0x16;
 
     /// @notice The preimage oracle contract.
-    IPreimageOracle public oracle;
+    IPreimageOracle internal immutable ORACLE;
 
     /// @param _oracle The address of the preimage oracle contract.
     constructor(IPreimageOracle _oracle) {
-        oracle = _oracle;
+        ORACLE = _oracle;
+    }
+
+    /// @notice Getter for the pre-image oracle contract.
+    /// @return oracle_ The IPreimageOracle contract.
+    function oracle() external view returns (IPreimageOracle oracle_) {
+        oracle_ = ORACLE;
     }
 
     /// @notice Extends the value leftwards with its most significant bit (sign extension).
@@ -179,7 +185,7 @@ contract MIPS {
                     if (uint8(preimageKey[0]) == 1) {
                         preimageKey = PreimageKeyLib.localize(preimageKey);
                     }
-                    (bytes32 dat, uint256 datLen) = oracle.readPreimage(preimageKey, state.preimageOffset);
+                    (bytes32 dat, uint256 datLen) = ORACLE.readPreimage(preimageKey, state.preimageOffset);
 
                     // Transform data for writing to memory
                     // We use assembly for more precise ops, and no var count limit
@@ -661,9 +667,9 @@ contract MIPS {
 
             // j-type j/jal
             if (opcode == 2 || opcode == 3) {
-                // TODO(CLI-4136): likely bug in original code: MIPS spec says this should be in the "current" region;
-                // a 256 MB aligned region (i.e. use top 4 bits of branch delay slot (pc+4))
-                return handleJump(opcode == 2 ? 0 : 31, SE(insn & 0x03FFFFFF, 26) << 2);
+                // Take top 4 bits of the next PC (its 256 MB region), and concatenate with the 26-bit offset
+                uint32 target = (state.nextPC & 0xF0000000) | (insn & 0x03FFFFFF) << 2;
+                return handleJump(opcode == 2 ? 0 : 31, target);
             }
 
             // register fetch
@@ -769,7 +775,6 @@ contract MIPS {
         unchecked {
             uint32 opcode = insn >> 26; // 6-bits
             uint32 func = insn & 0x3f; // 6-bits
-            // TODO(CLI-4136): deref the immed into a register
 
             if (opcode < 0x20) {
                 // transform ArithLogI

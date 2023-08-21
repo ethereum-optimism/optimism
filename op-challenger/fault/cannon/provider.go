@@ -53,23 +53,27 @@ type CannonTraceProvider struct {
 func NewTraceProvider(ctx context.Context, logger log.Logger, cfg *config.Config, l1Client bind.ContractCaller) (*CannonTraceProvider, error) {
 	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
 	if err != nil {
-		return nil, fmt.Errorf("dial l2 cleint %v: %w", cfg.CannonL2, err)
+		return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
 	}
 	defer l2Client.Close() // Not needed after fetching the inputs
 	gameCaller, err := bindings.NewFaultDisputeGameCaller(cfg.GameAddress, l1Client)
 	if err != nil {
 		return nil, fmt.Errorf("create caller for game %v: %w", cfg.GameAddress, err)
 	}
-	l1Head, err := fetchLocalInputs(ctx, cfg.GameAddress, gameCaller, l2Client)
+	localInputs, err := fetchLocalInputs(ctx, cfg.GameAddress, gameCaller, l2Client)
 	if err != nil {
 		return nil, fmt.Errorf("fetch local game inputs: %w", err)
 	}
+	return NewTraceProviderFromInputs(logger, cfg, localInputs), nil
+}
+
+func NewTraceProviderFromInputs(logger log.Logger, cfg *config.Config, localInputs LocalGameInputs) *CannonTraceProvider {
 	return &CannonTraceProvider{
 		logger:    logger,
 		dir:       cfg.CannonDatadir,
 		prestate:  cfg.CannonAbsolutePreState,
-		generator: NewExecutor(logger, cfg, l1Head),
-	}, nil
+		generator: NewExecutor(logger, cfg, localInputs),
+	}
 }
 
 func (p *CannonTraceProvider) Get(ctx context.Context, i uint64) (common.Hash, error) {

@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.12.3
+
+### Patch Changes
+
+- [#6797](https://github.com/ethereum-optimism/optimism/pull/6797) [`dfa309e34`](https://github.com/ethereum-optimism/optimism/commit/dfa309e3430ebc8790b932554dde120aafc4161e) Thanks [@roninjin10](https://github.com/roninjin10)! - Upgraded npm dependencies to latest
+
 ## 0.12.2
 
 ### Patch Changes

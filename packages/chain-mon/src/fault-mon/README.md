@@ -48,7 +48,7 @@ Check the list of available metrics via `pnpm start --help`:
 
 ```sh
 > pnpm start --help
-$ ts-node ./src/service.ts --help
+$ tsx ./src/service.ts --help
 Usage: service [options]
 
 Options:

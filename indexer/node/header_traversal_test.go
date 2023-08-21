@@ -11,22 +11,21 @@ import (
 )
 
 // make a set of headers which chain correctly
-func makeHeaders(numHeaders uint64, prevHeader *types.Header) []*types.Header {
-	headers := make([]*types.Header, numHeaders)
+func makeHeaders(numHeaders uint64, prevHeader *types.Header) []types.Header {
+	headers := make([]types.Header, numHeaders)
 	for i := range headers {
 		if i == 0 {
 			if prevHeader == nil {
 				// genesis
-				headers[i] = &types.Header{Number: big.NewInt(0)}
+				headers[i] = types.Header{Number: big.NewInt(0)}
 			} else {
 				// chain onto the previous header
-				headers[i] = &types.Header{Number: big.NewInt(prevHeader.Number.Int64() + 1)}
+				headers[i] = types.Header{Number: big.NewInt(prevHeader.Number.Int64() + 1)}
 				headers[i].ParentHash = prevHeader.Hash()
 			}
 		} else {
-			prevHeader = headers[i-1]
-			headers[i] = &types.Header{Number: big.NewInt(prevHeader.Number.Int64() + 1)}
-			headers[i].ParentHash = prevHeader.Hash()
+			headers[i] = types.Header{Number: big.NewInt(headers[i-1].Number.Int64() + 1)}
+			headers[i].ParentHash = headers[i-1].Hash()
 		}
 	}
 
@@ -62,7 +61,7 @@ func TestHeaderTraversalNextFinalizedHeadersCursored(t *testing.T) {
 	require.Len(t, headers, 5)
 
 	// blocks [5..9]
-	headers = makeHeaders(5, headers[len(headers)-1])
+	headers = makeHeaders(5, &headers[len(headers)-1])
 	client.On("FinalizedBlockHeight").Return(big.NewInt(9), nil)
 	client.On("BlockHeadersByRange", mock.MatchedBy(bigIntMatcher(5)), mock.MatchedBy(bigIntMatcher(9))).Return(headers, nil)
 	headers, err = headerTraversal.NextFinalizedHeaders(5)
@@ -87,7 +86,7 @@ func TestHeaderTraversalNextFinalizedHeadersMaxSize(t *testing.T) {
 	require.Len(t, headers, 5)
 
 	// clamped by the supplied size. FinalizedHeight == 100
-	headers = makeHeaders(10, headers[len(headers)-1])
+	headers = makeHeaders(10, &headers[len(headers)-1])
 	client.On("BlockHeadersByRange", mock.MatchedBy(bigIntMatcher(5)), mock.MatchedBy(bigIntMatcher(14))).Return(headers, nil)
 	headers, err = headerTraversal.NextFinalizedHeaders(10)
 	require.NoError(t, err)

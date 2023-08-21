@@ -24,21 +24,16 @@ type Transaction struct {
 }
 
 type L1TransactionDeposit struct {
-	SourceHash        common.Hash `gorm:"serializer:json;primaryKey"`
-	L2TransactionHash common.Hash `gorm:"serializer:json"`
-
+	SourceHash           common.Hash `gorm:"serializer:json;primaryKey"`
+	L2TransactionHash    common.Hash `gorm:"serializer:json"`
 	InitiatedL1EventGUID uuid.UUID
-
-	Version    U256
-	OpaqueData hexutil.Bytes `gorm:"serializer:json"`
 
 	Tx       Transaction `gorm:"embedded"`
 	GasLimit U256
 }
 
 type L2TransactionWithdrawal struct {
-	WithdrawalHash common.Hash `gorm:"serializer:json;primaryKey"`
-
+	WithdrawalHash       common.Hash `gorm:"serializer:json;primaryKey"`
 	Nonce                U256
 	InitiatedL2EventGUID uuid.UUID
 
