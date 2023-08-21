@@ -105,7 +105,7 @@ func NewCli(GitVersion string, GitCommit string, GitDate string) *Cli {
 				Action:      runApi,
 			},
 			{
-				Name:        "indexer",
+				Name:        "index",
 				Flags:       flags,
 				Description: "Runs the indexing service",
 				Action:      runIndexer,

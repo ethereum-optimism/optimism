@@ -8,6 +8,7 @@ require (
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
+	github.com/ethereum-optimism/superchain-registry/superchain v0.0.0-20230817174831-5d3ca1966435
 	github.com/ethereum/go-ethereum v1.12.0
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/go-chi/chi/v5 v5.0.10
@@ -207,6 +208,6 @@ require (
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.12.0 => github.com/ethereum-optimism/op-geth v1.101106.1-0.20230724181546-b9c6d36ae9b8
+replace github.com/ethereum/go-ethereum v1.12.0 => github.com/ethereum-optimism/op-geth v1.101200.0-rc.1.0.20230818191139-f7376a28049b
 
 //replace github.com/ethereum/go-ethereum v1.12.0 => ../go-ethereum

@@ -29,20 +29,32 @@ type gameMonitor struct {
 	source           gameSource
 	createPlayer     playerCreator
 	fetchBlockNumber blockNumberFetcher
-	allowedGame      common.Address
+	allowedGames     []common.Address
 	players          map[common.Address]gamePlayer
 }
 
-func newGameMonitor(logger log.Logger, cl clock.Clock, fetchBlockNumber blockNumberFetcher, allowedGame common.Address, source gameSource, createGame playerCreator) *gameMonitor {
+func newGameMonitor(logger log.Logger, cl clock.Clock, fetchBlockNumber blockNumberFetcher, allowedGames []common.Address, source gameSource, createGame playerCreator) *gameMonitor {
 	return &gameMonitor{
 		logger:           logger,
 		clock:            cl,
 		source:           source,
 		createPlayer:     createGame,
 		fetchBlockNumber: fetchBlockNumber,
-		allowedGame:      allowedGame,
+		allowedGames:     allowedGames,
 		players:          make(map[common.Address]gamePlayer),
 	}
+}
+
+func (m *gameMonitor) allowedGame(game common.Address) bool {
+	if len(m.allowedGames) == 0 {
+		return true
+	}
+	for _, allowed := range m.allowedGames {
+		if allowed == game {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *gameMonitor) progressGames(ctx context.Context) error {
@@ -55,7 +67,7 @@ func (m *gameMonitor) progressGames(ctx context.Context) error {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
 	for _, game := range games {
-		if m.allowedGame != (common.Address{}) && m.allowedGame != game.Proxy {
+		if !m.allowedGame(game.Proxy) {
 			m.logger.Debug("Skipping game not on allow list", "game", game.Proxy)
 			continue
 		}
