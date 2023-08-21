@@ -26,6 +26,11 @@ var (
 	L1Deployments *genesis.L1Deployments
 	// DeployConfig represents the deploy config used by the system.
 	DeployConfig *genesis.DeployConfig
+	// ExternalL2Nodes is the shim to use if external ethereum client testing is
+	// enabled
+	ExternalL2Nodes string
+	// EthNodeVerbosity is the level of verbosity to output
+	EthNodeVerbosity int
 )
 
 // Init testing to enable test flags
@@ -53,6 +58,8 @@ func init() {
 	flag.StringVar(&l1AllocsPath, "l1-allocs", defaultL1AllocsPath, "")
 	flag.StringVar(&l1DeploymentsPath, "l1-deployments", defaultL1DeploymentsPath, "")
 	flag.StringVar(&deployConfigPath, "deploy-config", defaultDeployConfigPath, "")
+	flag.StringVar(&ExternalL2Nodes, "externalL2", "", "Enable tests with external L2")
+	flag.IntVar(&EthNodeVerbosity, "ethLogVerbosity", 3, "The level of verbosity to use for the eth node logs")
 	flag.Parse()
 
 	if err := allExist(l1AllocsPath, l1DeploymentsPath, deployConfigPath); err != nil {
