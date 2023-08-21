@@ -17,14 +17,14 @@ import (
 	"sync"
 	"time"
 
-	sw "github.com/ethereum-optimism/optimism/proxyd/pkg/avg-sliding-window"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/rpc"
-
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/sync/semaphore"
+
+	sw "github.com/ethereum-optimism/optimism/proxyd/pkg/avg-sliding-window"
 )
 
 const (
@@ -138,6 +138,7 @@ type Backend struct {
 	proxydIP             string
 
 	skipPeerCountCheck bool
+	forcedCandidate    bool
 
 	maxDegradedLatencyThreshold time.Duration
 	maxLatencyThreshold         time.Duration
@@ -217,6 +218,12 @@ func WithProxydIP(ip string) BackendOpt {
 func WithConsensusSkipPeerCountCheck(skipPeerCountCheck bool) BackendOpt {
 	return func(b *Backend) {
 		b.skipPeerCountCheck = skipPeerCountCheck
+	}
+}
+
+func WithConsensusForcedCandidate(forcedCandidate bool) BackendOpt {
+	return func(b *Backend) {
+		b.forcedCandidate = forcedCandidate
 	}
 }
 
@@ -675,9 +682,10 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 
 		// We also rewrite block tags to enforce compliance with consensus
 		rctx := RewriteContext{
-			latest:    bg.Consensus.GetLatestBlockNumber(),
-			safe:      bg.Consensus.GetSafeBlockNumber(),
-			finalized: bg.Consensus.GetFinalizedBlockNumber(),
+			latest:        bg.Consensus.GetLatestBlockNumber(),
+			safe:          bg.Consensus.GetSafeBlockNumber(),
+			finalized:     bg.Consensus.GetFinalizedBlockNumber(),
+			maxBlockRange: bg.Consensus.maxBlockRange,
 		}
 
 		for i, req := range rpcReqs {
@@ -692,6 +700,10 @@ func (bg *BackendGroup) Forward(ctx context.Context, rpcReqs []*RPCReq, isBatch 
 				})
 				if errors.Is(err, ErrRewriteBlockOutOfRange) {
 					res.Error = ErrBlockOutOfRange
+				} else if errors.Is(err, ErrRewriteRangeTooLarge) {
+					res.Error = ErrInvalidParams(
+						fmt.Sprintf("block range greater than %d max", rctx.maxBlockRange),
+					)
 				} else {
 					res.Error = ErrParseErr
 				}
