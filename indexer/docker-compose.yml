@@ -15,6 +15,7 @@ services:
       - "5434:5432"
     volumes:
       - postgres_data:/data/postgres
+      - ./migrations:/docker-entrypoint-initdb.d/
 
   indexer:
     build:
