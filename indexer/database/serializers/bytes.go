@@ -18,7 +18,7 @@ func init() {
 }
 
 func (BytesSerializer) Scan(ctx context.Context, field *schema.Field, dst reflect.Value, dbValue interface{}) error {
-	if dbValue == nil || (field.FieldType.Kind() == reflect.Pointer && reflect.ValueOf(dbValue).IsNil()) {
+	if dbValue == nil {
 		return nil
 	}
 
