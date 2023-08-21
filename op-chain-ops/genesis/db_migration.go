@@ -2,16 +2,12 @@ package genesis
 
 import (
 	"fmt"
-	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
@@ -34,8 +30,7 @@ var EIP1559Denominator = uint64(1)
 var EIP1559Elasticity = uint64(2)
 
 // MigrateDB will migrate an l2geth legacy Optimism database to a Bedrock database.
-func MigrateDB(ldb ethdb.Database, l1Block *types.Block, commit, noCheck bool) (*MigrationResult, error) {
-
+func MigrateDB(ldb ethdb.Database, commit, noCheck bool) (*MigrationResult, error) {
 	log.Info("Migrating DB")
 	// Grab the hash of the tip of the legacy chain.
 	hash := rawdb.ReadHeadHeaderHash(ldb)
@@ -46,44 +41,11 @@ func MigrateDB(ldb ethdb.Database, l1Block *types.Block, commit, noCheck bool) (
 	if num == nil {
 		return nil, fmt.Errorf("cannot find header number for %s", hash)
 	}
+	log.Info("Reading chain tip num from database", "number", num)
 
 	// Grab the full header.
-	header := rawdb.ReadHeader(ldb, hash, *num)
-	log.Info("Read header from database", "number", *num)
-
-	// TODO(pl): Check this logic
-	// // Ensure that the extradata is valid.
-	// if size := len(BedrockTransitionBlockExtraData); size > 32 {
-	// 	return nil, fmt.Errorf("transition block extradata too long: %d", size)
-	// }
-
-	// // We write special extra data into the Bedrock transition block to indicate that the migration
-	// // has already happened. If we detect this extra data, we can skip the migration.
-	// if bytes.Equal(header.Extra, BedrockTransitionBlockExtraData) {
-	// 	log.Info("Detected migration already happened", "root", header.Root, "blockhash", header.Hash())
-
-	// 	return &MigrationResult{
-	// 		TransitionHeight:    *num,
-	// 		TransitionTimestamp: header.Time,
-	// 		TransitionBlockHash: hash,
-	// 	}, nil
-	// }
-
-	// // Ensure that the timestamp for the Bedrock transition block is greater than the timestamp of
-	// // the last legacy block.
-	// if uint64(config.L2OutputOracleStartingTimestamp) <= header.Time {
-	// 	return nil, fmt.Errorf(
-	// 		"output oracle starting timestamp (%d) is less than the header timestamp (%d)", config.L2OutputOracleStartingTimestamp, header.Time,
-	// 	)
-	// }
-
-	// // Ensure that the timestamp for the Bedrock transition block is greater than 0, not implicitly
-	// // guaranteed by the above check because the above converted the timestamp to a uint64.
-	// if config.L2OutputOracleStartingTimestamp <= 0 {
-	// 	return nil, fmt.Errorf(
-	// 		"output oracle starting timestamp (%d) cannot be <= 0", config.L2OutputOracleStartingTimestamp,
-	// 	)
-	// }
+	// header := rawdb.ReadHeader(ldb, hash, *num)
+	// log.Info("Read header from database", "number", *num)
 
 	dbFactory := func() (*state.StateDB, error) {
 		// Set up the backing store.
@@ -93,7 +55,8 @@ func MigrateDB(ldb ethdb.Database, l1Block *types.Block, commit, noCheck bool) (
 		})
 
 		// Open up the state database.
-		db, err := state.New(header.Root, underlyingDB, nil)
+		db, err := state.New(hash, underlyingDB, nil)
+		// db, err := state.New(header.Root, underlyingDB, nil)
 		if err != nil {
 			return nil, fmt.Errorf("cannot open StateDB: %w", err)
 		}
@@ -106,223 +69,35 @@ func MigrateDB(ldb ethdb.Database, l1Block *types.Block, commit, noCheck bool) (
 		return nil, fmt.Errorf("cannot create StateDB: %w", err)
 	}
 
-	// Before we do anything else, we need to ensure that all of the input configuration is correct
-	// and nothing is missing. We'll first verify the contract configuration, then we'll verify the
-	// witness data for the migration. We operate under the assumption that the witness data is
-	// untrusted and must be verified explicitly before we can use it.
+	fmt.Println("db", db)
 
-	// // Generate and verify the configuration for storage variables to be set on L2.
-	// storage, err := NewL2StorageConfig(config, l1Block)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("cannot create storage config: %w", err)
-	// }
+	// Remove old blocks, so that we start with a fresh genesis block
+	// currentHash := header.ParentHash
+	// for {
+	// 	// There are no uncles in Celo
+	// 	num = rawdb.ReadHeaderNumber(ldb, currentHash)
+	// 	hash = rawdb.ReadCanonicalHash(ldb, *num)
+	// 	// header = rawdb.ReadHeader(ldb, currentHash, *num)
+	// 	// if header == nil {
+	// 	// 	return nil, fmt.Errorf("couldn't find header")
+	// 	// }
 
-	// // Generate and verify the configuration for immutable variables to be set on L2.
-	// immutable, err := NewL2ImmutableConfig(config, l1Block)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("cannot create immutable config: %w", err)
-	// }
-
-	// // Convert all input messages into legacy messages. Note that this list is not yet filtered and
-	// // may be missing some messages or have some extra messages.
-	// unfilteredWithdrawals, invalidMessages, err := migrationData.ToWithdrawals()
-	// if err != nil {
-	// 	return nil, fmt.Errorf("cannot serialize withdrawals: %w", err)
-	// }
-
-	// log.Info("Read withdrawals from witness data", "unfiltered", len(unfilteredWithdrawals), "invalid", len(invalidMessages))
-
-	// // We now need to check that we have all of the withdrawals that we expect to have. An error
-	// // will be thrown if there are any missing messages, and any extra messages will be removed.
-	// var filteredWithdrawals crossdomain.SafeFilteredWithdrawals
-	// if !noCheck {
-	// 	log.Info("Checking withdrawals...")
-	// 	filteredWithdrawals, err = crossdomain.PreCheckWithdrawals(db, unfilteredWithdrawals, invalidMessages)
-	// 	if err != nil {
-	// 		return nil, fmt.Errorf("withdrawals mismatch: %w", err)
+	// 	log.Info("Deleting block", "hash", currentHash, "c", currentHash, "number", *num)
+	// 	// rawdb.DeleteBlock(ldb, currentHash, *num)
+	// 	if *num == 0 {
+	// 		break
 	// 	}
-	// } else {
-	// 	log.Info("Skipping checking withdrawals")
-	// 	filteredWithdrawals = crossdomain.SafeFilteredWithdrawals(unfilteredWithdrawals)
+
+	// 	currentHash = header.ParentHash
 	// }
 
-	// At this point we've fully verified the witness data for the migration, so we can begin the
-	// actual migration process. This involves modifying parts of the legacy database and inserting
-	// a transition block.
+	for i := *num; i >= 0; i-- {
+		hash = rawdb.ReadCanonicalHash(ldb, i)
+		log.Info("Deleting block", "hash", hash, "number", *num)
 
-	// // We need to wipe the storage of every predeployed contract EXCEPT for the GovernanceToken,
-	// // WETH9, the DeployerWhitelist, the LegacyMessagePasser, and LegacyERC20ETH. We have verified
-	// // that none of the legacy storage (other than the aforementioned contracts) is accessible and
-	// // therefore can be safely removed from the database. Storage must be wiped before anything
-	// // else or the ERC-1967 proxy storage slots will be removed.
-	// if err := WipePredeployStorage(db); err != nil {
-	// 	return nil, fmt.Errorf("cannot wipe storage: %w", err)
-	// }
-
-	// // Next order of business is to convert all predeployed smart contracts into proxies so they
-	// // can be easily upgraded later on. In the legacy system, all upgrades to predeployed contracts
-	// // required hard forks which was a huge pain. Note that we do NOT put the GovernanceToken or
-	// // WETH9 contracts behind proxies because we do not want to make these easily upgradable.
-	// log.Info("Converting predeployed contracts to proxies")
-	// if err := SetL2Proxies(db); err != nil {
-	// 	return nil, fmt.Errorf("cannot set L2Proxies: %w", err)
-	// }
-
-	// // Here we update the storage of each predeploy with the new storage variables that we want to
-	// // set on L2 and update the implementations for all predeployed contracts that are behind
-	// // proxies (NOT the GovernanceToken or WETH9).
-	// log.Info("Updating implementations for predeployed contracts")
-	// if err := SetImplementations(db, storage, immutable); err != nil {
-	// 	return nil, fmt.Errorf("cannot set implementations: %w", err)
-	// }
-
-	// // We need to update the code for LegacyERC20ETH. This is NOT a standard predeploy because it's
-	// // deployed at the 0xdeaddeaddead... address and therefore won't be updated by the previous
-	// // function call to SetImplementations.
-	// log.Info("Updating code for LegacyERC20ETH")
-	// if err := SetLegacyETH(db, storage, immutable); err != nil {
-	// 	return nil, fmt.Errorf("cannot set legacy ETH: %w", err)
-	// }
-
-	// // Now we migrate legacy withdrawals from the LegacyMessagePasser contract to their new format
-	// // in the Bedrock L2ToL1MessagePasser contract. Note that we do NOT delete the withdrawals from
-	// // the LegacyMessagePasser contract. Here we operate on the list of withdrawals that we
-	// // previously filtered and verified.
-	// log.Info("Starting to migrate withdrawals", "no-check", noCheck)
-	// l2ChainID := new(big.Int).SetUint64(config.L2ChainID)
-	// err = crossdomain.MigrateWithdrawals(filteredWithdrawals, db, &config.L1CrossDomainMessengerProxy, noCheck, l2ChainID)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("cannot migrate withdrawals: %w", err)
-	// }
-
-	// // Finally we migrate the balances held inside the LegacyERC20ETH contract into the state trie.
-	// // We also delete the balances from the LegacyERC20ETH contract. Unlike the steps above, this step
-	// // combines the check and mutation steps into one in order to reduce migration time.
-	// log.Info("Starting to migrate ERC20 ETH")
-	// err = ether.MigrateBalances(db, dbFactory, migrationData.Addresses(), migrationData.OvmAllowances, int(config.L1ChainID), noCheck)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to migrate OVM_ETH: %w", err)
-	// }
-
-	// We're done messing around with the database, so we can now commit the changes to the DB.
-	// Note that this doesn't actually write the changes to disk.
-	log.Info("Committing state DB")
-	newRoot, err := db.Commit(true)
-	if err != nil {
-		return nil, err
+		// rawdb.DeleteBlock(ldb, currentHash, *num)
 	}
-
-	// Create the header for the Bedrock transition block.
-	cel2Header := &types.Header{
-		ParentHash:  header.Hash(),
-		UncleHash:   types.EmptyUncleHash,
-		Coinbase:    predeploys.SequencerFeeVaultAddr,
-		Root:        newRoot,
-		TxHash:      types.EmptyRootHash,
-		ReceiptHash: types.EmptyRootHash,
-		Bloom:       types.Bloom{},
-		Difficulty:  common.Big0,
-		Number:      new(big.Int).Add(header.Number, common.Big1),
-		// GasLimit:    (uint64)(config.L2GenesisBlockGasLimit),
-		GasLimit: uint64(20_000_000),
-		GasUsed:  0,
-		// Time:        uint64(config.L2OutputOracleStartingTimestamp),
-		Time:      uint64(1234),
-		Extra:     BedrockTransitionBlockExtraData,
-		MixDigest: common.Hash{},
-		Nonce:     types.BlockNonce{},
-		BaseFee:   big.NewInt(params.InitialBaseFee),
-	}
-
-	// Create the Bedrock transition block from the header. Note that there are no transactions,
-	// uncle blocks, or receipts in the Bedrock transition block.
-	cel2Block := types.NewBlock(cel2Header, nil, nil, nil, trie.NewStackTrie(nil))
-
-	// We did it!
-	log.Info(
-		"Built Bedrock transition",
-		"hash", cel2Block.Hash(),
-		"root", cel2Block.Root(),
-		"number", cel2Block.NumberU64(),
-		"gas-used", cel2Block.GasUsed(),
-		"gas-limit", cel2Block.GasLimit(),
-	)
-
-	// Create the result of the migration.
-	res := &MigrationResult{
-		TransitionHeight:    cel2Block.NumberU64(),
-		TransitionTimestamp: cel2Block.Time(),
-		TransitionBlockHash: cel2Block.Hash(),
-	}
-
-	// If we're not actually writing this to disk, then we're done.
-	if !commit {
-		log.Info("Dry run complete")
-		return res, nil
-	}
-
-	// Otherwise we need to write the changes to disk. First we commit the state changes.
-	log.Info("Committing trie DB")
-	if err := db.Database().TrieDB().Commit(newRoot, true); err != nil {
-		return nil, err
-	}
-
-	// Next we write the Bedrock transition block to the database.
-	rawdb.WriteTd(ldb, cel2Block.Hash(), cel2Block.NumberU64(), cel2Block.Difficulty())
-	rawdb.WriteBlock(ldb, cel2Block)
-	rawdb.WriteReceipts(ldb, cel2Block.Hash(), cel2Block.NumberU64(), nil)
-	rawdb.WriteCanonicalHash(ldb, cel2Block.Hash(), cel2Block.NumberU64())
-	rawdb.WriteHeadBlockHash(ldb, cel2Block.Hash())
-	rawdb.WriteHeadFastBlockHash(ldb, cel2Block.Hash())
-	rawdb.WriteHeadHeaderHash(ldb, cel2Block.Hash())
-
-	// Make the first Bedrock block a finalized block.
-	rawdb.WriteFinalizedBlockHash(ldb, cel2Block.Hash())
-
-	// We need to update the chain config to set the correct hardforks.
-	genesisHash := rawdb.ReadCanonicalHash(ldb, 0)
-	cfg := rawdb.ReadChainConfig(ldb, genesisHash)
-	if cfg == nil {
-		log.Crit("chain config not found")
-	}
-
-	// Set the standard options.
-	cfg.LondonBlock = cel2Block.Number()
-	cfg.ArrowGlacierBlock = cel2Block.Number()
-	cfg.GrayGlacierBlock = cel2Block.Number()
-	cfg.MergeNetsplitBlock = cel2Block.Number()
-	cfg.TerminalTotalDifficulty = big.NewInt(0)
-	cfg.TerminalTotalDifficultyPassed = true
-
-	// Set the Optimism options.
-	cfg.BedrockBlock = cel2Block.Number()
-	// Enable Regolith from the start of Bedrock
-	cfg.RegolithTime = new(uint64)
-	cfg.Optimism = &params.OptimismConfig{
-		EIP1559Denominator: EIP1559Denominator,
-		EIP1559Elasticity:  EIP1559Elasticity,
-	}
-
-	// TODO(pl): Adapt this to our changes in chain config
-	// Write the chain config to disk.
-	rawdb.WriteChainConfig(ldb, genesisHash, cfg)
-
-	// Yay!
-	log.Info(
-		"wrote chain config",
-		"1559-denominator", EIP1559Denominator,
-		"1559-elasticity", EIP1559Elasticity,
-	)
-
-	// We're done!
-	log.Info(
-		"wrote Bedrock transition block",
-		"height", cel2Header.Number,
-		"root", cel2Header.Root.String(),
-		"hash", cel2Header.Hash().String(),
-		"timestamp", cel2Header.Time,
-	)
 
 	// Return the result and have a nice day.
-	return res, nil
+	return nil, nil
 }
