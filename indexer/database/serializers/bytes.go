@@ -29,7 +29,7 @@ func (BytesSerializer) Scan(ctx context.Context, field *schema.Field, dst reflec
 
 	b, err := hexutil.Decode(hexStr)
 	if err != nil {
-		return fmt.Errorf("failed to decode database value: %s", err)
+		return fmt.Errorf("failed to decode database value: %w", err)
 	}
 
 	fieldValue := reflect.New(field.FieldType)
@@ -43,8 +43,8 @@ func (BytesSerializer) Scan(ctx context.Context, field *schema.Field, dst reflec
 			return fmt.Errorf("double pointers are the max depth supported: %T", fieldValue)
 		}
 
-		// We'll want to call `SetBytes` on the pointer to the
-		// allocated structmemory and not the douple pointer
+		// We'll want to call `SetBytes` on the pointer to
+		// the allocated memory and not the double pointer
 		nestedField.Set(reflect.New(field.FieldType.Elem()))
 		fieldInterface = nestedField.Interface()
 	}
