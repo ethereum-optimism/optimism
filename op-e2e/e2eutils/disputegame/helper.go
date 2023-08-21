@@ -26,8 +26,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const alphabetGameType uint8 = 0
-const cannonGameType uint8 = 1
+const alphabetGameType uint8 = 255
+const cannonGameType uint8 = 0
 const alphabetGameDepth = 4
 const lastAlphabetTraceIndex = 1<<alphabetGameDepth - 1
 
@@ -170,7 +170,7 @@ func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, roll
 		L2Claim:       challengedOutput.OutputRoot,
 		L2BlockNumber: challengedOutput.L2BlockNumber,
 	}
-	provider := cannon.NewTraceProviderFromInputs(testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"), cfg, inputs)
+	provider := cannon.NewTraceProviderFromInputs(testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"), cfg, "correct", inputs)
 	rootClaim, err := provider.Get(ctx, math.MaxUint64)
 	h.require.NoError(err, "Compute correct root hash")
 
