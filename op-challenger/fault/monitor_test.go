@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -86,7 +87,7 @@ func setupMonitorTest(t *testing.T, allowedGame common.Address) (*gameMonitor, *
 	fetchBlockNum := func(ctx context.Context) (uint64, error) {
 		return 1234, nil
 	}
-	monitor := newGameMonitor(logger, fetchBlockNum, allowedGame, source, games.CreateGame)
+	monitor := newGameMonitor(logger, clock.SystemClock, fetchBlockNum, allowedGame, source, games.CreateGame)
 	return monitor, source, games
 }
 
