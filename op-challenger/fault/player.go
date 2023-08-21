@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/cannon"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -40,12 +40,11 @@ func NewGamePlayer(
 	client *ethclient.Client,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
-	contract, err := bindings.NewFaultDisputeGameCaller(addr, client)
+
+	loader, err := contracts.NewFaultDisputeGameAtAddress(addr, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to bind the fault dispute game contract: %w", err)
 	}
-
-	loader := NewLoader(contract)
 
 	gameDepth, err := loader.FetchGameDepth(ctx)
 	if err != nil {
@@ -80,7 +79,7 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
 
-	caller, err := NewFaultCallerFromBindings(addr, client)
+	caller, err := contracts.NewFaultDisputeGameAtAddress(addr, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to bind the fault contract: %w", err)
 	}

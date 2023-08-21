@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/contracts"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/solver"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -21,7 +22,7 @@ type Responder interface {
 
 type Agent struct {
 	solver                  *solver.Solver
-	loader                  Loader
+	loader                  *contracts.FaultDisputeGame
 	responder               Responder
 	updater                 types.OracleUpdater
 	maxDepth                int
@@ -29,7 +30,7 @@ type Agent struct {
 	log                     log.Logger
 }
 
-func NewAgent(loader Loader, maxDepth int, trace types.TraceProvider, responder Responder, updater types.OracleUpdater, agreeWithProposedOutput bool, log log.Logger) *Agent {
+func NewAgent(loader *contracts.FaultDisputeGame, maxDepth int, trace types.TraceProvider, responder Responder, updater types.OracleUpdater, agreeWithProposedOutput bool, log log.Logger) *Agent {
 	return &Agent{
 		solver:                  solver.NewSolver(maxDepth, trace),
 		loader:                  loader,

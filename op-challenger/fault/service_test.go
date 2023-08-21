@@ -22,7 +22,7 @@ var (
 func TestValidateAbsolutePrestate(t *testing.T) {
 	t.Run("ValidPrestates", func(t *testing.T) {
 		prestate := []byte{0x00, 0x01, 0x02, 0x03}
-		prestateHash := crypto.Keccak256(prestate)
+		prestateHash := crypto.Keccak256Hash(prestate)
 		mockTraceProvider := newMockTraceProvider(false, prestate)
 		mockLoader := newMockLoader(false, prestateHash)
 		err := ValidateAbsolutePrestate(context.Background(), mockTraceProvider, mockLoader)
@@ -32,7 +32,7 @@ func TestValidateAbsolutePrestate(t *testing.T) {
 	t.Run("TraceProviderErrors", func(t *testing.T) {
 		prestate := []byte{0x00, 0x01, 0x02, 0x03}
 		mockTraceProvider := newMockTraceProvider(true, prestate)
-		mockLoader := newMockLoader(false, prestate)
+		mockLoader := newMockLoader(false, crypto.Keccak256Hash(prestate))
 		err := ValidateAbsolutePrestate(context.Background(), mockTraceProvider, mockLoader)
 		require.ErrorIs(t, err, mockTraceProviderError)
 	})
@@ -40,14 +40,14 @@ func TestValidateAbsolutePrestate(t *testing.T) {
 	t.Run("LoaderErrors", func(t *testing.T) {
 		prestate := []byte{0x00, 0x01, 0x02, 0x03}
 		mockTraceProvider := newMockTraceProvider(false, prestate)
-		mockLoader := newMockLoader(true, prestate)
+		mockLoader := newMockLoader(true, crypto.Keccak256Hash(prestate))
 		err := ValidateAbsolutePrestate(context.Background(), mockTraceProvider, mockLoader)
 		require.ErrorIs(t, err, mockLoaderError)
 	})
 
 	t.Run("PrestateMismatch", func(t *testing.T) {
 		mockTraceProvider := newMockTraceProvider(false, []byte{0x00, 0x01, 0x02, 0x03})
-		mockLoader := newMockLoader(false, []byte{0x00})
+		mockLoader := newMockLoader(false, common.Hash{0x05})
 		err := ValidateAbsolutePrestate(context.Background(), mockTraceProvider, mockLoader)
 		require.Error(t, err)
 	})
@@ -79,24 +79,27 @@ func (m *mockTraceProvider) AbsolutePreState(ctx context.Context) ([]byte, error
 
 type mockLoader struct {
 	prestateError bool
-	prestate      []byte
+	prestate      common.Hash
 }
 
-func newMockLoader(prestateError bool, prestate []byte) *mockLoader {
+func newMockLoader(prestateError bool, prestate common.Hash) *mockLoader {
 	return &mockLoader{
 		prestateError: prestateError,
 		prestate:      prestate,
 	}
 }
+
 func (m *mockLoader) FetchClaims(ctx context.Context) ([]types.Claim, error) {
 	panic("not implemented")
 }
+
 func (m *mockLoader) FetchGameDepth(ctx context.Context) (uint64, error) {
 	panic("not implemented")
 }
-func (m *mockLoader) FetchAbsolutePrestateHash(ctx context.Context) ([]byte, error) {
+
+func (m *mockLoader) FetchAbsolutePrestateHash(ctx context.Context) (common.Hash, error) {
 	if m.prestateError {
-		return nil, mockLoaderError
+		return common.Hash{}, mockLoaderError
 	}
 	return m.prestate, nil
 }

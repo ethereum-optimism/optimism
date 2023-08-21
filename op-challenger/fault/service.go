@@ -1,7 +1,6 @@
 package fault
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 
@@ -85,18 +84,22 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 	}, nil
 }
 
+type PrestateFetcher interface {
+	FetchAbsolutePrestateHash(context.Context) (common.Hash, error)
+}
+
 // ValidateAbsolutePrestate validates the absolute prestate of the fault game.
-func ValidateAbsolutePrestate(ctx context.Context, trace types.TraceProvider, loader Loader) error {
+func ValidateAbsolutePrestate(ctx context.Context, trace types.TraceProvider, loader PrestateFetcher) error {
 	providerPrestate, err := trace.AbsolutePreState(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get the trace provider's absolute prestate: %w", err)
 	}
-	providerPrestateHash := crypto.Keccak256(providerPrestate)
+	providerPrestateHash := crypto.Keccak256Hash(providerPrestate)
 	onchainPrestate, err := loader.FetchAbsolutePrestateHash(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get the onchain absolute prestate: %w", err)
 	}
-	if !bytes.Equal(providerPrestateHash, onchainPrestate) {
+	if providerPrestateHash != onchainPrestate {
 		return fmt.Errorf("trace provider's absolute prestate does not match onchain absolute prestate")
 	}
 	return nil
