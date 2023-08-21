@@ -409,7 +409,7 @@ func startFaultDisputeSystem(t *testing.T) (*System, *ethclient.Client) {
 	cfg.SupportL1TimeTravel = true
 	cfg.DeployConfig.L2OutputOracleSubmissionInterval = 1
 	cfg.NonFinalizedProposals = true // Submit output proposals asap
-	sys, err := cfg.Start()
-	require.NoError(t, err, "Error starting up system")
+	sys, err := cfg.Start(t)
+	require.Nil(t, err, "Error starting up system")
 	return sys, sys.Clients["l1"]
 }

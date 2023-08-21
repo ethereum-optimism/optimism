@@ -17,7 +17,7 @@ func TestStopStartSequencer(t *testing.T) {
 	InitParallel(t)
 
 	cfg := DefaultSystemConfig(t)
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -83,7 +83,7 @@ func TestPersistSequencerStateWhenChanged(t *testing.T) {
 	delete(cfg.Nodes, "verifier")
 	cfg.Nodes["sequencer"].ConfigPersistence = node.NewConfigPersistence(stateFile)
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.NoError(t, err)
 	defer sys.Close()
 
@@ -118,7 +118,7 @@ func TestLoadSequencerStateOnStarted_Stopped(t *testing.T) {
 	seqCfg := cfg.Nodes["sequencer"]
 	seqCfg.ConfigPersistence = node.NewConfigPersistence(stateFile)
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.NoError(t, err)
 	defer sys.Close()
 
@@ -152,7 +152,7 @@ func TestLoadSequencerStateOnStarted_Started(t *testing.T) {
 	seqCfg.Driver.SequencerStopped = true
 	seqCfg.ConfigPersistence = node.NewConfigPersistence(stateFile)
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.NoError(t, err)
 	defer sys.Close()
 
