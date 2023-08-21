@@ -64,7 +64,7 @@ func TestFaultCaller_GetGameStatus(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			fc := NewFaultCaller(test.caller, nil)
+			fc := NewFaultCaller(test.caller)
 			status, err := fc.GetGameStatus(context.Background())
 			require.Equal(t, test.expectedStatus, status)
 			require.Equal(t, test.expectedErr, err)
@@ -72,7 +72,7 @@ func TestFaultCaller_GetGameStatus(t *testing.T) {
 	}
 }
 
-func TestFaultCaller_GetClaimDataLength(t *testing.T) {
+func TestFaultCaller_GetClaimCount(t *testing.T) {
 	tests := []struct {
 		name                 string
 		caller               FaultDisputeGameCaller
@@ -99,8 +99,8 @@ func TestFaultCaller_GetClaimDataLength(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			fc := NewFaultCaller(test.caller, nil)
-			claimDataLen, err := fc.GetClaimDataLength(context.Background())
+			fc := NewFaultCaller(test.caller)
+			claimDataLen, err := fc.GetClaimCount(context.Background())
 			require.Equal(t, test.expectedClaimDataLen, claimDataLen)
 			require.Equal(t, test.expectedErr, err)
 		})
