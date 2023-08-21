@@ -37,3 +37,8 @@ INFO [08-02|15:42:24.994] L1 ChainID                               chainId=9,266
 INFO [08-02|15:42:24.994] Using L1 Starting Block Tag              tag=1
 CRIT [08-02|15:42:24.996] error in migration                       err="cannot fetch L1 starting block tag: missing required field 'sha3Uncles' for Header"
 ```
+
+
+## Tasks
+- [ ] Load DB with op geth, check some state
+- [ ] Make a nice testing script
