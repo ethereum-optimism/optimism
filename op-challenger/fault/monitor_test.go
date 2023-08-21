@@ -14,7 +14,7 @@ import (
 )
 
 func TestMonitorExitsWhenContextDone(t *testing.T) {
-	monitor, _, _ := setupMonitorTest(t, common.Address{})
+	monitor, _, _ := setupMonitorTest(t, []common.Address{common.Address{}})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	err := monitor.MonitorGames(ctx)
@@ -22,7 +22,7 @@ func TestMonitorExitsWhenContextDone(t *testing.T) {
 }
 
 func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
-	monitor, source, games := setupMonitorTest(t, common.Address{})
+	monitor, source, games := setupMonitorTest(t, []common.Address{})
 
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
@@ -55,7 +55,7 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 func TestMonitorOnlyCreateSpecifiedGame(t *testing.T) {
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
-	monitor, source, games := setupMonitorTest(t, addr2)
+	monitor, source, games := setupMonitorTest(t, []common.Address{addr2})
 
 	source.games = []FaultDisputeGame{
 		{
@@ -77,7 +77,7 @@ func TestMonitorOnlyCreateSpecifiedGame(t *testing.T) {
 	require.Equal(t, 1, games.created[addr2].progressCount)
 }
 
-func setupMonitorTest(t *testing.T, allowedGame common.Address) (*gameMonitor, *stubGameSource, *createdGames) {
+func setupMonitorTest(t *testing.T, allowedGames []common.Address) (*gameMonitor, *stubGameSource, *createdGames) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	source := &stubGameSource{}
 	games := &createdGames{
@@ -87,7 +87,7 @@ func setupMonitorTest(t *testing.T, allowedGame common.Address) (*gameMonitor, *
 	fetchBlockNum := func(ctx context.Context) (uint64, error) {
 		return 1234, nil
 	}
-	monitor := newGameMonitor(logger, clock.SystemClock, fetchBlockNum, allowedGame, source, games.CreateGame)
+	monitor := newGameMonitor(logger, clock.SystemClock, fetchBlockNum, allowedGames, source, games.CreateGame)
 	return monitor, source, games
 }
 
