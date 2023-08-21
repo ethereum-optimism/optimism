@@ -50,7 +50,6 @@ func TestMultipleAlphabetGames(t *testing.T) {
 }
 
 func TestMultipleCannonGames(t *testing.T) {
-	t.Skip("Cannon provider doesn't currently isolate different game traces")
 	InitParallel(t)
 
 	ctx := context.Background()

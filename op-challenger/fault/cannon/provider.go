@@ -64,13 +64,14 @@ func NewTraceProvider(ctx context.Context, logger log.Logger, cfg *config.Config
 	if err != nil {
 		return nil, fmt.Errorf("fetch local game inputs: %w", err)
 	}
-	return NewTraceProviderFromInputs(logger, cfg, localInputs), nil
+	return NewTraceProviderFromInputs(logger, cfg, gameAddr.Hex(), localInputs), nil
 }
 
-func NewTraceProviderFromInputs(logger log.Logger, cfg *config.Config, localInputs LocalGameInputs) *CannonTraceProvider {
+func NewTraceProviderFromInputs(logger log.Logger, cfg *config.Config, gameDirName string, localInputs LocalGameInputs) *CannonTraceProvider {
+	dir := filepath.Join(cfg.CannonDatadir, gameDirName)
 	return &CannonTraceProvider{
 		logger:    logger,
-		dir:       cfg.CannonDatadir,
+		dir:       dir,
 		prestate:  cfg.CannonAbsolutePreState,
 		generator: NewExecutor(logger, cfg, localInputs),
 	}
