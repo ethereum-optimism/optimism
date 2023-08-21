@@ -157,7 +157,7 @@ func (c Config) Check() error {
 			if c.CannonL2GenesisPath != "" {
 				return ErrCannonNetworkAndL2Genesis
 			}
-			if _, ok := chaincfg.NetworksByName[c.CannonNetwork]; !ok {
+			if ch := chaincfg.ChainByName(c.CannonNetwork); ch == nil {
 				return fmt.Errorf("%w: %v", ErrCannonNetworkUnknown, c.CannonNetwork)
 			}
 		}
