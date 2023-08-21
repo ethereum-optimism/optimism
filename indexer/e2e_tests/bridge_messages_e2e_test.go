@@ -155,7 +155,7 @@ func TestE2EBridgeL2CrossDomainMessenger(t *testing.T) {
 
 	// (2) Process RelayedMessage on withdrawal finalization
 	require.Nil(t, sentMessage.RelayedMessageEventGUID)
-	_, finalizedReceipt := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.L1Client, testSuite.OpSys.Nodes["sequencer"], testSuite.OpCfg.Secrets.Alice, sentMsgReceipt)
+	_, finalizedReceipt := op_e2e.ProveAndFinalizeWithdrawal(t, *testSuite.OpCfg, testSuite.L1Client, testSuite.OpSys.EthInstances["sequencer"], testSuite.OpCfg.Secrets.Alice, sentMsgReceipt)
 
 	// wait for processor catchup
 	require.NoError(t, wait.For(context.Background(), 500*time.Millisecond, func() (bool, error) {

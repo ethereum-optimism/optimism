@@ -19,19 +19,16 @@ var (
 type MinimalDisputeGameFactoryCaller interface {
 	GameCount(opts *bind.CallOpts) (*big.Int, error)
 	GameAtIndex(opts *bind.CallOpts, _index *big.Int) (struct {
+		GameType  uint8
+		Timestamp uint64
 		Proxy     common.Address
-		Timestamp *big.Int
 	}, error)
 }
 
 type FaultDisputeGame struct {
+	GameType  uint8
+	Timestamp uint64
 	Proxy     common.Address
-	Timestamp *big.Int
-}
-
-// GameLoader is a minimal interface for fetching on chain dispute games.
-type GameLoader interface {
-	FetchAllGamesAtBlock(ctx context.Context) ([]FaultDisputeGame, error)
 }
 
 type gameLoader struct {

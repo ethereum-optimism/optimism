@@ -195,6 +195,10 @@ func (s *DeterministicClock) NewTimer(d time.Duration) Timer {
 	return t
 }
 
+func (s *DeterministicClock) SleepCtx(ctx context.Context, d time.Duration) error {
+	return sleepCtx(ctx, d, s)
+}
+
 func (s *DeterministicClock) addPending(t action) {
 	s.pending = append(s.pending, t)
 	select {

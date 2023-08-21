@@ -97,11 +97,15 @@ contract Multichain is SafeBuilder {
         // Set the network in storage
         NETWORK = vm.envOr("NETWORK", GOERLI_PROD);
 
+        // TODO: hack
+        PROXY_ADMIN = ProxyAdmin(vm.envOr("PROXY_ADMIN", 0x01d3670863c3F4b24D7b107900f0b75d4BbC6e0d));
+
         // For simple comparisons of dynamic types
         bytes32 network = keccak256(bytes(NETWORK));
 
         string memory deployConfigPath;
         if (network == goerli) {
+            console.log("Using goerli-prod");
             deployConfigPath = string.concat(vm.projectRoot(), "/deploy-config/goerli.json");
             proxies = ContractSet({
                 L1CrossDomainMessenger: 0x5086d1eEF304eb5284A0f6720f79403b4e9bE294,
@@ -113,6 +117,7 @@ contract Multichain is SafeBuilder {
                 L1ERC721Bridge: 0x8DD330DdE8D9898d43b4dc840Da27A07dF91b3c9
             });
         } else if (network == chaosnet) {
+            console.log("Using chaosnet");
             deployConfigPath = string.concat(vm.projectRoot(), "/deploy-config/chaosnet.json");
             proxies = ContractSet({
                 L1CrossDomainMessenger: 0xfc428D28D197fFf99A5EbAc6be8B761FEd8718Da,
@@ -124,6 +129,7 @@ contract Multichain is SafeBuilder {
                 L1ERC721Bridge: 0x058BBf091232afE99BC2481F809254cD15e64Df5
             });
         } else if (network == devnet) {
+            console.log("Using devnet");
             deployConfigPath = string.concat(vm.projectRoot(), "/deploy-config/internal-devnet.json");
             proxies = ContractSet({
                 L1CrossDomainMessenger: 0x71A046D793C71af209960DCb8bD5388d2c5D2a78,

@@ -8,6 +8,8 @@ import { Semver } from "src/universal/Semver.sol";
 import { IDisputeGame } from "./interfaces/IDisputeGame.sol";
 import { IDisputeGameFactory } from "./interfaces/IDisputeGameFactory.sol";
 
+import { LibGameId } from "src/dispute/lib/LibGameId.sol";
+
 import "src/libraries/DisputeTypes.sol";
 import "src/libraries/DisputeErrors.sol";
 
@@ -35,7 +37,7 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
     GameId[] internal _disputeGameList;
 
     /// @notice constructs a new DisputeGameFactory contract.
-    constructor() OwnableUpgradeable() Semver(0, 0, 4) {
+    constructor() OwnableUpgradeable() Semver(0, 0, 5) {
         initialize(address(0));
     }
 
@@ -59,61 +61,67 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
     )
         external
         view
-        returns (IDisputeGame proxy_, uint256 timestamp_)
+        returns (IDisputeGame proxy_, Timestamp timestamp_)
     {
         Hash uuid = getGameUUID(_gameType, _rootClaim, _extraData);
-        GameId slot = _disputeGames[uuid];
-        (address addr, uint256 timestamp) = _unpackSlot(slot);
-        proxy_ = IDisputeGame(addr);
-        timestamp_ = timestamp;
+        (, timestamp_, proxy_) = _disputeGames[uuid].unpack();
     }
 
     /// @inheritdoc IDisputeGameFactory
-    function gameAtIndex(uint256 _index) external view returns (IDisputeGame proxy_, uint256 timestamp_) {
-        GameId slot = _disputeGameList[_index];
-        (address addr, uint256 timestamp) = _unpackSlot(slot);
-        proxy_ = IDisputeGame(addr);
-        timestamp_ = timestamp;
+    function gameAtIndex(uint256 _index)
+        external
+        view
+        returns (GameType gameType_, Timestamp timestamp_, IDisputeGame proxy_)
+    {
+        (gameType_, timestamp_, proxy_) = _disputeGameList[_index].unpack();
     }
 
     /// @inheritdoc IDisputeGameFactory
     function create(
-        GameType gameType,
-        Claim rootClaim,
-        bytes calldata extraData
+        GameType _gameType,
+        Claim _rootClaim,
+        bytes calldata _extraData
     )
         external
-        returns (IDisputeGame proxy)
+        returns (IDisputeGame proxy_)
     {
         // Grab the implementation contract for the given `GameType`.
-        IDisputeGame impl = gameImpls[gameType];
+        IDisputeGame impl = gameImpls[_gameType];
 
         // If there is no implementation to clone for the given `GameType`, revert.
-        if (address(impl) == address(0)) revert NoImplementation(gameType);
+        if (address(impl) == address(0)) revert NoImplementation(_gameType);
 
         // Clone the implementation contract and initialize it with the given parameters.
-        proxy = IDisputeGame(address(impl).clone(abi.encodePacked(rootClaim, extraData)));
-        proxy.initialize();
+        proxy_ = IDisputeGame(address(impl).clone(abi.encodePacked(_rootClaim, _extraData)));
+        proxy_.initialize();
 
         // Compute the unique identifier for the dispute game.
-        Hash uuid = getGameUUID(gameType, rootClaim, extraData);
+        Hash uuid = getGameUUID(_gameType, _rootClaim, _extraData);
 
         // If a dispute game with the same UUID already exists, revert.
         if (GameId.unwrap(_disputeGames[uuid]) != bytes32(0)) revert GameAlreadyExists(uuid);
 
-        GameId slot = _packSlot(address(proxy), block.timestamp);
+        GameId id = LibGameId.pack(_gameType, Timestamp.wrap(uint64(block.timestamp)), proxy_);
 
-        // Store the dispute game in the mapping & emit the `DisputeGameCreated` event.
-        _disputeGames[uuid] = slot;
-        _disputeGameList.push(slot);
-        emit DisputeGameCreated(address(proxy), gameType, rootClaim);
+        // Store the dispute game id in the mapping & emit the `DisputeGameCreated` event.
+        _disputeGames[uuid] = id;
+        _disputeGameList.push(id);
+        emit DisputeGameCreated(address(proxy_), _gameType, _rootClaim);
     }
 
     /// @inheritdoc IDisputeGameFactory
-    function getGameUUID(GameType gameType, Claim rootClaim, bytes memory extraData) public pure returns (Hash _uuid) {
+    function getGameUUID(
+        GameType _gameType,
+        Claim _rootClaim,
+        bytes memory _extraData
+    )
+        public
+        pure
+        returns (Hash uuid_)
+    {
         assembly {
             // Grab the offsets of the other memory locations we will need to temporarily overwrite.
-            let gameTypeOffset := sub(extraData, 0x60)
+            let gameTypeOffset := sub(_extraData, 0x60)
             let rootClaimOffset := add(gameTypeOffset, 0x20)
             let pointerOffset := add(rootClaimOffset, 0x20)
 
@@ -124,16 +132,16 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
             let tempC := mload(pointerOffset)
 
             // Overwrite the memory with the data we want to hash
-            mstore(gameTypeOffset, gameType)
-            mstore(rootClaimOffset, rootClaim)
+            mstore(gameTypeOffset, _gameType)
+            mstore(rootClaimOffset, _rootClaim)
             mstore(pointerOffset, 0x60)
 
             // Compute the length of the memory to hash
             // `0x60 + 0x20 + extraData.length` rounded to the *next* multiple of 32.
-            let hashLen := and(add(mload(extraData), 0x9F), not(0x1F))
+            let hashLen := and(add(mload(_extraData), 0x9F), not(0x1F))
 
             // Hash the memory to produce the UUID digest
-            _uuid := keccak256(gameTypeOffset, hashLen)
+            uuid_ := keccak256(gameTypeOffset, hashLen)
 
             // Restore the memory prior to `extraData`
             mstore(gameTypeOffset, tempA)
@@ -143,24 +151,8 @@ contract DisputeGameFactory is OwnableUpgradeable, IDisputeGameFactory, Semver {
     }
 
     /// @inheritdoc IDisputeGameFactory
-    function setImplementation(GameType gameType, IDisputeGame impl) external onlyOwner {
-        gameImpls[gameType] = impl;
-        emit ImplementationSet(address(impl), gameType);
-    }
-
-    /// @dev Packs an address and a uint256 into a single bytes32 slot. This
-    ///      is only safe for up to uint96 values.
-    function _packSlot(address _addr, uint256 _num) internal pure returns (GameId slot_) {
-        assembly {
-            slot_ := or(shl(0xa0, _num), _addr)
-        }
-    }
-
-    /// @dev Unpacks an address and a uint256 from a single bytes32 slot.
-    function _unpackSlot(GameId _slot) internal pure returns (address addr_, uint256 num_) {
-        assembly {
-            addr_ := and(_slot, 0xffffffffffffffffffffffffffffffffffffffff)
-            num_ := shr(0xa0, _slot)
-        }
+    function setImplementation(GameType _gameType, IDisputeGame _impl) external onlyOwner {
+        gameImpls[_gameType] = _impl;
+        emit ImplementationSet(address(_impl), _gameType);
     }
 }
