@@ -78,8 +78,8 @@ cast call $L2_OUTPUT_ORACLE_PROXY "getL2Output(uint256)" $PRIOR_INDEX
 echo "Getting the l2 output at index $INDEX"
 cast call $L2_OUTPUT_ORACLE_PROXY "getL2Output(uint256)" $INDEX
 
-# (Alphabet) Fault game type = 0
-GAME_TYPE=0
+# (Alphabet) Fault game type = 255
+GAME_TYPE=255
 
 # Root claim commits to the entire trace.
 # Alphabet game claim construction: keccak256(abi.encode(trace_index, trace[trace_index]))

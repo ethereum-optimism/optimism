@@ -35,27 +35,19 @@ const (
 	TraceTypeAlphabet TraceType = "alphabet"
 	TraceTypeCannon   TraceType = "cannon"
 
-	// Devnet game IDs
-	DevnetGameIDAlphabet = uint8(0)
-	DevnetGameIDCannon   = uint8(1)
+	// Mainnet games
+	CannonFaultGameID = 0
 
-	// Mainnet game IDs
-	MainnetGameIDFault = uint8(0)
+	// Devnet games
+	AlphabetFaultGameID = 255
 )
 
 var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon}
 
-// GameIdToString maps game IDs to their string representation on a per-network basis.
-var GameIdToString = map[uint64]map[uint8]string{
-	// Mainnet
-	1: {
-		MainnetGameIDFault: "fault-cannon",
-	},
-	// Devnet
-	900: {
-		DevnetGameIDAlphabet: "fault-alphabet",
-		DevnetGameIDCannon:   "fault-cannon",
-	},
+// GameIdToString maps game IDs to their string representation.
+var GameIdToString = map[uint8]string{
+	CannonFaultGameID:   "Cannon",
+	AlphabetFaultGameID: "Alphabet",
 }
 
 func (t TraceType) String() string {
