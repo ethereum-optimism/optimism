@@ -15,7 +15,7 @@ require (
 	github.com/golang/snappy v0.0.5-0.20220116011046-fa5810519dcb
 	github.com/google/go-cmp v0.5.9
 	github.com/google/gofuzz v1.2.1-0.20220503160820-4a35382e8fc8
-	github.com/google/uuid v1.3.0
+	github.com/google/uuid v1.3.1
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru/v2 v2.0.2
 	github.com/holiman/uint256 v1.2.3
