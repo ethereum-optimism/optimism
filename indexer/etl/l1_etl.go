@@ -77,10 +77,10 @@ func (l1Etl *L1ETL) Start(ctx context.Context) error {
 		// Index incoming batches
 		case batch := <-l1Etl.etlBatches:
 			// Pull out only L1 blocks that have emitted a log ( <= batch.Headers )
-			l1BlockHeaders := make([]*database.L1BlockHeader, 0, len(batch.Headers))
+			l1BlockHeaders := make([]database.L1BlockHeader, 0, len(batch.Headers))
 			for i := range batch.Headers {
 				if _, ok := batch.HeadersWithLog[batch.Headers[i].Hash()]; ok {
-					l1BlockHeaders = append(l1BlockHeaders, &database.L1BlockHeader{BlockHeader: database.BlockHeaderFromHeader(&batch.Headers[i])})
+					l1BlockHeaders = append(l1BlockHeaders, database.L1BlockHeader{BlockHeader: database.BlockHeaderFromHeader(&batch.Headers[i])})
 				}
 			}
 
@@ -89,10 +89,10 @@ func (l1Etl *L1ETL) Start(ctx context.Context) error {
 				continue
 			}
 
-			l1ContractEvents := make([]*database.L1ContractEvent, len(batch.Logs))
+			l1ContractEvents := make([]database.L1ContractEvent, len(batch.Logs))
 			for i := range batch.Logs {
 				timestamp := batch.HeaderMap[batch.Logs[i].BlockHash].Time
-				l1ContractEvents[i] = &database.L1ContractEvent{ContractEvent: database.ContractEventFromLog(&batch.Logs[i], timestamp)}
+				l1ContractEvents[i] = database.L1ContractEvent{ContractEvent: database.ContractEventFromLog(&batch.Logs[i], timestamp)}
 			}
 
 			// Continually try to persist this batch. If it fails after 10 attempts, we simply error out

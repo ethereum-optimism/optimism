@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { Constants } from "../libraries/Constants.sol";
+
 /// @title IL1ChugSplashDeployer
 interface IL1ChugSplashDeployer {
     function isUpgrading() external view returns (bool);
@@ -20,12 +22,6 @@ contract L1ChugSplashProxy {
     /// @notice "Magic" prefix. When prepended to some arbitrary bytecode and used to create a
     ///         contract, the appended bytecode will be deployed as given.
     bytes13 internal constant DEPLOY_CODE_PREFIX = 0x600D380380600D6000396000f3;
-
-    /// @notice bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1)
-    bytes32 internal constant IMPLEMENTATION_KEY = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
-
-    /// @notice bytes32(uint256(keccak256('eip1967.proxy.admin')) - 1)
-    bytes32 internal constant OWNER_KEY = 0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103;
 
     /// @notice Blocks a function from being called when the parent signals that the system should
     ///         be paused via an isUpgrading function.
@@ -160,16 +156,18 @@ contract L1ChugSplashProxy {
     /// @notice Sets the implementation address.
     /// @param _implementation New implementation address.
     function _setImplementation(address _implementation) internal {
+        bytes32 proxyImplementation = Constants.PROXY_IMPLEMENTATION_ADDRESS;
         assembly {
-            sstore(IMPLEMENTATION_KEY, _implementation)
+            sstore(proxyImplementation, _implementation)
         }
     }
 
     /// @notice Changes the owner of the proxy contract.
     /// @param _owner New owner of the proxy contract.
     function _setOwner(address _owner) internal {
+        bytes32 proxyOwner = Constants.PROXY_OWNER_ADDRESS;
         assembly {
-            sstore(OWNER_KEY, _owner)
+            sstore(proxyOwner, _owner)
         }
     }
 
@@ -203,8 +201,9 @@ contract L1ChugSplashProxy {
     /// @return Implementation address.
     function _getImplementation() internal view returns (address) {
         address implementation;
+        bytes32 proxyImplementation = Constants.PROXY_IMPLEMENTATION_ADDRESS;
         assembly {
-            implementation := sload(IMPLEMENTATION_KEY)
+            implementation := sload(proxyImplementation)
         }
         return implementation;
     }
@@ -213,8 +212,9 @@ contract L1ChugSplashProxy {
     /// @return Owner address.
     function _getOwner() internal view returns (address) {
         address owner;
+        bytes32 proxyOwner = Constants.PROXY_OWNER_ADDRESS;
         assembly {
-            owner := sload(OWNER_KEY)
+            owner := sload(proxyOwner)
         }
         return owner;
     }

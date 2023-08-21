@@ -18,12 +18,10 @@ import (
 )
 
 func main() {
-	var init bool
 	var configPath string
-	flag.BoolVar(&init, "init", false, "Do one time setup for all executions")
 	flag.StringVar(&configPath, "config", "", "Execute based on the config in this file")
 	flag.Parse()
-	err := run(init, configPath)
+	err := run(configPath)
 	if err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
@@ -31,39 +29,7 @@ func main() {
 	os.Exit(0)
 }
 
-func build() error {
-	outFile, err := filepath.Abs("op-erigon")
-	if err != nil {
-		return err
-	}
-	workDir, err := filepath.Abs(filepath.Join("..", "..", "op-erigon"))
-	if err != nil {
-		return err
-	}
-	cmd := exec.Command("go", "build", "-o", outFile, "github.com/ledgerwatch/erigon/cmd/erigon")
-	cmd.Dir = workDir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	fmt.Printf("Running build in %s to create %s\n", cmd.Dir, outFile)
-	return cmd.Run()
-}
-
-func run(init bool, configPath string) error {
-	if !init && configPath == "" {
-		return fmt.Errorf("must supply a '--config <path>' or '--init' flag")
-	}
-
-	if init {
-		if err := build(); err != nil {
-			return fmt.Errorf("could not build op-erigon: %w", err)
-		}
-		fmt.Printf("Successfully built op-erigon!\n")
-
-		if configPath == "" {
-			return nil
-		}
-	}
-
+func run(configPath string) error {
 	configFile, err := os.Open(configPath)
 	if err != nil {
 		return fmt.Errorf("could not open config: %w", err)

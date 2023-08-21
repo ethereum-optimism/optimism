@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
 	"github.com/stretchr/testify/require"
 )
@@ -100,7 +99,6 @@ func (er *ExternalRunner) Run(t *testing.T) *ExternalEthClient {
 	err = json.NewEncoder(configFile).Encode(config)
 	require.NoError(t, err)
 
-	gt := gomega.NewWithT(t)
 	cmd := exec.Command(er.BinPath, "--config", configPath)
 	cmd.Dir = filepath.Dir(er.BinPath)
 	sess, err := gexec.Start(
@@ -108,14 +106,24 @@ func (er *ExternalRunner) Run(t *testing.T) *ExternalEthClient {
 		gexec.NewPrefixedWriter("[extout:"+er.Name+"]", os.Stdout),
 		gexec.NewPrefixedWriter("[exterr:"+er.Name+"]", os.Stderr),
 	)
-	gt.Expect(err).NotTo(gomega.HaveOccurred())
+	require.NoError(t, err)
 
 	// 2 minutes may seem like a long timeout, and, it definitely is.  That
 	// being said, when running these tests with high parallelism turned on, the
 	// node startup time can be substantial (remember, this usually is a
 	// multi-step process initializing the database and then starting the
 	// client).
-	gt.Eventually(config.EndpointsReadyPath, 2*time.Minute).Should(gomega.BeARegularFile(), "external runner did not create ready file at %s within timeout", config.EndpointsReadyPath)
+	require.Eventually(
+		t,
+		func() bool {
+			_, err := os.Stat(config.EndpointsReadyPath)
+			return err == nil
+		},
+		2*time.Minute,
+		10*time.Millisecond,
+		"external runner did not create ready file at %s within timeout",
+		config.EndpointsReadyPath,
+	)
 
 	readyFile, err := os.Open(config.EndpointsReadyPath)
 	require.NoError(t, err)

@@ -16,7 +16,7 @@ pre-test-cannon:
 		make cannon-prestate; \
 	fi
 
-pre-test-allocs: 
+pre-test-allocs:
 	@if [ ! -e ../.devnet ]; then \
 		make devnet-allocs; \
 	fi
@@ -28,11 +28,9 @@ clean:
 lint:
 	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
 
-test-external-%: pre-test external_%/shim
+test-external-%: pre-test
+	make -C ./external_$*/
 	go test -v --externalL2 ./external_$*/shim
-
-external_%/shim: external_%/*.go
-	go build -o external_$*/shim ./external_$*/
 
 .PHONY: \
 	test \

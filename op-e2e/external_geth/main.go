@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -12,46 +11,24 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/external"
-	"github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
 )
 
 func main() {
-	var init bool
 	var configPath string
-	flag.BoolVar(&init, "init", false, "Do one time setup for all executions")
 	flag.StringVar(&configPath, "config", "", "Execute based on the config in this file")
 	flag.Parse()
-	err := run(init, configPath)
-	if err != nil {
+	if err := run(configPath); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 	os.Exit(0)
 }
 
-func build() error {
-	cmd := exec.Command("go", "build", "-o", "op-geth", "github.com/ethereum/go-ethereum/cmd/geth")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
-}
-
-func run(init bool, configPath string) error {
-	if !init && configPath == "" {
-		return fmt.Errorf("must supply a '--config <path>' or '--init' flag")
-	}
-
-	if init {
-		if err := build(); err != nil {
-			return fmt.Errorf("could not build op-geth: %w", err)
-		}
-		fmt.Printf("Successfully built op-geth!\n")
-
-		if configPath == "" {
-			return nil
-		}
+func run(configPath string) error {
+	if configPath == "" {
+		return fmt.Errorf("must supply a '--config <path>' flag")
 	}
 
 	configFile, err := os.Open(configPath)
@@ -148,15 +125,23 @@ func execute(binPath string, config external.Config) (*gethSession, error) {
 		"--verbosity", strconv.FormatUint(config.Verbosity, 10),
 	)
 	sess, err := gexec.Start(cmd, os.Stdout, os.Stderr)
-	gm := gomega.NewGomega(func(msg string, _ ...int) {
-		err = errors.New(msg)
-	})
-	gm.Expect(err).NotTo(gomega.HaveOccurred())
+	if err != nil {
+		return nil, fmt.Errorf("could not start op-geth session: %w", err)
+	}
+	matcher := gbytes.Say("HTTP server started\\s*endpoint=127.0.0.1:")
 	var enginePort, httpPort int
-	for i := 0; i < 2; i++ {
-		gm.Eventually(sess.Err, time.Minute).Should(gbytes.Say("HTTP server started\\s*endpoint=127.0.0.1:"))
+	for enginePort == 0 || httpPort == 0 {
+		match, err := matcher.Match(sess.Err)
 		if err != nil {
-			return nil, fmt.Errorf("http endpoint never opened")
+			return nil, fmt.Errorf("could not execute matcher")
+		}
+		if !match {
+			if sess.Err.Closed() {
+				return nil, fmt.Errorf("op-geth exited before announcing http ports")
+			}
+			// Wait for a bit more output, then try again
+			time.Sleep(10 * time.Millisecond)
+			continue
 		}
 		var authString string
 		var port int

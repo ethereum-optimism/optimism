@@ -67,15 +67,15 @@ func (l2Etl *L2ETL) Start(ctx context.Context) error {
 		// Index incoming batches
 		case batch := <-l2Etl.etlBatches:
 			// We're indexing every L2 block.
-			l2BlockHeaders := make([]*database.L2BlockHeader, len(batch.Headers))
+			l2BlockHeaders := make([]database.L2BlockHeader, len(batch.Headers))
 			for i := range batch.Headers {
-				l2BlockHeaders[i] = &database.L2BlockHeader{BlockHeader: database.BlockHeaderFromHeader(&batch.Headers[i])}
+				l2BlockHeaders[i] = database.L2BlockHeader{BlockHeader: database.BlockHeaderFromHeader(&batch.Headers[i])}
 			}
 
-			l2ContractEvents := make([]*database.L2ContractEvent, len(batch.Logs))
+			l2ContractEvents := make([]database.L2ContractEvent, len(batch.Logs))
 			for i := range batch.Logs {
 				timestamp := batch.HeaderMap[batch.Logs[i].BlockHash].Time
-				l2ContractEvents[i] = &database.L2ContractEvent{ContractEvent: database.ContractEventFromLog(&batch.Logs[i], timestamp)}
+				l2ContractEvents[i] = database.L2ContractEvent{ContractEvent: database.ContractEventFromLog(&batch.Logs[i], timestamp)}
 			}
 
 			// Continually try to persist this batch. If it fails after 5 attempts, we simply error out

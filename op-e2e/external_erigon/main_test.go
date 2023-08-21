@@ -22,7 +22,12 @@ func TestShim(t *testing.T) {
 	err = cmd.Run()
 	require.NoError(t, err)
 
-	cmd = exec.Command(shimPath, "--init")
+	opErigonPath, err := filepath.Abs("op-erigon")
+	require.NoError(t, err)
+	workDir, err := filepath.Abs(filepath.Join("..", "..", "op-erigon"))
+	require.NoError(t, err)
+	cmd = exec.Command("go", "build", "-o", opErigonPath, "github.com/ledgerwatch/erigon/cmd/erigon")
+	cmd.Dir = workDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	err = cmd.Run()

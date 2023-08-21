@@ -39,7 +39,6 @@ type Executor struct {
 	rollupConfig     string
 	l2Genesis        string
 	absolutePreState string
-	dataDir          string
 	snapshotFreq     uint
 	selectSnapshot   snapshotSelect
 	cmdExecutor      cmdExecutor
@@ -57,7 +56,6 @@ func NewExecutor(logger log.Logger, cfg *config.Config, inputs LocalGameInputs) 
 		rollupConfig:     cfg.CannonRollupConfigPath,
 		l2Genesis:        cfg.CannonL2GenesisPath,
 		absolutePreState: cfg.CannonAbsolutePreState,
-		dataDir:          cfg.CannonDatadir,
 		snapshotFreq:     cfg.CannonSnapshotFreq,
 		selectSnapshot:   findStartingSnapshot,
 		cmdExecutor:      runCmd,
@@ -71,7 +69,7 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 		return fmt.Errorf("find starting snapshot: %w", err)
 	}
 	proofDir := filepath.Join(dir, proofsDir)
-	dataDir := filepath.Join(e.dataDir, preimagesDir)
+	dataDir := filepath.Join(dir, preimagesDir)
 	lastGeneratedState := filepath.Join(dir, finalState)
 	args := []string{
 		"run",

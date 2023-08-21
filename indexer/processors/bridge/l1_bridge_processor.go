@@ -26,13 +26,13 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 		return err
 	}
 
-	ethDeposits := []*database.L1BridgeDeposit{}
+	ethDeposits := []database.L1BridgeDeposit{}
 	portalDeposits := make(map[logKey]*contracts.OptimismPortalTransactionDepositEvent, len(optimismPortalTxDeposits))
-	transactionDeposits := make([]*database.L1TransactionDeposit, len(optimismPortalTxDeposits))
+	transactionDeposits := make([]database.L1TransactionDeposit, len(optimismPortalTxDeposits))
 	for i := range optimismPortalTxDeposits {
 		depositTx := optimismPortalTxDeposits[i]
 		portalDeposits[logKey{depositTx.Event.BlockHash, depositTx.Event.LogIndex}] = &depositTx
-		transactionDeposits[i] = &database.L1TransactionDeposit{
+		transactionDeposits[i] = database.L1TransactionDeposit{
 			SourceHash:           depositTx.DepositTx.SourceHash,
 			L2TransactionHash:    types.NewTx(depositTx.DepositTx).Hash(),
 			InitiatedL1EventGUID: depositTx.Event.GUID,
@@ -42,7 +42,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 
 		// catch ETH transfers to the portal contract.
 		if len(depositTx.DepositTx.Data) == 0 && depositTx.DepositTx.Value.BitLen() > 0 {
-			ethDeposits = append(ethDeposits, &database.L1BridgeDeposit{
+			ethDeposits = append(ethDeposits, database.L1BridgeDeposit{
 				TransactionSourceHash: depositTx.DepositTx.SourceHash,
 				BridgeTransfer:        database.BridgeTransfer{Tx: transactionDeposits[i].Tx, TokenPair: database.ETHTokenPair},
 			})
@@ -72,7 +72,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 	}
 
 	sentMessages := make(map[logKey]*contracts.CrossDomainMessengerSentMessageEvent, len(crossDomainSentMessages))
-	l1BridgeMessages := make([]*database.L1BridgeMessage, len(crossDomainSentMessages))
+	l1BridgeMessages := make([]database.L1BridgeMessage, len(crossDomainSentMessages))
 	for i := range crossDomainSentMessages {
 		sentMessage := crossDomainSentMessages[i]
 		sentMessages[logKey{sentMessage.Event.BlockHash, sentMessage.Event.LogIndex}] = &sentMessage
@@ -83,7 +83,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 			return fmt.Errorf("missing expected preceding TransactionDeposit for SentMessage. tx_hash = %s", sentMessage.Event.TransactionHash)
 		}
 
-		l1BridgeMessages[i] = &database.L1BridgeMessage{TransactionSourceHash: portalDeposit.DepositTx.SourceHash, BridgeMessage: sentMessage.BridgeMessage}
+		l1BridgeMessages[i] = database.L1BridgeMessage{TransactionSourceHash: portalDeposit.DepositTx.SourceHash, BridgeMessage: sentMessage.BridgeMessage}
 	}
 
 	if len(l1BridgeMessages) > 0 {
@@ -102,7 +102,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 		return fmt.Errorf("missing cross-domain message for each initiated bridge event. messages: %d, bridges: %d", len(crossDomainSentMessages), len(initiatedBridges))
 	}
 
-	l1BridgeDeposits := make([]*database.L1BridgeDeposit, len(initiatedBridges))
+	l1BridgeDeposits := make([]database.L1BridgeDeposit, len(initiatedBridges))
 	for i := range initiatedBridges {
 		initiatedBridge := initiatedBridges[i]
 
@@ -117,7 +117,7 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 		}
 
 		initiatedBridge.BridgeTransfer.CrossDomainMessageHash = &sentMessage.BridgeMessage.MessageHash
-		l1BridgeDeposits[i] = &database.L1BridgeDeposit{
+		l1BridgeDeposits[i] = database.L1BridgeDeposit{
 			TransactionSourceHash: portalDeposit.DepositTx.SourceHash,
 			BridgeTransfer:        initiatedBridge.BridgeTransfer,
 		}

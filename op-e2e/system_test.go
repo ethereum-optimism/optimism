@@ -57,19 +57,21 @@ func TestMain(m *testing.M) {
 		// the path handling logic for the rest of the testing
 		config.ExternalL2Nodes = shimPath
 
+		// A small hack to ensure that the resulting binary is always rebuilt.
+		cmd := exec.Command("make")
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.Dir = filepath.Dir(shimPath)
+		err = cmd.Run()
+		if err != nil {
+			fmt.Printf("Failed to compute externalL2Nodes dir: %s\n", err)
+			os.Exit(5)
+		}
+
 		_, err = os.Stat(config.ExternalL2Nodes)
 		if err != nil {
 			fmt.Printf("Failed to stat externalL2Nodes path: %s\n", err)
 			os.Exit(3)
-		}
-
-		cmd := exec.Command(config.ExternalL2Nodes, "--init")
-		cmd.Dir = filepath.Dir(shimPath)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		if err := cmd.Run(); err != nil {
-			fmt.Printf("Could not initialize external L2 node command: %s\n", err)
-			os.Exit(4)
 		}
 
 		// As these are integration tests which launch many other processes, the

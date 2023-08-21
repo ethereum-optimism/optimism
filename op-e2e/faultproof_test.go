@@ -12,8 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCannonMultipleGames(t *testing.T) {
-	t.Skip("Challenger doesn't yet support multiple games")
+func TestMultipleAlphabetGames(t *testing.T) {
 	InitParallel(t)
 
 	ctx := context.Background()
@@ -41,10 +40,16 @@ func TestCannonMultipleGames(t *testing.T) {
 	game2.WaitForClaimCount(ctx, 4)
 	game1.Defend(ctx, 1, common.Hash{0xaa})
 	game1.WaitForClaimCount(ctx, 4)
+
+	gameDuration := game1.GameDuration(ctx)
+	sys.TimeTravelClock.AdvanceTime(gameDuration)
+	require.NoError(t, wait.ForNextBlock(ctx, l1Client))
+
+	game1.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
+	game2.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 }
 
 func TestMultipleCannonGames(t *testing.T) {
-	t.Skip("Cannon provider doesn't currently isolate different game traces")
 	InitParallel(t)
 
 	ctx := context.Background()
@@ -404,6 +409,6 @@ func startFaultDisputeSystem(t *testing.T) (*System, *ethclient.Client) {
 	cfg.DeployConfig.L2OutputOracleSubmissionInterval = 1
 	cfg.NonFinalizedProposals = true // Submit output proposals asap
 	sys, err := cfg.Start(t)
-	require.NoError(t, err, "Error starting up system")
+	require.Nil(t, err, "Error starting up system")
 	return sys, sys.Clients["l1"]
 }

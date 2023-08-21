@@ -13,12 +13,6 @@ make test-external-erigon
 
 ## Arguments
 
-*--init* The init argument is passed which triggers the creation of an
-`op-erigon` binary in this directory.  It is built using the dependencies
-specified in the `../../op-erigon/go.mod` file.  The `--init` call is made once per
-execution of the e2e test suite (if this shim is passed in as a command line
-flag).
-
 *--config <path>* The config path is specified as an option for normal test
 invocations.  This points to a JSON file which contains details of the L2
 environment to bring up (including the `genesis.json` path, the chain ID, the

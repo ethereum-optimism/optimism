@@ -1,6 +1,7 @@
 package genesis
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,6 +32,7 @@ var (
 )
 
 // DeployConfig represents the deployment configuration for an OP Stack chain.
+// It is used to deploy the L1 contracts as well as create the L2 genesis state.
 type DeployConfig struct {
 	// L1StartingBlockTag is used to fill in the storage of the L1Block info predeploy. The rollup
 	// config script uses this to fill the L1 genesis info for the rollup. The Output oracle deploy
@@ -172,10 +174,10 @@ type DeployConfig struct {
 	EIP1559Elasticity uint64 `json:"eip1559Elasticity"`
 	// EIP1559Denominator is the denominator of EIP1559 base fee market.
 	EIP1559Denominator uint64 `json:"eip1559Denominator"`
-	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
-	// during devnet deployments.
-	FundDevAccounts bool `json:"fundDevAccounts"`
-
+	// SystemConfigStartBlock represents the block at which the op-node should start syncing
+	// from. It is an override to set this value on legacy networks where it is not set by
+	// default. It can be removed once all networks have this value set in their storage.
+	SystemConfigStartBlock uint64 `json:"systemConfigStartBlock"`
 	// FaultGameAbsolutePrestate is the absolute prestate of Cannon. This is computed
 	// by generating a proof from the 0th -> 1st instruction and grabbing the prestate from
 	// the output JSON. All honest challengers should agree on the setup state of the program.
@@ -193,6 +195,9 @@ type DeployConfig struct {
 	// game can run for before it is ready to be resolved. Each side receives half of this value
 	// on their chess clock at the inception of the dispute.
 	FaultGameMaxDuration uint64 `json:"faultGameMaxDuration"`
+	// FundDevAccounts configures whether or not to fund the dev accounts. Should only be used
+	// during devnet deployments.
+	FundDevAccounts bool `json:"fundDevAccounts"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
@@ -293,21 +298,6 @@ func (d *DeployConfig) Check() error {
 	if d.GasPriceOracleScalar == 0 {
 		return fmt.Errorf("%w: GasPriceOracleScalar cannot be 0", ErrInvalidDeployConfig)
 	}
-	if d.L1StandardBridgeProxy == (common.Address{}) {
-		return fmt.Errorf("%w: L1StandardBridgeProxy cannot be address(0)", ErrInvalidDeployConfig)
-	}
-	if d.L1CrossDomainMessengerProxy == (common.Address{}) {
-		return fmt.Errorf("%w: L1CrossDomainMessengerProxy cannot be address(0)", ErrInvalidDeployConfig)
-	}
-	if d.L1ERC721BridgeProxy == (common.Address{}) {
-		return fmt.Errorf("%w: L1ERC721BridgeProxy cannot be address(0)", ErrInvalidDeployConfig)
-	}
-	if d.SystemConfigProxy == (common.Address{}) {
-		return fmt.Errorf("%w: SystemConfigProxy cannot be address(0)", ErrInvalidDeployConfig)
-	}
-	if d.OptimismPortalProxy == (common.Address{}) {
-		return fmt.Errorf("%w: OptimismPortalProxy cannot be address(0)", ErrInvalidDeployConfig)
-	}
 	if d.EIP1559Denominator == 0 {
 		return fmt.Errorf("%w: EIP1559Denominator cannot be 0", ErrInvalidDeployConfig)
 	}
@@ -339,6 +329,29 @@ func (d *DeployConfig) Check() error {
 	// L2 block time must always be smaller than L1 block time
 	if d.L1BlockTime < d.L2BlockTime {
 		return fmt.Errorf("L2 block time (%d) is larger than L1 block time (%d)", d.L2BlockTime, d.L1BlockTime)
+	}
+	return nil
+}
+
+// CheckAddresses will return an error if the addresses are not set.
+// These values are required to create the L2 genesis state and are present in the deploy config
+// even though the deploy config is required to deploy the contracts on L1. This creates a
+// circular dependency that should be resolved in the future.
+func (d *DeployConfig) CheckAddresses() error {
+	if d.L1StandardBridgeProxy == (common.Address{}) {
+		return fmt.Errorf("%w: L1StandardBridgeProxy cannot be address(0)", ErrInvalidDeployConfig)
+	}
+	if d.L1CrossDomainMessengerProxy == (common.Address{}) {
+		return fmt.Errorf("%w: L1CrossDomainMessengerProxy cannot be address(0)", ErrInvalidDeployConfig)
+	}
+	if d.L1ERC721BridgeProxy == (common.Address{}) {
+		return fmt.Errorf("%w: L1ERC721BridgeProxy cannot be address(0)", ErrInvalidDeployConfig)
+	}
+	if d.SystemConfigProxy == (common.Address{}) {
+		return fmt.Errorf("%w: SystemConfigProxy cannot be address(0)", ErrInvalidDeployConfig)
+	}
+	if d.OptimismPortalProxy == (common.Address{}) {
+		return fmt.Errorf("%w: OptimismPortalProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	return nil
 }
@@ -469,8 +482,11 @@ func NewDeployConfig(path string) (*DeployConfig, error) {
 		return nil, fmt.Errorf("deploy config at %s not found: %w", path, err)
 	}
 
+	dec := json.NewDecoder(bytes.NewReader(file))
+	dec.DisallowUnknownFields()
+
 	var config DeployConfig
-	if err := json.Unmarshal(file, &config); err != nil {
+	if err := dec.Decode(&config); err != nil {
 		return nil, fmt.Errorf("cannot unmarshal deploy config: %w", err)
 	}
 
