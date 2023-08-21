@@ -46,7 +46,7 @@
     "@ethersproject/web": "^5.7.1",
     "chai": "^4.3.7",
     "ethers": "^5.7.2",
-    "node-fetch": "^2.6.7"
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
     "@types/node": "^20.5.0",
