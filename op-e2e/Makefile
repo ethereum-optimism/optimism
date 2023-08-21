@@ -26,7 +26,12 @@ clean:
 	rm -r ../op-program/bin
 
 lint:
-	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is"
+	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
+
+test-external-%: pre-test
+	make -C ./external_$*/
+	go test -v --externalL2 ./external_$*/shim
+
 
 .PHONY: \
 	test \

@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -21,17 +20,21 @@ var mockAddress = "0x4204204204204204204204204204204204204204"
 
 var (
 	deposit = database.L1BridgeDeposit{
-		TransactionSourceHash:     common.HexToHash("abc"),
-		CrossDomainMessengerNonce: &database.U256{Int: big.NewInt(0)},
-		Tx:                        database.Transaction{},
-		TokenPair:                 database.TokenPair{},
+		TransactionSourceHash: common.HexToHash("abc"),
+		BridgeTransfer: database.BridgeTransfer{
+			CrossDomainMessageHash: &common.Hash{},
+			Tx:                     database.Transaction{},
+			TokenPair:              database.TokenPair{},
+		},
 	}
 
 	withdrawal = database.L2BridgeWithdrawal{
 		TransactionWithdrawalHash: common.HexToHash("0x420"),
-		CrossDomainMessengerNonce: &database.U256{Int: big.NewInt(0)},
-		Tx:                        database.Transaction{},
-		TokenPair:                 database.TokenPair{},
+		BridgeTransfer: database.BridgeTransfer{
+			CrossDomainMessageHash: &common.Hash{},
+			Tx:                     database.Transaction{},
+			TokenPair:              database.TokenPair{},
+		},
 	}
 )
 
@@ -39,36 +42,39 @@ func (mbv *MockBridgeTransfersView) L1BridgeDeposit(hash common.Hash) (*database
 	return &deposit, nil
 }
 
-func (mbv *MockBridgeTransfersView) L1BridgeDepositByCrossDomainMessengerNonce(nonce *big.Int) (*database.L1BridgeDeposit, error) {
+func (mbv *MockBridgeTransfersView) L1BridgeDepositWithFilter(filter database.BridgeTransfer) (*database.L1BridgeDeposit, error) {
 	return &deposit, nil
-}
-
-func (mbv *MockBridgeTransfersView) L1BridgeDepositsByAddress(address common.Address) ([]*database.L1BridgeDepositWithTransactionHashes, error) {
-	return []*database.L1BridgeDepositWithTransactionHashes{
-		{
-			L1BridgeDeposit:   deposit,
-			L1TransactionHash: common.HexToHash("0x123"),
-		},
-	}, nil
 }
 
 func (mbv *MockBridgeTransfersView) L2BridgeWithdrawal(address common.Hash) (*database.L2BridgeWithdrawal, error) {
 	return &withdrawal, nil
 }
 
-func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalByCrossDomainMessengerNonce(nonce *big.Int) (*database.L2BridgeWithdrawal, error) {
+func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalWithFilter(filter database.BridgeTransfer) (*database.L2BridgeWithdrawal, error) {
 	return &withdrawal, nil
 }
 
-func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalsByAddress(address common.Address) ([]*database.L2BridgeWithdrawalWithTransactionHashes, error) {
-	return []*database.L2BridgeWithdrawalWithTransactionHashes{
-		{
-			L2BridgeWithdrawal: withdrawal,
-			L2TransactionHash:  common.HexToHash("0x789"),
+func (mbv *MockBridgeTransfersView) L1BridgeDepositsByAddress(address common.Address, cursor string, limit int) (*database.L1BridgeDepositsResponse, error) {
+	return &database.L1BridgeDepositsResponse{
+		Deposits: []database.L1BridgeDepositWithTransactionHashes{
+			{
+				L1BridgeDeposit:   deposit,
+				L1TransactionHash: common.HexToHash("0x123"),
+			},
 		},
 	}, nil
 }
 
+func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalsByAddress(address common.Address, cursor string, limit int) (*database.L2BridgeWithdrawalsResponse, error) {
+	return &database.L2BridgeWithdrawalsResponse{
+		Withdrawals: []database.L2BridgeWithdrawalWithTransactionHashes{
+			{
+				L2BridgeWithdrawal: withdrawal,
+				L2TransactionHash:  common.HexToHash("0x789"),
+			},
+		},
+	}, nil
+}
 func TestHealthz(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	api := NewApi(&MockBridgeTransfersView{}, logger)

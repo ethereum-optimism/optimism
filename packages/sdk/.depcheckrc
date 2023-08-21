@@ -11,5 +11,8 @@ ignores: [
   "eslint-plugin-prettier",
   "chai",
   "ts-node",
-  "typedoc"
+  "typedoc",
+  "typescript",
+  "ethereum-waffle",
+  "nyc"
 ]

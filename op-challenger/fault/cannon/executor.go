@@ -32,20 +32,19 @@ type Executor struct {
 	logger           log.Logger
 	l1               string
 	l2               string
-	inputs           localGameInputs
+	inputs           LocalGameInputs
 	cannon           string
 	server           string
 	network          string
 	rollupConfig     string
 	l2Genesis        string
 	absolutePreState string
-	dataDir          string
 	snapshotFreq     uint
 	selectSnapshot   snapshotSelect
 	cmdExecutor      cmdExecutor
 }
 
-func NewExecutor(logger log.Logger, cfg *config.Config, inputs localGameInputs) *Executor {
+func NewExecutor(logger log.Logger, cfg *config.Config, inputs LocalGameInputs) *Executor {
 	return &Executor{
 		logger:           logger,
 		l1:               cfg.L1EthRpc,
@@ -57,7 +56,6 @@ func NewExecutor(logger log.Logger, cfg *config.Config, inputs localGameInputs) 
 		rollupConfig:     cfg.CannonRollupConfigPath,
 		l2Genesis:        cfg.CannonL2GenesisPath,
 		absolutePreState: cfg.CannonAbsolutePreState,
-		dataDir:          cfg.CannonDatadir,
 		snapshotFreq:     cfg.CannonSnapshotFreq,
 		selectSnapshot:   findStartingSnapshot,
 		cmdExecutor:      runCmd,
@@ -71,7 +69,7 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 		return fmt.Errorf("find starting snapshot: %w", err)
 	}
 	proofDir := filepath.Join(dir, proofsDir)
-	dataDir := filepath.Join(e.dataDir, preimagesDir)
+	dataDir := filepath.Join(dir, preimagesDir)
 	lastGeneratedState := filepath.Join(dir, finalState)
 	args := []string{
 		"run",
@@ -92,11 +90,11 @@ func (e *Executor) GenerateProof(ctx context.Context, dir string, i uint64) erro
 		"--l1", e.l1,
 		"--l2", e.l2,
 		"--datadir", dataDir,
-		"--l1.head", e.inputs.l1Head.Hex(),
-		"--l2.head", e.inputs.l2Head.Hex(),
-		"--l2.outputroot", e.inputs.l2OutputRoot.Hex(),
-		"--l2.claim", e.inputs.l2Claim.Hex(),
-		"--l2.blocknumber", e.inputs.l2BlockNumber.Text(10),
+		"--l1.head", e.inputs.L1Head.Hex(),
+		"--l2.head", e.inputs.L2Head.Hex(),
+		"--l2.outputroot", e.inputs.L2OutputRoot.Hex(),
+		"--l2.claim", e.inputs.L2Claim.Hex(),
+		"--l2.blocknumber", e.inputs.L2BlockNumber.Text(10),
 	)
 	if e.network != "" {
 		args = append(args, "--network", e.network)

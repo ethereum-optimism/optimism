@@ -6,7 +6,7 @@ updates:
       interval: daily
     open-pull-requests-limit: 10
     labels:
-      - dependabot
+      - M-dependabot
 
   - package-ecosystem: github-actions
     directory: "/"
@@ -14,7 +14,7 @@ updates:
       interval: daily
     open-pull-requests-limit: 10
     labels:
-      - dependabot
+      - M-dependabot
 
   - package-ecosystem: npm
     directory: "/"
@@ -25,7 +25,7 @@ updates:
     open-pull-requests-limit: 10
     versioning-strategy: auto
     labels:
-      - dependabot
+      - M-dependabot
 
   - package-ecosystem: gomod
     directory: "/"
@@ -33,4 +33,4 @@ updates:
       interval: daily
     open-pull-requests-limit: 10
     labels:
-      - dependabot
+      - M-dependabot

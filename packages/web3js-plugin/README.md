@@ -1,4 +1,4 @@
-# @eth-optimism/web3js-plugin
+# @eth-optimism/web3.js-plugin
 
 This web3.js plugin adds utility functions for estimating L1 and L2 gas for OP chains by wrapping the [GasPriceOracle](../contracts-bedrock/contracts/l2/GasPriceOracle.sol) contract
 
@@ -13,25 +13,25 @@ This plugin is intended to be [registered](https://docs.web3js.org/guides/web3_p
 ### Installing the Plugin
 
 ```bash
-pnpm install @eth-optimism/web3js-plugin
+pnpm install @eth-optimism/web3.js-plugin
 ```
 
 ```bash
-npm install @eth-optimism/web3js-plugin
+npm install @eth-optimism/web3.js-plugin
 ```
 
 ```bash
-yarn add @eth-optimism/web3js-plugin
+yarn add @eth-optimism/web3.js-plugin
 ```
 
 ### Registering the Plugin
 
 ```typescript
 import Web3 from 'web3'
-import OptimismFeeEstimationPlugin from '@eth-optimism/web3js-plugin'
+import { OptimismPlugin } from '@eth-optimism/web3.js-plugin'
 
 const web3 = new Web3('http://yourProvider.com')
-web3.registerPlugin(new OptimismFeeEstimationPlugin())
+web3.registerPlugin(new OptimismPlugin())
 ```
 
 You will now have access to the following functions under the `op` namespace, i.e. `web3.op.someMethod`
@@ -65,8 +65,8 @@ async estimateFees(transaction: Transaction, returnFormat?: ReturnFormat)
 #### Parameters
 
 - `transaction: Transaction` - An unsigned web3.js [transaction](https://docs.web3js.org/api/web3-types/interface/Transaction) object
-- `returnFormat?: ReturnFormat` - A web3.js [DataFormat](https://docs.web3js.org/api/web3-types#DataFormat) object that specifies how to format number and bytes values
-  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT](https://docs.web3js.org/api/web3-types#DEFAULT_RETURN_FORMAT) is used which will format numbers to `BigInt`s
+- `returnFormat?: ReturnFormat` - A web3.js [DataFormat][1] object that specifies how to format number and bytes values
+  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT][2] is used which will format numbers to `BigInt`s
 
 #### Returns
 
@@ -76,12 +76,15 @@ async estimateFees(transaction: Transaction, returnFormat?: ReturnFormat)
 
 ```typescript
 import Web3 from 'web3'
+import { OptimismPlugin } from '@eth-optimism/web3.js-plugin'
 import {
   l2StandardBridgeABI,
   l2StandardBridgeAddress,
 } from '@eth-optimism/contracts-ts'
 
 const web3 = new Web3('https://mainnet.optimism.io')
+web3.registerPlugin(new OptimismPlugin())
+
 const l2BridgeContract = new web3.eth.Contract(
   l2StandardBridgeABI,
   optimistAddress[420]
@@ -117,12 +120,15 @@ console.log(totalFee) // 26608988767659n
 
 ```typescript
 import Web3 from 'web3'
+import { OptimismPlugin } from '@eth-optimism/web3.js-plugin'
 import {
   l2StandardBridgeABI,
   l2StandardBridgeAddress,
 } from '@eth-optimism/contracts-ts'
 
 const web3 = new Web3('https://mainnet.optimism.io')
+web3.registerPlugin(new OptimismPlugin())
+
 const l2BridgeContract = new web3.eth.Contract(
   l2StandardBridgeABI,
   optimistAddress[420]
@@ -168,8 +174,8 @@ async getL1Fee(transaction: Transaction, returnFormat?: ReturnFormat)
 #### Parameters
 
 - `transaction: Transaction` - An unsigned web3.js [transaction](https://docs.web3js.org/api/web3-types/interface/Transaction) object
-- `returnFormat?: ReturnFormat` - A web3.js [DataFormat](https://docs.web3js.org/api/web3-types#DataFormat) object that specifies how to format number and bytes values
-  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT](https://docs.web3js.org/api/web3-types#DEFAULT_RETURN_FORMAT) is used which will format numbers to `BigInt`s
+- `returnFormat?: ReturnFormat` - A web3.js [DataFormat][1] object that specifies how to format number and bytes values
+  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT][2] is used which will format numbers to `BigInt`s
 
 #### Returns
 
@@ -235,8 +241,8 @@ async getL2Fee(transaction: Transaction, returnFormat?: ReturnFormat)
     - A web3.js [Numbers](https://docs.web3js.org/api/web3-types#Numbers)
     - A web3.js [BlockTags](https://docs.web3js.org/api/web3-types/enum/BlockTags)
     - If not provided, `BlockTags.LATEST` is used
-  - `returnFormat?: ReturnFormat` - A web3.js [DataFormat](https://docs.web3js.org/api/web3-types#DataFormat) object that specifies how to format number and bytes values
-    - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT](https://docs.web3js.org/api/web3-types#DEFAULT_RETURN_FORMAT) is used which will format numbers to `BigInt`s
+  - `returnFormat?: ReturnFormat` - A web3.js [DataFormat][1] object that specifies how to format number and bytes values
+    - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT][2] is used which will format numbers to `BigInt`s
 
 #### Returns
 
@@ -301,8 +307,8 @@ async getBaseFee(returnFormat?: ReturnFormat)
 
 #### Parameters
 
-- `returnFormat?: ReturnFormat` - A web3.js [DataFormat](https://docs.web3js.org/api/web3-types#DataFormat) object that specifies how to format number and bytes values
-  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT](https://docs.web3js.org/api/web3-types#DEFAULT_RETURN_FORMAT) is used which will format numbers to `BigInt`s
+- `returnFormat?: ReturnFormat` - A web3.js [DataFormat][1] object that specifies how to format number and bytes values
+  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT][2] is used which will format numbers to `BigInt`s
 
 #### Returns
 
@@ -337,8 +343,8 @@ async getDecimals(returnFormat?: ReturnFormat)
 
 #### Parameters
 
-- `returnFormat?: ReturnFormat` - A web3.js [DataFormat](https://docs.web3js.org/api/web3-types#DataFormat) object that specifies how to format number and bytes values
-  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT](https://docs.web3js.org/api/web3-types#DEFAULT_RETURN_FORMAT) is used which will format numbers to `BigInt`s
+- `returnFormat?: ReturnFormat` - A web3.js [DataFormat][3] object that specifies how to format number and bytes values
+  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT][2] is used which will format numbers to `BigInt`s
 
 #### Returns
 
@@ -373,8 +379,8 @@ async getGasPrice(returnFormat?: ReturnFormat)
 
 #### Parameters
 
-- `returnFormat?: ReturnFormat` - A web3.js [DataFormat](https://docs.web3js.org/api/web3-types#DataFormat) object that specifies how to format number and bytes values
-  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT](https://docs.web3js.org/api/web3-types#DEFAULT_RETURN_FORMAT) is used which will format numbers to `BigInt`s
+- `returnFormat?: ReturnFormat` - A web3.js [DataFormat][3] object that specifies how to format number and bytes values
+  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT][2] is used which will format numbers to `BigInt`s
 
 #### Returns
 
@@ -410,8 +416,8 @@ async getL1GasUsed(transaction: Transaction, returnFormat?: ReturnFormat)
 #### Parameters
 
 - `transaction: Transaction` - An unsigned web3.js [transaction](https://docs.web3js.org/api/web3-types/interface/Transaction) object
-- `returnFormat?: ReturnFormat` - A web3.js [DataFormat](https://docs.web3js.org/api/web3-types#DataFormat) object that specifies how to format number and bytes values
-  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT](https://docs.web3js.org/api/web3-types#DEFAULT_RETURN_FORMAT) is used which will format numbers to `BigInt`s
+- `returnFormat?: ReturnFormat` - A web3.js [DataFormat][3] object that specifies how to format number and bytes values
+  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT][2] is used which will format numbers to `BigInt`s
 
 #### Returns
 
@@ -470,8 +476,8 @@ async getL1BaseFee(returnFormat?: ReturnFormat)
 
 #### Parameters
 
-- `returnFormat?: ReturnFormat` - A web3.js [DataFormat](https://docs.web3js.org/api/web3-types#DataFormat) object that specifies how to format number and bytes values
-  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT](https://docs.web3js.org/api/web3-types#DEFAULT_RETURN_FORMAT) is used which will format numbers to `BigInt`s
+- `returnFormat?: ReturnFormat` - A web3.js [DataFormat][3] object that specifies how to format number and bytes values
+  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT][2] is used which will format numbers to `BigInt`s
 
 #### Returns
 
@@ -506,8 +512,8 @@ async getOverhead(returnFormat?: ReturnFormat)
 
 #### Parameters
 
-- `returnFormat?: ReturnFormat` - A web3.js [DataFormat](https://docs.web3js.org/api/web3-types#DataFormat) object that specifies how to format number and bytes values
-  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT](https://docs.web3js.org/api/web3-types#DEFAULT_RETURN_FORMAT) is used which will format numbers to `BigInt`s
+- `returnFormat?: ReturnFormat` - A web3.js [DataFormat][3] object that specifies how to format number and bytes values
+  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT][2] is used which will format numbers to `BigInt`s
 
 #### Returns
 
@@ -542,8 +548,8 @@ async getScalar(returnFormat?: ReturnFormat)
 
 #### Parameters
 
-- `returnFormat?: ReturnFormat` - A web3.js [DataFormat](https://docs.web3js.org/api/web3-types#DataFormat) object that specifies how to format number and bytes values
-  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT](https://docs.web3js.org/api/web3-types#DEFAULT_RETURN_FORMAT) is used which will format numbers to `BigInt`s
+- `returnFormat?: ReturnFormat` - A web3.js [DataFormat][1] object that specifies how to format number and bytes values
+  - If `returnFormat` is not provided, [DEFAULT_RETURN_FORMAT][2] is used which will format numbers to `BigInt`s
 
 #### Returns
 
@@ -592,3 +598,7 @@ console.log(version) // 1.0.0
 
 - As of version `4.0.3` of web3.js, both `input` and `data` parameters are automatically added to a transaction objects causing the gas estimations to be inflated. This was corrected in [this](https://github.com/web3/web3.js/pull/6294) PR, but has yet to be released
 - For the plugin function `getL2Fee`, you should be able to get the fee estimates using the state of the blockchain at a specified block, however, this doesn't seem to be working with web3.js and requires further investigation
+
+[1]: https://docs.web3js.org/api/web3-types#DataFormat
+[2]: https://docs.web3js.org/api/web3-types#DEFAULT_RETURN_FORMAT
+[3]: https://docs.web3js.org/api/web3-types#DataFormat

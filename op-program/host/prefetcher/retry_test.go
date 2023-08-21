@@ -7,8 +7,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
-	"github.com/ethereum-optimism/optimism/op-service/backoff"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -104,8 +104,8 @@ func createL1Source(t *testing.T) (*RetryingL1Source, *testutils.MockL1Source) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	mock := &testutils.MockL1Source{}
 	source := NewRetryingL1Source(logger, mock)
-	// Avoid sleeping in tests by using a fixed backoff strategy with no delay
-	source.strategy = backoff.Fixed(0)
+	// Avoid sleeping in tests by using a fixed retry strategy with no delay
+	source.strategy = retry.Fixed(0)
 	return source, mock
 }
 
@@ -217,8 +217,8 @@ func createL2Source(t *testing.T) (*RetryingL2Source, *MockL2Source) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	mock := &MockL2Source{}
 	source := NewRetryingL2Source(logger, mock)
-	// Avoid sleeping in tests by using a fixed backoff strategy with no delay
-	source.strategy = backoff.Fixed(0)
+	// Avoid sleeping in tests by using a fixed retry strategy with no delay
+	source.strategy = retry.Fixed(0)
 	return source, mock
 }
 

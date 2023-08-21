@@ -66,6 +66,9 @@ type Metricer interface {
 	RecordSequencerSealingTime(duration time.Duration)
 	Document() []metrics.DocumentedMetric
 	RecordChannelInputBytes(num int)
+	RecordHeadChannelOpened()
+	RecordChannelTimedOut()
+	RecordFrame()
 	// P2P Metrics
 	SetPeerScores(allScores []store.PeerScores)
 	ClientPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration)
@@ -131,6 +134,11 @@ type Metrics struct {
 	L1ReorgDepth prometheus.Histogram
 
 	TransactionsSequencedTotal prometheus.Counter
+
+	// Channel Bank Metrics
+	headChannelOpenedEvent *EventMetrics
+	channelTimedOutEvent   *EventMetrics
+	frameAddedEvent        *EventMetrics
 
 	// P2P Metrics
 	PeerCount         prometheus.Gauge
@@ -362,6 +370,10 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "accepts",
 			Help:      "Count of incoming dial attempts to accept, with label to filter to allowed attempts",
 		}, []string{"allow"}),
+
+		headChannelOpenedEvent: NewEventMetrics(factory, ns, "head_channel", "New channel at the front of the channel bank"),
+		channelTimedOutEvent:   NewEventMetrics(factory, ns, "channel_timeout", "Channel has timed out"),
+		frameAddedEvent:        NewEventMetrics(factory, ns, "frame_added", "New frame ingested in the channel bank"),
 
 		ChannelInputBytes: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
@@ -700,6 +712,18 @@ func (m *Metrics) RecordChannelInputBytes(inputCompressedBytes int) {
 	m.ChannelInputBytes.Add(float64(inputCompressedBytes))
 }
 
+func (m *Metrics) RecordHeadChannelOpened() {
+	m.headChannelOpenedEvent.RecordEvent()
+}
+
+func (m *Metrics) RecordChannelTimedOut() {
+	m.channelTimedOutEvent.RecordEvent()
+}
+
+func (m *Metrics) RecordFrame() {
+	m.frameAddedEvent.RecordEvent()
+}
+
 func (m *Metrics) RecordPeerUnban() {
 	m.PeerUnbans.Inc()
 }
@@ -828,6 +852,15 @@ func (n *noopMetricer) PayloadsQuarantineSize(int) {
 }
 
 func (n *noopMetricer) RecordChannelInputBytes(int) {
+}
+
+func (n *noopMetricer) RecordHeadChannelOpened() {
+}
+
+func (n *noopMetricer) RecordChannelTimedOut() {
+}
+
+func (n *noopMetricer) RecordFrame() {
 }
 
 func (n *noopMetricer) RecordPeerUnban() {
