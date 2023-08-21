@@ -19,6 +19,12 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 )
 
+// from `packages/contracts-bedrock/deploy-config/internal-devnet.json`
+var (
+	EIP1559Denominator = uint64(50) // TODO: what values
+	EIP1559Elasticity  = uint64(10)
+)
+
 func main() {
 	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd()))))
 
@@ -77,6 +83,8 @@ func main() {
 				return err
 			}
 
+			log.Info("Finished migration successfully!")
+
 			return nil
 		},
 	}
@@ -92,9 +100,10 @@ type MigrationResult struct {
 	TransitionBlockHash common.Hash
 }
 
-// MigrateDB will migrate an l2geth legacy Optimism database to a Bedrock database.
+// MigrateDB will migrate an celo database to a new OP genesis block
 func MigrateDB(ldb ethdb.Database, commit, noCheck bool) (*MigrationResult, error) {
 	log.Info("Migrating DB")
+
 	// Grab the hash of the tip of the legacy chain.
 	hash := rawdb.ReadHeadHeaderHash(ldb)
 	log.Info("Reading chain tip from database", "hash", hash)
@@ -109,8 +118,15 @@ func MigrateDB(ldb ethdb.Database, commit, noCheck bool) (*MigrationResult, erro
 	// Grab the full header.
 	header := rawdb.ReadHeader(ldb, hash, *num)
 	trieRoot := header.Root
-
 	log.Info("Read header from database", "number", header)
+
+	// We need to update the chain config to set the correct hardforks.
+	genesisHash := rawdb.ReadCanonicalHash(ldb, 0)
+	cfg := rawdb.ReadChainConfig(ldb, genesisHash)
+	if cfg == nil {
+		log.Crit("chain config not found")
+	}
+	log.Info("Read config from database", "config", cfg)
 
 	// dbFactory := func() (*state.StateDB, error) {
 	// 	// Set up the backing store.
@@ -230,10 +246,36 @@ func MigrateDB(ldb ethdb.Database, commit, noCheck bool) (*MigrationResult, erro
 	rawdb.WriteHeadHeaderHash(ldb, cel2Block.Hash())
 
 	// TODO
-	// Make the first Bedrock block a finalized block.
+	// Make the first CeL2 block a finalized block.
 	rawdb.WriteFinalizedBlockHash(ldb, cel2Block.Hash())
 
-	// TODO: need to update chainconfig
+	// Set the standard options.
+	// TODO: What about earlier hardforks
+	cfg.LondonBlock = cel2Block.Number()
+	cfg.ArrowGlacierBlock = cel2Block.Number()
+	cfg.GrayGlacierBlock = cel2Block.Number()
+	cfg.MergeNetsplitBlock = cel2Block.Number()
+	cfg.TerminalTotalDifficulty = big.NewInt(0)
+	cfg.TerminalTotalDifficultyPassed = true
+
+	// Set the Optimism options.
+	cfg.BedrockBlock = cel2Block.Number()
+	// Enable Regolith from the start of Bedrock
+	cfg.RegolithTime = new(uint64) // what are those? do we need those?
+	cfg.Optimism = &params.OptimismConfig{
+		EIP1559Denominator: EIP1559Denominator,
+		EIP1559Elasticity:  EIP1559Elasticity,
+	}
+
+	// Write the chain config to disk.
+	rawdb.WriteChainConfig(ldb, cel2Block.Hash(), cfg)
+
+	// Yay!
+	log.Info(
+		"Wrote chain config",
+		"1559-denominator", EIP1559Denominator,
+		"1559-elasticity", EIP1559Elasticity,
+	)
 
 	// We're done!
 	log.Info(

@@ -8,4 +8,5 @@ set -x
 echo "Starting Migration"
 
 ./bin/op-migrate \
-  --db-path="/Users/paul/Projects/celo-blockchain/tmp/testenv/validator-00/" --dry-run
+  --db-path="/Users/paul/Projects/celo-blockchain/tmp/testenv/validator-00/" \
+  # --dry-run

@@ -12,7 +12,6 @@
             "program": "${workspaceFolder}/op-chain-ops/cmd/op-migrate",
             "args": [
             "--db-path", "/Users/paul/Projects/celo-blockchain/tmp/testenv/validator-00/",
-            "--rollup-config-out", "rollup.json",
             "--dry-run"]
         }
     ]

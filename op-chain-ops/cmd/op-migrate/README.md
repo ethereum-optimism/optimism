@@ -40,5 +40,11 @@ CRIT [08-02|15:42:24.996] error in migration                       err="cannot f
 
 
 ## Tasks
-- [ ] Load DB with op geth, check some state
-- [ ] Make a nice testing script
+- [ ] Load DB with op geth
+    - [x] set chain config
+    - [ ] check state
+- [ ] Make a nicer testing script
+- [ ] Create tasks for log warnings/errors
+- [ ] Fix genesis block time
+- [ ] Set up OP consensus node or get dev mode to work
+- [ ] Test syncing
