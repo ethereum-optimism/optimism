@@ -76,7 +76,7 @@ func TestFaultCaller_GetClaimCount(t *testing.T) {
 	tests := []struct {
 		name                 string
 		caller               FaultDisputeGameCaller
-		expectedClaimDataLen *big.Int
+		expectedClaimDataLen uint64
 		expectedErr          error
 	}{
 		{
@@ -84,7 +84,7 @@ func TestFaultCaller_GetClaimCount(t *testing.T) {
 			caller: &mockFaultDisputeGameCaller{
 				claimDataLen: big.NewInt(1),
 			},
-			expectedClaimDataLen: big.NewInt(1),
+			expectedClaimDataLen: 1,
 			expectedErr:          nil,
 		},
 		{
@@ -92,7 +92,7 @@ func TestFaultCaller_GetClaimCount(t *testing.T) {
 			caller: &mockFaultDisputeGameCaller{
 				errClaimDataLen: true,
 			},
-			expectedClaimDataLen: nil,
+			expectedClaimDataLen: 0,
 			expectedErr:          errMock,
 		},
 	}
