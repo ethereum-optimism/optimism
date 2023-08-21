@@ -2,7 +2,6 @@ package serializers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 
@@ -19,9 +18,8 @@ func init() {
 }
 
 func (BytesSerializer) Scan(ctx context.Context, field *schema.Field, dst reflect.Value, dbValue interface{}) error {
-	// Empty slices are serialized as '0x'
-	if dbValue == nil {
-		return errors.New("cannot unmarshal an empty dbValue")
+	if dbValue == nil || (field.FieldType.Kind() == reflect.Pointer && reflect.ValueOf(dbValue).IsNil()) {
+		return nil
 	}
 
 	hexStr, ok := dbValue.(string)
@@ -35,13 +33,22 @@ func (BytesSerializer) Scan(ctx context.Context, field *schema.Field, dst reflec
 	}
 
 	fieldValue := reflect.New(field.FieldType)
+	fieldInterface := fieldValue.Interface()
+
+	// Detect if we're deserializing into a pointer. If so, we'll need to
+	// also allocate memory to where the allocated pointer should point to
 	if field.FieldType.Kind() == reflect.Pointer {
-		// Allocate memory if this is pointer which by
-		// default when deserializing is probably `nil`
-		fieldValue.Set(reflect.New(field.FieldType.Elem()))
+		nestedField := fieldValue.Elem()
+		if nestedField.Elem().Kind() == reflect.Pointer {
+			return fmt.Errorf("double pointers are the max depth supported: %T", fieldValue)
+		}
+
+		// We'll want to call `SetBytes` on the pointer to the
+		// allocated structmemory and not the douple pointer
+		nestedField.Set(reflect.New(field.FieldType.Elem()))
+		fieldInterface = nestedField.Interface()
 	}
 
-	fieldInterface := fieldValue.Interface()
 	fieldSetBytes, ok := fieldInterface.(SetBytesInterface)
 	if !ok {
 		return fmt.Errorf("field does not satisfy the `SetBytes([]byte)` interface: %T", fieldInterface)
@@ -53,16 +60,15 @@ func (BytesSerializer) Scan(ctx context.Context, field *schema.Field, dst reflec
 }
 
 func (BytesSerializer) Value(ctx context.Context, field *schema.Field, dst reflect.Value, fieldValue interface{}) (interface{}, error) {
+	if fieldValue == nil || (field.FieldType.Kind() == reflect.Pointer && reflect.ValueOf(fieldValue).IsNil()) {
+		return nil, nil
+	}
+
 	fieldBytes, ok := fieldValue.(BytesInterface)
 	if !ok {
 		return nil, fmt.Errorf("field does not satisfy the `Bytes() []byte` interface")
 	}
 
-	var b []byte
-	if fieldValue != nil && reflect.ValueOf(fieldValue).IsNil() {
-		b = fieldBytes.Bytes()
-	}
-
-	hexStr := hexutil.Encode(b)
+	hexStr := hexutil.Encode(fieldBytes.Bytes())
 	return hexStr, nil
 }

@@ -2,7 +2,6 @@ package serializers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"reflect"
 
@@ -19,9 +18,8 @@ func init() {
 }
 
 func (RLPSerializer) Scan(ctx context.Context, field *schema.Field, dst reflect.Value, dbValue interface{}) error {
-	// RLP encoding never results in nil bytes
-	if dbValue == nil {
-		return errors.New("cannot unmarshal an empty dbValue")
+	if dbValue == nil || (field.FieldType.Kind() == reflect.Pointer && reflect.ValueOf(dbValue).IsNil()) {
+		return nil
 	}
 
 	hexStr, ok := dbValue.(string)
@@ -35,12 +33,6 @@ func (RLPSerializer) Scan(ctx context.Context, field *schema.Field, dst reflect.
 	}
 
 	fieldValue := reflect.New(field.FieldType)
-	if field.FieldType.Kind() == reflect.Pointer {
-		// Allocate memory if this is pointer which by
-		// default when deserializing is probably `nil`
-		fieldValue.Set(reflect.New(field.FieldType.Elem()))
-	}
-
 	if err := rlp.DecodeBytes(b, fieldValue.Interface()); err != nil {
 		return fmt.Errorf("failed to decode rlp bytes: %s", err)
 	}
@@ -50,6 +42,10 @@ func (RLPSerializer) Scan(ctx context.Context, field *schema.Field, dst reflect.
 }
 
 func (RLPSerializer) Value(ctx context.Context, field *schema.Field, dst reflect.Value, fieldValue interface{}) (interface{}, error) {
+	if fieldValue == nil || (field.FieldType.Kind() == reflect.Pointer && reflect.ValueOf(fieldValue).IsNil()) {
+		return nil, nil
+	}
+
 	rlpBytes, err := rlp.EncodeToBytes(fieldValue)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode rlp bytes: %s", err)
