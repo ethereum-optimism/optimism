@@ -35,7 +35,7 @@ func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
 func (g *FaultGameHelper) WaitForClaimCount(ctx context.Context, count int64) {
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 	defer cancel()
-	err := wait.For(ctx, time.Second, func() (bool, error) {
+	err := wait.For(ctx, 3*time.Second, func() (bool, error) {
 		actual, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
 		if err != nil {
 			return false, err
@@ -63,7 +63,7 @@ func (g *FaultGameHelper) MaxDepth(ctx context.Context) int64 {
 func (g *FaultGameHelper) waitForClaim(ctx context.Context, errorMsg string, predicate func(claim ContractClaim) bool) {
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	err := wait.For(ctx, time.Second, func() (bool, error) {
+	err := wait.For(ctx, 3*time.Second, func() (bool, error) {
 		count, err := g.game.ClaimDataLen(&bind.CallOpts{Context: ctx})
 		if err != nil {
 			return false, fmt.Errorf("retrieve number of claims: %w", err)
@@ -125,7 +125,7 @@ func (g *FaultGameHelper) WaitForGameStatus(ctx context.Context, expected Status
 	g.t.Logf("Waiting for game %v to have status %v", g.addr, expected)
 	ctx, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
-	err := wait.For(ctx, time.Second, func() (bool, error) {
+	err := wait.For(ctx, 3*time.Second, func() (bool, error) {
 		ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
 		status, err := g.game.Status(&bind.CallOpts{Context: ctx})
