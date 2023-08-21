@@ -22,7 +22,9 @@ const execTestCannonPrestate = "/foo/pre.json"
 func TestGenerateProof(t *testing.T) {
 	input := "starting.json"
 	cfg := config.NewConfig(common.Address{0xbb}, "http://localhost:8888", config.TraceTypeCannon, true)
-	cfg.CannonDatadir = t.TempDir()
+	tempDir := t.TempDir()
+	dir := filepath.Join(tempDir, "gameDir")
+	cfg.CannonDatadir = tempDir
 	cfg.CannonAbsolutePreState = "pre.json"
 	cfg.CannonBin = "./bin/cannon"
 	cfg.CannonServer = "./bin/op-program"
@@ -58,7 +60,7 @@ func TestGenerateProof(t *testing.T) {
 			}
 			return nil
 		}
-		err := executor.GenerateProof(context.Background(), cfg.CannonDatadir, proofAt)
+		err := executor.GenerateProof(context.Background(), dir, proofAt)
 		require.NoError(t, err)
 		return binary, subcommand, args
 	}
@@ -68,15 +70,15 @@ func TestGenerateProof(t *testing.T) {
 		cfg.CannonRollupConfigPath = ""
 		cfg.CannonL2GenesisPath = ""
 		binary, subcommand, args := captureExec(t, cfg, 150_000_000)
-		require.DirExists(t, filepath.Join(cfg.CannonDatadir, preimagesDir))
-		require.DirExists(t, filepath.Join(cfg.CannonDatadir, proofsDir))
-		require.DirExists(t, filepath.Join(cfg.CannonDatadir, snapsDir))
+		require.DirExists(t, filepath.Join(dir, preimagesDir))
+		require.DirExists(t, filepath.Join(dir, proofsDir))
+		require.DirExists(t, filepath.Join(dir, snapsDir))
 		require.Equal(t, cfg.CannonBin, binary)
 		require.Equal(t, "run", subcommand)
 		require.Equal(t, input, args["--input"])
 		require.Contains(t, args, "--meta")
 		require.Equal(t, "", args["--meta"])
-		require.Equal(t, filepath.Join(cfg.CannonDatadir, finalState), args["--output"])
+		require.Equal(t, filepath.Join(dir, finalState), args["--output"])
 		require.Equal(t, "=150000000", args["--proof-at"])
 		require.Equal(t, "=150000001", args["--stop-at"])
 		require.Equal(t, "%500", args["--snapshot-at"])
@@ -86,9 +88,9 @@ func TestGenerateProof(t *testing.T) {
 		require.Equal(t, "--server", args[cfg.CannonServer])
 		require.Equal(t, cfg.L1EthRpc, args["--l1"])
 		require.Equal(t, cfg.CannonL2, args["--l2"])
-		require.Equal(t, filepath.Join(cfg.CannonDatadir, preimagesDir), args["--datadir"])
-		require.Equal(t, filepath.Join(cfg.CannonDatadir, proofsDir, "%d.json"), args["--proof-fmt"])
-		require.Equal(t, filepath.Join(cfg.CannonDatadir, snapsDir, "%d.json"), args["--snapshot-fmt"])
+		require.Equal(t, filepath.Join(dir, preimagesDir), args["--datadir"])
+		require.Equal(t, filepath.Join(dir, proofsDir, "%d.json"), args["--proof-fmt"])
+		require.Equal(t, filepath.Join(dir, snapsDir, "%d.json"), args["--snapshot-fmt"])
 		require.Equal(t, cfg.CannonNetwork, args["--network"])
 		require.NotContains(t, args, "--rollup.config")
 		require.NotContains(t, args, "--l2.genesis")
