@@ -56,7 +56,7 @@ type L1Client struct {
 
 	// cache L1BlockRef by hash
 	// common.Hash -> eth.L1BlockRef
-	l1BlockRefsCache *caching.LRUCache
+	l1BlockRefsCache *caching.LRUCache[common.Hash, eth.L1BlockRef]
 }
 
 // NewL1Client wraps a RPC with bindings to fetch L1 data, while logging errors, tracking metrics (optional), and caching.
@@ -68,7 +68,7 @@ func NewL1Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 
 	return &L1Client{
 		EthClient:        ethClient,
-		l1BlockRefsCache: caching.NewLRUCache(metrics, "blockrefs", config.L1BlockRefsCacheSize),
+		l1BlockRefsCache: caching.NewLRUCache[common.Hash, eth.L1BlockRef](metrics, "blockrefs", config.L1BlockRefsCacheSize),
 	}, nil
 }
 
@@ -105,7 +105,7 @@ func (s *L1Client) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1Bl
 // We cache the block reference by hash as it is safe to assume collision will not occur.
 func (s *L1Client) L1BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L1BlockRef, error) {
 	if v, ok := s.l1BlockRefsCache.Get(hash); ok {
-		return v.(eth.L1BlockRef), nil
+		return v, nil
 	}
 	info, err := s.InfoByHash(ctx, hash)
 	if err != nil {
