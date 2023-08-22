@@ -11,8 +11,8 @@ import (
 type L2ToL1MessagePasserMessagePassed struct {
 	Event          *database.ContractEvent
 	WithdrawalHash common.Hash
-	GasLimit       database.U256
-	Nonce          database.U256
+	GasLimit       *big.Int
+	Nonce          *big.Int
 	Tx             database.Transaction
 }
 
@@ -40,12 +40,12 @@ func L2ToL1MessagePasserMessagePassedEvents(contractAddress common.Address, db *
 		messagesPassed[i] = L2ToL1MessagePasserMessagePassed{
 			Event:          &messagePassedEvents[i].ContractEvent,
 			WithdrawalHash: messagePassed.WithdrawalHash,
-			Nonce:          database.U256{Int: messagePassed.Nonce},
-			GasLimit:       database.U256{Int: messagePassed.GasLimit},
+			Nonce:          messagePassed.Nonce,
+			GasLimit:       messagePassed.GasLimit,
 			Tx: database.Transaction{
 				FromAddress: messagePassed.Sender,
 				ToAddress:   messagePassed.Target,
-				Amount:      database.U256{Int: messagePassed.Value},
+				Amount:      messagePassed.Value,
 				Data:        messagePassed.Data,
 				Timestamp:   messagePassedEvents[i].Timestamp,
 			},

@@ -35,7 +35,7 @@ func NewL2ETL(log log.Logger, db *database.DB, client node.EthClient) (*L2ETL, e
 
 	var fromHeader *types.Header
 	if latestHeader != nil {
-		log.Info("detected last indexed block", "number", latestHeader.Number.Int, "hash", latestHeader.Hash)
+		log.Info("detected last indexed block", "number", latestHeader.Number, "hash", latestHeader.Hash)
 		fromHeader = latestHeader.RLPHeader.Header()
 	} else {
 		log.Info("no indexed state, starting from genesis")

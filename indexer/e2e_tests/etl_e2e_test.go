@@ -40,19 +40,19 @@ func TestE2EETL(t *testing.T) {
 		l2Header, err := testSuite.DB.Blocks.L2LatestBlockHeader()
 		require.NoError(t, err)
 
-		return (l1Header != nil && l1Header.Number.Int.Uint64() >= l1Height) && (l2Header != nil && l2Header.Number.Int.Uint64() >= 9), nil
+		return (l1Header != nil && l1Header.Number.Uint64() >= l1Height) && (l2Header != nil && l2Header.Number.Uint64() >= 9), nil
 	}))
 
 	t.Run("indexes all L2 blocks", func(t *testing.T) {
 		latestL2Header, err := testSuite.DB.Blocks.L2LatestBlockHeader()
 		require.NoError(t, err)
 		require.NotNil(t, latestL2Header)
-		require.True(t, latestL2Header.Number.Int.Uint64() >= 9)
+		require.True(t, latestL2Header.Number.Uint64() >= 9)
 
 		for i := int64(0); i < 10; i++ {
 			height := big.NewInt(i)
 
-			indexedHeader, err := testSuite.DB.Blocks.L2BlockHeaderWithFilter(database.BlockHeader{Number: database.U256{Int: height}})
+			indexedHeader, err := testSuite.DB.Blocks.L2BlockHeaderWithFilter(database.BlockHeader{Number: height})
 			require.NoError(t, err)
 			require.NotNil(t, indexedHeader)
 
@@ -60,7 +60,7 @@ func TestE2EETL(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, indexedHeader)
 
-			require.Equal(t, header.Number.Int64(), indexedHeader.Number.Int.Int64())
+			require.Equal(t, header.Number.Int64(), indexedHeader.Number.Int64())
 			require.Equal(t, header.Hash(), indexedHeader.Hash)
 			require.Equal(t, header.ParentHash, indexedHeader.ParentHash)
 			require.Equal(t, header.Time, indexedHeader.Timestamp)
@@ -144,7 +144,7 @@ func TestE2EETL(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, block.Hash(), l1BlockHeader.Hash)
 			require.Equal(t, block.ParentHash(), l1BlockHeader.ParentHash)
-			require.Equal(t, block.Number(), l1BlockHeader.Number.Int)
+			require.Equal(t, block.Number().Uint64(), l1BlockHeader.Number.Uint64())
 			require.Equal(t, block.Time(), l1BlockHeader.Timestamp)
 
 			// ensure the right rlp encoding is stored. checking the hashes
