@@ -77,7 +77,7 @@ importers:
         version: 1.2.3(eslint@8.47.0)
       eslint-plugin-prettier:
         specifier: ^4.0.0
-        version: 4.0.0(eslint-config-prettier@8.3.0)(eslint@8.47.0)(prettier@2.8.8)
+        version: 4.2.1(eslint-config-prettier@8.3.0)(eslint@8.47.0)(prettier@2.8.8)
       eslint-plugin-promise:
         specifier: ^5.1.0
         version: 5.2.0(eslint@8.47.0)
@@ -8159,9 +8159,9 @@ packages:
       eslint: 8.47.0
     dev: true
 
-  /eslint-plugin-prettier@4.0.0(eslint-config-prettier@8.3.0)(eslint@8.47.0)(prettier@2.8.8):
-    resolution: {integrity: sha512-98MqmCJ7vJodoQK359bqQWaxOE0CS8paAz/GgjaZLyex4TTk3g9HugoO89EqWCrFiOqn9EVvcoo7gZzONCWVwQ==}
-    engines: {node: '>=6.0.0'}
+  /eslint-plugin-prettier@4.2.1(eslint-config-prettier@8.3.0)(eslint@8.47.0)(prettier@2.8.8):
+    resolution: {integrity: sha512-f/0rXLXUt0oFYs8ra4w49wYZBG5GKZpAYsJSm6rnYL5uVDjd+zowwMwVZHnAjf4edNrKpCDYfXDgmRE/Ak7QyQ==}
+    engines: {node: '>=12.0.0'}
     peerDependencies:
       eslint: '>=7.28.0'
       eslint-config-prettier: '*'
