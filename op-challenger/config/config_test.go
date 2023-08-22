@@ -17,13 +17,13 @@ var (
 	validCannonOpProgramBin    = "./bin/op-program"
 	validCannonNetwork         = "mainnet"
 	validCannonAbsolutPreState = "pre.json"
-	validCannonDatadir         = "/tmp/cannon"
+	validDatadir               = "/tmp/data"
 	validCannonL2              = "http://localhost:9545"
 	agreeWithProposedOutput    = true
 )
 
 func validConfig(traceType TraceType) Config {
-	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, traceType, agreeWithProposedOutput)
+	cfg := NewConfig(validGameFactoryAddress, validL1EthRpc, traceType, agreeWithProposedOutput, validDatadir)
 	switch traceType {
 	case TraceTypeAlphabet:
 		cfg.AlphabetTrace = validAlphabetTrace
@@ -31,7 +31,6 @@ func validConfig(traceType TraceType) Config {
 		cfg.CannonBin = validCannonBin
 		cfg.CannonServer = validCannonOpProgramBin
 		cfg.CannonAbsolutePreState = validCannonAbsolutPreState
-		cfg.CannonDatadir = validCannonDatadir
 		cfg.CannonL2 = validCannonL2
 		cfg.CannonNetwork = validCannonNetwork
 	}
@@ -99,10 +98,10 @@ func TestCannonAbsolutePreStateRequired(t *testing.T) {
 	require.ErrorIs(t, config.Check(), ErrMissingCannonAbsolutePreState)
 }
 
-func TestCannonDatadirRequired(t *testing.T) {
-	config := validConfig(TraceTypeCannon)
-	config.CannonDatadir = ""
-	require.ErrorIs(t, config.Check(), ErrMissingCannonDatadir)
+func TestDatadirRequired(t *testing.T) {
+	config := validConfig(TraceTypeAlphabet)
+	config.Datadir = ""
+	require.ErrorIs(t, config.Check(), ErrMissingDatadir)
 }
 
 func TestCannonL2Required(t *testing.T) {

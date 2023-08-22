@@ -19,12 +19,19 @@ DISPUTE_GAME_PROXY=$(jq -r .DisputeGameFactoryProxy $MONOREPO_DIR/.devnet/addres
 FAULT_GAME_ADDRESS=$(cat $FAULT_GAME_ADDR_FILE)
 echo "Fault dispute game address: $FAULT_GAME_ADDRESS"
 
+DATADIR=`mktemp -d`
+trap cleanup SIGINT
+cleanup(){
+  rm -rf "${DATADIR}"
+}
+
 $CHALLENGER_DIR/bin/op-challenger \
   --l1-eth-rpc http://localhost:8545 \
   --trace-type="alphabet" \
   --alphabet "abcdefgh" \
+  --datadir "${DATADIR}" \
   --game-factory-address $DISPUTE_GAME_PROXY \
-  --game-address $FAULT_GAME_ADDRESS \
+  --game-allowlist $FAULT_GAME_ADDRESS \
   --private-key $CHARLIE_KEY \
   --num-confirmations 1 \
   --metrics.enabled --metrics.port=7304 \

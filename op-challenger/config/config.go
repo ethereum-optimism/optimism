@@ -15,7 +15,7 @@ import (
 
 var (
 	ErrMissingTraceType              = errors.New("missing trace type")
-	ErrMissingCannonDatadir          = errors.New("missing cannon datadir")
+	ErrMissingDatadir                = errors.New("missing datadir")
 	ErrMissingCannonL2               = errors.New("missing cannon L2")
 	ErrMissingCannonBin              = errors.New("missing cannon bin")
 	ErrMissingCannonServer           = errors.New("missing cannon server")
@@ -92,7 +92,9 @@ type Config struct {
 	GameAllowlist           []common.Address // Allowlist of fault game addresses
 	GameWindow              time.Duration    // Maximum time duration to look for games to progress
 	AgreeWithProposedOutput bool             // Temporary config if we agree or disagree with the posted output
-	TraceType               TraceType        // Type of trace
+	Datadir                 string           // Data Directory
+
+	TraceType TraceType // Type of trace
 
 	// Specific to the alphabet trace provider
 	AlphabetTrace string // String for the AlphabetTraceProvider
@@ -104,7 +106,6 @@ type Config struct {
 	CannonNetwork          string
 	CannonRollupConfigPath string
 	CannonL2GenesisPath    string
-	CannonDatadir          string // Cannon Data Directory
 	CannonL2               string // L2 RPC Url
 	CannonSnapshotFreq     uint   // Frequency of snapshots to create when executing cannon (in VM instructions)
 
@@ -118,6 +119,7 @@ func NewConfig(
 	l1EthRpc string,
 	traceType TraceType,
 	agreeWithProposedOutput bool,
+	datadir string,
 ) Config {
 	return Config{
 		L1EthRpc:           l1EthRpc,
@@ -130,6 +132,8 @@ func NewConfig(
 		TxMgrConfig:   txmgr.NewCLIConfig(l1EthRpc),
 		MetricsConfig: opmetrics.DefaultCLIConfig(),
 		PprofConfig:   oppprof.DefaultCLIConfig(),
+
+		Datadir: datadir,
 
 		CannonSnapshotFreq: DefaultCannonSnapshotFreq,
 		GameWindow:         DefaultGameWindow,
@@ -145,6 +149,9 @@ func (c Config) Check() error {
 	}
 	if c.TraceType == "" {
 		return ErrMissingTraceType
+	}
+	if c.Datadir == "" {
+		return ErrMissingDatadir
 	}
 	if c.TraceType == TraceTypeCannon {
 		if c.CannonBin == "" {
@@ -173,9 +180,6 @@ func (c Config) Check() error {
 		}
 		if c.CannonAbsolutePreState == "" {
 			return ErrMissingCannonAbsolutePreState
-		}
-		if c.CannonDatadir == "" {
-			return ErrMissingCannonDatadir
 		}
 		if c.CannonL2 == "" {
 			return ErrMissingCannonL2
