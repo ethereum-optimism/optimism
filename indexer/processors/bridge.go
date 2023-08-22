@@ -107,7 +107,7 @@ func (b *BridgeProcessor) Start(ctx context.Context) error {
 				continue
 			}
 
-			toL1Height, toL2Height := latestEpoch.L1BlockHeader.Number.Int, latestEpoch.L2BlockHeader.Number.Int
+			toL1Height, toL2Height := latestEpoch.L1BlockHeader.Number, latestEpoch.L2BlockHeader.Number
 			fromL1Height, fromL2Height := big.NewInt(0), big.NewInt(0)
 			if b.LatestL1Header != nil {
 				// `NewBridgeProcessor` ensures that LatestL2Header must not be nil if LatestL1Header is set

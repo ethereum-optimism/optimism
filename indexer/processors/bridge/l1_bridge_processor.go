@@ -26,7 +26,6 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 		return err
 	}
 
-	ethDeposits := []database.L1BridgeDeposit{}
 	portalDeposits := make(map[logKey]*contracts.OptimismPortalTransactionDepositEvent, len(optimismPortalTxDeposits))
 	transactionDeposits := make([]database.L1TransactionDeposit, len(optimismPortalTxDeposits))
 	for i := range optimismPortalTxDeposits {
@@ -39,26 +38,12 @@ func L1ProcessInitiatedBridgeEvents(log log.Logger, db *database.DB, chainConfig
 			GasLimit:             depositTx.GasLimit,
 			Tx:                   depositTx.Tx,
 		}
-
-		// catch ETH transfers to the portal contract.
-		if len(depositTx.DepositTx.Data) == 0 && depositTx.DepositTx.Value.BitLen() > 0 {
-			ethDeposits = append(ethDeposits, database.L1BridgeDeposit{
-				TransactionSourceHash: depositTx.DepositTx.SourceHash,
-				BridgeTransfer:        database.BridgeTransfer{Tx: transactionDeposits[i].Tx, TokenPair: database.ETHTokenPair},
-			})
-		}
 	}
 
 	if len(transactionDeposits) > 0 {
 		log.Info("detected transaction deposits", "size", len(transactionDeposits))
 		if err := db.BridgeTransactions.StoreL1TransactionDeposits(transactionDeposits); err != nil {
 			return err
-		}
-		if len(ethDeposits) > 0 {
-			log.Info("detected portal ETH transfers", "size", len(ethDeposits))
-			if err := db.BridgeTransfers.StoreL1BridgeDeposits(ethDeposits); err != nil {
-				return err
-			}
 		}
 	}
 

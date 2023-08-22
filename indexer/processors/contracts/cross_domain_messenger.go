@@ -94,13 +94,13 @@ func CrossDomainMessengerSentMessageEvents(chainSelector string, contractAddress
 			Event: &sentMessageEvents[i],
 			BridgeMessage: database.BridgeMessage{
 				MessageHash:          messageHash,
-				Nonce:                database.U256{Int: sentMessage.MessageNonce},
+				Nonce:                sentMessage.MessageNonce,
 				SentMessageEventGUID: sentMessageEvents[i].GUID,
-				GasLimit:             database.U256{Int: sentMessage.GasLimit},
+				GasLimit:             sentMessage.GasLimit,
 				Tx: database.Transaction{
 					FromAddress: sentMessage.Sender,
 					ToAddress:   sentMessage.Target,
-					Amount:      database.U256{Int: sentMessageExtension.Value},
+					Amount:      sentMessageExtension.Value,
 					Data:        sentMessage.Message,
 					Timestamp:   sentMessageEvents[i].Timestamp,
 				},

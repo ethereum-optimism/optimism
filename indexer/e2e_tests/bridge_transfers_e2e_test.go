@@ -63,7 +63,7 @@ func TestE2EBridgeTransfersStandardBridgeETHDeposit(t *testing.T) {
 	require.Equal(t, depositInfo.DepositTx.SourceHash, deposit.TransactionSourceHash)
 	require.Equal(t, predeploys.LegacyERC20ETHAddr, deposit.TokenPair.LocalTokenAddress)
 	require.Equal(t, predeploys.LegacyERC20ETHAddr, deposit.TokenPair.RemoteTokenAddress)
-	require.Equal(t, big.NewInt(params.Ether), deposit.Tx.Amount.Int)
+	require.Equal(t, uint64(params.Ether), deposit.Tx.Amount.Uint64())
 	require.Equal(t, aliceAddr, deposit.Tx.FromAddress)
 	require.Equal(t, aliceAddr, deposit.Tx.ToAddress)
 	require.Equal(t, byte(1), deposit.Tx.Data[0])
@@ -227,13 +227,15 @@ func TestE2EBridgeTransfersOptimismPortalETHReceive(t *testing.T) {
 
 	aliceDeposits, err := testSuite.DB.BridgeTransfers.L1BridgeDepositsByAddress(aliceAddr, "", 0)
 	require.NoError(t, err)
+	require.NotNil(t, aliceDeposits)
+	require.Len(t, aliceDeposits.Deposits, 1)
 	require.Equal(t, portalDepositTx.Hash(), aliceDeposits.Deposits[0].L1TransactionHash)
 
 	deposit := aliceDeposits.Deposits[0].L1BridgeDeposit
 	require.Equal(t, depositInfo.DepositTx.SourceHash, deposit.TransactionSourceHash)
 	require.Equal(t, predeploys.LegacyERC20ETHAddr, deposit.TokenPair.LocalTokenAddress)
 	require.Equal(t, predeploys.LegacyERC20ETHAddr, deposit.TokenPair.RemoteTokenAddress)
-	require.Equal(t, big.NewInt(params.Ether), deposit.Tx.Amount.Int)
+	require.Equal(t, uint64(params.Ether), deposit.Tx.Amount.Uint64())
 	require.Equal(t, aliceAddr, deposit.Tx.FromAddress)
 	require.Equal(t, aliceAddr, deposit.Tx.ToAddress)
 	require.Len(t, deposit.Tx.Data, 0)
@@ -304,7 +306,7 @@ func TestE2EBridgeTransfersStandardBridgeETHWithdrawal(t *testing.T) {
 	require.Equal(t, withdrawalHash, withdrawal.TransactionWithdrawalHash)
 	require.Equal(t, predeploys.LegacyERC20ETHAddr, withdrawal.TokenPair.LocalTokenAddress)
 	require.Equal(t, predeploys.LegacyERC20ETHAddr, withdrawal.TokenPair.RemoteTokenAddress)
-	require.Equal(t, big.NewInt(params.Ether), withdrawal.Tx.Amount.Int)
+	require.Equal(t, uint64(params.Ether), withdrawal.Tx.Amount.Uint64())
 	require.Equal(t, aliceAddr, withdrawal.Tx.FromAddress)
 	require.Equal(t, aliceAddr, withdrawal.Tx.ToAddress)
 	require.Equal(t, byte(1), withdrawal.Tx.Data[0])
@@ -339,7 +341,7 @@ func TestE2EBridgeTransfersStandardBridgeETHWithdrawal(t *testing.T) {
 	require.NotNil(t, crossDomainBridgeMessage.RelayedMessageEventGUID)
 }
 
-func TestE2EBridgeTransfersL2ToL1MessagePasserReceive(t *testing.T) {
+func TestE2EBridgeTransfersL2ToL1MessagePasserETHReceive(t *testing.T) {
 	testSuite := createE2ETestSuite(t)
 
 	optimismPortal, err := bindings.NewOptimismPortal(testSuite.OpCfg.L1Deployments.OptimismPortalProxy, testSuite.L1Client)
@@ -376,6 +378,7 @@ func TestE2EBridgeTransfersL2ToL1MessagePasserReceive(t *testing.T) {
 
 	aliceWithdrawals, err := testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr, "", 0)
 	require.NoError(t, err)
+	require.Len(t, aliceWithdrawals.Withdrawals, 1)
 	require.Equal(t, l2ToL1MessagePasserWithdrawTx.Hash().String(), aliceWithdrawals.Withdrawals[0].L2TransactionHash.String())
 
 	msgPassed, err := withdrawals.ParseMessagePassed(l2ToL1WithdrawReceipt)
@@ -387,7 +390,7 @@ func TestE2EBridgeTransfersL2ToL1MessagePasserReceive(t *testing.T) {
 	require.Equal(t, withdrawalHash, withdrawal.TransactionWithdrawalHash)
 	require.Equal(t, predeploys.LegacyERC20ETHAddr, withdrawal.TokenPair.LocalTokenAddress)
 	require.Equal(t, predeploys.LegacyERC20ETHAddr, withdrawal.TokenPair.RemoteTokenAddress)
-	require.Equal(t, big.NewInt(params.Ether), withdrawal.Tx.Amount.Int)
+	require.Equal(t, uint64(params.Ether), withdrawal.Tx.Amount.Uint64())
 	require.Equal(t, aliceAddr, withdrawal.Tx.FromAddress)
 	require.Equal(t, aliceAddr, withdrawal.Tx.ToAddress)
 	require.Len(t, withdrawal.Tx.Data, 0)
