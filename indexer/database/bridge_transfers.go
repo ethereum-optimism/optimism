@@ -137,7 +137,7 @@ func (db *bridgeTransfersDB) L1BridgeDepositsByAddress(address common.Address, c
 	// TODO join with l1_tokens and l2_tokens
 	ethAddressString := predeploys.LegacyERC20ETHAddr.String()
 
-	// Coalesce l1 transaction deposits that are ETH receives into bridge deposits.
+	// Coalesce l1 transaction deposits that are simply ETH sends
 	ethTransactionDeposits := db.gorm.Model(&L1TransactionDeposit{})
 	ethTransactionDeposits = ethTransactionDeposits.Where(Transaction{FromAddress: address}).Where(`data = '0x' AND amount > 0`)
 	ethTransactionDeposits = ethTransactionDeposits.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = initiated_l1_event_guid")
@@ -153,10 +153,6 @@ l1_transaction_deposits.timestamp, NULL AS cross_domain_message_hash, ? AS local
 l1_bridge_deposits.from_address, l1_bridge_deposits.to_address, l1_bridge_deposits.amount, l1_bridge_deposits.data, transaction_source_hash,
 l2_transaction_hash, l1_contract_events.transaction_hash AS l1_transaction_hash,
 l1_bridge_deposits.timestamp, cross_domain_message_hash, local_token_address, remote_token_address`)
-
-	// Since all bridge deposits share have the same primary key corresponding to the transaction
-	// deposit, we can simply order by the timestamp in the transaction deposits table which will
-	// order all deposits (bridge & transactions) uniformly
 
 	// TODO: cursoring options
 
@@ -245,7 +241,7 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawalsByAddress(address common.Address
 	// TODO join with l1_tokens and l2_tokens
 	ethAddressString := predeploys.LegacyERC20ETHAddr.String()
 
-	// Coalesce l2 transaction withdrawals that are ETH receives
+	// Coalesce l2 transaction withdrawals that are simply ETH sends
 	ethTransactionWithdrawals := db.gorm.Model(&L2TransactionWithdrawal{})
 	ethTransactionWithdrawals = ethTransactionWithdrawals.Where(Transaction{FromAddress: address}).Where(`data = '0x' AND amount > 0`)
 	ethTransactionWithdrawals = ethTransactionWithdrawals.Joins("INNER JOIN l2_contract_events ON l2_contract_events.guid = l2_transaction_withdrawals.initiated_l2_event_guid")
@@ -265,10 +261,6 @@ l2_transaction_withdrawals.timestamp, NULL AS cross_domain_message_hash, ? AS lo
 l2_bridge_withdrawals.from_address, l2_bridge_withdrawals.to_address, l2_bridge_withdrawals.amount, l2_bridge_withdrawals.data, transaction_withdrawal_hash,
 l2_contract_events.transaction_hash AS l2_transaction_hash, proven_l1_events.transaction_hash AS proven_l1_transaction_hash, finalized_l1_events.transaction_hash AS finalized_l1_transaction_hash,
 l2_bridge_withdrawals.timestamp, cross_domain_message_hash, local_token_address, remote_token_address`)
-
-	// Since all bridge withdrawals share have the same primary key corresponding to the transaction
-	// withdrawal, we can simply order by the timestamp in the transaction withdrawal table which will
-	// order all deposits (bridge & transactions) uniformly
 
 	// TODO: cursoring options
 
