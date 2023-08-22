@@ -16,7 +16,7 @@ type OptimismPortalTransactionDepositEvent struct {
 	Event     *database.ContractEvent
 	DepositTx *types.DepositTx
 	Tx        database.Transaction
-	GasLimit  database.U256
+	GasLimit  *big.Int
 }
 
 type OptimismPortalWithdrawalProvenEvent struct {
@@ -67,11 +67,11 @@ func OptimismPortalTransactionDepositEvents(contractAddress common.Address, db *
 		optimismPortalTxDeposits[i] = OptimismPortalTransactionDepositEvent{
 			Event:     &transactionDepositEvents[i].ContractEvent,
 			DepositTx: depositTx,
-			GasLimit:  database.U256{Int: new(big.Int).SetUint64(depositTx.Gas)},
+			GasLimit:  new(big.Int).SetUint64(depositTx.Gas),
 			Tx: database.Transaction{
 				FromAddress: txDeposit.From,
 				ToAddress:   txDeposit.To,
-				Amount:      database.U256{Int: depositTx.Value},
+				Amount:      depositTx.Value,
 				Data:        depositTx.Data,
 				Timestamp:   transactionDepositEvents[i].Timestamp,
 			},

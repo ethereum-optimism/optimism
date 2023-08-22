@@ -60,7 +60,7 @@ func newWithdrawalResponse(withdrawals *database.L2BridgeWithdrawalsResponse) Wi
 			From:            withdrawal.L2BridgeWithdrawal.Tx.FromAddress.String(),
 			To:              withdrawal.L2BridgeWithdrawal.Tx.ToAddress.String(),
 			TransactionHash: withdrawal.L2TransactionHash.String(),
-			Amount:          withdrawal.L2BridgeWithdrawal.Tx.Amount.Int.String(),
+			Amount:          withdrawal.L2BridgeWithdrawal.Tx.Amount.String(),
 			Proof: Proof{
 				TransactionHash: withdrawal.ProvenL1TransactionHash.String(),
 				BlockTimestamp:  withdrawal.L2BridgeWithdrawal.Tx.Timestamp,

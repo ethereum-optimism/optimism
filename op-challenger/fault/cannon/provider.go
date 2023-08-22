@@ -118,6 +118,10 @@ func (p *CannonTraceProvider) AbsolutePreState(ctx context.Context) ([]byte, err
 	return state.EncodeWitness(), nil
 }
 
+func (p *CannonTraceProvider) Cleanup() error {
+	return os.RemoveAll(p.dir)
+}
+
 // loadProof will attempt to load or generate the proof data at the specified index
 // If the requested index is beyond the end of the actual trace it is extended with no-op instructions.
 func (p *CannonTraceProvider) loadProof(ctx context.Context, i uint64) (*proofData, error) {
