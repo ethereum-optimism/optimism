@@ -4,11 +4,12 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 var (
@@ -35,27 +36,19 @@ const (
 	TraceTypeAlphabet TraceType = "alphabet"
 	TraceTypeCannon   TraceType = "cannon"
 
-	// Devnet game IDs
-	DevnetGameIDAlphabet = uint8(0)
-	DevnetGameIDCannon   = uint8(1)
+	// Mainnet games
+	CannonFaultGameID = 0
 
-	// Mainnet game IDs
-	MainnetGameIDFault = uint8(0)
+	// Devnet games
+	AlphabetFaultGameID = 255
 )
 
 var TraceTypes = []TraceType{TraceTypeAlphabet, TraceTypeCannon}
 
-// GameIdToString maps game IDs to their string representation on a per-network basis.
-var GameIdToString = map[uint64]map[uint8]string{
-	// Mainnet
-	1: {
-		MainnetGameIDFault: "fault-cannon",
-	},
-	// Devnet
-	900: {
-		DevnetGameIDAlphabet: "fault-alphabet",
-		DevnetGameIDCannon:   "fault-cannon",
-	},
+// GameIdToString maps game IDs to their string representation.
+var GameIdToString = map[uint8]string{
+	CannonFaultGameID:   "Cannon",
+	AlphabetFaultGameID: "Alphabet",
 }
 
 func (t TraceType) String() string {
@@ -86,10 +79,10 @@ const DefaultCannonSnapshotFreq = uint(1_000_000_000)
 // This also contains config options for auxiliary services.
 // It is used to initialize the challenger.
 type Config struct {
-	L1EthRpc                string         // L1 RPC Url
-	GameFactoryAddress      common.Address // Address of the dispute game factory
-	GameAddress             common.Address // Address of the fault game
-	AgreeWithProposedOutput bool           // Temporary config if we agree or disagree with the posted output
+	L1EthRpc                string           // L1 RPC Url
+	GameFactoryAddress      common.Address   // Address of the dispute game factory
+	GameAllowlist           []common.Address // Allowlist of fault game addresses
+	AgreeWithProposedOutput bool             // Temporary config if we agree or disagree with the posted output
 
 	TraceType TraceType // Type of trace
 
@@ -165,7 +158,7 @@ func (c Config) Check() error {
 			if c.CannonL2GenesisPath != "" {
 				return ErrCannonNetworkAndL2Genesis
 			}
-			if _, ok := chaincfg.NetworksByName[c.CannonNetwork]; !ok {
+			if ch := chaincfg.ChainByName(c.CannonNetwork); ch == nil {
 				return fmt.Errorf("%w: %v", ErrCannonNetworkUnknown, c.CannonNetwork)
 			}
 		}

@@ -182,12 +182,16 @@ Startup will proceed to use the network-parameter and ignore the rollup config.
 Conflicting configuration is deprecated, and will stop the op-node from starting in the future.
 `, "network", network, "rollup_config", rollupConfigPath)
 		}
+		// check that the network is available
+		if !chaincfg.IsAvailableNetwork(network, ctx.Bool(flags.BetaExtraNetworks.Name)) {
+			return nil, fmt.Errorf("unavailable network: %q", network)
+		}
 		config, err := chaincfg.GetRollupConfig(network)
 		if err != nil {
 			return nil, err
 		}
 
-		return &config, nil
+		return config, nil
 	}
 
 	file, err := os.Open(rollupConfigPath)

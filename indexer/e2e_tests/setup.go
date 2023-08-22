@@ -49,7 +49,8 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 
 	// Rollup System Configuration and Start
 	opCfg := op_e2e.DefaultSystemConfig(t)
-	opSys, err := opCfg.Start()
+	opCfg.DeployConfig.FinalizationPeriodSeconds = 2
+	opSys, err := opCfg.Start(t)
 	require.NoError(t, err)
 
 	// E2E tests can run on the order of magnitude of minutes. Once
@@ -66,8 +67,8 @@ func createE2ETestSuite(t *testing.T) E2ETestSuite {
 			User: dbUser,
 		},
 		RPCs: config.RPCsConfig{
-			L1RPC: opSys.Nodes["l1"].HTTPEndpoint(),
-			L2RPC: opSys.Nodes["sequencer"].HTTPEndpoint(),
+			L1RPC: opSys.EthInstances["l1"].HTTPEndpoint(),
+			L2RPC: opSys.EthInstances["sequencer"].HTTPEndpoint(),
 		},
 		Chain: config.ChainConfig{
 			L1Contracts: config.L1Contracts{

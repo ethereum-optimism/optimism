@@ -79,7 +79,7 @@ func TestE2EETL(t *testing.T) {
 				require.NotNil(t, latestOutput)
 				require.GreaterOrEqual(t, latestOutput.L2BlockNumber.Int.Uint64(), uint64(9))
 
-				l2EthClient, err := node.DialEthClient(testSuite.OpSys.Nodes["sequencer"].HTTPEndpoint())
+				l2EthClient, err := node.DialEthClient(testSuite.OpSys.EthInstances["sequencer"].HTTPEndpoint())
 				require.NoError(t, err)
 
 				submissionInterval := testSuite.OpCfg.DeployConfig.L2OutputOracleSubmissionInterval

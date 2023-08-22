@@ -15,19 +15,21 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/cannon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/transactions"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
-const alphabetGameType uint8 = 0
-const cannonGameType uint8 = 1
+const alphabetGameType uint8 = 255
+const cannonGameType uint8 = 0
 const alphabetGameDepth = 4
 const lastAlphabetTraceIndex = 1<<alphabetGameDepth - 1
 
@@ -106,8 +108,11 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	extraData := make([]byte, 64)
 	binary.BigEndian.PutUint64(extraData[24:], l2BlockNumber)
 	binary.BigEndian.PutUint64(extraData[56:], l1Head.Uint64())
-	tx, err := h.factory.Create(h.opts, alphabetGameType, rootClaim, extraData)
+	tx, err := transactions.PadGasEstimate(h.opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+		return h.factory.Create(opts, alphabetGameType, rootClaim, extraData)
+	})
 	h.require.NoError(err, "create fault dispute game")
+	h.opts.GasLimit = 0
 	rcpt, err := wait.ForReceiptOK(ctx, h.client, tx.Hash())
 	h.require.NoError(err, "wait for create fault dispute game receipt to be OK")
 	h.require.Len(rcpt.Logs, 1, "should have emitted a single DisputeGameCreated event")
@@ -170,7 +175,7 @@ func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, roll
 		L2Claim:       challengedOutput.OutputRoot,
 		L2BlockNumber: challengedOutput.L2BlockNumber,
 	}
-	provider := cannon.NewTraceProviderFromInputs(testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"), cfg, inputs)
+	provider := cannon.NewTraceProviderFromInputs(testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"), cfg, "correct", inputs)
 	rootClaim, err := provider.Get(ctx, math.MaxUint64)
 	h.require.NoError(err, "Compute correct root hash")
 
@@ -191,7 +196,9 @@ func (h *FactoryHelper) createCannonGame(ctx context.Context, l2BlockNumber uint
 	extraData := make([]byte, 64)
 	binary.BigEndian.PutUint64(extraData[24:], l2BlockNumber)
 	binary.BigEndian.PutUint64(extraData[56:], l1Head.Uint64())
-	tx, err := h.factory.Create(h.opts, cannonGameType, rootClaim, extraData)
+	tx, err := transactions.PadGasEstimate(h.opts, 2, func(opts *bind.TransactOpts) (*types.Transaction, error) {
+		return h.factory.Create(opts, cannonGameType, rootClaim, extraData)
+	})
 	h.require.NoError(err, "create fault dispute game")
 	rcpt, err := wait.ForReceiptOK(ctx, h.client, tx.Hash())
 	h.require.NoError(err, "wait for create fault dispute game receipt to be OK")

@@ -5,6 +5,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/challenger"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type AlphabetGameHelper struct {
@@ -16,7 +18,7 @@ func (g *AlphabetGameHelper) StartChallenger(ctx context.Context, l1Endpoint str
 	opts := []challenger.Option{
 		func(c *config.Config) {
 			c.GameFactoryAddress = g.factoryAddr
-			c.GameAddress = g.addr
+			c.GameAllowlist = []common.Address{g.addr}
 			c.TraceType = config.TraceTypeAlphabet
 			// By default the challenger agrees with the root claim (thus disagrees with the proposed output)
 			// This can be overridden by passing in options
