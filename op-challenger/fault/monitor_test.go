@@ -119,6 +119,27 @@ func TestDeletePlayersWhenNoLongerInListOfGames(t *testing.T) {
 	require.Equal(t, 1, games.created[addr1].progressCount)
 }
 
+func TestCleanupResourcesOfCompletedGames(t *testing.T) {
+	monitor, source, games := setupMonitorTest(t, []common.Address{})
+	games.createCompleted = true
+
+	addr1 := common.Address{0xaa}
+	source.games = []FaultDisputeGame{
+		{
+			Proxy:     addr1,
+			Timestamp: 9999,
+		},
+	}
+
+	err := monitor.progressGames(context.Background())
+	require.NoError(t, err)
+
+	require.Len(t, games.created, 1, "should create game agents")
+	require.Contains(t, games.created, addr1)
+	require.Equal(t, 1, games.created[addr1].progressCount)
+	require.Equal(t, 1, games.created[addr1].cleanupCount, "should clean up once game is done")
+}
+
 func setupMonitorTest(t *testing.T, allowedGames []common.Address) (*gameMonitor, *stubGameSource, *createdGames) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	source := &stubGameSource{}
@@ -144,6 +165,7 @@ func (s *stubGameSource) FetchAllGamesAtBlock(ctx context.Context, blockNumber *
 type stubGame struct {
 	addr          common.Address
 	progressCount int
+	cleanupCount  int
 	done          bool
 }
 
@@ -152,16 +174,22 @@ func (g *stubGame) ProgressGame(ctx context.Context) bool {
 	return g.done
 }
 
+func (g *stubGame) Cleanup() error {
+	g.cleanupCount++
+	return nil
+}
+
 type createdGames struct {
-	t       *testing.T
-	created map[common.Address]*stubGame
+	t               *testing.T
+	createCompleted bool
+	created         map[common.Address]*stubGame
 }
 
 func (c *createdGames) CreateGame(addr common.Address) (gamePlayer, error) {
 	if _, exists := c.created[addr]; exists {
 		c.t.Fatalf("game %v already exists", addr)
 	}
-	game := &stubGame{addr: addr}
+	game := &stubGame{addr: addr, done: c.createCompleted}
 	c.created[addr] = game
 	return game, nil
 }
