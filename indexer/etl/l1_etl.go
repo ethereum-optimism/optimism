@@ -21,7 +21,7 @@ type L1ETL struct {
 
 // NewL1ETL creates a new L1ETL instance that will start indexing from different starting points
 // depending on the state of the database and the supplied start height.
-func NewL1ETL(log log.Logger, db *database.DB, client node.EthClient, start *big.Int,
+func NewL1ETL(log log.Logger, db *database.DB, client node.EthClient, startHeight *big.Int,
 	contracts config.L1Contracts) (*L1ETL, error) {
 	log = log.New("etl", "l1")
 
@@ -41,17 +41,17 @@ func NewL1ETL(log log.Logger, db *database.DB, client node.EthClient, start *big
 		log.Info("detected last indexed block", "number", latestHeader.Number.Int, "hash", latestHeader.Hash)
 		fromHeader = latestHeader.RLPHeader.Header()
 
-	} else if latestHeader != nil && latestHeader.Number.Int.Cmp(start) == 0 {
-		log.Info("no indexed state in storage, starting from L1 genesis")
-
-	} else { // latestHeader == nil
-		log.Info("no indexed state in storage, starting from supplied L1 height", "height", start.String())
-		header, err := client.BlockHeaderByNumber(start)
+	} else if startHeight.BitLen() > 0 {
+		log.Info("no indexed state in storage, starting from supplied L1 height", "height", startHeight.String())
+		header, err := client.BlockHeaderByNumber(startHeight)
 		if err != nil {
 			return nil, fmt.Errorf("could not fetch starting block header: %w", err)
 		}
 
 		fromHeader = header
+
+	} else {
+		log.Info("no indexed state in storage, starting from L1 genesis")
 	}
 
 	// NOTE - The use of un-buffered channel here assumes that downstream consumers
