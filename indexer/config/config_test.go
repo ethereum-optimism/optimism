@@ -139,3 +139,23 @@ func TestLoadConfig_WithUnknownPreset(t *testing.T) {
 	require.Error(t, err)
 	require.Equal(t, fmt.Sprintf("unknown preset: %d", faultyPreset), err.Error())
 }
+
+func Test_AsSliceSuccess(t *testing.T) {
+	// error cases are intentionally ignored for testing since they can only be
+	// generated when the L1Contracts struct is developer modified to hold a non-address var field
+
+	testCfg := &L1Contracts{
+		OptimismPortalProxy:         common.HexToAddress("0x4205Fc579115071764c7423A4f12eDde41f106Ed"),
+		L2OutputOracleProxy:         common.HexToAddress("0x42097868233d1aa22e815a266982f2cf17685a27"),
+		L1CrossDomainMessengerProxy: common.HexToAddress("0x420ce71c97B33Cc4729CF772ae268934F7ab5fA1"),
+		L1StandardBridgeProxy:       common.HexToAddress("0x4209fc46f92E8a1c0deC1b1747d010903E884bE1"),
+	}
+
+	slice, err := testCfg.AsSlice()
+	require.NoError(t, err)
+	require.Equal(t, len(slice), 4)
+	require.Equal(t, slice[0].String(), testCfg.OptimismPortalProxy.String())
+	require.Equal(t, slice[1].String(), testCfg.L2OutputOracleProxy.String())
+	require.Equal(t, slice[2].String(), testCfg.L1CrossDomainMessengerProxy.String())
+	require.Equal(t, slice[3].String(), testCfg.L1StandardBridgeProxy.String())
+}

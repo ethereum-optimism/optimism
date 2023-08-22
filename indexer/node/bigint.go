@@ -19,3 +19,8 @@ func clampBigInt(start, end *big.Int, size uint64) *big.Int {
 	temp.Add(start, big.NewInt(int64(size-1)))
 	return temp
 }
+
+// returns an inner comparison function result for a big.Int
+func BigIntMatcher(num int64) func(*big.Int) bool {
+	return func(bi *big.Int) bool { return bi.Int64() == num }
+}

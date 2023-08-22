@@ -4,7 +4,7 @@
 
 
 ### Setup env
-The `indexer.toml` stores a set of preset environmental variables that can be used to run the indexer with the exception of the network specific `l1-rpc` and `l2-rpc` variables. The `indexer.toml` file can be ran as a default config, otherwise a custom `.toml` config can provided via the `--config` flag when running the application. Additionally, L1 system contract addresses must provided for the specific OP Stack network actively being indexed. Currently the indexer has no way to infer L1 system config addresses provided a L2 chain ID or network enum.
+The `indexer.toml` stores a set of preset environmental variables that can be used to run the indexer with the exception of the network specific `l1-rpc` and `l2-rpc` variables. The `indexer.toml` file can be ran as a default config, otherwise a custom `.toml` config can provided via the `--config` flag when running the application. An optional `l1-starting-height` value can be provided to the indexer to specify the L1 starting block height to begin indexing from. This should be ideally be an L1 block that holds a correlated L2 genesis commitment. Furthermore, this value must be less than the current L1 block height to pass validation. If no starting height value is provided and the database is empty, the indexer will begin sequentially processing from L1 genesis.
 
 ### Testing
 All tests can be ran by running `make test` from the `/indexer` directory.  This will run all unit and e2e tests.

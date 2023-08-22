@@ -2,14 +2,13 @@ package etl
 
 import (
 	"context"
-	"errors"
-	"reflect"
+	"fmt"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/indexer/config"
 	"github.com/ethereum-optimism/optimism/indexer/database"
 	"github.com/ethereum-optimism/optimism/indexer/node"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -20,43 +19,49 @@ type L1ETL struct {
 	db *database.DB
 }
 
-func NewL1ETL(log log.Logger, db *database.DB, client node.EthClient, contracts config.L1Contracts) (*L1ETL, error) {
+// NewL1ETL creates a new L1ETL instance that will start indexing from different starting points
+// depending on the state of the database and the supplied start height.
+func NewL1ETL(log log.Logger, db *database.DB, client node.EthClient, startHeight *big.Int,
+	contracts config.L1Contracts) (*L1ETL, error) {
 	log = log.New("etl", "l1")
-
-	contractValue := reflect.ValueOf(contracts)
-	fields := reflect.VisibleFields(reflect.TypeOf(contracts))
-	l1Contracts := make([]common.Address, len(fields))
-	for i, field := range fields {
-		// ruleid: unsafe-reflect-by-name
-		addr, ok := (contractValue.FieldByName(field.Name).Interface()).(common.Address)
-		if !ok {
-			log.Error("non-address found in L1Contracts", "name", field.Name)
-			return nil, errors.New("non-address found in L1Contracts")
-		}
-
-		log.Info("configured contract", "name", field.Name, "addr", addr)
-		l1Contracts[i] = addr
-	}
 
 	latestHeader, err := db.Blocks.L1LatestBlockHeader()
 	if err != nil {
 		return nil, err
 	}
 
+	cSlice, err := contracts.AsSlice()
+	if err != nil {
+		return nil, err
+	}
+
+	// Determine the starting height for traversal
 	var fromHeader *types.Header
 	if latestHeader != nil {
 		log.Info("detected last indexed block", "number", latestHeader.Number.Int, "hash", latestHeader.Hash)
 		fromHeader = latestHeader.RLPHeader.Header()
+
+	} else if startHeight.BitLen() > 0 {
+		log.Info("no indexed state in storage, starting from supplied L1 height", "height", startHeight.String())
+		header, err := client.BlockHeaderByNumber(startHeight)
+		if err != nil {
+			return nil, fmt.Errorf("could not fetch starting block header: %w", err)
+		}
+
+		fromHeader = header
+
 	} else {
-		log.Info("no indexed state, starting from genesis")
+		log.Info("no indexed state in storage, starting from L1 genesis")
 	}
 
+	// NOTE - The use of un-buffered channel here assumes that downstream consumers
+	// will be able to keep up with the rate of incoming batches
 	etlBatches := make(chan ETLBatch)
 	etl := ETL{
 		log:             log,
 		headerTraversal: node.NewHeaderTraversal(client, fromHeader),
 		ethClient:       client.GethEthClient(),
-		contracts:       l1Contracts,
+		contracts:       cSlice,
 		etlBatches:      etlBatches,
 	}
 
