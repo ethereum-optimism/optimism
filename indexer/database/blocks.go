@@ -20,7 +20,7 @@ import (
 type BlockHeader struct {
 	Hash       common.Hash `gorm:"primaryKey;serializer:bytes"`
 	ParentHash common.Hash `gorm:"serializer:bytes"`
-	Number     U256
+	Number     *big.Int    `gorm:"serializer:u256"`
 	Timestamp  uint64
 
 	RLPHeader *RLPHeader `gorm:"serializer:rlp;column:rlp_bytes"`
@@ -30,7 +30,7 @@ func BlockHeaderFromHeader(header *types.Header) BlockHeader {
 	return BlockHeader{
 		Hash:       header.Hash(),
 		ParentHash: header.ParentHash,
-		Number:     U256{Int: header.Number},
+		Number:     header.Number,
 		Timestamp:  header.Time,
 
 		RLPHeader: (*RLPHeader)(header),
@@ -58,8 +58,8 @@ type LegacyStateBatch struct {
 
 type OutputProposal struct {
 	OutputRoot    common.Hash `gorm:"primaryKey;serializer:bytes"`
-	L2OutputIndex U256
-	L2BlockNumber U256
+	L2OutputIndex *big.Int    `gorm:"serializer:u256"`
+	L2BlockNumber *big.Int    `gorm:"serializer:u256"`
 
 	L1ContractEventGUID uuid.UUID
 }
@@ -165,7 +165,7 @@ func (db *blocksDB) LatestCheckpointedOutput() (*OutputProposal, error) {
 
 func (db *blocksDB) OutputProposal(index *big.Int) (*OutputProposal, error) {
 	var outputProposal OutputProposal
-	result := db.gorm.Where(&OutputProposal{L2OutputIndex: U256{Int: index}}).Take(&outputProposal)
+	result := db.gorm.Where(&OutputProposal{L2OutputIndex: index}).Take(&outputProposal)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil

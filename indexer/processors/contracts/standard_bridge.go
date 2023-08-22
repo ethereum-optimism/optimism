@@ -101,7 +101,7 @@ func _standardBridgeInitiatedEvents[BridgeEventType bindings.StandardBridgeETHBr
 				Tx: database.Transaction{
 					FromAddress: erc20Bridge.From,
 					ToAddress:   erc20Bridge.To,
-					Amount:      database.U256{Int: erc20Bridge.Amount},
+					Amount:      erc20Bridge.Amount,
 					Data:        erc20Bridge.ExtraData,
 					Timestamp:   initiatedBridgeEvents[i].Timestamp,
 				},
@@ -161,7 +161,7 @@ func _standardBridgeFinalizedEvents[BridgeEventType bindings.StandardBridgeETHBr
 				Tx: database.Transaction{
 					FromAddress: erc20Bridge.From,
 					ToAddress:   erc20Bridge.To,
-					Amount:      database.U256{Int: erc20Bridge.Amount},
+					Amount:      erc20Bridge.Amount,
 					Data:        erc20Bridge.ExtraData,
 					Timestamp:   bridgeFinalizedEvents[i].Timestamp,
 				},
