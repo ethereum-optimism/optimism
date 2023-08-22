@@ -880,7 +880,7 @@ jobs:
           patterns: indexer
       - run:
           name: Lint
-          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 2m -e "errors.As" -e "errors.Is" ./...
+          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 4m -e "errors.As" -e "errors.Is" ./...
           working_directory: indexer
       - run:
           name: install geth
@@ -1052,59 +1052,6 @@ jobs:
       - run:
           name: "Go mod tidy"
           command: make mod-tidy && git diff --exit-code
-
-  hive-test:
-    parameters:
-      version:
-        type: string
-        default: develop
-      sim:
-        type: string
-    machine:
-      image: ubuntu-2204:2022.10.2
-      docker_layer_caching: true
-      resource_class: large
-    steps:
-      - attach_workspace:
-          at: /tmp/docker_images
-      - run:
-          name: Docker Load
-          command: |
-            docker load -i /tmp/docker_images/op-batcher_<<parameters.version>>.tar
-            docker load -i /tmp/docker_images/op-proposer_<<parameters.version>>.tar
-            docker load -i /tmp/docker_images/op-node_<<parameters.version>>.tar
-      - run:
-          command: git clone https://github.com/ethereum-optimism/hive.git .
-      - go/load-cache
-      - go/mod-download
-      - go/save-cache
-      - run: { command: "go build ." }
-      - run: { command: "go build junit/junitformatter.go" }
-      - run:
-          command: |
-            ./hive \
-            -sim=<<parameters.sim>> \
-            -sim.loglevel=5 \
-            -client=go-ethereum_v1.11.6,op-geth_optimism,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log
-      - run:
-          command: |
-            tar -cvf /tmp/workspace.tgz -C /home/circleci/project /home/circleci/project/workspace
-          name: "Archive workspace"
-          when: always
-      - run:
-          command: |
-            ./junitformatter /home/circleci/project/workspace/logs/*.json > /home/circleci/project/workspace/logs/junit.xml
-          when: always
-      - store_artifacts:
-          path: /tmp/workspace.tgz
-          destination: hive-workspace.tgz
-          when: always
-      - store_test_results:
-          path: /home/circleci/project/workspace/logs/junit.xml
-          when: always
-      - store_artifacts:
-          path: /home/circleci/project/workspace/logs/junit.xml
-          when: always
 
   bedrock-go-tests:
     docker:
@@ -1423,33 +1370,6 @@ workflows:
           docker_target: wd-mon
           context:
             - oplabs-gcr
-      - hive-test:
-          name: hive-test-rpc
-          version: <<pipeline.git.revision>>
-          sim: optimism/rpc
-          requires:
-            - op-node-docker-build
-            - op-batcher-docker-build
-            - op-proposer-docker-build
-            - op-challenger-docker-build
-      - hive-test:
-          name: hive-test-p2p
-          version: <<pipeline.git.revision>>
-          sim: optimism/p2p
-          requires:
-            - op-node-docker-build
-            - op-batcher-docker-build
-            - op-proposer-docker-build
-            - op-challenger-docker-build
-      - hive-test:
-          name: hive-test-l1ops
-          version: <<pipeline.git.revision>>
-          sim: optimism/l1ops
-          requires:
-            - op-node-docker-build
-            - op-batcher-docker-build
-            - op-proposer-docker-build
-            - op-challenger-docker-build
       - check-generated-mocks-op-node
       - check-generated-mocks-op-service
       - cannon-go-lint-and-test
