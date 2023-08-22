@@ -3,6 +3,7 @@
 [chain]
 # OP Goerli
 preset = 420
+l1-starting-height = 0
 
 [rpcs]
 l1-rpc = "${INDEXER_RPC_URL_L1}"

@@ -3,18 +3,20 @@ package node
 import (
 	"math/big"
 
-	"github.com/stretchr/testify/mock"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/mock"
 )
-
-var _ EthClient = &MockEthClient{}
 
 type MockEthClient struct {
 	mock.Mock
+}
+
+func (m *MockEthClient) BlockHeaderByNumber(number *big.Int) (*types.Header, error) {
+	args := m.Called(number)
+	return args.Get(0).(*types.Header), args.Error(1)
 }
 
 func (m *MockEthClient) FinalizedBlockHeight() (*big.Int, error) {
@@ -44,5 +46,10 @@ func (m *MockEthClient) GethRpcClient() *rpc.Client {
 
 func (m *MockEthClient) GethEthClient() *ethclient.Client {
 	args := m.Called()
-	return args.Get(0).(*ethclient.Client)
+
+	client, ok := args.Get(0).(*ethclient.Client)
+	if !ok {
+		return nil
+	}
+	return client
 }

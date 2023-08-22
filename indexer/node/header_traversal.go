@@ -24,6 +24,12 @@ func NewHeaderTraversal(ethClient EthClient, fromHeader *types.Header) *HeaderTr
 	return &HeaderTraversal{ethClient: ethClient, lastHeader: fromHeader}
 }
 
+// LastHeader returns the last header that was fetched by the HeaderTraversal
+// This is useful for testing the state of the HeaderTraversal
+func (f *HeaderTraversal) LastHeader() *types.Header {
+	return f.lastHeader
+}
+
 // NextFinalizedHeaders retrives the next set of headers that have been
 // marked as finalized by the connected client, bounded by the supplied size
 func (f *HeaderTraversal) NextFinalizedHeaders(maxSize uint64) ([]types.Header, error) {

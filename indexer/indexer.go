@@ -34,7 +34,7 @@ func NewIndexer(logger log.Logger, chainConfig config.ChainConfig, rpcsConfig co
 		return nil, err
 	}
 
-	l1Etl, err := etl.NewL1ETL(logger, db, l1EthClient, chainConfig.L1Contracts)
+	l1Etl, err := etl.NewL1ETL(logger, db, l1EthClient, chainConfig.L1StartHeight(), chainConfig.L1Contracts)
 	if err != nil {
 		return nil, err
 	}

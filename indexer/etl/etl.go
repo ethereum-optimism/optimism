@@ -14,6 +14,9 @@ import (
 )
 
 const (
+	// NOTE - These values can be made configurable to allow for more fine grained control
+	// Additionally a default interval of 5 seconds may be too slow for reading L2 blocks provided
+	// the current rate of L2 block production on OP Stack chains (2 seconds per block)
 	defaultLoopInterval     = 5 * time.Second
 	defaultHeaderBufferSize = 500
 )
@@ -90,7 +93,7 @@ func (etl *ETL) Start(ctx context.Context) error {
 			for i := range logs {
 				if _, ok := headerMap[logs[i].BlockHash]; !ok {
 					// NOTE. Definitely an error state if the none of the headers were re-orged out in between
-					// the blocks and logs retreival operations. However, we need to gracefully handle reorgs
+					// the blocks and logs retrieval operations. However, we need to gracefully handle reorgs
 					batchLog.Error("log found with block hash not in the batch", "block_hash", logs[i].BlockHash, "log_index", logs[i].Index)
 					return errors.New("parsed log with a block hash not in the fetched batch")
 				}
