@@ -2,7 +2,6 @@ package database
 
 import (
 	"errors"
-	"fmt"
 
 	"gorm.io/gorm"
 
@@ -146,6 +145,11 @@ from_address, to_address, amount, data, source_hash AS transaction_source_hash,
 l2_transaction_hash, l1_contract_events.transaction_hash AS l1_transaction_hash,
 l1_transaction_deposits.timestamp, NULL AS cross_domain_message_hash, ? AS local_token_address, ? AS remote_token_address`, ethAddressString, ethAddressString)
 
+	if cursor != "" {
+		// Probably need to fix this and compare timestamps
+		ethTransactionDeposits = ethTransactionDeposits.Where("source_hash < ?", cursor)
+	}
+
 	depositsQuery := db.gorm.Model(&L1BridgeDeposit{})
 	depositsQuery = depositsQuery.Joins("INNER JOIN l1_transaction_deposits ON l1_transaction_deposits.source_hash = transaction_source_hash")
 	depositsQuery = depositsQuery.Joins("INNER JOIN l1_contract_events ON l1_contract_events.guid = l1_transaction_deposits.initiated_l1_event_guid")
@@ -154,11 +158,14 @@ l1_bridge_deposits.from_address, l1_bridge_deposits.to_address, l1_bridge_deposi
 l2_transaction_hash, l1_contract_events.transaction_hash AS l1_transaction_hash,
 l1_bridge_deposits.timestamp, cross_domain_message_hash, local_token_address, remote_token_address`)
 
-	// TODO: cursoring options
+	if cursor != "" {
+		// Probably need to fix this and compare timestamps
+		depositsQuery = depositsQuery.Where("source_hash < ?", cursor)
+	}
 
 	query := db.gorm.Table("(?) AS deposits", depositsQuery)
 	query = query.Joins("UNION (?)", ethTransactionDeposits)
-	query = query.Select("*").Order("timestamp DESC").Limit(limit)
+	query = query.Select("*").Order("timestamp DESC").Limit(limit + 1)
 	deposits := []L1BridgeDepositWithTransactionHashes{}
 	result := query.Debug().Find(&deposits)
 	if result.Error != nil {
@@ -168,15 +175,12 @@ l1_bridge_deposits.timestamp, cross_domain_message_hash, local_token_address, re
 		return nil, result.Error
 	}
 
+	nextCursor := ""
 	hasNextPage := false
 	if len(deposits) > limit {
 		hasNextPage = true
 		deposits = deposits[:limit]
-	}
-
-	nextCursor := ""
-	if hasNextPage {
-		nextCursor = deposits[len(deposits)-1].L1TransactionHash.String()
+		nextCursor = deposits[limit].L1TransactionHash.String()
 	}
 
 	response := &L1BridgeDepositsResponse{
@@ -252,6 +256,11 @@ from_address, to_address, amount, data, withdrawal_hash AS transaction_withdrawa
 l2_contract_events.transaction_hash AS l2_transaction_hash, proven_l1_events.transaction_hash AS proven_l1_transaction_hash, finalized_l1_events.transaction_hash AS finalized_l1_transaction_hash,
 l2_transaction_withdrawals.timestamp, NULL AS cross_domain_message_hash, ? AS local_token_address, ? AS remote_token_address`, ethAddressString, ethAddressString)
 
+	if cursor != "" {
+		// Probably need to fix this and compare timestamps
+		ethTransactionWithdrawals = ethTransactionWithdrawals.Where("withdrawal_hash < ?", cursor)
+	}
+
 	withdrawalsQuery := db.gorm.Model(&L2BridgeWithdrawal{})
 	withdrawalsQuery = withdrawalsQuery.Joins("INNER JOIN l2_transaction_withdrawals ON withdrawal_hash = l2_bridge_withdrawals.transaction_withdrawal_hash")
 	withdrawalsQuery = withdrawalsQuery.Joins("INNER JOIN l2_contract_events ON l2_contract_events.guid = l2_transaction_withdrawals.initiated_l2_event_guid")
@@ -262,11 +271,14 @@ l2_bridge_withdrawals.from_address, l2_bridge_withdrawals.to_address, l2_bridge_
 l2_contract_events.transaction_hash AS l2_transaction_hash, proven_l1_events.transaction_hash AS proven_l1_transaction_hash, finalized_l1_events.transaction_hash AS finalized_l1_transaction_hash,
 l2_bridge_withdrawals.timestamp, cross_domain_message_hash, local_token_address, remote_token_address`)
 
-	// TODO: cursoring options
+	if cursor != "" {
+		// Probably need to fix this and compare timestamps
+		withdrawalsQuery = withdrawalsQuery.Where("withdrawal_hash < ?", cursor)
+	}
 
 	query := db.gorm.Table("(?) AS withdrawals", withdrawalsQuery)
 	query = query.Joins("UNION (?)", ethTransactionWithdrawals)
-	query = query.Select("*").Order("timestamp DESC").Limit(limit)
+	query = query.Select("*").Order("timestamp DESC").Limit(limit + 1)
 	withdrawals := []L2BridgeWithdrawalWithTransactionHashes{}
 	result := query.Scan(&withdrawals)
 	if result.Error != nil {
@@ -276,15 +288,12 @@ l2_bridge_withdrawals.timestamp, cross_domain_message_hash, local_token_address,
 		return nil, result.Error
 	}
 
+	nextCursor := ""
 	hasNextPage := false
 	if len(withdrawals) > limit {
 		hasNextPage = true
 		withdrawals = withdrawals[:limit]
-	}
-
-	nextCursor := ""
-	if hasNextPage {
-		nextCursor = fmt.Sprintf("%d", withdrawals[len(withdrawals)-1].L2TransactionHash)
+		nextCursor = withdrawals[limit].L2TransactionHash.String()
 	}
 
 	if result.Error != nil {
