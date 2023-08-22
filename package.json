@@ -61,7 +61,7 @@
     "eslint-plugin-promise": "^5.1.0",
     "eslint-plugin-react": "^7.24.0",
     "eslint-plugin-unicorn": "^42.0.0",
-    "husky": "^6.0.0",
+    "husky": "^8.0.3",
     "lerna": "^7.1.5",
     "lint-staged": "11.0.0",
     "markdownlint": "^0.24.0",

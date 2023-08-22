@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -24,22 +25,36 @@ type gameSource interface {
 
 type gameMonitor struct {
 	logger           log.Logger
+	clock            clock.Clock
 	source           gameSource
 	createPlayer     playerCreator
 	fetchBlockNumber blockNumberFetcher
-	allowedGame      common.Address
+	allowedGames     []common.Address
 	players          map[common.Address]gamePlayer
 }
 
-func newGameMonitor(logger log.Logger, fetchBlockNumber blockNumberFetcher, allowedGame common.Address, source gameSource, createGame playerCreator) *gameMonitor {
+func newGameMonitor(logger log.Logger, cl clock.Clock, fetchBlockNumber blockNumberFetcher, allowedGames []common.Address, source gameSource, createGame playerCreator) *gameMonitor {
 	return &gameMonitor{
 		logger:           logger,
+		clock:            cl,
 		source:           source,
 		createPlayer:     createGame,
 		fetchBlockNumber: fetchBlockNumber,
-		allowedGame:      allowedGame,
+		allowedGames:     allowedGames,
 		players:          make(map[common.Address]gamePlayer),
 	}
+}
+
+func (m *gameMonitor) allowedGame(game common.Address) bool {
+	if len(m.allowedGames) == 0 {
+		return true
+	}
+	for _, allowed := range m.allowedGames {
+		if allowed == game {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *gameMonitor) progressGames(ctx context.Context) error {
@@ -52,7 +67,7 @@ func (m *gameMonitor) progressGames(ctx context.Context) error {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
 	for _, game := range games {
-		if m.allowedGame != (common.Address{}) && m.allowedGame != game.Proxy {
+		if !m.allowedGame(game.Proxy) {
 			m.logger.Debug("Skipping game not on allow list", "game", game.Proxy)
 			continue
 		}
@@ -86,11 +101,8 @@ func (m *gameMonitor) MonitorGames(ctx context.Context) error {
 		if err != nil {
 			m.logger.Error("Failed to progress games", "err", err)
 		}
-		select {
-		case <-time.After(300 * time.Millisecond):
-		// Continue
-		case <-ctx.Done():
-			return ctx.Err()
+		if err := m.clock.SleepCtx(ctx, 300*time.Millisecond); err != nil {
+			return err
 		}
 	}
 }

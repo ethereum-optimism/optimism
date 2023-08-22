@@ -38,7 +38,10 @@ func WithFactoryAddress(addr common.Address) Option {
 
 func WithGameAddress(addr common.Address) Option {
 	return func(c *config.Config) {
-		c.GameAddress = addr
+		if c.GameAllowlist == nil {
+			c.GameAllowlist = make([]common.Address, 0)
+		}
+		c.GameAllowlist = append(c.GameAllowlist, addr)
 	}
 }
 

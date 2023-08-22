@@ -88,8 +88,8 @@ importers:
         specifier: ^42.0.0
         version: 42.0.0(eslint@8.47.0)
       husky:
-        specifier: ^6.0.0
-        version: 6.0.0
+        specifier: ^8.0.3
+        version: 8.0.3
       lerna:
         specifier: ^7.1.5
         version: 7.1.5
@@ -9861,8 +9861,9 @@ packages:
     dependencies:
       ms: 2.1.3
 
-  /husky@6.0.0:
-    resolution: {integrity: sha512-SQS2gDTB7tBN486QSoKPKQItZw97BMOd+Kdb6ghfpBc0yXyzrddI0oDV5MkDAbuB4X2mO3/nj60TRMcYxwzZeQ==}
+  /husky@8.0.3:
+    resolution: {integrity: sha512-+dQSyqPh4x1hlO1swXBiNb2HzTDN1I2IGLQx1GrBuiqFJfoMrnZWwVmatvSiO+Iz8fBUnf+lekwNo4c2LlXItg==}
+    engines: {node: '>=14'}
     hasBin: true
     dev: true
 

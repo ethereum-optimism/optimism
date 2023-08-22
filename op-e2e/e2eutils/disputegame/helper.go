@@ -106,8 +106,16 @@ func (h *FactoryHelper) StartAlphabetGame(ctx context.Context, claimedAlphabet s
 	extraData := make([]byte, 64)
 	binary.BigEndian.PutUint64(extraData[24:], l2BlockNumber)
 	binary.BigEndian.PutUint64(extraData[56:], l1Head.Uint64())
+	h.opts.NoSend = true
 	tx, err := h.factory.Create(h.opts, alphabetGameType, rootClaim, extraData)
+	h.require.NoError(err, "create fault dispute game (estimate gas)")
+
+	// Now send with increased gas. This provides a buffer if the output oracle search is now more expensive
+	h.opts.NoSend = false
+	h.opts.GasLimit = tx.Gas() * 2
+	tx, err = h.factory.Create(h.opts, alphabetGameType, rootClaim, extraData)
 	h.require.NoError(err, "create fault dispute game")
+	h.opts.GasLimit = 0
 	rcpt, err := wait.ForReceiptOK(ctx, h.client, tx.Hash())
 	h.require.NoError(err, "wait for create fault dispute game receipt to be OK")
 	h.require.Len(rcpt.Logs, 1, "should have emitted a single DisputeGameCreated event")
@@ -191,8 +199,16 @@ func (h *FactoryHelper) createCannonGame(ctx context.Context, l2BlockNumber uint
 	extraData := make([]byte, 64)
 	binary.BigEndian.PutUint64(extraData[24:], l2BlockNumber)
 	binary.BigEndian.PutUint64(extraData[56:], l1Head.Uint64())
+	h.opts.NoSend = true
 	tx, err := h.factory.Create(h.opts, cannonGameType, rootClaim, extraData)
+	h.require.NoError(err, "create fault dispute game (estimate gas)")
+
+	// Now send with increased gas. This provides a buffer if the output oracle search is now more expensive
+	h.opts.NoSend = false
+	h.opts.GasLimit = tx.Gas() * 2
+	tx, err = h.factory.Create(h.opts, cannonGameType, rootClaim, extraData)
 	h.require.NoError(err, "create fault dispute game")
+	h.opts.GasLimit = 0
 	rcpt, err := wait.ForReceiptOK(ctx, h.client, tx.Hash())
 	h.require.NoError(err, "wait for create fault dispute game receipt to be OK")
 	h.require.Len(rcpt.Logs, 1, "should have emitted a single DisputeGameCreated event")
