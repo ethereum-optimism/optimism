@@ -63,8 +63,12 @@ var Subcommands = cli.Commands{
 				config.SetDeployments(deployments)
 			}
 
-			// Do the check after setting the deployments
 			if err := config.Check(); err != nil {
+				return fmt.Errorf("deploy config at %s invalid: %w", deployConfig, err)
+			}
+
+			// Check the addresses after setting the deployments
+			if err := config.CheckAddresses(); err != nil {
 				return fmt.Errorf("deploy config at %s invalid: %w", deployConfig, err)
 			}
 

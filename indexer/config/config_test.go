@@ -54,11 +54,10 @@ func TestLoadConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, conf.Chain.Preset, 420)
-	require.Equal(t, conf.Chain.L1Contracts.OptimismPortal.String(), presetL1Contracts[420].OptimismPortal.String())
-	require.Equal(t, conf.Chain.L1Contracts.L1CrossDomainMessenger.String(), presetL1Contracts[420].L1CrossDomainMessenger.String())
-	require.Equal(t, conf.Chain.L1Contracts.L1ERC721Bridge.String(), presetL1Contracts[420].L1ERC721Bridge.String())
-	require.Equal(t, conf.Chain.L1Contracts.L1StandardBridge.String(), presetL1Contracts[420].L1StandardBridge.String())
-	require.Equal(t, conf.Chain.L1Contracts.L2OutputOracle.String(), presetL1Contracts[420].L2OutputOracle.String())
+	require.Equal(t, conf.Chain.L1Contracts.OptimismPortalProxy.String(), presetL1Contracts[420].OptimismPortalProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.L1CrossDomainMessengerProxy.String(), presetL1Contracts[420].L1CrossDomainMessengerProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.L1StandardBridgeProxy.String(), presetL1Contracts[420].L1StandardBridgeProxy.String())
+	require.Equal(t, conf.Chain.L1Contracts.L2OutputOracleProxy.String(), presetL1Contracts[420].L2OutputOracleProxy.String())
 	require.Equal(t, conf.RPCs.L1RPC, "https://l1.example.com")
 	require.Equal(t, conf.RPCs.L2RPC, "https://l2.example.com")
 	require.Equal(t, conf.DB.Host, "127.0.0.1")
@@ -85,7 +84,6 @@ func TestLoadConfig_WithoutPreset(t *testing.T) {
 		l2-output-oracle = "0x42097868233d1aa22e815a266982f2cf17685a27"
 		l1-cross-domain-messenger = "0x420ce71c97B33Cc4729CF772ae268934F7ab5fA1"
 		l1-standard-bridge = "0x4209fc46f92E8a1c0deC1b1747d010903E884bE1"
-		l1-erc721-bridge = "0x420749f83b81B301cAb5f48EB8516B986DAef23D"
 
         [rpcs]
         l1-rpc = "https://l1.example.com"
@@ -104,11 +102,10 @@ func TestLoadConfig_WithoutPreset(t *testing.T) {
 	conf, err := LoadConfig(logger, tmpfile.Name())
 	require.NoError(t, err)
 
-	require.Equal(t, conf.Chain.L1Contracts.OptimismPortal.String(), common.HexToAddress("0x4205Fc579115071764c7423A4f12eDde41f106Ed").String())
-	require.Equal(t, conf.Chain.L1Contracts.L2OutputOracle.String(), common.HexToAddress("0x42097868233d1aa22e815a266982f2cf17685a27").String())
-	require.Equal(t, conf.Chain.L1Contracts.L1CrossDomainMessenger.String(), common.HexToAddress("0x420ce71c97B33Cc4729CF772ae268934F7ab5fA1").String())
-	require.Equal(t, conf.Chain.L1Contracts.L1StandardBridge.String(), common.HexToAddress("0x4209fc46f92E8a1c0deC1b1747d010903E884bE1").String())
-	require.Equal(t, conf.Chain.L1Contracts.L1ERC721Bridge.String(), common.HexToAddress("0x420749f83b81B301cAb5f48EB8516B986DAef23D").String())
+	require.Equal(t, conf.Chain.L1Contracts.OptimismPortalProxy.String(), common.HexToAddress("0x4205Fc579115071764c7423A4f12eDde41f106Ed").String())
+	require.Equal(t, conf.Chain.L1Contracts.L2OutputOracleProxy.String(), common.HexToAddress("0x42097868233d1aa22e815a266982f2cf17685a27").String())
+	require.Equal(t, conf.Chain.L1Contracts.L1CrossDomainMessengerProxy.String(), common.HexToAddress("0x420ce71c97B33Cc4729CF772ae268934F7ab5fA1").String())
+	require.Equal(t, conf.Chain.L1Contracts.L1StandardBridgeProxy.String(), common.HexToAddress("0x4209fc46f92E8a1c0deC1b1747d010903E884bE1").String())
 	require.Equal(t, conf.Chain.Preset, 0)
 }
 

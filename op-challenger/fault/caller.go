@@ -4,13 +4,11 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
-
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 )
 
 type FaultDisputeGameCaller interface {
@@ -19,41 +17,23 @@ type FaultDisputeGameCaller interface {
 }
 
 type FaultCaller struct {
-	FaultDisputeGameCaller
-	log log.Logger
+	contract FaultDisputeGameCaller
 }
 
-func NewFaultCaller(caller FaultDisputeGameCaller, log log.Logger) *FaultCaller {
+func NewFaultCaller(caller FaultDisputeGameCaller) *FaultCaller {
 	return &FaultCaller{
 		caller,
-		log,
 	}
 }
 
-func NewFaultCallerFromBindings(fdgAddr common.Address, client *ethclient.Client, log log.Logger) (*FaultCaller, error) {
+func NewFaultCallerFromBindings(fdgAddr common.Address, client *ethclient.Client) (*FaultCaller, error) {
 	caller, err := bindings.NewFaultDisputeGameCaller(fdgAddr, client)
 	if err != nil {
 		return nil, err
 	}
 	return &FaultCaller{
 		caller,
-		log,
 	}, nil
-}
-
-// LogGameInfo logs the game info.
-func (fc *FaultCaller) LogGameInfo(ctx context.Context) {
-	status, err := fc.GetGameStatus(ctx)
-	if err != nil {
-		fc.log.Error("failed to get game status", "err", err)
-		return
-	}
-	claimLen, err := fc.GetClaimDataLength(ctx)
-	if err != nil {
-		fc.log.Error("failed to get claim count", "err", err)
-		return
-	}
-	fc.log.Info("Game info", "claims", claimLen, "status", status)
 }
 
 // GetGameStatus returns the current game status.
@@ -61,20 +41,15 @@ func (fc *FaultCaller) LogGameInfo(ctx context.Context) {
 // 1: Challenger Won
 // 2: Defender Won
 func (fc *FaultCaller) GetGameStatus(ctx context.Context) (types.GameStatus, error) {
-	status, err := fc.Status(&bind.CallOpts{Context: ctx})
+	status, err := fc.contract.Status(&bind.CallOpts{Context: ctx})
 	return types.GameStatus(status), err
 }
 
-// GetClaimDataLength returns the number of claims in the game.
-func (fc *FaultCaller) GetClaimDataLength(ctx context.Context) (*big.Int, error) {
-	return fc.ClaimDataLen(&bind.CallOpts{Context: ctx})
-}
-
-func (fc *FaultCaller) LogClaimDataLength(ctx context.Context) {
-	claimLen, err := fc.GetClaimDataLength(ctx)
+// GetClaimCount returns the number of claims in the game.
+func (fc *FaultCaller) GetClaimCount(ctx context.Context) (uint64, error) {
+	count, err := fc.contract.ClaimDataLen(&bind.CallOpts{Context: ctx})
 	if err != nil {
-		fc.log.Error("failed to get claim count", "err", err)
-		return
+		return 0, err
 	}
-	fc.log.Info("Number of claims", "length", claimLen)
+	return count.Uint64(), nil
 }

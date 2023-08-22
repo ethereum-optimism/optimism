@@ -4,14 +4,17 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	openum "github.com/ethereum-optimism/optimism/op-service/enum"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-
-	"github.com/urfave/cli/v2"
 )
 
 const (
@@ -29,10 +32,16 @@ var (
 		Usage:   "HTTP provider URL for L1.",
 		EnvVars: prefixEnvVars("L1_ETH_RPC"),
 	}
-	DGFAddressFlag = &cli.StringFlag{
-		Name:    "game-address",
-		Usage:   "Address of the Fault Game contract.",
-		EnvVars: prefixEnvVars("GAME_ADDRESS"),
+	FactoryAddressFlag = &cli.StringFlag{
+		Name:    "game-factory-address",
+		Usage:   "Address of the fault game factory contract.",
+		EnvVars: prefixEnvVars("GAME_FACTORY_ADDRESS"),
+	}
+	GameAllowlistFlag = &cli.StringSliceFlag{
+		Name: "game-allowlist",
+		Usage: "List of Fault Game contract addresses the challenger is allowed to play. " +
+			"If empty, the challenger will play all games.",
+		EnvVars: prefixEnvVars("GAME_ALLOWLIST"),
 	}
 	TraceTypeFlag = &cli.GenericFlag{
 		Name:    "trace-type",
@@ -105,7 +114,7 @@ var (
 // requiredFlags are checked by [CheckRequired]
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
-	DGFAddressFlag,
+	FactoryAddressFlag,
 	TraceTypeFlag,
 	AgreeWithProposedOutputFlag,
 }
@@ -113,6 +122,7 @@ var requiredFlags = []cli.Flag{
 // optionalFlags is a list of unchecked cli flags
 var optionalFlags = []cli.Flag{
 	AlphabetFlag,
+	GameAllowlistFlag,
 	CannonNetworkFlag,
 	CannonRollupConfigFlag,
 	CannonL2GenesisFlag,
@@ -127,6 +137,8 @@ var optionalFlags = []cli.Flag{
 func init() {
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, txmgr.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, oppprof.CLIFlags(envVarPrefix)...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }
@@ -143,11 +155,13 @@ func CheckRequired(ctx *cli.Context) error {
 	gameType := config.TraceType(strings.ToLower(ctx.String(TraceTypeFlag.Name)))
 	switch gameType {
 	case config.TraceTypeCannon:
-		if !ctx.IsSet(CannonNetworkFlag.Name) && !(ctx.IsSet(CannonRollupConfigFlag.Name) && ctx.IsSet(CannonL2GenesisFlag.Name)) {
+		if !ctx.IsSet(CannonNetworkFlag.Name) &&
+			!(ctx.IsSet(CannonRollupConfigFlag.Name) && ctx.IsSet(CannonL2GenesisFlag.Name)) {
 			return fmt.Errorf("flag %v or %v and %v is required",
 				CannonNetworkFlag.Name, CannonRollupConfigFlag.Name, CannonL2GenesisFlag.Name)
 		}
-		if ctx.IsSet(CannonNetworkFlag.Name) && (ctx.IsSet(CannonRollupConfigFlag.Name) || ctx.IsSet(CannonL2GenesisFlag.Name)) {
+		if ctx.IsSet(CannonNetworkFlag.Name) &&
+			(ctx.IsSet(CannonRollupConfigFlag.Name) || ctx.IsSet(CannonL2GenesisFlag.Name)) {
 			return fmt.Errorf("flag %v can not be used with %v and %v",
 				CannonNetworkFlag.Name, CannonRollupConfigFlag.Name, CannonL2GenesisFlag.Name)
 		}
@@ -181,12 +195,24 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 	if err := CheckRequired(ctx); err != nil {
 		return nil, err
 	}
-	dgfAddress, err := opservice.ParseAddress(ctx.String(DGFAddressFlag.Name))
+	gameFactoryAddress, err := opservice.ParseAddress(ctx.String(FactoryAddressFlag.Name))
 	if err != nil {
 		return nil, err
 	}
+	var allowedGames []common.Address
+	if ctx.StringSlice(GameAllowlistFlag.Name) != nil {
+		for _, addr := range ctx.StringSlice(GameAllowlistFlag.Name) {
+			gameAddress, err := opservice.ParseAddress(addr)
+			if err != nil {
+				return nil, err
+			}
+			allowedGames = append(allowedGames, gameAddress)
+		}
+	}
 
 	txMgrConfig := txmgr.ReadCLIConfig(ctx)
+	metricsConfig := opmetrics.ReadCLIConfig(ctx)
+	pprofConfig := oppprof.ReadCLIConfig(ctx)
 
 	traceTypeFlag := config.TraceType(strings.ToLower(ctx.String(TraceTypeFlag.Name)))
 
@@ -194,7 +220,8 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		// Required Flags
 		L1EthRpc:                ctx.String(L1EthRpcFlag.Name),
 		TraceType:               traceTypeFlag,
-		GameAddress:             dgfAddress,
+		GameFactoryAddress:      gameFactoryAddress,
+		GameAllowlist:           allowedGames,
 		AlphabetTrace:           ctx.String(AlphabetFlag.Name),
 		CannonNetwork:           ctx.String(CannonNetworkFlag.Name),
 		CannonRollupConfigPath:  ctx.String(CannonRollupConfigFlag.Name),
@@ -207,5 +234,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		CannonSnapshotFreq:      ctx.Uint(CannonSnapshotFreqFlag.Name),
 		AgreeWithProposedOutput: ctx.Bool(AgreeWithProposedOutputFlag.Name),
 		TxMgrConfig:             txMgrConfig,
+		MetricsConfig:           metricsConfig,
+		PprofConfig:             pprofConfig,
 	}, nil
 }

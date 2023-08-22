@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
-	"github.com/ethereum-optimism/optimism/op-service/backoff"
+	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
@@ -176,7 +176,7 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 		ctx, cancel = context.WithTimeout(ctx, m.cfg.TxSendTimeout)
 		defer cancel()
 	}
-	tx, err := backoff.Do(ctx, 30, backoff.Fixed(2*time.Second), func() (*types.Transaction, error) {
+	tx, err := retry.Do(ctx, 30, retry.Fixed(2*time.Second), func() (*types.Transaction, error) {
 		tx, err := m.craftTx(ctx, candidate)
 		if err != nil {
 			m.l.Warn("Failed to create a transaction, will retry", "err", err)

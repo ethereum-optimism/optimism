@@ -102,6 +102,26 @@ contract MIPS_Test is CommonTest {
         assertEq(postState, outputState(expect), "unexpected post state");
     }
 
+    function test_addiSign_succeeds() external {
+        uint16 imm = 0xfffe; // -2
+        uint32 insn = encodeitype(0x8, 17, 8, imm); // addi t0, s1, 40
+        (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
+        state.registers[8] = 1; // t0
+        state.registers[17] = 2; // s1
+        bytes memory encodedState = encodeState(state);
+
+        MIPS.State memory expect;
+        expect.memRoot = state.memRoot;
+        expect.pc = state.nextPC;
+        expect.nextPC = state.nextPC + 4;
+        expect.step = state.step + 1;
+        expect.registers[8] = 0;
+        expect.registers[17] = state.registers[17];
+
+        bytes32 postState = mips.step(encodedState, proof);
+        assertEq(postState, outputState(expect), "unexpected post state");
+    }
+
     function test_addui_succeeds() external {
         uint16 imm = 40;
         uint32 insn = encodeitype(0x9, 17, 8, imm); // addui t0, s1, 40
@@ -305,15 +325,15 @@ contract MIPS_Test is CommonTest {
     function test_slt_succeeds() external {
         uint32 insn = encodespec(17, 18, 8, 0x2a); // slt t0, s1, s2
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[17] = 1200;
-        state.registers[18] = 490;
+        state.registers[17] = 0xFF_FF_FF_FE; // -2
+        state.registers[18] = 5;
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
         expect.pc = state.nextPC;
         expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
-        expect.registers[8] = state.registers[17] < state.registers[18] ? 1 : 0; // t0
+        expect.registers[8] = 1; // t0
         expect.registers[17] = state.registers[17];
         expect.registers[18] = state.registers[18];
 
@@ -326,7 +346,7 @@ contract MIPS_Test is CommonTest {
         state.registers[18] = tmp;
         expect.registers[17] = state.registers[17];
         expect.registers[18] = state.registers[18];
-        expect.registers[8] = state.registers[17] < state.registers[18] ? 1 : 0; // t0
+        expect.registers[8] = 0; // t0
         postState = mips.step(encodeState(state), proof);
         assertEq(postState, outputState(expect), "unexpected post state");
     }
@@ -1127,14 +1147,14 @@ contract MIPS_Test is CommonTest {
         uint8 shiftamt = 4;
         uint32 insn = encodespec(0x0, 0x9, 0x8, uint16(shiftamt) << 6 | 3); // sra t0, t1, 3
         (MIPS.State memory state, bytes memory proof) = constructMIPSState(0, insn, 0x4, 0);
-        state.registers[9] = 0x20; // t1
+        state.registers[9] = 0x80_00_00_20; // t1
 
         MIPS.State memory expect;
         expect.memRoot = state.memRoot;
         expect.pc = state.nextPC;
         expect.nextPC = state.nextPC + 4;
         expect.step = state.step + 1;
-        expect.registers[8] = state.registers[9] >> shiftamt;
+        expect.registers[8] = 0xF8_00_00_02; // 4 shifts while preserving sign bit
         expect.registers[9] = state.registers[9];
 
         bytes memory enc = encodeState(state);

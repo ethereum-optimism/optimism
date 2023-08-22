@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+
 	opnode "github.com/ethereum-optimism/optimism/op-node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-program/chainconfig"
 	"github.com/ethereum-optimism/optimism/op-program/host/flags"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -157,10 +158,15 @@ func NewConfigFromCLI(log log.Logger, ctx *cli.Context) (*Config, error) {
 	var l2ChainConfig *params.ChainConfig
 	if l2GenesisPath == "" {
 		networkName := ctx.String(flags.Network.Name)
-		l2ChainConfig = chainconfig.L2ChainConfigsByName[networkName]
-		if l2ChainConfig == nil {
+		ch := chaincfg.ChainByName(networkName)
+		if ch == nil {
 			return nil, fmt.Errorf("flag %s is required for network %s", flags.L2GenesisPath.Name, networkName)
 		}
+		cfg, err := params.LoadOPStackChainConfig(ch.ChainID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load chain config for chain %d: %w", ch.ChainID, err)
+		}
+		l2ChainConfig = cfg
 	} else {
 		l2ChainConfig, err = loadChainConfigFromGenesis(l2GenesisPath)
 	}

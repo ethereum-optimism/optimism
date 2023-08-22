@@ -56,7 +56,7 @@ func testVerifyL2OutputRootEmptyBlock(t *testing.T, detached bool) {
 	// But not too small to ensure that our claim and subsequent state change is published
 	cfg.DeployConfig.SequencerWindowSize = 16
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -154,7 +154,7 @@ func testVerifyL2OutputRoot(t *testing.T, detached bool) {
 	// We don't need a verifier - just the sequencer is enough
 	delete(cfg.Nodes, "verifier")
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -260,8 +260,8 @@ func testFaultProofProgramScenario(t *testing.T, ctx context.Context, sys *Syste
 	sys.BatchSubmitter.StopIfRunning(context.Background())
 	sys.L2OutputSubmitter.Stop()
 	sys.L2OutputSubmitter = nil
-	for _, node := range sys.Nodes {
-		require.NoError(t, node.Close())
+	for _, node := range sys.EthInstances {
+		node.Close()
 	}
 
 	t.Log("Running fault proof in offline mode")

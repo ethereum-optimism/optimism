@@ -1,4 +1,3 @@
-
 <div align="center">
   <br />
   <br />
@@ -48,13 +47,7 @@ Refer to the Directory Structure section below to understand which packages are 
 ## Directory Structure
 
 <pre>
-~~ Production ~~
-├── <a href="./packages">packages</a>
-│   ├── <a href="./packages/common-ts">common-ts</a>: Common tools for building apps in TypeScript
-│   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: Bedrock smart contracts.
-│   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
-│   ├── <a href="./packages/chain-mon">chain-mon</a>: Chain monitoring services
-│   └── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
+├── <a href="./docs">docs</a>: A collection of documents including audits and post-mortems
 ├── <a href="./op-bindings">op-bindings</a>: Go bindings for Bedrock smart contracts.
 ├── <a href="./op-batcher">op-batcher</a>: L2-Batch Submitter, submits bundles of batches to L1
 ├── <a href="./op-bootnode">op-bootnode</a>: Standalone op-node discovery bootnode
@@ -70,19 +63,15 @@ Refer to the Directory Structure section below to understand which packages are 
 ├── <a href="./op-signer">op-signer</a>: Client signer
 ├── <a href="./op-wheel">op-wheel</a>: Database utilities
 ├── <a href="./ops-bedrock">ops-bedrock</a>: Bedrock devnet work
+├── <a href="./packages">packages</a>
+│   ├── <a href="./packages/chain-mon">chain-mon</a>: Chain monitoring services
+│   ├── <a href="./packages/common-ts">common-ts</a>: Common tools for building apps in TypeScript
+│   ├── <a href="./packages/contracts-ts">contracts-ts</a>: ABI and Address constants
+│   ├── <a href="./packages/contracts-bedrock">contracts-bedrock</a>: Bedrock smart contracts
+│   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
+│   └── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
 ├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
 └── <a href="./specs">specs</a>: Specs of the rollup starting at the Bedrock upgrade
-
-~~ Pre-BEDROCK ~~
-├── <a href="./packages">packages</a>
-│   ├── <a href="./packages/common-ts">common-ts</a>: Common tools for building apps in TypeScript
-│   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
-│   ├── <a href="./packages/chain-mon">chain-mon</a>: Chain monitoring services
-│   └── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
-├── <a href="./indexer">indexer</a>: indexes and syncs transactions
-├── <a href="./op-exporter">op-exporter</a>: A prometheus exporter to collect/serve metrics from an Optimism node
-├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
-└── <a href="./technical-documents">technical-documents</a>: audits and post-mortem documents
 </pre>
 
 ## Branching Model
