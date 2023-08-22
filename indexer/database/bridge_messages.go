@@ -16,7 +16,7 @@ import (
  */
 
 type BridgeMessage struct {
-	MessageHash common.Hash `gorm:"primaryKey;serializer:json"`
+	MessageHash common.Hash `gorm:"primaryKey;serializer:bytes"`
 	Nonce       U256
 
 	SentMessageEventGUID    uuid.UUID
@@ -28,12 +28,12 @@ type BridgeMessage struct {
 
 type L1BridgeMessage struct {
 	BridgeMessage         `gorm:"embedded"`
-	TransactionSourceHash common.Hash `gorm:"serializer:json"`
+	TransactionSourceHash common.Hash `gorm:"serializer:bytes"`
 }
 
 type L2BridgeMessage struct {
 	BridgeMessage             `gorm:"embedded"`
-	TransactionWithdrawalHash common.Hash `gorm:"serializer:json"`
+	TransactionWithdrawalHash common.Hash `gorm:"serializer:bytes"`
 }
 
 type BridgeMessagesView interface {
