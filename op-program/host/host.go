@@ -35,7 +35,7 @@ func Main(logger log.Logger, cfg *config.Config) error {
 		return fmt.Errorf("invalid config: %w", err)
 	}
 	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, logger)
-	cfg.Rollup.LogDescription(logger, chaincfg.L2ChainIDToNetworkName)
+	cfg.Rollup.LogDescription(logger, chaincfg.L2ChainIDToNetworkDisplayName)
 
 	ctx := context.Background()
 	if cfg.ServerMode {

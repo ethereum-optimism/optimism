@@ -18,8 +18,8 @@ import (
  */
 
 type BlockHeader struct {
-	Hash       common.Hash `gorm:"primaryKey;serializer:json"`
-	ParentHash common.Hash `gorm:"serializer:json"`
+	Hash       common.Hash `gorm:"primaryKey;serializer:bytes"`
+	ParentHash common.Hash `gorm:"serializer:bytes"`
 	Number     U256
 	Timestamp  uint64
 
@@ -50,14 +50,14 @@ type LegacyStateBatch struct {
 	// violating the primary key constraint.
 	Index uint64 `gorm:"primaryKey;default:0"`
 
-	Root                common.Hash `gorm:"serializer:json"`
+	Root                common.Hash `gorm:"serializer:bytes"`
 	Size                uint64
 	PrevTotal           uint64
 	L1ContractEventGUID uuid.UUID
 }
 
 type OutputProposal struct {
-	OutputRoot    common.Hash `gorm:"primaryKey;serializer:json"`
+	OutputRoot    common.Hash `gorm:"primaryKey;serializer:bytes"`
 	L2OutputIndex U256
 	L2BlockNumber U256
 

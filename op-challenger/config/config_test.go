@@ -3,9 +3,10 @@ package config
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 var (
@@ -68,9 +69,9 @@ func TestGameFactoryAddressRequired(t *testing.T) {
 	require.ErrorIs(t, config.Check(), ErrMissingGameFactoryAddress)
 }
 
-func TestGameAddressNotRequired(t *testing.T) {
+func TestGameAllowlistNotRequired(t *testing.T) {
 	config := validConfig(TraceTypeCannon)
-	config.GameAddress = common.Address{}
+	config.GameAllowlist = []common.Address{}
 	require.NoError(t, config.Check())
 }
 
