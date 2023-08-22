@@ -43,7 +43,7 @@ func NewGameLoader(caller MinimalDisputeGameFactoryCaller) *gameLoader {
 }
 
 // FetchAllGamesAtBlock fetches all dispute games from the factory at a given block number.
-func (l *gameLoader) FetchAllGamesAtBlock(ctx context.Context, blockNumber *big.Int) ([]FaultDisputeGame, error) {
+func (l *gameLoader) FetchAllGamesAtBlock(ctx context.Context, earliestTimestamp uint64, blockNumber *big.Int) ([]FaultDisputeGame, error) {
 	if blockNumber == nil {
 		return nil, ErrMissingBlockNumber
 	}
@@ -56,14 +56,19 @@ func (l *gameLoader) FetchAllGamesAtBlock(ctx context.Context, blockNumber *big.
 		return nil, fmt.Errorf("failed to fetch game count: %w", err)
 	}
 
-	games := make([]FaultDisputeGame, gameCount.Uint64())
-	for i := uint64(0); i < gameCount.Uint64(); i++ {
-		game, err := l.caller.GameAtIndex(callOpts, big.NewInt(int64(i)))
+	games := make([]FaultDisputeGame, 0)
+	if gameCount.Uint64() == 0 {
+		return games, nil
+	}
+	for i := gameCount.Uint64(); i > 0; i-- {
+		game, err := l.caller.GameAtIndex(callOpts, big.NewInt(int64(i-1)))
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch game at index %d: %w", i, err)
 		}
-
-		games[i] = game
+		if game.Timestamp < earliestTimestamp {
+			break
+		}
+		games = append(games, game)
 	}
 
 	return games, nil

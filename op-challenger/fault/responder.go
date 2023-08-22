@@ -79,18 +79,25 @@ func (r *faultResponder) BuildTx(ctx context.Context, response types.Claim) ([]b
 	}
 }
 
-// CanResolve determines if the resolve function on the fault dispute game contract
-// would succeed. Returns true if the game can be resolved, otherwise false.
-func (r *faultResponder) CanResolve(ctx context.Context) bool {
+// CallResolve determines if the resolve function on the fault dispute game contract
+// would succeed. Returns the game status if the call would succeed, errors otherwise.
+func (r *faultResponder) CallResolve(ctx context.Context) (types.GameStatus, error) {
 	txData, err := r.buildResolveData()
 	if err != nil {
-		return false
+		return types.GameStatusInProgress, err
 	}
-	_, err = r.txMgr.Call(ctx, ethereum.CallMsg{
+	res, err := r.txMgr.Call(ctx, ethereum.CallMsg{
 		To:   &r.fdgAddr,
 		Data: txData,
 	}, nil)
-	return err == nil
+	if err != nil {
+		return types.GameStatusInProgress, err
+	}
+	var status uint8
+	if err = r.fdgAbi.UnpackIntoInterface(&status, "resolve", res); err != nil {
+		return types.GameStatusInProgress, err
+	}
+	return types.GameStatusFromUint8(status)
 }
 
 // Resolve executes a resolve transaction to resolve a fault dispute game.

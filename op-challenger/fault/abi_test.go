@@ -55,7 +55,7 @@ func TestBuildFaultDefendData(t *testing.T) {
 	_, opts, _, contract, err := setupFaultDisputeGame()
 	require.NoError(t, err)
 
-	responder, _ := newTestFaultResponder(t, false)
+	responder, _ := newTestFaultResponder(t)
 
 	data, err := responder.buildFaultDefendData(1, [32]byte{0x02, 0x03})
 	require.NoError(t, err)
@@ -72,7 +72,7 @@ func TestBuildFaultAttackData(t *testing.T) {
 	_, opts, _, contract, err := setupFaultDisputeGame()
 	require.NoError(t, err)
 
-	responder, _ := newTestFaultResponder(t, false)
+	responder, _ := newTestFaultResponder(t)
 
 	data, err := responder.buildFaultAttackData(1, [32]byte{0x02, 0x03})
 	require.NoError(t, err)
@@ -89,7 +89,7 @@ func TestBuildFaultStepData(t *testing.T) {
 	_, opts, _, contract, err := setupFaultDisputeGame()
 	require.NoError(t, err)
 
-	responder, _ := newTestFaultResponder(t, false)
+	responder, _ := newTestFaultResponder(t)
 
 	data, err := responder.buildStepTxData(types.StepCallData{
 		ClaimIndex: 2,

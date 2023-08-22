@@ -21,24 +21,26 @@ type blockNumberFetcher func(ctx context.Context) (uint64, error)
 
 // gameSource loads information about the games available to play
 type gameSource interface {
-	FetchAllGamesAtBlock(ctx context.Context, blockNumber *big.Int) ([]FaultDisputeGame, error)
+	FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockNumber *big.Int) ([]FaultDisputeGame, error)
 }
 
 type gameMonitor struct {
 	logger           log.Logger
 	clock            clock.Clock
 	source           gameSource
+	gameWindow       time.Duration
 	createPlayer     playerCreator
 	fetchBlockNumber blockNumberFetcher
 	allowedGames     []common.Address
 	players          map[common.Address]gamePlayer
 }
 
-func newGameMonitor(logger log.Logger, cl clock.Clock, fetchBlockNumber blockNumberFetcher, allowedGames []common.Address, source gameSource, createGame playerCreator) *gameMonitor {
+func newGameMonitor(logger log.Logger, gameWindow time.Duration, cl clock.Clock, fetchBlockNumber blockNumberFetcher, allowedGames []common.Address, source gameSource, createGame playerCreator) *gameMonitor {
 	return &gameMonitor{
 		logger:           logger,
 		clock:            cl,
 		source:           source,
+		gameWindow:       gameWindow,
 		createPlayer:     createGame,
 		fetchBlockNumber: fetchBlockNumber,
 		allowedGames:     allowedGames,
@@ -58,12 +60,24 @@ func (m *gameMonitor) allowedGame(game common.Address) bool {
 	return false
 }
 
+func (m *gameMonitor) minGameTimestamp() uint64 {
+	if m.gameWindow.Seconds() == 0 {
+		return 0
+	}
+	// time: "To compute t-d for a duration d, use t.Add(-d)."
+	// https://pkg.go.dev/time#Time.Sub
+	if m.clock.Now().Unix() > int64(m.gameWindow.Seconds()) {
+		return uint64(m.clock.Now().Add(-m.gameWindow).Unix())
+	}
+	return 0
+}
+
 func (m *gameMonitor) progressGames(ctx context.Context) error {
 	blockNum, err := m.fetchBlockNumber(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to load current block number: %w", err)
 	}
-	games, err := m.source.FetchAllGamesAtBlock(ctx, new(big.Int).SetUint64(blockNum))
+	games, err := m.source.FetchAllGamesAtBlock(ctx, m.minGameTimestamp(), new(big.Int).SetUint64(blockNum))
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}

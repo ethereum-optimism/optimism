@@ -109,6 +109,12 @@ var (
 		EnvVars: prefixEnvVars("CANNON_SNAPSHOT_FREQ"),
 		Value:   config.DefaultCannonSnapshotFreq,
 	}
+	GameWindowFlag = &cli.DurationFlag{
+		Name:    "game-window",
+		Usage:   "The time window which the challenger will look for games to progress.",
+		EnvVars: prefixEnvVars("GAME_WINDOW"),
+		Value:   config.DefaultGameWindow,
+	}
 )
 
 // requiredFlags are checked by [CheckRequired]
@@ -132,6 +138,7 @@ var optionalFlags = []cli.Flag{
 	CannonDatadirFlag,
 	CannonL2Flag,
 	CannonSnapshotFreqFlag,
+	GameWindowFlag,
 }
 
 func init() {
@@ -222,6 +229,7 @@ func NewConfigFromCLI(ctx *cli.Context) (*config.Config, error) {
 		TraceType:               traceTypeFlag,
 		GameFactoryAddress:      gameFactoryAddress,
 		GameAllowlist:           allowedGames,
+		GameWindow:              ctx.Duration(GameWindowFlag.Name),
 		AlphabetTrace:           ctx.String(AlphabetFlag.Name),
 		CannonNetwork:           ctx.String(CannonNetworkFlag.Name),
 		CannonRollupConfigPath:  ctx.String(CannonRollupConfigFlag.Name),
