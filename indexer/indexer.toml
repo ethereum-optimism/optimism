@@ -3,7 +3,6 @@
 [chain]
 # OP Goerli
 preset = 420
-
 l1-starting-height = 0
 
 [rpcs]
