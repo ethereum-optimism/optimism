@@ -32,7 +32,7 @@ type Constructor struct {
 
 type Deployment struct {
 	Name     string
-	Bytecode hexutility.Bytes
+	Bytecode string
 	Address  common.Address
 }
 
@@ -114,7 +114,7 @@ func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb D
 		}
 		results[i] = Deployment{
 			Name:     deployment.Name,
-			Bytecode: code,
+			Bytecode: hexutility.Bytes(code).String(),
 			Address:  addr,
 		}
 	}

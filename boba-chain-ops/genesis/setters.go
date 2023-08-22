@@ -10,6 +10,7 @@ import (
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/immutables"
 	"github.com/bobanetwork/v3-anchorage/boba-chain-ops/state"
 	"github.com/ledgerwatch/erigon-lib/common"
+	"github.com/ledgerwatch/erigon/common/hexutil"
 	"github.com/ledgerwatch/erigon/core/types"
 
 	"github.com/ledgerwatch/log/v3"
@@ -286,7 +287,7 @@ func setupPredeploy(g *types.Genesis, deployResults immutables.DeploymentResults
 		log.Info("Setting deployed bytecode with immutables", "name", name, "address", implAddr)
 		genesisAccount := types.GenesisAccount{
 			Constructor: g.Alloc[implAddr].Constructor,
-			Code:        bytecode,
+			Code:        hexutil.MustDecode(bytecode),
 			Storage:     g.Alloc[implAddr].Storage,
 			Balance:     g.Alloc[implAddr].Balance,
 			Nonce:       g.Alloc[implAddr].Nonce,
