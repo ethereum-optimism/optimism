@@ -105,20 +105,20 @@ func TestGameFactoryAddress(t *testing.T) {
 	})
 }
 
-func TestGameAddress(t *testing.T) {
+func TestGameAllowlist(t *testing.T) {
 	t.Run("Optional", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-address"))
+		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-allowlist"))
 		require.NoError(t, cfg.Check())
 	})
 
 	t.Run("Valid", func(t *testing.T) {
 		addr := common.Address{0xbb, 0xcc, 0xdd}
-		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-address", "--game-address="+addr.Hex()))
-		require.Equal(t, addr, cfg.GameAddress)
+		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-allowlist", "--game-allowlist="+addr.Hex()))
+		require.Contains(t, cfg.GameAllowlist, addr)
 	})
 
 	t.Run("Invalid", func(t *testing.T) {
-		verifyArgsInvalid(t, "invalid address: foo", addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-address", "--game-address=foo"))
+		verifyArgsInvalid(t, "invalid address: foo", addRequiredArgsExcept(config.TraceTypeAlphabet, "--game-allowlist", "--game-allowlist=foo"))
 	})
 }
 

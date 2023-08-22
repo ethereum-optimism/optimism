@@ -161,7 +161,7 @@ func createOracleEngine(t *testing.T) (*OracleEngine, *stubEngineBackend) {
 	}
 	engine := OracleEngine{
 		backend:   backend,
-		rollupCfg: &chaincfg.Goerli,
+		rollupCfg: chaincfg.Goerli,
 	}
 	return &engine, backend
 }

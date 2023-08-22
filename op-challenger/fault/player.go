@@ -21,7 +21,7 @@ type Actor interface {
 
 type GameInfo interface {
 	GetGameStatus(context.Context) (types.GameStatus, error)
-	LogGameInfo(ctx context.Context)
+	GetClaimCount(context.Context) (uint64, error)
 }
 
 type GamePlayer struct {
@@ -80,7 +80,7 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}
 
-	caller, err := NewFaultCallerFromBindings(addr, client, logger)
+	caller, err := NewFaultCallerFromBindings(addr, client)
 	if err != nil {
 		return nil, fmt.Errorf("failed to bind the fault contract: %w", err)
 	}
@@ -100,21 +100,32 @@ func (g *GamePlayer) ProgressGame(ctx context.Context) bool {
 	}
 	if status, err := g.caller.GetGameStatus(ctx); err != nil {
 		g.logger.Warn("Unable to retrieve game status", "err", err)
-	} else if status != 0 {
-		var expectedStatus types.GameStatus
-		if g.agreeWithProposedOutput {
-			expectedStatus = types.GameStatusChallengerWon
-		} else {
-			expectedStatus = types.GameStatusDefenderWon
-		}
-		if expectedStatus == status {
-			g.logger.Info("Game won", "status", status)
-		} else {
-			g.logger.Error("Game lost", "status", status)
-		}
-		return true
 	} else {
-		g.caller.LogGameInfo(ctx)
+		g.logGameStatus(ctx, status)
+		return status != types.GameStatusInProgress
 	}
 	return false
+}
+
+func (g *GamePlayer) logGameStatus(ctx context.Context, status types.GameStatus) {
+	if status == types.GameStatusInProgress {
+		claimCount, err := g.caller.GetClaimCount(ctx)
+		if err != nil {
+			g.logger.Error("Failed to get claim count for in progress game", "err", err)
+			return
+		}
+		g.logger.Info("Game info", "claims", claimCount, "status", status)
+		return
+	}
+	var expectedStatus types.GameStatus
+	if g.agreeWithProposedOutput {
+		expectedStatus = types.GameStatusChallengerWon
+	} else {
+		expectedStatus = types.GameStatusDefenderWon
+	}
+	if expectedStatus == status {
+		g.logger.Info("Game won", "status", status)
+	} else {
+		g.logger.Error("Game lost", "status", status)
+	}
 }

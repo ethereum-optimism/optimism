@@ -8,7 +8,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 /**
@@ -16,16 +15,16 @@ import (
  */
 
 type Transaction struct {
-	FromAddress common.Address `gorm:"serializer:json"`
-	ToAddress   common.Address `gorm:"serializer:json"`
+	FromAddress common.Address `gorm:"serializer:bytes"`
+	ToAddress   common.Address `gorm:"serializer:bytes"`
 	Amount      U256
-	Data        hexutil.Bytes `gorm:"serializer:json"`
+	Data        Bytes `gorm:"serializer:bytes"`
 	Timestamp   uint64
 }
 
 type L1TransactionDeposit struct {
-	SourceHash           common.Hash `gorm:"serializer:json;primaryKey"`
-	L2TransactionHash    common.Hash `gorm:"serializer:json"`
+	SourceHash           common.Hash `gorm:"serializer:bytes;primaryKey"`
+	L2TransactionHash    common.Hash `gorm:"serializer:bytes"`
 	InitiatedL1EventGUID uuid.UUID
 
 	Tx       Transaction `gorm:"embedded"`
@@ -33,7 +32,7 @@ type L1TransactionDeposit struct {
 }
 
 type L2TransactionWithdrawal struct {
-	WithdrawalHash       common.Hash `gorm:"serializer:json;primaryKey"`
+	WithdrawalHash       common.Hash `gorm:"serializer:bytes;primaryKey"`
 	Nonce                U256
 	InitiatedL2EventGUID uuid.UUID
 
