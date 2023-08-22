@@ -185,7 +185,7 @@ CREATE TABLE IF NOT EXISTS l2_bridge_messages(
 -- StandardBridge
 CREATE TABLE IF NOT EXISTS l1_bridge_deposits (
     transaction_source_hash   VARCHAR PRIMARY KEY REFERENCES l1_transaction_deposits(source_hash),
-    cross_domain_message_hash VARCHAR UNIQUE REFERENCES l1_bridge_messages(message_hash),
+    cross_domain_message_hash VARCHAR NOT NULL UNIQUE REFERENCES l1_bridge_messages(message_hash),
 
     -- Deposit information
 	from_address         VARCHAR NOT NULL,
