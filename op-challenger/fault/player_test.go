@@ -93,8 +93,7 @@ func TestProgressGame_LogGameStatus(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			handler, game, gameState := setupProgressGameTest(t, test.agreeWithOutput)
-			gameState.preStatus = types.GameStatusInProgress
-			gameState.postStatus = test.status
+			gameState.status = test.status
 
 			done := game.ProgressGame(context.Background())
 			require.Equal(t, 1, gameState.callCount, "should perform next actions")
@@ -109,13 +108,17 @@ func TestProgressGame_LogGameStatus(t *testing.T) {
 func TestDoNotActOnCompleteGame(t *testing.T) {
 	for _, status := range []types.GameStatus{types.GameStatusChallengerWon, types.GameStatusDefenderWon} {
 		t.Run(status.String(), func(t *testing.T) {
-			handler, game, gameState := setupProgressGameTest(t, true)
-			gameState.preStatus = status
+			_, game, gameState := setupProgressGameTest(t, true)
+			gameState.status = status
 
 			done := game.ProgressGame(context.Background())
-			require.Equal(t, 0, gameState.callCount, "should not perform actions")
+			require.Equal(t, 1, gameState.callCount, "acts the first time")
 			require.True(t, done, "should be done")
-			require.Empty(t, handler.Logs, "should not log game status")
+
+			// Should not act when it knows the game is already complete
+			done = game.ProgressGame(context.Background())
+			require.Equal(t, 1, gameState.callCount, "does not act after game is complete")
+			require.True(t, done, "should still be done")
 		})
 	}
 }
@@ -137,8 +140,7 @@ func setupProgressGameTest(t *testing.T, agreeWithProposedRoot bool) (*testlog.C
 }
 
 type stubGameState struct {
-	preStatus  types.GameStatus
-	postStatus types.GameStatus
+	status     types.GameStatus
 	claimCount uint64
 	callCount  int
 	actErr     error
@@ -151,10 +153,7 @@ func (s *stubGameState) Act(ctx context.Context) error {
 }
 
 func (s *stubGameState) GetGameStatus(ctx context.Context) (types.GameStatus, error) {
-	if s.callCount == 0 {
-		return s.preStatus, nil
-	}
-	return s.postStatus, nil
+	return s.status, nil
 }
 
 func (s *stubGameState) GetClaimCount(ctx context.Context) (uint64, error) {

@@ -30,6 +30,8 @@ type GamePlayer struct {
 	caller                  GameInfo
 	logger                  log.Logger
 	cleanup                 func() error
+
+	completed bool
 }
 
 func NewGamePlayer(
@@ -100,13 +102,9 @@ func NewGamePlayer(
 }
 
 func (g *GamePlayer) ProgressGame(ctx context.Context) bool {
-	status, err := g.caller.GetGameStatus(ctx)
-	if err != nil {
-		g.logger.Warn("Unable to retrieve game status", "err", err)
-		return false
-	}
-	if status != types.GameStatusInProgress {
+	if g.completed {
 		// Game is already complete so don't try to perform further actions.
+		g.logger.Trace("Skipping completed game")
 		return true
 	}
 	g.logger.Trace("Checking if actions are required")
@@ -117,7 +115,8 @@ func (g *GamePlayer) ProgressGame(ctx context.Context) bool {
 		g.logger.Warn("Unable to retrieve game status", "err", err)
 	} else {
 		g.logGameStatus(ctx, status)
-		return status != types.GameStatusInProgress
+		g.completed = status != types.GameStatusInProgress
+		return g.completed
 	}
 	return false
 }
