@@ -459,8 +459,8 @@ importers:
         specifier: ^0.3.10
         version: 0.3.10
       rlp:
-        specifier: ^2.2.7
-        version: 2.2.7
+        specifier: ^3.0.0
+        version: 3.0.0
     devDependencies:
       '@ethersproject/abstract-provider':
         specifier: ^5.7.0
@@ -14157,6 +14157,12 @@ packages:
     hasBin: true
     dependencies:
       bn.js: 5.2.1
+    dev: true
+
+  /rlp@3.0.0:
+    resolution: {integrity: sha512-PD6U2PGk6Vq2spfgiWZdomLvRGDreBLxi5jv5M8EpRo3pU6VEm31KO+HFxE18Q3vgqfDrQ9pZA3FP95rkijNKw==}
+    hasBin: true
+    dev: false
 
   /rollup@3.26.3:
     resolution: {integrity: sha512-7Tin0C8l86TkpcMtXvQu6saWH93nhG3dGQ1/+l5V2TDMceTxO7kDiK6GzbfLWNNxqJXm591PcEZUozZm51ogwQ==}
