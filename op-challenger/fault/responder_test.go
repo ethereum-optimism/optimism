@@ -25,18 +25,31 @@ var (
 	mockCallError  = errors.New("mock call error")
 )
 
-// TestCanResolve tests the [Responder.CanResolve].
-func TestCanResolve(t *testing.T) {
+// TestCallResolve tests the [Responder.CallResolve].
+func TestCallResolve(t *testing.T) {
 	t.Run("SendFails", func(t *testing.T) {
 		responder, mockTxMgr := newTestFaultResponder(t)
 		mockTxMgr.callFails = true
-		require.False(t, responder.CanResolve(context.Background()))
+		status, err := responder.CallResolve(context.Background())
+		require.ErrorIs(t, err, mockCallError)
+		require.Equal(t, types.GameStatusInProgress, status)
 		require.Equal(t, 0, mockTxMgr.calls)
+	})
+
+	t.Run("UnpackFails", func(t *testing.T) {
+		responder, mockTxMgr := newTestFaultResponder(t)
+		mockTxMgr.callBytes = []byte{0x00, 0x01}
+		status, err := responder.CallResolve(context.Background())
+		require.Error(t, err)
+		require.Equal(t, types.GameStatusInProgress, status)
+		require.Equal(t, 1, mockTxMgr.calls)
 	})
 
 	t.Run("Success", func(t *testing.T) {
 		responder, mockTxMgr := newTestFaultResponder(t)
-		require.True(t, responder.CanResolve(context.Background()))
+		status, err := responder.CallResolve(context.Background())
+		require.NoError(t, err)
+		require.Equal(t, types.GameStatusInProgress, status)
 		require.Equal(t, 1, mockTxMgr.calls)
 	})
 }
