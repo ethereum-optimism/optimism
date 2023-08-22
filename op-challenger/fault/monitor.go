@@ -13,6 +13,7 @@ import (
 
 type gamePlayer interface {
 	ProgressGame(ctx context.Context) bool
+	Cleanup() error
 }
 
 type playerCreator func(address common.Address) (gamePlayer, error)
@@ -92,7 +93,15 @@ func (m *gameMonitor) progressGames(ctx context.Context) error {
 			m.logger.Error("Error while progressing game", "game", game.Proxy, "err", err)
 			continue
 		}
-		player.ProgressGame(ctx)
+		done := player.ProgressGame(ctx)
+		if done {
+			// Remove resources on disk as soon as the game is complete to save disk space.
+			// We keep the player in memory to avoid recreating it on every update but will no longer
+			// need the resources on disk because there are no further actions required on the game.
+			if err := player.Cleanup(); err != nil {
+				m.logger.Error("Unable to cleanup player data", "err", err)
+			}
+		}
 	}
 	// Remove the player for any game that's no longer being returned from the list of active games
 	for addr := range m.players {
