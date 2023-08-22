@@ -1,0 +1,145 @@
+title: "CELO <> OP optimism forkdiff"
+footer: |
+  Fork-diff overview of changes made in [Celo's `optimism`](https://github.com/celo-org/optimism),
+  a fork of [Optimism's `optimism`](https://github.com/ethereum-optimism/optimism).
+
+base:
+  name: OP
+  url: https://github.com/ethereum-optimism/optimism
+  hash: 482633768be731462c7aa9b32b8eafb74289ad2e # tracks the last rebased commit
+fork:
+  name: CELO
+  url: https://github.com/celo-org/optimism
+  ref: HEAD
+def:
+  title: "Celo's optimism"
+  description: |
+    This is an overview of the changes in [Celo's `optimism` implementation](https://github.com/celo-org/optimism),
+    a fork of [Optimism's `optimism`](https://github.com/ethereum-optimism/optimism).
+
+    Changes are currently separated by sub-package or component. Check out the [README](https://github.com/celo-org/optimism/blob/develop/README.md)
+    for more details about each of these components and packages.
+
+  sub:
+    - title: "packages/*"
+      description: ""
+      sub:
+      - title: "common-ts"
+        description: ""
+        globs:
+          - "packages/common-ts/*"
+      - title: "contracts-bedrock"
+        description: ""
+        globs:
+          - "packages/contracts-bedrock/*"
+          - "packages/contracts-bedrock/*/*"
+          - "packages/contracts-bedrock/*/*/*"
+      - title: "core-utils"
+        description: ""
+        globs:
+          - "packages/core-utils/*"
+      - title: "chain-mon"
+        description: ""
+        globs:
+          - "packages/chain-mon/*"
+      - title: "sdk"
+        description: ""
+        globs:
+          - "packages/sdk/*"
+    - title: "op-bindings"
+      description: ""
+      globs:
+        - "op-bindings/*"
+        - "op-bindings/*/*"
+    - title: "op-batcher"
+      description: ""
+      globs:
+        - "op-batcher/*"
+    - title: "op-bootnode"
+      description: ""
+      globs:
+        - "op-bootnode/*"
+    - title: "op-chain-ops"
+      description: ""
+      globs:
+        - "op-chain-ops/*"
+        - "op-chain-ops/*/*"
+        - "op-chain-ops/*/*/*"
+    - title: "op-challenger"
+      description: ""
+      globs:
+        - "op-challenger/*"
+        - "op-challenger/*/*"
+        - "op-challenger/*/*/*"
+    - title: "op-e2e"
+      description: ""
+      globs:
+        - "op-e2e/*"
+        - "op-e2e/*/*"
+        - "op-e2e/*/*/*"
+        - "op-e2e/*/*/*/*"
+
+    - title: "op-exporter"
+      description: ""
+      globs:
+        - "op-exporter/*"
+    - title: "op-heartbeat"
+      description: ""
+      globs:
+        - "op-heartbeat/*"
+    - title: "op-node"
+      description: ""
+      globs:
+        - "op-node/*"
+        - "op-node/*/*"
+        - "op-node/*/*/*"
+    - title: "op-program"
+      description: ""
+      globs:
+        - "op-program/*"
+    - title: "op-proposer"
+      description: ""
+      globs:
+        - "op-proposer/*"
+    - title: "op-service"
+      description: ""
+      globs:
+        - "op-service/*"
+    - title: "op-signer"
+      description: ""
+      globs:
+        - "op-signer/*"
+    - title: "op-wheel"
+      description: ""
+      globs:
+        - "op-wheel/*"
+    - title: "ops-bedrock"
+      description: ""
+      globs:
+        - "ops-bedrock/*"
+    - title: "proxyd"
+      description: ""
+      globs:
+        - "proxyd/*"
+    - title: "specs"
+      description: ""
+      globs:
+        - "specs/*"
+    - title: "indexer"
+      description: ""
+      globs:
+        - "indexer/*"
+        - "indexer/*/*"
+        - "indexer/*/*/*"
+
+# ignored globally, does not count towards line count
+ignore:
+  - ".circleci/*"
+  - "*.sum"
+  - "go.mod"
+  - "fork.yaml"
+  - ".github/workflows/*"
+  - ".changeset/*"
+  - ".github/*"
+  - "CONTRIBUTING.md"
+  - "pnpm-lock.yaml"
