@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 type FaultDisputeGameCaller interface {
@@ -26,7 +25,7 @@ func NewFaultCaller(caller FaultDisputeGameCaller) *FaultCaller {
 	}
 }
 
-func NewFaultCallerFromBindings(fdgAddr common.Address, client *ethclient.Client) (*FaultCaller, error) {
+func NewFaultCallerFromBindings(fdgAddr common.Address, client bind.ContractCaller) (*FaultCaller, error) {
 	caller, err := bindings.NewFaultDisputeGameCaller(fdgAddr, client)
 	if err != nil {
 		return nil, err

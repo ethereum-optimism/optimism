@@ -10,8 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -38,7 +38,7 @@ func NewGamePlayer(
 	cfg *config.Config,
 	addr common.Address,
 	txMgr txmgr.TxManager,
-	client *ethclient.Client,
+	client bind.ContractCaller,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
 	contract, err := bindings.NewFaultDisputeGameCaller(addr, client)
@@ -100,6 +100,15 @@ func NewGamePlayer(
 }
 
 func (g *GamePlayer) ProgressGame(ctx context.Context) bool {
+	status, err := g.caller.GetGameStatus(ctx)
+	if err != nil {
+		g.logger.Warn("Unable to retrieve game status", "err", err)
+		return false
+	}
+	if status != types.GameStatusInProgress {
+		// Game is already complete so don't try to perform further actions.
+		return true
+	}
 	g.logger.Trace("Checking if actions are required")
 	if err := g.agent.Act(ctx); err != nil {
 		g.logger.Error("Error when acting on game", "err", err)

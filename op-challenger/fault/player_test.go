@@ -12,14 +12,14 @@ import (
 )
 
 func TestProgressGame_LogErrorFromAct(t *testing.T) {
-	handler, game, actor, _ := setupProgressGameTest(t, true)
-	actor.err = errors.New("boom")
+	handler, game, actor := setupProgressGameTest(t, true)
+	actor.actErr = errors.New("boom")
 	done := game.ProgressGame(context.Background())
 	require.False(t, done, "should not be done")
 	require.Equal(t, 1, actor.callCount, "should perform next actions")
 	errLog := handler.FindLog(log.LvlError, "Error when acting on game")
 	require.NotNil(t, errLog, "should log error")
-	require.Equal(t, actor.err, errLog.GetContextValue("err"))
+	require.Equal(t, actor.actErr, errLog.GetContextValue("err"))
 
 	// Should still log game status
 	msg := handler.FindLog(log.LvlInfo, "Game info")
@@ -92,11 +92,12 @@ func TestProgressGame_LogGameStatus(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			handler, game, actor, gameInfo := setupProgressGameTest(t, test.agreeWithOutput)
-			gameInfo.status = test.status
+			handler, game, gameState := setupProgressGameTest(t, test.agreeWithOutput)
+			gameState.preStatus = types.GameStatusInProgress
+			gameState.postStatus = test.status
 
 			done := game.ProgressGame(context.Background())
-			require.Equal(t, 1, actor.callCount, "should perform next actions")
+			require.Equal(t, 1, gameState.callCount, "should perform next actions")
 			require.Equal(t, test.status != types.GameStatusInProgress, done, "should be done when not in progress")
 			errLog := handler.FindLog(test.logLevel, test.logMsg)
 			require.NotNil(t, errLog, "should log game result")
@@ -105,43 +106,57 @@ func TestProgressGame_LogGameStatus(t *testing.T) {
 	}
 }
 
-func setupProgressGameTest(t *testing.T, agreeWithProposedRoot bool) (*testlog.CapturingHandler, *GamePlayer, *stubActor, *stubGameInfo) {
+func TestDoNotActOnCompleteGame(t *testing.T) {
+	for _, status := range []types.GameStatus{types.GameStatusChallengerWon, types.GameStatusDefenderWon} {
+		t.Run(status.String(), func(t *testing.T) {
+			handler, game, gameState := setupProgressGameTest(t, true)
+			gameState.preStatus = status
+
+			done := game.ProgressGame(context.Background())
+			require.Equal(t, 0, gameState.callCount, "should not perform actions")
+			require.True(t, done, "should be done")
+			require.Empty(t, handler.Logs, "should not log game status")
+		})
+	}
+}
+
+func setupProgressGameTest(t *testing.T, agreeWithProposedRoot bool) (*testlog.CapturingHandler, *GamePlayer, *stubGameState) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	handler := &testlog.CapturingHandler{
 		Delegate: logger.GetHandler(),
 	}
 	logger.SetHandler(handler)
-	actor := &stubActor{}
-	gameInfo := &stubGameInfo{claimCount: 1}
+	gameState := &stubGameState{claimCount: 1}
 	game := &GamePlayer{
-		agent:                   actor,
+		agent:                   gameState,
 		agreeWithProposedOutput: agreeWithProposedRoot,
-		caller:                  gameInfo,
+		caller:                  gameState,
 		logger:                  logger,
 	}
-	return handler, game, actor, gameInfo
+	return handler, game, gameState
 }
 
-type stubActor struct {
-	callCount int
-	err       error
-}
-
-func (a *stubActor) Act(ctx context.Context) error {
-	a.callCount++
-	return a.err
-}
-
-type stubGameInfo struct {
-	status     types.GameStatus
+type stubGameState struct {
+	preStatus  types.GameStatus
+	postStatus types.GameStatus
 	claimCount uint64
-	err        error
+	callCount  int
+	actErr     error
+	Err        error
 }
 
-func (s *stubGameInfo) GetGameStatus(ctx context.Context) (types.GameStatus, error) {
-	return s.status, s.err
+func (s *stubGameState) Act(ctx context.Context) error {
+	s.callCount++
+	return s.actErr
 }
 
-func (s *stubGameInfo) GetClaimCount(ctx context.Context) (uint64, error) {
-	return s.claimCount, s.err
+func (s *stubGameState) GetGameStatus(ctx context.Context) (types.GameStatus, error) {
+	if s.callCount == 0 {
+		return s.preStatus, nil
+	}
+	return s.postStatus, nil
+}
+
+func (s *stubGameState) GetClaimCount(ctx context.Context) (uint64, error) {
+	return s.claimCount, nil
 }
