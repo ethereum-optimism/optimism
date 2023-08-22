@@ -341,7 +341,7 @@ func TestE2EBridgeTransfersStandardBridgeETHWithdrawal(t *testing.T) {
 	require.NotNil(t, crossDomainBridgeMessage.RelayedMessageEventGUID)
 }
 
-func TestE2EBridgeTransfersL2ToL1MessagePasserReceive(t *testing.T) {
+func TestE2EBridgeTransfersL2ToL1MessagePasserETHReceive(t *testing.T) {
 	testSuite := createE2ETestSuite(t)
 
 	optimismPortal, err := bindings.NewOptimismPortal(testSuite.OpCfg.L1Deployments.OptimismPortalProxy, testSuite.L1Client)
@@ -378,6 +378,7 @@ func TestE2EBridgeTransfersL2ToL1MessagePasserReceive(t *testing.T) {
 
 	aliceWithdrawals, err := testSuite.DB.BridgeTransfers.L2BridgeWithdrawalsByAddress(aliceAddr, "", 0)
 	require.NoError(t, err)
+	require.Len(t, aliceWithdrawals.Withdrawals, 1)
 	require.Equal(t, l2ToL1MessagePasserWithdrawTx.Hash().String(), aliceWithdrawals.Withdrawals[0].L2TransactionHash.String())
 
 	msgPassed, err := withdrawals.ParseMessagePassed(l2ToL1WithdrawReceipt)
