@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 
@@ -73,7 +74,14 @@ func ValidTraceType(value TraceType) bool {
 	return false
 }
 
-const DefaultCannonSnapshotFreq = uint(1_000_000_000)
+const (
+	DefaultCannonSnapshotFreq = uint(1_000_000_000)
+	// DefaultGameWindow is the default maximum time duration in the past
+	// that the challenger will look for games to progress.
+	// The default value is 11 days, which is a 4 day resolution buffer
+	// plus the 7 day game finalization window.
+	DefaultGameWindow = time.Duration(11 * 24 * time.Hour)
+)
 
 // Config is a well typed config that is parsed from the CLI params.
 // This also contains config options for auxiliary services.
@@ -82,9 +90,9 @@ type Config struct {
 	L1EthRpc                string           // L1 RPC Url
 	GameFactoryAddress      common.Address   // Address of the dispute game factory
 	GameAllowlist           []common.Address // Allowlist of fault game addresses
+	GameWindow              time.Duration    // Maximum time duration to look for games to progress
 	AgreeWithProposedOutput bool             // Temporary config if we agree or disagree with the posted output
-
-	TraceType TraceType // Type of trace
+	TraceType               TraceType        // Type of trace
 
 	// Specific to the alphabet trace provider
 	AlphabetTrace string // String for the AlphabetTraceProvider
@@ -124,6 +132,7 @@ func NewConfig(
 		PprofConfig:   oppprof.DefaultCLIConfig(),
 
 		CannonSnapshotFreq: DefaultCannonSnapshotFreq,
+		GameWindow:         DefaultGameWindow,
 	}
 }
 
