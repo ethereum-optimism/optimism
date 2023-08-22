@@ -46,14 +46,7 @@ func (b *Batch) AddCall(to common.Address, value *big.Int, sig string, args []an
 		return fmt.Errorf("%s not found in abi, options are %s", sig, methods)
 	}
 
-	size := 0
-	for _, input := range method.Inputs {
-		if err := countArgs(&size, input); err != nil {
-			return err
-		}
-	}
-
-	if len(args) != len(method.Inputs) && len(args) != size {
+	if len(args) != len(method.Inputs) {
 		return fmt.Errorf("requires %d inputs but got %d for %s", len(method.Inputs), len(args), method.RawName)
 	}
 
@@ -79,16 +72,19 @@ func (b *Batch) AddCall(to common.Address, value *big.Int, sig string, args []an
 		inputValues[input.Name] = str
 	}
 
-	data, err := method.Inputs.PackValues(args)
+	encoded, err := method.Inputs.PackValues(args)
 	if err != nil {
 		return err
 	}
+	data := make([]byte, len(method.ID)+len(encoded))
+	copy(data, method.ID)
+	copy(data[len(method.ID):], encoded)
 
 	batchTransaction := BatchTransaction{
 		To:          to,
 		Value:       value,
-		Data:        data,
 		Method:      contractMethod,
+		Data:        data,
 		InputValues: inputValues,
 	}
 
@@ -180,8 +176,8 @@ func (b *BatchTransaction) MarshalJSON() ([]byte, error) {
 		InputValues: b.InputValues,
 	}
 	if len(b.Data) != 0 {
-		hex := hexutil.Encode(b.Data)
-		batch.Data = &hex
+		data := hexutil.Bytes(b.Data)
+		batch.Data = &data
 	}
 	return json.Marshal(batch)
 }
@@ -190,7 +186,7 @@ func (b *BatchTransaction) MarshalJSON() ([]byte, error) {
 type batchTransactionMarshaling struct {
 	To          string            `json:"to"`
 	Value       uint64            `json:"value,string"`
-	Data        *string           `json:"data"`
+	Data        *hexutil.Bytes    `json:"data"`
 	Method      ContractMethod    `json:"contractMethod"`
 	InputValues map[string]string `json:"contractInputsValues"`
 }
