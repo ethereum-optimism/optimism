@@ -21,12 +21,12 @@ type ContractEvent struct {
 	GUID uuid.UUID `gorm:"primaryKey"`
 
 	// Some useful derived fields
-	BlockHash       common.Hash    `gorm:"serializer:json"`
-	ContractAddress common.Address `gorm:"serializer:json"`
-	TransactionHash common.Hash    `gorm:"serializer:json"`
+	BlockHash       common.Hash    `gorm:"serializer:bytes"`
+	ContractAddress common.Address `gorm:"serializer:bytes"`
+	TransactionHash common.Hash    `gorm:"serializer:bytes"`
 	LogIndex        uint64
 
-	EventSignature common.Hash `gorm:"serializer:json"`
+	EventSignature common.Hash `gorm:"serializer:bytes"`
 	Timestamp      uint64
 
 	// NOTE: NOT ALL THE DERIVED FIELDS ON `types.Log` ARE

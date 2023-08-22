@@ -19,12 +19,12 @@ var (
  */
 
 type TokenPair struct {
-	LocalTokenAddress  common.Address `gorm:"serializer:json"`
-	RemoteTokenAddress common.Address `gorm:"serializer:json"`
+	LocalTokenAddress  common.Address `gorm:"serializer:bytes"`
+	RemoteTokenAddress common.Address `gorm:"serializer:bytes"`
 }
 
 type BridgeTransfer struct {
-	CrossDomainMessageHash *common.Hash `gorm:"serializer:json"`
+	CrossDomainMessageHash *common.Hash `gorm:"serializer:bytes"`
 
 	Tx        Transaction `gorm:"embedded"`
 	TokenPair TokenPair   `gorm:"embedded"`
@@ -32,27 +32,27 @@ type BridgeTransfer struct {
 
 type L1BridgeDeposit struct {
 	BridgeTransfer        `gorm:"embedded"`
-	TransactionSourceHash common.Hash `gorm:"primaryKey;serializer:json"`
+	TransactionSourceHash common.Hash `gorm:"primaryKey;serializer:bytes"`
 }
 
 type L1BridgeDepositWithTransactionHashes struct {
 	L1BridgeDeposit L1BridgeDeposit `gorm:"embedded"`
 
-	L1TransactionHash common.Hash `gorm:"serializer:json"`
-	L2TransactionHash common.Hash `gorm:"serializer:json"`
+	L1TransactionHash common.Hash `gorm:"serializer:bytes"`
+	L2TransactionHash common.Hash `gorm:"serializer:bytes"`
 }
 
 type L2BridgeWithdrawal struct {
 	BridgeTransfer            `gorm:"embedded"`
-	TransactionWithdrawalHash common.Hash `gorm:"primaryKey;serializer:json"`
+	TransactionWithdrawalHash common.Hash `gorm:"primaryKey;serializer:bytes"`
 }
 
 type L2BridgeWithdrawalWithTransactionHashes struct {
 	L2BridgeWithdrawal L2BridgeWithdrawal `gorm:"embedded"`
-	L2TransactionHash  common.Hash        `gorm:"serializer:json"`
+	L2TransactionHash  common.Hash        `gorm:"serializer:bytes"`
 
-	ProvenL1TransactionHash    common.Hash `gorm:"serializer:json"`
-	FinalizedL1TransactionHash common.Hash `gorm:"serializer:json"`
+	ProvenL1TransactionHash    common.Hash `gorm:"serializer:bytes"`
+	FinalizedL1TransactionHash common.Hash `gorm:"serializer:bytes"`
 }
 
 type BridgeTransfersView interface {
