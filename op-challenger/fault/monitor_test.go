@@ -77,6 +77,48 @@ func TestMonitorOnlyCreateSpecifiedGame(t *testing.T) {
 	require.Equal(t, 1, games.created[addr2].progressCount)
 }
 
+func TestDeletePlayersWhenNoLongerInListOfGames(t *testing.T) {
+	addr1 := common.Address{0xaa}
+	addr2 := common.Address{0xbb}
+	monitor, source, games := setupMonitorTest(t, nil)
+
+	allGames := []FaultDisputeGame{
+		{
+			Proxy:     addr1,
+			Timestamp: 9999,
+		},
+		{
+			Proxy:     addr2,
+			Timestamp: 9999,
+		},
+	}
+	source.games = allGames
+
+	require.NoError(t, monitor.progressGames(context.Background()))
+	require.Len(t, games.created, 2)
+	require.Contains(t, games.created, addr1)
+	require.Contains(t, games.created, addr2)
+
+	// First game is now old enough it's not returned in the list of active games
+	source.games = source.games[1:]
+	require.NoError(t, monitor.progressGames(context.Background()))
+	require.Len(t, games.created, 2)
+	require.Contains(t, games.created, addr1)
+	require.Contains(t, games.created, addr2)
+
+	// Forget that we created the first game so it can be recreated if needed
+	delete(games.created, addr1)
+
+	// First game now reappears (inexplicably but usefully for our testing)
+	source.games = allGames
+	require.NoError(t, monitor.progressGames(context.Background()))
+	// A new player is created for it because the original was deleted
+	require.Len(t, games.created, 2)
+	require.Contains(t, games.created, addr1)
+	require.Contains(t, games.created, addr2)
+	require.Equal(t, 1, games.created[addr1].progressCount)
+}
+
 func setupMonitorTest(t *testing.T, allowedGames []common.Address) (*gameMonitor, *stubGameSource, *createdGames) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	source := &stubGameSource{}

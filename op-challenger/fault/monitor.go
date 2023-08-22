@@ -66,17 +66,27 @@ func (m *gameMonitor) progressGames(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
 	}
+	requiredGames := make(map[common.Address]bool)
 	for _, game := range games {
 		if !m.allowedGame(game.Proxy) {
 			m.logger.Debug("Skipping game not on allow list", "game", game.Proxy)
 			continue
 		}
+		requiredGames[game.Proxy] = true
 		player, err := m.fetchOrCreateGamePlayer(game)
 		if err != nil {
 			m.logger.Error("Error while progressing game", "game", game.Proxy, "err", err)
 			continue
 		}
 		player.ProgressGame(ctx)
+	}
+	// Remove the player for any game that's no longer being returned from the list of active games
+	for addr := range m.players {
+		if _, ok := requiredGames[addr]; ok {
+			// Game still required
+			continue
+		}
+		delete(m.players, addr)
 	}
 	return nil
 }
