@@ -48,7 +48,7 @@
   },
   "devDependencies": {
     "@eth-optimism/contracts-bedrock": "workspace:*",
-    "@testing-library/jest-dom": "^5.17.0",
+    "@testing-library/jest-dom": "^6.0.1",
     "@testing-library/react-hooks": "^8.0.1",
     "@types/glob": "^8.1.0",
     "@vitest/coverage-istanbul": "^0.34.1",
