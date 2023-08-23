@@ -65,7 +65,7 @@
     "lerna": "^7.1.5",
     "lint-staged": "14.0.1",
     "markdownlint": "^0.24.0",
-    "markdownlint-cli2": "0.4.0",
+    "markdownlint-cli2": "0.9.0",
     "mkdirp": "^1.0.4",
     "mocha": "^10.2.0",
     "nx": "16.7.3",
