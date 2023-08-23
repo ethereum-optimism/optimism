@@ -4,9 +4,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/hashicorp/go-multierror"
+	"golang.org/x/exp/slices"
 )
+
+const gameDirPrefix = "game-"
 
 // diskManager coordinates
 type diskManager struct {
@@ -18,13 +23,35 @@ func newDiskManager(dir string) *diskManager {
 }
 
 func (d *diskManager) DirForGame(addr common.Address) string {
-	return filepath.Join(d.datadir, addr.Hex())
+	return filepath.Join(d.datadir, gameDirPrefix+addr.Hex())
 }
 
-func (d *diskManager) RemoveGameData(addr common.Address) error {
-	dir := d.DirForGame(addr)
-	if err := os.RemoveAll(dir); err != nil {
-		return fmt.Errorf("failed to remove dir %v: %w", dir, err)
+func (d *diskManager) RemoveAllExcept(keep []common.Address) error {
+	entries, err := os.ReadDir(d.datadir)
+	if err != nil {
+		return fmt.Errorf("failed to list directory: %w", err)
 	}
-	return nil
+	var result error
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), gameDirPrefix) {
+			// Skip files and directories that don't have the game directory prefix.
+			// While random content shouldn't be in our datadir, we want to avoid
+			// deleting things like OS generated files.
+			continue
+		}
+		name := entry.Name()[len(gameDirPrefix):]
+		addr := common.HexToAddress(name)
+		if addr == (common.Address{}) {
+			// Couldn't parse the directory name to an address so mustn't be a game directory
+			continue
+		}
+		if slices.Contains(keep, addr) {
+			// We need to preserve this data
+			continue
+		}
+		if err := os.RemoveAll(filepath.Join(d.datadir, entry.Name())); err != nil {
+			result = multierror.Append(result, err)
+		}
+	}
+	return result
 }

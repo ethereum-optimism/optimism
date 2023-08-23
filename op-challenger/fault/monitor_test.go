@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 )
@@ -147,13 +148,19 @@ func TestDeletePlayersWhenNoLongerInListOfGames(t *testing.T) {
 }
 
 func TestCleanupResourcesOfCompletedGames(t *testing.T) {
-	monitor, source, games, disk := setupMonitorTest(t, []common.Address{})
-	games.createCompleted = true
-
 	addr1 := common.Address{0xaa}
+	addr2 := common.Address{0xbb}
+
+	monitor, source, games, disk := setupMonitorTest(t, []common.Address{})
+	games.createCompleted = addr1
+
 	source.games = []FaultDisputeGame{
 		{
 			Proxy:     addr1,
+			Timestamp: 1999,
+		},
+		{
+			Proxy:     addr2,
 			Timestamp: 9999,
 		},
 	}
@@ -161,11 +168,16 @@ func TestCleanupResourcesOfCompletedGames(t *testing.T) {
 	err := monitor.progressGames(context.Background())
 	require.NoError(t, err)
 
-	require.Len(t, games.created, 1, "should create game agents")
+	require.Len(t, games.created, 2, "should create game agents")
 	require.Contains(t, games.created, addr1)
+	require.Contains(t, games.created, addr2)
 	require.Equal(t, 1, games.created[addr1].progressCount)
-	require.Contains(t, disk.gameDirExists, addr1, "should have allocated a game dir")
-	require.False(t, disk.gameDirExists[addr1], "should have then deleted the game dir")
+	require.Equal(t, 1, games.created[addr2].progressCount)
+	require.Contains(t, disk.gameDirExists, addr1, "should have allocated a game dir for game 1")
+	require.False(t, disk.gameDirExists[addr1], "should have then deleted the game 1 dir")
+
+	require.Contains(t, disk.gameDirExists, addr2, "should have allocated a game dir for game 2")
+	require.True(t, disk.gameDirExists[addr2], "should not have deleted the game 2 dir")
 }
 
 func setupMonitorTest(t *testing.T, allowedGames []common.Address) (*gameMonitor, *stubGameSource, *createdGames, *stubDiskManager) {
@@ -207,7 +219,7 @@ func (g *stubGame) ProgressGame(ctx context.Context) bool {
 
 type createdGames struct {
 	t               *testing.T
-	createCompleted bool
+	createCompleted common.Address
 	created         map[common.Address]*stubGame
 }
 
@@ -217,7 +229,7 @@ func (c *createdGames) CreateGame(addr common.Address, dir string) (gamePlayer, 
 	}
 	game := &stubGame{
 		addr: addr,
-		done: c.createCompleted,
+		done: addr == c.createCompleted,
 		dir:  dir,
 	}
 	c.created[addr] = game
@@ -233,7 +245,9 @@ func (s *stubDiskManager) DirForGame(addr common.Address) string {
 	return addr.Hex()
 }
 
-func (s *stubDiskManager) RemoveGameData(addr common.Address) error {
-	s.gameDirExists[addr] = false
+func (s *stubDiskManager) RemoveAllExcept(addrs []common.Address) error {
+	for address := range s.gameDirExists {
+		s.gameDirExists[address] = slices.Contains(addrs, address)
+	}
 	return nil
 }
