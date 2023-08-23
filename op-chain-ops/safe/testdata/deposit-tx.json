@@ -1,0 +1,56 @@
+{
+   "version": "",
+   "chainId": "",
+   "createdAt": 0,
+   "meta": {
+     "createdFromSafeAddress": "",
+     "createdFromOwnerAddress": "",
+     "name": "",
+     "description": ""
+   },
+   "transactions": [
+     {
+       "to": "0x0000000000000000000000000000000000000001",
+       "value": "222",
+       "data": "0xe9e05c42000000000000000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000064000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000000",
+       "contractMethod": {
+         "inputs": [
+           {
+             "internalType": "address",
+             "name": "_to",
+             "type": "address"
+           },
+           {
+             "internalType": "uint256",
+             "name": "_value",
+             "type": "uint256"
+           },
+           {
+             "internalType": "uint64",
+             "name": "_gasLimit",
+             "type": "uint64"
+           },
+           {
+             "internalType": "bool",
+             "name": "_isCreation",
+             "type": "bool"
+           },
+           {
+             "internalType": "bytes",
+             "name": "_data",
+             "type": "bytes"
+           }
+         ],
+         "name": "depositTransaction",
+         "payable": false
+       },
+       "contractInputsValues": {
+         "_data": "0x",
+         "_gasLimit": "100",
+         "_isCreation": "false",
+         "_to": "0x0100000000000000000000000000000000000000",
+         "_value": "2"
+       }
+     }
+   ]
+ }

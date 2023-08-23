@@ -1,13 +1,13 @@
 package fault
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/hashicorp/go-multierror"
 	"golang.org/x/exp/slices"
 )
 
@@ -31,7 +31,7 @@ func (d *diskManager) RemoveAllExcept(keep []common.Address) error {
 	if err != nil {
 		return fmt.Errorf("failed to list directory: %w", err)
 	}
-	var result error
+	var errs []error
 	for _, entry := range entries {
 		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), gameDirPrefix) {
 			// Skip files and directories that don't have the game directory prefix.
@@ -49,9 +49,7 @@ func (d *diskManager) RemoveAllExcept(keep []common.Address) error {
 			// Preserve data for games we should keep.
 			continue
 		}
-		if err := os.RemoveAll(filepath.Join(d.datadir, entry.Name())); err != nil {
-			result = multierror.Append(result, err)
-		}
+		errs = append(errs, os.RemoveAll(filepath.Join(d.datadir, entry.Name())))
 	}
-	return result
+	return errors.Join(errs...)
 }
