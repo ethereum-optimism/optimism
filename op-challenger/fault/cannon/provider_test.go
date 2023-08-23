@@ -204,6 +204,14 @@ func TestUseGameSpecificSubdir(t *testing.T) {
 	require.Equal(t, filepath.Join(dataDir, gameDirName), provider.dir, "should use game specific subdir")
 }
 
+func TestCleanup(t *testing.T) {
+	dataDir, prestate := setupTestData(t)
+	provider, _ := setupWithTestData(t, dataDir, prestate)
+	require.NoError(t, provider.Cleanup())
+	_, err := os.Stat(dataDir)
+	require.ErrorIs(t, err, os.ErrNotExist)
+}
+
 func setupPreState(t *testing.T, dataDir string, filename string) {
 	srcDir := filepath.Join("test_data")
 	path := filepath.Join(srcDir, filename)
