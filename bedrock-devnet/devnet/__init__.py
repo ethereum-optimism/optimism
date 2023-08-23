@@ -93,7 +93,7 @@ def main():
         return
 
     log.info('Building docker images')
-    run_command(['docker-compose', 'build', '--progress', 'plain'], cwd=paths.ops_bedrock_dir, env={
+    run_command(['docker', 'compose', 'build', '--progress', 'plain'], cwd=paths.ops_bedrock_dir, env={
         'PWD': paths.ops_bedrock_dir
     })
 
@@ -173,7 +173,7 @@ def devnet_deploy(paths):
         ], cwd=paths.op_node_dir)
 
     log.info('Starting L1.')
-    run_command(['docker-compose', 'up', '-d', 'l1'], cwd=paths.ops_bedrock_dir, env={
+    run_command(['docker', 'compose', 'up', '-d', 'l1'], cwd=paths.ops_bedrock_dir, env={
         'PWD': paths.ops_bedrock_dir
     })
     wait_up(8545)
@@ -196,7 +196,7 @@ def devnet_deploy(paths):
     addresses = read_json(paths.addresses_json_path)
 
     log.info('Bringing up L2.')
-    run_command(['docker-compose', 'up', '-d', 'l2'], cwd=paths.ops_bedrock_dir, env={
+    run_command(['docker', 'compose', 'up', '-d', 'l2'], cwd=paths.ops_bedrock_dir, env={
         'PWD': paths.ops_bedrock_dir
     })
     wait_up(9545)
@@ -208,7 +208,7 @@ def devnet_deploy(paths):
     log.info(f'Using batch inbox {batch_inbox_address}')
 
     log.info('Bringing up everything else.')
-    run_command(['docker-compose', 'up', '-d', 'op-node', 'op-proposer', 'op-batcher'], cwd=paths.ops_bedrock_dir, env={
+    run_command(['docker', 'compose', 'up', '-d', 'op-node', 'op-proposer', 'op-batcher'], cwd=paths.ops_bedrock_dir, env={
         'PWD': paths.ops_bedrock_dir,
         'L2OO_ADDRESS': l2_output_oracle,
         'SEQUENCER_BATCH_INBOX_ADDRESS': batch_inbox_address
