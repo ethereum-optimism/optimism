@@ -56,7 +56,7 @@ var testEthClientConfig = &EthClientConfig{
 }
 
 func randHash() (out common.Hash) {
-	crand.Read(out[:])
+	_, _ = crand.Read(out[:])
 	return out
 }
 

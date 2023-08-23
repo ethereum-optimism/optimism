@@ -48,7 +48,8 @@ func TestCode(t *testing.T) {
 		require.Nil(t, pre)
 
 		code := make([]byte, rand.Intn(1024))
-		crand.Read(code)
+		_, err := crand.Read(code)
+		require.NoError(t, err)
 
 		db.SetCode(addr, code)
 
