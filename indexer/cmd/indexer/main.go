@@ -14,6 +14,6 @@ var (
 func main() {
 	app := newCli(GitCommit, GitDate)
 	if err := app.Run(os.Args); err != nil {
-		log.Crit("Application failed", "message", err)
+		log.Crit("application failed", "err", err)
 	}
 }
