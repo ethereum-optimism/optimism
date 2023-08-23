@@ -26,6 +26,10 @@ type FaultGameHelper struct {
 	addr        common.Address
 }
 
+func (g *FaultGameHelper) Addr() common.Address {
+	return g.addr
+}
+
 func (g *FaultGameHelper) GameDuration(ctx context.Context) time.Duration {
 	duration, err := g.game.GAMEDURATION(&bind.CallOpts{Context: ctx})
 	g.require.NoError(err, "failed to get game duration")
