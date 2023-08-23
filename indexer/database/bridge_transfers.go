@@ -133,7 +133,7 @@ func (db *bridgeTransfersDB) L1BridgeDepositsByAddress(address common.Address, c
 		limit = defaultLimit
 	}
 
-	// TODO join with l1_tokens and l2_tokens
+	// TODO join with l1_bridged_tokens and l2_bridged_tokens
 	ethAddressString := predeploys.LegacyERC20ETHAddr.String()
 
 	// Coalesce l1 transaction deposits that are simply ETH sends
@@ -242,7 +242,7 @@ func (db *bridgeTransfersDB) L2BridgeWithdrawalsByAddress(address common.Address
 		limit = defaultLimit
 	}
 
-	// TODO join with l1_tokens and l2_tokens
+	// TODO join with l1_bridged_tokens and l2_bridged_tokens
 	ethAddressString := predeploys.LegacyERC20ETHAddr.String()
 
 	// Coalesce l2 transaction withdrawals that are simply ETH sends

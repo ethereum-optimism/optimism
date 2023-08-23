@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS output_proposals (
  */
 
 -- Bridged L1/L2 Tokens
-CREATE TABLE IF NOT EXISTS l1_tokens (
+CREATE TABLE IF NOT EXISTS l1_bridged_tokens (
     address        VARCHAR PRIMARY KEY,
     bridge_address VARCHAR NOT NULL,
 
@@ -92,12 +92,12 @@ CREATE TABLE IF NOT EXISTS l1_tokens (
     symbol   VARCHAR NOT NULL,
     decimals INTEGER NOT NULL CHECK (decimals >= 0 AND decimals <= 18)
 );
-CREATE TABLE IF NOT EXISTS l2_tokens (
+CREATE TABLE IF NOT EXISTS l2_bridged_tokens (
     address        VARCHAR PRIMARY KEY,
     bridge_address VARCHAR NOT NULL,
 
     -- L1-L2 relationship is 1 to many so this is not necessarily unique
-    l1_token_address VARCHAR REFERENCES l1_tokens(address) ON DELETE CASCADE,
+    l1_token_address VARCHAR REFERENCES l1_bridged_tokens(address) ON DELETE CASCADE,
 
     name     VARCHAR NOT NULL,
     symbol   VARCHAR NOT NULL,
@@ -179,8 +179,8 @@ CREATE TABLE IF NOT EXISTS l1_bridge_deposits (
     -- Deposit information
     from_address         VARCHAR NOT NULL,
     to_address           VARCHAR NOT NULL,
-    local_token_address  VARCHAR NOT NULL, -- REFERENCES l1_tokens(address), uncomment me in future pr
-    remote_token_address VARCHAR NOT NULL, -- REFERENCES l2_tokens(address), uncomment me in future pr
+    local_token_address  VARCHAR NOT NULL, -- REFERENCES l1_bridged_tokens(address), uncomment me in future pr
+    remote_token_address VARCHAR NOT NULL, -- REFERENCES l2_bridged_tokens(address), uncomment me in future pr
     amount               UINT256 NOT NULL,
     data                 VARCHAR NOT NULL,
     timestamp            INTEGER NOT NULL CHECK (timestamp > 0)
@@ -192,8 +192,8 @@ CREATE TABLE IF NOT EXISTS l2_bridge_withdrawals (
     -- Withdrawal information
     from_address         VARCHAR NOT NULL,
     to_address           VARCHAR NOT NULL,
-    local_token_address  VARCHAR NOT NULL, -- REFERENCES l2_tokens(address), uncomment me in future pr
-    remote_token_address VARCHAR NOT NULL, -- REFERENCES l1_tokens(address), uncomment me in future pr
+    local_token_address  VARCHAR NOT NULL, -- REFERENCES l2_bridged_tokens(address), uncomment me in future pr
+    remote_token_address VARCHAR NOT NULL, -- REFERENCES l1_bridged_tokens(address), uncomment me in future pr
     amount               UINT256 NOT NULL,
     data                 VARCHAR NOT NULL,
     timestamp            INTEGER NOT NULL CHECK (timestamp > 0)
