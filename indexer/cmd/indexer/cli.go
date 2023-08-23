@@ -1,9 +1,7 @@
-package cli
+package main
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 
 	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/api"
@@ -16,26 +14,25 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
-type Cli struct {
-	GitVersion string
-	GitCommit  string
-	GitDate    string
-	app        *cli.App
-	Flags      []cli.Flag
-}
+var (
+	ConfigFlag = &cli.StringFlag{
+		Name:    "config",
+		Value:   "./indexer.toml",
+		Aliases: []string{"c"},
+		Usage:   "path to config file",
+		EnvVars: []string{"INDEXER_CONFIG"},
+	}
+)
 
 func runIndexer(ctx *cli.Context) error {
 	logger := log.NewLogger(log.ReadCLIConfig(ctx))
-
-	configPath := ctx.String(ConfigFlag.Name)
-	cfg, err := config.LoadConfig(logger, configPath)
+	cfg, err := config.LoadConfig(logger, ctx.String(ConfigFlag.Name))
 	if err != nil {
 		logger.Error("failed to load config", "err", err)
 		return err
 	}
 
 	db, err := database.NewDB(cfg.DB)
-
 	if err != nil {
 		return err
 	}
@@ -48,6 +45,7 @@ func runIndexer(ctx *cli.Context) error {
 	indexerCtx, indexerCancel := context.WithCancel(context.Background())
 	go func() {
 		opio.BlockOnInterrupts()
+		logger.Error("caught interrupt, shutting down...")
 		indexerCancel()
 	}()
 
@@ -56,47 +54,35 @@ func runIndexer(ctx *cli.Context) error {
 
 func runApi(ctx *cli.Context) error {
 	logger := log.NewLogger(log.ReadCLIConfig(ctx))
-
-	configPath := ctx.String(ConfigFlag.Name)
-	cfg, err := config.LoadConfig(logger, configPath)
+	cfg, err := config.LoadConfig(logger, ctx.String(ConfigFlag.Name))
 	if err != nil {
 		logger.Error("failed to load config", "err", err)
 		return err
 	}
 
 	db, err := database.NewDB(cfg.DB)
-
 	if err != nil {
 		logger.Crit("Failed to connect to database", "err", err)
 	}
 
-	server := api.NewApi(db.BridgeTransfers, logger)
+	apiCtx, apiCancel := context.WithCancel(context.Background())
+	api := api.NewApi(logger, db.BridgeTransfers)
+	go func() {
+		opio.BlockOnInterrupts()
+		logger.Error("caught interrupt, shutting down...")
+		apiCancel()
+	}()
 
-	return server.Listen(strconv.Itoa(cfg.API.Port))
+	return api.Listen(apiCtx, cfg.API.Port)
 }
 
-var (
-	ConfigFlag = &cli.StringFlag{
-		Name:    "config",
-		Value:   "./indexer.toml",
-		Aliases: []string{"c"},
-		Usage:   "path to config file",
-		EnvVars: []string{"INDEXER_CONFIG"},
-	}
-)
-
-// make a instance method on Cli called Run that runs cli
-// and returns an error
-func (c *Cli) Run(args []string) error {
-	return c.app.Run(args)
-}
-
-func NewCli(GitVersion string, GitCommit string, GitDate string) *Cli {
+func newCli(GitCommit string, GitDate string) *cli.App {
 	flags := []cli.Flag{ConfigFlag}
 	flags = append(flags, log.CLIFlags("INDEXER")...)
-	app := &cli.App{
-		Version:     fmt.Sprintf("%s-%s", GitVersion, params.VersionWithCommit(GitCommit, GitDate)),
-		Description: "An indexer of all optimism events with a serving api layer",
+	return &cli.App{
+		Version:              params.VersionWithCommit(GitCommit, GitDate),
+		Description:          "An indexer of all optimism events with a serving api layer",
+		EnableBashCompletion: true,
 		Commands: []*cli.Command{
 			{
 				Name:        "api",
@@ -110,11 +96,14 @@ func NewCli(GitVersion string, GitCommit string, GitDate string) *Cli {
 				Description: "Runs the indexing service",
 				Action:      runIndexer,
 			},
+			{
+				Name:        "version",
+				Description: "print version",
+				Action: func(ctx *cli.Context) error {
+					cli.ShowVersion(ctx)
+					return nil
+				},
+			},
 		},
-	}
-
-	return &Cli{
-		app:   app,
-		Flags: flags,
 	}
 }
