@@ -5,7 +5,7 @@
   "portalGuardian": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
   "controller": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
 
-  "l1StartingBlockTag": "0x05d0398a27fb6459da6db3e5feb13de71fb554feed8c4089549dc2281fee1ca3",
+  "l1StartingBlockTag": "0xf7f91482b4c0c4bb7f6aa67551ac003d5c6fa3d170c2291ebcf346aef655edef",
 
   "l1ChainID": 11155111,
   "l2ChainID": 28882,
@@ -16,12 +16,12 @@
   "channelTimeout": 300,
 
   "p2pSequencerAddress": "0x274a47436C7C896827633805d924d41BBa1D19e9",
-  "batchInboxAddress": "0xff00000000000000000000000000000000000420",
+  "batchInboxAddress": "0xff00000000000000000000000000000000000001",
   "batchSenderAddress": "0xf598b6388eC06945021699F0bbb23dfCFc5edbE8",
 
   "l2OutputOracleSubmissionInterval": 120,
   "l2OutputOracleStartingBlockNumber": 0,
-  "l2OutputOracleStartingTimestamp": 1692388764,
+  "l2OutputOracleStartingTimestamp": 1692750204,
 
   "l2OutputOracleProposer": "0x044DEa5dEe6c62Ac432Aa1e50C3eB5899e85a52F",
   "l2OutputOracleChallenger": "0xe62B0E3a9F715493301eBdEC8310C899eae5b30c",
@@ -53,5 +53,5 @@
   "eip1559Denominator": 50,
   "eip1559Elasticity": 10,
 
-  "l1BobaTokenAddress": "0xc5a5C42992dECbae36851359345FE25997F5C42d"
+  "l1BobaTokenAddress": "0x33faF65b3DfcC6A1FccaD4531D9ce518F0FDc896"
 }
