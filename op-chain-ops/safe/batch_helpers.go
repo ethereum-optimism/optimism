@@ -88,18 +88,50 @@ func stringifyArg(argument any) (string, error) {
 	}
 }
 
-// countArgs will recursively count the number of arguments in an abi.Argument.
-func countArgs(total *int, input abi.Argument) error {
-	for i, elem := range input.Type.TupleElems {
-		e := *elem
-		*total++
-		arg := abi.Argument{
-			Name: input.Type.TupleRawNames[i],
-			Type: e,
+// unstringifyArg converts a string to a Go type.
+func unstringifyArg(arg string, typ string) (any, error) {
+	switch typ {
+	case "address":
+		return common.HexToAddress(arg), nil
+	case "bool":
+		return strconv.ParseBool(arg)
+	case "uint8":
+		val, err := strconv.ParseUint(arg, 10, 8)
+		return uint8(val), err
+	case "uint16":
+		val, err := strconv.ParseUint(arg, 10, 16)
+		return uint16(val), err
+	case "uint32":
+		val, err := strconv.ParseUint(arg, 10, 32)
+		return uint32(val), err
+	case "uint64":
+		val, err := strconv.ParseUint(arg, 10, 64)
+		return val, err
+	case "int8":
+		val, err := strconv.ParseInt(arg, 10, 8)
+		return val, err
+	case "int16":
+		val, err := strconv.ParseInt(arg, 10, 16)
+		return val, err
+	case "int32":
+		val, err := strconv.ParseInt(arg, 10, 32)
+		return val, err
+	case "int64":
+		val, err := strconv.ParseInt(arg, 10, 64)
+		return val, err
+	case "uint256", "int256":
+		val, ok := new(big.Int).SetString(arg, 10)
+		if !ok {
+			return nil, fmt.Errorf("failed to parse %s as big.Int", arg)
 		}
-		return countArgs(total, arg)
+		return val, nil
+	case "string":
+		return arg, nil
+	case "bytes":
+		return hexutil.Decode(arg)
+	default:
+		return nil, fmt.Errorf("unknown type: %s", typ)
 	}
-	return nil
 }
 
 // createContractInput converts an abi.Argument to one or more ContractInputs.

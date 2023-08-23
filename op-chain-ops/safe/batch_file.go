@@ -170,6 +170,8 @@ type BatchTransaction struct {
 // An error is defined by:
 // - incorrectly encoded calldata
 // - mismatch in number of arguments
+// It does not currently work on structs, will return no error if a "tuple"
+// is used as an argument. Need to find a generic way to work with structs.
 func (bt *BatchTransaction) Check() error {
 	if len(bt.Method.Inputs) != len(bt.InputValues) {
 		return fmt.Errorf("expected %d inputs but got %d", len(bt.Method.Inputs), len(bt.InputValues))
@@ -184,6 +186,32 @@ func (bt *BatchTransaction) Check() error {
 		if !bytes.Equal(bt.Data[0:4], selector) {
 			return fmt.Errorf("data does not match signature")
 		}
+
+		// Check the calldata
+		values := make([]any, len(bt.Method.Inputs))
+		for i, input := range bt.Method.Inputs {
+			value, ok := bt.InputValues[input.Name]
+			if !ok {
+				return fmt.Errorf("missing input %s", input.Name)
+			}
+			// Need to figure out better way to handle tuples in a generic way
+			if input.Type == "tuple" {
+				return nil
+			}
+			arg, err := unstringifyArg(value, input.Type)
+			if err != nil {
+				return err
+			}
+			values[i] = arg
+		}
+
+		calldata, err := bt.Arguments().PackValues(values)
+		if err != nil {
+			return err
+		}
+		if !bytes.Equal(bt.Data[4:], calldata) {
+			return fmt.Errorf("calldata does not match inputs, expected %s, got %s", hexutil.Encode(bt.Data[4:]), hexutil.Encode(calldata))
+		}
 	}
 	return nil
 }
@@ -195,6 +223,22 @@ func (bt *BatchTransaction) Signature() string {
 		types[i] = buildFunctionSignature(input)
 	}
 	return fmt.Sprintf("%s(%s)", bt.Method.Name, strings.Join(types, ","))
+}
+
+func (bt *BatchTransaction) Arguments() abi.Arguments {
+	arguments := make(abi.Arguments, len(bt.Method.Inputs))
+	for i, input := range bt.Method.Inputs {
+		serialized, err := json.Marshal(input)
+		if err != nil {
+			panic(err)
+		}
+		var arg abi.Argument
+		if err := json.Unmarshal(serialized, &arg); err != nil {
+			panic(err)
+		}
+		arguments[i] = arg
+	}
+	return arguments
 }
 
 // UnmarshalJSON will unmarshal a BatchTransaction from JSON.

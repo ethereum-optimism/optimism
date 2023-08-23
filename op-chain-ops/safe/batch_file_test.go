@@ -71,7 +71,7 @@ func TestBatchAddCallFinalizeWithdrawalTransaction(t *testing.T) {
 }
 
 // TestBatchAddCallDespostTransaction ensures that simple calls can be serialized correctly.
-func TestBatchAddCallDespostTransaction(t *testing.T) {
+func TestBatchAddCallDespositTransaction(t *testing.T) {
 	file, err := os.ReadFile("testdata/portal-abi.json")
 	require.NoError(t, err)
 	portalABI, err := abi.JSON(bytes.NewReader(file))
