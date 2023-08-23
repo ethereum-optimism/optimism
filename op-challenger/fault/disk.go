@@ -13,7 +13,7 @@ import (
 
 const gameDirPrefix = "game-"
 
-// diskManager coordinates
+// diskManager coordinates the storage of game data on disk.
 type diskManager struct {
 	datadir string
 }
@@ -42,11 +42,11 @@ func (d *diskManager) RemoveAllExcept(keep []common.Address) error {
 		name := entry.Name()[len(gameDirPrefix):]
 		addr := common.HexToAddress(name)
 		if addr == (common.Address{}) {
-			// Couldn't parse the directory name to an address so mustn't be a game directory
+			// Ignore directories with non-address names.
 			continue
 		}
 		if slices.Contains(keep, addr) {
-			// We need to preserve this data
+			// Preserve data for games we should keep.
 			continue
 		}
 		if err := os.RemoveAll(filepath.Join(d.datadir, entry.Name())); err != nil {
