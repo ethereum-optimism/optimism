@@ -46,7 +46,7 @@ func newDepositResponse(deposits *database.L1BridgeDepositsResponse) DepositResp
 			},
 			From:   deposit.L1BridgeDeposit.Tx.FromAddress.String(),
 			To:     deposit.L1BridgeDeposit.Tx.ToAddress.String(),
-			Amount: deposit.L1BridgeDeposit.Tx.Amount.Int.String(),
+			Amount: deposit.L1BridgeDeposit.Tx.Amount.String(),
 			L1Token: TokenInfo{
 				ChainId:  1,
 				Address:  deposit.L1BridgeDeposit.TokenPair.LocalTokenAddress.String(),

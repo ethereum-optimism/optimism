@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
@@ -230,6 +231,23 @@ func TestCannonSnapshotFreq(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon, "--cannon-snapshot-freq=1234"))
 		require.Equal(t, uint(1234), cfg.CannonSnapshotFreq)
+	})
+}
+
+func TestGameWindow(t *testing.T) {
+	t.Run("UsesDefault", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet))
+		require.Equal(t, config.DefaultGameWindow, cfg.GameWindow)
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--game-window=1m"))
+		require.Equal(t, time.Duration(time.Minute), cfg.GameWindow)
+	})
+
+	t.Run("ParsesDefault", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--game-window=264h"))
+		require.Equal(t, config.DefaultGameWindow, cfg.GameWindow)
 	})
 }
 
