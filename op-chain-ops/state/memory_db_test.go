@@ -1,6 +1,7 @@
 package state_test
 
 import (
+	crand "crypto/rand"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -47,7 +48,7 @@ func TestCode(t *testing.T) {
 		require.Nil(t, pre)
 
 		code := make([]byte, rand.Intn(1024))
-		rand.Read(code)
+		crand.Read(code)
 
 		db.SetCode(addr, code)
 
