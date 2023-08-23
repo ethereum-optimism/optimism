@@ -66,7 +66,6 @@ func (res *AccountResult) Verify(stateRoot common.Hash) error {
 	if err != nil {
 		return fmt.Errorf("failed to encode account from retrieved values: %w", err)
 	}
-	log.Info("MMDBG account_proof Verify", "claimedValue", hexutil.Bytes(accountClaimedValue))
 
 	// create a db with all account trie nodes
 	db := memorydb.New()
@@ -81,7 +80,7 @@ func (res *AccountResult) Verify(stateRoot common.Hash) error {
 	}
 	path := crypto.Keccak256(res.Address[:])
 	accountProofValue, err := trie.VerifyProof(stateRoot, path, db)
-	log.Info("MMDBG account_proof Verify", "stateRoot", hexutil.Bytes(stateRoot.Bytes()), "err", err, "accountProofValue", accountProofValue)
+	log.Debug("account_proof Verify", "err", err, "stateRoot", hexutil.Bytes(stateRoot.Bytes()), "accountProofValue", accountProofValue, "claimedValue", hexutil.Bytes(accountClaimedValue))
 	if err != nil {
 		return fmt.Errorf("failed to verify account value with key %s (path %x) in account trie %s: %w", res.Address, path, stateRoot, err)
 	}
