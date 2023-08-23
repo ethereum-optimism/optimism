@@ -20,6 +20,7 @@ with additional rules. These are:
 
 We also have the following custom tags:
 
+- `@custom:predeploy`: Add to a contract whenever its been pre-deployed.
 - `@custom:proxied`: Add to a contract whenever it's meant to live behind a proxy.
 - `@custom:upgradeable`: Add to a contract whenever it's meant to be used in an upgradeable contract.
 - `@custom:semver`: Add to a constructor to indicate the version of a contract.
