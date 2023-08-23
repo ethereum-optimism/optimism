@@ -7,9 +7,8 @@ import (
 )
 
 var (
-	GitVersion = ""
-	GitCommit  = ""
-	GitDate    = ""
+	GitCommit = ""
+	GitDate   = ""
 )
 
 func main() {
