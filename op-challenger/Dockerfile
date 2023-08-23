@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.19.0-alpine3.15 as builder
+FROM --platform=$BUILDPLATFORM golang:1.20.7-alpine3.18 as builder
 
 ARG VERSION=v0.0.0
 
@@ -27,7 +27,7 @@ ARG TARGETOS TARGETARCH
 
 RUN make op-challenger VERSION="$VERSION" GOOS=$TARGETOS GOARCH=$TARGETARCH
 
-FROM alpine:3.15
+FROM alpine:3.18
 
 COPY --from=builder /app/op-challenger/bin/op-challenger /usr/local/bin
 
