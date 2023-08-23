@@ -10,8 +10,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/cannon"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -29,15 +29,18 @@ type GamePlayer struct {
 	agreeWithProposedOutput bool
 	caller                  GameInfo
 	logger                  log.Logger
+
+	completed bool
 }
 
 func NewGamePlayer(
 	ctx context.Context,
 	logger log.Logger,
 	cfg *config.Config,
+	dir string,
 	addr common.Address,
 	txMgr txmgr.TxManager,
-	client *ethclient.Client,
+	client bind.ContractCaller,
 ) (*GamePlayer, error) {
 	logger = logger.New("game", addr)
 	contract, err := bindings.NewFaultDisputeGameCaller(addr, client)
@@ -56,10 +59,11 @@ func NewGamePlayer(
 	var updater types.OracleUpdater
 	switch cfg.TraceType {
 	case config.TraceTypeCannon:
-		provider, err = cannon.NewTraceProvider(ctx, logger, cfg, client, addr)
+		cannonProvider, err := cannon.NewTraceProvider(ctx, logger, cfg, client, dir, addr)
 		if err != nil {
 			return nil, fmt.Errorf("create cannon trace provider: %w", err)
 		}
+		provider = cannonProvider
 		updater, err = cannon.NewOracleUpdater(ctx, logger, txMgr, addr, client)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create the cannon updater: %w", err)
@@ -94,6 +98,11 @@ func NewGamePlayer(
 }
 
 func (g *GamePlayer) ProgressGame(ctx context.Context) bool {
+	if g.completed {
+		// Game is already complete so don't try to perform further actions.
+		g.logger.Trace("Skipping completed game")
+		return true
+	}
 	g.logger.Trace("Checking if actions are required")
 	if err := g.agent.Act(ctx); err != nil {
 		g.logger.Error("Error when acting on game", "err", err)
@@ -102,7 +111,8 @@ func (g *GamePlayer) ProgressGame(ctx context.Context) bool {
 		g.logger.Warn("Unable to retrieve game status", "err", err)
 	} else {
 		g.logGameStatus(ctx, status)
-		return status != types.GameStatusInProgress
+		g.completed = status != types.GameStatusInProgress
+		return g.completed
 	}
 	return false
 }

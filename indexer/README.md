@@ -16,7 +16,7 @@ All tests can be ran by running `make test` from the `/indexer` directory.  This
 - install docker
 - `cp example.env .env`
 - fill in .env
-- run `docker-compose up` to start the indexer vs optimism goerli network
+- run `docker compose up` to start the indexer vs optimism goerli network
 
 ### Run indexer with go
 

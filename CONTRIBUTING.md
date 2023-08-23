@@ -119,7 +119,7 @@ Note that these environment variables significantly speed up build time.
 cd ops-bedrock
 export COMPOSE_DOCKER_CLI_BUILD=1
 export DOCKER_BUILDKIT=1
-docker-compose build
+docker compose build
 ```
 
 Source code changes can have an impact on more than one container.
@@ -127,9 +127,9 @@ Source code changes can have an impact on more than one container.
 
 ```bash
 cd ops-bedrock
-docker-compose down
-docker-compose build
-docker-compose up
+docker compose down
+docker compose build
+docker compose up
 ```
 
 **If a node process exits with exit code: 137** you may need to increase the default memory limit of docker containers
@@ -141,18 +141,18 @@ cd optimism
 pnpm clean
 pnpm build
 cd ops
-docker-compose down -v
-docker-compose build
-docker-compose up
+docker compose down -v
+docker compose build
+docker compose up
 ```
 
 #### Viewing docker container logs
 
-By default, the `docker-compose up` command will show logs from all services, and that
+By default, the `docker compose up` command will show logs from all services, and that
 can be hard to filter through. In order to view the logs from a specific service, you can run:
 
 ```bash
-docker-compose logs --follow <service name>
+docker compose logs --follow <service name>
 ```
 
 ### Running tests

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
@@ -21,7 +22,7 @@ var (
 	cannonBin               = "./bin/cannon"
 	cannonServer            = "./bin/op-program"
 	cannonPreState          = "./pre.json"
-	cannonDatadir           = "./test_data"
+	datadir                 = "./test_data"
 	cannonL2                = "http://example.com:9545"
 	alphabetTrace           = "abcdefghijz"
 	agreeWithProposedOutput = "true"
@@ -44,14 +45,14 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet))
-	defaultCfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, config.TraceTypeAlphabet, true)
+	defaultCfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, config.TraceTypeAlphabet, true, datadir)
 	// Add in the extra CLI options required when using alphabet trace type
 	defaultCfg.AlphabetTrace = alphabetTrace
 	require.Equal(t, defaultCfg, cfg)
 }
 
 func TestDefaultConfigIsValid(t *testing.T) {
-	cfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, config.TraceTypeAlphabet, true)
+	cfg := config.NewConfig(common.HexToAddress(gameFactoryAddressValue), l1EthRpc, config.TraceTypeAlphabet, true, datadir)
 	// Add in options that are required based on the specific trace type
 	// To avoid needing to specify unused options, these aren't included in the params for NewConfig
 	cfg.AlphabetTrace = alphabetTrace
@@ -191,18 +192,18 @@ func TestCannonAbsolutePrestate(t *testing.T) {
 	})
 }
 
-func TestCannonDataDir(t *testing.T) {
-	t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
-		configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--cannon-datadir"))
+func TestDataDir(t *testing.T) {
+	t.Run("RequiredForAlphabetTrace", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag datadir is required", addRequiredArgsExcept(config.TraceTypeAlphabet, "--datadir"))
 	})
 
-	t.Run("Required", func(t *testing.T) {
-		verifyArgsInvalid(t, "flag cannon-datadir is required", addRequiredArgsExcept(config.TraceTypeCannon, "--cannon-datadir"))
+	t.Run("RequiredForCannonTrace", func(t *testing.T) {
+		verifyArgsInvalid(t, "flag datadir is required", addRequiredArgsExcept(config.TraceTypeCannon, "--datadir"))
 	})
 
 	t.Run("Valid", func(t *testing.T) {
-		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeCannon, "--cannon-datadir", "--cannon-datadir=/foo/bar/cannon"))
-		require.Equal(t, "/foo/bar/cannon", cfg.CannonDatadir)
+		cfg := configForArgs(t, addRequiredArgsExcept(config.TraceTypeCannon, "--datadir", "--datadir=/foo/bar/cannon"))
+		require.Equal(t, "/foo/bar/cannon", cfg.Datadir)
 	})
 }
 
@@ -230,6 +231,23 @@ func TestCannonSnapshotFreq(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeCannon, "--cannon-snapshot-freq=1234"))
 		require.Equal(t, uint(1234), cfg.CannonSnapshotFreq)
+	})
+}
+
+func TestGameWindow(t *testing.T) {
+	t.Run("UsesDefault", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet))
+		require.Equal(t, config.DefaultGameWindow, cfg.GameWindow)
+	})
+
+	t.Run("Valid", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--game-window=1m"))
+		require.Equal(t, time.Duration(time.Minute), cfg.GameWindow)
+	})
+
+	t.Run("ParsesDefault", func(t *testing.T) {
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--game-window=264h"))
+		require.Equal(t, config.DefaultGameWindow, cfg.GameWindow)
 	})
 }
 
@@ -335,6 +353,7 @@ func requiredArgs(traceType config.TraceType) map[string]string {
 		"--l1-eth-rpc":                 l1EthRpc,
 		"--game-factory-address":       gameFactoryAddressValue,
 		"--trace-type":                 traceType.String(),
+		"--datadir":                    datadir,
 	}
 	switch traceType {
 	case config.TraceTypeAlphabet:
@@ -344,7 +363,6 @@ func requiredArgs(traceType config.TraceType) map[string]string {
 		args["--cannon-bin"] = cannonBin
 		args["--cannon-server"] = cannonServer
 		args["--cannon-prestate"] = cannonPreState
-		args["--cannon-datadir"] = cannonDatadir
 		args["--cannon-l2"] = cannonL2
 	}
 	return args

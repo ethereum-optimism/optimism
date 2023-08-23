@@ -23,9 +23,11 @@ import (
 )
 
 type Helper struct {
-	log    log.Logger
-	cancel func()
-	errors chan error
+	log     log.Logger
+	require *require.Assertions
+	dir     string
+	cancel  func()
+	errors  chan error
 }
 
 type Option func(config2 *config.Config)
@@ -74,7 +76,6 @@ func WithCannon(
 		require := require.New(t)
 		c.TraceType = config.TraceTypeCannon
 		c.CannonL2 = l2Endpoint
-		c.CannonDatadir = t.TempDir()
 		c.CannonBin = "../cannon/bin/cannon"
 		c.CannonServer = "../op-program/bin/op-program"
 		c.CannonAbsolutePreState = "../op-program/bin/prestate.json"
@@ -82,13 +83,13 @@ func WithCannon(
 
 		genesisBytes, err := json.Marshal(l2Genesis)
 		require.NoError(err, "marshall l2 genesis config")
-		genesisFile := filepath.Join(c.CannonDatadir, "l2-genesis.json")
+		genesisFile := filepath.Join(c.Datadir, "l2-genesis.json")
 		require.NoError(os.WriteFile(genesisFile, genesisBytes, 0644))
 		c.CannonL2GenesisPath = genesisFile
 
 		rollupBytes, err := json.Marshal(rollupCfg)
 		require.NoError(err, "marshall rollup config")
-		rollupFile := filepath.Join(c.CannonDatadir, "rollup.json")
+		rollupFile := filepath.Join(c.Datadir, "rollup.json")
 		require.NoError(os.WriteFile(rollupFile, rollupBytes, 0644))
 		c.CannonRollupConfigPath = rollupFile
 	}
@@ -106,9 +107,11 @@ func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name st
 		errCh <- op_challenger.Main(ctx, log, cfg)
 	}()
 	return &Helper{
-		log:    log,
-		cancel: cancel,
-		errors: errCh,
+		log:     log,
+		require: require.New(t),
+		dir:     cfg.Datadir,
+		cancel:  cancel,
+		errors:  errCh,
 	}
 }
 
@@ -121,6 +124,7 @@ func NewChallengerConfig(t *testing.T, l1Endpoint string, options ...Option) *co
 		AlphabetTrace:           "",
 		AgreeWithProposedOutput: true,
 		TxMgrConfig:             txmgrCfg,
+		Datadir:                 t.TempDir(),
 	}
 	for _, option := range options {
 		option(cfg)
@@ -154,4 +158,26 @@ func (h *Helper) Close() error {
 		}
 		return nil
 	}
+}
+
+type GameAddr interface {
+	Addr() common.Address
+}
+
+func (h *Helper) VerifyGameDataExists(games ...GameAddr) {
+	for _, game := range games {
+		addr := game.Addr()
+		h.require.DirExistsf(h.gameDataDir(addr), "should have data for game %v", addr)
+	}
+}
+
+func (h *Helper) VerifyNoGameDataExists(games ...GameAddr) {
+	for _, game := range games {
+		addr := game.Addr()
+		h.require.NoDirExistsf(h.gameDataDir(addr), "should have data for game %v", addr)
+	}
+}
+
+func (h *Helper) gameDataDir(addr common.Address) string {
+	return filepath.Join(h.dir, addr.Hex())
 }

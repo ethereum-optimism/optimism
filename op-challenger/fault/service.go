@@ -73,9 +73,18 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 	}
 	loader := NewGameLoader(factory)
 
-	monitor := newGameMonitor(logger, cl, client.BlockNumber, cfg.GameAllowlist, loader, func(addr common.Address) (gamePlayer, error) {
-		return NewGamePlayer(ctx, logger, cfg, addr, txMgr, client)
-	})
+	disk := newDiskManager(cfg.Datadir)
+	monitor := newGameMonitor(
+		logger,
+		cfg.GameWindow,
+		cl,
+		disk,
+		client.BlockNumber,
+		cfg.GameAllowlist,
+		loader,
+		func(addr common.Address, dir string) (gamePlayer, error) {
+			return NewGamePlayer(ctx, logger, cfg, dir, addr, txMgr, client)
+		})
 
 	m.RecordInfo(version.SimpleWithMeta)
 	m.RecordUp()

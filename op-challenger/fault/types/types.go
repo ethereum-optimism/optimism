@@ -3,6 +3,7 @@ package types
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -32,6 +33,14 @@ func (s GameStatus) String() string {
 	default:
 		return "Unknown"
 	}
+}
+
+// GameStatusFromUint8 returns a game status from the uint8 representation.
+func GameStatusFromUint8(i uint8) (GameStatus, error) {
+	if i > 2 {
+		return GameStatus(i), fmt.Errorf("invalid game status: %d", i)
+	}
+	return GameStatus(i), nil
 }
 
 // PreimageOracleData encapsulates the preimage oracle data

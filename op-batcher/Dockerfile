@@ -1,4 +1,4 @@
-FROM --platform=$BUILDPLATFORM golang:1.19.9-alpine3.16 as builder
+FROM --platform=$BUILDPLATFORM golang:1.20.7-alpine3.18 as builder
 
 ARG VERSION=v0.0.0
 
@@ -23,7 +23,7 @@ ARG TARGETOS TARGETARCH
 
 RUN make op-batcher VERSION="$VERSION" GOOS=$TARGETOS GOARCH=$TARGETARCH
 
-FROM alpine:3.16
+FROM alpine:3.18
 
 COPY --from=builder /app/op-batcher/bin/op-batcher /usr/local/bin
 
