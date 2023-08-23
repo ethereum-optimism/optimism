@@ -29,7 +29,6 @@ type GamePlayer struct {
 	agreeWithProposedOutput bool
 	caller                  GameInfo
 	logger                  log.Logger
-	cleanup                 func() error
 
 	completed bool
 }
@@ -38,6 +37,7 @@ func NewGamePlayer(
 	ctx context.Context,
 	logger log.Logger,
 	cfg *config.Config,
+	dir string,
 	addr common.Address,
 	txMgr txmgr.TxManager,
 	client bind.ContractCaller,
@@ -57,14 +57,12 @@ func NewGamePlayer(
 
 	var provider types.TraceProvider
 	var updater types.OracleUpdater
-	var cleanup func() error
 	switch cfg.TraceType {
 	case config.TraceTypeCannon:
-		cannonProvider, err := cannon.NewTraceProvider(ctx, logger, cfg, client, addr)
+		cannonProvider, err := cannon.NewTraceProvider(ctx, logger, cfg, client, dir, addr)
 		if err != nil {
 			return nil, fmt.Errorf("create cannon trace provider: %w", err)
 		}
-		cleanup = cannonProvider.Cleanup
 		provider = cannonProvider
 		updater, err = cannon.NewOracleUpdater(ctx, logger, txMgr, addr, client)
 		if err != nil {
@@ -72,7 +70,6 @@ func NewGamePlayer(
 		}
 	case config.TraceTypeAlphabet:
 		provider = alphabet.NewTraceProvider(cfg.AlphabetTrace, gameDepth)
-		cleanup = func() error { return nil }
 		updater = alphabet.NewOracleUpdater(logger)
 	default:
 		return nil, fmt.Errorf("unsupported trace type: %v", cfg.TraceType)
@@ -97,7 +94,6 @@ func NewGamePlayer(
 		agreeWithProposedOutput: cfg.AgreeWithProposedOutput,
 		caller:                  caller,
 		logger:                  logger,
-		cleanup:                 cleanup,
 	}, nil
 }
 
@@ -142,8 +138,4 @@ func (g *GamePlayer) logGameStatus(ctx context.Context, status types.GameStatus)
 	} else {
 		g.logger.Error("Game lost", "status", status)
 	}
-}
-
-func (g *GamePlayer) Cleanup() error {
-	return g.cleanup()
 }
