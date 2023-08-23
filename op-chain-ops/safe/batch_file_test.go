@@ -3,7 +3,7 @@ package safe
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	//"fmt"
 	"math/big"
 	"os"
 	"testing"
@@ -35,6 +35,7 @@ func testBatchJSON(t *testing.T, path string) {
 	require.JSONEq(t, string(b), string(data))
 }
 
+// TestBatchAddCallFinalizeWithdrawalTransaction ensures that structs can be serialized correctly.
 func TestBatchAddCallFinalizeWithdrawalTransaction(t *testing.T) {
 	file, err := os.ReadFile("testdata/portal-abi.json")
 	require.NoError(t, err)
@@ -58,11 +59,15 @@ func TestBatchAddCallFinalizeWithdrawalTransaction(t *testing.T) {
 	value := big.NewInt(222)
 
 	require.NoError(t, batch.AddCall(to, value, sig, argument, portalABI))
-	d, err := json.MarshalIndent(batch, " ", "  ")
+	expected, err := os.ReadFile("testdata/finalize-withdrawal-tx.json")
 	require.NoError(t, err)
-	fmt.Println(string(d))
+
+	serialized, err := json.Marshal(batch)
+	require.NoError(t, err)
+	require.JSONEq(t, string(expected), string(serialized))
 }
 
+// TestBatchAddCallDespostTransaction ensures that simple calls can be serialized correctly.
 func TestBatchAddCallDespostTransaction(t *testing.T) {
 	file, err := os.ReadFile("testdata/portal-abi.json")
 	require.NoError(t, err)
@@ -82,7 +87,10 @@ func TestBatchAddCallDespostTransaction(t *testing.T) {
 	}
 
 	require.NoError(t, batch.AddCall(to, value, sig, argument, portalABI))
-	d, err := json.MarshalIndent(batch, " ", "  ")
+	expected, err := os.ReadFile("testdata/deposit-tx.json")
 	require.NoError(t, err)
-	fmt.Println(string(d))
+
+	serialized, err := json.Marshal(batch)
+	require.NoError(t, err)
+	require.JSONEq(t, string(expected), string(serialized))
 }
