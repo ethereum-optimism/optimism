@@ -77,7 +77,7 @@ func (mbv *MockBridgeTransfersView) L2BridgeWithdrawalsByAddress(address common.
 }
 func TestHealthz(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
-	api := NewApi(&MockBridgeTransfersView{}, logger)
+	api := NewApi(logger, &MockBridgeTransfersView{})
 	request, err := http.NewRequest("GET", "/healthz", nil)
 	assert.Nil(t, err)
 
@@ -89,7 +89,7 @@ func TestHealthz(t *testing.T) {
 
 func TestL1BridgeDepositsHandler(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
-	api := NewApi(&MockBridgeTransfersView{}, logger)
+	api := NewApi(logger, &MockBridgeTransfersView{})
 	request, err := http.NewRequest("GET", fmt.Sprintf("/api/v0/deposits/%s", mockAddress), nil)
 	assert.Nil(t, err)
 
@@ -101,7 +101,7 @@ func TestL1BridgeDepositsHandler(t *testing.T) {
 
 func TestL2BridgeWithdrawalsByAddressHandler(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
-	api := NewApi(&MockBridgeTransfersView{}, logger)
+	api := NewApi(logger, &MockBridgeTransfersView{})
 	request, err := http.NewRequest("GET", fmt.Sprintf("/api/v0/withdrawals/%s", mockAddress), nil)
 	assert.Nil(t, err)
 
