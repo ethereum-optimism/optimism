@@ -22,7 +22,7 @@ import (
 // Service exposes top-level fault dispute game challenger functionality.
 type Service interface {
 	// MonitorGame monitors the fault dispute game and attempts to progress it.
-	MonitorGame(context.Context) error
+	MonitorGame(context.Context)
 }
 
 type Loader interface {
@@ -87,7 +87,9 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 		loader,
 		func(addr common.Address, dir string) (gamePlayer, error) {
 			return NewGamePlayer(ctx, logger, cfg, dir, addr, txMgr, client)
-		})
+		},
+		client,
+	)
 
 	m.RecordInfo(version.SimpleWithMeta)
 	m.RecordUp()
@@ -118,5 +120,6 @@ func ValidateAbsolutePrestate(ctx context.Context, trace types.TraceProvider, lo
 
 // MonitorGame monitors the fault dispute game and attempts to progress it.
 func (s *service) MonitorGame(ctx context.Context) error {
-	return s.monitor.MonitorGames(ctx)
+	s.monitor.MonitorGames(ctx)
+	return nil
 }

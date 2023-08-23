@@ -7,7 +7,11 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-service/clock"
+	"github.com/ethereum-optimism/optimism/op-service/eth"
+
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -38,6 +42,8 @@ type gameMonitor struct {
 	fetchBlockNumber blockNumberFetcher
 	allowedGames     []common.Address
 	players          map[common.Address]gamePlayer
+	l1HeadsSub       ethereum.Subscription
+	l1Source         eth.NewHeadSource
 }
 
 func newGameMonitor(
@@ -49,6 +55,7 @@ func newGameMonitor(
 	allowedGames []common.Address,
 	source gameSource,
 	createGame playerCreator,
+	l1Source eth.NewHeadSource,
 ) *gameMonitor {
 	return &gameMonitor{
 		logger:           logger,
@@ -60,6 +67,7 @@ func newGameMonitor(
 		fetchBlockNumber: fetchBlockNumber,
 		allowedGames:     allowedGames,
 		players:          make(map[common.Address]gamePlayer),
+		l1Source:         l1Source,
 	}
 }
 
@@ -140,29 +148,34 @@ func (m *gameMonitor) fetchOrCreateGamePlayer(gameData FaultDisputeGame) (gamePl
 	return player, nil
 }
 
-func (m *gameMonitor) MonitorGames(ctx context.Context) error {
+func (m *gameMonitor) MonitorGames(ctx context.Context) {
 	m.logger.Info("Monitoring fault dispute games")
 
-	blockNum := uint64(0)
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		default:
-			nextBlockNum, err := m.fetchBlockNumber(ctx)
-			if err != nil {
-				m.logger.Error("Failed to load current block number", "err", err)
-				continue
-			}
-			if nextBlockNum > blockNum {
-				blockNum = nextBlockNum
-				if err := m.progressGames(ctx, nextBlockNum); err != nil {
-					m.logger.Error("Failed to progress games", "err", err)
-				}
-			}
-			if err := m.clock.SleepCtx(ctx, time.Second); err != nil {
-				return err
-			}
+	onNewL1Head := func(ctx context.Context, sig eth.L1BlockRef) {
+		if err := m.progressGames(ctx, sig.Number); err != nil {
+			m.logger.Error("Failed to progress games", "err", err)
 		}
 	}
+
+	resubFn := func(innerCtx context.Context, err error) (event.Subscription, error) {
+		if err != nil {
+			m.logger.Warn("resubscribing after failed L1 subscription", "err", err)
+		}
+		return eth.WatchHeadChanges(ctx, m.l1Source, onNewL1Head)
+	}
+
+	m.l1HeadsSub = event.ResubscribeErr(10*time.Second, resubFn)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case err, ok := <-m.l1HeadsSub.Err():
+				if !ok {
+					return
+				}
+				m.logger.Error("l1 heads subscription error", "err", err)
+			}
+		}
+	}()
 }
