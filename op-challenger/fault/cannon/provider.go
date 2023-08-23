@@ -68,7 +68,7 @@ func NewTraceProvider(ctx context.Context, logger log.Logger, cfg *config.Config
 }
 
 func NewTraceProviderFromInputs(logger log.Logger, cfg *config.Config, gameDirName string, localInputs LocalGameInputs) *CannonTraceProvider {
-	dir := filepath.Join(cfg.CannonDatadir, gameDirName)
+	dir := filepath.Join(cfg.Datadir, gameDirName)
 	return &CannonTraceProvider{
 		logger:    logger,
 		dir:       dir,
