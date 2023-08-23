@@ -27,24 +27,6 @@ func TestProgressGame_LogErrorFromAct(t *testing.T) {
 	require.Equal(t, uint64(1), msg.GetContextValue("claims"))
 }
 
-func TestCleanup(t *testing.T) {
-	t.Run("default cleanup", func(t *testing.T) {
-		game := &GamePlayer{
-			cleanup: func() error { return nil },
-		}
-		require.NoError(t, game.Cleanup())
-	})
-
-	t.Run("cleanup bubbles up error", func(t *testing.T) {
-		err := errors.New("wassie")
-		game := &GamePlayer{
-			cleanup: func() error { return err },
-		}
-		require.Error(t, err, game.Cleanup())
-	})
-
-}
-
 func TestProgressGame_LogGameStatus(t *testing.T) {
 	tests := []struct {
 		name            string

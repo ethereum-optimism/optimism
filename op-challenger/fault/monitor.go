@@ -13,10 +13,9 @@ import (
 
 type gamePlayer interface {
 	ProgressGame(ctx context.Context) bool
-	Cleanup() error
 }
 
-type playerCreator func(address common.Address) (gamePlayer, error)
+type playerCreator func(address common.Address, dir string) (gamePlayer, error)
 type blockNumberFetcher func(ctx context.Context) (uint64, error)
 
 // gameSource loads information about the games available to play
@@ -24,9 +23,15 @@ type gameSource interface {
 	FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockNumber *big.Int) ([]FaultDisputeGame, error)
 }
 
+type gameDiskAllocator interface {
+	DirForGame(common.Address) string
+	RemoveGameData(common.Address) error
+}
+
 type gameMonitor struct {
 	logger           log.Logger
 	clock            clock.Clock
+	diskManager      gameDiskAllocator
 	source           gameSource
 	gameWindow       time.Duration
 	createPlayer     playerCreator
@@ -35,10 +40,20 @@ type gameMonitor struct {
 	players          map[common.Address]gamePlayer
 }
 
-func newGameMonitor(logger log.Logger, gameWindow time.Duration, cl clock.Clock, fetchBlockNumber blockNumberFetcher, allowedGames []common.Address, source gameSource, createGame playerCreator) *gameMonitor {
+func newGameMonitor(
+	logger log.Logger,
+	gameWindow time.Duration,
+	cl clock.Clock,
+	disk gameDiskAllocator,
+	fetchBlockNumber blockNumberFetcher,
+	allowedGames []common.Address,
+	source gameSource,
+	createGame playerCreator,
+) *gameMonitor {
 	return &gameMonitor{
 		logger:           logger,
 		clock:            cl,
+		diskManager:      disk,
 		source:           source,
 		gameWindow:       gameWindow,
 		createPlayer:     createGame,
@@ -98,7 +113,7 @@ func (m *gameMonitor) progressGames(ctx context.Context) error {
 			// Remove resources on disk as soon as the game is complete to save disk space.
 			// We keep the player in memory to avoid recreating it on every update but will no longer
 			// need the resources on disk because there are no further actions required on the game.
-			if err := player.Cleanup(); err != nil {
+			if err := m.diskManager.RemoveGameData(game.Proxy); err != nil {
 				m.logger.Error("Unable to cleanup player data", "err", err)
 			}
 		}
@@ -118,7 +133,7 @@ func (m *gameMonitor) fetchOrCreateGamePlayer(gameData FaultDisputeGame) (gamePl
 	if player, ok := m.players[gameData.Proxy]; ok {
 		return player, nil
 	}
-	player, err := m.createPlayer(gameData.Proxy)
+	player, err := m.createPlayer(gameData.Proxy, m.diskManager.DirForGame(gameData.Proxy))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create game player %v: %w", gameData.Proxy, err)
 	}
