@@ -23,9 +23,11 @@ import (
 )
 
 type Helper struct {
-	log    log.Logger
-	cancel func()
-	errors chan error
+	log     log.Logger
+	require *require.Assertions
+	dir     string
+	cancel  func()
+	errors  chan error
 }
 
 type Option func(config2 *config.Config)
@@ -105,9 +107,11 @@ func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name st
 		errCh <- op_challenger.Main(ctx, log, cfg)
 	}()
 	return &Helper{
-		log:    log,
-		cancel: cancel,
-		errors: errCh,
+		log:     log,
+		require: require.New(t),
+		dir:     cfg.Datadir,
+		cancel:  cancel,
+		errors:  errCh,
 	}
 }
 
@@ -154,4 +158,26 @@ func (h *Helper) Close() error {
 		}
 		return nil
 	}
+}
+
+type GameAddr interface {
+	Addr() common.Address
+}
+
+func (h *Helper) VerifyGameDataExists(games ...GameAddr) {
+	for _, game := range games {
+		addr := game.Addr()
+		h.require.DirExistsf(h.gameDataDir(addr), "should have data for game %v", addr)
+	}
+}
+
+func (h *Helper) VerifyNoGameDataExists(games ...GameAddr) {
+	for _, game := range games {
+		addr := game.Addr()
+		h.require.NoDirExistsf(h.gameDataDir(addr), "should have data for game %v", addr)
+	}
+}
+
+func (h *Helper) gameDataDir(addr common.Address) string {
+	return filepath.Join(h.dir, addr.Hex())
 }
