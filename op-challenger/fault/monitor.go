@@ -87,11 +87,7 @@ func (m *gameMonitor) minGameTimestamp() uint64 {
 	return 0
 }
 
-func (m *gameMonitor) progressGames(ctx context.Context) error {
-	blockNum, err := m.fetchBlockNumber(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to load current block number: %w", err)
-	}
+func (m *gameMonitor) progressGames(ctx context.Context, blockNum uint64) error {
 	games, err := m.source.FetchAllGamesAtBlock(ctx, m.minGameTimestamp(), new(big.Int).SetUint64(blockNum))
 	if err != nil {
 		return fmt.Errorf("failed to load games: %w", err)
@@ -147,13 +143,26 @@ func (m *gameMonitor) fetchOrCreateGamePlayer(gameData FaultDisputeGame) (gamePl
 func (m *gameMonitor) MonitorGames(ctx context.Context) error {
 	m.logger.Info("Monitoring fault dispute games")
 
+	blockNum := uint64(0)
 	for {
-		err := m.progressGames(ctx)
-		if err != nil {
-			m.logger.Error("Failed to progress games", "err", err)
-		}
-		if err := m.clock.SleepCtx(ctx, 300*time.Millisecond); err != nil {
-			return err
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			nextBlockNum, err := m.fetchBlockNumber(ctx)
+			if err != nil {
+				m.logger.Error("Failed to load current block number", "err", err)
+				continue
+			}
+			if nextBlockNum > blockNum {
+				blockNum = nextBlockNum
+				if err := m.progressGames(ctx, nextBlockNum); err != nil {
+					m.logger.Error("Failed to progress games", "err", err)
+				}
+			}
+			if err := m.clock.SleepCtx(ctx, time.Second); err != nil {
+				return err
+			}
 		}
 	}
 }
