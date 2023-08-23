@@ -179,5 +179,5 @@ func (h *Helper) VerifyNoGameDataExists(games ...GameAddr) {
 }
 
 func (h *Helper) gameDataDir(addr common.Address) string {
-	return filepath.Join(h.dir, addr.Hex())
+	return filepath.Join(h.dir, "game-"+addr.Hex())
 }
