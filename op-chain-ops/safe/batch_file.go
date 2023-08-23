@@ -4,6 +4,7 @@
 package safe
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"golang.org/x/exp/maps"
@@ -13,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // Batch represents a Safe tx-builder transaction.
@@ -93,6 +95,16 @@ func (b *Batch) AddCall(to common.Address, value *big.Int, sig string, args []an
 	return nil
 }
 
+// Check will check the batch for errors
+func (b *Batch) Check() error {
+	for _, tx := range b.Transactions {
+		if err := tx.Check(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // bathcFileMarshaling is a helper type used for JSON marshaling.
 type batchMarshaling struct {
 	Version      string             `json:"version"`
@@ -154,6 +166,48 @@ type BatchTransaction struct {
 	InputValues map[string]string `json:"contractInputsValues"`
 }
 
+// Check will check the batch transaction for errors.
+// An error is defined by:
+// - incorrectly encoded calldata
+// - mismatch in number of arguments
+func (bt *BatchTransaction) Check() error {
+	if len(bt.Method.Inputs) != len(bt.InputValues) {
+		return fmt.Errorf("expected %d inputs but got %d", len(bt.Method.Inputs), len(bt.InputValues))
+	}
+
+	if len(bt.Data) > 0 && bt.Method.Name != "fallback" {
+		if len(bt.Data) < 4 {
+			return fmt.Errorf("must have at least 4 bytes of calldata, got %d", len(bt.Data))
+		}
+		sig := bt.Signature()
+		selector := crypto.Keccak256([]byte(sig))[0:4]
+		if !bytes.Equal(bt.Data[0:4], selector) {
+			return fmt.Errorf("data does not match signature")
+		}
+	}
+	return nil
+}
+
+// Signature returns the function signature of the batch transaction.
+func (bt *BatchTransaction) Signature() string {
+	types := make([]string, len(bt.Method.Inputs))
+	for i, input := range bt.Method.Inputs {
+		types[i] = buildFunctionSignature(input)
+	}
+	return fmt.Sprintf("%s(%s)", bt.Method.Name, strings.Join(types, ","))
+}
+
+func buildFunctionSignature(input ContractInput) string {
+	if input.Type == "tuple" {
+		types := make([]string, len(input.Components))
+		for i, component := range input.Components {
+			types[i] = buildFunctionSignature(component)
+		}
+		return fmt.Sprintf("(%s)", strings.Join(types, ","))
+	}
+	return input.InternalType
+}
+
 // UnmarshalJSON will unmarshal a BatchTransaction from JSON.
 func (b *BatchTransaction) UnmarshalJSON(data []byte) error {
 	var bt batchTransactionMarshaling
@@ -162,6 +216,9 @@ func (b *BatchTransaction) UnmarshalJSON(data []byte) error {
 	}
 	b.To = common.HexToAddress(bt.To)
 	b.Value = new(big.Int).SetUint64(bt.Value)
+	if bt.Data != nil {
+		b.Data = common.CopyBytes(*bt.Data)
+	}
 	b.Method = bt.Method
 	b.InputValues = bt.InputValues
 	return nil

@@ -3,7 +3,7 @@ package safe
 import (
 	"bytes"
 	"encoding/json"
-	//"fmt"
+	"errors"
 	"math/big"
 	"os"
 	"testing"
@@ -59,6 +59,9 @@ func TestBatchAddCallFinalizeWithdrawalTransaction(t *testing.T) {
 	value := big.NewInt(222)
 
 	require.NoError(t, batch.AddCall(to, value, sig, argument, portalABI))
+	require.NoError(t, batch.Check())
+	require.Equal(t, batch.Transactions[0].Signature(), "finalizeWithdrawalTransaction((uint256,address,address,uint256,uint256,bytes))")
+
 	expected, err := os.ReadFile("testdata/finalize-withdrawal-tx.json")
 	require.NoError(t, err)
 
@@ -87,10 +90,67 @@ func TestBatchAddCallDespostTransaction(t *testing.T) {
 	}
 
 	require.NoError(t, batch.AddCall(to, value, sig, argument, portalABI))
+	require.NoError(t, batch.Check())
+	require.Equal(t, batch.Transactions[0].Signature(), "depositTransaction(address,uint256,uint64,bool,bytes)")
+
 	expected, err := os.ReadFile("testdata/deposit-tx.json")
 	require.NoError(t, err)
 
 	serialized, err := json.Marshal(batch)
 	require.NoError(t, err)
 	require.JSONEq(t, string(expected), string(serialized))
+}
+
+// TestBatchCheck checks for the various failure cases of Batch.Check
+// as well as a simple check for a valid batch.
+func TestBatchCheck(t *testing.T) {
+	cases := []struct {
+		name string
+		bt   BatchTransaction
+		err  error
+	}{
+		{
+			name: "bad-input-count",
+			bt: BatchTransaction{
+				Method: ContractMethod{},
+				InputValues: map[string]string{
+					"foo": "bar",
+				},
+			},
+			err: errors.New("expected 0 inputs but got 1"),
+		},
+		{
+			name: "bad-calldata-too-small",
+			bt: BatchTransaction{
+				Data: []byte{0x01},
+			},
+			err: errors.New("must have at least 4 bytes of calldata, got 1"),
+		},
+		{
+			name: "bad-calldata-mismatch",
+			bt: BatchTransaction{
+				Data: []byte{0x01, 0x02, 0x03, 0x04},
+				Method: ContractMethod{
+					Name: "foo",
+				},
+			},
+			err: errors.New("data does not match signature"),
+		},
+		{
+			name: "good-calldata",
+			bt: BatchTransaction{
+				Data: []byte{0xc2, 0x98, 0x55, 0x78},
+				Method: ContractMethod{
+					Name: "foo",
+				},
+			},
+			err: nil,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.err, tc.bt.Check())
+		})
+	}
 }

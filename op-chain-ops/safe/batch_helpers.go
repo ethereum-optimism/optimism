@@ -162,3 +162,16 @@ func stringifyType(t abi.Type) (string, error) {
 		return "", fmt.Errorf("unknown type: %d", t.T)
 	}
 }
+
+// buildFunctionSignature builds a function signature from a ContractInput.
+// It is recursive to handle tuples.
+func buildFunctionSignature(input ContractInput) string {
+	if input.Type == "tuple" {
+		types := make([]string, len(input.Components))
+		for i, component := range input.Components {
+			types[i] = buildFunctionSignature(component)
+		}
+		return fmt.Sprintf("(%s)", strings.Join(types, ","))
+	}
+	return input.InternalType
+}
