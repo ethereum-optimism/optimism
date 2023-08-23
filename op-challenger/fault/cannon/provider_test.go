@@ -196,7 +196,7 @@ func TestUseGameSpecificSubdir(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
 	cfg := &config.Config{
 		CannonAbsolutePreState: filepath.Join(tempDir, "state.json"),
-		CannonDatadir:          dataDir,
+		Datadir:                dataDir,
 	}
 	gameDirName := "gameSubdir"
 	localInputs := LocalGameInputs{}
