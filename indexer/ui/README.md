@@ -7,7 +7,7 @@ A simple UI for exploring the indexer DB using [Prisma studio](https://www.prism
 Included in the docker-compose file as `ui` service
 
 ```bash
-docker-compose up
+docker compose up
 ```
 
 Prisma can be viewed at [localhost:5555](http://localhost:5555)

@@ -175,7 +175,7 @@ func (h *FactoryHelper) StartCannonGameWithCorrectRoot(ctx context.Context, roll
 		L2Claim:       challengedOutput.OutputRoot,
 		L2BlockNumber: challengedOutput.L2BlockNumber,
 	}
-	provider := cannon.NewTraceProviderFromInputs(testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"), cfg, "correct", inputs)
+	provider := cannon.NewTraceProviderFromInputs(testlog.Logger(h.t, log.LvlInfo).New("role", "CorrectTrace"), cfg, inputs, cfg.Datadir)
 	rootClaim, err := provider.Get(ctx, math.MaxUint64)
 	h.require.NoError(err, "Compute correct root hash")
 

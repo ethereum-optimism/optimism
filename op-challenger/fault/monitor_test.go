@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 )
@@ -18,20 +19,20 @@ func TestMonitorMinGameTimestamp(t *testing.T) {
 	t.Parallel()
 
 	t.Run("zero game window returns zero", func(t *testing.T) {
-		monitor, _, _ := setupMonitorTest(t, []common.Address{})
+		monitor, _, _, _ := setupMonitorTest(t, []common.Address{})
 		monitor.gameWindow = time.Duration(0)
 		require.Equal(t, monitor.minGameTimestamp(), uint64(0))
 	})
 
 	t.Run("non-zero game window with zero clock", func(t *testing.T) {
-		monitor, _, _ := setupMonitorTest(t, []common.Address{})
+		monitor, _, _, _ := setupMonitorTest(t, []common.Address{})
 		monitor.gameWindow = time.Minute
 		monitor.clock = clock.NewDeterministicClock(time.Unix(0, 0))
 		require.Equal(t, monitor.minGameTimestamp(), uint64(0))
 	})
 
 	t.Run("minimum computed correctly", func(t *testing.T) {
-		monitor, _, _ := setupMonitorTest(t, []common.Address{})
+		monitor, _, _, _ := setupMonitorTest(t, []common.Address{})
 		monitor.gameWindow = time.Minute
 		frozen := time.Unix(int64(time.Hour.Seconds()), 0)
 		monitor.clock = clock.NewDeterministicClock(frozen)
@@ -41,7 +42,7 @@ func TestMonitorMinGameTimestamp(t *testing.T) {
 }
 
 func TestMonitorExitsWhenContextDone(t *testing.T) {
-	monitor, _, _ := setupMonitorTest(t, []common.Address{common.Address{}})
+	monitor, _, _, _ := setupMonitorTest(t, []common.Address{{}})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	err := monitor.MonitorGames(ctx)
@@ -49,7 +50,7 @@ func TestMonitorExitsWhenContextDone(t *testing.T) {
 }
 
 func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
-	monitor, source, games := setupMonitorTest(t, []common.Address{})
+	monitor, source, games, _ := setupMonitorTest(t, []common.Address{})
 
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
@@ -82,7 +83,7 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 func TestMonitorOnlyCreateSpecifiedGame(t *testing.T) {
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
-	monitor, source, games := setupMonitorTest(t, []common.Address{addr2})
+	monitor, source, games, _ := setupMonitorTest(t, []common.Address{addr2})
 
 	source.games = []FaultDisputeGame{
 		{
@@ -107,7 +108,7 @@ func TestMonitorOnlyCreateSpecifiedGame(t *testing.T) {
 func TestDeletePlayersWhenNoLongerInListOfGames(t *testing.T) {
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
-	monitor, source, games := setupMonitorTest(t, nil)
+	monitor, source, games, _ := setupMonitorTest(t, nil)
 
 	allGames := []FaultDisputeGame{
 		{
@@ -147,13 +148,19 @@ func TestDeletePlayersWhenNoLongerInListOfGames(t *testing.T) {
 }
 
 func TestCleanupResourcesOfCompletedGames(t *testing.T) {
-	monitor, source, games := setupMonitorTest(t, []common.Address{})
-	games.createCompleted = true
-
 	addr1 := common.Address{0xaa}
+	addr2 := common.Address{0xbb}
+
+	monitor, source, games, disk := setupMonitorTest(t, []common.Address{})
+	games.createCompleted = addr1
+
 	source.games = []FaultDisputeGame{
 		{
 			Proxy:     addr1,
+			Timestamp: 1999,
+		},
+		{
+			Proxy:     addr2,
 			Timestamp: 9999,
 		},
 	}
@@ -161,13 +168,19 @@ func TestCleanupResourcesOfCompletedGames(t *testing.T) {
 	err := monitor.progressGames(context.Background())
 	require.NoError(t, err)
 
-	require.Len(t, games.created, 1, "should create game agents")
+	require.Len(t, games.created, 2, "should create game agents")
 	require.Contains(t, games.created, addr1)
+	require.Contains(t, games.created, addr2)
 	require.Equal(t, 1, games.created[addr1].progressCount)
-	require.Equal(t, 1, games.created[addr1].cleanupCount, "should clean up once game is done")
+	require.Equal(t, 1, games.created[addr2].progressCount)
+	require.Contains(t, disk.gameDirExists, addr1, "should have allocated a game dir for game 1")
+	require.False(t, disk.gameDirExists[addr1], "should have then deleted the game 1 dir")
+
+	require.Contains(t, disk.gameDirExists, addr2, "should have allocated a game dir for game 2")
+	require.True(t, disk.gameDirExists[addr2], "should not have deleted the game 2 dir")
 }
 
-func setupMonitorTest(t *testing.T, allowedGames []common.Address) (*gameMonitor, *stubGameSource, *createdGames) {
+func setupMonitorTest(t *testing.T, allowedGames []common.Address) (*gameMonitor, *stubGameSource, *createdGames, *stubDiskManager) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	source := &stubGameSource{}
 	games := &createdGames{
@@ -177,8 +190,11 @@ func setupMonitorTest(t *testing.T, allowedGames []common.Address) (*gameMonitor
 	fetchBlockNum := func(ctx context.Context) (uint64, error) {
 		return 1234, nil
 	}
-	monitor := newGameMonitor(logger, time.Duration(0), clock.SystemClock, fetchBlockNum, allowedGames, source, games.CreateGame)
-	return monitor, source, games
+	disk := &stubDiskManager{
+		gameDirExists: make(map[common.Address]bool),
+	}
+	monitor := newGameMonitor(logger, time.Duration(0), clock.SystemClock, disk, fetchBlockNum, allowedGames, source, games.CreateGame)
+	return monitor, source, games, disk
 }
 
 type stubGameSource struct {
@@ -192,8 +208,8 @@ func (s *stubGameSource) FetchAllGamesAtBlock(ctx context.Context, earliest uint
 type stubGame struct {
 	addr          common.Address
 	progressCount int
-	cleanupCount  int
 	done          bool
+	dir           string
 }
 
 func (g *stubGame) ProgressGame(ctx context.Context) bool {
@@ -201,22 +217,37 @@ func (g *stubGame) ProgressGame(ctx context.Context) bool {
 	return g.done
 }
 
-func (g *stubGame) Cleanup() error {
-	g.cleanupCount++
-	return nil
-}
-
 type createdGames struct {
 	t               *testing.T
-	createCompleted bool
+	createCompleted common.Address
 	created         map[common.Address]*stubGame
 }
 
-func (c *createdGames) CreateGame(addr common.Address) (gamePlayer, error) {
+func (c *createdGames) CreateGame(addr common.Address, dir string) (gamePlayer, error) {
 	if _, exists := c.created[addr]; exists {
 		c.t.Fatalf("game %v already exists", addr)
 	}
-	game := &stubGame{addr: addr, done: c.createCompleted}
+	game := &stubGame{
+		addr: addr,
+		done: addr == c.createCompleted,
+		dir:  dir,
+	}
 	c.created[addr] = game
 	return game, nil
+}
+
+type stubDiskManager struct {
+	gameDirExists map[common.Address]bool
+}
+
+func (s *stubDiskManager) DirForGame(addr common.Address) string {
+	s.gameDirExists[addr] = true
+	return addr.Hex()
+}
+
+func (s *stubDiskManager) RemoveAllExcept(addrs []common.Address) error {
+	for address := range s.gameDirExists {
+		s.gameDirExists[address] = slices.Contains(addrs, address)
+	}
+	return nil
 }

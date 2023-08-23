@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/cannon/mipsevm"
-	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/common"
@@ -187,29 +186,6 @@ func TestAbsolutePreState(t *testing.T) {
 		}
 		require.Equal(t, state.EncodeWitness(), preState)
 	})
-}
-
-func TestUseGameSpecificSubdir(t *testing.T) {
-	tempDir := t.TempDir()
-	dataDir := filepath.Join(tempDir, "data")
-	setupPreState(t, tempDir, "state.json")
-	logger := testlog.Logger(t, log.LvlInfo)
-	cfg := &config.Config{
-		CannonAbsolutePreState: filepath.Join(tempDir, "state.json"),
-		Datadir:                dataDir,
-	}
-	gameDirName := "gameSubdir"
-	localInputs := LocalGameInputs{}
-	provider := NewTraceProviderFromInputs(logger, cfg, gameDirName, localInputs)
-	require.Equal(t, filepath.Join(dataDir, gameDirName), provider.dir, "should use game specific subdir")
-}
-
-func TestCleanup(t *testing.T) {
-	dataDir, prestate := setupTestData(t)
-	provider, _ := setupWithTestData(t, dataDir, prestate)
-	require.NoError(t, provider.Cleanup())
-	_, err := os.Stat(dataDir)
-	require.ErrorIs(t, err, os.ErrNotExist)
 }
 
 func setupPreState(t *testing.T, dataDir string, filename string) {
