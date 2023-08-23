@@ -197,17 +197,6 @@ func (bt *BatchTransaction) Signature() string {
 	return fmt.Sprintf("%s(%s)", bt.Method.Name, strings.Join(types, ","))
 }
 
-func buildFunctionSignature(input ContractInput) string {
-	if input.Type == "tuple" {
-		types := make([]string, len(input.Components))
-		for i, component := range input.Components {
-			types[i] = buildFunctionSignature(component)
-		}
-		return fmt.Sprintf("(%s)", strings.Join(types, ","))
-	}
-	return input.InternalType
-}
-
 // UnmarshalJSON will unmarshal a BatchTransaction from JSON.
 func (b *BatchTransaction) UnmarshalJSON(data []byte) error {
 	var bt batchTransactionMarshaling
