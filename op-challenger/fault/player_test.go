@@ -115,7 +115,7 @@ func setupProgressGameTest(t *testing.T, agreeWithProposedRoot bool) (*testlog.C
 	game := &GamePlayer{
 		agent:                   gameState,
 		agreeWithProposedOutput: agreeWithProposedRoot,
-		caller:                  gameState,
+		loader:                  gameState,
 		logger:                  logger,
 	}
 	return handler, game, gameState

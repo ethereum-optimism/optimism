@@ -19,11 +19,14 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// Service provides a clean interface for the challenger to interact
-// with the fault package.
+// Service exposes top-level fault dispute game challenger functionality.
 type Service interface {
 	// MonitorGame monitors the fault dispute game and attempts to progress it.
 	MonitorGame(context.Context) error
+}
+
+type Loader interface {
+	FetchAbsolutePrestateHash(ctx context.Context) ([]byte, error)
 }
 
 type service struct {

@@ -19,9 +19,13 @@ type Responder interface {
 	Step(ctx context.Context, stepData types.StepCallData) error
 }
 
+type ClaimLoader interface {
+	FetchClaims(ctx context.Context) ([]types.Claim, error)
+}
+
 type Agent struct {
 	solver                  *solver.Solver
-	loader                  Loader
+	loader                  ClaimLoader
 	responder               Responder
 	updater                 types.OracleUpdater
 	maxDepth                int
@@ -29,7 +33,7 @@ type Agent struct {
 	log                     log.Logger
 }
 
-func NewAgent(loader Loader, maxDepth int, trace types.TraceProvider, responder Responder, updater types.OracleUpdater, agreeWithProposedOutput bool, log log.Logger) *Agent {
+func NewAgent(loader ClaimLoader, maxDepth int, trace types.TraceProvider, responder Responder, updater types.OracleUpdater, agreeWithProposedOutput bool, log log.Logger) *Agent {
 	return &Agent{
 		solver:                  solver.NewSolver(maxDepth, trace),
 		loader:                  loader,

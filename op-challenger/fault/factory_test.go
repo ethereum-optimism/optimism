@@ -6,10 +6,10 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
+
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-
 	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -143,6 +143,9 @@ func newMockMinimalDisputeGameFactoryCaller(count uint64, gameCountErr bool, ind
 		gameCount:    count,
 		games:        generateMockGames(count),
 	}
+}
+func (m *mockMinimalDisputeGameFactoryCaller) Status(opts *bind.CallOpts) (uint8, error) {
+	return uint8(types.GameStatusInProgress), nil
 }
 
 func (m *mockMinimalDisputeGameFactoryCaller) GameCount(opts *bind.CallOpts) (*big.Int, error) {
