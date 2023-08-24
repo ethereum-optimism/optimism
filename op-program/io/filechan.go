@@ -1,6 +1,7 @@
 package io
 
 import (
+	"errors"
 	"io"
 	"os"
 )
@@ -41,10 +42,7 @@ func (rw *ReadWritePair) Writer() *os.File {
 }
 
 func (rw *ReadWritePair) Close() error {
-	if err := rw.r.Close(); err != nil {
-		return err
-	}
-	return rw.w.Close()
+	return errors.Join(rw.r.Close(), rw.w.Close())
 }
 
 // CreateBidirectionalChannel creates a pair of FileChannels that are connected to each other.
