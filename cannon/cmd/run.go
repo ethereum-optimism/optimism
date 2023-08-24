@@ -82,6 +82,8 @@ var (
 	}
 )
 
+var preimageResponseTimeout = time.Minute * 1
+
 type Proof struct {
 	Step uint64 `json:"step"`
 
@@ -130,6 +132,9 @@ func NewProcessPreimageOracle(name string, args []string) (*ProcessPreimageOracl
 	if err != nil {
 		return nil, err
 	}
+
+	// Avoids blocking on pre-image reads when the oracle server closes the write end of the pipe.
+	pClientRW.Reader().SetReadDeadline(time.Now().Add(preimageResponseTimeout))
 
 	cmd := exec.Command(name, args...) // nosemgrep
 	cmd.Stdout = os.Stdout
