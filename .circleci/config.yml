@@ -393,7 +393,7 @@ jobs:
           command: pnpm install --frozen-lockfile --prefer-offline
       - run:
           name: build contracts
-          command: pnpm build
+          command: pnpm build && git diff --exit-code
           working_directory: packages/contracts-bedrock
       - run:
           name: lint

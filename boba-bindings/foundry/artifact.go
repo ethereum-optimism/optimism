@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/bobanetwork/v3-anchorage/boba-bindings/solc"
-	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ledgerwatch/erigon-lib/common/hexutility"
 )
 
 // Artifact represents a foundry compilation artifact.
@@ -19,14 +19,14 @@ type Artifact struct {
 }
 
 type DeployedBytecode struct {
-	SourceMap           string          `json:"sourceMap"`
-	Object              hexutil.Bytes   `json:"object"`
-	LinkReferences      json.RawMessage `json:"linkReferences"`
-	ImmutableReferences json.RawMessage `json:"immutableReferences"`
+	SourceMap           string           `json:"sourceMap"`
+	Object              hexutility.Bytes `json:"object"`
+	LinkReferences      json.RawMessage  `json:"linkReferences"`
+	ImmutableReferences json.RawMessage  `json:"immutableReferences"`
 }
 
 type Bytecode struct {
-	SourceMap      string          `json:"sourceMap"`
-	Object         hexutil.Bytes   `json:"object"`
-	LinkReferences json.RawMessage `json:"linkReferences"`
+	SourceMap      string           `json:"sourceMap"`
+	Object         hexutility.Bytes `json:"object"`
+	LinkReferences json.RawMessage  `json:"linkReferences"`
 }

@@ -28,3 +28,6 @@ boba-devnet:
 
 boba-connect:
 	go build -o ./bin/boba-connect ./cmd/boba-connect
+
+lint:
+	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...

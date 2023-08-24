@@ -7,7 +7,7 @@ optimizer_runs = 999999
 
 remappings = [
   '@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts',
-  '@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts',
+  '@openzeppelin/contracts/=lib/openzeppelin-contracts-patched/contracts',
   '@rari-capital/solmate/=lib/solmate',
   "@cwia/=lib/clones-with-immutable-args/src",
   'forge-std/=lib/forge-std/src',
