@@ -65,8 +65,7 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 		},
 	}
 
-	err := monitor.progressGames(context.Background())
-	require.NoError(t, err)
+	require.NoError(t, monitor.progressGames(context.Background(), uint64(1)))
 
 	require.Len(t, games.created, 2, "should create game agents")
 	require.Contains(t, games.created, addr1)
@@ -75,7 +74,7 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 	require.Equal(t, 1, games.created[addr2].progressCount)
 
 	// The stub will fail the test if a game is created with the same address multiple times
-	require.NoError(t, monitor.progressGames(context.Background()), "should only create games once")
+	require.NoError(t, monitor.progressGames(context.Background(), uint64(2)), "should only create games once")
 	require.Equal(t, 2, games.created[addr1].progressCount)
 	require.Equal(t, 2, games.created[addr2].progressCount)
 }
@@ -96,8 +95,7 @@ func TestMonitorOnlyCreateSpecifiedGame(t *testing.T) {
 		},
 	}
 
-	err := monitor.progressGames(context.Background())
-	require.NoError(t, err)
+	require.NoError(t, monitor.progressGames(context.Background(), uint64(1)))
 
 	require.Len(t, games.created, 1, "should only create allowed game")
 	require.Contains(t, games.created, addr2)
@@ -122,14 +120,14 @@ func TestDeletePlayersWhenNoLongerInListOfGames(t *testing.T) {
 	}
 	source.games = allGames
 
-	require.NoError(t, monitor.progressGames(context.Background()))
+	require.NoError(t, monitor.progressGames(context.Background(), uint64(1)))
 	require.Len(t, games.created, 2)
 	require.Contains(t, games.created, addr1)
 	require.Contains(t, games.created, addr2)
 
 	// First game is now old enough it's not returned in the list of active games
 	source.games = source.games[1:]
-	require.NoError(t, monitor.progressGames(context.Background()))
+	require.NoError(t, monitor.progressGames(context.Background(), uint64(2)))
 	require.Len(t, games.created, 2)
 	require.Contains(t, games.created, addr1)
 	require.Contains(t, games.created, addr2)
@@ -139,7 +137,7 @@ func TestDeletePlayersWhenNoLongerInListOfGames(t *testing.T) {
 
 	// First game now reappears (inexplicably but usefully for our testing)
 	source.games = allGames
-	require.NoError(t, monitor.progressGames(context.Background()))
+	require.NoError(t, monitor.progressGames(context.Background(), uint64(3)))
 	// A new player is created for it because the original was deleted
 	require.Len(t, games.created, 2)
 	require.Contains(t, games.created, addr1)
@@ -165,7 +163,7 @@ func TestCleanupResourcesOfCompletedGames(t *testing.T) {
 		},
 	}
 
-	err := monitor.progressGames(context.Background())
+	err := monitor.progressGames(context.Background(), uint64(1))
 	require.NoError(t, err)
 
 	require.Len(t, games.created, 2, "should create game agents")
@@ -187,8 +185,10 @@ func setupMonitorTest(t *testing.T, allowedGames []common.Address) (*gameMonitor
 		t:       t,
 		created: make(map[common.Address]*stubGame),
 	}
+	i := uint64(1)
 	fetchBlockNum := func(ctx context.Context) (uint64, error) {
-		return 1234, nil
+		i++
+		return i, nil
 	}
 	disk := &stubDiskManager{
 		gameDirExists: make(map[common.Address]bool),
