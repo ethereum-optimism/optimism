@@ -1,6 +1,4 @@
 {
-  "numDeployConfirmations": 1,
-
   "finalSystemOwner": "ADMIN",
   "portalGuardian": "ADMIN",
 
@@ -9,6 +7,7 @@
   "l1ChainID": 5,
   "l2ChainID": 42069,
   "l2BlockTime": 2,
+  "l1BlockTime": 12,
 
   "maxSequencerDrift": 600,
   "sequencerWindowSize": 3600,
