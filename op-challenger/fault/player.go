@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/alphabet"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/cannon"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/responder"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -79,7 +80,7 @@ func NewGamePlayer(
 		return nil, fmt.Errorf("failed to validate absolute prestate: %w", err)
 	}
 
-	responder, err := NewFaultResponder(logger, txMgr, addr)
+	responder, err := responder.NewFaultResponder(logger, txMgr, addr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create the responder: %w", err)
 	}

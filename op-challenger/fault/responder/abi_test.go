@@ -1,11 +1,9 @@
-package fault
+package responder
 
 import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
@@ -13,6 +11,9 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 )
 
 // setupFaultDisputeGame deploys the FaultDisputeGame contract to a simulated backend
@@ -26,7 +27,10 @@ func setupFaultDisputeGame() (common.Address, *bind.TransactOpts, *backends.Simu
 	if err != nil {
 		return common.Address{}, nil, nil, nil, err
 	}
-	backend := backends.NewSimulatedBackend(core.GenesisAlloc{from: {Balance: big.NewInt(params.Ether)}}, 50_000_000)
+	backend := backends.NewSimulatedBackend(
+		core.GenesisAlloc{from: {Balance: big.NewInt(params.Ether)}},
+		50_000_000,
+	)
 
 	blockHashOracle, _, _, err := bindings.DeployBlockOracle(opts, backend)
 	if err != nil {
@@ -55,9 +59,9 @@ func TestBuildFaultDefendData(t *testing.T) {
 	_, opts, _, contract, err := setupFaultDisputeGame()
 	require.NoError(t, err)
 
-	responder, _ := newTestFaultResponder(t)
+	resp, _ := newTestFaultResponder(t)
 
-	data, err := responder.buildFaultDefendData(1, [32]byte{0x02, 0x03})
+	data, err := resp.buildFaultDefendData(1, [32]byte{0x02, 0x03})
 	require.NoError(t, err)
 
 	opts.GasLimit = 100_000
@@ -72,9 +76,9 @@ func TestBuildFaultAttackData(t *testing.T) {
 	_, opts, _, contract, err := setupFaultDisputeGame()
 	require.NoError(t, err)
 
-	responder, _ := newTestFaultResponder(t)
+	resp, _ := newTestFaultResponder(t)
 
-	data, err := responder.buildFaultAttackData(1, [32]byte{0x02, 0x03})
+	data, err := resp.buildFaultAttackData(1, [32]byte{0x02, 0x03})
 	require.NoError(t, err)
 
 	opts.GasLimit = 100_000
@@ -89,9 +93,9 @@ func TestBuildFaultStepData(t *testing.T) {
 	_, opts, _, contract, err := setupFaultDisputeGame()
 	require.NoError(t, err)
 
-	responder, _ := newTestFaultResponder(t)
+	resp, _ := newTestFaultResponder(t)
 
-	data, err := responder.buildStepTxData(types.StepCallData{
+	data, err := resp.buildStepTxData(types.StepCallData{
 		ClaimIndex: 2,
 		IsAttack:   false,
 		StateData:  []byte{0x01},
