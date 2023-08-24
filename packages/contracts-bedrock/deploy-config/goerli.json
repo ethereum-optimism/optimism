@@ -38,5 +38,8 @@
   "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
   "eip1559Denominator": 50,
   "eip1559Elasticity": 10,
-  "systemConfigStartBlock": 8300214
+  "systemConfigStartBlock": 8300214,
+  "faultGameAbsolutePrestate": "0x1e3a41171e5520ed433e2394d9c5b1fc30a16234bbfb4f9790bc3184e2d8dcb4",
+  "faultGameMaxDepth": 63,
+  "faultGameMaxDuration": 1200
 }

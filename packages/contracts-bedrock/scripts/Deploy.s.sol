@@ -61,7 +61,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Deploy all of the L1 contracts
-    function run() public {
+    function run() public virtual {
         console.log("Deploying L1 system");
 
         deployProxies();
@@ -91,7 +91,7 @@ contract Deploy is Deployer {
     }
 
     /// @notice Modifier that will only allow a function to be called on devnet.
-    modifier onlyDevnet() {
+    modifier onlyDevnet() virtual {
         uint256 chainid = block.chainid;
         if (chainid == Chains.LocalDevnet || chainid == Chains.GethDevnet) {
             _;
