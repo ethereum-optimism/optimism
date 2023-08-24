@@ -25,7 +25,7 @@ var (
 )
 
 func runIndexer(ctx *cli.Context) error {
-	logger := log.NewLogger(log.ReadCLIConfig(ctx))
+	logger := log.NewLogger(log.ReadCLIConfig(ctx)).New("role", "indexer")
 	cfg, err := config.LoadConfig(logger, ctx.String(ConfigFlag.Name))
 	if err != nil {
 		logger.Error("failed to load config", "err", err)
@@ -53,7 +53,7 @@ func runIndexer(ctx *cli.Context) error {
 }
 
 func runApi(ctx *cli.Context) error {
-	logger := log.NewLogger(log.ReadCLIConfig(ctx))
+	logger := log.NewLogger(log.ReadCLIConfig(ctx)).New("role", "api")
 	cfg, err := config.LoadConfig(logger, ctx.String(ConfigFlag.Name))
 	if err != nil {
 		logger.Error("failed to load config", "err", err)
