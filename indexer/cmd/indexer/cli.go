@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"fmt"
+	"runtime/debug"
+	"sync"
 
 	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/api"
@@ -76,16 +79,44 @@ func runApi(ctx *cli.Context) error {
 	return api.Listen(apiCtx, cfg.API.Port)
 }
 
-func runAll(ctx *cli.Context) error {
-	// Run the indexer
-	go func() {
-		if err := runIndexer(ctx); err != nil {
-			log.NewLogger(log.ReadCLIConfig(ctx)).Error("Error running the indexer", "err", err)
-		}
-	}()
+func runAll(cliCtx *cli.Context) error {
+	logger := log.NewLogger(log.ReadCLIConfig(cliCtx))
 
-	// Run the API and return its error, if any
-	return runApi(ctx)
+	var wg sync.WaitGroup
+	errCh := make(chan error, 2) // represents that 2 goroutines will be running
+
+	_, sharedCancel := context.WithCancel(context.Background())
+	defer sharedCancel()
+
+	run := func(startFunc func(*cli.Context) error) {
+		wg.Add(1)
+		defer func() {
+			if err := recover(); err != nil {
+				log.NewLogger(log.ReadCLIConfig(cliCtx)).Error("halting on panic", "err", err)
+				debug.PrintStack()
+				errCh <- fmt.Errorf("panic: %v", err)
+			}
+
+			sharedCancel()
+			wg.Done()
+		}()
+
+		err := startFunc(cliCtx)
+		if err != nil {
+			logger.Error("halting on error", "err", err)
+		}
+
+		errCh <- err
+	}
+
+	go run(runIndexer)
+	go run(runApi)
+
+	err := <-errCh
+
+	wg.Wait()
+
+	return err
 }
 
 func newCli(GitCommit string, GitDate string) *cli.App {
