@@ -45,8 +45,7 @@ contract DeployFaultAlpha is Deploy {
 
     function _upgradeDisputeFactoryProxy() internal broadcast {
         Proxy(mustGetAddress("DisputeGameFactoryProxy")).upgradeToAndCall(
-            mustGetAddress("DisputeGameFactory"),
-            abi.encodeWithSignature("initialize(address)", msg.sender)
+            mustGetAddress("DisputeGameFactory"), abi.encodeWithSignature("initialize(address)", msg.sender)
         );
     }
 }

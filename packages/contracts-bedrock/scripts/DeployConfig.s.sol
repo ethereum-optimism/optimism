@@ -90,7 +90,8 @@ contract DeployConfig is Script {
         eip1559Elasticity = stdJson.readUint(_json, "$.eip1559Elasticity");
         systemConfigStartBlock = stdJson.readUint(_json, "$.systemConfigStartBlock");
 
-        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet || block.chainid == Chains.Goerli) {
+        if (block.chainid == Chains.LocalDevnet || block.chainid == Chains.GethDevnet || block.chainid == Chains.Goerli)
+        {
             faultGameAbsolutePrestate = stdJson.readUint(_json, "$.faultGameAbsolutePrestate");
             faultGameMaxDepth = stdJson.readUint(_json, "$.faultGameMaxDepth");
             faultGameMaxDuration = stdJson.readUint(_json, "$.faultGameMaxDuration");
