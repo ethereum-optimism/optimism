@@ -2,20 +2,21 @@ package scheduler
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
 
-func TestShouldProcessJobs(t *testing.T) {
+func TestWorkerShouldProcessJobsUntilContextDone(t *testing.T) {
 	in := make(chan job, 2)
 	out := make(chan job, 2)
-	w := &worker{
-		in:  in,
-		out: out,
-	}
-	w.Start(context.Background())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var wg sync.WaitGroup
+	go runWorker(ctx, in, out, &wg)
 
 	in <- job{
 		player: &stubPlayer{done: false},
@@ -29,29 +30,10 @@ func TestShouldProcessJobs(t *testing.T) {
 
 	require.Equal(t, result1.resolved, false)
 	require.Equal(t, result2.resolved, true)
-	defer w.Stop()
-}
-
-func TestWorkerStopsWhenContextDone(t *testing.T) {
-	in := make(chan job, 2)
-	out := make(chan job, 2)
-	w := &worker{
-		in:  in,
-		out: out,
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	w.Start(ctx)
-
-	// Make sure the worker is up and running
-	in <- job{
-		player: &stubPlayer{done: false},
-	}
-	readWithTimeout(t, out)
 
 	// Cancel the context which should exit the worker
 	cancel()
-	w.wg.Wait()
+	wg.Wait()
 }
 
 type stubPlayer struct {
