@@ -5,14 +5,16 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
 
 func TestDiskManager_DirForGame(t *testing.T) {
 	baseDir := t.TempDir()
 	addr := common.Address{0x53}
-	disk := newDiskManager(baseDir)
+	disk := newDiskManager(testlog.Logger(t, log.LvlInfo), baseDir)
 	result := disk.DirForGame(addr)
 	require.Equal(t, filepath.Join(baseDir, gameDirPrefix+addr.Hex()), result)
 }
@@ -21,7 +23,7 @@ func TestDiskManager_RemoveAllExcept(t *testing.T) {
 	baseDir := t.TempDir()
 	keep := common.Address{0x53}
 	delete := common.Address{0xaa}
-	disk := newDiskManager(baseDir)
+	disk := newDiskManager(testlog.Logger(t, log.LvlInfo), baseDir)
 	keepDir := disk.DirForGame(keep)
 	deleteDir := disk.DirForGame(delete)
 

@@ -27,9 +27,10 @@ type Service interface {
 }
 
 type service struct {
-	logger  log.Logger
-	metrics metrics.Metricer
-	monitor *gameMonitor
+	logger    log.Logger
+	metrics   metrics.Metricer
+	scheduler *GameScheduler
+	monitor   *gameMonitor
 }
 
 // NewService creates a new Service.
@@ -73,26 +74,28 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 	}
 	loader := NewGameLoader(factory)
 
-	disk := newDiskManager(cfg.Datadir)
+	disk := newDiskManager(logger, cfg.Datadir)
+	createPlayer := func(addr common.Address, dir string) (gamePlayer, error) {
+		return NewGamePlayer(ctx, logger, cfg, dir, addr, txMgr, client)
+	}
+	scheduler := NewGameScheduler(logger, disk, createPlayer, 2)
 	monitor := newGameMonitor(
 		logger,
 		cfg.GameWindow,
 		cl,
-		disk,
+		scheduler,
 		client.BlockNumber,
 		cfg.GameAllowlist,
-		loader,
-		func(addr common.Address, dir string) (gamePlayer, error) {
-			return NewGamePlayer(ctx, logger, cfg, dir, addr, txMgr, client)
-		})
+		loader)
 
 	m.RecordInfo(version.SimpleWithMeta)
 	m.RecordUp()
 
 	return &service{
-		logger:  logger,
-		metrics: m,
-		monitor: monitor,
+		logger:    logger,
+		metrics:   m,
+		scheduler: scheduler,
+		monitor:   monitor,
 	}, nil
 }
 
@@ -115,5 +118,6 @@ func ValidateAbsolutePrestate(ctx context.Context, trace types.TraceProvider, lo
 
 // MonitorGame monitors the fault dispute game and attempts to progress it.
 func (s *service) MonitorGame(ctx context.Context) error {
+	s.scheduler.Start(ctx) // TODO: Work out how to stop...
 	return s.monitor.MonitorGames(ctx)
 }

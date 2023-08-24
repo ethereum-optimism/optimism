@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"golang.org/x/exp/slices"
 )
 
@@ -15,11 +16,15 @@ const gameDirPrefix = "game-"
 
 // diskManager coordinates the storage of game data on disk.
 type diskManager struct {
+	logger  log.Logger
 	datadir string
 }
 
-func newDiskManager(dir string) *diskManager {
-	return &diskManager{datadir: dir}
+func newDiskManager(logger log.Logger, dir string) *diskManager {
+	return &diskManager{
+		logger:  logger,
+		datadir: dir,
+	}
 }
 
 func (d *diskManager) DirForGame(addr common.Address) string {
@@ -49,7 +54,10 @@ func (d *diskManager) RemoveAllExcept(keep []common.Address) error {
 			// Preserve data for games we should keep.
 			continue
 		}
-		errs = append(errs, os.RemoveAll(filepath.Join(d.datadir, entry.Name())))
+
+		path := filepath.Join(d.datadir, entry.Name())
+		d.logger.Info("Deleting game data", "game", addr, "dir", path)
+		errs = append(errs, os.RemoveAll(path))
 	}
 	return errors.Join(errs...)
 }
