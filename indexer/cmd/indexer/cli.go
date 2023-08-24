@@ -76,6 +76,18 @@ func runApi(ctx *cli.Context) error {
 	return api.Listen(apiCtx, cfg.API.Port)
 }
 
+func runAll(ctx *cli.Context) error {
+	// Run the indexer
+	go func() {
+		if err := runIndexer(ctx); err != nil {
+			log.NewLogger(log.ReadCLIConfig(ctx)).Error("Error running the indexer", "err", err)
+		}
+	}()
+
+	// Run the API and return its error, if any
+	return runApi(ctx)
+}
+
 func newCli(GitCommit string, GitDate string) *cli.App {
 	flags := []cli.Flag{ConfigFlag}
 	flags = append(flags, log.CLIFlags("INDEXER")...)
@@ -103,6 +115,12 @@ func newCli(GitCommit string, GitDate string) *cli.App {
 					cli.ShowVersion(ctx)
 					return nil
 				},
+			},
+			{
+				Name:        "all",
+				Flags:       flags,
+				Description: "Runs both the api service and the indexing service",
+				Action:      runAll,
 			},
 		},
 	}
