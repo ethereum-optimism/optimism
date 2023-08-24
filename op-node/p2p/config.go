@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/netutil"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/libp2p/go-libp2p"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -84,6 +85,7 @@ type Config struct {
 	AdvertiseUDPPort uint16
 	Bootnodes        []*enode.Node
 	DiscoveryDB      *enode.DB
+	NetRestrict      *netutil.Netlist
 
 	StaticPeers []core.Multiaddr
 
