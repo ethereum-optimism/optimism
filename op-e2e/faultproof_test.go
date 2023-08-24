@@ -102,7 +102,7 @@ func TestMultipleCannonGames(t *testing.T) {
 	game2.WaitForGameStatus(ctx, disputegame.StatusChallengerWins)
 
 	// Check that the game directories are removed
-	challenger.VerifyNoGameDataExists(game1, game2)
+	challenger.WaitForGameDataDeletion(ctx, game1, game2)
 }
 
 func TestResolveDisputeGame(t *testing.T) {

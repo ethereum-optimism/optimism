@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	op_challenger "github.com/ethereum-optimism/optimism/op-challenger"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/wait"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -24,6 +26,7 @@ import (
 
 type Helper struct {
 	log     log.Logger
+	t       *testing.T
 	require *require.Assertions
 	dir     string
 	cancel  func()
@@ -108,6 +111,7 @@ func NewChallenger(t *testing.T, ctx context.Context, l1Endpoint string, name st
 	}()
 	return &Helper{
 		log:     log,
+		t:       t,
 		require: require.New(t),
 		dir:     cfg.Datadir,
 		cancel:  cancel,
@@ -171,11 +175,27 @@ func (h *Helper) VerifyGameDataExists(games ...GameAddr) {
 	}
 }
 
-func (h *Helper) VerifyNoGameDataExists(games ...GameAddr) {
-	for _, game := range games {
-		addr := game.Addr()
-		h.require.NoDirExistsf(h.gameDataDir(addr), "should have data for game %v", addr)
-	}
+func (h *Helper) WaitForGameDataDeletion(ctx context.Context, games ...GameAddr) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	err := wait.For(ctx, time.Second, func() (bool, error) {
+		for _, game := range games {
+			addr := game.Addr()
+			dir := h.gameDataDir(addr)
+			_, err := os.Stat(dir)
+			if errors.Is(err, os.ErrNotExist) {
+				// This game has been successfully deleted
+				continue
+			}
+			if err != nil {
+				return false, fmt.Errorf("failed to check dir %v is deleted: %w", dir, err)
+			}
+			h.t.Errorf("Game data directory %v not yet deleted", dir)
+			return false, nil
+		}
+		return true, nil
+	})
+	h.require.NoErrorf(err, "should have deleted game data directories")
 }
 
 func (h *Helper) gameDataDir(addr common.Address) string {
