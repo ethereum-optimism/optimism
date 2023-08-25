@@ -109,7 +109,6 @@ func (c *coordinator) enqueueJob(ctx context.Context, j job) error {
 }
 
 func (c *coordinator) processResult(j job) error {
-	println("Process result")
 	state, ok := c.states[j.addr]
 	if !ok {
 		return fmt.Errorf("game %v received unexpected result: %w", j.addr, errUnknownGame)
