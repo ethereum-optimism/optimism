@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/config"
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/scheduler"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
 	"github.com/ethereum-optimism/optimism/op-challenger/metrics"
 	"github.com/ethereum-optimism/optimism/op-challenger/version"
@@ -19,24 +20,22 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// Service exposes top-level fault dispute game challenger functionality.
-type Service interface {
-	// MonitorGame monitors the fault dispute game and attempts to progress it.
-	MonitorGame(context.Context) error
-}
+// TODO(CLI-4342): Make this a cli option
+const maxConcurrency = 4
 
 type Loader interface {
 	FetchAbsolutePrestateHash(ctx context.Context) ([]byte, error)
 }
 
-type service struct {
+type Service struct {
 	logger  log.Logger
 	metrics metrics.Metricer
 	monitor *gameMonitor
+	sched   *scheduler.Scheduler
 }
 
 // NewService creates a new Service.
-func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*service, error) {
+func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*Service, error) {
 	cl := clock.SystemClock
 	m := metrics.NewMetrics()
 	txMgr, err := txmgr.NewSimpleTxManager("challenger", logger, &m.TxMetrics, cfg.TxMgrConfig)
@@ -77,25 +76,24 @@ func NewService(ctx context.Context, logger log.Logger, cfg *config.Config) (*se
 	loader := NewGameLoader(factory)
 
 	disk := newDiskManager(cfg.Datadir)
-	monitor := newGameMonitor(
+	sched := scheduler.NewScheduler(
 		logger,
-		cfg.GameWindow,
-		cl,
 		disk,
-		client.BlockNumber,
-		cfg.GameAllowlist,
-		loader,
-		func(addr common.Address, dir string) (gamePlayer, error) {
+		maxConcurrency,
+		func(addr common.Address, dir string) (scheduler.GamePlayer, error) {
 			return NewGamePlayer(ctx, logger, cfg, dir, addr, txMgr, client)
 		})
+
+	monitor := newGameMonitor(logger, cl, loader, sched, cfg.GameWindow, client.BlockNumber, cfg.GameAllowlist)
 
 	m.RecordInfo(version.SimpleWithMeta)
 	m.RecordUp()
 
-	return &service{
+	return &Service{
 		logger:  logger,
 		metrics: m,
 		monitor: monitor,
+		sched:   sched,
 	}, nil
 }
 
@@ -117,6 +115,8 @@ func ValidateAbsolutePrestate(ctx context.Context, trace types.TraceProvider, lo
 }
 
 // MonitorGame monitors the fault dispute game and attempts to progress it.
-func (s *service) MonitorGame(ctx context.Context) error {
+func (s *Service) MonitorGame(ctx context.Context) error {
+	s.sched.Start(ctx)
+	defer s.sched.Close()
 	return s.monitor.MonitorGames(ctx)
 }
