@@ -1357,6 +1357,11 @@ workflows:
           module: op-e2e
           use_http: "false"
           use_external: "external_geth"
+      - go-e2e-test:
+          name: op-e2e-WS-tests-external-erigon
+          module: op-e2e
+          use_http: "false"
+          use_external: "external_erigon"
       - bedrock-go-tests:
           requires:
             - boba-bindings-lint
