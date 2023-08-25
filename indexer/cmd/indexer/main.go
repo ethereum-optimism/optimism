@@ -14,7 +14,7 @@ var (
 )
 
 func main() {
-	// This is the most root context, used to propogate
+	// This is the most root context, used to propagate
 	// cancellations to all spawned application-level goroutines
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
