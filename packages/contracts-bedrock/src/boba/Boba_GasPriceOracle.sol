@@ -21,16 +21,20 @@ contract Boba_GasPriceOracle {
     using SafeERC20 for IERC20;
     using SafeMath for uint256;
 
-    /*************
+    /**
+     *
      * Constants *
-     *************/
+     *
+     */
 
     // Minimum BOBA balance that can be withdrawn in a single withdrawal.
     uint256 public constant MIN_WITHDRAWAL_AMOUNT = 150e18;
 
-    /*************
+    /**
+     *
      * Variables *
-     *************/
+     *
+     */
 
     // Owner address
     address private _owner;
@@ -66,9 +70,11 @@ contract Boba_GasPriceOracle {
     // Price ratio without discount
     uint256 public marketPriceRatio;
 
-    /*************
+    /**
+     *
      *  Events   *
-     *************/
+     *
+     */
 
     event TransferOwnership(address, address);
     event UseBobaAsFeeToken(address);
@@ -83,9 +89,11 @@ contract Boba_GasPriceOracle {
     event WithdrawBOBA(address, address);
     event WithdrawETH(address, address);
 
-    /**********************
+    /**
+     *
      * Function Modifiers *
-     **********************/
+     *
+     */
 
     modifier onlyNotInitialized() {
         require(address(feeWallet) == address(0), "Contract has been initialized");
@@ -97,18 +105,22 @@ contract Boba_GasPriceOracle {
         _;
     }
 
-    /********************
+    /**
+     *
      * Fall back Functions *
-     ********************/
+     *
+     */
 
     /**
      * Receive ETH
      */
-    receive() external payable {}
+    receive() external payable { }
 
-    /********************
+    /**
+     *
      * Public Functions *
-     ********************/
+     *
+     */
 
     /**
      * transfer ownership
@@ -131,10 +143,7 @@ contract Boba_GasPriceOracle {
     /**
      * Initialize feeWallet and l2BobaAddress.
      */
-    function initialize(address payable _feeWallet, address _l2BobaAddress)
-        public
-        onlyNotInitialized
-    {
+    function initialize(address payable _feeWallet, address _l2BobaAddress) public onlyNotInitialized {
         require(_feeWallet != address(0) && _l2BobaAddress != address(0));
         feeWallet = _feeWallet;
         l2BobaAddress = _l2BobaAddress;
@@ -155,10 +164,7 @@ contract Boba_GasPriceOracle {
     function useBobaAsFeeToken() public {
         require(!Address.isContract(msg.sender), "Account not EOA");
         // Users should have more than 3 BOBA
-        require(
-            L2GovernanceERC20(l2BobaAddress).balanceOf(msg.sender) >= 3e18,
-            "Insufficient Boba balance"
-        );
+        require(L2GovernanceERC20(l2BobaAddress).balanceOf(msg.sender) >= 3e18, "Insufficient Boba balance");
         bobaFeeTokenUsers[msg.sender] = true;
         emit UseBobaAsFeeToken(msg.sender);
     }
@@ -176,7 +182,9 @@ contract Boba_GasPriceOracle {
         uint8 v,
         bytes32 r,
         bytes32 s
-    ) public {
+    )
+        public
+    {
         require(!Address.isContract(tokenOwner), "Account not EOA");
         require(spender == address(this), "Spender is not this contract");
         uint256 totalCost = receivedETHAmount.mul(marketPriceRatio).add(metaTransactionFee);
@@ -186,7 +194,7 @@ contract Boba_GasPriceOracle {
         // slither-disable-next-line arbitrary-send-erc20-permit
         IERC20(l2BobaAddress).safeTransferFrom(tokenOwner, address(this), totalCost);
         // slither-disable-next-line arbitrary-send-eth
-        (bool sent, ) = address(tokenOwner).call{ value: receivedETHAmount }("");
+        (bool sent,) = address(tokenOwner).call{ value: receivedETHAmount }("");
         require(sent, "Failed to send ETH");
         emit SwapBOBAForETHMetaTransaction(tokenOwner);
     }
@@ -293,11 +301,7 @@ contract Boba_GasPriceOracle {
         );
 
         L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).withdrawTo(
-            l2BobaAddress,
-            feeWallet,
-            L2GovernanceERC20(l2BobaAddress).balanceOf(address(this)),
-            0,
-            bytes("")
+            l2BobaAddress, feeWallet, L2GovernanceERC20(l2BobaAddress).balanceOf(address(this)), 0, bytes("")
         );
         emit WithdrawBOBA(owner(), feeWallet);
     }
@@ -306,7 +310,7 @@ contract Boba_GasPriceOracle {
      * withdraw ETH tokens to l2 fee wallet
      */
     function withdrawETH() public onlyOwner {
-        (bool sent, ) = feeWallet.call{ value: address(this).balance }("");
+        (bool sent,) = feeWallet.call{ value: address(this).balance }("");
         require(sent, "Failed to send ETH to fee wallet");
         emit WithdrawETH(owner(), feeWallet);
     }

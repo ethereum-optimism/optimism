@@ -53,11 +53,7 @@ contract BOBA is Context, ERC20, ERC20Burnable, ERC20Permit, ERC20Votes, ERC20Vo
     }
 
     // Override required by Solidity because _afterTokenTransfer is defined by two base classes
-    function _afterTokenTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal override(ERC20, ERC20Votes) {
+    function _afterTokenTransfer(address from, address to, uint256 amount) internal override(ERC20, ERC20Votes) {
         super._afterTokenTransfer(from, to, amount);
     }
 }

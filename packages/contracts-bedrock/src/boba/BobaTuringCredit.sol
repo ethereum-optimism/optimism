@@ -17,9 +17,11 @@ contract BobaTuringCredit {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
-    /**********************
+    /**
+     *
      * Contract Variables *
-     **********************/
+     *
+     */
     address public owner;
 
     mapping(address => uint256) public prepaidBalance;
@@ -28,9 +30,11 @@ contract BobaTuringCredit {
     uint256 public turingPrice;
     uint256 public ownerRevenue;
 
-    /********************
+    /**
+     *
      *      Events      *
-     ********************/
+     *
+     */
 
     event TransferOwnership(address oldOwner, address newOwner);
 
@@ -38,9 +42,11 @@ contract BobaTuringCredit {
 
     event WithdrawRevenue(address sender, uint256 withdrawAmount);
 
-    /**********************
+    /**
+     *
      * Function Modifiers *
-     **********************/
+     *
+     */
 
     modifier onlyNotInitialized() {
         require(address(turingToken) == address(0), "Contract has been initialized");
@@ -57,17 +63,21 @@ contract BobaTuringCredit {
         _;
     }
 
-    /********************
+    /**
+     *
      *    Constructor   *
-     ********************/
+     *
+     */
 
     constructor(uint256 _turingPrice) {
         turingPrice = _turingPrice;
     }
 
-    /********************
+    /**
+     *
      * Public Functions *
-     ********************/
+     *
+     */
 
     /**
      * @dev Update turing token
@@ -104,16 +114,10 @@ contract BobaTuringCredit {
      * @param _addBalanceAmount the prepaid amount that the user want to add
      * @param _helperContractAddress the address of the turing helper contract
      */
-    function addBalanceTo(uint256 _addBalanceAmount, address _helperContractAddress)
-        public
-        onlyInitialized
-    {
+    function addBalanceTo(uint256 _addBalanceAmount, address _helperContractAddress) public onlyInitialized {
         require(_addBalanceAmount != 0, "Invalid amount");
         require(Address.isContract(_helperContractAddress), "Address is EOA");
-        require(
-            ERC165Checker.supportsInterface(_helperContractAddress, 0x2f7adf43),
-            "Invalid Helper Contract"
-        );
+        require(ERC165Checker.supportsInterface(_helperContractAddress, 0x2f7adf43), "Invalid Helper Contract");
 
         prepaidBalance[_helperContractAddress] += _addBalanceAmount;
 

@@ -4,11 +4,9 @@ pragma solidity >0.7.5;
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { ERC20Permit } from "@openzeppelin/contracts/token/ERC20/extensions/draft-ERC20Permit.sol";
 // prettier-ignore
-import {ERC20Votes} from
-    "@openzeppelin/contracts/token/ERC20/extensions/regenesis/ERC20VotesRegenesis.sol";
+import { ERC20Votes } from "@openzeppelin/contracts/token/ERC20/extensions/regenesis/ERC20VotesRegenesis.sol";
 // prettier-ignore
-import {ERC20VotesComp} from
-    "@openzeppelin/contracts/token/ERC20/extensions/regenesis/ERC20VotesCompRegenesis.sol";
+import { ERC20VotesComp } from "@openzeppelin/contracts/token/ERC20/extensions/regenesis/ERC20VotesCompRegenesis.sol";
 import { ILegacyMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 
 contract L2GovernanceERC20 is ILegacyMintableERC20, ERC20, ERC20Permit, ERC20Votes, ERC20VotesComp {
@@ -35,7 +33,10 @@ contract L2GovernanceERC20 is ILegacyMintableERC20, ERC20, ERC20Permit, ERC20Vot
         string memory _name,
         string memory _symbol,
         uint8 decimals_
-    ) ERC20(_name, _symbol) ERC20Permit(_name) {
+    )
+        ERC20(_name, _symbol)
+        ERC20Permit(_name)
+    {
         l1Token = _l1Token;
         l2Bridge = _l2Bridge;
         _decimals = decimals_;
@@ -52,9 +53,8 @@ contract L2GovernanceERC20 is ILegacyMintableERC20, ERC20, ERC20Permit, ERC20Vot
 
     function supportsInterface(bytes4 _interfaceId) public pure returns (bool) {
         bytes4 firstSupportedInterface = bytes4(keccak256("supportsInterface(bytes4)")); // ERC165
-        bytes4 secondSupportedInterface = ILegacyMintableERC20.l1Token.selector ^
-            ILegacyMintableERC20.mint.selector ^
-            ILegacyMintableERC20.burn.selector;
+        bytes4 secondSupportedInterface = ILegacyMintableERC20.l1Token.selector ^ ILegacyMintableERC20.mint.selector
+            ^ ILegacyMintableERC20.burn.selector;
         return _interfaceId == firstSupportedInterface || _interfaceId == secondSupportedInterface;
     }
 
@@ -79,11 +79,7 @@ contract L2GovernanceERC20 is ILegacyMintableERC20, ERC20, ERC20Permit, ERC20Vot
         super._burn(_account, _amount);
     }
 
-    function _afterTokenTransfer(
-        address from,
-        address to,
-        uint256 amount
-    ) internal override(ERC20, ERC20Votes) {
+    function _afterTokenTransfer(address from, address to, uint256 amount) internal override(ERC20, ERC20Votes) {
         super._afterTokenTransfer(from, to, amount);
     }
 
