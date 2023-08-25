@@ -50,7 +50,8 @@ var (
 	// Banning Flag - whether or not we want to act on the scoring
 	Banning = &cli.BoolFlag{
 		Name:     "p2p.ban.peers",
-		Usage:    "Enables peer banning. This should ONLY be enabled once certain peer scoring is working correctly.",
+		Usage:    "Enables peer banning.",
+		Value:    true,
 		Required: false,
 		EnvVars:  p2pEnv("PEER_BANNING"),
 	}

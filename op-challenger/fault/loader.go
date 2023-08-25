@@ -4,8 +4,11 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
+
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 // MinimalFaultDisputeGameCaller is a minimal interface around [bindings.FaultDisputeGameCaller].
@@ -18,16 +21,10 @@ type MinimalFaultDisputeGameCaller interface {
 		Position    *big.Int
 		Clock       *big.Int
 	}, error)
+	Status(opts *bind.CallOpts) (uint8, error)
 	ClaimDataLen(opts *bind.CallOpts) (*big.Int, error)
 	MAXGAMEDEPTH(opts *bind.CallOpts) (*big.Int, error)
 	ABSOLUTEPRESTATE(opts *bind.CallOpts) ([32]byte, error)
-}
-
-// Loader is a minimal interface for loading onchain [Claim] data.
-type Loader interface {
-	FetchClaims(ctx context.Context) ([]types.Claim, error)
-	FetchGameDepth(ctx context.Context) (uint64, error)
-	FetchAbsolutePrestateHash(ctx context.Context) ([]byte, error)
 }
 
 // loader pulls in fault dispute game claim data periodically and over subscriptions.
@@ -40,6 +37,30 @@ func NewLoader(caller MinimalFaultDisputeGameCaller) *loader {
 	return &loader{
 		caller: caller,
 	}
+}
+
+// NewLoaderFromBindings creates a new [loader] from a [bindings.FaultDisputeGameCaller].
+func NewLoaderFromBindings(fdgAddr common.Address, client bind.ContractCaller) (*loader, error) {
+	caller, err := bindings.NewFaultDisputeGameCaller(fdgAddr, client)
+	if err != nil {
+		return nil, err
+	}
+	return NewLoader(caller), nil
+}
+
+// GetGameStatus returns the current game status.
+func (l *loader) GetGameStatus(ctx context.Context) (types.GameStatus, error) {
+	status, err := l.caller.Status(&bind.CallOpts{Context: ctx})
+	return types.GameStatus(status), err
+}
+
+// GetClaimCount returns the number of claims in the game.
+func (l *loader) GetClaimCount(ctx context.Context) (uint64, error) {
+	count, err := l.caller.ClaimDataLen(&bind.CallOpts{Context: ctx})
+	if err != nil {
+		return 0, err
+	}
+	return count.Uint64(), nil
 }
 
 // FetchGameDepth fetches the game depth from the fault dispute game.

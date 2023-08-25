@@ -4,16 +4,43 @@ import (
 	"context"
 	"math/big"
 	"testing"
+	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/clock"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 )
 
+func TestMonitorMinGameTimestamp(t *testing.T) {
+	t.Parallel()
+
+	t.Run("zero game window returns zero", func(t *testing.T) {
+		monitor, _, _ := setupMonitorTest(t, []common.Address{})
+		monitor.gameWindow = time.Duration(0)
+		require.Equal(t, monitor.minGameTimestamp(), uint64(0))
+	})
+
+	t.Run("non-zero game window with zero clock", func(t *testing.T) {
+		monitor, _, _ := setupMonitorTest(t, []common.Address{})
+		monitor.gameWindow = time.Minute
+		monitor.clock = clock.NewDeterministicClock(time.Unix(0, 0))
+		require.Equal(t, monitor.minGameTimestamp(), uint64(0))
+	})
+
+	t.Run("minimum computed correctly", func(t *testing.T) {
+		monitor, _, _ := setupMonitorTest(t, []common.Address{})
+		monitor.gameWindow = time.Minute
+		frozen := time.Unix(int64(time.Hour.Seconds()), 0)
+		monitor.clock = clock.NewDeterministicClock(frozen)
+		expected := uint64(frozen.Add(-time.Minute).Unix())
+		require.Equal(t, monitor.minGameTimestamp(), expected)
+	})
+}
+
 func TestMonitorExitsWhenContextDone(t *testing.T) {
-	monitor, _, _ := setupMonitorTest(t, common.Address{})
+	monitor, _, _ := setupMonitorTest(t, []common.Address{{}})
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	err := monitor.MonitorGames(ctx)
@@ -21,7 +48,7 @@ func TestMonitorExitsWhenContextDone(t *testing.T) {
 }
 
 func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
-	monitor, source, games := setupMonitorTest(t, common.Address{})
+	monitor, source, sched := setupMonitorTest(t, []common.Address{})
 
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
@@ -36,25 +63,16 @@ func TestMonitorCreateAndProgressGameAgents(t *testing.T) {
 		},
 	}
 
-	err := monitor.progressGames(context.Background())
-	require.NoError(t, err)
+	require.NoError(t, monitor.progressGames(context.Background(), uint64(1)))
 
-	require.Len(t, games.created, 2, "should create game agents")
-	require.Contains(t, games.created, addr1)
-	require.Contains(t, games.created, addr2)
-	require.Equal(t, 1, games.created[addr1].progressCount)
-	require.Equal(t, 1, games.created[addr2].progressCount)
-
-	// The stub will fail the test if a game is created with the same address multiple times
-	require.NoError(t, monitor.progressGames(context.Background()), "should only create games once")
-	require.Equal(t, 2, games.created[addr1].progressCount)
-	require.Equal(t, 2, games.created[addr2].progressCount)
+	require.Len(t, sched.scheduled, 1)
+	require.Equal(t, []common.Address{addr1, addr2}, sched.scheduled[0])
 }
 
-func TestMonitorOnlyCreateSpecifiedGame(t *testing.T) {
+func TestMonitorOnlyScheduleSpecifiedGame(t *testing.T) {
 	addr1 := common.Address{0xaa}
 	addr2 := common.Address{0xbb}
-	monitor, source, games := setupMonitorTest(t, addr2)
+	monitor, source, sched := setupMonitorTest(t, []common.Address{addr2})
 
 	source.games = []FaultDisputeGame{
 		{
@@ -67,58 +85,38 @@ func TestMonitorOnlyCreateSpecifiedGame(t *testing.T) {
 		},
 	}
 
-	err := monitor.progressGames(context.Background())
-	require.NoError(t, err)
+	require.NoError(t, monitor.progressGames(context.Background(), uint64(1)))
 
-	require.Len(t, games.created, 1, "should only create allowed game")
-	require.Contains(t, games.created, addr2)
-	require.NotContains(t, games.created, addr1)
-	require.Equal(t, 1, games.created[addr2].progressCount)
+	require.Len(t, sched.scheduled, 1)
+	require.Equal(t, []common.Address{addr2}, sched.scheduled[0])
 }
 
-func setupMonitorTest(t *testing.T, allowedGame common.Address) (*gameMonitor, *stubGameSource, *createdGames) {
+func setupMonitorTest(t *testing.T, allowedGames []common.Address) (*gameMonitor, *stubGameSource, *stubScheduler) {
 	logger := testlog.Logger(t, log.LvlDebug)
 	source := &stubGameSource{}
-	games := &createdGames{
-		t:       t,
-		created: make(map[common.Address]*stubGame),
-	}
+	i := uint64(1)
 	fetchBlockNum := func(ctx context.Context) (uint64, error) {
-		return 1234, nil
+		i++
+		return i, nil
 	}
-	monitor := newGameMonitor(logger, fetchBlockNum, allowedGame, source, games.CreateGame)
-	return monitor, source, games
+	sched := &stubScheduler{}
+	monitor := newGameMonitor(logger, clock.SystemClock, source, sched, time.Duration(0), fetchBlockNum, allowedGames)
+	return monitor, source, sched
 }
 
 type stubGameSource struct {
 	games []FaultDisputeGame
 }
 
-func (s *stubGameSource) FetchAllGamesAtBlock(ctx context.Context, blockNumber *big.Int) ([]FaultDisputeGame, error) {
+func (s *stubGameSource) FetchAllGamesAtBlock(ctx context.Context, earliest uint64, blockNumber *big.Int) ([]FaultDisputeGame, error) {
 	return s.games, nil
 }
 
-type stubGame struct {
-	addr          common.Address
-	progressCount int
-	done          bool
+type stubScheduler struct {
+	scheduled [][]common.Address
 }
 
-func (g *stubGame) ProgressGame(ctx context.Context) bool {
-	g.progressCount++
-	return g.done
-}
-
-type createdGames struct {
-	t       *testing.T
-	created map[common.Address]*stubGame
-}
-
-func (c *createdGames) CreateGame(addr common.Address) (gamePlayer, error) {
-	if _, exists := c.created[addr]; exists {
-		c.t.Fatalf("game %v already exists", addr)
-	}
-	game := &stubGame{addr: addr}
-	c.created[addr] = game
-	return game, nil
+func (s *stubScheduler) Schedule(games []common.Address) error {
+	s.scheduled = append(s.scheduled, games)
+	return nil
 }

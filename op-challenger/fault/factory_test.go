@@ -6,10 +6,10 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-challenger/fault/types"
+
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-
 	"github.com/ethereum/go-ethereum/common"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,6 +25,7 @@ func TestGameLoader_FetchAllGames(t *testing.T) {
 	tests := []struct {
 		name        string
 		caller      *mockMinimalDisputeGameFactoryCaller
+		earliest    uint64
 		blockNumber *big.Int
 		expectedErr error
 		expectedLen int
@@ -33,35 +34,36 @@ func TestGameLoader_FetchAllGames(t *testing.T) {
 			name:        "success",
 			caller:      newMockMinimalDisputeGameFactoryCaller(10, false, false),
 			blockNumber: big.NewInt(1),
-			expectedErr: nil,
 			expectedLen: 10,
+		},
+		{
+			name:        "expired game ignored",
+			caller:      newMockMinimalDisputeGameFactoryCaller(10, false, false),
+			earliest:    500,
+			blockNumber: big.NewInt(1),
+			expectedLen: 5,
 		},
 		{
 			name:        "game count error",
 			caller:      newMockMinimalDisputeGameFactoryCaller(10, true, false),
 			blockNumber: big.NewInt(1),
 			expectedErr: gameCountErr,
-			expectedLen: 0,
 		},
 		{
 			name:        "game index error",
 			caller:      newMockMinimalDisputeGameFactoryCaller(10, false, true),
 			blockNumber: big.NewInt(1),
 			expectedErr: gameIndexErr,
-			expectedLen: 0,
 		},
 		{
 			name:        "no games",
 			caller:      newMockMinimalDisputeGameFactoryCaller(0, false, false),
 			blockNumber: big.NewInt(1),
-			expectedErr: nil,
-			expectedLen: 0,
 		},
 		{
 			name:        "missing block number",
 			caller:      newMockMinimalDisputeGameFactoryCaller(0, false, false),
 			expectedErr: ErrMissingBlockNumber,
-			expectedLen: 0,
 		},
 	}
 
@@ -72,10 +74,11 @@ func TestGameLoader_FetchAllGames(t *testing.T) {
 			t.Parallel()
 
 			loader := NewGameLoader(test.caller)
-			games, err := loader.FetchAllGamesAtBlock(context.Background(), test.blockNumber)
+			games, err := loader.FetchAllGamesAtBlock(context.Background(), test.earliest, test.blockNumber)
 			require.ErrorIs(t, err, test.expectedErr)
 			require.Len(t, games, test.expectedLen)
 			expectedGames := test.caller.games
+			expectedGames = expectedGames[len(expectedGames)-test.expectedLen:]
 			if test.expectedErr != nil {
 				expectedGames = make([]FaultDisputeGame, 0)
 			}
@@ -90,7 +93,7 @@ func generateMockGames(count uint64) []FaultDisputeGame {
 	for i := uint64(0); i < count; i++ {
 		games[i] = FaultDisputeGame{
 			Proxy:     common.BigToAddress(big.NewInt(int64(i))),
-			Timestamp: i,
+			Timestamp: i * 100,
 		}
 	}
 
@@ -140,6 +143,9 @@ func newMockMinimalDisputeGameFactoryCaller(count uint64, gameCountErr bool, ind
 		gameCount:    count,
 		games:        generateMockGames(count),
 	}
+}
+func (m *mockMinimalDisputeGameFactoryCaller) Status(opts *bind.CallOpts) (uint8, error) {
+	return uint8(types.GameStatusInProgress), nil
 }
 
 func (m *mockMinimalDisputeGameFactoryCaller) GameCount(opts *bind.CallOpts) (*big.Int, error) {

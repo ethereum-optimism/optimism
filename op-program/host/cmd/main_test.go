@@ -45,8 +45,10 @@ func TestLogLevel(t *testing.T) {
 
 func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 	cfg := configForArgs(t, addRequiredArgs())
+	rollupCfg, err := chaincfg.GetRollupConfig("op-goerli")
+	require.NoError(t, err)
 	defaultCfg := config.NewConfig(
-		&chaincfg.Goerli,
+		rollupCfg,
 		chainconfig.OPGoerliChainConfig,
 		common.HexToHash(l1HeadValue),
 		common.HexToHash(l2HeadValue),
@@ -58,7 +60,7 @@ func TestDefaultCLIOptionsMatchDefaultConfig(t *testing.T) {
 
 func TestNetwork(t *testing.T) {
 	t.Run("Unknown", func(t *testing.T) {
-		verifyArgsInvalid(t, "invalid network bar", replaceRequiredArg("--network", "bar"))
+		verifyArgsInvalid(t, "unavailable network: \"bar\"", replaceRequiredArg("--network", "bar"))
 	})
 
 	t.Run("Required", func(t *testing.T) {
@@ -74,16 +76,17 @@ func TestNetwork(t *testing.T) {
 		genesisFile := writeValidGenesis(t)
 
 		cfg := configForArgs(t, addRequiredArgsExcept("--network", "--rollup.config", configFile, "--l2.genesis", genesisFile))
-		require.Equal(t, chaincfg.Goerli, *cfg.Rollup)
+		require.Equal(t, *chaincfg.Goerli, *cfg.Rollup)
 	})
 
-	for name, cfg := range chaincfg.NetworksByName {
+	for _, name := range chaincfg.AvailableNetworks() {
 		name := name
-		expected := cfg
+		expected, err := chaincfg.GetRollupConfig(name)
+		require.NoError(t, err)
 		t.Run("Network_"+name, func(t *testing.T) {
 			args := replaceRequiredArg("--network", name)
 			cfg := configForArgs(t, args)
-			require.Equal(t, expected, *cfg.Rollup)
+			require.Equal(t, *expected, *cfg.Rollup)
 		})
 	}
 }

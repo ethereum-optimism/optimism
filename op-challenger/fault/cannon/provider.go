@@ -50,7 +50,7 @@ type CannonTraceProvider struct {
 	lastProof *proofData
 }
 
-func NewTraceProvider(ctx context.Context, logger log.Logger, cfg *config.Config, l1Client bind.ContractCaller, gameAddr common.Address) (*CannonTraceProvider, error) {
+func NewTraceProvider(ctx context.Context, logger log.Logger, cfg *config.Config, l1Client bind.ContractCaller, dir string, gameAddr common.Address) (*CannonTraceProvider, error) {
 	l2Client, err := ethclient.DialContext(ctx, cfg.CannonL2)
 	if err != nil {
 		return nil, fmt.Errorf("dial l2 client %v: %w", cfg.CannonL2, err)
@@ -64,11 +64,10 @@ func NewTraceProvider(ctx context.Context, logger log.Logger, cfg *config.Config
 	if err != nil {
 		return nil, fmt.Errorf("fetch local game inputs: %w", err)
 	}
-	return NewTraceProviderFromInputs(logger, cfg, gameAddr.Hex(), localInputs), nil
+	return NewTraceProviderFromInputs(logger, cfg, localInputs, dir), nil
 }
 
-func NewTraceProviderFromInputs(logger log.Logger, cfg *config.Config, gameDirName string, localInputs LocalGameInputs) *CannonTraceProvider {
-	dir := filepath.Join(cfg.CannonDatadir, gameDirName)
+func NewTraceProviderFromInputs(logger log.Logger, cfg *config.Config, localInputs LocalGameInputs, dir string) *CannonTraceProvider {
 	return &CannonTraceProvider{
 		logger:    logger,
 		dir:       dir,

@@ -13,15 +13,19 @@ import (
 // Responder takes a response action & executes.
 // For full op-challenger this means executing the transaction on chain.
 type Responder interface {
-	CanResolve(ctx context.Context) bool
+	CallResolve(ctx context.Context) (types.GameStatus, error)
 	Resolve(ctx context.Context) error
 	Respond(ctx context.Context, response types.Claim) error
 	Step(ctx context.Context, stepData types.StepCallData) error
 }
 
+type ClaimLoader interface {
+	FetchClaims(ctx context.Context) ([]types.Claim, error)
+}
+
 type Agent struct {
 	solver                  *solver.Solver
-	loader                  Loader
+	loader                  ClaimLoader
 	responder               Responder
 	updater                 types.OracleUpdater
 	maxDepth                int
@@ -29,7 +33,7 @@ type Agent struct {
 	log                     log.Logger
 }
 
-func NewAgent(loader Loader, maxDepth int, trace types.TraceProvider, responder Responder, updater types.OracleUpdater, agreeWithProposedOutput bool, log log.Logger) *Agent {
+func NewAgent(loader ClaimLoader, maxDepth int, trace types.TraceProvider, responder Responder, updater types.OracleUpdater, agreeWithProposedOutput bool, log log.Logger) *Agent {
 	return &Agent{
 		solver:                  solver.NewSolver(maxDepth, trace),
 		loader:                  loader,
@@ -65,10 +69,27 @@ func (a *Agent) Act(ctx context.Context) error {
 	return nil
 }
 
+// shouldResolve returns true if the agent should resolve the game.
+// This method will return false if the game is still in progress.
+func (a *Agent) shouldResolve(ctx context.Context, status types.GameStatus) bool {
+	expected := types.GameStatusDefenderWon
+	if a.agreeWithProposedOutput {
+		expected = types.GameStatusChallengerWon
+	}
+	if expected != status {
+		a.log.Warn("Game will be lost", "expected", expected, "actual", status)
+	}
+	return expected == status
+}
+
 // tryResolve resolves the game if it is in a terminal state
 // and returns true if the game resolves successfully.
 func (a *Agent) tryResolve(ctx context.Context) bool {
-	if !a.responder.CanResolve(ctx) {
+	status, err := a.responder.CallResolve(ctx)
+	if err != nil {
+		return false
+	}
+	if !a.shouldResolve(ctx, status) {
 		return false
 	}
 	a.log.Info("Resolving game")

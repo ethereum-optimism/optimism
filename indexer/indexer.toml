@@ -3,17 +3,18 @@
 [chain]
 # OP Goerli
 preset = 420
+l1-starting-height = 0
 
 [rpcs]
 l1-rpc = "${INDEXER_RPC_URL_L1}"
 l2-rpc = "${INDEXER_RPC_URL_L2}"
 
 [db]
-host = "127.0.0.1"
+host = "postgres"
 port = 5432
-user = "postgres"
-password = "postgres"
-name = "indexer"
+user = "db_username"
+password = "db_password"
+name = "db_name"
 
 [api]
 host = "127.0.0.1"

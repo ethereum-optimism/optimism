@@ -1,5 +1,11 @@
 # @eth-optimism/common-ts
 
+## 0.8.5
+
+### Patch Changes
+
+- [#6887](https://github.com/ethereum-optimism/optimism/pull/6887) [`33eb63b10`](https://github.com/ethereum-optimism/optimism/commit/33eb63b10559a2267c814eda8129447c72940839) Thanks [@roninjin10](https://github.com/roninjin10)! - Updated npm dependencies of common-ts
+
 ## 0.8.4
 
 ### Patch Changes

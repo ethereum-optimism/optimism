@@ -3,17 +3,19 @@ package config
 import (
 	"errors"
 	"fmt"
+	"time"
+
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 var (
 	ErrMissingTraceType              = errors.New("missing trace type")
-	ErrMissingCannonDatadir          = errors.New("missing cannon datadir")
+	ErrMissingDatadir                = errors.New("missing datadir")
 	ErrMissingCannonL2               = errors.New("missing cannon L2")
 	ErrMissingCannonBin              = errors.New("missing cannon bin")
 	ErrMissingCannonServer           = errors.New("missing cannon server")
@@ -72,16 +74,25 @@ func ValidTraceType(value TraceType) bool {
 	return false
 }
 
-const DefaultCannonSnapshotFreq = uint(1_000_000_000)
+const (
+	DefaultCannonSnapshotFreq = uint(1_000_000_000)
+	// DefaultGameWindow is the default maximum time duration in the past
+	// that the challenger will look for games to progress.
+	// The default value is 11 days, which is a 4 day resolution buffer
+	// plus the 7 day game finalization window.
+	DefaultGameWindow = time.Duration(11 * 24 * time.Hour)
+)
 
 // Config is a well typed config that is parsed from the CLI params.
 // This also contains config options for auxiliary services.
 // It is used to initialize the challenger.
 type Config struct {
-	L1EthRpc                string         // L1 RPC Url
-	GameFactoryAddress      common.Address // Address of the dispute game factory
-	GameAddress             common.Address // Address of the fault game
-	AgreeWithProposedOutput bool           // Temporary config if we agree or disagree with the posted output
+	L1EthRpc                string           // L1 RPC Url
+	GameFactoryAddress      common.Address   // Address of the dispute game factory
+	GameAllowlist           []common.Address // Allowlist of fault game addresses
+	GameWindow              time.Duration    // Maximum time duration to look for games to progress
+	AgreeWithProposedOutput bool             // Temporary config if we agree or disagree with the posted output
+	Datadir                 string           // Data Directory
 
 	TraceType TraceType // Type of trace
 
@@ -95,7 +106,6 @@ type Config struct {
 	CannonNetwork          string
 	CannonRollupConfigPath string
 	CannonL2GenesisPath    string
-	CannonDatadir          string // Cannon Data Directory
 	CannonL2               string // L2 RPC Url
 	CannonSnapshotFreq     uint   // Frequency of snapshots to create when executing cannon (in VM instructions)
 
@@ -109,6 +119,7 @@ func NewConfig(
 	l1EthRpc string,
 	traceType TraceType,
 	agreeWithProposedOutput bool,
+	datadir string,
 ) Config {
 	return Config{
 		L1EthRpc:           l1EthRpc,
@@ -122,7 +133,10 @@ func NewConfig(
 		MetricsConfig: opmetrics.DefaultCLIConfig(),
 		PprofConfig:   oppprof.DefaultCLIConfig(),
 
+		Datadir: datadir,
+
 		CannonSnapshotFreq: DefaultCannonSnapshotFreq,
+		GameWindow:         DefaultGameWindow,
 	}
 }
 
@@ -135,6 +149,9 @@ func (c Config) Check() error {
 	}
 	if c.TraceType == "" {
 		return ErrMissingTraceType
+	}
+	if c.Datadir == "" {
+		return ErrMissingDatadir
 	}
 	if c.TraceType == TraceTypeCannon {
 		if c.CannonBin == "" {
@@ -157,15 +174,12 @@ func (c Config) Check() error {
 			if c.CannonL2GenesisPath != "" {
 				return ErrCannonNetworkAndL2Genesis
 			}
-			if _, ok := chaincfg.NetworksByName[c.CannonNetwork]; !ok {
+			if ch := chaincfg.ChainByName(c.CannonNetwork); ch == nil {
 				return fmt.Errorf("%w: %v", ErrCannonNetworkUnknown, c.CannonNetwork)
 			}
 		}
 		if c.CannonAbsolutePreState == "" {
 			return ErrMissingCannonAbsolutePreState
-		}
-		if c.CannonDatadir == "" {
-			return ErrMissingCannonDatadir
 		}
 		if c.CannonL2 == "" {
 			return ErrMissingCannonL2

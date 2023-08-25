@@ -186,9 +186,6 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter, metrics Host
 	tcpTransport := libp2p.Transport(
 		tcp.NewTCPTransport,
 		tcp.WithConnectionTimeout(time.Minute*60)) // break unused connections
-	if err != nil {
-		return nil, fmt.Errorf("failed to create TCP transport: %w", err)
-	}
 	// TODO: technically we can also run the node on websocket and QUIC transports. Maybe in the future?
 
 	var nat lconf.NATManagerC // disabled if nil
