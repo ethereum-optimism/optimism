@@ -861,10 +861,11 @@ jobs:
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
             # Note: -parallel must be set to match the number of cores in the resource class
             export TEST_SUFFIX="<<parameters.use_external>>"
+            export TEST_SKIPS="$(make -n -p | sed -ne 's/<<parameters.use_external>>_skip = //p')"
             export EXTERNAL_L2="$(test -z '<<parameters.use_external>>' || echo '<<parameters.use_external>>/shim')"
             OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=false OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
             --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>$TEST_SUFFIX.xml \
-            -- -timeout=20m -parallel=8 --externalL2 "$EXTERNAL_L2" ./...
+            -- -skip="$TEST_SKIPS" -timeout=20m -parallel=8 --externalL2 "$EXTERNAL_L2" ./...
           working_directory: <<parameters.module>>
       - store_test_results:
           path: /tmp/test-results

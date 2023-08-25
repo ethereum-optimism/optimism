@@ -28,11 +28,11 @@ clean:
 lint:
 	golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 5m -e "errors.As" -e "errors.Is" ./...
 
-erigon_skip = TestERC20BridgeDeposits|TestWithdrawals|TestMixedWithdrawalValidity|TestSystemP2PAltSync|TestCannonDefendStep|TestMultipleCannonGames|TestCannonDisputeGame
+external_erigon_skip = TestERC20BridgeDeposits|TestWithdrawals|TestMixedWithdrawalValidity|TestSystemP2PAltSync|TestCannonDefendStep|TestMultipleCannonGames|TestCannonDisputeGame
 
 test-external-%: pre-test
 	make -C ./external_$*/
-	go test -v -skip="$($*_skip)" --externalL2 ./external_$*/shim
+	go test -v -skip="$(external_$*_skip)" --externalL2 ./external_$*/shim
 
 .PHONY: \
 	test \
