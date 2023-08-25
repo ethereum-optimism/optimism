@@ -534,6 +534,14 @@ jobs:
           command: |
             npm i yarn@1 --global
       - run:
+          name: Install node_modules
+          command: |
+            pnpm install --frozen-lockfile --prefer-offline
+      - run:
+          name: build
+          command: |
+            pnpm build
+      - run:
           name: check go bindings
           command: make && git diff --exit-code
           working_directory: boba-bindings
