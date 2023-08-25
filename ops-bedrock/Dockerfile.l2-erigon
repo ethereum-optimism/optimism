@@ -57,4 +57,4 @@ COPY ./ops-bedrock/l2-erigon.sh /home/boba/
 
 RUN mkdir -p /db
 
-ENTRYPOINT ["/home/boba/l2-erigon.sh"]
+ENTRYPOINT ["/bin/sh", "/home/boba/l2-erigon.sh"]
