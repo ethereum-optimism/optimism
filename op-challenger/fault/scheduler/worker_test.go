@@ -16,6 +16,7 @@ func TestWorkerShouldProcessJobsUntilContextDone(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var wg sync.WaitGroup
+	wg.Add(1)
 	go progressGames(ctx, in, out, &wg)
 
 	in <- job{
