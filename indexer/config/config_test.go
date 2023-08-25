@@ -79,6 +79,7 @@ func TestLoadConfig_WithoutPreset(t *testing.T) {
 
 	testData := `
         [chain]
+
 		[chain.l1-contracts]
 		optimism-portal = "0x4205Fc579115071764c7423A4f12eDde41f106Ed"
 		l2-output-oracle = "0x42097868233d1aa22e815a266982f2cf17685a27"
@@ -102,11 +103,18 @@ func TestLoadConfig_WithoutPreset(t *testing.T) {
 	conf, err := LoadConfig(logger, tmpfile.Name())
 	require.NoError(t, err)
 
+	// Enforce default values
 	require.Equal(t, conf.Chain.L1Contracts.OptimismPortalProxy.String(), common.HexToAddress("0x4205Fc579115071764c7423A4f12eDde41f106Ed").String())
 	require.Equal(t, conf.Chain.L1Contracts.L2OutputOracleProxy.String(), common.HexToAddress("0x42097868233d1aa22e815a266982f2cf17685a27").String())
 	require.Equal(t, conf.Chain.L1Contracts.L1CrossDomainMessengerProxy.String(), common.HexToAddress("0x420ce71c97B33Cc4729CF772ae268934F7ab5fA1").String())
 	require.Equal(t, conf.Chain.L1Contracts.L1StandardBridgeProxy.String(), common.HexToAddress("0x4209fc46f92E8a1c0deC1b1747d010903E884bE1").String())
 	require.Equal(t, conf.Chain.Preset, 0)
+
+	// Enforce polling default values
+	require.Equal(t, conf.Chain.L1PollingInterval, uint(5000))
+	require.Equal(t, conf.Chain.L2PollingInterval, uint(5000))
+	require.Equal(t, conf.Chain.L1HeaderBufferSize, uint(500))
+	require.Equal(t, conf.Chain.L2HeaderBufferSize, uint(500))
 }
 
 func TestLoadConfig_WithUnknownPreset(t *testing.T) {
@@ -138,6 +146,37 @@ func TestLoadConfig_WithUnknownPreset(t *testing.T) {
 	require.Equal(t, conf.Chain.Preset, faultyPreset)
 	require.Error(t, err)
 	require.Equal(t, fmt.Sprintf("unknown preset: %d", faultyPreset), err.Error())
+}
+
+func Test_LoadConfig_PollingValues(t *testing.T) {
+	tmpfile, err := os.CreateTemp("", "test_user_values.toml")
+	require.NoError(t, err)
+	defer os.Remove(tmpfile.Name())
+	defer tmpfile.Close()
+
+	testData := `
+	[chain]
+	l1-polling-interval = 1000
+	l2-polling-interval = 1005
+	l1-header-buffer-size = 100
+	l2-header-buffer-size = 105`
+
+	data := []byte(testData)
+	err = os.WriteFile(tmpfile.Name(), data, 0644)
+	require.NoError(t, err)
+	defer os.Remove(tmpfile.Name())
+
+	err = tmpfile.Close()
+	require.NoError(t, err)
+
+	logger := testlog.Logger(t, log.LvlInfo)
+	conf, err := LoadConfig(logger, tmpfile.Name())
+
+	require.NoError(t, err)
+	require.Equal(t, conf.Chain.L1PollingInterval, uint(1000))
+	require.Equal(t, conf.Chain.L2PollingInterval, uint(1005))
+	require.Equal(t, conf.Chain.L1HeaderBufferSize, uint(100))
+	require.Equal(t, conf.Chain.L2HeaderBufferSize, uint(105))
 }
 
 func Test_AsSliceSuccess(t *testing.T) {
