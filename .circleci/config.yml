@@ -509,38 +509,10 @@ jobs:
 
   boba-bindings-build:
     docker:
-      - image: bobanetwork/ci-builder:latest
-    resource_class: medium
+      - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
+    resource_class: large
     steps:
       - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore PNPM Package Cache
-          keys:
-            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
-      - check-changed:
-          patterns: contracts-bedrock,boba-bindings
-      # TODO remove me after ci builder updated
-      - run:
-          name: Install pnpm package manager
-          command: |
-            npm i pnpm --global
-      # TODO remove me after ci builder updated
-      # A github dep clones-with-immutable-args is installed via github
-      # packages installed via npm via github automatically run postpack scripts
-      # their postpack script happens to use yarn so we need it here
-      - run:
-          name: Install yarn package manager
-          command: |
-            npm i yarn@1 --global
-      - run:
-          name: Install node_modules
-          command: |
-            pnpm install --frozen-lockfile --prefer-offline
-      - run:
-          name: build
-          command: |
-            pnpm build
       - run:
           name: check go bindings
           command: make && git diff --exit-code
