@@ -98,7 +98,6 @@ func (i *Indexer) Run(ctx context.Context) error {
 	run(i.BridgeProcessor.Start)
 	wg.Wait()
 
-	// Since we wait to receipt of an error
 	err := <-errCh
 	if err != nil {
 		i.log.Error("indexer stopped", "err", err)
