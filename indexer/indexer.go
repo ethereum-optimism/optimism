@@ -72,39 +72,40 @@ func (i *Indexer) Run(ctx context.Context) error {
 	var wg sync.WaitGroup
 	errCh := make(chan error, 3)
 
-	// If either processor errors out, we stop
+	// if any goroutine halts, we stop the entire indexer
 	subCtx, cancel := context.WithCancel(ctx)
 	run := func(start func(ctx context.Context) error) {
 		wg.Add(1)
-		defer func() {
-			if err := recover(); err != nil {
-				i.log.Error("halting indexer on panic", "err", err)
-				debug.PrintStack()
-				errCh <- fmt.Errorf("panic: %v", err)
-			}
+		go func() {
+			defer func() {
+				if err := recover(); err != nil {
+					i.log.Error("halting indexer on panic", "err", err)
+					debug.PrintStack()
+					errCh <- fmt.Errorf("panic: %v", err)
+				}
 
-			cancel()
-			wg.Done()
+				cancel()
+				wg.Done()
+			}()
+
+			errCh <- start(subCtx)
 		}()
-
-		err := start(subCtx)
-		if err != nil {
-			i.log.Error("halting indexer on error", "err", err)
-		}
-
-		// Send a value down regardless if we've received an error
-		// or halted via cancellation where err == nil
-		errCh <- err
 	}
 
 	// Kick off all the dependent routines
-	go run(i.L1ETL.Start)
-	go run(i.L2ETL.Start)
-	go run(i.BridgeProcessor.Start)
-	err := <-errCh
-
+	run(i.L1ETL.Start)
+	run(i.L2ETL.Start)
+	run(i.BridgeProcessor.Start)
 	wg.Wait()
-	i.log.Info("indexer stopped")
+
+	// Since we wait to receipt of an error
+	err := <-errCh
+	if err != nil {
+		i.log.Error("indexer stopped", "err", err)
+	} else {
+		i.log.Info("indexer stopped")
+	}
+
 	return err
 }
 
