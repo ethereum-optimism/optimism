@@ -147,6 +147,28 @@ func TestAgreeWithProposedOutput(t *testing.T) {
 	})
 }
 
+func TestMaxConcurrency(t *testing.T) {
+	t.Run("Valid", func(t *testing.T) {
+		expected := uint(345)
+		cfg := configForArgs(t, addRequiredArgs(config.TraceTypeAlphabet, "--max-concurrency", "345"))
+		require.Equal(t, expected, cfg.MaxConcurrency)
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		verifyArgsInvalid(
+			t,
+			"invalid value \"abc\" for flag -max-concurrency",
+			addRequiredArgs(config.TraceTypeAlphabet, "--max-concurrency", "abc"))
+	})
+
+	t.Run("Zero", func(t *testing.T) {
+		verifyArgsInvalid(
+			t,
+			"max-concurrency must not be 0",
+			addRequiredArgs(config.TraceTypeAlphabet, "--max-concurrency", "0"))
+	})
+}
+
 func TestCannonBin(t *testing.T) {
 	t.Run("NotRequiredForAlphabetTrace", func(t *testing.T) {
 		configForArgs(t, addRequiredArgsExcept(config.TraceTypeAlphabet, "--cannon-bin"))

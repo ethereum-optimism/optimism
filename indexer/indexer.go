@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"runtime/debug"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -34,7 +35,13 @@ func NewIndexer(logger log.Logger, chainConfig config.ChainConfig, rpcsConfig co
 		return nil, err
 	}
 
-	l1Etl, err := etl.NewL1ETL(logger, db, l1EthClient, chainConfig.L1StartHeight(), chainConfig.L1Contracts)
+	l1Cfg := &etl.Config{
+		LoopInterval:     time.Duration(chainConfig.L1PollingInterval) * time.Millisecond,
+		HeaderBufferSize: uint64(chainConfig.L1HeaderBufferSize),
+		StartHeight:      chainConfig.L1StartHeight(),
+	}
+
+	l1Etl, err := etl.NewL1ETL(l1Cfg, logger, db, l1EthClient, chainConfig.L1Contracts)
 	if err != nil {
 		return nil, err
 	}
@@ -44,8 +51,13 @@ func NewIndexer(logger log.Logger, chainConfig config.ChainConfig, rpcsConfig co
 		return nil, err
 	}
 
+	l2Cfg := &etl.Config{
+		LoopInterval:     time.Duration(chainConfig.L2PollingInterval) * time.Millisecond,
+		HeaderBufferSize: uint64(chainConfig.L2HeaderBufferSize),
+	}
+
 	// Currently defaults to the predeploys
-	l2Etl, err := etl.NewL2ETL(logger, db, l2EthClient)
+	l2Etl, err := etl.NewL2ETL(l2Cfg, logger, db, l2EthClient)
 	if err != nil {
 		return nil, err
 	}

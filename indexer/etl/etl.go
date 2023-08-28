@@ -3,6 +3,7 @@ package etl
 import (
 	"context"
 	"errors"
+	"math/big"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/node"
@@ -13,16 +14,16 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-const (
-	// NOTE - These values can be made configurable to allow for more fine grained control
-	// Additionally a default interval of 5 seconds may be too slow for reading L2 blocks provided
-	// the current rate of L2 block production on OP Stack chains (2 seconds per block)
-	defaultLoopInterval     = 5 * time.Second
-	defaultHeaderBufferSize = 500
-)
+type Config struct {
+	LoopInterval     time.Duration
+	HeaderBufferSize uint64
+	StartHeight      *big.Int
+}
 
 type ETL struct {
-	log log.Logger
+	log              log.Logger
+	loopInterval     time.Duration
+	headerBufferSize uint64
 
 	headerTraversal *node.HeaderTraversal
 	ethClient       *ethclient.Client
@@ -43,7 +44,7 @@ type ETLBatch struct {
 
 func (etl *ETL) Start(ctx context.Context) error {
 	done := ctx.Done()
-	pollTicker := time.NewTicker(defaultLoopInterval)
+	pollTicker := time.NewTicker(etl.loopInterval)
 	defer pollTicker.Stop()
 
 	etl.log.Info("starting etl...")
@@ -56,7 +57,7 @@ func (etl *ETL) Start(ctx context.Context) error {
 
 		case <-pollTicker.C:
 			if len(headers) == 0 {
-				newHeaders, err := etl.headerTraversal.NextFinalizedHeaders(defaultHeaderBufferSize)
+				newHeaders, err := etl.headerTraversal.NextFinalizedHeaders(etl.headerBufferSize)
 				if err != nil {
 					etl.log.Error("error querying for headers", "err", err)
 					continue
