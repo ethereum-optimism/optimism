@@ -18,7 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
 )
 
 type gossipNoop struct{}
@@ -68,8 +67,6 @@ func Main(cliCtx *cli.Context) error {
 	}
 
 	go p2pNode.DiscoveryProcess(ctx, logger, config, p2pConfig.TargetPeers())
-
-	opio.BlockOnInterrupts()
 
 	return nil
 }

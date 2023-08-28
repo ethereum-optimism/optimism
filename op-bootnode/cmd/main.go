@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"os"
 
 	"github.com/ethereum-optimism/optimism/op-bootnode/bootnode"
 	"github.com/ethereum-optimism/optimism/op-bootnode/flags"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 )
@@ -26,8 +28,13 @@ func main() {
 	app.Description = "Broadcasts incoming P2P peers to each other, enabling peer bootstrapping."
 	app.Action = bootnode.Main
 
-	err := app.Run(os.Args)
+	ctx, cancel := context.WithCancel(context.Background())
+	err := app.RunContext(ctx, os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
 	}
+
+	opio.BlockOnInterrupts()
+	log.Crit("Caught interrupt, shutting down...")
+	cancel()
 }

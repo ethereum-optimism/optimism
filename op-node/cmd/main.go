@@ -51,6 +51,7 @@ func main() {
 	// Set up logger with a default INFO level in case we fail to parse flags,
 	// otherwise the final critical log won't show what the parsing error was.
 	oplog.SetupDefaults()
+	ctx, cancel := context.WithCancel(context.Background())
 
 	app := cli.NewApp()
 	app.Version = VersionWithMeta
@@ -58,7 +59,7 @@ func main() {
 	app.Name = "op-node"
 	app.Usage = "Optimism Rollup Node"
 	app.Description = "The Optimism Rollup Node derives L2 block inputs from L1 data and drives an external L2 Execution Engine to build a L2 chain."
-	app.Action = RollupNodeMain
+	app.Action = curryMain(cancel)
 	app.Commands = []*cli.Command{
 		{
 			Name:        "p2p",
@@ -74,18 +75,35 @@ func main() {
 		},
 	}
 
-	err := app.Run(os.Args)
+	err := app.RunContext(ctx, os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
 	}
 }
 
-func RollupNodeMain(ctx *cli.Context) error {
+// curryMain transforms the batcher.Main function into an app.Action
+// This is done to capture the Version of the batcher.
+func curryMain(cancel func()) func(ctx *cli.Context) error {
+	return func(ctx *cli.Context) error {
+		shutdown, err := RollupNodeMain(ctx)
+		if err != nil {
+			return err
+		}
+
+		opio.BlockOnInterrupts()
+		log.Crit("Caught interrupt, shutting down...")
+		cancel()
+		shutdown()
+		return nil
+	}
+}
+
+func RollupNodeMain(ctx *cli.Context) (func(), error) {
 	log.Info("Initializing Rollup Node")
 	logCfg := oplog.ReadCLIConfig(ctx)
 	if err := logCfg.Check(); err != nil {
 		log.Error("Unable to create the log config", "error", err)
-		return err
+		return nil, err
 	}
 	log := oplog.NewLogger(logCfg)
 	opservice.ValidateEnvVars(flags.EnvVarPrefix, flags.Flags, log)
@@ -94,12 +112,12 @@ func RollupNodeMain(ctx *cli.Context) error {
 	cfg, err := opnode.NewConfig(ctx, log)
 	if err != nil {
 		log.Error("Unable to create the rollup node config", "error", err)
-		return err
+		return nil, err
 	}
 	snapshotLog, err := opnode.NewSnapshotLogger(ctx)
 	if err != nil {
 		log.Error("Unable to create snapshot root logger", "error", err)
-		return err
+		return nil, err
 	}
 
 	// Only pretty-print the banner if it is a terminal log. Other log it as key-value pairs.
@@ -112,15 +130,15 @@ func RollupNodeMain(ctx *cli.Context) error {
 	n, err := node.New(context.Background(), cfg, log, snapshotLog, VersionWithMeta, m)
 	if err != nil {
 		log.Error("Unable to create the rollup node", "error", err)
-		return err
+		return nil, err
 	}
 	log.Info("Starting rollup node", "version", VersionWithMeta)
 
 	if err := n.Start(context.Background()); err != nil {
 		log.Error("Unable to start rollup node", "error", err)
-		return err
+		return nil, err
 	}
-	defer n.Close()
+	close := func() { n.Close() }
 
 	m.RecordInfo(VersionWithMeta)
 	m.RecordUp()
@@ -147,7 +165,10 @@ func RollupNodeMain(ctx *cli.Context) error {
 				log.Error("heartbeat goroutine crashed", "err", err)
 			}
 		}()
-		defer beatCtxCancel()
+		close = func() {
+			close()
+			beatCtxCancel()
+		}
 	}
 
 	if cfg.Pprof.Enabled {
@@ -158,11 +179,12 @@ func RollupNodeMain(ctx *cli.Context) error {
 				log.Error("error starting pprof", "err", err)
 			}
 		}()
-		defer pprofCancel()
+		close = func() {
+			close()
+			pprofCancel()
+		}
 	}
 
-	opio.BlockOnInterrupts()
-
-	return nil
+	return close, nil
 
 }

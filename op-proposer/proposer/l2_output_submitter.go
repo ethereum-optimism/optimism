@@ -24,7 +24,6 @@ import (
 	opclient "github.com/ethereum-optimism/optimism/op-service/client"
 	"github.com/ethereum-optimism/optimism/op-service/eth"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -34,13 +33,13 @@ var supportedL2OutputVersion = eth.Bytes32{}
 
 // Main is the entrypoint into the L2 Output Submitter. This method executes the
 // service and blocks until the service exits.
-func Main(version string, cliCtx *cli.Context) error {
+func Main(version string, cliCtx *cli.Context) (func(), error) {
 	if err := flags.CheckRequired(cliCtx); err != nil {
-		return err
+		return nil, err
 	}
 	cfg := NewConfig(cliCtx)
 	if err := cfg.Check(); err != nil {
-		return fmt.Errorf("invalid CLI flags: %w", err)
+		return nil, fmt.Errorf("invalid CLI flags: %w", err)
 	}
 
 	l := oplog.NewLogger(cfg.LogConfig)
@@ -51,13 +50,13 @@ func Main(version string, cliCtx *cli.Context) error {
 	proposerConfig, err := NewL2OutputSubmitterConfigFromCLIConfig(cfg, l, m)
 	if err != nil {
 		l.Error("Unable to create the L2 Output Submitter", "error", err)
-		return err
+		return nil, err
 	}
 
 	l2OutputSubmitter, err := NewL2OutputSubmitter(*proposerConfig, l, m)
 	if err != nil {
 		l.Error("Unable to create the L2 Output Submitter", "error", err)
-		return err
+		return nil, err
 	}
 
 	l.Info("Starting L2 Output Submitter")
@@ -65,7 +64,7 @@ func Main(version string, cliCtx *cli.Context) error {
 	if err := l2OutputSubmitter.Start(); err != nil {
 		cancel()
 		l.Error("Unable to start L2 Output Submitter", "error", err)
-		return err
+		return nil, err
 	}
 	defer l2OutputSubmitter.Stop()
 
@@ -95,16 +94,13 @@ func Main(version string, cliCtx *cli.Context) error {
 	server := oprpc.NewServer(rpcCfg.ListenAddr, rpcCfg.ListenPort, version, oprpc.WithLogger(l))
 	if err := server.Start(); err != nil {
 		cancel()
-		return fmt.Errorf("error starting RPC server: %w", err)
+		return nil, fmt.Errorf("error starting RPC server: %w", err)
 	}
 
 	m.RecordInfo(version)
 	m.RecordUp()
 
-	opio.BlockOnInterrupts()
-	cancel()
-
-	return nil
+	return cancel, nil
 }
 
 // L2OutputSubmitter is responsible for proposing outputs

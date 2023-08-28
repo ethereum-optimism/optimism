@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/opio"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
@@ -22,13 +21,13 @@ import (
 // closure that executes the service and blocks until the service exits. The use
 // of a closure allows the parameters bound to the top-level main package, e.g.
 // GitVersion, to be captured and used once the function is executed.
-func Main(version string, cliCtx *cli.Context) error {
+func Main(version string, cliCtx *cli.Context) (func(), error) {
 	if err := flags.CheckRequired(cliCtx); err != nil {
-		return err
+		return nil, err
 	}
 	cfg := NewConfig(cliCtx)
 	if err := cfg.Check(); err != nil {
-		return fmt.Errorf("invalid CLI flags: %w", err)
+		return nil, fmt.Errorf("invalid CLI flags: %w", err)
 	}
 
 	l := oplog.NewLogger(cfg.LogConfig)
@@ -39,13 +38,13 @@ func Main(version string, cliCtx *cli.Context) error {
 	batchSubmitter, err := NewBatchSubmitterFromCLIConfig(cfg, l, m)
 	if err != nil {
 		l.Error("Unable to create Batch Submitter", "error", err)
-		return err
+		return nil, err
 	}
 
 	if !cfg.Stopped {
 		if err := batchSubmitter.Start(); err != nil {
 			l.Error("Unable to start Batch Submitter", "error", err)
-			return err
+			return nil, err
 		}
 	}
 
@@ -90,15 +89,15 @@ func Main(version string, cliCtx *cli.Context) error {
 	}
 	if err := server.Start(); err != nil {
 		cancel()
-		return fmt.Errorf("error starting RPC server: %w", err)
+		return nil, fmt.Errorf("error starting RPC server: %w", err)
 	}
 
 	m.RecordInfo(version)
 	m.RecordUp()
 
-	opio.BlockOnInterrupts()
-	if err := server.Stop(); err != nil {
-		l.Error("Error shutting down http server: %w", err)
-	}
-	return nil
+	return func() {
+		if err := server.Stop(); err != nil {
+			l.Error("Error shutting down http server: %w", err)
+		}
+	}, nil
 }

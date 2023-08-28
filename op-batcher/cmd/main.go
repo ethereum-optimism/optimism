@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/cmd/doc"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/opio"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -20,6 +22,8 @@ var (
 )
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	oplog.SetupDefaults()
 
 	app := cli.NewApp()
@@ -28,7 +32,7 @@ func main() {
 	app.Name = "op-batcher"
 	app.Usage = "Batch Submitter Service"
 	app.Description = "Service for generating and submitting L2 tx batches to L1"
-	app.Action = curryMain(Version)
+	app.Action = curryMain(cancel, Version)
 	app.Commands = []*cli.Command{
 		{
 			Name:        "doc",
@@ -36,16 +40,25 @@ func main() {
 		},
 	}
 
-	err := app.Run(os.Args)
+	err := app.RunContext(ctx, os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
 	}
 }
 
 // curryMain transforms the batcher.Main function into an app.Action
-// This is done to capture the Version of the batcher.
-func curryMain(version string) func(ctx *cli.Context) error {
+// This is done to capture the Version and closure of the batcher.
+func curryMain(cancel func(), version string) func(ctx *cli.Context) error {
 	return func(ctx *cli.Context) error {
-		return batcher.Main(version, ctx)
+		shutdown, err := batcher.Main(version, ctx)
+		if err != nil {
+			return err
+		}
+
+		opio.BlockOnInterrupts()
+		log.Crit("Caught interrupt, shutting down...")
+		cancel()
+		shutdown()
+		return nil
 	}
 }
