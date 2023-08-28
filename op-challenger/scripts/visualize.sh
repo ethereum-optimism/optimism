@@ -2,30 +2,19 @@
 
 set -euo pipefail
 
-if [ $# -eq 0 ]
-  then
-    echo "Missing Fault Dispute Game address argument"
-fi
+RPC=${1:?Must specify RPC address}
+GAME_ADDR=${2:?Must specify fault dispute game address}
 
-echo ""
-echo "Visualize the fault dispute game at https://dispute.clab.by/game?addr=$1"
-echo ""
+COUNT=$(cast call --rpc-url "${RPC}" "${GAME_ADDR}" 'claimDataLen() returns(uint256)')
+echo "Claim count: ${COUNT}"
+((COUNT=COUNT-1))
+for i in $(seq 0 "${COUNT}")
+do
+  CLAIM=$(cast call --rpc-url "${RPC}" "${GAME_ADDR}" 'claimData(uint256) returns(uint32 parentIndex, bool countered, bytes32 claim, uint128 position, uint128 clock)' "${i}")
+  SAVEIFS=$IFS   # Save current IFS (Internal Field Separator)
+  IFS=$'\n'      # Change IFS to newline char
+  CLAIM=($CLAIM) # split the string into an array by the same name
+  IFS=$SAVEIFS   # Restore original IFS
 
-DISPUTE_GAME_PROXY=$(jq .DisputeGameFactoryProxy .devnet/addresses.json)
-DISPUTE_GAME_PROXY=$(echo $DISPUTE_GAME_PROXY | tr -d '"')
-
-echo "----------------------------------------------------------------"
-echo " Dispute Game Factory at $DISPUTE_GAME_PROXY"
-echo "----------------------------------------------------------------"
-
-FAULT_GAME_ADDRESS=$1
-
-DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)
-DIR=$(echo ${DIR%/*/*})
-cd $DIR/packages/contracts-bedrock
-
-forge script scripts/FaultDisputeGameViz.s.sol \
-  --sig "remote(address)" $FAULT_GAME_ADDRESS \
-  --fork-url http://localhost:8545
-
-mv dispute_game.svg "$dir"
+  echo "${i}  Parent: ${CLAIM[0]} Countered: ${CLAIM[1]} Claim: ${CLAIM[2]} Position: ${CLAIM[3]} Clock ${CLAIM[4]}"
+done
