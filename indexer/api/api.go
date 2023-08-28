@@ -30,13 +30,13 @@ func NewApi(logger log.Logger, bv database.BridgeTransfersView) *Api {
 }
 
 func (a *Api) Listen(ctx context.Context, port int) error {
-	a.log.Info("starting api server", "port", port)
+	a.log.Info("api server listening...", "port", port)
 	server := http.Server{Addr: fmt.Sprintf(":%d", port), Handler: a.Router}
 	err := httputil.ListenAndServeContext(ctx, &server)
 	if err != nil {
-		a.log.Error("api server shutdown", "err", err)
+		a.log.Error("api server stopped", "err", err)
 	} else {
-		a.log.Info("api server shutdown")
+		a.log.Info("api server stopped")
 	}
 
 	return err
