@@ -10,6 +10,8 @@ import (
 
 var (
 	MetricsNamespace string = "etl"
+
+	_ Metricer = &metricer{}
 )
 
 type Metrics interface {
@@ -137,7 +139,7 @@ func (m *metricer) RecordInterval() func(error) {
 	timer := prometheus.NewTimer(m.metrics.intervalDuration.WithLabelValues(m.etl))
 	return func(err error) {
 		if err != nil {
-			//m.metrics.RecordBatchFailure()
+			m.RecordBatchFailure()
 		}
 
 		timer.ObserveDuration()
