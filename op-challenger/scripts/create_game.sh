@@ -36,7 +36,6 @@ echo "L1 Checkpoint: $L1_CHECKPOINT"
 # abi.encode(uint256(l2_block_number), uint256(l1 checkpoint))
 EXTRA_DATA=$(cast abi-encode "f(uint256,uint256)" "${L2_BLOCK_NUM}" "${L1_CHECKPOINT}")
 
-
 echo "Initializing the game"
 FAULT_GAME_DATA=$(cast send --rpc-url "${RPC}" ${SIGNER_ARGS} "${FACTORY_ADDR}" "create(uint8,bytes32,bytes) returns(address)" "${GAME_TYPE}" "${ROOT_CLAIM}" "${EXTRA_DATA}" --json)
 FAULT_GAME_ADDRESS=$(echo "${FAULT_GAME_DATA}" | jq -r '.logs[0].topics[1]' | cast parse-bytes32-address)

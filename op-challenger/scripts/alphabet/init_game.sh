@@ -15,7 +15,7 @@ make cannon-prestate
 make devnet-up
 
 DEVNET_SPONSOR="ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-DISPUTE_GAME_PROXY=$(jq -r .DisputeGameFactoryProxy $MONOREPO_DIR/.devnet/addresses.json)
+DISPUTE_GAME_FACTORY=$(jq -r .DisputeGameFactoryProxy $MONOREPO_DIR/.devnet/addresses.json)
 
 echo "----------------------------------------------------------------"
 echo " Dispute Game Factory at $DISPUTE_GAME_PROXY"
@@ -63,4 +63,4 @@ done
 # Alphabet game claim construction: keccak256(abi.encode(trace_index, trace[trace_index]))
 ROOT_CLAIM=$(cast keccak $(cast abi-encode "f(uint256,uint256)" 15 122))
 
-GAME_TYPE=255 ${SOURCE_DIR}/../create_game.sh http://localhost:8545 "${DISPUTE_GAME_PROXY}" "${ROOT_CLAIM}" --private-key "${DEVNET_SPONSOR}"
+GAME_TYPE=255 ${SOURCE_DIR}/../create_game.sh http://localhost:8545 "${DISPUTE_GAME_FACTORY}" "${ROOT_CLAIM}" --private-key "${DEVNET_SPONSOR}"
