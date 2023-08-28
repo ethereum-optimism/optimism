@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -112,10 +113,14 @@ func (rk rawKey) PreimageKey() [32]byte {
 }
 
 type ProcessPreimageOracle struct {
-	pCl *preimage.OracleClient
-	hCl *preimage.HintWriter
-	cmd *exec.Cmd
+	pCl      *preimage.OracleClient
+	hCl      *preimage.HintWriter
+	cmd      *exec.Cmd
+	waitErr  chan error
+	cancelIO context.CancelCauseFunc
 }
+
+const clientPollTimeout = time.Second * 15
 
 func NewProcessPreimageOracle(name string, args []string) (*ProcessPreimageOracle, error) {
 	if name == "" {
@@ -140,10 +145,18 @@ func NewProcessPreimageOracle(name string, args []string) (*ProcessPreimageOracl
 		pOracleRW.Reader(),
 		pOracleRW.Writer(),
 	}
+
+	// Note that the client file descriptors are not closed when the pre-image server exits.
+	// So we use the FilePoller to ensure that we don't get stuck in a blocking read/write.
+	ctx, cancelIO := context.WithCancelCause(context.Background())
+	preimageClientIO := preimage.NewFilePoller(ctx, pClientRW, clientPollTimeout)
+	hostClientIO := preimage.NewFilePoller(ctx, hClientRW, clientPollTimeout)
 	out := &ProcessPreimageOracle{
-		pCl: preimage.NewOracleClient(pClientRW),
-		hCl: preimage.NewHintWriter(hClientRW),
-		cmd: cmd,
+		pCl:      preimage.NewOracleClient(preimageClientIO),
+		hCl:      preimage.NewHintWriter(hostClientIO),
+		cmd:      cmd,
+		waitErr:  make(chan error),
+		cancelIO: cancelIO,
 	}
 	return out, nil
 }
@@ -166,23 +179,37 @@ func (p *ProcessPreimageOracle) Start() error {
 	if p.cmd == nil {
 		return nil
 	}
-	return p.cmd.Start()
+	err := p.cmd.Start()
+	go p.wait()
+	return err
 }
 
 func (p *ProcessPreimageOracle) Close() error {
 	if p.cmd == nil {
 		return nil
 	}
-	_ = p.cmd.Process.Signal(os.Interrupt)
-	// Go 1.20 feature, to introduce later
-	//p.cmd.WaitDelay = time.Second * 10
-	err := p.cmd.Wait()
-	if err, ok := err.(*exec.ExitError); ok {
-		if err.Success() {
-			return nil
-		}
+	// We first check if the process has already exited before signaling.
+	// Note: This is a teeny bit racy since the process could exit after the check
+	// above and another process is assigned the same pid.
+	select {
+	case err := <-p.waitErr:
+		return err
+	case <-time.After(time.Second * 1):
+		// give the wait goroutine time to reap process
 	}
-	return err
+	_ = p.cmd.Process.Signal(os.Interrupt)
+	return <-p.waitErr
+}
+
+func (p *ProcessPreimageOracle) wait() {
+	err := p.cmd.Wait()
+	var waitErr error
+	if err, ok := err.(*exec.ExitError); !ok || !err.Success() {
+		waitErr = err
+	}
+	p.cancelIO(fmt.Errorf("%w: pre-image server has exited", waitErr))
+	p.waitErr <- waitErr
+	close(p.waitErr)
 }
 
 type StepFn func(proof bool) (*mipsevm.StepWitness, error)
