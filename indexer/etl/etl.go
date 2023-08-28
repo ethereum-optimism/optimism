@@ -77,7 +77,7 @@ func (etl *ETL) Start(ctx context.Context) error {
 
 			// only clear the reference if we were able to process this batch
 			err := etl.processBatch(headers)
-			if err != nil {
+			if err == nil {
 				headers = nil
 			}
 
@@ -98,7 +98,8 @@ func (etl *ETL) processBatch(headers []types.Header) error {
 	etl.metrics.RecordBatchLatestHeight(lastHeader.Number)
 	headerMap := make(map[common.Hash]*types.Header, len(headers))
 	for i := range headers {
-		headerMap[headers[i].Hash()] = &headers[i]
+		header := headers[i]
+		headerMap[header.Hash()] = &header
 	}
 
 	headersWithLog := make(map[common.Hash]bool, len(headers))
@@ -125,7 +126,7 @@ func (etl *ETL) processBatch(headers []types.Header) error {
 		headersWithLog[log.BlockHash] = true
 	}
 
-	// ensure we use unique downstream reference for the constructed batch
+	// ensure we use unique downstream references for the etl batch
 	headersRef := headers
 	etl.etlBatches <- ETLBatch{Logger: batchLog, Headers: headersRef, HeaderMap: headerMap, Logs: logs, HeadersWithLog: headersWithLog}
 	return nil
