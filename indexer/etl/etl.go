@@ -21,14 +21,15 @@ type Config struct {
 }
 
 type ETL struct {
-	log              log.Logger
+	log     log.Logger
+	metrics Metricer
+
 	loopInterval     time.Duration
 	headerBufferSize uint64
+	headerTraversal  *node.HeaderTraversal
 
-	headerTraversal *node.HeaderTraversal
-	ethClient       *ethclient.Client
-	contracts       []common.Address
-
+	ethClient  *ethclient.Client
+	contracts  []common.Address
 	etlBatches chan ETLBatch
 }
 
@@ -47,8 +48,11 @@ func (etl *ETL) Start(ctx context.Context) error {
 	pollTicker := time.NewTicker(etl.loopInterval)
 	defer pollTicker.Stop()
 
-	etl.log.Info("starting etl...")
+	// A reference that'll stay populated between intervals
+	// in the event of failures in order to retry.
 	var headers []types.Header
+
+	etl.log.Info("starting etl...")
 	for {
 		select {
 		case <-done:
@@ -56,61 +60,73 @@ func (etl *ETL) Start(ctx context.Context) error {
 			return nil
 
 		case <-pollTicker.C:
-			if len(headers) == 0 {
+			done := etl.metrics.RecordInterval()
+			if len(headers) > 0 {
+				etl.log.Info("retrying previous batch")
+			} else {
 				newHeaders, err := etl.headerTraversal.NextFinalizedHeaders(etl.headerBufferSize)
 				if err != nil {
 					etl.log.Error("error querying for headers", "err", err)
-					continue
-				}
-				if len(newHeaders) == 0 {
-					// Logged as an error since this loop should be operating at a longer interval than the provider
-					etl.log.Error("no new headers. processor unexpectedly at head...")
-					continue
+				} else if len(newHeaders) == 0 {
+					etl.log.Warn("no new headers. processor unexpectedly at head...")
 				}
 
 				headers = newHeaders
-			} else {
-				etl.log.Info("retrying previous batch")
+				etl.metrics.RecordBatchHeaders(len(newHeaders))
 			}
 
-			firstHeader := headers[0]
-			lastHeader := headers[len(headers)-1]
-			batchLog := etl.log.New("batch_start_block_number", firstHeader.Number, "batch_end_block_number", lastHeader.Number)
-			batchLog.Info("extracting batch", "size", len(headers))
-
-			headerMap := make(map[common.Hash]*types.Header, len(headers))
-			for i := range headers {
-				headerMap[headers[i].Hash()] = &headers[i]
-			}
-
-			headersWithLog := make(map[common.Hash]bool, len(headers))
-			logFilter := ethereum.FilterQuery{FromBlock: firstHeader.Number, ToBlock: lastHeader.Number, Addresses: etl.contracts}
-			logs, err := etl.ethClient.FilterLogs(context.Background(), logFilter)
+			// only clear the reference if we were able to process this batch
+			err := etl.processBatch(headers)
 			if err != nil {
-				batchLog.Info("unable to extract logs within batch", "err", err)
-				continue // spin and try again
+				headers = nil
 			}
 
-			for i := range logs {
-				if _, ok := headerMap[logs[i].BlockHash]; !ok {
-					// NOTE. Definitely an error state if the none of the headers were re-orged out in between
-					// the blocks and logs retrieval operations. However, we need to gracefully handle reorgs
-					batchLog.Error("log found with block hash not in the batch", "block_hash", logs[i].BlockHash, "log_index", logs[i].Index)
-					return errors.New("parsed log with a block hash not in the fetched batch")
-				}
-				headersWithLog[logs[i].BlockHash] = true
-			}
-
-			if len(logs) > 0 {
-				batchLog.Info("detected logs", "size", len(logs))
-			}
-
-			// create a new reference such that subsequent changes to `headers` does not affect the reference
-			headersRef := headers
-			batch := ETLBatch{Logger: batchLog, Headers: headersRef, HeaderMap: headerMap, Logs: logs, HeadersWithLog: headersWithLog}
-
-			headers = nil
-			etl.etlBatches <- batch
+			done(err)
 		}
 	}
+}
+
+func (etl *ETL) processBatch(headers []types.Header) error {
+	if len(headers) == 0 {
+		return nil
+	}
+
+	firstHeader, lastHeader := headers[0], headers[len(headers)-1]
+	batchLog := etl.log.New("batch_start_block_number", firstHeader.Number, "batch_end_block_number", lastHeader.Number)
+	batchLog.Info("extracting batch", "size", len(headers))
+
+	etl.metrics.RecordBatchLatestHeight(lastHeader.Number)
+	headerMap := make(map[common.Hash]*types.Header, len(headers))
+	for i := range headers {
+		headerMap[headers[i].Hash()] = &headers[i]
+	}
+
+	headersWithLog := make(map[common.Hash]bool, len(headers))
+	logFilter := ethereum.FilterQuery{FromBlock: firstHeader.Number, ToBlock: lastHeader.Number, Addresses: etl.contracts}
+	logs, err := etl.ethClient.FilterLogs(context.Background(), logFilter)
+	if err != nil {
+		batchLog.Info("unable to extract logs", "err", err)
+		return err
+	}
+	if len(logs) > 0 {
+		batchLog.Info("detected logs", "size", len(logs))
+	}
+
+	for i := range logs {
+		log := logs[i]
+		if _, ok := headerMap[log.BlockHash]; !ok {
+			// NOTE. Definitely an error state if the none of the headers were re-orged out in between
+			// the blocks and logs retrieval operations. However, we need to gracefully handle reorgs
+			batchLog.Error("log found with block hash not in the batch", "block_hash", logs[i].BlockHash, "log_index", logs[i].Index)
+			return errors.New("parsed log with a block hash not in the batch")
+		}
+
+		etl.metrics.RecordBatchLog(log.Address)
+		headersWithLog[log.BlockHash] = true
+	}
+
+	// ensure we use unique downstream reference for the constructed batch
+	headersRef := headers
+	etl.etlBatches <- ETLBatch{Logger: batchLog, Headers: headersRef, HeaderMap: headerMap, Logs: logs, HeadersWithLog: headersWithLog}
+	return nil
 }
