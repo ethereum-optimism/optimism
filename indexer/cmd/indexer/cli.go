@@ -66,6 +66,53 @@ func runApi(ctx *cli.Context) error {
 	return api.Listen(ctx.Context, cfg.HTTPServer.Port)
 }
 
+func runApiMetrics(ctx *cli.Context) error {
+	log := log.NewLogger(log.ReadCLIConfig(ctx)).New("role", "api")
+	cfg, err := config.LoadConfig(log, ctx.String(ConfigFlag.Name))
+	if err != nil {
+		log.Error("failed to load config", "err", err)
+		return err
+	}
+
+	db, err := database.NewDB(cfg.DB)
+	if err != nil {
+		log.Error("failed to connect to database", "err", err)
+		return err
+	}
+
+	api := api.NewApi(log, db.BridgeTransfers)
+	return api.Listen(ctx.Context, cfg.Metrics.Port)
+}
+
+func runApiAndMetrics(ctx *cli.Context) error {
+	log := log.NewLogger(log.ReadCLIConfig(ctx))
+
+	// Ensure both processes complete before returning.
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		err := runApi(ctx)
+		if err != nil {
+			log.Error("api process non-zero exit", "err", err)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		err := runApiMetrics(ctx)
+		if err != nil {
+			log.Error("indexer process non-zero exit", "err", err)
+		}
+	}()
+
+	// We purposefully return no error since the indexer and api
+	// have no inter-dependencies. We simply rely on the logs to
+	// report a non-zero exit for either process.
+	wg.Wait()
+	return nil
+}
+
 func runAll(ctx *cli.Context) error {
 	log := log.NewLogger(log.ReadCLIConfig(ctx))
 
@@ -83,6 +130,13 @@ func runAll(ctx *cli.Context) error {
 	go func() {
 		defer wg.Done()
 		err := runIndexer(ctx)
+		if err != nil {
+			log.Error("indexer process non-zero exit", "err", err)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		err := runApiMetrics(ctx)
 		if err != nil {
 			log.Error("indexer process non-zero exit", "err", err)
 		}
@@ -107,7 +161,7 @@ func newCli(GitCommit string, GitDate string) *cli.App {
 				Name:        "api",
 				Flags:       flags,
 				Description: "Runs the api service",
-				Action:      runApi,
+				Action:      runApiAndMetrics,
 			},
 			{
 				Name:        "index",
